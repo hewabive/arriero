@@ -201,11 +201,11 @@ export async function runWithProxyTrace(
       }
       beforeRecordHook?.();
       recorded = true;
-      inflight.end();
       trace.durationMs =
         frozenDurationMs ?? Math.round(performance.now() - started);
       trace.status = response?.status ?? 0;
       trace.ok = response ? response.status < 400 : false;
+      inflight.end(trace.ok);
       apiProxyStats.record(ApiProxyRequestTraceSchema.parse(trace));
     },
     markDeferred() {

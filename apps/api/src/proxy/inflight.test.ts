@@ -338,6 +338,25 @@ test("retains ended requests with frozen timings, then sweeps them", () => {
   assert.equal(registry.getDetail(handle.id), null);
 });
 
+test("end(false) marks the entry failed and blocks further actions", () => {
+  apiProxyInflight.reset();
+  const handle = apiProxyInflight.begin({
+    modelId: "m",
+    protocol: "openai",
+    targetId: "tf",
+    stream: true,
+  });
+  handle.dispatched();
+  handle.end(false);
+  const view = only("tf");
+  assert.equal(view.phase, "failed");
+  assert.equal(apiProxyInflight.requestFinish(handle.id), "not-found");
+  assert.equal(apiProxyInflight.requestCancel(handle.id), "not-found");
+
+  handle.end();
+  assert.equal(only("tf").phase, "failed");
+});
+
 test("sweeps inflight entries with no progress past the stale threshold", () => {
   let clock = 0;
   const registry = new ApiProxyInflightRegistry({

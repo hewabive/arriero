@@ -88,7 +88,7 @@ export type ApiProxyInflightHandle = {
   interruptSignal(): AbortSignal;
   finishSignal(): AbortSignal;
   cancelSignal(): AbortSignal;
-  end(): void;
+  end(ok?: boolean): void;
 };
 
 function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
@@ -318,12 +318,12 @@ export class ApiProxyInflightRegistry {
         }
         return entry.cancelController.signal;
       },
-      end: () => {
+      end: (ok = true) => {
         if (entry.endedAt !== null) {
           return;
         }
         entry.endedAt = this.clock();
-        entry.phase = "done";
+        entry.phase = ok ? "done" : "failed";
       },
     };
   }

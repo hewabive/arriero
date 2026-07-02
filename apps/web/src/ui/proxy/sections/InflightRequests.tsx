@@ -1,7 +1,8 @@
-import type {
-  ApiProxyInflightInterruptResult,
-  ApiProxyInflightStopResult,
-  ApiProxyTargetRuntime,
+import {
+  apiProxyInflightPhaseEnded,
+  type ApiProxyInflightInterruptResult,
+  type ApiProxyInflightStopResult,
+  type ApiProxyTargetRuntime,
 } from "@llama-manager/core";
 import {
   ActionIcon,
@@ -307,14 +308,17 @@ function InflightDetailModal({
     queryFn: () => getApiProxyInflightDetail(id as string),
     enabled: id !== null,
     retry: false,
-    refetchInterval: (query) =>
-      id !== null &&
-      query.state.status !== "error" &&
-      query.state.data?.data.phase !== "done"
+    refetchInterval: (query) => {
+      const phase = query.state.data?.data.phase;
+      return id !== null &&
+        query.state.status !== "error" &&
+        !(phase && apiProxyInflightPhaseEnded(phase))
         ? 700
-        : false,
+        : false;
+    },
   });
   const detail = detailQuery.data?.data;
+  const finished = detail ? apiProxyInflightPhaseEnded(detail.phase) : false;
   return (
     <Modal
       opened={id !== null}
@@ -350,19 +354,19 @@ function InflightDetailModal({
               <InflightInterruptButton
                 id={detail.id}
                 interruptible={detail.interruptible}
-                finished={detail.phase === "done"}
+                finished={finished}
                 full
               />
               <InflightStopButton
                 id={detail.id}
                 action="finish"
-                finished={detail.phase === "done"}
+                finished={finished}
                 full
               />
               <InflightStopButton
                 id={detail.id}
                 action="cancel"
-                finished={detail.phase === "done"}
+                finished={finished}
                 full
               />
             </Group>
@@ -444,7 +448,7 @@ export function InflightRequests({
           const timings = inflightTimings(req);
           const hasOutput =
             req.reasoningChars > 0 || req.answerChars > 0 || req.toolCalls > 0;
-          const finished = req.phase === "done";
+          const finished = apiProxyInflightPhaseEnded(req.phase);
           return (
             <Stack
               key={req.id}

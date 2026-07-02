@@ -1,5 +1,6 @@
 import {
   ApiProxyRuntimeSnapshotSchema,
+  apiProxyInflightPhaseEnded,
   type ApiEndpointRecord,
   type ApiProxyInflightRequest,
   type ApiProxyModelState,
@@ -314,7 +315,9 @@ function deriveApiProxyTargetRuntime(input: {
   checkedAt: string;
 }): ApiProxyTargetRuntime {
   const inflight = input.endpointEnabled ? (input.inflight ?? []) : [];
-  const activeInflight = inflight.filter((request) => request.phase !== "done");
+  const activeInflight = inflight.filter(
+    (request) => !apiProxyInflightPhaseEnded(request.phase),
+  );
   const inFlight = (input.inFlight ?? false) || activeInflight.length > 0;
   const derived: DerivedState = !input.endpointEnabled
     ? {

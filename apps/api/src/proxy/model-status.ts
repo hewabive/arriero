@@ -1,11 +1,12 @@
-import type {
-  ApiProxyInflightRequest,
-  ApiProxyModelRecord,
-  ApiProxyModelState,
-  ApiProxyPipelineRecord,
-  ApiProxyPublicModelLoadState,
-  ApiProxyPublicModelStatus,
-  ApiProxyRuntimeSnapshot,
+import {
+  apiProxyInflightPhaseEnded,
+  type ApiProxyInflightRequest,
+  type ApiProxyModelRecord,
+  type ApiProxyModelState,
+  type ApiProxyPipelineRecord,
+  type ApiProxyPublicModelLoadState,
+  type ApiProxyPublicModelStatus,
+  type ApiProxyRuntimeSnapshot,
 } from "@llama-manager/core";
 
 import { apiProxyInflight } from "./inflight.js";
@@ -104,7 +105,8 @@ export function deriveApiProxyModelStatus(input: {
   inflight: ApiProxyInflightRequest[];
 }): ApiProxyPublicModelStatus {
   const activeRequests = input.inflight.filter(
-    (request) => request.phase !== "queued" && request.phase !== "done",
+    (request) =>
+      request.phase !== "queued" && !apiProxyInflightPhaseEnded(request.phase),
   ).length;
   const queuedRequests = input.inflight.filter(
     (request) => request.phase === "queued",

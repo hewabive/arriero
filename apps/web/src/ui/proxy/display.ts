@@ -1,7 +1,8 @@
-import type {
-  ApiProxyInflightRequest,
-  ApiProxyPlanPreview,
-  ApiProxyTargetRuntime,
+import {
+  apiProxyInflightPhaseEnded,
+  type ApiProxyInflightRequest,
+  type ApiProxyPlanPreview,
+  type ApiProxyTargetRuntime,
 } from "@llama-manager/core";
 
 import { formatLocalDateTime } from "../utils/time";
@@ -24,6 +25,8 @@ export function inflightPhaseColor(phase: ApiProxyInflightRequest["phase"]) {
       return "grape";
     case "done":
       return "gray";
+    case "failed":
+      return "red";
     default:
       return "gray";
   }
@@ -53,8 +56,9 @@ export function inflightLabel(req: ApiProxyInflightRequest): string {
     }
     return "";
   }
-  if (req.phase === "generating" || req.phase === "done") {
-    if (req.phase === "done" && req.completionTokens === 0) {
+  const ended = apiProxyInflightPhaseEnded(req.phase);
+  if (req.phase === "generating" || ended) {
+    if (ended && req.completionTokens === 0) {
       return "";
     }
     const parts = [`${req.completionTokens} tok`];

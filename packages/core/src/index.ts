@@ -1314,7 +1314,14 @@ export const ApiProxyInflightPhaseSchema = z.enum([
   "generating",
   "tool",
   "done",
+  "failed",
 ]);
+
+export function apiProxyInflightPhaseEnded(
+  phase: z.infer<typeof ApiProxyInflightPhaseSchema>,
+): boolean {
+  return phase === "done" || phase === "failed";
+}
 
 export const ApiProxyInflightToolCallSchema = z.object({
   name: z.string().nullable(),
