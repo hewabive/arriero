@@ -20,7 +20,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Eye, FastForward, Square } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   cancelApiProxyInflight,
@@ -34,6 +34,63 @@ import {
   inflightPrefillPercent,
   inflightTimings,
 } from "../display";
+
+function InflightAction(props: {
+  tooltip: string;
+  ariaLabel: string;
+  color: string;
+  Icon: typeof Square;
+  fullLabel: string;
+  full?: boolean | undefined;
+  disabled?: boolean | undefined;
+  loading?: boolean | undefined;
+  armed?: boolean | undefined;
+  onClick: () => void;
+}) {
+  const { Icon } = props;
+  const loading = props.loading ?? false;
+  const disabled = props.disabled ?? false;
+  const disabledAttr = disabled ? { "data-disabled": true } : {};
+  const handleClick = (event: React.MouseEvent) => {
+    if (disabled || loading) {
+      event.preventDefault();
+      return;
+    }
+    props.onClick();
+  };
+  if (props.full) {
+    return (
+      <Tooltip label={props.tooltip}>
+        <Button
+          size="compact-xs"
+          variant={props.armed ? "filled" : "light"}
+          color={props.color}
+          leftSection={<Icon size={13} />}
+          loading={loading}
+          {...disabledAttr}
+          onClick={handleClick}
+        >
+          {props.fullLabel}
+        </Button>
+      </Tooltip>
+    );
+  }
+  return (
+    <Tooltip label={props.tooltip}>
+      <ActionIcon
+        size="xs"
+        variant={props.armed ? "filled" : "subtle"}
+        color={props.color}
+        aria-label={props.ariaLabel}
+        loading={loading}
+        {...disabledAttr}
+        onClick={handleClick}
+      >
+        <Icon size={13} />
+      </ActionIcon>
+    </Tooltip>
+  );
+}
 
 function interruptStatusMessage(
   status: ApiProxyInflightInterruptResult["status"],
@@ -52,7 +109,15 @@ function interruptStatusMessage(
   }
 }
 
-function InflightInterruptButton({ id, full }: { id: string; full?: boolean }) {
+function InflightInterruptButton({
+  id,
+  interruptible,
+  full,
+}: {
+  id: string;
+  interruptible: boolean;
+  full?: boolean | undefined;
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: () => interruptApiProxyInflight(id),
@@ -75,33 +140,22 @@ function InflightInterruptButton({ id, full }: { id: string; full?: boolean }) {
       });
     },
   });
-  if (full) {
-    return (
-      <Button
-        size="compact-xs"
-        variant="light"
-        color="orange"
-        leftSection={<FastForward size={13} />}
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        Force answer
-      </Button>
-    );
-  }
   return (
-    <Tooltip label="Interrupt thinking → force answer">
-      <ActionIcon
-        size="xs"
-        variant="subtle"
-        color="orange"
-        aria-label="Interrupt thinking, force answer"
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        <FastForward size={13} />
-      </ActionIcon>
-    </Tooltip>
+    <InflightAction
+      tooltip={
+        interruptible
+          ? "Interrupt thinking → force answer"
+          : "Force answer — available while the model is thinking"
+      }
+      ariaLabel="Interrupt thinking, force answer"
+      color="orange"
+      Icon={FastForward}
+      fullLabel="Force answer"
+      full={full}
+      disabled={!interruptible}
+      loading={mutation.isPending}
+      onClick={() => mutation.mutate()}
+    />
   );
 }
 
@@ -150,10 +204,18 @@ function InflightStopButton({
 }: {
   id: string;
   action: StopAction;
-  full?: boolean;
+  full?: boolean | undefined;
 }) {
   const queryClient = useQueryClient();
   const meta = STOP_ACTION_META[action];
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) {
+      return;
+    }
+    const timer = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [armed]);
   const mutation = useMutation({
     mutationFn: () =>
       action === "finish"
@@ -178,34 +240,45 @@ function InflightStopButton({
       });
     },
   });
-  const Icon = meta.Icon;
-  if (full) {
-    return (
-      <Button
-        size="compact-xs"
-        variant="light"
-        color={meta.color}
-        leftSection={<Icon size={13} />}
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        {meta.label}
-      </Button>
-    );
-  }
   return (
-    <Tooltip label={meta.tooltip}>
-      <ActionIcon
-        size="xs"
-        variant="subtle"
-        color={meta.color}
-        aria-label={meta.tooltip}
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        <Icon size={13} />
-      </ActionIcon>
-    </Tooltip>
+    <InflightAction
+      tooltip={armed ? "Click again to confirm" : meta.tooltip}
+      ariaLabel={meta.tooltip}
+      color={meta.color}
+      Icon={meta.Icon}
+      fullLabel={armed ? "Confirm cancel" : meta.label}
+      full={full}
+      loading={mutation.isPending}
+      armed={armed}
+      onClick={() => {
+        if (action === "cancel" && !armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
+        mutation.mutate();
+      }}
+    />
+  );
+}
+
+function InflightViewButton({
+  hasOutput,
+  onOpen,
+}: {
+  hasOutput: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <InflightAction
+      tooltip={hasOutput ? "View output" : "No output captured yet"}
+      ariaLabel="View output"
+      color="violet"
+      Icon={Eye}
+      fullLabel="View output"
+      disabled={!hasOutput}
+      onClick={onOpen}
+    />
   );
 }
 
@@ -256,10 +329,12 @@ function InflightDetailModal({
                 {detail.completionTokens} answer tok
               </Text>
             </Group>
-            <Group gap="xs" wrap="wrap">
-              {detail.interruptible && (
-                <InflightInterruptButton id={detail.id} full />
-              )}
+            <Group gap="xs" wrap="nowrap">
+              <InflightInterruptButton
+                id={detail.id}
+                interruptible={detail.interruptible}
+                full
+              />
               <InflightStopButton id={detail.id} action="finish" full />
               <InflightStopButton id={detail.id} action="cancel" full />
             </Group>
@@ -339,39 +414,42 @@ export function InflightRequests({
           const percent = inflightPrefillPercent(req);
           const label = inflightLabel(req);
           const timings = inflightTimings(req);
+          const hasOutput =
+            req.reasoningChars > 0 || req.answerChars > 0 || req.toolCalls > 0;
           return (
             <Stack key={req.id} gap={2}>
-              <Group gap={6} wrap="wrap">
-                <Badge
-                  size="xs"
-                  color={inflightPhaseColor(req.phase)}
-                  variant="light"
-                >
-                  {req.phase}
-                </Badge>
-                {label && (
-                  <Text size="xs" c="dimmed">
-                    {label}
-                  </Text>
-                )}
-                {(req.reasoningChars > 0 ||
-                  req.answerChars > 0 ||
-                  req.toolCalls > 0) && (
-                  <Tooltip label="View output">
-                    <ActionIcon
-                      size="xs"
-                      variant="subtle"
-                      color="violet"
-                      aria-label="View output"
-                      onClick={() => setOpenId(req.id)}
-                    >
-                      <Eye size={13} />
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-                {req.interruptible && <InflightInterruptButton id={req.id} />}
-                <InflightStopButton id={req.id} action="finish" />
-                <InflightStopButton id={req.id} action="cancel" />
+              <Group
+                gap={6}
+                wrap="nowrap"
+                justify="space-between"
+                align="flex-start"
+              >
+                <Group gap={6} wrap="wrap" style={{ minWidth: 0 }}>
+                  <Badge
+                    size="xs"
+                    color={inflightPhaseColor(req.phase)}
+                    variant="light"
+                  >
+                    {req.phase}
+                  </Badge>
+                  {label && (
+                    <Text size="xs" c="dimmed">
+                      {label}
+                    </Text>
+                  )}
+                </Group>
+                <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
+                  <InflightViewButton
+                    hasOutput={hasOutput}
+                    onOpen={() => setOpenId(req.id)}
+                  />
+                  <InflightInterruptButton
+                    id={req.id}
+                    interruptible={req.interruptible}
+                  />
+                  <InflightStopButton id={req.id} action="finish" />
+                  <InflightStopButton id={req.id} action="cancel" />
+                </Group>
               </Group>
               {timings && (
                 <Text size="xs" c="dimmed">
