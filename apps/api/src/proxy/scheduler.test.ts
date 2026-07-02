@@ -775,3 +775,68 @@ test("planApiProxyRequest evicts a wanted peer only when every peer is wanted", 
     1,
   );
 });
+
+test("planApiProxyRequest never evicts a pinned peer even when it is the only victim", () => {
+  const request = planRequest({
+    mode: "request",
+    requestedTargetId: "new",
+    now: "2026-05-30T10:00:10.000Z",
+    pools: [
+      { poolId: "gpu0", kind: "gpu", budgetBytes: 100, usedByOthersBytes: 0 },
+    ],
+    pinnedTargetIds: ["resident"],
+    targets: [
+      target({
+        id: "resident",
+        name: "Resident",
+        instanceId: "inst-resident",
+        model: "a",
+        priority: 10,
+        state: "ready",
+        idleSince: "2026-05-30T10:00:00.000Z",
+        draws: [{ poolId: "gpu0", bytes: 80 }],
+      }),
+      target({
+        id: "new",
+        name: "New chat",
+        instanceId: "inst-new",
+        model: "b",
+        priority: 100,
+        state: "unloaded",
+        draws: [{ poolId: "gpu0", bytes: 80 }],
+      }),
+    ],
+  });
+
+  const plan = planApiProxyRequest(request, { allowBusyEviction: true });
+  assert.equal(plan.ok, false);
+  assert.equal(
+    plan.actions.filter((item) => item.type === "unload-model").length,
+    0,
+  );
+});
+
+test("planApiProxyIdleMaintenance skips pinned targets past their idle threshold", () => {
+  const plan = planApiProxyIdleMaintenance(
+    planRequest({
+      mode: "idle",
+      now: "2026-05-30T10:00:12.000Z",
+      pinnedTargetIds: ["urgent"],
+      targets: [
+        target({
+          id: "urgent",
+          name: "Urgent chat",
+          instanceId: "inst-urgent",
+          model: "chat",
+          priority: 100,
+          state: "ready",
+          idleSince: "2026-05-30T10:00:00.000Z",
+          idleUnloadMs: 10_000,
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(plan.ok, true);
+  assert.deepEqual(plan.actions, []);
+});

@@ -1433,6 +1433,7 @@ export const ApiProxySchedulerPlanRequestSchema = z.object({
   targets: z.array(ApiProxyTargetPlanInputSchema),
   pools: z.array(ApiProxySchedulerPoolInputSchema).default([]),
   protectedTargetIds: z.array(ApiProxyIdSchema).optional(),
+  pinnedTargetIds: z.array(ApiProxyIdSchema).optional(),
 });
 
 export const ApiProxySchedulerPlanSchema = z.object({

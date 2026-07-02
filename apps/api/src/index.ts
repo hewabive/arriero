@@ -12,6 +12,8 @@ import {
 } from "./http.js";
 import { runMigrations } from "./migrations/index.js";
 import { ensureConfigScaffold } from "./proxy/config-files.js";
+import { apiProxyPendingResume } from "./proxy/pending-resume.js";
+import { apiProxyStreamSessions } from "./proxy/stream-session.js";
 import { collectApiProxyPipelineGraphWarnings } from "./proxy/pipeline-validation.js";
 import {
   getApiProxyTarget,
@@ -43,6 +45,19 @@ const prunedArgumentCatalogs = pruneMissingArgumentCatalogs();
 const prunedModelCache = pruneMissingCachedModels();
 const reconciliation = reconcileProcessRuns(listInstances());
 const prunedProcessRuns = pruneProcessRunHistory();
+const pendingResume = apiProxyPendingResume.adopt();
+if (pendingResume.adopted > 0) {
+  logger.info(
+    { adopted: pendingResume.adopted },
+    "pending stream sessions adopted for resume",
+  );
+  void pendingResume.verified.then(() => {
+    logger.info(
+      { remaining: apiProxyPendingResume.size() },
+      "pending stream sessions verified against llama-server",
+    );
+  });
+}
 
 for (const warning of collectApiProxyPipelineGraphWarnings({
   pipelines: listApiProxyPipelines(),
@@ -136,6 +151,16 @@ async function shutdown(signal: NodeJS.Signals) {
   logger.info({ signal }, "llama-manager api shutting down");
 
   try {
+    const resumeSessions = apiProxyStreamSessions.beginPersist();
+    const persisted = apiProxyPendingResume.persist(
+      config.shutdown.stopManagedOnExit ? [] : resumeSessions,
+    );
+    if (persisted > 0) {
+      logger.info(
+        { persisted },
+        "in-flight stream sessions persisted for resume",
+      );
+    }
     stopApiProxyIdleMaintenance();
     stopApiProxyRuntimeReconcile();
     await closeServer();

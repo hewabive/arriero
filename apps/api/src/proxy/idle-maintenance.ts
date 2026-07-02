@@ -15,11 +15,9 @@ import {
 } from "../llama/probe.js";
 import { supervisor } from "../process/supervisor.js";
 import { computeDomainCoordinator } from "./domain-coordinator.js";
+import { apiProxyPendingResume } from "./pending-resume.js";
 import { computeDomains } from "./resource-domains.js";
-import {
-  addApiProxySavedSlotId,
-  apiProxySlotFilename,
-} from "./repository.js";
+import { addApiProxySavedSlotId, apiProxySlotFilename } from "./repository.js";
 import { getApiProxyRuntimeSnapshot } from "./runtime-snapshot.js";
 import {
   planApiProxyIdleMaintenance,
@@ -70,6 +68,7 @@ export async function buildApiProxyPlanRequest(input: {
     targets,
     pools: schedulerPoolInputs(targetInstanceIds),
     protectedTargetIds: [...computeDomainCoordinator.wantedTargetIds()],
+    pinnedTargetIds: apiProxyPendingResume.targetIds(),
   };
   if (input.requestedTargetId) {
     request.requestedTargetId = input.requestedTargetId;
@@ -116,6 +115,7 @@ export async function getApiProxyPlanPreview(input: {
 }
 
 async function runApiProxyIdleMaintenancePass() {
+  apiProxyPendingResume.sweep();
   const preview = await getApiProxyPlanPreview({ mode: "idle" });
   const actionsByTarget = new Map<
     string,

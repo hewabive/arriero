@@ -26,7 +26,6 @@ function isManaged(target: ApiProxyTargetPlanInput) {
   return Boolean(target.instanceId);
 }
 
-
 function elapsedMs(now: string, since: string | null | undefined) {
   if (!since) {
     return null;
@@ -221,6 +220,7 @@ function planMemoryEvictions(
     request.pools.map((pool) => [pool.poolId, pool]),
   );
   const protectedTargetIds = new Set(request.protectedTargetIds ?? []);
+  const pinnedTargetIds = new Set(request.pinnedTargetIds ?? []);
   const kept = collectMemoryPeerInstances(request, target, freedInstanceIds);
 
   const freeFor = (poolId: string): number => {
@@ -255,9 +255,12 @@ function planMemoryEvictions(
     const deficitSet = new Set(deficits);
     const eligible = (peer: MemoryPeerInstance, busy: boolean): boolean =>
       peer.preemptible &&
+      !pinnedTargetIds.has(peer.target.id) &&
       peer.busy === busy &&
       drawOnPools(peer, deficitSet) > 0 &&
-      (busy ? peer.priority < target.priority : peer.priority <= target.priority);
+      (busy
+        ? peer.priority < target.priority
+        : peer.priority <= target.priority);
 
     const idleVictims = [...kept.values()].filter((peer) =>
       eligible(peer, false),
@@ -358,9 +361,10 @@ export function planApiProxyIdleMaintenance(
     throw new Error("planApiProxyIdleMaintenance expects idle mode");
   }
 
+  const pinnedTargetIds = new Set(request.pinnedTargetIds ?? []);
   const actions: ApiProxySchedulerAction[] = [];
   const unloadCandidates = request.targets.filter((target) => {
-    if (!isActive(target) || isBusy(target)) {
+    if (!isActive(target) || isBusy(target) || pinnedTargetIds.has(target.id)) {
       return false;
     }
     if (target.idleUnloadMs === null) {

@@ -65,6 +65,9 @@ export const config = {
     idleMaintenanceIntervalMs: Number(
       process.env.LLAMA_MANAGER_PROXY_IDLE_INTERVAL_MS ?? 30_000,
     ),
+    resumeClaimWindowMs: Number(
+      process.env.LLAMA_MANAGER_PROXY_RESUME_CLAIM_WINDOW_MS ?? 180_000,
+    ),
   },
   auth: {
     password: process.env.LLAMA_MANAGER_ADMIN_PASSWORD ?? null,
