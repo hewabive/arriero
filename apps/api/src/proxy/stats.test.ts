@@ -153,3 +153,12 @@ test("reset clears traces and buckets", () => {
   assert.equal(snap.totals.requests, 0);
   assert.equal(apiProxyStats.recentTraces().length, 0);
 });
+
+test("counts resumed replays in totals and per-model entries", () => {
+  apiProxyStats.record(trace({ at: HOUR, modelId: "m1", resumed: true }));
+  apiProxyStats.record(trace({ at: HOUR, modelId: "m1" }));
+
+  const snapshot = apiProxyStats.snapshot();
+  assert.equal(snapshot.totals.resumed, 1);
+  assert.equal(snapshot.buckets[0]!.byModel[0]!.resumed, 1);
+});

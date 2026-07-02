@@ -10,6 +10,9 @@ import { resolve } from "node:path";
 import type { Readable } from "node:stream";
 
 import { config } from "../config.js";
+import { beginApiProxyDrain } from "../proxy/drain.js";
+import { apiProxyInflight } from "../proxy/inflight.js";
+import { apiProxyStreamSessions } from "../proxy/stream-session.js";
 import { createUpdateJob, getUpdateJob, patchUpdateJob } from "./repository.js";
 import { currentCommit, getManagerVersion } from "./version.js";
 
@@ -218,13 +221,25 @@ class UpdateRunner {
   }
 
   private scheduleRestart() {
-    setTimeout(() => {
+    beginApiProxyDrain();
+    const deadline = Date.now() + config.update.drainTimeoutMs;
+    const fire = () => {
       try {
         process.kill(process.pid, "SIGTERM");
       } catch {
         process.exit(0);
       }
-    }, RESTART_DELAY_MS);
+    };
+    const poll = setInterval(() => {
+      const nonResumable =
+        apiProxyInflight.activeCount() - apiProxyStreamSessions.size();
+      if (nonResumable > 0 && Date.now() < deadline) {
+        return;
+      }
+      clearInterval(poll);
+      setTimeout(fire, RESTART_DELAY_MS);
+    }, 500);
+    poll.unref?.();
   }
 
   private async rollback(fromCommit: string | null, logStream: WriteStream) {

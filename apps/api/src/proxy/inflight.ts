@@ -340,6 +340,16 @@ export class ApiProxyInflightRegistry {
     }
   }
 
+  activeCount(): number {
+    let count = 0;
+    for (const entry of this.entries.values()) {
+      if (entry.endedAt === null) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
   snapshotByTarget(): Map<string, ApiProxyInflightRequest[]> {
     const at = this.clock();
     this.sweepStale(at);

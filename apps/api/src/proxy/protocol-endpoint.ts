@@ -9,6 +9,7 @@ import type { Context } from "hono";
 import { getInstance, listInstances } from "../instances/repository.js";
 import { getNode } from "../nodes/repository.js";
 import { observeBodyCompletion } from "./body-completion.js";
+import { apiProxyDrainBody, isApiProxyDraining } from "./drain.js";
 import { delegateApiProxyServe } from "./delegate.js";
 import { getApiEndpointById } from "./endpoints.js";
 import { externalEndpointTarget } from "./external-target.js";
@@ -248,6 +249,10 @@ export async function proxyProtocolEndpoint(
   adapter: ApiProxyProtocolAdapter,
   operation: ApiProxyProtocolOperation,
 ) {
+  if (isApiProxyDraining()) {
+    c.header("retry-after", "5");
+    return c.json(apiProxyDrainBody(operation.protocol), 503);
+  }
   return runWithProxyTrace(operation, ({ trace, recorder, inflight }) => {
     const source = resolveApiProxySourceByKey(
       extractRequestApiKey(c.req.raw.headers),

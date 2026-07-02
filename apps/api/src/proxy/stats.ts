@@ -14,6 +14,7 @@ type MutableCounters = {
   requests: number;
   errors: number;
   cacheHits: number;
+  resumed: number;
   completionTokens: number;
   promptTokens: number;
   genMs: number;
@@ -30,6 +31,7 @@ function emptyCounters(): MutableCounters {
     requests: 0,
     errors: 0,
     cacheHits: 0,
+    resumed: 0,
     completionTokens: 0,
     promptTokens: 0,
     genMs: 0,
@@ -44,6 +46,9 @@ function applyTrace(target: MutableCounters, trace: ApiProxyRequestTrace) {
   }
   if (trace.cache === "hit" || trace.cache === "coalesced") {
     target.cacheHits += 1;
+  }
+  if (trace.resumed) {
+    target.resumed += 1;
   }
   if (trace.usage) {
     target.completionTokens += trace.usage.completionTokens;
@@ -64,6 +69,7 @@ function toTotals(counters: MutableCounters): ApiProxyStatsTotals {
     requests: counters.requests,
     errors: counters.errors,
     cacheHits: counters.cacheHits,
+    resumed: counters.resumed,
     completionTokens: counters.completionTokens,
     promptTokens: counters.promptTokens,
     genMs: counters.genMs,
@@ -134,6 +140,7 @@ class ApiProxyStats {
       totals.requests += bucket.requests;
       totals.errors += bucket.errors;
       totals.cacheHits += bucket.cacheHits;
+      totals.resumed += bucket.resumed;
       totals.completionTokens += bucket.completionTokens;
       totals.promptTokens += bucket.promptTokens;
       totals.genMs += bucket.genMs;

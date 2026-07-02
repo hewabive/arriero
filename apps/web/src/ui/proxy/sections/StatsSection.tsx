@@ -315,15 +315,27 @@ const CACHE_BADGE_HINTS: Record<
 
 function CacheBadge(props: { trace: ApiProxyRequestTrace }) {
   const cache = props.trace.cache;
-  if (!cache) {
+  const resumed = props.trace.resumed;
+  if (!cache && !resumed) {
     return <>—</>;
   }
   return (
-    <Tooltip label={CACHE_BADGE_HINTS[cache]}>
-      <Badge size="xs" variant="light" color={CACHE_BADGE_COLORS[cache]}>
-        {cache}
-      </Badge>
-    </Tooltip>
+    <Group gap={4} wrap="nowrap">
+      {resumed && (
+        <Tooltip label="replayed from a llama-server stream session that survived a manager restart">
+          <Badge size="xs" variant="light" color="violet">
+            resumed
+          </Badge>
+        </Tooltip>
+      )}
+      {cache && (
+        <Tooltip label={CACHE_BADGE_HINTS[cache]}>
+          <Badge size="xs" variant="light" color={CACHE_BADGE_COLORS[cache]}>
+            {cache}
+          </Badge>
+        </Tooltip>
+      )}
+    </Group>
   );
 }
 

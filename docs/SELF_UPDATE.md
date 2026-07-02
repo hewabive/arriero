@@ -17,10 +17,14 @@ snapshot → git-pull (--ff-only) → install (pnpm install) → build (pnpm bui
 
 - **snapshot** records the current commit so a failed step can roll back
   (`git reset --hard <commit>`); the node is never left on a half-built tree.
-- **restart** is reached only on a clean build. It self-`SIGTERM`s the process,
-  reusing the normal graceful shutdown (the HTTP server closes; managed
-  `llama-server` children are **not** stopped). The supervisor brings the
-  process back up on the freshly built `dist/`.
+- **restart** is reached only on a clean build. It first drains the proxy
+  (new public requests get 503 + `Retry-After`, and non-resumable in-flight
+  requests get up to `LLAMA_MANAGER_UPDATE_DRAIN_TIMEOUT_MS` to finish —
+  see `docs/STREAM_RESUME.md` for how resumable generations survive the
+  restart), then self-`SIGTERM`s the process, reusing the normal graceful
+  shutdown (the HTTP server closes; managed `llama-server` children are
+  **not** stopped). The supervisor brings the process back up on the freshly
+  built `dist/`.
 
 The job exposes `willRestart`; the UI watches the `restart` step (and the
 dropped connection), then polls `GET /api/version` until the commit changes and

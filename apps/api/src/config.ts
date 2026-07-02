@@ -69,6 +69,11 @@ export const config = {
       process.env.LLAMA_MANAGER_PROXY_RESUME_CLAIM_WINDOW_MS ?? 180_000,
     ),
   },
+  update: {
+    drainTimeoutMs: Number(
+      process.env.LLAMA_MANAGER_UPDATE_DRAIN_TIMEOUT_MS ?? 10_000,
+    ),
+  },
   auth: {
     password: process.env.LLAMA_MANAGER_ADMIN_PASSWORD ?? null,
     passwordHash: process.env.LLAMA_MANAGER_ADMIN_PASSWORD_HASH ?? null,
