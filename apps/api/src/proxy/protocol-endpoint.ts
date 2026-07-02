@@ -101,6 +101,10 @@ import { apiProxySlotTracker } from "./slot-tracker.js";
 import { extractRequestApiKey, resolveApiProxySourceByKey } from "./sources.js";
 import { apiProxyStats } from "./stats.js";
 import {
+  apiProxyStreamResumeKey,
+  apiProxyStreamSessions,
+} from "./stream-session.js";
+import {
   createAnthropicTranslationStream,
   prepareUpstreamExchange,
   translateOpenAiErrorText,
@@ -206,6 +210,7 @@ export async function runWithProxyTrace(
       trace.status = response?.status ?? 0;
       trace.ok = response ? response.status < 400 : false;
       inflight.end(trace.ok);
+      apiProxyStreamSessions.release(inflight.id);
       apiProxyStats.record(ApiProxyRequestTraceSchema.parse(trace));
     },
     markDeferred() {
@@ -1003,6 +1008,36 @@ export async function serveResolvedTarget(input: {
       return null;
     };
 
+    const streamSession =
+      instanceId !== null &&
+      resumableEndpoints.has(operation.endpoint) &&
+      (route.request.stream || bufferCodec !== null)
+        ? apiProxyStreamSessions.register({
+            inflightId: inflight.id,
+            instanceId,
+            targetId: decision.target.id,
+            modelId: route.request.modelId,
+            baseUrl,
+            authHeaders,
+            protocol: operation.protocol,
+            endpoint: operation.endpoint,
+            stream: route.request.stream,
+            resumeKey: apiProxyStreamResumeKey({
+              instanceId,
+              path: exchange.path,
+              modelId: decision.target.model ?? route.request.modelId,
+              body: forwardBody,
+            }),
+          })
+        : null;
+    if (streamSession) {
+      stopSignal.addEventListener(
+        "abort",
+        () => apiProxyStreamSessions.release(inflight.id),
+        { once: true },
+      );
+    }
+
     try {
       markDispatched();
       const upstream = await forwardApiProxyRequest({
@@ -1012,7 +1047,9 @@ export async function serveResolvedTarget(input: {
         search: new URL(c.req.url).search,
         headers: exchange.headers,
         body: forwardBody,
-        upstreamHeaders: authHeaders,
+        upstreamHeaders: streamSession
+          ? { ...authHeaders, "x-conversation-id": streamSession.convId }
+          : authHeaders,
         modelOverride: decision.target.model,
         signal: stopSignal,
       });
