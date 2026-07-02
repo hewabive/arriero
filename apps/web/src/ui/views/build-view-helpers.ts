@@ -14,9 +14,14 @@ export function buildStatusColor(status: BuildJob["status"]) {
 export function buildStepColor(status: BuildJob["steps"][number]["status"]) {
   if (status === "succeeded") return "green";
   if (status === "running") return "yellow";
+  if (status === "warning") return "orange";
   if (status === "failed") return "red";
   if (status === "skipped") return "gray";
   return "blue";
+}
+
+export function buildJobHasWarnings(job: BuildJob) {
+  return job.steps.some((item) => item.status === "warning");
 }
 
 export function buildStepLabel(name: BuildJob["steps"][number]["name"]) {

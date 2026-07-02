@@ -1772,6 +1772,7 @@ export const BuildJobStepStatusSchema = z.enum([
   "pending",
   "running",
   "succeeded",
+  "warning",
   "failed",
   "skipped",
 ]);

@@ -232,23 +232,23 @@ class LlamaBuildRunner {
         if (exitCode !== 0) {
           if (plannedStep.name === "build-fit-params") {
             this.markStep(jobId, plannedStep.name, {
-              status: "skipped",
+              status: "warning",
               finishedAt: nowIso(),
               exitCode,
             });
             logStream.write(
-              `\n# ${plannedStep.name} did not build (exit ${exitCode}); the exact memory estimate will be unavailable for binaries from this build — continuing (non-fatal)\n\n`,
+              `\n# WARNING: ${plannedStep.name} failed (exit ${exitCode}); the exact memory estimate will be unavailable for binaries from this build — continuing (non-fatal). If the failure is "No rule to make target", upstream likely renamed the CMake target.\n\n`,
             );
             continue;
           }
           if (plannedStep.name === "build-rpc-server") {
             this.markStep(jobId, plannedStep.name, {
-              status: "skipped",
+              status: "warning",
               finishedAt: nowIso(),
               exitCode,
             });
             logStream.write(
-              `\n# ${plannedStep.name} did not build (exit ${exitCode}); the rpc-server worker for multi-machine offload will be unavailable from this build — continuing (non-fatal)\n\n`,
+              `\n# WARNING: ${plannedStep.name} failed (exit ${exitCode}); the rpc-server worker for multi-machine offload will be unavailable from this build — continuing (non-fatal). If the failure is "No rule to make target", upstream likely renamed the CMake target.\n\n`,
             );
             continue;
           }
@@ -277,9 +277,23 @@ class LlamaBuildRunner {
 
       const binaryPath = detectBinaryPath(job.settings);
       this.finish(jobId, "succeeded", 0, binaryPath, null);
+      const rpcStep = job.steps.find(
+        (item) => item.name === "build-rpc-server",
+      );
+      const rpcBuiltThisJob = !rpcStep || rpcStep.status === "succeeded";
+      if (job.settings.rpc && !rpcBuiltThisJob) {
+        const staleRpcBinary = detectRpcServerBinaryPath(job.settings);
+        if (staleRpcBinary) {
+          logStream.write(
+            `\n# not registering ${staleRpcBinary}: build-rpc-server did not succeed in this job, the file is a stale artifact of a previous build\n`,
+          );
+        }
+      }
       const builtBinaries = [
         binaryPath,
-        ...(job.settings.rpc ? [detectRpcServerBinaryPath(job.settings)] : []),
+        ...(job.settings.rpc && rpcBuiltThisJob
+          ? [detectRpcServerBinaryPath(job.settings)]
+          : []),
       ];
       for (const path of builtBinaries) {
         if (!path) {

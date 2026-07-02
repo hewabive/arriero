@@ -14,6 +14,7 @@ import {
 
 import { formatLocalDateTime } from "../utils/time";
 import {
+  buildJobHasWarnings,
   buildStatusColor,
   buildStepColor,
   buildStepLabel,
@@ -36,9 +37,16 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
             <Paper key={job.id} withBorder p="sm" radius="sm">
               <Stack gap="xs">
                 <Group justify="space-between" align="flex-start">
-                  <Badge color={buildStatusColor(job.status)} variant="light">
-                    {job.status}
-                  </Badge>
+                  <Group gap={4}>
+                    <Badge color={buildStatusColor(job.status)} variant="light">
+                      {job.status}
+                    </Badge>
+                    {buildJobHasWarnings(job) && (
+                      <Badge color="orange" variant="light">
+                        warnings
+                      </Badge>
+                    )}
+                  </Group>
                   <Text c="dimmed" size="xs">
                     {formatLocalDateTime(job.startedAt)}
                   </Text>
@@ -88,9 +96,19 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
               {jobs.map((job) => (
                 <Table.Tr key={job.id}>
                   <Table.Td>
-                    <Badge color={buildStatusColor(job.status)} variant="light">
-                      {job.status}
-                    </Badge>
+                    <Group gap={4} wrap="nowrap">
+                      <Badge
+                        color={buildStatusColor(job.status)}
+                        variant="light"
+                      >
+                        {job.status}
+                      </Badge>
+                      {buildJobHasWarnings(job) && (
+                        <Badge color="orange" variant="light">
+                          warnings
+                        </Badge>
+                      )}
+                    </Group>
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{formatLocalDateTime(job.startedAt)}</Text>
