@@ -67,6 +67,14 @@ export const capabilityDefinitions: CapabilityDefinition[] = [
     modelScoped: true,
   },
   {
+    id: "stream-resume",
+    label: "Stream resume",
+    category: "runtime",
+    method: "POST",
+    endpoint: "/v1/streams/lookup",
+    body: () => ({ conversation_ids: [] }),
+  },
+  {
     id: "models",
     label: "Models",
     category: "models",

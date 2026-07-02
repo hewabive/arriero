@@ -45,6 +45,10 @@ const ignoredEndpoints = new Map<string, string>([
   ["/models/unload", "Router model management (handled separately)"],
   ["/models/sse", "Router model-state event stream (handled separately)"],
   ["/slots/:id_slot", "Slot cache save/restore/erase, handled by slot actions"],
+  [
+    "/v1/stream/:conv_id",
+    "SSE replay of a session probed via /v1/streams/lookup",
+  ],
   ["/v1/audio/speech", "Text-to-speech, requires a dedicated talker model"],
   ["/audio/speech", "Text-to-speech, requires a dedicated talker model"],
 ]);

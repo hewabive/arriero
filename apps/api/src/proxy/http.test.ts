@@ -54,6 +54,18 @@ test("proxyRequestHeaders drops hop-by-hop and request-owned headers", () => {
   assert.equal(headers.has("host"), false);
 });
 
+test("proxyRequestHeaders drops client stream-session headers", () => {
+  const headers = proxyRequestHeaders({
+    "X-Conversation-Id": "conv-1",
+    "X-Stream-Resume": "1",
+    "x-request-id": "abc",
+  });
+
+  assert.equal(headers.has("x-conversation-id"), false);
+  assert.equal(headers.has("x-stream-resume"), false);
+  assert.equal(headers.get("x-request-id"), "abc");
+});
+
 test("proxyResponseHeaders drops hop-by-hop and decoded-body headers", () => {
   const headers = proxyResponseHeaders({
     "content-type": "application/json",
