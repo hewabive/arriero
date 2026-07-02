@@ -104,7 +104,7 @@ export function deriveApiProxyModelStatus(input: {
   inflight: ApiProxyInflightRequest[];
 }): ApiProxyPublicModelStatus {
   const activeRequests = input.inflight.filter(
-    (request) => request.phase !== "queued",
+    (request) => request.phase !== "queued" && request.phase !== "done",
   ).length;
   const queuedRequests = input.inflight.filter(
     (request) => request.phase === "queued",

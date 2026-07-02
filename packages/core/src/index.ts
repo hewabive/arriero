@@ -1313,6 +1313,7 @@ export const ApiProxyInflightPhaseSchema = z.enum([
   "thinking",
   "generating",
   "tool",
+  "done",
 ]);
 
 export const ApiProxyInflightToolCallSchema = z.object({

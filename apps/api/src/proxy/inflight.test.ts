@@ -41,7 +41,9 @@ test("tracks phase transitions, prompt and completion tokens", () => {
   assert.equal(view.thinkingMs, null);
 
   handle.end();
-  assert.equal(apiProxyInflight.snapshotByTarget().get("t1"), undefined);
+  view = only("t1");
+  assert.equal(view.phase, "done");
+  assert.equal(view.interruptible, false);
 });
 
 test("splits prefill and thinking when reasoning precedes content", () => {
@@ -183,7 +185,10 @@ test("captures reasoning/answer buffers and exposes them via getDetail", () => {
   assert.equal(after.phase, "generating");
 
   handle.end();
-  assert.equal(apiProxyInflight.getDetail(handle.id), null);
+  const ended = apiProxyInflight.getDetail(handle.id);
+  assert.ok(ended);
+  assert.equal(ended.phase, "done");
+  assert.equal(ended.answerText, "Hi");
 });
 
 test("caps the reasoning buffer and flags truncation", () => {
@@ -294,6 +299,43 @@ test("finish and cancel abort their signals in any phase", () => {
   handle.end();
   assert.equal(apiProxyInflight.requestFinish(handle.id), "not-found");
   assert.equal(apiProxyInflight.requestCancel(handle.id), "not-found");
+});
+
+test("retains ended requests with frozen timings, then sweeps them", () => {
+  let clock = 0;
+  const registry = new ApiProxyInflightRegistry({
+    now: () => clock,
+    endedRetainMs: 1000,
+  });
+  const handle = registry.begin({
+    modelId: "m",
+    protocol: "openai",
+    targetId: "te",
+    stream: true,
+  });
+  clock = 100;
+  handle.dispatched();
+  clock = 200;
+  handle.firstToken(5);
+  handle.appendAnswer("Hi");
+  clock = 600;
+  handle.end();
+
+  clock = 900;
+  const view = registry.snapshotByTarget().get("te")?.[0];
+  assert.ok(view);
+  assert.equal(view.phase, "done");
+  assert.equal(view.generatingMs, 400);
+  const detail = registry.getDetail(handle.id);
+  assert.ok(detail);
+  assert.equal(detail.answerText, "Hi");
+  assert.equal(registry.requestFinish(handle.id), "not-found");
+  assert.equal(registry.requestCancel(handle.id), "not-found");
+  assert.equal(registry.requestForceAnswer(handle.id), "not-found");
+
+  clock = 1700;
+  assert.equal(registry.snapshotByTarget().get("te"), undefined);
+  assert.equal(registry.getDetail(handle.id), null);
 });
 
 test("sweeps inflight entries with no progress past the stale threshold", () => {

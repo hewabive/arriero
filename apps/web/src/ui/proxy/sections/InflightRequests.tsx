@@ -112,10 +112,12 @@ function interruptStatusMessage(
 function InflightInterruptButton({
   id,
   interruptible,
+  finished,
   full,
 }: {
   id: string;
   interruptible: boolean;
+  finished?: boolean | undefined;
   full?: boolean | undefined;
 }) {
   const queryClient = useQueryClient();
@@ -143,16 +145,18 @@ function InflightInterruptButton({
   return (
     <InflightAction
       tooltip={
-        interruptible
-          ? "Interrupt thinking → force answer"
-          : "Force answer — available while the model is thinking"
+        finished
+          ? "Request already finished"
+          : interruptible
+            ? "Interrupt thinking → force answer"
+            : "Force answer — available while the model is thinking"
       }
       ariaLabel="Interrupt thinking, force answer"
       color="orange"
       Icon={FastForward}
       fullLabel="Force answer"
       full={full}
-      disabled={!interruptible}
+      disabled={!interruptible || finished}
       loading={mutation.isPending}
       onClick={() => mutation.mutate()}
     />
@@ -200,10 +204,12 @@ function stopStatusMessage(
 function InflightStopButton({
   id,
   action,
+  finished,
   full,
 }: {
   id: string;
   action: StopAction;
+  finished?: boolean | undefined;
   full?: boolean | undefined;
 }) {
   const queryClient = useQueryClient();
@@ -242,12 +248,19 @@ function InflightStopButton({
   });
   return (
     <InflightAction
-      tooltip={armed ? "Click again to confirm" : meta.tooltip}
+      tooltip={
+        finished
+          ? "Request already finished"
+          : armed
+            ? "Click again to confirm"
+            : meta.tooltip
+      }
       ariaLabel={meta.tooltip}
       color={meta.color}
       Icon={meta.Icon}
       fullLabel={armed ? "Confirm cancel" : meta.label}
       full={full}
+      disabled={finished}
       loading={mutation.isPending}
       armed={armed}
       onClick={() => {
@@ -295,7 +308,11 @@ function InflightDetailModal({
     enabled: id !== null,
     retry: false,
     refetchInterval: (query) =>
-      id !== null && query.state.status !== "error" ? 700 : false,
+      id !== null &&
+      query.state.status !== "error" &&
+      query.state.data?.data.phase !== "done"
+        ? 700
+        : false,
   });
   const detail = detailQuery.data?.data;
   return (
@@ -333,10 +350,21 @@ function InflightDetailModal({
               <InflightInterruptButton
                 id={detail.id}
                 interruptible={detail.interruptible}
+                finished={detail.phase === "done"}
                 full
               />
-              <InflightStopButton id={detail.id} action="finish" full />
-              <InflightStopButton id={detail.id} action="cancel" full />
+              <InflightStopButton
+                id={detail.id}
+                action="finish"
+                finished={detail.phase === "done"}
+                full
+              />
+              <InflightStopButton
+                id={detail.id}
+                action="cancel"
+                finished={detail.phase === "done"}
+                full
+              />
             </Group>
           </Group>
           {detailQuery.isError && (
@@ -416,8 +444,13 @@ export function InflightRequests({
           const timings = inflightTimings(req);
           const hasOutput =
             req.reasoningChars > 0 || req.answerChars > 0 || req.toolCalls > 0;
+          const finished = req.phase === "done";
           return (
-            <Stack key={req.id} gap={2}>
+            <Stack
+              key={req.id}
+              gap={2}
+              style={finished ? { opacity: 0.6 } : undefined}
+            >
               <Group
                 gap={6}
                 wrap="nowrap"
@@ -446,9 +479,18 @@ export function InflightRequests({
                   <InflightInterruptButton
                     id={req.id}
                     interruptible={req.interruptible}
+                    finished={finished}
                   />
-                  <InflightStopButton id={req.id} action="finish" />
-                  <InflightStopButton id={req.id} action="cancel" />
+                  <InflightStopButton
+                    id={req.id}
+                    action="finish"
+                    finished={finished}
+                  />
+                  <InflightStopButton
+                    id={req.id}
+                    action="cancel"
+                    finished={finished}
+                  />
                 </Group>
               </Group>
               {timings && (

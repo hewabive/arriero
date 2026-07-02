@@ -314,7 +314,8 @@ function deriveApiProxyTargetRuntime(input: {
   checkedAt: string;
 }): ApiProxyTargetRuntime {
   const inflight = input.endpointEnabled ? (input.inflight ?? []) : [];
-  const inFlight = (input.inFlight ?? false) || inflight.length > 0;
+  const activeInflight = inflight.filter((request) => request.phase !== "done");
+  const inFlight = (input.inFlight ?? false) || activeInflight.length > 0;
   const derived: DerivedState = !input.endpointEnabled
     ? {
         state: "error",
@@ -330,7 +331,10 @@ function deriveApiProxyTargetRuntime(input: {
           health: input.health,
           inFlight,
         });
-  const activeRequests = Math.max(derived.activeRequests, inflight.length);
+  const activeRequests = Math.max(
+    derived.activeRequests,
+    activeInflight.length,
+  );
   const tracker = updateTracker({
     targetId: input.target.id,
     state: derived.state,

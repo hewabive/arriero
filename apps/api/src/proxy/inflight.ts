@@ -34,9 +34,11 @@ type InflightEntry = {
   interruptController: AbortController | null;
   finishController: AbortController | null;
   cancelController: AbortController | null;
+  endedAt: number | null;
 };
 
 const DEFAULT_INFLIGHT_STALE_AFTER_MS = 90 * 60 * 1000;
+const DEFAULT_INFLIGHT_ENDED_RETAIN_MS = 15 * 1000;
 const REASONING_BUFFER_CAP = 256 * 1024;
 const ANSWER_BUFFER_CAP = 64 * 1024;
 const TOOL_ARGS_BUFFER_CAP = 16 * 1024;
@@ -56,6 +58,7 @@ function entryInterruptible(entry: InflightEntry): boolean {
 type ApiProxyInflightRegistryOptions = {
   now?: () => number;
   staleAfterMs?: number;
+  endedRetainMs?: number;
 };
 
 export type ApiProxyInflightHandle = {
@@ -89,11 +92,12 @@ export type ApiProxyInflightHandle = {
 };
 
 function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
+  const endAt = entry.endedAt ?? at;
   const waitingMs = Math.max(
     0,
-    Math.round((entry.dispatchedAt ?? at) - entry.enqueuedAt),
+    Math.round((entry.dispatchedAt ?? endAt) - entry.enqueuedAt),
   );
-  const prefillEndAt = entry.reasoningStartedAt ?? entry.firstTokenAt ?? at;
+  const prefillEndAt = entry.reasoningStartedAt ?? entry.firstTokenAt ?? endAt;
   const prefillMs =
     entry.dispatchedAt === null
       ? null
@@ -103,12 +107,12 @@ function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
       ? null
       : Math.max(
           0,
-          Math.round((entry.firstTokenAt ?? at) - entry.reasoningStartedAt),
+          Math.round((entry.firstTokenAt ?? endAt) - entry.reasoningStartedAt),
         );
   const generatingMs =
     entry.firstTokenAt === null
       ? null
-      : Math.max(0, Math.round(at - entry.firstTokenAt));
+      : Math.max(0, Math.round(endAt - entry.firstTokenAt));
   return {
     id: entry.id,
     modelId: entry.modelId,
@@ -135,10 +139,13 @@ export class ApiProxyInflightRegistry {
   private readonly entries = new Map<string, InflightEntry>();
   private readonly clock: () => number;
   private readonly staleAfterMs: number;
+  private readonly endedRetainMs: number;
 
   constructor(options: ApiProxyInflightRegistryOptions = {}) {
     this.clock = options.now ?? (() => performance.now());
     this.staleAfterMs = options.staleAfterMs ?? DEFAULT_INFLIGHT_STALE_AFTER_MS;
+    this.endedRetainMs =
+      options.endedRetainMs ?? DEFAULT_INFLIGHT_ENDED_RETAIN_MS;
   }
 
   begin(input: {
@@ -174,6 +181,7 @@ export class ApiProxyInflightRegistry {
       interruptController: null,
       finishController: null,
       cancelController: null,
+      endedAt: null,
     };
     this.entries.set(entry.id, entry);
     const touch = () => {
@@ -311,14 +319,22 @@ export class ApiProxyInflightRegistry {
         return entry.cancelController.signal;
       },
       end: () => {
-        this.entries.delete(entry.id);
+        if (entry.endedAt !== null) {
+          return;
+        }
+        entry.endedAt = this.clock();
+        entry.phase = "done";
       },
     };
   }
 
   private sweepStale(at: number): void {
     for (const [id, entry] of this.entries) {
-      if (at - entry.lastProgressAt > this.staleAfterMs) {
+      const expired =
+        entry.endedAt !== null
+          ? at - entry.endedAt > this.endedRetainMs
+          : at - entry.lastProgressAt > this.staleAfterMs;
+      if (expired) {
         this.entries.delete(id);
       }
     }
@@ -389,7 +405,7 @@ export class ApiProxyInflightRegistry {
 
   requestForceAnswer(id: string): ApiProxyInflightInterruptResult["status"] {
     const entry = this.entries.get(id);
-    if (!entry) {
+    if (!entry || entry.endedAt !== null) {
       return "not-found";
     }
     if (!entry.interruptible) {
@@ -407,7 +423,7 @@ export class ApiProxyInflightRegistry {
 
   requestFinish(id: string): ApiProxyInflightStopResult["status"] {
     const entry = this.entries.get(id);
-    if (!entry) {
+    if (!entry || entry.endedAt !== null) {
       return "not-found";
     }
     if (entry.finishController === null) {
@@ -419,7 +435,7 @@ export class ApiProxyInflightRegistry {
 
   requestCancel(id: string): ApiProxyInflightStopResult["status"] {
     const entry = this.entries.get(id);
-    if (!entry) {
+    if (!entry || entry.endedAt !== null) {
       return "not-found";
     }
     if (entry.cancelController === null) {
