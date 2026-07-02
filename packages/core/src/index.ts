@@ -1251,6 +1251,7 @@ export const ApiProxyRequestTraceSchema = z.object({
   slotId: z.number().int().min(0).nullable().default(null),
   cacheOrigin: z.enum(["live", "restored", "fresh"]).nullable().default(null),
   cache: z.enum(["hit", "store", "coalesced"]).nullable().default(null),
+  resumed: z.boolean().default(false),
   textReplacementCount: z.number().int().min(0).default(0),
   routeTrace: z.array(ApiProxyRouteTraceStepSchema).default([]),
   files: z.array(ApiProxyTraceFileSchema).default([]),

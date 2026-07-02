@@ -22,6 +22,7 @@ function trace(
     slotId: null,
     cacheOrigin: null,
     cache: null,
+    resumed: false,
     textReplacementCount: 0,
     routeTrace: [],
     files: [],

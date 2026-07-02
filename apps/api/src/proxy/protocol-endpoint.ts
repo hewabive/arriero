@@ -86,6 +86,10 @@ import {
   type ApiProxyResponseCaptureSink,
 } from "./response-capture.js";
 import {
+  claimApiProxyResumedSession,
+  serveResumedStreamSession,
+} from "./resume-replay.js";
+import {
   consumeResumableSse,
   createResumableBufferState,
   finalFromState,
@@ -760,6 +764,32 @@ export async function serveResolvedTarget(input: {
       ...(extraTarget ? { extraTarget } : {}),
     });
 
+  const resumeTarget = getTarget(route.targetId);
+  const resumeClaim = claimApiProxyResumedSession({
+    operation,
+    adapter,
+    request: route.request,
+    target: resumeTarget,
+    headers: c.req.raw.headers,
+  });
+  if (resumeClaim && resumeTarget) {
+    trace.targetName = resumeTarget.name;
+    trace.translated = resumeClaim.translateAnthropic;
+    const replayed = await serveResumedStreamSession({
+      c,
+      adapter,
+      request: route.request,
+      claim: resumeClaim,
+      trace,
+      recorder,
+      inflight,
+      responseSink,
+    });
+    if (replayed) {
+      return replayed;
+    }
+  }
+
   const planContext = await buildApiProxyPlanContext({
     mode: "request",
     requestedTargetId: route.targetId,
@@ -1026,7 +1056,7 @@ export async function serveResolvedTarget(input: {
               instanceId,
               path: exchange.path,
               modelId: decision.target.model ?? route.request.modelId,
-              body: forwardBody,
+              body: exchange.body,
             }),
           })
         : null;
