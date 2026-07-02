@@ -134,7 +134,7 @@ test("buildSteps appends an rpc-server companion build when rpc is enabled", () 
   const companion = steps.find((item) => item.name === "build-rpc-server");
   assert.ok(companion);
   const targetIndex = companion.command.indexOf("--target");
-  assert.equal(companion.command[targetIndex + 1], "rpc-server");
+  assert.equal(companion.command[targetIndex + 1], "ggml-rpc-server");
 });
 
 test("buildSteps omits the rpc-server companion when rpc is disabled", () => {
@@ -149,7 +149,7 @@ test("buildSteps omits the rpc-server companion when rpc is disabled", () => {
 
 test("buildSteps does not duplicate the rpc-server companion when target is rpc-server", () => {
   const steps = buildSteps(
-    { ...settings({}), rpc: true, target: "rpc-server" },
+    { ...settings({}), rpc: true, target: "ggml-rpc-server" },
     jobStart({ build: true }),
     {},
   );

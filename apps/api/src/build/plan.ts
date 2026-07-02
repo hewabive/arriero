@@ -5,12 +5,7 @@ import type {
   BuildJobStepName,
   BuildSettings,
 } from "@llama-manager/core";
-import {
-  existsSync,
-  mkdirSync,
-  rmSync,
-  type WriteStream,
-} from "node:fs";
+import { existsSync, mkdirSync, rmSync, type WriteStream } from "node:fs";
 import { delimiter, dirname, parse, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 
@@ -22,7 +17,7 @@ import {
 import { findNvcc } from "./cuda.js";
 
 export const FIT_PARAMS_TARGET = "llama-fit-params";
-export const RPC_SERVER_TARGET = "rpc-server";
+export const RPC_SERVER_TARGET = "ggml-rpc-server";
 
 export function fitParamsSourceDir(settings: BuildSettings) {
   return resolve(settings.repoPath, "tools", "fit-params");
@@ -286,7 +281,10 @@ export function buildSteps(
   return steps;
 }
 
-export function commandCwd(settings: BuildSettings, stepName: BuildJobStepName) {
+export function commandCwd(
+  settings: BuildSettings,
+  stepName: BuildJobStepName,
+) {
   if (stepName === "git-checkout" || stepName === "git-pull") {
     return settings.repoPath;
   }
@@ -420,7 +418,9 @@ export function writeHeader(
     stream.write(`# CUDA compiler ${env.CUDACXX ?? "not detected"}\n`);
   }
   if (job.settings.rpc) {
-    stream.write(`# RPC backend ON (rpc-server worker built for multi-machine offload)\n`);
+    stream.write(
+      `# RPC backend ON (rpc-server worker built for multi-machine offload)\n`,
+    );
   }
   const envKeys = Object.keys(job.settings.env).sort();
   if (envKeys.length > 0) {

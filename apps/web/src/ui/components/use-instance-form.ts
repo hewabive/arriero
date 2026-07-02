@@ -106,7 +106,7 @@ export type InstanceFormModalProps = {
 };
 
 function isRpcServerBinary(path: string) {
-  return pathBaseName(path) === "rpc-server";
+  return pathBaseName(path) === "ggml-rpc-server";
 }
 
 const RPC_WORKER_ARG_KEYS = new Set(
