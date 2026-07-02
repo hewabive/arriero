@@ -31,6 +31,20 @@ if [[ $EUID -eq 0 ]]; then
   exit 1
 fi
 
+# systemctl --user needs the user bus; su-style logins lack the session env vars.
+RUNTIME_DIR="/run/user/$(id -u)"
+if [[ -z "${XDG_RUNTIME_DIR:-}" && -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+  if [[ -d "$RUNTIME_DIR" ]]; then
+    export XDG_RUNTIME_DIR="$RUNTIME_DIR"
+  else
+    echo "error: no user runtime dir at $RUNTIME_DIR — systemctl --user cannot reach the user bus." >&2
+    echo "  the systemd user manager is not running for this account; start it once:" >&2
+    echo "    sudo systemctl start user@$(id -u).service" >&2
+    echo "  or log in directly as $USER (not via su) and re-run this script." >&2
+    exit 1
+  fi
+fi
+
 if systemctl --user list-unit-files "$UNIT_NAME" --no-legend 2>/dev/null | grep -q .; then
   systemctl --user disable --now "$UNIT_NAME"
   echo "Stopped and disabled $UNIT_NAME"
