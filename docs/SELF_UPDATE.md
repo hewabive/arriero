@@ -71,6 +71,13 @@ Two unit settings are load-bearing:
   `process/reconcile.ts` on the next start (matching the app's default
   survive-restart behaviour). The default `control-group` would kill them.
 
+To undo the installation, `./scripts/uninstall-service.sh` stops and disables
+the unit and removes the generated unit file. Linger is left enabled (other
+`--user` services may depend on it); pass `--disable-linger` to turn it off
+too. Stopping the unit follows the manager's default shutdown behaviour:
+detached managed `llama-server` children keep running and are re-adopted the
+next time the manager starts.
+
 ## API
 
 The per-job routes are node-scoped, so the entry node drives a peer through the

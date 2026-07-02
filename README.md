@@ -37,7 +37,9 @@ may need a one-time `sudo loginctl enable-linger $USER` on a headless host (it
 skips this when already on). The Updates page then shows this node's version and
 a one-click update; it is per-node, so the global node switcher can update a peer
 too. Update from the UI is refused in `pnpm dev` (tsx/vite already hot-reload —
-`git pull` by hand instead). See [docs/SELF_UPDATE.md](docs/SELF_UPDATE.md).
+`git pull` by hand instead). `./scripts/uninstall-service.sh` reverses the
+installation (`--disable-linger` to also turn linger off). See
+[docs/SELF_UPDATE.md](docs/SELF_UPDATE.md).
 
 ## Runtime logs
 
