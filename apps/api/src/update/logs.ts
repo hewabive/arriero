@@ -1,6 +1,5 @@
-import type { UpdateLogTail } from "@llama-manager/core";
-
 import { readTailLines } from "../utils/log-tail.js";
+import type { UpdateLogTail } from "./adapter.js";
 import { getUpdateJob } from "./repository.js";
 
 export function tailUpdateLog(jobId: string, lines: number): UpdateLogTail {

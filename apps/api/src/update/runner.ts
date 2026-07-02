@@ -1,20 +1,17 @@
-import type {
-  UpdateJob,
-  UpdateJobStart,
-  UpdateJobStep,
-  UpdateJobStepName,
-} from "@llama-manager/core";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { resolve } from "node:path";
 import type { Readable } from "node:stream";
 
-import { config } from "../config.js";
-import { beginApiProxyDrain } from "../proxy/drain.js";
-import { apiProxyInflight } from "../proxy/inflight.js";
-import { apiProxyStreamSessions } from "../proxy/stream-session.js";
+import { updateAdapter } from "./adapter.js";
+import type {
+  UpdateJob,
+  UpdateJobStart,
+  UpdateJobStep,
+  UpdateJobStepName,
+} from "./adapter.js";
 import { createUpdateJob, getUpdateJob, patchUpdateJob } from "./repository.js";
-import { currentCommit, getManagerVersion } from "./version.js";
+import { currentCommit, getAppVersion } from "./version.js";
 
 const RESTART_DELAY_MS = 800;
 
@@ -73,7 +70,7 @@ class UpdateRunner {
     }
     this.running = null;
 
-    const version = getManagerVersion();
+    const version = getAppVersion();
     if (!version.canUpdate) {
       throw new Error(
         version.updateBlockedReason ??
@@ -82,7 +79,7 @@ class UpdateRunner {
     }
     if (version.dirty) {
       throw new Error(
-        "the llama-manager working tree is dirty; commit or discard changes before updating (git pull --ff-only would fail)",
+        `the ${updateAdapter.appName} working tree is dirty; commit or discard changes before updating (git pull --ff-only would fail)`,
       );
     }
 
@@ -92,7 +89,7 @@ class UpdateRunner {
       fromCommit: version.commit,
       willRestart,
       startedAt: nowIso(),
-      logPath: resolve(config.logsDir, `update-${Date.now()}.log`),
+      logPath: resolve(updateAdapter.logsDir, `update-${Date.now()}.log`),
     });
 
     this.running = { jobId: job.id, child: null, canceled: false };
@@ -126,8 +123,8 @@ class UpdateRunner {
     }
 
     const logStream = createWriteStream(job.logPath, { flags: "a" });
-    logStream.write(`# llama-manager update ${job.startedAt}\n`);
-    logStream.write(`# repo: ${config.rootDir}\n`);
+    logStream.write(`# ${updateAdapter.appName} update ${job.startedAt}\n`);
+    logStream.write(`# repo: ${updateAdapter.rootDir}\n`);
     logStream.write(`# from commit: ${job.fromCommit ?? "unknown"}\n`);
     logStream.write(`# restart after build: ${job.willRestart}\n\n`);
 
@@ -198,7 +195,7 @@ class UpdateRunner {
         });
         patchUpdateJob(jobId, { toCommit });
         logStream.write(
-          "\n# build complete; restarting the manager to apply (systemd will bring it back up)\n",
+          "\n# build complete; restarting to apply (systemd will bring the process back up)\n",
         );
         logStream.end();
         this.scheduleRestart();
@@ -207,7 +204,7 @@ class UpdateRunner {
 
       this.finish(jobId, "succeeded", null, toCommit);
       logStream.write(
-        "\n# update complete; restart the manager to apply the new code\n",
+        "\n# update complete; restart the process to apply the new code\n",
       );
       logStream.end();
       this.clearRunning(jobId);
@@ -221,8 +218,6 @@ class UpdateRunner {
   }
 
   private scheduleRestart() {
-    beginApiProxyDrain();
-    const deadline = Date.now() + config.update.drainTimeoutMs;
     const fire = () => {
       try {
         process.kill(process.pid, "SIGTERM");
@@ -230,16 +225,9 @@ class UpdateRunner {
         process.exit(0);
       }
     };
-    const poll = setInterval(() => {
-      const nonResumable =
-        apiProxyInflight.activeCount() - apiProxyStreamSessions.size();
-      if (nonResumable > 0 && Date.now() < deadline) {
-        return;
-      }
-      clearInterval(poll);
-      setTimeout(fire, RESTART_DELAY_MS);
-    }, 500);
-    poll.unref?.();
+    void updateAdapter.beforeRestart().finally(() => {
+      setTimeout(fire, RESTART_DELAY_MS).unref?.();
+    });
   }
 
   private async rollback(fromCommit: string | null, logStream: WriteStream) {
@@ -314,7 +302,7 @@ class UpdateRunner {
   ): Promise<number> {
     return new Promise((resolveDone, reject) => {
       const child = spawn(command[0]!, command.slice(1), {
-        cwd: config.rootDir,
+        cwd: updateAdapter.rootDir,
         env: process.env,
         stdio: ["ignore", "pipe", "pipe"],
       });

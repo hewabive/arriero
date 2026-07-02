@@ -1,14 +1,9 @@
-import {
-  ManagerVersionSchema,
-  type ManagerRunMode,
-  type ManagerVersion,
-  type UpdateUpstream,
-} from "@llama-manager/core";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { config } from "../config.js";
+import { AppVersionSchema, updateAdapter } from "./adapter.js";
+import type { AppRunMode, AppVersion } from "./adapter.js";
 
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -16,7 +11,7 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export function detectRunMode(argv1: string | undefined): ManagerRunMode {
+export function detectRunMode(argv1: string | undefined): AppRunMode {
   if (!argv1) {
     return "unknown";
   }
@@ -35,7 +30,7 @@ export function isSupervised(env: NodeJS.ProcessEnv = process.env): boolean {
 
 function runGit(args: string[]): string {
   return execFileSync("git", args, {
-    cwd: config.rootDir,
+    cwd: updateAdapter.rootDir,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
@@ -50,7 +45,7 @@ function tryGit(args: string[]): string | null {
 }
 
 function isGitRepo(): boolean {
-  if (existsSync(resolve(config.rootDir, ".git"))) {
+  if (existsSync(resolve(updateAdapter.rootDir, ".git"))) {
     return true;
   }
   try {
@@ -69,10 +64,7 @@ type UpdateCheck = {
 
 let lastCheck: UpdateCheck | null = null;
 
-function updateBlockedReason(
-  mode: ManagerRunMode,
-  repo: boolean,
-): string | null {
+function updateBlockedReason(mode: AppRunMode, repo: boolean): string | null {
   if (!repo) {
     return "not a git checkout; update from the UI is unavailable";
   }
@@ -85,14 +77,14 @@ function updateBlockedReason(
   return null;
 }
 
-export function getManagerVersion(): ManagerVersion {
+export function getAppVersion(): AppVersion {
   const repo = isGitRepo();
   const branchRaw = repo ? tryGit(["rev-parse", "--abbrev-ref", "HEAD"]) : null;
   const dirtyText = repo ? tryGit(["status", "--porcelain"]) : null;
   const mode = detectRunMode(process.argv[1]);
   const blocked = updateBlockedReason(mode, repo);
   const behindCount = lastCheck?.behindCount ?? null;
-  return ManagerVersionSchema.parse({
+  return AppVersionSchema.parse({
     commit: repo ? tryGit(["rev-parse", "HEAD"]) : null,
     shortCommit: repo ? tryGit(["rev-parse", "--short", "HEAD"]) : null,
     committedAt: repo ? tryGit(["log", "-1", "--format=%cI"]) : null,
@@ -114,38 +106,10 @@ export function currentCommit(): string | null {
   return isGitRepo() ? tryGit(["rev-parse", "HEAD"]) : null;
 }
 
-export function currentUpstream(): UpdateUpstream | null {
-  const check = lastCheck;
-  if (!check?.upstreamCommit) {
-    return null;
-  }
-  const commit = check.upstreamCommit;
-  return {
-    commit,
-    shortCommit: commit.slice(0, 7),
-    committedAt: tryGit(["log", "-1", "--format=%cI", commit]),
-    ref: tryGit(["rev-parse", "--abbrev-ref", "@{u}"]),
-    lastCheckedAt: check.lastCheckedAt,
-  };
-}
-
-export function commitsBehind(commit: string | null): number | null {
-  const upstream = lastCheck?.upstreamCommit;
-  if (!commit || !upstream) {
-    return null;
-  }
-  if (commit === upstream) {
-    return 0;
-  }
-  const count = tryGit(["rev-list", "--count", `${commit}..${upstream}`]);
-  const parsed = count !== null ? Number(count) : Number.NaN;
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function runGitFetch(): Promise<void> {
   return new Promise((resolveDone, reject) => {
     const child = spawn("git", ["fetch", "--quiet"], {
-      cwd: config.rootDir,
+      cwd: updateAdapter.rootDir,
       env: {
         ...process.env,
         GIT_TERMINAL_PROMPT: "0",
@@ -192,7 +156,7 @@ function runGitFetch(): Promise<void> {
 }
 
 export async function checkForUpdate(): Promise<{
-  version: ManagerVersion;
+  version: AppVersion;
   fetchError: string | null;
 }> {
   let fetchError: string | null = null;
@@ -215,5 +179,5 @@ export async function checkForUpdate(): Promise<{
       lastCheckedAt: nowIso(),
     };
   }
-  return { version: getManagerVersion(), fetchError };
+  return { version: getAppVersion(), fetchError };
 }

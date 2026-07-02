@@ -1,5 +1,5 @@
 import type {
-  ManagerVersion,
+  AppVersion,
   UpdateFleet,
   UpdateJob,
   UpdateLogTail,
@@ -13,7 +13,7 @@ export async function getUpdateFleet() {
 }
 
 export async function checkForUpdate() {
-  return request<{ data: ManagerVersion; fetchError: string | null }>(
+  return request<{ data: AppVersion; fetchError: string | null }>(
     "/api/update/check",
     { method: "POST" },
   );

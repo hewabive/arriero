@@ -1816,16 +1816,16 @@ export const BuildLogTailSchema = z.object({
   truncated: z.boolean(),
 });
 
-export const ManagerRunModeSchema = z.enum(["serve", "dev", "unknown"]);
+export const AppRunModeSchema = z.enum(["serve", "dev", "unknown"]);
 
-export const ManagerVersionSchema = z.object({
+export const AppVersionSchema = z.object({
   commit: z.string().nullable(),
   shortCommit: z.string().nullable(),
   committedAt: z.string().nullable(),
   branch: z.string().nullable(),
   dirty: z.boolean(),
   isGitRepo: z.boolean(),
-  mode: ManagerRunModeSchema,
+  mode: AppRunModeSchema,
   supervised: z.boolean(),
   canUpdate: z.boolean(),
   updateBlockedReason: z.string().nullable(),
@@ -1904,7 +1904,7 @@ export const UpdateFleetNodeSchema = z.object({
   baseUrl: z.string().nullable(),
   ok: z.boolean(),
   error: z.string().nullable(),
-  version: ManagerVersionSchema.nullable(),
+  version: AppVersionSchema.nullable(),
   outdated: z.boolean(),
   behindCount: z.number().int().nullable(),
 });
@@ -2748,8 +2748,8 @@ export type BuildJobStep = z.infer<typeof BuildJobStepSchema>;
 export type BuildJob = z.infer<typeof BuildJobSchema>;
 export type BuildJobStart = z.infer<typeof BuildJobStartSchema>;
 export type BuildLogTail = z.infer<typeof BuildLogTailSchema>;
-export type ManagerRunMode = z.infer<typeof ManagerRunModeSchema>;
-export type ManagerVersion = z.infer<typeof ManagerVersionSchema>;
+export type AppRunMode = z.infer<typeof AppRunModeSchema>;
+export type AppVersion = z.infer<typeof AppVersionSchema>;
 export type UpdateJobStatus = z.infer<typeof UpdateJobStatusSchema>;
 export type UpdateJobStepName = z.infer<typeof UpdateJobStepNameSchema>;
 export type UpdateJobStepStatus = z.infer<typeof UpdateJobStepStatusSchema>;

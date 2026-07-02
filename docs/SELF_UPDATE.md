@@ -110,3 +110,23 @@ remote commit at the top.
 
 This rides on the F0 reverse-proxy transport; deeper remote control (logs,
 lifecycle parity) is the F1 federation layer.
+
+## Shared kit contract
+
+The update domain doubles as a **copyable kit** shared with the sibling repos
+(`llm-arena`, `rag-manager`; the canonical contract text lives in
+`llm-arena/docs/self-update.md`). The seam is `apps/api/src/update/adapter.ts`
+— the only repo-specific file among the core modules: it re-exports the update
+schemas/types from the repo's own `core` package and provides
+`updateAdapter = { appName, rootDir, logsDir, newJobId(), beforeRestart() }`.
+Here `beforeRestart` performs the proxy drain (503 + bounded wait for
+non-resumable in-flight requests) before the self-`SIGTERM`.
+
+Copy-identical across the three repos: `version.ts`, `runner.ts`,
+`repository.ts`, `logs.ts`, `version.test.ts`, `utils/log-tail.ts` — keep them
+free of repo-specific imports (only `./adapter.js`, node builtins, and
+`../utils/log-tail.js`). Repo-specific here: `fleet.ts` (multi-node
+aggregation + the `currentUpstream`/`commitsBehind` git helpers), the routes,
+and the fleet UI. The `App*`/`UpdateJob*` Zod schema block in `packages/core`
+is part of the contract — keep field names and enum values identical across
+repos.

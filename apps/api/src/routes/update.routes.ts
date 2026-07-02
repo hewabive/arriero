@@ -5,11 +5,11 @@ import { updateFleet } from "../update/fleet.js";
 import { tailUpdateLog } from "../update/logs.js";
 import { getUpdateJob, latestUpdateJob } from "../update/repository.js";
 import { updateRunner } from "../update/runner.js";
-import { checkForUpdate, getManagerVersion } from "../update/version.js";
+import { checkForUpdate, getAppVersion } from "../update/version.js";
 
 export function registerUpdateRoutes(app: Hono) {
   app.get("/api/version", (c) => {
-    return c.json({ data: getManagerVersion() });
+    return c.json({ data: getAppVersion() });
   });
 
   app.get("/api/update/fleet", async (c) => {

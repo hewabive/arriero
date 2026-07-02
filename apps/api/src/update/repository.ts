@@ -1,11 +1,10 @@
+import { updateAdapter } from "./adapter.js";
 import type {
   UpdateJob,
   UpdateJobStatus,
   UpdateJobStep,
   UpdateJobStepName,
-} from "@llama-manager/core";
-
-import { newId } from "../utils/id.js";
+} from "./adapter.js";
 
 const UPDATE_JOB_HISTORY_LIMIT = 10;
 const updateJobs = new Map<string, UpdateJob>();
@@ -37,7 +36,7 @@ export function createUpdateJob(input: {
   logPath: string;
 }): UpdateJob {
   const job: UpdateJob = {
-    id: newId(),
+    id: updateAdapter.newJobId(),
     status: "running",
     steps: input.steps,
     currentStep: null,
