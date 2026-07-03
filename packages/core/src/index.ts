@@ -1,7 +1,13 @@
 import { z } from "zod";
 
+import {
+  engineDescriptor,
+  INSTANCE_KINDS,
+  type InstanceKind,
+} from "./engine-descriptor.js";
 import { parseApiProxyBodyFieldPath } from "./proxy/request-edits.js";
 
+export * from "./engine-descriptor.js";
 export * from "./ggml.js";
 export * from "./instance-resources.js";
 export * from "./memory-estimate.js";
@@ -181,7 +187,7 @@ export const InstanceNumaSchema = z.discriminatedUnion("mode", [
   }),
 ]);
 
-export const InstanceKindSchema = z.enum(["llama-server", "rpc-worker"]);
+export const InstanceKindSchema = z.enum(INSTANCE_KINDS);
 
 export type InstanceCapabilities = {
   proxyEndpoint: boolean;
@@ -191,12 +197,12 @@ export type InstanceCapabilities = {
 };
 
 export function instanceCapabilities(kind: InstanceKind): InstanceCapabilities {
-  const inferenceServer = kind === "llama-server";
+  const descriptor = engineDescriptor(kind);
   return {
-    proxyEndpoint: inferenceServer,
-    httpHealth: inferenceServer,
-    ggufMemoryEstimate: inferenceServer,
-    requestLease: inferenceServer,
+    proxyEndpoint: descriptor.proxy.serveEndpoint,
+    httpHealth: descriptor.probe.httpHealth,
+    ggufMemoryEstimate: descriptor.estimator === "gguf",
+    requestLease: descriptor.proxy.requestLease,
   };
 }
 
@@ -2462,7 +2468,6 @@ export type PathCatalogUpdate = z.infer<typeof PathCatalogUpdateSchema>;
 export type MemoryPoolKind = z.infer<typeof MemoryPoolKindSchema>;
 export type MemoryPool = z.infer<typeof MemoryPoolSchema>;
 export type MemoryPoolUpdate = z.infer<typeof MemoryPoolUpdateSchema>;
-export type InstanceKind = z.infer<typeof InstanceKindSchema>;
 export type RpcWorkerRef = z.infer<typeof RpcWorkerRefSchema>;
 export type RpcWorkerCandidate = z.infer<typeof RpcWorkerCandidateSchema>;
 export type InstanceMemoryDraw = z.infer<typeof InstanceMemoryDrawSchema>;

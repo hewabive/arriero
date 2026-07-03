@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { engineDescriptor, type InstanceKind } from "./engine-descriptor.js";
+
 export type LlamaArgValue = string | number | boolean | string[] | null;
 export type LlamaArgRecord = Record<string, LlamaArgValue>;
 
@@ -269,7 +271,7 @@ export type InstanceResourceProfilePool = {
 };
 
 export type InstanceResourceProfileInput = {
-  kind: "llama-server" | "rpc-worker";
+  kind: InstanceKind;
   args: LlamaArgRecord;
   env: Record<string, string>;
   memory: Array<{ poolId: string; bytes: number }>;
@@ -308,6 +310,50 @@ function gpuEntries(
     return [{ poolId: null, label: "GPU" }];
   }
   return allGpu.map((pool) => ({ poolId: pool.id, label: pool.name }));
+}
+
+function deriveRpcDeviceArgsProfile(
+  allGpu: InstanceResourceProfilePool[],
+  deviceTokens: string[],
+  baseSignals: Omit<InstanceResourceProfileSignals, "source">,
+): InstanceResourceProfile {
+  const cudaIndices = cudaTokenIndices(deviceTokens);
+  if (cudaIndices.length > 0) {
+    const visible = allGpu.filter(
+      (pool) => pool.deviceRef !== null && cudaIndices.includes(pool.deviceRef),
+    );
+    return {
+      placement: "gpu",
+      gpuPools: gpuEntries(
+        visible,
+        { mode: "list", ids: cudaIndices },
+        deviceTokens,
+        allGpu,
+      ),
+      usesHost: false,
+      cpuReason: null,
+      confidence: "args",
+      signals: { ...baseSignals, source: "device-arg" },
+    };
+  }
+  if (deviceTokens.some((token) => token.toLowerCase() === "cpu")) {
+    return {
+      placement: "cpu",
+      gpuPools: [],
+      usesHost: true,
+      cpuReason: "RPC worker on CPU backend",
+      confidence: "args",
+      signals: { ...baseSignals, source: "device-arg" },
+    };
+  }
+  return {
+    placement: "unknown",
+    gpuPools: [],
+    usesHost: false,
+    cpuReason: null,
+    confidence: "none",
+    signals: { ...baseSignals, source: "none" },
+  };
 }
 
 export function deriveInstanceResourceProfile(
@@ -370,44 +416,8 @@ export function deriveInstanceResourceProfile(
     };
   }
 
-  if (input.kind === "rpc-worker") {
-    const cudaIndices = cudaTokenIndices(deviceTokens);
-    if (cudaIndices.length > 0) {
-      const visible = allGpu.filter(
-        (pool) => pool.deviceRef !== null && cudaIndices.includes(pool.deviceRef),
-      );
-      return {
-        placement: "gpu",
-        gpuPools: gpuEntries(
-          visible,
-          { mode: "list", ids: cudaIndices },
-          deviceTokens,
-          allGpu,
-        ),
-        usesHost: false,
-        cpuReason: null,
-        confidence: "args",
-        signals: { ...baseSignals, source: "device-arg" },
-      };
-    }
-    if (deviceTokens.some((token) => token.toLowerCase() === "cpu")) {
-      return {
-        placement: "cpu",
-        gpuPools: [],
-        usesHost: true,
-        cpuReason: "RPC worker on CPU backend",
-        confidence: "args",
-        signals: { ...baseSignals, source: "device-arg" },
-      };
-    }
-    return {
-      placement: "unknown",
-      gpuPools: [],
-      usesHost: false,
-      cpuReason: null,
-      confidence: "none",
-      signals: { ...baseSignals, source: "none" },
-    };
+  if (engineDescriptor(input.kind).resourceProfile === "rpc-device-args") {
+    return deriveRpcDeviceArgsProfile(allGpu, deviceTokens, baseSignals);
   }
 
   if (cuda.mode === "none") {
@@ -446,7 +456,8 @@ export function deriveInstanceResourceProfile(
   let visible =
     cuda.mode === "list"
       ? allGpu.filter(
-          (pool) => pool.deviceRef !== null && cuda.ids.includes(pool.deviceRef),
+          (pool) =>
+            pool.deviceRef !== null && cuda.ids.includes(pool.deviceRef),
         )
       : allGpu;
   if (cudaIndices.length > 0) {
