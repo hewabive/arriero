@@ -983,7 +983,7 @@ export async function serveResolvedTarget(input: {
     if (!resolved.ok) {
       return resolved.response;
     }
-    const { baseUrl, instanceId, authHeaders, translateAnthropic } =
+    const { baseUrl, instanceId, engine, authHeaders, translateAnthropic } =
       resolved.context;
     const exchange = prepareUpstreamExchange({
       translate: translateAnthropic,
@@ -1010,7 +1010,7 @@ export async function serveResolvedTarget(input: {
       ? route.request.stream
       : (streamMeter?.inject ?? false);
     const wantsPrefillProgress =
-      instanceId !== null &&
+      engine.sseTimings &&
       (translateAnthropic
         ? route.request.stream
         : streamMeter !== null && operation.endpoint === "chat.completions");
@@ -1019,9 +1019,10 @@ export async function serveResolvedTarget(input: {
     let forwardBody: unknown;
     if (bufferCodec) {
       const built = bufferCodec.upstreamBody(exchange.body, null);
-      forwardBody = returnProgressRequested(exchange.body)
-        ? built
-        : withReturnProgress(built);
+      forwardBody =
+        returnProgressRequested(exchange.body) || !engine.sseTimings
+          ? built
+          : withReturnProgress(built);
     } else {
       forwardBody = injectUsage
         ? withIncludeUsage(exchange.body)
@@ -1032,7 +1033,9 @@ export async function serveResolvedTarget(input: {
     }
 
     const slotSeq =
-      instanceId !== null ? apiProxySlotTracker.mark(instanceId) : null;
+      instanceId !== null && engine.sseTimings
+        ? apiProxySlotTracker.mark(instanceId)
+        : null;
     const resolveSlot = (): number | null => {
       if (instanceId !== null && slotSeq !== null) {
         const resolved = apiProxySlotTracker.resolve(instanceId, slotSeq);
@@ -1045,6 +1048,7 @@ export async function serveResolvedTarget(input: {
 
     const streamSession =
       instanceId !== null &&
+      engine.streamResume &&
       resumableEndpoints.has(operation.endpoint) &&
       (route.request.stream || bufferCodec !== null)
         ? apiProxyStreamSessions.register({
@@ -1323,7 +1327,7 @@ export async function serveResolvedTarget(input: {
     if (!resolved.ok) {
       return resolved.response;
     }
-    const { baseUrl, instanceId, authHeaders, translateAnthropic } =
+    const { baseUrl, instanceId, engine, authHeaders, translateAnthropic } =
       resolved.context;
     const exchange = prepareUpstreamExchange({
       translate: translateAnthropic,
@@ -1341,10 +1345,12 @@ export async function serveResolvedTarget(input: {
       new URL(c.req.url).search,
     );
     const slotSeq =
-      instanceId !== null ? apiProxySlotTracker.mark(instanceId) : null;
+      instanceId !== null && engine.sseTimings
+        ? apiProxySlotTracker.mark(instanceId)
+        : null;
     const injectPrefillProgress =
       (operation.protocol === "openai" || translateAnthropic) &&
-      instanceId !== null &&
+      engine.sseTimings &&
       !returnProgressRequested(route.request.body);
     const forceAnswerSupported =
       instanceId !== null &&

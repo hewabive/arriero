@@ -2,6 +2,10 @@ import type { ApiProxyTargetRecord } from "@llama-manager/core";
 
 import { listInstances } from "../instances/repository.js";
 import { apiEndpointAuthHeaders, getApiEndpointById } from "./endpoints.js";
+import {
+  proxyEngineGates,
+  type ProxyEngineGates,
+} from "./engine-capabilities.js";
 import type {
   ApiProxyProtocolDiagnostic,
   ApiProxyProtocolOperation,
@@ -12,6 +16,7 @@ import { shouldTranslateAnthropicMessages } from "./translation.js";
 export type ApiProxyUpstreamContext = {
   baseUrl: string;
   instanceId: string | null;
+  engine: ProxyEngineGates;
   authHeaders: Record<string, string>;
   translateAnthropic: boolean;
 };
@@ -65,6 +70,7 @@ export function resolveApiProxyUpstreamContext(input: {
     context: {
       baseUrl: targetResolution.baseUrl,
       instanceId: targetResolution.instanceId,
+      engine: proxyEngineGates(targetResolution.instance),
       authHeaders: auth.headers,
       translateAnthropic,
     },
