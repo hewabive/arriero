@@ -358,7 +358,7 @@ function parseLoadProgress(lines: string[]): InstanceLoadProgress {
 
   if (
     (readyIndex >= 0 && (loadingIndex < 0 || readyIndex >= loadingIndex)) ||
-    (listeningIndex >= 0 && listeningIndex >= loadingIndex)
+    (listeningIndex >= 0 && loadingIndex >= 0 && listeningIndex >= loadingIndex)
   ) {
     return loadProgress(
       "ready",

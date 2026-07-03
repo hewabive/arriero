@@ -53,6 +53,31 @@ test("summarizeInstanceLog ignores /slots request IPs when parsing slot count", 
   }
 });
 
+test("summarizeInstanceLog reports starting when the listener is up but no model load has begun", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const logPath = join(dir, "llama-server.log");
+  try {
+    writeFileSync(
+      logPath,
+      [
+        "main: HTTP server is listening, hostname: 127.0.0.1, port: 8080",
+        "main: server is listening on http://127.0.0.1:8080",
+      ].join("\n"),
+    );
+
+    const summary = await summarizeInstanceLog({
+      kind: "llama-server",
+      instanceId: "test-instance",
+      runtime: runtime(logPath),
+    });
+
+    assert.equal(summary.loadProgress.stage, "starting");
+    assert.equal(summary.loadProgress.percent, 10);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("summarizeInstanceLog estimates tensor loading progress from loader dots", async () => {
   const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
   const logPath = join(dir, "llama-server.log");
