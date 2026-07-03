@@ -124,6 +124,12 @@ function loadActions(
     actions.push(action("wait-model-ready", target, reason));
   }
 
+  if (state === "unloaded" && !target.capabilities.modelLoadUnload) {
+    actions.push(action("stop-instance", target, reason));
+    actions.push(action("start-instance", target, reason));
+    actions.push(action("wait-instance-ready", target, reason));
+  }
+
   if (target.capabilities.slotSave) {
     for (const slotId of target.runtime?.savedSlotIds ?? []) {
       actions.push(action("restore-slot", target, reason, slotId));

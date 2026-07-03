@@ -925,6 +925,33 @@ test("load path skips load-model when the engine cannot load models", () => {
   );
 });
 
+test("unloaded state without model-load verbs falls back to a stop/start cycle", () => {
+  const plan = planApiProxyRequest(
+    planRequest({
+      mode: "request",
+      requestedTargetId: "urgent",
+      now: "2026-05-30T10:00:00.000Z",
+      targets: [
+        target({
+          id: "urgent",
+          name: "Urgent chat",
+          instanceId: "inst-urgent",
+          model: "chat",
+          priority: 100,
+          state: "unloaded",
+          capabilities: { modelLoadUnload: false, slotSave: false },
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(plan.ok, true);
+  assert.deepEqual(
+    plan.actions.map((item) => item.type),
+    ["stop-instance", "start-instance", "wait-instance-ready", "route-request"],
+  );
+});
+
 test("slot save and restore are suppressed when the engine has no slot cache", () => {
   const plan = planApiProxyRequest(
     planRequest({
