@@ -121,17 +121,29 @@ function validateWorkingDirectory(
   }
 }
 
+function configuredPortArg(
+  instance: Instance,
+): { key: string; value: Instance["args"][string] } | null {
+  for (const key of engineDescriptor(instance.kind).http.portArgKeys) {
+    const value = instance.args[key];
+    if (value !== undefined && value !== null) {
+      return { key, value };
+    }
+  }
+  return null;
+}
+
 function validatePort(instance: Instance, issues: ProcessPreflightIssue[]) {
-  const rawPort = instance.args["--port"];
-  if (rawPort === undefined || rawPort === null) {
+  const configured = configuredPortArg(instance);
+  if (!configured) {
     return;
   }
-  const port = Number(rawPort);
+  const port = Number(configured.value);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     issues.push({
       level: "error",
-      field: "args.--port",
-      message: `Invalid port: ${String(rawPort)}`,
+      field: `args.${configured.key}`,
+      message: `Invalid port: ${String(configured.value)}`,
     });
   }
 }
@@ -199,7 +211,10 @@ function normalizedHost(instance: Instance) {
 }
 
 function parsedPort(instance: Instance) {
-  const port = Number(instance.args["--port"] ?? 8080);
+  const configured = configuredPortArg(instance);
+  const port = Number(
+    configured?.value ?? engineDescriptor(instance.kind).http.defaultPort,
+  );
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
 }
 

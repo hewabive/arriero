@@ -61,8 +61,8 @@ Not everything generalizes; these stay llama-specific implementations behind opt
 ## Preserved quirks (do not "fix" without intent)
 
 - The offline probe payload for a stopped rpc-worker keeps the llama HTTP shape (port-8080 `/health` URLs) — it is an API payload consumers already see.
-- Preflight `parsedPort` defaults to 8080 for **all** kinds, including rpc-worker port-conflict detection; wiring `http.defaultPort` in would silently change conflict results.
 - Two `deriveStatus` strings ("…llama-server health is OK." on stale, "…waiting for llama-server readiness." on starting) are reachable by rpc-workers and stay literal; templating them would change today's output for rpc-workers.
+- `probe.httpHealth: false` currently selects the rpc-worker readiness *policy* too — an unanswered probe still reports `ready` ("may be busy serving the orchestrator"). A future engine with a non-llama health surface must not blindly set `httpHealth: false`; the policy needs splitting out (e.g. `probe.authoritative`) before that engine lands.
 - `filterManagedLlamaLogChunk` (probe-noise log filtering) applies to both kinds.
 - Cross-node delegation injects `return_progress` before the sending node knows the remote engine (harmless today).
 
@@ -70,5 +70,7 @@ Not everything generalizes; these stay llama-specific implementations behind opt
 
 1. Add the kind to `INSTANCE_KINDS` and write its `EngineDescriptor`; the `Record` exhaustiveness and this doc's registries are the to-do list.
 2. Implement and register: a probe (`engine-probe.ts`), a log parser (`log-parsers/`), a preflight module (or `none`), a `--help` parser (or `none` — the instance form then has no catalog), a resource-profile strategy, an estimator (or `none` — draws are then declared manually, which the ledger already supports).
-3. Decide the `proxy` flags honestly; `modelLoadUnload:false` + `slotSave:false` + `streamResume:false` + `sseTimings:false` yields a correct start/stop-only managed target.
-4. Out of scope so far (deliberately deferred until the next engine is chosen): a model-entity format discriminator (HF/safetensors directories vs GGUF files), install/version provisioning beyond the CMake build domain, and web instance-form gating (`use-instance-form.ts` still branches on `kind === "llama-server"` / `isRpcServerBinary`).
+3. Decide the `proxy` flags honestly; `modelLoadUnload:false` + `slotSave:false` + `streamResume:false` + `sseTimings:false` yields a correct start/stop-only managed target (the scheduler restarts the process from `unloaded` state instead of emitting load verbs).
+4. **Thread the instance kind into argument-catalog resolution before registering a second `--help` parser.** `getLlamaArgumentCatalog` and `GET /api/llama-args` are keyed by binaryPath only and always default to `llama-help`; without kind threading the new engine's binary gets llama-parsed into a garbage catalog that stays cache-current forever (size/mtime/parserId all match).
+5. If the engine forks worker children (tensor-parallel runtimes), extend the descendant-process matcher in `process/runtime-memory.ts` (`isLikelyLlamaServer` filters on the llama-server command name) — otherwise worker VRAM/RSS vanishes from the memory layout and the scheduler evicts into occupied memory.
+6. Out of scope so far (deliberately deferred until the next engine is chosen): a model-entity format discriminator (HF/safetensors directories vs GGUF files), install/version provisioning beyond the CMake build domain, and web instance-form gating (`use-instance-form.ts` still branches on `kind === "llama-server"` / `isRpcServerBinary`).

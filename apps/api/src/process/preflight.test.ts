@@ -78,6 +78,72 @@ test("validateInstancePreflight does not require a model for rpc-worker", () => 
   }
 });
 
+test("rpc-worker ports resolve per engine in conflict checks", () => {
+  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-ports-"));
+  const binaryPath = join(dir, "llama-server");
+  try {
+    writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
+    chmodSync(binaryPath, 0o755);
+
+    const worker = {
+      ...instance({
+        kind: "rpc-worker",
+        status: "running",
+        pid: 4242,
+        binaryPath,
+        cwd: dir,
+        args: { "-p": 50053 },
+      }),
+      name: "worker",
+    };
+    const noConflict = validateInstancePreflight(
+      instance({ binaryPath, cwd: dir, args: { "--port": 8080 } }),
+      { peers: [worker], accelerators: [] },
+    );
+    assert.equal(
+      noConflict.issues.some((issue) => /conflicts/.test(issue.message)),
+      false,
+    );
+
+    const defaultWorker = {
+      ...instance({
+        kind: "rpc-worker",
+        status: "running",
+        pid: 4243,
+        binaryPath,
+        cwd: dir,
+      }),
+      name: "worker-default",
+    };
+    const clash = validateInstancePreflight(
+      instance({ binaryPath, cwd: dir, args: { "--port": 50052 } }),
+      { peers: [defaultWorker], accelerators: [] },
+    );
+    assert.equal(
+      clash.issues.some((issue) =>
+        /Port 50052 conflicts with worker-default/.test(issue.message),
+      ),
+      true,
+    );
+
+    const invalid = validateInstancePreflight(
+      instance({
+        kind: "rpc-worker",
+        binaryPath,
+        cwd: dir,
+        args: { "-p": "not-a-port" },
+      }),
+      { accelerators: [] },
+    );
+    assert.equal(
+      invalid.issues.some((issue) => issue.field === "args.-p"),
+      true,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("validateInstancePreflight blocks configs without a model source", () => {
   const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
   const binaryPath = join(dir, "llama-server");
