@@ -4,6 +4,7 @@ export type InstanceKind = (typeof INSTANCE_KINDS)[number];
 
 export type EngineProbeId = "llama-http" | "tcp-accept";
 export type EngineNativeApiId = "llama" | "none";
+export type EngineArgvBuilderId = "flag-map";
 export type EngineLogParserId = "llama";
 export type EngineArgumentCatalogParserId = "llama-help" | "none";
 export type EngineEstimatorId = "gguf" | "none";
@@ -34,7 +35,7 @@ export type EngineDescriptor = {
   proxy: EngineProxyCapabilities;
   probe: { id: EngineProbeId; httpHealth: boolean };
   nativeApi: EngineNativeApiId;
-  launch: { injectSlotSavePath: boolean };
+  launch: { injectSlotSavePath: boolean; argv: EngineArgvBuilderId };
   preflight: {
     engineChecks: EnginePreflightId;
     argumentCatalogParser: EngineArgumentCatalogParserId;
@@ -65,7 +66,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     probe: { id: "llama-http", httpHealth: true },
     nativeApi: "llama",
-    launch: { injectSlotSavePath: true },
+    launch: { injectSlotSavePath: true, argv: "flag-map" },
     preflight: {
       engineChecks: "llama-server",
       argumentCatalogParser: "llama-help",
@@ -94,7 +95,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     probe: { id: "tcp-accept", httpHealth: false },
     nativeApi: "none",
-    launch: { injectSlotSavePath: false },
+    launch: { injectSlotSavePath: false, argv: "flag-map" },
     preflight: {
       engineChecks: "none",
       argumentCatalogParser: "none",

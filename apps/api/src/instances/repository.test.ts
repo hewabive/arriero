@@ -66,6 +66,26 @@ test("createInstance writes a file and resolves the binary path", () => {
   assert.equal("pid" in stored, false);
 });
 
+test("updateInstance preserves positionalArgs when the patch omits them", () => {
+  const name = uniqueName("pos");
+  createInstance({
+    name,
+    kind: "llama-server",
+    rpcWorkers: [],
+    binaryPathRefId: binaryRefId,
+    args: {},
+    positionalArgs: ["serve", "model-id"],
+    env: {},
+    memory: [],
+  });
+
+  const updated = updateInstance(name, { args: { "--port": 8080 } });
+  assert.deepEqual(updated?.positionalArgs, ["serve", "model-id"]);
+
+  const cleared = updateInstance(name, { positionalArgs: [] });
+  assert.deepEqual(cleared?.positionalArgs, []);
+});
+
 test("getInstance/listInstances read back from files", () => {
   const name = uniqueName("inst");
   const created = createInstance({
@@ -85,10 +105,26 @@ test("getInstance/listInstances read back from files", () => {
 
 test("createInstance rejects duplicate names", () => {
   const name = uniqueName("dup");
-  createInstance({ name, kind: "llama-server", rpcWorkers: [], binaryPathRefId: binaryRefId, args: {}, env: {}, memory: [] });
+  createInstance({
+    name,
+    kind: "llama-server",
+    rpcWorkers: [],
+    binaryPathRefId: binaryRefId,
+    args: {},
+    env: {},
+    memory: [],
+  });
   assert.throws(
     () =>
-      createInstance({ name, kind: "llama-server", rpcWorkers: [], binaryPathRefId: binaryRefId, args: {}, env: {}, memory: [] }),
+      createInstance({
+        name,
+        kind: "llama-server",
+        rpcWorkers: [],
+        binaryPathRefId: binaryRefId,
+        args: {},
+        env: {},
+        memory: [],
+      }),
     InstanceNameConflictError,
   );
 });

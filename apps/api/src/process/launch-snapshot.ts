@@ -9,7 +9,7 @@ import {
 import { dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
-import { argsToCli } from "./args.js";
+import { engineArgvBuilder } from "./argv.js";
 
 function argIsSet(args: InstanceArgs, key: string): boolean {
   const value = args[key];
@@ -56,9 +56,15 @@ export type LaunchSnapshot = {
 };
 
 export function buildLaunchSnapshot(instance: Instance): LaunchSnapshot {
+  const buildArgv = engineArgvBuilder(
+    engineDescriptor(instance.kind).launch.argv,
+  );
   return {
     binaryPath: instance.binaryPath,
-    cliArgs: argsToCli(effectiveLaunchArgs(instance)),
+    cliArgs: buildArgv(
+      effectiveLaunchArgs(instance),
+      instance.positionalArgs ?? [],
+    ),
     env: { ...instance.env },
     cwd: instance.cwd ?? dirname(instance.binaryPath),
     numa: instance.numa ?? null,

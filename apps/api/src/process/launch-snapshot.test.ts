@@ -51,6 +51,25 @@ test("hasLaunchSnapshotDrift is false for an unchanged instance", () => {
   assert.equal(hasLaunchSnapshotDrift(instance, snapshot), false);
 });
 
+test("buildLaunchSnapshot emits positional args before flags", () => {
+  const snapshot = buildLaunchSnapshot(
+    makeInstance({ positionalArgs: ["serve", "model-id"] }),
+  );
+  assert.deepEqual(snapshot.cliArgs.slice(0, 2), ["serve", "model-id"]);
+  assert.equal(snapshot.cliArgs.indexOf("--port") > 1, true);
+});
+
+test("hasLaunchSnapshotDrift detects positional-arg changes", () => {
+  const snapshot = buildLaunchSnapshot(makeInstance());
+  assert.equal(
+    hasLaunchSnapshotDrift(
+      makeInstance({ positionalArgs: ["serve"] }),
+      snapshot,
+    ),
+    true,
+  );
+});
+
 test("hasLaunchSnapshotDrift detects args, env, binary and cwd changes", () => {
   const snapshot = buildLaunchSnapshot(makeInstance());
   assert.equal(

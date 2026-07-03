@@ -72,6 +72,9 @@ function toInstance(record: InstanceConfigRecord): Instance {
     binaryPathRefId: record.binaryPathRefId ?? "",
     cwd: record.cwd ?? undefined,
     args: record.args,
+    ...(record.positionalArgs !== undefined
+      ? { positionalArgs: record.positionalArgs }
+      : {}),
     env: record.env,
     memory: record.memory,
     rpcWorkers: record.rpcWorkers,
@@ -107,6 +110,9 @@ export function createInstance(input: InstanceCreate): Instance {
     binaryPathRefId: input.binaryPathRefId,
     ...(input.cwd !== undefined ? { cwd: input.cwd } : {}),
     args: input.args,
+    ...(input.positionalArgs !== undefined
+      ? { positionalArgs: input.positionalArgs }
+      : {}),
     env: input.env,
     memory: input.memory,
     rpcWorkers: input.rpcWorkers,
@@ -137,6 +143,8 @@ export function updateInstance(
   const binaryRef = nextRefId ? getPathCatalogEntry(nextRefId) : null;
   const nextCwd = input.cwd ?? current.cwd;
 
+  const nextPositionalArgs = input.positionalArgs ?? current.positionalArgs;
+
   const record: InstanceConfigRecord = {
     name: nextName,
     kind: current.kind,
@@ -144,6 +152,9 @@ export function updateInstance(
     ...(nextRefId !== undefined ? { binaryPathRefId: nextRefId } : {}),
     ...(nextCwd !== undefined ? { cwd: nextCwd } : {}),
     args: input.args ?? current.args,
+    ...(nextPositionalArgs !== undefined
+      ? { positionalArgs: nextPositionalArgs }
+      : {}),
     env: input.env ?? current.env,
     memory: input.memory ?? current.memory,
     rpcWorkers: input.rpcWorkers ?? current.rpcWorkers,
