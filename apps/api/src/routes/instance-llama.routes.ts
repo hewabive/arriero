@@ -2,7 +2,7 @@ import {
   ApiProbeRequestSchema,
   LlamaModelActionRequestSchema,
   LlamaSlotActionRequestSchema,
-  type LlamaEndpointProbe,
+  type EndpointProbe,
 } from "@llama-manager/core";
 import type { Hono } from "hono";
 
@@ -21,7 +21,7 @@ import {
   requestLlamaSlotAction,
 } from "../llama/probe.js";
 
-function llamaActionHttpStatus(probe: LlamaEndpointProbe) {
+function llamaActionHttpStatus(probe: EndpointProbe) {
   if (probe.status && probe.status >= 400 && probe.status < 500) {
     return 400;
   }

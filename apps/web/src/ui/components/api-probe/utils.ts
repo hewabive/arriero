@@ -1,7 +1,7 @@
 import type {
   ApiProbeKind,
   ApiProbeResult,
-  LlamaEndpointProbe,
+  EndpointProbe,
 } from "@llama-manager/core";
 
 import type { ModelOption } from "./types";
@@ -27,7 +27,7 @@ function modelStatus(record: Record<string, unknown>) {
 }
 
 export function modelOptionsFromProbe(
-  probe: LlamaEndpointProbe | undefined,
+  probe: EndpointProbe | undefined,
 ): ModelOption[] {
   const body = objectRecord(probe?.body);
   const data = [...arrayValue(body?.data), ...arrayValue(body?.models)];
@@ -58,7 +58,7 @@ export function modelOptionsFromProbe(
     );
 }
 
-function endpointErrorText(probe: LlamaEndpointProbe | undefined) {
+function endpointErrorText(probe: EndpointProbe | undefined) {
   const error = objectRecord(probe?.body)?.error;
   const message = objectRecord(error)?.message;
   if (typeof message === "string" && message.trim()) {

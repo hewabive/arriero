@@ -1,6 +1,6 @@
 import type {
-  LlamaArgumentCatalog,
-  LlamaArgumentDefaults,
+  ArgumentCatalog,
+  ArgumentDefaults,
   LlamaArgumentDocsSyncReport,
   LlamaArgumentHelpDiff,
   LlamaArgumentEngineeringDoc,
@@ -14,11 +14,11 @@ export async function getLlamaArguments(binaryPath?: string, refresh = false) {
     binaryPath,
     refresh: refresh ? "true" : undefined,
   });
-  return request<{ data: LlamaArgumentCatalog }>(`/api/llama-args${query}`);
+  return request<{ data: ArgumentCatalog }>(`/api/llama-args${query}`);
 }
 
 export async function getLlamaArgumentReference() {
-  return request<{ data: LlamaArgumentCatalog }>("/api/llama-args/reference");
+  return request<{ data: ArgumentCatalog }>("/api/llama-args/reference");
 }
 
 export async function getLlamaArgumentDoc(primaryName: string) {
@@ -45,13 +45,11 @@ export async function getLlamaSourceSyncReport() {
 }
 
 export async function getLlamaArgumentDefaults() {
-  return request<{ data: LlamaArgumentDefaults }>("/api/llama-args/defaults");
+  return request<{ data: ArgumentDefaults }>("/api/llama-args/defaults");
 }
 
-export async function updateLlamaArgumentDefaults(
-  input: LlamaArgumentDefaults,
-) {
-  return request<{ data: LlamaArgumentDefaults }>("/api/llama-args/defaults", {
+export async function updateLlamaArgumentDefaults(input: ArgumentDefaults) {
+  return request<{ data: ArgumentDefaults }>("/api/llama-args/defaults", {
     method: "PUT",
     body: JSON.stringify(input),
   });

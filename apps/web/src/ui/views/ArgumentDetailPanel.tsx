@@ -1,7 +1,4 @@
-import type {
-  LlamaArgumentDefault,
-  LlamaArgumentOption,
-} from "@llama-manager/core";
+import type { ArgumentDefault, ArgumentOption } from "@llama-manager/core";
 import {
   ActionIcon,
   Alert,
@@ -32,7 +29,7 @@ import {
 } from "./arguments-view-helpers";
 import { type ArgumentsViewController } from "./use-arguments-view";
 
-function ArgumentBadges(props: { option: LlamaArgumentOption }) {
+function ArgumentBadges(props: { option: ArgumentOption }) {
   return (
     <Group gap={6} wrap="wrap">
       <Badge variant="light">{props.option.category}</Badge>
@@ -84,7 +81,7 @@ function InstanceDefaultsCard({ fm }: { fm: ArgumentsViewController }) {
     (selectedOption.valueType === "enum" &&
       selectedOption.allowedValues.length > 0);
 
-  function valueTypeFor(value: string): LlamaArgumentDefault["valueType"] {
+  function valueTypeFor(value: string): ArgumentDefault["valueType"] {
     if (!takesValue) {
       return suggested.valueType;
     }
@@ -156,7 +153,7 @@ function InstanceDefaultsCard({ fm }: { fm: ArgumentsViewController }) {
   );
 }
 
-function curatedShortHelp(option: LlamaArgumentOption): string | null {
+function curatedShortHelp(option: ArgumentOption): string | null {
   const { help, helpRu } = option;
   if (!helpRu || helpRu === help) {
     return null;

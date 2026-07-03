@@ -2,7 +2,7 @@ import {
   engineDescriptor,
   type Instance,
   type InstanceArgValue,
-  type LlamaEndpointProbe,
+  type EndpointProbe,
 } from "@llama-manager/core";
 
 const LLAMA_HTTP = engineDescriptor("llama-server").http;
@@ -97,7 +97,7 @@ export function rpcWorkerEndpoint(
 export async function requestLlamaJson(
   url: string,
   init: RequestInit & { timeoutMs?: number } = {},
-): Promise<LlamaEndpointProbe> {
+): Promise<EndpointProbe> {
   const { timeoutMs = PROBE_TIMEOUT_MS, ...requestInit } = init;
   const started = performance.now();
   try {
@@ -133,12 +133,12 @@ export async function requestLlamaJson(
   }
 }
 
-export async function probeJson(url: string): Promise<LlamaEndpointProbe> {
+export async function probeJson(url: string): Promise<EndpointProbe> {
   return requestLlamaJson(url);
 }
 
 export function objectBody(
-  probe: LlamaEndpointProbe,
+  probe: EndpointProbe,
 ): Record<string, unknown> | null {
   return probe.body &&
     typeof probe.body === "object" &&
@@ -147,7 +147,7 @@ export function objectBody(
     : null;
 }
 
-export function llamaEndpointErrorMessage(probe: LlamaEndpointProbe): string {
+export function llamaEndpointErrorMessage(probe: EndpointProbe): string {
   const body = probe.body;
   if (body && typeof body === "object" && !Array.isArray(body)) {
     const error = (body as { error?: unknown }).error;
@@ -171,7 +171,7 @@ export function compactOptionalString(
 }
 
 export function modelRecordsFromProbe(
-  probe: LlamaEndpointProbe,
+  probe: EndpointProbe,
 ): Array<{ id: string; status: string | null }> {
   const body = probe.body;
   const data =

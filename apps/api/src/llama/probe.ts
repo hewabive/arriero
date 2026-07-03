@@ -2,7 +2,7 @@ import type {
   ApiProbeRequest,
   ApiProbeResult,
   Instance,
-  LlamaEndpointProbe,
+  EndpointProbe,
   LlamaModelDiagnostics,
   LlamaProbe,
 } from "@llama-manager/core";
@@ -35,7 +35,7 @@ const LLAMA_PROBE_PATHS = {
   models: "/v1/models",
 } as const;
 
-function failedEndpoint(url: string, error: string): LlamaEndpointProbe {
+function failedEndpoint(url: string, error: string): EndpointProbe {
   return {
     ok: false,
     url,
@@ -50,7 +50,7 @@ export function offlineLlamaProbe(
   error: string,
 ): LlamaProbe {
   const baseUrl = llamaBaseUrl(instance);
-  const endpoint = (path: string): LlamaEndpointProbe =>
+  const endpoint = (path: string): EndpointProbe =>
     failedEndpoint(baseUrl ? `${baseUrl}${path}` : "", error);
   return {
     baseUrl,
@@ -62,7 +62,7 @@ export function offlineLlamaProbe(
   };
 }
 
-function isRouterProps(probe: LlamaEndpointProbe): boolean {
+function isRouterProps(probe: EndpointProbe): boolean {
   return objectBody(probe)?.role === "router";
 }
 
@@ -72,7 +72,7 @@ function shouldProbeRouterModelDiagnostics(status: string | null) {
 
 async function probeRouterModelDiagnostics(
   baseUrl: string,
-  models: LlamaEndpointProbe,
+  models: EndpointProbe,
 ): Promise<Record<string, LlamaModelDiagnostics>> {
   const activeModels = modelRecordsFromProbe(models)
     .filter((model) => shouldProbeRouterModelDiagnostics(model.status))
@@ -132,12 +132,12 @@ function probeTcpAccept(
   host: string,
   port: number,
   url: string,
-): Promise<LlamaEndpointProbe> {
+): Promise<EndpointProbe> {
   return new Promise((resolveDone) => {
     const started = performance.now();
     const socket = connect({ host, port });
     let settled = false;
-    const finish = (probe: LlamaEndpointProbe) => {
+    const finish = (probe: EndpointProbe) => {
       if (settled) {
         return;
       }

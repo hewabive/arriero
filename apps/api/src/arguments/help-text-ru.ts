@@ -1,4 +1,4 @@
-import type { LlamaArgumentOption } from "@llama-manager/core";
+import type { ArgumentOption } from "@llama-manager/core";
 
 export const categoryNamesRu: Record<string, string> = {
   "common params": "Общие параметры",
@@ -90,6 +90,6 @@ export const helpRuOverlay: Record<string, string> = {
   "--verbosity": "Порог подробности логов llama.cpp.",
 };
 
-export function optionFallbackHelpRu(option: LlamaArgumentOption) {
+export function optionFallbackHelpRu(option: ArgumentOption) {
   return `Оригинальная справка llama.cpp: ${option.help || option.names.join(", ")}`;
 }

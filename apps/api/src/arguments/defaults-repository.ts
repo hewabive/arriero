@@ -1,7 +1,7 @@
 import {
-  LlamaArgumentDefaultsSchema,
-  type LlamaArgumentDefault,
-  type LlamaArgumentDefaults,
+  ArgumentDefaultsSchema,
+  type ArgumentDefault,
+  type ArgumentDefaults,
 } from "@llama-manager/core";
 import {
   copyFileSync,
@@ -17,7 +17,7 @@ import { config } from "../config.js";
 const filePath = config.argumentDefaultsFile;
 const seedPath = config.argumentDefaultsSeedFile;
 
-function sanitizeDefaults(defaults: LlamaArgumentDefault[]) {
+function sanitizeDefaults(defaults: ArgumentDefault[]) {
   const seen = new Set<string>();
   return defaults
     .map((item) => ({
@@ -49,7 +49,7 @@ function ensureFile() {
   );
 }
 
-function readDefaults(): LlamaArgumentDefaults {
+function readDefaults(): ArgumentDefaults {
   const raw = readFileSync(filePath, "utf8");
   let json: unknown;
   try {
@@ -57,10 +57,10 @@ function readDefaults(): LlamaArgumentDefaults {
   } catch (error) {
     throw new Error(`Invalid JSON in ${filePath}: ${(error as Error).message}`);
   }
-  return LlamaArgumentDefaultsSchema.parse(json);
+  return ArgumentDefaultsSchema.parse(json);
 }
 
-function writeDefaults(input: { instance: LlamaArgumentDefault[] }) {
+function writeDefaults(input: { instance: ArgumentDefault[] }) {
   const tmp = `${filePath}.${process.pid}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(input, null, 2)}\n`, "utf8");
   renameSync(tmp, filePath);
@@ -71,19 +71,19 @@ export function initArgumentDefaults() {
   readDefaults();
 }
 
-export function getArgumentDefaults(): LlamaArgumentDefaults {
+export function getArgumentDefaults(): ArgumentDefaults {
   ensureFile();
   const parsed = readDefaults();
-  return LlamaArgumentDefaultsSchema.parse({
+  return ArgumentDefaultsSchema.parse({
     instance: parsed.instance,
     updatedAt: statSync(filePath).mtime.toISOString(),
   });
 }
 
 export function saveArgumentDefaults(
-  input: LlamaArgumentDefaults,
-): LlamaArgumentDefaults {
-  const parsed = LlamaArgumentDefaultsSchema.parse(input);
+  input: ArgumentDefaults,
+): ArgumentDefaults {
+  const parsed = ArgumentDefaultsSchema.parse(input);
   writeDefaults({
     instance: sanitizeDefaults(parsed.instance),
   });

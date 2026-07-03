@@ -1,7 +1,7 @@
 import type {
   InstanceHealthSummary,
   InstanceLoadProgress,
-  LlamaEndpointProbe,
+  EndpointProbe,
   LlamaModelActionName,
   LlamaProbe,
   LlamaSlotActionName,
@@ -49,7 +49,7 @@ export type SlotActionInput = {
   filename?: string;
 };
 
-function probeEndpointMessage(probe: LlamaEndpointProbe | undefined) {
+function probeEndpointMessage(probe: EndpointProbe | undefined) {
   const body = probe?.body;
   if (body && typeof body === "object" && !Array.isArray(body)) {
     const error = (body as { error?: unknown }).error;
@@ -63,7 +63,7 @@ function probeEndpointMessage(probe: LlamaEndpointProbe | undefined) {
   return probe?.error ?? null;
 }
 
-function isModelScopedRouterProbe(probe: LlamaEndpointProbe | undefined) {
+function isModelScopedRouterProbe(probe: EndpointProbe | undefined) {
   return (
     probe?.status === 400 &&
     /model name is missing from the request/i.test(
@@ -72,7 +72,7 @@ function isModelScopedRouterProbe(probe: LlamaEndpointProbe | undefined) {
   );
 }
 
-export function probeColor(probe: LlamaEndpointProbe | undefined) {
+export function probeColor(probe: EndpointProbe | undefined) {
   if (!probe) return "gray";
   if (probe.ok) return "green";
   if (isModelScopedRouterProbe(probe)) return "yellow";
@@ -80,7 +80,7 @@ export function probeColor(probe: LlamaEndpointProbe | undefined) {
   return "red";
 }
 
-export function probeTooltip(probe: LlamaEndpointProbe | undefined) {
+export function probeTooltip(probe: EndpointProbe | undefined) {
   if (!probe) return "not probed";
   const parts = [`${probe.status} · ${probe.latencyMs} ms`];
   if (isModelScopedRouterProbe(probe)) {
@@ -92,7 +92,7 @@ export function probeTooltip(probe: LlamaEndpointProbe | undefined) {
 }
 
 export function slowestProbe(
-  probes: Array<[string, LlamaEndpointProbe | undefined]>,
+  probes: Array<[string, EndpointProbe | undefined]>,
 ) {
   let slowest: { label: string; latencyMs: number } | null = null;
   for (const [label, probe] of probes) {
@@ -315,7 +315,7 @@ function compareV1ModelIds(left: { id: string }, right: { id: string }) {
 }
 
 export function v1ModelsFromProbe(
-  probe: LlamaEndpointProbe | undefined,
+  probe: EndpointProbe | undefined,
 ): V1ModelInfo[] {
   const body = probe?.body;
   const data = Array.isArray(body)
@@ -518,7 +518,7 @@ export function loadProgressValue(progress: InstanceLoadProgress) {
   return progress.percent ?? 10;
 }
 
-function endpointErrorText(probe: LlamaEndpointProbe | undefined) {
+function endpointErrorText(probe: EndpointProbe | undefined) {
   return probeEndpointMessage(probe);
 }
 
@@ -528,7 +528,7 @@ function boolLabel(value: unknown) {
   return null;
 }
 
-export function propsRuntimeSummary(probe: LlamaEndpointProbe | undefined) {
+export function propsRuntimeSummary(probe: EndpointProbe | undefined) {
   if (!probe) return "not probed";
   if (!probe.ok) return endpointErrorText(probe) ?? "unavailable";
   const body = objectRecord(probe.body);
@@ -549,7 +549,7 @@ export function propsRuntimeSummary(probe: LlamaEndpointProbe | undefined) {
   return parts.join(" · ") || "ok";
 }
 
-export function slotsRuntimeSummary(probe: LlamaEndpointProbe | undefined) {
+export function slotsRuntimeSummary(probe: EndpointProbe | undefined) {
   if (!probe) return "not probed";
   if (!probe.ok) return endpointErrorText(probe) ?? "unavailable";
   if (!Array.isArray(probe.body)) return "no slot data";
@@ -589,7 +589,7 @@ function nextTokenRecord(value: unknown) {
   return objectRecord(value);
 }
 
-export function slotRowsFromProbe(probe: LlamaEndpointProbe | undefined) {
+export function slotRowsFromProbe(probe: EndpointProbe | undefined) {
   if (!probe?.ok || !Array.isArray(probe.body)) {
     return [];
   }
@@ -646,7 +646,7 @@ function formatRate(value: number | null) {
   return `${value.toFixed(value >= 10 ? 1 : 2)}/s`;
 }
 
-export function metricsRuntimeSummary(probe: LlamaEndpointProbe | undefined) {
+export function metricsRuntimeSummary(probe: EndpointProbe | undefined) {
   if (!probe) return "not probed";
   if (!probe.ok) return endpointErrorText(probe) ?? "unavailable";
 
@@ -672,7 +672,7 @@ export function metricsRuntimeSummary(probe: LlamaEndpointProbe | undefined) {
   );
 }
 
-export function loraAdaptersFromProbe(probe: LlamaEndpointProbe | undefined) {
+export function loraAdaptersFromProbe(probe: EndpointProbe | undefined) {
   if (!Array.isArray(probe?.body)) {
     return [];
   }
@@ -681,7 +681,7 @@ export function loraAdaptersFromProbe(probe: LlamaEndpointProbe | undefined) {
     .filter((item): item is Record<string, unknown> => Boolean(item));
 }
 
-export function loraRuntimeSummary(probe: LlamaEndpointProbe | undefined) {
+export function loraRuntimeSummary(probe: EndpointProbe | undefined) {
   if (!probe) return "not probed";
   if (!probe.ok) return endpointErrorText(probe) ?? "unavailable";
 

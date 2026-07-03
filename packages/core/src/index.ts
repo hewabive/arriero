@@ -308,7 +308,7 @@ export const ProcessPreflightResultSchema = z.object({
   checkedAt: z.string(),
 });
 
-export const LlamaEndpointProbeSchema = z.object({
+export const EndpointProbeSchema = z.object({
   ok: z.boolean(),
   url: z.string(),
   status: z.number().int().nullable(),
@@ -319,18 +319,18 @@ export const LlamaEndpointProbeSchema = z.object({
 
 export const LlamaModelDiagnosticsSchema = z.object({
   id: z.string(),
-  props: LlamaEndpointProbeSchema,
-  slots: LlamaEndpointProbeSchema,
-  metrics: LlamaEndpointProbeSchema,
-  loraAdapters: LlamaEndpointProbeSchema,
+  props: EndpointProbeSchema,
+  slots: EndpointProbeSchema,
+  metrics: EndpointProbeSchema,
+  loraAdapters: EndpointProbeSchema,
 });
 
 export const LlamaProbeSchema = z.object({
   baseUrl: z.string(),
-  health: LlamaEndpointProbeSchema,
-  props: LlamaEndpointProbeSchema,
-  slots: LlamaEndpointProbeSchema,
-  models: LlamaEndpointProbeSchema,
+  health: EndpointProbeSchema,
+  props: EndpointProbeSchema,
+  slots: EndpointProbeSchema,
+  models: EndpointProbeSchema,
   modelDiagnostics: z.record(z.string(), LlamaModelDiagnosticsSchema),
 });
 
@@ -377,7 +377,7 @@ export const LlamaModelActionRequestSchema = z.object({
 export const LlamaModelActionResultSchema = z.object({
   action: LlamaModelActionNameSchema,
   model: z.string().nullable(),
-  response: LlamaEndpointProbeSchema,
+  response: EndpointProbeSchema,
   fallback: z.string().nullable().default(null),
 });
 
@@ -393,7 +393,7 @@ export const LlamaSlotActionResultSchema = z.object({
   slotId: z.number().int().min(0),
   model: z.string().nullable(),
   filename: z.string().nullable(),
-  response: LlamaEndpointProbeSchema,
+  response: EndpointProbeSchema,
 });
 
 export const ApiLabProbeProfileSchema = z.enum([
@@ -621,7 +621,7 @@ export const ApiProbeResultSchema = z.object({
   kind: ApiProbeKindSchema,
   endpoint: z.string(),
   requestBody: z.unknown(),
-  response: LlamaEndpointProbeSchema,
+  response: EndpointProbeSchema,
 });
 
 const ApiProxyIdSchema = z.string().min(1).max(80);
@@ -1908,7 +1908,7 @@ export const UpdateFleetSchema = z.object({
   nodes: z.array(UpdateFleetNodeSchema),
 });
 
-export const LlamaArgumentValueTypeSchema = z.enum([
+export const ArgumentValueTypeSchema = z.enum([
   "flag",
   "boolean",
   "number",
@@ -1919,7 +1919,7 @@ export const LlamaArgumentValueTypeSchema = z.enum([
   "list",
 ]);
 
-export const LlamaArgumentControlKindSchema = z.enum([
+export const ArgumentControlKindSchema = z.enum([
   "flag",
   "toggle",
   "select",
@@ -1932,7 +1932,7 @@ export const LlamaArgumentControlKindSchema = z.enum([
   "two-values",
 ]);
 
-export const LlamaArgumentCliEncodingSchema = z.enum([
+export const ArgumentCliEncodingSchema = z.enum([
   "flag",
   "value",
   "csv",
@@ -1948,10 +1948,10 @@ export const LlamaArgumentPresetSupportSchema = z.enum([
   "router-managed",
 ]);
 
-export const LlamaArgumentControlSchema = z
+export const ArgumentControlSchema = z
   .object({
-    kind: LlamaArgumentControlKindSchema,
-    cliEncoding: LlamaArgumentCliEncodingSchema,
+    kind: ArgumentControlKindSchema,
+    cliEncoding: ArgumentCliEncodingSchema,
     presetSupport: LlamaArgumentPresetSupportSchema,
   })
   .default({
@@ -1988,24 +1988,24 @@ export const LlamaArgumentDocIndexSchema = z
     updatedAt: null,
   });
 
-export const LlamaArgumentOptionSchema = z.object({
+export const ArgumentOptionSchema = z.object({
   primaryName: z.string(),
   names: z.array(z.string()),
   category: z.string(),
   valueHint: z.string().nullable(),
-  valueType: LlamaArgumentValueTypeSchema,
+  valueType: ArgumentValueTypeSchema,
   env: z.array(z.string()),
   allowedValues: z.array(z.string()),
   help: z.string(),
   helpRu: z.string(),
   helpRuSource: z.enum(["registry", "builtin", "fallback"]),
   doc: LlamaArgumentDocIndexSchema,
-  control: LlamaArgumentControlSchema,
+  control: ArgumentControlSchema,
   compatibility: LlamaArgumentCompatibilitySchema,
   deprecated: z.boolean(),
 });
 
-export const LlamaArgumentCatalogSchema = z.object({
+export const ArgumentCatalogSchema = z.object({
   binaryPath: z.string(),
   generatedAt: z.string(),
   source: z.object({
@@ -2020,10 +2020,10 @@ export const LlamaArgumentCatalogSchema = z.object({
     refreshed: z.boolean(),
     stale: z.boolean(),
   }),
-  options: z.array(LlamaArgumentOptionSchema),
+  options: z.array(ArgumentOptionSchema),
 });
 
-export const LlamaArgumentDefaultValueTypeSchema = z.enum([
+export const ArgumentDefaultValueTypeSchema = z.enum([
   "string",
   "number",
   "boolean",
@@ -2032,14 +2032,14 @@ export const LlamaArgumentDefaultValueTypeSchema = z.enum([
   "null",
 ]);
 
-export const LlamaArgumentDefaultSchema = z.object({
+export const ArgumentDefaultSchema = z.object({
   key: z.string().min(1),
   value: z.string().default(""),
-  valueType: LlamaArgumentDefaultValueTypeSchema.default("string"),
+  valueType: ArgumentDefaultValueTypeSchema.default("string"),
 });
 
-export const LlamaArgumentDefaultsSchema = z.object({
-  instance: z.array(LlamaArgumentDefaultSchema).default([]),
+export const ArgumentDefaultsSchema = z.object({
+  instance: z.array(ArgumentDefaultSchema).default([]),
   updatedAt: z.string().nullable().default(null),
 });
 
@@ -2478,7 +2478,7 @@ export type ProcessPreflightIssue = z.infer<typeof ProcessPreflightIssueSchema>;
 export type ProcessPreflightResult = z.infer<
   typeof ProcessPreflightResultSchema
 >;
-export type LlamaEndpointProbe = z.infer<typeof LlamaEndpointProbeSchema>;
+export type EndpointProbe = z.infer<typeof EndpointProbeSchema>;
 export type LlamaModelDiagnostics = z.infer<typeof LlamaModelDiagnosticsSchema>;
 export type LlamaProbe = z.infer<typeof LlamaProbeSchema>;
 export type LlamaCapabilityStatus = z.infer<typeof LlamaCapabilityStatusSchema>;
@@ -2753,30 +2753,24 @@ export type UpdateLogTail = z.infer<typeof UpdateLogTailSchema>;
 export type UpdateUpstream = z.infer<typeof UpdateUpstreamSchema>;
 export type UpdateFleetNode = z.infer<typeof UpdateFleetNodeSchema>;
 export type UpdateFleet = z.infer<typeof UpdateFleetSchema>;
-export type LlamaArgumentValueType = z.infer<
-  typeof LlamaArgumentValueTypeSchema
->;
-export type LlamaArgumentControlKind = z.infer<
-  typeof LlamaArgumentControlKindSchema
->;
-export type LlamaArgumentCliEncoding = z.infer<
-  typeof LlamaArgumentCliEncodingSchema
->;
+export type ArgumentValueType = z.infer<typeof ArgumentValueTypeSchema>;
+export type ArgumentControlKind = z.infer<typeof ArgumentControlKindSchema>;
+export type ArgumentCliEncoding = z.infer<typeof ArgumentCliEncodingSchema>;
 export type LlamaArgumentPresetSupport = z.infer<
   typeof LlamaArgumentPresetSupportSchema
 >;
-export type LlamaArgumentControl = z.infer<typeof LlamaArgumentControlSchema>;
+export type ArgumentControl = z.infer<typeof ArgumentControlSchema>;
 export type LlamaArgumentCompatibility = z.infer<
   typeof LlamaArgumentCompatibilitySchema
 >;
 export type LlamaArgumentDocIndex = z.infer<typeof LlamaArgumentDocIndexSchema>;
-export type LlamaArgumentOption = z.infer<typeof LlamaArgumentOptionSchema>;
-export type LlamaArgumentCatalog = z.infer<typeof LlamaArgumentCatalogSchema>;
-export type LlamaArgumentDefaultValueType = z.infer<
-  typeof LlamaArgumentDefaultValueTypeSchema
+export type ArgumentOption = z.infer<typeof ArgumentOptionSchema>;
+export type ArgumentCatalog = z.infer<typeof ArgumentCatalogSchema>;
+export type ArgumentDefaultValueType = z.infer<
+  typeof ArgumentDefaultValueTypeSchema
 >;
-export type LlamaArgumentDefault = z.infer<typeof LlamaArgumentDefaultSchema>;
-export type LlamaArgumentDefaults = z.infer<typeof LlamaArgumentDefaultsSchema>;
+export type ArgumentDefault = z.infer<typeof ArgumentDefaultSchema>;
+export type ArgumentDefaults = z.infer<typeof ArgumentDefaultsSchema>;
 export type LlamaArgumentEngineeringDoc = z.infer<
   typeof LlamaArgumentEngineeringDocSchema
 >;

@@ -1,7 +1,4 @@
-import {
-  LlamaArgumentOptionSchema,
-  type LlamaArgumentOption,
-} from "@llama-manager/core";
+import { ArgumentOptionSchema, type ArgumentOption } from "@llama-manager/core";
 import { eq } from "drizzle-orm";
 import { existsSync } from "node:fs";
 
@@ -16,7 +13,7 @@ export type CachedArgumentCatalog = {
   binaryMtimeMs: string;
   binaryModifiedAt: string;
   helpHash: string;
-  options: LlamaArgumentOption[];
+  options: ArgumentOption[];
   generatedAt: string;
   parserId: string;
 };
@@ -28,7 +25,7 @@ function toCatalog(row: CatalogRow): CachedArgumentCatalog {
     binaryMtimeMs: row.binaryMtimeMs,
     binaryModifiedAt: row.binaryModifiedAt,
     helpHash: row.helpHash,
-    options: LlamaArgumentOptionSchema.array().parse(
+    options: ArgumentOptionSchema.array().parse(
       JSON.parse(row.optionsJson) as unknown,
     ),
     generatedAt: row.generatedAt,

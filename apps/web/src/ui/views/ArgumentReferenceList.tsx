@@ -1,7 +1,4 @@
-import type {
-  LlamaArgumentDefaults,
-  LlamaArgumentOption,
-} from "@llama-manager/core";
+import type { ArgumentDefaults, ArgumentOption } from "@llama-manager/core";
 import { Code, Group, Paper, Stack, Table, Text, Tooltip } from "@mantine/core";
 import { Star } from "lucide-react";
 
@@ -9,8 +6,8 @@ import { defaultScopeLabel } from "./arguments-view-helpers";
 import { type ArgumentsViewController } from "./use-arguments-view";
 
 function ArgumentDefaultMarker(props: {
-  defaults: LlamaArgumentDefaults;
-  option: LlamaArgumentOption;
+  defaults: ArgumentDefaults;
+  option: ArgumentOption;
 }) {
   const label = defaultScopeLabel(props.defaults, props.option);
   if (!label) {

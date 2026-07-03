@@ -8,7 +8,7 @@ import {
   type InstanceKind,
   type InstancePreflightPreview,
   type InstanceUpdate,
-  type LlamaArgumentOption,
+  type ArgumentOption,
   type MemoryEstimate,
   type RpcWorkerRef,
 } from "@llama-manager/core";
@@ -348,7 +348,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     : "Reload from binary --help";
   const knownArgs = argsCatalog?.options ?? [];
   const knownArgByName = useMemo(() => {
-    const map = new Map<string, LlamaArgumentOption>();
+    const map = new Map<string, ArgumentOption>();
     for (const option of knownArgs) {
       map.set(option.primaryName, option);
       for (const name of option.names) {
@@ -362,7 +362,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   }, [knownArgs]);
   const defaultOverlay = useMemo(() => {
     const seen = new Set<string>();
-    const out: LlamaArgumentOption[] = [];
+    const out: ArgumentOption[] = [];
     for (const item of instanceDefaultArgs) {
       const option = knownArgByName.get(item.key);
       if (!option || seen.has(option.primaryName)) {
@@ -895,7 +895,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     });
   }
 
-  function defaultRowActive(option: LlamaArgumentOption) {
+  function defaultRowActive(option: ArgumentOption) {
     const row = argRows.find(
       (item) =>
         canonicalOptionForRow(item, knownArgByName)?.primaryName ===
@@ -904,7 +904,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     return Boolean(row) && row?.valueType !== "null";
   }
 
-  function defaultRowValue(option: LlamaArgumentOption) {
+  function defaultRowValue(option: ArgumentOption) {
     const row = argRows.find(
       (item) =>
         canonicalOptionForRow(item, knownArgByName)?.primaryName ===
@@ -913,13 +913,13 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     return row?.value ?? defaultValueForArgument(option);
   }
 
-  function setDefaultActive(option: LlamaArgumentOption, active: boolean) {
+  function setDefaultActive(option: ArgumentOption, active: boolean) {
     setArgRows((rows) =>
       setDefaultActiveRows(rows, option, knownArgByName, active),
     );
   }
 
-  function setDefaultValue(option: LlamaArgumentOption, value: string) {
+  function setDefaultValue(option: ArgumentOption, value: string) {
     setArgRows((rows) =>
       setDefaultValueRows(rows, option, knownArgByName, value),
     );

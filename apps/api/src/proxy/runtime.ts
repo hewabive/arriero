@@ -10,7 +10,7 @@ import {
   type ApiProxyTargetRuntime,
   type Instance,
   type InstanceHealthSummary,
-  type LlamaEndpointProbe,
+  type EndpointProbe,
 } from "@llama-manager/core";
 
 import { resolveApiProxyTarget } from "./targets.js";
@@ -40,7 +40,7 @@ function numberValue(value: unknown) {
   return null;
 }
 
-function slotRecords(probe: LlamaEndpointProbe | undefined) {
+function slotRecords(probe: EndpointProbe | undefined) {
   if (!probe?.ok || !Array.isArray(probe.body)) {
     return [];
   }
@@ -50,15 +50,12 @@ function slotRecords(probe: LlamaEndpointProbe | undefined) {
     .filter((slot): slot is Record<string, unknown> => Boolean(slot));
 }
 
-function activeRequestsFromSlots(probe: LlamaEndpointProbe | undefined) {
+function activeRequestsFromSlots(probe: EndpointProbe | undefined) {
   return slotRecords(probe).filter((slot) => slot.is_processing === true)
     .length;
 }
 
-function modelStatusFromProbe(
-  probe: LlamaEndpointProbe | undefined,
-  model: string,
-) {
+function modelStatusFromProbe(probe: EndpointProbe | undefined, model: string) {
   const body = objectRecord(probe?.body);
   const data = Array.isArray(body?.data) ? body.data : [];
   const match = data

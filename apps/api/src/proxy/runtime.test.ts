@@ -4,7 +4,7 @@ import type {
   ApiProxyTargetRecord,
   Instance,
   InstanceHealthSummary,
-  LlamaEndpointProbe,
+  EndpointProbe,
 } from "@llama-manager/core";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -15,7 +15,7 @@ import {
   setApiProxySavedSlotIds,
 } from "./runtime.js";
 
-function endpoint(body: unknown, ok = true): LlamaEndpointProbe {
+function endpoint(body: unknown, ok = true): EndpointProbe {
   return {
     ok,
     url: "http://127.0.0.1:8080/test",

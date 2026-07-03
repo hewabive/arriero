@@ -1,4 +1,4 @@
-import type { LlamaEndpointProbe, PromptCacheState } from "@llama-manager/core";
+import type { EndpointProbe, PromptCacheState } from "@llama-manager/core";
 import {
   Badge,
   Group,
@@ -15,7 +15,7 @@ import { probeColor, probeTooltip } from "./instance-details-helpers";
 
 export function ProbePill(props: {
   title: string;
-  probe: LlamaEndpointProbe | undefined;
+  probe: EndpointProbe | undefined;
 }) {
   return (
     <Tooltip label={probeTooltip(props.probe)} withArrow multiline maw={320}>

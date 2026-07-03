@@ -1,6 +1,6 @@
 import type {
   InstanceHealthSummary,
-  LlamaEndpointProbe,
+  EndpointProbe,
   LlamaModelDiagnostics,
 } from "@llama-manager/core";
 import {
@@ -165,7 +165,7 @@ export function SlotDetailsBlock(props: {
 
 function RuntimeProbeLine(props: {
   label: string;
-  probe: LlamaEndpointProbe | undefined;
+  probe: EndpointProbe | undefined;
   summary: string;
 }) {
   return (
@@ -186,7 +186,7 @@ function RuntimeProbeLine(props: {
 }
 
 export function V1ModelsPanel(props: {
-  probe: LlamaEndpointProbe | undefined;
+  probe: EndpointProbe | undefined;
   modelDiagnostics: Record<string, LlamaModelDiagnostics>;
   statusSummary: InstanceHealthSummary["logSummary"] | undefined;
   onReload: () => void;

@@ -1,4 +1,4 @@
-import { LlamaArgumentDefaultsSchema } from "@llama-manager/core";
+import { ArgumentDefaultsSchema } from "@llama-manager/core";
 import type { Hono } from "hono";
 
 import {
@@ -77,7 +77,7 @@ export function registerArgumentRoutes(app: Hono) {
   });
 
   app.put("/api/llama-args/defaults", async (c) => {
-    const parsed = LlamaArgumentDefaultsSchema.safeParse(await c.req.json());
+    const parsed = ArgumentDefaultsSchema.safeParse(await c.req.json());
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }

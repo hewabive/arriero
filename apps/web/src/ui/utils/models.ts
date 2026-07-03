@@ -1,6 +1,6 @@
 import type {
   GgufModel,
-  LlamaArgumentDefault,
+  ArgumentDefault,
   ModelPresetEntry,
 } from "@llama-manager/core";
 
@@ -134,7 +134,7 @@ function presetEntryNameFromModel(model: GgufModel) {
 
 function applyPresetDefaults(
   entry: ModelPresetEntry,
-  defaults: LlamaArgumentDefault[],
+  defaults: ArgumentDefault[],
 ) {
   let next = { ...entry };
 
@@ -155,7 +155,7 @@ function applyPresetDefaults(
 
 export function presetEntryFromModel(
   model: GgufModel,
-  defaults: LlamaArgumentDefault[] = [],
+  defaults: ArgumentDefault[] = [],
 ): ModelPresetEntry {
   return applyPresetDefaults(
     {

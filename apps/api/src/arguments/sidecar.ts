@@ -1,4 +1,4 @@
-import { LlamaArgumentOptionSchema } from "@llama-manager/core";
+import { ArgumentOptionSchema } from "@llama-manager/core";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -17,7 +17,7 @@ const SidecarSchema = z.object({
   helpHash: z.string(),
   generatedAt: z.string(),
   parser: z.string(),
-  options: LlamaArgumentOptionSchema.array(),
+  options: ArgumentOptionSchema.array(),
 });
 
 const LegacySidecarSchema = z.object({
@@ -27,7 +27,7 @@ const LegacySidecarSchema = z.object({
   binaryModifiedAt: z.string(),
   helpHash: z.string(),
   generatedAt: z.string(),
-  options: LlamaArgumentOptionSchema.array(),
+  options: ArgumentOptionSchema.array(),
 });
 
 function parseSidecarPayload(raw: unknown) {

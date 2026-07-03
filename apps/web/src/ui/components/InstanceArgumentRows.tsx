@@ -1,4 +1,4 @@
-import type { Instance, LlamaArgumentOption } from "@llama-manager/core";
+import type { Instance, ArgumentOption } from "@llama-manager/core";
 import { ActionIcon, Group, Select, TextInput, Tooltip } from "@mantine/core";
 import { Trash2 } from "lucide-react";
 
@@ -73,13 +73,13 @@ function rowsToArgs(rows: ArgRow[]) {
   return args;
 }
 
-function negativeArgumentName(option: LlamaArgumentOption) {
+function negativeArgumentName(option: ArgumentOption) {
   return option.names.find(
     (name) => name.startsWith("--no-") || name.startsWith("-no"),
   );
 }
 
-function isPlainBoolean(option: LlamaArgumentOption) {
+function isPlainBoolean(option: ArgumentOption) {
   return (
     option.valueType === "boolean" &&
     !option.valueHint &&
@@ -89,7 +89,7 @@ function isPlainBoolean(option: LlamaArgumentOption) {
 
 export function rowsToArgsWithCatalog(
   rows: ArgRow[],
-  knownArgByName: Map<string, LlamaArgumentOption>,
+  knownArgByName: Map<string, ArgumentOption>,
 ) {
   const args: Record<string, string | number | boolean | string[] | null> = {};
 
@@ -192,7 +192,7 @@ export function rowValue(rows: ArgRow[], key: string) {
 }
 
 export function valueTypeFromArgument(
-  option: LlamaArgumentOption,
+  option: ArgumentOption,
 ): ArgRow["valueType"] {
   if (option.valueType === "flag") return "flag";
   if (option.valueType === "boolean") return "boolean";
@@ -202,18 +202,18 @@ export function valueTypeFromArgument(
   return "string";
 }
 
-export function defaultValueForArgument(option: LlamaArgumentOption) {
+export function defaultValueForArgument(option: ArgumentOption) {
   return defaultArgumentValue(option);
 }
 
-export function cliNameForArgument(option: LlamaArgumentOption) {
+export function cliNameForArgument(option: ArgumentOption) {
   return option.compatibility.presentInBinary &&
     option.compatibility.binaryPrimaryName
     ? option.compatibility.binaryPrimaryName
     : option.primaryName;
 }
 
-function rowFromArgument(option: LlamaArgumentOption): ArgRow {
+function rowFromArgument(option: ArgumentOption): ArgRow {
   const valueType = valueTypeFromArgument(option);
   return {
     id: createUiId(),
@@ -225,15 +225,12 @@ function rowFromArgument(option: LlamaArgumentOption): ArgRow {
 
 export function canonicalOptionForRow(
   row: ArgRow,
-  knownArgByName: Map<string, LlamaArgumentOption>,
+  knownArgByName: Map<string, ArgumentOption>,
 ) {
   return knownArgByName.get(row.key.trim()) ?? null;
 }
 
-export function replaceCanonicalRow(
-  rows: ArgRow[],
-  option: LlamaArgumentOption,
-) {
+export function replaceCanonicalRow(rows: ArgRow[], option: ArgumentOption) {
   return [
     ...rows.filter(
       (row) =>
@@ -341,7 +338,7 @@ export function RawArgRow(props: {
 
 export function argsToRows(
   args: Instance["args"],
-  knownArgByName?: Map<string, LlamaArgumentOption>,
+  knownArgByName?: Map<string, ArgumentOption>,
 ): ArgRow[] {
   const rows = Object.entries(args).map(([key, value]) => {
     const id = createUiId();

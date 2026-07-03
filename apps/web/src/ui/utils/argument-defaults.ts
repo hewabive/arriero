@@ -1,9 +1,6 @@
-import type {
-  LlamaArgumentDefault,
-  LlamaArgumentOption,
-} from "@llama-manager/core";
+import type { ArgumentDefault, ArgumentOption } from "@llama-manager/core";
 
-export function argumentAcceptsAutoAll(option: LlamaArgumentOption) {
+export function argumentAcceptsAutoAll(option: ArgumentOption) {
   const name = option.primaryName.toLowerCase();
   return (
     name.includes("gpu-layers") &&
@@ -12,7 +9,7 @@ export function argumentAcceptsAutoAll(option: LlamaArgumentOption) {
   );
 }
 
-export function defaultArgumentValue(option: LlamaArgumentOption) {
+export function defaultArgumentValue(option: ArgumentOption) {
   if (argumentAcceptsAutoAll(option)) {
     return "auto";
   }
@@ -28,8 +25,8 @@ export function defaultArgumentValue(option: LlamaArgumentOption) {
 }
 
 function defaultArgumentValueType(
-  option: LlamaArgumentOption,
-): LlamaArgumentDefault["valueType"] {
+  option: ArgumentOption,
+): ArgumentDefault["valueType"] {
   if (argumentAcceptsAutoAll(option)) {
     return "string";
   }
@@ -41,8 +38,8 @@ function defaultArgumentValueType(
 }
 
 export function argumentDefaultFromOption(
-  option: LlamaArgumentOption,
-): LlamaArgumentDefault {
+  option: ArgumentOption,
+): ArgumentDefault {
   return {
     key: option.primaryName,
     value: defaultArgumentValue(option),

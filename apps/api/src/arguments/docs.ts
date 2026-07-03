@@ -1,7 +1,7 @@
 import type {
   LlamaArgumentDocIndex,
   LlamaArgumentEngineeringDoc,
-  LlamaArgumentOption,
+  ArgumentOption,
 } from "@llama-manager/core";
 import {
   closeSync,
@@ -148,9 +148,7 @@ function firstMarkdownParagraph(markdown: string) {
   return paragraph?.replace(/\s+/g, " ").slice(0, 240) ?? null;
 }
 
-function getArgumentDocIndex(
-  option: LlamaArgumentOption,
-): LlamaArgumentDocIndex {
+function getArgumentDocIndex(option: ArgumentOption): LlamaArgumentDocIndex {
   const path = argumentDocPath(option.primaryName);
   if (!existsSync(path)) {
     return {
@@ -172,7 +170,7 @@ function getArgumentDocIndex(
   };
 }
 
-export function withArgumentDocIndex(options: LlamaArgumentOption[]) {
+export function withArgumentDocIndex(options: ArgumentOption[]) {
   return options.map((option) => ({
     ...option,
     doc: getArgumentDocIndex(option),
@@ -181,7 +179,7 @@ export function withArgumentDocIndex(options: LlamaArgumentOption[]) {
 
 export function readArgumentEngineeringDoc(input: {
   primaryName: string;
-  option?: LlamaArgumentOption | null;
+  option?: ArgumentOption | null;
 }): LlamaArgumentEngineeringDoc {
   const path = argumentDocPath(input.primaryName);
   if (!existsSync(path)) {

@@ -1,7 +1,4 @@
-import type {
-  LlamaArgumentOption,
-  LlamaArgumentValueType,
-} from "@llama-manager/core";
+import type { ArgumentOption, ArgumentValueType } from "@llama-manager/core";
 
 import { defaultArgumentControl } from "./registry.js";
 import { categoryNameRu, helpRuOverlay } from "./help-text-ru.js";
@@ -150,7 +147,7 @@ function inferValueType(input: {
   valueHint: string | null;
   allowedValues: string[];
   help: string;
-}): LlamaArgumentValueType {
+}): ArgumentValueType {
   const hint = input.valueHint?.toLowerCase() ?? "";
   const help = input.help.toLowerCase();
   const hasNegation = input.names.some(
@@ -199,7 +196,7 @@ function helpWithoutEnv(help: string) {
     .trim();
 }
 
-function toOption(parsed: ParsedHelpOption): LlamaArgumentOption | null {
+function toOption(parsed: ParsedHelpOption): ArgumentOption | null {
   const names = namesFromOptionText(parsed.optionText);
   if (names.length === 0) {
     return null;
@@ -260,7 +257,7 @@ function toOption(parsed: ParsedHelpOption): LlamaArgumentOption | null {
 export function parseLlamaArgumentOptions(helpOutput: string) {
   return parseHelpOutput(helpOutput)
     .map(toOption)
-    .filter((option): option is LlamaArgumentOption => Boolean(option))
+    .filter((option): option is ArgumentOption => Boolean(option))
     .sort(
       (left, right) =>
         left.category.localeCompare(right.category) ||

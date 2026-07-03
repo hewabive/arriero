@@ -1,16 +1,16 @@
 import type {
-  LlamaArgumentCliEncoding,
-  LlamaArgumentControl,
-  LlamaArgumentControlKind,
-  LlamaArgumentOption,
+  ArgumentCliEncoding,
+  ArgumentControl,
+  ArgumentControlKind,
+  ArgumentOption,
   LlamaArgumentPresetSupport,
-  LlamaArgumentValueType,
+  ArgumentValueType,
 } from "@llama-manager/core";
 import {
-  LlamaArgumentCliEncodingSchema,
-  LlamaArgumentControlKindSchema,
+  ArgumentCliEncodingSchema,
+  ArgumentControlKindSchema,
   LlamaArgumentPresetSupportSchema,
-  LlamaArgumentValueTypeSchema,
+  ArgumentValueTypeSchema,
 } from "@llama-manager/core";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,7 +22,7 @@ import {
 } from "./docs.js";
 
 type ArgumentRegistryEntry = {
-  option: LlamaArgumentOption;
+  option: ArgumentOption;
   slug: string;
 };
 
@@ -60,10 +60,10 @@ function enumField<T extends string>(
 }
 
 function controlKindForValueType(
-  valueType: LlamaArgumentValueType,
+  valueType: ArgumentValueType,
   allowedValues: string[],
   primaryName: string,
-): LlamaArgumentControlKind {
+): ArgumentControlKind {
   if (primaryName.includes("api-key")) return "secret";
   if (valueType === "flag") return "flag";
   if (valueType === "boolean") {
@@ -78,8 +78,8 @@ function controlKindForValueType(
 }
 
 function cliEncodingForValueType(
-  valueType: LlamaArgumentValueType,
-): LlamaArgumentCliEncoding {
+  valueType: ArgumentValueType,
+): ArgumentCliEncoding {
   if (valueType === "flag") return "flag";
   if (valueType === "list") return "csv";
   return "value";
@@ -91,9 +91,9 @@ function defaultPresetSupport(): LlamaArgumentPresetSupport {
 
 export function defaultArgumentControl(input: {
   primaryName: string;
-  valueType: LlamaArgumentValueType;
+  valueType: ArgumentValueType;
   allowedValues: string[];
-}): LlamaArgumentControl {
+}): ArgumentControl {
   return {
     kind: controlKindForValueType(
       input.valueType,
@@ -108,17 +108,17 @@ export function defaultArgumentControl(input: {
 function controlFromFrontmatter(input: {
   frontmatter: Record<string, unknown>;
   primaryName: string;
-  valueType: LlamaArgumentValueType;
+  valueType: ArgumentValueType;
   allowedValues: string[];
-}): LlamaArgumentControl {
+}): ArgumentControl {
   const kind = enumField(
     stringField(input.frontmatter, "controlKind"),
-    (value) => LlamaArgumentControlKindSchema.safeParse(value),
+    (value) => ArgumentControlKindSchema.safeParse(value),
     defaultArgumentControl(input).kind,
   );
   const cliEncoding = enumField(
     stringField(input.frontmatter, "cliEncoding"),
-    (value) => LlamaArgumentCliEncodingSchema.safeParse(value),
+    (value) => ArgumentCliEncodingSchema.safeParse(value),
     defaultArgumentControl(input).cliEncoding,
   );
   const presetSupport = enumField(
@@ -132,7 +132,7 @@ function controlFromFrontmatter(input: {
 
 function registryOnlyOptionIsRuntimeSupported(input: {
   primaryName: string;
-  control: LlamaArgumentControl;
+  control: ArgumentControl;
 }) {
   return (
     !input.primaryName.startsWith("-") &&
@@ -143,7 +143,7 @@ function registryOnlyOptionIsRuntimeSupported(input: {
 
 export function optionFromArgumentDocFrontmatter(
   frontmatter: Record<string, unknown>,
-): LlamaArgumentOption | null {
+): ArgumentOption | null {
   const primaryName = stringField(frontmatter, "primaryName");
   if (!primaryName) {
     return null;
@@ -151,7 +151,7 @@ export function optionFromArgumentDocFrontmatter(
 
   const valueType = enumField(
     stringField(frontmatter, "valueType"),
-    (value) => LlamaArgumentValueTypeSchema.safeParse(value),
+    (value) => ArgumentValueTypeSchema.safeParse(value),
     "string",
   );
   const aliases = stringArrayField(frontmatter, "aliases");

@@ -1,4 +1,4 @@
-import type { LlamaArgumentOption } from "@llama-manager/core";
+import type { ArgumentOption } from "@llama-manager/core";
 import {
   NumberInput,
   Select,
@@ -14,7 +14,7 @@ import {
 } from "../utils/argument-defaults";
 import { TouchSelect } from "./TouchCombobox";
 
-function booleanValueOptions(option: LlamaArgumentOption) {
+function booleanValueOptions(option: ArgumentOption) {
   if (option.allowedValues.length > 0) {
     return option.allowedValues.map((value) => ({ value, label: value }));
   }
@@ -30,20 +30,20 @@ function booleanValueOptions(option: LlamaArgumentOption) {
   ];
 }
 
-function fallbackValue(option: LlamaArgumentOption) {
+function fallbackValue(option: ArgumentOption) {
   return defaultArgumentValue(option);
 }
 
 function commitOrFallback(
   value: string | null,
-  option: LlamaArgumentOption,
+  option: ArgumentOption,
   allowEmpty: boolean,
 ) {
   return value ?? (allowEmpty ? "" : fallbackValue(option));
 }
 
 export function ArgumentValueControl(props: {
-  option: LlamaArgumentOption;
+  option: ArgumentOption;
   value: string;
   onChange: (value: string) => void;
   allowEmpty?: boolean;

@@ -1,6 +1,6 @@
 import type {
   Instance,
-  LlamaEndpointProbe,
+  EndpointProbe,
   LlamaSlotActionName,
   LlamaSlotActionRequest,
   LlamaSlotActionResult,
@@ -15,7 +15,7 @@ import {
 
 const ACTION_TIMEOUT_MS = 15 * 60 * 1_000;
 
-function isFileNotFound(probe: LlamaEndpointProbe): boolean {
+function isFileNotFound(probe: EndpointProbe): boolean {
   return (
     probe.status === 404 &&
     llamaEndpointErrorMessage(probe) === "File Not Found"

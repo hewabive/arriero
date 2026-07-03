@@ -1,7 +1,4 @@
-import type {
-  LlamaArgumentDefault,
-  LlamaArgumentOption,
-} from "@llama-manager/core";
+import type { ArgumentDefault, ArgumentOption } from "@llama-manager/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -220,7 +217,7 @@ export function useArgumentsView() {
     },
   });
 
-  function selectArgument(option: LlamaArgumentOption) {
+  function selectArgument(option: ArgumentOption) {
     setSelectedName(option.primaryName);
   }
 
@@ -247,7 +244,7 @@ export function useArgumentsView() {
 
   function saveInstanceDefault(
     enabled: boolean,
-    patch?: Partial<LlamaArgumentDefault>,
+    patch?: Partial<ArgumentDefault>,
   ) {
     if (!selectedOption) {
       return;

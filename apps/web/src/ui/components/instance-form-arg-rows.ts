@@ -1,4 +1,4 @@
-import { type LlamaArgumentOption } from "@llama-manager/core";
+import { type ArgumentOption } from "@llama-manager/core";
 
 import { createUiId } from "../utils/id";
 import {
@@ -11,8 +11,8 @@ import {
 
 export function setDefaultActiveRows(
   rows: ArgRow[],
-  option: LlamaArgumentOption,
-  knownArgByName: Map<string, LlamaArgumentOption>,
+  option: ArgumentOption,
+  knownArgByName: Map<string, ArgumentOption>,
   active: boolean,
 ): ArgRow[] {
   const without = rows.filter(
@@ -41,8 +41,8 @@ export function setDefaultActiveRows(
 
 export function setDefaultValueRows(
   rows: ArgRow[],
-  option: LlamaArgumentOption,
-  knownArgByName: Map<string, LlamaArgumentOption>,
+  option: ArgumentOption,
+  knownArgByName: Map<string, ArgumentOption>,
   value: string,
 ): ArgRow[] {
   const next: ArgRow = {

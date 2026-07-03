@@ -4,7 +4,7 @@ import type {
   ApiLabProbeTargetRequest,
   ApiProbeRequest,
   ApiProbeResult,
-  LlamaEndpointProbe,
+  EndpointProbe,
   LlamaModelActionName,
   LlamaModelActionResult,
   LlamaSlotActionName,
@@ -51,7 +51,7 @@ export async function getApiLabModels(
     ...(baseUrl ? { baseUrl } : {}),
     ...(endpointId ? { endpointId } : {}),
   });
-  return request<{ data: LlamaEndpointProbe }>(
+  return request<{ data: EndpointProbe }>(
     `/api/lab/models?${params.toString()}`,
   );
 }
@@ -97,12 +97,13 @@ export async function streamApiLabProbe(
   const response = await fetch(
     `${apiBase}${activeNodeScopedPath("/api/lab/probe/stream")}`,
     {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-    signal: signal ?? null,
-  });
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+      signal: signal ?? null,
+    },
+  );
 
   if (!response.ok) {
     const error = await response.text();

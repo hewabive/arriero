@@ -1,4 +1,4 @@
-import type { LlamaArgumentOption } from "@llama-manager/core";
+import type { ArgumentOption } from "@llama-manager/core";
 import {
   ActionIcon,
   Badge,
@@ -15,7 +15,7 @@ import { ArgumentValueControl } from "./ArgumentValueControl";
 
 export function ArgumentRow(props: {
   keyLabel: string;
-  option: LlamaArgumentOption | null;
+  option: ArgumentOption | null;
   value: string;
   isDefault: boolean;
   active: boolean;

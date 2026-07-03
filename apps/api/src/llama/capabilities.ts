@@ -4,7 +4,7 @@ import type {
   LlamaCapability,
   LlamaCapabilityCategory,
   LlamaCapabilityStatus,
-  LlamaEndpointProbe,
+  EndpointProbe,
 } from "@llama-manager/core";
 
 import { latestProcessRun } from "../process/runs-repository.js";
@@ -204,7 +204,7 @@ function shouldUseModelForCapabilityProbe(status: string | null) {
   );
 }
 
-function selectedCapabilityModel(models: LlamaEndpointProbe) {
+function selectedCapabilityModel(models: EndpointProbe) {
   const records = modelRecordsFromProbe(models);
   return (
     records.find((model) => shouldUseModelForCapabilityProbe(model.status))
@@ -212,7 +212,7 @@ function selectedCapabilityModel(models: LlamaEndpointProbe) {
   );
 }
 
-function capabilityStatus(probe: LlamaEndpointProbe): LlamaCapabilityStatus {
+function capabilityStatus(probe: EndpointProbe): LlamaCapabilityStatus {
   if (probe.ok) return "available";
   if (probe.status === null) return "error";
   const message = llamaEndpointErrorMessage(probe).toLowerCase();

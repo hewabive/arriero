@@ -1,9 +1,9 @@
 import type {
   EngineArgumentCatalogParserId,
-  LlamaArgumentCatalog,
-  LlamaArgumentOption,
+  ArgumentCatalog,
+  ArgumentOption,
 } from "@llama-manager/core";
-import { LlamaArgumentCatalogSchema } from "@llama-manager/core";
+import { ArgumentCatalogSchema } from "@llama-manager/core";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -41,7 +41,7 @@ export type ArgumentCatalogHelpParserId = Exclude<
 
 const HELP_PARSERS: Record<
   ArgumentCatalogHelpParserId,
-  (helpOutput: string) => LlamaArgumentOption[]
+  (helpOutput: string) => ArgumentOption[]
 > = {
   "llama-help": parseLlamaArgumentOptions,
 };
@@ -62,7 +62,7 @@ function isCacheCurrent(
   );
 }
 
-function applyArgumentHelp(options: LlamaArgumentOption[]) {
+function applyArgumentHelp(options: ArgumentOption[]) {
   return options.map((option) => {
     const category = categoryNameRu(option.category);
     if (option.helpRuSource === "registry") {
@@ -92,12 +92,12 @@ function applyArgumentHelp(options: LlamaArgumentOption[]) {
 }
 
 function mergeWithArgumentRegistry(
-  binaryOptions: LlamaArgumentOption[],
-): LlamaArgumentOption[] {
+  binaryOptions: ArgumentOption[],
+): ArgumentOption[] {
   const registry = loadArgumentRegistry();
   const registryByName = registryNameMap(registry);
   const matchedRegistrySlugs = new Set<string>();
-  const merged: LlamaArgumentOption[] = [];
+  const merged: ArgumentOption[] = [];
 
   for (const binaryOption of binaryOptions) {
     const registryEntry =
@@ -167,11 +167,11 @@ function mergeWithArgumentRegistry(
   );
 }
 
-function withArgumentDocsAndCompatibility(options: LlamaArgumentOption[]) {
+function withArgumentDocsAndCompatibility(options: ArgumentOption[]) {
   return withArgumentDocIndex(options);
 }
 
-function referenceCatalogHash(options: LlamaArgumentOption[]) {
+function referenceCatalogHash(options: ArgumentOption[]) {
   return createHash("sha256")
     .update(
       JSON.stringify(
@@ -192,13 +192,13 @@ function referenceCatalogHash(options: LlamaArgumentOption[]) {
     .digest("hex");
 }
 
-export function getLlamaArgumentReferenceCatalog(): LlamaArgumentCatalog {
+export function getLlamaArgumentReferenceCatalog(): ArgumentCatalog {
   const options = withArgumentDocsAndCompatibility(
     applyArgumentHelp(loadArgumentRegistry().map((entry) => entry.option)),
   );
   const generatedAt = nowIso();
 
-  return LlamaArgumentCatalogSchema.parse({
+  return ArgumentCatalogSchema.parse({
     binaryPath: argumentDocsDirectory,
     generatedAt,
     source: {
@@ -220,8 +220,8 @@ export function getLlamaArgumentReferenceCatalog(): LlamaArgumentCatalog {
 function toCatalog(input: {
   binaryPath: string;
   cached: CachedArgumentCatalog;
-  cache: LlamaArgumentCatalog["cache"];
-}): LlamaArgumentCatalog {
+  cache: ArgumentCatalog["cache"];
+}): ArgumentCatalog {
   return {
     binaryPath: input.binaryPath,
     generatedAt: input.cached.generatedAt,
@@ -265,7 +265,7 @@ function generateCatalog(
 export function getLlamaArgumentCatalog(
   binaryPathInput?: string,
   input?: { refresh?: boolean; parserId?: ArgumentCatalogHelpParserId },
-): LlamaArgumentCatalog {
+): ArgumentCatalog {
   const binaryPath = resolve(binaryPathInput || defaultBinaryPath());
   if (!existsSync(binaryPath)) {
     throw new Error(`llama-server binary not found: ${binaryPath}`);

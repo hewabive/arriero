@@ -1,7 +1,7 @@
 import type {
   ApiProbeKind,
   ApiProbeRequest,
-  LlamaEndpointProbe,
+  EndpointProbe,
 } from "@llama-manager/core";
 import {
   Button,
@@ -75,7 +75,7 @@ const defaultRequestOptions: ProbeRequestOption[] = [
 
 export function ApiProbePanel(props: {
   instanceId: string;
-  modelsProbe?: LlamaEndpointProbe | undefined;
+  modelsProbe?: EndpointProbe | undefined;
   modelOptions?: ModelOption[] | undefined;
   requestOptions?: ProbeRequestOption[] | undefined;
   runProbe?: ProbeRunner | undefined;

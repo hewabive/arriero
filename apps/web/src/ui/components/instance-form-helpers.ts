@@ -1,7 +1,7 @@
 import {
   InstanceEnvSchema,
   type Instance,
-  type LlamaArgumentOption,
+  type ArgumentOption,
 } from "@llama-manager/core";
 
 import { pathBaseName } from "../utils/models";
@@ -105,7 +105,7 @@ export function hasConfiguredArg(args: Instance["args"], key: string) {
   return true;
 }
 
-export function isSelectableInstanceArgument(option: LlamaArgumentOption) {
+export function isSelectableInstanceArgument(option: ArgumentOption) {
   return (
     option.primaryName.startsWith("-") &&
     option.compatibility.presentInBinary &&

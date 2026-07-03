@@ -1,19 +1,19 @@
 import type {
-  LlamaArgumentDefault,
-  LlamaArgumentDefaults,
-  LlamaArgumentOption,
+  ArgumentDefault,
+  ArgumentDefaults,
+  ArgumentOption,
   LlamaArgumentPresetSupport,
 } from "@llama-manager/core";
 
 import { argumentDefaultFromOption } from "../utils/argument-defaults";
 
 export const allFilterValue = "__all__";
-export const emptyArgumentDefaults: LlamaArgumentDefaults = {
+export const emptyArgumentDefaults: ArgumentDefaults = {
   instance: [],
   updatedAt: null,
 };
 
-export function optionSearchText(option: LlamaArgumentOption) {
+export function optionSearchText(option: ArgumentOption) {
   const withoutDashes = option.primaryName.replace(/^-+/, "");
   const dashVariant = withoutDashes ? `--${withoutDashes}` : null;
   return [
@@ -36,7 +36,7 @@ export function optionSearchText(option: LlamaArgumentOption) {
     .toLowerCase();
 }
 
-export function sourceColor(source: LlamaArgumentOption["helpRuSource"]) {
+export function sourceColor(source: ArgumentOption["helpRuSource"]) {
   if (source === "registry") return "blue";
   if (source === "fallback") return "yellow";
   return "gray";
@@ -59,21 +59,23 @@ export function presetSupportColor(support: LlamaArgumentPresetSupport) {
 }
 
 export function findInstanceDefault(
-  defaults: LlamaArgumentDefaults,
-  option: LlamaArgumentOption,
+  defaults: ArgumentDefaults,
+  option: ArgumentOption,
 ) {
   const key = argumentDefaultFromOption(option).key;
   return defaults.instance.find((item) => item.key === key) ?? null;
 }
 
 export function defaultScopeLabel(
-  defaults: LlamaArgumentDefaults,
-  option: LlamaArgumentOption,
+  defaults: ArgumentDefaults,
+  option: ArgumentOption,
 ) {
-  return findInstanceDefault(defaults, option) ? "Default for new instances" : null;
+  return findInstanceDefault(defaults, option)
+    ? "Default for new instances"
+    : null;
 }
 
-export function canUseAsInstanceDefault(option: LlamaArgumentOption) {
+export function canUseAsInstanceDefault(option: ArgumentOption) {
   return (
     option.primaryName.startsWith("-") &&
     option.control.presetSupport !== "model-managed" &&
@@ -82,7 +84,7 @@ export function canUseAsInstanceDefault(option: LlamaArgumentOption) {
   );
 }
 
-export function defaultUnavailableMessage(option: LlamaArgumentOption) {
+export function defaultUnavailableMessage(option: ArgumentOption) {
   if (canUseAsInstanceDefault(option)) {
     return null;
   }
@@ -102,8 +104,8 @@ export function defaultUnavailableMessage(option: LlamaArgumentOption) {
 }
 
 export function upsertDefault(
-  defaults: LlamaArgumentDefault[],
-  nextDefault: LlamaArgumentDefault,
+  defaults: ArgumentDefault[],
+  nextDefault: ArgumentDefault,
 ) {
   const rest = defaults.filter((item) => item.key !== nextDefault.key);
   return [...rest, nextDefault].sort((left, right) =>
@@ -115,13 +117,11 @@ export function defaultDraftKey(key: string) {
   return key;
 }
 
-export function defaultNeedsValue(
-  valueType: LlamaArgumentDefault["valueType"],
-) {
+export function defaultNeedsValue(valueType: ArgumentDefault["valueType"]) {
   return valueType !== "flag" && valueType !== "null";
 }
 
-export function validateArgumentDefault(input: LlamaArgumentDefault) {
+export function validateArgumentDefault(input: ArgumentDefault) {
   if (
     input.valueType === "number" &&
     input.value.trim() &&
@@ -133,7 +133,7 @@ export function validateArgumentDefault(input: LlamaArgumentDefault) {
 }
 
 export function findOptionByRouteArg(
-  options: LlamaArgumentOption[],
+  options: ArgumentOption[],
   routeArg: string,
 ) {
   const normalizedRouteArg = routeArg.trim();

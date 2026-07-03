@@ -1,10 +1,10 @@
-import type { LlamaArgumentOption } from "@llama-manager/core";
+import type { ArgumentOption } from "@llama-manager/core";
 import { ActionIcon, Badge, Button, Group, Popover, Text } from "@mantine/core";
 import { ExternalLink, Info } from "lucide-react";
 
 import { argumentHelpHref } from "../utils/argument-links";
 
-export function ArgumentInfo(props: { option: LlamaArgumentOption }) {
+export function ArgumentInfo(props: { option: ArgumentOption }) {
   const { option } = props;
   const canOpenEngineeringHelp = Boolean(option.doc.path);
 
