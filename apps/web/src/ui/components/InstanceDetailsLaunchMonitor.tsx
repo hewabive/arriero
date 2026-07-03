@@ -30,7 +30,7 @@ function startupStage(health: InstanceHealthSummary | undefined) {
     return {
       label: "ready",
       color: "green",
-      text: "llama-server is ready to accept requests.",
+      text: "Server is ready to accept requests.",
     };
   }
   if (health.status === "starting" || health.status === "loading") {

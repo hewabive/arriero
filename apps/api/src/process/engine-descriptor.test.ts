@@ -12,6 +12,7 @@ test("llama-server descriptor enables the full llama feature set", () => {
   const descriptor = engineDescriptor("llama-server");
   assert.equal(descriptor.http.defaultPort, 8080);
   assert.equal(descriptor.probe.id, "llama-http");
+  assert.equal(descriptor.nativeApi, "llama");
   assert.equal(descriptor.launch.injectSlotSavePath, true);
   assert.equal(descriptor.preflight.engineChecks, "llama-server");
   assert.equal(descriptor.preflight.argumentCatalogParser, "llama-help");
@@ -31,6 +32,7 @@ test("rpc-worker descriptor opts out of inference-server features", () => {
   const descriptor = engineDescriptor("rpc-worker");
   assert.equal(descriptor.http.defaultPort, 50052);
   assert.equal(descriptor.probe.id, "tcp-accept");
+  assert.equal(descriptor.nativeApi, "none");
   assert.equal(descriptor.launch.injectSlotSavePath, false);
   assert.equal(descriptor.preflight.engineChecks, "none");
   assert.equal(descriptor.preflight.argumentCatalogParser, "none");

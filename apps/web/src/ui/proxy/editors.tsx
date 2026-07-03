@@ -141,6 +141,7 @@ type TargetEditorModalProps = {
   editor: TargetEditor | null;
   draft: TargetDraft;
   busy: boolean;
+  slotSaveAvailable: boolean;
   onClose: () => void;
   onSave: () => void;
   onDraftChange: (draft: TargetDraft) => void;
@@ -230,24 +231,28 @@ export function TargetEditorModal(props: TargetEditorModalProps) {
               props.onDraftChange({ ...props.draft, preemptible });
             }}
           />
-          <Switch
-            label="Save slots before unload"
-            checked={props.draft.saveSlotsBeforeUnload}
+          {props.slotSaveAvailable && (
+            <Switch
+              label="Save slots before unload"
+              checked={props.draft.saveSlotsBeforeUnload}
+              onChange={(event) => {
+                const saveSlotsBeforeUnload = event.currentTarget.checked;
+                props.onDraftChange({ ...props.draft, saveSlotsBeforeUnload });
+              }}
+            />
+          )}
+        </Group>
+        {props.slotSaveAvailable && (
+          <TextInput
+            label="Slot IDs"
+            placeholder="0, 1"
+            value={props.draft.slotIds}
             onChange={(event) => {
-              const saveSlotsBeforeUnload = event.currentTarget.checked;
-              props.onDraftChange({ ...props.draft, saveSlotsBeforeUnload });
+              const slotIds = event.currentTarget.value;
+              props.onDraftChange({ ...props.draft, slotIds });
             }}
           />
-        </Group>
-        <TextInput
-          label="Slot IDs"
-          placeholder="0, 1"
-          value={props.draft.slotIds}
-          onChange={(event) => {
-            const slotIds = event.currentTarget.value;
-            props.onDraftChange({ ...props.draft, slotIds });
-          }}
-        />
+        )}
         <NumberInput
           label="Idle unload ms"
           min={0}

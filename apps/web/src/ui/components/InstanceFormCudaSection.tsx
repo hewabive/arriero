@@ -57,7 +57,7 @@ export function InstanceFormCudaSection({
                   CUDA visibility
                 </Text>
                 <Text c="dimmed" size="xs">
-                  Select GPUs visible to this llama-server process.
+                  Select GPUs visible to this instance process.
                 </Text>
               </div>
               <Badge color="green" variant="light">

@@ -3,6 +3,7 @@ export const INSTANCE_KINDS = ["llama-server", "rpc-worker"] as const;
 export type InstanceKind = (typeof INSTANCE_KINDS)[number];
 
 export type EngineProbeId = "llama-http" | "tcp-accept";
+export type EngineNativeApiId = "llama" | "none";
 export type EngineLogParserId = "llama";
 export type EngineArgumentCatalogParserId = "llama-help" | "none";
 export type EngineEstimatorId = "gguf" | "none";
@@ -32,6 +33,7 @@ export type EngineDescriptor = {
   http: EngineHttpDescriptor;
   proxy: EngineProxyCapabilities;
   probe: { id: EngineProbeId; httpHealth: boolean };
+  nativeApi: EngineNativeApiId;
   launch: { injectSlotSavePath: boolean };
   preflight: {
     engineChecks: EnginePreflightId;
@@ -62,6 +64,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       sseTimings: true,
     },
     probe: { id: "llama-http", httpHealth: true },
+    nativeApi: "llama",
     launch: { injectSlotSavePath: true },
     preflight: {
       engineChecks: "llama-server",
@@ -90,6 +93,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       sseTimings: false,
     },
     probe: { id: "tcp-accept", httpHealth: false },
+    nativeApi: "none",
     launch: { injectSlotSavePath: false },
     preflight: {
       engineChecks: "none",

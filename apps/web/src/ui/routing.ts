@@ -71,13 +71,13 @@ export const navSections: NavSection[] = [
         route: "instances",
         label: "Instances",
         title: "Instances",
-        description: "Process control for local llama-server binaries",
+        description: "Process control for local inference instances",
       },
       {
         route: "diagnostics",
         label: "Diagnostics",
         title: "Diagnostics",
-        description: "Runtime state, llama-server probes and logs",
+        description: "Runtime state, endpoint probes and logs",
       },
       {
         route: "processes",

@@ -1,6 +1,7 @@
-import type {
-  ApiProxyTargetCreate,
-  ApiProxyTargetRecord,
+import {
+  engineDescriptor,
+  type ApiProxyTargetCreate,
+  type ApiProxyTargetRecord,
 } from "@llama-manager/core";
 import { Badge, Button, Group, Paper, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -50,6 +51,17 @@ export function ProxyTargetsView() {
       })),
     [instancesQuery.data?.data],
   );
+  const slotSaveAvailable = useMemo(() => {
+    const endpoint = targetDraft.endpointId
+      ? endpointById.get(targetDraft.endpointId)
+      : undefined;
+    const instance = endpoint?.instanceId
+      ? (instancesQuery.data?.data ?? []).find(
+          (item) => item.name === endpoint.instanceId,
+        )
+      : undefined;
+    return instance ? engineDescriptor(instance.kind).proxy.slotSave : false;
+  }, [targetDraft.endpointId, endpointById, instancesQuery.data?.data]);
   const runtimeByTargetId = useMemo(
     () =>
       new Map(
@@ -167,6 +179,7 @@ export function ProxyTargetsView() {
         editor={targetEditor}
         draft={targetDraft}
         busy={targetBusy}
+        slotSaveAvailable={slotSaveAvailable}
         onClose={closeTargetEditor}
         onSave={saveTarget}
         onDraftChange={setTargetDraft}

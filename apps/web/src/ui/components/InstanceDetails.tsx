@@ -1,7 +1,8 @@
-import type {
-  Instance,
-  InstanceHealthSummary,
-  ProcessEvent,
+import {
+  engineDescriptor,
+  type Instance,
+  type InstanceHealthSummary,
+  type ProcessEvent,
 } from "@llama-manager/core";
 import {
   Accordion,
@@ -84,6 +85,8 @@ export function InstanceDetails(props: {
   const [openDetails, setOpenDetails] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const id = props.instance?.name;
+  const engine = props.instance ? engineDescriptor(props.instance.kind) : null;
+  const hasLlamaApi = engine?.nativeApi === "llama";
 
   const healthQuery = useQuery({
     queryKey: ["instance-health-summary", id],
@@ -109,7 +112,7 @@ export function InstanceDetails(props: {
   const llamaQuery = useQuery({
     queryKey: ["instance-llama", id],
     queryFn: () => getLlamaProbe(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(id) && hasLlamaApi,
     refetchInterval: 3_000,
   });
 
@@ -128,7 +131,8 @@ export function InstanceDetails(props: {
       forceCapabilitiesRefreshRef.current = false;
       return getLlamaCapabilities(id!, force);
     },
-    enabled: Boolean(id) && canProbeCapabilities && capabilitiesOpen,
+    enabled:
+      Boolean(id) && hasLlamaApi && canProbeCapabilities && capabilitiesOpen,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -181,8 +185,7 @@ export function InstanceDetails(props: {
   const errorLineSet = new Set(statusSummary?.errors ?? []);
   const warningLineSet = new Set(statusSummary?.warnings ?? []);
   const issueCount =
-    (statusSummary?.errors.length ?? 0) +
-    (statusSummary?.warnings.length ?? 0);
+    (statusSummary?.errors.length ?? 0) + (statusSummary?.warnings.length ?? 0);
   const errorLineStyle = {
     borderLeft: "3px solid var(--mantine-color-red-6)",
     background: "var(--mantine-color-red-light)",
@@ -345,21 +348,23 @@ export function InstanceDetails(props: {
             </Text>
           </div>
           <Group gap="xs">
-            <Tooltip label={llamaWebUiTooltip(health, webUiUrl)}>
-              <Button
-                size="xs"
-                variant="light"
-                leftSection={<ExternalLink size={14} />}
-                disabled={webUiDisabled}
-                onClick={() => {
-                  if (webUiUrl) {
-                    openUrlInNewTab(webUiUrl);
-                  }
-                }}
-              >
-                Web UI
-              </Button>
-            </Tooltip>
+            {hasLlamaApi && (
+              <Tooltip label={llamaWebUiTooltip(health, webUiUrl)}>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<ExternalLink size={14} />}
+                  disabled={webUiDisabled}
+                  onClick={() => {
+                    if (webUiUrl) {
+                      openUrlInNewTab(webUiUrl);
+                    }
+                  }}
+                >
+                  Web UI
+                </Button>
+              </Tooltip>
+            )}
             <Tooltip
               label={health?.reason ?? "Health summary is loading"}
               withArrow
@@ -396,17 +401,20 @@ export function InstanceDetails(props: {
                 "Checking process, preflight, logs and HTTP endpoints..."}
             </Text>
           </Stack>
-          <Group gap="xs" mt="sm">
-            <ProbePill title="health" probe={llama?.health} />
-            <ProbePill title="props" probe={llama?.props} />
-            <ProbePill title="slots" probe={llama?.slots} />
-            <ProbePill title="v1/models" probe={llama?.models} />
-          </Group>
-          {(health || slowestLlamaProbe) && (
+          {hasLlamaApi && (
+            <Group gap="xs" mt="sm">
+              <ProbePill title="health" probe={llama?.health} />
+              <ProbePill title="props" probe={llama?.props} />
+              <ProbePill title="slots" probe={llama?.slots} />
+              <ProbePill title="v1/models" probe={llama?.models} />
+            </Group>
+          )}
+          {(health || (hasLlamaApi && slowestLlamaProbe)) && (
             <Text c="dimmed" size="xs" mt={6}>
               {health && `Checked: ${formatLocalDateTime(health.checkedAt)}`}
-              {health && slowestLlamaProbe && " · "}
-              {slowestLlamaProbe &&
+              {health && hasLlamaApi && slowestLlamaProbe && " · "}
+              {hasLlamaApi &&
+                slowestLlamaProbe &&
                 `Slowest probe: ${slowestLlamaProbe.label} ${slowestLlamaProbe.latencyMs} ms`}
             </Text>
           )}
@@ -415,7 +423,7 @@ export function InstanceDetails(props: {
         <SectionLabel>Memory &amp; cache</SectionLabel>
         <MemoryLayoutPanel layout={statusSummary?.memoryLayout} />
 
-        {rootSlotRows.length > 0 && (
+        {hasLlamaApi && rootSlotRows.length > 0 && (
           <Paper withBorder p="sm" radius="sm">
             <Group justify="space-between" mb="xs">
               <Stack gap={2}>
@@ -454,24 +462,28 @@ export function InstanceDetails(props: {
           />
         )}
 
-        <SectionLabel>Models</SectionLabel>
-        <V1ModelsPanel
-          probe={llama?.models}
-          modelDiagnostics={llama?.modelDiagnostics ?? {}}
-          statusSummary={statusSummary}
-          onReload={() => reloadModelsMutation.mutate()}
-          reloadPending={reloadModelsMutation.isPending}
-          onModelAction={(model, action) =>
-            modelActionMutation.mutate({ model, action })
-          }
-          pendingAction={
-            modelActionMutation.isPending
-              ? (modelActionMutation.variables ?? null)
-              : null
-          }
-          onSlotAction={(input) => slotActionMutation.mutate(input)}
-          pendingSlotAction={pendingSlotAction}
-        />
+        {hasLlamaApi && (
+          <>
+            <SectionLabel>Models</SectionLabel>
+            <V1ModelsPanel
+              probe={llama?.models}
+              modelDiagnostics={llama?.modelDiagnostics ?? {}}
+              statusSummary={statusSummary}
+              onReload={() => reloadModelsMutation.mutate()}
+              reloadPending={reloadModelsMutation.isPending}
+              onModelAction={(model, action) =>
+                modelActionMutation.mutate({ model, action })
+              }
+              pendingAction={
+                modelActionMutation.isPending
+                  ? (modelActionMutation.variables ?? null)
+                  : null
+              }
+              onSlotAction={(input) => slotActionMutation.mutate(input)}
+              pendingSlotAction={pendingSlotAction}
+            />
+          </>
+        )}
 
         <SectionLabel>Details</SectionLabel>
         <Accordion
@@ -503,7 +515,7 @@ export function InstanceDetails(props: {
                 </Stack>
                 <Stack gap={4}>
                   <Text fw={600} size="sm">
-                    llama-server
+                    {engine?.displayName ?? "server"}
                   </Text>
                   <Text size="sm">Base URL: {llama?.baseUrl || "-"}</Text>
                   {summary.map(([label, value]) => (
@@ -516,34 +528,36 @@ export function InstanceDetails(props: {
             </Accordion.Panel>
           </Accordion.Item>
 
-          <Accordion.Item value="capabilities">
-            <Accordion.Control>Capabilities</Accordion.Control>
-            <Accordion.Panel>
-              <LlamaCapabilitiesPanel
-                data={
-                  canProbeCapabilities
-                    ? (capabilitiesQuery.data?.data ?? null)
-                    : null
-                }
-                disabledReason={
-                  canProbeCapabilities
-                    ? null
-                    : "Start the instance to probe live llama-server endpoints."
-                }
-                loading={capabilitiesQuery.isFetching}
-                error={
-                  canProbeCapabilities
-                    ? ((capabilitiesQuery.error as Error | null)?.message ??
-                      null)
-                    : null
-                }
-                onRefresh={() => {
-                  forceCapabilitiesRefreshRef.current = true;
-                  void capabilitiesQuery.refetch();
-                }}
-              />
-            </Accordion.Panel>
-          </Accordion.Item>
+          {hasLlamaApi && (
+            <Accordion.Item value="capabilities">
+              <Accordion.Control>Capabilities</Accordion.Control>
+              <Accordion.Panel>
+                <LlamaCapabilitiesPanel
+                  data={
+                    canProbeCapabilities
+                      ? (capabilitiesQuery.data?.data ?? null)
+                      : null
+                  }
+                  disabledReason={
+                    canProbeCapabilities
+                      ? null
+                      : `Start the instance to probe live ${engine?.displayName ?? "server"} endpoints.`
+                  }
+                  loading={capabilitiesQuery.isFetching}
+                  error={
+                    canProbeCapabilities
+                      ? ((capabilitiesQuery.error as Error | null)?.message ??
+                        null)
+                      : null
+                  }
+                  onRefresh={() => {
+                    forceCapabilitiesRefreshRef.current = true;
+                    void capabilitiesQuery.refetch();
+                  }}
+                />
+              </Accordion.Panel>
+            </Accordion.Item>
+          )}
 
           <Accordion.Item value="preflight">
             <Accordion.Control>

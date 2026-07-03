@@ -213,7 +213,7 @@ export function InstanceActions(props: {
       >
         <Tooltip label={llamaWebUiTooltip(health, webUiUrl)}>
           <ActionIcon
-            aria-label="Open llama-server Web UI"
+            aria-label="Open server Web UI"
             variant="subtle"
             color="blue"
             disabled={webUiDisabled}

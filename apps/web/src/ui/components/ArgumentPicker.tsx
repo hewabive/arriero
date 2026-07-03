@@ -61,7 +61,7 @@ export function ArgumentPicker(props: {
       placeholder={
         props.isError
           ? (props.errorPlaceholder ?? "Unable to read --help from binary")
-          : (props.searchPlaceholder ?? "Search llama-server args")
+          : (props.searchPlaceholder ?? "Search arguments")
       }
       searchable
       clearable
