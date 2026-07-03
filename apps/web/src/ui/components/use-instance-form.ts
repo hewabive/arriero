@@ -1,6 +1,7 @@
 import {
   InstanceArgsSchema,
   RPC_SERVER_SUPPORTED_FLAGS,
+  engineDescriptor,
   ggufModelRole,
   ggufPoolingTypeLabel,
   type Instance,
@@ -231,10 +232,12 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     return entry?.path ?? "";
   }, [pathCatalogQuery.data?.data, selectedBinaryPathRefId]);
   const argsCatalogQuery = useQuery({
-    queryKey: ["llama-args", selectedBinaryPath],
-    queryFn: () => getLlamaArguments(selectedBinaryPath),
+    queryKey: ["llama-args", selectedBinaryPath, kind],
+    queryFn: () => getLlamaArguments(selectedBinaryPath, { kind }),
     enabled:
-      props.opened && Boolean(selectedBinaryPath) && kind === "llama-server",
+      props.opened &&
+      Boolean(selectedBinaryPath) &&
+      engineDescriptor(kind).preflight.argumentCatalogParser !== "none",
     staleTime: 60_000,
     retry: false,
   });
@@ -1239,9 +1242,13 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   });
 
   const refreshArgsMutation = useMutation({
-    mutationFn: () => getLlamaArguments(selectedBinaryPath, true),
+    mutationFn: () =>
+      getLlamaArguments(selectedBinaryPath, { kind, refresh: true }),
     onSuccess: (result) => {
-      queryClient.setQueryData(["llama-args", selectedBinaryPath], result);
+      queryClient.setQueryData(
+        ["llama-args", selectedBinaryPath, kind],
+        result,
+      );
       notifications.show({
         title: "Argument catalog refreshed",
         message: `${result.data.options.length} options`,

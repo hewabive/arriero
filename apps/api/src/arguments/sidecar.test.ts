@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { binaryStat } from "./binary-discovery.js";
-import { getLlamaArgumentCatalog } from "./catalog.js";
+import { getArgumentCatalog } from "./catalog.js";
 import { parseLlamaArgumentOptions } from "./help-parser.js";
 import {
   getCachedArgumentCatalog,
@@ -138,7 +138,7 @@ test("argument catalog sidecar path is hidden and per-binary", () => {
   );
 });
 
-test("getLlamaArgumentCatalog regenerates a cache row with a mismatching parser id", () => {
+test("getArgumentCatalog regenerates a cache row with a mismatching parser id", () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-args-parser-miss-"));
   try {
     const binaryPath = join(dir, "llama-server");
@@ -165,7 +165,7 @@ test("getLlamaArgumentCatalog regenerates a cache row with a mismatching parser 
       parserId: "legacy",
     });
 
-    const catalog = getLlamaArgumentCatalog(binaryPath);
+    const catalog = getArgumentCatalog(binaryPath);
     assert.equal(catalog.cache.hit, false);
     assert.equal(catalog.cache.refreshed, true);
     assert.equal(catalog.cache.stale, true);
@@ -178,7 +178,7 @@ test("getLlamaArgumentCatalog regenerates a cache row with a mismatching parser 
   }
 });
 
-test("getLlamaArgumentCatalog hydrates the DB from the sidecar without running the binary", () => {
+test("getArgumentCatalog hydrates the DB from the sidecar without running the binary", () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-args-hydrate-"));
   try {
     const binaryPath = join(dir, "llama-server");
@@ -200,7 +200,7 @@ test("getLlamaArgumentCatalog hydrates the DB from the sidecar without running t
 
     assert.equal(getCachedArgumentCatalog(binaryPath), null);
 
-    const catalog = getLlamaArgumentCatalog(binaryPath);
+    const catalog = getArgumentCatalog(binaryPath);
     assert.equal(catalog.cache.hit, true);
     assert.equal(catalog.cache.refreshed, false);
     assert.equal(catalog.source.hash, "abc123");

@@ -262,7 +262,7 @@ function generateCatalog(
   return saved;
 }
 
-export function getLlamaArgumentCatalog(
+export function getArgumentCatalog(
   binaryPathInput?: string,
   input?: { refresh?: boolean; parserId?: ArgumentCatalogHelpParserId },
 ): ArgumentCatalog {

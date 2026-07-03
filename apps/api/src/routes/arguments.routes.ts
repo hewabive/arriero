@@ -1,8 +1,12 @@
-import { ArgumentDefaultsSchema } from "@llama-manager/core";
+import {
+  ArgumentDefaultsSchema,
+  engineDescriptor,
+  InstanceKindSchema,
+} from "@llama-manager/core";
 import type { Hono } from "hono";
 
 import {
-  getLlamaArgumentCatalog,
+  getArgumentCatalog,
   getLlamaArgumentReferenceCatalog,
 } from "../arguments/catalog.js";
 import {
@@ -15,10 +19,28 @@ import { readArgumentEngineeringDoc } from "../arguments/docs.js";
 
 export function registerArgumentRoutes(app: Hono) {
   app.get("/api/llama-args", (c) => {
+    const kindParsed = InstanceKindSchema.safeParse(
+      c.req.query("kind") ?? "llama-server",
+    );
+    if (!kindParsed.success) {
+      return c.json(
+        { error: `unknown instance kind: ${c.req.query("kind")}` },
+        400,
+      );
+    }
+    const parserId = engineDescriptor(kindParsed.data).preflight
+      .argumentCatalogParser;
+    if (parserId === "none") {
+      return c.json(
+        { error: `no argument catalog for instance kind ${kindParsed.data}` },
+        400,
+      );
+    }
     try {
       return c.json({
-        data: getLlamaArgumentCatalog(c.req.query("binaryPath"), {
+        data: getArgumentCatalog(c.req.query("binaryPath"), {
           refresh: c.req.query("refresh") === "true",
+          parserId,
         }),
       });
     } catch (error) {

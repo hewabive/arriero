@@ -1,6 +1,7 @@
 import type {
   ArgumentCatalog,
   ArgumentDefaults,
+  InstanceKind,
   LlamaArgumentDocsSyncReport,
   LlamaArgumentHelpDiff,
   LlamaArgumentEngineeringDoc,
@@ -9,10 +10,14 @@ import type {
 
 import { buildQuery, nodeRequest as request } from "./http.js";
 
-export async function getLlamaArguments(binaryPath?: string, refresh = false) {
+export async function getLlamaArguments(
+  binaryPath?: string,
+  options?: { kind?: InstanceKind; refresh?: boolean },
+) {
   const query = buildQuery({
     binaryPath,
-    refresh: refresh ? "true" : undefined,
+    kind: options?.kind,
+    refresh: options?.refresh ? "true" : undefined,
   });
   return request<{ data: ArgumentCatalog }>(`/api/llama-args${query}`);
 }

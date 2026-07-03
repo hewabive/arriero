@@ -5,7 +5,7 @@ import type {
 } from "@llama-manager/core";
 import { existsSync, readFileSync, statSync } from "node:fs";
 
-import { getLlamaArgumentCatalog } from "../arguments/catalog.js";
+import { getArgumentCatalog } from "../arguments/catalog.js";
 import { getSystemResources } from "../system/resources.js";
 import type { PreflightOptions } from "./preflight.js";
 
@@ -278,9 +278,9 @@ function validateArgumentCompatibility(
   instance: Instance,
   issues: ProcessPreflightIssue[],
 ) {
-  let catalog: ReturnType<typeof getLlamaArgumentCatalog>;
+  let catalog: ReturnType<typeof getArgumentCatalog>;
   try {
-    catalog = getLlamaArgumentCatalog(instance.binaryPath);
+    catalog = getArgumentCatalog(instance.binaryPath);
   } catch (error) {
     issues.push({
       level: "warning",
