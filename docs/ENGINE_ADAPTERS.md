@@ -17,7 +17,9 @@ llama-manager is prepared for (but does not yet ship) a second inference engine 
 | `http` | Default host/port + arg keys for host/port/api-prefix (URL derivation in `llama/endpoint-client.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` |
 | `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` |
 | `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` |
+| `nativeApi` | Whether the engine answers the llama-native HTTP surface (props/slots/models/capabilities/tokenize); gates the web instance-details llama panels and Web-UI button | `llama` | `none` |
 | `launch.injectSlotSavePath` | Auto-inject `--slot-save-path` at launch (`process/launch-snapshot.ts`) | `true` | `false` |
+| `launch.argv` | Argv-builder id turning `instance.args` + `instance.positionalArgs` into the spawn argv (`process/argv.ts`; positionals first, then sorted flags; array encoding is the builder's policy — catalog `cliEncoding` stays UI metadata) | `flag-map` | `flag-map` |
 | `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` |
 | `preflight.argumentCatalogParser` | `--help` parser id for the argument catalog | `llama-help` | `none` |
 | `logs.parser` | Log-parser id for readiness/progress/memory extraction | `llama` | `llama` (shared deliberately — rpc logs already ran through the same summarizer) |
@@ -31,7 +33,8 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 | `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http` → `probeLlamaServer`, `tcp-accept` → `probeRpcWorker`; both use `offlineLlamaProbe` for the not-running shape |
 | `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama` → `log-parsers/llama.ts` (all readiness/progress/memory-buffer regexes) |
 | `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts` (path args, router-mode rule, gpu-layers vs nvidia-smi, argument compatibility), `none` → skip |
-| `EngineArgumentCatalogParserId` | `HELP_PARSERS` in `apps/api/src/arguments/catalog.ts` | `llama-help` → `parseLlamaArgumentOptions`; catalog cache rows and sidecars carry `parserId`, a mismatch is a cache miss (a binary is never parsed with the wrong parser) |
+| `EngineArgumentCatalogParserId` | `HELP_PARSERS` in `apps/api/src/arguments/catalog.ts` | `llama-help` → `parseLlamaArgumentOptions`; catalog cache rows and sidecars carry `parserId`, a mismatch is a cache miss (a binary is never parsed with the wrong parser). `GET /api/llama-args` resolves the parser from its `kind` query param (default `llama-server`; `none` ⇒ 400) and the web form passes the selected kind |
+| `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` → positionals first, then alphabetically sorted `--flag value` pairs with CSV arrays (the launch snapshot consumes it, so drift/adoption see positional changes automatically) |
 | `EngineEstimatorId` | gate in `apps/api/src/memory-estimate/service.ts` | `gguf` → `estimateInstanceMemory`; a second estimator adds dispatch here (reuse the `MemoryEstimate`/`draws` output contract) |
 | `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args` → llama flag parsing, `rpc-device-args` → `--device` tokens |
 
@@ -42,7 +45,7 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 - `serveEndpoint` — the instance appears in the endpoint catalog / can be a proxy target (`proxy/endpoints.ts`, `proxy/target-models.ts`).
 - `requestLease` — reserved: participates in compute-domain leasing (currently unread; kept for the planner).
 - `modelLoadUnload` — llama-server router verbs `POST /models/load|unload` exist; without it the scheduler falls back to `stop-instance`/`start-instance`.
-- `slotSave` — KV-slot save/restore (`POST /slots/:id?action=save|restore`) for preemption; without it no `save-slot`/`restore-slot` actions are planned.
+- `slotSave` — KV-slot save/restore (`POST /slots/:id?action=save|restore`) for preemption; without it no `save-slot`/`restore-slot` actions are planned, and the web target editor hides the slot fields (`ProxyTargetsView` resolves the draft's endpoint → instance kind → this flag).
 - `streamResume` — server-side stream sessions (`x-conversation-id`, `/v1/stream/:id`), see `docs/STREAM_RESUME.md`.
 - `sseTimings` — llama.cpp SSE extensions (`timings`, `prompt_progress` via `return_progress`) powering live TTFT/prefill metrics and slot correlation.
 
@@ -69,8 +72,8 @@ Not everything generalizes; these stay llama-specific implementations behind opt
 ## New-engine checklist
 
 1. Add the kind to `INSTANCE_KINDS` and write its `EngineDescriptor`; the `Record` exhaustiveness and this doc's registries are the to-do list.
-2. Implement and register: a probe (`engine-probe.ts`), a log parser (`log-parsers/`), a preflight module (or `none`), a `--help` parser (or `none` — the instance form then has no catalog), a resource-profile strategy, an estimator (or `none` — draws are then declared manually, which the ledger already supports).
+2. Implement and register: a probe (`engine-probe.ts`), a log parser (`log-parsers/`), a preflight module (or `none`), a `--help` parser (or `none` — the instance form then has no catalog; catalog resolution is kind-threaded end to end: `GET /api/llama-args?kind=` picks the parser and the web form sends its selected kind), an argv builder (or reuse `flag-map`; `instance.positionalArgs` covers `serve <model>`-style subcommand launches), a resource-profile strategy, an estimator (or `none` — draws are then declared manually, which the ledger already supports).
 3. Decide the `proxy` flags honestly; `modelLoadUnload:false` + `slotSave:false` + `streamResume:false` + `sseTimings:false` yields a correct start/stop-only managed target (the scheduler restarts the process from `unloaded` state instead of emitting load verbs).
-4. **Thread the instance kind into argument-catalog resolution before registering a second `--help` parser.** `getLlamaArgumentCatalog` and `GET /api/llama-args` are keyed by binaryPath only and always default to `llama-help`; without kind threading the new engine's binary gets llama-parsed into a garbage catalog that stays cache-current forever (size/mtime/parserId all match).
+4. Decide `nativeApi` honestly: only `"llama"` renders the llama runtime panels (probe pills, Models, Slots, Capabilities, Web-UI button) in instance details; an OpenAI-compatible engine that does not speak llama's `/props`/`/slots` must say `"none"` even though it has HTTP health.
 5. If the engine forks worker children (tensor-parallel runtimes), extend the descendant-process matcher in `process/runtime-memory.ts` (`isLikelyLlamaServer` filters on the llama-server command name) — otherwise worker VRAM/RSS vanishes from the memory layout and the scheduler evicts into occupied memory.
-6. Out of scope so far (deliberately deferred until the next engine is chosen): a model-entity format discriminator (HF/safetensors directories vs GGUF files), install/version provisioning beyond the CMake build domain, and web instance-form gating (`use-instance-form.ts` still branches on `kind === "llama-server"` / `isRpcServerBinary`).
+6. Out of scope so far (deliberately deferred until the next engine is chosen): a model-entity format discriminator (HF/safetensors directories vs GGUF files), install/version provisioning beyond the CMake build domain, exposing `positionalArgs` in the web form, and the remaining instance-form llama flag plumbing (`use-instance-form.ts` model/preset/HF sections write `--model`/`--models-preset`/`--hf-repo`; `isRpcServerBinary` sniffs the binary basename — the durable fix is an engine tag on path-catalog entries).
