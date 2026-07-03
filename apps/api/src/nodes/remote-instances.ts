@@ -3,16 +3,23 @@ import {
   type FleetNode,
   type Instance,
 } from "@llama-manager/core";
-import { z } from "zod";
 
 import { fetchNodeJson } from "./remote.js";
 import { listNodes } from "./repository.js";
 
-const RemoteInstancesSchema = z.array(InstanceSchema);
+export function parseRemoteInstances(payload: unknown): Instance[] {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+  return payload.flatMap((item) => {
+    const parsed = InstanceSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
 
 export async function fetchNodeInstances(node: FleetNode): Promise<Instance[]> {
   try {
-    return RemoteInstancesSchema.parse(
+    return parseRemoteInstances(
       await fetchNodeJson<unknown>(node, "instances"),
     );
   } catch {
