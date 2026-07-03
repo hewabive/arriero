@@ -1,16 +1,17 @@
-import type {
-  Instance,
-  InstanceArgValue,
-  LlamaEndpointProbe,
+import {
+  engineDescriptor,
+  type Instance,
+  type InstanceArgValue,
+  type LlamaEndpointProbe,
 } from "@llama-manager/core";
 
-const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_PORT = 8080;
+const LLAMA_HTTP = engineDescriptor("llama-server").http;
+const RPC_HTTP = engineDescriptor("rpc-worker").http;
 const PROBE_TIMEOUT_MS = 1_500;
 
 export function firstArg(
   args: Instance["args"],
-  keys: string[],
+  keys: readonly string[],
 ): InstanceArgValue | undefined {
   for (const key of keys) {
     if (args[key] !== undefined) {
@@ -31,20 +32,25 @@ export function asString(
 }
 
 export function asPort(value: InstanceArgValue | undefined): number {
-  const raw = asString(value, String(DEFAULT_PORT));
+  const raw = asString(value, String(LLAMA_HTTP.defaultPort));
   const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_PORT;
+  return Number.isInteger(parsed) && parsed > 0
+    ? parsed
+    : LLAMA_HTTP.defaultPort;
 }
 
 export function probeHost(host: string): string {
   if (host === "0.0.0.0" || host === "::") {
-    return DEFAULT_HOST;
+    return LLAMA_HTTP.defaultHost;
   }
   return host;
 }
 
 export function apiPrefix(instance: Instance): string {
-  const raw = asString(firstArg(instance.args, ["--api-prefix"]), "");
+  const raw = asString(
+    firstArg(instance.args, LLAMA_HTTP.apiPrefixArgKeys),
+    "",
+  );
   if (!raw) {
     return "";
   }
@@ -54,8 +60,11 @@ export function apiPrefix(instance: Instance): string {
 }
 
 export function llamaBaseUrl(instance: Instance): string {
-  const rawHost = asString(firstArg(instance.args, ["--host"]), DEFAULT_HOST);
-  const port = asPort(firstArg(instance.args, ["--port"]));
+  const rawHost = asString(
+    firstArg(instance.args, LLAMA_HTTP.hostArgKeys),
+    LLAMA_HTTP.defaultHost,
+  );
+  const port = asPort(firstArg(instance.args, LLAMA_HTTP.portArgKeys));
   const host = probeHost(rawHost);
 
   if (host.endsWith(".sock")) {
@@ -65,24 +74,25 @@ export function llamaBaseUrl(instance: Instance): string {
   return `http://${host}:${port}${apiPrefix(instance)}`;
 }
 
-const RPC_SERVER_DEFAULT_PORT = 50052;
-
 export function rpcWorkerEndpoint(
   instance: Pick<Instance, "args">,
 ): { host: string; port: number } | null {
   const host = probeHost(
-    asString(firstArg(instance.args, ["--host"]), DEFAULT_HOST),
+    asString(
+      firstArg(instance.args, RPC_HTTP.hostArgKeys),
+      RPC_HTTP.defaultHost,
+    ),
   );
   if (host.endsWith(".sock")) {
     return null;
   }
   const raw = asString(
-    firstArg(instance.args, ["--port", "-p"]),
-    String(RPC_SERVER_DEFAULT_PORT),
+    firstArg(instance.args, RPC_HTTP.portArgKeys),
+    String(RPC_HTTP.defaultPort),
   );
   const parsed = Number(raw);
   const port =
-    Number.isInteger(parsed) && parsed > 0 ? parsed : RPC_SERVER_DEFAULT_PORT;
+    Number.isInteger(parsed) && parsed > 0 ? parsed : RPC_HTTP.defaultPort;
   return { host, port };
 }
 

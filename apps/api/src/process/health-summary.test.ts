@@ -39,7 +39,7 @@ function runningRuntime(): RuntimeState {
 function baseInput() {
   return {
     runtime: runningRuntime(),
-    httpHealth: false,
+    engine: { httpHealth: false, displayName: "rpc-server" },
     preflightOk: true,
     preflightErrors: 0,
     preflightWarnings: 0,
@@ -75,7 +75,10 @@ test("running rpc-worker with swapped-out memory is degraded", () => {
 });
 
 test("running llama-server with a failing health endpoint still loads", () => {
-  const derived = deriveStatus({ ...baseInput(), httpHealth: true });
+  const derived = deriveStatus({
+    ...baseInput(),
+    engine: { httpHealth: true, displayName: "llama-server" },
+  });
   assert.equal(derived.status, "loading");
 });
 

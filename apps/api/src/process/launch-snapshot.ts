@@ -1,4 +1,5 @@
 import {
+  engineDescriptor,
   InstanceNumaSchema,
   type Instance,
   type InstanceArgs,
@@ -25,7 +26,7 @@ function argIsSet(args: InstanceArgs, key: string): boolean {
 }
 
 export function managedSlotSavePath(instance: Instance): string | null {
-  if (instance.kind !== "llama-server") {
+  if (!engineDescriptor(instance.kind).launch.injectSlotSavePath) {
     return null;
   }
   if (argIsSet(instance.args, "--models-preset")) {

@@ -28,6 +28,35 @@ export * from "./api-probe-request.js";
 const API_PROBE_TIMEOUT_MS = 10 * 60 * 1_000;
 const ROUTER_MODEL_DIAGNOSTICS_LIMIT = 12;
 
+const LLAMA_PROBE_PATHS = {
+  health: "/health",
+  props: "/props",
+  slots: "/slots",
+  models: "/v1/models",
+} as const;
+
+export function offlineLlamaProbe(
+  instance: Instance,
+  error: string,
+): LlamaProbe {
+  const baseUrl = llamaBaseUrl(instance);
+  const endpoint = (path: string): LlamaEndpointProbe => ({
+    ok: false,
+    url: baseUrl ? `${baseUrl}${path}` : "",
+    status: null,
+    latencyMs: 0,
+    error,
+  });
+  return {
+    baseUrl,
+    health: endpoint(LLAMA_PROBE_PATHS.health),
+    props: endpoint(LLAMA_PROBE_PATHS.props),
+    slots: endpoint(LLAMA_PROBE_PATHS.slots),
+    models: endpoint(LLAMA_PROBE_PATHS.models),
+    modelDiagnostics: {},
+  };
+}
+
 function isRouterProps(probe: LlamaEndpointProbe): boolean {
   return objectBody(probe)?.role === "router";
 }
@@ -200,10 +229,10 @@ export async function probeLlamaServer(
   }
 
   const [health, props, slots, models] = await Promise.all([
-    probeJson(`${baseUrl}/health`),
-    probeJson(`${baseUrl}/props`),
-    probeJson(`${baseUrl}/slots`),
-    probeJson(`${baseUrl}/v1/models`),
+    probeJson(`${baseUrl}${LLAMA_PROBE_PATHS.health}`),
+    probeJson(`${baseUrl}${LLAMA_PROBE_PATHS.props}`),
+    probeJson(`${baseUrl}${LLAMA_PROBE_PATHS.slots}`),
+    probeJson(`${baseUrl}${LLAMA_PROBE_PATHS.models}`),
   ]);
   const modelDiagnostics =
     isRouterProps(props) && models.ok

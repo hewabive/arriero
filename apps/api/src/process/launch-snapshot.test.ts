@@ -20,6 +20,7 @@ function slotSavePathArg(cliArgs: string[]): string | null {
 function makeInstance(overrides: Partial<Instance> = {}): Instance {
   return {
     name: "test-instance",
+    kind: "llama-server",
     binaryPath: "/opt/llama/llama-server",
     status: "stopped",
     pid: null,

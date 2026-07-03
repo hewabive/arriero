@@ -1,20 +1,14 @@
 import {
-  instanceCapabilities,
+  engineDescriptor,
   type Instance,
   type InstanceHealthActions,
   type InstanceHealthSummary,
   type InstanceHealthSummaryStatus,
-  type LlamaEndpointProbe,
-  type LlamaProbe,
   type NumaPlacement,
   type RuntimeState,
 } from "@llama-manager/core";
 
-import {
-  llamaBaseUrl,
-  probeLlamaServer,
-  probeRpcWorker,
-} from "../llama/probe.js";
+import { engineProbe } from "./engine-probe.js";
 import {
   hasLaunchSnapshotDrift,
   parseLaunchSnapshot,
@@ -132,31 +126,9 @@ function actionsFor(
   };
 }
 
-function offlineEndpoint(url: string, error: string): LlamaEndpointProbe {
-  return {
-    ok: false,
-    url,
-    status: null,
-    latencyMs: 0,
-    error,
-  };
-}
-
-function offlineProbe(instance: Instance, error: string): LlamaProbe {
-  const baseUrl = llamaBaseUrl(instance);
-  return {
-    baseUrl,
-    health: offlineEndpoint(baseUrl ? `${baseUrl}/health` : "", error),
-    props: offlineEndpoint(baseUrl ? `${baseUrl}/props` : "", error),
-    slots: offlineEndpoint(baseUrl ? `${baseUrl}/slots` : "", error),
-    models: offlineEndpoint(baseUrl ? `${baseUrl}/v1/models` : "", error),
-    modelDiagnostics: {},
-  };
-}
-
 export function deriveStatus(input: {
   runtime: RuntimeState;
-  httpHealth: boolean;
+  engine: { httpHealth: boolean; displayName: string };
   preflightOk: boolean;
   preflightErrors: number;
   preflightWarnings: number;
@@ -248,7 +220,7 @@ export function deriveStatus(input: {
     };
   }
 
-  if (!input.httpHealth) {
+  if (!input.engine.httpHealth) {
     const swappedOut =
       input.swapBytes !== null &&
       input.swapBytes >= SWAP_DEGRADED_THRESHOLD_BYTES;
@@ -263,14 +235,14 @@ export function deriveStatus(input: {
       ].filter(Boolean);
       return {
         status: "degraded",
-        reason: `rpc-server process is running, but ${issues.join(", ")} detected.`,
+        reason: `${input.engine.displayName} process is running, but ${issues.join(", ")} detected.`,
       };
     }
     return {
       status: "ready",
       reason: input.healthOk
-        ? "rpc-server is listening for the orchestrator."
-        : "rpc-server process is running; the readiness probe was not answered (it may be busy serving the orchestrator or firewalled from the manager).",
+        ? `${input.engine.displayName} is listening for the orchestrator.`
+        : `${input.engine.displayName} process is running; the readiness probe was not answered (it may be busy serving the orchestrator or firewalled from the manager).`,
     };
   }
 
@@ -312,7 +284,7 @@ export function deriveStatus(input: {
 
     return {
       status: "ready",
-      reason: "llama-server health endpoint is OK.",
+      reason: `${input.engine.displayName} health endpoint is OK.`,
     };
   }
 
@@ -321,7 +293,7 @@ export function deriveStatus(input: {
       status: "loading",
       reason:
         input.healthStatus === 503
-          ? "llama-server is reachable but still loading."
+          ? `${input.engine.displayName} is reachable but still loading.`
           : "Logs look ready, but HTTP health is not OK yet.",
     };
   }
@@ -335,8 +307,7 @@ export function deriveStatus(input: {
 
   return {
     status: "loading",
-    reason:
-      "Process is running, but llama-server health endpoint is not ready yet.",
+    reason: `Process is running, but ${input.engine.displayName} health endpoint is not ready yet.`,
   };
 }
 
@@ -357,13 +328,12 @@ export async function getInstanceHealthSummary(
     : validateInstancePreflight(instance, {
         peers: options.peers,
       });
-  const capabilities = instanceCapabilities(instance.kind);
+  const descriptor = engineDescriptor(instance.kind);
+  const probeRunner = engineProbe(instance.kind);
   const shouldProbe = probeableStatuses.has(runtime.status);
   const probe = !shouldProbe
-    ? Promise.resolve(offlineProbe(instance, "Instance is not running."))
-    : capabilities.httpHealth
-      ? probeLlamaServer(instance)
-      : probeRpcWorker(instance);
+    ? Promise.resolve(probeRunner.offline(instance, "Instance is not running."))
+    : probeRunner.probe(instance);
   const [llama, logSummary, swapBytes] = await Promise.all([
     probe,
     summarizeInstanceLog({
@@ -389,7 +359,10 @@ export async function getInstanceHealthSummary(
       : null;
   const derived = deriveStatus({
     runtime,
-    httpHealth: capabilities.httpHealth,
+    engine: {
+      httpHealth: descriptor.probe.httpHealth,
+      displayName: descriptor.displayName,
+    },
     preflightOk: preflight.ok,
     preflightErrors,
     preflightWarnings,
