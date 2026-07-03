@@ -74,7 +74,7 @@ test("argument catalog sidecar round-trips and respects binary stat", () => {
   }
 });
 
-test("argument catalog sidecar ignores the v1 format without a parser id", () => {
+test("argument catalog sidecar reads the v1 format as the llama-help parser", () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-args-sidecar-"));
   try {
     const binaryPath = join(dir, "llama-server");
@@ -93,10 +93,19 @@ test("argument catalog sidecar ignores the v1 format without a parser id", () =>
       "utf8",
     );
 
+    const loaded = readArgumentCatalogSidecar(binaryPath, {
+      binarySize: catalog.binarySize,
+      binaryMtimeMs: catalog.binaryMtimeMs,
+      binaryModifiedAt: catalog.binaryModifiedAt,
+    });
+    assert.ok(loaded);
+    assert.equal(loaded?.parserId, "llama-help");
+    assert.equal(loaded?.helpHash, catalog.helpHash);
+
     assert.equal(
       readArgumentCatalogSidecar(binaryPath, {
         binarySize: catalog.binarySize,
-        binaryMtimeMs: catalog.binaryMtimeMs,
+        binaryMtimeMs: "999.0",
         binaryModifiedAt: catalog.binaryModifiedAt,
       }),
       null,

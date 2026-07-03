@@ -7,6 +7,7 @@ import { type binaryStat } from "./binary-discovery.js";
 import { type CachedArgumentCatalog } from "./repository.js";
 
 const SIDECAR_VERSION = 2;
+const LEGACY_SIDECAR_PARSER = "llama-help";
 
 const SidecarSchema = z.object({
   version: z.literal(SIDECAR_VERSION),
@@ -19,6 +20,28 @@ const SidecarSchema = z.object({
   options: LlamaArgumentOptionSchema.array(),
 });
 
+const LegacySidecarSchema = z.object({
+  version: z.literal(1),
+  binarySize: z.number(),
+  binaryMtimeMs: z.string(),
+  binaryModifiedAt: z.string(),
+  helpHash: z.string(),
+  generatedAt: z.string(),
+  options: LlamaArgumentOptionSchema.array(),
+});
+
+function parseSidecarPayload(raw: unknown) {
+  const current = SidecarSchema.safeParse(raw);
+  if (current.success) {
+    return current.data;
+  }
+  const legacy = LegacySidecarSchema.safeParse(raw);
+  if (legacy.success) {
+    return { ...legacy.data, parser: LEGACY_SIDECAR_PARSER };
+  }
+  return null;
+}
+
 export function argumentCatalogSidecarPath(binaryPath: string) {
   return join(dirname(binaryPath), `.${basename(binaryPath)}.llama-args.json`);
 }
@@ -28,13 +51,12 @@ export function readArgumentCatalogSidecar(
   stat: ReturnType<typeof binaryStat>,
 ): CachedArgumentCatalog | null {
   try {
-    const parsed = SidecarSchema.safeParse(
+    const data = parseSidecarPayload(
       JSON.parse(readFileSync(argumentCatalogSidecarPath(binaryPath), "utf8")),
     );
-    if (!parsed.success) {
+    if (!data) {
       return null;
     }
-    const data = parsed.data;
     if (
       data.binarySize !== stat.binarySize ||
       data.binaryMtimeMs !== stat.binaryMtimeMs
