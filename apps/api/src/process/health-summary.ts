@@ -338,6 +338,7 @@ export async function getInstanceHealthSummary(
     probe,
     summarizeInstanceLog({
       instanceId: instance.name,
+      kind: instance.kind,
       runtime,
       cudaDevicesDisabled: instanceCudaDevicesDisabled(instance),
     }),

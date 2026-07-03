@@ -250,6 +250,7 @@ export function registerInstanceRoutes(app: Hono) {
     return c.json({
       data: await summarizeInstanceLog({
         instanceId: instance.name,
+        kind: instance.kind,
         runtime: supervisor.getState(instance.name),
         cudaDevicesDisabled: instanceCudaDevicesDisabled(instance),
       }),

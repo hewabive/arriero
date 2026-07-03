@@ -38,6 +38,7 @@ test("summarizeInstanceLog ignores /slots request IPs when parsing slot count", 
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -69,6 +70,7 @@ test("summarizeInstanceLog estimates tensor loading progress from loader dots", 
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -97,6 +99,7 @@ test("summarizeInstanceLog reports staged loading when tensor dots are absent", 
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -122,6 +125,7 @@ test("summarizeInstanceLog handles load_tensors without progress dots", async ()
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -152,6 +156,7 @@ test("summarizeInstanceLog parses per-device memory layout from buffer lines", a
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -198,6 +203,7 @@ test("summarizeInstanceLog parses projected host memory when exact buffers are a
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -228,6 +234,7 @@ test("summarizeInstanceLog reports warmup as late loading stage", async () => {
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -257,6 +264,7 @@ test("summarizeInstanceLog ignores transient router connection errors before chi
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -283,6 +291,7 @@ test("summarizeInstanceLog keeps router connection errors after readiness", asyn
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -307,6 +316,7 @@ test("summarizeInstanceLog ignores per-request context size overflow errors", as
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -332,6 +342,7 @@ test("summarizeInstanceLog ignores chat requests rejected by an embedding-only c
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -362,6 +373,7 @@ test("summarizeInstanceLog ignores capability probe rejection exceptions", async
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -385,6 +397,7 @@ test("summarizeInstanceLog keeps genuine server_error exceptions", async () => {
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -409,6 +422,7 @@ test("summarizeInstanceLog ignores the multimodal capability probe failure", asy
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
@@ -433,6 +447,7 @@ test("summarizeInstanceLog ignores the CUDA init failure when devices are disabl
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
       cudaDevicesDisabled: true,
@@ -458,6 +473,7 @@ test("summarizeInstanceLog keeps the CUDA init failure when devices are not disa
     );
 
     const summary = await summarizeInstanceLog({
+      kind: "llama-server",
       instanceId: "test-instance",
       runtime: runtime(logPath),
     });
