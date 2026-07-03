@@ -31,12 +31,13 @@ export function asString(
   return String(value);
 }
 
-export function asPort(value: InstanceArgValue | undefined): number {
-  const raw = asString(value, String(LLAMA_HTTP.defaultPort));
+export function asPort(
+  value: InstanceArgValue | undefined,
+  defaultPort = LLAMA_HTTP.defaultPort,
+): number {
+  const raw = asString(value, String(defaultPort));
   const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0
-    ? parsed
-    : LLAMA_HTTP.defaultPort;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultPort;
 }
 
 export function probeHost(host: string): string {
@@ -86,13 +87,10 @@ export function rpcWorkerEndpoint(
   if (host.endsWith(".sock")) {
     return null;
   }
-  const raw = asString(
+  const port = asPort(
     firstArg(instance.args, RPC_HTTP.portArgKeys),
-    String(RPC_HTTP.defaultPort),
+    RPC_HTTP.defaultPort,
   );
-  const parsed = Number(raw);
-  const port =
-    Number.isInteger(parsed) && parsed > 0 ? parsed : RPC_HTTP.defaultPort;
   return { host, port };
 }
 

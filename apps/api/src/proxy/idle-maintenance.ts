@@ -50,11 +50,7 @@ export async function buildApiProxyPlanRequest(input: {
     const instanceId = targetRuntime?.instanceId ?? null;
     const instance = instanceId ? (getInstance(instanceId) ?? null) : null;
     const draws = instance?.memory ?? [];
-    const gates = proxyEngineGates(instance);
-    const capabilities = {
-      modelLoadUnload: gates.modelLoadUnload,
-      slotSave: gates.slotSave,
-    };
+    const capabilities = proxyEngineGates(instance);
     return targetRuntime
       ? {
           ...target,

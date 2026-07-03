@@ -22,21 +22,19 @@ function instance(kind: Instance["kind"]): Instance {
 }
 
 test("llama-server instance enables every proxy engine gate", () => {
-  assert.deepEqual(proxyEngineGates(instance("llama-server")), {
-    modelLoadUnload: true,
-    slotSave: true,
-    streamResume: true,
-    sseTimings: true,
-  });
+  const gates = proxyEngineGates(instance("llama-server"));
+  assert.equal(gates.modelLoadUnload, true);
+  assert.equal(gates.slotSave, true);
+  assert.equal(gates.streamResume, true);
+  assert.equal(gates.sseTimings, true);
 });
 
 test("rpc-worker instance disables every proxy engine gate", () => {
-  assert.deepEqual(proxyEngineGates(instance("rpc-worker")), {
-    modelLoadUnload: false,
-    slotSave: false,
-    streamResume: false,
-    sseTimings: false,
-  });
+  const gates = proxyEngineGates(instance("rpc-worker"));
+  assert.equal(gates.modelLoadUnload, false);
+  assert.equal(gates.slotSave, false);
+  assert.equal(gates.streamResume, false);
+  assert.equal(gates.sseTimings, false);
 });
 
 test("no instance (external endpoint) disables every proxy engine gate", () => {

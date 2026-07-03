@@ -35,18 +35,23 @@ const LLAMA_PROBE_PATHS = {
   models: "/v1/models",
 } as const;
 
+function failedEndpoint(url: string, error: string): LlamaEndpointProbe {
+  return {
+    ok: false,
+    url,
+    status: null,
+    latencyMs: 0,
+    error,
+  };
+}
+
 export function offlineLlamaProbe(
   instance: Instance,
   error: string,
 ): LlamaProbe {
   const baseUrl = llamaBaseUrl(instance);
-  const endpoint = (path: string): LlamaEndpointProbe => ({
-    ok: false,
-    url: baseUrl ? `${baseUrl}${path}` : "",
-    status: null,
-    latencyMs: 0,
-    error,
-  });
+  const endpoint = (path: string): LlamaEndpointProbe =>
+    failedEndpoint(baseUrl ? `${baseUrl}${path}` : "", error);
   return {
     baseUrl,
     health: endpoint(LLAMA_PROBE_PATHS.health),
@@ -171,24 +176,15 @@ function probeTcpAccept(
 }
 
 export async function probeRpcWorker(instance: Instance): Promise<LlamaProbe> {
-  const notApplicable: LlamaEndpointProbe = {
-    ok: false,
-    url: "",
-    status: null,
-    latencyMs: 0,
-    error: "not applicable for rpc-server",
-  };
+  const notApplicable = failedEndpoint("", "not applicable for rpc-server");
   const endpoint = rpcWorkerEndpoint(instance);
   if (!endpoint) {
     return {
       baseUrl: "",
-      health: {
-        ok: false,
-        url: "",
-        status: null,
-        latencyMs: 0,
-        error: "rpc-server endpoint is not configured (--host/--port)",
-      },
+      health: failedEndpoint(
+        "",
+        "rpc-server endpoint is not configured (--host/--port)",
+      ),
       props: notApplicable,
       slots: notApplicable,
       models: notApplicable,
@@ -211,13 +207,10 @@ export async function probeLlamaServer(
 ): Promise<LlamaProbe> {
   const baseUrl = llamaBaseUrl(instance);
   if (!baseUrl) {
-    const unsupported: LlamaEndpointProbe = {
-      ok: false,
-      url: "",
-      status: null,
-      latencyMs: 0,
-      error: "UNIX socket probing is not implemented yet",
-    };
+    const unsupported = failedEndpoint(
+      "",
+      "UNIX socket probing is not implemented yet",
+    );
     return {
       baseUrl,
       health: unsupported,
