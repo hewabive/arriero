@@ -15,6 +15,7 @@ import {
 } from "../llama/probe.js";
 import { supervisor } from "../process/supervisor.js";
 import { computeDomainCoordinator } from "./domain-coordinator.js";
+import { proxyEngineGates } from "./engine-capabilities.js";
 import { apiProxyPendingResume } from "./pending-resume.js";
 import { computeDomains } from "./resource-domains.js";
 import { addApiProxySavedSlotId, apiProxySlotFilename } from "./repository.js";
@@ -47,15 +48,22 @@ export async function buildApiProxyPlanRequest(input: {
   const targets = runtime.targets.map((target) => {
     const targetRuntime = runtimeByTargetId.get(target.id);
     const instanceId = targetRuntime?.instanceId ?? null;
-    const draws = instanceId ? (getInstance(instanceId)?.memory ?? []) : [];
+    const instance = instanceId ? (getInstance(instanceId) ?? null) : null;
+    const draws = instance?.memory ?? [];
+    const gates = proxyEngineGates(instance);
+    const capabilities = {
+      modelLoadUnload: gates.modelLoadUnload,
+      slotSave: gates.slotSave,
+    };
     return targetRuntime
       ? {
           ...target,
           instanceId,
           runtime: targetRuntime,
           draws,
+          capabilities,
         }
-      : { ...target, instanceId: null, draws };
+      : { ...target, instanceId: null, draws, capabilities };
   });
   const targetInstanceIds = new Set(
     targets

@@ -1398,10 +1398,18 @@ export const ApiProxyTargetRuntimeSchema = z.object({
   inflight: z.array(ApiProxyInflightRequestSchema).default([]),
 });
 
+export const ApiProxyTargetPlanCapabilitiesSchema = z
+  .object({
+    modelLoadUnload: z.boolean(),
+    slotSave: z.boolean(),
+  })
+  .default({ modelLoadUnload: true, slotSave: true });
+
 export const ApiProxyTargetPlanInputSchema = ApiProxyTargetConfigSchema.extend({
   instanceId: z.string().min(1).nullable().default(null),
   runtime: ApiProxyTargetRuntimeSchema.optional(),
   draws: z.array(InstanceMemoryDrawSchema).default([]),
+  capabilities: ApiProxyTargetPlanCapabilitiesSchema,
 });
 
 export const ApiProxySchedulerPoolInputSchema = z.object({

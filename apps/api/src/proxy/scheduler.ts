@@ -77,7 +77,7 @@ function unloadActions(
   }
 
   const actions: ApiProxySchedulerAction[] = [];
-  if (target.saveSlotsBeforeUnload) {
+  if (target.saveSlotsBeforeUnload && target.capabilities.slotSave) {
     const alreadySaved = new Set(target.runtime?.savedSlotIds ?? []);
     for (const slotId of target.slotIds) {
       if (!alreadySaved.has(slotId)) {
@@ -87,7 +87,7 @@ function unloadActions(
   }
 
   actions.push(
-    target.model
+    target.model && target.capabilities.modelLoadUnload
       ? action("unload-model", target, reason)
       : action("stop-instance", target, reason),
   );
@@ -114,13 +114,20 @@ function loadActions(
     actions.push(action("wait-model-ready", target, reason));
   }
 
-  if (!isActive(target) && !pendingStates.has(state) && target.model) {
+  if (
+    !isActive(target) &&
+    !pendingStates.has(state) &&
+    target.model &&
+    target.capabilities.modelLoadUnload
+  ) {
     actions.push(action("load-model", target, reason));
     actions.push(action("wait-model-ready", target, reason));
   }
 
-  for (const slotId of target.runtime?.savedSlotIds ?? []) {
-    actions.push(action("restore-slot", target, reason, slotId));
+  if (target.capabilities.slotSave) {
+    for (const slotId of target.runtime?.savedSlotIds ?? []) {
+      actions.push(action("restore-slot", target, reason, slotId));
+    }
   }
 
   return actions;

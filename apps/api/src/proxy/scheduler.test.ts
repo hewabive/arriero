@@ -27,6 +27,7 @@ function target(input: {
   slotIds?: number[];
   savedSlotIds?: number[];
   draws?: { poolId: string; bytes: number }[];
+  capabilities?: { modelLoadUnload: boolean; slotSave: boolean };
 }) {
   return {
     id: input.id,
@@ -41,6 +42,7 @@ function target(input: {
     slotIds: input.slotIds ?? [],
     idleUnloadMs: input.idleUnloadMs ?? null,
     draws: input.draws ?? [],
+    ...(input.capabilities ? { capabilities: input.capabilities } : {}),
     runtime: {
       targetId: input.id,
       kind: "managed-instance",
@@ -839,4 +841,133 @@ test("planApiProxyIdleMaintenance skips pinned targets past their idle threshold
 
   assert.equal(plan.ok, true);
   assert.deepEqual(plan.actions, []);
+});
+
+test("plan-input capabilities default to the full llama lifecycle", () => {
+  const plan = planApiProxyIdleMaintenance(
+    planRequest({
+      mode: "idle",
+      now: "2026-05-30T10:00:12.000Z",
+      targets: [
+        target({
+          id: "urgent",
+          name: "Urgent chat",
+          instanceId: "inst-urgent",
+          model: "chat",
+          priority: 100,
+          state: "ready",
+          idleSince: "2026-05-30T10:00:00.000Z",
+          idleUnloadMs: 10_000,
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(plan.ok, true);
+  assert.deepEqual(
+    plan.actions.map((item) => item.type),
+    ["unload-model"],
+  );
+});
+
+test("unload falls back to stop-instance when the engine cannot unload models", () => {
+  const plan = planApiProxyIdleMaintenance(
+    planRequest({
+      mode: "idle",
+      now: "2026-05-30T10:00:12.000Z",
+      targets: [
+        target({
+          id: "urgent",
+          name: "Urgent chat",
+          instanceId: "inst-urgent",
+          model: "chat",
+          priority: 100,
+          state: "ready",
+          idleSince: "2026-05-30T10:00:00.000Z",
+          idleUnloadMs: 10_000,
+          capabilities: { modelLoadUnload: false, slotSave: false },
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(plan.ok, true);
+  assert.deepEqual(
+    plan.actions.map((item) => item.type),
+    ["stop-instance"],
+  );
+});
+
+test("load path skips load-model when the engine cannot load models", () => {
+  const plan = planApiProxyRequest(
+    planRequest({
+      mode: "request",
+      requestedTargetId: "urgent",
+      now: "2026-05-30T10:00:00.000Z",
+      targets: [
+        target({
+          id: "urgent",
+          name: "Urgent chat",
+          instanceId: "inst-urgent",
+          model: "chat",
+          priority: 100,
+          state: "stopped",
+          capabilities: { modelLoadUnload: false, slotSave: false },
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(plan.ok, true);
+  assert.deepEqual(
+    plan.actions.map((item) => item.type),
+    ["start-instance", "wait-instance-ready", "route-request"],
+  );
+});
+
+test("slot save and restore are suppressed when the engine has no slot cache", () => {
+  const plan = planApiProxyRequest(
+    planRequest({
+      mode: "request",
+      requestedTargetId: "urgent",
+      now: "2026-05-30T10:00:00.000Z",
+      pools: [
+        { poolId: "gpu0", kind: "gpu", budgetBytes: 100, usedByOthersBytes: 0 },
+      ],
+      targets: [
+        target({
+          id: "background",
+          name: "Background batch",
+          instanceId: "inst-bg",
+          model: "slow",
+          priority: 10,
+          role: "background",
+          state: "ready",
+          activeRequests: 1,
+          saveSlotsBeforeUnload: true,
+          slotIds: [0],
+          draws: [{ poolId: "gpu0", bytes: 70 }],
+          capabilities: { modelLoadUnload: true, slotSave: false },
+        }),
+        target({
+          id: "urgent",
+          name: "Urgent chat",
+          instanceId: "inst-urgent",
+          model: "chat",
+          priority: 100,
+          state: "unloaded",
+          savedSlotIds: [0],
+          draws: [{ poolId: "gpu0", bytes: 50 }],
+          capabilities: { modelLoadUnload: true, slotSave: false },
+        }),
+      ],
+    }),
+    { allowBusyEviction: true },
+  );
+
+  assert.equal(plan.ok, true);
+  assert.deepEqual(
+    plan.actions.map((item) => item.type),
+    ["unload-model", "load-model", "wait-model-ready", "route-request"],
+  );
 });
