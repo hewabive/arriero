@@ -4,7 +4,7 @@ import type {
   ApiProbeResult,
 } from "@llama-manager/core";
 
-import { requestLlamaJson } from "../llama/probe.js";
+import { requestJsonProbe } from "../instances/endpoint.js";
 
 const API_LAB_PROBE_TIMEOUT_MS = 10 * 60 * 1_000;
 
@@ -245,7 +245,7 @@ export async function requestApiLabProbeBaseUrl(
     kind: input.kind,
     endpoint: target.endpoint,
     requestBody: target.requestBody,
-    response: await requestLlamaJson(target.url, {
+    response: await requestJsonProbe(target.url, {
       method: "POST",
       body: JSON.stringify(target.requestBody),
       headers: { "content-type": "application/json", ...headers },

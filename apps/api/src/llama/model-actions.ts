@@ -8,10 +8,10 @@ import type {
 
 import {
   compactOptionalString,
-  llamaBaseUrl,
-  llamaEndpointErrorMessage,
-  requestLlamaJson,
-} from "./endpoint-client.js";
+  instanceBaseUrl,
+  requestJsonProbe,
+} from "../instances/endpoint.js";
+import { llamaEndpointErrorMessage } from "./errors.js";
 
 const ACTION_TIMEOUT_MS = 15 * 60 * 1_000;
 
@@ -27,7 +27,7 @@ export async function requestLlamaModelAction(
   action: "load" | "unload" | "reload",
   model?: string,
 ) {
-  const baseUrl = llamaBaseUrl(instance);
+  const baseUrl = instanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket model actions are not implemented yet");
   }
@@ -37,7 +37,7 @@ export async function requestLlamaModelAction(
       action,
       model: null,
       fallback: null,
-      response: await requestLlamaJson(`${baseUrl}/models?reload=1`, {
+      response: await requestJsonProbe(`${baseUrl}/models?reload=1`, {
         timeoutMs: ACTION_TIMEOUT_MS,
       }),
     };
@@ -47,7 +47,7 @@ export async function requestLlamaModelAction(
     throw new Error("model is required");
   }
 
-  const response = await requestLlamaJson(`${baseUrl}/models/${action}`, {
+  const response = await requestJsonProbe(`${baseUrl}/models/${action}`, {
     method: "POST",
     body: JSON.stringify({ model }),
     headers: { "content-type": "application/json" },
@@ -60,7 +60,7 @@ export async function requestLlamaModelAction(
       action,
       model,
       fallback: "/props?autoload=true",
-      response: await requestLlamaJson(`${baseUrl}/props?${query.toString()}`, {
+      response: await requestJsonProbe(`${baseUrl}/props?${query.toString()}`, {
         timeoutMs: ACTION_TIMEOUT_MS,
       }),
     };
@@ -80,7 +80,7 @@ export async function requestLlamaSlotAction(
   slotId: number,
   input: LlamaSlotActionRequest,
 ): Promise<LlamaSlotActionResult> {
-  const baseUrl = llamaBaseUrl(instance);
+  const baseUrl = instanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket slot actions are not implemented yet");
   }
@@ -98,7 +98,7 @@ export async function requestLlamaSlotAction(
     slotId,
     model: model ?? null,
     filename: filename ?? null,
-    response: await requestLlamaJson(
+    response: await requestJsonProbe(
       `${baseUrl}/slots/${slotId}?${query.toString()}`,
       {
         method: "POST",

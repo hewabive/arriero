@@ -2,7 +2,7 @@ import type { Instance, RpcWorkerCandidate } from "@llama-manager/core";
 import { hostname } from "node:os";
 
 import { listInstances } from "../instances/repository.js";
-import { rpcWorkerEndpoint } from "../llama/endpoint-client.js";
+import { rpcWorkerEndpoint } from "../instances/endpoint.js";
 import { listRemoteInstancesByNode } from "./remote-instances.js";
 
 function isWorker(instance: Instance): boolean {

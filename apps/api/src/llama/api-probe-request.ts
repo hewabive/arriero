@@ -1,6 +1,9 @@
 import type { ApiProbeRequest, Instance } from "@llama-manager/core";
 
-import { compactOptionalString, llamaBaseUrl } from "./endpoint-client.js";
+import {
+  compactOptionalString,
+  instanceBaseUrl,
+} from "../instances/endpoint.js";
 
 function withModel<T extends Record<string, unknown>>(
   body: T,
@@ -179,7 +182,7 @@ export function instanceApiProbeTarget(
   input: ApiProbeRequest,
   options: { stream?: boolean } = {},
 ) {
-  const baseUrl = llamaBaseUrl(instance);
+  const baseUrl = instanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket API probes are not implemented yet");
   }

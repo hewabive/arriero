@@ -13,7 +13,7 @@ import { z } from "zod";
 import { newId } from "../utils/id.js";
 
 import { config } from "../config.js";
-import { llamaBaseUrl } from "../llama/probe.js";
+import { instanceBaseUrl } from "../instances/endpoint.js";
 import { listRemoteInstancesByNode } from "../nodes/remote-instances.js";
 import { getNode } from "../nodes/repository.js";
 import {
@@ -172,7 +172,7 @@ function instanceEndpoint(instance: Instance): ApiEndpointRecord | null {
   if (!engineDescriptor(instance.kind).proxy.serveEndpoint) {
     return null;
   }
-  const baseUrl = llamaBaseUrl(instance);
+  const baseUrl = instanceBaseUrl(instance);
   if (!baseUrl) {
     return null;
   }

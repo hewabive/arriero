@@ -14,7 +14,7 @@ import {
   streamApiProbeTarget,
 } from "../api-lab/stream.js";
 import { listInstances } from "../instances/repository.js";
-import { requestLlamaJson } from "../llama/probe.js";
+import { requestJsonProbe } from "../instances/endpoint.js";
 import {
   apiEndpointAuthHeaders,
   getApiEndpointFromCatalog,
@@ -122,7 +122,7 @@ export function registerLabRoutes(app: Hono) {
         endpointId,
       });
       return c.json({
-        data: await requestLlamaJson(`${target.baseUrl}/models`, {
+        data: await requestJsonProbe(`${target.baseUrl}/models`, {
           headers: target.headers,
           timeoutMs: 10_000,
         }),

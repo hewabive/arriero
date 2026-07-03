@@ -60,7 +60,7 @@ export function apiPrefix(instance: Instance): string {
     : `/${raw.replace(/\/$/, "")}`;
 }
 
-export function llamaBaseUrl(instance: Instance): string {
+export function instanceBaseUrl(instance: Instance): string {
   const rawHost = asString(
     firstArg(instance.args, LLAMA_HTTP.hostArgKeys),
     LLAMA_HTTP.defaultHost,
@@ -94,7 +94,7 @@ export function rpcWorkerEndpoint(
   return { host, port };
 }
 
-export async function requestLlamaJson(
+export async function requestJsonProbe(
   url: string,
   init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<EndpointProbe> {
@@ -134,7 +134,7 @@ export async function requestLlamaJson(
 }
 
 export async function probeJson(url: string): Promise<EndpointProbe> {
-  return requestLlamaJson(url);
+  return requestJsonProbe(url);
 }
 
 export function objectBody(
@@ -145,22 +145,6 @@ export function objectBody(
     !Array.isArray(probe.body)
     ? (probe.body as Record<string, unknown>)
     : null;
-}
-
-export function llamaEndpointErrorMessage(probe: EndpointProbe): string {
-  const body = probe.body;
-  if (body && typeof body === "object" && !Array.isArray(body)) {
-    const error = (body as { error?: unknown }).error;
-    if (error && typeof error === "object" && !Array.isArray(error)) {
-      const message = (error as { message?: unknown }).message;
-      if (typeof message === "string" && message.trim()) {
-        return message;
-      }
-    }
-  }
-  return (
-    probe.error ?? `llama-server returned ${probe.status ?? "no response"}`
-  );
 }
 
 export function compactOptionalString(

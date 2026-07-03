@@ -12,15 +12,15 @@ import { performance } from "node:perf_hooks";
 
 import { instanceApiProbeTarget } from "./api-probe-request.js";
 import {
-  llamaBaseUrl,
+  instanceBaseUrl,
   modelRecordsFromProbe,
   objectBody,
   probeJson,
-  requestLlamaJson,
+  requestJsonProbe,
   rpcWorkerEndpoint,
-} from "./endpoint-client.js";
+} from "../instances/endpoint.js";
 
-export * from "./endpoint-client.js";
+export * from "./errors.js";
 export * from "./capabilities.js";
 export * from "./model-actions.js";
 export * from "./api-probe-request.js";
@@ -49,7 +49,7 @@ export function offlineLlamaProbe(
   instance: Instance,
   error: string,
 ): LlamaProbe {
-  const baseUrl = llamaBaseUrl(instance);
+  const baseUrl = instanceBaseUrl(instance);
   const endpoint = (path: string): EndpointProbe =>
     failedEndpoint(baseUrl ? `${baseUrl}${path}` : "", error);
   return {
@@ -117,7 +117,7 @@ export async function requestInstanceApiProbe(
     kind: input.kind,
     endpoint: target.endpoint,
     requestBody: target.requestBody,
-    response: await requestLlamaJson(target.url, {
+    response: await requestJsonProbe(target.url, {
       method: "POST",
       body: JSON.stringify(target.requestBody),
       headers: { "content-type": "application/json" },
@@ -205,7 +205,7 @@ export async function probeRpcWorker(instance: Instance): Promise<LlamaProbe> {
 export async function probeLlamaServer(
   instance: Instance,
 ): Promise<LlamaProbe> {
-  const baseUrl = llamaBaseUrl(instance);
+  const baseUrl = instanceBaseUrl(instance);
   if (!baseUrl) {
     const unsupported = failedEndpoint(
       "",

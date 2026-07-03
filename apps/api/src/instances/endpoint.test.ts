@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { Instance } from "@llama-manager/core";
 
-import { rpcWorkerEndpoint } from "./endpoint-client.js";
+import { rpcWorkerEndpoint } from "./endpoint.js";
 
 function worker(args: Instance["args"]): Instance {
   return {
@@ -23,10 +23,13 @@ function worker(args: Instance["args"]): Instance {
 }
 
 test("rpcWorkerEndpoint reads --host and --port", () => {
-  assert.deepEqual(rpcWorkerEndpoint(worker({ "--host": "10.0.0.2", "--port": 50100 })), {
-    host: "10.0.0.2",
-    port: 50100,
-  });
+  assert.deepEqual(
+    rpcWorkerEndpoint(worker({ "--host": "10.0.0.2", "--port": 50100 })),
+    {
+      host: "10.0.0.2",
+      port: 50100,
+    },
+  );
 });
 
 test("rpcWorkerEndpoint defaults the port to 50052 and normalizes wildcard host", () => {

@@ -9,11 +9,11 @@ import type {
 
 import { latestProcessRun } from "../process/runs-repository.js";
 import {
-  llamaBaseUrl,
-  llamaEndpointErrorMessage,
+  instanceBaseUrl,
   modelRecordsFromProbe,
-  requestLlamaJson,
-} from "./endpoint-client.js";
+  requestJsonProbe,
+} from "../instances/endpoint.js";
+import { llamaEndpointErrorMessage } from "./errors.js";
 
 const CAPABILITY_PROBE_TIMEOUT_MS = 4_000;
 
@@ -256,7 +256,7 @@ async function requestCapability(
   definition: CapabilityDefinition,
   model: string | null,
 ): Promise<LlamaCapability> {
-  const probe = await requestLlamaJson(
+  const probe = await requestJsonProbe(
     capabilityUrl(baseUrl, definition, model),
     {
       method: definition.method,
@@ -312,7 +312,7 @@ export async function probeLlamaCapabilities(
 async function runCapabilityProbe(
   instance: Instance,
 ): Promise<LlamaCapabilitiesResult> {
-  const baseUrl = llamaBaseUrl(instance);
+  const baseUrl = instanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket capability probes are not implemented yet");
   }
@@ -320,7 +320,7 @@ async function runCapabilityProbe(
   const modelsDefinition = capabilityDefinitions.find(
     (definition) => definition.id === "models",
   )!;
-  const modelsProbe = await requestLlamaJson(`${baseUrl}/v1/models`, {
+  const modelsProbe = await requestJsonProbe(`${baseUrl}/v1/models`, {
     timeoutMs: CAPABILITY_PROBE_TIMEOUT_MS,
   });
   const model = selectedCapabilityModel(modelsProbe);

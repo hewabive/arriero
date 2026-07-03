@@ -1,7 +1,7 @@
 import type { FleetNode, Instance, RpcWorkerRef } from "@llama-manager/core";
 
 import { getInstanceRecord } from "../instances/config-files.js";
-import { rpcWorkerEndpoint } from "../llama/endpoint-client.js";
+import { rpcWorkerEndpoint } from "../instances/endpoint.js";
 import { fetchNodeInstances } from "../nodes/remote-instances.js";
 import { getNode } from "../nodes/repository.js";
 
