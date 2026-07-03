@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-import {
-  engineDescriptor,
-  INSTANCE_KINDS,
-  type InstanceKind,
-} from "./engine-descriptor.js";
+import { INSTANCE_KINDS } from "./engine-descriptor.js";
 import { parseApiProxyBodyFieldPath } from "./proxy/request-edits.js";
 
 export * from "./engine-descriptor.js";
@@ -188,23 +184,6 @@ export const InstanceNumaSchema = z.discriminatedUnion("mode", [
 ]);
 
 export const InstanceKindSchema = z.enum(INSTANCE_KINDS);
-
-export type InstanceCapabilities = {
-  proxyEndpoint: boolean;
-  httpHealth: boolean;
-  ggufMemoryEstimate: boolean;
-  requestLease: boolean;
-};
-
-export function instanceCapabilities(kind: InstanceKind): InstanceCapabilities {
-  const descriptor = engineDescriptor(kind);
-  return {
-    proxyEndpoint: descriptor.proxy.serveEndpoint,
-    httpHealth: descriptor.probe.httpHealth,
-    ggufMemoryEstimate: descriptor.estimator === "gguf",
-    requestLease: descriptor.proxy.requestLease,
-  };
-}
 
 export const RpcWorkerRefSchema = z.object({
   nodeId: z.string().min(1).nullable().default(null),

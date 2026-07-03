@@ -24,6 +24,7 @@ import {
   type DomainLease,
 } from "./domain-coordinator.js";
 import { requestComputeDomains } from "./resource-domains.js";
+import { buildThinkForceAnswerTail } from "./force-answer.js";
 import { apiProxyForwardUrl, forwardApiProxyRequest } from "./forwarder.js";
 import {
   CLIENT_ABORT_STATUS,
@@ -1357,10 +1358,8 @@ export async function serveResolvedTarget(input: {
       (operation.protocol === "openai" || translateAnthropic);
     inflight.setInterruptible(forceAnswerSupported);
     const buildForceAnswerTail = forceAnswerSupported
-      ? (reasoningText: string): string | null => {
-          const trimmed = reasoningText.trimEnd();
-          return `<think>\n${trimmed}\n</think>\n\n`;
-        }
+      ? (reasoningText: string): string | null =>
+          buildThinkForceAnswerTail(reasoningText)
       : undefined;
     const state = createResumableBufferState();
     const buildBody = (tail: string | null) => {

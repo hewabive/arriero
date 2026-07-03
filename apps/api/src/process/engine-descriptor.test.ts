@@ -1,8 +1,4 @@
-import {
-  engineDescriptor,
-  INSTANCE_KINDS,
-  instanceCapabilities,
-} from "@llama-manager/core";
+import { engineDescriptor, INSTANCE_KINDS } from "@llama-manager/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -10,21 +6,6 @@ test("every instance kind has a descriptor with a matching id", () => {
   for (const kind of INSTANCE_KINDS) {
     assert.equal(engineDescriptor(kind).id, kind);
   }
-});
-
-test("instanceCapabilities adapter matches the legacy boolean table", () => {
-  assert.deepEqual(instanceCapabilities("llama-server"), {
-    proxyEndpoint: true,
-    httpHealth: true,
-    ggufMemoryEstimate: true,
-    requestLease: true,
-  });
-  assert.deepEqual(instanceCapabilities("rpc-worker"), {
-    proxyEndpoint: false,
-    httpHealth: false,
-    ggufMemoryEstimate: false,
-    requestLease: false,
-  });
 });
 
 test("llama-server descriptor enables the full llama feature set", () => {

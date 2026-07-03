@@ -1,0 +1,74 @@
+# Engine adapters
+
+llama-manager is prepared for (but does not yet ship) a second inference engine (vLLM, SGLang, …). The seam is a **static per-kind engine descriptor** in `packages/core/src/engine-descriptor.ts`; all previously hardcoded llama-server assumptions in the process, arguments, memory-estimate, and proxy layers route through it. This document is the contract: what a descriptor declares, which api-side registries implement its ids, what is llama-only by design, and the checklist for plugging in a new engine.
+
+## Two-layer model
+
+- **Generic layer** (engine-agnostic, needs no changes per engine): resource pools + ledger + admission (`resources/*`, `buildResourceLedger`, `checkDrawAdmission`), the compute-domain coordinator/lease, the pure scheduler + callback-driven executor, spawn/adopt/reconcile process supervision, path-catalog binary references, protocol adapters and pipelines.
+- **Engine layer** (selected by the descriptor): health probing, readiness/log parsing, argument-catalog `--help` parsing, engine-specific preflight, memory estimation, resource-profile derivation, and the proxy capability set.
+
+## The descriptor
+
+`engineDescriptor(kind)` returns a pure-data record (core is bundled into the web app — **no node APIs, no I/O in core**). Registered kinds live in `INSTANCE_KINDS`; `Record<InstanceKind, EngineDescriptor>` exhaustiveness makes the compiler point at every spot a new engine must fill in.
+
+| Field | Meaning | llama-server | rpc-worker |
+| --- | --- | --- | --- |
+| `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` |
+| `http` | Default host/port + arg keys for host/port/api-prefix (URL derivation in `llama/endpoint-client.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` |
+| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` |
+| `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` |
+| `launch.injectSlotSavePath` | Auto-inject `--slot-save-path` at launch (`process/launch-snapshot.ts`) | `true` | `false` |
+| `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` |
+| `preflight.argumentCatalogParser` | `--help` parser id for the argument catalog | `llama-help` | `none` |
+| `logs.parser` | Log-parser id for readiness/progress/memory extraction | `llama` | `llama` (shared deliberately — rpc logs already ran through the same summarizer) |
+| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` |
+| `resourceProfile` | Arg-parsing strategy for `deriveInstanceResourceProfile` | `llama-args` | `rpc-device-args` |
+
+String ids select **api-side implementations** from `Record`-keyed registries, keeping I/O out of core:
+
+| Id enum | Registry | Implementations |
+| --- | --- | --- |
+| `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http` → `probeLlamaServer`, `tcp-accept` → `probeRpcWorker`; both use `offlineLlamaProbe` for the not-running shape |
+| `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama` → `log-parsers/llama.ts` (all readiness/progress/memory-buffer regexes) |
+| `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts` (path args, router-mode rule, gpu-layers vs nvidia-smi, argument compatibility), `none` → skip |
+| `EngineArgumentCatalogParserId` | `HELP_PARSERS` in `apps/api/src/arguments/catalog.ts` | `llama-help` → `parseLlamaArgumentOptions`; catalog cache rows and sidecars carry `parserId`, a mismatch is a cache miss (a binary is never parsed with the wrong parser) |
+| `EngineEstimatorId` | gate in `apps/api/src/memory-estimate/service.ts` | `gguf` → `estimateInstanceMemory`; a second estimator adds dispatch here (reuse the `MemoryEstimate`/`draws` output contract) |
+| `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args` → llama flag parsing, `rpc-device-args` → `--device` tokens |
+
+## Proxy capability flags
+
+`EngineDescriptor.proxy`, adapted per-request by `proxyEngineGates(instance | null)` (`apps/api/src/proxy/engine-capabilities.ts`; no instance ⇒ all false, which makes external endpoints' implicit opt-out explicit):
+
+- `serveEndpoint` — the instance appears in the endpoint catalog / can be a proxy target (`proxy/endpoints.ts`, `proxy/target-models.ts`).
+- `requestLease` — reserved: participates in compute-domain leasing (currently unread; kept for the planner).
+- `modelLoadUnload` — llama-server router verbs `POST /models/load|unload` exist; without it the scheduler falls back to `stop-instance`/`start-instance`.
+- `slotSave` — KV-slot save/restore (`POST /slots/:id?action=save|restore`) for preemption; without it no `save-slot`/`restore-slot` actions are planned.
+- `streamResume` — server-side stream sessions (`x-conversation-id`, `/v1/stream/:id`), see `docs/STREAM_RESUME.md`.
+- `sseTimings` — llama.cpp SSE extensions (`timings`, `prompt_progress` via `return_progress`) powering live TTFT/prefill metrics and slot correlation.
+
+Scheduler-side gating is documented in `docs/API_PROXY_FOUNDATION.md` § Engine capability gating.
+
+## llama-only by design
+
+Not everything generalizes; these stay llama-specific implementations behind optional capabilities, not abstractions:
+
+- KV slot save/restore and stream-resume sessions (no vLLM-style equivalent; portable preemption resume is the assistant-prefill path in `resumable-forward.ts`).
+- RPC workers (`rpcWorkers`, `rpc-launch.ts`, `rpc-preflight.ts`, `managed-lifecycle.ts`, `nodes/rpc-worker-catalog.ts`) — llama.cpp distributed inference; other engines do multi-GPU with in-process flags, so no generic "distributed backend" concept is warranted.
+- Router mode (`--models-preset`) and per-model `/v1/models` status objects.
+- The argument canonical registry, Russian help overlay, and docs pipeline (`content/llama-args/`, `arguments/registry.ts`) — post-processing tied to the `llama-help` parser.
+- The API Lab llama-native probe bodies (`api-lab/`, `llama/api-probe-request.ts`) and `/api/instances/:id/llama` diagnostics route.
+
+## Preserved quirks (do not "fix" without intent)
+
+- The offline probe payload for a stopped rpc-worker keeps the llama HTTP shape (port-8080 `/health` URLs) — it is an API payload consumers already see.
+- Preflight `parsedPort` defaults to 8080 for **all** kinds, including rpc-worker port-conflict detection; wiring `http.defaultPort` in would silently change conflict results.
+- Two `deriveStatus` strings ("…llama-server health is OK." on stale, "…waiting for llama-server readiness." on starting) are reachable by rpc-workers and stay literal; templating them would change today's output for rpc-workers.
+- `filterManagedLlamaLogChunk` (probe-noise log filtering) applies to both kinds.
+- Cross-node delegation injects `return_progress` before the sending node knows the remote engine (harmless today).
+
+## New-engine checklist
+
+1. Add the kind to `INSTANCE_KINDS` and write its `EngineDescriptor`; the `Record` exhaustiveness and this doc's registries are the to-do list.
+2. Implement and register: a probe (`engine-probe.ts`), a log parser (`log-parsers/`), a preflight module (or `none`), a `--help` parser (or `none` — the instance form then has no catalog), a resource-profile strategy, an estimator (or `none` — draws are then declared manually, which the ledger already supports).
+3. Decide the `proxy` flags honestly; `modelLoadUnload:false` + `slotSave:false` + `streamResume:false` + `sseTimings:false` yields a correct start/stop-only managed target.
+4. Out of scope so far (deliberately deferred until the next engine is chosen): a model-entity format discriminator (HF/safetensors directories vs GGUF files), install/version provisioning beyond the CMake build domain, and web instance-form gating (`use-instance-form.ts` still branches on `kind === "llama-server"` / `isRpcServerBinary`).

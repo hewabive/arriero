@@ -43,7 +43,9 @@ Four pieces, one per implementation phase:
 
 2. **Session registry** (`proxy/stream-session.ts`): every managed
    chat.completions/messages forward whose upstream is SSE (the plain
-   `respond()` path) registers a session keyed by the in-flight request id: a
+   `respond()` path) and whose engine descriptor sets `proxy.streamResume`
+   (see `docs/ENGINE_ADAPTERS.md`; today only `llama-server`) registers a
+   session keyed by the in-flight request id: a
    fresh uuidv7 conversation id sent upstream via `X-Conversation-Id`, plus a
    **resume key** — sha256 over the canonicalized post-pipeline,
    post-translation upstream body (attribution `cch` churn pinned by
@@ -54,7 +56,13 @@ Four pieces, one per implementation phase:
    cancellation semantics must be restored explicitly. The preemptible
    `respondResumable()` path deliberately does **not** attach sessions: its
    preemption cycle frees slots by aborting the upstream fetch, and a detached
-   generation would keep the slot busy through slot-save.
+   generation would keep the slot busy through slot-save. The gate is the
+   kind-level descriptor flag only — the runtime `stream-resume` capability
+   probe stays diagnostics-only, because consulting it on the forward path
+   would add a cold-cache HTTP round-trip for zero decision value:
+   `x-conversation-id` injection is harmless on binaries without the feature,
+   and adopt-time lookup verification plus the settle-time DELETE already drop
+   anything the binary cannot serve.
 
 3. **Persist/adopt** (`proxy/pending-resume.ts`): on SIGTERM the registry
    snapshot is written to `data/proxy-pending-resume.json` before the HTTP

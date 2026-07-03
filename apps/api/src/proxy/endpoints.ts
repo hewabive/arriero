@@ -5,7 +5,7 @@ import {
   type ApiEndpointCreate,
   type ApiEndpointRecord,
   type ApiEndpointUpdate,
-  instanceCapabilities,
+  engineDescriptor,
   type FleetNode,
   type Instance,
 } from "@llama-manager/core";
@@ -169,7 +169,7 @@ function managerProxyEndpoint(): ApiEndpointRecord {
 }
 
 function instanceEndpoint(instance: Instance): ApiEndpointRecord | null {
-  if (!instanceCapabilities(instance.kind).proxyEndpoint) {
+  if (!engineDescriptor(instance.kind).proxy.serveEndpoint) {
     return null;
   }
   const baseUrl = llamaBaseUrl(instance);
@@ -261,7 +261,9 @@ export async function listRemoteInstanceEndpoints(): Promise<
   return byNode
     .flatMap(({ node, instances }) =>
       instances
-        .filter((instance) => instanceCapabilities(instance.kind).proxyEndpoint)
+        .filter(
+          (instance) => engineDescriptor(instance.kind).proxy.serveEndpoint,
+        )
         .map((instance) => remoteInstanceEndpoint(node, instance.name)),
     )
     .sort((left, right) => left.name.localeCompare(right.name));
