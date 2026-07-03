@@ -6,7 +6,7 @@ import { z } from "zod";
 import { type binaryStat } from "./binary-discovery.js";
 import { type CachedArgumentCatalog } from "./repository.js";
 
-const SIDECAR_VERSION = 1;
+const SIDECAR_VERSION = 2;
 
 const SidecarSchema = z.object({
   version: z.literal(SIDECAR_VERSION),
@@ -15,6 +15,7 @@ const SidecarSchema = z.object({
   binaryModifiedAt: z.string(),
   helpHash: z.string(),
   generatedAt: z.string(),
+  parser: z.string(),
   options: LlamaArgumentOptionSchema.array(),
 });
 
@@ -48,6 +49,7 @@ export function readArgumentCatalogSidecar(
       helpHash: data.helpHash,
       options: data.options,
       generatedAt: data.generatedAt,
+      parserId: data.parser,
     };
   } catch {
     return null;
@@ -63,6 +65,7 @@ export function writeArgumentCatalogSidecar(catalog: CachedArgumentCatalog) {
     binaryModifiedAt: catalog.binaryModifiedAt,
     helpHash: catalog.helpHash,
     generatedAt: catalog.generatedAt,
+    parser: catalog.parserId,
     options: catalog.options,
   };
   try {

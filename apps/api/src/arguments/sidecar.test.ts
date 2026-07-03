@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,6 +9,7 @@ import { getLlamaArgumentCatalog } from "./catalog.js";
 import { parseLlamaArgumentOptions } from "./help-parser.js";
 import {
   getCachedArgumentCatalog,
+  saveArgumentCatalog,
   type CachedArgumentCatalog,
 } from "./repository.js";
 import {
@@ -31,6 +32,7 @@ function sampleCatalog(binaryPath: string): CachedArgumentCatalog {
     helpHash: "deadbeef",
     options,
     generatedAt: "2026-01-01T00:00:00.000Z",
+    parserId: "llama-help",
   };
 }
 
@@ -49,6 +51,7 @@ test("argument catalog sidecar round-trips and respects binary stat", () => {
     const loaded = readArgumentCatalogSidecar(binaryPath, stat);
     assert.ok(loaded);
     assert.equal(loaded?.helpHash, "deadbeef");
+    assert.equal(loaded?.parserId, "llama-help");
     assert.equal(loaded?.binaryPath, binaryPath);
     assert.deepEqual(
       loaded?.options.map((option) => option.primaryName),
@@ -64,6 +67,38 @@ test("argument catalog sidecar round-trips and respects binary stat", () => {
     );
     assert.equal(
       readArgumentCatalogSidecar(binaryPath, { ...stat, binarySize: 9999 }),
+      null,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("argument catalog sidecar ignores the v1 format without a parser id", () => {
+  const dir = mkdtempSync(join(tmpdir(), "llm-args-sidecar-"));
+  try {
+    const binaryPath = join(dir, "llama-server");
+    const catalog = sampleCatalog(binaryPath);
+    writeFileSync(
+      argumentCatalogSidecarPath(binaryPath),
+      JSON.stringify({
+        version: 1,
+        binarySize: catalog.binarySize,
+        binaryMtimeMs: catalog.binaryMtimeMs,
+        binaryModifiedAt: catalog.binaryModifiedAt,
+        helpHash: catalog.helpHash,
+        generatedAt: catalog.generatedAt,
+        options: catalog.options,
+      }),
+      "utf8",
+    );
+
+    assert.equal(
+      readArgumentCatalogSidecar(binaryPath, {
+        binarySize: catalog.binarySize,
+        binaryMtimeMs: catalog.binaryMtimeMs,
+        binaryModifiedAt: catalog.binaryModifiedAt,
+      }),
       null,
     );
   } finally {
@@ -94,6 +129,46 @@ test("argument catalog sidecar path is hidden and per-binary", () => {
   );
 });
 
+test("getLlamaArgumentCatalog regenerates a cache row with a mismatching parser id", () => {
+  const dir = mkdtempSync(join(tmpdir(), "llm-args-parser-miss-"));
+  try {
+    const binaryPath = join(dir, "llama-server");
+    writeFileSync(
+      binaryPath,
+      [
+        "#!/bin/sh",
+        'echo "----- common params -----"',
+        'echo "--model FNAME                           model path to load"',
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    chmodSync(binaryPath, 0o755);
+    const stat = binaryStat(binaryPath);
+    saveArgumentCatalog({
+      binaryPath,
+      binarySize: stat.binarySize,
+      binaryMtimeMs: stat.binaryMtimeMs,
+      binaryModifiedAt: stat.binaryModifiedAt,
+      helpHash: "legacy-hash",
+      options: [],
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      parserId: "legacy",
+    });
+
+    const catalog = getLlamaArgumentCatalog(binaryPath);
+    assert.equal(catalog.cache.hit, false);
+    assert.equal(catalog.cache.refreshed, true);
+    assert.equal(catalog.cache.stale, true);
+    assert.ok(
+      catalog.options.some((option) => option.primaryName === "--model"),
+    );
+    assert.equal(getCachedArgumentCatalog(binaryPath)?.parserId, "llama-help");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("getLlamaArgumentCatalog hydrates the DB from the sidecar without running the binary", () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-args-hydrate-"));
   try {
@@ -111,6 +186,7 @@ test("getLlamaArgumentCatalog hydrates the DB from the sidecar without running t
 --model FNAME                           model path to load
 `),
       generatedAt: "2026-01-01T00:00:00.000Z",
+      parserId: "llama-help",
     });
 
     assert.equal(getCachedArgumentCatalog(binaryPath), null);

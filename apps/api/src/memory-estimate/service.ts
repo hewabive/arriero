@@ -1,6 +1,6 @@
 import {
+  engineDescriptor,
   estimateInstanceMemory,
-  instanceCapabilities,
   type InstanceArgs,
   type MemoryEstimate,
   type MemoryEstimateArgs,
@@ -81,10 +81,10 @@ export function estimateMemory(
     if (!instance) {
       return { ok: false, reason: `instance not found: ${request.instanceId}` };
     }
-    if (!instanceCapabilities(instance.kind).ggufMemoryEstimate) {
+    if (engineDescriptor(instance.kind).estimator !== "gguf") {
       return {
         ok: false,
-        reason: "memory estimate is not applicable to rpc-worker instances",
+        reason: `memory estimate is not applicable to ${instance.kind} instances`,
       };
     }
     args = { ...(instance.args as InstanceArgs) };

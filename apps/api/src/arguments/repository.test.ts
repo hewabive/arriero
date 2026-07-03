@@ -19,8 +19,22 @@ function catalog(binaryPath: string) {
     helpHash: "test",
     options: [],
     generatedAt: "2026-05-31T00:00:00.000Z",
+    parserId: "llama-help",
   };
 }
+
+test("saveArgumentCatalog round-trips the parser id", () => {
+  const dir = mkdtempSync(join(tmpdir(), "llama-manager-argument-cache-"));
+  const binaryPath = join(dir, "llama-server");
+
+  try {
+    writeFileSync(binaryPath, "");
+    saveArgumentCatalog(catalog(binaryPath));
+    assert.equal(getCachedArgumentCatalog(binaryPath)?.parserId, "llama-help");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("pruneMissingArgumentCatalogs removes cache rows for missing binaries", () => {
   const dir = mkdtempSync(join(tmpdir(), "llama-manager-argument-cache-"));

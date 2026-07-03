@@ -1,4 +1,5 @@
 import type {
+  EngineArgumentCatalogParserId,
   LlamaArgumentCatalog,
   LlamaArgumentOption,
 } from "@llama-manager/core";
@@ -33,6 +34,18 @@ import {
 export { defaultBinaryPath } from "./binary-discovery.js";
 export { parseLlamaArgumentOptions } from "./help-parser.js";
 
+export type ArgumentCatalogHelpParserId = Exclude<
+  EngineArgumentCatalogParserId,
+  "none"
+>;
+
+const HELP_PARSERS: Record<
+  ArgumentCatalogHelpParserId,
+  (helpOutput: string) => LlamaArgumentOption[]
+> = {
+  "llama-help": parseLlamaArgumentOptions,
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -40,10 +53,12 @@ function nowIso() {
 function isCacheCurrent(
   cached: CachedArgumentCatalog,
   stat: ReturnType<typeof binaryStat>,
+  parserId: ArgumentCatalogHelpParserId,
 ) {
   return (
     cached.binarySize === stat.binarySize &&
-    cached.binaryMtimeMs === stat.binaryMtimeMs
+    cached.binaryMtimeMs === stat.binaryMtimeMs &&
+    cached.parserId === parserId
   );
 }
 
@@ -227,10 +242,11 @@ function toCatalog(input: {
 function generateCatalog(
   binaryPath: string,
   stat: ReturnType<typeof binaryStat>,
+  parserId: ArgumentCatalogHelpParserId,
 ) {
   const helpOutput = runHelp(binaryPath);
   const helpHash = createHash("sha256").update(helpOutput).digest("hex");
-  const options = parseLlamaArgumentOptions(helpOutput);
+  const options = HELP_PARSERS[parserId](helpOutput);
 
   const saved = saveArgumentCatalog({
     binaryPath,
@@ -240,6 +256,7 @@ function generateCatalog(
     helpHash,
     options,
     generatedAt: nowIso(),
+    parserId,
   });
   writeArgumentCatalogSidecar(saved);
   return saved;
@@ -247,16 +264,17 @@ function generateCatalog(
 
 export function getLlamaArgumentCatalog(
   binaryPathInput?: string,
-  input?: { refresh?: boolean },
+  input?: { refresh?: boolean; parserId?: ArgumentCatalogHelpParserId },
 ): LlamaArgumentCatalog {
   const binaryPath = resolve(binaryPathInput || defaultBinaryPath());
   if (!existsSync(binaryPath)) {
     throw new Error(`llama-server binary not found: ${binaryPath}`);
   }
 
+  const parserId = input?.parserId ?? "llama-help";
   const stat = binaryStat(binaryPath);
   const cached = getCachedArgumentCatalog(binaryPath);
-  const stale = cached ? !isCacheCurrent(cached, stat) : false;
+  const stale = cached ? !isCacheCurrent(cached, stat, parserId) : false;
 
   if (cached && !stale && !input?.refresh) {
     return toCatalog({
@@ -268,7 +286,7 @@ export function getLlamaArgumentCatalog(
 
   if (!input?.refresh) {
     const fromSidecar = readArgumentCatalogSidecar(binaryPath, stat);
-    if (fromSidecar) {
+    if (fromSidecar && fromSidecar.parserId === parserId) {
       return toCatalog({
         binaryPath,
         cached: saveArgumentCatalog(fromSidecar),
@@ -279,7 +297,7 @@ export function getLlamaArgumentCatalog(
 
   return toCatalog({
     binaryPath,
-    cached: generateCatalog(binaryPath, stat),
+    cached: generateCatalog(binaryPath, stat, parserId),
     cache: { hit: false, refreshed: true, stale },
   });
 }

@@ -60,13 +60,17 @@ test("validateInstancePreflight does not require a model for rpc-worker", () => 
         kind: "rpc-worker",
         binaryPath,
         cwd: dir,
-        args: { "--host": "0.0.0.0", "--port": 50052 },
+        args: {
+          "--host": "0.0.0.0",
+          "--port": 50052,
+          "--not-a-llama-arg": "x",
+        },
       }),
     );
 
     assert.equal(result.ok, true);
     assert.equal(
-      result.issues.some((issue) => issue.field === "args"),
+      result.issues.some((issue) => issue.field.startsWith("args")),
       false,
     );
   } finally {

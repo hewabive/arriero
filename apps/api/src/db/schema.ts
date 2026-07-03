@@ -36,6 +36,7 @@ export const llamaArgumentCatalogs = sqliteTable("llama_argument_catalogs", {
   helpHash: text("help_hash").notNull(),
   optionsJson: text("options_json").notNull(),
   generatedAt: text("generated_at").notNull(),
+  parserId: text("parser_id").notNull().default("llama-help"),
 });
 
 export const apiProxyResponseCache = sqliteTable("proxy_response_cache", {

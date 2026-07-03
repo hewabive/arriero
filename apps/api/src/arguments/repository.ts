@@ -18,6 +18,7 @@ export type CachedArgumentCatalog = {
   helpHash: string;
   options: LlamaArgumentOption[];
   generatedAt: string;
+  parserId: string;
 };
 
 function toCatalog(row: CatalogRow): CachedArgumentCatalog {
@@ -31,6 +32,7 @@ function toCatalog(row: CatalogRow): CachedArgumentCatalog {
       JSON.parse(row.optionsJson) as unknown,
     ),
     generatedAt: row.generatedAt,
+    parserId: row.parserId,
   };
 }
 
@@ -56,6 +58,7 @@ export function saveArgumentCatalog(
     helpHash: input.helpHash,
     optionsJson: JSON.stringify(input.options),
     generatedAt: input.generatedAt,
+    parserId: input.parserId,
   };
 
   if (current) {

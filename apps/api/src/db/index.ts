@@ -66,9 +66,15 @@ export function migrate() {
       binary_modified_at TEXT NOT NULL,
       help_hash TEXT NOT NULL,
       options_json TEXT NOT NULL,
-      generated_at TEXT NOT NULL
+      generated_at TEXT NOT NULL,
+      parser_id TEXT NOT NULL DEFAULT 'llama-help'
     )
   `);
+  ensureColumn(
+    "llama_argument_catalogs",
+    "parser_id",
+    "TEXT NOT NULL DEFAULT 'llama-help'",
+  );
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS proxy_response_cache (
