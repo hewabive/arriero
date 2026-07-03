@@ -1434,7 +1434,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       }
       const input: InstanceCreate = {
         name: values.name,
-        kind: "llama-server",
+        kind,
         rpcWorkers,
         binaryPathRefId: selectedBinaryPathRefId,
         args,
@@ -1466,8 +1466,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     !props.instance &&
     initializedFormKey === null &&
     argumentDefaultsQuery.isLoading;
-  const kindLabel = kind === "rpc-worker" ? "rpc-worker" : "llama-server";
-  const modalTitle = `${isEdit ? "Edit" : "New"} ${kindLabel} instance`;
+  const modalTitle = `${isEdit ? "Edit" : "New"} ${kind} instance`;
 
   return {
     form,

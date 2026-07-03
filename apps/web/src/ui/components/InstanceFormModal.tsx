@@ -1,3 +1,4 @@
+import { INSTANCE_KINDS } from "@llama-manager/core";
 import {
   Box,
   Button,
@@ -62,10 +63,10 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
             value={fm.kind}
             onChange={(value) => fm.applyKind(value as typeof fm.kind)}
             disabled={fm.isEdit}
-            data={[
-              { label: "llama-server", value: "llama-server" },
-              { label: "rpc-worker", value: "rpc-worker" },
-            ]}
+            data={INSTANCE_KINDS.map((kind) => ({
+              label: kind,
+              value: kind,
+            }))}
           />
           <TextInput
             label="Name"
