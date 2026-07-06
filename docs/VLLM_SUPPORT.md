@@ -23,7 +23,18 @@ Run vLLM by hand in a scratch uv venv and answer the unknowns that shape phases 
 3. SIGTERM to the pgid — graceful shutdown, exit code, shutdown duration.
 4. Worker process tree — cmdline shape of EngineCore / tensor-parallel workers (input for the descendant matcher in phase 3).
 
-Deliverable: findings appended to this section; go/no-go on the `vllm-help` parser approach.
+### Findings (2026-07-06, vLLM 0.24.0 +cpu wheel, uv-managed cpython 3.12.13, 4-core GPU-less VM, facebook/opt-125m)
+
+1. **Help**: bare `--help` prints only config-group names — the catalog parser must invoke **`serve --help=all`** (1744 lines, 266 flags). Format is standard argparse: group headers (`Frontend:`, `ModelConfig:`, …), `  --flag VALUE` / `--flag {choice,choice}` / `--flag, --no-flag` booleans, indented descriptions ending in `(default: X)`. Log preamble (INFO/WARNING lines) precedes `usage:` on stdout — skip until `usage:`. Wall time 18.4 s cold / ~9 s warm (torch import dominates) — fine for a once-per-binary cached parse, but the UI should show a pending state. GO for `vllm-help`.
+2. **Health**: the HTTP port does not accept connections until the engine is fully initialized — polls show connection-refused for the whole load (~61 s on this VM), then `/health` and `/v1/models` flip to 200 in the same second. There is no intermediate "loading" HTTP phase: probe readiness = connect + 200, and **loading progress must come from the log parser**, not HTTP. Readiness log markers: `INFO:     Started server process [pid]` / `INFO:     Application startup complete.` (uvicorn lines, `(APIServer pid=N)` prefix).
+3. **SIGTERM to pgid**: clean graceful shutdown in ~1.1 s, exit code 0, no processes left in the pgid. Default `--shutdown-timeout 0` aborts in-flight requests; the supervisor's existing stop path works unchanged.
+4. **Process tree**: main = `<venv>/bin/python <venv>/bin/vllm serve …` — `argv.includes(binaryPath)` matches, adoption works unchanged. Children (same pgid): a `multiprocessing.resource_tracker`, plus engine processes that **rewrite their cmdline via setproctitle to `VLLM::EngineCore` and `VLLM::Worker`** — name-based descendant matching must accept the `VLLM::` prefix (or match by pgid). Memory lives in the *children*: Worker RSS 2.19 GiB vs 0.72 GiB main vs 0.61 GiB EngineCore for a 125M model — a main-pid-only memory layout would miss ~75 %.
+
+Extra findings that shaped decisions:
+
+- **System python is not enough**: the CPU backend JIT-compiles kernels through torch inductor even under `--enforce-eager` and dies on a missing `Python.h`; distro pythons lack dev headers unless `-dev` is installed. uv-managed interpreters (python-build-standalone) ship headers — the env domain must always use `uv python install` interpreters, never the system python. Confirms the uv decision with teeth.
+- **CPU-variant wheels** live as GitHub release assets (`vllm-<v>+cpu-cp38-abi3-manylinux_2_34_x86_64.whl`, ~107 MiB vs 266 MiB CUDA-implied PyPI wheel), installable via `uv pip install <url> --torch-backend cpu`. The env spec should support a variant/wheel-source override so GPU-less dev machines can run real vLLM end-to-end.
+- venv size ~2.7 GiB (CPU torch); entrypoint `bin/vllm` shebang-resolves its interpreter — no activation anywhere.
 
 ## Phase 1 — path-catalog engine tag (small PR)
 
