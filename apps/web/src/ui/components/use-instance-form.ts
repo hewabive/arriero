@@ -4,6 +4,7 @@ import {
   engineDescriptor,
   ggufModelRole,
   ggufPoolingTypeLabel,
+  pathCatalogBinaryEngineKind,
   type Instance,
   type InstanceCreate,
   type InstanceKind,
@@ -105,10 +106,6 @@ export type InstanceFormModalProps = {
   instance?: Instance | null;
   initialModelPath?: string | null;
 };
-
-function isRpcServerBinary(path: string) {
-  return pathBaseName(path) === "ggml-rpc-server";
-}
 
 const RPC_WORKER_ARG_KEYS = new Set(
   RPC_SERVER_SUPPORTED_FLAGS.flatMap((flag) => [flag.long, flag.short]),
@@ -453,7 +450,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       (pathCatalogQuery.data?.data ?? []).filter(
         (entry) =>
           entry.kind === "binary" &&
-          isRpcServerBinary(entry.path) === (kind === "rpc-worker"),
+          pathCatalogBinaryEngineKind(entry) === kind,
       ),
     [pathCatalogQuery.data?.data, kind],
   );
@@ -857,8 +854,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     setKind(next);
     const matchingBinaries = (pathCatalogQuery.data?.data ?? []).filter(
       (entry) =>
-        entry.kind === "binary" &&
-        isRpcServerBinary(entry.path) === (next === "rpc-worker"),
+        entry.kind === "binary" && pathCatalogBinaryEngineKind(entry) === next,
     );
     if (
       !matchingBinaries.some((entry) => entry.id === selectedBinaryPathRefId)

@@ -1,5 +1,6 @@
 import {
   BuildSettingsSchema,
+  pathCatalogBinaryEngineKind,
   type BuildJob,
   type BuildJobStep,
   type BuildJobStepName,
@@ -108,15 +109,23 @@ export function registerBuiltBinaryInCatalog(
   const base = basename(binaryPath);
   const detail = [ref, version].filter(Boolean).join(" @ ");
   const desired = (detail ? `${base} (${detail})` : base).slice(0, 80);
+  const engineKind = pathCatalogBinaryEngineKind({ path: binaryPath });
   const existing = listPathCatalogEntries("binary").find(
     (entry) => entry.path === binaryPath,
   );
   if (existing) {
     const name = uniqueBinaryName(desired, existing.id);
-    return updatePathCatalogEntry(existing.id, { name }) ?? existing;
+    return (
+      updatePathCatalogEntry(existing.id, { name, engineKind }) ?? existing
+    );
   }
   const name = uniqueBinaryName(desired, null);
-  return createPathCatalogEntry({ kind: "binary", name, path: binaryPath });
+  return createPathCatalogEntry({
+    kind: "binary",
+    name,
+    path: binaryPath,
+    engineKind,
+  });
 }
 
 const BUILD_JOB_HISTORY_LIMIT = 20;

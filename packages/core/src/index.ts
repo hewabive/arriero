@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { INSTANCE_KINDS } from "./engine-descriptor.js";
+import { INSTANCE_KINDS, type InstanceKind } from "./engine-descriptor.js";
 import { parseApiProxyBodyFieldPath } from "./proxy/request-edits.js";
 
 export * from "./engine-descriptor.js";
@@ -31,6 +31,8 @@ const PathCatalogIdSchema = z.string().min(1);
 
 export const PathCatalogKindSchema = z.enum(["binary", "models-dir"]);
 
+export const InstanceKindSchema = z.enum(INSTANCE_KINDS);
+
 export const PresetNameSchema = z
   .string()
   .min(1)
@@ -42,6 +44,7 @@ export const PathCatalogEntrySchema = z.object({
   kind: PathCatalogKindSchema,
   name: z.string().min(1).max(80),
   path: z.string().min(1),
+  engineKind: InstanceKindSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -50,12 +53,29 @@ export const PathCatalogCreateSchema = z.object({
   kind: PathCatalogKindSchema,
   name: z.string().min(1).max(80),
   path: z.string().min(1),
+  engineKind: InstanceKindSchema.optional(),
 });
 
 export const PathCatalogUpdateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   path: z.string().min(1).optional(),
+  engineKind: InstanceKindSchema.nullable().optional(),
 });
+
+const RPC_SERVER_BINARY_BASENAME = "ggml-rpc-server";
+
+export function pathCatalogBinaryEngineKind(entry: {
+  path: string;
+  engineKind?: InstanceKind | undefined;
+}): InstanceKind {
+  if (entry.engineKind) {
+    return entry.engineKind;
+  }
+  const basename = entry.path.split("/").pop() ?? entry.path;
+  return basename === RPC_SERVER_BINARY_BASENAME
+    ? "rpc-worker"
+    : "llama-server";
+}
 
 export const MemoryPoolKindSchema = z.enum(["gpu", "host"]);
 
@@ -182,8 +202,6 @@ export const InstanceNumaSchema = z.discriminatedUnion("mode", [
     nodes: z.array(z.number().int().min(0)).default([]),
   }),
 ]);
-
-export const InstanceKindSchema = z.enum(INSTANCE_KINDS);
 
 export const RpcWorkerRefSchema = z.object({
   nodeId: z.string().min(1).nullable().default(null),

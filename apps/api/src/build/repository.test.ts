@@ -40,6 +40,32 @@ test("registerBuiltBinaryInCatalog deduplicates by path", () => {
   assert.equal(matches.length, 1);
 });
 
+test("registerBuiltBinaryInCatalog tags the engine kind by basename", () => {
+  const server = registerBuiltBinaryInCatalog(
+    "/opt/tagged/bin/llama-server",
+    "/path/that/does/not/exist",
+  );
+  const rpc = registerBuiltBinaryInCatalog(
+    "/opt/tagged/bin/ggml-rpc-server",
+    "/path/that/does/not/exist",
+  );
+
+  assert.equal(server.engineKind, "llama-server");
+  assert.equal(rpc.engineKind, "rpc-worker");
+});
+
+test("registerBuiltBinaryInCatalog backfills the engine kind on re-register", () => {
+  const path = "/opt/backfill/bin/llama-server";
+  const first = registerBuiltBinaryInCatalog(path, "/path/that/does/not/exist");
+  const second = registerBuiltBinaryInCatalog(
+    path,
+    "/path/that/does/not/exist",
+  );
+
+  assert.equal(first.id, second.id);
+  assert.equal(second.engineKind, "llama-server");
+});
+
 test("registerBuiltBinaryInCatalog disambiguates colliding names", () => {
   const a = registerBuiltBinaryInCatalog(
     "/opt/collide-a/bin/llama-cli",

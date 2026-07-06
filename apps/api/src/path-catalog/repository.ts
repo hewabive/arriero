@@ -118,6 +118,7 @@ export function createPathCatalogEntry(
     kind: input.kind,
     name: input.name,
     path: input.path,
+    ...(input.engineKind ? { engineKind: input.engineKind } : {}),
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -140,10 +141,17 @@ export function updatePathCatalogEntry(
     assertNameAvailable(entries, current.kind, nextName, id);
   }
 
+  const nextEngineKind =
+    input.engineKind === undefined
+      ? current.engineKind
+      : (input.engineKind ?? undefined);
   const updated: PathCatalogEntry = {
-    ...current,
+    id: current.id,
+    kind: current.kind,
     name: nextName,
     path: input.path ?? current.path,
+    ...(nextEngineKind ? { engineKind: nextEngineKind } : {}),
+    createdAt: current.createdAt,
     updatedAt: nowIso(),
   };
   persist(

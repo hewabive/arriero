@@ -1,7 +1,11 @@
-import type {
-  Instance,
-  PathCatalogEntry,
-  PathCatalogKind,
+import {
+  INSTANCE_KINDS,
+  engineDescriptor,
+  type Instance,
+  type InstanceKind,
+  type PathCatalogEntry,
+  type PathCatalogKind,
+  type PathCatalogUpdate,
 } from "@llama-manager/core";
 import {
   ActionIcon,
@@ -12,6 +16,7 @@ import {
   Modal,
   Paper,
   SegmentedControl,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -38,6 +43,7 @@ import { formatLocalDateTime } from "../utils/time";
 type Draft = {
   name: string;
   path: string;
+  engineKind: InstanceKind | null;
 };
 
 type EditorState =
@@ -46,8 +52,12 @@ type EditorState =
 
 type KindFilter = PathCatalogKind | "all";
 
-const emptyDraft: Draft = { name: "", path: "" };
+const emptyDraft: Draft = { name: "", path: "", engineKind: null };
 const pathKinds: PathCatalogKind[] = ["binary", "models-dir"];
+const engineKindOptions = INSTANCE_KINDS.map((kind) => ({
+  value: kind,
+  label: `${engineDescriptor(kind).displayName} (${kind})`,
+}));
 
 function kindTitle(kind: PathCatalogKind) {
   return kind === "binary" ? "Binary paths" : "Model directories";
@@ -186,7 +196,7 @@ export function PathCatalogView() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (input: { id: string; draft: Draft }) =>
+    mutationFn: (input: { id: string; draft: PathCatalogUpdate }) =>
       updatePathCatalogEntry(input.id, input.draft),
     onSuccess: async (result) => {
       closeEditor();
@@ -227,7 +237,11 @@ export function PathCatalogView() {
   }
 
   function openEdit(entry: PathCatalogEntry) {
-    setDraft({ name: entry.name, path: entry.path });
+    setDraft({
+      name: entry.name,
+      path: entry.path,
+      engineKind: entry.engineKind ?? null,
+    });
     setEditor({ mode: "edit", kind: entry.kind, entry });
   }
 
@@ -235,20 +249,26 @@ export function PathCatalogView() {
     if (!editor) {
       return;
     }
-    const nextDraft = {
-      name: draft.name.trim(),
-      path: draft.path.trim(),
-    };
+    const name = draft.name.trim();
+    const path = draft.path.trim();
     if (editor.mode === "create") {
       createMutation.mutate({
         kind: editor.kind,
-        ...nextDraft,
+        name,
+        path,
+        ...(editor.kind === "binary" && draft.engineKind
+          ? { engineKind: draft.engineKind }
+          : {}),
       });
       return;
     }
     updateMutation.mutate({
       id: editor.entry.id,
-      draft: nextDraft,
+      draft: {
+        name,
+        path,
+        ...(editor.kind === "binary" ? { engineKind: draft.engineKind } : {}),
+      },
     });
   }
 
@@ -303,6 +323,11 @@ export function PathCatalogView() {
                 <Badge color={kindColor(entry.kind)} variant="light">
                   {kindLabel(entry.kind)}
                 </Badge>
+                {entry.engineKind && (
+                  <Badge color="grape" variant="outline">
+                    {entry.engineKind}
+                  </Badge>
+                )}
                 <Badge variant={usage.length > 0 ? "light" : "outline"}>
                   {usage.length} used
                 </Badge>
@@ -499,6 +524,22 @@ export function PathCatalogView() {
               }))
             }
           />
+          {editor?.kind === "binary" && (
+            <Select
+              label="Engine"
+              description="Instance kind this binary launches; empty = inferred from the file name"
+              placeholder="auto (by file name)"
+              clearable
+              data={engineKindOptions}
+              value={draft.engineKind}
+              onChange={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  engineKind: (value as InstanceKind | null) ?? null,
+                }))
+              }
+            />
+          )}
           <Group justify="flex-end" gap="xs">
             <Button variant="subtle" onClick={closeEditor}>
               Cancel
