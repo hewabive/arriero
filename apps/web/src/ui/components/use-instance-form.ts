@@ -141,6 +141,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   const [selectedModelPath, setSelectedModelPath] = useState<string | null>(
     null,
   );
+  const [modelReference, setModelReference] = useState("");
   const [kind, setKind] = useState<InstanceKind>("llama-server");
   const [rpcWorkers, setRpcWorkers] = useState<RpcWorkerRef[]>([]);
   const [launchMode, setLaunchMode] = useState<LaunchMode>("model");
@@ -626,6 +627,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setCustomEnvRows(buildEnvRows(props.instance.env));
       setShowEnvRawJson(false);
       setKind(props.instance.kind);
+      setModelReference(props.instance.positionalArgs?.[0] ?? "");
       setRpcWorkers(props.instance.rpcWorkers);
       setSelectedBinaryPathRefId(props.instance.binaryPathRefId);
       setSelectedModelPath(modelPath);
@@ -665,6 +667,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setCustomEnvRows([]);
       setShowEnvRawJson(false);
       setKind("llama-server");
+      setModelReference("");
       setRpcWorkers([]);
       setSelectedBinaryPathRefId(null);
       setSelectedModelPath(modelPath);
@@ -743,6 +746,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         kind,
         rpcWorkers: kind === "rpc-worker" ? [] : rpcWorkers,
         binaryPathRefId: selectedBinaryPathRefId,
+        ...(kind === "vllm"
+          ? { positionalArgs: [modelReference.trim()] }
+          : {}),
         args,
         env,
         memory: memoryDrawsFromRows(memoryRows),
@@ -758,6 +764,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     kind,
     knownArgByName,
     memoryRows,
+    modelReference,
     props.instance?.name,
     rpcWorkers,
     selectedBinaryPathRefId,
@@ -881,6 +888,33 @@ export function useInstanceForm(props: InstanceFormModalProps) {
           "number",
         );
       });
+      return;
+    }
+    if (next === "vllm") {
+      setSelectedModelPath(null);
+      setSelectedPresetName(null);
+      setRpcWorkers([]);
+      setLaunchMode("model");
+      setArgRows([
+        {
+          id: createUiId(),
+          key: "--host",
+          value: "127.0.0.1",
+          valueType: "string",
+        },
+        {
+          id: createUiId(),
+          key: "--port",
+          value: String(
+            nextAvailablePort(
+              props.instances,
+              props.instance?.name,
+              engineDescriptor("vllm").http.defaultPort,
+            ),
+          ),
+          valueType: "number",
+        },
+      ]);
       return;
     }
     setArgRows((rows) => {
@@ -1402,6 +1436,35 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         mutation.mutate(workerInput);
         return;
       }
+      if (kind === "vllm") {
+        const model = modelReference.trim();
+        if (!model) {
+          throw new Error("Set a Hugging Face model id or local model path");
+        }
+        mutation.mutate({
+          name: values.name,
+          kind: "vllm",
+          rpcWorkers: [],
+          binaryPathRefId: selectedBinaryPathRefId,
+          positionalArgs: [model],
+          args: InstanceArgsSchema.parse(
+            rowsToArgsWithCatalog(argRows, knownArgByName),
+          ),
+          env: parseEnvJson(values.envJson),
+          memory: memoryDrawsFromRows(memoryRows),
+          ...(numaMode === "bind" && numaBindNode !== null
+            ? { numa: { mode: "bind" as const, node: numaBindNode } }
+            : numaMode === "interleave"
+              ? {
+                  numa: {
+                    mode: "interleave" as const,
+                    nodes: numaInterleaveNodes,
+                  },
+                }
+              : {}),
+        });
+        return;
+      }
       if (launchMode === "router" && !selectedPresetName) {
         throw new Error("Router preset is not selected");
       }
@@ -1471,6 +1534,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     setKind,
     applyKind,
     isWorker: kind === "rpc-worker",
+    modelSource: engineDescriptor(kind).form.modelSource,
+    modelReference,
+    setModelReference,
     rpcWorkerOptions,
     selectedRpcWorkerValues,
     selectedRpcWorkers,

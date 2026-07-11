@@ -14,6 +14,7 @@ export type AppRoute =
   | "paths"
   | "args"
   | "build"
+  | "environments"
   | "source-sync"
   | "system"
   | "api-lab";
@@ -178,6 +179,12 @@ export const navSections: NavSection[] = [
         label: "Build",
         title: "Build",
         description: "Update llama.cpp and build llama-server with CMake",
+      },
+      {
+        route: "environments",
+        label: "Environments",
+        title: "Python environments",
+        description: "Install immutable uv-managed inference engines",
       },
       {
         route: "source-sync",

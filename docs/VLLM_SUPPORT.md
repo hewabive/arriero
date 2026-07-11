@@ -103,7 +103,7 @@ API registries:
 
 Acceptance: a vllm instance is creatable via API, launches (`<env>/bin/vllm serve <model> --port …`), reaches `running/ready`, survives manager restart via adoption, stops cleanly; argument catalog parses and serves via `GET /api/llama-args?kind=vllm`.
 
-## Phase 4 — environments web view + instance form/UI gating
+## Phase 4 — environments web view + instance form/UI gating (done)
 
 - Minimal Environments view (list, create/rebuild/delete, job log polling), placed next to Build in the sidebar.
 - Kind selector already registry-driven; binary picker uses the phase-1 tag.

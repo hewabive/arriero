@@ -16,6 +16,7 @@ import { Triangle } from "lucide-react";
 import { InstanceFormArgumentsSection } from "./InstanceFormArgumentsSection";
 import { InstanceFormCudaSection } from "./InstanceFormCudaSection";
 import { InstanceFormEnvSection } from "./InstanceFormEnvSection";
+import { InstanceFormHostPort } from "./InstanceFormHostPort";
 import { InstanceFormMemorySection } from "./InstanceFormMemorySection";
 import { InstanceFormModelSection } from "./InstanceFormModelSection";
 import { InstanceFormNumaSection } from "./InstanceFormNumaSection";
@@ -94,18 +95,35 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
           {!fm.pathCatalogQuery.isFetching &&
             fm.binaryCatalogOptions.length === 0 && (
               <Text c="yellow" size="xs">
-                No binaries in the catalog yet. Add one on the Path catalog page
-                or build llama.cpp first.
+                No binaries for this engine are in the catalog. Add one on the
+                Path catalog page or create a managed environment.
               </Text>
             )}
-          {!fm.isWorker && (
+          {fm.modelSource === "free-text" && (
+            <>
+              <TextInput
+                label="Model"
+                required
+                description="Hugging Face repository id or local safetensors directory"
+                placeholder="Qwen/Qwen3-8B"
+                value={fm.modelReference}
+                onChange={(event) =>
+                  fm.setModelReference(event.currentTarget.value)
+                }
+              />
+              <InstanceFormHostPort fm={fm} />
+            </>
+          )}
+          {fm.modelSource === "gguf" && (
             <>
               <InstanceFormModelSection fm={fm} />
               <InstanceFormSpecSection fm={fm} />
               <InstanceFormRpcWorkersSection fm={fm} />
             </>
           )}
-          {fm.isWorker && <InstanceFormWorkerEndpointSection fm={fm} />}
+          {fm.modelSource === "none" && (
+            <InstanceFormWorkerEndpointSection fm={fm} />
+          )}
           {!fm.isWorker && <InstanceFormArgumentsSection fm={fm} />}
           <InstanceFormPreflightSection fm={fm} />
           <InstanceFormCudaSection fm={fm} />

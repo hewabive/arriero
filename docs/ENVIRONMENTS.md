@@ -36,3 +36,5 @@ The spec is recreatable but not an exact lock: dependency resolution may change 
 ## Ownership and deletion
 
 Final directories are derived from the stable spec id and are root-confined. The generated binary entry is tagged `engineKind: "vllm"`; reconciliation repairs a missing or edited entry. Delete is refused while its catalog entry is referenced by an instance or its install job is active.
+
+The Environments page exposes create/rebuild/delete, current uv availability, the active job, cancellation, and a polling log tail. Once ready, the generated binary appears automatically in the vLLM instance form; that form stores the model repository/path as the first positional argument and the descriptor supplies the fixed `serve` prefix.

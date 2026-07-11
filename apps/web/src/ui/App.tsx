@@ -43,6 +43,7 @@ import { ArgumentsView } from "./views/ArgumentsView";
 import { BuildView } from "./views/BuildView";
 import { DashboardView } from "./views/DashboardView";
 import { DiagnosticsView } from "./views/DiagnosticsView";
+import { EnvironmentsView } from "./views/EnvironmentsView";
 import { InstancesView } from "./views/InstancesView";
 import { LoginView } from "./views/LoginView";
 import { ModelsView } from "./views/ModelsView";
@@ -352,6 +353,8 @@ export function App() {
           {canUseAdmin && route === "update" && <UpdateView />}
 
           {canUseAdmin && route === "build" && <BuildView />}
+
+          {canUseAdmin && route === "environments" && <EnvironmentsView />}
 
           {canUseAdmin && route === "diagnostics" && (
             <DiagnosticsView

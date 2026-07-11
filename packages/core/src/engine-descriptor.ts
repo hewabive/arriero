@@ -152,7 +152,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "vllm" },
     estimator: "none",
     resourceProfile: "vllm-args",
-    form: { creatable: false, modelSource: "free-text" },
+    form: { creatable: true, modelSource: "free-text" },
   },
 };
 

@@ -7,6 +7,7 @@ export * from "./nodes.js";
 export * from "./proxy.js";
 export * from "./llama-args.js";
 export * from "./build.js";
+export * from "./environments.js";
 export * from "./update.js";
 export * from "./models.js";
 export * from "./presets.js";
