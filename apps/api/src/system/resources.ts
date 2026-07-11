@@ -14,6 +14,7 @@ import {
   readPciNumaNode,
 } from "../numa/index.js";
 import { readDiskActivity } from "./disk.js";
+import { uvToolStatus } from "../envs/uv.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -225,5 +226,6 @@ export function getSystemResources(): SystemResources {
       bind: detectNumaBind(),
       interleave: detectNumaInterleave(),
     },
+    tools: { uv: uvToolStatus() },
   };
 }

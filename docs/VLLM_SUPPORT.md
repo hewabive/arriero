@@ -73,7 +73,7 @@ This phase was moved ahead of environments because the env-generated path-catalo
 
 Acceptance: a manually cataloged vLLM binary can launch through the API, reaches readiness, is adopted/stopped correctly, and exposes an argument catalog without blocking the API event loop.
 
-## Phase 3 — environments domain (`apps/api/src/envs/`)
+## Phase 3 — environments domain (`apps/api/src/envs/`) (done)
 
 Modeled on the build domain: a job runner with streamed step logs, producing a registered binary.
 

@@ -1831,6 +1831,151 @@ export const BuildLogTailSchema = z.object({
   truncated: z.boolean(),
 });
 
+const EnvironmentVersionSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._+-]*$/);
+const PythonVersionSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(40)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._+-]*$/);
+const EnvironmentExtraSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+
+function credentialFreeUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+export const EnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("pypi"),
+    extras: z.array(EnvironmentExtraSchema).max(20).default([]),
+    indexUrl: z
+      .string()
+      .url()
+      .refine(credentialFreeUrl, "index URL must not contain credentials")
+      .nullable()
+      .default(null),
+  }),
+  z.object({
+    kind: z.literal("wheel"),
+    url: z
+      .string()
+      .url()
+      .refine((value) => {
+        try {
+          return ["https:", "file:"].includes(new URL(value).protocol);
+        } catch {
+          return false;
+        }
+      }, "wheel URL must use https or file")
+      .refine(credentialFreeUrl, "wheel URL must not contain credentials"),
+    sha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/i)
+      .nullable()
+      .default(null),
+    torchBackend: z
+      .string()
+      .trim()
+      .min(1)
+      .max(40)
+      .regex(/^[A-Za-z0-9._-]+$/)
+      .nullable()
+      .default(null),
+  }),
+]);
+
+export const EnvironmentCreateSchema = z.object({
+  engine: z.literal("vllm").default("vllm"),
+  version: EnvironmentVersionSchema,
+  pythonVersion: PythonVersionSchema.default("3.12"),
+  source: EnvironmentInstallSourceSchema.default({
+    kind: "pypi",
+    extras: [],
+    indexUrl: null,
+  }),
+});
+
+export const EnvironmentSpecSchema = EnvironmentCreateSchema.extend({
+  id: z.string().min(1),
+  pathCatalogEntryId: z.string().min(1).nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const EnvironmentStatusSchema = z.enum([
+  "missing",
+  "installing",
+  "ready",
+  "failed",
+]);
+
+export const EnvironmentRecordSchema = EnvironmentSpecSchema.extend({
+  status: EnvironmentStatusSchema,
+  path: z.string(),
+  entrypoint: z.string(),
+  error: z.string().nullable(),
+});
+
+export const EnvironmentJobStatusSchema = z.enum([
+  "running",
+  "succeeded",
+  "failed",
+  "canceled",
+]);
+export const EnvironmentJobStepNameSchema = z.enum([
+  "python-install",
+  "venv-create",
+  "package-install",
+  "freeze",
+  "finalize",
+]);
+export const EnvironmentJobStepSchema = z.object({
+  name: EnvironmentJobStepNameSchema,
+  command: z.array(z.string()),
+  status: BuildJobStepStatusSchema,
+  startedAt: z.string().nullable(),
+  finishedAt: z.string().nullable(),
+  exitCode: z.number().int().nullable(),
+});
+export const EnvironmentJobSchema = z.object({
+  id: z.string(),
+  environmentId: z.string(),
+  status: EnvironmentJobStatusSchema,
+  steps: z.array(EnvironmentJobStepSchema),
+  currentStep: EnvironmentJobStepNameSchema.nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+  logPath: z.string(),
+  error: z.string().nullable(),
+});
+export const EnvironmentLogTailSchema = z.object({
+  jobId: z.string(),
+  logPath: z.string().nullable(),
+  lines: z.array(z.string()),
+  truncated: z.boolean(),
+});
+
+export const UvToolStatusSchema = z.object({
+  available: z.boolean(),
+  path: z.string().nullable(),
+  version: z.string().nullable(),
+});
+
 export const AppRunModeSchema = z.enum(["serve", "dev", "unknown"]);
 
 export const AppVersionSchema = z.object({
@@ -2214,6 +2359,7 @@ export const SystemResourcesSchema = z.object({
   accelerators: z.array(SystemAcceleratorSchema),
   disk: SystemDiskActivitySchema.nullable(),
   numa: NumaCapabilitiesSchema,
+  tools: z.object({ uv: UvToolStatusSchema }).optional(),
 });
 
 export const FleetNodeResultMetaSchema = z.object({
@@ -2762,6 +2908,21 @@ export type BuildJobStep = z.infer<typeof BuildJobStepSchema>;
 export type BuildJob = z.infer<typeof BuildJobSchema>;
 export type BuildJobStart = z.infer<typeof BuildJobStartSchema>;
 export type BuildLogTail = z.infer<typeof BuildLogTailSchema>;
+export type EnvironmentInstallSource = z.infer<
+  typeof EnvironmentInstallSourceSchema
+>;
+export type EnvironmentCreate = z.infer<typeof EnvironmentCreateSchema>;
+export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
+export type EnvironmentStatus = z.infer<typeof EnvironmentStatusSchema>;
+export type EnvironmentRecord = z.infer<typeof EnvironmentRecordSchema>;
+export type EnvironmentJobStatus = z.infer<typeof EnvironmentJobStatusSchema>;
+export type EnvironmentJobStepName = z.infer<
+  typeof EnvironmentJobStepNameSchema
+>;
+export type EnvironmentJobStep = z.infer<typeof EnvironmentJobStepSchema>;
+export type EnvironmentJob = z.infer<typeof EnvironmentJobSchema>;
+export type EnvironmentLogTail = z.infer<typeof EnvironmentLogTailSchema>;
+export type UvToolStatus = z.infer<typeof UvToolStatusSchema>;
 export type AppRunMode = z.infer<typeof AppRunModeSchema>;
 export type AppVersion = z.infer<typeof AppVersionSchema>;
 export type UpdateJobStatus = z.infer<typeof UpdateJobStatusSchema>;

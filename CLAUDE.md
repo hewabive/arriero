@@ -37,7 +37,7 @@ Every mutating handler parses the body with a core Zod schema via `safeParse` an
 
 ### Domain modules (`apps/api/src/`)
 
-Each subdirectory is a domain with a `repository.ts` (DB access) and logic/test files: `instances`, `process` (supervisor, preflight, reconcile, stale, logs, health-summary), `proxy`, `arguments`, `build`, `models` (gguf/scanner/cache), `presets`, `llama` (probe + source repo), `path-catalog`, `resources` (memory pools + capacity ledger), `memory-estimate` (a-priori per-pool footprint from GGUF + args, `docs/MEMORY_ESTIMATION.md`), `system`, `api-lab`, `filesystem`, `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`), `update` (manager version/run-mode + UI self-update runner: git pull→install→build→self-restart, `docs/SELF_UPDATE.md`).
+Each subdirectory is a domain with a `repository.ts` (DB access or file-backed desired state) and logic/test files: `instances`, `process` (supervisor, preflight, reconcile, stale, logs, health-summary), `proxy`, `arguments`, `build`, `envs` (immutable uv-managed Python engine environments, `docs/ENVIRONMENTS.md`), `models` (gguf/scanner/cache), `presets`, `llama` (probe + source repo), `path-catalog`, `resources` (memory pools + capacity ledger), `memory-estimate` (a-priori per-pool footprint from GGUF + args, `docs/MEMORY_ESTIMATION.md`), `system`, `api-lab`, `filesystem`, `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`), `update` (manager version/run-mode + UI self-update runner: git pull→install→build→self-restart, `docs/SELF_UPDATE.md`).
 
 ### Process supervision
 

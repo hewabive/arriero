@@ -29,6 +29,8 @@ import {
 } from "./resources/repository.js";
 import { initAppSettings } from "./settings/store.js";
 import { supervisor } from "./process/supervisor.js";
+import { environmentRunner } from "./envs/runner.js";
+import { initializeEnvironments } from "./envs/service.js";
 
 const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
@@ -41,6 +43,7 @@ initAppSettings();
 initArgumentDefaults();
 const seededResourcePools = ensureResourcePoolsScaffold();
 const refreshedResourcePools = refreshAutoCapacities();
+const environments = initializeEnvironments();
 const prunedArgumentCatalogs = pruneMissingArgumentCatalogs();
 const prunedModelCache = pruneMissingCachedModels();
 const reconciliation = reconcileProcessRuns(listInstances());
@@ -84,6 +87,7 @@ const server = serve(
         prunedModelCache,
         seededResourcePools,
         refreshedResourcePools,
+        environments,
       },
       "llama-manager api listening",
     );
@@ -165,6 +169,7 @@ async function shutdown(signal: NodeJS.Signals) {
     stopApiProxyRuntimeReconcile();
     await closeServer();
     logger.info("http server closed");
+    await environmentRunner.shutdown();
 
     if (config.shutdown.stopManagedOnExit) {
       const result = await supervisor.shutdownAll(config.shutdown.timeoutMs);
