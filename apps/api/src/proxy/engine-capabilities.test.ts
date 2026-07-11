@@ -23,6 +23,7 @@ function instance(kind: Instance["kind"]): Instance {
 
 test("llama-server instance enables every proxy engine gate", () => {
   const gates = proxyEngineGates(instance("llama-server"));
+  assert.equal(gates.requestLease, true);
   assert.equal(gates.modelLoadUnload, true);
   assert.equal(gates.slotSave, true);
   assert.equal(gates.streamResume, true);
@@ -31,6 +32,7 @@ test("llama-server instance enables every proxy engine gate", () => {
 
 test("rpc-worker instance disables every proxy engine gate", () => {
   const gates = proxyEngineGates(instance("rpc-worker"));
+  assert.equal(gates.requestLease, false);
   assert.equal(gates.modelLoadUnload, false);
   assert.equal(gates.slotSave, false);
   assert.equal(gates.streamResume, false);
@@ -39,6 +41,17 @@ test("rpc-worker instance disables every proxy engine gate", () => {
 
 test("no instance (external endpoint) disables every proxy engine gate", () => {
   assert.deepEqual(proxyEngineGates(null), {
+    requestLease: false,
+    modelLoadUnload: false,
+    slotSave: false,
+    streamResume: false,
+    sseTimings: false,
+  });
+});
+
+test("vllm requests leases but opts out of llama lifecycle verbs", () => {
+  assert.deepEqual(proxyEngineGates(instance("vllm")), {
+    requestLease: true,
     modelLoadUnload: false,
     slotSave: false,
     streamResume: false,

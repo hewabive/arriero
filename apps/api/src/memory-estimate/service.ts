@@ -1,12 +1,17 @@
 import {
   engineDescriptor,
   estimateInstanceMemory,
+  argNumber,
+  argString,
+  parseCudaVisibleDevices,
+  MemoryEstimateSchema,
   type InstanceArgs,
   type MemoryEstimate,
   type MemoryEstimateArgs,
   type MemoryEstimateHparams,
   type MemoryEstimatePoolInput,
   type MemoryEstimateRequest,
+  type InstanceKind,
 } from "@llama-manager/core";
 import { existsSync } from "node:fs";
 
@@ -48,6 +53,112 @@ function resolveModelPath(args: MemoryEstimateArgs): string | null {
   return resolveExistingPath(args, ["--model", "-m"]);
 }
 
+function estimateVllmGpuUtil(input: {
+  args: MemoryEstimateArgs;
+  env: Record<string, string>;
+  model: string;
+}): MemoryEstimateResolution {
+  if (argString(input.args, ["--device"])?.toLowerCase() === "cpu") {
+    return {
+      ok: false,
+      reason:
+        "vLLM CPU memory remains manual; the GPU utilization estimator is not applicable.",
+    };
+  }
+  const utilization =
+    argNumber(input.args, ["--gpu-memory-utilization"]) ?? 0.9;
+  if (utilization <= 0 || utilization > 1) {
+    return {
+      ok: false,
+      reason: "--gpu-memory-utilization must be greater than 0 and at most 1",
+    };
+  }
+  const tensorParallel = Math.max(
+    1,
+    Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
+  );
+  const allGpu = listMemoryPools()
+    .filter((pool) => pool.kind === "gpu")
+    .sort(
+      (left, right) =>
+        Number(left.deviceRef ?? Number.MAX_SAFE_INTEGER) -
+        Number(right.deviceRef ?? Number.MAX_SAFE_INTEGER),
+    );
+  const cuda = parseCudaVisibleDevices(input.env.CUDA_VISIBLE_DEVICES);
+  if (cuda.mode === "none") {
+    return { ok: false, reason: "CUDA_VISIBLE_DEVICES disables every GPU" };
+  }
+  const visible =
+    cuda.mode === "list"
+      ? cuda.ids.flatMap((id) => {
+          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+          return pool ? [pool] : [];
+        })
+      : allGpu;
+  const selected = visible.slice(0, tensorParallel);
+  if (selected.length === 0) {
+    return { ok: false, reason: "No GPU memory pools are available for vLLM" };
+  }
+  const pools = selected.map((pool) => {
+    const totalBytes = Math.round(pool.capacityBytes * utilization);
+    return {
+      poolId: pool.id,
+      kind: "gpu" as const,
+      weightsBytes: 0,
+      kvBytes: 0,
+      computeBytes: 0,
+      overheadBytes: totalBytes,
+      totalBytes,
+    };
+  });
+  const totalBytes = pools.reduce((sum, pool) => sum + pool.totalBytes, 0);
+  const maxModelLen = Math.max(
+    0,
+    Math.floor(argNumber(input.args, ["--max-model-len"]) ?? 0),
+  );
+  const warnings = [
+    "vLLM reserves a utilization fraction of each selected GPU; host RAM is not estimated and remains manual.",
+    ...(selected.length < tensorParallel
+      ? [
+          `Tensor parallel size is ${tensorParallel}, but only ${selected.length} matching GPU pool(s) exist.`,
+        ]
+      : []),
+  ];
+  return {
+    ok: true,
+    modelPath: input.model,
+    estimate: MemoryEstimateSchema.parse({
+      draws: pools.map((pool) => ({
+        poolId: pool.poolId,
+        bytes: pool.totalBytes,
+      })),
+      pools,
+      weightsBytesTotal: 0,
+      kvBytesTotal: 0,
+      computeBytesTotal: 0,
+      overheadBytesTotal: totalBytes,
+      mmprojBytesTotal: 0,
+      draftBytesTotal: 0,
+      totalBytes,
+      context: {
+        nCtx: maxModelLen,
+        nCtxSeq: maxModelLen,
+        nBatch: 0,
+        nUbatch: 0,
+        nSeqMax: 1,
+        kvUnified: true,
+        flashAttn: false,
+        typeK: "managed-by-vllm",
+        typeV: "managed-by-vllm",
+        offloadKqv: true,
+        nGpuLayers: 0,
+      },
+      confidence: "high",
+      warnings,
+    }),
+  };
+}
+
 function hasArg(args: MemoryEstimateArgs, key: string): boolean {
   const value = args[key];
   return value !== undefined && value !== null && value !== "";
@@ -76,21 +187,35 @@ export function estimateMemory(
   request: MemoryEstimateRequest,
 ): MemoryEstimateResolution {
   let args: MemoryEstimateArgs = {};
+  let kind: InstanceKind = request.kind ?? "llama-server";
+  let env = request.env ?? {};
+  let positionalArgs = request.positionalArgs ?? [];
   if (request.instanceId) {
     const instance = getInstance(request.instanceId);
     if (!instance) {
       return { ok: false, reason: `instance not found: ${request.instanceId}` };
     }
-    if (engineDescriptor(instance.kind).estimator !== "gguf") {
-      return {
-        ok: false,
-        reason: `memory estimate is not applicable to ${instance.kind} instances`,
-      };
-    }
+    kind = instance.kind;
+    env = instance.env;
+    positionalArgs = instance.positionalArgs ?? [];
     args = { ...(instance.args as InstanceArgs) };
   }
   if (request.args) {
     args = { ...args, ...request.args };
+  }
+
+  const estimator = engineDescriptor(kind).estimator;
+  if (estimator === "vllm-gpu-util") {
+    const model = positionalArgs.find((item) => item.trim())?.trim();
+    if (!model)
+      return { ok: false, reason: "No vLLM model positional is configured." };
+    return estimateVllmGpuUtil({ args, env, model });
+  }
+  if (estimator !== "gguf") {
+    return {
+      ok: false,
+      reason: `memory estimate is not applicable to ${kind} instances`,
+    };
   }
 
   const modelPath = resolveModelPath(args);

@@ -746,9 +746,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         kind,
         rpcWorkers: kind === "rpc-worker" ? [] : rpcWorkers,
         binaryPathRefId: selectedBinaryPathRefId,
-        ...(kind === "vllm"
-          ? { positionalArgs: [modelReference.trim()] }
-          : {}),
+        ...(kind === "vllm" ? { positionalArgs: [modelReference.trim()] } : {}),
         args,
         env,
         memory: memoryDrawsFromRows(memoryRows),
@@ -781,11 +779,22 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   });
 
   const estimateArgs = draftPreview.input?.args ?? null;
-  const estimateArgsKey = estimateArgs ? JSON.stringify(estimateArgs) : null;
+  const estimateArgsKey = draftPreview.input
+    ? JSON.stringify({
+        kind: draftPreview.input.kind,
+        args: draftPreview.input.args,
+        positionalArgs: draftPreview.input.positionalArgs,
+        env: draftPreview.input.env,
+      })
+    : null;
   const canEstimateMemory = Boolean(
-    estimateArgs &&
-    typeof estimateArgs["--model"] === "string" &&
-    estimateArgs["--model"],
+    draftPreview.input &&
+    engineDescriptor(kind).estimator !== "none" &&
+    (kind === "vllm"
+      ? modelReference.trim()
+      : estimateArgs &&
+        typeof estimateArgs["--model"] === "string" &&
+        estimateArgs["--model"]),
   );
   const [memoryEstimate, setMemoryEstimate] = useState<{
     modelPath: string;
@@ -801,7 +810,12 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       if (!estimateArgs) {
         throw new Error("Configure a model before estimating memory");
       }
-      return estimateInstanceMemory({ args: estimateArgs });
+      return estimateInstanceMemory({
+        kind,
+        args: estimateArgs,
+        positionalArgs: draftPreview.input?.positionalArgs,
+        env: draftPreview.input?.env,
+      });
     },
     onSuccess: (result) => setMemoryEstimate(result.data),
   });

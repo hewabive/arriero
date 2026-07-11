@@ -5,6 +5,10 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { estimateMemory } from "./service.js";
+import {
+  RESOURCES_FILE,
+  resetResourcePoolsCache,
+} from "../resources/repository.js";
 
 function u32(value: number) {
   const buffer = Buffer.alloc(4);
@@ -84,6 +88,68 @@ function writeSyntheticModel(path: string) {
     ]),
   );
 }
+
+test("vllm estimator reserves utilization on each tensor-parallel GPU", () => {
+  const at = "2026-01-01T00:00:00.000Z";
+  writeFileSync(
+    RESOURCES_FILE,
+    `${JSON.stringify([
+      {
+        id: "gpu0",
+        name: "GPU 0",
+        kind: "gpu",
+        capacityBytes: 10_000,
+        reservedBytes: 0,
+        deviceRef: "0",
+        autoCapacity: false,
+        createdAt: at,
+        updatedAt: at,
+      },
+      {
+        id: "gpu1",
+        name: "GPU 1",
+        kind: "gpu",
+        capacityBytes: 20_000,
+        reservedBytes: 0,
+        deviceRef: "1",
+        autoCapacity: false,
+        createdAt: at,
+        updatedAt: at,
+      },
+      {
+        id: "host",
+        name: "Host",
+        kind: "host",
+        capacityBytes: 100_000,
+        reservedBytes: 0,
+        deviceRef: null,
+        autoCapacity: false,
+        createdAt: at,
+        updatedAt: at,
+      },
+    ])}\n`,
+  );
+  resetResourcePoolsCache();
+  const result = estimateMemory({
+    kind: "vllm",
+    args: {
+      "--tensor-parallel-size": 2,
+      "--gpu-memory-utilization": 0.8,
+    },
+    positionalArgs: ["Qwen/Qwen3-8B"],
+    env: { CUDA_VISIBLE_DEVICES: "1,0" },
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.estimate.draws, [
+      { poolId: "gpu1", bytes: 16_000 },
+      { poolId: "gpu0", bytes: 8_000 },
+    ]);
+    assert.equal(result.modelPath, "Qwen/Qwen3-8B");
+  }
+  rmSync(RESOURCES_FILE, { force: true });
+  resetResourcePoolsCache();
+});
 
 test("estimateMemory produces a breakdown for a local model", () => {
   const dir = mkdtempSync(join(tmpdir(), "llama-manager-estsvc-"));

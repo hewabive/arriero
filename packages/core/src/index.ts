@@ -249,7 +249,10 @@ export const InstanceUpdateSchema = z.object({
 
 export const MemoryEstimateRequestSchema = z.object({
   instanceId: z.string().min(1).optional(),
+  kind: InstanceKindSchema.optional(),
   args: InstanceArgsSchema.optional(),
+  positionalArgs: z.array(z.string()).optional(),
+  env: InstanceEnvSchema.optional(),
 });
 export type MemoryEstimateRequest = z.infer<typeof MemoryEstimateRequestSchema>;
 

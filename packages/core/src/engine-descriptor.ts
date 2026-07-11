@@ -6,11 +6,8 @@ export type EngineProbeId = "llama-http" | "tcp-accept" | "openai-http";
 export type EngineNativeApiId = "llama" | "none";
 export type EngineArgvBuilderId = "flag-map";
 export type EngineLogParserId = "llama" | "vllm";
-export type EngineArgumentCatalogParserId =
-  | "llama-help"
-  | "vllm-help"
-  | "none";
-export type EngineEstimatorId = "gguf" | "none";
+export type EngineArgumentCatalogParserId = "llama-help" | "vllm-help" | "none";
+export type EngineEstimatorId = "gguf" | "vllm-gpu-util" | "none";
 export type EngineResourceProfileId =
   | "llama-args"
   | "rpc-device-args"
@@ -150,7 +147,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       argumentCatalogParser: "vllm-help",
     },
     logs: { parser: "vllm" },
-    estimator: "none",
+    estimator: "vllm-gpu-util",
     resourceProfile: "vllm-args",
     form: { creatable: true, modelSource: "free-text" },
   },

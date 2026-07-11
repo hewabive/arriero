@@ -99,6 +99,7 @@ import {
   runResumableUpstreamAttempt,
 } from "./resumable-forward.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
+import { proxyEngineGates } from "./engine-capabilities.js";
 import {
   resolveApiProxyUpstreamContext,
   type ApiProxyUpstreamContext,
@@ -844,11 +845,13 @@ export async function serveResolvedTarget(input: {
   const candidatePlanTarget = planRequest.targets.find(
     (item) => item.id === decision.target.id,
   );
-  const domains = requestComputeDomains(
-    candidatePlanTarget?.draws ?? [],
-    planRequest.pools,
-  );
   const candidateInstanceId = candidatePlanTarget?.instanceId ?? null;
+  const requestLease = candidateInstanceId
+    ? proxyEngineGates(getInstance(candidateInstanceId)).requestLease
+    : false;
+  const domains = requestLease
+    ? requestComputeDomains(candidatePlanTarget?.draws ?? [], planRequest.pools)
+    : [];
   const parallelLimit = candidateInstanceId
     ? parseInstanceParallelLimit(getInstance(candidateInstanceId)?.args ?? {})
     : undefined;

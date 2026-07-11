@@ -6,10 +6,15 @@ import {
 
 export type ProxyEngineGates = Pick<
   EngineProxyCapabilities,
-  "modelLoadUnload" | "slotSave" | "streamResume" | "sseTimings"
+  | "requestLease"
+  | "modelLoadUnload"
+  | "slotSave"
+  | "streamResume"
+  | "sseTimings"
 >;
 
 const NO_ENGINE_GATES: ProxyEngineGates = {
+  requestLease: false,
   modelLoadUnload: false,
   slotSave: false,
   streamResume: false,
@@ -17,5 +22,13 @@ const NO_ENGINE_GATES: ProxyEngineGates = {
 };
 
 export function proxyEngineGates(instance: Instance | null): ProxyEngineGates {
-  return instance ? engineDescriptor(instance.kind).proxy : NO_ENGINE_GATES;
+  if (!instance) return NO_ENGINE_GATES;
+  const proxy = engineDescriptor(instance.kind).proxy;
+  return {
+    requestLease: proxy.requestLease,
+    modelLoadUnload: proxy.modelLoadUnload,
+    slotSave: proxy.slotSave,
+    streamResume: proxy.streamResume,
+    sseTimings: proxy.sseTimings,
+  };
 }

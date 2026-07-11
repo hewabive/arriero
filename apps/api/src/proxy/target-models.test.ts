@@ -84,6 +84,28 @@ test("an rpc-worker instance is not exposed as a proxy target", async () => {
   );
 });
 
+test("vllm implies its positional model while stopped", async () => {
+  const vllm: Instance = {
+    ...instance("vllm", {}),
+    kind: "vllm",
+    positionalArgs: ["Qwen/Qwen3-8B"],
+    status: "stopped",
+  };
+  const catalog = await buildApiProxyTargetModelCatalog([vllm]);
+  assert.equal(catalog.groups[0]?.modelSource, "implied");
+  assert.equal(catalog.groups[0]?.impliedModel, "Qwen/Qwen3-8B");
+});
+
+test("vllm served-model-name overrides the positional model", async () => {
+  const vllm: Instance = {
+    ...instance("vllm", { "--served-model-name": "qwen-local" }),
+    kind: "vllm",
+    positionalArgs: ["Qwen/Qwen3-8B"],
+  };
+  const catalog = await buildApiProxyTargetModelCatalog([vllm]);
+  assert.equal(catalog.groups[0]?.impliedModel, "qwen-local");
+});
+
 test("a configured --model wins over --models-preset (single, not router)", async () => {
   const mixed = instance("mixed", {
     "--host": "127.0.0.1",

@@ -22,7 +22,7 @@ llama-manager is prepared for (but does not yet ship) a second inference engine 
 | `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` | `none` |
 | `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) |
 | `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` |
-| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `none` initially |
+| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `vllm-gpu-util` |
 | `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` |
 
 String ids select **api-side implementations** from `Record`-keyed registries, keeping I/O out of core:
@@ -34,7 +34,7 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 | `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts` (path args, router-mode rule, gpu-layers vs nvidia-smi, argument compatibility), `none` → skip |
 | `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`; each owns argv, timeout, and parser. Route generation is async; cache rows/sidecars carry `parserId` |
 | `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` → positionals first, then alphabetically sorted `--flag value` pairs with CSV arrays (the launch snapshot consumes it, so drift/adoption see positional changes automatically) |
-| `EngineEstimatorId` | gate in `apps/api/src/memory-estimate/service.ts` | `gguf` → `estimateInstanceMemory`; a second estimator adds dispatch here (reuse the `MemoryEstimate`/`draws` output contract) |
+| `EngineEstimatorId` | dispatch in `apps/api/src/memory-estimate/service.ts` | `gguf` → tensor-aware llama estimate; `vllm-gpu-util` → one utilization-based draw per selected GPU |
 | `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args` |
 
 ## Proxy capability flags
@@ -42,7 +42,7 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 `EngineDescriptor.proxy`, adapted per-request by `proxyEngineGates(instance | null)` (`apps/api/src/proxy/engine-capabilities.ts`; no instance ⇒ all false, which makes external endpoints' implicit opt-out explicit):
 
 - `serveEndpoint` — the instance appears in the endpoint catalog / can be a proxy target (`proxy/endpoints.ts`, `proxy/target-models.ts`).
-- `requestLease` — reserved: participates in compute-domain leasing (currently unread; kept for the planner).
+- `requestLease` — permits compute-domain leasing for the instance. When false, declared draws still participate in residency/admission accounting but requests do not acquire a compute lease.
 - `modelLoadUnload` — llama-server router verbs `POST /models/load|unload` exist; without it the scheduler falls back to `stop-instance`/`start-instance`.
 - `slotSave` — KV-slot save/restore (`POST /slots/:id?action=save|restore`) for preemption; without it no `save-slot`/`restore-slot` actions are planned, and the web target editor hides the slot fields (`ProxyTargetsView` resolves the draft's endpoint → instance kind → this flag).
 - `streamResume` — server-side stream sessions (`x-conversation-id`, `/v1/stream/:id`), see `docs/STREAM_RESUME.md`.

@@ -7,6 +7,13 @@ output is `InstanceMemoryDraw[]`, the same shape instances declare for the
 capacity ledger (`docs/RESOURCE_MANAGEMENT.md`), so an estimate can be applied
 directly as an instance's declared footprint.
 
+For vLLM, the `vllm-gpu-util` strategy uses the engine's reservation contract
+instead of inspecting model tensors: each selected GPU draw is
+`--gpu-memory-utilization` (default `0.9`) times that pool's capacity. GPU order
+comes from `CUDA_VISIBLE_DEVICES`, limited by `--tensor-parallel-size`. The
+ratio is applied independently per device, never divided across the tensor
+parallel group. Host RAM is intentionally left as a manual draw.
+
 It is **per-instance, not per-model**: the estimate depends on the instance's
 own args (`--ctx-size`, `--cache-type-k/v`, `--n-gpu-layers`, `--parallel`, …)
 and, for the future measured path, its own pinned binary.

@@ -17,6 +17,14 @@ function stringArg(instance: Instance, key: string): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function firstStringArg(instance: Instance, key: string): string | null {
+  const value = instance.args[key];
+  if (Array.isArray(value)) {
+    return value.find((item) => item.trim())?.trim() ?? null;
+  }
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export function isRouterInstance(instance: Instance): boolean {
   return (
     Boolean(stringArg(instance, "--models-preset")) &&
@@ -29,6 +37,13 @@ function instanceOnline(instance: Instance): boolean {
 }
 
 function singleModelId(instance: Instance): string | null {
+  if (instance.kind === "vllm") {
+    return (
+      firstStringArg(instance, "--served-model-name") ??
+      instance.positionalArgs?.find((item) => item.trim())?.trim() ??
+      null
+    );
+  }
   if (isRouterInstance(instance)) {
     return null;
   }

@@ -112,13 +112,15 @@ Acceptance: a vllm instance is creatable via API, launches (`<env>/bin/vllm serv
 
 Acceptance: full create-launch-observe flow for a vllm instance through the UI, no llama-specific controls visible.
 
-## Phase 5 — proxy integration + estimator
+## Phase 5 — proxy integration + estimator (done)
 
 - Verify the generic path end-to-end with a managed vllm target: endpoint catalog entry, target creation, autostart via `start-instance`, domain lease (manual draws), plain forwarder streaming, drain on self-update. Expected to mostly "just work" via `serveEndpoint`/`requestLease`; this phase is the proof plus fixes.
 - `vllm-gpu-util` estimator: gpu draw = `--gpu-memory-utilization` (default 0.9) × bound gpu pool capacity, split across `--tensor-parallel-size` pools when applicable; host draw stays manual. Dispatch in `memory-estimate/service.ts` (the seam is prepared).
 - Stats/traces sanity: no `sseTimings` — verify usage metering falls back correctly for a managed non-llama OpenAI upstream.
 
 Acceptance: vllm model served through `/v1/*` with autostart, queueing, and correct memory accounting.
+
+Delivered integration details: stopped vLLM instances expose their first positional model (or `--served-model-name`) to target discovery; start/stop-only scheduler capabilities suppress llama model/slot verbs; `requestLease` gates compute-domain acquisition; and the estimator applies `--gpu-memory-utilization` independently to each `CUDA_VISIBLE_DEVICES`/tensor-parallel GPU pool. Host RAM remains an explicit manual draw.
 
 ## Phase 6 — deferred (explicitly out of scope now)
 
