@@ -6,7 +6,7 @@ import {
 import type { Hono } from "hono";
 
 import {
-  getArgumentCatalog,
+  getArgumentCatalogAsync,
   getLlamaArgumentReferenceCatalog,
 } from "../arguments/catalog.js";
 import {
@@ -18,7 +18,7 @@ import { getLlamaArgumentDocsSyncReport } from "../arguments/docs-sync.js";
 import { readArgumentEngineeringDoc } from "../arguments/docs.js";
 
 export function registerArgumentRoutes(app: Hono) {
-  app.get("/api/llama-args", (c) => {
+  app.get("/api/llama-args", async (c) => {
     const kindParsed = InstanceKindSchema.safeParse(
       c.req.query("kind") ?? "llama-server",
     );
@@ -38,7 +38,7 @@ export function registerArgumentRoutes(app: Hono) {
     }
     try {
       return c.json({
-        data: getArgumentCatalog(c.req.query("binaryPath"), {
+        data: await getArgumentCatalogAsync(c.req.query("binaryPath"), {
           refresh: c.req.query("refresh") === "true",
           parserId,
         }),

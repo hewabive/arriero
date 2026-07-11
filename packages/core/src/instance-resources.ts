@@ -420,6 +420,55 @@ export function deriveInstanceResourceProfile(
     return deriveRpcDeviceArgsProfile(allGpu, deviceTokens, baseSignals);
   }
 
+  if (engineDescriptor(input.kind).resourceProfile === "vllm-args") {
+    const cpu =
+      cuda.mode === "none" ||
+      deviceTokens.some((token) => token.toLowerCase() === "cpu");
+    if (cpu) {
+      return {
+        placement: "cpu",
+        gpuPools: [],
+        usesHost: true,
+        cpuReason:
+          cuda.mode === "none"
+            ? "GPU disabled (CUDA_VISIBLE_DEVICES)"
+            : "vLLM CPU device selected",
+        confidence: "args",
+        signals: {
+          ...baseSignals,
+          source: cuda.mode === "none" ? "cuda-visible-devices" : "device-arg",
+        },
+      };
+    }
+    const visible =
+      cuda.mode === "list"
+        ? cuda.ids.flatMap((id) => {
+            const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+            return pool ? [pool] : [];
+          })
+        : allGpu;
+    const tensorParallel = Math.max(
+      1,
+      Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
+    );
+    return {
+      placement: "gpu",
+      gpuPools: gpuEntries(
+        visible.slice(0, tensorParallel),
+        cuda,
+        deviceTokens,
+        allGpu,
+      ).slice(0, tensorParallel),
+      usesHost: false,
+      cpuReason: null,
+      confidence: "args",
+      signals: {
+        ...baseSignals,
+        source: cuda.mode === "list" ? "cuda-visible-devices" : "device-arg",
+      },
+    };
+  }
+
   if (cuda.mode === "none") {
     return {
       placement: "cpu",

@@ -1,6 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { promisify } from "node:util";
 
 import { config } from "../config.js";
 import { getBuildSettings, listBuildJobs } from "../build/repository.js";
@@ -47,25 +48,32 @@ export function defaultBinaryPath() {
   return masterCandidate;
 }
 
-export function runHelp(binaryPath: string) {
-  if (!existsSync(binaryPath)) {
-    throw new Error(`llama-server binary not found: ${binaryPath}`);
-  }
+const execFileAsync = promisify(execFile);
 
+function helpEnvironment(binaryPath: string) {
   const binaryDir = dirname(binaryPath);
   const libraryPathName =
     process.platform === "darwin" ? "DYLD_LIBRARY_PATH" : "LD_LIBRARY_PATH";
   const libraryPath = [binaryDir, process.env[libraryPathName]]
     .filter(Boolean)
     .join(process.platform === "win32" ? ";" : ":");
-  const result = spawnSync(binaryPath, ["--help"], {
-    env: {
-      ...process.env,
-      [libraryPathName]: libraryPath,
-    },
+  return { ...process.env, [libraryPathName]: libraryPath };
+}
+
+export function runHelp(
+  binaryPath: string,
+  args: string[] = ["--help"],
+  timeoutMs = 10_000,
+) {
+  if (!existsSync(binaryPath)) {
+    throw new Error(`llama-server binary not found: ${binaryPath}`);
+  }
+
+  const result = spawnSync(binaryPath, args, {
+    env: helpEnvironment(binaryPath),
     encoding: "utf8",
     maxBuffer: 8 * 1024 * 1024,
-    timeout: 10_000,
+    timeout: timeoutMs,
   });
 
   if (result.error) {
@@ -76,12 +84,30 @@ export function runHelp(binaryPath: string) {
       (
         result.stderr ||
         result.stdout ||
-        `llama-server --help exited with code ${result.status}`
+        `${binaryPath} ${args.join(" ")} exited with code ${result.status}`
       ).trim(),
     );
   }
 
   return result.stdout;
+}
+
+export async function runHelpAsync(
+  binaryPath: string,
+  args: string[],
+  timeoutMs: number,
+) {
+  if (!existsSync(binaryPath)) {
+    throw new Error(`engine binary not found: ${binaryPath}`);
+  }
+  const { stdout } = await execFileAsync(binaryPath, args, {
+    env: helpEnvironment(binaryPath),
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    timeout: timeoutMs,
+    killSignal: "SIGKILL",
+  });
+  return stdout;
 }
 
 export function binaryStat(binaryPath: string) {

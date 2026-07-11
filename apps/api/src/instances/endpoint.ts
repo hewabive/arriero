@@ -5,7 +5,6 @@ import {
   type EndpointProbe,
 } from "@llama-manager/core";
 
-const LLAMA_HTTP = engineDescriptor("llama-server").http;
 const RPC_HTTP = engineDescriptor("rpc-worker").http;
 const PROBE_TIMEOUT_MS = 1_500;
 
@@ -33,7 +32,7 @@ export function asString(
 
 export function asPort(
   value: InstanceArgValue | undefined,
-  defaultPort = LLAMA_HTTP.defaultPort,
+  defaultPort = 8080,
 ): number {
   const raw = asString(value, String(defaultPort));
   const parsed = Number(raw);
@@ -42,14 +41,15 @@ export function asPort(
 
 export function probeHost(host: string): string {
   if (host === "0.0.0.0" || host === "::") {
-    return LLAMA_HTTP.defaultHost;
+    return "127.0.0.1";
   }
   return host;
 }
 
 export function apiPrefix(instance: Instance): string {
+  const http = engineDescriptor(instance.kind ?? "llama-server").http;
   const raw = asString(
-    firstArg(instance.args, LLAMA_HTTP.apiPrefixArgKeys),
+    firstArg(instance.args, http.apiPrefixArgKeys),
     "",
   );
   if (!raw) {
@@ -61,11 +61,12 @@ export function apiPrefix(instance: Instance): string {
 }
 
 export function instanceBaseUrl(instance: Instance): string {
+  const http = engineDescriptor(instance.kind ?? "llama-server").http;
   const rawHost = asString(
-    firstArg(instance.args, LLAMA_HTTP.hostArgKeys),
-    LLAMA_HTTP.defaultHost,
+    firstArg(instance.args, http.hostArgKeys),
+    http.defaultHost,
   );
-  const port = asPort(firstArg(instance.args, LLAMA_HTTP.portArgKeys));
+  const port = asPort(firstArg(instance.args, http.portArgKeys), http.defaultPort);
   const host = probeHost(rawHost);
 
   if (host.endsWith(".sock")) {

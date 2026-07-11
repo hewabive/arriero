@@ -101,6 +101,22 @@ test("empty CUDA_VISIBLE_DEVICES disables the GPU regardless of -ngl", () => {
   assert.match(result.cpuReason ?? "", /CUDA_VISIBLE_DEVICES/);
 });
 
+test("vllm tensor parallelism selects the first visible GPU pools", () => {
+  const result = profile({
+    kind: "vllm",
+    args: { "--tensor-parallel-size": 1 },
+    env: { CUDA_VISIBLE_DEVICES: "1,0" },
+  });
+  assert.equal(result.placement, "gpu");
+  assert.deepEqual(result.gpuPools.map((pool) => pool.poolId), ["gpu1"]);
+});
+
+test("vllm --device cpu produces a host profile", () => {
+  const result = profile({ kind: "vllm", args: { "--device": "cpu" } });
+  assert.equal(result.placement, "cpu");
+  assert.equal(result.usesHost, true);
+});
+
 test("declared GPU draws win and report exact pools", () => {
   const result = profile({
     args: {},

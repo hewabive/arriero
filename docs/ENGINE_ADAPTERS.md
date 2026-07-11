@@ -11,32 +11,31 @@ llama-manager is prepared for (but does not yet ship) a second inference engine 
 
 `engineDescriptor(kind)` returns a pure-data record (core is bundled into the web app — **no node APIs, no I/O in core**). Registered kinds live in `INSTANCE_KINDS`; `Record<InstanceKind, EngineDescriptor>` exhaustiveness makes the compiler point at every spot a new engine must fill in.
 
-| Field | Meaning | llama-server | rpc-worker |
-| --- | --- | --- | --- |
-| `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` |
-| `http` | Default host/port + arg keys for host/port/api-prefix (URL derivation in `llama/endpoint-client.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` |
-| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` |
-| `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` |
-| `nativeApi` | Whether the engine answers the llama-native HTTP surface (props/slots/models/capabilities/tokenize); gates the web instance-details llama panels and Web-UI button | `llama` | `none` |
-| `launch.injectSlotSavePath` | Auto-inject `--slot-save-path` at launch (`process/launch-snapshot.ts`) | `true` | `false` |
-| `launch.argv` | Argv-builder id turning `instance.args` + `instance.positionalArgs` into the spawn argv (`process/argv.ts`; positionals first, then sorted flags; array encoding is the builder's policy — catalog `cliEncoding` stays UI metadata) | `flag-map` | `flag-map` |
-| `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` |
-| `preflight.argumentCatalogParser` | `--help` parser id for the argument catalog | `llama-help` | `none` |
-| `logs.parser` | Log-parser id for readiness/progress/memory extraction | `llama` | `llama` (shared deliberately — rpc logs already ran through the same summarizer) |
-| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` |
-| `resourceProfile` | Arg-parsing strategy for `deriveInstanceResourceProfile` | `llama-args` | `rpc-device-args` |
+| Field | Meaning | llama-server | rpc-worker | vllm |
+| --- | --- | --- | --- | --- |
+| `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` | `vLLM` |
+| `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` |
+| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` | serve + lease only |
+| `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` |
+| `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` |
+| `launch` | Slot-path injection, argv builder, fixed prefix | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` |
+| `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` | `none` |
+| `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) |
+| `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` |
+| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `none` initially |
+| `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` |
 
 String ids select **api-side implementations** from `Record`-keyed registries, keeping I/O out of core:
 
 | Id enum | Registry | Implementations |
 | --- | --- | --- |
-| `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http` → `probeLlamaServer`, `tcp-accept` → `probeRpcWorker`; both use `offlineLlamaProbe` for the not-running shape |
-| `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama` → `log-parsers/llama.ts` (all readiness/progress/memory-buffer regexes) |
+| `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http`, `tcp-accept`, `openai-http`; vLLM uses real health/models probes and explicit not-applicable llama-native fields |
+| `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm` |
 | `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts` (path args, router-mode rule, gpu-layers vs nvidia-smi, argument compatibility), `none` → skip |
-| `EngineArgumentCatalogParserId` | `HELP_PARSERS` in `apps/api/src/arguments/catalog.ts` | `llama-help` → `parseLlamaArgumentOptions`; catalog cache rows and sidecars carry `parserId`, a mismatch is a cache miss (a binary is never parsed with the wrong parser). `GET /api/llama-args` resolves the parser from its `kind` query param (default `llama-server`; `none` ⇒ 400) and the web form passes the selected kind |
+| `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`; each owns argv, timeout, and parser. Route generation is async; cache rows/sidecars carry `parserId` |
 | `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` → positionals first, then alphabetically sorted `--flag value` pairs with CSV arrays (the launch snapshot consumes it, so drift/adoption see positional changes automatically) |
 | `EngineEstimatorId` | gate in `apps/api/src/memory-estimate/service.ts` | `gguf` → `estimateInstanceMemory`; a second estimator adds dispatch here (reuse the `MemoryEstimate`/`draws` output contract) |
-| `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args` → llama flag parsing, `rpc-device-args` → `--device` tokens |
+| `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args` |
 
 ## Proxy capability flags
 

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { Instance } from "@llama-manager/core";
 
-import { rpcWorkerEndpoint } from "./endpoint.js";
+import { instanceBaseUrl, rpcWorkerEndpoint } from "./endpoint.js";
 
 function worker(args: Instance["args"]): Instance {
   return {
@@ -48,4 +48,18 @@ test("rpcWorkerEndpoint accepts the short -p port flag", () => {
 
 test("rpcWorkerEndpoint returns null for a unix-socket host", () => {
   assert.equal(rpcWorkerEndpoint(worker({ "--host": "/tmp/x.sock" })), null);
+});
+
+test("instanceBaseUrl uses the vllm descriptor defaults", () => {
+  assert.equal(
+    instanceBaseUrl({ ...worker({}), kind: "vllm" }),
+    "http://127.0.0.1:8000",
+  );
+  assert.equal(
+    instanceBaseUrl({
+      ...worker({ "--host": "0.0.0.0", "--port": 9000 }),
+      kind: "vllm",
+    }),
+    "http://127.0.0.1:9000",
+  );
 });

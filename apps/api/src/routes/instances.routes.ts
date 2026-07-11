@@ -46,11 +46,15 @@ function resolveInstancePathRefs(instance: Instance): Instance {
 
 function validateInstancePathRefs(input: {
   binaryPathRefId?: string | null | undefined;
+  kind?: InstanceKind | undefined;
 }) {
   if (input.binaryPathRefId) {
     const entry = getPathCatalogEntry(input.binaryPathRefId);
     if (!entry) return "binary path catalog entry not found";
     if (entry.kind !== "binary") return "binary path reference is not a binary";
+    if (input.kind && entry.engineKind && entry.engineKind !== input.kind) {
+      return `binary is tagged for ${entry.engineKind}, not ${input.kind}`;
+    }
   }
   return null;
 }
@@ -262,8 +266,9 @@ export function registerInstanceRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
+    const current = getInstance(c.req.param("id"));
     const refError =
-      validateInstancePathRefs(parsed.data) ??
+      validateInstancePathRefs({ ...parsed.data, kind: current?.kind }) ??
       validateInstanceMemoryRefs(parsed.data);
     if (refError) {
       return c.json({ error: refError }, 400);

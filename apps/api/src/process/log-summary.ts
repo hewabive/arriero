@@ -78,6 +78,7 @@ async function resolveMemoryLayout(input: {
   parsed: EngineLogParseResult;
   lines: string[];
   runtime: RuntimeState | undefined;
+  kind: InstanceKind;
 }): Promise<InstanceMemoryLayout> {
   if (input.parsed.memoryLayout.totalBytes > 0) {
     return input.parsed.memoryLayout;
@@ -87,6 +88,7 @@ async function resolveMemoryLayout(input: {
       runtime: input.runtime,
       lines: input.lines,
       baseLayout: input.parsed.memoryLayout,
+      kind: input.kind,
     })) ?? input.parsed.memoryLayout
   );
 }
@@ -132,6 +134,7 @@ export async function summarizeInstanceLog(input: {
       parsed,
       lines,
       runtime,
+      kind: input.kind,
     });
     return {
       instanceId: input.instanceId,

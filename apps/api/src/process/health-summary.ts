@@ -342,7 +342,9 @@ export async function getInstanceHealthSummary(
       runtime,
       cudaDevicesDisabled: instanceCudaDevicesDisabled(instance),
     }),
-    shouldProbe ? getInstanceSwapBytes(runtime) : Promise.resolve(null),
+    shouldProbe
+      ? getInstanceSwapBytes(runtime, instance.kind)
+      : Promise.resolve(null),
   ]);
   const preflightErrors = preflight.issues.filter(
     (issue) => issue.level === "error",

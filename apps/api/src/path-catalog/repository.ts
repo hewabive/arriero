@@ -109,6 +109,9 @@ export function getPathCatalogEntry(id: string): PathCatalogEntry | null {
 export function createPathCatalogEntry(
   input: PathCatalogCreate,
 ): PathCatalogEntry {
+  if (input.kind !== "binary" && input.engineKind) {
+    throw new Error("engine kind is only valid for binary catalog entries");
+  }
   const entries = load();
   assertNameAvailable(entries, input.kind, input.name);
 
@@ -134,6 +137,9 @@ export function updatePathCatalogEntry(
   const current = entries.find((entry) => entry.id === id);
   if (!current) {
     return null;
+  }
+  if (current.kind !== "binary" && input.engineKind !== undefined) {
+    throw new Error("engine kind is only valid for binary catalog entries");
   }
 
   const nextName = input.name ?? current.name;

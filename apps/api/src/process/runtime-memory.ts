@@ -1,5 +1,6 @@
 import type {
   Instance,
+  InstanceKind,
   InstanceMemoryLayout,
   InstanceMemoryPlacement,
   NumaPlacement,
@@ -111,6 +112,10 @@ function isLikelyLlamaServer(processInfo: ProcessInfo) {
     commandName.includes("llama-server") ||
     firstArg.toLowerCase().includes("llama-server")
   );
+}
+
+function isManagedDescendant(kind: InstanceKind, processInfo: ProcessInfo) {
+  return kind === "vllm" || isLikelyLlamaServer(processInfo);
 }
 
 export function parsePsOutput(stdout: string): ProcessInfo[] {
@@ -258,8 +263,9 @@ function readProcSwap(pid: number): number | null {
 
 export async function getInstanceSwapBytes(
   runtime: RuntimeState | undefined,
+  kind: InstanceKind = "llama-server",
 ): Promise<number | null> {
-  const pids = await candidatePids({ runtime, lines: [] });
+  const pids = await candidatePids({ runtime, lines: [], kind });
   let total: number | null = null;
   for (const pid of pids) {
     const swapBytes = readProcSwap(pid);
@@ -320,7 +326,11 @@ export async function getInstanceNumaPlacement(input: {
     }
   }
 
-  const pids = await candidatePids({ runtime: input.runtime, lines: [] });
+  const pids = await candidatePids({
+    runtime: input.runtime,
+    lines: [],
+    kind: input.instance.kind,
+  });
   if (pids.length === 0) {
     return null;
   }
@@ -425,6 +435,7 @@ function descendantPids(processes: ProcessInfo[], rootPids: Set<number>) {
 async function candidatePids(input: {
   runtime: RuntimeState | undefined;
   lines: string[];
+  kind: InstanceKind;
 }): Promise<number[]> {
   const runtimeMayBeActive = [
     "starting",
@@ -454,13 +465,16 @@ async function candidatePids(input: {
     if (candidates.has(processInfo.pid)) {
       continue;
     }
-    if (descendants.has(processInfo.pid) && isLikelyLlamaServer(processInfo)) {
+    if (
+      descendants.has(processInfo.pid) &&
+      isManagedDescendant(input.kind, processInfo)
+    ) {
       candidates.add(processInfo.pid);
       continue;
     }
     if (
       ports.some((port) => argsContainPort(processInfo.args, port)) &&
-      isLikelyLlamaServer(processInfo)
+      input.kind !== "vllm" && isLikelyLlamaServer(processInfo)
     ) {
       candidates.add(processInfo.pid);
     }
@@ -503,6 +517,7 @@ export async function getRuntimeMemoryLayout(input: {
   runtime: RuntimeState | undefined;
   lines: string[];
   baseLayout: InstanceMemoryLayout;
+  kind: InstanceKind;
 }): Promise<InstanceMemoryLayout | null> {
   const pids = await candidatePids(input);
   if (pids.length === 0) {

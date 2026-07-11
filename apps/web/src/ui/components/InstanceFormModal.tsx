@@ -1,4 +1,4 @@
-import { INSTANCE_KINDS } from "@llama-manager/core";
+import { INSTANCE_KINDS, engineDescriptor } from "@llama-manager/core";
 import {
   Box,
   Button,
@@ -63,7 +63,9 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
             value={fm.kind}
             onChange={(value) => fm.applyKind(value as typeof fm.kind)}
             disabled={fm.isEdit}
-            data={INSTANCE_KINDS.map((kind) => ({
+            data={INSTANCE_KINDS.filter(
+              (kind) => engineDescriptor(kind).form.creatable,
+            ).map((kind) => ({
               label: kind,
               value: kind,
             }))}

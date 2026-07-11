@@ -63,7 +63,10 @@ export function buildLaunchSnapshot(instance: Instance): LaunchSnapshot {
     binaryPath: instance.binaryPath,
     cliArgs: buildArgv(
       effectiveLaunchArgs(instance),
-      instance.positionalArgs ?? [],
+      [
+        ...engineDescriptor(instance.kind).launch.argvPrefix,
+        ...(instance.positionalArgs ?? []),
+      ],
     ),
     env: { ...instance.env },
     cwd: instance.cwd ?? dirname(instance.binaryPath),

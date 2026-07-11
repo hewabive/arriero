@@ -62,7 +62,7 @@ Extra findings that shaped decisions:
 
 Acceptance: tagged and untagged binaries coexist; form behavior unchanged for existing catalogs.
 
-## Phase 2 — vLLM kind and common engine seams
+## Phase 2 — vLLM kind and common engine seams (done)
 
 This phase was moved ahead of environments because the env-generated path-catalog entry cannot carry `engineKind: "vllm"` until the kind exists.
 

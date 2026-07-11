@@ -14,6 +14,7 @@ test("llama-server descriptor enables the full llama feature set", () => {
   assert.equal(descriptor.probe.id, "llama-http");
   assert.equal(descriptor.nativeApi, "llama");
   assert.equal(descriptor.launch.injectSlotSavePath, true);
+  assert.deepEqual(descriptor.launch.argvPrefix, []);
   assert.equal(descriptor.preflight.engineChecks, "llama-server");
   assert.equal(descriptor.preflight.argumentCatalogParser, "llama-help");
   assert.equal(descriptor.estimator, "gguf");
@@ -34,6 +35,7 @@ test("rpc-worker descriptor opts out of inference-server features", () => {
   assert.equal(descriptor.probe.id, "tcp-accept");
   assert.equal(descriptor.nativeApi, "none");
   assert.equal(descriptor.launch.injectSlotSavePath, false);
+  assert.deepEqual(descriptor.launch.argvPrefix, []);
   assert.equal(descriptor.preflight.engineChecks, "none");
   assert.equal(descriptor.preflight.argumentCatalogParser, "none");
   assert.equal(descriptor.estimator, "none");
@@ -46,4 +48,23 @@ test("rpc-worker descriptor opts out of inference-server features", () => {
     false,
     false,
   ]);
+});
+
+test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () => {
+  const descriptor = engineDescriptor("vllm");
+  assert.equal(descriptor.http.defaultPort, 8000);
+  assert.equal(descriptor.probe.id, "openai-http");
+  assert.equal(descriptor.nativeApi, "none");
+  assert.deepEqual(descriptor.launch.argvPrefix, ["serve"]);
+  assert.equal(descriptor.preflight.argumentCatalogParser, "vllm-help");
+  assert.equal(descriptor.logs.parser, "vllm");
+  assert.equal(descriptor.resourceProfile, "vllm-args");
+  assert.deepEqual(descriptor.proxy, {
+    serveEndpoint: true,
+    requestLease: true,
+    modelLoadUnload: false,
+    slotSave: false,
+    streamResume: false,
+    sseTimings: false,
+  });
 });

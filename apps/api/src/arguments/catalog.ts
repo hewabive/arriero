@@ -19,12 +19,18 @@ import {
   loadArgumentRegistry,
   registryNameMap,
 } from "./registry.js";
-import { binaryStat, defaultBinaryPath, runHelp } from "./binary-discovery.js";
+import {
+  binaryStat,
+  defaultBinaryPath,
+  runHelp,
+  runHelpAsync,
+} from "./binary-discovery.js";
 import {
   readArgumentCatalogSidecar,
   writeArgumentCatalogSidecar,
 } from "./sidecar.js";
 import { parseLlamaArgumentOptions } from "./help-parser.js";
+import { parseVllmArgumentOptions } from "./vllm-help-parser.js";
 import {
   categoryNameRu,
   helpRuOverlay,
@@ -44,7 +50,20 @@ const HELP_PARSERS: Record<
   (helpOutput: string) => ArgumentOption[]
 > = {
   "llama-help": parseLlamaArgumentOptions,
+  "vllm-help": parseVllmArgumentOptions,
 };
+
+const HELP_INVOCATIONS: Record<
+  ArgumentCatalogHelpParserId,
+  { args: string[]; timeoutMs: number }
+> = {
+  "llama-help": { args: ["--help"], timeoutMs: 10_000 },
+  "vllm-help": { args: ["serve", "--help=all"], timeoutMs: 60_000 },
+};
+
+function helpCommand(binaryPath: string, parserId: ArgumentCatalogHelpParserId) {
+  return [binaryPath, ...HELP_INVOCATIONS[parserId].args];
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -221,21 +240,26 @@ function toCatalog(input: {
   binaryPath: string;
   cached: CachedArgumentCatalog;
   cache: ArgumentCatalog["cache"];
+  parserId: ArgumentCatalogHelpParserId;
 }): ArgumentCatalog {
+  const options =
+    input.parserId === "llama-help"
+      ? withArgumentDocsAndCompatibility(
+          applyArgumentHelp(mergeWithArgumentRegistry(input.cached.options)),
+        )
+      : input.cached.options;
   return {
     binaryPath: input.binaryPath,
     generatedAt: input.cached.generatedAt,
     source: {
       kind: "help",
-      command: [input.binaryPath, "--help"],
+      command: helpCommand(input.binaryPath, input.parserId),
       hash: input.cached.helpHash,
       binarySize: input.cached.binarySize,
       binaryModifiedAt: input.cached.binaryModifiedAt,
     },
     cache: input.cache,
-    options: withArgumentDocsAndCompatibility(
-      applyArgumentHelp(mergeWithArgumentRegistry(input.cached.options)),
-    ),
+    options,
   };
 }
 
@@ -244,7 +268,8 @@ function generateCatalog(
   stat: ReturnType<typeof binaryStat>,
   parserId: ArgumentCatalogHelpParserId,
 ) {
-  const helpOutput = runHelp(binaryPath);
+  const invocation = HELP_INVOCATIONS[parserId];
+  const helpOutput = runHelp(binaryPath, invocation.args, invocation.timeoutMs);
   const helpHash = createHash("sha256").update(helpOutput).digest("hex");
   const options = HELP_PARSERS[parserId](helpOutput);
 
@@ -255,6 +280,32 @@ function generateCatalog(
     binaryModifiedAt: stat.binaryModifiedAt,
     helpHash,
     options,
+    generatedAt: nowIso(),
+    parserId,
+  });
+  writeArgumentCatalogSidecar(saved);
+  return saved;
+}
+
+async function generateCatalogAsync(
+  binaryPath: string,
+  stat: ReturnType<typeof binaryStat>,
+  parserId: ArgumentCatalogHelpParserId,
+) {
+  const invocation = HELP_INVOCATIONS[parserId];
+  const helpOutput = await runHelpAsync(
+    binaryPath,
+    invocation.args,
+    invocation.timeoutMs,
+  );
+  const helpHash = createHash("sha256").update(helpOutput).digest("hex");
+  const saved = saveArgumentCatalog({
+    binaryPath,
+    binarySize: stat.binarySize,
+    binaryMtimeMs: stat.binaryMtimeMs,
+    binaryModifiedAt: stat.binaryModifiedAt,
+    helpHash,
+    options: HELP_PARSERS[parserId](helpOutput),
     generatedAt: nowIso(),
     parserId,
   });
@@ -281,6 +332,7 @@ export function getArgumentCatalog(
       binaryPath,
       cached,
       cache: { hit: true, refreshed: false, stale: false },
+      parserId,
     });
   }
 
@@ -291,6 +343,7 @@ export function getArgumentCatalog(
         binaryPath,
         cached: saveArgumentCatalog(fromSidecar),
         cache: { hit: true, refreshed: false, stale: false },
+        parserId,
       });
     }
   }
@@ -299,5 +352,45 @@ export function getArgumentCatalog(
     binaryPath,
     cached: generateCatalog(binaryPath, stat, parserId),
     cache: { hit: false, refreshed: true, stale },
+    parserId,
+  });
+}
+
+export async function getArgumentCatalogAsync(
+  binaryPathInput?: string,
+  input?: { refresh?: boolean; parserId?: ArgumentCatalogHelpParserId },
+): Promise<ArgumentCatalog> {
+  const binaryPath = resolve(binaryPathInput || defaultBinaryPath());
+  if (!existsSync(binaryPath)) {
+    throw new Error(`engine binary not found: ${binaryPath}`);
+  }
+  const parserId = input?.parserId ?? "llama-help";
+  const stat = binaryStat(binaryPath);
+  const cached = getCachedArgumentCatalog(binaryPath);
+  const stale = cached ? !isCacheCurrent(cached, stat, parserId) : false;
+  if (cached && !stale && !input?.refresh) {
+    return toCatalog({
+      binaryPath,
+      cached,
+      cache: { hit: true, refreshed: false, stale: false },
+      parserId,
+    });
+  }
+  if (!input?.refresh) {
+    const fromSidecar = readArgumentCatalogSidecar(binaryPath, stat);
+    if (fromSidecar && fromSidecar.parserId === parserId) {
+      return toCatalog({
+        binaryPath,
+        cached: saveArgumentCatalog(fromSidecar),
+        cache: { hit: true, refreshed: false, stale: false },
+        parserId,
+      });
+    }
+  }
+  return toCatalog({
+    binaryPath,
+    cached: await generateCatalogAsync(binaryPath, stat, parserId),
+    cache: { hit: false, refreshed: true, stale },
+    parserId,
   });
 }

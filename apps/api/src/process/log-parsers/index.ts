@@ -5,10 +5,12 @@ import {
 } from "@llama-manager/core";
 
 import { llamaLogParser } from "./llama.js";
+import { vllmLogParser } from "./vllm.js";
 import type { EngineLogParser } from "./types.js";
 
 const ENGINE_LOG_PARSERS: Record<EngineLogParserId, EngineLogParser> = {
   llama: llamaLogParser,
+  vllm: vllmLogParser,
 };
 
 export function engineLogParser(kind: InstanceKind): EngineLogParser {
