@@ -1,6 +1,6 @@
 # vLLM support plan
 
-Planning document for the second managed engine (vLLM) and the Python environment domain that carries it. Written before implementation; as phases land, durable content moves into `docs/ENGINE_ADAPTERS.md` and a future environments doc, and the phase sections here get marked done or pruned.
+Planning document for the second managed engine (vLLM) and the Python environment domain that carries it. Written before implementation; as phases land, durable content moves into `docs/ENGINE_ADAPTERS.md` and `docs/ENVIRONMENTS.md`, and the phase sections here get marked done or pruned.
 
 ## Accepted decisions (2026-07-06)
 
@@ -13,6 +13,24 @@ Planning document for the second managed engine (vLLM) and the Python environmen
 - **Proxy capabilities**: `serveEndpoint: true`, `requestLease: true`, everything else `false` — the documented start/stop-only managed-target configuration; the scheduler restarts the process instead of emitting load/unload verbs.
 - **Estimator**: `none` initially (draws declared manually — the ledger supports this), then a trivial `vllm-gpu-util` estimator (vLLM pre-allocates `--gpu-memory-utilization × pool capacity`).
 - **uv is the only supported env tool** — detected like `isCudaToolkitAvailable()` detects nvcc, surfaced in Diagnostics; it also pins the Python interpreter (`uv python install`), removing the system-python dependency. No pip fallback.
+
+## Implementation decisions (2026-07-11)
+
+- **Phases 2 and 3 are reordered.** A path-catalog `engineKind` is an `InstanceKind`, so an env cannot register `engineKind: "vllm"` before the vLLM kind exists. The engine contract and its common seams land first; the env domain follows. These commits are one deployable sequence: the web form does not expose a half-configured engine.
+- **The existing probe payload remains the compatibility envelope.** vLLM fills `health` and `models`; llama-native fields (`props`, `slots`, model diagnostics) return explicit `not applicable` probes. A wider probe-contract rename is not required for the second engine.
+- **Argument-help implementations own both invocation and parsing.** vLLM runs `serve --help=all`, not the global `--help`. Help generation is asynchronous with an engine-specific timeout so the 9–18 second torch import does not block the API event loop; cache identity continues to include the parser id and the reported source command is exact.
+- **Endpoint URL derivation is descriptor-driven.** Host, port, and API-prefix keys/defaults come from the selected instance kind; no llama default may leak into vLLM.
+- **Process telemetry is kind-aware.** llama router children retain the conservative name/port matcher; vLLM includes the root and all descendants (workers rewrite their names). Kind is threaded through memory, swap, and NUMA sampling.
+- **Env specs are desired state.** The spec is persisted before installation. List responses derive `missing`/`installing`/`ready`/`failed` state from jobs and disk, and a missing/failed env can be rebuilt from the same spec.
+- **Installations are transactional.** Jobs build in a sibling staging directory, validate the `bin/vllm` entrypoint, write the resolved freeze, then atomically rename into the final directory. Cancellation/failure removes staging. Startup sweeps abandoned staging directories.
+- **Env identity is the stable generated `id`, not the mutable display tuple.** Runtime layout is `runtime/envs/<engine>-<version>-<id>/`; the suffix prevents collisions between Python/source variants and makes delete paths derivable without trusting catalog paths.
+- **Install source is a discriminated union.** `pypi` pins `vllm==version` and may carry extras plus a credential-free index URL; `wheel` carries an HTTPS/file wheel URL, optional SHA-256, and optional uv torch backend (needed for CPU wheels). URLs containing credentials are rejected. Secrets belong in process environment, not portable config.
+- **Recreation is dependency-resolved, not bit-reproducible.** `freeze.txt` records the realized environment for diagnosis, but the portable spec intentionally pins only engine/Python/source inputs. Exact lockfile reproduction is deferred and the UI must not claim otherwise.
+- **Jobs are single-flight and in-memory, like Build, but lifecycle-safe.** Logs use the existing JSON tail polling pattern rather than introducing env-only SSE. The active child runs in its own process group, cancel/shutdown terminates the group, and restart recovery reports the persisted spec as missing after staging cleanup.
+- **Env/catalog ownership is explicit.** The spec stores its path-catalog entry id. Reconciliation repairs a missing or edited generated entry. Delete is refused while an instance references that entry or a job is active; it removes only the env-owned, root-confined directory.
+- **vLLM model identity comes from the first positional argument** (descriptor prefix `serve` is not stored in the instance). `--served-model-name` wins when present. This is used by managed-target model discovery even while the process is stopped.
+- **Lease behavior follows declared/estimated draws.** `requestLease` is wired as an explicit gate; without it no compute-domain lease is acquired. Initial vLLM instances use manual draws; the later estimator creates one draw per selected GPU.
+- **GPU utilization is per device.** For tensor parallelism, each selected GPU draw is `gpu-memory-utilization × that pool's capacity`; the value is not divided across GPUs. `CUDA_VISIBLE_DEVICES` order selects the first `tensor-parallel-size` pools.
 
 ## Phase 0 — spike (no product code)
 
@@ -36,7 +54,7 @@ Extra findings that shaped decisions:
 - **CPU-variant wheels** live as GitHub release assets (`vllm-<v>+cpu-cp38-abi3-manylinux_2_34_x86_64.whl`, ~107 MiB vs 266 MiB CUDA-implied PyPI wheel), installable via `uv pip install <url> --torch-backend cpu`. The env spec should support a variant/wheel-source override so GPU-less dev machines can run real vLLM end-to-end.
 - venv size ~2.7 GiB (CPU torch); entrypoint `bin/vllm` shebang-resolves its interpreter — no activation anywhere.
 
-## Phase 1 — path-catalog engine tag (small PR)
+## Phase 1 — path-catalog engine tag (done, `cbe5bd1`)
 
 - Core: optional `engineKind?: InstanceKind` on path-catalog `binary` entries.
 - `registerBuiltBinaryInCatalog` tags `llama-server`; manual entries stay untagged.
@@ -44,20 +62,31 @@ Extra findings that shaped decisions:
 
 Acceptance: tagged and untagged binaries coexist; form behavior unchanged for existing catalogs.
 
-## Phase 2 — environments domain (`apps/api/src/envs/`)
+## Phase 2 — vLLM kind and common engine seams
+
+This phase was moved ahead of environments because the env-generated path-catalog entry cannot carry `engineKind: "vllm"` until the kind exists.
+
+- Add the vLLM descriptor and registry implementations originally listed under phase 3.
+- Make endpoint derivation descriptor-driven and make argument-help invocation asynchronous/implementation-owned.
+- Thread instance kind through runtime descendant memory/swap/NUMA accounting.
+- Keep the vLLM kind out of the production web creation path until phase 4 completes the form.
+
+Acceptance: a manually cataloged vLLM binary can launch through the API, reaches readiness, is adopted/stopped correctly, and exposes an argument catalog without blocking the API event loop.
+
+## Phase 3 — environments domain (`apps/api/src/envs/`)
 
 Modeled on the build domain: a job runner with streamed step logs, producing a registered binary.
 
 - `envs/uv.ts` — uv detection, version surfaced in `SystemResources`/Diagnostics.
-- Env specs are file-backed portable config: `config/envs.json` (aggregate array, in-memory cache + atomic write-through, same pattern as `path-catalog.json`): `{ id, engine: "vllm", version, pythonVersion, extras?, indexUrl? }`. The venv itself is runtime state — rebuildable from the spec, never in git.
-- Job steps: `uv python install <ver>` → `uv venv runtime/envs/<engine>-<version>` → `uv pip install <engine>==<version>` → write `freeze.txt` (uv pip freeze) next to the venv → register the entrypoint in path-catalog (kind `binary`, `engineKind` tag, name `vllm (<version>)`, deduped by path — mirrors `registerBuiltBinaryInCatalog`).
+- Env specs are file-backed portable config: `config/envs.json` (aggregate array, in-memory cache + atomic write-through, same pattern as `path-catalog.json`): `{ id, engine: "vllm", version, pythonVersion, source, pathCatalogEntryId, createdAt, updatedAt }`. The venv itself is runtime state — rebuildable from the spec, never in git.
+- Job steps: `uv python install <ver>` → `uv venv --python <ver> <staging>` → `uv pip install --python <staging>/bin/python <source>` → write `freeze.txt` → validate entrypoint → atomic rename → register/reconcile the path-catalog entry.
 - Layout: `runtime/envs/`, overridable via `LLAMA_MANAGER_ENVS_DIR`. Envs are immutable: a new version = a new venv; no in-place upgrades.
 - Delete = remove venv dir + catalog entry; refused while any instance references the entry via `binaryPathRefId`.
-- Minimal web view (list, create engine+version, delete, job log via SSE); placement next to Build in the sidebar.
+- API supports list/create/rebuild/delete, one active install job, cancel, and polled log tail. Delete is guarded by instance references and active jobs.
 
 Acceptance: create env → entrypoint appears in path catalog tagged `vllm`; delete guarded; env recreatable from spec after wiping `runtime/envs/`.
 
-## Phase 3 — kind `vllm` (descriptor + registries)
+### Engine contract delivered in phase 2
 
 Core:
 
@@ -74,8 +103,9 @@ API registries:
 
 Acceptance: a vllm instance is creatable via API, launches (`<env>/bin/vllm serve <model> --port …`), reaches `running/ready`, survives manager restart via adoption, stops cleanly; argument catalog parses and serves via `GET /api/llama-args?kind=vllm`.
 
-## Phase 4 — web form + UI gating
+## Phase 4 — environments web view + instance form/UI gating
 
+- Minimal Environments view (list, create/rebuild/delete, job log polling), placed next to Build in the sidebar.
 - Kind selector already registry-driven; binary picker uses the phase-1 tag.
 - Model positional input for kinds with `argvPrefix` (writes `instance.positionalArgs`); GGUF/preset/HF sections gated off for vllm via a descriptor-driven form flag (e.g. `form.modelSource: "gguf" | "free-text"`) instead of kind equality checks.
 - Instance details sanity pass for `nativeApi: "none"` + `httpHealth: true` (probe pills meaningful, llama panels hidden — the gates exist, verify the combination).
