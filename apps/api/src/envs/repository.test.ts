@@ -17,6 +17,7 @@ test("environment specs persist desired state and catalog ownership", () => {
   const created = createEnvironmentSpec({
     engine: "vllm",
     version: "0.24.0",
+    variant: "cuda",
     pythonVersion: "3.12",
     pythonProvisioning: "download-if-missing",
     source: { kind: "pypi", extras: [], indexUrl: null },

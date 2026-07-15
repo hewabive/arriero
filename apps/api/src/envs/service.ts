@@ -28,6 +28,8 @@ import {
 import { environmentRunner } from "./runner.js";
 import { assertUvPythonAvailable, findUv } from "./uv.js";
 import { environmentLayoutError } from "./validation.js";
+import { environmentAvailability, rocmDeviceAvailable } from "./availability.js";
+import { getSystemAccelerators } from "../system/resources.js";
 
 function latestJob(spec: EnvironmentSpec) {
   return listEnvironmentJobs(100).find((job) => job.environmentId === spec.id) ?? null;
@@ -51,12 +53,19 @@ function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
     status === "failed"
       ? layoutError ?? job?.error ?? "installation failed"
       : null;
+  const availability = environmentAvailability({
+    accelerators: getSystemAccelerators(),
+    installed: status === "installed",
+    rocmDeviceAvailable: rocmDeviceAvailable(),
+    variant: spec.variant,
+  });
   return EnvironmentRecordSchema.parse({
     ...spec,
     status,
     path,
     entrypoint,
     error,
+    ...availability,
   });
 }
 

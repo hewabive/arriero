@@ -64,6 +64,9 @@ export function environmentJobSteps(spec: EnvironmentSpec, uv: string): Environm
   if (spec.source.kind === "pypi" && spec.source.indexUrl) {
     install.push("--index-url", spec.source.indexUrl);
   }
+  if (spec.source.kind === "wheel" && spec.source.dependencyIndexUrl) {
+    install.push("--index-url", spec.source.dependencyIndexUrl);
+  }
   if (spec.source.kind === "wheel" && spec.source.torchBackend) {
     install.push("--torch-backend", spec.source.torchBackend);
   }

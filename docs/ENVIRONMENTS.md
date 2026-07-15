@@ -4,7 +4,7 @@ The Environments domain provisions immutable Python-engine installations. It is 
 
 ## Desired state and runtime state
 
-Portable specs live in `data/config/envs.json`. Runtime environments live under `runtime/envs/` (override with `LLAMA_MANAGER_ENVS_DIR`) and are safe to delete and rebuild. A spec records the engine/version, Python request, install source, and the id of its generated path-catalog entry.
+Portable specs live in `data/config/envs.json`. Runtime environments live under `runtime/envs/` (override with `LLAMA_MANAGER_ENVS_DIR`) and are safe to delete and rebuild. A spec records the engine/version, runtime variant (`cuda`, `cpu`, or `rocm`), Python request, install source, and the id of its generated path-catalog entry.
 
 Status is derived rather than persisted:
 
@@ -15,6 +15,11 @@ Status is derived rather than persisted:
 - `failed`: the latest in-memory job failed or was canceled and no final entrypoint exists.
 
 After a manager restart job history is intentionally lost; abandoned `.staging` directories are swept and the durable spec becomes `missing`, ready for rebuild.
+
+Installation state is separate from hardware availability. An installed CPU variant is
+`usable`; CUDA requires an NVIDIA device visible through `nvidia-smi`, and ROCm requires
+`/dev/kfd`. An ABI-valid environment without its accelerator remains `installed` but is
+reported as `unavailable` with a reason instead of being mislabeled as corrupt.
 
 ## Transactional install
 
@@ -39,7 +44,7 @@ this as the offline Python-runtime switch.
 
 ## Sources and reproducibility
 
-`pypi` installs `vllm[extras]==version` and accepts a credential-free index URL. `wheel` accepts an HTTPS or file URL, optional SHA-256 fragment, and optional uv torch backend (for example `cpu`). URL credentials are rejected; private-index authentication must come from the manager process environment.
+`pypi` installs `vllm[extras]==version` and accepts a credential-free index URL. `wheel` accepts an HTTPS or file URL, optional SHA-256 fragment, an optional uv torch backend (for example `cpu` or `rocm6.3`), and a credential-free dependency index URL. The latter is essential for closed-network wheel installs: the root wheel and every transitive dependency can come from the same Gitea index instead of silently falling back to public PyPI. URL credentials are rejected; private-index authentication must come from the manager process environment.
 
 The spec is recreatable but not an exact lock: dependency resolution may change on a later rebuild. `freeze.txt` is diagnostic runtime state, not portable configuration.
 

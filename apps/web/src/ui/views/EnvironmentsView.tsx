@@ -39,6 +39,7 @@ function statusColor(status: string) {
 export function EnvironmentsView() {
   const queryClient = useQueryClient();
   const [version, setVersion] = useState("");
+  const [variant, setVariant] = useState<"cuda" | "cpu" | "rocm">("cuda");
   const [pythonVersion, setPythonVersion] = useState("3.12");
   const [requireExistingPython, setRequireExistingPython] = useState(false);
   const [sourceKind, setSourceKind] = useState<"pypi" | "wheel">("pypi");
@@ -46,6 +47,7 @@ export function EnvironmentsView() {
   const [indexUrl, setIndexUrl] = useState("");
   const [wheelUrl, setWheelUrl] = useState("");
   const [wheelSha256, setWheelSha256] = useState("");
+  const [dependencyIndexUrl, setDependencyIndexUrl] = useState("");
   const [torchBackend, setTorchBackend] = useState("");
 
   const environmentsQuery = useQuery({
@@ -78,6 +80,7 @@ export function EnvironmentsView() {
   const createInput = useMemo<EnvironmentCreate>(() => ({
     engine: "vllm",
     version: version.trim(),
+    variant,
     pythonVersion: pythonVersion.trim(),
     pythonProvisioning: requireExistingPython ? "require-existing" : "download-if-missing",
     source:
@@ -91,9 +94,10 @@ export function EnvironmentsView() {
             kind: "wheel",
             url: wheelUrl.trim(),
             sha256: wheelSha256.trim() || null,
+            dependencyIndexUrl: dependencyIndexUrl.trim() || null,
             torchBackend: torchBackend.trim() || null,
           },
-  }), [version, pythonVersion, requireExistingPython, sourceKind, extras, indexUrl, wheelUrl, wheelSha256, torchBackend]);
+  }), [version, variant, pythonVersion, requireExistingPython, sourceKind, extras, indexUrl, wheelUrl, wheelSha256, dependencyIndexUrl, torchBackend]);
 
   async function refresh() {
     await Promise.all([
@@ -146,6 +150,12 @@ export function EnvironmentsView() {
           label="Offline: require an existing uv-managed Python runtime"
           description="Fail before installation instead of downloading Python from the public runtime registry"
         />
+        <SegmentedControl
+          mt="sm"
+          value={variant}
+          onChange={(value) => setVariant(value as "cuda" | "cpu" | "rocm")}
+          data={[{ label: "CUDA", value: "cuda" }, { label: "CPU", value: "cpu" }, { label: "ROCm", value: "rocm" }]}
+        />
         <SegmentedControl mt="sm" value={sourceKind} onChange={(value) => setSourceKind(value as "pypi" | "wheel")} data={[{ label: "PyPI", value: "pypi" }, { label: "Wheel URL", value: "wheel" }]} />
         {sourceKind === "pypi" ? (
           <SimpleGrid mt="sm" cols={{ base: 1, sm: 2 }}>
@@ -159,6 +169,7 @@ export function EnvironmentsView() {
               <TextInput label="SHA-256" value={wheelSha256} onChange={(event) => setWheelSha256(event.currentTarget.value)} />
               <TextInput label="Torch backend" placeholder="cpu" value={torchBackend} onChange={(event) => setTorchBackend(event.currentTarget.value)} />
             </SimpleGrid>
+            <TextInput label="Dependency index URL" description="Use the closed-network index for wheel dependencies" value={dependencyIndexUrl} onChange={(event) => setDependencyIndexUrl(event.currentTarget.value)} />
           </Stack>
         )}
         <Button mt="md" loading={createMutation.isPending} disabled={running || !uv?.available || !version.trim()} onClick={() => createMutation.mutate()}>
@@ -172,8 +183,9 @@ export function EnvironmentsView() {
             <Paper key={environment.id} withBorder p="md">
               <Group justify="space-between" align="flex-start">
                 <div>
-                  <Group gap="xs"><Text fw={600}>vLLM {environment.version}</Text><Badge color={statusColor(environment.status)}>{environment.status}</Badge></Group>
+                  <Group gap="xs"><Text fw={600}>vLLM {environment.version}</Text><Badge>{environment.variant}</Badge><Badge color={statusColor(environment.status)}>{environment.status}</Badge><Badge color={environment.availability === "usable" ? "green" : environment.availability === "unavailable" ? "red" : "gray"}>{environment.availability}</Badge></Group>
                   <Text size="xs" c="dimmed">Python {environment.pythonVersion} · {environment.pythonProvisioning} · {formatLocalDateTime(environment.createdAt)}</Text>
+                  {environment.availabilityReason && <Text c="orange" size="xs">{environment.availabilityReason}</Text>}
                 </div>
                 <Group gap="xs">
                   {environment.status !== "installed" && <Button size="xs" variant="light" disabled={running} onClick={() => rebuildMutation.mutate(environment.id)}>Rebuild</Button>}

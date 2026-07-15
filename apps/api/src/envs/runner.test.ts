@@ -56,12 +56,14 @@ test("wheel environment plan carries hash and torch backend", () => {
       kind: "wheel",
       url: "https://example/vllm.whl",
       sha256: hash,
+      dependencyIndexUrl: "http://gitea.local/api/packages/pypi/pypi/simple",
       torchBackend: "cpu",
     }),
     "uv",
   );
   const command = steps.find((step) => step.name === "package-install")!.command;
   assert.ok(command.includes(`https://example/vllm.whl#sha256=${hash}`));
+  assert.ok(command.includes("http://gitea.local/api/packages/pypi/pypi/simple"));
   assert.deepEqual(command.slice(-2), ["--torch-backend", "cpu"]);
 });
 

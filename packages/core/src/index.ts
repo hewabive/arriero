@@ -1891,6 +1891,12 @@ export const EnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
       .regex(/^[a-f0-9]{64}$/i)
       .nullable()
       .default(null),
+    dependencyIndexUrl: z
+      .string()
+      .url()
+      .refine(credentialFreeUrl, "dependency index URL must not contain credentials")
+      .nullable()
+      .default(null),
     torchBackend: z
       .string()
       .trim()
@@ -1905,6 +1911,7 @@ export const EnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
 export const EnvironmentCreateSchema = z.object({
   engine: z.literal("vllm").default("vllm"),
   version: EnvironmentVersionSchema,
+  variant: z.enum(["cuda", "cpu", "rocm"]).default("cuda"),
   pythonVersion: PythonVersionSchema.default("3.12"),
   pythonProvisioning: z
     .enum(["download-if-missing", "require-existing"])
@@ -1932,6 +1939,8 @@ export const EnvironmentStatusSchema = z.enum([
 
 export const EnvironmentRecordSchema = EnvironmentSpecSchema.extend({
   status: EnvironmentStatusSchema,
+  availability: z.enum(["not-installed", "usable", "unavailable"]),
+  availabilityReason: z.string().nullable(),
   path: z.string(),
   entrypoint: z.string(),
   error: z.string().nullable(),

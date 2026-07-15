@@ -215,11 +215,15 @@ function cachedAccelerators(): SystemAccelerator[] {
   return acceleratorsCache.value;
 }
 
+export function getSystemAccelerators(): SystemAccelerator[] {
+  return cachedAccelerators();
+}
+
 export function getSystemResources(): SystemResources {
   return {
     checkedAt: new Date().toISOString(),
     memory: readLinuxMemory() ?? readNodeMemory(),
-    accelerators: cachedAccelerators(),
+    accelerators: getSystemAccelerators(),
     disk: readDiskActivity(),
     numa: {
       nodes: readNumaTopology(),
