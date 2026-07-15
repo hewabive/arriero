@@ -84,7 +84,12 @@ export function getEnvironment(id: string) {
   return spec ? toRecord(spec) : null;
 }
 
-function assertCanStart(spec: Pick<EnvironmentSpec, "pythonProvisioning" | "pythonVersion">) {
+function assertCanStart(
+  spec: Pick<
+    EnvironmentSpec,
+    "pythonMirrorUrl" | "pythonProvisioning" | "pythonVersion"
+  >,
+) {
   const uv = findUv();
   if (!uv) throw new Error("uv was not found on PATH");
   if (environmentRunner.activeEnvironmentId()) {
@@ -92,6 +97,9 @@ function assertCanStart(spec: Pick<EnvironmentSpec, "pythonProvisioning" | "pyth
   }
   if (spec.pythonProvisioning === "require-existing") {
     assertUvPythonAvailable(uv, spec.pythonVersion);
+  }
+  if (spec.pythonProvisioning === "mirror" && !spec.pythonMirrorUrl) {
+    throw new Error("Python mirror provisioning requires pythonMirrorUrl");
   }
 }
 

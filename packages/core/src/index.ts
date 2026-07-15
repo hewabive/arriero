@@ -1914,8 +1914,25 @@ export const EnvironmentCreateSchema = z.object({
   variant: z.enum(["cuda", "cpu", "rocm"]).default("cuda"),
   pythonVersion: PythonVersionSchema.default("3.12"),
   pythonProvisioning: z
-    .enum(["download-if-missing", "require-existing"])
+    .enum(["download-if-missing", "mirror", "require-existing"])
     .default("download-if-missing"),
+  pythonMirrorUrl: z
+    .string()
+    .url()
+    .refine((value) => {
+      try {
+        const url = new URL(value);
+        return (
+          ["file:", "http:", "https:"].includes(url.protocol) &&
+          !url.username &&
+          !url.password
+        );
+      } catch {
+        return false;
+      }
+    }, "Python mirror URL must be credential-free file, HTTP, or HTTPS")
+    .nullable()
+    .default(null),
   source: EnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],

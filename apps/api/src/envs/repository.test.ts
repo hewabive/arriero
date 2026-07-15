@@ -20,6 +20,7 @@ test("environment specs persist desired state and catalog ownership", () => {
     variant: "cuda",
     pythonVersion: "3.12",
     pythonProvisioning: "download-if-missing",
+    pythonMirrorUrl: null,
     source: { kind: "pypi", extras: [], indexUrl: null },
   });
   assert.equal(created.pathCatalogEntryId, null);

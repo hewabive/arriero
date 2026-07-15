@@ -42,6 +42,14 @@ repeats that check. If the requested managed interpreter is absent, installation
 with an actionable error before a venv or package download is attempted. The UI exposes
 this as the offline Python-runtime switch.
 
+`mirror` is the portable closed-network alternative. `pythonMirrorUrl` points at the
+`python-runtime-mirror` directory created by airgap-sync (a `file:`, HTTP, or HTTPS URL).
+The recorded install step runs `uv python install --mirror <url> <version>`; uv replaces
+the public python-build-standalone release base with this mirror, so a missing runtime
+can be installed without public-network access. airgap-sync verifies the archive SHA-256
+and ships `python-runtime-manifest.json`; llama-manager still delegates archive-format
+and interpreter-layout validation to uv.
+
 ## Sources and reproducibility
 
 `pypi` installs `vllm[extras]==version` and accepts a credential-free index URL. `wheel` accepts an HTTPS or file URL, optional SHA-256 fragment, an optional uv torch backend (for example `cpu` or `rocm6.3`), and a credential-free dependency index URL. The latter is essential for closed-network wheel installs: the root wheel and every transitive dependency can come from the same Gitea index instead of silently falling back to public PyPI. URL credentials are rejected; private-index authentication must come from the manager process environment.

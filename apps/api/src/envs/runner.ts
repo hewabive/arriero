@@ -81,7 +81,19 @@ export function environmentJobSteps(spec: EnvironmentSpec, uv: string): Environm
   return [
     spec.pythonProvisioning === "require-existing"
       ? step("python-preflight", uvPythonPreflightCommand(uv, spec.pythonVersion))
-      : step("python-install", [uv, "python", "install", spec.pythonVersion]),
+      : step(
+          "python-install",
+          spec.pythonProvisioning === "mirror"
+            ? [
+                uv,
+                "python",
+                "install",
+                "--mirror",
+                spec.pythonMirrorUrl!,
+                spec.pythonVersion,
+              ]
+            : [uv, "python", "install", spec.pythonVersion],
+        ),
     step("venv-create", [
       uv,
       "venv",

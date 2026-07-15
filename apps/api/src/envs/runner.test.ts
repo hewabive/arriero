@@ -6,12 +6,14 @@ import { environmentJobSteps } from "./runner.js";
 
 function spec(
   source: unknown,
-  pythonProvisioning: "download-if-missing" | "require-existing" = "download-if-missing",
+  pythonProvisioning: "download-if-missing" | "mirror" | "require-existing" = "download-if-missing",
+  pythonMirrorUrl: string | null = null,
 ) {
   const input = EnvironmentCreateSchema.parse({
     version: "0.24.0",
     pythonVersion: "3.12.13",
     pythonProvisioning,
+    pythonMirrorUrl,
     source,
   });
   return EnvironmentSpecSchema.parse({
@@ -88,6 +90,23 @@ test("offline environment plan preflights Python without downloads", () => {
     "3.12.13",
   ]);
   assert.equal(steps.some((step) => step.name === "python-install"), false);
+});
+
+test("runtime mirror environment plan confines Python download to the bundle mirror", () => {
+  const mirror = "file:///media/airgap/python-runtime-mirror";
+  const steps = environmentJobSteps(
+    spec({ kind: "pypi", extras: [], indexUrl: null }, "mirror", mirror),
+    "uv",
+  );
+
+  assert.deepEqual(steps[0]?.command, [
+    "uv",
+    "python",
+    "install",
+    "--mirror",
+    mirror,
+    "3.12.13",
+  ]);
 });
 
 test("environment source rejects credential-bearing URLs", () => {

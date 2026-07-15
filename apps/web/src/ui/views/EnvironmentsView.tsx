@@ -42,6 +42,7 @@ export function EnvironmentsView() {
   const [variant, setVariant] = useState<"cuda" | "cpu" | "rocm">("cuda");
   const [pythonVersion, setPythonVersion] = useState("3.12");
   const [requireExistingPython, setRequireExistingPython] = useState(false);
+  const [pythonMirrorUrl, setPythonMirrorUrl] = useState("");
   const [sourceKind, setSourceKind] = useState<"pypi" | "wheel">("pypi");
   const [extras, setExtras] = useState("");
   const [indexUrl, setIndexUrl] = useState("");
@@ -82,7 +83,12 @@ export function EnvironmentsView() {
     version: version.trim(),
     variant,
     pythonVersion: pythonVersion.trim(),
-    pythonProvisioning: requireExistingPython ? "require-existing" : "download-if-missing",
+    pythonProvisioning: pythonMirrorUrl.trim()
+      ? "mirror"
+      : requireExistingPython
+        ? "require-existing"
+        : "download-if-missing",
+    pythonMirrorUrl: pythonMirrorUrl.trim() || null,
     source:
       sourceKind === "pypi"
         ? {
@@ -97,7 +103,7 @@ export function EnvironmentsView() {
             dependencyIndexUrl: dependencyIndexUrl.trim() || null,
             torchBackend: torchBackend.trim() || null,
           },
-  }), [version, variant, pythonVersion, requireExistingPython, sourceKind, extras, indexUrl, wheelUrl, wheelSha256, dependencyIndexUrl, torchBackend]);
+  }), [version, variant, pythonVersion, requireExistingPython, pythonMirrorUrl, sourceKind, extras, indexUrl, wheelUrl, wheelSha256, dependencyIndexUrl, torchBackend]);
 
   async function refresh() {
     await Promise.all([
@@ -149,6 +155,14 @@ export function EnvironmentsView() {
           onChange={(event) => setRequireExistingPython(event.currentTarget.checked)}
           label="Offline: require an existing uv-managed Python runtime"
           description="Fail before installation instead of downloading Python from the public runtime registry"
+        />
+        <TextInput
+          mt="sm"
+          label="Python runtime mirror URL"
+          description="Optional airgap bundle/python-runtime-mirror file or HTTP URL; takes precedence over the switch above"
+          placeholder="file:///media/airgap-bundle/python-runtime-mirror"
+          value={pythonMirrorUrl}
+          onChange={(event) => setPythonMirrorUrl(event.currentTarget.value)}
         />
         <SegmentedControl
           mt="sm"
