@@ -66,7 +66,14 @@ export function environmentJobSteps(spec: EnvironmentSpec, uv: string): Environm
   });
   return [
     step("python-install", [uv, "python", "install", spec.pythonVersion]),
-    step("venv-create", [uv, "venv", "--python", spec.pythonVersion, staging]),
+    step("venv-create", [
+      uv,
+      "venv",
+      "--relocatable",
+      "--python",
+      spec.pythonVersion,
+      staging,
+    ]),
     step("package-install", install),
     step("freeze", [uv, "pip", "freeze", "--python", python]),
     step("finalize", ["finalize-environment", staging, environmentDirectory(spec)]),

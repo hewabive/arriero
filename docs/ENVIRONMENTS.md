@@ -20,7 +20,7 @@ After a manager restart job history is intentionally lost; abandoned `.staging` 
 Only one environment job runs at a time. The runner executes:
 
 1. `uv python install <pythonVersion>`;
-2. `uv venv --python <pythonVersion> <staging>`;
+2. `uv venv --relocatable --python <pythonVersion> <staging>`;
 3. `uv pip install --python <staging>/bin/python <pinned source>`;
 4. `uv pip freeze` into runtime `freeze.txt`;
 5. validate `bin/vllm`, atomically rename staging to final, and reconcile Path Catalog.

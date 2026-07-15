@@ -79,7 +79,7 @@ Modeled on the build domain: a job runner with streamed step logs, producing a r
 
 - `envs/uv.ts` — uv detection, version surfaced in `SystemResources`/Diagnostics.
 - Env specs are file-backed portable config: `config/envs.json` (aggregate array, in-memory cache + atomic write-through, same pattern as `path-catalog.json`): `{ id, engine: "vllm", version, pythonVersion, source, pathCatalogEntryId, createdAt, updatedAt }`. The venv itself is runtime state — rebuildable from the spec, never in git.
-- Job steps: `uv python install <ver>` → `uv venv --python <ver> <staging>` → `uv pip install --python <staging>/bin/python <source>` → write `freeze.txt` → validate entrypoint → atomic rename → register/reconcile the path-catalog entry.
+- Job steps: `uv python install <ver>` → `uv venv --relocatable --python <ver> <staging>` → `uv pip install --python <staging>/bin/python <source>` → write `freeze.txt` → validate entrypoint → atomic rename → register/reconcile the path-catalog entry. Relocatable mode keeps console-script shebangs valid after the staging directory is renamed.
 - Layout: `runtime/envs/`, overridable via `LLAMA_MANAGER_ENVS_DIR`. Envs are immutable: a new version = a new venv; no in-place upgrades.
 - Delete = remove venv dir + catalog entry; refused while any instance references the entry via `binaryPathRefId`.
 - API supports list/create/rebuild/delete, one active install job, cancel, and polled log tail. Delete is guarded by instance references and active jobs.
