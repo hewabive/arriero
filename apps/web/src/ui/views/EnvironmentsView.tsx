@@ -8,6 +8,7 @@ import {
   SegmentedControl,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   TextInput,
 } from "@mantine/core";
@@ -39,6 +40,7 @@ export function EnvironmentsView() {
   const queryClient = useQueryClient();
   const [version, setVersion] = useState("");
   const [pythonVersion, setPythonVersion] = useState("3.12");
+  const [requireExistingPython, setRequireExistingPython] = useState(false);
   const [sourceKind, setSourceKind] = useState<"pypi" | "wheel">("pypi");
   const [extras, setExtras] = useState("");
   const [indexUrl, setIndexUrl] = useState("");
@@ -77,6 +79,7 @@ export function EnvironmentsView() {
     engine: "vllm",
     version: version.trim(),
     pythonVersion: pythonVersion.trim(),
+    pythonProvisioning: requireExistingPython ? "require-existing" : "download-if-missing",
     source:
       sourceKind === "pypi"
         ? {
@@ -90,7 +93,7 @@ export function EnvironmentsView() {
             sha256: wheelSha256.trim() || null,
             torchBackend: torchBackend.trim() || null,
           },
-  }), [version, pythonVersion, sourceKind, extras, indexUrl, wheelUrl, wheelSha256, torchBackend]);
+  }), [version, pythonVersion, requireExistingPython, sourceKind, extras, indexUrl, wheelUrl, wheelSha256, torchBackend]);
 
   async function refresh() {
     await Promise.all([
@@ -136,6 +139,13 @@ export function EnvironmentsView() {
           <TextInput label="vLLM version" required value={version} onChange={(event) => setVersion(event.currentTarget.value)} placeholder="0.24.0" />
           <TextInput label="Python version" required value={pythonVersion} onChange={(event) => setPythonVersion(event.currentTarget.value)} />
         </SimpleGrid>
+        <Switch
+          mt="sm"
+          checked={requireExistingPython}
+          onChange={(event) => setRequireExistingPython(event.currentTarget.checked)}
+          label="Offline: require an existing uv-managed Python runtime"
+          description="Fail before installation instead of downloading Python from the public runtime registry"
+        />
         <SegmentedControl mt="sm" value={sourceKind} onChange={(value) => setSourceKind(value as "pypi" | "wheel")} data={[{ label: "PyPI", value: "pypi" }, { label: "Wheel URL", value: "wheel" }]} />
         {sourceKind === "pypi" ? (
           <SimpleGrid mt="sm" cols={{ base: 1, sm: 2 }}>
@@ -163,7 +173,7 @@ export function EnvironmentsView() {
               <Group justify="space-between" align="flex-start">
                 <div>
                   <Group gap="xs"><Text fw={600}>vLLM {environment.version}</Text><Badge color={statusColor(environment.status)}>{environment.status}</Badge></Group>
-                  <Text size="xs" c="dimmed">Python {environment.pythonVersion} · {formatLocalDateTime(environment.createdAt)}</Text>
+                  <Text size="xs" c="dimmed">Python {environment.pythonVersion} · {environment.pythonProvisioning} · {formatLocalDateTime(environment.createdAt)}</Text>
                 </div>
                 <Group gap="xs">
                   {environment.status !== "installed" && <Button size="xs" variant="light" disabled={running} onClick={() => rebuildMutation.mutate(environment.id)}>Rebuild</Button>}

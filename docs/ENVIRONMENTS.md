@@ -20,13 +20,22 @@ After a manager restart job history is intentionally lost; abandoned `.staging` 
 
 Only one environment job runs at a time. The runner executes:
 
-1. `uv python install <pythonVersion>`;
+1. either `uv python install <pythonVersion>` or, in offline mode,
+   `uv python find --managed-python --no-python-downloads <pythonVersion>`;
 2. `uv venv --relocatable --python <pythonVersion> <staging>`;
 3. `uv pip install --python <staging>/bin/python <pinned source>`;
 4. `uv pip freeze` into runtime `freeze.txt`;
 5. validate `bin/vllm`, atomically rename staging to final, and reconcile Path Catalog.
 
 The child owns a process group so cancel and manager shutdown terminate uv and its descendants. Failure removes staging and never publishes a partial final environment.
+
+`pythonProvisioning` makes runtime acquisition explicit. The default,
+`download-if-missing`, preserves the normal uv-managed download flow.
+`require-existing` is the closed-network mode: the API performs a local-only preflight
+before persisting a new spec or starting a rebuild, and the first recorded job step
+repeats that check. If the requested managed interpreter is absent, installation fails
+with an actionable error before a venv or package download is attempted. The UI exposes
+this as the offline Python-runtime switch.
 
 ## Sources and reproducibility
 

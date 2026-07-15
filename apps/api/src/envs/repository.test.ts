@@ -18,6 +18,7 @@ test("environment specs persist desired state and catalog ownership", () => {
     engine: "vllm",
     version: "0.24.0",
     pythonVersion: "3.12",
+    pythonProvisioning: "download-if-missing",
     source: { kind: "pypi", extras: [], indexUrl: null },
   });
   assert.equal(created.pathCatalogEntryId, null);

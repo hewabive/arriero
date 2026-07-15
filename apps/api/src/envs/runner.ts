@@ -30,7 +30,7 @@ import {
   getEnvironmentJob,
   updateEnvironmentJob,
 } from "./repository.js";
-import { findUv } from "./uv.js";
+import { assertUvPythonAvailable, findUv, uvPythonPreflightCommand } from "./uv.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -76,7 +76,9 @@ export function environmentJobSteps(spec: EnvironmentSpec, uv: string): Environm
     exitCode: null,
   });
   return [
-    step("python-install", [uv, "python", "install", spec.pythonVersion]),
+    spec.pythonProvisioning === "require-existing"
+      ? step("python-preflight", uvPythonPreflightCommand(uv, spec.pythonVersion))
+      : step("python-install", [uv, "python", "install", spec.pythonVersion]),
     step("venv-create", [
       uv,
       "venv",
@@ -113,6 +115,9 @@ export class EnvironmentRunner {
     }
     const uv = findUv();
     if (!uv) throw new Error("uv was not found on PATH");
+    if (spec.pythonProvisioning === "require-existing") {
+      assertUvPythonAvailable(uv, spec.pythonVersion);
+    }
     const finalDir = environmentDirectory(spec);
     if (existsSync(finalDir)) throw new Error("environment is already installed");
     const job = createEnvironmentJob({

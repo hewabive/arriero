@@ -26,7 +26,7 @@ import {
   listEnvironmentSpecs,
 } from "./repository.js";
 import { environmentRunner } from "./runner.js";
-import { findUv } from "./uv.js";
+import { assertUvPythonAvailable, findUv } from "./uv.js";
 import { environmentLayoutError } from "./validation.js";
 
 function latestJob(spec: EnvironmentSpec) {
@@ -75,23 +75,28 @@ export function getEnvironment(id: string) {
   return spec ? toRecord(spec) : null;
 }
 
-function assertCanStart() {
-  if (!findUv()) throw new Error("uv was not found on PATH");
+function assertCanStart(spec: Pick<EnvironmentSpec, "pythonProvisioning" | "pythonVersion">) {
+  const uv = findUv();
+  if (!uv) throw new Error("uv was not found on PATH");
   if (environmentRunner.activeEnvironmentId()) {
     throw new Error("another environment installation is already running");
+  }
+  if (spec.pythonProvisioning === "require-existing") {
+    assertUvPythonAvailable(uv, spec.pythonVersion);
   }
 }
 
 export function createEnvironment(input: EnvironmentCreate) {
-  assertCanStart();
-  const spec = createEnvironmentSpec(EnvironmentCreateSchema.parse(input));
+  const parsed = EnvironmentCreateSchema.parse(input);
+  assertCanStart(parsed);
+  const spec = createEnvironmentSpec(parsed);
   return { environment: toRecord(spec), job: environmentRunner.start(spec) };
 }
 
 export function rebuildEnvironment(id: string) {
-  assertCanStart();
   const spec = getEnvironmentSpec(id);
   if (!spec) return null;
+  assertCanStart(spec);
   if (existsSync(environmentDirectory(spec))) {
     throw new Error("environment is already installed");
   }

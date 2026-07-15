@@ -4,10 +4,14 @@ import test from "node:test";
 
 import { environmentJobSteps } from "./runner.js";
 
-function spec(source: unknown) {
+function spec(
+  source: unknown,
+  pythonProvisioning: "download-if-missing" | "require-existing" = "download-if-missing",
+) {
   const input = EnvironmentCreateSchema.parse({
     version: "0.24.0",
     pythonVersion: "3.12.13",
+    pythonProvisioning,
     source,
   });
   return EnvironmentSpecSchema.parse({
@@ -59,6 +63,29 @@ test("wheel environment plan carries hash and torch backend", () => {
   const command = steps.find((step) => step.name === "package-install")!.command;
   assert.ok(command.includes(`https://example/vllm.whl#sha256=${hash}`));
   assert.deepEqual(command.slice(-2), ["--torch-backend", "cpu"]);
+});
+
+test("offline environment plan preflights Python without downloads", () => {
+  const steps = environmentJobSteps(
+    spec(
+      { kind: "pypi", extras: [], indexUrl: "http://gitea.local/api/packages/pypi/pypi/simple" },
+      "require-existing",
+    ),
+    "uv",
+  );
+
+  assert.equal(steps[0]?.name, "python-preflight");
+  assert.deepEqual(steps[0]?.command, [
+    "uv",
+    "python",
+    "find",
+    "--no-project",
+    "--managed-python",
+    "--no-python-downloads",
+    "--show-version",
+    "3.12.13",
+  ]);
+  assert.equal(steps.some((step) => step.name === "python-install"), false);
 });
 
 test("environment source rejects credential-bearing URLs", () => {

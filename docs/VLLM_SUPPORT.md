@@ -50,7 +50,7 @@ Run vLLM by hand in a scratch uv venv and answer the unknowns that shape phases 
 
 Extra findings that shaped decisions:
 
-- **System python is not enough**: the CPU backend JIT-compiles kernels through torch inductor even under `--enforce-eager` and dies on a missing `Python.h`; distro pythons lack dev headers unless `-dev` is installed. uv-managed interpreters (python-build-standalone) ship headers — the env domain must always use `uv python install` interpreters, never the system python. Confirms the uv decision with teeth.
+- **System python is not enough**: the CPU backend JIT-compiles kernels through torch inductor even under `--enforce-eager` and dies on a missing `Python.h`; distro pythons lack dev headers unless `-dev` is installed. uv-managed interpreters (python-build-standalone) ship headers — the env domain uses only managed interpreters. Offline installs select `pythonProvisioning: "require-existing"`, which performs a no-download preflight before any installation work.
 - **CPU-variant wheels** live as GitHub release assets (`vllm-<v>+cpu-cp38-abi3-manylinux_2_34_x86_64.whl`, ~107 MiB vs 266 MiB CUDA-implied PyPI wheel), installable via `uv pip install <url> --torch-backend cpu`. The env spec should support a variant/wheel-source override so GPU-less dev machines can run real vLLM end-to-end.
 - venv size ~2.7 GiB (CPU torch); entrypoint `bin/vllm` shebang-resolves its interpreter — no activation anywhere.
 

@@ -1906,6 +1906,9 @@ export const EnvironmentCreateSchema = z.object({
   engine: z.literal("vllm").default("vllm"),
   version: EnvironmentVersionSchema,
   pythonVersion: PythonVersionSchema.default("3.12"),
+  pythonProvisioning: z
+    .enum(["download-if-missing", "require-existing"])
+    .default("download-if-missing"),
   source: EnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],
@@ -1941,6 +1944,7 @@ export const EnvironmentJobStatusSchema = z.enum([
   "canceled",
 ]);
 export const EnvironmentJobStepNameSchema = z.enum([
+  "python-preflight",
   "python-install",
   "venv-create",
   "package-install",
