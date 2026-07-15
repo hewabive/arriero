@@ -24,6 +24,7 @@ import {
   environmentEntrypoint,
   environmentStagingDirectory,
 } from "./paths.js";
+import { environmentLayoutError } from "./validation.js";
 import {
   createEnvironmentJob,
   getEnvironmentJob,
@@ -46,8 +47,18 @@ function packageRequirement(spec: EnvironmentSpec) {
   return `vllm${extras}==${spec.version}`;
 }
 
+function validationScript(version: string) {
+  return [
+    "import importlib.metadata as metadata",
+    "import vllm",
+    `assert metadata.version('vllm') == ${JSON.stringify(version)}`,
+    `assert vllm.__version__ == ${JSON.stringify(version)}`,
+  ].join("; ");
+}
+
 export function environmentJobSteps(spec: EnvironmentSpec, uv: string): EnvironmentJobStep[] {
   const staging = environmentStagingDirectory(spec);
+  const final = environmentDirectory(spec);
   const python = resolve(staging, "bin", "python");
   const install = [uv, "pip", "install", "--python", python, packageRequirement(spec)];
   if (spec.source.kind === "pypi" && spec.source.indexUrl) {
@@ -76,7 +87,8 @@ export function environmentJobSteps(spec: EnvironmentSpec, uv: string): Environm
     ]),
     step("package-install", install),
     step("freeze", [uv, "pip", "freeze", "--python", python]),
-    step("finalize", ["finalize-environment", staging, environmentDirectory(spec)]),
+    step("finalize", ["finalize-environment", staging, final]),
+    step("validate", [resolve(final, "bin", "python"), "-c", validationScript(spec.version)]),
   ];
 }
 
@@ -155,10 +167,13 @@ export class EnvironmentRunner {
     const finalDir = environmentDirectory(spec);
     rmSync(staging, { recursive: true, force: true });
     const log = createWriteStream(getEnvironmentJob(jobId)!.logPath, { flags: "a" });
+    let finalized = false;
+    let activeExitCode: number | null = null;
     try {
       for (const planned of getEnvironmentJob(jobId)!.steps) {
         if (this.running?.canceled) throw new Error("canceled by user");
         this.mark(jobId, planned.name, "running", null);
+        activeExitCode = null;
         log.write(`$ ${planned.command.join(" ")}\n`);
         let output = "";
         let exitCode = 0;
@@ -168,15 +183,21 @@ export class EnvironmentRunner {
             throw new Error(`vLLM entrypoint was not installed: ${stagingEntrypoint}`);
           }
           renameSync(staging, finalDir);
+          finalized = true;
         } else {
           const result = await this.runCommand(planned.command, log);
           output = result.stdout;
           exitCode = result.exitCode;
+          activeExitCode = exitCode;
         }
         if (this.running?.canceled) throw new Error("canceled by user");
         if (exitCode !== 0) throw new Error(`${planned.name} exited with code ${exitCode}`);
         if (planned.name === "freeze") {
           writeFileSync(resolve(staging, "freeze.txt"), output, "utf8");
+        }
+        if (planned.name === "validate") {
+          const layoutError = environmentLayoutError(spec);
+          if (layoutError) throw new Error(layoutError);
         }
         this.mark(jobId, planned.name, "succeeded", exitCode);
         log.write(`\n# ${planned.name} completed\n\n`);
@@ -194,7 +215,13 @@ export class EnvironmentRunner {
       });
     } catch (error) {
       const canceled = this.running?.canceled === true;
+      const current = getEnvironmentJob(jobId);
+      const runningStep = current?.steps.find((step) => step.status === "running");
+      if (runningStep) {
+        this.mark(jobId, runningStep.name, "failed", activeExitCode);
+      }
       rmSync(staging, { recursive: true, force: true });
+      if (finalized) rmSync(finalDir, { recursive: true, force: true });
       log.write(`\n# error: ${(error as Error).message}\n`);
       updateEnvironmentJob(jobId, {
         status: canceled ? "canceled" : "failed",

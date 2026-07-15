@@ -27,6 +27,7 @@ import {
 } from "./repository.js";
 import { environmentRunner } from "./runner.js";
 import { findUv } from "./uv.js";
+import { environmentLayoutError } from "./validation.js";
 
 function latestJob(spec: EnvironmentSpec) {
   return listEnvironmentJobs(100).find((job) => job.environmentId === spec.id) ?? null;
@@ -37,26 +38,31 @@ function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
   const entrypoint = environmentEntrypoint(spec);
   const job = latestJob(spec);
   const installed = existsSync(entrypoint);
+  const layoutError = installed ? environmentLayoutError(spec) : null;
   const status =
     job?.status === "running"
       ? "installing"
-      : installed
-        ? "ready"
+      : installed && !layoutError
+        ? "installed"
         : job?.status === "failed" || job?.status === "canceled"
           ? "failed"
           : "missing";
+  const error =
+    status === "failed"
+      ? layoutError ?? job?.error ?? "installation failed"
+      : null;
   return EnvironmentRecordSchema.parse({
     ...spec,
     status,
     path,
     entrypoint,
-    error: status === "failed" ? job?.error ?? "installation failed" : null,
+    error,
   });
 }
 
 export function listEnvironments() {
   return listEnvironmentSpecs().map((spec) => {
-    if (existsSync(environmentEntrypoint(spec))) {
+    if (existsSync(environmentEntrypoint(spec)) && !environmentLayoutError(spec)) {
       reconcileEnvironmentCatalog(spec);
       return toRecord(getEnvironmentSpec(spec.id) ?? spec);
     }
@@ -127,5 +133,6 @@ export function initializeEnvironments() {
     swept += 1;
   }
   const records = listEnvironments();
-  return { specs: records.length, ready: records.filter((item) => item.status === "ready").length, swept };
+  const installed = records.filter((item) => item.status === "installed").length;
+  return { specs: records.length, installed, ready: installed, swept };
 }

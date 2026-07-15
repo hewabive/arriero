@@ -10,7 +10,8 @@ Status is derived rather than persisted:
 
 - `missing`: spec exists, final entrypoint does not;
 - `installing`: this manager owns the active job;
-- `ready`: `<env>/bin/vllm` exists;
+- `installed`: the final entrypoint, Python, freeze file, relocatable launcher, and
+  `import vllm` validation all succeeded;
 - `failed`: the latest in-memory job failed or was canceled and no final entrypoint exists.
 
 After a manager restart job history is intentionally lost; abandoned `.staging` directories are swept and the durable spec becomes `missing`, ready for rebuild.

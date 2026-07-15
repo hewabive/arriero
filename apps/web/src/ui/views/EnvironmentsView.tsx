@@ -28,7 +28,7 @@ import {
 import { formatLocalDateTime } from "../utils/time";
 
 function statusColor(status: string) {
-  if (status === "ready" || status === "succeeded") return "green";
+  if (status === "installed" || status === "succeeded") return "green";
   if (status === "installing" || status === "running") return "blue";
   if (status === "failed") return "red";
   if (status === "canceled") return "orange";
@@ -166,7 +166,7 @@ export function EnvironmentsView() {
                   <Text size="xs" c="dimmed">Python {environment.pythonVersion} · {formatLocalDateTime(environment.createdAt)}</Text>
                 </div>
                 <Group gap="xs">
-                  {environment.status !== "ready" && <Button size="xs" variant="light" disabled={running} onClick={() => rebuildMutation.mutate(environment.id)}>Rebuild</Button>}
+                  {environment.status !== "installed" && <Button size="xs" variant="light" disabled={running} onClick={() => rebuildMutation.mutate(environment.id)}>Rebuild</Button>}
                   <Button size="xs" color="red" variant="subtle" disabled={environment.status === "installing"} onClick={() => deleteMutation.mutate(environment.id)}>Delete</Button>
                 </Group>
               </Group>

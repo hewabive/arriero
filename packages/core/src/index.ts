@@ -1923,7 +1923,7 @@ export const EnvironmentSpecSchema = EnvironmentCreateSchema.extend({
 export const EnvironmentStatusSchema = z.enum([
   "missing",
   "installing",
-  "ready",
+  "installed",
   "failed",
 ]);
 
@@ -1946,6 +1946,7 @@ export const EnvironmentJobStepNameSchema = z.enum([
   "package-install",
   "freeze",
   "finalize",
+  "validate",
 ]);
 export const EnvironmentJobStepSchema = z.object({
   name: EnvironmentJobStepNameSchema,

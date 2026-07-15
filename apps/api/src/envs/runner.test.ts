@@ -34,12 +34,15 @@ test("pypi environment plan pins Python, version, extras and index", () => {
     "package-install",
     "freeze",
     "finalize",
+    "validate",
   ]);
   const venv = steps.find((step) => step.name === "venv-create")!;
   assert.ok(venv.command.includes("--relocatable"));
   const install = steps.find((step) => step.name === "package-install")!;
   assert.ok(install.command.includes("vllm[audio]==0.24.0"));
   assert.ok(install.command.includes("https://packages.example/simple"));
+  const validate = steps.find((step) => step.name === "validate")!;
+  assert.ok(validate.command.at(-1)?.includes("import vllm"));
 });
 
 test("wheel environment plan carries hash and torch backend", () => {
