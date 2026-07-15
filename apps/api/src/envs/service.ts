@@ -30,6 +30,7 @@ import { assertUvPythonAvailable, findUv } from "./uv.js";
 import { environmentLayoutError } from "./validation.js";
 import { environmentAvailability, rocmDeviceAvailable } from "./availability.js";
 import { getSystemAccelerators } from "../system/resources.js";
+import { offlineEnvironmentPolicyError } from "./offline-policy.js";
 
 function latestJob(spec: EnvironmentSpec) {
   return listEnvironmentJobs(100).find((job) => job.environmentId === spec.id) ?? null;
@@ -87,7 +88,7 @@ export function getEnvironment(id: string) {
 function assertCanStart(
   spec: Pick<
     EnvironmentSpec,
-    "pythonMirrorUrl" | "pythonProvisioning" | "pythonVersion"
+    "pythonMirrorUrl" | "pythonProvisioning" | "pythonVersion" | "source"
   >,
 ) {
   const uv = findUv();
@@ -98,9 +99,8 @@ function assertCanStart(
   if (spec.pythonProvisioning === "require-existing") {
     assertUvPythonAvailable(uv, spec.pythonVersion);
   }
-  if (spec.pythonProvisioning === "mirror" && !spec.pythonMirrorUrl) {
-    throw new Error("Python mirror provisioning requires pythonMirrorUrl");
-  }
+  const offlinePolicyError = offlineEnvironmentPolicyError(spec);
+  if (offlinePolicyError) throw new Error(offlinePolicyError);
 }
 
 export function createEnvironment(input: EnvironmentCreate) {

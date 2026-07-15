@@ -61,3 +61,9 @@ The spec is recreatable but not an exact lock: dependency resolution may change 
 Final directories are derived from the stable spec id and are root-confined. The generated binary entry is tagged `engineKind: "vllm"`; reconciliation repairs a missing or edited entry. Delete is refused while its catalog entry is referenced by an instance or its install job is active.
 
 The Environments page exposes create/rebuild/delete, current uv availability, the active job, cancellation, and a polling log tail. Once ready, the generated binary appears automatically in the vLLM instance form; that form stores the model repository/path as the first positional argument and the descriptor supplies the fixed `serve` prefix.
+
+Mirror provisioning also activates a no-public-network policy before the job starts.
+PyPI sources must name an explicit non-public index; wheel sources must use a non-public
+root URL plus an explicit non-public dependency index; runtime mirrors cannot point at
+GitHub, PyPI, pythonhosted.org, or Astral's public hosts. This prevents a typo or omitted
+index from silently falling back to the Internet.

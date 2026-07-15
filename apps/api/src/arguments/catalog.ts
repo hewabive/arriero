@@ -32,6 +32,10 @@ import {
 import { parseLlamaArgumentOptions } from "./help-parser.js";
 import { parseVllmArgumentOptions } from "./vllm-help-parser.js";
 import {
+  vllmFallbackArgumentOptions,
+  vllmFallbackHelpHash,
+} from "./vllm-fallback.js";
+import {
   categoryNameRu,
   helpRuOverlay,
   optionFallbackHelpRu,
@@ -253,7 +257,9 @@ function toCatalog(input: {
     generatedAt: input.cached.generatedAt,
     source: {
       kind: "help",
-      command: helpCommand(input.binaryPath, input.parserId),
+      command: input.cached.helpHash.startsWith("fallback:")
+        ? ["llama-manager", "vllm-fallback-catalog"]
+        : helpCommand(input.binaryPath, input.parserId),
       hash: input.cached.helpHash,
       binarySize: input.cached.binarySize,
       binaryModifiedAt: input.cached.binaryModifiedAt,
@@ -269,9 +275,18 @@ function generateCatalog(
   parserId: ArgumentCatalogHelpParserId,
 ) {
   const invocation = HELP_INVOCATIONS[parserId];
-  const helpOutput = runHelp(binaryPath, invocation.args, invocation.timeoutMs);
-  const helpHash = createHash("sha256").update(helpOutput).digest("hex");
-  const options = HELP_PARSERS[parserId](helpOutput);
+  let helpHash: string;
+  let options: ArgumentOption[];
+  try {
+    const helpOutput = runHelp(binaryPath, invocation.args, invocation.timeoutMs);
+    helpHash = createHash("sha256").update(helpOutput).digest("hex");
+    options = HELP_PARSERS[parserId](helpOutput);
+    if (options.length === 0) throw new Error("engine help contained no argument options");
+  } catch (error) {
+    if (parserId !== "vllm-help") throw error;
+    helpHash = vllmFallbackHelpHash;
+    options = vllmFallbackArgumentOptions();
+  }
 
   const saved = saveArgumentCatalog({
     binaryPath,
@@ -293,19 +308,29 @@ async function generateCatalogAsync(
   parserId: ArgumentCatalogHelpParserId,
 ) {
   const invocation = HELP_INVOCATIONS[parserId];
-  const helpOutput = await runHelpAsync(
-    binaryPath,
-    invocation.args,
-    invocation.timeoutMs,
-  );
-  const helpHash = createHash("sha256").update(helpOutput).digest("hex");
+  let helpHash: string;
+  let options: ArgumentOption[];
+  try {
+    const helpOutput = await runHelpAsync(
+      binaryPath,
+      invocation.args,
+      invocation.timeoutMs,
+    );
+    helpHash = createHash("sha256").update(helpOutput).digest("hex");
+    options = HELP_PARSERS[parserId](helpOutput);
+    if (options.length === 0) throw new Error("engine help contained no argument options");
+  } catch (error) {
+    if (parserId !== "vllm-help") throw error;
+    helpHash = vllmFallbackHelpHash;
+    options = vllmFallbackArgumentOptions();
+  }
   const saved = saveArgumentCatalog({
     binaryPath,
     binarySize: stat.binarySize,
     binaryMtimeMs: stat.binaryMtimeMs,
     binaryModifiedAt: stat.binaryModifiedAt,
     helpHash,
-    options: HELP_PARSERS[parserId](helpOutput),
+    options,
     generatedAt: nowIso(),
     parserId,
   });
