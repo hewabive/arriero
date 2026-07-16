@@ -34,7 +34,9 @@ test("offline pypi source must name a closed-network index", () => {
     /public host/,
   );
   assert.match(
-    offlineEnvironmentPolicyError(input({ kind: "pypi", extras: [], indexUrl: null }))!,
+    offlineEnvironmentPolicyError(
+      input({ kind: "pypi", extras: [], indexUrl: null }),
+    )!,
     /explicit closed-network index/,
   );
 });
@@ -52,4 +54,32 @@ test("offline wheel source cannot silently resolve dependencies from public PyPI
     )!,
     /dependency index/,
   );
+});
+
+test("offline KTransformers wheels validate every root URL", () => {
+  const spec = EnvironmentCreateSchema.parse({
+    engine: "ktransformers",
+    version: "0.6.3.post1",
+    pythonVersion: "3.12",
+    pythonProvisioning: "mirror",
+    pythonMirrorUrl: "file:///media/airgap-bundle/python-runtime-mirror",
+    source: {
+      kind: "wheels",
+      artifacts: [
+        {
+          distribution: "kt-kernel",
+          url: "file:///media/wheels/kt_kernel.whl",
+          sha256: "a".repeat(64),
+        },
+        {
+          distribution: "sglang-kt",
+          url: "https://pypi.org/sglang_kt.whl",
+          sha256: "b".repeat(64),
+        },
+      ],
+      dependencyIndexUrl: "https://packages.local/simple",
+      torchBackend: "cu128",
+    },
+  });
+  assert.match(offlineEnvironmentPolicyError(spec) ?? "", /public host/);
 });

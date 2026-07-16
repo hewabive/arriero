@@ -22,7 +22,9 @@ test("environment layout rejects stale staging launchers", () => {
   const directory = environmentDirectory(spec);
   rmSync(directory, { recursive: true, force: true });
   mkdirSync(resolve(directory, "bin"), { recursive: true });
-  writeFileSync(resolve(directory, "bin", "python"), "#!/bin/sh\n", { mode: 0o755 });
+  writeFileSync(resolve(directory, "bin", "python"), "#!/bin/sh\n", {
+    mode: 0o755,
+  });
   writeFileSync(
     resolve(directory, "bin", "vllm"),
     `#!${environmentStagingDirectory(spec)}/bin/python\n`,
@@ -34,9 +36,46 @@ test("environment layout rejects stale staging launchers", () => {
 
   writeFileSync(
     resolve(directory, "bin", "vllm"),
-    "#!/bin/sh\nexec \"$(dirname \"$0\")/python\" \"$0\" \"$@\"\n",
+    '#!/bin/sh\nexec "$(dirname "$0")/python" "$0" "$@"\n',
     { mode: 0o755 },
   );
   assert.equal(environmentLayoutError(spec), null);
+  rmSync(directory, { recursive: true, force: true });
+});
+
+const ktSpec = EnvironmentSpecSchema.parse({
+  engine: "ktransformers",
+  version: "0.6.3.post1",
+  pythonVersion: "3.12",
+  id: "kt-layout-validation-test",
+  pathCatalogEntryId: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+});
+
+test("KTransformers layout requires sglang and both exact package pins", () => {
+  const directory = environmentDirectory(ktSpec);
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(resolve(directory, "bin"), { recursive: true });
+  writeFileSync(resolve(directory, "bin", "python"), "#!/bin/sh\n", {
+    mode: 0o755,
+  });
+  writeFileSync(resolve(directory, "bin", "sglang"), "#!/bin/sh\n", {
+    mode: 0o755,
+  });
+  writeFileSync(
+    resolve(directory, "freeze.txt"),
+    "kt-kernel==0.6.3.post1\n",
+    "utf8",
+  );
+
+  assert.match(environmentLayoutError(ktSpec) ?? "", /sglang-kt/);
+
+  writeFileSync(
+    resolve(directory, "freeze.txt"),
+    "KT-Kernel==0.6.3.post1\nsglang-kt==0.6.3.post1\n",
+    "utf8",
+  );
+  assert.equal(environmentLayoutError(ktSpec), null);
   rmSync(directory, { recursive: true, force: true });
 });

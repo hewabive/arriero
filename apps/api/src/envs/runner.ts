@@ -1,5 +1,4 @@
 import type {
-  EnvironmentInstallSource,
   EnvironmentJob,
   EnvironmentJobStep,
   EnvironmentJobStepName,
@@ -25,52 +24,43 @@ import {
   environmentStagingDirectory,
 } from "./paths.js";
 import { environmentLayoutError } from "./validation.js";
+import { environmentProvisioner } from "./provisioners.js";
 import {
   createEnvironmentJob,
   getEnvironmentJob,
   updateEnvironmentJob,
 } from "./repository.js";
-import { assertUvPythonAvailable, findUv, uvPythonPreflightCommand } from "./uv.js";
+import {
+  assertUvPythonAvailable,
+  findUv,
+  uvPythonPreflightCommand,
+} from "./uv.js";
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function packageRequirement(spec: EnvironmentSpec) {
-  if (spec.source.kind === "wheel") {
-    const suffix = spec.source.sha256 ? `#sha256=${spec.source.sha256}` : "";
-    return `${spec.source.url}${suffix}`;
-  }
-  const extras = spec.source.extras.length
-    ? `[${spec.source.extras.join(",")}]`
-    : "";
-  return `vllm${extras}==${spec.version}`;
-}
-
-function validationScript(version: string) {
-  return [
-    "import importlib.metadata as metadata",
-    "import vllm",
-    `assert metadata.version('vllm') == ${JSON.stringify(version)}`,
-    `assert vllm.__version__ == ${JSON.stringify(version)}`,
-  ].join("; ");
-}
-
-export function environmentJobSteps(spec: EnvironmentSpec, uv: string): EnvironmentJobStep[] {
+export function environmentJobSteps(
+  spec: EnvironmentSpec,
+  uv: string,
+): EnvironmentJobStep[] {
   const staging = environmentStagingDirectory(spec);
   const final = environmentDirectory(spec);
   const python = resolve(staging, "bin", "python");
-  const install = [uv, "pip", "install", "--python", python, packageRequirement(spec)];
-  if (spec.source.kind === "pypi" && spec.source.indexUrl) {
-    install.push("--index-url", spec.source.indexUrl);
-  }
-  if (spec.source.kind === "wheel" && spec.source.dependencyIndexUrl) {
-    install.push("--index-url", spec.source.dependencyIndexUrl);
-  }
-  if (spec.source.kind === "wheel" && spec.source.torchBackend) {
-    install.push("--torch-backend", spec.source.torchBackend);
-  }
-  const step = (name: EnvironmentJobStepName, command: string[]): EnvironmentJobStep => ({
+  const provisioner = environmentProvisioner(spec.engine);
+  const install = [
+    uv,
+    "pip",
+    "install",
+    "--python",
+    python,
+    ...provisioner.requirements(spec),
+    ...provisioner.installOptions(spec),
+  ];
+  const step = (
+    name: EnvironmentJobStepName,
+    command: string[],
+  ): EnvironmentJobStep => ({
     name,
     command,
     status: "pending",
@@ -80,7 +70,10 @@ export function environmentJobSteps(spec: EnvironmentSpec, uv: string): Environm
   });
   return [
     spec.pythonProvisioning === "require-existing"
-      ? step("python-preflight", uvPythonPreflightCommand(uv, spec.pythonVersion))
+      ? step(
+          "python-preflight",
+          uvPythonPreflightCommand(uv, spec.pythonVersion),
+        )
       : step(
           "python-install",
           spec.pythonProvisioning === "mirror"
@@ -105,7 +98,7 @@ export function environmentJobSteps(spec: EnvironmentSpec, uv: string): Environm
     step("package-install", install),
     step("freeze", [uv, "pip", "freeze", "--python", python]),
     step("finalize", ["finalize-environment", staging, final]),
-    step("validate", [resolve(final, "bin", "python"), "-c", validationScript(spec.version)]),
+    step("validate", provisioner.validationCommand(spec, final)),
   ];
 }
 
@@ -125,7 +118,10 @@ export class EnvironmentRunner {
   }
 
   start(spec: EnvironmentSpec): EnvironmentJob {
-    if (this.running && getEnvironmentJob(this.running.jobId)?.status === "running") {
+    if (
+      this.running &&
+      getEnvironmentJob(this.running.jobId)?.status === "running"
+    ) {
       throw new Error("another environment installation is already running");
     }
     const uv = findUv();
@@ -134,7 +130,8 @@ export class EnvironmentRunner {
       assertUvPythonAvailable(uv, spec.pythonVersion);
     }
     const finalDir = environmentDirectory(spec);
-    if (existsSync(finalDir)) throw new Error("environment is already installed");
+    if (existsSync(finalDir))
+      throw new Error("environment is already installed");
     const job = createEnvironmentJob({
       environmentId: spec.id,
       steps: environmentJobSteps(spec, uv),
@@ -186,9 +183,12 @@ export class EnvironmentRunner {
     const staging = environmentStagingDirectory(spec);
     const finalDir = environmentDirectory(spec);
     rmSync(staging, { recursive: true, force: true });
-    const log = createWriteStream(getEnvironmentJob(jobId)!.logPath, { flags: "a" });
+    const log = createWriteStream(getEnvironmentJob(jobId)!.logPath, {
+      flags: "a",
+    });
     let finalized = false;
     let activeExitCode: number | null = null;
+    const provisioner = environmentProvisioner(spec.engine);
     try {
       for (const planned of getEnvironmentJob(jobId)!.steps) {
         if (this.running?.canceled) throw new Error("canceled by user");
@@ -198,9 +198,14 @@ export class EnvironmentRunner {
         let output = "";
         let exitCode = 0;
         if (planned.name === "finalize") {
-          const stagingEntrypoint = resolve(staging, "bin", "vllm");
+          const stagingEntrypoint = resolve(
+            staging,
+            provisioner.entrypointRelative,
+          );
           if (!existsSync(stagingEntrypoint)) {
-            throw new Error(`vLLM entrypoint was not installed: ${stagingEntrypoint}`);
+            throw new Error(
+              `${provisioner.displayName} entrypoint was not installed: ${stagingEntrypoint}`,
+            );
           }
           renameSync(staging, finalDir);
           finalized = true;
@@ -211,7 +216,8 @@ export class EnvironmentRunner {
           activeExitCode = exitCode;
         }
         if (this.running?.canceled) throw new Error("canceled by user");
-        if (exitCode !== 0) throw new Error(`${planned.name} exited with code ${exitCode}`);
+        if (exitCode !== 0)
+          throw new Error(`${planned.name} exited with code ${exitCode}`);
         if (planned.name === "freeze") {
           writeFileSync(resolve(staging, "freeze.txt"), output, "utf8");
         }
@@ -223,7 +229,9 @@ export class EnvironmentRunner {
         log.write(`\n# ${planned.name} completed\n\n`);
       }
       if (!existsSync(environmentEntrypoint(spec))) {
-        throw new Error("finalized vLLM entrypoint is missing");
+        throw new Error(
+          `finalized ${provisioner.displayName} entrypoint is missing`,
+        );
       }
       const entry = reconcileEnvironmentCatalog(spec);
       log.write(`# registered in path catalog: ${entry.name}\n`);
@@ -236,7 +244,9 @@ export class EnvironmentRunner {
     } catch (error) {
       const canceled = this.running?.canceled === true;
       const current = getEnvironmentJob(jobId);
-      const runningStep = current?.steps.find((step) => step.status === "running");
+      const runningStep = current?.steps.find(
+        (step) => step.status === "running",
+      );
       if (runningStep) {
         this.mark(jobId, runningStep.name, "failed", activeExitCode);
       }
@@ -280,26 +290,31 @@ export class EnvironmentRunner {
   }
 
   private runCommand(command: string[], log: WriteStream) {
-    return new Promise<{ exitCode: number; stdout: string }>((resolveDone, reject) => {
-      const child = spawn(command[0]!, command.slice(1), {
-        env: process.env,
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: process.platform !== "win32",
-      });
-      if (this.running) this.running.child = child;
-      const chunks: Buffer[] = [];
-      child.stdout.on("data", (chunk: Buffer) => {
-        chunks.push(chunk);
-        log.write(chunk);
-      });
-      child.stderr.on("data", (chunk: Buffer) => log.write(chunk));
-      child.once("error", reject);
-      child.once("close", (code, signal) => {
-        if (this.running?.child === child) this.running.child = null;
-        if (signal) log.write(`\n# terminated by ${signal}\n`);
-        resolveDone({ exitCode: code ?? 1, stdout: Buffer.concat(chunks).toString("utf8") });
-      });
-    });
+    return new Promise<{ exitCode: number; stdout: string }>(
+      (resolveDone, reject) => {
+        const child = spawn(command[0]!, command.slice(1), {
+          env: process.env,
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: process.platform !== "win32",
+        });
+        if (this.running) this.running.child = child;
+        const chunks: Buffer[] = [];
+        child.stdout.on("data", (chunk: Buffer) => {
+          chunks.push(chunk);
+          log.write(chunk);
+        });
+        child.stderr.on("data", (chunk: Buffer) => log.write(chunk));
+        child.once("error", reject);
+        child.once("close", (code, signal) => {
+          if (this.running?.child === child) this.running.child = null;
+          if (signal) log.write(`\n# terminated by ${signal}\n`);
+          resolveDone({
+            exitCode: code ?? 1,
+            stdout: Buffer.concat(chunks).toString("utf8"),
+          });
+        });
+      },
+    );
   }
 }
 

@@ -16,26 +16,42 @@ function publicUrl(value: string | null): string | null {
 }
 
 export function offlineEnvironmentPolicyError(
-  spec: Pick<EnvironmentSpec, "pythonMirrorUrl" | "pythonProvisioning" | "source">,
+  spec: Pick<
+    EnvironmentSpec,
+    "pythonMirrorUrl" | "pythonProvisioning" | "source"
+  >,
 ): string | null {
   if (spec.pythonProvisioning !== "mirror") return null;
-  if (!spec.pythonMirrorUrl) return "Python mirror provisioning requires pythonMirrorUrl";
+  if (!spec.pythonMirrorUrl)
+    return "Python mirror provisioning requires pythonMirrorUrl";
   const publicMirror = publicUrl(spec.pythonMirrorUrl);
-  if (publicMirror) return `Python runtime mirror points at a public host: ${publicMirror}`;
+  if (publicMirror)
+    return `Python runtime mirror points at a public host: ${publicMirror}`;
 
   if (spec.source.kind === "pypi") {
     if (!spec.source.indexUrl) {
       return "Offline PyPI installation requires an explicit closed-network index URL";
     }
     const publicIndex = publicUrl(spec.source.indexUrl);
-    return publicIndex ? `Python package index points at a public host: ${publicIndex}` : null;
+    return publicIndex
+      ? `Python package index points at a public host: ${publicIndex}`
+      : null;
   }
 
-  const publicWheel = publicUrl(spec.source.url);
-  if (publicWheel) return `Root wheel points at a public host: ${publicWheel}`;
+  const wheelUrls =
+    spec.source.kind === "wheel"
+      ? [spec.source.url]
+      : spec.source.artifacts.map((artifact) => artifact.url);
+  for (const wheelUrl of wheelUrls) {
+    const publicWheel = publicUrl(wheelUrl);
+    if (publicWheel)
+      return `Root wheel points at a public host: ${publicWheel}`;
+  }
   if (!spec.source.dependencyIndexUrl) {
     return "Offline wheel installation requires a closed-network dependency index URL";
   }
   const publicIndex = publicUrl(spec.source.dependencyIndexUrl);
-  return publicIndex ? `Wheel dependency index points at a public host: ${publicIndex}` : null;
+  return publicIndex
+    ? `Wheel dependency index points at a public host: ${publicIndex}`
+    : null;
 }

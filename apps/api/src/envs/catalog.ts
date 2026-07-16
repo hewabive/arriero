@@ -7,11 +7,12 @@ import {
   updatePathCatalogEntry,
 } from "../path-catalog/repository.js";
 import { environmentEntrypoint } from "./paths.js";
+import { environmentProvisioner } from "./provisioners.js";
 import { updateEnvironmentSpec } from "./repository.js";
 
 export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
   const path = environmentEntrypoint(spec);
-  const desiredName = `vllm ${spec.version} [${spec.id.slice(0, 8)}]`.slice(0, 80);
+  const desiredName = environmentProvisioner(spec.engine).catalogName(spec);
   const stored = spec.pathCatalogEntryId
     ? getPathCatalogEntry(spec.pathCatalogEntryId)
     : null;
@@ -20,7 +21,7 @@ export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
       ? updatePathCatalogEntry(stored.id, {
           name: desiredName,
           path,
-          engineKind: "vllm",
+          engineKind: spec.engine,
         })
       : null;
   if (!entry) {
@@ -30,13 +31,13 @@ export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
     entry = byPath
       ? updatePathCatalogEntry(byPath.id, {
           name: desiredName,
-          engineKind: "vllm",
+          engineKind: spec.engine,
         })
       : createPathCatalogEntry({
           kind: "binary",
           name: desiredName,
           path,
-          engineKind: "vllm",
+          engineKind: spec.engine,
         });
   }
   if (!entry) {

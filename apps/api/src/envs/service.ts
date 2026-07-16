@@ -28,12 +28,16 @@ import {
 import { environmentRunner } from "./runner.js";
 import { assertUvPythonAvailable, findUv } from "./uv.js";
 import { environmentLayoutError } from "./validation.js";
-import { environmentAvailability, rocmDeviceAvailable } from "./availability.js";
+import { rocmDeviceAvailable } from "./availability.js";
+import { environmentProvisioner } from "./provisioners.js";
 import { getSystemAccelerators } from "../system/resources.js";
 import { offlineEnvironmentPolicyError } from "./offline-policy.js";
 
 function latestJob(spec: EnvironmentSpec) {
-  return listEnvironmentJobs(100).find((job) => job.environmentId === spec.id) ?? null;
+  return (
+    listEnvironmentJobs(100).find((job) => job.environmentId === spec.id) ??
+    null
+  );
 }
 
 function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
@@ -52,13 +56,12 @@ function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
           : "missing";
   const error =
     status === "failed"
-      ? layoutError ?? job?.error ?? "installation failed"
+      ? (layoutError ?? job?.error ?? "installation failed")
       : null;
-  const availability = environmentAvailability({
+  const availability = environmentProvisioner(spec.engine).availability(spec, {
     accelerators: getSystemAccelerators(),
     installed: status === "installed",
     rocmDeviceAvailable: rocmDeviceAvailable(),
-    variant: spec.variant,
   });
   return EnvironmentRecordSchema.parse({
     ...spec,
@@ -72,7 +75,10 @@ function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
 
 export function listEnvironments() {
   return listEnvironmentSpecs().map((spec) => {
-    if (existsSync(environmentEntrypoint(spec)) && !environmentLayoutError(spec)) {
+    if (
+      existsSync(environmentEntrypoint(spec)) &&
+      !environmentLayoutError(spec)
+    ) {
       reconcileEnvironmentCatalog(spec);
       return toRecord(getEnvironmentSpec(spec.id) ?? spec);
     }
@@ -128,7 +134,9 @@ export function deleteEnvironment(id: string) {
   }
   if (
     spec.pathCatalogEntryId &&
-    listInstances().some((instance) => instance.binaryPathRefId === spec.pathCatalogEntryId)
+    listInstances().some(
+      (instance) => instance.binaryPathRefId === spec.pathCatalogEntryId,
+    )
   ) {
     throw new Error("environment is used by an instance");
   }
@@ -155,6 +163,8 @@ export function initializeEnvironments() {
     swept += 1;
   }
   const records = listEnvironments();
-  const installed = records.filter((item) => item.status === "installed").length;
+  const installed = records.filter(
+    (item) => item.status === "installed",
+  ).length;
   return { specs: records.length, installed, ready: installed, swept };
 }

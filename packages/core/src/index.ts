@@ -1976,7 +1976,7 @@ function credentialFreeUrl(value: string) {
   }
 }
 
-export const EnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
+export const VllmEnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("pypi"),
     extras: z.array(EnvironmentExtraSchema).max(20).default([]),
@@ -2025,11 +2025,88 @@ export const EnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export const EnvironmentCreateSchema = z.object({
-  engine: z.literal("vllm").default("vllm"),
+export const KTransformersWheelArtifactSchema = z.object({
+  distribution: z.enum(["kt-kernel", "sglang-kt"]),
+  url: z
+    .string()
+    .url()
+    .refine((value) => {
+      try {
+        return ["https:", "file:"].includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    }, "wheel URL must use https or file")
+    .refine(credentialFreeUrl, "wheel URL must not contain credentials"),
+  sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/i)
+    .nullable()
+    .default(null),
+});
+
+const KTransformersWheelArtifactsSchema = z
+  .array(KTransformersWheelArtifactSchema)
+  .length(2)
+  .superRefine((artifacts, ctx) => {
+    for (const distribution of ["kt-kernel", "sglang-kt"] as const) {
+      if (
+        artifacts.filter((artifact) => artifact.distribution === distribution)
+          .length !== 1
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: `exactly one ${distribution} wheel is required`,
+        });
+      }
+    }
+  });
+
+export const KTransformersEnvironmentInstallSourceSchema = z.discriminatedUnion(
+  "kind",
+  [
+    z.object({
+      kind: z.literal("pypi"),
+      indexUrl: z
+        .string()
+        .url()
+        .refine(credentialFreeUrl, "index URL must not contain credentials")
+        .nullable()
+        .default(null),
+    }),
+    z.object({
+      kind: z.literal("wheels"),
+      artifacts: KTransformersWheelArtifactsSchema,
+      dependencyIndexUrl: z
+        .string()
+        .url()
+        .refine(
+          credentialFreeUrl,
+          "dependency index URL must not contain credentials",
+        )
+        .nullable()
+        .default(null),
+      torchBackend: z
+        .string()
+        .trim()
+        .min(1)
+        .max(40)
+        .regex(/^[A-Za-z0-9._-]+$/)
+        .nullable()
+        .default(null),
+    }),
+  ],
+);
+
+export const EnvironmentInstallSourceSchema = z.union([
+  VllmEnvironmentInstallSourceSchema,
+  KTransformersEnvironmentInstallSourceSchema,
+]);
+
+export const EnvironmentEngineSchema = z.enum(["vllm", "ktransformers"]);
+
+const EnvironmentCommonShape = {
   version: EnvironmentVersionSchema,
-  variant: z.enum(["cuda", "cpu", "rocm"]).default("cuda"),
-  pythonVersion: PythonVersionSchema.default("3.12"),
   pythonProvisioning: z
     .enum(["download-if-missing", "mirror", "require-existing"])
     .default("download-if-missing"),
@@ -2050,19 +2127,69 @@ export const EnvironmentCreateSchema = z.object({
     }, "Python mirror URL must be credential-free file, HTTP, or HTTPS")
     .nullable()
     .default(null),
-  source: EnvironmentInstallSourceSchema.default({
+};
+
+const VllmEnvironmentCreateObjectSchema = z.object({
+  ...EnvironmentCommonShape,
+  engine: z.literal("vllm"),
+  variant: z.enum(["cuda", "cpu", "rocm"]).default("cuda"),
+  pythonVersion: PythonVersionSchema.default("3.12"),
+  source: VllmEnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],
     indexUrl: null,
   }),
 });
 
-export const EnvironmentSpecSchema = EnvironmentCreateSchema.extend({
+const KTransformersEnvironmentCreateObjectSchema = z.object({
+  ...EnvironmentCommonShape,
+  engine: z.literal("ktransformers"),
+  variant: z.literal("cuda").default("cuda"),
+  pythonVersion: z.enum(["3.11", "3.12"]).default("3.12"),
+  source: KTransformersEnvironmentInstallSourceSchema.default({
+    kind: "pypi",
+    indexUrl: null,
+  }),
+});
+
+function withLegacyVllmEngine(value: unknown) {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    !("engine" in value)
+  ) {
+    return { ...value, engine: "vllm" };
+  }
+  return value;
+}
+
+const EnvironmentCreateUnionSchema = z.discriminatedUnion("engine", [
+  VllmEnvironmentCreateObjectSchema,
+  KTransformersEnvironmentCreateObjectSchema,
+]);
+
+export const EnvironmentCreateSchema = z.preprocess(
+  withLegacyVllmEngine,
+  EnvironmentCreateUnionSchema,
+);
+
+const EnvironmentSpecMetadataShape = {
   id: z.string().min(1),
   pathCatalogEntryId: z.string().min(1).nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-});
+};
+
+export const EnvironmentSpecSchema = z.preprocess(
+  withLegacyVllmEngine,
+  z.discriminatedUnion("engine", [
+    VllmEnvironmentCreateObjectSchema.extend(EnvironmentSpecMetadataShape),
+    KTransformersEnvironmentCreateObjectSchema.extend(
+      EnvironmentSpecMetadataShape,
+    ),
+  ]),
+);
 
 export const EnvironmentStatusSchema = z.enum([
   "missing",
@@ -2071,14 +2198,23 @@ export const EnvironmentStatusSchema = z.enum([
   "failed",
 ]);
 
-export const EnvironmentRecordSchema = EnvironmentSpecSchema.extend({
+const EnvironmentRecordShape = {
+  ...EnvironmentSpecMetadataShape,
   status: EnvironmentStatusSchema,
   availability: z.enum(["not-installed", "usable", "unavailable"]),
   availabilityReason: z.string().nullable(),
   path: z.string(),
   entrypoint: z.string(),
   error: z.string().nullable(),
-});
+};
+
+export const EnvironmentRecordSchema = z.preprocess(
+  withLegacyVllmEngine,
+  z.discriminatedUnion("engine", [
+    VllmEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
+    KTransformersEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
+  ]),
+);
 
 export const EnvironmentJobStatusSchema = z.enum([
   "running",
@@ -3073,6 +3209,16 @@ export type BuildLogTail = z.infer<typeof BuildLogTailSchema>;
 export type EnvironmentInstallSource = z.infer<
   typeof EnvironmentInstallSourceSchema
 >;
+export type VllmEnvironmentInstallSource = z.infer<
+  typeof VllmEnvironmentInstallSourceSchema
+>;
+export type KTransformersWheelArtifact = z.infer<
+  typeof KTransformersWheelArtifactSchema
+>;
+export type KTransformersEnvironmentInstallSource = z.infer<
+  typeof KTransformersEnvironmentInstallSourceSchema
+>;
+export type EnvironmentEngine = z.infer<typeof EnvironmentEngineSchema>;
 export type EnvironmentCreate = z.infer<typeof EnvironmentCreateSchema>;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
 export type EnvironmentStatus = z.infer<typeof EnvironmentStatusSchema>;
