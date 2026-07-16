@@ -82,6 +82,20 @@ test("running llama-server with a failing health endpoint still loads", () => {
   assert.equal(derived.status, "loading");
 });
 
+test("KTransformers readiness text is engine-aware while HTTP remains authoritative", () => {
+  const derived = deriveStatus({
+    ...baseInput(),
+    runtime: { ...runningRuntime(), status: "starting" },
+    engine: {
+      httpHealth: true,
+      displayName: "KTransformers (SGLang-KT)",
+    },
+    logReady: true,
+  });
+  assert.equal(derived.status, "starting");
+  assert.match(derived.reason, /KTransformers/);
+});
+
 test("error-state runtime surfaces the recent log error tail in the reason", () => {
   const derived = deriveStatus({
     ...baseInput(),

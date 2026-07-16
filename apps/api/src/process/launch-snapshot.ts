@@ -39,11 +39,26 @@ export function managedSlotSavePath(instance: Instance): string | null {
 }
 
 function effectiveLaunchArgs(instance: Instance): InstanceArgs {
+  const engineArgs =
+    instance.engineConfig?.type === "ktransformers"
+      ? {
+          "--model": instance.engineConfig.model,
+          "--kt-weight-path": instance.engineConfig.cpuWeights,
+          "--kt-method": instance.engineConfig.method,
+          ...(instance.engineConfig.servedModelName
+            ? { "--served-model-name": instance.engineConfig.servedModelName }
+            : {}),
+        }
+      : {};
   const slotSavePath = managedSlotSavePath(instance);
   if (!slotSavePath) {
-    return instance.args;
+    return { ...engineArgs, ...instance.args };
   }
-  return { ...instance.args, "--slot-save-path": slotSavePath };
+  return {
+    ...engineArgs,
+    ...instance.args,
+    "--slot-save-path": slotSavePath,
+  };
 }
 
 export type LaunchSnapshot = {
@@ -61,13 +76,10 @@ export function buildLaunchSnapshot(instance: Instance): LaunchSnapshot {
   );
   return {
     binaryPath: instance.binaryPath,
-    cliArgs: buildArgv(
-      effectiveLaunchArgs(instance),
-      [
-        ...engineDescriptor(instance.kind).launch.argvPrefix,
-        ...(instance.positionalArgs ?? []),
-      ],
-    ),
+    cliArgs: buildArgv(effectiveLaunchArgs(instance), [
+      ...engineDescriptor(instance.kind).launch.argvPrefix,
+      ...(instance.positionalArgs ?? []),
+    ]),
     env: { ...instance.env },
     cwd: instance.cwd ?? dirname(instance.binaryPath),
     numa: instance.numa ?? null,

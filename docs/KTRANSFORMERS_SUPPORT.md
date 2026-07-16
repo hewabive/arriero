@@ -1,6 +1,19 @@
 # KTransformers support plan
 
-Status: accepted architecture, implementation not started.
+Status: implementation in progress.
+
+Implemented on `main`:
+
+- Phase 1 — engine contracts, typed configuration, argparse argv semantics,
+  scheduling defaults, and federation capability advertisement;
+- Phase 2 — provisioner registry, matched `kt-kernel` + `sglang-kt`
+  environments, validation, availability, and catalog ownership;
+- Phase 3 — typed launch compilation, strict runtime preflight, SGLang help and
+  log adapters, HTTP-authoritative readiness, all-descendant telemetry policy,
+  process-group shutdown, and restart adoption coverage.
+
+Phase 0 and real-engine parts of Phase 7 remain pending a supported Linux
+x86-64 NVIDIA host. Later product phases remain incomplete.
 
 This document is the implementation plan for managed KTransformers support in
 llama-manager. It records the architecture decisions accepted on 2026-07-16,

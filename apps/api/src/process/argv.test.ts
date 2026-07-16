@@ -83,3 +83,44 @@ test("vllm launch snapshot inserts serve before the model positional", () => {
   });
   assert.deepEqual(snapshot.cliArgs, ["serve", "org/model", "--port", "8001"]);
 });
+
+test("KTransformers launch snapshot compiles typed model configuration", () => {
+  const snapshot = buildLaunchSnapshot({
+    name: "kt-test",
+    kind: "ktransformers",
+    binaryPath: "/tmp/env/bin/sglang",
+    binaryPathRefId: "bin",
+    args: { "--kt-numa-nodes": ["0", "1"], "--port": 30001 },
+    env: {},
+    memory: [],
+    rpcWorkers: [],
+    engineConfig: {
+      type: "ktransformers",
+      model: "deepseek-ai/DeepSeek-V3",
+      cpuWeights: "/models/deepseek-v3-kt",
+      method: "AMXINT4",
+      servedModelName: "deepseek-v3",
+    },
+    scheduling: { evictionPolicy: "idle-only" },
+    status: "stopped",
+    pid: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  assert.deepEqual(snapshot.cliArgs, [
+    "serve",
+    "--kt-method",
+    "AMXINT4",
+    "--kt-numa-nodes",
+    "0",
+    "1",
+    "--kt-weight-path",
+    "/models/deepseek-v3-kt",
+    "--model",
+    "deepseek-ai/DeepSeek-V3",
+    "--port",
+    "30001",
+    "--served-model-name",
+    "deepseek-v3",
+  ]);
+});

@@ -2,7 +2,7 @@ import type { Instance } from "@llama-manager/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -151,4 +151,61 @@ test("reconcile closes runs whose pid is gone", async () => {
 
   assert.ok(summary.exited >= 1);
   assert.equal(latestProcessRun("dead")?.status, "exited");
+});
+
+test("reconcile adopts a KTransformers bin/sglang root process", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "reconcile-kt-"));
+  const binary = join(dir, "sglang");
+  writeFileSync(binary, "#!/bin/sh\nwhile :; do sleep 1; done\n", {
+    mode: 0o755,
+  });
+  const child = spawn(binary, ["serve"], {
+    detached: true,
+    stdio: "ignore",
+  });
+  await new Promise((resolve, reject) => {
+    child.once("spawn", resolve);
+    child.once("error", reject);
+  });
+  child.unref();
+  const pid = child.pid!;
+  const name = `adopt-kt-${pid}`;
+  try {
+    seedOpenRun({
+      instanceId: name,
+      pid,
+      snapshotBinaryPath: binary,
+    });
+    const instance = {
+      ...makeInstance(name, binary),
+      kind: "ktransformers" as const,
+      binaryPathRefId: "kt-bin",
+      memory: [],
+      rpcWorkers: [],
+      engineConfig: {
+        type: "ktransformers" as const,
+        model: "owner/model",
+        cpuWeights: dir,
+        method: "FP8" as const,
+      },
+      scheduling: { evictionPolicy: "idle-only" as const },
+    };
+
+    const summary = reconcileProcessRuns([instance]);
+    assert.equal(summary.adopted, 1);
+    assert.equal(supervisor.getState(name)?.adopted, true);
+
+    supervisor.stop(name, 1_000);
+    assert.ok(
+      await waitFor(() => latestProcessRun(name)?.status === "exited"),
+      "adopted KTransformers process should stop",
+    );
+  } finally {
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch {
+      void 0;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

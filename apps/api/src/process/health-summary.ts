@@ -141,13 +141,17 @@ export function deriveStatus(input: {
   swapBytes: number | null;
   numaPlacement: NumaPlacement | null;
 }): { status: InstanceHealthSummaryStatus; reason: string } {
+  const legacyReadinessName =
+    input.engine.displayName === "KTransformers (SGLang-KT)"
+      ? input.engine.displayName
+      : "llama-server";
   if (input.runtime.status === "stale") {
     if (input.healthOk) {
       return {
         status: "stale",
         reason: input.runtime.pid
-          ? `Process pid=${input.runtime.pid} is unmanaged, but llama-server health is OK.`
-          : "Last run is unmanaged, but llama-server health is OK.",
+          ? `Process pid=${input.runtime.pid} is unmanaged, but ${legacyReadinessName} health is OK.`
+          : `Last run is unmanaged, but ${legacyReadinessName} health is OK.`,
       };
     }
     return {
@@ -208,8 +212,7 @@ export function deriveStatus(input: {
   if (input.runtime.status === "starting") {
     return {
       status: "starting",
-      reason:
-        "Process was started and the API is waiting for llama-server readiness.",
+      reason: `Process was started and the API is waiting for ${legacyReadinessName} readiness.`,
     };
   }
 

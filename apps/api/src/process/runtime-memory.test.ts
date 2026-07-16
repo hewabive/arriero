@@ -4,11 +4,13 @@ import test from "node:test";
 import {
   createStaleWhileRevalidate,
   extractRouterChildPorts,
+  isManagedDescendant,
   parseNvidiaComputeAppsCsv,
   parseProcStatusRss,
   parseProcStatusSwap,
   parsePsOutput,
 } from "./runtime-memory.js";
+import { managedSignalPid } from "./supervisor.js";
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -90,6 +92,31 @@ test("parsePsOutput handles llama-server command lines", () => {
       args: "/opt/llama/bin/llama-server --port 57117",
     },
   ]);
+});
+
+test("descriptor process-tree policy owns all KTransformers descendants", () => {
+  const worker = {
+    command: "python",
+    args: "python -m sglang.srt.managers.scheduler --tp-rank 1",
+  };
+  assert.equal(isManagedDescendant("ktransformers", worker), true);
+  assert.equal(isManagedDescendant("vllm", worker), true);
+  assert.equal(isManagedDescendant("rpc-worker", worker), false);
+  assert.equal(isManagedDescendant("llama-server", worker), false);
+  assert.equal(
+    isManagedDescendant("llama-server", {
+      command: "llama-server",
+      args: "/opt/llama/llama-server --port 8080",
+    }),
+    true,
+  );
+});
+
+test("all-descendant engines signal their detached process group", () => {
+  assert.equal(managedSignalPid("ktransformers", 1234, "linux"), -1234);
+  assert.equal(managedSignalPid("vllm", 1234, "linux"), -1234);
+  assert.equal(managedSignalPid("llama-server", 1234, "linux"), 1234);
+  assert.equal(managedSignalPid("ktransformers", 1234, "win32"), 1234);
 });
 
 test("extractRouterChildPorts finds router child server ports", () => {

@@ -31,10 +31,15 @@ import {
 } from "./sidecar.js";
 import { parseLlamaArgumentOptions } from "./help-parser.js";
 import { parseVllmArgumentOptions } from "./vllm-help-parser.js";
+import { parseSglangArgumentOptions } from "./sglang-help-parser.js";
 import {
   vllmFallbackArgumentOptions,
   vllmFallbackHelpHash,
 } from "./vllm-fallback.js";
+import {
+  sglangFallbackArgumentOptions,
+  sglangFallbackHelpHash,
+} from "./sglang-fallback.js";
 import {
   categoryNameRu,
   helpRuOverlay,
@@ -55,7 +60,7 @@ const HELP_PARSERS: Record<
 > = {
   "llama-help": parseLlamaArgumentOptions,
   "vllm-help": parseVllmArgumentOptions,
-  "sglang-help": parseVllmArgumentOptions,
+  "sglang-help": parseSglangArgumentOptions,
 };
 
 const HELP_INVOCATIONS: Record<
@@ -263,7 +268,12 @@ function toCatalog(input: {
     source: {
       kind: "help",
       command: input.cached.helpHash.startsWith("fallback:")
-        ? ["llama-manager", "vllm-fallback-catalog"]
+        ? [
+            "llama-manager",
+            input.parserId === "sglang-help"
+              ? "sglang-fallback-catalog"
+              : "vllm-fallback-catalog",
+          ]
         : helpCommand(input.binaryPath, input.parserId),
       hash: input.cached.helpHash,
       binarySize: input.cached.binarySize,
@@ -272,6 +282,22 @@ function toCatalog(input: {
     cache: input.cache,
     options,
   };
+}
+
+function fallbackCatalog(parserId: ArgumentCatalogHelpParserId) {
+  if (parserId === "vllm-help") {
+    return {
+      helpHash: vllmFallbackHelpHash,
+      options: vllmFallbackArgumentOptions(),
+    };
+  }
+  if (parserId === "sglang-help") {
+    return {
+      helpHash: sglangFallbackHelpHash,
+      options: sglangFallbackArgumentOptions(),
+    };
+  }
+  return null;
 }
 
 function generateCatalog(
@@ -293,9 +319,10 @@ function generateCatalog(
     if (options.length === 0)
       throw new Error("engine help contained no argument options");
   } catch (error) {
-    if (parserId !== "vllm-help") throw error;
-    helpHash = vllmFallbackHelpHash;
-    options = vllmFallbackArgumentOptions();
+    const fallback = fallbackCatalog(parserId);
+    if (!fallback) throw error;
+    helpHash = fallback.helpHash;
+    options = fallback.options;
   }
 
   const saved = saveArgumentCatalog({
@@ -331,9 +358,10 @@ async function generateCatalogAsync(
     if (options.length === 0)
       throw new Error("engine help contained no argument options");
   } catch (error) {
-    if (parserId !== "vllm-help") throw error;
-    helpHash = vllmFallbackHelpHash;
-    options = vllmFallbackArgumentOptions();
+    const fallback = fallbackCatalog(parserId);
+    if (!fallback) throw error;
+    helpHash = fallback.helpHash;
+    options = fallback.options;
   }
   const saved = saveArgumentCatalog({
     binaryPath,

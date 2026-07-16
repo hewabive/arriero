@@ -12,6 +12,7 @@ import { createServer } from "node:net";
 import { dirname } from "node:path";
 
 import { validateLlamaServerPreflight } from "./preflight-llama.js";
+import { validateKTransformersPreflight } from "./preflight-ktransformers.js";
 import { validateRpcWorkerReadiness } from "./rpc-preflight.js";
 
 export type PreflightOptions = {
@@ -31,7 +32,7 @@ const ENGINE_PREFLIGHT_CHECKS: Record<
   EnginePreflightCheck | null
 > = {
   "llama-server": validateLlamaServerPreflight,
-  ktransformers: null,
+  ktransformers: validateKTransformersPreflight,
   none: null,
 };
 

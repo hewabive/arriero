@@ -217,7 +217,11 @@ test("vLLM catalog falls back when runtime help cannot initialize", () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-vllm-fallback-"));
   try {
     const binaryPath = join(dir, "vllm");
-    writeFileSync(binaryPath, "#!/bin/sh\necho 'CUDA platform unavailable' >&2\nexit 1\n", "utf8");
+    writeFileSync(
+      binaryPath,
+      "#!/bin/sh\necho 'CUDA platform unavailable' >&2\nexit 1\n",
+      "utf8",
+    );
     chmodSync(binaryPath, 0o755);
 
     const catalog = getArgumentCatalog(binaryPath, {
@@ -230,10 +234,48 @@ test("vLLM catalog falls back when runtime help cannot initialize", () => {
       "vllm-fallback-catalog",
     ]);
     assert.ok(catalog.source.hash.startsWith("fallback:"));
-    assert.ok(catalog.options.some((option) => option.primaryName === "--device"));
+    assert.ok(
+      catalog.options.some((option) => option.primaryName === "--device"),
+    );
     assert.ok(
       catalog.options.some(
         (option) => option.primaryName === "--tensor-parallel-size",
+      ),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("SGLang catalog falls back when runtime help cannot initialize", () => {
+  const dir = mkdtempSync(join(tmpdir(), "llm-sglang-fallback-"));
+  try {
+    const binaryPath = join(dir, "sglang");
+    writeFileSync(
+      binaryPath,
+      "#!/bin/sh\necho 'CUDA platform unavailable' >&2\nexit 1\n",
+      "utf8",
+    );
+    chmodSync(binaryPath, 0o755);
+
+    const catalog = getArgumentCatalog(binaryPath, {
+      parserId: "sglang-help",
+      refresh: true,
+    });
+
+    assert.deepEqual(catalog.source.command, [
+      "llama-manager",
+      "sglang-fallback-catalog",
+    ]);
+    assert.ok(catalog.source.hash.startsWith("fallback:"));
+    assert.ok(
+      catalog.options.some(
+        (option) => option.primaryName === "--kt-weight-path",
+      ),
+    );
+    assert.ok(
+      catalog.options.some(
+        (option) => option.primaryName === "--max-running-requests",
       ),
     );
   } finally {

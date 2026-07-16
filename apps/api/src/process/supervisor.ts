@@ -1,4 +1,10 @@
-import type { Instance, ProcessEvent, RuntimeState } from "@llama-manager/core";
+import {
+  engineDescriptor,
+  type Instance,
+  type InstanceKind,
+  type ProcessEvent,
+  type RuntimeState,
+} from "@llama-manager/core";
 import { spawn, type ChildProcess } from "node:child_process";
 import {
   appendFileSync,
@@ -53,6 +59,7 @@ type MutableProcessState = {
 };
 
 type RuntimeProcess = MutableProcessState & {
+  kind: InstanceKind;
   runId: string;
   adopted: boolean;
   child: ChildProcess | null;
@@ -73,12 +80,27 @@ type ProcessSupervisorShutdownResult = {
 
 const ADOPTED_EXIT_POLL_INTERVAL_MS = 1_000;
 
+export function managedSignalPid(
+  kind: InstanceKind,
+  pid: number,
+  platform: NodeJS.Platform = process.platform,
+) {
+  return platform !== "win32" &&
+    engineDescriptor(kind).processTree === "all-descendants"
+    ? -pid
+    : pid;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
 
-class ProcessSupervisor extends EventEmitter {
+export class ProcessSupervisor extends EventEmitter {
   private readonly processes = new Map<string, RuntimeProcess>();
+
+  constructor(private readonly preflightValidator = validateInstancePreflight) {
+    super();
+  }
 
   getState(instanceId: string): ProcessState | undefined {
     const proc = this.processes.get(instanceId);
@@ -122,7 +144,7 @@ class ProcessSupervisor extends EventEmitter {
       return this.getState(instance.name)!;
     }
 
-    const preflight = validateInstancePreflight(instance);
+    const preflight = this.preflightValidator(instance);
     if (!preflight.ok) {
       throw new ProcessPreflightError(preflight);
     }
@@ -186,6 +208,7 @@ class ProcessSupervisor extends EventEmitter {
     });
 
     const runtime: RuntimeProcess = {
+      kind: instance.kind ?? "llama-server",
       runId,
       adopted: false,
       child,
@@ -270,6 +293,7 @@ class ProcessSupervisor extends EventEmitter {
       ? instanceCgroupDir(instance.name)
       : null;
     const runtime: RuntimeProcess = {
+      kind: instance.kind ?? "llama-server",
       runId: run.id,
       adopted: true,
       child: null,
@@ -429,13 +453,12 @@ class ProcessSupervisor extends EventEmitter {
 
   private killRuntime(runtime: RuntimeProcess, signal: NodeJS.Signals) {
     try {
-      if (runtime.child) {
-        runtime.child.kill(signal);
-      } else if (runtime.pid) {
-        process.kill(runtime.pid, signal);
-      }
+      if (!runtime.pid) return;
+      process.kill(managedSignalPid(runtime.kind, runtime.pid), signal);
     } catch {
-      return;
+      try {
+        runtime.child?.kill(signal);
+      } catch {}
     }
   }
 

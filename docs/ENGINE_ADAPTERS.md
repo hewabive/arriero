@@ -40,7 +40,7 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 | --- | --- | --- |
 | `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http`, `tcp-accept`, `openai-http`; vLLM uses real health/models probes and explicit not-applicable llama-native fields |
 | `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm`, `sglang` |
-| `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts`; `ktransformers` is registered and implemented before creation is enabled; `none` → skip |
+| `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts`; `ktransformers` → strict platform, runtime, model, CUDA, CPU-method, auth-boundary, TP, and argument checks; `none` → skip |
 | `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`, `sglang-help`; each owns argv, timeout, and parser. Route generation is async; cache rows/sidecars carry `parserId` |
 | `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` joins arrays as CSV; `argparse-flags` emits each array item as a separate token. Both put positionals first and sort flags deterministically |
 | `EngineEstimatorId` | dispatch in `apps/api/src/memory-estimate/service.ts` | `gguf` → tensor-aware llama estimate; `vllm-gpu-util` → one utilization-based draw per selected GPU |

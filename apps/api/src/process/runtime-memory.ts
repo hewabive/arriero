@@ -6,6 +6,7 @@ import type {
   NumaPlacement,
   RuntimeState,
 } from "@llama-manager/core";
+import { engineDescriptor } from "@llama-manager/core";
 import { execFile } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { promisify } from "node:util";
@@ -114,8 +115,14 @@ function isLikelyLlamaServer(processInfo: ProcessInfo) {
   );
 }
 
-function isManagedDescendant(kind: InstanceKind, processInfo: ProcessInfo) {
-  return kind === "vllm" || isLikelyLlamaServer(processInfo);
+export function isManagedDescendant(
+  kind: InstanceKind,
+  processInfo: Pick<ProcessInfo, "command" | "args">,
+) {
+  const policy = engineDescriptor(kind).processTree;
+  if (policy === "all-descendants") return true;
+  if (policy === "root-only") return false;
+  return isLikelyLlamaServer({ ...processInfo, pid: 0, ppid: null });
 }
 
 export function parsePsOutput(stdout: string): ProcessInfo[] {
@@ -474,7 +481,8 @@ async function candidatePids(input: {
     }
     if (
       ports.some((port) => argsContainPort(processInfo.args, port)) &&
-      input.kind !== "vllm" && isLikelyLlamaServer(processInfo)
+      input.kind === "llama-server" &&
+      isLikelyLlamaServer(processInfo)
     ) {
       candidates.add(processInfo.pid);
     }
@@ -495,7 +503,7 @@ function layoutFromEntries(input: {
   return {
     source: "process-telemetry",
     sourceDetail:
-      "Process-level runtime memory from nvidia-smi and /proc/<pid>/status: anon = committed RAM (KV cache, compute buffers), mmap file = reclaimable file-backed pages (mmapped model weights). llama.cpp buffer categories are not available from this source.",
+      "Process-level runtime memory from nvidia-smi and /proc/<pid>/status: anon = committed RAM (KV cache, compute buffers), mmap file = reclaimable file-backed pages (mmapped model weights). Engine-specific buffer categories are not available from this source.",
     processIds: input.processIds,
     entries,
     deviceBytes: entries
