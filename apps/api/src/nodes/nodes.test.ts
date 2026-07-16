@@ -115,13 +115,13 @@ test("nodeApiUrl and nodeProxyRest map the proxy prefix to the peer /api path", 
   assert.equal(nodeApiUrl(node, "/health"), "http://10.0.0.5:8787/api/health");
 });
 
-test("federation capabilities advertise KTransformers before creation is enabled", () => {
+test("federation capabilities advertise creatable KTransformers support", () => {
   const capabilities = localFederationCapabilities();
   assert.equal(capabilities.protocolVersion, 1);
   assert.ok(capabilities.instanceKinds.includes("ktransformers"));
   assert.equal(
     capabilities.creatableInstanceKinds.includes("ktransformers"),
-    false,
+    true,
   );
   assert.equal(capabilities.unknownInstanceKindsTolerated, true);
 });

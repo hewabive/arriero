@@ -106,6 +106,38 @@ test("vllm served-model-name overrides the positional model", async () => {
   assert.equal(catalog.groups[0]?.impliedModel, "qwen-local");
 });
 
+test("KTransformers implies stable identity from typed configuration", async () => {
+  const kt: Instance = {
+    ...instance("kt", { "--host": "127.0.0.1", "--port": 30000 }),
+    kind: "ktransformers",
+    status: "stopped",
+    engineConfig: {
+      type: "ktransformers",
+      model: "deepseek-ai/DeepSeek-V3",
+      cpuWeights: "/models/deepseek-cpu",
+      method: "FP8",
+      servedModelName: "deepseek-local",
+    },
+    scheduling: { evictionPolicy: "idle-only" },
+  };
+  const catalog = await buildApiProxyTargetModelCatalog([kt]);
+  assert.equal(catalog.groups[0]?.modelSource, "implied");
+  assert.equal(catalog.groups[0]?.impliedModel, "deepseek-local");
+
+  kt.engineConfig = {
+    type: "ktransformers",
+    model: "deepseek-ai/DeepSeek-V3",
+    cpuWeights: "/models/deepseek-cpu",
+    method: "FP8",
+  };
+  const fallback = await buildApiProxyTargetModelCatalog([kt]);
+  assert.equal(fallback.groups[0]?.impliedModel, "deepseek-ai/DeepSeek-V3");
+
+  kt.engineConfig = { ...kt.engineConfig, model: "/new/mount/DeepSeek-V3" };
+  const moved = await buildApiProxyTargetModelCatalog([kt]);
+  assert.equal(moved.groups[0]?.impliedModel, "DeepSeek-V3");
+});
+
 test("a configured --model wins over --models-preset (single, not router)", async () => {
   const mixed = instance("mixed", {
     "--host": "127.0.0.1",

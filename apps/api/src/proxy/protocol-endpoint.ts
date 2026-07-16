@@ -16,7 +16,7 @@ import { externalEndpointTarget } from "./external-target.js";
 import { resolvePassthroughModel } from "./passthrough.js";
 import {
   buildDomainAdmissionDecider,
-  parseInstanceParallelLimit,
+  parseInstanceConcurrencyLimit,
 } from "./domain-admission.js";
 import {
   attachLeaseRelease,
@@ -99,7 +99,10 @@ import {
   runResumableUpstreamAttempt,
 } from "./resumable-forward.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
-import { proxyEngineGates } from "./engine-capabilities.js";
+import {
+  proxyEngineGates,
+  requestLeasePreemptible,
+} from "./engine-capabilities.js";
 import {
   resolveApiProxyUpstreamContext,
   type ApiProxyUpstreamContext,
@@ -846,14 +849,20 @@ export async function serveResolvedTarget(input: {
     (item) => item.id === decision.target.id,
   );
   const candidateInstanceId = candidatePlanTarget?.instanceId ?? null;
-  const requestLease = candidateInstanceId
-    ? proxyEngineGates(getInstance(candidateInstanceId)).requestLease
-    : false;
+  const candidateInstance = candidateInstanceId
+    ? getInstance(candidateInstanceId)
+    : null;
+  const candidateEngine = proxyEngineGates(candidateInstance);
+  const requestLease = candidateEngine.requestLease;
+  const leasePreemptible = requestLeasePreemptible(
+    candidateInstance,
+    decision.target.preemptible,
+  );
   const domains = requestLease
     ? requestComputeDomains(candidatePlanTarget?.draws ?? [], planRequest.pools)
     : [];
-  const parallelLimit = candidateInstanceId
-    ? parseInstanceParallelLimit(getInstance(candidateInstanceId)?.args ?? {})
+  const parallelLimit = candidateInstance
+    ? parseInstanceConcurrencyLimit(candidateInstance)
     : undefined;
   let lease: DomainLease | null = null;
   if (domains.length > 0) {
@@ -862,7 +871,7 @@ export async function serveResolvedTarget(input: {
         domains,
         targetId: decision.target.id,
         priority: decision.target.priority,
-        preemptible: decision.target.preemptible,
+        preemptible: leasePreemptible,
         signal: c.req.raw.signal,
         decide: buildDomainAdmissionDecider({
           candidateTargetId: decision.target.id,
@@ -1508,7 +1517,8 @@ export async function serveResolvedTarget(input: {
   const heldLease = lease;
   const resumableUpstreamPath = adapter.upstreamPath(operation);
   if (
-    decision.target.preemptible &&
+    candidateEngine.streamResume &&
+    leasePreemptible &&
     adapter.resumable &&
     resumableEndpoints.has(operation.endpoint) &&
     resumableUpstreamPath

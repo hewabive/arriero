@@ -3,6 +3,7 @@ import type {
   ApiProxyTargetPlanInput,
   Instance,
 } from "@llama-manager/core";
+import { engineDescriptor } from "@llama-manager/core";
 
 import type {
   DomainAdmissionContext,
@@ -34,10 +35,11 @@ function overlayHolderState(
   };
 }
 
-export function parseInstanceParallelLimit(
+function positiveIntegerArg(
   args: Instance["args"],
+  keys: string[],
 ): number | undefined {
-  const raw = args["--parallel"] ?? args["-np"];
+  const raw = keys.map((key) => args[key]).find((value) => value !== undefined);
   const value =
     typeof raw === "number"
       ? raw
@@ -45,6 +47,28 @@ export function parseInstanceParallelLimit(
         ? Number(raw)
         : Number.NaN;
   return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+const CONCURRENCY_KEYS = {
+  "llama-parallel": ["--parallel", "-np"],
+  "vllm-sequences": ["--max-num-seqs"],
+  "sglang-max-running-requests": ["--max-running-requests"],
+  none: [],
+} as const;
+
+export function parseInstanceConcurrencyLimit(
+  instance: Pick<Instance, "kind" | "args">,
+): number | undefined {
+  return positiveIntegerArg(instance.args, [
+    ...CONCURRENCY_KEYS[engineDescriptor(instance.kind).concurrency],
+  ]);
+}
+
+/** @deprecated Use the descriptor-driven parseInstanceConcurrencyLimit. */
+export function parseInstanceParallelLimit(
+  args: Instance["args"],
+): number | undefined {
+  return positiveIntegerArg(args, ["--parallel", "-np"]);
 }
 
 export function buildDomainAdmissionDecider(input: {

@@ -15,7 +15,10 @@ import {
 } from "../llama/probe.js";
 import { supervisor } from "../process/supervisor.js";
 import { computeDomainCoordinator } from "./domain-coordinator.js";
-import { proxyEngineGates } from "./engine-capabilities.js";
+import {
+  proxyEngineGates,
+  schedulerTargetPreemptible,
+} from "./engine-capabilities.js";
 import { apiProxyPendingResume } from "./pending-resume.js";
 import { computeDomains } from "./resource-domains.js";
 import { addApiProxySavedSlotId, apiProxySlotFilename } from "./repository.js";
@@ -51,15 +54,27 @@ export async function buildApiProxyPlanRequest(input: {
     const instance = instanceId ? (getInstance(instanceId) ?? null) : null;
     const draws = instance?.memory ?? [];
     const capabilities = proxyEngineGates(instance);
+    const preemptible = schedulerTargetPreemptible(
+      instance,
+      target.preemptible,
+      targetRuntime?.activeRequests ?? 0,
+    );
     return targetRuntime
       ? {
           ...target,
+          preemptible,
           instanceId,
           runtime: targetRuntime,
           draws,
           capabilities,
         }
-      : { ...target, instanceId: null, draws, capabilities };
+      : {
+          ...target,
+          preemptible,
+          instanceId: null,
+          draws,
+          capabilities,
+        };
   });
   const targetInstanceIds = new Set(
     targets

@@ -82,8 +82,9 @@ declared draw) yet may only _evict_ a subset. Occupancy splits into three tiers:
   than the requester. The only tier the proxy moves (unload + slot save/restore),
   in priority order.
 
-"Given to manage" = a proxy target exists for the instance; `preemptible` decides
-whether it may be evicted. The same ledger numbers feed both the manager's
+"Given to manage" = a proxy target exists for the instance. Target
+`preemptible` is an upper bound: the persisted instance policy can reduce it to
+`never`, or to `idle-only` while active requests are present. The same ledger numbers feed both the manager's
 passive manual-start admission (warn/block, moves nothing) and the proxy's active
 planning (evict the preemptible tier).
 
@@ -148,13 +149,14 @@ scheduler + coordinator + swap-lock stack on this scenario.
    pass counter, abortable via the client signal) and returns `plan_blocked` only on a
    genuine timeout or client abort — so "evict A, then reload B in its place" happens
    transparently instead of erroring.
-4. **Affinity batching + `--parallel` cap (coordinator).** `scheduleAdmission` admits
+4. **Affinity batching + engine concurrency cap (coordinator).** `scheduleAdmission` admits
    resident (affine — target already a holder on an overlapping domain) waiters ahead
    of swap-needing waiters at equal priority, draining a model's queue before paying a
    swap; a fairness window (`swapFairnessMs`, default 2 s) lifts the preference once a
    swap waiter has starved. `decide()` caps concurrent same-target holders at the
-   instance's `--parallel`/`-np` (`parseInstanceParallelLimit`), so excess queues in
-   the proxy (priority-ordered, observable) instead of blindly inside `llama-server`.
+   descriptor-selected concurrency argument (`--parallel`/`-np`, vLLM
+   `--max-num-seqs`, or SGLang `--max-running-requests`), so excess queues in
+   the proxy (priority-ordered, observable) instead of blindly inside the engine.
 
 **Observability.** Each request trace carries `displacedTargetIds` — the targets it
 unloaded/stopped to fit (idle eviction or busy preemption) — beside `schedulerActions`

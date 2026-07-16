@@ -37,6 +37,17 @@ function instanceOnline(instance: Instance): boolean {
 }
 
 function singleModelId(instance: Instance): string | null {
+  if (instance.engineConfig?.type === "ktransformers") {
+    const model = instance.engineConfig.model;
+    const localPath =
+      model.startsWith("/") ||
+      model.startsWith("./") ||
+      model.startsWith("../");
+    return (
+      instance.engineConfig.servedModelName ??
+      (localPath ? basename(model) : model)
+    );
+  }
   if (instance.kind === "vllm") {
     return (
       firstStringArg(instance, "--served-model-name") ??

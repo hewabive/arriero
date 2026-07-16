@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import {
   buildDomainAdmissionDecider,
+  parseInstanceConcurrencyLimit,
   parseInstanceParallelLimit,
 } from "./domain-admission.js";
 import type { DomainHolderView } from "./domain-coordinator.js";
@@ -18,6 +19,34 @@ test("parseInstanceParallelLimit reads --parallel/-np and rejects invalid values
   assert.equal(parseInstanceParallelLimit({}), undefined);
   assert.equal(parseInstanceParallelLimit({ "--parallel": 0 }), undefined);
   assert.equal(parseInstanceParallelLimit({ "--parallel": "nope" }), undefined);
+});
+
+test("parseInstanceConcurrencyLimit follows the engine descriptor", () => {
+  assert.equal(
+    parseInstanceConcurrencyLimit({
+      kind: "llama-server",
+      args: { "--parallel": 4 },
+    }),
+    4,
+  );
+  assert.equal(
+    parseInstanceConcurrencyLimit({
+      kind: "vllm",
+      args: { "--max-num-seqs": "12", "--parallel": 99 },
+    }),
+    12,
+  );
+  assert.equal(
+    parseInstanceConcurrencyLimit({
+      kind: "ktransformers",
+      args: { "--max-running-requests": 7, "--parallel": 99 },
+    }),
+    7,
+  );
+  assert.equal(
+    parseInstanceConcurrencyLimit({ kind: "rpc-worker", args: {} }),
+    undefined,
+  );
 });
 
 function target(input: {
@@ -101,7 +130,13 @@ test("admits when the candidate fits with no holders", () => {
     planRequest: planRequest({
       requestedTargetId: "cand",
       targets: [
-        target({ id: "cand", instanceId: "i", priority: 100, state: "unloaded", bytes: 50 }),
+        target({
+          id: "cand",
+          instanceId: "i",
+          priority: 100,
+          state: "unloaded",
+          bytes: 50,
+        }),
       ],
     }),
   });
@@ -118,8 +153,21 @@ test("holds behind a strictly-higher-priority running holder", () => {
     planRequest: planRequest({
       requestedTargetId: "cand",
       targets: [
-        target({ id: "cand", instanceId: "ic", priority: 100, state: "unloaded", bytes: 50 }),
-        target({ id: "peer", instanceId: "ip", priority: 500, state: "ready", activeRequests: 1, bytes: 50 }),
+        target({
+          id: "cand",
+          instanceId: "ic",
+          priority: 100,
+          state: "unloaded",
+          bytes: 50,
+        }),
+        target({
+          id: "peer",
+          instanceId: "ip",
+          priority: 500,
+          state: "ready",
+          activeRequests: 1,
+          bytes: 50,
+        }),
       ],
     }),
   });
@@ -140,8 +188,21 @@ test("preempts a busy lower-priority holder that blocks the fit", () => {
     planRequest: planRequest({
       requestedTargetId: "cand",
       targets: [
-        target({ id: "cand", instanceId: "ic", priority: 100, state: "unloaded", bytes: 50 }),
-        target({ id: "peer", instanceId: "ip", priority: 10, state: "ready", activeRequests: 1, bytes: 70 }),
+        target({
+          id: "cand",
+          instanceId: "ic",
+          priority: 100,
+          state: "unloaded",
+          bytes: 50,
+        }),
+        target({
+          id: "peer",
+          instanceId: "ip",
+          priority: 10,
+          state: "ready",
+          activeRequests: 1,
+          bytes: 70,
+        }),
       ],
     }),
   });
@@ -162,8 +223,21 @@ test("admits once the preempted holder is suspended (memory freed)", () => {
     planRequest: planRequest({
       requestedTargetId: "cand",
       targets: [
-        target({ id: "cand", instanceId: "ic", priority: 100, state: "unloaded", bytes: 50 }),
-        target({ id: "peer", instanceId: "ip", priority: 10, state: "ready", activeRequests: 1, bytes: 70 }),
+        target({
+          id: "cand",
+          instanceId: "ic",
+          priority: 100,
+          state: "unloaded",
+          bytes: 50,
+        }),
+        target({
+          id: "peer",
+          instanceId: "ip",
+          priority: 10,
+          state: "ready",
+          activeRequests: 1,
+          bytes: 70,
+        }),
       ],
     }),
   });
@@ -185,7 +259,13 @@ test("waits when immovable usage leaves no room", () => {
       requestedTargetId: "cand",
       usedByOthersBytes: 80,
       targets: [
-        target({ id: "cand", instanceId: "ic", priority: 100, state: "unloaded", bytes: 50 }),
+        target({
+          id: "cand",
+          instanceId: "ic",
+          priority: 100,
+          state: "unloaded",
+          bytes: 50,
+        }),
       ],
     }),
   });
@@ -202,8 +282,21 @@ test("waits when the busy obstacle is not a holder this coordinator controls", (
     planRequest: planRequest({
       requestedTargetId: "cand",
       targets: [
-        target({ id: "cand", instanceId: "ic", priority: 100, state: "unloaded", bytes: 50 }),
-        target({ id: "peer", instanceId: "ip", priority: 10, state: "ready", activeRequests: 1, bytes: 70 }),
+        target({
+          id: "cand",
+          instanceId: "ic",
+          priority: 100,
+          state: "unloaded",
+          bytes: 50,
+        }),
+        target({
+          id: "peer",
+          instanceId: "ip",
+          priority: 10,
+          state: "ready",
+          activeRequests: 1,
+          bytes: 70,
+        }),
       ],
     }),
   });
@@ -221,7 +314,13 @@ test("waits when the candidate is at its --parallel concurrency cap", () => {
     planRequest: planRequest({
       requestedTargetId: "cand",
       targets: [
-        target({ id: "cand", instanceId: "i", priority: 100, state: "ready", bytes: 50 }),
+        target({
+          id: "cand",
+          instanceId: "i",
+          priority: 100,
+          state: "ready",
+          bytes: 50,
+        }),
       ],
     }),
   });
@@ -243,7 +342,13 @@ test("admits a same-target request below the --parallel concurrency cap", () => 
     planRequest: planRequest({
       requestedTargetId: "cand",
       targets: [
-        target({ id: "cand", instanceId: "i", priority: 100, state: "ready", bytes: 50 }),
+        target({
+          id: "cand",
+          instanceId: "i",
+          priority: 100,
+          state: "ready",
+          bytes: 50,
+        }),
       ],
     }),
   });

@@ -2,7 +2,11 @@ import type { Instance } from "@llama-manager/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { proxyEngineGates } from "./engine-capabilities.js";
+import {
+  proxyEngineGates,
+  requestLeasePreemptible,
+  schedulerTargetPreemptible,
+} from "./engine-capabilities.js";
 
 function instance(kind: Instance["kind"]): Instance {
   return {
@@ -57,4 +61,40 @@ test("vllm requests leases but opts out of llama lifecycle verbs", () => {
     streamResume: false,
     sseTimings: false,
   });
+});
+
+test("KTransformers requests leases without llama lifecycle or stream extensions", () => {
+  assert.deepEqual(proxyEngineGates(instance("ktransformers")), {
+    requestLease: true,
+    modelLoadUnload: false,
+    slotSave: false,
+    streamResume: false,
+    sseTimings: false,
+  });
+});
+
+test("idle-only instances can be displaced only after requests drain", () => {
+  const kt = {
+    ...instance("ktransformers"),
+    scheduling: { evictionPolicy: "idle-only" as const },
+  };
+  assert.equal(schedulerTargetPreemptible(kt, true, 0), true);
+  assert.equal(schedulerTargetPreemptible(kt, true, 1), false);
+  assert.equal(requestLeasePreemptible(kt, true), false);
+});
+
+test("never and preemptible scheduling policies gate both scheduler and lease", () => {
+  const base = instance("ktransformers");
+  const never = {
+    ...base,
+    scheduling: { evictionPolicy: "never" as const },
+  };
+  const preemptible = {
+    ...base,
+    scheduling: { evictionPolicy: "preemptible" as const },
+  };
+  assert.equal(schedulerTargetPreemptible(never, true, 0), false);
+  assert.equal(requestLeasePreemptible(never, true), false);
+  assert.equal(schedulerTargetPreemptible(preemptible, true, 1), true);
+  assert.equal(requestLeasePreemptible(preemptible, true), true);
 });

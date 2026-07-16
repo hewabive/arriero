@@ -16,10 +16,13 @@ Implemented on `main`:
   and declared-versus-measured memory diagnostics;
 - Phase 5 — engine-aware environment installation, typed KTransformers instance
   creation/editing, shared preview/submit serialization, reservation and NUMA
-  guidance, scheduling policy controls, and production form enablement.
+  guidance, scheduling policy controls, and production form enablement;
+- Phase 6 — descriptor-driven concurrency admission, typed stopped-model
+  identity, persisted eviction-policy enforcement, idle-only drain behavior,
+  and capability-gated generic proxy forwarding.
 
 Phase 0 and real-engine parts of Phase 7 remain pending a supported Linux
-x86-64 NVIDIA host. Product phases 6 onward remain incomplete.
+x86-64 NVIDIA host. Release qualification and post-MVP phases remain incomplete.
 
 This document is the implementation plan for managed KTransformers support in
 llama-manager. It records the architecture decisions accepted on 2026-07-16,
