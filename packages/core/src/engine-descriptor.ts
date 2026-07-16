@@ -218,7 +218,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     processTree: "all-descendants",
     concurrency: "sglang-max-running-requests",
     defaultEvictionPolicy: "idle-only",
-    form: { creatable: false, modelSource: "free-text" },
+    form: { creatable: true, modelSource: "free-text" },
   },
 };
 

@@ -17,6 +17,7 @@ import { InstanceFormArgumentsSection } from "./InstanceFormArgumentsSection";
 import { InstanceFormCudaSection } from "./InstanceFormCudaSection";
 import { InstanceFormEnvSection } from "./InstanceFormEnvSection";
 import { InstanceFormHostPort } from "./InstanceFormHostPort";
+import { InstanceFormKTransformersSection } from "./InstanceFormKTransformersSection";
 import { InstanceFormMemorySection } from "./InstanceFormMemorySection";
 import { InstanceFormModelSection } from "./InstanceFormModelSection";
 import { InstanceFormNumaSection } from "./InstanceFormNumaSection";
@@ -99,7 +100,7 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
                 Path catalog page or create a managed environment.
               </Text>
             )}
-          {fm.modelSource === "free-text" && (
+          {fm.modelSource === "free-text" && fm.kind !== "ktransformers" && (
             <>
               <TextInput
                 label="Model"
@@ -111,6 +112,12 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
                   fm.setModelReference(event.currentTarget.value)
                 }
               />
+              <InstanceFormHostPort fm={fm} />
+            </>
+          )}
+          {fm.kind === "ktransformers" && (
+            <>
+              <InstanceFormKTransformersSection fm={fm} />
               <InstanceFormHostPort fm={fm} />
             </>
           )}

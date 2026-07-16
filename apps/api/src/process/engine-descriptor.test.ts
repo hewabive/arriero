@@ -89,7 +89,7 @@ test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () =>
   assert.equal(descriptor.processTree, "all-descendants");
   assert.equal(descriptor.concurrency, "sglang-max-running-requests");
   assert.equal(descriptor.defaultEvictionPolicy, "idle-only");
-  assert.equal(descriptor.form.creatable, false);
+  assert.equal(descriptor.form.creatable, true);
   assert.deepEqual(descriptor.proxy, {
     serveEndpoint: true,
     requestLease: true,

@@ -25,7 +25,15 @@ export function InstanceFormNumaSection({
   const modeData = [
     { value: "none", label: "None" },
     { value: "bind", label: "Bind", disabled: !fm.numaBind },
-    { value: "interleave", label: "Interleave", disabled: !fm.numaInterleave },
+    ...(fm.kind === "ktransformers"
+      ? []
+      : [
+          {
+            value: "interleave",
+            label: "Interleave",
+            disabled: !fm.numaInterleave,
+          },
+        ]),
   ];
   const nodeOptions = fm.numaNodes.map((node) => ({
     value: String(node.id),
@@ -40,9 +48,9 @@ export function InstanceFormNumaSection({
             NUMA placement
           </Text>
           <Text c="dimmed" size="xs">
-            Bind confines CPUs+memory to one node (locality / co-tenancy; needs a
-            delegated cgroup v2 cpuset). Interleave spreads memory across nodes
-            for full bandwidth on big CPU models (needs numactl).
+            {fm.kind === "ktransformers"
+              ? "Outer binding confines the complete process tree. Configure internal KT thread pools with --kt-threadpool-count and --kt-numa-nodes; manager interleave is intentionally unavailable."
+              : "Bind confines CPUs+memory to one node (locality / co-tenancy; needs a delegated cgroup v2 cpuset). Interleave spreads memory across nodes for full bandwidth on big CPU models (needs numactl)."}
           </Text>
         </Box>
 

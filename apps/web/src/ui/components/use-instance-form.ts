@@ -1,5 +1,6 @@
 import {
   InstanceArgsSchema,
+  KTRANSFORMERS_RESERVED_ARG_KEYS,
   RPC_SERVER_SUPPORTED_FLAGS,
   engineDescriptor,
   ggufModelRole,
@@ -8,10 +9,12 @@ import {
   type Instance,
   type InstanceCreate,
   type InstanceKind,
+  type InstanceEvictionPolicy,
   type InstancePreflightPreview,
   type InstanceUpdate,
   type ArgumentOption,
   type MemoryEstimate,
+  type KTransformersMethod,
   type RpcWorkerRef,
 } from "@llama-manager/core";
 import { useForm } from "@mantine/form";
@@ -110,6 +113,9 @@ export type InstanceFormModalProps = {
 const RPC_WORKER_ARG_KEYS = new Set(
   RPC_SERVER_SUPPORTED_FLAGS.flatMap((flag) => [flag.long, flag.short]),
 );
+const KTRANSFORMERS_MANAGED_ARG_KEYS = new Set<string>(
+  KTRANSFORMERS_RESERVED_ARG_KEYS,
+);
 
 function encodeRpcWorkerRef(
   ref: Pick<RpcWorkerRef, "nodeId" | "instanceName">,
@@ -142,6 +148,13 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     null,
   );
   const [modelReference, setModelReference] = useState("");
+  const [ktransformersCpuWeights, setKTransformersCpuWeights] = useState("");
+  const [ktransformersMethod, setKTransformersMethod] =
+    useState<KTransformersMethod>("FP8");
+  const [ktransformersServedModelName, setKTransformersServedModelName] =
+    useState("");
+  const [evictionPolicy, setEvictionPolicy] =
+    useState<InstanceEvictionPolicy>("preemptible");
   const [kind, setKind] = useState<InstanceKind>("llama-server");
   const [rpcWorkers, setRpcWorkers] = useState<RpcWorkerRef[]>([]);
   const [launchMode, setLaunchMode] = useState<LaunchMode>("model");
@@ -381,6 +394,10 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   const visibleKnownArgs = knownArgs.filter(
     (option) =>
       isSelectableInstanceArgument(option) &&
+      !(
+        kind === "ktransformers" &&
+        option.names.some((name) => KTRANSFORMERS_MANAGED_ARG_KEYS.has(name))
+      ) &&
       (showDeprecatedArgs || !option.deprecated),
   );
   const visibleArgRows = useMemo(
@@ -627,7 +644,30 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setCustomEnvRows(buildEnvRows(props.instance.env));
       setShowEnvRawJson(false);
       setKind(props.instance.kind);
-      setModelReference(props.instance.positionalArgs?.[0] ?? "");
+      setModelReference(
+        props.instance.engineConfig?.type === "ktransformers"
+          ? props.instance.engineConfig.model
+          : (props.instance.positionalArgs?.[0] ?? ""),
+      );
+      setKTransformersCpuWeights(
+        props.instance.engineConfig?.type === "ktransformers"
+          ? props.instance.engineConfig.cpuWeights
+          : "",
+      );
+      setKTransformersMethod(
+        props.instance.engineConfig?.type === "ktransformers"
+          ? props.instance.engineConfig.method
+          : "FP8",
+      );
+      setKTransformersServedModelName(
+        props.instance.engineConfig?.type === "ktransformers"
+          ? (props.instance.engineConfig.servedModelName ?? "")
+          : "",
+      );
+      setEvictionPolicy(
+        props.instance.scheduling?.evictionPolicy ??
+          engineDescriptor(props.instance.kind).defaultEvictionPolicy,
+      );
       setRpcWorkers(props.instance.rpcWorkers);
       setSelectedBinaryPathRefId(props.instance.binaryPathRefId);
       setSelectedModelPath(modelPath);
@@ -668,6 +708,10 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setShowEnvRawJson(false);
       setKind("llama-server");
       setModelReference("");
+      setKTransformersCpuWeights("");
+      setKTransformersMethod("FP8");
+      setKTransformersServedModelName("");
+      setEvictionPolicy(engineDescriptor("llama-server").defaultEvictionPolicy);
       setRpcWorkers([]);
       setSelectedBinaryPathRefId(null);
       setSelectedModelPath(modelPath);
@@ -732,25 +776,141 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     defaultBinaryQuery.isLoading,
   ]);
 
-  const draftPreview = useMemo(() => {
-    try {
-      const args = InstanceArgsSchema.parse(
-        rowsToArgsWithCatalog(argRows, knownArgByName),
+  function serializeInstanceInput(values: typeof form.values): InstanceCreate {
+    if (!selectedBinaryPathRefId) {
+      throw new Error("Select a binary from the catalog");
+    }
+    if (kind === "ktransformers" && numaMode === "interleave") {
+      throw new Error(
+        "KTransformers owns internal NUMA placement; manager interleave is unavailable",
       );
-      const env = parseEnvJson(form.values.envJson);
-      if (!selectedBinaryPathRefId) {
-        return { input: null, error: "Select a binary from the catalog" };
-      }
-      const input: InstancePreflightPreview = {
-        name: form.values.name,
+    }
+    const numa =
+      numaMode === "bind" && numaBindNode !== null
+        ? ({ mode: "bind", node: numaBindNode } as const)
+        : numaMode === "interleave"
+          ? ({ mode: "interleave", nodes: numaInterleaveNodes } as const)
+          : undefined;
+    const env = parseEnvJson(values.envJson);
+    const memory = memoryDrawsFromRows(memoryRows);
+    const scheduling = { evictionPolicy };
+
+    if (kind === "rpc-worker") {
+      const workerRows = argRows.filter((row) =>
+        RPC_WORKER_ARG_KEYS.has(row.key),
+      );
+      return {
+        name: values.name,
         kind,
-        rpcWorkers: kind === "rpc-worker" ? [] : rpcWorkers,
+        rpcWorkers: [],
         binaryPathRefId: selectedBinaryPathRefId,
-        ...(kind === "vllm" ? { positionalArgs: [modelReference.trim()] } : {}),
+        args: InstanceArgsSchema.parse(
+          rowsToArgsWithCatalog(workerRows, knownArgByName),
+        ),
+        env,
+        memory,
+        scheduling,
+        ...(numa ? { numa } : {}),
+      };
+    }
+
+    const args = InstanceArgsSchema.parse(
+      rowsToArgsWithCatalog(argRows, knownArgByName),
+    );
+    if (kind === "vllm") {
+      const model = modelReference.trim();
+      if (!model) {
+        throw new Error("Set a Hugging Face model id or local model path");
+      }
+      return {
+        name: values.name,
+        kind,
+        rpcWorkers: [],
+        binaryPathRefId: selectedBinaryPathRefId,
+        positionalArgs: [model],
         args,
         env,
-        memory: memoryDrawsFromRows(memoryRows),
+        memory,
+        scheduling,
+        ...(numa ? { numa } : {}),
       };
+    }
+
+    if (kind === "ktransformers") {
+      const model = modelReference.trim();
+      const cpuWeights = ktransformersCpuWeights.trim();
+      if (!model) {
+        throw new Error("Set a Hugging Face model id or local model path");
+      }
+      if (!cpuWeights) {
+        throw new Error("Set the KTransformers CPU weights path");
+      }
+      return {
+        name: values.name,
+        kind,
+        rpcWorkers: [],
+        binaryPathRefId: selectedBinaryPathRefId,
+        args,
+        env,
+        memory,
+        engineConfig: {
+          type: "ktransformers",
+          model,
+          cpuWeights,
+          method: ktransformersMethod,
+          ...(ktransformersServedModelName.trim()
+            ? { servedModelName: ktransformersServedModelName.trim() }
+            : {}),
+        },
+        scheduling,
+        ...(numa ? { numa } : {}),
+      };
+    }
+
+    if (launchMode === "router" && !selectedPresetName) {
+      throw new Error("Router preset is not selected");
+    }
+    const llamaRows =
+      launchMode === "router"
+        ? removeArgRows(argRows, [
+            "--model",
+            "--hf-repo",
+            "--hf-file",
+            "--model-url",
+            "--mmproj-url",
+          ])
+        : removeArgRows(argRows, [
+            "--models-preset",
+            "--models-max",
+            "--models-autoload",
+            "--no-models-autoload",
+          ]);
+    const llamaArgs = InstanceArgsSchema.parse(
+      rowsToArgsWithCatalog(llamaRows, knownArgByName),
+    );
+    if (launchMode !== "router" && !hasModelSource(llamaArgs)) {
+      throw new Error(
+        "Select a model or configure --hf-repo/--model-url before creating the instance",
+      );
+    }
+    return {
+      name: values.name,
+      kind,
+      rpcWorkers,
+      binaryPathRefId: selectedBinaryPathRefId,
+      args: llamaArgs,
+      env,
+      memory,
+      scheduling,
+      ...(numa ? { numa } : {}),
+    };
+  }
+
+  const draftPreview = useMemo(() => {
+    try {
+      const input: InstancePreflightPreview = serializeInstanceInput(
+        form.values,
+      );
       return { input, error: null };
     } catch (error) {
       return { input: null, error: (error as Error).message };
@@ -760,12 +920,21 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     form.values.envJson,
     form.values.name,
     kind,
+    evictionPolicy,
+    ktransformersCpuWeights,
+    ktransformersMethod,
+    ktransformersServedModelName,
     knownArgByName,
     memoryRows,
     modelReference,
     props.instance?.name,
     rpcWorkers,
     selectedBinaryPathRefId,
+    launchMode,
+    selectedPresetName,
+    numaMode,
+    numaBindNode,
+    numaInterleaveNodes,
   ]);
 
   const [debouncedPreflightInput] = useDebouncedValue(draftPreview.input, 350);
@@ -873,6 +1042,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
 
   function applyKind(next: InstanceKind) {
     setKind(next);
+    setEvictionPolicy(engineDescriptor(next).defaultEvictionPolicy);
     const matchingBinaries = (pathCatalogQuery.data?.data ?? []).filter(
       (entry) =>
         entry.kind === "binary" && pathCatalogBinaryEngineKind(entry) === next,
@@ -924,6 +1094,51 @@ export function useInstanceForm(props: InstanceFormModalProps) {
               props.instances,
               props.instance?.name,
               engineDescriptor("vllm").http.defaultPort,
+            ),
+          ),
+          valueType: "number",
+        },
+      ]);
+      return;
+    }
+    if (next === "ktransformers") {
+      setSelectedModelPath(null);
+      setSelectedPresetName(null);
+      setRpcWorkers([]);
+      setLaunchMode("model");
+      setNumaMode((mode) => (mode === "interleave" ? "none" : mode));
+      const recommendedPools = [
+        memoryPools.find((pool) => pool.kind === "host"),
+        memoryPools.find(
+          (pool) =>
+            pool.kind === "gpu" &&
+            (cudaAccelerators[0]
+              ? pool.deviceRef === cudaAccelerators[0].id
+              : true),
+        ),
+      ].filter((pool) => pool !== undefined);
+      setMemoryRows(
+        recommendedPools.map((pool) => ({
+          id: createUiId(),
+          poolId: pool.id,
+          gib: "",
+        })),
+      );
+      setArgRows([
+        {
+          id: createUiId(),
+          key: "--host",
+          value: "127.0.0.1",
+          valueType: "string",
+        },
+        {
+          id: createUiId(),
+          key: "--port",
+          value: String(
+            nextAvailablePort(
+              props.instances,
+              props.instance?.name,
+              engineDescriptor("ktransformers").http.defaultPort,
             ),
           ),
           valueType: "number",
@@ -1418,113 +1633,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
 
   function submit(values: typeof form.values) {
     try {
-      if (!selectedBinaryPathRefId) {
-        throw new Error("Select a binary from the catalog");
-      }
-      if (kind === "rpc-worker") {
-        const workerRows = argRows.filter((row) =>
-          RPC_WORKER_ARG_KEYS.has(row.key),
-        );
-        const workerArgs = InstanceArgsSchema.parse(
-          rowsToArgsWithCatalog(workerRows, knownArgByName),
-        );
-        const workerInput: InstanceCreate = {
-          name: values.name,
-          kind: "rpc-worker",
-          rpcWorkers: [],
-          binaryPathRefId: selectedBinaryPathRefId,
-          args: workerArgs,
-          env: parseEnvJson(values.envJson),
-          memory: memoryDrawsFromRows(memoryRows),
-          ...(numaMode === "bind" && numaBindNode !== null
-            ? { numa: { mode: "bind" as const, node: numaBindNode } }
-            : numaMode === "interleave"
-              ? {
-                  numa: {
-                    mode: "interleave" as const,
-                    nodes: numaInterleaveNodes,
-                  },
-                }
-              : {}),
-        };
-        mutation.mutate(workerInput);
-        return;
-      }
-      if (kind === "vllm") {
-        const model = modelReference.trim();
-        if (!model) {
-          throw new Error("Set a Hugging Face model id or local model path");
-        }
-        mutation.mutate({
-          name: values.name,
-          kind: "vllm",
-          rpcWorkers: [],
-          binaryPathRefId: selectedBinaryPathRefId,
-          positionalArgs: [model],
-          args: InstanceArgsSchema.parse(
-            rowsToArgsWithCatalog(argRows, knownArgByName),
-          ),
-          env: parseEnvJson(values.envJson),
-          memory: memoryDrawsFromRows(memoryRows),
-          ...(numaMode === "bind" && numaBindNode !== null
-            ? { numa: { mode: "bind" as const, node: numaBindNode } }
-            : numaMode === "interleave"
-              ? {
-                  numa: {
-                    mode: "interleave" as const,
-                    nodes: numaInterleaveNodes,
-                  },
-                }
-              : {}),
-        });
-        return;
-      }
-      if (launchMode === "router" && !selectedPresetName) {
-        throw new Error("Router preset is not selected");
-      }
-      const rows =
-        launchMode === "router"
-          ? removeArgRows(argRows, [
-              "--model",
-              "--hf-repo",
-              "--hf-file",
-              "--model-url",
-              "--mmproj-url",
-            ])
-          : removeArgRows(argRows, [
-              "--models-preset",
-              "--models-max",
-              "--models-autoload",
-              "--no-models-autoload",
-            ]);
-      const args = InstanceArgsSchema.parse(
-        rowsToArgsWithCatalog(rows, knownArgByName),
-      );
-      if (launchMode !== "router" && !hasModelSource(args)) {
-        throw new Error(
-          "Select a model or configure --hf-repo/--model-url before creating the instance",
-        );
-      }
-      const input: InstanceCreate = {
-        name: values.name,
-        kind,
-        rpcWorkers,
-        binaryPathRefId: selectedBinaryPathRefId,
-        args,
-        env: parseEnvJson(values.envJson),
-        memory: memoryDrawsFromRows(memoryRows),
-        ...(numaMode === "bind" && numaBindNode !== null
-          ? { numa: { mode: "bind" as const, node: numaBindNode } }
-          : numaMode === "interleave"
-            ? {
-                numa: {
-                  mode: "interleave" as const,
-                  nodes: numaInterleaveNodes,
-                },
-              }
-            : {}),
-      };
-      mutation.mutate(input);
+      mutation.mutate(serializeInstanceInput(values));
     } catch (error) {
       notifications.show({
         color: "red",
@@ -1551,6 +1660,14 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     modelSource: engineDescriptor(kind).form.modelSource,
     modelReference,
     setModelReference,
+    ktransformersCpuWeights,
+    setKTransformersCpuWeights,
+    ktransformersMethod,
+    setKTransformersMethod,
+    ktransformersServedModelName,
+    setKTransformersServedModelName,
+    evictionPolicy,
+    setEvictionPolicy,
     rpcWorkerOptions,
     selectedRpcWorkerValues,
     selectedRpcWorkers,

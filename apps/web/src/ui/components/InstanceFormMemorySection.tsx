@@ -59,6 +59,13 @@ export function InstanceFormMemorySection({
           </Text>
         )}
 
+        {fm.kind === "ktransformers" && (
+          <Text c="orange" size="xs">
+            Start requires a positive host reservation and one positive GPU
+            reservation for every CUDA device selected by tensor parallelism.
+          </Text>
+        )}
+
         {fm.memoryRows.map((row) => {
           const hint = row.poolId ? availableHint(row.poolId) : null;
           return (

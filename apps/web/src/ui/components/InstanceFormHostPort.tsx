@@ -1,4 +1,4 @@
-import { NumberInput, SimpleGrid } from "@mantine/core";
+import { NumberInput, SimpleGrid, TextInput } from "@mantine/core";
 
 import { HostPicker } from "./HostPicker";
 import { upsertArgRow } from "./InstanceArgumentRows";
@@ -7,13 +7,24 @@ import { type InstanceFormController } from "./use-instance-form";
 export function InstanceFormHostPort({ fm }: { fm: InstanceFormController }) {
   return (
     <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-      <HostPicker
-        label="Host"
-        value={fm.hostValue}
-        onChange={(value) =>
-          fm.setArgRows((rows) => upsertArgRow(rows, "--host", value, "string"))
-        }
-      />
+      {fm.kind === "ktransformers" ? (
+        <TextInput
+          label="Host"
+          description="Public access terminates at llama-manager"
+          value="127.0.0.1"
+          disabled
+        />
+      ) : (
+        <HostPicker
+          label="Host"
+          value={fm.hostValue}
+          onChange={(value) =>
+            fm.setArgRows((rows) =>
+              upsertArgRow(rows, "--host", value, "string"),
+            )
+          }
+        />
+      )}
       <NumberInput
         label="Port"
         min={1}

@@ -13,10 +13,13 @@ Implemented on `main`:
   process-group shutdown, and restart adoption coverage;
 - Phase 4 — mandatory hybrid reservations, strict non-overridable admission,
   CUDA/TP pool matching, internal NUMA validation, hybrid placement reporting,
-  and declared-versus-measured memory diagnostics.
+  and declared-versus-measured memory diagnostics;
+- Phase 5 — engine-aware environment installation, typed KTransformers instance
+  creation/editing, shared preview/submit serialization, reservation and NUMA
+  guidance, scheduling policy controls, and production form enablement.
 
 Phase 0 and real-engine parts of Phase 7 remain pending a supported Linux
-x86-64 NVIDIA host. Product phases 5 onward remain incomplete.
+x86-64 NVIDIA host. Product phases 6 onward remain incomplete.
 
 This document is the implementation plan for managed KTransformers support in
 llama-manager. It records the architecture decisions accepted on 2026-07-16,
@@ -163,7 +166,7 @@ fork a second supervisor or bypass launch snapshots.
 ### Instance kind and descriptor
 
 Add `"ktransformers"` to `INSTANCE_KINDS`. It is initially present with
-`form.creatable: false` and becomes creatable only after environment, form,
+`form.creatable: true` after environment, form,
 preflight, and lifecycle phases are complete.
 
 Target descriptor:
