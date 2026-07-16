@@ -421,7 +421,10 @@ export function InstanceDetails(props: {
         </Paper>
 
         <SectionLabel>Memory &amp; cache</SectionLabel>
-        <MemoryLayoutPanel layout={statusSummary?.memoryLayout} />
+        <MemoryLayoutPanel
+          layout={statusSummary?.memoryLayout}
+          declared={props.instance?.memory}
+        />
 
         {hasLlamaApi && rootSlotRows.length > 0 && (
           <Paper withBorder p="sm" radius="sm">

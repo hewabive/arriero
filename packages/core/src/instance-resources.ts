@@ -392,6 +392,51 @@ export function deriveInstanceResourceProfile(
   const hostDraw = input.memory.some(
     (draw) => poolKind(input.pools, draw.poolId) === "host" && draw.bytes > 0,
   );
+
+  if (engineDescriptor(input.kind).resourceProfile === "ktransformers-hybrid") {
+    const tensorParallel = Math.max(
+      1,
+      Math.floor(
+        argNumber(input.args, ["--tensor-parallel-size", "--tp"]) ?? 1,
+      ),
+    );
+    const visible =
+      cuda.mode === "list"
+        ? cuda.ids.flatMap((id) => {
+            const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+            return pool ? [pool] : [];
+          })
+        : allGpu;
+    const selected = gpuEntries(
+      visible.slice(0, tensorParallel),
+      cuda,
+      deviceTokens,
+      allGpu,
+    ).slice(0, tensorParallel);
+    return {
+      placement: "hybrid",
+      gpuPools:
+        gpuDraws.length > 0
+          ? gpuDraws.map((draw) => ({
+              poolId: draw.poolId,
+              label: poolLabel(input.pools, draw.poolId),
+            }))
+          : selected,
+      usesHost: true,
+      cpuReason: "KTransformers keeps expert weights and CPU workers on host",
+      confidence: gpuDraws.length > 0 && hostDraw ? "declared" : "args",
+      signals: {
+        ...baseSignals,
+        source:
+          gpuDraws.length > 0 || hostDraw
+            ? "declared-draws"
+            : cuda.mode === "list"
+              ? "cuda-visible-devices"
+              : "device-arg",
+      },
+    };
+  }
+
   if (gpuDraws.length > 0) {
     return {
       placement: hostDraw ? "hybrid" : "gpu",

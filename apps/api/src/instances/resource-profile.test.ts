@@ -108,13 +108,47 @@ test("vllm tensor parallelism selects the first visible GPU pools", () => {
     env: { CUDA_VISIBLE_DEVICES: "1,0" },
   });
   assert.equal(result.placement, "gpu");
-  assert.deepEqual(result.gpuPools.map((pool) => pool.poolId), ["gpu1"]);
+  assert.deepEqual(
+    result.gpuPools.map((pool) => pool.poolId),
+    ["gpu1"],
+  );
 });
 
 test("vllm --device cpu produces a host profile", () => {
   const result = profile({ kind: "vllm", args: { "--device": "cpu" } });
   assert.equal(result.placement, "cpu");
   assert.equal(result.usesHost, true);
+});
+
+test("KTransformers is always hybrid and follows CUDA tensor-parallel order", () => {
+  const result = profile({
+    kind: "ktransformers",
+    args: { "--tensor-parallel-size": 1 },
+    env: { CUDA_VISIBLE_DEVICES: "1,0" },
+  });
+  assert.equal(result.placement, "hybrid");
+  assert.equal(result.usesHost, true);
+  assert.deepEqual(
+    result.gpuPools.map((pool) => pool.poolId),
+    ["gpu1"],
+  );
+  assert.match(result.cpuReason ?? "", /CPU workers/);
+});
+
+test("KTransformers reports exact declared hybrid pools", () => {
+  const result = profile({
+    kind: "ktransformers",
+    memory: [
+      { poolId: "gpu1", bytes: 1024 },
+      { poolId: "host", bytes: 2048 },
+    ],
+  });
+  assert.equal(result.placement, "hybrid");
+  assert.equal(result.confidence, "declared");
+  assert.deepEqual(
+    result.gpuPools.map((pool) => pool.poolId),
+    ["gpu1"],
+  );
 });
 
 test("declared GPU draws win and report exact pools", () => {

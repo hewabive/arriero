@@ -10,10 +10,13 @@ Implemented on `main`:
   environments, validation, availability, and catalog ownership;
 - Phase 3 — typed launch compilation, strict runtime preflight, SGLang help and
   log adapters, HTTP-authoritative readiness, all-descendant telemetry policy,
-  process-group shutdown, and restart adoption coverage.
+  process-group shutdown, and restart adoption coverage;
+- Phase 4 — mandatory hybrid reservations, strict non-overridable admission,
+  CUDA/TP pool matching, internal NUMA validation, hybrid placement reporting,
+  and declared-versus-measured memory diagnostics.
 
 Phase 0 and real-engine parts of Phase 7 remain pending a supported Linux
-x86-64 NVIDIA host. Later product phases remain incomplete.
+x86-64 NVIDIA host. Product phases 5 onward remain incomplete.
 
 This document is the implementation plan for managed KTransformers support in
 llama-manager. It records the architecture decisions accepted on 2026-07-16,

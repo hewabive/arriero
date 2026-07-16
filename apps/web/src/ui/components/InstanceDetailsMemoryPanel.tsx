@@ -1,4 +1,5 @@
 import type {
+  InstanceMemoryDraw,
   InstanceMemoryLayout,
   InstanceMemoryPlacement,
 } from "@llama-manager/core";
@@ -8,6 +9,11 @@ import { formatBytes } from "./instance-details-helpers";
 
 function formatMemoryBytes(value: number) {
   return value > 0 ? (formatBytes(value) ?? "-") : "-";
+}
+
+function formatMemoryDelta(value: number) {
+  if (value === 0) return "0 B";
+  return `${value > 0 ? "+" : "-"}${formatBytes(Math.abs(value)) ?? "-"}`;
 }
 
 function memoryKindLabel(kind: InstanceMemoryPlacement["kind"]) {
@@ -65,6 +71,7 @@ function memoryLayoutBadge(layout: InstanceMemoryLayout | undefined) {
 
 export function MemoryLayoutPanel(props: {
   layout: InstanceMemoryLayout | undefined;
+  declared?: InstanceMemoryDraw[] | undefined;
 }) {
   const layout = props.layout;
   const entries = layout?.entries ?? [];
@@ -73,6 +80,14 @@ export function MemoryLayoutPanel(props: {
   const projectedHostBytes = layout?.projectedHostBytes ?? null;
   const projectedHostTotalBytes = layout?.projectedHostTotalBytes ?? null;
   const hasProjection = projectedHostBytes !== null && projectedHostBytes > 0;
+  const declaredBytes = (props.declared ?? []).reduce(
+    (sum, draw) => sum + draw.bytes,
+    0,
+  );
+  const measuredDelta =
+    layout && layout.source === "process-telemetry" && declaredBytes > 0
+      ? layout.totalBytes - declaredBytes
+      : null;
 
   return (
     <Paper withBorder p="sm" radius="sm">
@@ -89,6 +104,22 @@ export function MemoryLayoutPanel(props: {
           {memoryLayoutBadge(layout)}
         </Badge>
       </Group>
+
+      {declaredBytes > 0 && (
+        <Group gap="xs" mb="xs">
+          <Badge variant="outline">
+            Declared reservation {formatMemoryBytes(declaredBytes)}
+          </Badge>
+          {measuredDelta !== null && (
+            <Badge
+              color={measuredDelta > 0 ? "orange" : "gray"}
+              variant="light"
+            >
+              Measured {formatMemoryDelta(measuredDelta)} vs declared
+            </Badge>
+          )}
+        </Group>
+      )}
 
       {hasRuntimeEntries ? (
         <Stack gap="xs">

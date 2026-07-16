@@ -1,4 +1,9 @@
-import type { Instance, SystemAccelerator } from "@llama-manager/core";
+import type {
+  Instance,
+  MemoryPool,
+  NumaNode,
+  SystemAccelerator,
+} from "@llama-manager/core";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,6 +26,56 @@ const nvidia: SystemAccelerator = {
   source: "nvidia-smi",
 };
 
+const now = "2026-01-01T00:00:00.000Z";
+const pools: MemoryPool[] = [
+  {
+    id: "gpu0",
+    name: "GPU 0",
+    kind: "gpu",
+    capacityBytes: 24_000,
+    reservedBytes: 0,
+    deviceRef: "0",
+    autoCapacity: true,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "gpu1",
+    name: "GPU 1",
+    kind: "gpu",
+    capacityBytes: 24_000,
+    reservedBytes: 0,
+    deviceRef: "1",
+    autoCapacity: true,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "host",
+    name: "Host RAM",
+    kind: "host",
+    capacityBytes: 128_000,
+    reservedBytes: 0,
+    deviceRef: null,
+    autoCapacity: true,
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+const numaNodes: NumaNode[] = [0, 1].map((id) => ({
+  id,
+  cpus: id === 0 ? "0-7" : "8-15",
+  cpuCount: 8,
+  memoryBytes: 64_000,
+  memFreeBytes: 32_000,
+  filePagesBytes: 0,
+  online: true,
+}));
+
+function preflightOptions(accelerators: SystemAccelerator[] = [nvidia]) {
+  return { accelerators, memoryPools: pools, numaNodes };
+}
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "llama-manager-kt-preflight-"));
   const bin = join(root, "bin");
@@ -38,7 +93,10 @@ function fixture() {
     binaryPathRefId: "kt-bin",
     args: {},
     env: { CUDA_VISIBLE_DEVICES: "0" },
-    memory: [],
+    memory: [
+      { poolId: "gpu0", bytes: 8_000 },
+      { poolId: "host", bytes: 32_000 },
+    ],
     rpcWorkers: [],
     engineConfig: {
       type: "ktransformers",
@@ -59,7 +117,7 @@ test("KTransformers preflight accepts a matched supported runtime", () => {
   const { root, instance } = fixture();
   try {
     const result = validateInstancePreflight(instance, {
-      accelerators: [nvidia],
+      ...preflightOptions(),
     });
     assert.equal(result.ok, true, JSON.stringify(result.issues));
   } finally {
@@ -71,7 +129,7 @@ test("KTransformers preflight blocks missing weights and CUDA", () => {
   const { root, instance } = fixture();
   try {
     instance.engineConfig!.cpuWeights = join(root, "missing");
-    const result = validateInstancePreflight(instance, { accelerators: [] });
+    const result = validateInstancePreflight(instance, preflightOptions([]));
     assert.equal(result.ok, false);
     assert.ok(
       result.issues.some((issue) => issue.field === "engineConfig.cpuWeights"),
@@ -93,7 +151,7 @@ test("KTransformers preflight enforces loopback auth and tensor parallel limits"
       "--tensor-parallel-size": 2,
     };
     const result = validateInstancePreflight(instance, {
-      accelerators: [nvidia],
+      ...preflightOptions(),
     });
     assert.equal(result.ok, false);
     assert.ok(result.issues.some((issue) => issue.field === "args.--api-key"));
@@ -102,6 +160,103 @@ test("KTransformers preflight enforces loopback auth and tensor parallel limits"
       result.issues.some(
         (issue) => issue.field === "args.--tensor-parallel-size",
       ),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers preflight requires host and every selected GPU reservation", () => {
+  const { root, instance } = fixture();
+  try {
+    instance.env.CUDA_VISIBLE_DEVICES = "1,0";
+    instance.args["--tensor-parallel-size"] = 2;
+    instance.memory = [{ poolId: "gpu0", bytes: 8_000 }];
+    const second = { ...nvidia, id: "1", name: "NVIDIA Test 1" };
+    const result = validateInstancePreflight(instance, {
+      ...preflightOptions([nvidia, second]),
+    });
+    assert.equal(result.ok, false);
+    assert.ok(result.issues.some((entry) => /host-memory/.test(entry.message)));
+    assert.ok(result.issues.some((entry) => /GPU 1/.test(entry.message)));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers preflight rejects GPU draws outside CUDA and TP order", () => {
+  const { root, instance } = fixture();
+  try {
+    instance.env.CUDA_VISIBLE_DEVICES = "1,0";
+    instance.memory = [
+      { poolId: "gpu0", bytes: 8_000 },
+      { poolId: "host", bytes: 32_000 },
+    ];
+    const second = { ...nvidia, id: "1", name: "NVIDIA Test 1" };
+    const result = validateInstancePreflight(instance, {
+      ...preflightOptions([nvidia, second]),
+    });
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.issues.some((entry) => /outside CUDA/.test(entry.message)),
+    );
+    assert.ok(result.issues.some((entry) => /GPU 1/.test(entry.message)));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers preflight validates internal and manager NUMA placement", () => {
+  const { root, instance } = fixture();
+  try {
+    instance.args["--kt-threadpool-count"] = 2;
+    instance.args["--kt-numa-nodes"] = ["0", "1"];
+    instance.numa = { mode: "bind", node: 0 };
+    const result = validateInstancePreflight(instance, preflightOptions());
+    assert.equal(result.ok, false);
+    assert.ok(result.issues.some((entry) => entry.field === "numa.node"));
+
+    instance.numa = { mode: "interleave", nodes: [0, 1] };
+    const interleave = validateInstancePreflight(instance, preflightOptions());
+    assert.equal(interleave.ok, false);
+    assert.ok(interleave.issues.some((entry) => entry.field === "numa.mode"));
+
+    delete instance.numa;
+    const noCpu = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      numaNodes: numaNodes.map((node) =>
+        node.id === 1 ? { ...node, cpuCount: 0, cpus: "" } : node,
+      ),
+    });
+    assert.equal(noCpu.ok, false);
+    assert.ok(
+      noCpu.issues.some((entry) => /no online CPU cores/.test(entry.message)),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers memory shortfalls are blocking", () => {
+  const { root, instance } = fixture();
+  try {
+    const result = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      capacityAdmission: {
+        ok: false,
+        shortfalls: [
+          {
+            poolId: "host",
+            requestedBytes: 32_000,
+            availableBytes: 1_000,
+            deficitBytes: 31_000,
+          },
+        ],
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.issues.some((entry) => /strict admission/.test(entry.message)),
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

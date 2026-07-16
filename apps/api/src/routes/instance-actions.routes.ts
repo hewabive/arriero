@@ -134,7 +134,7 @@ export function registerInstanceActionRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    if (!parsed.data.force) {
+    if (!parsed.data.force || instance.kind === "ktransformers") {
       const admission = admitInstanceDraw(instance.memory, {
         excludeInstanceId: instance.name,
       });

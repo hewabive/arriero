@@ -6,6 +6,7 @@ import type {
 } from "@llama-manager/core";
 
 import { listInstances } from "../instances/repository.js";
+import { admitInstanceDraw } from "../resources/ledger.js";
 import { getInstanceHealthSummary } from "./health-summary.js";
 import {
   ProcessPreflightError,
@@ -135,6 +136,9 @@ export async function startManagedInstance(
   }
   const preflight = await validateInstanceStartPreflight(instance, {
     peers: listInstances(),
+    capacityAdmission: admitInstanceDraw(instance.memory, {
+      excludeInstanceId: instance.name,
+    }),
   });
   if (!preflight.ok) {
     throw new ProcessActionHttpError("preflight failed", 400, preflight.issues);
@@ -180,6 +184,9 @@ export async function restartManagedInstance(
   assertWorkerNotReferenced(instance, options.force ?? false);
   const preflight = validateInstancePreflight(instance, {
     peers: listInstances(),
+    capacityAdmission: admitInstanceDraw(instance.memory, {
+      excludeInstanceId: instance.name,
+    }),
   });
   if (!preflight.ok) {
     throw new ProcessActionHttpError("preflight failed", 400, preflight.issues);
@@ -190,6 +197,9 @@ export async function restartManagedInstance(
   if (staleState) {
     const startPreflight = await validateInstanceStartPreflight(instance, {
       peers: listInstances(),
+      capacityAdmission: admitInstanceDraw(instance.memory, {
+        excludeInstanceId: instance.name,
+      }),
     });
     if (!startPreflight.ok) {
       throw new ProcessActionHttpError(

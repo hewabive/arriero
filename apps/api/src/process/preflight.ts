@@ -2,6 +2,8 @@ import {
   engineDescriptor,
   type EnginePreflightId,
   type Instance,
+  type MemoryPool,
+  type NumaNode,
   type ProcessPreflightIssue,
   type ProcessPreflightResult,
   type ResourceAdmission,
@@ -19,6 +21,8 @@ export type PreflightOptions = {
   peers?: Instance[] | undefined;
   accelerators?: SystemAccelerator[] | undefined;
   capacityAdmission?: ResourceAdmission | undefined;
+  memoryPools?: MemoryPool[] | undefined;
+  numaNodes?: NumaNode[] | undefined;
 };
 
 type EnginePreflightCheck = (
@@ -314,6 +318,7 @@ async function validatePortAvailability(
 }
 
 function validateMemoryCapacity(
+  instance: Instance,
   issues: ProcessPreflightIssue[],
   options: PreflightOptions,
 ) {
@@ -325,9 +330,12 @@ function validateMemoryCapacity(
     const deficitGib = (shortfall.deficitBytes / 1024 ** 3).toFixed(1);
     const freeGib = (shortfall.availableBytes / 1024 ** 3).toFixed(1);
     issues.push({
-      level: "warning",
+      level: instance.kind === "ktransformers" ? "error" : "warning",
       field: "memory",
-      message: `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. Starting will require confirmation.`,
+      message:
+        instance.kind === "ktransformers"
+          ? `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. KTransformers strict admission cannot be overridden.`
+          : `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. Starting will require confirmation.`,
     });
   }
 }
@@ -367,7 +375,7 @@ export function validateInstancePreflight(
   if (engineChecks) {
     engineChecks(instance, issues, options);
   }
-  validateMemoryCapacity(issues, options);
+  validateMemoryCapacity(instance, issues, options);
 
   return {
     instanceId: instance.name,
