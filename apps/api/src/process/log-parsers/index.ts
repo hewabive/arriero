@@ -11,6 +11,7 @@ import type { EngineLogParser } from "./types.js";
 const ENGINE_LOG_PARSERS: Record<EngineLogParserId, EngineLogParser> = {
   llama: llamaLogParser,
   vllm: vllmLogParser,
+  sglang: vllmLogParser,
 };
 
 export function engineLogParser(kind: InstanceKind): EngineLogParser {

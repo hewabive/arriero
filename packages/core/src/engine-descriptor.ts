@@ -1,18 +1,38 @@
-export const INSTANCE_KINDS = ["llama-server", "rpc-worker", "vllm"] as const;
+export const INSTANCE_KINDS = [
+  "llama-server",
+  "rpc-worker",
+  "vllm",
+  "ktransformers",
+] as const;
 
 export type InstanceKind = (typeof INSTANCE_KINDS)[number];
 
 export type EngineProbeId = "llama-http" | "tcp-accept" | "openai-http";
 export type EngineNativeApiId = "llama" | "none";
-export type EngineArgvBuilderId = "flag-map";
-export type EngineLogParserId = "llama" | "vllm";
-export type EngineArgumentCatalogParserId = "llama-help" | "vllm-help" | "none";
+export type EngineArgvBuilderId = "flag-map" | "argparse-flags";
+export type EngineLogParserId = "llama" | "vllm" | "sglang";
+export type EngineArgumentCatalogParserId =
+  | "llama-help"
+  | "vllm-help"
+  | "sglang-help"
+  | "none";
 export type EngineEstimatorId = "gguf" | "vllm-gpu-util" | "none";
 export type EngineResourceProfileId =
   | "llama-args"
   | "rpc-device-args"
-  | "vllm-args";
-export type EnginePreflightId = "llama-server" | "none";
+  | "vllm-args"
+  | "ktransformers-hybrid";
+export type EnginePreflightId = "llama-server" | "ktransformers" | "none";
+export type EngineProcessTreePolicy =
+  | "root-only"
+  | "named-descendants"
+  | "all-descendants";
+export type EngineConcurrencyId =
+  | "none"
+  | "llama-parallel"
+  | "vllm-sequences"
+  | "sglang-max-running-requests";
+export type EngineEvictionPolicy = "never" | "idle-only" | "preemptible";
 
 export type EngineHttpDescriptor = {
   defaultHost: string;
@@ -50,6 +70,9 @@ export type EngineDescriptor = {
   logs: { parser: EngineLogParserId };
   estimator: EngineEstimatorId;
   resourceProfile: EngineResourceProfileId;
+  processTree: EngineProcessTreePolicy;
+  concurrency: EngineConcurrencyId;
+  defaultEvictionPolicy: EngineEvictionPolicy;
   form: {
     creatable: boolean;
     modelSource: "gguf" | "none" | "free-text";
@@ -85,6 +108,9 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "llama" },
     estimator: "gguf",
     resourceProfile: "llama-args",
+    processTree: "named-descendants",
+    concurrency: "llama-parallel",
+    defaultEvictionPolicy: "preemptible",
     form: { creatable: true, modelSource: "gguf" },
   },
   "rpc-worker": {
@@ -115,6 +141,9 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "llama" },
     estimator: "none",
     resourceProfile: "rpc-device-args",
+    processTree: "root-only",
+    concurrency: "none",
+    defaultEvictionPolicy: "never",
     form: { creatable: true, modelSource: "none" },
   },
   vllm: {
@@ -149,7 +178,47 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "vllm" },
     estimator: "vllm-gpu-util",
     resourceProfile: "vllm-args",
+    processTree: "all-descendants",
+    concurrency: "vllm-sequences",
+    defaultEvictionPolicy: "preemptible",
     form: { creatable: true, modelSource: "free-text" },
+  },
+  ktransformers: {
+    id: "ktransformers",
+    displayName: "KTransformers (SGLang-KT)",
+    http: {
+      defaultHost: "127.0.0.1",
+      defaultPort: 30000,
+      hostArgKeys: ["--host"],
+      portArgKeys: ["--port"],
+      apiPrefixArgKeys: [],
+    },
+    proxy: {
+      serveEndpoint: true,
+      requestLease: true,
+      modelLoadUnload: false,
+      slotSave: false,
+      streamResume: false,
+      sseTimings: false,
+    },
+    probe: { id: "openai-http", httpHealth: true },
+    nativeApi: "none",
+    launch: {
+      injectSlotSavePath: false,
+      argv: "argparse-flags",
+      argvPrefix: ["serve"],
+    },
+    preflight: {
+      engineChecks: "ktransformers",
+      argumentCatalogParser: "sglang-help",
+    },
+    logs: { parser: "sglang" },
+    estimator: "none",
+    resourceProfile: "ktransformers-hybrid",
+    processTree: "all-descendants",
+    concurrency: "sglang-max-running-requests",
+    defaultEvictionPolicy: "idle-only",
+    form: { creatable: false, modelSource: "free-text" },
   },
 };
 

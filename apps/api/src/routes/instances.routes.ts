@@ -13,6 +13,7 @@ import { admitInstanceDraw } from "../resources/ledger.js";
 import { getMemoryPool } from "../resources/repository.js";
 
 import {
+  InstanceConfigValidationError,
   InstanceNameConflictError,
   createInstance,
   deleteInstance,
@@ -122,6 +123,9 @@ export function registerInstanceRoutes(app: Hono) {
       if (error instanceof InstanceNameConflictError) {
         return c.json({ error: error.message }, 409);
       }
+      if (error instanceof InstanceConfigValidationError) {
+        return c.json({ error: error.details }, 400);
+      }
       throw error;
     }
   });
@@ -148,6 +152,11 @@ export function registerInstanceRoutes(app: Hono) {
       env: preview.env,
       memory: preview.memory,
       rpcWorkers: preview.rpcWorkers,
+      ...(preview.numa !== undefined ? { numa: preview.numa } : {}),
+      ...(preview.engineConfig !== undefined
+        ? { engineConfig: preview.engineConfig }
+        : {}),
+      scheduling: preview.scheduling,
       status: "stopped",
       pid: null,
       createdAt: timestamp,
@@ -282,6 +291,9 @@ export function registerInstanceRoutes(app: Hono) {
     } catch (error) {
       if (error instanceof InstanceNameConflictError) {
         return c.json({ error: error.message }, 409);
+      }
+      if (error instanceof InstanceConfigValidationError) {
+        return c.json({ error: error.details }, 400);
       }
       throw error;
     }

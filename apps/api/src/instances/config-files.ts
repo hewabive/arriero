@@ -82,16 +82,20 @@ export function writeInstanceRecord(
   record: InstanceConfigRecord,
   previousName?: string,
 ): void {
+  const validated = InstanceConfigRecordSchema.parse(record);
   const map = load();
-  atomicWrite(recordPath(record.name), `${JSON.stringify(record, null, 2)}\n`);
-  if (previousName && previousName !== record.name) {
+  atomicWrite(
+    recordPath(validated.name),
+    `${JSON.stringify(validated, null, 2)}\n`,
+  );
+  if (previousName && previousName !== validated.name) {
     const previousPath = recordPath(previousName);
     if (existsSync(previousPath)) {
       unlinkSync(previousPath);
     }
     map.delete(previousName);
   }
-  map.set(record.name, record);
+  map.set(validated.name, validated);
 }
 
 export function removeInstanceRecord(name: string): boolean {

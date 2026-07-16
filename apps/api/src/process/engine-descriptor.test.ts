@@ -69,3 +69,33 @@ test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () =
     sseTimings: false,
   });
 });
+
+test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () => {
+  const descriptor = engineDescriptor("ktransformers");
+  assert.equal(descriptor.displayName, "KTransformers (SGLang-KT)");
+  assert.equal(descriptor.http.defaultPort, 30000);
+  assert.equal(descriptor.probe.id, "openai-http");
+  assert.equal(descriptor.nativeApi, "none");
+  assert.deepEqual(descriptor.launch, {
+    injectSlotSavePath: false,
+    argv: "argparse-flags",
+    argvPrefix: ["serve"],
+  });
+  assert.equal(descriptor.preflight.engineChecks, "ktransformers");
+  assert.equal(descriptor.preflight.argumentCatalogParser, "sglang-help");
+  assert.equal(descriptor.logs.parser, "sglang");
+  assert.equal(descriptor.estimator, "none");
+  assert.equal(descriptor.resourceProfile, "ktransformers-hybrid");
+  assert.equal(descriptor.processTree, "all-descendants");
+  assert.equal(descriptor.concurrency, "sglang-max-running-requests");
+  assert.equal(descriptor.defaultEvictionPolicy, "idle-only");
+  assert.equal(descriptor.form.creatable, false);
+  assert.deepEqual(descriptor.proxy, {
+    serveEndpoint: true,
+    requestLease: true,
+    modelLoadUnload: false,
+    slotSave: false,
+    streamResume: false,
+    sseTimings: false,
+  });
+});

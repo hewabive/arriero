@@ -55,6 +55,7 @@ const HELP_PARSERS: Record<
 > = {
   "llama-help": parseLlamaArgumentOptions,
   "vllm-help": parseVllmArgumentOptions,
+  "sglang-help": parseVllmArgumentOptions,
 };
 
 const HELP_INVOCATIONS: Record<
@@ -63,9 +64,13 @@ const HELP_INVOCATIONS: Record<
 > = {
   "llama-help": { args: ["--help"], timeoutMs: 10_000 },
   "vllm-help": { args: ["serve", "--help=all"], timeoutMs: 60_000 },
+  "sglang-help": { args: ["serve", "--help"], timeoutMs: 60_000 },
 };
 
-function helpCommand(binaryPath: string, parserId: ArgumentCatalogHelpParserId) {
+function helpCommand(
+  binaryPath: string,
+  parserId: ArgumentCatalogHelpParserId,
+) {
   return [binaryPath, ...HELP_INVOCATIONS[parserId].args];
 }
 
@@ -278,10 +283,15 @@ function generateCatalog(
   let helpHash: string;
   let options: ArgumentOption[];
   try {
-    const helpOutput = runHelp(binaryPath, invocation.args, invocation.timeoutMs);
+    const helpOutput = runHelp(
+      binaryPath,
+      invocation.args,
+      invocation.timeoutMs,
+    );
     helpHash = createHash("sha256").update(helpOutput).digest("hex");
     options = HELP_PARSERS[parserId](helpOutput);
-    if (options.length === 0) throw new Error("engine help contained no argument options");
+    if (options.length === 0)
+      throw new Error("engine help contained no argument options");
   } catch (error) {
     if (parserId !== "vllm-help") throw error;
     helpHash = vllmFallbackHelpHash;
@@ -318,7 +328,8 @@ async function generateCatalogAsync(
     );
     helpHash = createHash("sha256").update(helpOutput).digest("hex");
     options = HELP_PARSERS[parserId](helpOutput);
-    if (options.length === 0) throw new Error("engine help contained no argument options");
+    if (options.length === 0)
+      throw new Error("engine help contained no argument options");
   } catch (error) {
     if (parserId !== "vllm-help") throw error;
     helpHash = vllmFallbackHelpHash;

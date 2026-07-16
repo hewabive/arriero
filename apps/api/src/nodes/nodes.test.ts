@@ -13,6 +13,7 @@ import {
   updateNode,
 } from "./repository.js";
 import { fleetSystem } from "./fleet.js";
+import { localFederationCapabilities } from "./capabilities.js";
 import { nodeApiUrl, nodeProxyRest } from "./remote.js";
 
 test("createNode normalizes baseUrl and stores the token as a secret", () => {
@@ -112,4 +113,15 @@ test("nodeApiUrl and nodeProxyRest map the proxy prefix to the peer /api path", 
   );
   assert.equal(nodeProxyRest(node, "/api/nodes/n1/health"), "health");
   assert.equal(nodeApiUrl(node, "/health"), "http://10.0.0.5:8787/api/health");
+});
+
+test("federation capabilities advertise KTransformers before creation is enabled", () => {
+  const capabilities = localFederationCapabilities();
+  assert.equal(capabilities.protocolVersion, 1);
+  assert.ok(capabilities.instanceKinds.includes("ktransformers"));
+  assert.equal(
+    capabilities.creatableInstanceKinds.includes("ktransformers"),
+    false,
+  );
+  assert.equal(capabilities.unknownInstanceKindsTolerated, true);
 });

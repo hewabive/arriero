@@ -208,6 +208,83 @@ export const RpcWorkerRefSchema = z.object({
   instanceName: InstanceNameSchema,
 });
 
+export const KTransformersMethodSchema = z.enum([
+  "AMXINT4",
+  "AMXINT8",
+  "RAWINT4",
+  "FP8",
+  "FP8_PERCHANNEL",
+  "BF16",
+  "LLAMAFILE",
+]);
+
+export const KTransformersInstanceConfigSchema = z.object({
+  type: z.literal("ktransformers"),
+  model: z.string().trim().min(1),
+  cpuWeights: z.string().trim().min(1),
+  method: KTransformersMethodSchema,
+  servedModelName: z.string().trim().min(1).optional(),
+});
+
+export const InstanceEngineConfigSchema = z.discriminatedUnion("type", [
+  KTransformersInstanceConfigSchema,
+]);
+
+export const InstanceEvictionPolicySchema = z.enum([
+  "never",
+  "idle-only",
+  "preemptible",
+]);
+
+export const InstanceSchedulingPolicySchema = z.object({
+  evictionPolicy: InstanceEvictionPolicySchema,
+});
+
+export const KTRANSFORMERS_RESERVED_ARG_KEYS = [
+  "--model",
+  "--model-path",
+  "--kt-weight-path",
+  "--kt-method",
+  "--served-model-name",
+] as const;
+
+function validateInstanceEngineFields(
+  input: {
+    kind: InstanceKind;
+    args?: Record<string, unknown> | undefined;
+    engineConfig?: z.infer<typeof InstanceEngineConfigSchema> | undefined;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (input.kind === "ktransformers") {
+    if (input.engineConfig?.type !== "ktransformers") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["engineConfig"],
+        message: "KTransformers instances require KTransformers engine config",
+      });
+    }
+  } else if (input.engineConfig?.type === "ktransformers") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["engineConfig", "type"],
+      message: `engine config type ktransformers does not match instance kind ${input.kind}`,
+    });
+  }
+
+  if (input.engineConfig?.type === "ktransformers") {
+    for (const key of KTRANSFORMERS_RESERVED_ARG_KEYS) {
+      if (input.args && Object.hasOwn(input.args, key)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["args", key],
+          message: `${key} is managed by KTransformers engine config`,
+        });
+      }
+    }
+  }
+}
+
 export type RpcServerFlag = { short: string; long: string };
 
 export const RPC_SERVER_SUPPORTED_FLAGS: readonly RpcServerFlag[] = [
@@ -218,7 +295,7 @@ export const RPC_SERVER_SUPPORTED_FLAGS: readonly RpcServerFlag[] = [
   { short: "-c", long: "--cache" },
 ];
 
-export const InstanceCreateSchema = z.object({
+const InstanceCreateBaseSchema = z.object({
   name: InstanceNameSchema,
   kind: InstanceKindSchema.default("llama-server"),
   binaryPathRefId: PathCatalogIdSchema,
@@ -229,23 +306,46 @@ export const InstanceCreateSchema = z.object({
   memory: z.array(InstanceMemoryDrawSchema).default([]),
   rpcWorkers: z.array(RpcWorkerRefSchema).default([]),
   numa: InstanceNumaSchema.optional(),
+  engineConfig: InstanceEngineConfigSchema.optional(),
+  scheduling: InstanceSchedulingPolicySchema.optional(),
 });
 
-export const InstancePreflightPreviewSchema = InstanceCreateSchema.extend({
-  name: InstanceNameSchema.optional(),
-});
+export const InstanceCreateSchema = InstanceCreateBaseSchema.superRefine(
+  validateInstanceEngineFields,
+);
 
-export const InstanceUpdateSchema = z.object({
+export const InstancePreflightPreviewSchema = InstanceCreateBaseSchema.extend({
   name: InstanceNameSchema.optional(),
-  binaryPathRefId: PathCatalogIdSchema.optional(),
-  cwd: InstancePathSchema.optional(),
-  args: InstanceArgsSchema.optional(),
-  positionalArgs: z.array(z.string()).optional(),
-  env: InstanceEnvSchema.optional(),
-  memory: z.array(InstanceMemoryDrawSchema).optional(),
-  rpcWorkers: z.array(RpcWorkerRefSchema).optional(),
-  numa: InstanceNumaSchema.optional(),
-});
+}).superRefine(validateInstanceEngineFields);
+
+export const InstanceUpdateSchema = z
+  .object({
+    name: InstanceNameSchema.optional(),
+    binaryPathRefId: PathCatalogIdSchema.optional(),
+    cwd: InstancePathSchema.optional(),
+    args: InstanceArgsSchema.optional(),
+    positionalArgs: z.array(z.string()).optional(),
+    env: InstanceEnvSchema.optional(),
+    memory: z.array(InstanceMemoryDrawSchema).optional(),
+    rpcWorkers: z.array(RpcWorkerRefSchema).optional(),
+    numa: InstanceNumaSchema.optional(),
+    engineConfig: InstanceEngineConfigSchema.optional(),
+    scheduling: InstanceSchedulingPolicySchema.optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.engineConfig?.type !== "ktransformers") {
+      return;
+    }
+    for (const key of KTRANSFORMERS_RESERVED_ARG_KEYS) {
+      if (input.args && Object.hasOwn(input.args, key)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["args", key],
+          message: `${key} is managed by KTransformers engine config`,
+        });
+      }
+    }
+  });
 
 export const MemoryEstimateRequestSchema = z.object({
   instanceId: z.string().min(1).optional(),
@@ -256,7 +356,7 @@ export const MemoryEstimateRequestSchema = z.object({
 });
 export type MemoryEstimateRequest = z.infer<typeof MemoryEstimateRequestSchema>;
 
-export const InstanceSchema = InstanceCreateSchema.extend({
+export const InstanceSchema = InstanceCreateBaseSchema.extend({
   binaryPath: z.string(),
   status: z.enum([
     "stopped",
@@ -270,27 +370,31 @@ export const InstanceSchema = InstanceCreateSchema.extend({
   pid: z.number().int().positive().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-});
+}).superRefine(validateInstanceEngineFields);
 
 export const InstanceStartRequestSchema = z.object({
   force: z.boolean().default(false),
 });
 
-export const InstanceConfigRecordSchema = z.object({
-  name: InstanceNameSchema,
-  kind: InstanceKindSchema.default("llama-server"),
-  binaryPath: z.string(),
-  binaryPathRefId: PathCatalogIdSchema.optional(),
-  cwd: InstancePathSchema.optional(),
-  args: InstanceArgsSchema.default({}),
-  positionalArgs: z.array(z.string()).optional(),
-  env: InstanceEnvSchema.default({}),
-  memory: z.array(InstanceMemoryDrawSchema).default([]),
-  rpcWorkers: z.array(RpcWorkerRefSchema).default([]),
-  numa: InstanceNumaSchema.optional(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
+export const InstanceConfigRecordSchema = z
+  .object({
+    name: InstanceNameSchema,
+    kind: InstanceKindSchema.default("llama-server"),
+    binaryPath: z.string(),
+    binaryPathRefId: PathCatalogIdSchema.optional(),
+    cwd: InstancePathSchema.optional(),
+    args: InstanceArgsSchema.default({}),
+    positionalArgs: z.array(z.string()).optional(),
+    env: InstanceEnvSchema.default({}),
+    memory: z.array(InstanceMemoryDrawSchema).default([]),
+    rpcWorkers: z.array(RpcWorkerRefSchema).default([]),
+    numa: InstanceNumaSchema.optional(),
+    engineConfig: InstanceEngineConfigSchema.optional(),
+    scheduling: InstanceSchedulingPolicySchema.optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .superRefine(validateInstanceEngineFields);
 
 export const RpcWorkerCandidateSchema = z.object({
   nodeId: z.string().min(1).nullable(),
@@ -1708,6 +1812,16 @@ export const FleetNodeViewSchema = FleetNodeSchema.extend({
 });
 export type FleetNodeView = z.infer<typeof FleetNodeViewSchema>;
 
+export const FederationCapabilitiesSchema = z.object({
+  protocolVersion: z.number().int().positive(),
+  instanceKinds: z.array(z.string().min(1)),
+  creatableInstanceKinds: z.array(z.string().min(1)),
+  unknownInstanceKindsTolerated: z.boolean(),
+});
+export type FederationCapabilities = z.infer<
+  typeof FederationCapabilitiesSchema
+>;
+
 export const BuildProfileSchema = z.enum(["server", "full"]);
 export const CmakeBooleanModeSchema = z.enum(["default", "on", "off"]);
 
@@ -1894,7 +2008,10 @@ export const EnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
     dependencyIndexUrl: z
       .string()
       .url()
-      .refine(credentialFreeUrl, "dependency index URL must not contain credentials")
+      .refine(
+        credentialFreeUrl,
+        "dependency index URL must not contain credentials",
+      )
       .nullable()
       .default(null),
     torchBackend: z
@@ -2658,6 +2775,17 @@ export type MemoryPool = z.infer<typeof MemoryPoolSchema>;
 export type MemoryPoolUpdate = z.infer<typeof MemoryPoolUpdateSchema>;
 export type RpcWorkerRef = z.infer<typeof RpcWorkerRefSchema>;
 export type RpcWorkerCandidate = z.infer<typeof RpcWorkerCandidateSchema>;
+export type KTransformersMethod = z.infer<typeof KTransformersMethodSchema>;
+export type KTransformersInstanceConfig = z.infer<
+  typeof KTransformersInstanceConfigSchema
+>;
+export type InstanceEngineConfig = z.infer<typeof InstanceEngineConfigSchema>;
+export type InstanceEvictionPolicy = z.infer<
+  typeof InstanceEvictionPolicySchema
+>;
+export type InstanceSchedulingPolicy = z.infer<
+  typeof InstanceSchedulingPolicySchema
+>;
 export type InstanceMemoryDraw = z.infer<typeof InstanceMemoryDrawSchema>;
 export type ResourcePoolUsage = z.infer<typeof ResourcePoolUsageSchema>;
 export type ResourceLedger = z.infer<typeof ResourceLedgerSchema>;

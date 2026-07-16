@@ -15,6 +15,7 @@ import {
   updateNode,
 } from "../nodes/repository.js";
 import { fleetResources, fleetSystem } from "../nodes/fleet.js";
+import { localFederationCapabilities } from "../nodes/capabilities.js";
 import { forwardToNode } from "../nodes/remote.js";
 import { listRpcWorkerCandidates } from "../nodes/rpc-worker-catalog.js";
 
@@ -23,6 +24,10 @@ function toView(node: FleetNode): FleetNodeView {
 }
 
 export function registerNodeRoutes(app: Hono) {
+  app.get("/api/federation/capabilities", (c) => {
+    return c.json({ data: localFederationCapabilities() });
+  });
+
   app.get("/api/fleet/system", async (c) => {
     return c.json({ data: await fleetSystem() });
   });

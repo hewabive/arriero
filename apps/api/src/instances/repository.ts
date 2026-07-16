@@ -4,6 +4,10 @@ import type {
   InstanceCreate,
   InstanceUpdate,
 } from "@llama-manager/core";
+import {
+  engineDescriptor,
+  InstanceConfigRecordSchema,
+} from "@llama-manager/core";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import {
   deleteProcessRunsForInstance,
@@ -23,6 +27,21 @@ export class InstanceNameConflictError extends Error {
     super(`instance name already exists: ${name}`);
     this.name = "InstanceNameConflictError";
   }
+}
+
+export class InstanceConfigValidationError extends Error {
+  constructor(readonly details: unknown) {
+    super("instance configuration is invalid");
+    this.name = "InstanceConfigValidationError";
+  }
+}
+
+function validateRecord(record: InstanceConfigRecord): InstanceConfigRecord {
+  const parsed = InstanceConfigRecordSchema.safeParse(record);
+  if (!parsed.success) {
+    throw new InstanceConfigValidationError(parsed.error.flatten());
+  }
+  return parsed.data;
 }
 
 function nowIso() {
@@ -79,6 +98,12 @@ function toInstance(record: InstanceConfigRecord): Instance {
     memory: record.memory,
     rpcWorkers: record.rpcWorkers,
     ...(record.numa !== undefined ? { numa: record.numa } : {}),
+    ...(record.engineConfig !== undefined
+      ? { engineConfig: record.engineConfig }
+      : {}),
+    scheduling: record.scheduling ?? {
+      evictionPolicy: engineDescriptor(record.kind).defaultEvictionPolicy,
+    },
     status: processState?.status ?? durableState.status,
     pid: processState?.pid ?? durableState.pid,
     createdAt: record.createdAt,
@@ -117,12 +142,19 @@ export function createInstance(input: InstanceCreate): Instance {
     memory: input.memory,
     rpcWorkers: input.rpcWorkers,
     ...(input.numa !== undefined ? { numa: input.numa } : {}),
+    ...(input.engineConfig !== undefined
+      ? { engineConfig: input.engineConfig }
+      : {}),
+    scheduling: input.scheduling ?? {
+      evictionPolicy: engineDescriptor(input.kind).defaultEvictionPolicy,
+    },
     createdAt: timestamp,
     updatedAt: timestamp,
   };
 
-  writeInstanceRecord(record);
-  return toInstance(record);
+  const validated = validateRecord(record);
+  writeInstanceRecord(validated);
+  return toInstance(validated);
 }
 
 export function updateInstance(
@@ -159,12 +191,20 @@ export function updateInstance(
     memory: input.memory ?? current.memory,
     rpcWorkers: input.rpcWorkers ?? current.rpcWorkers,
     ...(input.numa !== undefined ? { numa: input.numa } : {}),
+    ...((input.engineConfig ?? current.engineConfig)
+      ? { engineConfig: input.engineConfig ?? current.engineConfig }
+      : {}),
+    scheduling: input.scheduling ??
+      current.scheduling ?? {
+        evictionPolicy: engineDescriptor(current.kind).defaultEvictionPolicy,
+      },
     createdAt: current.createdAt,
     updatedAt: nowIso(),
   };
 
-  writeInstanceRecord(record, current.name);
-  return toInstance(record);
+  const validated = validateRecord(record);
+  writeInstanceRecord(validated, current.name);
+  return toInstance(validated);
 }
 
 export function deleteInstance(name: string): boolean {

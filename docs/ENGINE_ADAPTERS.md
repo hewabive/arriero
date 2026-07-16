@@ -1,6 +1,12 @@
 # Engine adapters
 
-llama-manager is prepared for (but does not yet ship) a second inference engine (vLLM, SGLang, …). The seam is a **static per-kind engine descriptor** in `packages/core/src/engine-descriptor.ts`; all previously hardcoded llama-server assumptions in the process, arguments, memory-estimate, and proxy layers route through it. This document is the contract: what a descriptor declares, which api-side registries implement its ids, what is llama-only by design, and the checklist for plugging in a new engine.
+llama-manager uses a **static per-kind engine descriptor** in
+`packages/core/src/engine-descriptor.ts`. llama-server, rpc-worker, and vLLM are
+creatable; KTransformers is registered but remains non-creatable until its
+provisioning, preflight, lifecycle, resource, and form contracts are complete.
+This document is the contract: what a descriptor declares, which api-side
+registries implement its ids, what is llama-only by design, and the checklist
+for plugging in a new engine.
 
 ## Two-layer model
 
@@ -11,31 +17,42 @@ llama-manager is prepared for (but does not yet ship) a second inference engine 
 
 `engineDescriptor(kind)` returns a pure-data record (core is bundled into the web app — **no node APIs, no I/O in core**). Registered kinds live in `INSTANCE_KINDS`; `Record<InstanceKind, EngineDescriptor>` exhaustiveness makes the compiler point at every spot a new engine must fill in.
 
-| Field | Meaning | llama-server | rpc-worker | vllm |
-| --- | --- | --- | --- | --- |
-| `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` | `vLLM` |
-| `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` |
-| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` | serve + lease only |
-| `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` |
-| `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` |
-| `launch` | Slot-path injection, argv builder, fixed prefix | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` |
-| `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` | `none` |
-| `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) |
-| `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` |
-| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `vllm-gpu-util` |
-| `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` |
+| Field | Meaning | llama-server | rpc-worker | vllm | ktransformers |
+| --- | --- | --- | --- | --- | --- |
+| `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` | `vLLM` | `KTransformers (SGLang-KT)` |
+| `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` | 30000, `--host`/`--port` |
+| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` | serve + lease only | serve + lease only |
+| `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` | `openai-http`, `httpHealth: true` |
+| `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` | `none` |
+| `launch` | Slot-path injection, argv builder, fixed prefix | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` | no slot path, `argparse-flags`, `["serve"]` |
+| `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` | `none` | `ktransformers` |
+| `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) | `sglang-help` (`serve --help`) |
+| `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` | `sglang` |
+| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `vllm-gpu-util` | `none` |
+| `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` | `ktransformers-hybrid` |
+| `processTree` | Runtime process ownership | named descendants | root only | all descendants | all descendants |
+| `concurrency` | Request-limit parser | llama parallel | none | vLLM sequences | SGLang max running requests |
+| `defaultEvictionPolicy` | Persisted scheduling default | `preemptible` | `never` | `preemptible` | `idle-only` |
 
 String ids select **api-side implementations** from `Record`-keyed registries, keeping I/O out of core:
 
 | Id enum | Registry | Implementations |
 | --- | --- | --- |
 | `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http`, `tcp-accept`, `openai-http`; vLLM uses real health/models probes and explicit not-applicable llama-native fields |
-| `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm` |
-| `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts` (path args, router-mode rule, gpu-layers vs nvidia-smi, argument compatibility), `none` → skip |
-| `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`; each owns argv, timeout, and parser. Route generation is async; cache rows/sidecars carry `parserId` |
-| `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` → positionals first, then alphabetically sorted `--flag value` pairs with CSV arrays (the launch snapshot consumes it, so drift/adoption see positional changes automatically) |
+| `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm`, `sglang` |
+| `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts`; `ktransformers` is registered and implemented before creation is enabled; `none` → skip |
+| `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`, `sglang-help`; each owns argv, timeout, and parser. Route generation is async; cache rows/sidecars carry `parserId` |
+| `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` joins arrays as CSV; `argparse-flags` emits each array item as a separate token. Both put positionals first and sort flags deterministically |
 | `EngineEstimatorId` | dispatch in `apps/api/src/memory-estimate/service.ts` | `gguf` → tensor-aware llama estimate; `vllm-gpu-util` → one utilization-based draw per selected GPU |
-| `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args` |
+| `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args`, `ktransformers-hybrid` |
+
+Instance records may also carry typed `engineConfig` and a persisted
+`scheduling.evictionPolicy`. KTransformers owns `--model`, `--model-path`,
+`--kt-weight-path`, `--kt-method`, and `--served-model-name` through its typed
+configuration; duplicate raw arguments are rejected.
+
+Federation peers advertise `/api/federation/capabilities`. Wire parsing skips
+unknown instance kinds per record, while local persisted schemas remain strict.
 
 ## Proxy capability flags
 

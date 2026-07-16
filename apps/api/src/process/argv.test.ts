@@ -5,6 +5,7 @@ import { engineArgvBuilder } from "./argv.js";
 import { buildLaunchSnapshot } from "./launch-snapshot.js";
 
 const flagMap = engineArgvBuilder("flag-map");
+const argparseFlags = engineArgvBuilder("argparse-flags");
 
 test("flag-map argv serializes array values as one comma-separated argument", () => {
   assert.deepEqual(flagMap({ "--device": ["CUDA0", "CUDA1"] }, []), [
@@ -28,6 +29,39 @@ test("flag-map argv without positionals matches the legacy flag-only shape", () 
   assert.deepEqual(
     flagMap({ "--model": "/models/a.gguf", "--flash-attn": true }, []),
     ["--flash-attn", "--model", "/models/a.gguf"],
+  );
+});
+
+test("argparse-flags expands array values as separate tokens", () => {
+  assert.deepEqual(
+    argparseFlags(
+      {
+        "--json": '["a","b"]',
+        "--nodes": ["0", "1"],
+        "--quiet": false,
+        "--trust-remote-code": true,
+      },
+      ["serve"],
+    ),
+    [
+      "serve",
+      "--json",
+      '["a","b"]',
+      "--nodes",
+      "0",
+      "1",
+      "--trust-remote-code",
+    ],
+  );
+});
+
+test("argparse-flags keeps explicit positionals before sorted flags", () => {
+  assert.deepEqual(
+    argparseFlags({ "--port": 30001, "--host": "127.0.0.1" }, [
+      "serve",
+      "model-id",
+    ]),
+    ["serve", "model-id", "--host", "127.0.0.1", "--port", "30001"],
   );
 });
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, test } from "node:test";
 
@@ -11,6 +11,7 @@ import {
 } from "../process/runs-repository.js";
 import { resetInstancesCache } from "./config-files.js";
 import {
+  InstanceConfigValidationError,
   InstanceNameConflictError,
   createInstance,
   deleteInstance,
@@ -244,11 +245,59 @@ test("a legacy instance file without kind reads back as llama-server", () => {
 
 test("reading a malformed instance file fails loud", () => {
   const name = uniqueName("bad");
-  writeFileSync(
-    resolve(config.instancesDir, `${name}.json`),
-    "{ not json",
-    "utf8",
-  );
+  const path = resolve(config.instancesDir, `${name}.json`);
+  writeFileSync(path, "{ not json", "utf8");
   resetInstancesCache();
   assert.throws(() => listInstances(), /Invalid JSON/);
+  unlinkSync(path);
+  resetInstancesCache();
+});
+
+test("createInstance persists the descriptor scheduling default", () => {
+  const name = uniqueName("schedule");
+  const created = createInstance({
+    name,
+    kind: "ktransformers",
+    rpcWorkers: [],
+    binaryPathRefId: binaryRefId,
+    args: {},
+    env: {},
+    memory: [],
+    engineConfig: {
+      type: "ktransformers",
+      model: "deepseek-ai/DeepSeek-V3",
+      cpuWeights: "/models/deepseek-v3-kt",
+      method: "AMXINT4",
+    },
+  });
+
+  assert.deepEqual(created.scheduling, { evictionPolicy: "idle-only" });
+  const stored = JSON.parse(
+    readFileSync(resolve(config.instancesDir, `${name}.json`), "utf8"),
+  ) as { scheduling?: unknown };
+  assert.deepEqual(stored.scheduling, { evictionPolicy: "idle-only" });
+});
+
+test("updateInstance rejects reserved KTransformers raw arguments", () => {
+  const name = uniqueName("kt-args");
+  createInstance({
+    name,
+    kind: "ktransformers",
+    rpcWorkers: [],
+    binaryPathRefId: binaryRefId,
+    args: {},
+    env: {},
+    memory: [],
+    engineConfig: {
+      type: "ktransformers",
+      model: "deepseek-ai/DeepSeek-V3",
+      cpuWeights: "/models/deepseek-v3-kt",
+      method: "AMXINT4",
+    },
+  });
+
+  assert.throws(
+    () => updateInstance(name, { args: { "--model": "duplicate" } }),
+    InstanceConfigValidationError,
+  );
 });

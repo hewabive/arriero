@@ -31,6 +31,7 @@ const ENGINE_PREFLIGHT_CHECKS: Record<
   EnginePreflightCheck | null
 > = {
   "llama-server": validateLlamaServerPreflight,
+  ktransformers: null,
   none: null,
 };
 
