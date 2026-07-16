@@ -23,6 +23,9 @@ Implemented on `main`:
 
 Phase 0 and real-engine parts of Phase 7 remain pending a supported Linux
 x86-64 NVIDIA host. Release qualification and post-MVP phases remain incomplete.
+The operator runbook, upgrade checklist, federation release gate, and host
+artifact collector are available in `docs/KTRANSFORMERS_OPERATIONS.md` and
+`scripts/qualify-ktransformers-host.sh`.
 
 This document is the implementation plan for managed KTransformers support in
 llama-manager. It records the architecture decisions accepted on 2026-07-16,

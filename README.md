@@ -1,6 +1,13 @@
 # llama-manager
 
-Local web control plane for `llama.cpp` and `llama-server`.
+Local web control plane for `llama.cpp`, `llama-server`, vLLM, and
+KTransformers (SGLang-KT).
+
+Managed KTransformers support uses a strict Linux x86-64/NVIDIA profile,
+matched immutable Python packages, explicit hybrid memory reservations, and an
+idle-only scheduling default. See
+[KTransformers operations](docs/KTRANSFORMERS_OPERATIONS.md) and the
+[implementation record](docs/KTRANSFORMERS_SUPPORT.md).
 
 ## Development
 

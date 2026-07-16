@@ -1,9 +1,9 @@
 # Engine adapters
 
 llama-manager uses a **static per-kind engine descriptor** in
-`packages/core/src/engine-descriptor.ts`. llama-server, rpc-worker, and vLLM are
-creatable; KTransformers is registered but remains non-creatable until its
-provisioning, preflight, lifecycle, resource, and form contracts are complete.
+`packages/core/src/engine-descriptor.ts`. llama-server, rpc-worker, vLLM, and
+KTransformers are creatable. KTransformers uses a narrow Linux x86-64/NVIDIA
+release profile and a mandatory real-host qualification gate.
 This document is the contract: what a descriptor declares, which api-side
 registries implement its ids, what is llama-only by design, and the checklist
 for plugging in a new engine.

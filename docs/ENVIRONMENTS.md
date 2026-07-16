@@ -102,9 +102,10 @@ repairs a missing or edited entry. Delete is refused while its catalog entry is
 referenced by an instance or its install job is active.
 
 The Environments API exposes create/rebuild/delete, current uv availability,
-the active job, cancellation, and a polling log tail. The web form is
-generalized in the KTransformers creation-flow phase. Once ready, a generated
-binary is available only to an instance of the matching tagged engine kind.
+the active job, cancellation, and a polling log tail. The web form supports
+engine-specific vLLM and matched-pair KTransformers sources. Once ready, a
+generated binary is available only to an instance of the matching tagged
+engine kind.
 
 Mirror provisioning also activates a no-public-network policy before the job starts.
 PyPI sources must name an explicit non-public index; wheel sources must use a non-public
