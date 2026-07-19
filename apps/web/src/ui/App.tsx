@@ -41,6 +41,7 @@ import { type LaunchMonitor, isLaunchTerminalStatus } from "./utils/launch";
 import { ApiLabView } from "./views/ApiLabView";
 import { ArgumentsView } from "./views/ArgumentsView";
 import { BuildView } from "./views/BuildView";
+import { ConfigGitView } from "./views/ConfigGitView";
 import { DashboardView } from "./views/DashboardView";
 import { DiagnosticsView } from "./views/DiagnosticsView";
 import { EnvironmentsView } from "./views/EnvironmentsView";
@@ -351,6 +352,8 @@ export function App() {
           {canUseAdmin && route === "nodes" && <NodesView />}
 
           {canUseAdmin && route === "update" && <UpdateView />}
+
+          {canUseAdmin && route === "config-git" && <ConfigGitView />}
 
           {canUseAdmin && route === "build" && <BuildView />}
 

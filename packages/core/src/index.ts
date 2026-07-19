@@ -2361,6 +2361,106 @@ export const UpdateFleetSchema = z.object({
   nodes: z.array(UpdateFleetNodeSchema),
 });
 
+export const ConfigGitFileStatusSchema = z.object({
+  path: z.string(),
+  index: z.string().length(1),
+  worktree: z.string().length(1),
+});
+
+export const ConfigGitBranchSchema = z.object({
+  name: z.string(),
+  current: z.boolean(),
+  upstream: z.string().nullable(),
+  ahead: z.number().int().nonnegative().nullable(),
+  behind: z.number().int().nonnegative().nullable(),
+});
+
+export const ConfigGitStatusSchema = z.object({
+  configDir: z.string(),
+  exists: z.boolean(),
+  isGitRepo: z.boolean(),
+  originUrl: z.string().nullable(),
+  branch: z.string().nullable(),
+  detached: z.boolean(),
+  head: z.string().nullable(),
+  shortHead: z.string().nullable(),
+  upstream: z.string().nullable(),
+  ahead: z.number().int().nonnegative().nullable(),
+  behind: z.number().int().nonnegative().nullable(),
+  dirty: z.boolean(),
+  files: z.array(ConfigGitFileStatusSchema),
+  branches: z.array(ConfigGitBranchSchema),
+  remoteBranches: z.array(z.string()),
+  authorName: z.string().nullable(),
+  authorEmail: z.string().nullable(),
+  activeOperation: z.string().nullable(),
+  error: z.string().nullable(),
+});
+
+export const ConfigGitDiffSchema = z.object({
+  staged: z.string(),
+  unstaged: z.string(),
+  truncated: z.boolean(),
+});
+
+export const ConfigGitCommitSchema = z.object({
+  hash: z.string(),
+  shortHash: z.string(),
+  authorName: z.string(),
+  authorEmail: z.string(),
+  authoredAt: z.string(),
+  subject: z.string(),
+  body: z.string(),
+});
+
+export const ConfigGitValidationIssueSchema = z.object({
+  path: z.string(),
+  message: z.string(),
+});
+
+export const ConfigGitValidationSchema = z.object({
+  valid: z.boolean(),
+  issues: z.array(ConfigGitValidationIssueSchema),
+});
+
+export const ConfigGitMutationResultSchema = z.object({
+  operation: z.string(),
+  output: z.string(),
+  backupPath: z.string().nullable().default(null),
+  status: ConfigGitStatusSchema,
+  validation: ConfigGitValidationSchema,
+});
+
+export const ConfigGitCloneSchema = z.object({
+  originUrl: z.string().trim().min(1).max(2048),
+  branch: z.string().trim().min(1).max(255).nullable().default(null),
+  replaceExisting: z.boolean().default(false),
+});
+
+export const ConfigGitSwitchSchema = z.object({
+  branch: z.string().trim().min(1).max(255),
+});
+
+export const ConfigGitCreateBranchSchema = z.object({
+  branch: z.string().trim().min(1).max(255),
+  startPoint: z.string().trim().min(1).max(255).nullable().default(null),
+});
+
+export const ConfigGitCheckoutCommitSchema = z.object({
+  commit: z.string().trim().min(4).max(255),
+});
+
+export const ConfigGitResetSchema = z.object({
+  includeUntracked: z.boolean().default(false),
+  confirm: z.literal(true),
+});
+
+export const ConfigGitCommitInputSchema = z.object({
+  message: z.string().trim().min(1).max(10_000),
+  authorName: z.string().trim().min(1).max(200).nullable().default(null),
+  authorEmail: z.string().trim().email().max(320).nullable().default(null),
+});
+
 export const ArgumentValueTypeSchema = z.enum([
   "flag",
   "boolean",
@@ -3243,6 +3343,26 @@ export type UpdateLogTail = z.infer<typeof UpdateLogTailSchema>;
 export type UpdateUpstream = z.infer<typeof UpdateUpstreamSchema>;
 export type UpdateFleetNode = z.infer<typeof UpdateFleetNodeSchema>;
 export type UpdateFleet = z.infer<typeof UpdateFleetSchema>;
+export type ConfigGitFileStatus = z.infer<typeof ConfigGitFileStatusSchema>;
+export type ConfigGitBranch = z.infer<typeof ConfigGitBranchSchema>;
+export type ConfigGitStatus = z.infer<typeof ConfigGitStatusSchema>;
+export type ConfigGitDiff = z.infer<typeof ConfigGitDiffSchema>;
+export type ConfigGitCommit = z.infer<typeof ConfigGitCommitSchema>;
+export type ConfigGitValidationIssue = z.infer<
+  typeof ConfigGitValidationIssueSchema
+>;
+export type ConfigGitValidation = z.infer<typeof ConfigGitValidationSchema>;
+export type ConfigGitMutationResult = z.infer<
+  typeof ConfigGitMutationResultSchema
+>;
+export type ConfigGitClone = z.infer<typeof ConfigGitCloneSchema>;
+export type ConfigGitSwitch = z.infer<typeof ConfigGitSwitchSchema>;
+export type ConfigGitCreateBranch = z.infer<typeof ConfigGitCreateBranchSchema>;
+export type ConfigGitCheckoutCommit = z.infer<
+  typeof ConfigGitCheckoutCommitSchema
+>;
+export type ConfigGitReset = z.infer<typeof ConfigGitResetSchema>;
+export type ConfigGitCommitInput = z.infer<typeof ConfigGitCommitInputSchema>;
 export type ArgumentValueType = z.infer<typeof ArgumentValueTypeSchema>;
 export type ArgumentControlKind = z.infer<typeof ArgumentControlKindSchema>;
 export type ArgumentCliEncoding = z.infer<typeof ArgumentCliEncodingSchema>;

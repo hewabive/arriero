@@ -151,11 +151,19 @@ export function updatePathCatalogEntry(
     input.engineKind === undefined
       ? current.engineKind
       : (input.engineKind ?? undefined);
+  const nextPath = input.path ?? current.path;
+  if (
+    nextName === current.name &&
+    nextPath === current.path &&
+    nextEngineKind === current.engineKind
+  ) {
+    return current;
+  }
   const updated: PathCatalogEntry = {
     id: current.id,
     kind: current.kind,
     name: nextName,
-    path: input.path ?? current.path,
+    path: nextPath,
     ...(nextEngineKind ? { engineKind: nextEngineKind } : {}),
     createdAt: current.createdAt,
     updatedAt: nowIso(),

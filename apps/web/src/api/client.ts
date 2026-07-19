@@ -9,6 +9,7 @@ export * from "./llama-args.js";
 export * from "./build.js";
 export * from "./environments.js";
 export * from "./update.js";
+export * from "./config-git.js";
 export * from "./models.js";
 export * from "./presets.js";
 export * from "./instances.js";

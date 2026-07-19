@@ -50,6 +50,22 @@ too. Update from the UI is refused in `pnpm dev` (tsx/vite already hot-reload â€
 installation (`--disable-linger` to also turn linger off). See
 [docs/SELF_UPDATE.md](docs/SELF_UPDATE.md).
 
+## Portable configuration repository
+
+The portable settings root (`data/config` by default, overridden with
+`LLAMA_MANAGER_CONFIG_DIR`) can be managed as a standalone Git repository from
+the **Configuration Git** page. On a new server, start llama-manager with a
+local `.env` containing the admin password/hash and layout overrides, then use
+the page to clone the configuration origin. Clone is validated in a staging
+directory, the previous bootstrap directory is retained as a backup, and the
+gitignored `.secrets.json` is preserved.
+
+The page supports status, diff, history, fetch, fast-forward pull, branch
+selection/creation, detached commit checkout, reset, commit, and push. Actions
+that replace configuration files are refused while managed processes, a build,
+or an environment install is active. See
+[docs/CONFIG_GIT.md](docs/CONFIG_GIT.md) for the workflow and secret policy.
+
 ## Runtime logs
 
 Managed `llama-server` launches write two log files:

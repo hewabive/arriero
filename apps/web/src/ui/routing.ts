@@ -4,6 +4,7 @@ export type AppRoute =
   | "status"
   | "nodes"
   | "update"
+  | "config-git"
   | "dashboard"
   | "instances"
   | "diagnostics"
@@ -55,6 +56,13 @@ export const navSections: NavSection[] = [
         title: "Manager Updates",
         description:
           "Per-node version across the fleet and one-click update to the latest revision",
+      },
+      {
+        route: "config-git",
+        label: "Configuration Git",
+        title: "Configuration repository",
+        description:
+          "Clone, review, version and synchronize this node's portable configuration",
       },
     ],
   },

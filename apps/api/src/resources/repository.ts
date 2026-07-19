@@ -144,7 +144,7 @@ export function refreshAutoCapacities(): boolean {
     return { ...pool, capacityBytes, updatedAt: nowIso() };
   });
   if (changed) {
-    persist(next);
+    cache = next;
   }
   return changed;
 }

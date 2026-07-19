@@ -1,0 +1,73 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+import { test } from "node:test";
+
+import { validateConfigRoot } from "./validation.js";
+
+function writeJson(path: string, value: unknown) {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+test("validateConfigRoot accepts a minimal portable configuration", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-valid-"));
+  mkdirSync(resolve(root, "instances"));
+  mkdirSync(resolve(root, "proxy"));
+  writeJson(resolve(root, "settings.json"), {});
+  writeJson(resolve(root, "argument-defaults.json"), { instance: [] });
+  writeJson(resolve(root, "resources.json"), []);
+  writeJson(resolve(root, "path-catalog.json"), []);
+  writeJson(resolve(root, "envs.json"), []);
+  writeJson(resolve(root, "nodes.json"), []);
+  for (const name of [
+    "targets",
+    "models",
+    "pipelines",
+    "endpoints",
+    "sources",
+  ]) {
+    writeJson(resolve(root, "proxy", `${name}.json`), []);
+  }
+
+  assert.deepEqual(validateConfigRoot(root), { valid: true, issues: [] });
+});
+
+test("validateConfigRoot rejects a repository without configuration", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-empty-"));
+  writeFileSync(resolve(root, "README.md"), "empty profile\n");
+
+  const result = validateConfigRoot(root);
+  assert.equal(result.valid, false);
+  assert.match(result.issues[0]?.message ?? "", /no recognized configuration/);
+});
+
+test("validateConfigRoot rejects symlinks and broken resource references", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-invalid-"));
+  mkdirSync(resolve(root, "instances"));
+  writeJson(resolve(root, "resources.json"), []);
+  writeJson(resolve(root, "path-catalog.json"), []);
+  writeJson(resolve(root, "instances", "worker.json"), {
+    name: "worker",
+    kind: "llama-server",
+    binaryPath: "/bin/false",
+    args: {},
+    env: {},
+    memory: [{ poolId: "missing", bytes: 1 }],
+    rpcWorkers: [],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  symlinkSync("/tmp", resolve(root, "outside"));
+
+  const result = validateConfigRoot(root);
+  assert.equal(result.valid, false);
+  assert.ok(
+    result.issues.some((issue) => issue.message.includes("symbolic links")),
+  );
+  assert.ok(
+    result.issues.some((issue) =>
+      issue.message.includes("missing resource pool"),
+    ),
+  );
+});

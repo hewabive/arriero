@@ -40,3 +40,18 @@ test("updatePathCatalogEntry keeps, sets, and clears the engine kind", () => {
   assert.equal(cleared?.engineKind, undefined);
   assert.equal(getPathCatalogEntry(entry.id)?.engineKind, undefined);
 });
+
+test("updatePathCatalogEntry leaves timestamps stable for a no-op", () => {
+  const entry = createPathCatalogEntry({
+    kind: "binary",
+    name: "stable reconciliation",
+    path: "/opt/stable/bin/server",
+    engineKind: "llama-server",
+  });
+  const unchanged = updatePathCatalogEntry(entry.id, {
+    name: entry.name,
+    path: entry.path,
+    engineKind: "llama-server",
+  });
+  assert.deepEqual(unchanged, entry);
+});

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { beforeEach, test } from "node:test";
 
 import { getSystemResources } from "../system/resources.js";
@@ -46,8 +46,10 @@ test("refreshAutoCapacities only retargets pools with autoCapacity enabled", () 
   const detectedTotal = getSystemResources().memory.totalBytes;
 
   updateMemoryPool("host", { capacityBytes: 1 });
+  const storedBeforeRefresh = readFileSync(RESOURCES_FILE, "utf8");
   assert.equal(refreshAutoCapacities(), true);
   assert.equal(getMemoryPool("host")?.capacityBytes, detectedTotal);
+  assert.equal(readFileSync(RESOURCES_FILE, "utf8"), storedBeforeRefresh);
 
   updateMemoryPool("host", { capacityBytes: 1, autoCapacity: false });
   assert.equal(refreshAutoCapacities(), false);

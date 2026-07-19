@@ -121,6 +121,12 @@ export class ProcessSupervisor extends EventEmitter {
     };
   }
 
+  listStates(): ProcessState[] {
+    return [...this.processes.keys()]
+      .map((instanceId) => this.getState(instanceId))
+      .filter((state): state is ProcessState => state !== undefined);
+  }
+
   private assertRpcWorkersRunning(instance: Instance): void {
     for (const ref of instance.rpcWorkers) {
       if (ref.nodeId !== null) {
