@@ -1,0 +1,193 @@
+# KTransformers implementation handoff
+
+This is the session-to-session state record for continuing KTransformers work
+with Codex, including on a different NVIDIA host. It supplements the design
+record and operator runbook; it does not replace either.
+
+Snapshot date: 2026-07-19 (Europe/Amsterdam).
+
+Snapshot branch: `main`.
+
+Implementation tip before this handoff document: `35f3396` (`Add
+KTransformers release qualification gate`). Further work on the current machine
+may move `main`; update the snapshot fields and verification results immediately
+before transferring the work to another machine.
+
+## Read in this order
+
+1. `docs/KTRANSFORMERS_HANDOFF.md` — current state and continuation procedure.
+2. `docs/KTRANSFORMERS_SUPPORT.md` — accepted architecture, complete delivery
+   plan, contracts, acceptance criteria, and implementation map.
+3. `docs/KTRANSFORMERS_OPERATIONS.md` — supported profile, installation,
+   qualification checklist, and troubleshooting.
+4. `docs/ENGINE_ADAPTERS.md`, `docs/ENVIRONMENTS.md`, and
+   `docs/RESOURCE_MANAGEMENT.md` — stable subsystem contracts implemented by
+   the KTransformers work.
+
+## Current delivery state
+
+| Phase | State | Commit / evidence |
+| --- | --- | --- |
+| Plan | Complete | `284efec` — implementation plan and accepted decisions |
+| 0 — real-hardware spike | Pending external hardware | The current host is Linux x86-64 but has no `nvidia-smi`; no real KTransformers runtime was qualified here |
+| 1 — contracts | Complete | `1d7ed5a` — engine descriptor, typed config, scheduling, federation capabilities |
+| 2 — environments | Complete | `9e164e5` — provisioner registry and matched transactional `kt-kernel` + `sglang-kt` environments |
+| 3 — lifecycle | Complete against fake/runtime fixtures | `2bfd830` — argv, preflight, SGLang adapters, health, process-tree telemetry, shutdown, adoption |
+| 4 — resource safety | Complete | `5e1fc7f` — strict hybrid reservations, CUDA/TP matching, NUMA validation, memory diagnostics |
+| 5 — web flow | Complete | `e6143ec` — engine-aware environment and typed instance creation/editing |
+| 6 — proxy | Complete | `e273643` — concurrency, model identity, eviction policy, capability gating |
+| 7 — release qualification | Documentation/tooling complete; live execution pending | `35f3396` — runbook, federation release gate, and host artifact collector |
+| 8 — post-MVP projects | Not started | Intentionally remains after real-hardware MVP qualification; see the independent list in the design record |
+
+Do not describe the feature as real-engine qualified until Phase 0 and the live
+part of Phase 7 have produced committed, sanitized evidence from a supported
+host.
+
+## Last verified state
+
+At implementation tip `35f3396`:
+
+- `pnpm check` passed;
+- `pnpm build` passed, with only the existing Vite large-chunk warning;
+- `pnpm --filter @llama-manager/api test` passed: 827 tests, 0 failures;
+- `bash -n scripts/qualify-ktransformers-host.sh` passed;
+- the worktree was clean before creating this handoff document.
+
+Repeat all four checks after syncing to the GPU machine and before changing
+runtime behavior. Do not treat a package install, fake-server test, or green
+typecheck as a substitute for the live qualification matrix.
+
+## Transfer state
+
+At snapshot time the local branch was 14 commits ahead of `origin/main`. This
+is an observation, not a request to publish immediately: more local work is
+expected. Before another machine can continue, transfer the final `main` tip by
+the chosen Git mechanism and verify on the destination that `git rev-parse
+HEAD` matches the intended source tip. Do not assume `origin/main` contains this
+state until that has been done.
+
+After any additional work on the current machine, update:
+
+- snapshot date and implementation tip;
+- phase table and open inputs;
+- verification commands and counts;
+- transfer state;
+- any newly accepted architecture decision.
+
+Commit that update as the last handoff commit before transfer.
+
+## Accepted invariants to preserve
+
+- `ktransformers` is a distinct static instance kind, not vLLM or a dynamic
+  plugin.
+- Managed environments install exact matching versions of `kt-kernel` and
+  `sglang-kt` transactionally and expose `bin/sglang`.
+- Main model, CPU weights, KT method, and optional served name live in typed
+  `engineConfig`; their managed CLI spellings are rejected in raw `args`.
+- Launch is `sglang serve` with argparse token semantics.
+- HTTP `/health == 200` is the sole readiness authority; 503 is loading.
+- The complete descendant tree belongs to the instance for termination and
+  RAM/VRAM/swap/NUMA telemetry.
+- The first supported profile is Linux x86-64, NVIDIA CUDA, and CPython
+  3.11/3.12. Unsupported combinations fail explicitly.
+- A positive host draw and positive draws on exactly the CUDA/TP-selected GPUs
+  are mandatory and strict admission cannot be force-overridden.
+- KTransformers owns internal NUMA placement. Manager interleave is forbidden;
+  optional outer bind must agree with all internal KT nodes.
+- Default eviction is `idle-only`; active leases drain and are not interrupted.
+- KTransformers exposes generic OpenAI/Anthropic forwarding but no llama-native
+  model, slot, stream-resume, timing, capability, or embedded Web UI actions.
+- Federation peers must advertise KTransformers support before federated
+  creation is considered release-safe.
+
+## Inputs still required on the GPU host
+
+These are qualification inputs, not unresolved architecture decisions. Record
+their exact values before the first live run rather than letting a session infer
+or silently upgrade them.
+
+| Input | Current state |
+| --- | --- |
+| `kt-kernel` version and wheel/hash | Not selected or qualified |
+| `sglang-kt` matching version and wheel/hash | Not selected or qualified |
+| Python patch version | Only the supported minor range 3.11/3.12 is fixed |
+| PyTorch/CUDA/runtime versions | Not measured on a supported host |
+| NVIDIA GPU model, driver, VRAM, and topology | Not selected |
+| CPU model, ISA, sockets, and NUMA topology | Not selected |
+| Native/converted KT test model and CPU weights | Not selected |
+| LLAMAFILE/GGUF test model and weights | Not selected |
+| Expected RAM/VRAM reservations | Must be chosen from artifacts and then calibrated from measurements |
+
+The upstream planning baseline was KTransformers commit
+`01fdfa609e731f0dc1c088e596ad189144a046bd` (reported version
+`0.6.3.post1`) with SGLang-KT submodule commit
+`1e098a77ba395dc1a5f2dcbdf57bdb188e84bcee`. This is a research baseline,
+not proof that public wheels with those identifiers form a qualified pair.
+
+## Destination-machine continuation procedure
+
+1. Verify the intended Git tip and a clean worktree.
+2. Install the repository toolchain with the lockfile, then run:
+
+   ```bash
+   pnpm install --frozen-lockfile
+   pnpm check
+   pnpm build
+   pnpm --filter @llama-manager/api test
+   ```
+
+3. Record the qualification inputs above in a new result document before
+   installing or launching the engine.
+4. Create the matched managed environment through llama-manager. Do not bypass
+   the provisioner with an untagged executable for the primary qualification.
+5. Run:
+
+   ```bash
+   scripts/qualify-ktransformers-host.sh \
+     <managed-environment>/bin \
+     <private-artifact-directory>
+   ```
+
+6. Follow every live item in `docs/KTRANSFORMERS_OPERATIONS.md`, including
+   health timeline, process tree, idle/active shutdown, adoption, proxy
+   protocols, concurrency, reservations, memory, swap, and NUMA.
+7. Sanitize artifacts before adding them to Git. Remove tokens, private model
+   locations, usernames, hostnames, IP addresses, and proprietary prompts.
+8. Commit a qualification result that names the exact source tip, package
+   pair, hashes, hardware/software matrix, commands, pass/fail status, known
+   deviations, and artifact paths.
+9. Amend the design/runbook if live behavior contradicts an assumption; do not
+   weaken preflight or readiness merely to make the run pass.
+
+Suggested committed result location:
+
+```text
+docs/qualification/ktransformers/
+  <package-pair>-<yyyy-mm-dd>.md
+  <package-pair>-<yyyy-mm-dd>/
+    sanitized artifacts...
+```
+
+Keep raw logs and full hardware dumps outside the repository until they have
+been reviewed and sanitized.
+
+## Qualification result template
+
+The first result document should contain:
+
+- source commit and dirty/clean status;
+- exact environment spec and `freeze.txt`;
+- wheel filenames and SHA-256 values;
+- OS, kernel, Python, CUDA, driver, GPU, CPU, ISA, NUMA, RAM, and swap;
+- model/weight identifiers and checksums without private paths;
+- launch snapshot with secrets removed;
+- `/health` and `/v1/models` timeline;
+- process tree and process-group/cgroup ownership before and after stop;
+- direct and proxied OpenAI chat/Responses results, streaming and non-streaming;
+- Anthropic bridge result;
+- concurrency and idle-only drain observations;
+- declared versus measured RAM/VRAM/swap/NUMA data;
+- negative preflight/admission cases;
+- manager restart/adoption and self-update observations;
+- final verdict: qualified, qualified with documented restrictions, or failed.
+

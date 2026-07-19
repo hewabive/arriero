@@ -7,7 +7,9 @@ Managed KTransformers support uses a strict Linux x86-64/NVIDIA profile,
 matched immutable Python packages, explicit hybrid memory reservations, and an
 idle-only scheduling default. See
 [KTransformers operations](docs/KTRANSFORMERS_OPERATIONS.md) and the
-[implementation record](docs/KTRANSFORMERS_SUPPORT.md).
+[implementation record](docs/KTRANSFORMERS_SUPPORT.md). Codex continuation and
+GPU-machine handoff state is recorded in
+[docs/KTRANSFORMERS_HANDOFF.md](docs/KTRANSFORMERS_HANDOFF.md).
 
 ## Development
 

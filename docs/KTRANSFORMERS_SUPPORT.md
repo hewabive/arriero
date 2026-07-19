@@ -26,6 +26,8 @@ x86-64 NVIDIA host. Release qualification and post-MVP phases remain incomplete.
 The operator runbook, upgrade checklist, federation release gate, and host
 artifact collector are available in `docs/KTRANSFORMERS_OPERATIONS.md` and
 `scripts/qualify-ktransformers-host.sh`.
+For session transfer and continuation state, start with
+`docs/KTRANSFORMERS_HANDOFF.md`.
 
 This document is the implementation plan for managed KTransformers support in
 llama-manager. It records the architecture decisions accepted on 2026-07-16,
