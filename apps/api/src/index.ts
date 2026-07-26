@@ -28,6 +28,7 @@ import {
   refreshAutoCapacities,
 } from "./resources/repository.js";
 import { initAppSettings } from "./settings/store.js";
+import { sweepSourceCloneStaging } from "./sources/operations.js";
 import { supervisor } from "./process/supervisor.js";
 import { environmentRunner } from "./envs/runner.js";
 import { initializeEnvironments } from "./envs/service.js";
@@ -44,6 +45,7 @@ initArgumentDefaults();
 const seededResourcePools = ensureResourcePoolsScaffold();
 const refreshedResourcePools = refreshAutoCapacities();
 const environments = initializeEnvironments();
+const sweptSourceCloneStaging = sweepSourceCloneStaging();
 const prunedArgumentCatalogs = pruneMissingArgumentCatalogs();
 const prunedModelCache = pruneMissingCachedModels();
 const reconciliation = reconcileProcessRuns(listInstances());
@@ -88,6 +90,7 @@ const server = serve(
         seededResourcePools,
         refreshedResourcePools,
         environments,
+        sweptSourceCloneStaging,
       },
       "llama-manager api listening",
     );

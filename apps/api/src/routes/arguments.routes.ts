@@ -76,10 +76,10 @@ export function registerArgumentRoutes(app: Hono) {
     }
   });
 
-  app.get("/api/llama-args/docs-sync", (c) => {
+  app.get("/api/llama-args/docs-sync", async (c) => {
     try {
       return c.json({
-        data: getLlamaArgumentDocsSyncReport(),
+        data: await getLlamaArgumentDocsSyncReport(),
       });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);

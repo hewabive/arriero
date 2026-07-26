@@ -74,7 +74,9 @@ export function getBuildSettings(): BuildSettings {
 
 export function saveBuildSettings(input: BuildSettings): BuildSettings {
   const parsed = BuildSettingsSchema.parse(input);
-  saveLlamaSourceSettings({ repoPath: parsed.repoPath });
+  if (resolve(parsed.repoPath) !== resolve(getLlamaSourceSettings().repoPath)) {
+    saveLlamaSourceSettings({ repoPath: parsed.repoPath });
+  }
   writeSettings({
     ...readSettings(),
     build: { ...parsed },

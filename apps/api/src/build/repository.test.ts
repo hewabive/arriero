@@ -2,7 +2,34 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 
 import { listPathCatalogEntries } from "../path-catalog/repository.js";
-import { registerBuiltBinaryInCatalog } from "./repository.js";
+import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
+import { withSourceRepositoryOperation } from "../sources/state.js";
+import {
+  getBuildSettings,
+  registerBuiltBinaryInCatalog,
+  saveBuildSettings,
+} from "./repository.js";
+
+test("saving build settings with an unchanged repo path is allowed during a source operation", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolveGate) => {
+    release = resolveGate;
+  });
+  const running = withSourceRepositoryOperation(
+    LLAMA_CPP_SOURCE_ID,
+    "pull",
+    () => gate,
+  );
+  try {
+    const settings = getBuildSettings();
+    const saved = saveBuildSettings({ ...settings, cuda: !settings.cuda });
+    assert.equal(saved.repoPath, settings.repoPath);
+    assert.equal(saved.cuda, !settings.cuda);
+  } finally {
+    release();
+    await running;
+  }
+});
 
 test("registerBuiltBinaryInCatalog creates a binary catalog entry", () => {
   const entry = registerBuiltBinaryInCatalog(

@@ -15,6 +15,7 @@ import { beforeEach, test } from "node:test";
 import { config } from "../config.js";
 import {
   cloneSourceRepository,
+  sweepSourceCloneStaging,
   updateSourceRepositorySettings,
 } from "./operations.js";
 import { LLAMA_CPP_SOURCE_ID } from "./registry.js";
@@ -92,13 +93,13 @@ beforeEach(() => {
   mkdirSync(config.sourcesDir, { recursive: true });
 });
 
-test("fresh settings use the managed source directory", () => {
+test("fresh settings use the managed source directory", async () => {
   const originalRootDir = config.rootDir;
   config.rootDir = resolve(config.dataDir, "fresh-root", "manager");
   resetSettings();
   try {
     const spec = getSourceRepositorySpec(LLAMA_CPP_SOURCE_ID);
-    const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+    const status = await getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
     assert.deepEqual(spec.location, { type: "managed" });
     assert.equal(status.repoPath, resolve(config.sourcesDir, "llama.cpp"));
     assert.equal(status.state, "missing");
@@ -140,7 +141,7 @@ test("a custom legacy path remains an external location", () => {
   });
 });
 
-test("an internal directory is not allowed to adopt the manager parent repository", () => {
+test("an internal directory is not allowed to adopt the manager parent repository", async () => {
   const internalDirectory = resolve(config.rootDir, "apps");
   resetSettings({
     llamaSource: {
@@ -149,7 +150,7 @@ test("an internal directory is not allowed to adopt the manager parent repositor
     },
   });
 
-  const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+  const status = await getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
   assert.equal(status.exists, true);
   assert.equal(status.isGitRepo, false);
   assert.equal(status.valid, false);
@@ -215,6 +216,16 @@ test("clone never overwrites an existing target directory", async () => {
   );
 
   assert.equal(readFileSync(sentinel, "utf8"), "keep\n");
+});
+
+test("startup sweep removes orphaned clone staging directories", () => {
+  const managedStaging = resolve(config.sourcesDir, ".source-clone-orphan");
+  mkdirSync(resolve(managedStaging, "repository"), { recursive: true });
+
+  const removed = sweepSourceCloneStaging();
+
+  assert.equal(removed, 1);
+  assert.equal(existsSync(managedStaging), false);
 });
 
 test("origin update changes both portable settings and the Git remote", async () => {

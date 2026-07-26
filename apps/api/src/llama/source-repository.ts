@@ -13,12 +13,14 @@ import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { runGitSync, tryGitSync } from "../git/process.js";
-import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
+import {
+  getSourceRepositoryDefinition,
+  LLAMA_CPP_SOURCE_ID,
+} from "../sources/registry.js";
 import {
   getSourceRepositorySpec,
   getSourceRepositoryStatus,
   saveSourceRepositoryPath,
-  sourceRepositoryGitValue,
   sourceRepositoryPath,
 } from "../sources/repository.js";
 import {
@@ -43,11 +45,11 @@ export function saveLlamaSourceSettings(
 }
 
 export function getLlamaSourceCurrentCommit(): string | null {
-  try {
-    return sourceRepositoryGitValue(LLAMA_CPP_SOURCE_ID, ["rev-parse", "HEAD"]);
-  } catch {
+  const repoPath = getLlamaSourceSettings().repoPath;
+  if (!isExactGitRepository(repoPath)) {
     return null;
   }
+  return tryGitSync(repoPath, ["rev-parse", "HEAD"]);
 }
 
 function isExactGitRepository(repoPath: string): boolean {
@@ -85,7 +87,7 @@ export async function pullLlamaSource(): Promise<LlamaSourcePullResult> {
 const RECENT_TAG_LIMIT = 100;
 
 export function listLlamaSourceRefs(): LlamaSourceRefs {
-  const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+  const repoPath = getLlamaSourceSettings().repoPath;
   const empty = {
     branches: [],
     branchesWithUpstream: [],
@@ -93,14 +95,19 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
     currentBranch: null,
     dirty: null,
   };
-  if (!status.valid) {
+  if (
+    !isExactGitRepository(repoPath) ||
+    getSourceRepositoryDefinition(LLAMA_CPP_SOURCE_ID).validateCheckout(
+      repoPath,
+    ) !== null
+  ) {
     return LlamaSourceRefsSchema.parse(empty);
   }
 
   try {
     const branches: string[] = [];
     const branchesWithUpstream: string[] = [];
-    const branchLines = runGitSync(status.repoPath, [
+    const branchLines = runGitSync(repoPath, [
       "for-each-ref",
       "--format=%(refname:short)\t%(upstream)",
       "refs/heads",
@@ -113,7 +120,7 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
       branches.push(name);
       if (upstream) branchesWithUpstream.push(name);
     }
-    const tags = runGitSync(status.repoPath, [
+    const tags = runGitSync(repoPath, [
       "for-each-ref",
       `--count=${RECENT_TAG_LIMIT}`,
       "--sort=-creatordate",
@@ -126,8 +133,8 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
       branches,
       branchesWithUpstream,
       tags,
-      currentBranch: status.branch,
-      dirty: status.dirty,
+      currentBranch: tryGitSync(repoPath, ["branch", "--show-current"]),
+      dirty: runGitSync(repoPath, ["status", "--porcelain"]).length > 0,
     });
   } catch {
     return LlamaSourceRefsSchema.parse(empty);
@@ -144,7 +151,7 @@ export async function checkoutLlamaSourceRef(
     LLAMA_CPP_SOURCE_ID,
     "checkout",
     async () => {
-      const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+      const status = await getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
       if (!status.valid) {
         throw new Error(
           status.error ?? `Repository path does not exist: ${status.repoPath}`,
@@ -165,8 +172,8 @@ export async function checkoutLlamaSourceRef(
   return getLlamaSourceStatus();
 }
 
-export function getLlamaSourceStatus(): LlamaSourceStatus {
-  const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+export async function getLlamaSourceStatus(): Promise<LlamaSourceStatus> {
+  const status = await getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
   return LlamaSourceStatusSchema.parse({
     settings: {
       repoPath: status.repoPath,

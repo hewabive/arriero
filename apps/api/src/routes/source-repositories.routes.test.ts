@@ -4,11 +4,13 @@ import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
 
 import { config } from "../config.js";
+import { registerLlamaSourceRoutes } from "./llama-source.routes.js";
 import { registerSourceRepositoryRoutes } from "./source-repositories.routes.js";
 
 function appWithRoutes() {
   const app = new Hono();
   registerSourceRepositoryRoutes(app);
+  registerLlamaSourceRoutes(app);
   return app;
 }
 
@@ -78,6 +80,34 @@ test("origin can be changed before the managed checkout is cloned", async () => 
   };
   assert.equal(payload.data.status.spec.originUrl, originUrl);
   assert.equal(payload.data.status.state, "missing");
+});
+
+test("mutating source routes are gated on a non-loopback listener without auth", async () => {
+  const app = appWithRoutes();
+  const originalHost = config.host;
+  config.host = "0.0.0.0";
+  try {
+    for (const request of [
+      { path: "/api/source-repositories/llama-cpp/pull", method: "POST" },
+      { path: "/api/llama-source/pull", method: "POST" },
+      { path: "/api/llama-source/checkout", method: "POST" },
+      { path: "/api/llama-source/settings", method: "PUT" },
+    ]) {
+      const response = await app.request(request.path, {
+        method: request.method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      assert.equal(response.status, 403, request.path);
+      const payload = (await response.json()) as { error: string };
+      assert.match(payload.error, /admin authentication/);
+    }
+
+    const readResponse = await app.request("/api/llama-source/status");
+    assert.equal(readResponse.status, 200);
+  } finally {
+    config.host = originalHost;
+  }
 });
 
 test("unknown source repository ids are rejected", async () => {

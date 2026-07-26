@@ -8,7 +8,7 @@ import { existsSync, realpathSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { config } from "../config.js";
-import { redactGitOutput, runGitSync, tryGitSync } from "../git/process.js";
+import { redactGitOutput, runGit, tryGit } from "../git/process.js";
 import { readSettings, writeSettings } from "../settings/store.js";
 import {
   getSourceRepositoryDefinition,
@@ -192,9 +192,13 @@ function emptyStatus(
   });
 }
 
-export function getSourceRepositoryStatus(
+async function gitValue(cwd: string, args: string[]): Promise<string> {
+  return (await runGit(cwd, args)).stdout.trim();
+}
+
+export async function getSourceRepositoryStatus(
   sourceId: string,
-): SourceRepositoryStatus {
+): Promise<SourceRepositoryStatus> {
   const spec = getSourceRepositorySpec(sourceId);
   const definition = getSourceRepositoryDefinition(sourceId);
   const repoPath = sourceRepositoryPath(spec);
@@ -228,7 +232,7 @@ export function getSourceRepositoryStatus(
 
   let topLevel: string;
   try {
-    topLevel = runGitSync(repoPath, ["rev-parse", "--show-toplevel"]);
+    topLevel = await gitValue(repoPath, ["rev-parse", "--show-toplevel"]);
   } catch (error) {
     return emptyStatus(spec, {
       state: "invalid",
@@ -271,16 +275,17 @@ export function getSourceRepositoryStatus(
   }
 
   try {
-    const currentCommit = runGitSync(repoPath, ["rev-parse", "HEAD"]);
-    const branch = tryGitSync(repoPath, ["branch", "--show-current"]);
-    const remoteRaw = tryGitSync(repoPath, ["remote", "get-url", "origin"]);
+    const currentCommit = await gitValue(repoPath, ["rev-parse", "HEAD"]);
+    const branch = await tryGit(repoPath, ["branch", "--show-current"]);
+    const remoteRaw = await tryGit(repoPath, ["remote", "get-url", "origin"]);
     const remoteUrl = remoteRaw ? redactGitOutput(remoteRaw) : null;
-    const latestTag = tryGitSync(repoPath, [
+    const latestTag = await tryGit(repoPath, [
       "describe",
       "--tags",
       "--abbrev=0",
     ]);
-    const dirty = runGitSync(repoPath, ["status", "--porcelain"]).length > 0;
+    const dirty =
+      (await gitValue(repoPath, ["status", "--porcelain"])).length > 0;
 
     return SourceRepositoryStatusSchema.parse({
       spec,
@@ -315,28 +320,24 @@ export function getSourceRepositoryStatus(
   }
 }
 
-export function listSourceRepositoryStatuses(): SourceRepositoryStatus[] {
-  return listSourceRepositoryDefinitions().map((definition) =>
-    getSourceRepositoryStatus(definition.id),
+export function listSourceRepositoryStatuses(): Promise<
+  SourceRepositoryStatus[]
+> {
+  return Promise.all(
+    listSourceRepositoryDefinitions().map((definition) =>
+      getSourceRepositoryStatus(definition.id),
+    ),
   );
 }
 
-export function assertSourceRepositoryReady(
+export async function assertSourceRepositoryReady(
   sourceId: string,
-): SourceRepositoryStatus {
-  const status = getSourceRepositoryStatus(sourceId);
+): Promise<SourceRepositoryStatus> {
+  const status = await getSourceRepositoryStatus(sourceId);
   if (!status.valid) {
     throw new Error(
       status.error ?? `source repository ${sourceId} is not ready`,
     );
   }
   return status;
-}
-
-export function sourceRepositoryGitValue(
-  sourceId: string,
-  args: string[],
-): string {
-  const status = assertSourceRepositoryReady(sourceId);
-  return runGitSync(status.repoPath, args);
 }

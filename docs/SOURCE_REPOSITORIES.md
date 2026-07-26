@@ -54,6 +54,8 @@ output, and redact credentials from returned output.
 Clone is staged in a temporary sibling directory, validated, and atomically
 renamed into place. An existing target is never overwritten. `llama-cpp`
 mutations are refused while a llama.cpp build is running, and vice versa.
+Staging directories (`.source-clone-*`) orphaned by an interrupted clone are
+swept from every configured source parent directory at startup.
 
 ## Repository identity
 
@@ -90,3 +92,10 @@ with no checks is not implicitly considered current.
 
 The existing `/api/llama-source/*` endpoints remain as compatibility adapters
 for Build and llama argument-documentation consumers.
+
+Everything under `/api/source-repositories/*` and the mutating compatibility
+adapters (`PUT /api/llama-source/settings`, `POST /api/llama-source/checkout`,
+`POST /api/llama-source/pull`) share one gate: on a non-loopback listener they
+return 403 until admin authentication is configured. Repository status and
+drift reads run on the async Git runner so the polled status endpoints do not
+block the event loop of the serving process.

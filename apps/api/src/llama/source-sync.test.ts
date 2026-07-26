@@ -93,7 +93,7 @@ test("rpcServerFlagDivergences reports a rename as both unprobed and stale", () 
   assert.deepEqual(kinds, ["stale", "unprobed"]);
 });
 
-test("missing checkout is unavailable rather than in sync", () => {
+test("missing checkout is unavailable rather than in sync", async () => {
   writeFileSync(
     config.settingsFile,
     `${JSON.stringify(
@@ -112,7 +112,7 @@ test("missing checkout is unavailable rather than in sync", () => {
       2,
     )}\n`,
   );
-  const report = getLlamaSourceSyncReport();
+  const report = await getLlamaSourceSyncReport();
   assert.equal(report.status, "unavailable");
   assert.equal(report.repository.state, "missing");
   assert.equal(report.commit, null);

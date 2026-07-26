@@ -14,13 +14,14 @@ import {
   saveLlamaSourceSettings,
 } from "../llama/source-repository.js";
 import { getLlamaSourceSyncReport } from "../llama/source-sync.js";
+import { sourceManagementGate } from "./source-repositories.routes.js";
 
 export function registerLlamaSourceRoutes(app: Hono) {
   app.get("/api/llama-source/settings", (c) => {
     return c.json({ data: getLlamaSourceSettings() });
   });
 
-  app.put("/api/llama-source/settings", async (c) => {
+  app.put("/api/llama-source/settings", sourceManagementGate, async (c) => {
     const parsed = LlamaSourceSettingsUpdateSchema.safeParse(
       await c.req.json(),
     );
@@ -46,23 +47,23 @@ export function registerLlamaSourceRoutes(app: Hono) {
     }
   });
 
-  app.get("/api/llama-source/status", (c) => {
-    return c.json({ data: getLlamaSourceStatus() });
+  app.get("/api/llama-source/status", async (c) => {
+    return c.json({ data: await getLlamaSourceStatus() });
   });
 
   app.get("/api/llama-source/refs", (c) => {
     return c.json({ data: listLlamaSourceRefs() });
   });
 
-  app.get("/api/llama-source/sync", (c) => {
+  app.get("/api/llama-source/sync", async (c) => {
     try {
-      return c.json({ data: getLlamaSourceSyncReport() });
+      return c.json({ data: await getLlamaSourceSyncReport() });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
-  app.post("/api/llama-source/checkout", async (c) => {
+  app.post("/api/llama-source/checkout", sourceManagementGate, async (c) => {
     const parsed = LlamaSourceCheckoutSchema.safeParse(await c.req.json());
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
@@ -81,7 +82,7 @@ export function registerLlamaSourceRoutes(app: Hono) {
     }
   });
 
-  app.post("/api/llama-source/pull", async (c) => {
+  app.post("/api/llama-source/pull", sourceManagementGate, async (c) => {
     return c.json({ data: await pullLlamaSource() });
   });
 }

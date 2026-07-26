@@ -11,9 +11,9 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export function getLlamaArgumentDocsSyncReport(): LlamaArgumentDocsSyncReport {
+export async function getLlamaArgumentDocsSyncReport(): Promise<LlamaArgumentDocsSyncReport> {
   const checkedAt = nowIso();
-  const source = getLlamaSourceStatus();
+  const source = await getLlamaSourceStatus();
   const helpSource = getLlamaArgumentHelpSourceSync();
 
   return LlamaArgumentDocsSyncReportSchema.parse({

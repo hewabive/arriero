@@ -10,6 +10,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -17,6 +18,7 @@ import {
 import { dirname, resolve } from "node:path";
 
 import { buildRunner } from "../build/runner.js";
+import { config } from "../config.js";
 import { getActiveConfigGitOperation } from "../config-git/state.js";
 import {
   assertGitRemoteUrl,
@@ -27,6 +29,7 @@ import {
 import {
   getSourceRepositoryDefinition,
   LLAMA_CPP_SOURCE_ID,
+  listSourceRepositoryDefinitions,
 } from "./registry.js";
 import {
   assertSourceRepositoryReady,
@@ -36,6 +39,30 @@ import {
   sourceRepositoryPath,
 } from "./repository.js";
 import { withSourceRepositoryOperation } from "./state.js";
+
+const CLONE_STAGING_PREFIX = ".source-clone-";
+
+export function sweepSourceCloneStaging(): number {
+  const parents = new Set<string>([config.sourcesDir]);
+  for (const definition of listSourceRepositoryDefinitions()) {
+    parents.add(dirname(sourceRepositoryPath(definition.id)));
+  }
+  let removed = 0;
+  for (const parent of parents) {
+    let names: string[];
+    try {
+      names = readdirSync(parent);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (!name.startsWith(CLONE_STAGING_PREFIX)) continue;
+      rmSync(resolve(parent, name), { recursive: true, force: true });
+      removed += 1;
+    }
+  }
+  return removed;
+}
 
 function assertSourceContentCanChange(sourceId: string) {
   if (sourceId === LLAMA_CPP_SOURCE_ID && buildRunner.isRunning()) {
@@ -67,15 +94,15 @@ async function validateClonedRepository(sourceId: string, repoPath: string) {
   }
 }
 
-function result(
+async function result(
   sourceId: string,
   operation: string,
   output: string,
-): SourceRepositoryOperationResult {
+): Promise<SourceRepositoryOperationResult> {
   return SourceRepositoryOperationResultSchema.parse({
     operation,
     output,
-    status: getSourceRepositoryStatus(sourceId),
+    status: await getSourceRepositoryStatus(sourceId),
   });
 }
 
@@ -102,7 +129,7 @@ export async function cloneSourceRepository(
       }
       const parent = dirname(target);
       mkdirSync(parent, { recursive: true });
-      const temporary = mkdtempSync(resolve(parent, ".source-clone-"));
+      const temporary = mkdtempSync(resolve(parent, CLONE_STAGING_PREFIX));
       const staging = resolve(temporary, "repository");
       const args = ["clone", "--origin", "origin"];
       if (parsed.branch) args.push("--branch", parsed.branch);
@@ -136,7 +163,7 @@ export async function updateSourceRepositorySettings(
     sourceId,
     "set-origin",
     async () => {
-      const status = getSourceRepositoryStatus(sourceId);
+      const status = await getSourceRepositoryStatus(sourceId);
       if (!status.exists) {
         saveSourceRepositoryOrigin(sourceId, parsed.originUrl);
         return "Saved origin for the next clone.";
@@ -179,7 +206,7 @@ export async function pullSourceRepository(
     sourceId,
     "pull",
     async () => {
-      const status = assertSourceRepositoryReady(sourceId);
+      const status = await assertSourceRepositoryReady(sourceId);
       const pulled = await runGit(status.repoPath, ["pull", "--ff-only"], {
         timeoutMs: 10 * 60_000,
         maxOutputBytes: 8 * 1024 * 1024,

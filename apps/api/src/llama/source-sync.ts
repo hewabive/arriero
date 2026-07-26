@@ -398,8 +398,8 @@ function reconcileArgumentHelp(): LlamaSourceSyncSection {
   };
 }
 
-export function getLlamaSourceSyncReport(): LlamaSourceSyncReport {
-  const repository = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+export async function getLlamaSourceSyncReport(): Promise<LlamaSourceSyncReport> {
+  const repository = await getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
   const repoPath = repository.repoPath;
   if (!repository.valid || repository.state === "busy") {
     return {
