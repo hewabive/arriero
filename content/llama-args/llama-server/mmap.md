@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--mmap"
 title: "--mmap"
-summary: "Управляет memory mapping GGUF-файлов. По умолчанию mmap включен; `--no-mmap` загружает данные через чтение файлов и может изменить pageout/async upload поведение."
+summary: "Устаревшие boolean-флаги режима загрузки: `--mmap` эквивалентен `--load-mode mmap`, а `--no-mmap` — `--load-mode none`."
 category: "Общие параметры"
 valueType: "boolean"
 valueHint: null
@@ -13,102 +13,90 @@ allowedValues: []
 env:
   - "LLAMA_ARG_MMAP"
 related:
-  - "--direct-io"
+  - "--load-mode"
   - "--mlock"
+  - "--direct-io"
 ---
 
 # --mmap
 
 ## Кратко
 
-`--mmap` включает загрузку весов через memory mapping. Это дефолт текущего `llama-server`. `--no-mmap` отключает mmap: модель загружается медленнее, но иногда это снижает pageouts, если `--mlock` не используется.
+`--mmap` и `--no-mmap` оставлены для совместимости и помечены upstream как deprecated. В новых конфигурациях используйте `--load-mode mmap` или `--load-mode none`.
+
+Обе формы меняют единое поле `common_params::load_mode`; отдельных `use_mmap`/`use_mlock`/`use_direct_io` в `common_params` больше нет.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-whether to memory-map model. (if mmap disabled, slower load but may reduce pageouts if not using mlock) (default: enabled)
+DEPRECATED in favor of `--load-mode`: whether to memory-map model. (if mmap disabled, slower load but may reduce pageouts if not using mlock)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--mmap`
-- Алиасы: `--mmap`, `--no-mmap`
+- Отрицательная форма: `--no-mmap`
+- Статус: deprecated
+- Замены: `--load-mode mmap`, `--load-mode none`
 - Переменная окружения: `LLAMA_ARG_MMAP`
-- Поле `common_params`: `use_mmap`
-- Поле `llama_model_params`: `use_mmap`
-- Значение по умолчанию: enabled
-- Этап применения: открытие GGUF и загрузка тензоров
+- Поля: `common_params::load_mode`, `llama_model_params::load_mode`
+- Общий default режима загрузки: `mmap`
 
 ## Что меняет в llama-server
 
-Парсер bool-аргумента записывает `params.use_mmap`. В loader это значение передается в `llama_model_loader`, который решает, использовать memory mapping или читать данные в буферы.
+- `--mmap` записывает `LLAMA_LOAD_MODE_MMAP`.
+- `--no-mmap` записывает `LLAMA_LOAD_MODE_NONE`.
 
-При mmap и подходящем backend buffer llama.cpp может создавать backend buffer из host pointer на mapped region. При `--no-mmap` loader читает данные из файла и может использовать async uploads через pinned host memory, если backend поддерживает async, host buffers и events.
+В режиме `mmap` loader memory-map-ит GGUF и использует page cache ОС. В режиме `none` данные читаются в buffers обычным путём; загрузка обычно медленнее, но при некоторых memory-pressure сценариях уменьшаются pageouts.
 
-## Значения и формат
+Обе legacy-формы выводят deprecated warning.
 
-CLI-формы без значения: `--mmap` и `--no-mmap`.
+## Миграция
 
-Для env README фиксирует truthy/falsey значения: `LLAMA_ARG_MMAP=true`, `1`, `on`, `enabled`; falsey: `false`, `0`, `off`, `disabled`. Совместимая форма `LLAMA_ARG_NO_MMAP` отключает mmap при самом факте присутствия.
+```bash
+# Было
+llama-server --model /models/model.gguf --mmap
+llama-server --model /models/model.gguf --no-mmap
 
-## Когда использовать
+# Стало
+llama-server --model /models/model.gguf --load-mode mmap
+llama-server --model /models/model.gguf --load-mode none
+```
 
-Оставляйте mmap включенным для обычного локального диска и быстрого старта. Используйте `--no-mmap`, если видите проблемы с page cache/pageouts, если filesystem плохо работает с mmap, или при диагностике direct I/O/async upload пути.
+Не смешивайте старые формы с `--load-mode`: последнее CLI-значение побеждает.
 
 ## Влияние на производительность и память
 
-mmap обычно ускоряет старт и позволяет ОС управлять page cache. `--no-mmap` чаще увеличивает время загрузки и объем явных чтений, но может дать более предсказуемое поведение на системах с memory pressure.
+`mmap` обычно ускоряет старт и позволяет ОС лениво подгружать страницы. `none` увеличивает объём явного чтения, но может дать более предсказуемое поведение на filesystem, где mmap работает плохо.
 
-Если включен `--check-tensors`, validation с mmap может запускаться по mapped data; без mmap проверка идет по прочитанным буферам.
+Для удержания mapped pages в RAM используйте отдельный режим `--load-mode mlock`; для обхода page cache — `--load-mode dio`.
 
-## Взаимодействие с другими аргументами
+## Router-режим
 
-`--mlock` с mmap закрепляет mappings в памяти.
-
-`--direct-io` и mmap конфликтуют: если direct I/O доступен, loader предупреждает, что direct I/O включен и отключает mmap; если direct I/O недоступен, оставляет mmap и отключает direct I/O.
-
-`--override-tensor` в CPU buffer вместе с mmap печатает warning: для лучшей производительности предлагается `--no-mmap`.
-
-## INI-пресеты и router-режим
-
-В INI:
+В новых INI-presets:
 
 ```ini
-mmap = true
+load-mode = mmap
 ```
 
-Для отключения:
+или:
 
 ```ini
-no-mmap = true
+load-mode = none
 ```
-
-В router-режиме учитывайте суммарный эффект page cache при одновременной загрузке нескольких моделей.
 
 ## Типовые проблемы и диагностика
 
-- Лог `mmap = true/false`: проверяйте строку `loading model tensors ... (mmap = ..., direct_io = ...)`.
-- Pageouts при работе: попробуйте `--mlock` или `--no-mmap`.
-- Медленный старт после `--no-mmap`: это ожидаемая цена явного чтения данных.
-
-## Примеры
-
-```bash
-llama-server --model /models/model.gguf --mmap
-```
-
-```bash
-llama-server --model /models/model.gguf --no-mmap
-```
-
-```bash
-llama-server --model /models/model.gguf --mmap --mlock
-```
+- Deprecated warning: замените флаг на `--load-mode`.
+- Медленный старт с `none`: ожидаемая цена обычного чтения.
+- Pageouts с `mmap`: сравните `none` и `mlock`, контролируя одинаковую нагрузку.
+- Фактический режим виден в логе `loading model tensors ... (load_mode = mmap|none)`.
 
 ## Источники
 
 - `llama.cpp/common/arg.cpp`
-- `llama.cpp/common/common.cpp`
+- `llama.cpp/common/common.h`
+- `llama.cpp/include/llama.h`
 - `llama.cpp/src/llama-model-loader.cpp`
 - `llama.cpp/src/llama-model.cpp`
-- `llama.cpp/tools/server/README.md`
+- https://github.com/ggml-org/llama.cpp/pull/20834

@@ -2,10 +2,10 @@
 schema: 1
 primaryName: "--spec-type"
 title: "--spec-type"
-summary: "Выбирает реализации speculative decoding: draft-модель, MTP или n-gram варианты. Значение задается списком через запятую и применяется при инициализации speculative-контекста сервера."
+summary: "Выбирает реализации speculative decoding: обычную draft-модель, EAGLE-3, MTP, DFlash или n-gram варианты. Значение задаётся списком через запятую."
 category: "Параметры speculative decoding"
 valueType: "list"
-valueHint: "none,draft-simple,draft-eagle3,draft-mtp,ngram-simple,ngram-map-k,ngram-map-k4v,ngram-mod,ngram-cache"
+valueHint: "none,draft-simple,draft-eagle3,draft-mtp,draft-dflash,ngram-simple,ngram-map-k,ngram-map-k4v,ngram-mod,ngram-cache"
 aliases:
   - "--spec-type"
 allowedValues:
@@ -13,6 +13,7 @@ allowedValues:
   - "draft-simple"
   - "draft-eagle3"
   - "draft-mtp"
+  - "draft-dflash"
   - "ngram-simple"
   - "ngram-map-k"
   - "ngram-map-k4v"
@@ -37,12 +38,12 @@ related:
 
 `--spec-type` задает список speculative decoding реализаций, которые `llama-server` попробует использовать для ускорения генерации. Значение записывается в `common_params.speculative.types`; парсер разбивает строку по запятым и преобразует имена в `common_speculative_type`.
 
-По умолчанию активен только `none`, то есть speculative decoding не включается. Если задана draft-модель через `--spec-draft-model` или `--spec-draft-hf`, но `draft-simple` не указан явно и не включен `draft-mtp`, `common_speculative_init()` печатает предупреждение и сам включает `draft-simple`.
+По умолчанию активен только `none`, то есть speculative decoding не включается. Для HF draft repo llama.cpp может вывести тип из найденного `mtp-`, `dflash-` или `eagle3-` sidecar. Для локальной обычной draft-модели задавайте `--spec-type draft-simple` явно.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-none,draft-simple,draft-eagle3,draft-mtp,ngram-simple,ngram-map-k,ngram-map-k4v,ngram-mod,ngram-cache comma-separated list of types of speculative decoding to use (default: none)
+none,draft-simple,draft-eagle3,draft-mtp,draft-dflash,ngram-simple,ngram-map-k,ngram-map-k4v,ngram-mod,ngram-cache comma-separated list of types of speculative decoding to use (default: none)
 ```
 
 ## Паспорт аргумента
@@ -56,29 +57,30 @@ none,draft-simple,draft-eagle3,draft-mtp,ngram-simple,ngram-map-k,ngram-map-k4v,
 
 ## Что меняет в llama-server
 
-При старте сервера `common_speculative_init()` строит набор реализаций и порядок их попыток. В текущем commit приоритет такой: `ngram-simple`, `ngram-map-k`, `ngram-map-k4v`, `ngram-mod`, `ngram-cache`, затем `draft-simple`, `draft-eagle3`, `draft-mtp`.
+При старте сервера `common_speculative_init()` строит набор реализаций и порядок их попыток. В текущем commit приоритет такой: `ngram-simple`, `ngram-map-k`, `ngram-map-k4v`, `ngram-mod`, `ngram-cache`, затем `draft-simple`, `draft-eagle3`, `draft-mtp`, `draft-dflash`.
 
-`draft-simple` требует отдельную draft-модель и проверяет совместимость vocabulary target и draft моделей. `draft-mtp` может использовать MTP-контекст target-модели; при `--hf-repo` код также умеет найти MTP-файл рядом с основной моделью и подставить его как draft, если отдельная draft-модель не задана. N-gram варианты draft-модель не требуют.
+`draft-simple`, `draft-eagle3` и `draft-dflash` используют отдельную совместимую draft-модель. `draft-mtp` может использовать MTP-контекст target-модели. При `--hf-repo` llama.cpp умеет автоматически найти MTP-, EAGLE-3- или DFlash-sidecar рядом с основной моделью. N-gram варианты draft-модель не требуют.
 
 ## Значения и формат
 
 - `none` - speculative decoding выключен.
 - `draft-simple` - классический speculative decoding через отдельную draft-модель.
-- `draft-eagle3` - имя распознается парсером, но в `common_speculative_init()` текущего commit фактически не включается: `has_draft_eagle3` жестко оставлен `false`.
+- `draft-eagle3` - autoregressive EAGLE-3 draft model, обученная под конкретную target-модель.
 - `draft-mtp` - speculative decoding через MTP-контекст.
+- `draft-dflash` - block-diffusion draft model, которая выдаёт блок токенов за один forward pass и использует hidden states target-модели.
 - `ngram-simple`, `ngram-map-k`, `ngram-map-k4v`, `ngram-mod`, `ngram-cache` - self-speculative варианты на истории токенов/ngram-cache.
 
 Неизвестное имя приводит к ошибке `unknown speculative type: ...`. Повторный `--spec-type` в CLI не вызывает deprecated-warning, но значения добавляются к уже накопленному списку; в llama-manager лучше хранить один список.
 
 ## Когда использовать
 
-Используйте `draft-simple`, когда есть маленькая draft-модель с тем же tokenizer/vocab, что и target. Используйте `draft-mtp`, когда target GGUF содержит MTP-голову или рядом доступен MTP draft. N-gram варианты полезны без дополнительной модели, особенно на повторяющихся промптах и коде.
+Используйте `draft-simple`, когда есть маленькая обычная draft-модель с тем же tokenizer/vocab, что и target. `draft-eagle3` и `draft-dflash` требуют sidecar, обученный под конкретную target-модель. Используйте `draft-mtp`, когда target GGUF содержит MTP-голову или рядом доступен MTP draft. N-gram варианты полезны без дополнительной модели, особенно на повторяющихся промптах и коде.
 
 Для первого включения начните с одного типа, проверьте логи и метрику acceptance, затем добавляйте второй тип. Смешивание типов имеет смысл только если понятно, какой из них реально генерирует draft.
 
 ## Влияние на производительность и память
 
-Draft-модель и MTP-контекст увеличивают время старта и память: отдельная модель добавляет веса, KV-cache и compute buffers; MTP добавляет отдельный контекст. N-gram варианты в основном добавляют CPU-работу и структуры истории/cache.
+Draft-модель и MTP-контекст увеличивают время старта и память: отдельная модель добавляет веса, KV-cache и compute buffers; MTP добавляет отдельный контекст. DFlash также извлекает target-layer features и ограничивает `--spec-draft-n-max` размером блока, записанным в metadata draft-модели. N-gram варианты в основном добавляют CPU-работу и структуры истории/cache.
 
 Ускорение зависит от `draft acceptance`: если acceptance низкий, сервер тратит время на генерацию и откат draft-токенов без выигрыша. В логах завершения слота смотрите строку `draft acceptance = ...`, а при старте - `adding speculative implementation ...`.
 
@@ -98,7 +100,7 @@ Router управляет некоторыми параметрами модел
 
 - `unknown speculative type`: в списке есть опечатка или пробел после запятой.
 - `draft model is not specified - cannot use 'draft' type`: включен `draft-simple`, но не задана draft-модель.
-- `draft model is specified but 'draft' speculative type is not explicitly enabled - enabling it`: draft-модель задана, а `--spec-type` не включает draft-тип; сервер включил `draft-simple` автоматически.
+- Draft-модель загружена, но speculative implementation не появляется в логах: проверьте, что `--spec-type` соответствует формату sidecar; для обычной локальной draft-модели нужен `draft-simple`.
 - `failed to initialize speculative decoding context`: смотрите следующую ошибку, чаще всего это несовместимый vocab, отсутствие MTP-контекста или неподходящий backend.
 
 ## Примеры
@@ -115,10 +117,16 @@ llama-server --model /models/target.gguf --spec-type ngram-simple
 llama-server --hf-repo ggml-org/example-GGUF --spec-type draft-mtp
 ```
 
+```bash
+llama-server --model /models/target.gguf --spec-draft-model /models/dflash.gguf --spec-type draft-dflash --spec-draft-n-max 15
+```
+
 ## Источники
 
 - `llama.cpp/common/arg.cpp`
 - `llama.cpp/common/common.h`
 - `llama.cpp/common/speculative.cpp`
+- `llama.cpp/docs/speculative.md`
 - `llama.cpp/tools/server/server-context.cpp`
 - `llama.cpp/tools/server/README.md`
+- https://github.com/ggml-org/llama.cpp/pull/22105

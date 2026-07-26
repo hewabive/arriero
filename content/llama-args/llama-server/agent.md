@@ -17,6 +17,7 @@ env:
 related:
   - "--tools"
   - "--ui-mcp-proxy"
+  - "--cors-origins"
   - "--ui"
   - "--api-key"
 ---
@@ -31,6 +32,7 @@ related:
 
 ```text
 whether to enable CORS proxy and all built-in tools - do not enable in untrusted environments (default: disabled)
+note: for security reasons, this will limit --cors-origins to localhost by default
 ```
 
 ## Паспорт аргумента
@@ -47,10 +49,12 @@ whether to enable CORS proxy and all built-in tools - do not enable in untrusted
 
 При включении эффект эквивалентен одновременной передаче `--tools all` и `--ui-mcp-proxy`:
 
-- `server.cpp` видит непустой `server_tools`, вызывает `tools.setup({"all"})`, регистрирует `GET /tools` и `POST /tools` и печатает предупреждение `Built-in tools are enabled, do not expose server to untrusted environments`.
-- `ui_mcp_proxy = true` регистрирует `GET /cors-proxy` и `POST /cors-proxy` и печатает предупреждение `CORS proxy is enabled, ...`.
+- `server.cpp` видит непустой `server_tools`, вызывает `tools.setup({"all"})` и регистрирует `GET /tools` и `POST /tools`.
+- `ui_mcp_proxy = true` регистрирует `GET /cors-proxy` и `POST /cors-proxy`.
+- общий warning перечисляет включённые экспериментальные возможности и напоминает не публиковать сервер в недоверенной сети.
+- если origin не задан явно, post-processing устанавливает `cors_origins = "localhost"`.
 
-Доступные встроенные tools: `read_file`, `file_glob_search`, `grep_search`, `exec_shell_command`, `write_file`, `edit_file`, `apply_diff`, `get_datetime`. `exec_shell_command`, `write_file` и `edit_file` дают модели запись в файловую систему и выполнение команд на хосте сервера — это полноценный RCE-вектор, если listener доступен из недоверенной сети.
+Доступные встроенные tools: `read_file`, `file_glob_search`, `grep_search`, `exec_shell_command`, `write_file`, `edit_file`, `get_datetime`. `exec_shell_command`, `write_file` и `edit_file` дают модели запись в файловую систему и выполнение команд на хосте сервера — это полноценный RCE-вектор, если listener доступен из недоверенной сети.
 
 ## Значения и формат
 
@@ -70,13 +74,14 @@ whether to enable CORS proxy and all built-in tools - do not enable in untrusted
 
 - `--tools` задает точный список tools; `--agent` — это эквивалент `--tools all` плюс proxy.
 - `--ui-mcp-proxy` включает только CORS proxy без tools; `--agent` включает и его.
+- `--cors-origins` можно задать явно; иначе agent mode ограничивает browser origins локальными адресами.
 - `--ui` не обязателен для регистрации endpoint'ов, но весь сценарий рассчитан на работу из Web UI.
 - `--api-key` защищает endpoints, если ключи включены.
 
 ## Типовые проблемы и диагностика
 
-- В логах два блока предупреждений (`Built-in tools are enabled`, `CORS proxy is enabled`): ожидаемо при `--agent`.
-- `/tools` или `/cors-proxy` возвращают 404: итоговое значение оказалось `false` (например, `--no-agent` после `--agent`) или поле перезаписано более поздним `--tools`.
+- В логах общий блок `the following feature(s) are enabled`: ожидаемо при `--agent`.
+- `/tools` или `/cors-proxy` возвращают 403: соответствующая возможность выключена; disabled routes остаются зарегистрированными как запрет.
 - `tools setup failed: ...` в логах: ошибка инициализации встроенных tools, сервер завершится с ненулевым кодом.
 
 ## Примеры
@@ -91,3 +96,4 @@ llama-server --model /models/model.gguf -no-ag
 - `llama.cpp/common/arg.cpp`
 - `llama.cpp/tools/server/server.cpp`
 - `llama.cpp/tools/server/server-tools.cpp`
+- https://github.com/ggml-org/llama.cpp/pull/25655

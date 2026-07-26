@@ -30,7 +30,7 @@ related:
 
 `--spec-draft-model` указывает локальный путь к GGUF draft-модели. Значение записывается в `common_params.speculative.draft.mparams.path`; после обработки моделей сервер загружает draft-модель отдельным `llama_model_load_from_file()` и создает для нее отдельный контекст.
 
-Если `--spec-type draft-simple` не указан, но draft-модель задана и не используется `draft-mtp`, llama.cpp предупреждает и включает `draft-simple` автоматически.
+Локальный путь сам по себе не выбирает speculative implementation. Для обычной draft-модели укажите `--spec-type draft-simple`; для EAGLE-3, MTP или DFlash выберите соответствующий тип.
 
 ## Оригинальная справка llama.cpp
 

@@ -69,7 +69,7 @@ Same as --hf-repo, but for the draft model (default: unused)
 
 ## Взаимодействие с другими аргументами
 
-`--hf-token` передается downloader и нужен для приватных draft repo. `--offline` запрещает сетевую загрузку и требует, чтобы нужный файл уже был доступен в cache. `--spec-type draft-simple` явно включает draft-model speculative decoding; без него сервер может включить `draft-simple` автоматически, если draft-модель задана.
+`--hf-token` передается downloader и нужен для приватных draft repo. `--offline` запрещает сетевую загрузку и требует, чтобы нужный файл уже был доступен в cache. Для обычной draft-модели явно задайте `--spec-type draft-simple`. Если repo содержит распознаваемый `mtp-`, `dflash-` или `eagle3-` sidecar, llama.cpp может вывести тип из sidecar, когда `--spec-type` оставлен в default `none`.
 
 При `--spec-type draft-mtp` и `--hf-repo` основная модель может автоматически найти MTP-файл рядом с target. Это отдельный путь от `--spec-draft-hf`; если вы явно задаете draft HF repo, он имеет приоритет как заданная draft-модель.
 

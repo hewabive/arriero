@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--checkpoint-min-step"
 title: "--checkpoint-min-step"
-summary: "Минимальное расстояние между context checkpoints в токенах. `0` снимает ограничение, отрицательные значения запрещены парсером."
+summary: "Минимальное расстояние между context checkpoints в токенах. По умолчанию 8192; последний user turn и точки у конца prompt могут обходить этот интервал."
 category: "Параметры llama-server"
 valueType: "number"
 valueHint: "N"
@@ -24,28 +24,28 @@ related:
 
 `--checkpoint-min-step` задает `common_params::checkpoint_min_step`: минимальный разрыв в токенах между context checkpoints одного слота.
 
-По умолчанию `256`; `0` означает "без минимального разрыва".
+По умолчанию `8192`; `0` означает "без минимального разрыва".
 
 ## Оригинальная справка llama.cpp
 
 ```text
-minimum spacing between context checkpoints in tokens (default: 256, 0 = no minimum)
+minimum spacing between context checkpoints in tokens (default: 8192, 0 = no minimum)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--checkpoint-min-step`
 - Алиасы: `-cms`, `--checkpoint-min-step`
-- Значение по умолчанию: `256`
+- Значение по умолчанию: `8192`
 - Переменная окружения: `LLAMA_ARG_CHECKPOINT_MIN_SPACING_NT`
 - Поле llama.cpp: `common_params::checkpoint_min_step`
 - Валидация: `value < 0` выбрасывает `checkpoint-min-step must be non-negative`
 
 ## Что меняет в llama-server
 
-При prompt processing min-step — последний из нескольких гейтов на создание checkpoint (тип задачи completion, тип памяти, позиция на границе последнего user-сообщения или около конца промпта, отсутствие mtmd-чанков): checkpoint создается только если текущая позиция дальше предыдущего checkpoint больше чем `checkpoint_min_step`. Условие выглядит как `n_tokens_start > last_checkpoint.n_tokens + checkpoint_min_step`.
+При prompt processing сервер распознаёт начала user messages по message spans. Для промежуточного user turn checkpoint создаётся, если его позиция дальше последнего checkpoint более чем на `checkpoint_min_step`. Для последнего user message и служебных точек около конца prompt (`4 + n_ubatch` и `4` токена до конца) spacing не блокирует создание.
 
-После https://github.com/ggml-org/llama.cpp/pull/20288 checkpoints не ставятся периодически каждые N токенов mid-prompt — только на границе последнего user-сообщения и около конца промпта (за `4 + n_ubatch` и `4` токена до конца); min-step лишь отсекает слишком близкие из этих фиксированных точек.
+При создании нового checkpoint сервер также просматривает сохранённые checkpoints от предыдущих задач и удаляет те, которые находятся в пределах min-step после более раннего checkpoint. Checkpoints текущей задачи этим проходом не удаляются.
 
 На speculative checkpoints (`spec_ckpt`) min-step не действует — они создаются без проверки spacing.
 
@@ -53,13 +53,13 @@ minimum spacing between context checkpoints in tokens (default: 256, 0 = no mini
 
 ## Значения и формат
 
-- `0`: разрешить checkpoints без минимального интервала; из-за строгого сравнения `>` все равно нужен хотя бы 1 токен после последнего checkpoint.
+- `0`: разрешить checkpoints без минимального интервала; из-за строгого сравнения `>` новая обычная точка всё равно должна идти после предыдущей.
 - Положительное число: минимальный интервал в токенах.
 - Отрицательное число: ошибка парсинга.
 
 ## Когда использовать
 
-Увеличивайте, если checkpoints создаются слишком часто и RAM растет. Уменьшение ниже дефолта помогает редко: точки создания фиксированы (граница последнего user-сообщения и конец промпта), min-step лишь отбрасывает слишком близкие из них; при частом full prompt re-processing сначала проверьте `--ctx-checkpoints` и prompt cache.
+Уменьшайте, если длинная история содержит полезные промежуточные user boundaries и вы готовы хранить больше состояний. Увеличивайте, если checkpoints создаются слишком часто и RAM растёт. При дефолте `8192` сервер обычно сохраняет последний user boundary и точки у конца prompt, а более близкие промежуточные turns пропускает.
 
 ## Влияние на производительность и память
 
@@ -73,7 +73,7 @@ minimum spacing between context checkpoints in tokens (default: 256, 0 = no mini
 
 ## INI-пресеты и router-режим
 
-В INI используйте `checkpoint-min-step = 256` или `LLAMA_ARG_CHECKPOINT_MIN_SPACING_NT`. В router-режиме применяется к дочернему процессу модели.
+В INI используйте `checkpoint-min-step = 8192` или `LLAMA_ARG_CHECKPOINT_MIN_SPACING_NT`. В router-режиме применяется к дочернему процессу модели.
 
 ## Типовые проблемы и диагностика
 
@@ -84,11 +84,11 @@ minimum spacing between context checkpoints in tokens (default: 256, 0 = no mini
 ## Примеры
 
 ```bash
-llama-server --model /models/model.gguf --ctx-checkpoints 32 --checkpoint-min-step 128
+llama-server --model /models/model.gguf --ctx-checkpoints 32 --checkpoint-min-step 2048
 ```
 
 ```bash
-llama-server --model /models/model.gguf --ctx-checkpoints 16 --checkpoint-min-step 512
+llama-server --model /models/model.gguf --ctx-checkpoints 16 --checkpoint-min-step 16384
 ```
 
 ## Источники
@@ -98,3 +98,4 @@ llama-server --model /models/model.gguf --ctx-checkpoints 16 --checkpoint-min-st
 - `llama.cpp/tools/server/server-context.cpp`
 - `llama.cpp/tools/server/README.md`
 - https://github.com/ggml-org/llama.cpp/pull/20288
+- https://github.com/ggml-org/llama.cpp/pull/24176

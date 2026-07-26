@@ -95,7 +95,7 @@ Checkpoints занимают RAM/state memory и добавляют работу
 ## Примеры
 
 ```bash
-llama-server --model /models/model.gguf --ctx-checkpoints 32 --checkpoint-min-step 256
+llama-server --model /models/model.gguf --ctx-checkpoints 32 --checkpoint-min-step 8192
 ```
 
 ```bash

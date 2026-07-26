@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--direct-io"
 title: "--direct-io"
-summary: "Просит loader читать GGUF через Direct I/O, если платформа и файл это поддерживают. По умолчанию отключен и конфликтует с mmap."
+summary: "Устаревшие boolean-флаги режима загрузки: `--direct-io` эквивалентен `--load-mode dio`, отрицательная форма — `--load-mode none`."
 category: "Общие параметры"
 valueType: "boolean"
 valueHint: null
@@ -15,100 +15,87 @@ allowedValues: []
 env:
   - "LLAMA_ARG_DIO"
 related:
+  - "--load-mode"
   - "--mmap"
-  - "--no-mmap"
+  - "--mlock"
+  - "--check-tensors"
 ---
 
 # --direct-io
 
 ## Кратко
 
-`--direct-io` включает Direct I/O при чтении model files, если оно доступно. Это низкоуровневый storage-флаг для обхода обычного page cache на поддерживаемых системах.
+`--direct-io` и `--no-direct-io` оставлены для совместимости и помечены upstream как deprecated. Используйте `--load-mode dio` или `--load-mode none`.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-use DirectIO if available. (default: disabled)
+DEPRECATED in favor of `--load-mode`: use DirectIO if available
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--direct-io`
-- Алиасы: `-dio`, `--direct-io`, `-ndio`, `--no-direct-io`
+- Алиас: `-dio`
+- Отрицательные формы: `-ndio`, `--no-direct-io`
+- Статус: deprecated
+- Замены: `--load-mode dio`, `--load-mode none`
 - Переменная окружения: `LLAMA_ARG_DIO`
-- Поле `common_params`: `use_direct_io`
-- Поле `llama_model_params`: `use_direct_io`
-- Значение по умолчанию: disabled
-- Этап применения: открытие и чтение GGUF-файлов
+- Поля: `common_params::load_mode`, `llama_model_params::load_mode`
 
 ## Что меняет в llama-server
 
-Флаг передается в `llama_file` при открытии GGUF. На платформах, где Direct I/O реально включился, loader отключает mmap и пишет warning `direct I/O is enabled, disabling mmap`.
+- `--direct-io` записывает `LLAMA_LOAD_MODE_DIRECT_IO`.
+- `--no-direct-io` записывает `LLAMA_LOAD_MODE_NONE`.
 
-Если Direct I/O недоступен, loader предупреждает `direct I/O is not available, using mmap`, отключает `use_direct_io` и переоткрывает файл обычным путем для mmap.
+В режиме `dio` loader открывает GGUF для Direct I/O и не использует mmap. Режим предназначен для обхода обычного page cache на поддерживаемых platform/filesystem/storage combinations.
 
-## Значения и формат
+Legacy-флаг всегда выводит deprecated warning. Новый единый enum устраняет прежнюю неоднозначную комбинацию Direct I/O с mmap.
 
-CLI-формы без значения: `--direct-io` и `--no-direct-io`. Через env `LLAMA_ARG_DIO` принимает boolean values как остальные bool-аргументы.
+## Миграция
 
-## Когда использовать
+```bash
+# Было
+llama-server --model /models/model.gguf --direct-io
 
-Пробуйте на больших моделях и быстрых NVMe/RAID, если хотите уменьшить влияние page cache или отделить I/O модели от остальной памяти системы. Не включайте как универсальную оптимизацию: выигрыш зависит от filesystem, alignment, storage и backend upload path.
+# Стало
+llama-server --model /models/model.gguf --load-mode dio
+```
+
+Не добавляйте `--no-mmap`: режим `dio` уже взаимоисключающий. Не смешивайте legacy-флаг с `--load-mode`, потому что последнее CLI-значение побеждает.
+
+## Когда использовать режим dio
+
+Тестируйте на больших моделях и быстрых NVMe/RAID, если важно не вытеснять другие данные из page cache. Не включайте как универсальную оптимизацию: результат зависит от alignment, filesystem, storage и backend upload path.
 
 ## Влияние на производительность и память
 
-Direct I/O может снизить загрязнение page cache, но требует aligned reads. В loader для aligned чтений используется staging buffer до `64 MiB + alignment`; при обычном чтении без alignment - 1 MiB.
+Direct I/O уменьшает участие page cache, но требует aligned reads и может оказаться медленнее mmap. Сравнивайте cold/warm startup и steady-state latency на одинаковой модели.
 
-Так как mmap отключается при доступном Direct I/O, старт и загрузка весов могут вести себя заметно иначе.
+`--check-tensors` добавляет чтение/проверку данных и также может влиять на upload path, поэтому benchmark проводите отдельно с проверкой и без неё.
 
-## Взаимодействие с другими аргументами
+## Router-режим
 
-`--mmap` и реально включенный `--direct-io` несовместимы; Direct I/O выигрывает и отключает mmap.
-
-`--no-mmap` делает поведение более явным, если вы специально тестируете Direct I/O.
-
-`--check-tensors` может отключить async upload path, потому что loader возвращает `nullptr` для upload backend при `use_mmap || check_tensors`.
-
-## INI-пресеты и router-режим
-
-В INI:
+В новых INI-presets:
 
 ```ini
-direct-io = true
+load-mode = dio
 ```
 
-Для отключения:
-
-```ini
-no-direct-io = true
-```
-
-В router-режиме задавайте осторожно: одновременная загрузка нескольких моделей может создать сильную нагрузку на storage.
+Одновременная загрузка нескольких моделей может создать сильную нагрузку на storage.
 
 ## Типовые проблемы и диагностика
 
-- Видите `direct I/O is not available, using mmap`: платформа или файл не поддержали Direct I/O.
-- Старт стал медленнее: сравните с `--mmap` и без `--direct-io`.
-- Нужна точная проверка активного режима: смотрите строку `loading model tensors ... (mmap = ..., direct_io = ...)`.
-
-## Примеры
-
-```bash
-llama-server --model /models/model.gguf --direct-io
-```
-
-```bash
-llama-server --model /models/model.gguf --direct-io --no-mmap
-```
-
-```bash
-llama-server --model /models/model.gguf --no-direct-io
-```
+- Deprecated warning: замените флаг на `--load-mode dio`.
+- Старт стал медленнее: сравните с `--load-mode mmap`.
+- Ошибки чтения/alignment: filesystem или storage path не подходят для Direct I/O; вернитесь к `mmap`.
+- Фактический режим виден в логе `loading model tensors ... (load_mode = dio)`.
 
 ## Источники
 
 - `llama.cpp/common/arg.cpp`
-- `llama.cpp/common/common.cpp`
+- `llama.cpp/common/common.h`
+- `llama.cpp/include/llama.h`
 - `llama.cpp/src/llama-model-loader.cpp`
-- `llama.cpp/src/llama-mmap.cpp`
-- `llama.cpp/tools/server/README.md`
+- `llama.cpp/src/llama-model.cpp`
+- https://github.com/ggml-org/llama.cpp/pull/20834

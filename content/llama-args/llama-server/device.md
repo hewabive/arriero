@@ -13,6 +13,7 @@ allowedValues: []
 env:
   - "LLAMA_ARG_DEVICE"
 related:
+  - "--rpc"
   - "--gpu-layers"
   - "--list-devices"
   - "--main-gpu"

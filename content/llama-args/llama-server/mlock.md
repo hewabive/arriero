@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--mlock"
 title: "--mlock"
-summary: "Просит систему удерживать модельные данные в RAM/host memory и не вытеснять их в swap или memory compression. Может требовать повышенных лимитов locked memory."
+summary: "Устаревший флаг, эквивалентный `--load-mode mlock`: использует mmap и пытается удерживать модель в RAM без swap или memory compression."
 category: "Общие параметры"
 valueType: "flag"
 valueHint: null
@@ -12,88 +12,84 @@ allowedValues: []
 env:
   - "LLAMA_ARG_MLOCK"
 related:
+  - "--load-mode"
   - "--mmap"
-  - "--no-mmap"
+  - "--direct-io"
 ---
 
 # --mlock
 
 ## Кратко
 
-`--mlock` включает попытку закрепить модельные данные в памяти, чтобы ОС не отправляла их в swap или memory compression. Это низкоуровневый параметр загрузки модели, полезный для стабильной latency на системах с давлением RAM.
+`--mlock` оставлен для совместимости и помечен upstream как deprecated. Используйте `--load-mode mlock`.
+
+Legacy-флаг выставляет единое поле `common_params::load_mode = LLAMA_LOAD_MODE_MLOCK`, а не отдельный boolean. Этот режим включает mmap и пытается закрепить mapped model pages в RAM.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-force system to keep model in RAM rather than swapping or compressing
+DEPRECATED in favor of `--load-mode`: mmap + force system to keep model in RAM rather than swapping or compressing
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--mlock`
-- Тип: флаг
+- Статус: deprecated
+- Замена: `--load-mode mlock`
 - Переменная окружения: `LLAMA_ARG_MLOCK`
-- Поле `common_params`: `use_mlock`
-- Поле `llama_model_params`: `use_mlock`
-- Значение по умолчанию: `false`
-- Этап применения: загрузка модели и mmap/buffer allocation
+- Поля: `common_params::load_mode`, `llama_model_params::load_mode`
+- Результирующий режим: `LLAMA_LOAD_MODE_MLOCK`
 
 ## Что меняет в llama-server
 
-Парсер выставляет `params.use_mlock = true`, затем `common_model_params_to_llama()` переносит это в `llama_model_params::use_mlock`.
+При разборе флага llama.cpp пишет warning `--mlock is deprecated. use --load-mode mlock instead`. Loader включает mmap, а `llama-model.cpp` активирует mlock для модельных данных.
 
-При mmap-загрузке loader передает объект mlock в `init_mappings()`. Для host buffers, выделенных без mmap, `llama-model.cpp` создает `llama_mlock` и вызывает `grow_to()` на размере host buffer.
+Режим не уменьшает потребление RAM. Он делает страницы менее доступными для вытеснения и может стабилизировать latency после простоя, но повышает риск memory pressure для остальных процессов.
 
-## Значения и формат
+## Миграция
 
-Флаг без значения. Для env используется `LLAMA_ARG_MLOCK` с truthy-значением.
-
-## Когда использовать
-
-Используйте на долгоживущем сервере, если модель частично находится в RAM и наблюдаются page faults, swap или latency spikes после простоя. Не включайте без проверки лимитов ОС: locked memory может быть ограничена `ulimit`/systemd/container runtime.
-
-## Влияние на производительность и память
-
-`--mlock` не уменьшает RAM, а наоборот делает ее менее доступной для вытеснения. Это может стабилизировать latency, но ухудшить поведение всей системы при нехватке памяти.
-
-На полностью GPU-resident модели эффект меньше, но host buffers, mmap regions и CPU fallback все равно могут участвовать.
-
-## Взаимодействие с другими аргументами
-
-`--mmap` определяет, будут ли веса отображены через memory mapping. С mmap `mlock` закрепляет mappings; без mmap - host buffers.
-
-`--no-mmap` иногда снижает pageouts без `mlock`, но обычно медленнее загружает модель.
-
-## INI-пресеты и router-режим
-
-В INI:
-
-```ini
-mlock = true
-```
-
-В router-режиме учитывайте суммарный locked memory всех одновременно загруженных моделей.
-
-## Типовые проблемы и диагностика
-
-- Ошибка или warning про lock memory: проверьте лимиты `ulimit -l`, systemd `LimitMEMLOCK` или Docker capabilities.
-- Система начинает активно swap-ить другие процессы: отключите `--mlock` или уменьшите число одновременно загруженных моделей.
-- Нет улучшения latency: bottleneck может быть в GPU compute, KV-cache или sampling, а не в page faults.
-
-## Примеры
+Замените:
 
 ```bash
 llama-server --model /models/model.gguf --mlock
 ```
 
+на:
+
 ```bash
-llama-server --model /models/model.gguf --mmap --mlock
+llama-server --model /models/model.gguf --load-mode mlock
 ```
+
+Не комбинируйте legacy-флаг с `--load-mode`: parser выдаёт отдельный warning, а последнее CLI-значение побеждает.
+
+## Когда использовать режим mlock
+
+Используйте на долгоживущем сервере, если модель частично находится в host RAM и наблюдаются page faults, swap или latency spikes. Сначала проверьте запас RAM и лимит locked memory.
+
+На полностью GPU-resident модели эффект обычно меньше, хотя host buffers и CPU fallback всё ещё могут участвовать.
+
+## Router-режим
+
+В новых INI-presets используйте:
+
+```ini
+load-mode = mlock
+```
+
+Планируйте суммарный locked memory всех одновременно загруженных моделей.
+
+## Типовые проблемы и диагностика
+
+- Deprecated warning: мигрируйте на `--load-mode mlock`.
+- Warning/error про lock memory: проверьте `ulimit -l`, systemd `LimitMEMLOCK` и container capabilities.
+- Система начинает swap-ить другие процессы: вернитесь к `--load-mode mmap` или уменьшите число моделей.
+- Фактический режим виден в логе `loading model tensors ... (load_mode = mlock)`.
 
 ## Источники
 
 - `llama.cpp/common/arg.cpp`
 - `llama.cpp/common/common.h`
-- `llama.cpp/common/common.cpp`
+- `llama.cpp/include/llama.h`
+- `llama.cpp/src/llama-model-loader.cpp`
 - `llama.cpp/src/llama-model.cpp`
-- `llama.cpp/tools/server/README.md`
+- https://github.com/ggml-org/llama.cpp/pull/20834

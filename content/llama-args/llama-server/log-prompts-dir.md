@@ -24,7 +24,7 @@ related:
 ## Оригинальная справка llama.cpp
 
 ```text
-Log prompts to directory (only used for debugging, default: disabled)
+Log prompts to directory (auto-created if not present; only used for debugging, default: disabled)
 ```
 
 ## Паспорт аргумента
@@ -42,7 +42,9 @@ Log prompts to directory (only used for debugging, default: disabled)
 
 Если `path_prompts_log_dir` непуст, при обработке каждого запроса (`server-context.cpp`) сервер формирует имя файла из миллисекундного таймстампа (`%012d.txt`) и записывает в него промпт: строку как есть либо `dump(2)` для структурированного prompt. Если файл создать не удалось, в лог идет `failed to create <path>`.
 
-Каталог должен существовать заранее: код только создает файлы внутри него, сам каталог не создается. Каждый запрос — отдельный файл, ротации и очистки нет, так что на нагруженном сервере каталог быстро разрастается.
+При разборе аргумента llama.cpp вызывает `std::filesystem::create_directories()`, поэтому отсутствующий каталог и его parent directories создаются автоматически. Ошибка создания печатается как warning, а сервер продолжает запуск; последующая запись prompt тогда завершится `failed to create <path>`.
+
+Каждый запрос — отдельный файл, ротации и очистки нет, так что на нагруженном сервере каталог быстро разрастается.
 
 ## Значения и формат
 
@@ -63,14 +65,13 @@ Log prompts to directory (only used for debugging, default: disabled)
 
 ## Типовые проблемы и диагностика
 
-- В логах `failed to create <path>`: каталог не существует или нет прав на запись.
-- Каталог не появился сам: создайте его заранее (`mkdir -p`).
+- Warning `failed to create prompts-log-dir`: путь нельзя создать; проверьте parent directory и права.
+- В логах `failed to create <path>`: каталог недоступен для записи или был удалён после старта.
 - Каталог бесконтрольно растет: это ожидаемо, отключайте флаг после отладки.
 
 ## Примеры
 
 ```bash
-mkdir -p /tmp/llama-prompts
 llama-server --model /models/model.gguf --log-prompts-dir /tmp/llama-prompts
 ```
 
@@ -79,3 +80,4 @@ llama-server --model /models/model.gguf --log-prompts-dir /tmp/llama-prompts
 - `llama.cpp/common/arg.cpp`
 - `llama.cpp/common/common.h`
 - `llama.cpp/tools/server/server-context.cpp`
+- https://github.com/ggml-org/llama.cpp/pull/25322

@@ -74,7 +74,7 @@ experimental: whether to enable MCP CORS proxy - do not enable in untrusted envi
 
 ## Типовые проблемы и диагностика
 
-- `/cors-proxy` возвращает 404: флаг не включен.
+- `/cors-proxy` возвращает 403: флаг не включен; disabled route остаётся зарегистрированным как запрет.
 - В логах предупреждение о CORS proxy: это ожидаемо при включении.
 - Браузер все равно блокирует запрос: проверьте URL proxy и CORS требования MCP-сервера.
 

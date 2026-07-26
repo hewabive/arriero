@@ -55,12 +55,12 @@ use Qwen 2.5 Coder 7B + 0.5B draft for speculative decoding (note: can download 
 - `params.n_ctx = 0`
 - `params.n_cache_reuse = 256`
 
-Если draft-модель задана, но `--spec-type` явно не включает draft type, speculative subsystem логирует предупреждение и включает draft-simple автоматически.
+Shortcut задаёт путь к обычной draft-модели, но не меняет `params.speculative.types`. Поэтому для фактического speculative decoding добавьте `--spec-type draft-simple`.
 
 ## Значения и формат
 
 ```bash
-llama-server --fim-qwen-7b-spec
+llama-server --fim-qwen-7b-spec --spec-type draft-simple
 ```
 
 INI:
@@ -68,6 +68,7 @@ INI:
 ```ini
 [coder-7b-spec]
 fim-qwen-7b-spec = true
+spec-type = draft-simple
 alias = coder-spec
 tags = code,fim,speculative
 ```
@@ -92,7 +93,7 @@ Draft offload и CPU-настройки управляются отдельны�
 - `--spec-draft-ngl`, `--spec-draft-device`, `--spec-draft-threads` для ресурсов draft-модели.
 - `--spec-draft-n-max`, `--spec-draft-n-min`, `--spec-draft-p-min` для поведения draft decoding.
 
-`--spec-default` не нужен для включения draft-simple с этим shortcut, но может добавить ngram-mod speculative конфигурацию. Проверяйте итоговую эффективность на workload, а не включайте все speculative методы автоматически.
+`--spec-type draft-simple` обязателен для этого shortcut в текущем upstream. `--spec-default` включает другую, ngram-based конфигурацию и не заменяет выбор draft type.
 
 ## INI-пресеты и router-режим
 
@@ -101,6 +102,7 @@ Draft offload и CPU-настройки управляются отдельны�
 ```ini
 [coder-7b-spec]
 fim-qwen-7b-spec = true
+spec-type = draft-simple
 alias = coder
 load-on-startup = false
 ```
@@ -109,7 +111,7 @@ load-on-startup = false
 
 ## Типовые проблемы и диагностика
 
-- Лог `draft model is specified but 'draft' speculative type is not explicitly enabled`: это ожидаемая автоматическая активация draft-simple.
+- Draft-модель скачалась, но в логах нет `adding speculative implementation 'draft-simple'`: добавьте `--spec-type draft-simple`.
 - OOM при загрузке: нужны ресурсы для 7B target и 0.5B draft.
 - Скорость не выросла: speculative decoding зависит от acceptance rate, backend и draft настройки.
 - Скачиваются две модели: target и draft берутся из HF repo.
@@ -117,11 +119,11 @@ load-on-startup = false
 ## Примеры
 
 ```bash
-llama-server --fim-qwen-7b-spec --port 8082
+llama-server --fim-qwen-7b-spec --spec-type draft-simple --port 8082
 ```
 
 ```bash
-llama-server --fim-qwen-7b-spec --spec-draft-ngl all --ctx-size 32768
+llama-server --fim-qwen-7b-spec --spec-type draft-simple --spec-draft-ngl all --ctx-size 32768
 ```
 
 ## Источники

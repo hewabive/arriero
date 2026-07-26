@@ -83,13 +83,14 @@ Speculative decoding может ускорить generation, но не уско�
 
 Для draft-модели используйте `--spec-draft-ngl`, `--spec-draft-device`, `--spec-draft-threads` и типы KV-cache draft. Для target-модели применяются обычные `--n-gpu-layers`, `--device`, `--cache-type-k`, `--cache-type-v`.
 
-Если одновременно задан `--spec-type`, он дополняет список типов. Без явного draft type код автоматически включает draft-simple при наличии draft model path после разрешения HF.
+Shortcut не выбирает speculative type сам. Добавьте `--spec-type draft-simple`; без него обычная 0.5B draft-модель будет загружена как источник, но draft-simple implementation не активируется.
 
 ## INI-пресеты и router-режим
 
 ```ini
 [coder-14b-spec]
 fim-qwen-14b-spec = true
+spec-type = draft-simple
 alias = coder-14b
 stop-timeout = 30
 ```
@@ -106,11 +107,11 @@ stop-timeout = 30
 ## Примеры
 
 ```bash
-llama-server --fim-qwen-14b-spec --ctx-size 32768 --port 8082
+llama-server --fim-qwen-14b-spec --spec-type draft-simple --ctx-size 32768 --port 8082
 ```
 
 ```bash
-llama-server --fim-qwen-14b-spec --spec-draft-ngl auto
+llama-server --fim-qwen-14b-spec --spec-type draft-simple --spec-draft-ngl auto
 ```
 
 ## Источники

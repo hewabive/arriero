@@ -13,6 +13,7 @@ env:
   - "LLAMA_ARG_TOOLS"
 related:
   - "--api-key"
+  - "--cors-origins"
   - "--host"
   - "--ui"
   - "--ui-mcp-proxy"
@@ -29,7 +30,8 @@ related:
 ```text
 experimental: whether to enable built-in tools for AI agents - do not enable in untrusted environments (default: no tools)
 specify "all" to enable all tools
-available tools: read_file, file_glob_search, grep_search, exec_shell_command, write_file, edit_file, apply_diff, get_datetime
+available tools: read_file, file_glob_search, grep_search, exec_shell_command, write_file, edit_file, get_datetime
+note: for security reasons, this will limit --cors-origins to localhost by default
 ```
 
 ## Паспорт аргумента
@@ -54,8 +56,7 @@ available tools: read_file, file_glob_search, grep_search, exec_shell_command, w
 - `grep_search`: regex-поиск по файлам, максимум 100 совпадений.
 - `exec_shell_command`: выполняет shell command через `sh -c` или `cmd /c`, максимум 60 секунд и 16 KB вывода.
 - `write_file`: создает или перезаписывает файл, создает parent directories.
-- `edit_file`: применяет line-based replace/delete/append.
-- `apply_diff`: применяет unified diff через `git apply`.
+- `edit_file`: применяет один или несколько непересекающихся exact-text replacements; каждый `old_text` должен быть уникален, при расхождении допускается ограниченная нормализация whitespace/типографики.
 - `get_datetime`: возвращает текущее время.
 
 ## Значения и формат
@@ -64,7 +65,7 @@ available tools: read_file, file_glob_search, grep_search, exec_shell_command, w
 
 ## Когда использовать
 
-Включайте только локально или в жестко изолированной среде, где доверяете пользователям и модели/agent workflow. `exec_shell_command`, `write_file`, `edit_file` и `apply_diff` дают возможность выполнять команды или менять файловую систему от имени процесса `llama-server`.
+Включайте только локально или в жестко изолированной среде, где доверяете пользователям и модели/agent workflow. `exec_shell_command`, `write_file` и `edit_file` дают возможность выполнять команды или менять файловую систему от имени процесса `llama-server`.
 
 ## Влияние на производительность и память
 
@@ -74,6 +75,7 @@ available tools: read_file, file_glob_search, grep_search, exec_shell_command, w
 
 - `--api-key` практически обязателен при включении `/tools`.
 - `--host 127.0.0.1` предпочтителен; не публикуйте tools на `0.0.0.0` без reverse proxy и policy.
+- Если `--cors-origins` не задан явно, непустой список tools автоматически ограничивает CORS специальным origin `localhost`.
 - UI может использовать endpoint, но сам endpoint регистрируется независимо от `--ui`.
 
 ## INI-пресеты и router-режим
@@ -82,7 +84,7 @@ available tools: read_file, file_glob_search, grep_search, exec_shell_command, w
 
 ## Типовые проблемы и диагностика
 
-- `/tools` 404: список tools пуст или аргумент не применился.
+- `/tools` возвращает 403: список tools пуст или аргумент не применился; disabled route остаётся зарегистрированным как запрет.
 - `unknown tool`: проверьте имя и запятые.
 - Tool возвращает `failed to open file` или `path does not exist`: путь относится к файловой системе процесса `llama-server`.
 - Команда обрезана: `exec_shell_command` ограничивает output и добавляет `[output truncated]`.
@@ -103,3 +105,4 @@ curl -X POST http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret"
 - `llama.cpp/tools/server/server-tools.cpp`
 - `llama.cpp/tools/server/README.md`
 - `llama.cpp/tools/server/README-dev.md`
+- https://github.com/ggml-org/llama.cpp/pull/25498
