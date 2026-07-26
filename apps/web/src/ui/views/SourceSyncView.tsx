@@ -1,6 +1,7 @@
 import type {
-  LlamaSourceSyncReport,
-  LlamaSourceSyncSection,
+  SourceRepositoryStatus,
+  SourceSyncReport,
+  SourceSyncSection,
 } from "@llama-manager/core";
 import {
   Alert,
@@ -15,28 +16,57 @@ import {
   ScrollArea,
   Stack,
   Text,
+  TextInput,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { notifications } from "@mantine/notifications";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  DownloadCloud,
+  RefreshCw,
+  Save,
+  XCircle,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
+  cloneSourceRepository,
   getLlamaArgumentHelpDiff,
-  getLlamaSourceSyncReport,
+  getSourceRepositoryDrift,
+  listSourceRepositories,
+  pullSourceRepository,
+  updateSourceRepositorySettings,
 } from "../../api/client";
 import { formatLocalDateTime } from "../utils/time";
 
-function statusColor(status: LlamaSourceSyncSection["status"]) {
+function checkStatusColor(status: SourceSyncSection["status"]) {
   if (status === "in-sync") return "green";
   if (status === "drift") return "yellow";
   return "red";
 }
 
-function statusLabel(status: LlamaSourceSyncSection["status"]) {
+function checkStatusLabel(status: SourceSyncSection["status"]) {
   if (status === "in-sync") return "in sync";
   if (status === "drift") return "drift";
   return "error";
+}
+
+function repositoryStateColor(state: SourceRepositoryStatus["state"]) {
+  if (state === "ready") return "green";
+  if (state === "dirty") return "yellow";
+  if (state === "busy") return "blue";
+  if (state === "missing") return "gray";
+  return "red";
+}
+
+function repositoryStateLabel(status: SourceRepositoryStatus) {
+  if (status.state === "busy") {
+    return status.activeOperation ?? "busy";
+  }
+  if (status.state === "missing") return "not cloned";
+  return status.state;
 }
 
 function ArgumentHelpDiff(props: { drift: boolean }) {
@@ -51,9 +81,7 @@ function ArgumentHelpDiff(props: { drift: boolean }) {
     refetchOnReconnect: false,
   });
 
-  if (!props.drift) {
-    return null;
-  }
+  if (!props.drift) return null;
 
   return (
     <Stack gap="xs" mt="sm">
@@ -82,12 +110,8 @@ function ArgumentHelpDiff(props: { drift: boolean }) {
   );
 }
 
-function SectionCard(props: {
-  section: LlamaSourceSyncSection;
-  extra?: ReactNode;
-}) {
+function SectionCard(props: { section: SourceSyncSection; extra?: ReactNode }) {
   const { section } = props;
-  const color = statusColor(section.status);
   return (
     <Paper withBorder p="md" radius="sm">
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb="xs">
@@ -97,13 +121,16 @@ function SectionCard(props: {
             {section.description}
           </Text>
         </Stack>
-        <Badge color={color} variant="light">
-          {statusLabel(section.status)}
+        <Badge color={checkStatusColor(section.status)} variant="light">
+          {checkStatusLabel(section.status)}
         </Badge>
       </Group>
 
       <Text c="dimmed" size="xs" mb="sm">
-        Source: <Code>{section.sourcePath}</Code>
+        Source:{" "}
+        <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+          {section.sourcePath}
+        </Code>
       </Text>
 
       {section.status === "error" ? (
@@ -162,30 +189,370 @@ function SectionCard(props: {
   );
 }
 
-function overallColor(report: LlamaSourceSyncReport) {
-  if (report.sections.some((section) => section.status === "error")) {
-    return "red";
-  }
-  if (report.sections.some((section) => section.status === "drift")) {
-    return "yellow";
-  }
-  return "green";
+function DriftReport({ report }: { report: SourceSyncReport }) {
+  const driftCheckCount = report.sections.filter(
+    (section) => section.status === "drift",
+  ).length;
+  const errorCount = report.sections.filter(
+    (section) => section.status === "error",
+  ).length;
+  const appearance =
+    report.status === "in-sync"
+      ? {
+          color: "green",
+          icon: <CheckCircle2 size={16} />,
+          title: "Integration checks are in sync",
+        }
+      : report.status === "drift"
+        ? {
+            color: "yellow",
+            icon: <AlertTriangle size={16} />,
+            title: `${driftCheckCount} integration check(s) report drift`,
+          }
+        : {
+            color: "red",
+            icon: <XCircle size={16} />,
+            title:
+              report.status === "unavailable"
+                ? "Source is unavailable"
+                : `${errorCount} source check(s) failed`,
+          };
+
+  return (
+    <Stack gap="md">
+      <Alert
+        color={appearance.color}
+        variant="light"
+        icon={appearance.icon}
+        title={appearance.title}
+      >
+        Checked {formatLocalDateTime(report.checkedAt)}
+        {report.commit ? ` at ${report.commit.slice(0, 12)}` : ""}
+      </Alert>
+      {report.sections.map((section) => (
+        <SectionCard
+          key={section.id}
+          section={section}
+          extra={
+            report.sourceId === "llama-cpp" &&
+            section.id === "argument-help" ? (
+              <ArgumentHelpDiff drift={section.status === "drift"} />
+            ) : null
+          }
+        />
+      ))}
+    </Stack>
+  );
 }
 
-export function SourceSyncView() {
-  const syncQuery = useQuery({
-    queryKey: ["llama-source-sync"],
-    queryFn: getLlamaSourceSyncReport,
+async function invalidateSourceQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sourceId: string,
+) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["source-repositories"] }),
+    queryClient.invalidateQueries({
+      queryKey: ["source-repository-drift", sourceId],
+    }),
+    queryClient.invalidateQueries({ queryKey: ["llama-source-status"] }),
+    queryClient.invalidateQueries({ queryKey: ["llama-source-refs"] }),
+    queryClient.invalidateQueries({ queryKey: ["build-settings"] }),
+    queryClient.invalidateQueries({ queryKey: ["llama-arg-docs-sync"] }),
+    queryClient.invalidateQueries({ queryKey: ["llama-arg-help-diff"] }),
+  ]);
+}
+
+function SourceRepositoryPanel({
+  repository,
+}: {
+  repository: SourceRepositoryStatus;
+}) {
+  const queryClient = useQueryClient();
+  const [originUrl, setOriginUrl] = useState(repository.spec.originUrl);
+
+  useEffect(() => {
+    setOriginUrl(repository.spec.originUrl);
+  }, [repository.spec.originUrl, repository.spec.updatedAt]);
+
+  const driftQuery = useQuery({
+    queryKey: ["source-repository-drift", repository.spec.id],
+    queryFn: () => getSourceRepositoryDrift(repository.spec.id),
+    enabled:
+      repository.valid &&
+      repository.state !== "busy" &&
+      repository.driftSupported,
     refetchInterval: 30_000,
   });
 
-  const report = syncQuery.data?.data;
-  const driftCount = report
-    ? report.sections.reduce(
-        (total, section) => total + section.divergences.length,
-        0,
-      )
-    : 0;
+  const cloneMutation = useMutation({
+    mutationFn: () =>
+      cloneSourceRepository(repository.spec.id, {
+        originUrl: originUrl.trim(),
+        branch: null,
+      }),
+    onSuccess: async (response) => {
+      await invalidateSourceQueries(queryClient, repository.spec.id);
+      notifications.show({
+        title: `${repository.displayName} cloned`,
+        message: response.data.status.repoPath,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Clone failed",
+        message: (error as Error).message,
+      });
+    },
+  });
+
+  const settingsMutation = useMutation({
+    mutationFn: () =>
+      updateSourceRepositorySettings(repository.spec.id, {
+        originUrl: originUrl.trim(),
+      }),
+    onSuccess: async (response) => {
+      setOriginUrl(response.data.status.spec.originUrl);
+      await invalidateSourceQueries(queryClient, repository.spec.id);
+      notifications.show({
+        title: "Origin updated",
+        message: response.data.status.spec.originUrl,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Origin update failed",
+        message: (error as Error).message,
+      });
+    },
+  });
+
+  const pullMutation = useMutation({
+    mutationFn: () => pullSourceRepository(repository.spec.id),
+    onSuccess: async (response) => {
+      await invalidateSourceQueries(queryClient, repository.spec.id);
+      notifications.show({
+        title: `${repository.displayName} updated`,
+        message: response.data.output,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Pull failed",
+        message: (error as Error).message,
+      });
+    },
+  });
+
+  const busy =
+    repository.state === "busy" ||
+    cloneMutation.isPending ||
+    settingsMutation.isPending ||
+    pullMutation.isPending;
+  const cleanOrigin = originUrl.trim();
+  const originChanged = cleanOrigin !== repository.spec.originUrl;
+  const canSaveOrigin =
+    cleanOrigin.length > 0 &&
+    originChanged &&
+    (repository.state === "missing" || repository.valid) &&
+    !busy;
+
+  return (
+    <Paper withBorder p="md" radius="sm">
+      <Stack gap="md">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Stack gap={2} style={{ flex: "1 1 20rem", minWidth: 0 }}>
+            <Text fw={700}>{repository.displayName}</Text>
+            <Text c="dimmed" size="sm">
+              <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                {repository.repoPath}
+              </Code>
+            </Text>
+          </Stack>
+          <Group gap="xs">
+            <Badge
+              color={
+                repository.spec.location.type === "managed" ? "blue" : "gray"
+              }
+              variant="outline"
+            >
+              {repository.spec.location.type}
+            </Badge>
+            <Badge
+              color={repositoryStateColor(repository.state)}
+              variant="light"
+            >
+              {repositoryStateLabel(repository)}
+            </Badge>
+          </Group>
+        </Group>
+
+        {repository.valid && (
+          <Group gap="xs" wrap="wrap">
+            {repository.branch && (
+              <Badge color="blue" variant="light">
+                {repository.branch}
+              </Badge>
+            )}
+            {repository.currentCommit && (
+              <Code>{repository.currentCommit.slice(0, 12)}</Code>
+            )}
+            {repository.latestTag && (
+              <Badge color="grape" variant="light">
+                {repository.latestTag}
+              </Badge>
+            )}
+            {repository.dirty && (
+              <Badge color="yellow" variant="outline">
+                dirty
+              </Badge>
+            )}
+          </Group>
+        )}
+
+        <TextInput
+          label="Origin"
+          description={
+            repository.exists
+              ? "Saving changes the checkout's origin remote."
+              : "The repository will be cloned from this URL."
+          }
+          value={originUrl}
+          disabled={busy}
+          onChange={(event) => setOriginUrl(event.currentTarget.value)}
+        />
+
+        {repository.remoteUrl &&
+          repository.originMatches === false &&
+          !originChanged && (
+            <Alert
+              color="yellow"
+              variant="light"
+              icon={<AlertTriangle size={16} />}
+            >
+              Configured origin is{" "}
+              <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                {repository.spec.originUrl}
+              </Code>
+              , but the checkout currently uses{" "}
+              <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                {repository.remoteUrl}
+              </Code>
+              .
+            </Alert>
+          )}
+
+        {repository.error && (
+          <Alert
+            color="red"
+            variant="light"
+            icon={<XCircle size={16} />}
+            title={
+              repository.state === "missing"
+                ? `${repository.displayName} is not cloned`
+                : "Source repository is unavailable"
+            }
+          >
+            {repository.error}
+          </Alert>
+        )}
+
+        {repository.state === "missing" && !repository.error && (
+          <Alert
+            color="blue"
+            variant="light"
+            icon={<DownloadCloud size={16} />}
+            title={`${repository.displayName} is not cloned`}
+          >
+            Clone it to{" "}
+            {repository.spec.location.type === "managed"
+              ? "the managed source directory"
+              : "the configured external path"}{" "}
+            before running integration drift checks.
+          </Alert>
+        )}
+
+        <Group justify="flex-end" gap="xs" wrap="wrap">
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<Save size={14} />}
+            loading={settingsMutation.isPending}
+            disabled={!canSaveOrigin}
+            onClick={() => settingsMutation.mutate()}
+          >
+            Save origin
+          </Button>
+          {repository.state === "missing" && (
+            <Button
+              size="xs"
+              leftSection={<DownloadCloud size={14} />}
+              loading={cloneMutation.isPending}
+              disabled={!cleanOrigin || busy}
+              onClick={() => cloneMutation.mutate()}
+            >
+              Clone
+            </Button>
+          )}
+          {repository.valid && (
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<DownloadCloud size={14} />}
+              loading={pullMutation.isPending}
+              disabled={busy}
+              onClick={() => pullMutation.mutate()}
+            >
+              Pull
+            </Button>
+          )}
+        </Group>
+
+        {repository.driftSupported &&
+          repository.valid &&
+          repository.state !== "busy" && (
+            <Box>
+              {driftQuery.isLoading && (
+                <Group gap="xs">
+                  <Loader size="sm" />
+                  <Text c="dimmed" size="sm">
+                    Checking source drift...
+                  </Text>
+                </Group>
+              )}
+              {driftQuery.isError && (
+                <Alert color="red" variant="light" icon={<XCircle size={16} />}>
+                  {(driftQuery.error as Error).message}
+                </Alert>
+              )}
+              {driftQuery.data?.data && (
+                <DriftReport report={driftQuery.data.data} />
+              )}
+            </Box>
+          )}
+      </Stack>
+    </Paper>
+  );
+}
+
+export function SourceSyncView() {
+  const queryClient = useQueryClient();
+  const repositoriesQuery = useQuery({
+    queryKey: ["source-repositories"],
+    queryFn: listSourceRepositories,
+    refetchInterval: 30_000,
+  });
+
+  const refresh = async () => {
+    await Promise.all([
+      repositoriesQuery.refetch(),
+      queryClient.invalidateQueries({
+        queryKey: ["source-repository-drift"],
+      }),
+    ]);
+  };
 
   return (
     <Stack gap="md">
@@ -194,72 +561,34 @@ export function SourceSyncView() {
           size="xs"
           variant="light"
           leftSection={<RefreshCw size={14} />}
-          loading={syncQuery.isFetching}
-          onClick={() => void syncQuery.refetch()}
+          loading={repositoriesQuery.isFetching}
+          onClick={() => void refresh()}
         >
           Refresh
         </Button>
       </Group>
 
-      {syncQuery.isLoading && (
+      {repositoriesQuery.isLoading && (
         <Group gap="xs">
           <Loader size="sm" />
           <Text c="dimmed" size="sm">
-            Reading the llama.cpp checkout...
+            Reading source repositories...
           </Text>
         </Group>
       )}
 
-      {syncQuery.isError && (
+      {repositoriesQuery.isError && (
         <Alert color="red" variant="light" icon={<XCircle size={16} />}>
-          {(syncQuery.error as Error).message}
+          {(repositoriesQuery.error as Error).message}
         </Alert>
       )}
 
-      {report && (
-        <>
-          <Alert
-            color={overallColor(report)}
-            variant="light"
-            icon={
-              driftCount === 0 ? (
-                <CheckCircle2 size={16} />
-              ) : (
-                <AlertTriangle size={16} />
-              )
-            }
-            title={
-              driftCount === 0
-                ? "Everything is in sync"
-                : `${driftCount} divergence(s) across ${report.sections.length} section(s)`
-            }
-          >
-            <Text size="sm">
-              Checked {formatLocalDateTime(report.checkedAt)} ·{" "}
-              <Code>{report.repoPath}</Code>
-              {report.llamaCppCommit
-                ? ` @ ${report.llamaCppCommit.slice(0, 12)}`
-                : " (commit unknown)"}
-            </Text>
-          </Alert>
-
-          <Box>
-            <Stack gap="md">
-              {report.sections.map((section) => (
-                <SectionCard
-                  key={section.id}
-                  section={section}
-                  extra={
-                    section.id === "argument-help" ? (
-                      <ArgumentHelpDiff drift={section.status === "drift"} />
-                    ) : null
-                  }
-                />
-              ))}
-            </Stack>
-          </Box>
-        </>
-      )}
+      {repositoriesQuery.data?.data.map((repository) => (
+        <SourceRepositoryPanel
+          key={repository.spec.id}
+          repository={repository}
+        />
+      ))}
     </Stack>
   );
 }

@@ -12,11 +12,9 @@ import {
   generatedHelpChangedLines,
   getLlamaArgumentHelpSourceSync,
 } from "../arguments/docs-source.js";
+import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
+import { getSourceRepositoryStatus } from "../sources/repository.js";
 import { capabilityDefinitions } from "./probe.js";
-import {
-  getLlamaSourceCurrentCommit,
-  getLlamaSourceSettings,
-} from "./source-repository.js";
 
 const serverSourceCandidates = [
   "tools/server/server.cpp",
@@ -401,15 +399,38 @@ function reconcileArgumentHelp(): LlamaSourceSyncSection {
 }
 
 export function getLlamaSourceSyncReport(): LlamaSourceSyncReport {
-  const repoPath = getLlamaSourceSettings().repoPath;
+  const repository = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+  const repoPath = repository.repoPath;
+  if (!repository.valid || repository.state === "busy") {
+    return {
+      sourceId: LLAMA_CPP_SOURCE_ID,
+      status: "unavailable",
+      checkedAt: new Date().toISOString(),
+      repository,
+      repoPath,
+      commit: null,
+      llamaCppCommit: null,
+      sections: [],
+    };
+  }
+  const sections = [
+    reconcileCapabilityEndpoints(repoPath),
+    reconcileRpcServerFlags(repoPath),
+    reconcileArgumentHelp(),
+  ];
+  const status = sections.some((section) => section.status === "error")
+    ? "error"
+    : sections.some((section) => section.status === "drift")
+      ? "drift"
+      : "in-sync";
   return {
+    sourceId: LLAMA_CPP_SOURCE_ID,
+    status,
     checkedAt: new Date().toISOString(),
+    repository,
     repoPath,
-    llamaCppCommit: getLlamaSourceCurrentCommit(),
-    sections: [
-      reconcileCapabilityEndpoints(repoPath),
-      reconcileRpcServerFlags(repoPath),
-      reconcileArgumentHelp(),
-    ],
+    commit: repository.currentCommit,
+    llamaCppCommit: repository.currentCommit,
+    sections,
   };
 }

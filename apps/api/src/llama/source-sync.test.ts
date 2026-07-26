@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { config } from "../config.js";
 import {
+  getLlamaSourceSyncReport,
   parseRpcServerUsageFlags,
   rpcServerFlagDivergences,
 } from "./source-sync.js";
@@ -79,11 +82,39 @@ test("rpcServerFlagDivergences reports a rename as both unprobed and stale", () 
   const divergences = rpcServerFlagDivergences(
     parseRpcServerUsageFlags(
       printUsage(
-        [`  -d, --devices <dev1,dev2,...>    comma-separated list of devices\\n`],
+        [
+          `  -d, --devices <dev1,dev2,...>    comma-separated list of devices\\n`,
+        ],
         ["--device "],
       ),
     ),
   );
   const kinds = divergences.map((item) => item.kind).sort();
   assert.deepEqual(kinds, ["stale", "unprobed"]);
+});
+
+test("missing checkout is unavailable rather than in sync", () => {
+  writeFileSync(
+    config.settingsFile,
+    `${JSON.stringify(
+      {
+        sourceRepositories: [
+          {
+            id: "llama-cpp",
+            adapter: "llama-cpp",
+            originUrl: "https://github.com/ggml-org/llama.cpp.git",
+            location: { type: "managed" },
+            updatedAt: null,
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  const report = getLlamaSourceSyncReport();
+  assert.equal(report.status, "unavailable");
+  assert.equal(report.repository.state, "missing");
+  assert.equal(report.commit, null);
+  assert.deepEqual(report.sections, []);
 });

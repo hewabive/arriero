@@ -40,19 +40,24 @@
   metadata (pruned to the latest + open run per instance), proxy config, and
   rebuildable caches (model scan, parsed `--help`).
 - File-backed config, loaded at startup (restart to apply):
-  - `data/presets/<name>.ini`: `--models-preset` files; the file on disk is the
-    source of truth and instances reference a preset by filename.
-  - `data/settings.json`: `modelScan` / `llamaSource` / `build` sections. The
-    canonical local `llama.cpp` repo path lives in `llamaSource` and is shared by
-    build, source status and argument-docs sync.
-  - `data/argument-defaults.json`: default instance arguments.
+  - `data/config/presets/<name>.ini`: `--models-preset` files; the file on disk
+    is the source of truth and instances reference a preset by filename.
+  - `data/config/settings.json`: `modelScan` / `sourceRepositories` / `build`
+    sections. Managed source paths are derived from the local runtime root;
+    portable source specs hold adapter, origin and location policy. The
+    `llama-cpp` source is shared by build, source status and argument-docs sync.
+  - `data/config/argument-defaults.json`: default instance arguments.
     JSON files seed from git-tracked `config/*.json` and fail loud on malformed JSON.
 - `runtime/logs`: stdout/stderr logs for managed processes
+- `runtime/sources`: managed inference source checkouts
 
 ## Extension Points
 
 - Build jobs: a build runner drives `git pull`, CMake configure and CMake build;
   jobs are tracked in memory (recent-history cap), not persisted in the DB.
+- Source repositories: adapter-defined managed/external Git checkouts with
+  staged clone, configurable origin and strict top-level validation. See
+  `docs/SOURCE_REPOSITORIES.md`.
 - Argument schema sync: extract `llama-server --help` or `common/arg.cpp` from
   the canonical source repository into generated JSON, then store Russian help
   as an overlay.

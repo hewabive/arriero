@@ -66,6 +66,19 @@ that replace configuration files are refused while managed processes, a build,
 or an environment install is active. See
 [docs/CONFIG_GIT.md](docs/CONFIG_GIT.md) for the workflow and secret policy.
 
+## Inference source repositories
+
+On a fresh node, open **Source Sync** to clone llama.cpp into the managed
+`runtime/sources/llama.cpp` checkout. The official origin is prefilled and can
+be replaced with a fork before cloning; changing it later updates both portable
+settings and the checkout's `origin` remote. Managed source storage can be moved
+with `LLAMA_MANAGER_SOURCES_DIR`.
+
+Repository lifecycle is separate from integration drift checks, so a missing or
+invalid checkout is reported as unavailable rather than in sync. Existing
+legacy/custom llama.cpp paths remain usable as external checkouts. See
+[docs/SOURCE_REPOSITORIES.md](docs/SOURCE_REPOSITORIES.md).
+
 ## Runtime logs
 
 Managed `llama-server` launches write two log files:

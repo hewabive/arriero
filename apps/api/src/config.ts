@@ -46,6 +46,9 @@ export const config = {
   buildsDir: process.env.LLAMA_MANAGER_BUILDS_DIR
     ? resolve(process.env.LLAMA_MANAGER_BUILDS_DIR)
     : resolve(runtimeDir, "builds"),
+  sourcesDir: process.env.LLAMA_MANAGER_SOURCES_DIR
+    ? resolve(process.env.LLAMA_MANAGER_SOURCES_DIR)
+    : resolve(runtimeDir, "sources"),
   envsDir: process.env.LLAMA_MANAGER_ENVS_DIR
     ? resolve(process.env.LLAMA_MANAGER_ENVS_DIR)
     : resolve(runtimeDir, "envs"),
@@ -98,5 +101,6 @@ mkdirSync(config.presetsDir, { recursive: true });
 mkdirSync(config.instancesDir, { recursive: true });
 mkdirSync(config.proxyConfigDir, { recursive: true });
 mkdirSync(config.logsDir, { recursive: true });
+mkdirSync(config.sourcesDir, { recursive: true });
 mkdirSync(config.envsDir, { recursive: true });
 mkdirSync(config.modelsDir, { recursive: true });

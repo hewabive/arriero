@@ -24,7 +24,8 @@ import { buildRunner } from "../build/runner.js";
 import { config } from "../config.js";
 import { environmentRunner } from "../envs/runner.js";
 import { supervisor } from "../process/supervisor.js";
-import { gitOutput, runGit, tryGit } from "./process.js";
+import { anySourceRepositoryOperationActive } from "../sources/state.js";
+import { assertGitRemoteUrl, gitOutput, runGit, tryGit } from "./process.js";
 import { reloadPortableConfigCaches } from "./reload.js";
 import { assertConfigGitRepository, getConfigGitStatus } from "./repository.js";
 import { withConfigGitOperation } from "./state.js";
@@ -57,21 +58,10 @@ function assertConfigContentCanChange() {
       "cannot change configuration while an environment install is running",
     );
   }
-}
-
-function assertCloneUrl(value: string) {
-  if (/^[\w.-]+@[\w.-]+:[^\s]+$/.test(value)) return;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("origin must be an SSH or HTTPS repository URL");
-  }
-  if (!["https:", "ssh:"].includes(url.protocol)) {
-    throw new Error("origin must use SSH or HTTPS");
-  }
-  if (url.password || (url.protocol === "https:" && url.username)) {
-    throw new Error("origin URL must not contain credentials");
+  if (anySourceRepositoryOperationActive()) {
+    throw new Error(
+      "cannot change configuration while a source repository operation is running",
+    );
   }
 }
 
@@ -184,7 +174,7 @@ export function cloneConfigRepository(
 ): Promise<ConfigGitMutationResult> {
   return mutation("clone", async () => {
     assertConfigContentCanChange();
-    assertCloneUrl(input.originUrl);
+    assertGitRemoteUrl(input.originUrl);
     const existing = await getConfigGitStatus();
     if (existing.isGitRepo) {
       throw new Error("configuration directory is already a git repository");

@@ -1,6 +1,7 @@
 import { BuildJobStartSchema, BuildSettingsSchema } from "@llama-manager/core";
 import type { Hono } from "hono";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { defaultBinaryPath } from "../arguments/catalog.js";
 import { tailBuildLog } from "../build/logs.js";
@@ -33,7 +34,26 @@ export function registerBuildRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    return c.json({ data: saveBuildSettings(parsed.data) });
+    if (
+      buildRunner.isRunning() &&
+      resolve(parsed.data.repoPath) !== resolve(getBuildSettings().repoPath)
+    ) {
+      return c.json(
+        {
+          error: "cannot change the llama.cpp source while a build is running",
+        },
+        409,
+      );
+    }
+    try {
+      return c.json({ data: saveBuildSettings(parsed.data) });
+    } catch (error) {
+      const message = (error as Error).message;
+      return c.json(
+        { error: message },
+        /source repository path while/.test(message) ? 409 : 400,
+      );
+    }
   });
 
   app.get("/api/build/jobs", (c) => {
@@ -58,7 +78,11 @@ export function registerBuildRoutes(app: Hono) {
     try {
       return c.json({ data: buildRunner.start(parsed.data) }, 201);
     } catch (error) {
-      return c.json({ error: (error as Error).message }, 400);
+      const message = (error as Error).message;
+      return c.json(
+        { error: message },
+        /source operation.*running/.test(message) ? 409 : 400,
+      );
     }
   });
 

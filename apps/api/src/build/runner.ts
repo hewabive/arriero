@@ -17,6 +17,8 @@ import type { Readable } from "node:stream";
 
 import { config } from "../config.js";
 import { listLlamaSourceRefs } from "../llama/source-repository.js";
+import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
+import { getActiveSourceRepositoryOperation } from "../sources/state.js";
 import {
   buildProcessEnv,
   buildSteps,
@@ -70,6 +72,11 @@ class LlamaBuildRunner {
   }
 
   start(input: BuildJobStart): BuildJob {
+    if (getActiveSourceRepositoryOperation(LLAMA_CPP_SOURCE_ID)) {
+      throw new Error(
+        "cannot start a build while a llama.cpp source operation is running",
+      );
+    }
     if (this.running) {
       const current = getBuildJob(this.running.jobId);
       if (current?.status === "running") {

@@ -199,7 +199,7 @@ export const navSections: NavSection[] = [
         label: "Source Sync",
         title: "Source Sync",
         description:
-          "Divergences between llama-manager and the llama.cpp checkout",
+          "Clone inference sources, manage origins, and inspect integration drift",
       },
     ],
   },

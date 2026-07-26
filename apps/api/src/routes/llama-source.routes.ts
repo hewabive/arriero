@@ -27,7 +27,23 @@ export function registerLlamaSourceRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    return c.json({ data: saveLlamaSourceSettings(parsed.data) });
+    if (buildRunner.isRunning()) {
+      return c.json(
+        {
+          error: "cannot change the llama.cpp source while a build is running",
+        },
+        409,
+      );
+    }
+    try {
+      return c.json({ data: saveLlamaSourceSettings(parsed.data) });
+    } catch (error) {
+      const message = (error as Error).message;
+      return c.json(
+        { error: message },
+        /source repository path while/.test(message) ? 409 : 400,
+      );
+    }
   });
 
   app.get("/api/llama-source/status", (c) => {
@@ -55,13 +71,17 @@ export function registerLlamaSourceRoutes(app: Hono) {
       return c.json({ error: "cannot checkout while a build is running" }, 409);
     }
     try {
-      return c.json({ data: checkoutLlamaSourceRef(parsed.data.ref) });
+      return c.json({ data: await checkoutLlamaSourceRef(parsed.data.ref) });
     } catch (error) {
-      return c.json({ error: (error as Error).message }, 400);
+      const message = (error as Error).message;
+      return c.json(
+        { error: message },
+        /source operation is running/.test(message) ? 409 : 400,
+      );
     }
   });
 
-  app.post("/api/llama-source/pull", (c) => {
-    return c.json({ data: pullLlamaSource() });
+  app.post("/api/llama-source/pull", async (c) => {
+    return c.json({ data: await pullLlamaSource() });
   });
 }

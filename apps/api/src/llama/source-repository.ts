@@ -9,29 +9,28 @@ import {
   type LlamaSourceSettingsUpdate,
   type LlamaSourceStatus,
 } from "@llama-manager/core";
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { config } from "../config.js";
-import { readSettings, writeSettings } from "../settings/store.js";
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function defaultLlamaSourceRepoPath() {
-  return resolve(config.rootDir, "..", "llama.cpp");
-}
+import { runGitSync, tryGitSync } from "../git/process.js";
+import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
+import {
+  getSourceRepositorySpec,
+  getSourceRepositoryStatus,
+  saveSourceRepositoryPath,
+  sourceRepositoryGitValue,
+  sourceRepositoryPath,
+} from "../sources/repository.js";
+import {
+  getActiveSourceRepositoryOperation,
+  withSourceRepositoryOperation,
+} from "../sources/state.js";
 
 export function getLlamaSourceSettings(): LlamaSourceSettings {
-  const stored = readSettings().llamaSource;
-  if (stored) {
-    return LlamaSourceSettingsSchema.parse(stored);
-  }
+  const spec = getSourceRepositorySpec(LLAMA_CPP_SOURCE_ID);
   return LlamaSourceSettingsSchema.parse({
-    repoPath: defaultLlamaSourceRepoPath(),
-    updatedAt: null,
+    repoPath: sourceRepositoryPath(spec),
+    updatedAt: spec.updatedAt,
   });
 }
 
@@ -39,75 +38,54 @@ export function saveLlamaSourceSettings(
   input: LlamaSourceSettingsUpdate,
 ): LlamaSourceSettings {
   const settings = LlamaSourceSettingsUpdateSchema.parse(input);
-  writeSettings({
-    ...readSettings(),
-    llamaSource: { repoPath: resolve(settings.repoPath), updatedAt: nowIso() },
-  });
+  saveSourceRepositoryPath(LLAMA_CPP_SOURCE_ID, settings.repoPath);
   return getLlamaSourceSettings();
 }
 
-function runGit(repoPath: string, args: string[]) {
-  return execFileSync("git", args, {
-    cwd: repoPath,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
-}
-
 export function getLlamaSourceCurrentCommit(): string | null {
-  const settings = getLlamaSourceSettings();
-  if (!existsSync(settings.repoPath)) {
-    return null;
-  }
-
   try {
-    return runGit(settings.repoPath, ["rev-parse", "HEAD"]) || null;
+    return sourceRepositoryGitValue(LLAMA_CPP_SOURCE_ID, ["rev-parse", "HEAD"]);
   } catch {
     return null;
+  }
+}
+
+function isExactGitRepository(repoPath: string): boolean {
+  if (!existsSync(repoPath)) return false;
+  try {
+    const topLevel = runGitSync(repoPath, ["rev-parse", "--show-toplevel"]);
+    return realpathSync(topLevel) === realpathSync(resolve(repoPath));
+  } catch {
+    return false;
   }
 }
 
 export function getLlamaSourceVersionLabel(
   repoPath = getLlamaSourceSettings().repoPath,
 ): string | null {
-  if (!existsSync(repoPath)) {
+  if (!isExactGitRepository(repoPath)) {
     return null;
   }
-
-  try {
-    return runGit(repoPath, ["describe", "--tags", "--abbrev=0"]) || null;
-  } catch {
-    try {
-      return runGit(repoPath, ["rev-parse", "--short", "HEAD"]) || null;
-    } catch {
-      return null;
-    }
-  }
+  return (
+    tryGitSync(repoPath, ["describe", "--tags", "--abbrev=0"]) ??
+    tryGitSync(repoPath, ["rev-parse", "--short", "HEAD"])
+  );
 }
 
-export function pullLlamaSource(): LlamaSourcePullResult {
-  const settings = getLlamaSourceSettings();
-  if (!existsSync(settings.repoPath)) {
-    return {
-      ok: false,
-      output: `Repository path does not exist: ${settings.repoPath}`,
-    };
-  }
-
+export async function pullLlamaSource(): Promise<LlamaSourcePullResult> {
   try {
-    const output = runGit(settings.repoPath, ["pull", "--ff-only"]);
-    return { ok: true, output: output || "Already up to date." };
+    const { pullSourceRepository } = await import("../sources/operations.js");
+    const pulled = await pullSourceRepository(LLAMA_CPP_SOURCE_ID);
+    return { ok: true, output: pulled.output };
   } catch (error) {
-    const err = error as { stdout?: string; stderr?: string; message: string };
-    const output = [err.stdout, err.stderr].filter(Boolean).join("\n").trim();
-    return { ok: false, output: output || err.message };
+    return { ok: false, output: (error as Error).message };
   }
 }
 
 const RECENT_TAG_LIMIT = 100;
 
 export function listLlamaSourceRefs(): LlamaSourceRefs {
-  const settings = getLlamaSourceSettings();
+  const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
   const empty = {
     branches: [],
     branchesWithUpstream: [],
@@ -115,14 +93,14 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
     currentBranch: null,
     dirty: null,
   };
-  if (!existsSync(settings.repoPath)) {
+  if (!status.valid) {
     return LlamaSourceRefsSchema.parse(empty);
   }
 
   try {
     const branches: string[] = [];
     const branchesWithUpstream: string[] = [];
-    const branchLines = runGit(settings.repoPath, [
+    const branchLines = runGitSync(status.repoPath, [
       "for-each-ref",
       "--format=%(refname:short)\t%(upstream)",
       "refs/heads",
@@ -131,15 +109,11 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
       .filter(Boolean);
     for (const line of branchLines) {
       const [name, upstream] = line.split("\t");
-      if (!name) {
-        continue;
-      }
+      if (!name) continue;
       branches.push(name);
-      if (upstream) {
-        branchesWithUpstream.push(name);
-      }
+      if (upstream) branchesWithUpstream.push(name);
     }
-    const tags = runGit(settings.repoPath, [
+    const tags = runGitSync(status.repoPath, [
       "for-each-ref",
       `--count=${RECENT_TAG_LIMIT}`,
       "--sort=-creatordate",
@@ -148,104 +122,67 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
     ])
       .split("\n")
       .filter(Boolean);
-    const currentBranch =
-      runGit(settings.repoPath, ["branch", "--show-current"]) || null;
-    const dirty =
-      runGit(settings.repoPath, ["status", "--porcelain"]).length > 0;
     return LlamaSourceRefsSchema.parse({
       branches,
       branchesWithUpstream,
       tags,
-      currentBranch,
-      dirty,
+      currentBranch: status.branch,
+      dirty: status.dirty,
     });
   } catch {
     return LlamaSourceRefsSchema.parse(empty);
   }
 }
 
-export function checkoutLlamaSourceRef(ref: string): LlamaSourceStatus {
-  const settings = getLlamaSourceSettings();
-  if (!existsSync(settings.repoPath)) {
-    throw new Error(`Repository path does not exist: ${settings.repoPath}`);
+export async function checkoutLlamaSourceRef(
+  ref: string,
+): Promise<LlamaSourceStatus> {
+  if (getActiveSourceRepositoryOperation(LLAMA_CPP_SOURCE_ID)) {
+    throw new Error("cannot checkout while a source operation is running");
   }
-
-  const refs = listLlamaSourceRefs();
-  if (!refs.branches.includes(ref) && !refs.tags.includes(ref)) {
-    throw new Error(`unknown git ref: ${ref}`);
-  }
-  if (refs.dirty === true) {
-    throw new Error(
-      `refusing to checkout ${ref}: the llama.cpp working tree has uncommitted changes — commit or stash them first`,
-    );
-  }
-
-  try {
-    runGit(settings.repoPath, ["checkout", ref]);
-  } catch (error) {
-    const err = error as { stdout?: string; stderr?: string; message: string };
-    const output = [err.stderr, err.stdout].filter(Boolean).join("\n").trim();
-    throw new Error(output || err.message);
-  }
-
+  await withSourceRepositoryOperation(
+    LLAMA_CPP_SOURCE_ID,
+    "checkout",
+    async () => {
+      const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+      if (!status.valid) {
+        throw new Error(
+          status.error ?? `Repository path does not exist: ${status.repoPath}`,
+        );
+      }
+      const refs = listLlamaSourceRefs();
+      if (!refs.branches.includes(ref) && !refs.tags.includes(ref)) {
+        throw new Error(`unknown git ref: ${ref}`);
+      }
+      if (refs.dirty === true) {
+        throw new Error(
+          `refusing to checkout ${ref}: the llama.cpp working tree has uncommitted changes — commit or stash them first`,
+        );
+      }
+      runGitSync(status.repoPath, ["checkout", ref]);
+    },
+  );
   return getLlamaSourceStatus();
 }
 
 export function getLlamaSourceStatus(): LlamaSourceStatus {
-  const settings = getLlamaSourceSettings();
-  const checkedAt = nowIso();
-  const repoPath = settings.repoPath;
-  const exists = existsSync(repoPath);
-
-  if (!exists) {
-    return LlamaSourceStatusSchema.parse({
-      settings,
-      exists: false,
-      isGitRepo: false,
-      currentCommit: null,
-      branch: null,
-      remoteUrl: null,
-      dirty: null,
-      checkedAt,
-      error: `Repository path does not exist: ${repoPath}`,
-    });
-  }
-
-  try {
-    const gitDir = runGit(repoPath, ["rev-parse", "--git-dir"]);
-    const currentCommit = runGit(repoPath, ["rev-parse", "HEAD"]);
-    const branch = runGit(repoPath, ["branch", "--show-current"]) || null;
-    let remoteUrl: string | null = null;
-    try {
-      remoteUrl = runGit(repoPath, ["remote", "get-url", "origin"]) || null;
-    } catch {
-      remoteUrl = null;
-    }
-    const status = runGit(repoPath, ["status", "--porcelain"]);
-
-    return LlamaSourceStatusSchema.parse({
-      settings,
-      exists: true,
-      isGitRepo: Boolean(gitDir),
-      currentCommit,
-      latestTag: getLlamaSourceVersionLabel(repoPath),
-      branch,
-      remoteUrl,
-      dirty: status.length > 0,
-      checkedAt,
-      error: null,
-    });
-  } catch (error) {
-    return LlamaSourceStatusSchema.parse({
-      settings,
-      exists: true,
-      isGitRepo: false,
-      currentCommit: null,
-      branch: null,
-      remoteUrl: null,
-      dirty: null,
-      checkedAt,
-      error: (error as Error).message,
-    });
-  }
+  const status = getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+  return LlamaSourceStatusSchema.parse({
+    settings: {
+      repoPath: status.repoPath,
+      updatedAt: status.spec.updatedAt,
+    },
+    exists: status.exists,
+    isGitRepo: status.isGitRepo,
+    currentCommit: status.currentCommit,
+    latestTag: status.latestTag,
+    branch: status.branch,
+    remoteUrl: status.remoteUrl,
+    dirty: status.dirty,
+    checkedAt: status.checkedAt,
+    error:
+      status.state === "missing"
+        ? `Repository path does not exist: ${status.repoPath}`
+        : status.error,
+  });
 }

@@ -1825,6 +1825,73 @@ export type FederationCapabilities = z.infer<
 export const BuildProfileSchema = z.enum(["server", "full"]);
 export const CmakeBooleanModeSchema = z.enum(["default", "on", "off"]);
 
+export const SourceRepositoryIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9._-]+$/);
+
+export const SourceRepositoryLocationSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("managed") }),
+  z.object({
+    type: z.literal("external"),
+    path: z.string().trim().min(1),
+  }),
+]);
+
+export const SourceRepositorySpecSchema = z.object({
+  id: SourceRepositoryIdSchema,
+  adapter: z.string().trim().min(1).max(80),
+  originUrl: z.string().trim().min(1).max(2048),
+  location: SourceRepositoryLocationSchema,
+  updatedAt: z.string().nullable().default(null),
+});
+
+export const SourceRepositorySettingsUpdateSchema = z.object({
+  originUrl: z.string().trim().min(1).max(2048),
+});
+
+export const SourceRepositoryCloneSchema = z.object({
+  originUrl: z.string().trim().min(1).max(2048).optional(),
+  branch: z.string().trim().min(1).max(255).nullable().default(null),
+});
+
+export const SourceRepositoryStateSchema = z.enum([
+  "missing",
+  "busy",
+  "ready",
+  "dirty",
+  "invalid",
+  "error",
+]);
+
+export const SourceRepositoryStatusSchema = z.object({
+  spec: SourceRepositorySpecSchema,
+  displayName: z.string(),
+  repoPath: z.string(),
+  state: SourceRepositoryStateSchema,
+  exists: z.boolean(),
+  isGitRepo: z.boolean(),
+  valid: z.boolean(),
+  currentCommit: z.string().nullable(),
+  latestTag: z.string().nullable(),
+  branch: z.string().nullable(),
+  remoteUrl: z.string().nullable(),
+  originMatches: z.boolean().nullable(),
+  dirty: z.boolean().nullable(),
+  driftSupported: z.boolean(),
+  activeOperation: z.string().nullable(),
+  checkedAt: z.string(),
+  error: z.string().nullable(),
+});
+
+export const SourceRepositoryOperationResultSchema = z.object({
+  operation: z.string(),
+  output: z.string(),
+  status: SourceRepositoryStatusSchema,
+});
+
 export const LlamaSourceSettingsSchema = z.object({
   repoPath: z.string().min(1),
   updatedAt: z.string().nullable().default(null),
@@ -2637,14 +2704,14 @@ export const LlamaArgumentHelpDiffSchema = z.object({
   diff: z.string(),
 });
 
-export const LlamaSourceSyncDivergenceSchema = z.object({
-  kind: z.enum(["unprobed", "stale"]),
+export const SourceSyncDivergenceSchema = z.object({
+  kind: z.string().min(1),
   severity: z.enum(["info", "warning"]),
   label: z.string(),
   detail: z.string().nullable(),
 });
 
-export const LlamaSourceSyncSectionSchema = z.object({
+export const SourceSyncSectionSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
@@ -2652,14 +2719,30 @@ export const LlamaSourceSyncSectionSchema = z.object({
   status: z.enum(["in-sync", "drift", "error"]),
   summary: z.string(),
   error: z.string().nullable(),
-  divergences: z.array(LlamaSourceSyncDivergenceSchema),
+  divergences: z.array(SourceSyncDivergenceSchema),
 });
 
-export const LlamaSourceSyncReportSchema = z.object({
+export const SourceSyncReportStatusSchema = z.enum([
+  "unavailable",
+  "in-sync",
+  "drift",
+  "error",
+]);
+
+export const SourceSyncReportSchema = z.object({
+  sourceId: SourceRepositoryIdSchema,
+  status: SourceSyncReportStatusSchema,
   checkedAt: z.string(),
+  repository: SourceRepositoryStatusSchema,
   repoPath: z.string(),
+  commit: z.string().nullable(),
+  sections: z.array(SourceSyncSectionSchema),
+});
+
+export const LlamaSourceSyncDivergenceSchema = SourceSyncDivergenceSchema;
+export const LlamaSourceSyncSectionSchema = SourceSyncSectionSchema;
+export const LlamaSourceSyncReportSchema = SourceSyncReportSchema.extend({
   llamaCppCommit: z.string().nullable(),
-  sections: z.array(LlamaSourceSyncSectionSchema),
 });
 
 export const NetworkInterfaceAddressSchema = z.object({
@@ -2936,6 +3019,7 @@ export const ModelScanSettingsSchema = z.object({
 export const AppSettingsFileSchema = z
   .object({
     modelScan: ModelScanSettingsSchema.optional(),
+    sourceRepositories: z.array(SourceRepositorySpecSchema).optional(),
     llamaSource: LlamaSourceSettingsSchema.optional(),
     build: BuildSettingsSchema.omit({ repoPath: true }).optional(),
   })
@@ -3273,6 +3357,22 @@ export type InstanceBulkActionItem = z.infer<
 export type InstanceBulkActionResult = z.infer<
   typeof InstanceBulkActionResultSchema
 >;
+export type SourceRepositoryId = z.infer<typeof SourceRepositoryIdSchema>;
+export type SourceRepositoryLocation = z.infer<
+  typeof SourceRepositoryLocationSchema
+>;
+export type SourceRepositorySpec = z.infer<typeof SourceRepositorySpecSchema>;
+export type SourceRepositorySettingsUpdate = z.infer<
+  typeof SourceRepositorySettingsUpdateSchema
+>;
+export type SourceRepositoryClone = z.infer<typeof SourceRepositoryCloneSchema>;
+export type SourceRepositoryState = z.infer<typeof SourceRepositoryStateSchema>;
+export type SourceRepositoryStatus = z.infer<
+  typeof SourceRepositoryStatusSchema
+>;
+export type SourceRepositoryOperationResult = z.infer<
+  typeof SourceRepositoryOperationResultSchema
+>;
 export type LlamaSourceSettings = z.infer<typeof LlamaSourceSettingsSchema>;
 export type LlamaSourceSettingsUpdate = z.infer<
   typeof LlamaSourceSettingsUpdateSchema
@@ -3291,6 +3391,12 @@ export type LlamaArgumentDocsSyncReport = z.infer<
   typeof LlamaArgumentDocsSyncReportSchema
 >;
 export type LlamaArgumentHelpDiff = z.infer<typeof LlamaArgumentHelpDiffSchema>;
+export type SourceSyncDivergence = z.infer<typeof SourceSyncDivergenceSchema>;
+export type SourceSyncSection = z.infer<typeof SourceSyncSectionSchema>;
+export type SourceSyncReportStatus = z.infer<
+  typeof SourceSyncReportStatusSchema
+>;
+export type SourceSyncReport = z.infer<typeof SourceSyncReportSchema>;
 export type LlamaSourceSyncDivergence = z.infer<
   typeof LlamaSourceSyncDivergenceSchema
 >;

@@ -35,7 +35,7 @@ async function input(c: Context) {
 function failure(c: Context, error: unknown) {
   const message = (error as Error).message;
   if (
-    /already running|while a build|while an environment|stop managed/.test(
+    /already running|while a build|while an environment|while a source|stop managed/.test(
       message,
     )
   ) {
