@@ -53,9 +53,7 @@ export async function fetchNodeJson<T>(
 
 export function nodeProxyRest(node: FleetNode, requestPath: string): string {
   const prefix = `/api/nodes/${node.id}/`;
-  return requestPath.startsWith(prefix)
-    ? requestPath.slice(prefix.length)
-    : "";
+  return requestPath.startsWith(prefix) ? requestPath.slice(prefix.length) : "";
 }
 
 export async function forwardToNode(

@@ -1,8 +1,6 @@
 import { activeNodeScopedPath, apiBase } from "./base.js";
 
-export function buildQuery(
-  params: Record<string, string | undefined>,
-): string {
+export function buildQuery(params: Record<string, string | undefined>): string {
   const parts = Object.entries(params)
     .filter(([, value]) => value !== undefined && value !== "")
     .map(

@@ -27,14 +27,16 @@ export function environmentAvailability(options: {
       ? { availability: "usable", availabilityReason: null }
       : {
           availability: "unavailable",
-          availabilityReason: "CUDA variant requires an NVIDIA GPU visible to nvidia-smi",
+          availabilityReason:
+            "CUDA variant requires an NVIDIA GPU visible to nvidia-smi",
         };
   }
   return options.rocmDeviceAvailable
     ? { availability: "usable", availabilityReason: null }
     : {
         availability: "unavailable",
-        availabilityReason: "ROCm variant requires an accessible /dev/kfd device",
+        availabilityReason:
+          "ROCm variant requires an accessible /dev/kfd device",
       };
 }
 

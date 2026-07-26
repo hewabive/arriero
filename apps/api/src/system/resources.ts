@@ -107,9 +107,8 @@ export function parseNvidiaSmiCsv(
     .map((line) => line.trim())
     .filter(Boolean)
     .flatMap((line): SystemAccelerator[] => {
-      const [id, name, totalMiB, usedMiB, utilization, temperature, busId] = line
-        .split(",")
-        .map((part) => part.trim());
+      const [id, name, totalMiB, usedMiB, utilization, temperature, busId] =
+        line.split(",").map((part) => part.trim());
       if (!id || !name) {
         return [];
       }
@@ -174,10 +173,14 @@ function readNvidiaAcceleratorsSync(): SystemAccelerator[] {
 
 async function readNvidiaAcceleratorsAsync(): Promise<SystemAccelerator[]> {
   try {
-    const { stdout } = await execFileAsync("nvidia-smi", NVIDIA_SMI_QUERY_ARGS, {
-      encoding: "utf8",
-      timeout: 2_000,
-    });
+    const { stdout } = await execFileAsync(
+      "nvidia-smi",
+      NVIDIA_SMI_QUERY_ARGS,
+      {
+        encoding: "utf8",
+        timeout: 2_000,
+      },
+    );
     return parseNvidiaSmiCsv(stdout);
   } catch {
     return [];

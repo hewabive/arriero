@@ -3,7 +3,10 @@ import type { EnvironmentLogTail } from "@llama-manager/core";
 import { readTailLines } from "../utils/log-tail.js";
 import { getEnvironmentJob } from "./repository.js";
 
-export function tailEnvironmentLog(jobId: string, lines: number): EnvironmentLogTail {
+export function tailEnvironmentLog(
+  jobId: string,
+  lines: number,
+): EnvironmentLogTail {
   const requested = Math.max(1, Math.min(lines, 1_000));
   const job = getEnvironmentJob(jobId);
   if (!job) return { jobId, logPath: null, lines: [], truncated: false };

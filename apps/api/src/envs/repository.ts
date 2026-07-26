@@ -7,7 +7,13 @@ import {
   type EnvironmentJobStepName,
   type EnvironmentSpec,
 } from "@llama-manager/core";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, resolve } from "node:path";
 import { z } from "zod";
 
@@ -39,18 +45,24 @@ function load() {
   try {
     json = JSON.parse(readFileSync(ENVIRONMENTS_FILE, "utf8"));
   } catch (error) {
-    throw new Error(`Invalid JSON in ${ENVIRONMENTS_FILE}: ${(error as Error).message}`);
+    throw new Error(
+      `Invalid JSON in ${ENVIRONMENTS_FILE}: ${(error as Error).message}`,
+    );
   }
   const parsed = z.array(EnvironmentSpecSchema).safeParse(json);
   if (!parsed.success) {
-    throw new Error(`Invalid config in ${ENVIRONMENTS_FILE}: ${parsed.error.message}`);
+    throw new Error(
+      `Invalid config in ${ENVIRONMENTS_FILE}: ${parsed.error.message}`,
+    );
   }
   cache = parsed.data;
   return cache;
 }
 
 function persist(specs: EnvironmentSpec[]) {
-  const sorted = [...specs].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const sorted = [...specs].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  );
   atomicWrite(ENVIRONMENTS_FILE, `${JSON.stringify(sorted, null, 2)}\n`);
   cache = sorted;
 }
@@ -82,7 +94,11 @@ export function updateEnvironmentSpec(
 ) {
   const current = getEnvironmentSpec(id);
   if (!current) return null;
-  const next = EnvironmentSpecSchema.parse({ ...current, ...patch, updatedAt: nowIso() });
+  const next = EnvironmentSpecSchema.parse({
+    ...current,
+    ...patch,
+    updatedAt: nowIso(),
+  });
   persist(load().map((spec) => (spec.id === id ? next : spec)));
   return next;
 }
@@ -129,8 +145,10 @@ export function updateEnvironmentJob(
   const next = {
     ...current,
     ...patch,
-    currentStep: patch.currentStep === undefined ? current.currentStep : patch.currentStep,
-    finishedAt: patch.finishedAt === undefined ? current.finishedAt : patch.finishedAt,
+    currentStep:
+      patch.currentStep === undefined ? current.currentStep : patch.currentStep,
+    finishedAt:
+      patch.finishedAt === undefined ? current.finishedAt : patch.finishedAt,
     error: patch.error === undefined ? current.error : patch.error,
   };
   jobs.set(id, structuredClone(next));

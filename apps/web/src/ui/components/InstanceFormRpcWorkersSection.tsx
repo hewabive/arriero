@@ -1,4 +1,13 @@
-import { Badge, Box, Button, Group, MultiSelect, Paper, Stack, Text } from "@mantine/core";
+import {
+  Badge,
+  Box,
+  Button,
+  Group,
+  MultiSelect,
+  Paper,
+  Stack,
+  Text,
+} from "@mantine/core";
 
 import { type InstanceFormController } from "./use-instance-form";
 

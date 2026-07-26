@@ -70,9 +70,7 @@ export function InstanceFormModelSection({
               <Alert
                 variant="light"
                 py="xs"
-                color={
-                  fm.embeddingHint.role === "reranker" ? "indigo" : "teal"
-                }
+                color={fm.embeddingHint.role === "reranker" ? "indigo" : "teal"}
                 title={
                   fm.embeddingHint.role === "reranker"
                     ? "Reranker model detected"

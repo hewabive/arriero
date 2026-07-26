@@ -186,7 +186,10 @@ test("usageFromNonStreamBody meters rerank/embedding usage without completion to
 test("usageFromNonStreamBody returns null without usage", () => {
   assert.equal(usageFromNonStreamBody("openai", "{}"), null);
   assert.equal(usageFromNonStreamBody("openai", "not json"), null);
-  assert.equal(usageFromNonStreamBody("openai", JSON.stringify({ usage: {} })), null);
+  assert.equal(
+    usageFromNonStreamBody("openai", JSON.stringify({ usage: {} })),
+    null,
+  );
 });
 
 test("includeUsageRequested / withIncludeUsage", () => {

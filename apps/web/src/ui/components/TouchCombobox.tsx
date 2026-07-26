@@ -16,9 +16,7 @@ export const substringOptionsFilter: OptionsFilter = ({
   search,
   limit,
 }) => {
-  const flat = options.filter(
-    (item): item is ComboboxItem => "value" in item,
-  );
+  const flat = options.filter((item): item is ComboboxItem => "value" in item);
   const query = search.trim().toLowerCase();
   const showAll =
     !query || flat.some((item) => item.value.toLowerCase() === query);

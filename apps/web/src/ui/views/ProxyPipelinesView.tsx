@@ -2,7 +2,15 @@ import type {
   ApiProxyPipelineCreate,
   ApiProxyRouteExplainResult,
 } from "@llama-manager/core";
-import { Badge, Button, Group, Loader, Paper, Stack, Text } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Paper,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -82,8 +90,13 @@ export function ProxyPipelinesView({
       }),
   });
   const updatePipelineMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: ApiProxyPipelineCreate }) =>
-      updateApiProxyPipeline(id, input),
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: ApiProxyPipelineCreate;
+    }) => updateApiProxyPipeline(id, input),
     onSuccess: async () => {
       await invalidate();
       notifications.show({
@@ -282,7 +295,11 @@ export function ProxyPipelinesView({
         </Stack>
       )}
 
-      <TestBench models={models} sources={sources} onResult={setExplainResult} />
+      <TestBench
+        models={models}
+        sources={sources}
+        onResult={setExplainResult}
+      />
     </Stack>
   );
 }

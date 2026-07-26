@@ -14,13 +14,17 @@ Frontend:
   --enable-log-requests, --no-enable-log-requests
                         Enable request logging. (default: True)
 `);
-  assert.equal(options.find((item) => item.primaryName === "--host")?.category, "Frontend");
+  assert.equal(
+    options.find((item) => item.primaryName === "--host")?.category,
+    "Frontend",
+  );
   assert.deepEqual(
     options.find((item) => item.primaryName === "--dtype")?.allowedValues,
     ["auto", "float16", "bfloat16"],
   );
   assert.equal(
-    options.find((item) => item.primaryName === "--enable-log-requests")?.valueType,
+    options.find((item) => item.primaryName === "--enable-log-requests")
+      ?.valueType,
     "boolean",
   );
 });

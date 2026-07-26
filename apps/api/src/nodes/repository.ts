@@ -55,7 +55,9 @@ function load(): FleetNode[] {
     }
     const parsed = z.array(FleetNodeSchema).safeParse(json);
     if (!parsed.success) {
-      throw new Error(`Invalid config in ${NODES_FILE}: ${parsed.error.message}`);
+      throw new Error(
+        `Invalid config in ${NODES_FILE}: ${parsed.error.message}`,
+      );
     }
     nodes = parsed.data;
   }

@@ -94,9 +94,9 @@ export function NumaTopologyPanel(props: { resources: SystemResources }) {
       </Group>
       <Text c="dimmed" size="sm" mt={6}>
         Per-socket cores, memory, free RAM, page cache and the GPUs attached to
-        each node. Bind an instance to the node hosting its GPU to keep host-side
-        traffic local; watch for a single node dominated by page cache, which
-        skews interleave placement.
+        each node. Bind an instance to the node hosting its GPU to keep
+        host-side traffic local; watch for a single node dominated by page
+        cache, which skews interleave placement.
       </Text>
 
       <Stack gap="sm" mt="md">

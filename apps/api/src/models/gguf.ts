@@ -396,7 +396,9 @@ function extractMetadata(
     samplingTopK: numberMetadata(metadata, ["general.sampling.top_k"]),
     samplingTopP: numberMetadata(metadata, ["general.sampling.top_p"]),
     imatrixDataset: stringMetadata(metadata, ["quantize.imatrix.dataset"]),
-    imatrixEntries: numberMetadata(metadata, ["quantize.imatrix.entries_count"]),
+    imatrixEntries: numberMetadata(metadata, [
+      "quantize.imatrix.entries_count",
+    ]),
     imatrixChunks: numberMetadata(metadata, ["quantize.imatrix.chunks_count"]),
   };
 }

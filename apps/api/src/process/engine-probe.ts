@@ -32,7 +32,9 @@ function offlineOpenAiProbe(instance: Instance, error: string): LlamaProbe {
     latencyMs: 0,
     error,
   });
-  const unavailable = notApplicable("not applicable for OpenAI-compatible engine");
+  const unavailable = notApplicable(
+    "not applicable for OpenAI-compatible engine",
+  );
   return {
     baseUrl,
     health: failed("/health"),
@@ -48,7 +50,9 @@ async function probeOpenAiHttp(instance: Instance): Promise<LlamaProbe> {
   if (!baseUrl) {
     return offlineOpenAiProbe(instance, "HTTP endpoint is not configured.");
   }
-  const unavailable = notApplicable("not applicable for OpenAI-compatible engine");
+  const unavailable = notApplicable(
+    "not applicable for OpenAI-compatible engine",
+  );
   const [health, models] = await Promise.all([
     probeJson(`${baseUrl}/health`),
     probeJson(`${baseUrl}/v1/models`),

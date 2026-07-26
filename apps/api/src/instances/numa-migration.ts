@@ -39,7 +39,9 @@ function hasLegacyNumaNode(record: Record<string, unknown> | null): boolean {
 }
 
 export function instanceConfigsHaveLegacyNumaNode(): boolean {
-  return instanceConfigFiles().some((path) => hasLegacyNumaNode(readRecord(path)));
+  return instanceConfigFiles().some((path) =>
+    hasLegacyNumaNode(readRecord(path)),
+  );
 }
 
 export function migrateInstanceNumaNodeToNuma(): void {

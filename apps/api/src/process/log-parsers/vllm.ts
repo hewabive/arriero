@@ -1,4 +1,8 @@
-import { emptyMemoryLayout, loadProgress, type EngineLogParser } from "./types.js";
+import {
+  emptyMemoryLayout,
+  loadProgress,
+  type EngineLogParser,
+} from "./types.js";
 
 const READY = /Application startup complete\.|Started server process \[\d+\]/i;
 const ERROR = /\b(error|fatal|failed|exception|traceback)\b/i;
@@ -24,7 +28,10 @@ function progress(lines: string[]) {
     .map((line) => /(?:loading|loaded).*?(\d{1,3}(?:\.\d+)?)%/i.exec(line))
     .find(Boolean);
   if (percentLine?.[1]) {
-    const percent = Math.max(1, Math.min(95, Math.round(Number(percentLine[1]))));
+    const percent = Math.max(
+      1,
+      Math.min(95, Math.round(Number(percentLine[1]))),
+    );
     return loadProgress(
       "tensors",
       percent,
@@ -53,8 +60,9 @@ export const vllmLogParser: EngineLogParser = {
         .reverse()
         .map(
           (line) =>
-            /(?:model|served model)[^:=]*[:=]\s*["']?([^\s,"']+)/i.exec(line)?.[1] ??
-            null,
+            /(?:model|served model)[^:=]*[:=]\s*["']?([^\s,"']+)/i.exec(
+              line,
+            )?.[1] ?? null,
         )
         .find(Boolean) ?? null,
     modelAlias: null,

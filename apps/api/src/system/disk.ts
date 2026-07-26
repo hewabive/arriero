@@ -173,9 +173,7 @@ function readDiskMeta(name: string): DiskMeta {
 }
 
 export function parseIoPressure(contents: string): SystemIoPressure | null {
-  const line = contents
-    .split("\n")
-    .find((entry) => entry.startsWith("full"));
+  const line = contents.split("\n").find((entry) => entry.startsWith("full"));
   if (!line) {
     return null;
   }

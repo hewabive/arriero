@@ -48,10 +48,7 @@ export function probeHost(host: string): string {
 
 export function apiPrefix(instance: Instance): string {
   const http = engineDescriptor(instance.kind ?? "llama-server").http;
-  const raw = asString(
-    firstArg(instance.args, http.apiPrefixArgKeys),
-    "",
-  );
+  const raw = asString(firstArg(instance.args, http.apiPrefixArgKeys), "");
   if (!raw) {
     return "";
   }
@@ -66,7 +63,10 @@ export function instanceBaseUrl(instance: Instance): string {
     firstArg(instance.args, http.hostArgKeys),
     http.defaultHost,
   );
-  const port = asPort(firstArg(instance.args, http.portArgKeys), http.defaultPort);
+  const port = asPort(
+    firstArg(instance.args, http.portArgKeys),
+    http.defaultPort,
+  );
   const host = probeHost(rawHost);
 
   if (host.endsWith(".sock")) {

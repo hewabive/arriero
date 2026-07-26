@@ -7,11 +7,7 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  SELF_NODE_ID,
-  getActiveNodeId,
-  setActiveNodeId,
-} from "../api/base.js";
+import { SELF_NODE_ID, getActiveNodeId, setActiveNodeId } from "../api/base.js";
 
 type NodeContextValue = {
   activeNodeId: string;

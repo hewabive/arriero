@@ -282,9 +282,7 @@ test("tryAcquireMaintenance succeeds only when the domains are idle and blocks a
   assert.deepEqual([...coord.busyTargetIds()], []);
 
   const waiterState = track(
-    coord.acquire(
-      req({ targetId: "a", priority: 100, decide: alwaysAdmit }),
-    ),
+    coord.acquire(req({ targetId: "a", priority: 100, decide: alwaysAdmit })),
   );
   await flush();
   assert.equal(waiterState.done, false);
@@ -312,10 +310,14 @@ test("prefers a resident (affine) waiter over a swap waiter at equal priority", 
   );
 
   const swap = track(
-    coord.acquire(req({ targetId: "y", priority: 100, decide: admitIfUnderTwo })),
+    coord.acquire(
+      req({ targetId: "y", priority: 100, decide: admitIfUnderTwo }),
+    ),
   );
   const affine = track(
-    coord.acquire(req({ targetId: "x", priority: 100, decide: admitIfUnderTwo })),
+    coord.acquire(
+      req({ targetId: "x", priority: 100, decide: admitIfUnderTwo }),
+    ),
   );
   await flush();
   assert.equal(swap.done, false);
@@ -342,10 +344,14 @@ test("a starved swap waiter overrides affinity once past the fairness window", a
   );
 
   const swap = track(
-    coord.acquire(req({ targetId: "y", priority: 100, decide: admitIfUnderTwo })),
+    coord.acquire(
+      req({ targetId: "y", priority: 100, decide: admitIfUnderTwo }),
+    ),
   );
   const affine = track(
-    coord.acquire(req({ targetId: "x", priority: 100, decide: admitIfUnderTwo })),
+    coord.acquire(
+      req({ targetId: "x", priority: 100, decide: admitIfUnderTwo }),
+    ),
   );
   await flush();
 

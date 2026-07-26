@@ -2,10 +2,7 @@ import { EnvironmentCreateSchema } from "@llama-manager/core";
 import type { Hono } from "hono";
 
 import { tailEnvironmentLog } from "../envs/logs.js";
-import {
-  getEnvironmentJob,
-  listEnvironmentJobs,
-} from "../envs/repository.js";
+import { getEnvironmentJob, listEnvironmentJobs } from "../envs/repository.js";
 import { environmentRunner } from "../envs/runner.js";
 import {
   createEnvironment,

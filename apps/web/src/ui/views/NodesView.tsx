@@ -40,9 +40,7 @@ type Draft = {
   clearToken: boolean;
 };
 
-type Editor =
-  | { mode: "create" }
-  | { mode: "edit"; node: FleetNodeView };
+type Editor = { mode: "create" } | { mode: "edit"; node: FleetNodeView };
 
 const emptyDraft: Draft = {
   name: "",
@@ -87,7 +85,9 @@ export function NodesView() {
   const nodes = nodesQuery.data?.data ?? [];
   const fleetByNodeId = useMemo(
     () =>
-      new Map((fleetQuery.data?.data ?? []).map((entry) => [entry.nodeId, entry])),
+      new Map(
+        (fleetQuery.data?.data ?? []).map((entry) => [entry.nodeId, entry]),
+      ),
     [fleetQuery.data?.data],
   );
 
@@ -197,7 +197,10 @@ export function NodesView() {
                 ) : (
                   badge
                 )}
-                <Badge variant={node.hasToken ? "light" : "outline"} color="gray">
+                <Badge
+                  variant={node.hasToken ? "light" : "outline"}
+                  color="gray"
+                >
                   {node.hasToken ? "token set" : "no token"}
                 </Badge>
               </Group>
@@ -219,8 +222,7 @@ export function NodesView() {
               color="red"
               variant="subtle"
               loading={
-                deleteMutation.isPending &&
-                deleteMutation.variables === node.id
+                deleteMutation.isPending && deleteMutation.variables === node.id
               }
               onClick={() => deleteMutation.mutate(node.id)}
             >
@@ -255,7 +257,9 @@ export function NodesView() {
       <Modal
         opened={Boolean(editor)}
         onClose={() => setEditor(null)}
-        title={editor?.mode === "edit" ? `Edit ${editor.node.name}` : "Add node"}
+        title={
+          editor?.mode === "edit" ? `Edit ${editor.node.name}` : "Add node"
+        }
         size="lg"
       >
         <Stack gap="sm">
