@@ -18,6 +18,7 @@ export type AppRoute =
   | "environments"
   | "source-sync"
   | "system"
+  | "prerequisites"
   | "api-lab";
 
 export type NavLeaf = {
@@ -212,6 +213,13 @@ export const navSections: NavSection[] = [
         label: "System",
         title: "System resources",
         description: "Live RAM, accelerator, and disk activity for this node",
+      },
+      {
+        route: "prerequisites",
+        label: "Prerequisites",
+        title: "Environment prerequisites",
+        description:
+          "Host tooling this node needs, what each missing piece blocks, and how to install it",
       },
       {
         route: "api-lab",

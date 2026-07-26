@@ -25,6 +25,7 @@ import { registerMemoryEstimateRoutes } from "./routes/memory-estimate.routes.js
 import { registerModelRoutes } from "./routes/models.routes.js";
 import { registerNodeRoutes } from "./routes/nodes.routes.js";
 import { registerPathCatalogRoutes } from "./routes/path-catalog.routes.js";
+import { registerPrerequisiteRoutes } from "./routes/prerequisites.routes.js";
 import { registerPresetRoutes } from "./routes/presets.routes.js";
 import { registerProxyRoutes } from "./routes/proxy.routes.js";
 import { registerResourceRoutes } from "./routes/resources.routes.js";
@@ -49,6 +50,7 @@ app.use(
 app.use("/api/*", requireAdmin);
 
 registerSystemRoutes(app);
+registerPrerequisiteRoutes(app);
 registerAuthRoutes(app);
 
 registerOpenAiProxyRoutes(app, "/proxy/v1");

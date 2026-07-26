@@ -1,0 +1,337 @@
+import type {
+  PrerequisiteCheck,
+  PrerequisiteGroup,
+  PrerequisiteHost,
+  PrerequisiteStatus,
+  PrerequisiteSummary,
+} from "@llama-manager/core";
+import {
+  Accordion,
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Code,
+  CopyButton,
+  Group,
+  Loader,
+  Paper,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
+import { Check, Copy } from "lucide-react";
+
+import { getPrerequisiteReport } from "../../api/client";
+import { formatLocalDateTime } from "../utils/time";
+
+function statusColor(status: PrerequisiteStatus): string {
+  if (status === "ok") return "green";
+  if (status === "out-of-path") return "yellow";
+  if (status === "unknown") return "gray";
+  return "red";
+}
+
+function statusLabel(status: PrerequisiteStatus): string {
+  if (status === "ok") return "present";
+  if (status === "out-of-path") return "not on PATH";
+  if (status === "unknown") return "not verified";
+  return "missing";
+}
+
+function CommandBlock(props: { command: string }) {
+  return (
+    <Group gap="xs" align="center" wrap="nowrap">
+      <Code
+        block
+        style={{
+          flex: 1,
+          minWidth: 0,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        {props.command}
+      </Code>
+      <CopyButton value={props.command} timeout={1500}>
+        {({ copied, copy }) => (
+          <Tooltip label={copied ? "Copied" : "Copy command"}>
+            <ActionIcon
+              variant="subtle"
+              color={copied ? "green" : "gray"}
+              onClick={copy}
+              aria-label="Copy command"
+            >
+              {copied ? <Check size={16} /> : <Copy size={16} />}
+            </ActionIcon>
+          </Tooltip>
+        )}
+      </CopyButton>
+    </Group>
+  );
+}
+
+function SummaryBadges(props: { summary: PrerequisiteSummary }) {
+  const { summary } = props;
+  return (
+    <Group gap="xs">
+      {summary.missingRequired > 0 && (
+        <Badge color="red">{summary.missingRequired} required missing</Badge>
+      )}
+      {summary.missingRecommended > 0 && (
+        <Badge color="orange">
+          {summary.missingRecommended} recommended missing
+        </Badge>
+      )}
+      {summary.outOfPath > 0 && (
+        <Badge color="yellow">{summary.outOfPath} not on PATH</Badge>
+      )}
+      {summary.unknown > 0 && (
+        <Badge color="gray">{summary.unknown} not verified</Badge>
+      )}
+      <Badge color="green" variant="light">
+        {summary.ok} present
+      </Badge>
+    </Group>
+  );
+}
+
+function HostFacts(props: { host: PrerequisiteHost }) {
+  const { host } = props;
+  return (
+    <Accordion variant="contained">
+      <Accordion.Item value="host">
+        <Accordion.Control>
+          <Text size="sm">
+            Manager process environment ({host.path.length} PATH entries)
+          </Text>
+        </Accordion.Control>
+        <Accordion.Panel>
+          <Stack gap="xs">
+            <Text size="xs" c="dimmed">
+              Detection uses the PATH of the manager process, which is what
+              spawned builds and instances actually see. A systemd --user unit
+              has a much shorter PATH than an interactive shell.
+            </Text>
+            <Code block style={{ whiteSpace: "pre-wrap" }}>
+              {host.path.join("\n")}
+            </Code>
+            {host.autoRepairedPath.length > 0 && (
+              <>
+                <Text size="xs" c="dimmed">
+                  Appended automatically at startup because these well-known
+                  tool directories exist but were absent from PATH:
+                </Text>
+                <Code block style={{ whiteSpace: "pre-wrap" }}>
+                  {host.autoRepairedPath.join("\n")}
+                </Code>
+              </>
+            )}
+          </Stack>
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion>
+  );
+}
+
+function CheckRow(props: { check: PrerequisiteCheck }) {
+  const { check } = props;
+  const resolved = check.status === "ok" || check.status === "out-of-path";
+
+  return (
+    <Paper withBorder p="sm" radius="sm">
+      <Stack gap="xs">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Group gap="xs" wrap="wrap">
+            <Badge color={statusColor(check.status)}>
+              {statusLabel(check.status)}
+            </Badge>
+            <Text fw={600}>{check.title}</Text>
+            {check.severity === "required" ? (
+              <Badge variant="outline" color="red" size="sm">
+                required
+              </Badge>
+            ) : (
+              <Badge variant="outline" color="gray" size="sm">
+                recommended
+              </Badge>
+            )}
+          </Group>
+          <Group gap={4} wrap="wrap">
+            {check.blocks.map((item) => (
+              <Badge key={item} variant="light" color="blue" size="sm">
+                {item}
+              </Badge>
+            ))}
+          </Group>
+        </Group>
+
+        {resolved && check.detail && (
+          <Text size="xs" ff="monospace" c="dimmed">
+            {check.detail}
+            {check.version ? ` — ${check.version}` : ""}
+          </Text>
+        )}
+
+        {!resolved && <Text size="sm">{check.impact}</Text>}
+
+        {check.status === "out-of-path" && (
+          <Text size="sm">
+            Found on disk but not on the manager PATH; restart the manager to
+            pick it up, or add its directory to the service environment.
+          </Text>
+        )}
+
+        {check.status === "unknown" && check.detail && (
+          <Text size="sm" c="dimmed">
+            {check.detail}
+          </Text>
+        )}
+
+        {!resolved && check.remediation.installCommand && (
+          <CommandBlock command={check.remediation.installCommand} />
+        )}
+
+        {!resolved &&
+          check.remediation.commands.map((command) => (
+            <CommandBlock key={command} command={command} />
+          ))}
+
+        {!resolved && check.remediation.note && (
+          <Text size="xs" c="dimmed">
+            {check.remediation.note}
+          </Text>
+        )}
+
+        {!resolved && check.remediation.docPath && (
+          <Text size="xs" c="dimmed">
+            Details: <Code>{check.remediation.docPath}</Code>
+          </Text>
+        )}
+      </Stack>
+    </Paper>
+  );
+}
+
+function GroupCard(props: { group: PrerequisiteGroup }) {
+  const { group } = props;
+  const blocking = group.checks.filter(
+    (check) => check.status === "missing" && check.severity === "required",
+  ).length;
+
+  return (
+    <Paper withBorder p="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-start">
+          <Stack gap={2}>
+            <Title order={5}>{group.title}</Title>
+            <Text size="xs" c="dimmed">
+              {group.description}
+            </Text>
+          </Stack>
+          {blocking > 0 && <Badge color="red">{blocking} blocking</Badge>}
+        </Group>
+        {group.checks.map((check) => (
+          <CheckRow key={check.id} check={check} />
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
+
+export function PrerequisitesView() {
+  const reportQuery = useQuery({
+    queryKey: ["prerequisites"],
+    queryFn: getPrerequisiteReport,
+  });
+  const report = reportQuery.data?.data;
+
+  return (
+    <Stack gap="md">
+      <Paper withBorder p="md" radius="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start" wrap="wrap">
+            <Stack gap={4}>
+              <Group gap="xs" wrap="wrap">
+                <Text fw={600}>{report?.host.osName ?? "Unknown host"}</Text>
+                <Badge variant="light">
+                  {report?.host.packageManager ?? "unknown"}
+                </Badge>
+                <Badge variant="light" color="grape">
+                  {report?.host.runMode ?? "unknown"} mode
+                </Badge>
+              </Group>
+              {report && (
+                <Text size="xs" c="dimmed">
+                  Checked {formatLocalDateTime(report.checkedAt)}
+                </Text>
+              )}
+            </Stack>
+            <Group gap="xs">
+              {reportQuery.isFetching && <Loader size="xs" />}
+              <Button
+                variant="default"
+                onClick={() => void reportQuery.refetch()}
+                loading={reportQuery.isFetching}
+              >
+                Re-check
+              </Button>
+            </Group>
+          </Group>
+
+          {report && <SummaryBadges summary={report.summary} />}
+
+          {reportQuery.isError && (
+            <Alert color="red" title="Could not read prerequisites">
+              {(reportQuery.error as Error).message}
+            </Alert>
+          )}
+
+          {report?.install.requiredCommand && (
+            <Alert color="red" title="Required tooling is missing">
+              <Stack gap="xs">
+                <Text size="sm">
+                  Run this as an administrator on the host, then press Re-check.
+                </Text>
+                <CommandBlock command={report.install.requiredCommand} />
+                {report.install.allCommand !==
+                  report.install.requiredCommand && (
+                  <>
+                    <Text size="xs" c="dimmed">
+                      Including the recommended tooling:
+                    </Text>
+                    <CommandBlock command={report.install.allCommand!} />
+                  </>
+                )}
+              </Stack>
+            </Alert>
+          )}
+
+          {report &&
+            !report.install.requiredCommand &&
+            report.summary.missingRequired > 0 && (
+              <Alert color="red" title="Required tooling is missing">
+                No package-manager command is known for this host; follow the
+                per-item instructions below.
+              </Alert>
+            )}
+
+          {report && report.summary.missingRequired === 0 && (
+            <Alert color="green" title="No blocking gaps">
+              Every required prerequisite for the features configured on this
+              node is present.
+            </Alert>
+          )}
+
+          {report && <HostFacts host={report.host} />}
+        </Stack>
+      </Paper>
+
+      {report?.groups.map((group) => (
+        <GroupCard key={group.id} group={group} />
+      ))}
+    </Stack>
+  );
+}

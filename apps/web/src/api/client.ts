@@ -2,6 +2,7 @@ export * from "./http.js";
 export * from "./sse.js";
 export * from "./auth.js";
 export * from "./system.js";
+export * from "./prerequisites.js";
 export * from "./resources.js";
 export * from "./nodes.js";
 export * from "./proxy.js";

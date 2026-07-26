@@ -55,6 +55,10 @@ export function detectNumaBind(): boolean {
 
 let interleaveCache: boolean | null = null;
 
+export function resetNumaInterleaveCache() {
+  interleaveCache = null;
+}
+
 export function detectNumaInterleave(): boolean {
   if (interleaveCache === null) {
     try {

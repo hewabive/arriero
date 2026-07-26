@@ -1,15 +1,10 @@
 import type { UvToolStatus } from "@llama-manager/core";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { delimiter, resolve } from "node:path";
+
+import { findExecutableInPath } from "../system/tool-probe.js";
 
 export function findUv(pathValue = process.env.PATH): string | null {
-  for (const directory of pathValue?.split(delimiter) ?? []) {
-    if (!directory) continue;
-    const candidate = resolve(directory, process.platform === "win32" ? "uv.exe" : "uv");
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
+  return findExecutableInPath("uv", pathValue);
 }
 
 export function uvPythonPreflightCommand(uv: string, pythonVersion: string) {

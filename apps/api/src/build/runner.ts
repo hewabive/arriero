@@ -35,6 +35,7 @@ import {
   validateSettings,
   writeHeader,
 } from "./plan.js";
+import { assertBuildPrerequisites } from "./preflight.js";
 import {
   createBuildJob,
   getBuildJob,
@@ -71,7 +72,7 @@ class LlamaBuildRunner {
     return getBuildJob(this.running.jobId)?.status === "running";
   }
 
-  start(input: BuildJobStart): BuildJob {
+  async start(input: BuildJobStart): Promise<BuildJob> {
     if (getActiveSourceRepositoryOperation(LLAMA_CPP_SOURCE_ID)) {
       throw new Error(
         "cannot start a build while a llama.cpp source operation is running",
@@ -124,6 +125,7 @@ class LlamaBuildRunner {
     }
 
     validateSettings(settings, steps);
+    await assertBuildPrerequisites(steps, { cuda: settings.cuda });
 
     const job = createBuildJob({
       status: "running",

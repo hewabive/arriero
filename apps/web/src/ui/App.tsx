@@ -50,6 +50,7 @@ import { LoginView } from "./views/LoginView";
 import { ModelsView } from "./views/ModelsView";
 import { NodesView } from "./views/NodesView";
 import { PathCatalogView } from "./views/PathCatalogView";
+import { PrerequisitesView } from "./views/PrerequisitesView";
 import { PresetsView } from "./views/PresetsView";
 import { ProcessesView } from "./views/ProcessesView";
 import { ProxySection } from "./views/ProxySection";
@@ -404,6 +405,8 @@ export function App() {
           {canUseAdmin && route === "processes" && <ProcessesView />}
 
           {canUseAdmin && route === "system" && <SystemResourcesView />}
+
+          {canUseAdmin && route === "prerequisites" && <PrerequisitesView />}
         </Stack>
       </AppShell.Main>
 

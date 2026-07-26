@@ -28,6 +28,7 @@ import {
   refreshAutoCapacities,
 } from "./resources/repository.js";
 import { initAppSettings } from "./settings/store.js";
+import { augmentProcessPath } from "./system/path-repair.js";
 import { sweepSourceCloneStaging } from "./sources/operations.js";
 import { supervisor } from "./process/supervisor.js";
 import { environmentRunner } from "./envs/runner.js";
@@ -36,6 +37,14 @@ import { initializeEnvironments } from "./envs/service.js";
 const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
 });
+
+const repairedPathDirectories = augmentProcessPath();
+if (repairedPathDirectories.length > 0) {
+  logger.info(
+    { directories: repairedPathDirectories },
+    "appended well-known tool directories to PATH",
+  );
+}
 
 migrate();
 ensureConfigScaffold();

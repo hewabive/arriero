@@ -1,40 +1,11 @@
 import { existsSync } from "node:fs";
-import { delimiter, isAbsolute, join, resolve } from "node:path";
+import { join } from "node:path";
 
-function executableName(name: string) {
-  if (process.platform === "win32" && !/\.(?:bat|cmd|exe)$/i.test(name)) {
-    return `${name}.exe`;
-  }
-  return name;
-}
-
-function findExecutableInPath(name: string, pathValue: string | undefined) {
-  if (!pathValue) {
-    return null;
-  }
-
-  for (const directory of pathValue.split(delimiter)) {
-    if (!directory) {
-      continue;
-    }
-    const candidate = resolve(directory, executableName(name));
-    if (existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-function resolveExecutable(value: string, env: NodeJS.ProcessEnv) {
-  if (isAbsolute(value)) {
-    return existsSync(value) ? value : null;
-  }
-  if (value.includes("/") || value.includes("\\")) {
-    const candidate = resolve(value);
-    return existsSync(candidate) ? candidate : null;
-  }
-  return findExecutableInPath(value, env.PATH);
-}
+import {
+  executableName,
+  findExecutableInPath,
+  resolveExecutable,
+} from "../system/tool-probe.js";
 
 function envPath(env: NodeJS.ProcessEnv, key: string) {
   const value = env[key];

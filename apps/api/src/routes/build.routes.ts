@@ -76,7 +76,7 @@ export function registerBuildRoutes(app: Hono) {
     }
 
     try {
-      return c.json({ data: buildRunner.start(parsed.data) }, 201);
+      return c.json({ data: await buildRunner.start(parsed.data) }, 201);
     } catch (error) {
       const message = (error as Error).message;
       return c.json(
