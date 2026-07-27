@@ -36,8 +36,8 @@ process.stderr.write(
   [
     "",
     "Add to .env (real env vars set at launch override these):",
-    `  LLAMA_MANAGER_ADMIN_PASSWORD_HASH=${hash}`,
-    `  LLAMA_MANAGER_AUTH_SECRET=${secret}`,
+    `  ARRIERO_ADMIN_PASSWORD_HASH=${hash}`,
+    `  ARRIERO_AUTH_SECRET=${secret}`,
     "",
   ].join("\n"),
 );

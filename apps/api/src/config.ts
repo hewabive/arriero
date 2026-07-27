@@ -2,6 +2,8 @@ import { existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { managerEnv } from "./manager-env.js";
+
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const defaultRootDir = resolve(moduleDir, "../../..");
 
@@ -10,20 +12,19 @@ if (existsSync(envFile)) {
   process.loadEnvFile(envFile);
 }
 
-const rootDir = resolve(process.env.LLAMA_MANAGER_HOME ?? defaultRootDir);
-const runtimeDir = process.env.LLAMA_MANAGER_RUNTIME_DIR
-  ? resolve(process.env.LLAMA_MANAGER_RUNTIME_DIR)
-  : resolve(rootDir, "runtime");
-const dataDir = process.env.LLAMA_MANAGER_DATA_DIR
-  ? resolve(process.env.LLAMA_MANAGER_DATA_DIR)
-  : resolve(rootDir, "data");
-const configDir = process.env.LLAMA_MANAGER_CONFIG_DIR
-  ? resolve(process.env.LLAMA_MANAGER_CONFIG_DIR)
-  : resolve(dataDir, "config");
+function envPath(suffix: string): string | undefined {
+  const value = managerEnv(suffix);
+  return value ? resolve(value) : undefined;
+}
+
+const rootDir = envPath("HOME") ?? defaultRootDir;
+const runtimeDir = envPath("RUNTIME_DIR") ?? resolve(rootDir, "runtime");
+const dataDir = envPath("DATA_DIR") ?? resolve(rootDir, "data");
+const configDir = envPath("CONFIG_DIR") ?? resolve(dataDir, "config");
 
 export const config = {
-  host: process.env.LLAMA_MANAGER_HOST ?? "127.0.0.1",
-  port: Number(process.env.LLAMA_MANAGER_PORT ?? "8787"),
+  host: managerEnv("HOST") ?? "127.0.0.1",
+  port: Number(managerEnv("PORT") ?? "8787"),
   rootDir,
   dataDir,
   configDir,
@@ -40,58 +41,40 @@ export const config = {
   secretsFile: resolve(configDir, ".secrets.json"),
   configGitignoreFile: resolve(configDir, ".gitignore"),
   runtimeDir,
-  logsDir: process.env.LLAMA_MANAGER_LOGS_DIR
-    ? resolve(process.env.LLAMA_MANAGER_LOGS_DIR)
-    : resolve(runtimeDir, "logs"),
-  buildsDir: process.env.LLAMA_MANAGER_BUILDS_DIR
-    ? resolve(process.env.LLAMA_MANAGER_BUILDS_DIR)
-    : resolve(runtimeDir, "builds"),
-  sourcesDir: process.env.LLAMA_MANAGER_SOURCES_DIR
-    ? resolve(process.env.LLAMA_MANAGER_SOURCES_DIR)
-    : resolve(runtimeDir, "sources"),
-  envsDir: process.env.LLAMA_MANAGER_ENVS_DIR
-    ? resolve(process.env.LLAMA_MANAGER_ENVS_DIR)
-    : resolve(runtimeDir, "envs"),
-  modelsDir: process.env.LLAMA_MANAGER_MODELS_DIR
-    ? resolve(process.env.LLAMA_MANAGER_MODELS_DIR)
-    : resolve(runtimeDir, "models"),
-  slotsDir: process.env.LLAMA_MANAGER_SLOTS_DIR
-    ? resolve(process.env.LLAMA_MANAGER_SLOTS_DIR)
-    : resolve(runtimeDir, "slots"),
+  logsDir: envPath("LOGS_DIR") ?? resolve(runtimeDir, "logs"),
+  buildsDir: envPath("BUILDS_DIR") ?? resolve(runtimeDir, "builds"),
+  sourcesDir: envPath("SOURCES_DIR") ?? resolve(runtimeDir, "sources"),
+  envsDir: envPath("ENVS_DIR") ?? resolve(runtimeDir, "envs"),
+  modelsDir: envPath("MODELS_DIR") ?? resolve(runtimeDir, "models"),
+  slotsDir: envPath("SLOTS_DIR") ?? resolve(runtimeDir, "slots"),
   logs: {
-    filterRoutineProbeRequests:
-      process.env.LLAMA_MANAGER_FILTER_PROBE_LOGS !== "false",
+    filterRoutineProbeRequests: managerEnv("FILTER_PROBE_LOGS") !== "false",
   },
   shutdown: {
-    stopManagedOnExit:
-      process.env.LLAMA_MANAGER_STOP_MANAGED_ON_EXIT === "true",
-    timeoutMs: Number(process.env.LLAMA_MANAGER_SHUTDOWN_TIMEOUT_MS ?? 10_000),
+    stopManagedOnExit: managerEnv("STOP_MANAGED_ON_EXIT") === "true",
+    timeoutMs: Number(managerEnv("SHUTDOWN_TIMEOUT_MS") ?? 10_000),
   },
   proxy: {
     idleMaintenanceIntervalMs: Number(
-      process.env.LLAMA_MANAGER_PROXY_IDLE_INTERVAL_MS ?? 30_000,
+      managerEnv("PROXY_IDLE_INTERVAL_MS") ?? 30_000,
     ),
     resumeClaimWindowMs: Number(
-      process.env.LLAMA_MANAGER_PROXY_RESUME_CLAIM_WINDOW_MS ?? 180_000,
+      managerEnv("PROXY_RESUME_CLAIM_WINDOW_MS") ?? 180_000,
     ),
   },
   update: {
-    drainTimeoutMs: Number(
-      process.env.LLAMA_MANAGER_UPDATE_DRAIN_TIMEOUT_MS ?? 10_000,
-    ),
+    drainTimeoutMs: Number(managerEnv("UPDATE_DRAIN_TIMEOUT_MS") ?? 10_000),
   },
   auth: {
-    password: process.env.LLAMA_MANAGER_ADMIN_PASSWORD ?? null,
-    passwordHash: process.env.LLAMA_MANAGER_ADMIN_PASSWORD_HASH ?? null,
+    password: managerEnv("ADMIN_PASSWORD") ?? null,
+    passwordHash: managerEnv("ADMIN_PASSWORD_HASH") ?? null,
     secret:
-      process.env.LLAMA_MANAGER_AUTH_SECRET ??
-      process.env.LLAMA_MANAGER_ADMIN_PASSWORD_HASH ??
-      process.env.LLAMA_MANAGER_ADMIN_PASSWORD ??
+      managerEnv("AUTH_SECRET") ??
+      managerEnv("ADMIN_PASSWORD_HASH") ??
+      managerEnv("ADMIN_PASSWORD") ??
       null,
-    secureCookie: process.env.LLAMA_MANAGER_SECURE_COOKIE === "true",
-    sessionTtlSeconds: Number(
-      process.env.LLAMA_MANAGER_SESSION_TTL_SECONDS ?? 12 * 60 * 60,
-    ),
+    secureCookie: managerEnv("SECURE_COOKIE") === "true",
+    sessionTtlSeconds: Number(managerEnv("SESSION_TTL_SECONDS") ?? 12 * 60 * 60),
   },
 };
 

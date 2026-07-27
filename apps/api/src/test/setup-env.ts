@@ -5,10 +5,10 @@ import { randomUUID } from "node:crypto";
 
 const testHome = join(tmpdir(), `llama-manager-api-test-${randomUUID()}`);
 
-process.env.LLAMA_MANAGER_DATA_DIR = join(testHome, "data");
-process.env.LLAMA_MANAGER_CONFIG_DIR = join(testHome, "data", "config");
-process.env.LLAMA_MANAGER_RUNTIME_DIR = join(testHome, "runtime");
-process.env.LLAMA_MANAGER_STOP_MANAGED_ON_EXIT = "false";
+process.env.ARRIERO_DATA_DIR = join(testHome, "data");
+process.env.ARRIERO_CONFIG_DIR = join(testHome, "data", "config");
+process.env.ARRIERO_RUNTIME_DIR = join(testHome, "runtime");
+process.env.ARRIERO_STOP_MANAGED_ON_EXIT = "false";
 
 mkdirSync(testHome, { recursive: true });
 

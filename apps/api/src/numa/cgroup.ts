@@ -9,6 +9,7 @@ import {
 import { dirname } from "node:path";
 
 import { findDelegatedRootPath, parseSelfCgroupV2Path } from "./capability.js";
+import { managerEnv } from "../manager-env.js";
 
 const CGROUP_ROOT = "/sys/fs/cgroup";
 const INSTANCES_GROUP = "llama-manager-instances";
@@ -30,7 +31,7 @@ export function buildPinnedShimArgs(
 
 export function resolveInstancesGroupDir(
   selfCgroupPath: string,
-  override = process.env.LLAMA_MANAGER_NUMA_CGROUP_ROOT,
+  override = managerEnv("NUMA_CGROUP_ROOT"),
 ): string {
   if (override && override.trim()) {
     return override.trim();

@@ -577,9 +577,13 @@ const ApiEndpointEnvVarSchema = z
   .trim()
   .min(1)
   .max(120)
-  .refine((value) => !value.startsWith("LLAMA_MANAGER_"), {
-    message: "Env var must not start with LLAMA_MANAGER_",
-  })
+  .refine(
+    (value) =>
+      !value.startsWith("ARRIERO_") && !value.startsWith("LLAMA_MANAGER_"),
+    {
+      message: "Env var must not start with ARRIERO_ or LLAMA_MANAGER_",
+    },
+  )
   .nullable();
 const ApiEndpointSecretSchema = z.string().max(4_000).optional();
 const ApiEndpointExtraHeadersSchema = z.record(
