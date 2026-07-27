@@ -37,7 +37,7 @@ use polling to wait for work (default: same as --poll)
 - Основное имя: `--poll-batch`
 - Алиасы: `--poll-batch`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `boolean`
+- Тип значения в arriero: `boolean`
 - Подсказка формата: `<0|1>`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

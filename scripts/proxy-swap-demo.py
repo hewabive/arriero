@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Console tester for the llama-manager API-proxy preemption / context-switch.
+"""Console tester for the arriero API-proxy preemption / context-switch.
 
 Fires a request to model A, then after a short delay a request to model B, both
 concurrently, against the manager proxy. Renders a live in-terminal timeline

@@ -1,4 +1,4 @@
-import type { Instance, RuntimeState } from "@llama-manager/core";
+import type { Instance, RuntimeState } from "@arriero/core";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { test } from "node:test";

@@ -1,4 +1,4 @@
-import type { Instance, InstanceResourceProfile } from "@llama-manager/core";
+import type { Instance, InstanceResourceProfile } from "@arriero/core";
 import { Badge, Group, Stack, Tooltip } from "@mantine/core";
 
 import { hasConfiguredArg, launchModeFromArgs } from "./instance-form-helpers";

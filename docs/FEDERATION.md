@@ -1,6 +1,6 @@
 # Federation (multi-machine control plane)
 
-`llama-manager` started as a **local single-user control plane**. Federation
+`arriero` started as a **local single-user control plane**. Federation
 extends it to a **single-operator, multi-host** control plane: you point your
 browser at one node and from that one address you observe and manage instances,
 models, builds and resources across every machine on your network, with the proxy

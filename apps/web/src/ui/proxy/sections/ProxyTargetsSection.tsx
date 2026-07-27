@@ -2,7 +2,7 @@ import type {
   ApiEndpointRecord,
   ApiProxyTargetRecord,
   ApiProxyTargetRuntime,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Badge,

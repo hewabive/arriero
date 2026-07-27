@@ -4,8 +4,8 @@ import type {
   NumaNode,
   ProcessPreflightIssue,
   SystemAccelerator,
-} from "@llama-manager/core";
-import { parseCudaVisibleDevices } from "@llama-manager/core";
+} from "@arriero/core";
+import { parseCudaVisibleDevices } from "@arriero/core";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
@@ -449,7 +449,7 @@ function validateManagedBoundary(
       issues,
       "error",
       "args.--api-key",
-      "Managed KTransformers authentication terminates at llama-manager; --api-key is not allowed",
+      "Managed KTransformers authentication terminates at arriero; --api-key is not allowed",
     );
   }
   const host = String(instance.args["--host"] ?? "127.0.0.1").trim();

@@ -2,7 +2,7 @@ import type {
   InstanceLoadProgress,
   InstanceLogSummary,
   InstanceMemoryLayout,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 export type EngineLogParseInput = {
   lines: string[];

@@ -4,7 +4,7 @@ import type {
   BuildJobStep,
   BuildJobStepName,
   BuildSettings,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import {
   createWriteStream,

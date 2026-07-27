@@ -5,7 +5,7 @@ import {
   InstanceConfigRecordSchema,
   InstanceCreateSchema,
   InstanceUpdateSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 test("InstanceCreateSchema defaults missing args and env", () => {
   const parsed = InstanceCreateSchema.parse({

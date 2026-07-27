@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ApiProxyModelRecord } from "@llama-manager/core";
+import type { ApiProxyModelRecord } from "@arriero/core";
 
 import {
   bodyRequestsStreaming,
@@ -28,7 +28,7 @@ const model: ApiProxyModelRecord = {
   modelId: "qwen",
   visible: true,
   enabled: true,
-  ownedBy: "llama-manager",
+  ownedBy: "arriero",
   targetId: "target-a",
   routeTo: null,
   description: null,

@@ -40,7 +40,7 @@ whether to enable GPU offloading for multimodal projector (default: enabled)
 - Положительная форма: `--mmproj-offload`
 - Отрицательная форма: `--no-mmproj-offload`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Переменные окружения: `LLAMA_ARG_MMPROJ_OFFLOAD`
 - Значение по умолчанию: enabled
 - Внутреннее поле: `common_params.mmproj_use_gpu`

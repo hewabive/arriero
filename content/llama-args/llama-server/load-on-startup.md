@@ -28,7 +28,7 @@ related:
 
 `load-on-startup` - служебный ключ модельной секции `--models-preset`. Он не передается в argv дочернего `llama-server`: router читает его сам и решает, нужно ли сразу поднять эту модель при первом построении каталога.
 
-В llama-manager этот ключ считается `model-managed`: он должен управляться отдельным переключателем модели, а не добавляться как произвольный extra argument.
+В arriero этот ключ считается `model-managed`: он должен управляться отдельным переключателем модели, а не добавляться как произвольный extra argument.
 
 ## Оригинальная справка llama.cpp
 
@@ -55,7 +55,7 @@ load-on-startup (boolean): Controls whether the model loads automatically when t
 - Pseudo-env ключ внутри `common_preset`: `__PRESET_LOAD_ON_STARTUP`
 - Значение по умолчанию: отсутствует, модель остается unloaded до явной или автоматической загрузки
 - Этап применения: построение router model mapping при первом `load()`
-- llama-manager policy: управляется отдельным полем модели
+- arriero policy: управляется отдельным полем модели
 
 ## Что меняет в llama-server
 
@@ -122,7 +122,7 @@ llama-server --models-preset /srv/llama/models.ini --models-max 1
 - Router не стартует: проверьте, не превышает ли число `load-on-startup = true` значение `--models-max`.
 - Старт стал очень долгим: отключите eager loading у больших моделей и грузите их явно.
 - Модель остается unloaded: проверьте, что ключ записан в правильной секции INI, а не в секции с опечаткой в имени модели.
-- В llama-manager ключ не виден как extra argument: это ожидаемо, он управляется отдельным переключателем модели.
+- В arriero ключ не виден как extra argument: это ожидаемо, он управляется отдельным переключателем модели.
 
 ## Источники
 

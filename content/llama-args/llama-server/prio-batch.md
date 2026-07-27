@@ -37,7 +37,7 @@ set process/thread priority : 0-normal, 1-medium, 2-high, 3-realtime (default: 0
 - Основное имя: `--prio-batch`
 - Алиасы: `--prio-batch`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

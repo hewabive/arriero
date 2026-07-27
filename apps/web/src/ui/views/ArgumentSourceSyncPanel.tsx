@@ -1,4 +1,4 @@
-import type { LlamaArgumentDocsSyncReport } from "@llama-manager/core";
+import type { LlamaArgumentDocsSyncReport } from "@arriero/core";
 import { Alert, Anchor, Code, Stack, Text } from "@mantine/core";
 import { AlertTriangle } from "lucide-react";
 

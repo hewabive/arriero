@@ -1,7 +1,4 @@
-import type {
-  ApiProxyRouteTraceStep,
-  ApiProxyTraceFile,
-} from "@llama-manager/core";
+import type { ApiProxyRouteTraceStep, ApiProxyTraceFile } from "@arriero/core";
 
 import { newId } from "../utils/id.js";
 import type { ApiProxyProtocolOperation } from "./protocol.js";

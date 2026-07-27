@@ -74,7 +74,9 @@ export const config = {
       managerEnv("ADMIN_PASSWORD") ??
       null,
     secureCookie: managerEnv("SECURE_COOKIE") === "true",
-    sessionTtlSeconds: Number(managerEnv("SESSION_TTL_SECONDS") ?? 12 * 60 * 60),
+    sessionTtlSeconds: Number(
+      managerEnv("SESSION_TTL_SECONDS") ?? 12 * 60 * 60,
+    ),
   },
 };
 

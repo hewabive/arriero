@@ -1090,7 +1090,7 @@ export const ApiProxyModelConfigSchema = z.object({
   modelId: ApiProxyModelIdSchema,
   visible: z.boolean().default(false),
   enabled: z.boolean().default(true),
-  ownedBy: ApiProxyModelOwnerSchema.default("llama-manager"),
+  ownedBy: ApiProxyModelOwnerSchema.default("arriero"),
   targetId: ApiProxyIdSchema.nullable().default(null),
   routeTo: ApiProxyRouteToSchema.nullable().default(null),
   description: ApiProxyModelDescriptionSchema.default(null),

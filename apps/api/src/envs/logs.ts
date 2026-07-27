@@ -1,4 +1,4 @@
-import type { EnvironmentLogTail } from "@llama-manager/core";
+import type { EnvironmentLogTail } from "@arriero/core";
 
 import { readTailLines } from "../utils/log-tail.js";
 import { getEnvironmentJob } from "./repository.js";

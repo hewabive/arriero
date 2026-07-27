@@ -43,13 +43,13 @@ export const navSections: NavSection[] = [
         route: "status",
         label: "Status",
         title: "Public Status",
-        description: "Redacted diagnostics for this llama-manager node",
+        description: "Redacted diagnostics for this arriero node",
       },
       {
         route: "nodes",
         label: "Nodes",
         title: "Nodes",
-        description: "Register llama-manager nodes to manage from one address",
+        description: "Register arriero nodes to manage from one address",
       },
       {
         route: "update",

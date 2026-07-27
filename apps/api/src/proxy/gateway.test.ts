@@ -5,7 +5,7 @@ import type {
   ApiProxyModelRecord,
   ApiProxyPlanPreview,
   ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { buildApiProxyProtocolGatewayResponse } from "./gateway.js";
 import { openAiProtocolAdapter } from "./openai.js";
@@ -32,7 +32,7 @@ function model(update: Partial<ApiProxyModelRecord> = {}): ApiProxyModelRecord {
     modelId: "qwen-public",
     visible: true,
     enabled: true,
-    ownedBy: "llama-manager",
+    ownedBy: "arriero",
     targetId: target.id,
     routeTo: null,
     description: null,
@@ -102,7 +102,7 @@ test("buildApiProxyProtocolGatewayResponse rejects unbound published model", asy
   assert.deepEqual(response.body, {
     error: {
       message:
-        "Model qwen-public is published by llama-manager, but it is not bound to a proxy target.",
+        "Model qwen-public is published by arriero, but it is not bound to a proxy target.",
       type: "server_error",
       param: "model",
       code: "llama_manager_proxy_model_unbound",

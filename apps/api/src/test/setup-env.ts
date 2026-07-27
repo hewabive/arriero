@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-const testHome = join(tmpdir(), `llama-manager-api-test-${randomUUID()}`);
+const testHome = join(tmpdir(), `arriero-api-test-${randomUUID()}`);
 
 process.env.ARRIERO_DATA_DIR = join(testHome, "data");
 process.env.ARRIERO_CONFIG_DIR = join(testHome, "data", "config");

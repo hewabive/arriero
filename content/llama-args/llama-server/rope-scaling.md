@@ -41,7 +41,7 @@ RoPE frequency scaling method, defaults to linear unless specified by the model
 - Основное имя: `--rope-scaling`
 - Алиасы: `--rope-scaling`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `enum`
+- Тип значения в arriero: `enum`
 - Формат: одно из `none`, `linear`, `yarn`
 - Переменная окружения: `LLAMA_ARG_ROPE_SCALING_TYPE`
 - Поле в `common_params`: `rope_scaling_type`

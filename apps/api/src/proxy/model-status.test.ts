@@ -9,7 +9,7 @@ import type {
   ApiProxyPortRef,
   ApiProxyRuntimeSnapshot,
   ApiProxyTargetRuntime,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   aggregateApiProxyLoadState,
@@ -48,7 +48,7 @@ function model(overrides: Partial<ApiProxyModelRecord>): ApiProxyModelRecord {
     modelId: "public",
     visible: true,
     enabled: true,
-    ownedBy: "llama-manager",
+    ownedBy: "arriero",
     targetId: null,
     routeTo: null,
     description: null,

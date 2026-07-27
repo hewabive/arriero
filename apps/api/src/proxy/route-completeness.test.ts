@@ -5,7 +5,7 @@ import {
   collectApiProxyRouteHoles,
   type ApiProxyPipelineNode,
   type ApiProxyRoutePipelineShape,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   validateApiProxyModelRouteBinding,

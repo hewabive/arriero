@@ -21,7 +21,7 @@ and, for the future measured path, its own pinned binary.
 ## Two engines
 
 1. **Analytical** (implemented) — a pure, side-effect-free engine in
-   `@llama-manager/core` (`packages/core/src/memory-estimate.ts`). It reads the
+   `@arriero/core` (`packages/core/src/memory-estimate.ts`). It reads the
    GGUF tensor table + metadata and the launch args and computes the breakdown
    with no I/O. Instant, works headless, deterministic, unit-tested.
 2. **Dry-run anchor** (binary present, used for calibration; a future "measured"

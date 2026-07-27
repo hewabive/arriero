@@ -1,4 +1,4 @@
-import { MemoryEstimateRequestSchema } from "@llama-manager/core";
+import { MemoryEstimateRequestSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import { estimateMemory } from "../memory-estimate/service.js";

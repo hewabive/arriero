@@ -56,7 +56,7 @@ set custom jinja chat template (default: template taken from model's metadata) i
 - именем встроенного шаблона из списка `--help`, например `chatml`, `llama3`, `gemma`, `gpt-oss`;
 - строкой, переданной через `LLAMA_ARG_CHAT_TEMPLATE`.
 
-Для многострочного template в llama-manager безопаснее хранить значение отдельным argv-элементом, а не shell-строкой. Для длинных шаблонов обычно проще использовать `--chat-template-file`.
+Для многострочного template в arriero безопаснее хранить значение отдельным argv-элементом, а не shell-строкой. Для длинных шаблонов обычно проще использовать `--chat-template-file`.
 
 ## Когда использовать
 

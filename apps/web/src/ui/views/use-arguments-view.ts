@@ -1,4 +1,4 @@
-import type { ArgumentDefault, ArgumentOption } from "@llama-manager/core";
+import type { ArgumentDefault, ArgumentOption } from "@arriero/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

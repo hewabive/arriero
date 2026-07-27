@@ -6,7 +6,7 @@ import type {
   PathCatalogKind,
   PathCatalogUpdate,
   SystemResources,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { buildQuery, nodeRequest as request } from "./http.js";
 

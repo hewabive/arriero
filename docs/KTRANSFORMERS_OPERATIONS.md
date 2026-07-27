@@ -17,7 +17,7 @@ package pair.
 | Entrypoint | environment `bin/sglang serve` |
 | Model | Hugging Face id or existing local SGLang model directory |
 | CPU weights | existing native/converted weights or LLAMAFILE/GGUF directory |
-| Public API | llama-manager OpenAI surface and Anthropic bridge |
+| Public API | arriero OpenAI surface and Anthropic bridge |
 | Native panels | none; health, logs, process memory, and proxy traces are authoritative |
 | Scheduling | explicit host + selected-GPU reservations; `idle-only` by default |
 

@@ -6,7 +6,7 @@ import {
   type InstanceHealthSummaryStatus,
   type NumaPlacement,
   type RuntimeState,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { engineProbe } from "./engine-probe.js";
 import {

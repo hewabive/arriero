@@ -1,7 +1,7 @@
 import {
   ApiEndpointCreateSchema,
   ApiEndpointUpdateSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import { listInstances } from "../instances/repository.js";
@@ -17,7 +17,7 @@ import { isManagerProxyBaseUrl } from "../proxy/targets.js";
 
 function validateApiEndpointRefs(input: { baseUrl?: string | undefined }) {
   if (input.baseUrl && isManagerProxyBaseUrl(input.baseUrl)) {
-    return "external API endpoint cannot point to llama-manager proxy itself";
+    return "external API endpoint cannot point to arriero proxy itself";
   }
   return null;
 }

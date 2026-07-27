@@ -1,6 +1,6 @@
 # API Proxy Foundation
 
-This document captures the intended shape of the future `llama-manager` API proxy. The current implementation adds shared contracts, durable disabled-by-default configuration, runtime diagnostics, pure planning logic, simple public OpenAI-compatible execution and HTTP forwarding helpers. It also introduces a protocol-adapter boundary for OpenAI-compatible and Anthropic-compatible public facades. Proxy targets now point at entries in a shared API endpoint catalog. Managed instances and the llama-manager proxy are generated read-only catalog entries; external APIs are editable catalog entries with optional auth settings. Public OpenAI-compatible requests can start or load a managed target before forwarding when the scheduler plan only requires MVP-supported readiness actions. External API targets are forwarded without instance-management actions.
+This document captures the intended shape of the future `arriero` API proxy. The current implementation adds shared contracts, durable disabled-by-default configuration, runtime diagnostics, pure planning logic, simple public OpenAI-compatible execution and HTTP forwarding helpers. It also introduces a protocol-adapter boundary for OpenAI-compatible and Anthropic-compatible public facades. Proxy targets now point at entries in a shared API endpoint catalog. Managed instances and the arriero proxy are generated read-only catalog entries; external APIs are editable catalog entries with optional auth settings. Public OpenAI-compatible requests can start or load a managed target before forwarding when the scheduler plan only requires MVP-supported readiness actions. External API targets are forwarded without instance-management actions.
 
 ## Problem Shape
 
@@ -111,7 +111,7 @@ A proxy model carries two independent control flags in `config/proxy/models.json
 `GET /v1/models` mirrors llama.cpp router mode by attaching a per-model `status` to each listed entry:
 
 ```json
-{ "id": "my-model", "object": "model", "owned_by": "llama-manager",
+{ "id": "my-model", "object": "model", "owned_by": "arriero",
   "status": { "value": "partial", "active_requests": 2, "queued_requests": 5 } }
 ```
 

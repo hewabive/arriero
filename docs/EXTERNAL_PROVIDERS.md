@@ -7,7 +7,7 @@ How models from an external OpenAI/Anthropic-compatible provider (OpenRouter, Gr
 An endpoint carries one optional key and a profile; there is no auth-type enum.
 
 - `apiKey` — stored in `data/config/.secrets.json` (gitignored, write-only through the API). Mutually exclusive with `apiKeyEnvVar` (setting both is a 400 on create; on update the env var wins and clears the stored key).
-- `apiKeyEnvVar` — name of a server env var holding the key. Names starting with `LLAMA_MANAGER_` are rejected (so the admin API can't be tricked into exfiltrating the manager's own secrets to an attacker-controlled `baseUrl`).
+- `apiKeyEnvVar` — name of a server env var holding the key. Names starting with `ARRIERO_` are rejected (so the admin API can't be tricked into exfiltrating the manager's own secrets to an attacker-controlled `baseUrl`).
 - **Placement** is derived from `profile`: `openai`/`llama-native` → `Authorization: Bearer <key>`; `anthropic` → `x-api-key: <key>` + `anthropic-version: 2023-06-01`. Set `authHeaderName` to override the header (the key goes there verbatim instead).
 - `extraHeaders` — a `{name: value}` record sent with every request (and the `/models` probe), e.g. OpenRouter attribution `HTTP-Referer` / `X-Title`. Applied after auth, so a user-provided header wins.
 - No key at all = a public endpoint; only `extraHeaders` are sent. A named-but-unset env var is the only error case.

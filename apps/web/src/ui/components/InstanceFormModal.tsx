@@ -1,4 +1,4 @@
-import { INSTANCE_KINDS, engineDescriptor } from "@llama-manager/core";
+import { INSTANCE_KINDS, engineDescriptor } from "@arriero/core";
 import {
   Box,
   Button,

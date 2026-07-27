@@ -1,6 +1,6 @@
 import { performance } from "node:perf_hooks";
 
-import type { Instance, InstanceHealthSummary } from "@llama-manager/core";
+import type { Instance, InstanceHealthSummary } from "@arriero/core";
 
 import { getInstanceHealthSummary } from "../process/health-summary.js";
 

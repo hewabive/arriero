@@ -2,7 +2,7 @@ import type {
   GgufModel,
   ArgumentDefault,
   ModelPresetEntry,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { createUiId } from "./id";
 

@@ -3,7 +3,7 @@ import type {
   FleetNodeUpdate,
   FleetNodeView,
   FleetSystemEntry,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Badge,

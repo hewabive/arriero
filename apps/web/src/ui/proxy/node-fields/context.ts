@@ -4,7 +4,7 @@ import type {
   ApiProxyPipelineRecord,
   ApiProxySourceRecord,
   ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import type { PipelineDraft, PipelineNodeDraft } from "../forms";
 

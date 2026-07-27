@@ -1,4 +1,4 @@
-import type { ArgumentOption, ArgumentValueType } from "@llama-manager/core";
+import type { ArgumentOption, ArgumentValueType } from "@arriero/core";
 
 import { defaultArgumentControl } from "./registry.js";
 import { categoryNameRu, helpRuOverlay } from "./help-text-ru.js";

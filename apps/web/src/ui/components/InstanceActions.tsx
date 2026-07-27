@@ -2,7 +2,7 @@ import type {
   Instance,
   InstanceHealthSummary,
   ResourceAdmission,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Button,

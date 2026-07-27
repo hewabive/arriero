@@ -1,4 +1,4 @@
-import type { HostPackageManager } from "@llama-manager/core";
+import type { HostPackageManager } from "@arriero/core";
 import { readFileSync } from "node:fs";
 
 export type OsRelease = {

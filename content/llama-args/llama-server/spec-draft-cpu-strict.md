@@ -34,7 +34,7 @@ Use strict CPU placement for draft model (default: same as --cpu-strict)
 - Основное имя: `--spec-draft-cpu-strict`
 - Алиасы: `--cpu-strict-draft`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `boolean`
+- Тип значения в arriero: `boolean`
 - Подсказка формата: `<0|1>`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

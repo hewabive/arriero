@@ -1,4 +1,4 @@
-import { BuildJobStartSchema, BuildSettingsSchema } from "@llama-manager/core";
+import { BuildJobStartSchema, BuildSettingsSchema } from "@arriero/core";
 import type { Hono } from "hono";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";

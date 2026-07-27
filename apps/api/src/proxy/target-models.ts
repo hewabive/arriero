@@ -7,7 +7,7 @@ import {
   type ApiProxyTargetModelGroup,
   engineDescriptor,
   type Instance,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { listRemoteInstancesByNode } from "../nodes/remote-instances.js";
 import { listApiEndpointCatalog, remoteEndpointId } from "./endpoints.js";

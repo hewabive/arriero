@@ -1,4 +1,4 @@
-import type { ModelScanSettings, ModelScanResult } from "@llama-manager/core";
+import type { ModelScanSettings, ModelScanResult } from "@arriero/core";
 
 import { buildQuery, nodeRequest as request } from "./http.js";
 

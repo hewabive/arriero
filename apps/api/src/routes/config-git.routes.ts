@@ -5,7 +5,7 @@ import {
   ConfigGitCreateBranchSchema,
   ConfigGitResetSchema,
   ConfigGitSwitchSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Context, Hono } from "hono";
 
 import {

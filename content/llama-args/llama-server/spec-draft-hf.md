@@ -75,7 +75,7 @@ Same as --hf-repo, but for the draft model (default: unused)
 
 ## INI-пресеты и router-режим
 
-В INI используйте `spec-draft-hf = user/repo:quant` или алиас `hf-repo-draft = user/repo:quant`. Router README предупреждает, что HF repo, alias и часть параметров управляются router при загрузке модели; проверяйте итоговые аргументы subprocess в логах llama-manager.
+В INI используйте `spec-draft-hf = user/repo:quant` или алиас `hf-repo-draft = user/repo:quant`. Router README предупреждает, что HF repo, alias и часть параметров управляются router при загрузке модели; проверяйте итоговые аргументы subprocess в логах arriero.
 
 ## Типовые проблемы и диагностика
 

@@ -1,6 +1,6 @@
 # Architecture
 
-`llama-manager` is a local single-user control plane for `llama.cpp`.
+`arriero` is a local single-user control plane for `llama.cpp`.
 
 ## Stack
 
@@ -24,8 +24,8 @@
 
 - Single local user.
 - API binds to `127.0.0.1` by default.
-- Admin auth is optional and disabled until `LLAMA_MANAGER_ADMIN_PASSWORD` or
-  `LLAMA_MANAGER_ADMIN_PASSWORD_HASH` is configured.
+- Admin auth is optional and disabled until `ARRIERO_ADMIN_PASSWORD` or
+  `ARRIERO_ADMIN_PASSWORD_HASH` is configured.
 - The public status route exposes only redacted diagnostics; admin routes expose
   process control, paths, arguments and logs after login.
 - System resources are modeled as a shared contract with RAM data now and an
@@ -36,7 +36,7 @@
 
 ## Durable Data
 
-- `data/llama-manager.db`: instance definitions, binary path-catalog, process-run
+- `data/arriero.db`: instance definitions, binary path-catalog, process-run
   metadata (pruned to the latest + open run per instance), proxy config, and
   rebuildable caches (model scan, parsed `--help`).
 - File-backed config, loaded at startup (restart to apply):

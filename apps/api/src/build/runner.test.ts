@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import test from "node:test";
 
-import type { BuildJobStart, BuildSettings } from "@llama-manager/core";
+import type { BuildJobStart, BuildSettings } from "@arriero/core";
 
 import {
   buildSteps,
@@ -47,7 +47,7 @@ function settings(env: Record<string, string>): BuildSettings {
 }
 
 test("buildProcessEnv discovers nvcc from CUDA_HOME", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-cuda-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-cuda-"));
   const binDir = join(dir, "bin");
   const nvcc = join(binDir, "nvcc");
   try {

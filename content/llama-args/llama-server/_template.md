@@ -31,7 +31,7 @@ related:
 - Основное имя: `--argument-name`
 - Алиасы: `--argument-name`
 - Категория в `--help`: `TODO`
-- Тип значения в llama-manager: `TODO`
+- Тип значения в arriero: `TODO`
 - Подсказка формата из `--help`: `TODO`
 - Допустимые значения из `--help`: `TODO`
 - Переменные окружения: `TODO`

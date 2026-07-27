@@ -2,7 +2,7 @@ import {
   ArgumentDefaultsSchema,
   engineDescriptor,
   InstanceKindSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import {

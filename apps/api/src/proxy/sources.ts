@@ -5,7 +5,7 @@ import {
   type ApiProxySourceCreate,
   type ApiProxySourceRecord,
   type ApiProxySourceUpdate,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { z } from "zod";
 
 import { newId } from "../utils/id.js";

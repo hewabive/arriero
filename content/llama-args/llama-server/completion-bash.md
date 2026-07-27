@@ -32,7 +32,7 @@ print source-able bash completion script for llama.cpp
 - Основное имя: `--completion-bash`
 - Алиасы: `--completion-bash`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Переменные окружения: нет
 - Поле в `common_params`: `completion`
 - Этап применения: после парсинга CLI, до проверки модели и до server runtime

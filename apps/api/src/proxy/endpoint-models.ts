@@ -1,4 +1,4 @@
-import type { ApiEndpointRecord } from "@llama-manager/core";
+import type { ApiEndpointRecord } from "@arriero/core";
 
 import { apiEndpointAuthHeaders } from "./endpoints.js";
 

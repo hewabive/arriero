@@ -1,5 +1,5 @@
 [Unit]
-Description=llama-manager control plane
+Description=arriero control plane
 Documentation=https://github.com/
 After=network-online.target
 Wants=network-online.target

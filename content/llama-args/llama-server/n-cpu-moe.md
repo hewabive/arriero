@@ -39,7 +39,7 @@ keep the Mixture of Experts (MoE) weights of the first N layers in the CPU
 - Основное имя: `--n-cpu-moe`
 - Алиасы: `-ncmoe`, `--n-cpu-moe`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: целое число `N`
 - Переменная окружения: `LLAMA_ARG_N_CPU_MOE`
 - Поле в `common_params`: `tensor_buft_overrides`

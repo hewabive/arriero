@@ -10,7 +10,7 @@ export function InstanceFormHostPort({ fm }: { fm: InstanceFormController }) {
       {fm.kind === "ktransformers" ? (
         <TextInput
           label="Host"
-          description="Public access terminates at llama-manager"
+          description="Public access terminates at arriero"
           value="127.0.0.1"
           disabled
         />

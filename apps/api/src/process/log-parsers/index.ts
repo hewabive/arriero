@@ -2,7 +2,7 @@ import {
   engineDescriptor,
   type EngineLogParserId,
   type InstanceKind,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { llamaLogParser } from "./llama.js";
 import { vllmLogParser } from "./vllm.js";

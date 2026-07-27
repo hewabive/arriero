@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 
-import type { GgufModel } from "@llama-manager/core";
+import type { GgufModel } from "@arriero/core";
 
 import { db } from "../db/index.js";
 import { modelCache } from "../db/schema.js";
@@ -83,7 +83,7 @@ function model(path: string): GgufModel {
 }
 
 test("pruneMissingCachedModels removes cache rows for missing model files", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-model-cache-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-cache-"));
   const existingModel = join(dir, "model.gguf");
   const missingModel = join(dir, "deleted-model.gguf");
 
@@ -103,7 +103,7 @@ test("pruneMissingCachedModels removes cache rows for missing model files", () =
 });
 
 test("saveCachedModel refreshes parserVersion on conflict so the cache hits again", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-model-cache-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-cache-"));
   const path = join(dir, "stale.gguf");
 
   try {

@@ -1,4 +1,4 @@
-import type { ApiProxyModelRecord } from "@llama-manager/core";
+import type { ApiProxyModelRecord } from "@arriero/core";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 import type { CLIENT_ABORT_STATUS } from "./http.js";

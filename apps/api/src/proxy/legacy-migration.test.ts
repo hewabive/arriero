@@ -71,7 +71,7 @@ function seedLegacyDb() {
     .run(ts, ts);
   sqlite
     .prepare(
-      `INSERT INTO api_proxy_models VALUES ('m1','big-slow','true','llama-manager','t1',NULL,NULL,?,?)`,
+      `INSERT INTO api_proxy_models VALUES ('m1','big-slow','true','arriero','t1',NULL,NULL,?,?)`,
     )
     .run(ts, ts);
   sqlite

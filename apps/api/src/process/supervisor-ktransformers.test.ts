@@ -1,4 +1,4 @@
-import type { Instance, ProcessPreflightResult } from "@llama-manager/core";
+import type { Instance, ProcessPreflightResult } from "@arriero/core";
 import assert from "node:assert/strict";
 import {
   existsSync,
@@ -28,7 +28,7 @@ async function waitFor(
 }
 
 test("KTransformers supervisor stops the complete detached worker tree", async () => {
-  const root = mkdtempSync(join(tmpdir(), "llama-manager-kt-supervisor-"));
+  const root = mkdtempSync(join(tmpdir(), "arriero-kt-supervisor-"));
   const binary = join(root, "sglang");
   const childPidFile = join(root, "child.pid");
   writeFileSync(

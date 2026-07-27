@@ -6,7 +6,7 @@ import {
   type ApiProxyPortRef,
   type ApiProxyRoutePipelineShape,
   type ApiProxyRouteTo,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 export type ApiProxyPipelineGraph = {
   id: string | null;

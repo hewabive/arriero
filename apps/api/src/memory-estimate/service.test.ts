@@ -152,7 +152,7 @@ test("vllm estimator reserves utilization on each tensor-parallel GPU", () => {
 });
 
 test("estimateMemory produces a breakdown for a local model", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-estsvc-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-"));
   const path = join(dir, "model.gguf");
   try {
     writeSyntheticModel(path);

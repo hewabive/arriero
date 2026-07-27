@@ -2,7 +2,7 @@ import type {
   SystemAccelerator,
   SystemMemory,
   SystemResources,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { execFile, execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { freemem, totalmem } from "node:os";

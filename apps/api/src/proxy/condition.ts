@@ -1,4 +1,4 @@
-import type { ApiProxyConditionPredicate } from "@llama-manager/core";
+import type { ApiProxyConditionPredicate } from "@arriero/core";
 
 import { requestScopeText } from "./request-text.js";
 

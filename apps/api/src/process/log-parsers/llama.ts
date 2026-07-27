@@ -2,7 +2,7 @@ import type {
   InstanceLoadProgress,
   InstanceMemoryLayout,
   InstanceMemoryPlacement,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   compareMemoryPlacements,

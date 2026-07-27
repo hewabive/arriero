@@ -2,7 +2,7 @@ import {
   engineDescriptor,
   type EngineProxyCapabilities,
   type Instance,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 export type ProxyEngineGates = Pick<
   EngineProxyCapabilities,

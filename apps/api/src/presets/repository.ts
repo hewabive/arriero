@@ -3,7 +3,7 @@ import type {
   ModelPresetFile,
   ModelPresetSummary,
   ModelPresetWrite,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   existsSync,
   mkdirSync,

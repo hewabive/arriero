@@ -2,8 +2,8 @@ import type {
   ApiProxySchedulerPlanRequest,
   ApiProxyTargetPlanInput,
   Instance,
-} from "@llama-manager/core";
-import { engineDescriptor } from "@llama-manager/core";
+} from "@arriero/core";
+import { engineDescriptor } from "@arriero/core";
 
 import type {
   DomainAdmissionContext,

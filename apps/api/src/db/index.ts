@@ -1,12 +1,24 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { sql } from "drizzle-orm";
+import { existsSync, renameSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import * as schema from "./schema.js";
 
-export const sqlite = new Database(resolve(config.dataDir, "llama-manager.db"));
+const databasePath = resolve(config.dataDir, "arriero.db");
+const legacyDatabasePath = resolve(config.dataDir, "llama-manager.db");
+if (!existsSync(databasePath) && existsSync(legacyDatabasePath)) {
+  renameSync(legacyDatabasePath, databasePath);
+  for (const suffix of ["-wal", "-shm"]) {
+    if (existsSync(`${legacyDatabasePath}${suffix}`)) {
+      renameSync(`${legacyDatabasePath}${suffix}`, `${databasePath}${suffix}`);
+    }
+  }
+}
+
+export const sqlite = new Database(databasePath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 

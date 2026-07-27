@@ -1,4 +1,4 @@
-import { EnvironmentSpecSchema } from "@llama-manager/core";
+import { EnvironmentSpecSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";

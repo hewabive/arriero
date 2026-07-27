@@ -1,4 +1,4 @@
-import type { EnvironmentSpec, SystemAccelerator } from "@llama-manager/core";
+import type { EnvironmentSpec, SystemAccelerator } from "@arriero/core";
 import { existsSync } from "node:fs";
 
 export type EnvironmentAvailability = {

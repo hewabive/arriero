@@ -1,4 +1,4 @@
-import { ExternalProcessKillSchema } from "@llama-manager/core";
+import { ExternalProcessKillSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import { listFilesystemDirectory } from "../filesystem/browser.js";
@@ -12,7 +12,7 @@ import { getSystemResources } from "../system/resources.js";
 
 export function registerSystemRoutes(app: Hono) {
   app.get("/api/health", (c) => {
-    return c.json({ ok: true, service: "llama-manager-api" });
+    return c.json({ ok: true, service: "arriero-api" });
   });
 
   app.get("/api/public/status", async (c) => {

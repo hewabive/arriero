@@ -4,7 +4,7 @@ import type {
   InstanceLogSummary,
   InstanceMemoryLayout,
   RuntimeState,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   emptyMemoryLayout,

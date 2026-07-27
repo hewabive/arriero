@@ -1,4 +1,4 @@
-import type { Instance } from "@llama-manager/core";
+import type { Instance } from "@arriero/core";
 
 import { detectNumaBind, detectNumaInterleave } from "./capability.js";
 import { applyNumaPin, buildPinnedShimArgs } from "./cgroup.js";

@@ -1,4 +1,4 @@
-import type { PrerequisiteReport } from "@llama-manager/core";
+import type { PrerequisiteReport } from "@arriero/core";
 
 import { nodeRequest as request } from "./http.js";
 

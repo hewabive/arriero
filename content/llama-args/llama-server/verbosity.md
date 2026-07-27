@@ -44,7 +44,7 @@ Set the verbosity threshold. Messages with a higher verbosity will be ignored. V
 - Основное имя: `--verbosity`
 - Алиасы: `-lv`, `--verbosity`, `--log-verbosity`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `LLAMA_ARG_LOG_VERBOSITY`

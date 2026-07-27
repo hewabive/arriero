@@ -1,4 +1,4 @@
-import { MemoryPoolUpdateSchema } from "@llama-manager/core";
+import { MemoryPoolUpdateSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import { currentResourceLedger } from "../resources/ledger.js";

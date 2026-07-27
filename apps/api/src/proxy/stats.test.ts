@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import type { ApiProxyRequestTrace } from "@llama-manager/core";
+import type { ApiProxyRequestTrace } from "@arriero/core";
 
 import { apiProxyStats } from "./stats.js";
 

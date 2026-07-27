@@ -2,7 +2,7 @@ import {
   ApiProxyModelRecordSchema,
   type ApiProxyServeRequest,
   type ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Context } from "hono";
 
 import { getInstance } from "../instances/repository.js";
@@ -81,7 +81,7 @@ export async function serveApiProxyPinnedInstance(
     id: target.id,
     modelId,
     enabled: true,
-    ownedBy: "llama-manager",
+    ownedBy: "arriero",
     targetId: target.id,
     routeTo: null,
     description: null,

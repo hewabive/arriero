@@ -1,4 +1,4 @@
-import type { PublicProxyModel } from "@llama-manager/core";
+import type { PublicProxyModel } from "@arriero/core";
 import { Alert, Badge, Group, Paper, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";

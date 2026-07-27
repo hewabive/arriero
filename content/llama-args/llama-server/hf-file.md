@@ -38,7 +38,7 @@ Hugging Face model file. If specified, it will override the quant in --hf-repo (
 - Основное имя: `--hf-file`
 - Алиасы: `-hff`, `--hf-file`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `path`
+- Тип значения в arriero: `path`
 - Подсказка формата из `--help`: `FILE`
 - Переменные окружения: `LLAMA_ARG_HF_FILE`
 - Значение по умолчанию: не используется

@@ -37,7 +37,7 @@ RoPE base frequency, used by NTK-aware scaling (default: loaded from model)
 - Основное имя: `--rope-freq-base`
 - Алиасы: `--rope-freq-base`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: число, передаваемое в `std::stof`
 - Переменная окружения: `LLAMA_ARG_ROPE_FREQ_BASE`
 - Поле в `common_params`: `rope_freq_base`

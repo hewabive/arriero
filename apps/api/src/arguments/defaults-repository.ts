@@ -2,7 +2,7 @@ import {
   ArgumentDefaultsSchema,
   type ArgumentDefault,
   type ArgumentDefaults,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   copyFileSync,
   existsSync,

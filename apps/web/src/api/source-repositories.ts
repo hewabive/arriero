@@ -4,7 +4,7 @@ import type {
   SourceRepositorySettingsUpdate,
   SourceRepositoryStatus,
   SourceSyncReport,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { nodeRequest as request } from "./http.js";
 

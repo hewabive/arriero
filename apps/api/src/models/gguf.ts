@@ -3,8 +3,8 @@ import type {
   GgufMetadata,
   GgufTensorInfo,
   GgufTensorTable,
-} from "@llama-manager/core";
-import { ggmlTensorBytes, ggmlTypeName } from "@llama-manager/core";
+} from "@arriero/core";
+import { ggmlTensorBytes, ggmlTypeName } from "@arriero/core";
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 

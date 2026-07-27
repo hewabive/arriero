@@ -1,7 +1,4 @@
-import type {
-  ApiProxySourceRecord,
-  ApiProxySourceUpdate,
-} from "@llama-manager/core";
+import type { ApiProxySourceRecord, ApiProxySourceUpdate } from "@arriero/core";
 import {
   ActionIcon,
   Badge,

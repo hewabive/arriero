@@ -5,7 +5,7 @@ import {
   type Instance,
   type InstanceKind,
   type LlamaProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   offlineLlamaProbe,

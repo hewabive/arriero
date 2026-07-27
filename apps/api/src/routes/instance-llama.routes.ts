@@ -3,7 +3,7 @@ import {
   LlamaModelActionRequestSchema,
   LlamaSlotActionRequestSchema,
   type EndpointProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import {

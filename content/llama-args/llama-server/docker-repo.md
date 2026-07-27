@@ -40,7 +40,7 @@ example: gemma3
 - Основное имя: `--docker-repo`
 - Алиасы: `-dr`, `--docker-repo`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата из `--help`: `[<repo>/]<model>[:quant]`
 - Переменные окружения: `LLAMA_ARG_DOCKER_REPO`
 - Значение по умолчанию: не используется

@@ -5,8 +5,8 @@ import type {
   LlamaSourceSyncDivergence,
   LlamaSourceSyncReport,
   LlamaSourceSyncSection,
-} from "@llama-manager/core";
-import { RPC_SERVER_SUPPORTED_FLAGS } from "@llama-manager/core";
+} from "@arriero/core";
+import { RPC_SERVER_SUPPORTED_FLAGS } from "@arriero/core";
 
 import {
   generatedHelpChangedLines,

@@ -36,7 +36,7 @@ set draft process/thread priority : 0-normal, 1-medium, 2-high, 3-realtime (defa
 - Основное имя: `--spec-draft-prio-batch`
 - Алиасы: `--prio-batch-draft`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

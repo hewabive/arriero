@@ -6,7 +6,7 @@ import {
   type EnvironmentJobStep,
   type EnvironmentJobStepName,
   type EnvironmentSpec,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   existsSync,
   mkdirSync,

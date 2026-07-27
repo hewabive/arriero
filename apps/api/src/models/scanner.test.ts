@@ -1,4 +1,4 @@
-import type { ModelScanRoot } from "@llama-manager/core";
+import type { ModelScanRoot } from "@arriero/core";
 import { strict as assert } from "node:assert";
 import {
   existsSync,
@@ -24,10 +24,7 @@ function root(path: string): ModelScanRoot {
 }
 
 test("scanModels skips roots that do not exist", async () => {
-  const missing = join(
-    tmpdir(),
-    `llama-manager-missing-model-dir-${Date.now()}`,
-  );
+  const missing = join(tmpdir(), `arriero-missing-model-dir-${Date.now()}`);
 
   const result = await scanModels({ roots: [root(missing)], refresh: true });
   assert.deepEqual(result.models, []);
@@ -35,7 +32,7 @@ test("scanModels skips roots that do not exist", async () => {
 });
 
 test("scanModels collapses split GGUF shards into a single model", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-model-scan-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-scan-"));
 
   try {
     const nested = join(dir, "aaa-nested");
@@ -59,7 +56,7 @@ test("scanModels collapses split GGUF shards into a single model", async () => {
 });
 
 test("scanModels merges multiple roots and dedupes nested ones", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-model-scan-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-scan-"));
 
   try {
     const nested = join(dir, "sub");
@@ -82,7 +79,7 @@ test("scanModels merges multiple roots and dedupes nested ones", async () => {
 });
 
 test("scanModelsFromCache returns cached models scoped by roots and depth", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-model-cache-scan-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-cache-scan-"));
 
   try {
     const nested = join(dir, "sub");

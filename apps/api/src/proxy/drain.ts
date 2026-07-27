@@ -14,7 +14,7 @@ export function resetApiProxyDrain(): void {
 
 export function apiProxyDrainBody(protocol: "openai" | "anthropic"): unknown {
   const message =
-    "llama-manager is restarting to apply an update; retry in a few seconds.";
+    "arriero is restarting to apply an update; retry in a few seconds.";
   if (protocol === "anthropic") {
     return {
       type: "error",

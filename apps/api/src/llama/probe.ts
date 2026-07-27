@@ -5,7 +5,7 @@ import type {
   EndpointProbe,
   LlamaModelDiagnostics,
   LlamaProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { connect } from "node:net";
 import { performance } from "node:perf_hooks";

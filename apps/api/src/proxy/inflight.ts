@@ -4,7 +4,7 @@ import type {
   ApiProxyInflightPhase,
   ApiProxyInflightRequest,
   ApiProxyInflightStopResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { newId } from "../utils/id.js";
 

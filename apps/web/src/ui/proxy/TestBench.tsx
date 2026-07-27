@@ -2,7 +2,7 @@ import type {
   ApiProxyModelRecord,
   ApiProxyRouteExplainResult,
   ApiProxySourceRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Button,

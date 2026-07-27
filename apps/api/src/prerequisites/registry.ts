@@ -3,7 +3,7 @@ import type {
   PrerequisiteCheckKind,
   PrerequisiteSeverity,
   PrerequisiteStatus,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync } from "node:fs";
 
 import { detectNumaBind } from "../numa/capability.js";

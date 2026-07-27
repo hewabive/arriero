@@ -11,7 +11,7 @@ import {
   type Instance,
   type InstanceHealthSummary,
   type EndpointProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { resolveApiProxyTarget } from "./targets.js";
 

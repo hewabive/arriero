@@ -2,8 +2,8 @@ import type {
   EngineArgumentCatalogParserId,
   ArgumentCatalog,
   ArgumentOption,
-} from "@llama-manager/core";
-import { ArgumentCatalogSchema } from "@llama-manager/core";
+} from "@arriero/core";
+import { ArgumentCatalogSchema } from "@arriero/core";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -236,7 +236,7 @@ export function getLlamaArgumentReferenceCatalog(): ArgumentCatalog {
     generatedAt,
     source: {
       kind: "help",
-      command: ["llama-manager", "argument-registry"],
+      command: ["arriero", "argument-registry"],
       hash: referenceCatalogHash(options),
       binarySize: 0,
       binaryModifiedAt: generatedAt,
@@ -269,7 +269,7 @@ function toCatalog(input: {
       kind: "help",
       command: input.cached.helpHash.startsWith("fallback:")
         ? [
-            "llama-manager",
+            "arriero",
             input.parserId === "sglang-help"
               ? "sglang-fallback-catalog"
               : "vllm-fallback-catalog",

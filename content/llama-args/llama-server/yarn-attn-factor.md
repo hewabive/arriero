@@ -37,7 +37,7 @@ YaRN: scale sqrt(t) or attention magnitude (default: -1.00)
 - Основное имя: `--yarn-attn-factor`
 - Алиасы: `--yarn-attn-factor`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: число, передаваемое в `std::stof`
 - Переменная окружения: `LLAMA_ARG_YARN_ATTN_FACTOR`
 - Поле в `common_params`: `yarn_attn_factor`

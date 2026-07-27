@@ -1,4 +1,4 @@
-import type { MemoryPool, SystemAccelerator } from "@llama-manager/core";
+import type { MemoryPool, SystemAccelerator } from "@arriero/core";
 
 export function formatGpuName(index: string, name: string): string {
   return `GPU ${index} · ${name}`;

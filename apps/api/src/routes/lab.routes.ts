@@ -2,7 +2,7 @@ import {
   ApiLabProbeProfileSchema,
   ApiLabProbeTargetRequestSchema,
   type ApiLabProbeProfile,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import {

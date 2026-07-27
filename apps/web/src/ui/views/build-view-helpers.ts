@@ -1,8 +1,4 @@
-import type {
-  BuildJob,
-  BuildSettings,
-  LlamaSourceStatus,
-} from "@llama-manager/core";
+import type { BuildJob, BuildSettings, LlamaSourceStatus } from "@arriero/core";
 
 export function buildStatusColor(status: BuildJob["status"]) {
   if (status === "succeeded") return "green";

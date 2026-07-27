@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ApiProxyPipelineNode } from "@llama-manager/core";
+import type { ApiProxyPipelineNode } from "@arriero/core";
 
 import {
   collectApiProxyPipelineRefs,

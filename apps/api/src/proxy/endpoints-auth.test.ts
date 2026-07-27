@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, rmSync } from "node:fs";
 import { beforeEach, test } from "node:test";
 
-import type { ApiEndpointCreate } from "@llama-manager/core";
+import type { ApiEndpointCreate } from "@arriero/core";
 
 import { config } from "../config.js";
 import { resetConfigFilesCache } from "./config-files.js";

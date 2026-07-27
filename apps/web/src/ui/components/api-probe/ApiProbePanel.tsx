@@ -2,7 +2,7 @@ import type {
   ApiProbeKind,
   ApiProbeRequest,
   EndpointProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Button,
   Group,

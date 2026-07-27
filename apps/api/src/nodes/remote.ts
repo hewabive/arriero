@@ -1,4 +1,4 @@
-import type { FleetNode } from "@llama-manager/core";
+import type { FleetNode } from "@arriero/core";
 import type { Context } from "hono";
 
 import { nodeToken } from "./repository.js";

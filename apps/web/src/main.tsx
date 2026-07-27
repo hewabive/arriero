@@ -44,7 +44,7 @@ class RootErrorBoundary extends React.Component<
       return (
         <div className="root-error">
           <div>
-            <p className="root-error__eyebrow">llama-manager</p>
+            <p className="root-error__eyebrow">arriero</p>
             <h1>UI render error</h1>
             <p>{this.state.error.message}</p>
             <button type="button" onClick={() => window.location.reload()}>

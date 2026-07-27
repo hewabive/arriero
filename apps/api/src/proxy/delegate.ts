@@ -1,4 +1,4 @@
-import type { ApiProxyServeRequest, FleetNode } from "@llama-manager/core";
+import type { ApiProxyServeRequest, FleetNode } from "@arriero/core";
 
 import { nodeApiUrl } from "../nodes/remote.js";
 import { nodeToken } from "../nodes/repository.js";

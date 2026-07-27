@@ -1,4 +1,4 @@
-import type { ApiProxyPlanPreviewRequest } from "@llama-manager/core";
+import type { ApiProxyPlanPreviewRequest } from "@arriero/core";
 import { Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery } from "@tanstack/react-query";

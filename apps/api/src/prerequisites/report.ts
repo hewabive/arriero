@@ -3,7 +3,7 @@ import type {
   PrerequisiteGroup,
   PrerequisiteHost,
   PrerequisiteReport,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { getBuildSettings } from "../build/repository.js";
 import { listEnvironmentSpecs } from "../envs/repository.js";

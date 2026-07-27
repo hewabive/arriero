@@ -1,4 +1,4 @@
-import type { EndpointProbe, PromptCacheState } from "@llama-manager/core";
+import type { EndpointProbe, PromptCacheState } from "@arriero/core";
 import {
   Badge,
   Group,

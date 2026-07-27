@@ -10,7 +10,7 @@ import type {
   ConfigGitStatus,
   ConfigGitSwitch,
   ConfigGitValidation,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { buildQuery, nodeRequest } from "./http.js";
 

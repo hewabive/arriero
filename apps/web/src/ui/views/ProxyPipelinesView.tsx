@@ -1,7 +1,7 @@
 import type {
   ApiProxyPipelineCreate,
   ApiProxyRouteExplainResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Button,

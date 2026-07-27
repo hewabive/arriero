@@ -5,7 +5,7 @@ import {
   ApiProxyModelRecordSchema,
   ApiProxyTargetRecordSchema,
   type FleetNode,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { anthropicProtocolAdapter } from "./anthropic.js";
 import { openAiProtocolAdapter } from "./openai.js";
@@ -45,7 +45,7 @@ function modelRequest(input: {
       id: "m1",
       modelId: "qwen",
       enabled: true,
-      ownedBy: "llama-manager",
+      ownedBy: "arriero",
       targetId: null,
       routeTo: null,
       description: null,

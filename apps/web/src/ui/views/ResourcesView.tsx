@@ -3,7 +3,7 @@ import type {
   Instance,
   MemoryPool,
   ResourcePoolUsage,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Button,

@@ -1,7 +1,4 @@
-import type {
-  ApiEndpointRecord,
-  ApiProxyTargetRecord,
-} from "@llama-manager/core";
+import type { ApiEndpointRecord, ApiProxyTargetRecord } from "@arriero/core";
 
 import { getInstanceHealthSummary } from "../process/health-summary.js";
 import { listInstances } from "../instances/repository.js";

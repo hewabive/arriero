@@ -1,4 +1,4 @@
-import { type Instance } from "@llama-manager/core";
+import { type Instance } from "@arriero/core";
 import {
   ActionIcon,
   AppShell,
@@ -211,7 +211,7 @@ export function App() {
               aria-label="Toggle navigation"
             />
             <Title className="app-header__title" order={3}>
-              llama-manager
+              arriero
             </Title>
             <Badge variant="light">local</Badge>
           </Group>

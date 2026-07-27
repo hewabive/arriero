@@ -6,7 +6,7 @@ import {
   type InstanceKind,
   type InstanceMemoryDraw,
   type RpcWorkerRef,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import { admitInstanceDraw } from "../resources/ledger.js";

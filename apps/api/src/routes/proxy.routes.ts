@@ -4,7 +4,7 @@ import {
   ApiProxyServeRequestSchema,
   ApiProxySourceCreateSchema,
   ApiProxySourceUpdateSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import { listInstances } from "../instances/repository.js";

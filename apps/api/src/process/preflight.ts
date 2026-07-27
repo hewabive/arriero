@@ -8,7 +8,7 @@ import {
   type ProcessPreflightResult,
   type ResourceAdmission,
   type SystemAccelerator,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname } from "node:path";

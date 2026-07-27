@@ -1,7 +1,7 @@
 import type {
   ApiProxyTargetRecord,
   ApiProxyTargetRuntime,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Box,

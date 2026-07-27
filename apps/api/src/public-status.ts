@@ -1,4 +1,4 @@
-import type { PublicProxyModel, PublicStatus } from "@llama-manager/core";
+import type { PublicProxyModel, PublicStatus } from "@arriero/core";
 
 import { config } from "./config.js";
 import { apiProxyInflight } from "./proxy/inflight.js";

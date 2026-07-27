@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import type { ModelPresetEntry, ModelPresetFile } from "@llama-manager/core";
+import type { ModelPresetEntry, ModelPresetFile } from "@arriero/core";
 
 import { parseModelPresetIni, renderModelPresetFile } from "./ini.js";
 

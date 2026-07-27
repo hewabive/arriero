@@ -1,6 +1,6 @@
 # Resource management
 
-`llama-manager` schedules models onto scarce hardware. Resources split into **two
+`arriero` schedules models onto scarce hardware. Resources split into **two
 orthogonal axes** — conflating them was the original design mistake (the old
 `resourceGroupId` treated "won't fit together" and "only one at a time" as the
 same thing).
@@ -46,7 +46,7 @@ are hand-authored (assisted by the suggested sizes the UI can surface).
 
 ### Ledger
 
-The capacity math is a pure, side-effect-free pair in `@llama-manager/core`
+The capacity math is a pure, side-effect-free pair in `@arriero/core`
 (`buildResourceLedger`, `checkDrawAdmission`) so the manager (preflight) and the
 proxy (eviction planning) share one definition. `apps/api/src/resources/ledger.ts`
 wraps them over the live set of running instances (`starting`/`running` = resident).
@@ -73,7 +73,7 @@ _see_ the full pool occupancy (the ledger sum of every resident instance's
 declared draw) yet may only _evict_ a subset. Occupancy splits into three tiers:
 
 - **Immovable** — a resident instance with no proxy target (router preset,
-  manually started, or a non-llama-manager process). Counts against the budget;
+  manually started, or a non-arriero process). Counts against the budget;
   the proxy never unloads it. If it blocks a request, the proxy waits.
 - **Protected** — a proxy target with `preemptible:false`. The proxy may start
   and route to it, but never evicts it for another request. Counts; also a
@@ -88,7 +88,7 @@ declared draw) yet may only _evict_ a subset. Occupancy splits into three tiers:
 passive manual-start admission (warn/block, moves nothing) and the proxy's active
 planning (evict the preemptible tier).
 
-Truly-external usage (a game, a foreign process — not a llama-manager instance)
+Truly-external usage (a game, a foreign process — not a arriero instance)
 never enters the ledger; the static `reservedBytes` is the only buffer against it
 in v1 (live nvidia-smi subtraction is a v2 concern). When a request cannot fit
 and the obstacle is immovable/protected, it queues and waits rather than 503-ing;

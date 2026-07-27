@@ -1,7 +1,4 @@
-import type {
-  ApiProxyPlanPreview,
-  ApiProxyTargetRecord,
-} from "@llama-manager/core";
+import type { ApiProxyPlanPreview, ApiProxyTargetRecord } from "@arriero/core";
 import { Badge, Button, Group, Paper, Stack, Table, Text } from "@mantine/core";
 import { Activity, Play } from "lucide-react";
 

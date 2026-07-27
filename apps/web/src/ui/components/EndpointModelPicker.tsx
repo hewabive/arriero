@@ -1,4 +1,4 @@
-import type { ApiProxyTargetModelGroup } from "@llama-manager/core";
+import type { ApiProxyTargetModelGroup } from "@arriero/core";
 import { Stack, TextInput } from "@mantine/core";
 
 import {

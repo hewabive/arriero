@@ -10,7 +10,7 @@ import {
   type ApiProxyRouteTo,
   type ApiProxyRouteTraceStep,
   type ApiProxyTextReplacementRule,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { sanitizeClaudeCodeAttribution } from "./attribution.js";
 import { evaluateApiProxyCondition } from "./condition.js";

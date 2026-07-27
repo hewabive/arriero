@@ -344,7 +344,7 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
   modelNotFound: (modelId) => ({
     status: 404,
     body: anthropicError({
-      message: `Model ${modelId} is not published by llama-manager proxy.`,
+      message: `Model ${modelId} is not published by arriero proxy.`,
       type: "not_found_error",
     }),
   }),
@@ -359,7 +359,7 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
   notImplemented: (request) => ({
     status: 501,
     body: anthropicError({
-      message: `Model ${request.modelId} is published by llama-manager, but ${endpointLabel(
+      message: `Model ${request.modelId} is published by arriero, but ${endpointLabel(
         request.operation,
       )} forwarding is not implemented yet.`,
       type: "api_error",

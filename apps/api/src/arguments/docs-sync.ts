@@ -1,7 +1,7 @@
 import {
   LlamaArgumentDocsSyncReportSchema,
   type LlamaArgumentDocsSyncReport,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { getLlamaSourceStatus } from "../llama/source-repository.js";
 import { argumentDocsDirectory } from "./docs.js";

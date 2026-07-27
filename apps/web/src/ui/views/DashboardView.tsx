@@ -1,4 +1,4 @@
-import type { Instance, InstanceHealthSummary } from "@llama-manager/core";
+import type { Instance, InstanceHealthSummary } from "@arriero/core";
 import { Group, Paper, SimpleGrid, Stack, Text } from "@mantine/core";
 
 import { InstanceHealthBadge } from "../components/InstanceHealthBadge";

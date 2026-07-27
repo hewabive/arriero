@@ -3,7 +3,7 @@ import {
   type ApiProxyInflightInterruptResult,
   type ApiProxyInflightStopResult,
   type ApiProxyTargetRuntime,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Badge,

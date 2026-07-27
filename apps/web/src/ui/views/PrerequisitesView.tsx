@@ -4,7 +4,7 @@ import type {
   PrerequisiteHost,
   PrerequisiteStatus,
   PrerequisiteSummary,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Accordion,
   ActionIcon,

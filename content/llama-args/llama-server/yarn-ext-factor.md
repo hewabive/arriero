@@ -38,7 +38,7 @@ YaRN: extrapolation mix factor (default: -1.00, 0.0 = full interpolation)
 - Основное имя: `--yarn-ext-factor`
 - Алиасы: `--yarn-ext-factor`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: число, передаваемое в `std::stof`
 - Переменная окружения: `LLAMA_ARG_YARN_EXT_FACTOR`
 - Поле в `common_params`: `yarn_ext_factor`

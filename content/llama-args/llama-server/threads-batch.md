@@ -39,7 +39,7 @@ number of threads to use during batch and prompt processing (default: same as --
 - Основное имя: `--threads-batch`
 - Алиасы: `-tb`, `--threads-batch`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

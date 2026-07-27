@@ -23,15 +23,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@arriero/anthropic-openai-bridge':
+        specifier: workspace:*
+        version: link:../../packages/anthropic-openai-bridge
+      '@arriero/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@hono/node-server':
         specifier: ^1.19.7
         version: 1.19.14(hono@4.12.23)
-      '@llama-manager/anthropic-openai-bridge':
-        specifier: workspace:*
-        version: link:../../packages/anthropic-openai-bridge
-      '@llama-manager/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       better-sqlite3:
         specifier: ^12.5.0
         version: 12.10.0
@@ -69,7 +69,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@llama-manager/core':
+      '@arriero/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@mantine/core':

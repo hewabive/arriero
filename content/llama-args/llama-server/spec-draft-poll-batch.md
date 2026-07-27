@@ -36,7 +36,7 @@ Use polling to wait for draft model work (default: --poll-draft)
 - Основное имя: `--spec-draft-poll-batch`
 - Алиасы: `--poll-batch-draft`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `boolean`
+- Тип значения в arriero: `boolean`
 - Подсказка формата: `<0|1>`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

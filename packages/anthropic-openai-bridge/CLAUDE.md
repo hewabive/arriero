@@ -1,10 +1,10 @@
-# CLAUDE.md — @llama-manager/anthropic-openai-bridge
+# CLAUDE.md — @arriero/anthropic-openai-bridge
 
 Sans-IO translation between the Anthropic Messages API and OpenAI Chat Completions (request, non-stream response, SSE stream re-emission, errors). Built for eventual extraction/publication as a standalone npm package — the boundaries below are the whole point of its existence as a separate workspace package.
 
 ## Hard boundaries
 
-- **Zero runtime dependencies. No imports from other workspace packages** (including `@llama-manager/core`) and no I/O: no fetch, no streams, no timers, no randomness — strings and plain objects in, typed events/objects out. If a change needs any of these, it belongs in the consumer (`apps/api/src/proxy/translation.ts`), not here.
+- **Zero runtime dependencies. No imports from other workspace packages** (including `@arriero/core`) and no I/O: no fetch, no streams, no timers, no randomness — strings and plain objects in, typed events/objects out. If a change needs any of these, it belongs in the consumer (`apps/api/src/proxy/translation.ts`), not here.
 - **Dialect specifics enter only through options** (`reasoningField`, `thinkingBudgetField`, `namedToolChoice`, `toolResultImages`, `passthroughKeys`, `messageIdPrefix`). Never hardcode llama.cpp behavior; the llama-server preset lives in the consumer.
 - **Inputs are untrusted JSON** — parse defensively via `json.ts` guards, never throw on malformed input. Requests degrade with `warnings[]`; the stream emitter skips unparseable frames.
 
@@ -24,6 +24,6 @@ Sans-IO translation between the Anthropic Messages API and OpenAI Chat Completio
 
 ## Commands
 
-`pnpm --filter @llama-manager/anthropic-openai-bridge build|check|test` (Node test runner via tsx; tests assert exact event sequences). Consumers import the built `dist` — rebuild before downstream typechecks see changes.
+`pnpm --filter @arriero/anthropic-openai-bridge build|check|test` (Node test runner via tsx; tests assert exact event sequences). Consumers import the built `dist` — rebuild before downstream typechecks see changes.
 
 Mapping rationale and intentional spec deviations: `docs/ANTHROPIC_OPENAI_BRIDGE.md` at the repo root.

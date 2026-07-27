@@ -37,7 +37,7 @@ RoPE frequency scaling factor, expands context by a factor of 1/N
 - Основное имя: `--rope-freq-scale`
 - Алиасы: `--rope-freq-scale`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: число, передаваемое в `std::stof`
 - Переменная окружения: `LLAMA_ARG_ROPE_FREQ_SCALE`
 - Поле в `common_params`: `rope_freq_scale`

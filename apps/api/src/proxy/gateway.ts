@@ -1,7 +1,4 @@
-import type {
-  ApiProxyPlanPreview,
-  ApiProxyTargetRecord,
-} from "@llama-manager/core";
+import type { ApiProxyPlanPreview, ApiProxyTargetRecord } from "@arriero/core";
 
 import type {
   ApiProxyProtocolAdapter,
@@ -43,7 +40,7 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
         status: 503,
         code: "llama_manager_proxy_model_unbound",
         param: "model",
-        message: `Model ${input.request.modelId} is published by llama-manager, but it is not bound to a proxy target.`,
+        message: `Model ${input.request.modelId} is published by arriero, but it is not bound to a proxy target.`,
       }),
     };
   }

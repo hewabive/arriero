@@ -1,4 +1,4 @@
-import { ApiProxySchedulerPlanRequestSchema } from "@llama-manager/core";
+import { ApiProxySchedulerPlanRequestSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 

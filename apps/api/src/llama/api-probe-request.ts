@@ -1,4 +1,4 @@
-import type { ApiProbeRequest, Instance } from "@llama-manager/core";
+import type { ApiProbeRequest, Instance } from "@arriero/core";
 
 import {
   compactOptionalString,

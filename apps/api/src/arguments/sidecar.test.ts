@@ -230,7 +230,7 @@ test("vLLM catalog falls back when runtime help cannot initialize", () => {
     });
 
     assert.deepEqual(catalog.source.command, [
-      "llama-manager",
+      "arriero",
       "vllm-fallback-catalog",
     ]);
     assert.ok(catalog.source.hash.startsWith("fallback:"));
@@ -264,7 +264,7 @@ test("SGLang catalog falls back when runtime help cannot initialize", () => {
     });
 
     assert.deepEqual(catalog.source.command, [
-      "llama-manager",
+      "arriero",
       "sglang-fallback-catalog",
     ]);
     assert.ok(catalog.source.hash.startsWith("fallback:"));

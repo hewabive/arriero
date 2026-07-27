@@ -6,7 +6,7 @@ import type {
   ApiProxySchedulerAction,
   ApiProxyTargetRecord,
   Instance,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { executeApiProxyPublicMvpPlan } from "./public-executor.js";
 

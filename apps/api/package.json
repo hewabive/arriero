@@ -1,5 +1,5 @@
 {
-  "name": "@llama-manager/api",
+  "name": "@arriero/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.7",
-    "@llama-manager/anthropic-openai-bridge": "workspace:*",
-    "@llama-manager/core": "workspace:*",
+    "@arriero/anthropic-openai-bridge": "workspace:*",
+    "@arriero/core": "workspace:*",
     "better-sqlite3": "^12.5.0",
     "drizzle-orm": "^0.45.0",
     "hono": "^4.10.7",

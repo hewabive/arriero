@@ -2,7 +2,7 @@ import type {
   FileSystemEntry,
   FileSystemListResult,
   FileSystemRoot,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   accessSync,
   constants,

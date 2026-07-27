@@ -45,7 +45,7 @@ see https://github.com/ggml-org/llama.cpp/issues/1437
 - Основное имя: `--numa`
 - Алиасы: `--numa`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата: `TYPE`
 - Допустимые значения: `distribute`, `isolate`, `numactl`
 - Переменные окружения: `LLAMA_ARG_NUMA`
@@ -61,7 +61,7 @@ see https://github.com/ggml-org/llama.cpp/issues/1437
 - `isolate` ограничивает потоки CPU node, на котором стартовало выполнение.
 - `numactl` использует CPU map, уже заданную внешним `numactl`/cpuset.
 
-Пустая строка в обработчике также выбирает `distribute`, но в CLI llama-manager лучше задавать явное значение. Любое другое значение вызывает `invalid value`.
+Пустая строка в обработчике также выбирает `distribute`, но в CLI arriero лучше задавать явное значение. Любое другое значение вызывает `invalid value`.
 
 ## Когда использовать
 

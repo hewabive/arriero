@@ -1,4 +1,4 @@
-import type { NumaNode } from "@llama-manager/core";
+import type { NumaNode } from "@arriero/core";
 import { readFileSync, readdirSync } from "node:fs";
 
 export function parseCpuListCount(cpulist: string): number {

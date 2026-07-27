@@ -1,4 +1,4 @@
-import type { Instance, RpcWorkerCandidate } from "@llama-manager/core";
+import type { Instance, RpcWorkerCandidate } from "@arriero/core";
 import { hostname } from "node:os";
 
 import { listInstances } from "../instances/repository.js";

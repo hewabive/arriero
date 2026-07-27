@@ -11,7 +11,7 @@ import type {
   LlamaSlotActionRequest,
   LlamaSlotActionResult,
   LlamaProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { activeNodeScopedPath, apiBase } from "./base.js";
 import { formatApiErrorValue, nodeRequest as request } from "./http.js";

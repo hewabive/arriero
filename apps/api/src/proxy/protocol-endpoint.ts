@@ -3,7 +3,7 @@ import {
   type ApiProxyServeRequest,
   type ApiProxyTargetRecord,
   type FleetNode,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Context } from "hono";
 
 import { getInstance, listInstances } from "../instances/repository.js";

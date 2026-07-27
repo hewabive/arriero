@@ -4,7 +4,7 @@ import {
   type InstanceKind,
   type ProcessEvent,
   type RuntimeState,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { spawn, type ChildProcess } from "node:child_process";
 import {
   appendFileSync,
@@ -175,7 +175,7 @@ export class ProcessSupervisor extends EventEmitter {
     filteredStream.on("error", () => undefined);
     filteredStream.write(
       [
-        `# llama-manager filtered log for ${instance.name}`,
+        `# arriero filtered log for ${instance.name}`,
         config.logs.filterRoutineProbeRequests
           ? "# routine diagnostic request lines and their router side-effect noise are omitted here"
           : "# probe request filtering is disabled; this log matches raw output",
@@ -186,7 +186,7 @@ export class ProcessSupervisor extends EventEmitter {
     appendFileSync(
       rawLogPath,
       [
-        `# llama-manager raw log for ${instance.name}`,
+        `# arriero raw log for ${instance.name}`,
         `# filtered log: ${logPath}`,
         "",
       ].join("\n"),

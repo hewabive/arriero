@@ -29,7 +29,7 @@ function seedModel(modelId: string, targetId: string | null) {
     modelId,
     visible: true,
     enabled: true,
-    ownedBy: "llama-manager",
+    ownedBy: "arriero",
     targetId,
     routeTo: null,
     description: null,

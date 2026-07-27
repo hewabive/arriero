@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { PrerequisiteCheck } from "@llama-manager/core";
+import type { PrerequisiteCheck } from "@arriero/core";
 
 import { buildInstallPlan, summarizeChecks } from "./install-plan.js";
 

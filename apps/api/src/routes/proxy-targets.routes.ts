@@ -8,7 +8,7 @@ import {
   ApiProxyTargetUpdateSchema,
   type ApiProxyPipelineRecord,
   type ApiProxyRouteTo,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import { listInstances } from "../instances/repository.js";
@@ -49,7 +49,7 @@ function validateApiProxyTargetRefs(input: {
     return "proxy target endpoint not found";
   }
   if (endpoint.kind === "manager-proxy") {
-    return "proxy target cannot point to llama-manager proxy itself";
+    return "proxy target cannot point to arriero proxy itself";
   }
   return null;
 }

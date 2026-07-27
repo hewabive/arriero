@@ -1,8 +1,4 @@
-import {
-  InstanceSchema,
-  type FleetNode,
-  type Instance,
-} from "@llama-manager/core";
+import { InstanceSchema, type FleetNode, type Instance } from "@arriero/core";
 
 import { fetchNodeJson } from "./remote.js";
 import { listNodes } from "./repository.js";

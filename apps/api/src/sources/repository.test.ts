@@ -155,7 +155,9 @@ test("an internal directory is not allowed to adopt the manager parent repositor
   assert.equal(status.isGitRepo, false);
   assert.equal(status.valid, false);
   assert.equal(status.state, "invalid");
-  assert.match(status.error ?? "", /Git repository root is .*llama-manager/);
+  assert.ok(
+    (status.error ?? "").includes(`Git repository root is ${config.rootDir}`),
+  );
 });
 
 test("clone publishes a validated managed checkout and persists a fork origin", async () => {

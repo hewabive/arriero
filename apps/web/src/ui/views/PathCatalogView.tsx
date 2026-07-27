@@ -6,7 +6,7 @@ import {
   type PathCatalogEntry,
   type PathCatalogKind,
   type PathCatalogUpdate,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Badge,

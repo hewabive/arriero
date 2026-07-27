@@ -1,4 +1,4 @@
-import type { InstanceMemoryPlacement } from "@llama-manager/core";
+import type { InstanceMemoryPlacement } from "@arriero/core";
 
 export function emptyMemoryPlacement(
   label: string,

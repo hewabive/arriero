@@ -1,6 +1,6 @@
 # Engine adapters
 
-llama-manager uses a **static per-kind engine descriptor** in
+arriero uses a **static per-kind engine descriptor** in
 `packages/core/src/engine-descriptor.ts`. llama-server, rpc-worker, vLLM, and
 KTransformers are creatable. KTransformers uses a narrow Linux x86-64/NVIDIA
 release profile and a mandatory real-host qualification gate.

@@ -1,4 +1,4 @@
-import type { NetworkInterfaceAddress } from "@llama-manager/core";
+import type { NetworkInterfaceAddress } from "@arriero/core";
 import { networkInterfaces } from "node:os";
 
 export function listNetworkInterfaceAddresses(): NetworkInterfaceAddress[] {

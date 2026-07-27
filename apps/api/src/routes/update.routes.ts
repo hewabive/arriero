@@ -1,4 +1,4 @@
-import { UpdateJobStartSchema } from "@llama-manager/core";
+import { UpdateJobStartSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import { updateFleet } from "../update/fleet.js";

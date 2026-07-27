@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ApiProxyServeRequestSchema } from "@llama-manager/core";
+import { ApiProxyServeRequestSchema } from "@arriero/core";
 
 import { instanceEndpointId } from "./endpoints.js";
 import { ephemeralTarget } from "./serve-pinned.js";

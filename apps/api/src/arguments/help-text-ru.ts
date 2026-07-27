@@ -1,4 +1,4 @@
-import type { ArgumentOption } from "@llama-manager/core";
+import type { ArgumentOption } from "@arriero/core";
 
 export const categoryNamesRu: Record<string, string> = {
   "common params": "Общие параметры",

@@ -2,7 +2,7 @@ import type {
   ExternalLlamaProcess,
   ExternalLlamaProcessesResult,
   ExternalProcessKillResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -176,7 +176,7 @@ export async function killExternalLlamaProcess(
   force: boolean,
 ): Promise<ExternalProcessKillResult> {
   if (pid === process.pid) {
-    throw new Error("Refusing to terminate the llama-manager API process");
+    throw new Error("Refusing to terminate the arriero API process");
   }
 
   const processes = await listExternalLlamaProcesses();
@@ -189,9 +189,7 @@ export async function killExternalLlamaProcess(
     throw new Error(`llama-server process not found: pid=${pid}`);
   }
   if (target.managedInstanceId) {
-    throw new Error(
-      "Use instance controls for processes known to llama-manager",
-    );
+    throw new Error("Use instance controls for processes known to arriero");
   }
 
   const signal = force ? "SIGKILL" : "SIGTERM";

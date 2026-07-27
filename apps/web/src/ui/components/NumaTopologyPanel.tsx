@@ -1,4 +1,4 @@
-import type { NumaNode, SystemResources } from "@llama-manager/core";
+import type { NumaNode, SystemResources } from "@arriero/core";
 import {
   Badge,
   Group,

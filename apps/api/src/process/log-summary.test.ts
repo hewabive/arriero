@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import type { RuntimeState } from "@llama-manager/core";
+import type { RuntimeState } from "@arriero/core";
 
 import { summarizeInstanceLog } from "./log-summary.js";
 
@@ -22,7 +22,7 @@ function runtime(logPath: string): RuntimeState {
 }
 
 test("summarizeInstanceLog ignores /slots request IPs when parsing slot count", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -54,7 +54,7 @@ test("summarizeInstanceLog ignores /slots request IPs when parsing slot count", 
 });
 
 test("summarizeInstanceLog reports starting when the listener is up but no model load has begun", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -79,7 +79,7 @@ test("summarizeInstanceLog reports starting when the listener is up but no model
 });
 
 test("summarizeInstanceLog estimates tensor loading progress from loader dots", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -111,7 +111,7 @@ test("summarizeInstanceLog estimates tensor loading progress from loader dots", 
 });
 
 test("summarizeInstanceLog reports staged loading when tensor dots are absent", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -138,7 +138,7 @@ test("summarizeInstanceLog reports staged loading when tensor dots are absent", 
 });
 
 test("summarizeInstanceLog handles load_tensors without progress dots", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -164,7 +164,7 @@ test("summarizeInstanceLog handles load_tensors without progress dots", async ()
 });
 
 test("summarizeInstanceLog parses per-device memory layout from buffer lines", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -216,7 +216,7 @@ test("summarizeInstanceLog parses per-device memory layout from buffer lines", a
 });
 
 test("summarizeInstanceLog parses projected host memory when exact buffers are absent", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -245,7 +245,7 @@ test("summarizeInstanceLog parses projected host memory when exact buffers are a
 });
 
 test("summarizeInstanceLog reports warmup as late loading stage", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -272,7 +272,7 @@ test("summarizeInstanceLog reports warmup as late loading stage", async () => {
 });
 
 test("summarizeInstanceLog ignores transient router connection errors before child readiness", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -303,7 +303,7 @@ test("summarizeInstanceLog ignores transient router connection errors before chi
 });
 
 test("summarizeInstanceLog keeps router connection errors after readiness", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -328,7 +328,7 @@ test("summarizeInstanceLog keeps router connection errors after readiness", asyn
 });
 
 test("summarizeInstanceLog ignores per-request context size overflow errors", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -354,7 +354,7 @@ test("summarizeInstanceLog ignores per-request context size overflow errors", as
 });
 
 test("summarizeInstanceLog ignores chat requests rejected by an embedding-only context", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -380,7 +380,7 @@ test("summarizeInstanceLog ignores chat requests rejected by an embedding-only c
 });
 
 test("summarizeInstanceLog ignores capability probe rejection exceptions", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -410,7 +410,7 @@ test("summarizeInstanceLog ignores capability probe rejection exceptions", async
 });
 
 test("summarizeInstanceLog keeps genuine server_error exceptions", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -434,7 +434,7 @@ test("summarizeInstanceLog keeps genuine server_error exceptions", async () => {
 });
 
 test("summarizeInstanceLog ignores the multimodal capability probe failure", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -459,7 +459,7 @@ test("summarizeInstanceLog ignores the multimodal capability probe failure", asy
 });
 
 test("summarizeInstanceLog ignores the CUDA init failure when devices are disabled", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(
@@ -485,7 +485,7 @@ test("summarizeInstanceLog ignores the CUDA init failure when devices are disabl
 });
 
 test("summarizeInstanceLog keeps the CUDA init failure when devices are not disabled", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-log-summary-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");
   try {
     writeFileSync(

@@ -1,5 +1,5 @@
 {
-  "name": "@llama-manager/anthropic-openai-bridge",
+  "name": "@arriero/anthropic-openai-bridge",
   "version": "0.1.0",
   "private": true,
   "type": "module",

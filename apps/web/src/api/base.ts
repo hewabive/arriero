@@ -22,7 +22,7 @@ export function nodeScopedPath(
 }
 
 export const SELF_NODE_ID = "self";
-const ACTIVE_NODE_STORAGE_KEY = "llama-manager-active-node";
+const ACTIVE_NODE_STORAGE_KEY = "arriero-active-node";
 
 function readStoredActiveNode(): string {
   if (typeof window === "undefined") return SELF_NODE_ID;

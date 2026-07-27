@@ -2,7 +2,7 @@ import type {
   LlamaArgumentDocIndex,
   LlamaArgumentEngineeringDoc,
   ArgumentOption,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   closeSync,
   existsSync,

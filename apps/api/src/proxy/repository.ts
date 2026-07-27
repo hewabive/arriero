@@ -25,7 +25,7 @@ import {
   type ApiProxyTargetCreate,
   type ApiProxyTargetRecord,
   type ApiProxyTargetUpdate,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { newId } from "../utils/id.js";
 import { readCollection, writeCollection } from "./config-files.js";
 import { deleteApiProxyRuntimeMetadata } from "./runtime-metadata-store.js";

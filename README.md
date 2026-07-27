@@ -1,4 +1,4 @@
-# llama-manager
+# arriero
 
 Local web control plane for `llama.cpp`, `llama-server`, vLLM, and
 KTransformers (SGLang-KT).
@@ -39,7 +39,7 @@ without a shell), install the supervisor unit so the manager can self-restart:
 ./scripts/install-service.sh
 ```
 
-This installs `deploy/llama-manager.service` as a `systemd --user` unit
+This installs `deploy/arriero.service` as a `systemd --user` unit
 (`Restart=always`, `KillMode=process` so managed `llama-server` children survive
 the restart) and enables linger. The script needs no sudo; only enabling linger
 may need a one-time `sudo loginctl enable-linger $USER` on a headless host (it
@@ -53,8 +53,8 @@ installation (`--disable-linger` to also turn linger off). See
 ## Portable configuration repository
 
 The portable settings root (`data/config` by default, overridden with
-`LLAMA_MANAGER_CONFIG_DIR`) can be managed as a standalone Git repository from
-the **Configuration Git** page. On a new server, start llama-manager with a
+`ARRIERO_CONFIG_DIR`) can be managed as a standalone Git repository from
+the **Configuration Git** page. On a new server, start arriero with a
 local `.env` containing the admin password/hash and layout overrides, then use
 the page to clone the configuration origin. Clone is validated in a staging
 directory, the previous bootstrap directory is retained as a backup, and the
@@ -72,7 +72,7 @@ On a fresh node, open **Source Sync** to clone llama.cpp into the managed
 `runtime/sources/llama.cpp` checkout. The official origin is prefilled and can
 be replaced with a fork before cloning; changing it later updates both portable
 settings and the checkout's `origin` remote. Managed source storage can be moved
-with `LLAMA_MANAGER_SOURCES_DIR`.
+with `ARRIERO_SOURCES_DIR`.
 
 Repository lifecycle is separate from integration drift checks, so a missing or
 invalid checkout is reported as unavailable rather than in sync. Existing
@@ -86,7 +86,7 @@ Managed `llama-server` launches write two log files:
 - `runtime/logs/<instance>-<timestamp>.log`: filtered working log used by the app. Routine local GET/HEAD diagnostics such as `/health`, `/props`, `/slots` and `/v1/models` are omitted to keep agent-readable logs compact.
 - `runtime/logs/<instance>-<timestamp>.raw.log`: full stdout/stderr stream with no filtering.
 
-Set `LLAMA_MANAGER_FILTER_PROBE_LOGS=false` to disable filtering of the working log.
+Set `ARRIERO_FILTER_PROBE_LOGS=false` to disable filtering of the working log.
 
 ## Shutdown
 
@@ -94,8 +94,8 @@ Pressing `Ctrl+C` in the `pnpm dev` terminal sends `SIGINT` to the API. The API 
 
 Relevant environment variables:
 
-- `LLAMA_MANAGER_STOP_MANAGED_ON_EXIT=false`: leave supervised `llama-server` processes running when the API exits; they will be reconciled as stale on the next API start.
-- `LLAMA_MANAGER_SHUTDOWN_TIMEOUT_MS`: graceful stop timeout for managed processes, default `10000`.
+- `ARRIERO_STOP_MANAGED_ON_EXIT=false`: leave supervised `llama-server` processes running when the API exits; they will be reconciled as stale on the next API start.
+- `ARRIERO_SHUTDOWN_TIMEOUT_MS`: graceful stop timeout for managed processes, default `10000`.
 
 ## NUMA placement (multi-socket hosts)
 
@@ -108,7 +108,7 @@ and which GPU hangs off which node.
   v2 cpuset, so it needs a one-time `cpuset` delegation, applied as root:
 
   ```bash
-  sudo scripts/setup-numa-cgroup-delegation.sh <user-that-runs-llama-manager>
+  sudo scripts/setup-numa-cgroup-delegation.sh <user-that-runs-arriero>
   ```
 
   The script writes the `user@.service` `Delegate=cpu cpuset memory pids`
@@ -135,13 +135,13 @@ The default route is `/#/status`: a public, redacted diagnostics page. It shows 
 Admin routes remain open for local development unless a password is configured:
 
 ```bash
-LLAMA_MANAGER_ADMIN_PASSWORD='change-me' pnpm dev
+ARRIERO_ADMIN_PASSWORD='change-me' pnpm dev
 ```
 
 Relevant API environment variables:
 
-- `LLAMA_MANAGER_ADMIN_PASSWORD`: enables admin login with a plain environment password.
-- `LLAMA_MANAGER_ADMIN_PASSWORD_HASH`: enables admin login with a `scrypt$...` password hash.
-- `LLAMA_MANAGER_AUTH_SECRET`: signs admin session cookies; defaults to the configured password/hash when omitted.
-- `LLAMA_MANAGER_SECURE_COOKIE=true`: mark the session cookie secure when served behind HTTPS.
-- `LLAMA_MANAGER_SESSION_TTL_SECONDS`: admin session lifetime, default `43200`.
+- `ARRIERO_ADMIN_PASSWORD`: enables admin login with a plain environment password.
+- `ARRIERO_ADMIN_PASSWORD_HASH`: enables admin login with a `scrypt$...` password hash.
+- `ARRIERO_AUTH_SECRET`: signs admin session cookies; defaults to the configured password/hash when omitted.
+- `ARRIERO_SECURE_COOKIE=true`: mark the session cookie secure when served behind HTTPS.
+- `ARRIERO_SESSION_TTL_SECONDS`: admin session lifetime, default `43200`.

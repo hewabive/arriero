@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-`--version` выводит сведения о сборке `llama-server` и сразу завершает процесс. Это правильный способ проверить, какой commit и build реально запускает service wrapper или llama-manager.
+`--version` выводит сведения о сборке `llama-server` и сразу завершает процесс. Это правильный способ проверить, какой commit и build реально запускает service wrapper или arriero.
 
 ## Оригинальная справка llama.cpp
 
@@ -32,7 +32,7 @@ show version and build info
 - Основное имя: `--version`
 - Алиасы: `--version`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Переменные окружения: нет
 - Этап применения: обработчик CLI вызывает вывод и `exit(0)`
 
@@ -74,7 +74,7 @@ built with <compiler> for <target>
 ## Типовые проблемы и диагностика
 
 - Управляемый instance сразу завершился с кодом 0: проверьте argv на наличие `--version`.
-- Нужно понять, какой binary используется llama-manager: запустите тот же путь к бинарнику с `--version` вне постоянного instance config.
+- Нужно понять, какой binary используется arriero: запустите тот же путь к бинарнику с `--version` вне постоянного instance config.
 
 ## Примеры
 

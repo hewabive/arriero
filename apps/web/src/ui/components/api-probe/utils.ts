@@ -2,7 +2,7 @@ import type {
   ApiProbeKind,
   ApiProbeResult,
   EndpointProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import type { ModelOption } from "./types";
 

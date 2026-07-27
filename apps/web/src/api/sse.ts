@@ -1,4 +1,4 @@
-import type { ApiProbeRequest } from "@llama-manager/core";
+import type { ApiProbeRequest } from "@arriero/core";
 
 export type ApiProbeStreamMeta = {
   kind: ApiProbeRequest["kind"];

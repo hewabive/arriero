@@ -1,4 +1,4 @@
-import { engineDescriptor, INSTANCE_KINDS } from "@llama-manager/core";
+import { engineDescriptor, INSTANCE_KINDS } from "@arriero/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

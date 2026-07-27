@@ -1,4 +1,4 @@
-import type { EndpointProbe } from "@llama-manager/core";
+import type { EndpointProbe } from "@arriero/core";
 
 export function llamaEndpointErrorMessage(probe: EndpointProbe): string {
   const body = probe.body;

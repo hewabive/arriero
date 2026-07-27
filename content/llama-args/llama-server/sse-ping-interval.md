@@ -32,7 +32,7 @@ server SSE ping interval in seconds (-1 = disabled, default: 30)
 
 - Основное имя: `--sse-ping-interval`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата из `--help`: `N`
 - Переменная окружения: `LLAMA_ARG_SSE_PING_INTERVAL`
 - Поле в `common_params`: `sse_ping_interval`

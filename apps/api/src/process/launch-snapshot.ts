@@ -5,7 +5,7 @@ import {
   type InstanceArgs,
   type InstanceNuma,
   type RpcWorkerRef,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { dirname, resolve } from "node:path";
 
 import { config } from "../config.js";

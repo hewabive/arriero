@@ -7,7 +7,7 @@ import {
   type BuildJobStatus,
   type BuildSettings,
   type PathCatalogEntry,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { basename, resolve } from "node:path";
 import { newId } from "../utils/id.js";
 

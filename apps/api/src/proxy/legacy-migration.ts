@@ -4,7 +4,7 @@ import {
   ApiProxyRouteToSchema,
   ApiProxyTargetRecordSchema,
   upgradeLegacyApiProxyPipeline,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 

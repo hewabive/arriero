@@ -4,7 +4,7 @@ import type {
   BuildJobStep,
   BuildJobStepName,
   BuildSettings,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, mkdirSync, rmSync, type WriteStream } from "node:fs";
 import { delimiter, dirname, parse, resolve, sep } from "node:path";
 import { homedir } from "node:os";
@@ -410,7 +410,7 @@ export function writeHeader(
   job: BuildJob,
   env: NodeJS.ProcessEnv,
 ) {
-  stream.write(`# llama-manager build job ${job.id}\n`);
+  stream.write(`# arriero build job ${job.id}\n`);
   stream.write(`# started ${job.startedAt}\n`);
   stream.write(`# repo ${job.settings.repoPath}\n`);
   stream.write(`# build ${job.settings.buildDir}\n`);

@@ -10,7 +10,7 @@ import {
   ggmlTypeName,
   ggufModelRole,
   ggufPoolingTypeLabel,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   ggufFileTypeLabel,
@@ -72,7 +72,7 @@ function tensorInfo(name: string, dims: number[], typeId: number) {
 }
 
 test("readGgufTensorTable parses the tensor section and sizes tensors", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-gguf-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-"));
   const path = join(dir, "synthetic.gguf");
   try {
     const file = Buffer.concat([
@@ -118,7 +118,7 @@ function shardFile(tensors: Buffer[]) {
 }
 
 test("readGgufModelTensorTable sums every shard of a split GGUF", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-gguf-split-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-split-"));
   const shard1 = join(dir, "model-00001-of-00002.gguf");
   const shard2 = join(dir, "model-00002-of-00002.gguf");
   try {
@@ -154,7 +154,7 @@ test("readGgufModelTensorTable sums every shard of a split GGUF", () => {
 });
 
 test("resolveGgufShardPaths returns the lone path for non-split models", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-gguf-plain-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-plain-"));
   const path = join(dir, "plain.gguf");
   try {
     writeFileSync(
@@ -211,7 +211,7 @@ function metadataFile(kvs: Buffer[], tensors: Buffer[] = []) {
 }
 
 test("readGgufMetadata captures embedding role signals", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-gguf-meta-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-meta-"));
   const path = join(dir, "embedding.gguf");
   try {
     writeFileSync(
@@ -240,7 +240,7 @@ test("readGgufMetadata captures embedding role signals", () => {
 });
 
 test("readGgufMetadata detects reranker via classifier head tensor", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-gguf-rerank-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-rerank-"));
   const path = join(dir, "reranker.gguf");
   try {
     writeFileSync(
@@ -271,7 +271,7 @@ test("readGgufMetadata detects reranker via classifier head tensor", () => {
 });
 
 test("readGgufMetadata leaves generative models without pooling signals", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-gguf-gen-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-gen-"));
   const path = join(dir, "generative.gguf");
   try {
     writeFileSync(
@@ -352,7 +352,7 @@ test("ggufModelRole classifies pooling and attention combinations", () => {
 });
 
 test("readGgufMetadata captures provenance, sampling and imatrix", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-gguf-prov-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-prov-"));
   const path = join(dir, "provenance.gguf");
   try {
     writeFileSync(

@@ -9,7 +9,7 @@ import {
 
 const localAddresses = new Set(["127.0.0.1", "82.38.68.56"]);
 
-test("detects routine local llama-manager probe request log lines", () => {
+test("detects routine local arriero probe request log lines", () => {
   assert.equal(
     isRoutineManagerProbeRequestLogLine(
       "srv  log_server_r: done request: GET /slots 82.38.68.56 200",

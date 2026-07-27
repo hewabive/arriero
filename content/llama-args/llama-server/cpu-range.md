@@ -37,7 +37,7 @@ range of CPUs for affinity. Complements --cpu-mask
 - Основное имя: `--cpu-range`
 - Алиасы: `-Cr`, `--cpu-range`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата: `lo-hi`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

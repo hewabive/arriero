@@ -39,7 +39,7 @@ keep all Mixture of Experts (MoE) weights in the CPU
 - Основное имя: `--cpu-moe`
 - Алиасы: `-cmoe`, `--cpu-moe`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Переменная окружения: `LLAMA_ARG_CPU_MOE`
 - Поле в `common_params`: `tensor_buft_overrides`
 - Этап применения: парсинг CLI/env, загрузка модели

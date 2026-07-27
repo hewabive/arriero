@@ -38,7 +38,7 @@ whether to use multimodal projector file (if available), useful when using -hf (
 - Положительная форма: `--mmproj-auto`
 - Отрицательные формы: `--no-mmproj`, `--no-mmproj-auto`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Переменные окружения: `LLAMA_ARG_MMPROJ_AUTO`
 - Значение по умолчанию: enabled
 - Внутреннее поле: `common_params.no_mmproj` с инверсной логикой

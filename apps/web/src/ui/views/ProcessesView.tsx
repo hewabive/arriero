@@ -1,4 +1,4 @@
-import type { ExternalLlamaProcess } from "@llama-manager/core";
+import type { ExternalLlamaProcess } from "@arriero/core";
 import {
   ActionIcon,
   Alert,

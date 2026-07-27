@@ -3,7 +3,7 @@ import type {
   InstanceBulkActionName,
   ProcessPreflightIssue,
   RuntimeState,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { listInstances } from "../instances/repository.js";
 import { admitInstanceDraw } from "../resources/ledger.js";

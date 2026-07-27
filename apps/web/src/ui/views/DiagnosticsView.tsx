@@ -1,4 +1,4 @@
-import type { Instance, InstanceHealthSummary } from "@llama-manager/core";
+import type { Instance, InstanceHealthSummary } from "@arriero/core";
 import { Stack } from "@mantine/core";
 
 import { InstanceDetails } from "../components/InstanceDetails";

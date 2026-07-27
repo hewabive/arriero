@@ -3,11 +3,8 @@ import type {
   InstanceConfigRecord,
   InstanceCreate,
   InstanceUpdate,
-} from "@llama-manager/core";
-import {
-  engineDescriptor,
-  InstanceConfigRecordSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
+import { engineDescriptor, InstanceConfigRecordSchema } from "@arriero/core";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import {
   deleteProcessRunsForInstance,

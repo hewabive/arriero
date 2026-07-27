@@ -7,10 +7,10 @@ this repository.
 
 ## Bootstrap on a temporary server
 
-1. Clone and build llama-manager.
+1. Clone and build arriero.
 2. Copy `.env.example` to the gitignored `.env`.
-3. Set `LLAMA_MANAGER_ADMIN_PASSWORD_HASH` and
-   `LLAMA_MANAGER_AUTH_SECRET`. Set `LLAMA_MANAGER_CONFIG_DIR` and runtime path
+3. Set `ARRIERO_ADMIN_PASSWORD_HASH` and
+   `ARRIERO_AUTH_SECRET`. Set `ARRIERO_CONFIG_DIR` and runtime path
    overrides when the defaults are unsuitable.
 4. Start the supervised production service.
 5. Open **Configuration Git**, enter the SSH or HTTPS origin, confirm replacing

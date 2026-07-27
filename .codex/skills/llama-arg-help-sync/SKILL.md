@@ -1,6 +1,6 @@
 ---
 name: llama-arg-help-sync
-description: Use when llama-manager reports that the stored llama-server generated help snapshot differs from the configured llama.cpp tools/server/README.md help block, and Engineering help in content/llama-args/llama-server needs to be refreshed.
+description: Use when arriero reports that the stored llama-server generated help snapshot differs from the configured llama.cpp tools/server/README.md help block, and Engineering help in content/llama-args/llama-server needs to be refreshed.
 metadata:
   short-description: Sync llama-server argument Engineering help
 ---
@@ -12,8 +12,8 @@ Follow the full procedure in `docs/ARGUMENT_HELP_WORKFLOW.md` — it is the sing
 In short: review the generated help diff, edit only the affected Engineering help files under `content/llama-args/llama-server/`, then write the new snapshot/hash and validate.
 
 ```bash
-pnpm --filter @llama-manager/api args:docs:source-sync -- --diff
-pnpm --filter @llama-manager/api args:docs:source-sync -- --write
-pnpm --filter @llama-manager/api args:docs:quality
-pnpm --filter @llama-manager/api args:docs:source-sync   # expect "inSync": true
+pnpm --filter @arriero/api args:docs:source-sync -- --diff
+pnpm --filter @arriero/api args:docs:source-sync -- --write
+pnpm --filter @arriero/api args:docs:quality
+pnpm --filter @arriero/api args:docs:source-sync   # expect "inSync": true
 ```

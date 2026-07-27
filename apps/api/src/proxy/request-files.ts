@@ -3,7 +3,7 @@ import {
   ApiProxyTraceFileSchema,
   type ApiProxyRequestFileRecord,
   type ApiProxyTraceFile,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 

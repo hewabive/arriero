@@ -2,7 +2,7 @@ import type {
   ApiProxySchedulerPoolInput,
   InstanceMemoryDraw,
   MemoryPool,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 function drawnDomains(
   draws: InstanceMemoryDraw[],

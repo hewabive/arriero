@@ -4,12 +4,12 @@ set -euo pipefail
 TARGET_USER="${1:-${SUDO_USER:-}}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
-  echo "Run as root: sudo $0 <user-that-runs-llama-manager>" >&2
+  echo "Run as root: sudo $0 <user-that-runs-arriero>" >&2
   exit 1
 fi
 
 if [[ -z "$TARGET_USER" ]]; then
-  echo "Usage: sudo $0 <user-that-runs-llama-manager>" >&2
+  echo "Usage: sudo $0 <user-that-runs-arriero>" >&2
   exit 1
 fi
 
@@ -61,7 +61,7 @@ done
 echo
 if [[ -r "$SUBTREE" ]] && grep -qw cpuset "$SUBTREE"; then
   echo "OK: cpuset is delegated and enabled for $TARGET_USER's child cgroups."
-  echo "llama-manager will report numaEnforcement = cgroup-v2 (no re-login needed)."
+  echo "arriero will report numaEnforcement = cgroup-v2 (no re-login needed)."
 else
   echo "Delegation is written, but cpuset could not be enabled live on the"
   echo "running user manager (cgroup.subtree_control still lacks it)."
@@ -75,6 +75,6 @@ else
 fi
 
 echo
-echo "This assumes llama-manager runs as user $TARGET_USER (user session)."
+echo "This assumes arriero runs as user $TARGET_USER (user session)."
 echo "If it runs as a system service, add Delegate=cpu cpuset memory pids to"
 echo "that unit instead. See docs/NUMA_PINNING.md."

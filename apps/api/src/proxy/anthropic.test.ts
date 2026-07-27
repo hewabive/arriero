@@ -40,7 +40,7 @@ test("anthropicProtocolAdapter returns not implemented response", () => {
       modelId: "claude-local",
       visible: true,
       enabled: true,
-      ownedBy: "llama-manager",
+      ownedBy: "arriero",
       targetId: null,
       routeTo: null,
       description: null,
@@ -56,7 +56,7 @@ test("anthropicProtocolAdapter returns not implemented response", () => {
     error: {
       type: "api_error",
       message:
-        "Model claude-local is published by llama-manager, but /v1/messages forwarding is not implemented yet.",
+        "Model claude-local is published by arriero, but /v1/messages forwarding is not implemented yet.",
     },
   });
 });

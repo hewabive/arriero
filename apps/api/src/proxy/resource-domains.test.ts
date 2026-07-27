@@ -1,7 +1,4 @@
-import type {
-  ApiProxySchedulerPoolInput,
-  MemoryPool,
-} from "@llama-manager/core";
+import type { ApiProxySchedulerPoolInput, MemoryPool } from "@arriero/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

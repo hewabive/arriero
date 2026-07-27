@@ -1,4 +1,4 @@
-import type { Instance, InstanceHealthSummary } from "@llama-manager/core";
+import type { Instance, InstanceHealthSummary } from "@arriero/core";
 import { Badge, Tooltip } from "@mantine/core";
 
 export function statusColor(status: Instance["status"]) {

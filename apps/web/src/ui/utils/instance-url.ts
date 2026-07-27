@@ -1,4 +1,4 @@
-import type { Instance, InstanceHealthSummary } from "@llama-manager/core";
+import type { Instance, InstanceHealthSummary } from "@arriero/core";
 
 function argString(args: Instance["args"], key: string) {
   const value = args[key];

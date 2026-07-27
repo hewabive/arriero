@@ -38,7 +38,7 @@ YaRN: original context size of model (default: 0 = model training context size)
 - Основное имя: `--yarn-orig-ctx`
 - Алиасы: `--yarn-orig-ctx`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: целое число
 - Переменная окружения: `LLAMA_ARG_YARN_ORIG_CTX`
 - Поле в `common_params`: `yarn_orig_ctx`

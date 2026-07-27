@@ -45,7 +45,7 @@ example: ggml-org/GLM-4.7-Flash-GGUF:Q4_K_M
 - Основное имя: `--hf-repo`
 - Алиасы: `-hf`, `-hfr`, `--hf-repo`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата из `--help`: `<user>/<model>[:quant]`
 - Переменные окружения: `LLAMA_ARG_HF_REPO`
 - Значение по умолчанию: не используется

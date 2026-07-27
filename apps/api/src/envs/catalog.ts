@@ -1,4 +1,4 @@
-import type { EnvironmentSpec } from "@llama-manager/core";
+import type { EnvironmentSpec } from "@arriero/core";
 
 import {
   createPathCatalogEntry,

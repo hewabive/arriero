@@ -71,7 +71,7 @@ halt generation at PROMPT, return control in interactive mode
 
 ## INI-пресеты и router-режим
 
-В INI используйте `reverse-prompt = ...`; для нескольких stop sequences проверьте, как llama-manager сериализует повторяющиеся аргументы. В router mode задавайте per-model, потому что delimiters зависят от tokenizer/template.
+В INI используйте `reverse-prompt = ...`; для нескольких stop sequences проверьте, как arriero сериализует повторяющиеся аргументы. В router mode задавайте per-model, потому что delimiters зависят от tokenizer/template.
 
 ## Типовые проблемы и диагностика
 

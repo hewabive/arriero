@@ -34,7 +34,7 @@ note: use comma-separated values
 - Основное имя: `--lora-scaled`
 - Алиасы: `--lora-scaled`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `list`
+- Тип значения в arriero: `list`
 - Подсказка формата из `--help`: `FNAME:SCALE,...`
 - Переменные окружения: не указаны
 - Значение по умолчанию: adapters не загружаются

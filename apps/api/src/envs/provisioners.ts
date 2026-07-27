@@ -2,7 +2,7 @@ import type {
   EnvironmentEngine,
   EnvironmentSpec,
   SystemAccelerator,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 

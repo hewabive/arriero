@@ -1,4 +1,4 @@
-import type { ApiLabProbeProfile } from "@llama-manager/core";
+import type { ApiLabProbeProfile } from "@arriero/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 

@@ -78,7 +78,7 @@ test("add/removeApiProxySavedSlotId keep a sorted unique slot set", () => {
 test("apiProxySlotFilename sanitizes the target id", () => {
   assert.equal(
     apiProxySlotFilename("grp/../weird id", 1),
-    "llama-manager-grp_.._weird_id-slot-1.bin",
+    "arriero-grp_.._weird_id-slot-1.bin",
   );
 });
 

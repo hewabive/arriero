@@ -24,7 +24,7 @@ function catalog(binaryPath: string) {
 }
 
 test("saveArgumentCatalog round-trips the parser id", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-argument-cache-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-argument-cache-"));
   const binaryPath = join(dir, "llama-server");
 
   try {
@@ -37,7 +37,7 @@ test("saveArgumentCatalog round-trips the parser id", () => {
 });
 
 test("pruneMissingArgumentCatalogs removes cache rows for missing binaries", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-argument-cache-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-argument-cache-"));
   const existingBinary = join(dir, "llama-server");
   const missingBinary = join(dir, "deleted-llama-server");
 

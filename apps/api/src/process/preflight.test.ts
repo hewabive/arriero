@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import type { Instance } from "@llama-manager/core";
+import type { Instance } from "@arriero/core";
 
 import {
   validateInstancePreflight,
@@ -49,7 +49,7 @@ function writeHelpBinary(binaryPath: string, helpOutput: string) {
 }
 
 test("validateInstancePreflight does not require a model for rpc-worker", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-rpc-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-rpc-"));
   const binaryPath = join(dir, "rpc-server");
   try {
     writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
@@ -79,7 +79,7 @@ test("validateInstancePreflight does not require a model for rpc-worker", () => 
 });
 
 test("rpc-worker ports resolve per engine in conflict checks", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-ports-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-ports-"));
   const binaryPath = join(dir, "llama-server");
   try {
     writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
@@ -145,7 +145,7 @@ test("rpc-worker ports resolve per engine in conflict checks", () => {
 });
 
 test("validateInstancePreflight blocks configs without a model source", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   try {
     writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
@@ -178,7 +178,7 @@ test("validateInstancePreflight blocks configs without a model source", () => {
 });
 
 test("validateInstancePreflight blocks registry args missing from selected binary help", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   try {
@@ -219,7 +219,7 @@ common params:
 });
 
 test("validateInstancePreflight blocks canonical spellings missing from selected binary help", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   try {
@@ -261,7 +261,7 @@ common params:
 });
 
 test("validateInstancePreflight blocks preset-only keys in instance CLI args", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   try {
@@ -302,7 +302,7 @@ test("validateInstancePreflight blocks preset-only keys in instance CLI args", (
 });
 
 test("validateInstancePreflight blocks empty values for value arguments", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   try {
@@ -342,7 +342,7 @@ common params:
 });
 
 test("validateInstanceStartPreflight allows an edited instance to keep its active port", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   const listener = createServer();
@@ -395,7 +395,7 @@ test("validateInstanceStartPreflight allows an edited instance to keep its activ
 });
 
 test("validateInstanceStartPreflight blocks occupied host ports", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   const listener = createServer();
@@ -444,7 +444,7 @@ test("validateInstanceStartPreflight blocks occupied host ports", async () => {
 });
 
 test("validateInstancePreflight warns when direct GPU layers are requested without CUDA devices", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   try {
@@ -480,7 +480,7 @@ test("validateInstancePreflight warns when direct GPU layers are requested witho
 });
 
 test("validateInstancePreflight warns when models preset requests GPU layers without CUDA devices", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const presetPath = join(dir, "models.ini");
   try {
@@ -526,7 +526,7 @@ test("validateInstancePreflight warns when models preset requests GPU layers wit
 });
 
 test("validateInstancePreflight accepts GPU layers when an NVIDIA device is visible", () => {
-  const dir = mkdtempSync(join(tmpdir(), "llama-manager-preflight-"));
+  const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
   try {

@@ -1,4 +1,4 @@
-import type { ApiLabProbeProfile } from "@llama-manager/core";
+import type { ApiLabProbeProfile } from "@arriero/core";
 import {
   createAnthropicSseEmitter,
   serializeAnthropicSseEvents,
@@ -7,7 +7,7 @@ import {
   translateOpenAiResponse,
   type AnthropicSsePushResult,
   type AnthropicStreamEvent,
-} from "@llama-manager/anthropic-openai-bridge";
+} from "@arriero/anthropic-openai-bridge";
 
 import { numberOrNull } from "./json.js";
 import { openAiResumableCodec } from "./openai.js";

@@ -1,7 +1,7 @@
 import type {
   ApiProxyRouteExplainRequest,
   ApiProxyRouteExplainResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { listInstances } from "../instances/repository.js";
 import { getApiEndpointById } from "./endpoints.js";

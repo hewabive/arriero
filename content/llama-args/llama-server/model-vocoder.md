@@ -38,7 +38,7 @@ vocoder model for audio generation (default: unused)
 - Основное имя: `--model-vocoder`
 - Алиасы: `-mv`, `--model-vocoder`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `path`
+- Тип значения в arriero: `path`
 - Подсказка формата из `--help`: `FNAME`
 - Переменные окружения: не указаны
 - Значение по умолчанию: не используется

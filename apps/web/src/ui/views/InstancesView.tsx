@@ -3,7 +3,7 @@ import type {
   InstanceBulkActionName,
   InstanceBulkActionResult,
   InstanceHealthSummary,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Button,

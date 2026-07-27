@@ -5,7 +5,7 @@ import type {
   ApiProxySchedulerPoolInput,
   ApiProxyTargetPlanInput,
   InstanceMemoryDraw,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 const activeStates = new Set(["ready"]);
 const pendingStates = new Set(["loading"]);

@@ -5,7 +5,7 @@ import type {
   MemoryPoolUpdate,
   ResourceLedger,
   SystemResources,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { nodeScopedPath } from "./base.js";
 import { nodeRequest, request } from "./http.js";

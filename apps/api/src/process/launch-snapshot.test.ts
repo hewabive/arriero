@@ -1,4 +1,4 @@
-import type { Instance } from "@llama-manager/core";
+import type { Instance } from "@arriero/core";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { test } from "node:test";

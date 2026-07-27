@@ -1,4 +1,4 @@
-import { ArgumentOptionSchema } from "@llama-manager/core";
+import { ArgumentOptionSchema } from "@arriero/core";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";

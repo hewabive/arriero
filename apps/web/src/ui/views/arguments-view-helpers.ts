@@ -3,7 +3,7 @@ import type {
   ArgumentDefaults,
   ArgumentOption,
   LlamaArgumentPresetSupport,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { argumentDefaultFromOption } from "../utils/argument-defaults";
 

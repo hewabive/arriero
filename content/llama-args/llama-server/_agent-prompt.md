@@ -1,11 +1,11 @@
 # Общий промпт для агентов: Engineering help по аргументам llama-server
 
-Ты работаешь над подробной инженерной справкой llama-manager для аргументов `llama-server`. Основной продукт — корень этого репозитория (llama-manager).
+Ты работаешь над подробной инженерной справкой arriero для аргументов `llama-server`. Основной продукт — корень этого репозитория (arriero).
 
 Актуальный локальный checkout llama.cpp для сверки:
 
 - путь настроен в `data/config/settings.json` → `llamaSource.repoPath`
-- commit смотри через `pnpm --filter @llama-manager/api args:docs:source-sync` или `git -C <repoPath> rev-parse HEAD`
+- commit смотри через `pnpm --filter @arriero/api args:docs:source-sync` или `git -C <repoPath> rev-parse HEAD`
 
 ## Задача
 

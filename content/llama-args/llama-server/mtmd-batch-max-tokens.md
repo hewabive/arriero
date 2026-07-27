@@ -34,7 +34,7 @@ maximum number of image tokens per batch when encoding images (default: 1024)
 
 - Основное имя: `--mtmd-batch-max-tokens`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата из `--help`: `N`
 - Переменная окружения: `LLAMA_ARG_MTMD_BATCH_MAX_TOKENS`
 - Поле в `common_params`: `mtmd_batch_max_tokens`

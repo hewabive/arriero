@@ -12,7 +12,7 @@ import {
   type MemoryEstimatePoolInput,
   type MemoryEstimateRequest,
   type InstanceKind,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync } from "node:fs";
 
 import { getInstance } from "../instances/repository.js";

@@ -1,4 +1,4 @@
-import type { EnvironmentCreate, EnvironmentEngine } from "@llama-manager/core";
+import type { EnvironmentCreate, EnvironmentEngine } from "@arriero/core";
 import {
   Badge,
   Button,

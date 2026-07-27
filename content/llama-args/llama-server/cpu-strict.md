@@ -36,7 +36,7 @@ use strict CPU placement (default: 0)
 - Основное имя: `--cpu-strict`
 - Алиасы: `--cpu-strict`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `boolean`
+- Тип значения в arriero: `boolean`
 - Подсказка формата: `<0|1>`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

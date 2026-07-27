@@ -2,7 +2,7 @@ import type {
   ApiProbeKind,
   ApiProbeRequest,
   ApiProbeResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { streamInstanceApiProbe } from "../../../api/client";
 
 export type ModelOption = {

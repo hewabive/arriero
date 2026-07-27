@@ -1,4 +1,4 @@
-import { collectApiProxyPipelineExitNames } from "@llama-manager/core";
+import { collectApiProxyPipelineExitNames } from "@arriero/core";
 
 import type { PipelineNodeDraft } from "../forms";
 import { unboundTargetValue } from "../forms";

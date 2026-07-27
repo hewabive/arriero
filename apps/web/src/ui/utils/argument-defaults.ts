@@ -1,4 +1,4 @@
-import type { ArgumentDefault, ArgumentOption } from "@llama-manager/core";
+import type { ArgumentDefault, ArgumentOption } from "@arriero/core";
 
 export function argumentAcceptsAutoAll(option: ArgumentOption) {
   const name = option.primaryName.toLowerCase();

@@ -31,7 +31,7 @@ Log prompts to directory (auto-created if not present; only used for debugging, 
 
 - Основное имя: `--log-prompts-dir`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `path`
+- Тип значения в arriero: `path`
 - Подсказка формата из `--help`: `PATH`
 - Переменная окружения: нет (`set_env` не задан)
 - Поле в `common_params`: `path_prompts_log_dir`

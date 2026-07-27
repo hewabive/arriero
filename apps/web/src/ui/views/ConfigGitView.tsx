@@ -1,7 +1,4 @@
-import type {
-  ConfigGitMutationResult,
-  ConfigGitStatus,
-} from "@llama-manager/core";
+import type { ConfigGitMutationResult, ConfigGitStatus } from "@arriero/core";
 import {
   Alert,
   Badge,

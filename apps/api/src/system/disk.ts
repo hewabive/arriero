@@ -2,7 +2,7 @@ import type {
   SystemDiskActivity,
   SystemDiskDevice,
   SystemIoPressure,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { readFileSync, statSync } from "node:fs";
 
 const SECTOR_BYTES = 512;

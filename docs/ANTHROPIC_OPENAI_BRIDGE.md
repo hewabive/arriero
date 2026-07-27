@@ -4,7 +4,7 @@ Inbound Anthropic Messages requests (`/v1/messages`, `/proxy/anthropic/v1/messag
 are translated to OpenAI Chat Completions before forwarding, and the upstream
 OpenAI response (JSON or SSE) is translated back to Anthropic shapes. The pure
 translation lives in `packages/anthropic-openai-bridge` (sans-IO, zero runtime
-dependencies, no llama-manager imports); the proxy wiring lives in
+dependencies, no arriero imports); the proxy wiring lives in
 `apps/api/src/proxy/translation.ts` and `protocol-endpoint.ts`.
 
 ## Why
@@ -146,7 +146,7 @@ responses carry the same event shapes as live translated streams.
 
 ## Bridge package boundaries
 
-`packages/anthropic-openai-bridge` must stay free of llama-manager imports and
+`packages/anthropic-openai-bridge` must stay free of arriero imports and
 I/O (no fetch, no streams — strings/objects in, events out) so it remains
 publishable as a standalone package. llama.cpp-specific knobs enter only
 through options (`reasoningField`, `thinkingBudgetField`, `namedToolChoice`,

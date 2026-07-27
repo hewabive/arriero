@@ -2,7 +2,7 @@ import type {
   ApiLabProbeProfile,
   ApiProbeRequest,
   ApiProbeResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { requestJsonProbe } from "../instances/endpoint.js";
 

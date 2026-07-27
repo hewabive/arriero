@@ -1,4 +1,4 @@
-import type { ProcessEvent, PromptCacheState } from "@llama-manager/core";
+import type { ProcessEvent, PromptCacheState } from "@arriero/core";
 import { supervisor } from "./supervisor.js";
 
 const CACHE_STATE_PATTERN =

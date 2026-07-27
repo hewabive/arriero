@@ -2,7 +2,7 @@ import {
   SourceRepositoryCloneSchema,
   SourceRepositoryIdSchema,
   SourceRepositorySettingsUpdateSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Context, Hono, MiddlewareHandler } from "hono";
 
 import { config } from "../config.js";

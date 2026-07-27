@@ -1,6 +1,6 @@
 # Self-update (UI "Update" button)
 
-`llama-manager` can update itself from the web UI: pull the latest revision,
+`arriero` can update itself from the web UI: pull the latest revision,
 reinstall, rebuild, and restart — without a shell. This is the per-node
 foundation for fleet-wide updates across the node architecture (see
 `docs/FEDERATION.md`).
@@ -19,7 +19,7 @@ snapshot → git-pull (--ff-only) → install (pnpm install) → build (pnpm bui
   (`git reset --hard <commit>`); the node is never left on a half-built tree.
 - **restart** is reached only on a clean build. It first drains the proxy
   (new public requests get 503 + `Retry-After`, and non-resumable in-flight
-  requests get up to `LLAMA_MANAGER_UPDATE_DRAIN_TIMEOUT_MS` to finish —
+  requests get up to `ARRIERO_UPDATE_DRAIN_TIMEOUT_MS` to finish —
   see `docs/STREAM_RESUME.md` for how resumable generations survive the
   restart), then self-`SIGTERM`s the process, reusing the normal graceful
   shutdown (the HTTP server closes; managed `llama-server` children are
@@ -53,7 +53,7 @@ fail) and is surfaced in the UI.
 ./scripts/install-service.sh
 ```
 
-Installs `deploy/llama-manager.service` as a `systemd --user` unit with resolved
+Installs `deploy/arriero.service` as a `systemd --user` unit with resolved
 absolute paths and a `PATH` that lets the update job find `node`/`pnpm`/`git`.
 The script needs **no sudo** (it refuses to run as root and writes only under
 `~/.config/systemd/user/`). The one step that can need privilege is enabling

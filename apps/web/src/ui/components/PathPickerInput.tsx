@@ -1,4 +1,4 @@
-import type { FileSystemEntry } from "@llama-manager/core";
+import type { FileSystemEntry } from "@arriero/core";
 import {
   ActionIcon,
   Badge,

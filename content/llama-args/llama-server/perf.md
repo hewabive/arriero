@@ -34,7 +34,7 @@ whether to enable internal libllama performance timings (default: false)
 - Основное имя: `--perf`
 - Алиасы: `--perf`, `--no-perf`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `boolean`
+- Тип значения в arriero: `boolean`
 - Подсказка формата: `нет значения`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `LLAMA_ARG_PERF`

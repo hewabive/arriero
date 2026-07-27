@@ -1,4 +1,4 @@
-import { ApiLabProbeTargetRequestSchema } from "@llama-manager/core";
+import { ApiLabProbeTargetRequestSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 

@@ -1,4 +1,4 @@
-import type { ApiEndpointCreate, ApiEndpointRecord } from "@llama-manager/core";
+import type { ApiEndpointCreate, ApiEndpointRecord } from "@arriero/core";
 
 export type EndpointEditor =
   | { mode: "create"; endpoint: null }

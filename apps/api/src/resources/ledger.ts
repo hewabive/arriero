@@ -6,7 +6,7 @@ import {
   type MemoryPool,
   type ResourceAdmission,
   type ResourceLedger,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { listInstances } from "../instances/repository.js";
 import { listMemoryPools } from "./repository.js";

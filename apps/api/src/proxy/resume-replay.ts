@@ -1,4 +1,4 @@
-import type { ApiProxyTargetRecord } from "@llama-manager/core";
+import type { ApiProxyTargetRecord } from "@arriero/core";
 import type { Context } from "hono";
 
 import { apiProxyForwardUrl } from "./forwarder.js";

@@ -1,7 +1,7 @@
 import {
   resolveApiProxyReasoning,
   type ApiProxyReasoningEffort,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { NumberInput, SegmentedControl, Stack, Text } from "@mantine/core";
 
 import type { PipelineNodeDraft } from "../forms";

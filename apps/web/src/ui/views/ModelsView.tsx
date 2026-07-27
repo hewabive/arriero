@@ -1,5 +1,5 @@
-import type { GgufModel, ModelScanRoot } from "@llama-manager/core";
-import { ggufModelRole, ggufPoolingTypeLabel } from "@llama-manager/core";
+import type { GgufModel, ModelScanRoot } from "@arriero/core";
+import { ggufModelRole, ggufPoolingTypeLabel } from "@arriero/core";
 import {
   ActionIcon,
   Anchor,

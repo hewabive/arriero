@@ -4,7 +4,7 @@ import {
   type ApiProxyPipelineRecord,
   type ApiProxyPortRef,
   type ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { Badge, Code, Group, Paper, Stack, Text } from "@mantine/core";
 import { useMemo } from "react";
 

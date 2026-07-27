@@ -1,4 +1,4 @@
-import { PathCatalogEntrySchema } from "@llama-manager/core";
+import { PathCatalogEntrySchema } from "@arriero/core";
 import { existsSync } from "node:fs";
 
 import { sqlite } from "../db/index.js";

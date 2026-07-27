@@ -3,7 +3,7 @@ import type {
   UpdateFleet,
   UpdateJob,
   UpdateLogTail,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { nodeScopedPath } from "./base.js";
 import { request } from "./http.js";

@@ -36,7 +36,7 @@ the argument has been removed. use --spec-draft-n-max or --spec-ngram-mod-n-max
 - Основное имя: `--draft`
 - Алиасы: `--draft-n`, `--draft-max`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не применимо, аргумент удален`
 - Переменные окружения: `LLAMA_ARG_DRAFT_MAX`
@@ -50,7 +50,7 @@ the argument has been removed. use --spec-draft-n-max or --spec-ngram-mod-n-max
 
 ## Значения и формат
 
-Формально help показывает `N`, но любые значения бесполезны: `--draft 4`, `--draft-n 4` и `--draft-max 4` все ведут к ошибке парсинга. Не храните этот параметр в конфигурациях llama-manager и INI-пресетах.
+Формально help показывает `N`, но любые значения бесполезны: `--draft 4`, `--draft-n 4` и `--draft-max 4` все ведут к ошибке парсинга. Не храните этот параметр в конфигурациях arriero и INI-пресетах.
 
 ## Когда использовать
 
@@ -77,7 +77,7 @@ the argument has been removed. use --spec-draft-n-max or --spec-ngram-mod-n-max
 ## Типовые проблемы и диагностика
 
 - Ошибка запуска с текстом `the argument has been removed. use --spec-draft-n-max or --spec-ngram-mod-n-max` означает, что в argv, env или preset остался legacy-параметр.
-- Проверьте systemd unit, docker args, llama-manager instance config и `--models-preset`.
+- Проверьте systemd unit, docker args, arriero instance config и `--models-preset`.
 - Если migration target неочевиден, посмотрите `--spec-type`: для draft-модели используйте `--spec-draft-n-max`, для ngram-mod - `--spec-ngram-mod-n-max`.
 
 ## Примеры

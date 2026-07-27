@@ -31,7 +31,7 @@ import type {
   ApiProxyTargetUpdate,
   ExternalLlamaProcessesResult,
   ExternalProcessKillResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { nodeRequest, request } from "./http.js";
 

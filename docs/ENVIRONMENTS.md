@@ -7,7 +7,7 @@ the API-side provisioner registry; orchestration remains shared.
 
 ## Desired state and runtime state
 
-Portable specs live in `data/config/envs.json`. Runtime environments live under `runtime/envs/` (override with `LLAMA_MANAGER_ENVS_DIR`) and are safe to delete and rebuild. A spec records the engine/version, runtime variant (`cuda`, `cpu`, or `rocm`), Python request, install source, and the id of its generated path-catalog entry.
+Portable specs live in `data/config/envs.json`. Runtime environments live under `runtime/envs/` (override with `ARRIERO_ENVS_DIR`) and are safe to delete and rebuild. A spec records the engine/version, runtime variant (`cuda`, `cpu`, or `rocm`), Python request, install source, and the id of its generated path-catalog entry.
 
 Status is derived rather than persisted:
 
@@ -55,7 +55,7 @@ this as the offline Python-runtime switch.
 The recorded install step runs `uv python install --mirror <url> <version>`; uv replaces
 the public python-build-standalone release base with this mirror, so a missing runtime
 can be installed without public-network access. airgap-sync verifies the archive SHA-256
-and ships `python-runtime-manifest.json`; llama-manager still delegates archive-format
+and ships `python-runtime-manifest.json`; arriero still delegates archive-format
 and interpreter-layout validation to uv.
 
 ## Engines and sources

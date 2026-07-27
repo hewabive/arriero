@@ -36,7 +36,7 @@ number of seconds of idleness after which the server will sleep (default: -1; -1
 - Основное имя: `--sleep-idle-seconds`
 - Алиасы: `--sleep-idle-seconds`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: целое число секунд
 - Переменные окружения: нет
 - Поле в `common_params`: `sleep_idle_seconds`

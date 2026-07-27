@@ -3,7 +3,7 @@ import type {
   PrerequisiteCheck,
   PrerequisiteInstallPlan,
   PrerequisiteSummary,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { installCommandPrefix } from "../system/os-release.js";
 

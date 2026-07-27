@@ -35,7 +35,7 @@ layer range to apply the control vector(s) to, start and end inclusive
 - Основное имя: `--control-vector-layer-range`
 - Алиасы: `--control-vector-layer-range`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата из `--help`: `START END`
 - Переменные окружения: не указаны
 - Значение по умолчанию: `1..n_layer` при наличии control vectors
@@ -84,7 +84,7 @@ control-vector = /srv/cvec/helpful.gguf
 control-vector-layer-range = 4 28
 ```
 
-В preset значение должно сохранять два числа как аргументы одного параметра. Проверьте, как llama-manager сериализует multi-value параметры в argv.
+В preset значение должно сохранять два числа как аргументы одного параметра. Проверьте, как arriero сериализует multi-value параметры в argv.
 
 ## Типовые проблемы и диагностика
 

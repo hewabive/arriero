@@ -1,4 +1,4 @@
-import { type InstanceMemoryDraw } from "@llama-manager/core";
+import { type InstanceMemoryDraw } from "@arriero/core";
 
 import { createUiId } from "../utils/id";
 

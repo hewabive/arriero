@@ -1,7 +1,7 @@
 import type {
   ApiProxyPipelineRecord,
   ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Badge,

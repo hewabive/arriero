@@ -5,8 +5,8 @@ import type {
   InstanceMemoryPlacement,
   NumaPlacement,
   RuntimeState,
-} from "@llama-manager/core";
-import { engineDescriptor } from "@llama-manager/core";
+} from "@arriero/core";
+import { engineDescriptor } from "@arriero/core";
 import { execFile } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { promisify } from "node:util";

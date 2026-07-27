@@ -5,7 +5,7 @@ import type {
   LlamaModelActionName,
   LlamaProbe,
   LlamaSlotActionName,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { formatLocalDateTime } from "../utils/time";
 

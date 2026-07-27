@@ -1,4 +1,4 @@
-import type { InstanceHealthSummary } from "@llama-manager/core";
+import type { InstanceHealthSummary } from "@arriero/core";
 
 export type LaunchMonitor = {
   instanceId: string;

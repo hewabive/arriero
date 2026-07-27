@@ -6,7 +6,7 @@ import {
   type FleetResourcesPayload,
   type FleetSystemEntry,
   type SystemResources,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { hostname } from "node:os";
 
 import { currentResourceLedger } from "../resources/ledger.js";

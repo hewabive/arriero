@@ -1,4 +1,4 @@
-import type { ApiProxyConditionScope } from "@llama-manager/core";
+import type { ApiProxyConditionScope } from "@arriero/core";
 
 export type ApiProxyRequestMessage = {
   role: string | null;

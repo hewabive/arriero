@@ -49,7 +49,7 @@ At implementation tip `35f3396`:
 
 - `pnpm check` passed;
 - `pnpm build` passed, with only the existing Vite large-chunk warning;
-- `pnpm --filter @llama-manager/api test` passed: 827 tests, 0 failures;
+- `pnpm --filter @arriero/api test` passed: 827 tests, 0 failures;
 - `bash -n scripts/qualify-ktransformers-host.sh` passed;
 - the worktree was clean before creating this handoff document.
 
@@ -133,12 +133,12 @@ not proof that public wheels with those identifiers form a qualified pair.
    pnpm install --frozen-lockfile
    pnpm check
    pnpm build
-   pnpm --filter @llama-manager/api test
+   pnpm --filter @arriero/api test
    ```
 
 3. Record the qualification inputs above in a new result document before
    installing or launching the engine.
-4. Create the matched managed environment through llama-manager. Do not bypass
+4. Create the matched managed environment through arriero. Do not bypass
    the provisioner with an untagged executable for the primary qualification.
 5. Run:
 

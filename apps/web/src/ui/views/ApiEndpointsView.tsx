@@ -1,4 +1,4 @@
-import type { ApiEndpointRecord, ApiEndpointUpdate } from "@llama-manager/core";
+import type { ApiEndpointRecord, ApiEndpointUpdate } from "@arriero/core";
 import { Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

@@ -1,7 +1,7 @@
 import {
   ApiProxyPipelineRecordSchema,
   upgradeLegacyApiProxyPipeline,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 

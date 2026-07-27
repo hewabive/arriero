@@ -1,6 +1,6 @@
 # Status layers
 
-`llama-manager` reports the state of a model/instance at four scopes. They are
+`arriero` reports the state of a model/instance at four scopes. They are
 **not** four redundant enums — each is a projection of the same underlying
 reality at a different scope, and one of them (`L4`) is a frozen external
 contract. This document is the map: what each layer means, how they translate

@@ -3,7 +3,7 @@ import type {
   ApiLabProbeProfile,
   ApiProxyTargetRecord,
   Instance,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { config } from "../config.js";
 
@@ -66,7 +66,7 @@ export function resolveApiProxyTarget(
       enabled: false,
       instance: null,
       instanceId: null,
-      error: "proxy target cannot point to llama-manager proxy itself",
+      error: "proxy target cannot point to arriero proxy itself",
     };
   }
 

@@ -2,7 +2,7 @@ import type {
   ApiLabProbeProfile,
   Instance,
   InstanceHealthSummary,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { Alert, Group, Select, Stack } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -160,7 +160,7 @@ export function ApiLabView(props: {
     <Stack gap="md">
       {activeNodeName ? (
         <Alert color="blue" title={`Probing remote node: ${activeNodeName}`}>
-          Targets, models and the llama-manager proxy below are {activeNodeName}
+          Targets, models and the arriero proxy below are {activeNodeName}
           &apos;s — the probe runs on that node. Switch to the main node to test
           the fleet proxy and its published models.
         </Alert>

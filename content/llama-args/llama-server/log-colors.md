@@ -38,7 +38,7 @@ Set colored logging ('on', 'off', or 'auto', default: 'auto')
 - Основное имя: `--log-colors`
 - Алиасы: `--log-colors`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата: `[on|off|auto]`
 - Допустимые значения: `on`, `off`, `auto`
 - Переменные окружения: `LLAMA_ARG_LOG_COLORS`

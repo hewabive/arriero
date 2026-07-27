@@ -1,4 +1,4 @@
-import type { Instance } from "@llama-manager/core";
+import type { Instance } from "@arriero/core";
 import { readFileSync } from "node:fs";
 
 import { cleanupOrphanNumaCgroups } from "../numa/index.js";

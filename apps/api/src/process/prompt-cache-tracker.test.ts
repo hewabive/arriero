@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ProcessEvent } from "@llama-manager/core";
+import type { ProcessEvent } from "@arriero/core";
 
 import { PromptCacheTracker } from "./prompt-cache-tracker.js";
 

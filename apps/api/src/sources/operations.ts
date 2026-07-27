@@ -5,7 +5,7 @@ import {
   type SourceRepositoryClone,
   type SourceRepositoryOperationResult,
   type SourceRepositorySettingsUpdate,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   existsSync,
   mkdirSync,

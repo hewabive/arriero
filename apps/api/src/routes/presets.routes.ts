@@ -1,7 +1,4 @@
-import {
-  ModelPresetCreateSchema,
-  ModelPresetWriteSchema,
-} from "@llama-manager/core";
+import { ModelPresetCreateSchema, ModelPresetWriteSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import {

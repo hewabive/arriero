@@ -1,7 +1,7 @@
 import type {
   InstanceEvictionPolicy,
   KTransformersMethod,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Paper,
   Select,

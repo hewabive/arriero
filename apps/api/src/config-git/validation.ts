@@ -14,7 +14,7 @@ import {
   type ConfigGitValidation,
   type ConfigGitValidationIssue,
   type InstanceConfigRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { z } from "zod";

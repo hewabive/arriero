@@ -3,7 +3,7 @@ import type {
   GgufModel,
   ModelScanResult,
   ModelScanRoot,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { opendir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 

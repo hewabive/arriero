@@ -1,4 +1,4 @@
-import { AdminLoginSchema } from "@llama-manager/core";
+import { AdminLoginSchema } from "@arriero/core";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Hono } from "hono";
 

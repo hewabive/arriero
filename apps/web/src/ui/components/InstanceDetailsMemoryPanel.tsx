@@ -2,7 +2,7 @@ import type {
   InstanceMemoryDraw,
   InstanceMemoryLayout,
   InstanceMemoryPlacement,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { Badge, Group, Paper, SimpleGrid, Stack, Text } from "@mantine/core";
 
 import { formatBytes } from "./instance-details-helpers";

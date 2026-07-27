@@ -37,7 +37,7 @@ RoPE context scaling factor, expands context by a factor of N
 - Основное имя: `--rope-scale`
 - Алиасы: `--rope-scale`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: число, передаваемое в `std::stof`
 - Переменная окружения: `LLAMA_ARG_ROPE_SCALE`
 - Поле в `common_params`: `rope_freq_scale`, но в форме `1/N`

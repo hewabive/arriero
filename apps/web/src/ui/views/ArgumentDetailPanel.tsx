@@ -1,4 +1,4 @@
-import type { ArgumentDefault, ArgumentOption } from "@llama-manager/core";
+import type { ArgumentDefault, ArgumentOption } from "@arriero/core";
 import {
   ActionIcon,
   Alert,

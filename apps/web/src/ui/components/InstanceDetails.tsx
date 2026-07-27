@@ -3,7 +3,7 @@ import {
   type Instance,
   type InstanceHealthSummary,
   type ProcessEvent,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Accordion,
   Badge,

@@ -37,7 +37,7 @@ number of threads to use during generation (default: same as --threads)
 - Основное имя: `--spec-draft-threads`
 - Алиасы: `-td`, `--threads-draft`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

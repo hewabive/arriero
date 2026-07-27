@@ -4,7 +4,7 @@ import {
   type ApiProxyPipelineNode,
   type ApiProxyPipelineRecord,
   type ApiProxyPortRef,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { modelDirectTargetId } from "./forms";
 

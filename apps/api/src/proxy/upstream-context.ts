@@ -1,4 +1,4 @@
-import type { ApiProxyTargetRecord } from "@llama-manager/core";
+import type { ApiProxyTargetRecord } from "@arriero/core";
 
 import { listInstances } from "../instances/repository.js";
 import { apiEndpointAuthHeaders, getApiEndpointById } from "./endpoints.js";

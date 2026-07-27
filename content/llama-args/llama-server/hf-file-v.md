@@ -36,7 +36,7 @@ Hugging Face model file for the vocoder model (default: unused)
 - Основное имя: `--hf-file-v`
 - Алиасы: `-hffv`, `--hf-file-v`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `path`
+- Тип значения в arriero: `path`
 - Подсказка формата из `--help`: `FILE`
 - Переменные окружения: `LLAMA_ARG_HF_FILE_V`
 - Значение по умолчанию: не используется

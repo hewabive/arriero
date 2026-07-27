@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import type { ModelPresetFile } from "@llama-manager/core";
+import type { ModelPresetFile } from "@arriero/core";
 
 import { presetFileHasErrors, validatePresetStructure } from "./validate.js";
 

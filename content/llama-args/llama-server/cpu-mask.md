@@ -37,7 +37,7 @@ CPU affinity mask: arbitrarily long hex. Complements cpu-range (default: "")
 - Основное имя: `--cpu-mask`
 - Алиасы: `-C`, `--cpu-mask`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата: `M`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

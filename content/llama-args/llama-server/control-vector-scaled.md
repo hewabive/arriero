@@ -34,7 +34,7 @@ note: use comma-separated values (format: FNAME:SCALE,...)
 - Основное имя: `--control-vector-scaled`
 - Алиасы: `--control-vector-scaled`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `list`
+- Тип значения в arriero: `list`
 - Подсказка формата из `--help`: `FNAME:SCALE,...`
 - Переменные окружения: не указаны
 - Значение по умолчанию: control vectors не применяются

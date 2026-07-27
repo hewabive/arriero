@@ -36,7 +36,7 @@ the argument has been removed. use --spec-draft-n-min or --spec-ngram-mod-n-min
 - Основное имя: `--draft-min`
 - Алиасы: `--draft-n-min`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не применимо, аргумент удален`
 - Переменные окружения: `LLAMA_ARG_DRAFT_MIN`
@@ -77,7 +77,7 @@ Help показывает `N`, но любое значение приводит
 ## Типовые проблемы и диагностика
 
 - Ошибка `the argument has been removed. use --spec-draft-n-min or --spec-ngram-mod-n-min` означает, что legacy minimum draft setting остался в argv/env/preset.
-- Проверьте presets, переменные окружения systemd/docker и сохраненную конфигурацию llama-manager.
+- Проверьте presets, переменные окружения systemd/docker и сохраненную конфигурацию arriero.
 - Не заменяйте автоматически на `--spec-draft-n-min`, если конфигурация использует ngram-mod; там нужен `--spec-ngram-mod-n-min`.
 
 ## Примеры

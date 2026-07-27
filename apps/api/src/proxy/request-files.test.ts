@@ -48,7 +48,7 @@ test("saves sequential per-request files and reads them back", () => {
 });
 
 test("rejects paths escaping the request files root", () => {
-  assert.equal(readApiProxyRequestFile("../llama-manager.db"), null);
+  assert.equal(readApiProxyRequestFile("../arriero.db"), null);
   assert.equal(readApiProxyRequestFile("/etc/passwd"), null);
   assert.equal(
     readApiProxyRequestFile("2026-06-10/../../config/settings.json"),

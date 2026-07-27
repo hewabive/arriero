@@ -3,7 +3,7 @@ import {
   SourceRepositoryStatusSchema,
   type SourceRepositorySpec,
   type SourceRepositoryStatus,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 

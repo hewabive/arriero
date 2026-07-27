@@ -4,7 +4,7 @@ import type {
   Instance,
   InstanceHealthSummary,
   PublicStatus,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { nodeRequest, request } from "./http.js";
 

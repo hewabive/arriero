@@ -2,7 +2,7 @@ import type {
   ModelPresetEntry,
   ModelPresetFile,
   PresetDiagnostic,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 function normalizeKey(key: string) {
   return key.trim().replace(/^-+/, "");

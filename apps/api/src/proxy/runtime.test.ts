@@ -5,7 +5,7 @@ import type {
   Instance,
   InstanceHealthSummary,
   EndpointProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 

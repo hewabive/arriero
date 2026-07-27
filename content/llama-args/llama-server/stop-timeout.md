@@ -59,7 +59,7 @@ After requested unload, wait for this many seconds before forcing termination (d
 - Pseudo-env ключ внутри `common_preset`: `__PRESET_STOP_TIMEOUT`
 - Значение по умолчанию: `10`
 - Этап применения: metadata модели в router mode, используется при остановке дочернего процесса
-- llama-manager policy: можно добавлять в модельную секцию preset как extra argument
+- arriero policy: можно добавлять в модельную секцию preset как extra argument
 
 ## Что меняет в llama-server
 
@@ -98,7 +98,7 @@ Router запускает отдельный дочерний `llama-server` д�
 
 Через router API модель можно выгружать явно. В этом случае `stop-timeout` работает так же: сначала graceful shutdown, затем force-kill после лимита.
 
-Для UI llama-manager это важно при кнопках unload/restart: пользователь может видеть задержку не из-за зависания менеджера, а из-за ожидаемого graceful timeout модели.
+Для UI arriero это важно при кнопках unload/restart: пользователь может видеть задержку не из-за зависания менеджера, а из-за ожидаемого graceful timeout модели.
 
 ## Пример
 

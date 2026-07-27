@@ -97,7 +97,7 @@ in the sub-sections below.
 ### Edit-request operations
 
 Structural edits of the parsed body, applied in order by
-`applyApiProxyRequestEdits` (`@llama-manager/core` — shared by the runtime
+`applyApiProxyRequestEdits` (`@arriero/core` — shared by the runtime
 walker and the web editor's live preview, one implementation):
 
 - `remove-tool {toolName}` — drops every entry of the top-level `tools` array
@@ -137,7 +137,7 @@ thinking/reasoning channel. `effort` mirrors the llama.cpp web UI presets
 (`off` disables thinking; `low`/`medium`/`high` = 512/2048/8192 token budgets;
 `max` = unlimited; `custom` uses `customBudgetTokens`, `-1` = unlimited). The
 node synthesizes `set-field` operations via
-`apiProxyReasoningEditOperations(config, protocol)` (`@llama-manager/core`,
+`apiProxyReasoningEditOperations(config, protocol)` (`@arriero/core`,
 shared with the editor's live preview) and runs them through
 `applyApiProxyRequestEdits`, so the written shape follows the **inbound
 protocol**:
@@ -162,7 +162,7 @@ The `output-limit` node bounds the response length via the request's
 `max_tokens` (the same field for OpenAI and Anthropic inbound, preserved by the
 bridge), the hard stop against runaway/looping generation
 (`finish_reason: "length"`). `apiProxyOutputLimitEditOperations(config, body)`
-(`@llama-manager/core`) reads the current `max_tokens` and emits a `set-field`
+(`@arriero/core`) reads the current `max_tokens` and emits a `set-field`
 op only when the value changes:
 
 - `cap` (default) — `min(client max_tokens, maxTokens)`; an absent client value

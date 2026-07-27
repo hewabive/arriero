@@ -1,4 +1,4 @@
-import type { ProcessEvent } from "@llama-manager/core";
+import type { ProcessEvent } from "@arriero/core";
 import { supervisor } from "../process/supervisor.js";
 
 const SELECTION_PATTERN =

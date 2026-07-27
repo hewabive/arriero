@@ -4,7 +4,7 @@ import {
   type EnvironmentCreate,
   type EnvironmentRecord,
   type EnvironmentSpec,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 

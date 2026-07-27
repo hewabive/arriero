@@ -39,7 +39,7 @@ URL to a multimodal projector file. see tools/mtmd/README.md
 - Основное имя: `--mmproj-url`
 - Алиасы: `-mmu`, `--mmproj-url`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата из `--help`: `URL`
 - Переменные окружения: `LLAMA_ARG_MMPROJ_URL`
 - Значение по умолчанию: пусто

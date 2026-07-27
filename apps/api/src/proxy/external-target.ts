@@ -1,4 +1,4 @@
-import type { ApiProxyTargetRecord } from "@llama-manager/core";
+import type { ApiProxyTargetRecord } from "@arriero/core";
 
 export function externalEndpointTarget(input: {
   endpointId: string;

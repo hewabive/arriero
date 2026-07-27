@@ -2,7 +2,7 @@ import {
   engineDescriptor,
   type ApiProxyTargetCreate,
   type ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { Badge, Button, Group, Paper, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery } from "@tanstack/react-query";

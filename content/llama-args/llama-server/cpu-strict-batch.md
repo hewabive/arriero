@@ -37,7 +37,7 @@ use strict CPU placement (default: same as --cpu-strict)
 - Основное имя: `--cpu-strict-batch`
 - Алиасы: `--cpu-strict-batch`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `boolean`
+- Тип значения в arriero: `boolean`
 - Подсказка формата: `<0|1>`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

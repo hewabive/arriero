@@ -101,7 +101,7 @@ const server = serve(
         environments,
         sweptSourceCloneStaging,
       },
-      "llama-manager api listening",
+      "arriero api listening",
     );
   },
 );
@@ -164,7 +164,7 @@ async function shutdown(signal: NodeJS.Signals) {
   }
 
   shutdownStarted = true;
-  logger.info({ signal }, "llama-manager api shutting down");
+  logger.info({ signal }, "arriero api shutting down");
 
   try {
     const resumeSessions = apiProxyStreamSessions.beginPersist();

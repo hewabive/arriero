@@ -1,4 +1,4 @@
-import type { ArgumentOption } from "@llama-manager/core";
+import type { ArgumentOption } from "@arriero/core";
 import { ActionIcon, Badge, Button, Group, Popover, Text } from "@mantine/core";
 import { ExternalLink, Info } from "lucide-react";
 

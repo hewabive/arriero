@@ -1,4 +1,4 @@
-import type { EngineArgvBuilderId, InstanceArgs } from "@llama-manager/core";
+import type { EngineArgvBuilderId, InstanceArgs } from "@arriero/core";
 
 export type EngineArgvBuilder = (
   args: InstanceArgs,

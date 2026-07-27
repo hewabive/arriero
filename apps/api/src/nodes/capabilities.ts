@@ -2,7 +2,7 @@ import {
   INSTANCE_KINDS,
   engineDescriptor,
   type FederationCapabilities,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 export function localFederationCapabilities(): FederationCapabilities {
   return {

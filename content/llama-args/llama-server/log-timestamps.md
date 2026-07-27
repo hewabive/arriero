@@ -35,7 +35,7 @@ Enable timestamps in log messages
 - Основное имя: `--log-timestamps`
 - Алиасы: `--log-timestamps`, `--no-log-timestamps`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `boolean`
+- Тип значения в arriero: `boolean`
 - Подсказка формата: `нет значения`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `LLAMA_ARG_LOG_TIMESTAMPS`

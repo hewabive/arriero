@@ -38,7 +38,7 @@ ranges of CPUs for affinity. Complements --cpu-mask-batch
 - Основное имя: `--cpu-range-batch`
 - Алиасы: `-Crb`, `--cpu-range-batch`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата: `lo-hi`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

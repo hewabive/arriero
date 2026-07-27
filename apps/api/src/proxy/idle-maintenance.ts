@@ -3,7 +3,7 @@ import {
   type ApiProxyPlanPreview,
   type ApiProxySchedulerPlanRequest,
   type ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { config } from "../config.js";
 import { getInstance } from "../instances/repository.js";

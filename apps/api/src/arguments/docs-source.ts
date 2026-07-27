@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 
-import type { LlamaArgumentHelpSourceSync } from "@llama-manager/core";
+import type { LlamaArgumentHelpSourceSync } from "@arriero/core";
 
 import { config } from "../config.js";
 import {

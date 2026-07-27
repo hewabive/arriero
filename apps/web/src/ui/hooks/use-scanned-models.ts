@@ -1,8 +1,4 @@
-import type {
-  GgufModel,
-  ModelScanResult,
-  ModelScanRoot,
-} from "@llama-manager/core";
+import type { GgufModel, ModelScanResult, ModelScanRoot } from "@arriero/core";
 import {
   keepPreviousData,
   useQuery,

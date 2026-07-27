@@ -4,7 +4,7 @@ import type {
   LlamaSlotActionName,
   LlamaSlotActionRequest,
   LlamaSlotActionResult,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   compactOptionalString,

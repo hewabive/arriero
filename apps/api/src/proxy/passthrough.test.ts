@@ -5,7 +5,7 @@ import { beforeEach, test } from "node:test";
 import {
   apiEndpointModelFilterAdmits,
   type ApiEndpointCreate,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { config } from "../config.js";
 import { resetConfigFilesCache } from "./config-files.js";

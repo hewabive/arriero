@@ -43,7 +43,7 @@ note: if -hf is used, this argument can be omitted
 - Основное имя: `--mmproj`
 - Алиасы: `-mm`, `--mmproj`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `path`
+- Тип значения в arriero: `path`
 - Подсказка формата из `--help`: `FILE`
 - Переменные окружения: `LLAMA_ARG_MMPROJ`
 - Значение по умолчанию: пусто

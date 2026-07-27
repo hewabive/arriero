@@ -1,4 +1,4 @@
-import type { InstanceLogSummary, LogTail } from "@llama-manager/core";
+import type { InstanceLogSummary, LogTail } from "@arriero/core";
 
 import { activeNodeScopedPath, apiBase } from "./base.js";
 import { nodeRequest as request } from "./http.js";

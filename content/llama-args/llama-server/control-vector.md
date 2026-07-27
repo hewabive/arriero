@@ -36,7 +36,7 @@ note: use comma-separated values to add multiple control vectors
 - Основное имя: `--control-vector`
 - Алиасы: `--control-vector`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `list`
+- Тип значения в arriero: `list`
 - Подсказка формата из `--help`: `FNAME`
 - Переменные окружения: не указаны
 - Значение по умолчанию: control vectors не применяются

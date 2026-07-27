@@ -1,4 +1,4 @@
-import type { UvToolStatus } from "@llama-manager/core";
+import type { UvToolStatus } from "@arriero/core";
 import { execFileSync } from "node:child_process";
 
 import { findExecutableInPath } from "../system/tool-probe.js";

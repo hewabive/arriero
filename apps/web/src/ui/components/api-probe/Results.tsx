@@ -1,4 +1,4 @@
-import type { ApiProbeResult } from "@llama-manager/core";
+import type { ApiProbeResult } from "@arriero/core";
 import { Code, Paper, Stack, Text } from "@mantine/core";
 
 import type { StreamProbeState } from "./types";

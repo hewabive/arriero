@@ -1,4 +1,4 @@
-import type { Instance, ArgumentOption } from "@llama-manager/core";
+import type { Instance, ArgumentOption } from "@arriero/core";
 import { ActionIcon, Group, Select, TextInput, Tooltip } from "@mantine/core";
 import { Trash2 } from "lucide-react";
 

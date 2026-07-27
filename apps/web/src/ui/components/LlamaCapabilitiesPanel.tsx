@@ -2,7 +2,7 @@ import type {
   LlamaCapabilitiesResult,
   LlamaCapability,
   LlamaCapabilityCategory,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Button,

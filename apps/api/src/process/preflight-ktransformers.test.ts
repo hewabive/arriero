@@ -3,7 +3,7 @@ import type {
   MemoryPool,
   NumaNode,
   SystemAccelerator,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -77,7 +77,7 @@ function preflightOptions(accelerators: SystemAccelerator[] = [nvidia]) {
 }
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "llama-manager-kt-preflight-"));
+  const root = mkdtempSync(join(tmpdir(), "arriero-kt-preflight-"));
   const bin = join(root, "bin");
   const weights = join(root, "weights");
   mkdirSync(bin, { recursive: true });

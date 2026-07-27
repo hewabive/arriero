@@ -16,7 +16,7 @@ import {
   type MemoryEstimate,
   type KTransformersMethod,
   type RpcWorkerRef,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { useForm } from "@mantine/form";
 import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";

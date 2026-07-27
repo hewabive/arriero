@@ -1,4 +1,4 @@
-import type { ArgumentDefaults, ArgumentOption } from "@llama-manager/core";
+import type { ArgumentDefaults, ArgumentOption } from "@arriero/core";
 import { Code, Group, Paper, Stack, Table, Text, Tooltip } from "@mantine/core";
 import { Star } from "lucide-react";
 

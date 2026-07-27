@@ -6,7 +6,7 @@ import {
   type ApiProxyRouteTraceStep,
   type ApiProxySourceRecord,
   type ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Edge, Node } from "@xyflow/react";
 
 import type { PipelineDraft, PipelineNodeDraft, PortValue } from "../forms";

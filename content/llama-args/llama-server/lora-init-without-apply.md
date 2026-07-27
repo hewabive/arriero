@@ -35,7 +35,7 @@ load LoRA adapters without applying them (apply later via POST /lora-adapters) (
 - Основное имя: `--lora-init-without-apply`
 - Алиасы: `--lora-init-without-apply`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Переменные окружения: не указаны
 - Значение по умолчанию: disabled
 - Внутреннее поле: `common_params.lora_init_without_apply`

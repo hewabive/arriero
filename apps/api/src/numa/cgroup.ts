@@ -1,4 +1,4 @@
-import type { NumaNode } from "@llama-manager/core";
+import type { NumaNode } from "@arriero/core";
 import {
   mkdirSync,
   readFileSync,
@@ -12,7 +12,8 @@ import { findDelegatedRootPath, parseSelfCgroupV2Path } from "./capability.js";
 import { managerEnv } from "../manager-env.js";
 
 const CGROUP_ROOT = "/sys/fs/cgroup";
-const INSTANCES_GROUP = "llama-manager-instances";
+const INSTANCES_GROUP = "arriero-instances";
+const LEGACY_INSTANCES_GROUP = "llama-manager-instances";
 
 export class NumaPinError extends Error {}
 
@@ -29,6 +30,17 @@ export function buildPinnedShimArgs(
   return ["-c", `echo $$ > ${shellQuote(cgroupProcsPath)} && exec ${command}`];
 }
 
+function resolveGroupDir(selfCgroupPath: string, group: string): string {
+  const root = findDelegatedRootPath(selfCgroupPath);
+  if (root) {
+    return `${CGROUP_ROOT}${root}/${group}`;
+  }
+
+  const selfDir =
+    selfCgroupPath === "/" ? CGROUP_ROOT : `${CGROUP_ROOT}${selfCgroupPath}`;
+  return `${dirname(selfDir)}/${group}`;
+}
+
 export function resolveInstancesGroupDir(
   selfCgroupPath: string,
   override = managerEnv("NUMA_CGROUP_ROOT"),
@@ -36,15 +48,7 @@ export function resolveInstancesGroupDir(
   if (override && override.trim()) {
     return override.trim();
   }
-
-  const root = findDelegatedRootPath(selfCgroupPath);
-  if (root) {
-    return `${CGROUP_ROOT}${root}/${INSTANCES_GROUP}`;
-  }
-
-  const selfDir =
-    selfCgroupPath === "/" ? CGROUP_ROOT : `${CGROUP_ROOT}${selfCgroupPath}`;
-  return `${dirname(selfDir)}/${INSTANCES_GROUP}`;
+  return resolveGroupDir(selfCgroupPath, INSTANCES_GROUP);
 }
 
 function readSelfCgroupPath(): string | null {
@@ -114,12 +118,7 @@ export function removeNumaCgroup(cgroupDir: string | null): void {
   }
 }
 
-export function cleanupOrphanNumaCgroups(): void {
-  const selfPath = readSelfCgroupPath();
-  if (selfPath === null) {
-    return;
-  }
-  const groupDir = resolveInstancesGroupDir(selfPath);
+function sweepEmptyChildCgroups(groupDir: string): void {
   let entries: string[];
   try {
     entries = readdirSync(groupDir);
@@ -136,4 +135,15 @@ export function cleanupOrphanNumaCgroups(): void {
       continue;
     }
   }
+}
+
+export function cleanupOrphanNumaCgroups(): void {
+  const selfPath = readSelfCgroupPath();
+  if (selfPath === null) {
+    return;
+  }
+  sweepEmptyChildCgroups(resolveInstancesGroupDir(selfPath));
+  const legacyGroupDir = resolveGroupDir(selfPath, LEGACY_INSTANCES_GROUP);
+  sweepEmptyChildCgroups(legacyGroupDir);
+  removeNumaCgroup(legacyGroupDir);
 }

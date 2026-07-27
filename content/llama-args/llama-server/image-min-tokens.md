@@ -37,7 +37,7 @@ minimum number of tokens each image can take, only used by vision models with dy
 - Основное имя: `--image-min-tokens`
 - Алиасы: `--image-min-tokens`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата из `--help`: `N`
 - Переменные окружения: `LLAMA_ARG_IMAGE_MIN_TOKENS`
 - Значение по умолчанию: read from model (`-1` во внутренней структуре)

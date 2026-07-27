@@ -4,7 +4,7 @@ import {
   type UpdateFleet,
   type UpdateFleetNode,
   type UpdateUpstream,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { execFileSync } from "node:child_process";
 import { hostname } from "node:os";
 

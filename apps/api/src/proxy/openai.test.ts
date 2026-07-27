@@ -15,7 +15,7 @@ test("openAiModelsList exposes only visible proxy models", () => {
       modelId: "alpha",
       visible: true,
       enabled: true,
-      ownedBy: "llama-manager",
+      ownedBy: "arriero",
       targetId: null,
       routeTo: null,
       description: null,
@@ -27,7 +27,7 @@ test("openAiModelsList exposes only visible proxy models", () => {
       modelId: "beta",
       visible: false,
       enabled: true,
-      ownedBy: "llama-manager",
+      ownedBy: "arriero",
       targetId: null,
       routeTo: null,
       description: null,
@@ -43,7 +43,7 @@ test("openAiModelsList exposes only visible proxy models", () => {
         id: "alpha",
         object: "model",
         created: 1780135200,
-        owned_by: "llama-manager",
+        owned_by: "arriero",
       },
     ],
   });
@@ -57,7 +57,7 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
         modelId: "alpha",
         visible: true,
         enabled: true,
-        ownedBy: "llama-manager",
+        ownedBy: "arriero",
         targetId: null,
         routeTo: null,
         description: null,
@@ -74,7 +74,7 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
     id: "alpha",
     object: "model",
     created: 1780135200,
-    owned_by: "llama-manager",
+    owned_by: "arriero",
     status: {
       value: "partial",
       active_requests: 2,
@@ -87,7 +87,7 @@ test("notImplementedResponse returns OpenAI-compatible error shape", () => {
   assert.deepEqual(notImplementedResponse("qwen", "/v1/chat/completions"), {
     error: {
       message:
-        "Model qwen is published by llama-manager, but /v1/chat/completions forwarding is not implemented yet.",
+        "Model qwen is published by arriero, but /v1/chat/completions forwarding is not implemented yet.",
       type: "server_error",
       param: "model",
       code: "llama_manager_proxy_not_implemented",

@@ -39,7 +39,7 @@ number of threads used to process HTTP requests (default: -1)
 - Основное имя: `--threads-http`
 - Алиасы: `--threads-http`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `LLAMA_ARG_THREADS_HTTP`

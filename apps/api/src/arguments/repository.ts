@@ -1,4 +1,4 @@
-import { ArgumentOptionSchema, type ArgumentOption } from "@llama-manager/core";
+import { ArgumentOptionSchema, type ArgumentOption } from "@arriero/core";
 import { eq } from "drizzle-orm";
 import { existsSync } from "node:fs";
 

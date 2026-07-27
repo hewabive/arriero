@@ -13,11 +13,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import type {
-  UpdateFleetNode,
-  UpdateJob,
-  UpdateJobStep,
-} from "@llama-manager/core";
+import type { UpdateFleetNode, UpdateJob, UpdateJobStep } from "@arriero/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 

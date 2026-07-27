@@ -11,7 +11,7 @@ import {
   type ApiProxyEditRequestOperation,
   type ApiProxyPipelineNode,
   type ApiProxyPipelineRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import type { ApiProxyProtocolModelRequest } from "./protocol.js";
 import {
@@ -62,7 +62,7 @@ function request(
       modelId: "public-model",
       visible: true,
       enabled: true,
-      ownedBy: "llama-manager",
+      ownedBy: "arriero",
       targetId: null,
       routeTo: { type: "pipeline", id: "pipeline-a" },
       description: null,

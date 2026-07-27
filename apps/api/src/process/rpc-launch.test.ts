@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import type { Instance } from "@llama-manager/core";
+import type { Instance } from "@arriero/core";
 
 import {
   resetInstancesCache,

@@ -1,4 +1,4 @@
-import type { LogTail, RuntimeState } from "@llama-manager/core";
+import type { LogTail, RuntimeState } from "@arriero/core";
 
 import { latestProcessRun } from "./runs-repository.js";
 import { readTailLines } from "../utils/log-tail.js";

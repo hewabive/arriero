@@ -40,7 +40,7 @@ Hugging Face access token (default: value from HF_TOKEN environment variable)
 - Основное имя: `--hf-token`
 - Алиасы: `-hft`, `--hf-token`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата из `--help`: `TOKEN`
 - Переменные окружения: `HF_TOKEN`
 - Значение по умолчанию: значение `HF_TOKEN`, если оно есть
@@ -56,7 +56,7 @@ Hugging Face access token (default: value from HF_TOKEN environment variable)
 
 Ожидается raw token строкой. Не добавляйте префикс `Bearer `: код хранит именно token и сам формирует auth там, где это нужно.
 
-В конфигурациях llama-manager токен лучше хранить как секрет, а не как обычный параметр с логированием. CLI-аргумент может быть виден в process list; переменная окружения `HF_TOKEN` обычно безопаснее для управляемого сервиса.
+В конфигурациях arriero токен лучше хранить как секрет, а не как обычный параметр с логированием. CLI-аргумент может быть виден в process list; переменная окружения `HF_TOKEN` обычно безопаснее для управляемого сервиса.
 
 ## Когда использовать
 

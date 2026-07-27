@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import type { FleetNode } from "@llama-manager/core";
+import type { FleetNode } from "@arriero/core";
 
 import {
   createNode,

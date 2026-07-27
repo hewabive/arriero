@@ -36,7 +36,7 @@ path to LoRA adapter (use comma-separated values to load multiple adapters)
 - Основное имя: `--lora`
 - Алиасы: `--lora`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `list`
+- Тип значения в arriero: `list`
 - Подсказка формата из `--help`: `FNAME`
 - Переменные окружения: не указаны
 - Значение по умолчанию: adapters не загружаются

@@ -1,4 +1,4 @@
-import type { InstanceHealthSummary, LogTail } from "@llama-manager/core";
+import type { InstanceHealthSummary, LogTail } from "@arriero/core";
 import {
   Badge,
   Button,

@@ -1,4 +1,4 @@
-import type { BuildJobStep, PrerequisiteCheck } from "@llama-manager/core";
+import type { BuildJobStep, PrerequisiteCheck } from "@arriero/core";
 
 import { buildInstallPlan } from "../prerequisites/install-plan.js";
 import {

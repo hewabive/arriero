@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import { AdminLoginSchema } from "@llama-manager/core";
+import { AdminLoginSchema } from "@arriero/core";
 import { Hono } from "hono";
 
 import {

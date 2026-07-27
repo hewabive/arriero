@@ -3,7 +3,7 @@ import {
   type ApiProxyInflightRequest,
   type ApiProxyPlanPreview,
   type ApiProxyTargetRuntime,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { formatLocalDateTime } from "../utils/time";
 

@@ -1,4 +1,4 @@
-import type { NumaPlacement } from "@llama-manager/core";
+import type { NumaPlacement } from "@arriero/core";
 
 export const NUMA_SKEW_TOLERANCE = 0.5;
 

@@ -1,4 +1,4 @@
-import type { NetworkInterfaceAddress } from "@llama-manager/core";
+import type { NetworkInterfaceAddress } from "@arriero/core";
 import { Stack, Text, TextInput } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";

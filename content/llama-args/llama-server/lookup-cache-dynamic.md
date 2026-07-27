@@ -37,7 +37,7 @@ path to dynamic lookup cache to use for lookup decoding (updated by generation)
 - Основное имя: `--lookup-cache-dynamic`
 - Алиасы: `-lcd`, `--lookup-cache-dynamic`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `path`
+- Тип значения в arriero: `path`
 - Формат: путь к файлу lookup cache
 - Переменные окружения: нет
 - Поле в `common_params`: `speculative.ngram_cache.lookup_cache_dynamic`

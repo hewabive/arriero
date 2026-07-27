@@ -3,7 +3,7 @@ import type {
   ApiProxySchedulerAction,
   ApiProxyTargetRecord,
   Instance,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import type { ApiProxyProtocolDiagnostic } from "./protocol.js";
 

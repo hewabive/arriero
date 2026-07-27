@@ -3,7 +3,7 @@ import type {
   ApiProxyPipelineRecord,
   ApiProxyPortRef,
   ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { anthropicProtocolAdapter } from "./anthropic.js";
 import { buildDomainAdmissionDecider } from "./domain-admission.js";

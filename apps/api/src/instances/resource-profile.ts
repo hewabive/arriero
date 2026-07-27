@@ -2,7 +2,7 @@ import {
   deriveInstanceResourceProfile,
   type Instance,
   type InstanceResourceProfile,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { getCachedModel } from "../models/cache-repository.js";
 import { listMemoryPools } from "../resources/repository.js";

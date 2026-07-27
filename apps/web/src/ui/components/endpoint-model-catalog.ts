@@ -1,4 +1,4 @@
-import type { ApiProxyTargetModelGroup } from "@llama-manager/core";
+import type { ApiProxyTargetModelGroup } from "@arriero/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -13,11 +13,11 @@ const groupOrder = [
   "Managed instances",
   "Remote instances",
   "External APIs",
-  "llama-manager proxy",
+  "arriero proxy",
 ] as const;
 
 function endpointGroupLabel(group: ApiProxyTargetModelGroup): string {
-  if (group.kind === "manager-proxy") return "llama-manager proxy";
+  if (group.kind === "manager-proxy") return "arriero proxy";
   if (group.kind === "external-api") return "External APIs";
   if (group.remote) return "Remote instances";
   return "Managed instances";

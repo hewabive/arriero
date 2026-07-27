@@ -39,7 +39,7 @@ model download url (default: unused)
 - Основное имя: `--model-url`
 - Алиасы: `-mu`, `--model-url`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата из `--help`: `MODEL_URL`
 - Переменные окружения: `LLAMA_ARG_MODEL_URL`
 - Значение по умолчанию: не используется

@@ -2,7 +2,7 @@ import {
   defaultFusionAnswersTemplate,
   defaultFusionSynthesizerPrompt,
   parseApiProxyBodyFieldPath,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type {
   ApiProxyConditionPredicate,
   ApiProxyConditionScope,
@@ -22,7 +22,7 @@ import type {
   ApiProxyRouteTo,
   ApiProxyTargetCreate,
   ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 export type TargetEditor =
   | { mode: "create"; target: null }
@@ -144,7 +144,7 @@ export const emptyModelDraft: ModelDraft = {
   modelId: "",
   visible: false,
   enabled: true,
-  ownedBy: "llama-manager",
+  ownedBy: "arriero",
   routeToValue: null,
   description: "",
 };
@@ -787,7 +787,7 @@ export function modelPayload(draft: ModelDraft): ApiProxyModelCreate {
     modelId: draft.modelId.trim(),
     visible: draft.visible,
     enabled: draft.enabled,
-    ownedBy: draft.ownedBy.trim() || "llama-manager",
+    ownedBy: draft.ownedBy.trim() || "arriero",
     targetId: routeTo?.type === "target" ? routeTo.id : null,
     routeTo,
     description: draft.description.trim() || null,

@@ -37,7 +37,7 @@ YaRN: low correction dim or beta (default: -1.00)
 - Основное имя: `--yarn-beta-fast`
 - Алиасы: `--yarn-beta-fast`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Формат: число, передаваемое в `std::stof`
 - Переменная окружения: `LLAMA_ARG_YARN_BETA_FAST`
 - Поле в `common_params`: `yarn_beta_fast`

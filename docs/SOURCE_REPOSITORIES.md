@@ -1,9 +1,9 @@
 # Source repositories
 
-llama-manager manages inference source checkouts independently from build and
+arriero manages inference source checkouts independently from build and
 runtime-engine installation. The first registered source is `llama-cpp`; the
 same domain is intended for sources that are inspected for integration drift
-even when llama-manager never builds them.
+even when arriero never builds them.
 
 ## Managed and external checkouts
 
@@ -20,7 +20,7 @@ A fresh installation synthesizes this portable source specification:
 ```
 
 Managed checkouts live under `runtime/sources/` by default, so llama.cpp is
-cloned to `runtime/sources/llama.cpp`. Set `LLAMA_MANAGER_SOURCES_DIR` to move
+cloned to `runtime/sources/llama.cpp`. Set `ARRIERO_SOURCES_DIR` to move
 all managed source checkouts without putting machine-specific absolute paths in
 portable configuration.
 
@@ -60,14 +60,14 @@ swept from every configured source parent directory at startup.
 ## Repository identity
 
 Because managed sources live inside the ignored `runtime/` directory, ordinary
-Git discovery would otherwise walk upward and mistake the llama-manager
+Git discovery would otherwise walk upward and mistake the arriero
 checkout for the inference source. Every source operation therefore requires:
 
 1. `git rev-parse --show-toplevel` to succeed;
 2. the real top-level path to equal the configured source path exactly;
 3. adapter-specific marker validation (for llama.cpp, `CMakeLists.txt`).
 
-A plain directory inside llama-manager is reported as `invalid`; pull and other
+A plain directory inside arriero is reported as `invalid`; pull and other
 mutations are refused.
 
 ## Status and drift

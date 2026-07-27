@@ -2,7 +2,7 @@ import type {
   InstanceHealthSummary,
   EndpointProbe,
   LlamaModelDiagnostics,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Box,

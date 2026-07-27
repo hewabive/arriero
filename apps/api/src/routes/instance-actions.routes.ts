@@ -4,7 +4,7 @@ import {
   type InstanceBulkActionItem,
   type ProcessEvent,
   type ResourceAdmission,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 

@@ -35,7 +35,7 @@ Set verbosity level to infinity (i.e. log all messages, useful for debugging)
 - Основное имя: `--verbose`
 - Алиасы: `-v`, `--verbose`, `--log-verbose`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Подсказка формата: `нет значения`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

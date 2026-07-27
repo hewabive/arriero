@@ -1,4 +1,4 @@
-import type { BuildSettings, LlamaSourceRefs } from "@llama-manager/core";
+import type { BuildSettings, LlamaSourceRefs } from "@arriero/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";

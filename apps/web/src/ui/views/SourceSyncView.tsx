@@ -2,7 +2,7 @@ import type {
   SourceRepositoryStatus,
   SourceSyncReport,
   SourceSyncSection,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Alert,
   Badge,

@@ -37,7 +37,7 @@ advanced option to override model metadata by key. to specify multiple overrides
 - Основное имя: `--override-kv`
 - Алиасы: `--override-kv`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `list`
+- Тип значения в arriero: `list`
 - Формат: `KEY=TYPE:VALUE`, несколько элементов через запятую
 - Переменные окружения: нет
 - Поле в `common_params`: `kv_overrides`

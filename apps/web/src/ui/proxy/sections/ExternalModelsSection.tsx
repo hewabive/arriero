@@ -2,7 +2,7 @@ import type {
   ApiProxyModelRecord,
   ApiProxyPipelineRecord,
   ApiProxyTargetRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Code,

@@ -3,7 +3,7 @@ import type {
   ModelPresetDocument,
   ModelPresetSummary,
   ModelPresetWrite,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { activeNodeScopedPath, apiBase } from "./base.js";
 import { nodeRequest as request } from "./http.js";

@@ -3,7 +3,7 @@ import {
   type Instance,
   type InstanceArgValue,
   type EndpointProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 const RPC_HTTP = engineDescriptor("rpc-worker").http;
 const PROBE_TIMEOUT_MS = 1_500;

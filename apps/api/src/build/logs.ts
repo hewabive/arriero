@@ -1,4 +1,4 @@
-import type { BuildLogTail } from "@llama-manager/core";
+import type { BuildLogTail } from "@arriero/core";
 
 import { getBuildJob } from "./repository.js";
 import { readTailLines } from "../utils/log-tail.js";

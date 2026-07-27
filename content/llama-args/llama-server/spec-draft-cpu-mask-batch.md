@@ -37,7 +37,7 @@ Draft model CPU affinity mask. Complements cpu-range-draft (default: same as --c
 - Основное имя: `--spec-draft-cpu-mask-batch`
 - Алиасы: `-Cbd`, `--cpu-mask-batch-draft`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата: `M`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

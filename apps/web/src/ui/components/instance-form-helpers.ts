@@ -2,7 +2,7 @@ import {
   InstanceEnvSchema,
   type Instance,
   type ArgumentOption,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { pathBaseName } from "../utils/models";
 import { type ArgRow } from "./InstanceArgumentRows";

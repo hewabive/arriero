@@ -7,7 +7,7 @@ import {
   type GgufTensorInfo,
   type GgufTensorTable,
   type MemoryEstimateHparams,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 function f16Tensor(name: string, dims: number[]): GgufTensorInfo {
   const elements = dims.reduce((product, dim) => product * dim, 1);

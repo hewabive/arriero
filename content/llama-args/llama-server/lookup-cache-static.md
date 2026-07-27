@@ -37,7 +37,7 @@ path to static lookup cache to use for lookup decoding (not updated by generatio
 - Основное имя: `--lookup-cache-static`
 - Алиасы: `-lcs`, `--lookup-cache-static`
 - Категория в `--help`: `Параметры llama-server`
-- Тип значения в llama-manager: `path`
+- Тип значения в arriero: `path`
 - Формат: путь к файлу lookup cache
 - Переменные окружения: нет
 - Поле в `common_params`: `speculative.ngram_cache.lookup_cache_static`

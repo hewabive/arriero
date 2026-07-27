@@ -1,7 +1,7 @@
 import {
   LlamaSourceCheckoutSchema,
   LlamaSourceSettingsUpdateSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import { buildRunner } from "../build/runner.js";

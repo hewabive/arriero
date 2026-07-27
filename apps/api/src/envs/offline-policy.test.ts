@@ -1,4 +1,4 @@
-import { EnvironmentCreateSchema } from "@llama-manager/core";
+import { EnvironmentCreateSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 

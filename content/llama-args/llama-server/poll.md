@@ -36,7 +36,7 @@ use polling level to wait for work (0 - no polling, default: 50)
 - Основное имя: `--poll`
 - Алиасы: `--poll`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата: `<0...100>`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

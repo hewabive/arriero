@@ -4,7 +4,7 @@ import { apiProxyInflight } from "../proxy/inflight.js";
 import { apiProxyStreamSessions } from "../proxy/stream-session.js";
 import { newId } from "../utils/id.js";
 
-export { AppVersionSchema } from "@llama-manager/core";
+export { AppVersionSchema } from "@arriero/core";
 export type {
   AppRunMode,
   AppVersion,
@@ -14,10 +14,10 @@ export type {
   UpdateJobStep,
   UpdateJobStepName,
   UpdateLogTail,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 export const updateAdapter = {
-  appName: "llama-manager",
+  appName: "arriero",
   rootDir: config.rootDir,
   logsDir: config.logsDir,
   newJobId: (): string => newId(),

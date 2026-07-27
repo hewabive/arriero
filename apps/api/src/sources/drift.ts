@@ -1,4 +1,4 @@
-import type { SourceSyncReport } from "@llama-manager/core";
+import type { SourceSyncReport } from "@arriero/core";
 
 import { getLlamaSourceSyncReport } from "../llama/source-sync.js";
 import { getSourceRepositoryDefinition } from "./registry.js";

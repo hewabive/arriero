@@ -1,4 +1,4 @@
-import type { GgufModel, ModelScanSettings } from "@llama-manager/core";
+import type { GgufModel, ModelScanSettings } from "@arriero/core";
 import { eq } from "drizzle-orm";
 import { existsSync } from "node:fs";
 

@@ -1,7 +1,4 @@
-import {
-  EnvironmentCreateSchema,
-  EnvironmentSpecSchema,
-} from "@llama-manager/core";
+import { EnvironmentCreateSchema, EnvironmentSpecSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -261,7 +258,7 @@ test("KTransformers schema narrows Python and accelerator variants", () => {
 });
 
 test("failed matched-root install removes KTransformers staging transaction", async () => {
-  const fakeBin = mkdtempSync(join(tmpdir(), "llama-manager-fake-uv-"));
+  const fakeBin = mkdtempSync(join(tmpdir(), "arriero-fake-uv-"));
   const uv = join(fakeBin, "uv");
   writeFileSync(
     uv,
@@ -314,7 +311,7 @@ test("failed matched-root install removes KTransformers staging transaction", as
 });
 
 test("canceling KTransformers install removes staging and publishes nothing", async () => {
-  const fakeBin = mkdtempSync(join(tmpdir(), "llama-manager-slow-uv-"));
+  const fakeBin = mkdtempSync(join(tmpdir(), "arriero-slow-uv-"));
   const uv = join(fakeBin, "uv");
   writeFileSync(
     uv,

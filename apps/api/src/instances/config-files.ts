@@ -12,7 +12,7 @@ import { dirname, resolve } from "node:path";
 import {
   InstanceConfigRecordSchema,
   type InstanceConfigRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { config } from "../config.js";
 

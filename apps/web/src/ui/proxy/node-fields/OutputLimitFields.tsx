@@ -1,4 +1,4 @@
-import type { ApiProxyOutputLimitMode } from "@llama-manager/core";
+import type { ApiProxyOutputLimitMode } from "@arriero/core";
 import { NumberInput, SegmentedControl, Stack, Text } from "@mantine/core";
 
 import type { PipelineNodeDraft } from "../forms";

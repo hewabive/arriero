@@ -1,7 +1,7 @@
 import type {
   ApiProxyModelRecord,
   ApiProxyPublicModelStatus,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { asObject } from "./json.js";
 import {
   modelIdFromBody,
@@ -65,7 +65,7 @@ export function openAiModelsList(
 
 export function notImplementedResponse(modelId: string, endpoint: string) {
   return openAiError({
-    message: `Model ${modelId} is published by llama-manager, but ${endpoint} forwarding is not implemented yet.`,
+    message: `Model ${modelId} is published by arriero, but ${endpoint} forwarding is not implemented yet.`,
     type: "server_error",
     code: "llama_manager_proxy_not_implemented",
     param: "model",
@@ -208,7 +208,7 @@ export const openAiResumableCodec: ApiProxyResumableCodec = {
     toolCalls,
   }) {
     const created = Math.floor(Date.now() / 1000);
-    const resolvedId = id ?? "chatcmpl-llama-manager";
+    const resolvedId = id ?? "chatcmpl-arriero";
     const resolvedModel = model ?? "unknown";
     const reasoning =
       reasoningText && reasoningText.length > 0
@@ -331,7 +331,7 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
   modelNotFound: (modelId) => ({
     status: 404,
     body: openAiError({
-      message: `Model ${modelId} is not published by llama-manager proxy.`,
+      message: `Model ${modelId} is not published by arriero proxy.`,
       type: "not_found_error",
       code: "model_not_found",
       param: "model",

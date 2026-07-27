@@ -1,4 +1,4 @@
-import type { MemoryPool } from "@llama-manager/core";
+import type { MemoryPool } from "@arriero/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

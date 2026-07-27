@@ -1,4 +1,4 @@
-import type { SystemDiskDevice, SystemResources } from "@llama-manager/core";
+import type { SystemDiskDevice, SystemResources } from "@arriero/core";
 import {
   Badge,
   Group,

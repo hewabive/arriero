@@ -3,7 +3,7 @@ import type {
   ApiProxyStatsSnapshot,
   ApiProxyTraceFile,
   ApiProxyTraceUsage,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   Badge,
   Button,

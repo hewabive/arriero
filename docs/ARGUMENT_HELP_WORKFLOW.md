@@ -11,7 +11,7 @@ tools/server/README.md
 <!-- HELP_START --> ... <!-- HELP_END -->
 ```
 
-llama-manager stores a reviewed snapshot of that block in:
+arriero stores a reviewed snapshot of that block in:
 
 ```text
 content/llama-args/source/server-help.generated.md
@@ -42,10 +42,10 @@ This document is the source of truth. The repo-local skills are thin wrappers th
 Useful commands:
 
 ```bash
-pnpm --filter @llama-manager/api args:docs:source-sync
-pnpm --filter @llama-manager/api args:docs:source-sync -- --diff
-pnpm --filter @llama-manager/api args:docs:source-sync -- --write
-pnpm --filter @llama-manager/api args:docs:quality
+pnpm --filter @arriero/api args:docs:source-sync
+pnpm --filter @arriero/api args:docs:source-sync -- --diff
+pnpm --filter @arriero/api args:docs:source-sync -- --write
+pnpm --filter @arriero/api args:docs:quality
 ```
 
 Steps:
@@ -54,7 +54,7 @@ Steps:
 2. Verify each added/changed row against the actual source, not just the README. The generated help block can run ahead of the code: a doc-regeneration commit can add rows to `tools/server/README.md` without a matching `common/arg.cpp` change, so the row describes a flag the built binary does not accept (a "phantom" arg). Cross-check with the configured llama.cpp checkout — grep `common/arg.cpp` and the `LLAMA_ARG_*` env name — and, when a build exists, the built `llama-server --help`. See `docs/CASE_PHANTOM_HELP_ARGS.md`.
 3. For each affected argument, edit the matching file in `content/llama-args/llama-server/*.md`. Then grep `content/llama-args/llama-server/` for mentions of each changed argument and fix cross-references in other docs whose claims the change invalidated — this is targeted repair, not a mass-edit.
 4. For a new argument, create a focused Russian Engineering help file using nearby argument docs as the style reference: practical behavior, safe defaults, interactions, diagnostics, and relevant source/issue links. To find the upstream PR behind an added or changed help row, run `git log -S "<new help text>" --oneline -- common/arg.cpp` in the configured llama.cpp checkout.
-5. For a phantom arg (in the README help block but not in the source/binary), still write a doc, but add a `Статус в upstream` section: state it is not implemented in the current checkout, link the PR that introduced the README row, and note it will not appear in the llama-manager catalog (built from `--help`) until the feature lands. Do not present it as a working flag.
+5. For a phantom arg (in the README help block but not in the source/binary), still write a doc, but add a `Статус в upstream` section: state it is not implemented in the current checkout, link the PR that introduced the README row, and note it will not appear in the arriero catalog (built from `--help`) until the feature lands. Do not present it as a working flag.
 6. For a removed argument, delete the matching doc only after confirming it was not renamed or moved.
 7. Once the docs match the new generated help, write the snapshot/hash with `--write`.
 

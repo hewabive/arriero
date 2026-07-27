@@ -8,7 +8,7 @@ import {
   engineDescriptor,
   type FleetNode,
   type Instance,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { z } from "zod";
 import { newId } from "../utils/id.js";
 
@@ -150,7 +150,7 @@ function managerProxyBaseUrl() {
 function managerProxyEndpoint(): ApiEndpointRecord {
   return ApiEndpointRecordSchema.parse({
     id: managerProxyEndpointId,
-    name: "llama-manager proxy",
+    name: "arriero proxy",
     enabled: true,
     kind: "manager-proxy",
     baseUrl: managerProxyBaseUrl(),

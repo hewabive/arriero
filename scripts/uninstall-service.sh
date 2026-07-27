@@ -10,9 +10,8 @@ set -euo pipefail
 # Linger is left enabled by default because other --user services may rely on
 # it; pass --disable-linger to turn it off too.
 
-UNIT_NAME="llama-manager.service"
+UNIT_NAMES=("arriero.service" "llama-manager.service")
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-UNIT_PATH="$UNIT_DIR/$UNIT_NAME"
 DISABLE_LINGER=false
 
 for arg in "$@"; do
@@ -45,22 +44,29 @@ if [[ -z "${XDG_RUNTIME_DIR:-}" && -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
   fi
 fi
 
-if systemctl --user list-unit-files "$UNIT_NAME" --no-legend 2>/dev/null | grep -q .; then
-  systemctl --user disable --now "$UNIT_NAME"
-  echo "Stopped and disabled $UNIT_NAME"
-else
-  echo "$UNIT_NAME is not installed for this user; nothing to stop."
-fi
+REMOVED_ANY=false
+for unit_name in "${UNIT_NAMES[@]}"; do
+  unit_path="$UNIT_DIR/$unit_name"
+  if systemctl --user list-unit-files "$unit_name" --no-legend 2>/dev/null | grep -q .; then
+    systemctl --user disable --now "$unit_name"
+    echo "Stopped and disabled $unit_name"
+    REMOVED_ANY=true
+  fi
+  if [[ -f "$unit_path" ]]; then
+    rm "$unit_path"
+    echo "Removed $unit_path"
+    REMOVED_ANY=true
+  fi
+done
 
-if [[ -f "$UNIT_PATH" ]]; then
-  rm "$UNIT_PATH"
-  echo "Removed $UNIT_PATH"
-else
-  echo "No unit file at $UNIT_PATH"
+if [[ "$REMOVED_ANY" == false ]]; then
+  echo "No arriero (or legacy llama-manager) unit installed for this user; nothing to stop."
 fi
 
 systemctl --user daemon-reload
-systemctl --user reset-failed "$UNIT_NAME" 2>/dev/null || true
+for unit_name in "${UNIT_NAMES[@]}"; do
+  systemctl --user reset-failed "$unit_name" 2>/dev/null || true
+done
 
 if [[ "$DISABLE_LINGER" == true ]]; then
   if loginctl disable-linger "$USER" 2>/dev/null; then
@@ -74,7 +80,7 @@ else
 fi
 
 echo
-echo "llama-manager is no longer supervised by systemd --user."
+echo "arriero is no longer supervised by systemd --user."
 echo "Managed llama-server children survive the manager by default; check with:"
 echo "  pgrep -a llama-server"
 echo "They will be re-adopted if you start the manager again (pnpm serve)."

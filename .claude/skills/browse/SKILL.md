@@ -1,11 +1,11 @@
 ---
 name: browse
-description: "Navigate the running llama-manager web UI via Playwright — visit hash routes, interact with the UI, take screenshots. USE WHEN asked to look at a page, check UI, visit a route, inspect the app visually, or interact with the running site."
+description: "Navigate the running arriero web UI via Playwright — visit hash routes, interact with the UI, take screenshots. USE WHEN asked to look at a page, check UI, visit a route, inspect the app visually, or interact with the running site."
 argument-hint: "<#/route> | open | act ..."
 allowed-tools: Bash, Read
 ---
 
-Drive the running llama-manager web UI through a headless Playwright browser: navigate hash routes, take screenshots, interact with UI elements. No authentication step — admin auth is off by default in local dev.
+Drive the running arriero web UI through a headless Playwright browser: navigate hash routes, take screenshots, interact with UI elements. No authentication step — admin auth is off by default in local dev.
 
 ## Prerequisites
 

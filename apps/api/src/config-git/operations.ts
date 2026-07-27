@@ -7,7 +7,7 @@ import type {
   ConfigGitReset,
   ConfigGitSwitch,
   ConfigGitValidation,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   appendFileSync,
   copyFileSync,

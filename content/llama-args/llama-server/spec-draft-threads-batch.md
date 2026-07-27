@@ -38,7 +38,7 @@ number of threads to use during batch and prompt processing (default: same as --
 - Основное имя: `--spec-draft-threads-batch`
 - Алиасы: `-tbd`, `--threads-batch-draft`
 - Категория в `--help`: `Параметры speculative decoding`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `не заданы`

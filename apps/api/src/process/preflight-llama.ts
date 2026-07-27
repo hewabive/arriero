@@ -2,7 +2,7 @@ import type {
   Instance,
   ProcessPreflightIssue,
   SystemAccelerator,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, readFileSync, statSync } from "node:fs";
 
 import { getArgumentCatalog } from "../arguments/catalog.js";

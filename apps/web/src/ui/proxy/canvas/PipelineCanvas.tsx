@@ -1,7 +1,7 @@
 import {
   collectApiProxyRouteHoles,
   type ApiProxyRouteTraceStep,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ActionIcon,
   Badge,

@@ -1,6 +1,6 @@
 # Stream resume across manager restarts
 
-Goal: a llama-manager restart (self-update, crash-free redeploy) must not cost
+Goal: a arriero restart (self-update, crash-free redeploy) must not cost
 in-flight managed generations. The client's HTTP connection to the manager
 necessarily breaks; what this feature guarantees is that a client retry of the
 same request recovers the exact original generation instead of recomputing it.
@@ -67,10 +67,10 @@ Four pieces, one per implementation phase:
 3. **Persist/adopt** (`proxy/pending-resume.ts`): on SIGTERM the registry
    snapshot is written to `data/proxy-pending-resume.json` before the HTTP
    server closes (suppressing the settle-time DELETEs); skipped when
-   `LLAMA_MANAGER_STOP_MANAGED_ON_EXIT=true` since the children die anyway. On
+   `ARRIERO_STOP_MANAGED_ON_EXIT=true` since the children die anyway. On
    boot the file is consumed (single-shot), entries are verified via
    `/v1/streams/lookup`, and survivors wait for a claim within
-   `LLAMA_MANAGER_PROXY_RESUME_CLAIM_WINDOW_MS` (default 180 000, kept under
+   `ARRIERO_PROXY_RESUME_CLAIM_WINDOW_MS` (default 180 000, kept under
    the llama.cpp 300 s post-completion TTL). Expired entries are DELETEd by
    the idle-maintenance sweep so orphaned generations stop burning compute.
    While pending or claimed, the entries' targets ride
@@ -110,7 +110,7 @@ When the update runner reaches its restart step it flips the proxy into drain
 mode (`proxy/drain.ts`): new public proxy requests get an immediate 503 with
 `Retry-After: 5` (protocol-shaped error body), so well-behaved clients back
 off and land after the restart. The runner then waits up to
-`LLAMA_MANAGER_UPDATE_DRAIN_TIMEOUT_MS` (default 10 s) for in-flight requests
+`ARRIERO_UPDATE_DRAIN_TIMEOUT_MS` (default 10 s) for in-flight requests
 *without* stream sessions — externals, embeddings — to finish; resumable ones
 are not waited for, they persist. Then SIGTERM → persist → systemd restart.
 Replayed requests are marked `resumed` on the trace and counted in

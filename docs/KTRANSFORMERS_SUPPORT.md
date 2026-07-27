@@ -30,7 +30,7 @@ For session transfer and continuation state, start with
 `docs/KTRANSFORMERS_HANDOFF.md`.
 
 This document is the implementation plan for managed KTransformers support in
-llama-manager. It records the architecture decisions accepted on 2026-07-16,
+arriero. It records the architecture decisions accepted on 2026-07-16,
 the target contracts, the delivery phases, migrations, tests, and acceptance
 criteria. As phases land, stable engine and environment contracts move into
 `docs/ENGINE_ADAPTERS.md`, `docs/ENVIRONMENTS.md`, and the relevant operational
@@ -63,7 +63,7 @@ The first product profile deliberately supports only:
 - uv-managed CPython 3.11 or 3.12;
 - official, version-matched `kt-kernel` and `sglang-kt` wheels;
 - one model bundle per managed process;
-- OpenAI-compatible serving through the llama-manager proxy;
+- OpenAI-compatible serving through the arriero proxy;
 - explicit RAM and GPU reservations before start.
 
 ROCm, source builds, non-x86 platforms, automatic model downloads, weight
@@ -102,7 +102,7 @@ The following decisions are final for this implementation.
    `503` means loading. Log markers report progress and errors but cannot make an
    unhealthy process ready.
 9. **KTransformers owns internal NUMA placement.** `--kt-threadpool-count` and
-   `--kt-numa-nodes` control KT thread pools. llama-manager owns admission and
+   `--kt-numa-nodes` control KT thread pools. arriero owns admission and
    outer isolation and does not add interleave placement by default.
 10. **Reservations drive admission.** The first release requires declared host
     and GPU memory draws. Runtime measurements detect drift and overuse but do
@@ -115,7 +115,7 @@ The following decisions are final for this implementation.
     proxy path.
 13. **The manager owns the public auth boundary.** The managed server binds to
     loopback and does not use `--api-key` in the first release. Public auth and
-    TLS terminate at llama-manager or its front proxy.
+    TLS terminate at arriero or its front proxy.
 14. **The initial support matrix is narrow and explicit.** Unsupported
     accelerator, Python, platform, wheel, and CPU-instruction combinations fail
     preflight or report the environment unavailable instead of attempting a
@@ -161,7 +161,7 @@ sglang serve --model ... --kt-weight-path ... --kt-method ...
           +--> complete descendant process tree telemetry
           |
           v
-llama-manager proxy
+arriero proxy
   lease + concurrency admission + idle-only eviction
 ```
 
@@ -642,7 +642,7 @@ but do not influence scoring in MVP. A later cost-aware scheduler may use them.
 The initial supported topology is:
 
 ```text
-client -> authenticated llama-manager -> loopback unauthenticated SGLang-KT
+client -> authenticated arriero -> loopback unauthenticated SGLang-KT
 ```
 
 The form defaults `--host 127.0.0.1`; changing to a wildcard host produces a

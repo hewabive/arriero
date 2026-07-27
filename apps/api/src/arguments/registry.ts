@@ -5,13 +5,13 @@ import type {
   ArgumentOption,
   LlamaArgumentPresetSupport,
   ArgumentValueType,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   ArgumentCliEncodingSchema,
   ArgumentControlKindSchema,
   LlamaArgumentPresetSupportSchema,
   ArgumentValueTypeSchema,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 

@@ -3,7 +3,7 @@ import {
   apiEndpointModelFilterAdmits,
   type ApiEndpointRecord,
   type ApiProxyModelRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import {
   getCachedEndpointModelIds,

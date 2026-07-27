@@ -57,7 +57,7 @@ set custom jinja chat template file (default: template taken from model's metada
 ## Когда использовать
 
 - Template занимает много строк.
-- Нужно версионировать template отдельно от конфигурации llama-manager.
+- Нужно версионировать template отдельно от конфигурации arriero.
 - Один и тот же template используется несколькими моделями или router preset секциями.
 
 ## Влияние на производительность и память

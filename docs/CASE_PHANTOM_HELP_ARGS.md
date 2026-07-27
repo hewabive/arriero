@@ -22,7 +22,7 @@ The rows entered the README via [PR #23865](https://github.com/ggml-org/llama.cp
 
 ## Why it matters
 
-llama-manager builds its argument catalog from the binary's `--help`, so a phantom arg never gets a catalog entry — a doc written for it as a working flag would be misleading, and a user passing the flag gets an unknown-argument error.
+arriero builds its argument catalog from the binary's `--help`, so a phantom arg never gets a catalog entry — a doc written for it as a working flag would be misleading, and a user passing the flag gets an unknown-argument error.
 
 ## How it was handled
 

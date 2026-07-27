@@ -39,7 +39,7 @@ Hugging Face model repository for the vocoder model (default: unused)
 - Основное имя: `--hf-repo-v`
 - Алиасы: `-hfv`, `-hfrv`, `--hf-repo-v`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `string`
+- Тип значения в arriero: `string`
 - Подсказка формата из `--help`: `<user>/<model>[:quant]`
 - Переменные окружения: `LLAMA_ARG_HF_REPO_V`
 - Значение по умолчанию: не используется

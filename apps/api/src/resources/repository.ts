@@ -2,7 +2,7 @@ import {
   MemoryPoolSchema,
   type MemoryPool,
   type MemoryPoolUpdate,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   existsSync,
   mkdirSync,

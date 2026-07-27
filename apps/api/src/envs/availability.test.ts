@@ -1,10 +1,10 @@
-import type { SystemAccelerator } from "@llama-manager/core";
+import type { SystemAccelerator } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { environmentAvailability } from "./availability.js";
 import { environmentProvisioner } from "./provisioners.js";
-import { EnvironmentSpecSchema } from "@llama-manager/core";
+import { EnvironmentSpecSchema } from "@arriero/core";
 
 const nvidia: SystemAccelerator = {
   id: "0",

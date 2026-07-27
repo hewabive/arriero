@@ -7,7 +7,7 @@ import {
   type ConfigGitDiff,
   type ConfigGitFileStatus,
   type ConfigGitStatus,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 

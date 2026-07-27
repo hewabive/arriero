@@ -5,7 +5,7 @@ import type {
   LlamaCapabilityCategory,
   LlamaCapabilityStatus,
   EndpointProbe,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { latestProcessRun } from "../process/runs-repository.js";
 import {

@@ -1,7 +1,7 @@
 import {
   ApiProxyRuntimeMetadataRecordSchema,
   type ApiProxyRuntimeMetadataRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   existsSync,
   mkdirSync,
@@ -105,7 +105,7 @@ export function setApiProxyRuntimeMetadata(
 
 export function apiProxySlotFilename(targetId: string, slotId: number): string {
   const slug = targetId.replace(/[^a-zA-Z0-9._-]/g, "_");
-  return `llama-manager-${slug}-slot-${slotId}.bin`;
+  return `arriero-${slug}-slot-${slotId}.bin`;
 }
 
 export function addApiProxySavedSlotId(

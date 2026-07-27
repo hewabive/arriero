@@ -1,4 +1,4 @@
-import type { RuntimeState } from "@llama-manager/core";
+import type { RuntimeState } from "@arriero/core";
 
 import { isPidAlive } from "./pid.js";
 import {

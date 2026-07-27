@@ -5,7 +5,7 @@ import type {
   LlamaArgumentDocsSyncReport,
   LlamaArgumentHelpDiff,
   LlamaArgumentEngineeringDoc,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { buildQuery, nodeRequest as request } from "./http.js";
 

@@ -70,7 +70,7 @@ none,draft-simple,draft-eagle3,draft-mtp,draft-dflash,ngram-simple,ngram-map-k,n
 - `draft-dflash` - block-diffusion draft model, которая выдаёт блок токенов за один forward pass и использует hidden states target-модели.
 - `ngram-simple`, `ngram-map-k`, `ngram-map-k4v`, `ngram-mod`, `ngram-cache` - self-speculative варианты на истории токенов/ngram-cache.
 
-Неизвестное имя приводит к ошибке `unknown speculative type: ...`. Повторный `--spec-type` в CLI не вызывает deprecated-warning, но значения добавляются к уже накопленному списку; в llama-manager лучше хранить один список.
+Неизвестное имя приводит к ошибке `unknown speculative type: ...`. Повторный `--spec-type` в CLI не вызывает deprecated-warning, но значения добавляются к уже накопленному списку; в arriero лучше хранить один список.
 
 ## Когда использовать
 

@@ -1,4 +1,4 @@
-import type { ModelScanRoot } from "@llama-manager/core";
+import type { ModelScanRoot } from "@arriero/core";
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";

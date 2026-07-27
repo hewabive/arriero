@@ -3,7 +3,7 @@ import {
   type FleetNode,
   type FleetNodeCreate,
   type FleetNodeUpdate,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import {
   existsSync,
   mkdirSync,

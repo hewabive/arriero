@@ -1,4 +1,4 @@
-import { EnvironmentCreateSchema } from "@llama-manager/core";
+import { EnvironmentCreateSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import { tailEnvironmentLog } from "../envs/logs.js";

@@ -1,6 +1,6 @@
 # Документация аргументов llama-server
 
-Эта папка является источником подробной инженерной справки по аргументам `llama-server`. Документы предназначены для UI llama-manager и для работы кодинг-агентов, которые будут поддерживать справку после обновлений llama.cpp.
+Эта папка является источником подробной инженерной справки по аргументам `llama-server`. Документы предназначены для UI arriero и для работы кодинг-агентов, которые будут поддерживать справку после обновлений llama.cpp.
 
 Правило хранения: один аргумент - один Markdown-файл. Имя файла строится из основного имени аргумента без начальных дефисов:
 
@@ -27,9 +27,9 @@
 Для синхронизации с llama.cpp используйте:
 
 ```bash
-pnpm --filter @llama-manager/api args:docs:source-sync -- --diff
-pnpm --filter @llama-manager/api args:docs:source-sync -- --write
-pnpm --filter @llama-manager/api args:docs:quality -- --changed --strict
+pnpm --filter @arriero/api args:docs:source-sync -- --diff
+pnpm --filter @arriero/api args:docs:source-sync -- --write
+pnpm --filter @arriero/api args:docs:quality -- --changed --strict
 ```
 
 `source-sync -- --diff` показывает изменения generated help-блока. Новые документы создаются агентом по `_template.md` и соседним справочным файлам, а документы по удаленным аргументам удаляются после проверки, что это не rename.

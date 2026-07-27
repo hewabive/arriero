@@ -1,4 +1,4 @@
-import type { BuildSettings } from "@llama-manager/core";
+import type { BuildSettings } from "@arriero/core";
 import {
   Badge,
   Box,

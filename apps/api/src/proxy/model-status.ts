@@ -7,7 +7,7 @@ import {
   type ApiProxyPublicModelLoadState,
   type ApiProxyPublicModelStatus,
   type ApiProxyRuntimeSnapshot,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { apiProxyInflight } from "./inflight.js";
 import { collectApiProxyPipelineRefs } from "./pipeline-validation.js";

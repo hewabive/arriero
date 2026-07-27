@@ -4,7 +4,7 @@ import type {
   FleetNodeView,
   FleetResourcesEntry,
   FleetSystemEntry,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { request } from "./http.js";
 

@@ -46,14 +46,14 @@ launched (login `session.scope` or a `user@.service` unit), and a manager
 restart with the default `KillMode=control-group` does not reap the children:
 
 ```
-/sys/fs/cgroup/user.slice/user-<uid>.slice/user@<uid>.service/llama-manager-instances/<instance-name>/
+/sys/fs/cgroup/user.slice/user-<uid>.slice/user@<uid>.service/arriero-instances/<instance-name>/
 ```
 
 Only `user@<uid>.service` is delegated (writable) — `user-<uid>.slice` is not — so
 `resolveInstancesGroupDir` (`apps/api/src/numa/cgroup.ts`) anchors there: it
 reads `/proc/self/cgroup` and, whether self is a session scope under the slice or
 already inside `user@<uid>.service`, resolves the group under that delegated root.
-Overridable with `LLAMA_MANAGER_NUMA_CGROUP_ROOT` (e.g. for the system-service
+Overridable with `ARRIERO_NUMA_CGROUP_ROOT` (e.g. for the system-service
 model). On start the manager `mkdir`s the group,
 enables `+cpuset` in its `cgroup.subtree_control`, creates the per-instance
 cgroup, and writes `cpuset.mems = <node id>` then `cpuset.cpus = <node cpulist>`.
@@ -92,7 +92,7 @@ already has; cgroups do not worsen it.
 with the helper:
 
 ```
-sudo scripts/setup-numa-cgroup-delegation.sh <user-that-runs-llama-manager>
+sudo scripts/setup-numa-cgroup-delegation.sh <user-that-runs-arriero>
 ```
 
 It writes the drop-in below, `daemon-reload`s, enables linger, enables `+cpuset`

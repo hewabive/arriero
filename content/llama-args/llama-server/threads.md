@@ -39,7 +39,7 @@ number of CPU threads to use during generation (default: -1)
 - Основное имя: `--threads`
 - Алиасы: `-t`, `--threads`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `number`
+- Тип значения в arriero: `number`
 - Подсказка формата: `N`
 - Допустимые значения: `не ограничены в metadata`
 - Переменные окружения: `LLAMA_ARG_THREADS`

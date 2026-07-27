@@ -1,4 +1,4 @@
-import { ModelScanSettingsSchema } from "@llama-manager/core";
+import { ModelScanSettingsSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import {

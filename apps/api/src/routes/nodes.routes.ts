@@ -3,7 +3,7 @@ import {
   FleetNodeUpdateSchema,
   type FleetNode,
   type FleetNodeView,
-} from "@llama-manager/core";
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import {

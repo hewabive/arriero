@@ -53,7 +53,7 @@ Extra findings that shaped decisions:
 - **System python is not enough**: the CPU backend JIT-compiles kernels through torch inductor even under `--enforce-eager` and dies on a missing `Python.h`; distro pythons lack dev headers unless `-dev` is installed. uv-managed interpreters (python-build-standalone) ship headers — the env domain uses only managed interpreters. Offline installs select `pythonProvisioning: "require-existing"`, which performs a no-download preflight before any installation work.
 - **CPU-variant wheels** live as GitHub release assets (`vllm-<v>+cpu-cp38-abi3-manylinux_2_34_x86_64.whl`, ~107 MiB vs 266 MiB CUDA-implied PyPI wheel), installable via `uv pip install <url> --torch-backend cpu`. The env spec should support a variant/wheel-source override so GPU-less dev machines can run real vLLM end-to-end.
 - **Argument help can require a working accelerator backend.** If `vllm serve --help=all`
-  cannot initialize on the current node, llama-manager now serves a bundled conservative
+  cannot initialize on the current node, arriero now serves a bundled conservative
   fallback catalog for core serving, model, parallelism, memory, and LoRA options. The
   catalog source is visibly marked `vllm-fallback-catalog`; successful live help or a
   matching sidecar remains authoritative.
@@ -85,7 +85,7 @@ Modeled on the build domain: a job runner with streamed step logs, producing a r
 - `envs/uv.ts` — uv detection, version surfaced in `SystemResources`/Diagnostics.
 - Env specs are file-backed portable config: `config/envs.json` (aggregate array, in-memory cache + atomic write-through, same pattern as `path-catalog.json`): `{ id, engine: "vllm", version, pythonVersion, source, pathCatalogEntryId, createdAt, updatedAt }`. The venv itself is runtime state — rebuildable from the spec, never in git.
 - Job steps: `uv python install <ver>` → `uv venv --relocatable --python <ver> <staging>` → `uv pip install --python <staging>/bin/python <source>` → write `freeze.txt` → validate entrypoint → atomic rename → register/reconcile the path-catalog entry. Relocatable mode keeps console-script shebangs valid after the staging directory is renamed.
-- Layout: `runtime/envs/`, overridable via `LLAMA_MANAGER_ENVS_DIR`. Envs are immutable: a new version = a new venv; no in-place upgrades.
+- Layout: `runtime/envs/`, overridable via `ARRIERO_ENVS_DIR`. Envs are immutable: a new version = a new venv; no in-place upgrades.
 - Delete = remove venv dir + catalog entry; refused while any instance references the entry via `binaryPathRefId`.
 - API supports list/create/rebuild/delete, one active install job, cancel, and polled log tail. Delete is guarded by instance references and active jobs.
 

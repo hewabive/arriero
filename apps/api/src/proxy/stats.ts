@@ -5,7 +5,7 @@ import {
   type ApiProxyStatsModelEntry,
   type ApiProxyStatsSnapshot,
   type ApiProxyStatsTotals,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 const MAX_HOURS = 24;
 const MAX_TRACES = 50;

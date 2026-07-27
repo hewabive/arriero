@@ -5,7 +5,7 @@ import { beforeEach, test } from "node:test";
 import {
   ApiProxyPipelineNodeSchema,
   type ApiProxyModelRecord,
-} from "@llama-manager/core";
+} from "@arriero/core";
 
 import { config } from "../config.js";
 import { resetConfigFilesCache } from "./config-files.js";
@@ -141,7 +141,7 @@ function fusionRequest(body: unknown): ApiProxyProtocolModelRequest {
     modelId: `fusion-model-${seededModelCounter}`,
     visible: true,
     enabled: true,
-    ownedBy: "llama-manager",
+    ownedBy: "arriero",
     targetId: null,
     routeTo: null,
     description: null,

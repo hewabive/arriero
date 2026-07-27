@@ -39,7 +39,7 @@ Offline mode: forces use of cache, prevents network access
 - Основное имя: `--offline`
 - Алиасы: `--offline`
 - Категория в `--help`: `Общие параметры`
-- Тип значения в llama-manager: `flag`
+- Тип значения в arriero: `flag`
 - Переменные окружения: `LLAMA_ARG_OFFLINE`
 - Значение по умолчанию: disabled
 - Внутреннее поле: `common_params.offline`
