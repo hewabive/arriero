@@ -40,6 +40,16 @@ function commandForStep(step: UpdateJobStepName): string[] {
   }
 }
 
+export function updateStepEnvironment(
+  step: UpdateJobStepName,
+  baseEnvironment: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  if (step !== "install") {
+    return baseEnvironment;
+  }
+  return { ...baseEnvironment, CI: "true" };
+}
+
 function plannedSteps(willRestart: boolean): UpdateJobStep[] {
   const names: UpdateJobStepName[] = ["snapshot", ...PIPELINE_STEPS];
   if (willRestart) {
@@ -148,8 +158,10 @@ class UpdateRunner {
 
         const command = commandForStep(step);
         this.markStep(jobId, step, { status: "running", startedAt: nowIso() });
-        logStream.write(`$ ${command.join(" ")}\n`);
-        const exitCode = await this.runCommand(command, logStream);
+        const environment = updateStepEnvironment(step);
+        const environmentPrefix = step === "install" ? "CI=true " : "";
+        logStream.write(`$ ${environmentPrefix}${command.join(" ")}\n`);
+        const exitCode = await this.runCommand(command, logStream, environment);
 
         if (this.isCanceled(jobId)) {
           this.markStep(jobId, step, {
@@ -299,11 +311,12 @@ class UpdateRunner {
   private runCommand(
     command: string[],
     logStream: WriteStream,
+    environment: NodeJS.ProcessEnv = process.env,
   ): Promise<number> {
     return new Promise((resolveDone, reject) => {
       const child = spawn(command[0]!, command.slice(1), {
         cwd: updateAdapter.rootDir,
-        env: process.env,
+        env: environment,
         stdio: ["ignore", "pipe", "pipe"],
       });
       let settled = false;

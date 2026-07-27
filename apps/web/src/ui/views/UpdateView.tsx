@@ -67,13 +67,14 @@ function isEligible(node: UpdateFleetNode): boolean {
 
 export function UpdateView() {
   const queryClient = useQueryClient();
-  const [activeJobs, setActiveJobs] = useState<Record<string, string>>({});
+  const [visibleJobs, setVisibleJobs] = useState<Record<string, string>>({});
+  const [runningJobs, setRunningJobs] = useState<Record<string, true>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkFetchError, setCheckFetchError] = useState<string | null>(null);
   const autoCheckedRef = useRef(false);
 
-  const busy = Object.keys(activeJobs).length > 0;
+  const busy = Object.keys(runningJobs).length > 0;
 
   const fleetQuery = useQuery({
     queryKey: ["update-fleet"],
@@ -111,12 +112,13 @@ export function UpdateView() {
       node.nodeId,
       Boolean(node.version?.supervised),
     );
-    setActiveJobs((prev) => ({ ...prev, [node.nodeId]: result.data.id }));
+    setVisibleJobs((prev) => ({ ...prev, [node.nodeId]: result.data.id }));
+    setRunningJobs((prev) => ({ ...prev, [node.nodeId]: true }));
   }, []);
 
   const onJobSettled = useCallback(
     (nodeId: string) => {
-      setActiveJobs((prev) => {
+      setRunningJobs((prev) => {
         if (!(nodeId in prev)) {
           return prev;
         }
@@ -227,7 +229,7 @@ export function UpdateView() {
             <NodeUpdateCard
               key={node.nodeId}
               node={node}
-              activeJobId={activeJobs[node.nodeId] ?? null}
+              jobId={visibleJobs[node.nodeId] ?? null}
               onStart={startNode}
               onSettled={onJobSettled}
             />
@@ -256,12 +258,12 @@ function disabledReason(node: UpdateFleetNode): string | null {
 
 function NodeUpdateCard({
   node,
-  activeJobId,
+  jobId,
   onStart,
   onSettled,
 }: {
   node: UpdateFleetNode;
-  activeJobId: string | null;
+  jobId: string | null;
   onStart: (node: UpdateFleetNode) => void;
   onSettled: (nodeId: string) => void;
 }) {
@@ -270,9 +272,9 @@ function NodeUpdateCard({
   const supervised = Boolean(version?.supervised);
 
   const jobQuery = useQuery({
-    queryKey: ["update-job", node.nodeId, activeJobId],
-    queryFn: () => getNodeUpdateJob(node.nodeId, activeJobId!),
-    enabled: Boolean(activeJobId),
+    queryKey: ["update-job", node.nodeId, jobId],
+    queryFn: () => getNodeUpdateJob(node.nodeId, jobId!),
+    enabled: Boolean(jobId),
     retry: 1,
     refetchInterval: (query) =>
       query.state.data?.data.status === "running" ? 1500 : false,
@@ -299,26 +301,26 @@ function NodeUpdateCard({
       job.status === "canceled");
 
   useEffect(() => {
-    if (activeJobId && settled) {
+    if (jobId && settled) {
       onSettled(node.nodeId);
     }
-  }, [activeJobId, settled, node.nodeId, onSettled]);
+  }, [jobId, settled, node.nodeId, onSettled]);
 
   const logsQuery = useQuery({
-    queryKey: ["update-logs", node.nodeId, activeJobId],
-    queryFn: () => getNodeUpdateJobLogs(node.nodeId, activeJobId!),
-    enabled: Boolean(activeJobId) && logsOpen,
+    queryKey: ["update-logs", node.nodeId, jobId],
+    queryFn: () => getNodeUpdateJobLogs(node.nodeId, jobId!),
+    enabled: Boolean(jobId) && logsOpen,
     retry: 1,
     refetchInterval: () =>
       logsOpen && job?.status === "running" && !isRestarting ? 1500 : false,
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelNodeUpdateJob(node.nodeId, activeJobId!),
+    mutationFn: () => cancelNodeUpdateJob(node.nodeId, jobId!),
   });
 
   const reason = disabledReason(node);
-  const updating = Boolean(activeJobId) && !settled;
+  const updating = Boolean(jobId) && !settled;
 
   return (
     <Card withBorder radius="md" padding="sm">
@@ -400,7 +402,7 @@ function NodeUpdateCard({
         </Group>
       </Group>
 
-      {activeJobId && job && (
+      {jobId && job && (
         <Stack gap={6} mt="sm">
           {applied && (
             <Text size="sm" c="teal">
