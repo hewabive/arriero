@@ -12,9 +12,11 @@ import {
   probeAnyExecutable,
   probePkgConfigModule,
 } from "../system/tool-probe.js";
+import { probeOpensslDevelopmentFiles } from "./openssl.js";
 
 export type PrerequisiteUsage = {
   cudaBuild: boolean;
+  httpsFeatures: boolean;
   numaBind: boolean;
   numaInterleave: boolean;
   pythonEngines: boolean;
@@ -205,10 +207,10 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     group: "build",
     title: "libcurl development files",
     kind: "pkg-config",
-    severity: "required",
+    severity: "recommended",
     blocks: ["llama.cpp build"],
     impact:
-      "llama.cpp configures with LLAMA_CURL=ON by default and fails at configure time when the libcurl headers are absent; the runtime library alone is not enough.",
+      "Downloads moved from libcurl to the vendored cpp-httplib, so current refs configure without it; only building a ref from before that migration still fails at configure time when the headers are absent.",
     packages: {
       apt: ["libcurl4-openssl-dev"],
       dnf: ["libcurl-devel"],
@@ -218,7 +220,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     },
     commands: [],
     docPath: null,
-    note: null,
+    note: "LLAMA_CURL is a deprecated no-op on current master; keep the headers only to stay able to build older refs.",
     probe: async (context) => {
       const probe = await probePkgConfigModule("libcurl", context.env);
       if (probe.found) {
@@ -229,6 +231,27 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
         ? { status: "ok", detail: header, version: null }
         : { status: "missing", detail: null, version: null };
     },
+  },
+  {
+    id: "openssl-dev",
+    group: "build",
+    title: "OpenSSL development files",
+    kind: "pkg-config",
+    severity: (usage) => (usage.httpsFeatures ? "required" : "recommended"),
+    blocks: ["HuggingFace model downloads", "llama-server TLS"],
+    impact:
+      "The vendored cpp-httplib only speaks HTTPS when OpenSSL headers were present at configure time. Absence never fails the build — CMake merely warns and produces a binary without TLS — so -hf, --model-url and --docker-repo fail at instance startup instead, and --ssl-key-file silently serves plaintext.",
+    packages: {
+      apt: ["libssl-dev"],
+      dnf: ["openssl-devel"],
+      pacman: ["openssl"],
+      zypper: ["libopenssl-devel"],
+      apk: ["openssl-dev"],
+    },
+    commands: [],
+    docPath: null,
+    note: "Compiled into llama-server, so installing it takes effect only after a rebuild. OpenSSL 3.0 or newer is required.",
+    probe: (context) => probeOpensslDevelopmentFiles(context.env),
   },
   {
     id: "git",

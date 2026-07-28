@@ -22,12 +22,7 @@ const COMMAND_PREREQUISITES: Record<string, string[]> = {
   cmake: ["cmake"],
 };
 
-const CONFIGURE_PREREQUISITES = [
-  "cxx-toolchain",
-  "make",
-  "pkg-config",
-  "libcurl-dev",
-];
+const CONFIGURE_PREREQUISITES = ["cxx-toolchain", "make", "pkg-config"];
 
 export function buildPrerequisiteIds(
   steps: BuildJobStep[],

@@ -38,8 +38,23 @@ test("derives prerequisites from the planned step commands", () => {
     "cxx-toolchain",
     "make",
     "pkg-config",
-    "libcurl-dev",
   ]);
+});
+
+test("a configure step no longer demands the libcurl headers", () => {
+  const ids = buildPrerequisiteIds(
+    [step("configure", ["cmake", "-S", "/src", "-B", "/build"])],
+    { cuda: false },
+  );
+  assert.ok(!ids.includes("libcurl-dev"));
+});
+
+test("a configure step does not refuse a build over missing OpenSSL", () => {
+  const ids = buildPrerequisiteIds(
+    [step("configure", ["cmake", "-S", "/src", "-B", "/build"])],
+    { cuda: false },
+  );
+  assert.ok(!ids.includes("openssl-dev"));
 });
 
 test("skips the internal clean-build-dir pseudo command", () => {

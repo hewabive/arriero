@@ -16,6 +16,7 @@ import {
 import { autoRepairedPathDirectories } from "../system/path-repair.js";
 import { pathEntries } from "../system/tool-probe.js";
 import { detectRunMode } from "../update/version.js";
+import { instanceArgsNeedHttps } from "./https-usage.js";
 import { buildInstallPlan, summarizeChecks } from "./install-plan.js";
 import {
   prerequisiteDefinitions,
@@ -31,6 +32,9 @@ export function collectPrerequisiteUsage(): PrerequisiteUsage {
   const instances = listInstances();
   return {
     cudaBuild: getBuildSettings().cuda,
+    httpsFeatures: instances.some((instance) =>
+      instanceArgsNeedHttps(instance.args),
+    ),
     numaBind: instances.some((instance) => instance.numa?.mode === "bind"),
     numaInterleave: instances.some(
       (instance) => instance.numa?.mode === "interleave",
