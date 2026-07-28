@@ -3,7 +3,9 @@ import type {
   ConfigGitClone,
   ConfigGitCommitInput,
   ConfigGitCreateBranch,
+  ConfigGitInit,
   ConfigGitMutationResult,
+  ConfigGitRemote,
   ConfigGitReset,
   ConfigGitSwitch,
   ConfigGitValidation,
@@ -17,6 +19,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 
@@ -25,7 +28,13 @@ import { config } from "../config.js";
 import { environmentRunner } from "../envs/runner.js";
 import { supervisor } from "../process/supervisor.js";
 import { anySourceRepositoryOperationActive } from "../sources/state.js";
-import { assertGitRemoteUrl, gitOutput, runGit, tryGit } from "./process.js";
+import {
+  assertGitRemoteUrl,
+  gitOutput,
+  redactGitOutput,
+  runGit,
+  tryGit,
+} from "./process.js";
 import { reloadPortableConfigCaches } from "./reload.js";
 import { assertConfigGitRepository, getConfigGitStatus } from "./repository.js";
 import { withConfigGitOperation } from "./state.js";
@@ -79,6 +88,44 @@ async function assertClean() {
 async function assertBranchName(branch: string) {
   if (branch.startsWith("-")) throw new Error("invalid branch name");
   await runGit(config.configDir, ["check-ref-format", "--branch", branch]);
+}
+
+async function assertNewBranchName(branch: string) {
+  if (branch.startsWith("-")) throw new Error("invalid branch name");
+  await runGit(config.configDir, ["check-ref-format", `refs/heads/${branch}`]);
+}
+
+const fallbackAuthorName = "arriero";
+const fallbackAuthorEmail = "arriero@localhost";
+
+async function commitIdentityArguments(input: {
+  authorName: string | null;
+  authorEmail: string | null;
+}): Promise<string[]> {
+  const name =
+    input.authorName ??
+    (await tryGit(config.configDir, ["config", "--get", "user.name"]));
+  const email =
+    input.authorEmail ??
+    (await tryGit(config.configDir, ["config", "--get", "user.email"]));
+  return [
+    "-c",
+    `user.name=${name ?? fallbackAuthorName}`,
+    "-c",
+    `user.email=${email ?? fallbackAuthorEmail}`,
+  ];
+}
+
+async function stageAll(repository: string): Promise<string[]> {
+  await runGit(repository, ["add", "-A", "--", "."]);
+  const staged = await tryGit(repository, ["diff", "--cached", "--name-only"]);
+  const paths = (staged?.split("\n") ?? []).filter(Boolean);
+  const forbidden = paths.find((path) => forbiddenTrackedPath.test(path));
+  if (forbidden) {
+    await runGit(repository, ["reset"]);
+    throw new Error(`refusing to commit sensitive path: ${forbidden}`);
+  }
+  return paths;
 }
 
 function assertValid(validation: ConfigGitValidation) {
@@ -169,6 +216,115 @@ async function mutation(
   };
 }
 
+export function initConfigRepository(
+  input: ConfigGitInit,
+): Promise<ConfigGitMutationResult> {
+  return mutation("init", async () => {
+    if (!existsSync(config.configDir)) {
+      throw new Error(
+        `configuration directory does not exist: ${config.configDir}`,
+      );
+    }
+    const existing = await getConfigGitStatus();
+    if (existing.isGitRepo) {
+      throw new Error("configuration directory is already a git repository");
+    }
+    await assertNewBranchName(input.branch);
+    const validation = validateConfigRoot(config.configDir);
+    assertValid(validation);
+    if (!existsSync(config.configGitignoreFile)) {
+      writeFileSync(
+        config.configGitignoreFile,
+        ".secrets.json\n*.tmp\n",
+        "utf8",
+      );
+    }
+
+    const initialized = await runGit(config.configDir, [
+      "init",
+      "-b",
+      input.branch,
+    ]);
+    try {
+      await ensureLocalExclude(config.configDir);
+      if (input.authorName) {
+        await runGit(config.configDir, [
+          "config",
+          "user.name",
+          input.authorName,
+        ]);
+      }
+      if (input.authorEmail) {
+        await runGit(config.configDir, [
+          "config",
+          "user.email",
+          input.authorEmail,
+        ]);
+      }
+      await stageAll(config.configDir);
+      const args = await commitIdentityArguments(input);
+      args.push("commit", "-m", input.message);
+      const committed = await runGit(config.configDir, args, {
+        timeoutMs: 60_000,
+      });
+      return {
+        output: [gitOutput(initialized), gitOutput(committed)]
+          .filter(Boolean)
+          .join("\n"),
+        validation,
+      };
+    } catch (error) {
+      rmSync(resolve(config.configDir, ".git"), {
+        recursive: true,
+        force: true,
+      });
+      throw error;
+    }
+  });
+}
+
+export function setConfigRemote(
+  input: ConfigGitRemote,
+): Promise<ConfigGitMutationResult> {
+  return mutation("remote", async () => {
+    await assertPreparedRepository();
+    const existing = await tryGit(config.configDir, [
+      "remote",
+      "get-url",
+      "origin",
+    ]);
+    if (input.originUrl === null) {
+      if (!existing) throw new Error("origin remote is not configured");
+      await runGit(config.configDir, ["remote", "remove", "origin"]);
+      return { output: "Removed origin." };
+    }
+    assertGitRemoteUrl(input.originUrl);
+    if (existing) {
+      await runGit(config.configDir, ["remote", "remove", "origin"]);
+    }
+    await runGit(config.configDir, [
+      "remote",
+      "add",
+      "origin",
+      input.originUrl,
+    ]);
+    const lines = [redactGitOutput(`Set origin to ${input.originUrl}.`)];
+    if (input.fetch) {
+      try {
+        const fetched = await runGit(
+          config.configDir,
+          ["fetch", "origin", "--prune"],
+          { timeoutMs: 120_000 },
+        );
+        lines.push(gitOutput(fetched) || "Fetched origin.");
+      } catch (error) {
+        lines.push(`fetch failed: ${(error as Error).message}`);
+      }
+    }
+    return { output: lines.join("\n") };
+  });
+}
+
 export function cloneConfigRepository(
   input: ConfigGitClone,
 ): Promise<ConfigGitMutationResult> {
@@ -176,12 +332,17 @@ export function cloneConfigRepository(
     assertConfigContentCanChange();
     assertGitRemoteUrl(input.originUrl);
     const existing = await getConfigGitStatus();
-    if (existing.isGitRepo) {
-      throw new Error("configuration directory is already a git repository");
-    }
     if (!input.replaceExisting) {
       throw new Error(
-        "clone replaces the bootstrap configuration; confirm replacement first",
+        "clone replaces the current configuration; confirm replacement first",
+      );
+    }
+    if (
+      (existing.dirty || existing.hasUnpushedCommits) &&
+      !input.discardUnpushed
+    ) {
+      throw new Error(
+        "current configuration has uncommitted or unpushed changes; confirm discarding them first",
       );
     }
 
@@ -405,24 +566,10 @@ export function commitConfigChanges(
     const validation = validateConfigRoot(config.configDir);
     assertValid(validation);
     await assertNoSensitiveTrackedFiles(config.configDir);
-    await runGit(config.configDir, ["add", "-A", "--", "."]);
-    const staged = await tryGit(config.configDir, [
-      "diff",
-      "--cached",
-      "--name-only",
-    ]);
-    if (!staged)
+    const staged = await stageAll(config.configDir);
+    if (staged.length === 0)
       throw new Error("there are no configuration changes to commit");
-    const stagedForbidden = staged
-      .split("\n")
-      .find((path) => forbiddenTrackedPath.test(path));
-    if (stagedForbidden) {
-      await runGit(config.configDir, ["reset"]);
-      throw new Error(`refusing to commit sensitive path: ${stagedForbidden}`);
-    }
-    const args: string[] = [];
-    if (input.authorName) args.push("-c", `user.name=${input.authorName}`);
-    if (input.authorEmail) args.push("-c", `user.email=${input.authorEmail}`);
+    const args = await commitIdentityArguments(input);
     args.push("commit", "-m", input.message);
     const result = await runGit(config.configDir, args, { timeoutMs: 60_000 });
     return { output: gitOutput(result), validation };

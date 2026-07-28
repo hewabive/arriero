@@ -6,9 +6,12 @@ import { beforeEach, test } from "node:test";
 
 import { config } from "../config.js";
 import {
+  cloneConfigRepository,
   commitConfigChanges,
   createConfigBranch,
+  initConfigRepository,
   resetConfigChanges,
+  setConfigRemote,
 } from "./operations.js";
 import { getConfigGitLog, getConfigGitStatus } from "./repository.js";
 
@@ -97,6 +100,79 @@ test("commitConfigChanges refuses tracked secret files", async () => {
       authorEmail: null,
     }),
     /sensitive path/,
+  );
+});
+
+test("initConfigRepository tracks the current files without an origin", async () => {
+  rmSync(resolve(config.configDir, ".git"), { recursive: true, force: true });
+  const result = await initConfigRepository({
+    branch: "local-main",
+    message: "adopt current configuration",
+    authorName: "Config Test",
+    authorEmail: "config@example.com",
+  });
+  assert.equal(result.status.isGitRepo, true);
+  assert.equal(result.status.hasCommits, true);
+  assert.equal(result.status.branch, "local-main");
+  assert.equal(result.status.originUrl, null);
+  assert.equal(result.status.dirty, false);
+  const log = await getConfigGitLog(2);
+  assert.equal(log[0]?.subject, "adopt current configuration");
+});
+
+test("initConfigRepository refuses an existing repository", async () => {
+  await assert.rejects(
+    initConfigRepository({
+      branch: "main",
+      message: "again",
+      authorName: null,
+      authorEmail: null,
+    }),
+    /already a git repository/,
+  );
+});
+
+test("setConfigRemote adds and removes origin", async () => {
+  const added = await setConfigRemote({
+    originUrl: "git@example.com:team/config.git",
+    fetch: false,
+  });
+  assert.equal(added.status.originUrl, "git@example.com:team/config.git");
+  const removed = await setConfigRemote({ originUrl: null, fetch: false });
+  assert.equal(removed.status.originUrl, null);
+});
+
+test("setConfigRemote rejects credential-bearing origins", async () => {
+  await assert.rejects(
+    setConfigRemote({
+      originUrl: "https://user:token@example.com/team/config.git",
+      fetch: false,
+    }),
+    /credentials/,
+  );
+});
+
+test("cloneConfigRepository refuses to discard unpushed work implicitly", async () => {
+  await assert.rejects(
+    cloneConfigRepository({
+      originUrl: "git@example.com:team/config.git",
+      branch: null,
+      replaceExisting: true,
+      discardUnpushed: false,
+    }),
+    /unpushed/,
+  );
+});
+
+test("cloneConfigRepository requires replacement confirmation", async () => {
+  await assert.rejects(
+    cloneConfigRepository({
+      originUrl: "git@example.com:team/config.git",
+      branch: null,
+      replaceExisting: false,
+      discardUnpushed: true,
+    }),
+    /confirm replacement/,
   );
 });
 

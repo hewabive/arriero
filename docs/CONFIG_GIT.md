@@ -5,7 +5,26 @@ the **Configuration Git** page. Runtime state, models, logs, build trees, Python
 environments, the SQLite database, and proxy request artifacts remain outside
 this repository.
 
-## Bootstrap on a temporary server
+## Two entry points
+
+The configuration directory can enter version control from either direction.
+
+**Initialize** (`POST /api/config-git/init`) runs `git init` in place and
+commits the files that are already there, without an origin. Nothing in the
+working tree is rewritten, so this is the only tree-changing operation that is
+allowed while managed processes run. A missing `.gitignore` is written,
+`.secrets.json` is excluded, the root is validated before the repository is
+created, and a failed initial commit removes the `.git` directory again so the
+operation leaves no half-initialized state. Origin can be attached later with
+`POST /api/config-git/remote`; the first `push` sets upstream.
+
+**Clone** (`POST /api/config-git/clone`) is a full replacement: the current
+configuration — including a repository with its history — is discarded and
+another repository is adopted in its place. It requires `replaceExisting`, and
+additionally `discardUnpushed` when the current tree is dirty or holds commits
+that exist on no upstream (`status.hasUnpushedCommits`).
+
+Bootstrap on a temporary server:
 
 1. Clone and build arriero.
 2. Copy `.env.example` to the gitignored `.env`.
@@ -13,16 +32,30 @@ this repository.
    `ARRIERO_AUTH_SECRET`. Set `ARRIERO_CONFIG_DIR` and runtime path
    overrides when the defaults are unsuitable.
 4. Start the supervised production service.
-5. Open **Configuration Git**, enter the SSH or HTTPS origin, confirm replacing
-   the generated bootstrap files, and clone.
+5. Open **Configuration Git** and either initialize the generated bootstrap
+   files locally, or enter the SSH/HTTPS origin and replace them by cloning.
 
 Clone happens in a sibling staging directory. The candidate is schema-checked,
 cross-file references and pipeline graphs are validated, tracked secret files
-and symlinks are rejected, and only then is it moved into place. The generated
-bootstrap directory is retained as `<configDir>.backup-<timestamp>` so it can
-be recovered manually. An existing local `.secrets.json` is copied into the
+and symlinks are rejected, and only then is it moved into place. The replaced
+directory is retained as `<configDir>.backup-<timestamp>` so it can be
+recovered manually; those backups are listed in `status.backups` and are never
+deleted automatically. An existing local `.secrets.json` is copied into the
 new working tree and excluded through `.git/info/exclude` even when the remote
 does not provide a `.gitignore`.
+
+## Origin
+
+Setting an origin removes and re-adds the remote, which drops the previous
+remote-tracking branches and upstream links instead of leaving them pointing at
+a repository that is no longer there. A `null` origin removes the remote and
+leaves a purely local repository. The new origin is fetched right away when
+requested; a failing fetch is reported in the operation output but does not
+undo the change.
+
+Attaching an origin that already has unrelated history makes `push` fail as
+non-fast-forward. There is no force push in the UI — adopting that history is
+the replacement path above.
 
 ## Branch model
 
@@ -74,7 +107,8 @@ tree is validated again afterward.
 
 - `GET /api/config-git/status`, `/diff`, `/log`, `/validation`
 - `GET /api/config-git/commits/:commit`
-- `POST /api/config-git/clone`, `/fetch`, `/pull`, `/switch`, `/checkout`
+- `POST /api/config-git/init`, `/remote`, `/clone`
+- `POST /api/config-git/fetch`, `/pull`, `/switch`, `/checkout`
 - `POST /api/config-git/branches`, `/reset`, `/commit`, `/push`
 
 All routes are administrative `/api/*` routes and support the existing active

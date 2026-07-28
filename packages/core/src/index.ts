@@ -2459,9 +2459,12 @@ export const ConfigGitStatusSchema = z.object({
   ahead: z.number().int().nonnegative().nullable(),
   behind: z.number().int().nonnegative().nullable(),
   dirty: z.boolean(),
+  hasCommits: z.boolean().default(false),
+  hasUnpushedCommits: z.boolean().default(false),
   files: z.array(ConfigGitFileStatusSchema),
   branches: z.array(ConfigGitBranchSchema),
   remoteBranches: z.array(z.string()),
+  backups: z.array(z.string()).default([]),
   authorName: z.string().nullable(),
   authorEmail: z.string().nullable(),
   activeOperation: z.string().nullable(),
@@ -2506,6 +2509,24 @@ export const ConfigGitCloneSchema = z.object({
   originUrl: z.string().trim().min(1).max(2048),
   branch: z.string().trim().min(1).max(255).nullable().default(null),
   replaceExisting: z.boolean().default(false),
+  discardUnpushed: z.boolean().default(false),
+});
+
+export const ConfigGitInitSchema = z.object({
+  branch: z.string().trim().min(1).max(255).default("main"),
+  message: z
+    .string()
+    .trim()
+    .min(1)
+    .max(10_000)
+    .default("Initial configuration"),
+  authorName: z.string().trim().min(1).max(200).nullable().default(null),
+  authorEmail: z.string().trim().email().max(320).nullable().default(null),
+});
+
+export const ConfigGitRemoteSchema = z.object({
+  originUrl: z.string().trim().min(1).max(2048).nullable(),
+  fetch: z.boolean().default(true),
 });
 
 export const ConfigGitSwitchSchema = z.object({
@@ -3551,6 +3572,8 @@ export type ConfigGitMutationResult = z.infer<
   typeof ConfigGitMutationResultSchema
 >;
 export type ConfigGitClone = z.infer<typeof ConfigGitCloneSchema>;
+export type ConfigGitInit = z.infer<typeof ConfigGitInitSchema>;
+export type ConfigGitRemote = z.infer<typeof ConfigGitRemoteSchema>;
 export type ConfigGitSwitch = z.infer<typeof ConfigGitSwitchSchema>;
 export type ConfigGitCreateBranch = z.infer<typeof ConfigGitCreateBranchSchema>;
 export type ConfigGitCheckoutCommit = z.infer<

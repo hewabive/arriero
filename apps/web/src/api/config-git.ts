@@ -5,7 +5,9 @@ import type {
   ConfigGitCommitInput,
   ConfigGitCreateBranch,
   ConfigGitDiff,
+  ConfigGitInit,
   ConfigGitMutationResult,
+  ConfigGitRemote,
   ConfigGitReset,
   ConfigGitStatus,
   ConfigGitSwitch,
@@ -42,6 +44,14 @@ function mutate(
     method: "POST",
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+}
+
+export function initConfigRepository(input: ConfigGitInit) {
+  return mutate("/api/config-git/init", input);
+}
+
+export function setConfigRemote(input: ConfigGitRemote) {
+  return mutate("/api/config-git/remote", input);
 }
 
 export function cloneConfigRepository(input: ConfigGitClone) {

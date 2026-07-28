@@ -8,8 +8,8 @@ import {
   type ConfigGitFileStatus,
   type ConfigGitStatus,
 } from "@arriero/core";
-import { existsSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
 import { gitOutput, redactGitOutput, runGit, tryGit } from "./process.js";
@@ -105,6 +105,30 @@ async function remoteBranches(path: string): Promise<string[]> {
     .map((name) => name.replace(/^origin\//, ""));
 }
 
+export function listConfigBackups(): string[] {
+  const parent = dirname(config.configDir);
+  const prefix = `${basename(config.configDir)}.backup-`;
+  try {
+    return readdirSync(parent, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix))
+      .map((entry) => resolve(parent, entry.name))
+      .sort()
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+function hasUnpushedCommits(
+  branches: ConfigGitBranch[],
+  hasCommits: boolean,
+): boolean {
+  if (!hasCommits) return false;
+  return branches.some((branch) =>
+    branch.upstream ? (branch.ahead ?? 0) > 0 : true,
+  );
+}
+
 function emptyStatus(error: string | null): ConfigGitStatus {
   return ConfigGitStatusSchema.parse({
     configDir: config.configDir,
@@ -119,9 +143,12 @@ function emptyStatus(error: string | null): ConfigGitStatus {
     ahead: null,
     behind: null,
     dirty: false,
+    hasCommits: false,
+    hasUnpushedCommits: false,
     files: [],
     branches: [],
     remoteBranches: [],
+    backups: listConfigBackups(),
     authorName: null,
     authorEmail: null,
     activeOperation: getActiveConfigGitOperation(),
@@ -174,9 +201,12 @@ export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
       upstream,
       ...counts,
       dirty: files.length > 0,
+      hasCommits: head !== null,
+      hasUnpushedCommits: hasUnpushedCommits(branches, head !== null),
       files,
       branches,
       remoteBranches: remotes,
+      backups: listConfigBackups(),
       authorName,
       authorEmail,
       activeOperation: getActiveConfigGitOperation(),
@@ -258,6 +288,12 @@ export async function getConfigGitLog(limit = 50): Promise<ConfigGitCommit[]> {
   if (!(await isGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
   }
+  const head = await tryGit(config.configDir, [
+    "rev-parse",
+    "--verify",
+    "HEAD",
+  ]);
+  if (!head) return [];
   const safeLimit = Math.max(1, Math.min(limit, 200));
   const result = await runGit(config.configDir, [
     "log",

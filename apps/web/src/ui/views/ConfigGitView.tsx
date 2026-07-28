@@ -31,9 +31,11 @@ import {
   getConfigGitLog,
   getConfigGitStatus,
   getConfigGitValidation,
+  initConfigRepository,
   pullConfigRepository,
   pushConfigRepository,
   resetConfigChanges,
+  setConfigRemote,
   switchConfigBranch,
 } from "../../api/client";
 import { formatLocalDateTime } from "../utils/time";
@@ -94,16 +96,24 @@ function statusLabel(status: ConfigGitStatus) {
   return "clean";
 }
 
+const REPLACE_CONFIRMATION = "replace";
+
 export function ConfigGitView() {
   const [originUrl, setOriginUrl] = useState("");
   const [cloneBranch, setCloneBranch] = useState("");
   const [replaceExisting, setReplaceExisting] = useState(false);
+  const [initBranch, setInitBranch] = useState("main");
+  const [initMessage, setInitMessage] = useState("Initial configuration");
   const [newBranch, setNewBranch] = useState("");
   const [commitMessage, setCommitMessage] = useState("");
   const [authorName, setAuthorName] = useState("");
   const [authorEmail, setAuthorEmail] = useState("");
   const [resetOpened, setResetOpened] = useState(false);
   const [includeUntracked, setIncludeUntracked] = useState(false);
+  const [originOpened, setOriginOpened] = useState(false);
+  const [originDraft, setOriginDraft] = useState("");
+  const [replaceOpened, setReplaceOpened] = useState(false);
+  const [replaceConfirmation, setReplaceConfirmation] = useState("");
 
   const statusQuery = useQuery({
     queryKey: ["config-git-status"],
@@ -125,7 +135,7 @@ export function ConfigGitView() {
   const logQuery = useQuery({
     queryKey: ["config-git-log"],
     queryFn: () => getConfigGitLog(50),
-    enabled: status?.isGitRepo === true,
+    enabled: status?.isGitRepo === true && status.hasCommits,
   });
 
   useEffect(() => {
@@ -135,12 +145,36 @@ export function ConfigGitView() {
   }, [status?.authorName, status?.authorEmail]);
 
   const cloneMutation = useConfigMutation(
-    "Configuration cloned",
+    "Configuration replaced",
     (input: {
       originUrl: string;
       branch: string | null;
       replaceExisting: boolean;
+      discardUnpushed: boolean;
     }) => cloneConfigRepository(input),
+    () => {
+      setReplaceOpened(false);
+      setReplaceConfirmation("");
+    },
+  );
+  const initMutation = useConfigMutation(
+    "Configuration repository initialized",
+    (input: { branch: string; message: string }) =>
+      initConfigRepository({
+        branch: input.branch,
+        message: input.message,
+        authorName: authorName.trim() || null,
+        authorEmail: authorEmail.trim() || null,
+      }),
+  );
+  const remoteMutation = useConfigMutation(
+    "Origin updated",
+    (input: { originUrl: string | null }) =>
+      setConfigRemote({ originUrl: input.originUrl, fetch: true }),
+    () => {
+      setOriginOpened(false);
+      setOriginDraft("");
+    },
   );
   const fetchMutation = useConfigMutation("Origin fetched", () =>
     fetchConfigRepository(),
@@ -185,6 +219,8 @@ export function ConfigGitView() {
 
   const mutations = [
     cloneMutation,
+    initMutation,
+    remoteMutation,
     fetchMutation,
     pullMutation,
     pushMutation,
@@ -241,54 +277,109 @@ export function ConfigGitView() {
   if (!status.isGitRepo) {
     return (
       <Stack gap="md">
-        <Alert color="blue" title="Bootstrap configuration">
-          Clone is staged and validated before it replaces the local bootstrap
-          files. The previous directory is retained as a timestamped backup, and
-          local .secrets.json is preserved.
+        <Alert color="blue" title="Configuration is not under version control">
+          Initialize keeps the current files and starts tracking them locally;
+          origin can be added later. Clone discards the current files and adopts
+          another repository instead — it is staged and validated first, the
+          previous directory is retained as a timestamped backup, and local
+          .secrets.json is preserved.
         </Alert>
-        <Card withBorder radius="md" padding="md">
-          <Stack gap="sm">
-            <Text fw={600}>Clone configuration repository</Text>
-            <Text size="sm" c="dimmed">
-              Destination: <Code>{status.configDir}</Code>
-            </Text>
-            <TextInput
-              label="Origin URL"
-              placeholder="git@github.com:team/llama-config.git"
-              value={originUrl}
-              onChange={(event) => setOriginUrl(event.currentTarget.value)}
-            />
-            <TextInput
-              label="Initial branch"
-              description="Leave empty to use the origin default branch."
-              placeholder="main"
-              value={cloneBranch}
-              onChange={(event) => setCloneBranch(event.currentTarget.value)}
-            />
-            <Checkbox
-              checked={replaceExisting}
-              onChange={(event) =>
-                setReplaceExisting(event.currentTarget.checked)
-              }
-              label="Replace the generated bootstrap configuration after validation"
-            />
-            <Group justify="flex-end">
-              <Button
-                loading={cloneMutation.isPending}
-                disabled={!originUrl.trim() || !replaceExisting}
-                onClick={() =>
-                  cloneMutation.mutate({
-                    originUrl: originUrl.trim(),
-                    branch: cloneBranch.trim() || null,
-                    replaceExisting,
-                  })
+        <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="sm">
+              <Text fw={600}>Initialize locally</Text>
+              <Text size="sm" c="dimmed">
+                Directory: <Code>{status.configDir}</Code>
+              </Text>
+              <TextInput
+                label="Initial branch"
+                placeholder="main"
+                value={initBranch}
+                onChange={(event) => setInitBranch(event.currentTarget.value)}
+              />
+              <TextInput
+                label="Initial commit message"
+                value={initMessage}
+                onChange={(event) => setInitMessage(event.currentTarget.value)}
+              />
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput
+                  label="Author name"
+                  value={authorName}
+                  onChange={(event) => setAuthorName(event.currentTarget.value)}
+                />
+                <TextInput
+                  label="Author email"
+                  type="email"
+                  value={authorEmail}
+                  onChange={(event) =>
+                    setAuthorEmail(event.currentTarget.value)
+                  }
+                />
+              </SimpleGrid>
+              <Group justify="flex-end">
+                <Button
+                  loading={initMutation.isPending}
+                  disabled={busy || !initBranch.trim() || !initMessage.trim()}
+                  onClick={() =>
+                    initMutation.mutate({
+                      branch: initBranch.trim(),
+                      message: initMessage.trim(),
+                    })
+                  }
+                >
+                  Initialize repository
+                </Button>
+              </Group>
+            </Stack>
+          </Card>
+
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="sm">
+              <Text fw={600}>Clone configuration repository</Text>
+              <Text size="sm" c="dimmed">
+                Destination: <Code>{status.configDir}</Code>
+              </Text>
+              <TextInput
+                label="Origin URL"
+                placeholder="git@github.com:team/llama-config.git"
+                value={originUrl}
+                onChange={(event) => setOriginUrl(event.currentTarget.value)}
+              />
+              <TextInput
+                label="Initial branch"
+                description="Leave empty to use the origin default branch."
+                placeholder="main"
+                value={cloneBranch}
+                onChange={(event) => setCloneBranch(event.currentTarget.value)}
+              />
+              <Checkbox
+                checked={replaceExisting}
+                onChange={(event) =>
+                  setReplaceExisting(event.currentTarget.checked)
                 }
-              >
-                Clone and activate
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
+                label="Replace the current configuration files after validation"
+              />
+              <Group justify="flex-end">
+                <Button
+                  loading={cloneMutation.isPending}
+                  disabled={busy || !originUrl.trim() || !replaceExisting}
+                  onClick={() =>
+                    cloneMutation.mutate({
+                      originUrl: originUrl.trim(),
+                      branch: cloneBranch.trim() || null,
+                      replaceExisting,
+                      discardUnpushed: true,
+                    })
+                  }
+                >
+                  Clone and activate
+                </Button>
+              </Group>
+            </Stack>
+          </Card>
+        </SimpleGrid>
+        {status.backups.length > 0 && <BackupList paths={status.backups} />}
       </Stack>
     );
   }
@@ -334,9 +425,22 @@ export function ConfigGitView() {
               <Text size="sm">
                 <Code>{status.configDir}</Code>
               </Text>
-              <Text size="sm" c="dimmed" className="text-wrap">
-                {status.originUrl ?? "origin is not configured"}
-              </Text>
+              <Group gap="xs" wrap="wrap">
+                <Text size="sm" c="dimmed" className="text-wrap">
+                  {status.originUrl ?? "origin is not configured"}
+                </Text>
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  disabled={busy}
+                  onClick={() => {
+                    setOriginDraft(status.originUrl ?? "");
+                    setOriginOpened(true);
+                  }}
+                >
+                  {status.originUrl ? "Change origin" : "Set origin"}
+                </Button>
+              </Group>
             </Stack>
             <Group gap="xs">
               <Button
@@ -503,6 +607,11 @@ export function ConfigGitView() {
       <Card withBorder radius="md" padding="md">
         <Stack gap="xs">
           <Text fw={600}>History</Text>
+          {!status.hasCommits && (
+            <Text c="dimmed" size="sm">
+              The repository has no commits yet.
+            </Text>
+          )}
           {commits.map((commit) => (
             <Group
               key={commit.hash}
@@ -533,6 +642,147 @@ export function ConfigGitView() {
           ))}
         </Stack>
       </Card>
+
+      {status.backups.length > 0 && <BackupList paths={status.backups} />}
+
+      <Card withBorder radius="md" padding="md">
+        <Stack gap="sm">
+          <Text fw={600} c="red">
+            Danger zone
+          </Text>
+          <Text size="sm" c="dimmed">
+            Replacing adopts another repository as the whole configuration. The
+            current directory is moved aside as a timestamped backup and local
+            .secrets.json is carried over.
+          </Text>
+          <Group justify="flex-end">
+            <Button
+              color="red"
+              variant="light"
+              disabled={busy}
+              onClick={() => {
+                setReplaceConfirmation("");
+                setReplaceOpened(true);
+              }}
+            >
+              Replace from repository
+            </Button>
+          </Group>
+        </Stack>
+      </Card>
+
+      <Modal
+        opened={originOpened}
+        onClose={() => setOriginOpened(false)}
+        title={status.originUrl ? "Change origin" : "Set origin"}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Remote-tracking branches and upstream links of the previous origin
+            are dropped. Use an SSH or credential-free HTTPS URL.
+          </Text>
+          <TextInput
+            label="Origin URL"
+            placeholder="git@github.com:team/llama-config.git"
+            value={originDraft}
+            onChange={(event) => setOriginDraft(event.currentTarget.value)}
+          />
+          <Group justify="space-between">
+            <Button
+              color="red"
+              variant="subtle"
+              disabled={!status.originUrl || remoteMutation.isPending}
+              onClick={() => remoteMutation.mutate({ originUrl: null })}
+            >
+              Remove origin
+            </Button>
+            <Group>
+              <Button variant="default" onClick={() => setOriginOpened(false)}>
+                Cancel
+              </Button>
+              <Button
+                loading={remoteMutation.isPending}
+                disabled={!originDraft.trim()}
+                onClick={() =>
+                  remoteMutation.mutate({ originUrl: originDraft.trim() })
+                }
+              >
+                Save origin
+              </Button>
+            </Group>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={replaceOpened}
+        onClose={() => setReplaceOpened(false)}
+        title="Replace configuration from repository"
+        centered
+      >
+        <Stack gap="md">
+          <Alert color="red">
+            The current configuration repository is moved to a backup directory
+            and replaced by the clone. Managed processes must be stopped first.
+          </Alert>
+          {(status.dirty || status.hasUnpushedCommits) && (
+            <Alert color="orange" title="Local work will be discarded">
+              {[
+                status.dirty ? "uncommitted changes" : null,
+                status.hasUnpushedCommits ? "unpushed commits" : null,
+              ]
+                .filter(Boolean)
+                .join(" and ")}{" "}
+              exist in the current configuration. Push or commit them first if
+              they matter.
+            </Alert>
+          )}
+          <TextInput
+            label="Origin URL"
+            placeholder="git@github.com:team/llama-config.git"
+            value={originUrl}
+            onChange={(event) => setOriginUrl(event.currentTarget.value)}
+          />
+          <TextInput
+            label="Branch"
+            description="Leave empty to use the origin default branch."
+            placeholder="main"
+            value={cloneBranch}
+            onChange={(event) => setCloneBranch(event.currentTarget.value)}
+          />
+          <TextInput
+            label={`Type ${REPLACE_CONFIRMATION} to confirm`}
+            value={replaceConfirmation}
+            onChange={(event) =>
+              setReplaceConfirmation(event.currentTarget.value)
+            }
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setReplaceOpened(false)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={cloneMutation.isPending}
+              disabled={
+                !originUrl.trim() ||
+                replaceConfirmation.trim() !== REPLACE_CONFIRMATION
+              }
+              onClick={() =>
+                cloneMutation.mutate({
+                  originUrl: originUrl.trim(),
+                  branch: cloneBranch.trim() || null,
+                  replaceExisting: true,
+                  discardUnpushed: true,
+                })
+              }
+            >
+              Replace configuration
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={resetOpened}
@@ -567,6 +817,23 @@ export function ConfigGitView() {
         </Stack>
       </Modal>
     </Stack>
+  );
+}
+
+function BackupList({ paths }: { paths: string[] }) {
+  return (
+    <Card withBorder radius="md" padding="md">
+      <Stack gap={4}>
+        <Text fw={600}>Replaced configuration backups</Text>
+        <Text size="sm" c="dimmed">
+          Left in place by earlier replacements. Remove them manually once they
+          are no longer needed.
+        </Text>
+        {paths.map((path) => (
+          <Code key={path}>{path}</Code>
+        ))}
+      </Stack>
+    </Card>
   );
 }
 

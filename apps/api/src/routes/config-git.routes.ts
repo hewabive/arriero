@@ -3,6 +3,8 @@ import {
   ConfigGitCloneSchema,
   ConfigGitCommitInputSchema,
   ConfigGitCreateBranchSchema,
+  ConfigGitInitSchema,
+  ConfigGitRemoteSchema,
   ConfigGitResetSchema,
   ConfigGitSwitchSchema,
 } from "@arriero/core";
@@ -14,9 +16,11 @@ import {
   commitConfigChanges,
   createConfigBranch,
   fetchConfigRepository,
+  initConfigRepository,
   pullConfigRepository,
   pushConfigRepository,
   resetConfigChanges,
+  setConfigRemote,
   switchConfigBranch,
 } from "../config-git/operations.js";
 import {
@@ -75,6 +79,26 @@ export function registerConfigGitRoutes(app: Hono) {
   app.get("/api/config-git/commits/:commit", async (c) => {
     try {
       return c.json({ data: await getConfigGitCommit(c.req.param("commit")) });
+    } catch (error) {
+      return failure(c, error);
+    }
+  });
+
+  app.post("/api/config-git/init", async (c) => {
+    const parsed = ConfigGitInitSchema.safeParse(await input(c));
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+    try {
+      return c.json({ data: await initConfigRepository(parsed.data) }, 201);
+    } catch (error) {
+      return failure(c, error);
+    }
+  });
+
+  app.post("/api/config-git/remote", async (c) => {
+    const parsed = ConfigGitRemoteSchema.safeParse(await input(c));
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+    try {
+      return c.json({ data: await setConfigRemote(parsed.data) });
     } catch (error) {
       return failure(c, error);
     }
