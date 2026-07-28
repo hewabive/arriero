@@ -23,6 +23,11 @@ Default services:
 - API: `http://127.0.0.1:8787`
 - Web UI: `http://127.0.0.1:5173`
 
+The development command pins the API to port `8787`, while Vite serves and
+proxies the Web UI on port `5173`. This keeps the development browser URL
+stable even when `ARRIERO_PORT` in `.env` configures a different port for the
+single-process production server.
+
 ## Production (serve) & self-update
 
 For a real deployment, run the built app as a single process serving the UI, API
