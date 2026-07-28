@@ -55,7 +55,10 @@ test("reports a cache generated under a previous installation path", () => {
 
   assert.ok(reason);
   assert.match(reason, /build directory \/home\/user\/old\/builds\/master/);
-  assert.match(reason, /source directory \/home\/user\/old\/sources\/llama\.cpp/);
+  assert.match(
+    reason,
+    /source directory \/home\/user\/old\/sources\/llama\.cpp/,
+  );
 });
 
 test("treats a missing cache file as reusable", () => {
