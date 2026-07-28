@@ -36,4 +36,15 @@ test("Git output redacts URL credentials", () => {
     redactGitOutput("https://user:token@example.com/team/repo.git"),
     "https://***@example.com/team/repo.git",
   );
+  assert.equal(
+    redactGitOutput("https://token@example.com/team/repo.git"),
+    "https://***@example.com/team/repo.git",
+  );
+});
+
+test("Git output keeps the SSH login name, which is not a credential", () => {
+  assert.equal(
+    redactGitOutput("ssh://git@example.com:2222/team/repo.git"),
+    "ssh://git@example.com:2222/team/repo.git",
+  );
 });

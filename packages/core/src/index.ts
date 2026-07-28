@@ -2451,6 +2451,7 @@ export const ConfigGitStatusSchema = z.object({
   exists: z.boolean(),
   isGitRepo: z.boolean(),
   originUrl: z.string().nullable(),
+  originRedacted: z.boolean().default(false),
   branch: z.string().nullable(),
   detached: z.boolean(),
   head: z.string().nullable(),

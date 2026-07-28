@@ -434,7 +434,9 @@ export function ConfigGitView() {
                   variant="subtle"
                   disabled={busy}
                   onClick={() => {
-                    setOriginDraft(status.originUrl ?? "");
+                    setOriginDraft(
+                      status.originRedacted ? "" : (status.originUrl ?? ""),
+                    );
                     setOriginOpened(true);
                   }}
                 >
@@ -682,6 +684,13 @@ export function ConfigGitView() {
             Remote-tracking branches and upstream links of the previous origin
             are dropped. Use an SSH or credential-free HTTPS URL.
           </Text>
+          {status.originRedacted && (
+            <Alert color="yellow">
+              The configured origin carries credentials and is only displayed
+              redacted. Enter the full URL to change it; keep the secret out of
+              the URL and use an SSH key or a credential helper instead.
+            </Alert>
+          )}
           <TextInput
             label="Origin URL"
             placeholder="git@github.com:team/llama-config.git"

@@ -135,6 +135,7 @@ function emptyStatus(error: string | null): ConfigGitStatus {
     exists: existsSync(config.configDir),
     isGitRepo: false,
     originUrl: null,
+    originRedacted: false,
     branch: null,
     detached: false,
     head: null,
@@ -189,11 +190,13 @@ export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
       listBranches(path, branch),
       remoteBranches(path),
     ]);
+    const originUrl = originRaw ? redactGitOutput(originRaw) : null;
     return ConfigGitStatusSchema.parse({
       configDir: path,
       exists: true,
       isGitRepo: true,
-      originUrl: originRaw ? redactGitOutput(originRaw) : null,
+      originUrl,
+      originRedacted: originUrl !== originRaw,
       branch,
       detached: branch === null,
       head,

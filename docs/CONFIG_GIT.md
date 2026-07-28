@@ -93,7 +93,12 @@ gitignored `.secrets.json` and must be transferred separately when needed.
 Use an SSH agent or a repository-scoped read/write deploy key for private Git
 origins. Clone accepts only credential-free HTTPS URLs, `ssh://` URLs, and SCP
 style SSH locations. Git runs without terminal prompts or repository hooks, and
-credentials are redacted from returned command output.
+credentials are redacted from returned command output: the whole userinfo for
+non-SSH URLs, because an HTTPS token is usually carried as the user name, but
+only the password for `ssh://`, where the login name authenticates nothing and
+hiding it would just misreport the configured origin. A displayed origin that
+was redacted is marked `status.originRedacted` so the UI does not offer it back
+as an editable value.
 
 ## Reset semantics
 

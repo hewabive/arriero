@@ -11,7 +11,11 @@ test("redactGitOutput removes URL credentials", () => {
     "fatal: https://***@example.com/org/config.git denied",
   );
   assert.equal(
-    redactGitOutput("ssh://git@example.com/org/config.git"),
-    "ssh://***@example.com/org/config.git",
+    redactGitOutput("ssh://git@example.com:2222/org/config.git"),
+    "ssh://git@example.com:2222/org/config.git",
+  );
+  assert.equal(
+    redactGitOutput("ssh://git:secret@example.com/org/config.git"),
+    "ssh://git:***@example.com/org/config.git",
   );
 });

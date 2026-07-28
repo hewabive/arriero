@@ -78,8 +78,11 @@ export function assertGitRemoteUrl(
 
 export function redactGitOutput(value: string): string {
   return value.replace(
-    /([a-z][a-z0-9+.-]*:\/\/)([^\s/@:]+)(?::[^\s/@]*)?@/gi,
-    "$1***@",
+    /([a-z][a-z0-9+.-]*:\/\/)([^\s/@:]+)(?::([^\s/@]*))?@/gi,
+    (match, scheme: string, user: string, password?: string) => {
+      if (scheme.toLowerCase() !== "ssh://") return `${scheme}***@`;
+      return password === undefined ? match : `${scheme}${user}:***@`;
+    },
   );
 }
 
