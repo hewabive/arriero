@@ -69,7 +69,7 @@ llama-server --model /models/model.gguf --load-mode none
 
 `mmap` обычно ускоряет старт и позволяет ОС лениво подгружать страницы. `none` увеличивает объём явного чтения, но может дать более предсказуемое поведение на filesystem, где mmap работает плохо.
 
-Для удержания mapped pages в RAM используйте отдельный режим `--load-mode mlock`; для обхода page cache — `--load-mode dio`.
+Для удержания mapped pages в RAM используйте `--load-mode mmap+mlock`; режим `--load-mode mlock` mmap не включает и читает модель в анонимные host-буферы. Для обхода page cache — `--load-mode dio`.
 
 ## Router-режим
 
@@ -89,7 +89,7 @@ load-mode = none
 
 - Deprecated warning: замените флаг на `--load-mode`.
 - Медленный старт с `none`: ожидаемая цена обычного чтения.
-- Pageouts с `mmap`: сравните `none` и `mlock`, контролируя одинаковую нагрузку.
+- Pageouts с `mmap`: сравните `none` и `mmap+mlock`, контролируя одинаковую нагрузку.
 - Фактический режим виден в логе `loading model tensors ... (load_mode = mmap|none)`.
 
 ## Источники
