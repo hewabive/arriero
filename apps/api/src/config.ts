@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+import { applyLegacyEnvFileMigration } from "./env-file-migration.js";
 import { managerEnv } from "./manager-env.js";
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -9,6 +10,7 @@ const defaultRootDir = resolve(moduleDir, "../../..");
 
 const envFile = resolve(defaultRootDir, ".env");
 if (existsSync(envFile)) {
+  applyLegacyEnvFileMigration(envFile);
   process.loadEnvFile(envFile);
 }
 
