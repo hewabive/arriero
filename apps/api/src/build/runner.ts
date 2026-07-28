@@ -19,6 +19,7 @@ import { config } from "../config.js";
 import { listLlamaSourceRefs } from "../llama/source-repository.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getActiveSourceRepositoryOperation } from "../sources/state.js";
+import { relocatedCmakeCacheReason } from "./cmake-cache.js";
 import {
   buildProcessEnv,
   buildSteps,
@@ -210,6 +211,19 @@ class LlamaBuildRunner {
           startedAt: nowIso(),
           exitCode: null,
         });
+
+        if (plannedStep.name === "configure") {
+          const relocated = relocatedCmakeCacheReason(
+            job.settings.buildDir,
+            job.settings.repoPath,
+          );
+          if (relocated) {
+            logStream.write(
+              `# ${relocated}; CMake cannot reuse a relocated build tree, removing it before configuring\n`,
+            );
+            cleanBuildDirectory(job.settings, logStream);
+          }
+        }
 
         let exitCode: number;
         if (plannedStep.name === "clean-build-dir") {

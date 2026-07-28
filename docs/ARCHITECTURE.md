@@ -55,6 +55,16 @@
 
 - Build jobs: a build runner drives `git pull`, CMake configure and CMake build;
   jobs are tracked in memory (recent-history cap), not persisted in the DB.
+  A CMake build tree records the absolute build and source directories it was
+  generated for, so moving the installation (as the `llama-manager` → `arriero`
+  rename did) makes every existing tree under `runtime/builds/` unusable — CMake
+  refuses to reconfigure it and the job dies before compiling anything. The
+  runner detects that itself (`build/cmake-cache.ts` compares
+  `CMAKE_CACHEFILE_DIR` / `CMAKE_HOME_DIRECTORY` against the planned dirs) and
+  wipes the relocated tree right before the `configure` step, through the same
+  guarded `cleanBuildDirectory` path as an explicit clean. A build-only job has
+  no configure step to repair the tree, so it is refused up front with a message
+  pointing at Configure instead of failing mid-build.
 - Source repositories: adapter-defined managed/external Git checkouts with
   staged clone, configurable origin and strict top-level validation. See
   `docs/SOURCE_REPOSITORIES.md`.

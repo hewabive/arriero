@@ -14,6 +14,7 @@ import {
   getLlamaSourceCurrentCommit,
   listLlamaSourceRefs,
 } from "../llama/source-repository.js";
+import { relocatedCmakeCacheReason } from "./cmake-cache.js";
 import { findNvcc } from "./cuda.js";
 
 export const FIT_PARAMS_TARGET = "llama-fit-params";
@@ -372,6 +373,20 @@ export function validateSettings(
 
   if (!cleanBuildDir) {
     mkdirSync(settings.buildDir, { recursive: true });
+  }
+
+  const reconfigures =
+    cleanBuildDir || steps.some((item) => item.name === "configure");
+  if (!reconfigures && steps.some((item) => item.name === "build")) {
+    const relocated = relocatedCmakeCacheReason(
+      settings.buildDir,
+      settings.repoPath,
+    );
+    if (relocated) {
+      throw new Error(
+        `${relocated}; enable Configure to regenerate the build tree`,
+      );
+    }
   }
 }
 
