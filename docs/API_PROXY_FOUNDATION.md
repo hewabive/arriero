@@ -130,10 +130,20 @@ The admin API exposes diagnostics for the next implementation step:
 
 - `GET /api/proxy/runtime` returns a runtime snapshot for configured proxy targets.
 - `POST /api/proxy/plan` returns the scheduler plan for either an incoming request or an idle-maintenance pass.
-- `GET /api/proxy/stats?hours=` returns hourly request counters (requests/errors/tokens/genMs/rate, per-model breakdown + totals) from the in-memory Observer `proxy/stats.ts`. Token/rate coverage is resumable-path only; `requestsWithTokens` exposes the gap. Counters are in-memory and reset on restart.
+- `GET /api/proxy/stats?hours=` returns hourly request counters (requests/errors/tokens/genMs/rate, per-model breakdown + totals, incl. `cacheHits`) from the in-memory Observer `proxy/stats.ts`. `requestsWithTokens` exposes the share of requests that carried usage. Counters are in-memory and reset on restart. Metering coverage is described under **Telemetry** below.
 - `GET /api/proxy/traces?limit=` returns the last N per-request `ApiProxyRequestTrace` records (model → route → target → scheduler actions → usage → outcome) for decision transparency.
 
 These admin endpoints are read-only with respect to llama-server. They do not start or stop instances, load or unload models, save slots, restore slots or forward user traffic. The stats/traces views are populated as a side-effect of served public traffic; the endpoints themselves only read the in-memory Observer.
+
+## Telemetry
+
+Every request emits an `ApiProxyRequestTrace` recorded by the in-memory Observer `proxy/stats.ts`: hourly counters keyed off `trace.at` plus a last-N traces ring. Tokens and rate are metered on **both** the resumable path and the plain forwarder, via `proxy/usage-meter.ts`:
+
+- **Non-stream** parses the final JSON. The exception is a managed `chat.completions`/`messages` request whose client asked for non-stream: it still forces `stream:true` upstream and rebuilds the buffered reply (`resumable-forward.ts:consumeResumableSse` + `finalFromState`), so live monitoring (TTFT, thinking, prefill) works. That force is skipped on `n>1`/logprobs and for external or translated targets, where the rebuild would not be faithful.
+- **Streaming** tees frames as they pass. OpenAI streaming injects `stream_options.include_usage` and strips the synthetic usage chunk again when the client did not ask for it.
+- **Translated Anthropic streams** skip the meter entirely and report telemetry from the bridge emitter's `extensions` side-channel inside the translation transform (`docs/ANTHROPIC_OPENAI_BRIDGE.md`), so their streaming stats are recorded deferred at stream end rather than per frame.
+
+The `cache`-node response store is managed out of band via `GET` / `DELETE /api/proxy/cache` (size / clear); see `docs/API_PROXY_RESPONSE_CACHE.md`.
 
 ## Scheduler Model
 

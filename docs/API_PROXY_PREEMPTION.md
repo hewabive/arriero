@@ -49,6 +49,11 @@ Per-target `idleUnloadMs` (null = never idle-unload, the default) is the only id
 
 Slot save/restore is the cheap-resume mechanism: when a preemptible target with `saveSlotsBeforeUnload` is unloaded, the scheduler emits a `save-slot` per configured `slotId` before the unload, and when it is loaded again it emits a `restore-slot` per saved slot. The executor calls `requestLlamaSlotAction` with a deterministic filename keyed by `(targetId, slotId)` (`apiProxySlotFilename`), so a later restore reads exactly what the save wrote and repeated saves overwrite rather than accumulate. The preemptible instance must be launched with `--slot-save-path`; without it llama.cpp rejects the action and the executor surfaces a 502.
 
+The manager does not rely on the operator to set that flag. `buildLaunchSnapshot` auto-injects `--slot-save-path <config.slotsDir>/<instance>` into every single `llama-server` instance (`process/launch-snapshot.ts:managedSlotSavePath`), skipping routers with `--models-preset`, the `rpc-worker` kind, and any instance that set the arg explicitly (the explicit value wins). Two properties matter:
+
+- The injection happens inside `buildLaunchSnapshot`, which is the single source for both the spawn argv and config-drift comparison, so an injected flag never shows up as false drift.
+- The value is never persisted into the instance JSON and never shown in the New-instance form, so file-backed config stays machine-independent. The supervisor `mkdir`s the directory before spawn.
+
 Saved slots are tracked in the `api_proxy_runtime_metadata` table, which is the source of truth read back into every runtime snapshot. A successful save adds the slot id to the target's `savedSlotIds`; a successful restore removes it. That set is exactly what drives `restore-slot` emission on the next load, so the cycle is self-consistent across process restarts: save before unload persists the id, the next load restores and clears it, and the file is overwritten on the following save. Pin preemptible targets to a single slot (`--parallel 1`) so the slot to save is deterministic.
 
 ## Mid-request resume
