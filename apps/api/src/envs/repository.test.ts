@@ -21,7 +21,12 @@ test("environment specs persist desired state and catalog ownership", () => {
     pythonVersion: "3.12",
     pythonProvisioning: "download-if-missing",
     pythonMirrorUrl: null,
-    source: { kind: "pypi", extras: [], indexUrl: null },
+    source: {
+      kind: "pypi",
+      extras: [],
+      indexUrl: null,
+      dependencyIndexUrl: null,
+    },
   });
   assert.equal(created.pathCatalogEntryId, null);
   assert.equal(getEnvironmentSpec(created.id)?.version, "0.24.0");
@@ -49,7 +54,7 @@ test("KTransformers desired state persists its matched source pair", () => {
     pythonVersion: "3.12",
     pythonProvisioning: "require-existing",
     pythonMirrorUrl: null,
-    source: { kind: "pypi", indexUrl: null },
+    source: { kind: "pypi", indexUrl: null, dependencyIndexUrl: null },
   });
   assert.equal(created.engine, "ktransformers");
   assert.match(readFileSync(ENVIRONMENTS_FILE, "utf8"), /ktransformers/);

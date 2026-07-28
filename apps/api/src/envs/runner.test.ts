@@ -1,3 +1,4 @@
+import type { EnvironmentSpec } from "@arriero/core";
 import { EnvironmentCreateSchema, EnvironmentSpecSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -49,6 +50,21 @@ function ktransformersSpec(source: unknown) {
   });
 }
 
+function installCommand(environment: EnvironmentSpec) {
+  return environmentJobSteps(environment, "uv").find(
+    (step) => step.name === "package-install",
+  )!.command;
+}
+
+function indexFlags(command: string[]) {
+  const flags: string[] = [];
+  command.forEach((token, position) => {
+    if (token !== "--default-index" && token !== "--index") return;
+    flags.push(token, command[position + 1]!);
+  });
+  return flags;
+}
+
 test("pypi environment plan pins Python, version, extras and index", () => {
   const steps = environmentJobSteps(
     spec({
@@ -76,6 +92,55 @@ test("pypi environment plan pins Python, version, extras and index", () => {
   assert.ok(install.command.includes("https://packages.example/simple"));
   const validate = steps.find((step) => step.name === "validate")!;
   assert.ok(validate.command.at(-1)?.includes("import vllm"));
+});
+
+test("pypi environment plan without a dependency index resolves everything from one index", () => {
+  const command = installCommand(
+    spec({
+      kind: "pypi",
+      extras: [],
+      indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
+    }),
+  );
+  assert.deepEqual(indexFlags(command), [
+    "--default-index",
+    "https://gitea.local/api/packages/team/pypi/simple",
+  ]);
+});
+
+test("pypi environment plan maps the dependency index to the default index and the root index to a priority index", () => {
+  const command = installCommand(
+    spec({
+      kind: "pypi",
+      extras: [],
+      indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
+      dependencyIndexUrl: "https://pypi.org/simple",
+    }),
+  );
+  assert.deepEqual(indexFlags(command), [
+    "--default-index",
+    "https://pypi.org/simple",
+    "--index",
+    "https://gitea.local/api/packages/team/pypi/simple",
+  ]);
+});
+
+test("KTransformers pypi plan carries the dependency index for both roots", () => {
+  const command = installCommand(
+    ktransformersSpec({
+      kind: "pypi",
+      indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
+      dependencyIndexUrl: "https://packages.local/simple",
+    }),
+  );
+  assert.deepEqual(indexFlags(command), [
+    "--default-index",
+    "https://packages.local/simple",
+    "--index",
+    "https://gitea.local/api/packages/team/pypi/simple",
+  ]);
+  assert.ok(command.includes("kt-kernel==0.6.3.post1"));
+  assert.ok(command.includes("sglang-kt==0.6.3.post1"));
 });
 
 test("wheel environment plan carries hash and torch backend", () => {

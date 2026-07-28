@@ -84,15 +84,63 @@ duplicate root is rejected by the portable schema.
 
 ## Reproducibility and network policy
 
-PyPI sources accept a credential-free index URL. Wheel sources accept HTTPS or
-file URLs, optional SHA-256 fragments, an optional uv torch backend, and a
-credential-free dependency index URL. The latter is essential for
+Index sources carry two credential-free URLs. `indexUrl` is the index that holds
+the root package; `dependencyIndexUrl` is where transitive dependencies resolve
+from, and `null` means the root index serves them too. They map onto uv as
+follows:
+
+| `indexUrl` | `dependencyIndexUrl` | uv options |
+| --- | --- | --- |
+| null | null | none — the public default index |
+| set | null | `--default-index <indexUrl>` |
+| set | set | `--default-index <dependencyIndexUrl> --index <indexUrl>` |
+
+The split exists because `--default-index` replaces the public index outright.
+A private registry that holds only the engine package — a Gitea PyPI registry,
+which serves what was uploaded and does not proxy PyPI — would otherwise resolve
+the root package and then fail on `torch`. Naming the root index through
+`--index` gives it priority under uv's default `first-index` strategy while
+dependencies fall through to the dependency index. The deprecated
+`--index-url`/`--extra-index-url` pair is not used.
+
+Wheel sources accept HTTPS or file URLs, optional SHA-256 fragments, an optional
+uv torch backend, and the same `dependencyIndexUrl`, which is essential for
 closed-network wheel installs: every root wheel and transitive dependency can
 come from the same internal index instead of silently falling back to public
 PyPI. URL credentials are rejected; private-index authentication must come from
 the manager process environment.
 
 The spec is recreatable but not an exact lock: dependency resolution may change on a later rebuild. `freeze.txt` is diagnostic runtime state, not portable configuration.
+
+## Index version discovery
+
+`GET /api/environments/index-versions?engine=&indexUrl=` reads the Simple
+repository API of the index that would hold the root package and returns the
+versions it publishes, newest first. `indexUrl` defaults to public PyPI. The
+distribution names come from the provisioner registry, so vLLM queries `vllm`
+and KTransformers queries both `kt-kernel` and `sglang-kt`; a version that only
+one of the pair publishes is returned with `missingDistributions` set rather
+than dropped, because an unmatched pair is exactly the failure the version
+picker exists to prevent.
+
+The lookup runs server-side: the browser cannot reach a registry that sends no
+CORS headers, and the offline policy is a server concern. It sends no
+credentials — a registry that requires authentication for read access is
+reported as `auth-required` instead of being silently empty.
+
+Both response shapes are handled. PEP 691 JSON is preferred through content
+negotiation, with PEP 503 HTML as the fallback, because widely deployed
+registries still serve HTML only — Gitea renders its simple page from a template
+and never emits JSON. Versions and wheel tags are read out of the distribution
+filename rather than the link target, since only the filename is specified
+across index implementations. Ordering is PEP 440, not lexicographic, so
+`0.10.0` outranks `0.9.0` and `0.6.3.post1` outranks `0.6.3`.
+
+`status` distinguishes the failure modes the UI has to explain differently:
+`empty` (index reachable, package absent — the normal outcome for a private
+registry that only holds what was uploaded), `not-found`, `auth-required`, and
+`unreachable`. A `not-found` against a URL that does not end in `/simple` says
+so, since that is the common paste error.
 
 ## Ownership and deletion
 
@@ -108,7 +156,8 @@ generated binary is available only to an instance of the matching tagged
 engine kind.
 
 Mirror provisioning also activates a no-public-network policy before the job starts.
-PyPI sources must name an explicit non-public index; wheel sources must use a non-public
-root URL plus an explicit non-public dependency index; runtime mirrors cannot point at
+PyPI sources must name an explicit non-public index and, when set, a non-public dependency
+index; wheel sources must use a non-public root URL plus an explicit non-public dependency
+index; runtime mirrors cannot point at
 GitHub, PyPI, pythonhosted.org, or Astral's public hosts. This prevents a typo or omitted
 index from silently falling back to the Internet.

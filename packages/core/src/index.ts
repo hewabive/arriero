@@ -2057,6 +2057,15 @@ export const VllmEnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
       .refine(credentialFreeUrl, "index URL must not contain credentials")
       .nullable()
       .default(null),
+    dependencyIndexUrl: z
+      .string()
+      .url()
+      .refine(
+        credentialFreeUrl,
+        "dependency index URL must not contain credentials",
+      )
+      .nullable()
+      .default(null),
   }),
   z.object({
     kind: z.literal("wheel"),
@@ -2144,6 +2153,15 @@ export const KTransformersEnvironmentInstallSourceSchema = z.discriminatedUnion(
         .refine(credentialFreeUrl, "index URL must not contain credentials")
         .nullable()
         .default(null),
+      dependencyIndexUrl: z
+        .string()
+        .url()
+        .refine(
+          credentialFreeUrl,
+          "dependency index URL must not contain credentials",
+        )
+        .nullable()
+        .default(null),
     }),
     z.object({
       kind: z.literal("wheels"),
@@ -2209,6 +2227,7 @@ const VllmEnvironmentCreateObjectSchema = z.object({
     kind: "pypi",
     extras: [],
     indexUrl: null,
+    dependencyIndexUrl: null,
   }),
 });
 
@@ -2220,6 +2239,7 @@ const KTransformersEnvironmentCreateObjectSchema = z.object({
   source: KTransformersEnvironmentInstallSourceSchema.default({
     kind: "pypi",
     indexUrl: null,
+    dependencyIndexUrl: null,
   }),
 });
 
@@ -2261,6 +2281,37 @@ export const EnvironmentSpecSchema = z.preprocess(
     ),
   ]),
 );
+
+export const PackageIndexFileSchema = z.object({
+  filename: z.string(),
+  pythonTag: z.string().nullable(),
+  platformTag: z.string().nullable(),
+});
+
+export const PackageIndexVersionSchema = z.object({
+  version: z.string(),
+  requiresPython: z.string().nullable(),
+  preRelease: z.boolean(),
+  files: z.array(PackageIndexFileSchema),
+  missingDistributions: z.array(z.string()),
+});
+
+export const PackageIndexLookupStatusSchema = z.enum([
+  "ok",
+  "empty",
+  "auth-required",
+  "not-found",
+  "unreachable",
+]);
+
+export const EnvironmentIndexVersionsSchema = z.object({
+  engine: EnvironmentEngineSchema,
+  indexUrl: z.string(),
+  distributions: z.array(z.string()),
+  status: PackageIndexLookupStatusSchema,
+  message: z.string().nullable(),
+  versions: z.array(PackageIndexVersionSchema),
+});
 
 export const EnvironmentStatusSchema = z.enum([
   "missing",
@@ -3539,6 +3590,14 @@ export type EnvironmentEngine = z.infer<typeof EnvironmentEngineSchema>;
 export type EnvironmentCreate = z.infer<typeof EnvironmentCreateSchema>;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
 export type EnvironmentStatus = z.infer<typeof EnvironmentStatusSchema>;
+export type PackageIndexFile = z.infer<typeof PackageIndexFileSchema>;
+export type PackageIndexVersion = z.infer<typeof PackageIndexVersionSchema>;
+export type PackageIndexLookupStatus = z.infer<
+  typeof PackageIndexLookupStatusSchema
+>;
+export type EnvironmentIndexVersions = z.infer<
+  typeof EnvironmentIndexVersionsSchema
+>;
 export type EnvironmentRecord = z.infer<typeof EnvironmentRecordSchema>;
 export type EnvironmentJobStatus = z.infer<typeof EnvironmentJobStatusSchema>;
 export type EnvironmentJobStepName = z.infer<

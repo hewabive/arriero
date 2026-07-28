@@ -100,7 +100,11 @@ export function EnvironmentsView() {
         pythonVersion: pythonVersion.trim() as "3.11" | "3.12",
         source:
           sourceKind === "pypi"
-            ? { kind: "pypi", indexUrl: indexUrl.trim() || null }
+            ? {
+                kind: "pypi",
+                indexUrl: indexUrl.trim() || null,
+                dependencyIndexUrl: dependencyIndexUrl.trim() || null,
+              }
             : {
                 kind: "wheels",
                 artifacts: [
@@ -134,6 +138,7 @@ export function EnvironmentsView() {
                 .map((item) => item.trim())
                 .filter(Boolean),
               indexUrl: indexUrl.trim() || null,
+              dependencyIndexUrl: dependencyIndexUrl.trim() || null,
             }
           : {
               kind: "wheel",
@@ -315,27 +320,38 @@ export function EnvironmentsView() {
           ]}
         />
         {sourceKind === "pypi" ? (
-          <SimpleGrid mt="sm" cols={{ base: 1, sm: 2 }}>
-            {engine === "vllm" ? (
+          <Stack mt="sm" gap="sm">
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              {engine === "vllm" ? (
+                <TextInput
+                  label="Extras"
+                  description="Comma-separated"
+                  value={extras}
+                  onChange={(event) => setExtras(event.currentTarget.value)}
+                />
+              ) : (
+                <Text size="xs" c="dimmed">
+                  The selected index must contain an exact matched kt-kernel and
+                  sglang-kt pair.
+                </Text>
+              )}
               <TextInput
-                label="Extras"
-                description="Comma-separated"
-                value={extras}
-                onChange={(event) => setExtras(event.currentTarget.value)}
+                label="Index URL"
+                description="Holds the root package; credentials are rejected"
+                value={indexUrl}
+                onChange={(event) => setIndexUrl(event.currentTarget.value)}
               />
-            ) : (
-              <Text size="xs" c="dimmed">
-                The selected index must contain an exact matched kt-kernel and
-                sglang-kt pair.
-              </Text>
-            )}
+            </SimpleGrid>
             <TextInput
-              label="Index URL"
-              description="Credentials are rejected"
-              value={indexUrl}
-              onChange={(event) => setIndexUrl(event.currentTarget.value)}
+              label="Dependency index URL"
+              description="Where transitive dependencies resolve from; empty means the index above serves them too"
+              placeholder="https://pypi.org/simple"
+              value={dependencyIndexUrl}
+              onChange={(event) =>
+                setDependencyIndexUrl(event.currentTarget.value)
+              }
             />
-          </SimpleGrid>
+          </Stack>
         ) : (
           <Stack mt="sm" gap="sm">
             <TextInput

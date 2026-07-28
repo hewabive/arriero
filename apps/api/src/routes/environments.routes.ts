@@ -1,6 +1,7 @@
-import { EnvironmentCreateSchema } from "@arriero/core";
+import { EnvironmentCreateSchema, EnvironmentEngineSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
+import { resolveEnvironmentIndexVersions } from "../envs/index-versions.js";
 import { tailEnvironmentLog } from "../envs/logs.js";
 import { getEnvironmentJob, listEnvironmentJobs } from "../envs/repository.js";
 import { environmentRunner } from "../envs/runner.js";
@@ -42,6 +43,17 @@ export function registerEnvironmentRoutes(app: Hono) {
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
+  });
+
+  app.get("/api/environments/index-versions", async (c) => {
+    const engine = EnvironmentEngineSchema.safeParse(c.req.query("engine"));
+    if (!engine.success) return c.json({ error: engine.error.flatten() }, 400);
+    return c.json({
+      data: await resolveEnvironmentIndexVersions({
+        engine: engine.data,
+        indexUrl: c.req.query("indexUrl") ?? null,
+      }),
+    });
   });
 
   app.get("/api/environments/jobs", (c) => {

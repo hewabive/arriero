@@ -41,6 +41,31 @@ test("offline pypi source must name a closed-network index", () => {
   );
 });
 
+test("offline pypi source cannot fall back to a public dependency index", () => {
+  assert.match(
+    offlineEnvironmentPolicyError(
+      input({
+        kind: "pypi",
+        extras: [],
+        indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
+        dependencyIndexUrl: "https://pypi.org/simple",
+      }),
+    )!,
+    /Dependency index points at a public host/,
+  );
+  assert.equal(
+    offlineEnvironmentPolicyError(
+      input({
+        kind: "pypi",
+        extras: [],
+        indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
+        dependencyIndexUrl: "https://packages.local/simple",
+      }),
+    ),
+    null,
+  );
+});
+
 test("offline wheel source cannot silently resolve dependencies from public PyPI", () => {
   assert.match(
     offlineEnvironmentPolicyError(

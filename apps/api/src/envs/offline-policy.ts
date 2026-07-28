@@ -33,8 +33,12 @@ export function offlineEnvironmentPolicyError(
       return "Offline PyPI installation requires an explicit closed-network index URL";
     }
     const publicIndex = publicUrl(spec.source.indexUrl);
-    return publicIndex
-      ? `Python package index points at a public host: ${publicIndex}`
+    if (publicIndex) {
+      return `Python package index points at a public host: ${publicIndex}`;
+    }
+    const publicDependencyIndex = publicUrl(spec.source.dependencyIndexUrl);
+    return publicDependencyIndex
+      ? `Dependency index points at a public host: ${publicDependencyIndex}`
       : null;
   }
 
@@ -52,6 +56,6 @@ export function offlineEnvironmentPolicyError(
   }
   const publicIndex = publicUrl(spec.source.dependencyIndexUrl);
   return publicIndex
-    ? `Wheel dependency index points at a public host: ${publicIndex}`
+    ? `Dependency index points at a public host: ${publicIndex}`
     : null;
 }

@@ -22,6 +22,7 @@ export type EnvironmentAvailabilityContext = {
 export type EnvironmentProvisioner = {
   displayName: string;
   entrypointRelative: string;
+  distributions: readonly string[];
   requirements(spec: EnvironmentSpec): string[];
   installOptions(spec: EnvironmentSpec): string[];
   validationCommand(spec: EnvironmentSpec, finalDir: string): string[];
@@ -35,6 +36,19 @@ export type EnvironmentProvisioner = {
 
 function wheelRequirement(url: string, sha256: string | null) {
   return `${url}${sha256 ? `#sha256=${sha256}` : ""}`;
+}
+
+function packageIndexOptions(source: {
+  indexUrl?: string | null;
+  dependencyIndexUrl: string | null;
+}) {
+  const rootIndexUrl = source.indexUrl ?? null;
+  if (!source.dependencyIndexUrl) {
+    return rootIndexUrl ? ["--default-index", rootIndexUrl] : [];
+  }
+  const options = ["--default-index", source.dependencyIndexUrl];
+  if (rootIndexUrl) options.push("--index", rootIndexUrl);
+  return options;
 }
 
 function executableError(path: string, description: string) {
@@ -113,6 +127,7 @@ function ktransformersValidationScript(version: string) {
 const VLLM_PROVISIONER: EnvironmentProvisioner = {
   displayName: "vLLM",
   entrypointRelative: "bin/vllm",
+  distributions: ["vllm"],
   requirements(spec) {
     if (spec.engine !== "vllm")
       throw new Error("vLLM provisioner kind mismatch");
@@ -127,13 +142,7 @@ const VLLM_PROVISIONER: EnvironmentProvisioner = {
   installOptions(spec) {
     if (spec.engine !== "vllm")
       throw new Error("vLLM provisioner kind mismatch");
-    const options: string[] = [];
-    if (spec.source.kind === "pypi" && spec.source.indexUrl) {
-      options.push("--index-url", spec.source.indexUrl);
-    }
-    if (spec.source.kind === "wheel" && spec.source.dependencyIndexUrl) {
-      options.push("--index-url", spec.source.dependencyIndexUrl);
-    }
+    const options = packageIndexOptions(spec.source);
     if (spec.source.kind === "wheel" && spec.source.torchBackend) {
       options.push("--torch-backend", spec.source.torchBackend);
     }
@@ -176,6 +185,7 @@ const VLLM_PROVISIONER: EnvironmentProvisioner = {
 const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   displayName: "KTransformers",
   entrypointRelative: "bin/sglang",
+  distributions: ["kt-kernel", "sglang-kt"],
   requirements(spec) {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
@@ -196,12 +206,7 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
     }
-    const options: string[] = [];
-    const indexUrl =
-      spec.source.kind === "pypi"
-        ? spec.source.indexUrl
-        : spec.source.dependencyIndexUrl;
-    if (indexUrl) options.push("--index-url", indexUrl);
+    const options = packageIndexOptions(spec.source);
     if (spec.source.kind === "wheels" && spec.source.torchBackend) {
       options.push("--torch-backend", spec.source.torchBackend);
     }
