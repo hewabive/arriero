@@ -211,7 +211,28 @@ export function ConfigGitView() {
     ];
   }, [status]);
 
-  if (statusQuery.isLoading || !status) {
+  if (!status && statusQuery.isError) {
+    return (
+      <Alert color="red" title="Could not load configuration repository">
+        <Stack gap="sm">
+          <Text size="sm">{statusQuery.error.message}</Text>
+          <Group>
+            <Button
+              color="red"
+              variant="light"
+              size="xs"
+              loading={statusQuery.isFetching}
+              onClick={() => void statusQuery.refetch()}
+            >
+              Retry
+            </Button>
+          </Group>
+        </Stack>
+      </Alert>
+    );
+  }
+
+  if (!status) {
     return <Text c="dimmed">Loading configuration repository…</Text>;
   }
 
