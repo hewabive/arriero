@@ -9,6 +9,7 @@ import {
   parseDistributionFile,
   parseSimpleIndexHtml,
   parseSimpleIndexJson,
+  satisfiesRequiresPython,
 } from "./package-index.js";
 
 const GITEA_PAGE = `<html><head><title>Links for vllm</title></head><body>
@@ -32,12 +33,18 @@ test("PEP 691 JSON pages parse into the same shape", () => {
   const entries = parseSimpleIndexJson({
     files: [
       { filename: "vllm-0.26.0-cp312-cp312-linux_x86_64.whl" },
-      { filename: "vllm-0.25.0-cp312-cp312-linux_x86_64.whl", "requires-python": ">=3.10" },
+      {
+        filename: "vllm-0.25.0-cp312-cp312-linux_x86_64.whl",
+        "requires-python": ">=3.10",
+      },
       { filename: "" },
     ],
   });
   assert.deepEqual(entries, [
-    { filename: "vllm-0.26.0-cp312-cp312-linux_x86_64.whl", requiresPython: null },
+    {
+      filename: "vllm-0.26.0-cp312-cp312-linux_x86_64.whl",
+      requiresPython: null,
+    },
     {
       filename: "vllm-0.25.0-cp312-cp312-linux_x86_64.whl",
       requiresPython: ">=3.10",
@@ -47,7 +54,10 @@ test("PEP 691 JSON pages parse into the same shape", () => {
 
 test("wheel and sdist filenames yield version and tags", () => {
   assert.deepEqual(
-    parseDistributionFile("vllm-0.26.0-cp312-cp312-manylinux1_x86_64.whl", "vllm"),
+    parseDistributionFile(
+      "vllm-0.26.0-cp312-cp312-manylinux1_x86_64.whl",
+      "vllm",
+    ),
     { version: "0.26.0", pythonTag: "cp312", platformTag: "manylinux1_x86_64" },
   );
   assert.deepEqual(
@@ -156,6 +166,28 @@ test("post releases are stable releases but pre and dev releases are not", () =>
   assert.equal(isPreReleaseVersion("0.26.0.dev1"), true);
 });
 
+test("requires-python specifiers decide compatibility with the target runtime", () => {
+  assert.equal(satisfiesRequiresPython("<3.15,>=3.10", "3.12"), true);
+  assert.equal(satisfiesRequiresPython("<3.15,>=3.10", "3.9"), false);
+  assert.equal(satisfiesRequiresPython("<3.15,>=3.10", "3.15"), false);
+  assert.equal(satisfiesRequiresPython(">=3.9", "3.12.13"), true);
+  assert.equal(satisfiesRequiresPython("~=3.11", "3.12"), true);
+  assert.equal(satisfiesRequiresPython("~=3.11", "4.0"), false);
+  assert.equal(satisfiesRequiresPython("==3.12.*", "3.12.7"), true);
+  assert.equal(satisfiesRequiresPython("==3.12.*", "3.13.0"), false);
+  assert.equal(satisfiesRequiresPython("!=3.11.*,>=3.10", "3.11.4"), false);
+});
+
+test("an absent or unparseable requires-python yields no verdict", () => {
+  assert.equal(satisfiesRequiresPython(null, "3.12"), null);
+  assert.equal(satisfiesRequiresPython("   ", "3.12"), null);
+  assert.equal(
+    satisfiesRequiresPython("totally-not-a-specifier", "3.12"),
+    null,
+  );
+  assert.equal(satisfiesRequiresPython(">=3.10", "not-a-version"), null);
+});
+
 test("project URLs normalize the distribution name onto the index root", () => {
   assert.equal(
     packageIndexProjectUrl(
@@ -173,7 +205,9 @@ test("project URLs normalize the distribution name onto the index root", () => {
     false,
   );
   assert.equal(
-    looksLikeSimpleIndexUrl("https://gitea.local/api/packages/team/pypi/simple"),
+    looksLikeSimpleIndexUrl(
+      "https://gitea.local/api/packages/team/pypi/simple",
+    ),
     true,
   );
 });

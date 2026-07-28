@@ -2282,6 +2282,19 @@ export const EnvironmentSpecSchema = z.preprocess(
   ]),
 );
 
+export function packageIndexInstallOptions(source: {
+  indexUrl?: string | null;
+  dependencyIndexUrl: string | null;
+}) {
+  const rootIndexUrl = source.indexUrl ?? null;
+  if (!source.dependencyIndexUrl) {
+    return rootIndexUrl ? ["--default-index", rootIndexUrl] : [];
+  }
+  const options = ["--default-index", source.dependencyIndexUrl];
+  if (rootIndexUrl) options.push("--index", rootIndexUrl);
+  return options;
+}
+
 export const PackageIndexFileSchema = z.object({
   filename: z.string(),
   pythonTag: z.string().nullable(),
@@ -2291,6 +2304,7 @@ export const PackageIndexFileSchema = z.object({
 export const PackageIndexVersionSchema = z.object({
   version: z.string(),
   requiresPython: z.string().nullable(),
+  pythonCompatible: z.boolean().nullable(),
   preRelease: z.boolean(),
   files: z.array(PackageIndexFileSchema),
   missingDistributions: z.array(z.string()),

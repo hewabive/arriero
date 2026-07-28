@@ -54,10 +54,7 @@ test("KTransformers flags versions that only one root distribution publishes", a
   });
   assert.equal(result.status, "ok");
   assert.deepEqual(
-    result.versions.map((entry) => [
-      entry.version,
-      entry.missingDistributions,
-    ]),
+    result.versions.map((entry) => [entry.version, entry.missingDistributions]),
     [
       ["0.6.4", ["sglang-kt"]],
       ["0.6.3.post1", []],

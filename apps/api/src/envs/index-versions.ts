@@ -14,6 +14,7 @@ import {
   parseSimpleIndexHtml,
   parseSimpleIndexJson,
   PUBLIC_PACKAGE_INDEX_URL,
+  satisfiesRequiresPython,
   type IndexDistributionResult,
   type IndexFileEntry,
 } from "./package-index.js";
@@ -51,7 +52,8 @@ export async function fetchIndexDistribution(
     if (!response.ok) {
       return {
         outcome: "unreachable",
-        detail: `index returned ${response.status} ${response.statusText}`.trim(),
+        detail:
+          `index returned ${response.status} ${response.statusText}`.trim(),
       };
     }
     const contentType = response.headers.get("content-type") ?? "";
@@ -69,7 +71,11 @@ function describeFetchFailure(error: unknown) {
   const message = (error as Error).message || "request failed";
   const cause = (error as { cause?: unknown }).cause;
   const causeMessage =
-    cause instanceof Error ? cause.message : typeof cause === "string" ? cause : null;
+    cause instanceof Error
+      ? cause.message
+      : typeof cause === "string"
+        ? cause
+        : null;
   return causeMessage && !message.includes(causeMessage)
     ? `${message}: ${causeMessage}`
     : message;
@@ -116,11 +122,13 @@ function indexHint(indexUrl: string) {
 export async function resolveEnvironmentIndexVersions(input: {
   engine: EnvironmentEngine;
   indexUrl: string | null;
+  pythonVersion?: string | null;
   fetcher?: IndexDistributionFetcher;
 }): Promise<EnvironmentIndexVersions> {
   const indexUrl = input.indexUrl?.trim() || PUBLIC_PACKAGE_INDEX_URL;
   const distributions = [...environmentProvisioner(input.engine).distributions];
-  const fetcher = input.fetcher ?? ((url: string) => fetchIndexDistribution(url));
+  const fetcher =
+    input.fetcher ?? ((url: string) => fetchIndexDistribution(url));
   const base = {
     engine: input.engine,
     indexUrl,
@@ -143,7 +151,9 @@ export async function resolveEnvironmentIndexVersions(input: {
 
   const results = await Promise.all(projectUrls.map(fetcher));
 
-  const unreachable = results.find((result) => result.outcome === "unreachable");
+  const unreachable = results.find(
+    (result) => result.outcome === "unreachable",
+  );
   if (unreachable && unreachable.outcome === "unreachable") {
     return { ...base, status: "unreachable", message: unreachable.detail };
   }
@@ -198,6 +208,9 @@ export async function resolveEnvironmentIndexVersions(input: {
       return {
         version,
         requiresPython,
+        pythonCompatible: input.pythonVersion
+          ? satisfiesRequiresPython(requiresPython, input.pythonVersion)
+          : null,
         preRelease: isPreReleaseVersion(version),
         files,
         missingDistributions,

@@ -136,6 +136,17 @@ filename rather than the link target, since only the filename is specified
 across index implementations. Ordering is PEP 440, not lexicographic, so
 `0.10.0` outranks `0.9.0` and `0.6.3.post1` outranks `0.6.3`.
 
+The create form is ordered so each block only asks what the previous one made
+answerable: what to build (engine, Python, variant) → where to install from
+(source kind, index, dependency index) → which release → Python runtime →
+review. Python sits above the source because the version list annotates each
+release against `requires-python`, which needs the target runtime to already be
+known. Versions incompatible with it, or missing a KTransformers root, are
+disabled with the reason shown rather than filtered out — on a private registry
+a filtered list collapses to nothing and reads as "package absent". Manual entry
+stays available in every state, since an index can be stale, slow, or
+unreachable while the release is real.
+
 `status` distinguishes the failure modes the UI has to explain differently:
 `empty` (index reachable, package absent — the normal outcome for a private
 registry that only holds what was uploaded), `not-found`, `auth-required`, and

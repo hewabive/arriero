@@ -1,20 +1,16 @@
-import type { EnvironmentCreate, EnvironmentEngine } from "@arriero/core";
+import type { EnvironmentCreate } from "@arriero/core";
 import {
   Badge,
   Button,
   Code,
   Group,
   Paper,
-  SegmentedControl,
   SimpleGrid,
   Stack,
-  Switch,
   Text,
-  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
 
 import {
   cancelEnvironmentJob,
@@ -26,6 +22,7 @@ import {
   listEnvironments,
   rebuildEnvironment,
 } from "../../api/client";
+import { EnvironmentCreateForm } from "../components/EnvironmentCreateForm";
 import { formatLocalDateTime } from "../utils/time";
 
 function statusColor(status: string) {
@@ -38,22 +35,6 @@ function statusColor(status: string) {
 
 export function EnvironmentsView() {
   const queryClient = useQueryClient();
-  const [engine, setEngine] = useState<EnvironmentEngine>("vllm");
-  const [version, setVersion] = useState("");
-  const [variant, setVariant] = useState<"cuda" | "cpu" | "rocm">("cuda");
-  const [pythonVersion, setPythonVersion] = useState("3.12");
-  const [requireExistingPython, setRequireExistingPython] = useState(false);
-  const [pythonMirrorUrl, setPythonMirrorUrl] = useState("");
-  const [sourceKind, setSourceKind] = useState<"pypi" | "wheel">("pypi");
-  const [extras, setExtras] = useState("");
-  const [indexUrl, setIndexUrl] = useState("");
-  const [wheelUrl, setWheelUrl] = useState("");
-  const [wheelSha256, setWheelSha256] = useState("");
-  const [sglangWheelUrl, setSglangWheelUrl] = useState("");
-  const [sglangWheelSha256, setSglangWheelSha256] = useState("");
-  const [dependencyIndexUrl, setDependencyIndexUrl] = useState("");
-  const [torchBackend, setTorchBackend] = useState("");
-
   const environmentsQuery = useQuery({
     queryKey: ["environments"],
     queryFn: listEnvironments,
@@ -82,90 +63,6 @@ export function EnvironmentsView() {
   const running = jobs.some((job) => job.status === "running");
   const uv = systemQuery.data?.data.tools?.uv;
 
-  const createInput = useMemo<EnvironmentCreate>(() => {
-    const common = {
-      version: version.trim(),
-      pythonProvisioning: pythonMirrorUrl.trim()
-        ? ("mirror" as const)
-        : requireExistingPython
-          ? ("require-existing" as const)
-          : ("download-if-missing" as const),
-      pythonMirrorUrl: pythonMirrorUrl.trim() || null,
-    };
-    if (engine === "ktransformers") {
-      return {
-        ...common,
-        engine,
-        variant: "cuda",
-        pythonVersion: pythonVersion.trim() as "3.11" | "3.12",
-        source:
-          sourceKind === "pypi"
-            ? {
-                kind: "pypi",
-                indexUrl: indexUrl.trim() || null,
-                dependencyIndexUrl: dependencyIndexUrl.trim() || null,
-              }
-            : {
-                kind: "wheels",
-                artifacts: [
-                  {
-                    distribution: "kt-kernel",
-                    url: wheelUrl.trim(),
-                    sha256: wheelSha256.trim() || null,
-                  },
-                  {
-                    distribution: "sglang-kt",
-                    url: sglangWheelUrl.trim(),
-                    sha256: sglangWheelSha256.trim() || null,
-                  },
-                ],
-                dependencyIndexUrl: dependencyIndexUrl.trim() || null,
-                torchBackend: torchBackend.trim() || null,
-              },
-      };
-    }
-    return {
-      ...common,
-      engine,
-      variant,
-      pythonVersion: pythonVersion.trim(),
-      source:
-        sourceKind === "pypi"
-          ? {
-              kind: "pypi",
-              extras: extras
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean),
-              indexUrl: indexUrl.trim() || null,
-              dependencyIndexUrl: dependencyIndexUrl.trim() || null,
-            }
-          : {
-              kind: "wheel",
-              url: wheelUrl.trim(),
-              sha256: wheelSha256.trim() || null,
-              dependencyIndexUrl: dependencyIndexUrl.trim() || null,
-              torchBackend: torchBackend.trim() || null,
-            },
-    };
-  }, [
-    engine,
-    version,
-    variant,
-    pythonVersion,
-    requireExistingPython,
-    pythonMirrorUrl,
-    sourceKind,
-    extras,
-    indexUrl,
-    wheelUrl,
-    wheelSha256,
-    sglangWheelUrl,
-    sglangWheelSha256,
-    dependencyIndexUrl,
-    torchBackend,
-  ]);
-
   async function refresh() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["environments"] }),
@@ -175,12 +72,12 @@ export function EnvironmentsView() {
   }
 
   const createMutation = useMutation({
-    mutationFn: () => createEnvironment(createInput),
-    onSuccess: async () => {
+    mutationFn: (input: EnvironmentCreate) => createEnvironment(input),
+    onSuccess: async (_result, input) => {
       await refresh();
       notifications.show({
         title: "Environment install started",
-        message: `${engine === "vllm" ? "vLLM" : "KTransformers"} ${version}`,
+        message: `${input.engine === "vllm" ? "vLLM" : "KTransformers"} ${input.version}`,
       });
     },
     onError: (error) =>
@@ -217,200 +114,12 @@ export function EnvironmentsView() {
 
   return (
     <Stack gap="md">
-      <Paper withBorder p="md">
-        <Group justify="space-between" mb="md">
-          <Text fw={600}>Create immutable environment</Text>
-          <Badge color={uv?.available ? "green" : "red"} variant="light">
-            {uv?.available ? (uv.version ?? "uv available") : "uv unavailable"}
-          </Badge>
-        </Group>
-        <SegmentedControl
-          fullWidth
-          mb="sm"
-          value={engine}
-          onChange={(value) => {
-            const next = value as EnvironmentEngine;
-            setEngine(next);
-            if (next === "ktransformers") {
-              setVariant("cuda");
-              if (!["3.11", "3.12"].includes(pythonVersion)) {
-                setPythonVersion("3.12");
-              }
-            }
-          }}
-          data={[
-            { label: "vLLM", value: "vllm" },
-            { label: "KTransformers (SGLang-KT)", value: "ktransformers" },
-          ]}
-        />
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput
-            label={`${engine === "vllm" ? "vLLM" : "Matched package"} version`}
-            required
-            value={version}
-            onChange={(event) => setVersion(event.currentTarget.value)}
-            placeholder={engine === "vllm" ? "0.24.0" : "0.6.3.post1"}
-          />
-          <TextInput
-            label="Python version"
-            required
-            value={pythonVersion}
-            onChange={(event) => setPythonVersion(event.currentTarget.value)}
-          />
-        </SimpleGrid>
-        {engine === "ktransformers" && (
-          <Text
-            c={
-              systemQuery.data?.data.accelerators.some(
-                (item) =>
-                  item.kind === "gpu" &&
-                  (item.vendor === "NVIDIA" || item.source === "nvidia-smi"),
-              )
-                ? "dimmed"
-                : "red"
-            }
-            size="xs"
-            mt="xs"
-          >
-            KTransformers requires Linux x86-64, Python 3.11/3.12, and an NVIDIA
-            CUDA GPU. kt-kernel and sglang-kt are installed at this exact shared
-            version.
-          </Text>
-        )}
-        <Switch
-          mt="sm"
-          checked={requireExistingPython}
-          onChange={(event) =>
-            setRequireExistingPython(event.currentTarget.checked)
-          }
-          label="Offline: require an existing uv-managed Python runtime"
-          description="Fail before installation instead of downloading Python from the public runtime registry"
-        />
-        <TextInput
-          mt="sm"
-          label="Python runtime mirror URL"
-          description="Optional airgap bundle/python-runtime-mirror file or HTTP URL; takes precedence over the switch above"
-          placeholder="file:///media/airgap-bundle/python-runtime-mirror"
-          value={pythonMirrorUrl}
-          onChange={(event) => setPythonMirrorUrl(event.currentTarget.value)}
-        />
-        {engine === "vllm" ? (
-          <SegmentedControl
-            mt="sm"
-            value={variant}
-            onChange={(value) => setVariant(value as "cuda" | "cpu" | "rocm")}
-            data={[
-              { label: "CUDA", value: "cuda" },
-              { label: "CPU", value: "cpu" },
-              { label: "ROCm", value: "rocm" },
-            ]}
-          />
-        ) : (
-          <Badge mt="sm" variant="light">
-            CUDA
-          </Badge>
-        )}
-        <SegmentedControl
-          mt="sm"
-          value={sourceKind}
-          onChange={(value) => setSourceKind(value as "pypi" | "wheel")}
-          data={[
-            { label: "PyPI", value: "pypi" },
-            { label: "Wheel URL", value: "wheel" },
-          ]}
-        />
-        {sourceKind === "pypi" ? (
-          <Stack mt="sm" gap="sm">
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              {engine === "vllm" ? (
-                <TextInput
-                  label="Extras"
-                  description="Comma-separated"
-                  value={extras}
-                  onChange={(event) => setExtras(event.currentTarget.value)}
-                />
-              ) : (
-                <Text size="xs" c="dimmed">
-                  The selected index must contain an exact matched kt-kernel and
-                  sglang-kt pair.
-                </Text>
-              )}
-              <TextInput
-                label="Index URL"
-                description="Holds the root package; credentials are rejected"
-                value={indexUrl}
-                onChange={(event) => setIndexUrl(event.currentTarget.value)}
-              />
-            </SimpleGrid>
-            <TextInput
-              label="Dependency index URL"
-              description="Where transitive dependencies resolve from; empty means the index above serves them too"
-              placeholder="https://pypi.org/simple"
-              value={dependencyIndexUrl}
-              onChange={(event) =>
-                setDependencyIndexUrl(event.currentTarget.value)
-              }
-            />
-          </Stack>
-        ) : (
-          <Stack mt="sm" gap="sm">
-            <TextInput
-              label={engine === "vllm" ? "Wheel URL" : "kt-kernel wheel URL"}
-              required
-              value={wheelUrl}
-              onChange={(event) => setWheelUrl(event.currentTarget.value)}
-            />
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              <TextInput
-                label={engine === "vllm" ? "SHA-256" : "kt-kernel SHA-256"}
-                value={wheelSha256}
-                onChange={(event) => setWheelSha256(event.currentTarget.value)}
-              />
-              <TextInput
-                label="Torch backend"
-                placeholder="cpu"
-                value={torchBackend}
-                onChange={(event) => setTorchBackend(event.currentTarget.value)}
-              />
-            </SimpleGrid>
-            {engine === "ktransformers" && (
-              <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <TextInput
-                  label="sglang-kt wheel URL"
-                  required
-                  value={sglangWheelUrl}
-                  onChange={(event) =>
-                    setSglangWheelUrl(event.currentTarget.value)
-                  }
-                />
-                <TextInput
-                  label="sglang-kt SHA-256"
-                  value={sglangWheelSha256}
-                  onChange={(event) =>
-                    setSglangWheelSha256(event.currentTarget.value)
-                  }
-                />
-              </SimpleGrid>
-            )}
-            <TextInput
-              label="Dependency index URL"
-              description="Use the closed-network index for wheel dependencies"
-              value={dependencyIndexUrl}
-              onChange={(event) =>
-                setDependencyIndexUrl(event.currentTarget.value)
-              }
-            />
-          </Stack>
-        )}
-        <Button
-          mt="md"
-          loading={createMutation.isPending}
-          disabled={running || !uv?.available || !version.trim()}
-          onClick={() => createMutation.mutate()}
-        >
-          Create environment
-        </Button>
-      </Paper>
+      <EnvironmentCreateForm
+        uv={uv}
+        running={running}
+        submitting={createMutation.isPending}
+        onSubmit={(input) => createMutation.mutate(input)}
+      />
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Stack gap="sm">

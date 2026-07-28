@@ -1,4 +1,7 @@
-import { EnvironmentCreateSchema, EnvironmentEngineSchema } from "@arriero/core";
+import {
+  EnvironmentCreateSchema,
+  EnvironmentEngineSchema,
+} from "@arriero/core";
 import type { Hono } from "hono";
 
 import { resolveEnvironmentIndexVersions } from "../envs/index-versions.js";
@@ -52,6 +55,7 @@ export function registerEnvironmentRoutes(app: Hono) {
       data: await resolveEnvironmentIndexVersions({
         engine: engine.data,
         indexUrl: c.req.query("indexUrl") ?? null,
+        pythonVersion: c.req.query("pythonVersion") ?? null,
       }),
     });
   });

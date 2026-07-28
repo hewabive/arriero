@@ -1,5 +1,7 @@
 import type {
   EnvironmentCreate,
+  EnvironmentEngine,
+  EnvironmentIndexVersions,
   EnvironmentJob,
   EnvironmentLogTail,
   EnvironmentRecord,
@@ -34,6 +36,19 @@ export function deleteEnvironment(id: string) {
   return request<{ data: { deleted: boolean } }>(`/api/environments/${id}`, {
     method: "DELETE",
   });
+}
+
+export function listEnvironmentIndexVersions(
+  engine: EnvironmentEngine,
+  indexUrl: string | null,
+  pythonVersion?: string | null,
+) {
+  const query = new URLSearchParams({ engine });
+  if (indexUrl) query.set("indexUrl", indexUrl);
+  if (pythonVersion) query.set("pythonVersion", pythonVersion);
+  return request<{ data: EnvironmentIndexVersions }>(
+    `/api/environments/index-versions?${query.toString()}`,
+  );
 }
 
 export function listEnvironmentJobs(limit = 20) {

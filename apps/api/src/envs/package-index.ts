@@ -67,7 +67,9 @@ export function parseSimpleIndexHtml(html: string): IndexFileEntry[] {
   let match = anchors.exec(html);
   while (match) {
     const attributes = match[1] ?? "";
-    const text = decodeEntities((match[2] ?? "").replace(/<[^>]*>/g, "")).trim();
+    const text = decodeEntities(
+      (match[2] ?? "").replace(/<[^>]*>/g, ""),
+    ).trim();
     const href = attributeValue(attributes, "href");
     const filename = text || (href ? filenameFromHref(href) : null);
     if (filename) {
@@ -224,6 +226,68 @@ export function comparePackageVersions(left: string, right: string) {
     return parsedLeft.dev < parsedRight.dev ? -1 : 1;
   }
   return parsedLeft.local.localeCompare(parsedRight.local);
+}
+
+function releaseSegments(value: string) {
+  return parseVersion(value)?.release ?? null;
+}
+
+function satisfiesClause(
+  clause: string,
+  pythonVersion: string,
+): boolean | null {
+  const match = /^(>=|<=|==|!=|~=|>|<)\s*(.+)$/.exec(clause.trim());
+  if (!match) return null;
+  const operator = match[1]!;
+  const bound = match[2]!.trim();
+
+  if (bound.endsWith(".*")) {
+    const prefix = releaseSegments(bound.slice(0, -2));
+    const actual = releaseSegments(pythonVersion);
+    if (!prefix || !actual) return null;
+    const matches = prefix.every(
+      (segment, position) => actual[position] === segment,
+    );
+    if (operator === "==") return matches;
+    if (operator === "!=") return !matches;
+    return null;
+  }
+
+  if (operator === "~=") {
+    const bounds = releaseSegments(bound);
+    if (!bounds || bounds.length < 2) return null;
+    const upper = [...bounds.slice(0, -1)];
+    upper[upper.length - 1] = (upper.at(-1) ?? 0) + 1;
+    return (
+      comparePackageVersions(pythonVersion, bound) >= 0 &&
+      comparePackageVersions(pythonVersion, upper.join(".")) < 0
+    );
+  }
+
+  const order = comparePackageVersions(pythonVersion, bound);
+  if (operator === ">=") return order >= 0;
+  if (operator === ">") return order > 0;
+  if (operator === "<=") return order <= 0;
+  if (operator === "<") return order < 0;
+  if (operator === "==") return order === 0;
+  return order !== 0;
+}
+
+export function satisfiesRequiresPython(
+  specifier: string | null,
+  pythonVersion: string,
+): boolean | null {
+  if (!specifier?.trim()) return null;
+  if (!releaseSegments(pythonVersion)) return null;
+  const clauses = specifier.split(",").filter((clause) => clause.trim());
+  if (!clauses.length) return null;
+  let verdict = true;
+  for (const clause of clauses) {
+    const result = satisfiesClause(clause, pythonVersion);
+    if (result === null) return null;
+    verdict &&= result;
+  }
+  return verdict;
 }
 
 export function isPreReleaseVersion(value: string) {
