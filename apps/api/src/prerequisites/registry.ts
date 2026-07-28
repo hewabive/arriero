@@ -445,9 +445,9 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       pacman: ["uv"],
       apk: ["uv"],
     },
-    commands: ["curl -LsSf https://astral.sh/uv/install.sh | sh"],
+    commands: ["pipx install uv"],
     docPath: "docs/ENVIRONMENTS.md",
-    note: "Not packaged for Debian/Ubuntu; the official installer puts uv in ~/.local/bin.",
+    note: "pipx exposes uv in ~/.local/bin.",
     probe: executableProbe(["uv"]),
   },
   {
