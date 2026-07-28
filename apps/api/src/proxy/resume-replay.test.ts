@@ -146,7 +146,7 @@ test("non-stream replay rebuilds the buffered response and evicts", async () => 
       responseSink: null,
       store,
       fetchImpl: async (url) => {
-        assert.match(url, /\/v1\/stream\/conv-1\?from=0$/);
+        assert.match(url, /\/v1\/stream\?conv_id=conv-1&from=0$/);
         return sseResponse(replaySse);
       },
     });

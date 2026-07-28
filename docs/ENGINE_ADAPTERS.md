@@ -62,7 +62,7 @@ unknown instance kinds per record, while local persisted schemas remain strict.
 - `requestLease` — permits compute-domain leasing for the instance. When false, declared draws still participate in residency/admission accounting but requests do not acquire a compute lease.
 - `modelLoadUnload` — llama-server router verbs `POST /models/load|unload` exist; without it the scheduler falls back to `stop-instance`/`start-instance`.
 - `slotSave` — KV-slot save/restore (`POST /slots/:id?action=save|restore`) for preemption; without it no `save-slot`/`restore-slot` actions are planned, and the web target editor hides the slot fields (`ProxyTargetsView` resolves the draft's endpoint → instance kind → this flag).
-- `streamResume` — server-side stream sessions (`x-conversation-id`, `/v1/stream/:id`), see `docs/STREAM_RESUME.md`.
+- `streamResume` — server-side stream sessions (`x-conversation-id`, `/v1/stream?conv_id=<id>`), see `docs/STREAM_RESUME.md`.
 - `sseTimings` — llama.cpp SSE extensions (`timings`, `prompt_progress` via `return_progress`) powering live TTFT/prefill metrics and slot correlation.
 
 Scheduler-side gating is documented in `docs/API_PROXY_FOUNDATION.md` § Engine capability gating.

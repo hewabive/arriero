@@ -54,7 +54,7 @@ test("release deletes the upstream session once", () => {
   assert.equal(calls[0]!.method, "DELETE");
   assert.equal(
     calls[0]!.url,
-    `http://127.0.0.1:8080/v1/stream/${entry.convId}`,
+    `http://127.0.0.1:8080/v1/stream?conv_id=${entry.convId}`,
   );
   assert.equal(registry.size(), 0);
 });

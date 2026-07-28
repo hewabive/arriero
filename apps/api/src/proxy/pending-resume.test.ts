@@ -138,7 +138,7 @@ test("claimed entries stay protected until finish", async () => {
     assert.deepEqual(reader.store.targetIds(), []);
     const deletes = reader.calls.filter((call) => call.method === "DELETE");
     assert.equal(deletes.length, deletesBefore + 1);
-    assert.match(deletes.at(-1)!.url, /\/v1\/stream\/conv-1$/);
+    assert.match(deletes.at(-1)!.url, /\/v1\/stream\?conv_id=conv-1$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -14,13 +14,19 @@ llama.cpp commit `1a87dcdc4` (2026-06-26) added resumable stream sessions to
   server-side session: SSE bytes are mirrored into a ring buffer and, on peer
   disconnect, generation continues into the buffer instead of being cancelled
   (`stream_aware_should_stop`).
-- `GET /v1/stream/:conv_id?from=N` replays buffered bytes and tails the live
+- `GET /v1/stream?conv_id=<id>&from=N` replays buffered bytes and tails the live
   generation until finalize. The replay is byte-identical upstream SSE, so all
   existing manager post-processing (usage meter, Anthropic translation,
   non-stream rebuild) applies unchanged.
 - `POST /v1/streams/lookup` (`{"conversation_ids": [...]}`) reports liveness
-  for ids the caller already owns; `DELETE /v1/stream/:conv_id` cancels and
+  for ids the caller already owns; `DELETE /v1/stream?conv_id=<id>` cancels and
   evicts, idempotently.
+- The conv id travels in the query string, not the path. `#26137` (`d73c1d6b2`,
+  2026-07-27) moved it there because a router-mode id embeds a model name whose
+  slashes split the decoded path before `:conv_id` was captured. Both routes are
+  built in one place manager-side (`apiProxyStreamSessionUrl`), which percent-
+  encodes the id; binaries older than that commit serve only the path form and
+  answer 404.
 - Constraints that shape the design: the ring buffer is 4 MiB per session
   (constexpr — a longer generation loses its prefix and `from=0` returns 400),
   completed sessions are GC'd 300 s after finalize (live sessions never
@@ -51,7 +57,7 @@ Four pieces, one per implementation phase:
    post-translation upstream body (attribution `cch` churn pinned by
    `sanitizeClaudeCodeAttribution`, `stream`/`stream_options` excluded) ⊕
    instance ⊕ upstream path ⊕ model. When the request settles or the client
-   aborts, the registry fires `DELETE /v1/stream/:id` — required because a
+   aborts, the registry fires `DELETE /v1/stream?conv_id=<id>` — required because a
    session-attached upstream no longer stops on connection drop, so
    cancellation semantics must be restored explicitly. The preemptible
    `respondResumable()` path deliberately does **not** attach sessions: its
@@ -82,7 +88,7 @@ Four pieces, one per implementation phase:
 4. **Replay forward** (`proxy/resume-replay.ts`): before gateway/lease,
    `serveResolvedTarget` recomputes the resume key from the incoming request
    and claims a matching pending entry. On a hit it serves
-   `GET /v1/stream/:conv_id?from=0` through the standard downstream tract
+   `GET /v1/stream?conv_id=<id>&from=0` through the standard downstream tract
    (usage meter with the original strip decisions, Anthropic translation,
    non-stream rebuild via `consumeResumableSse`), marks `trace.resumed`, and
    DELETEs the session when the response settles. Gateway and lease are

@@ -31,6 +31,18 @@ type ApiProxyStreamSessionRegistryOptions = {
   now?: () => string;
 };
 
+export function apiProxyStreamSessionUrl(input: {
+  baseUrl: string;
+  convId: string;
+  from?: number;
+}): string {
+  const search = new URLSearchParams({ conv_id: input.convId });
+  if (input.from !== undefined) {
+    search.set("from", String(input.from));
+  }
+  return apiProxyForwardUrl(input.baseUrl, "/v1/stream", search.toString());
+}
+
 export class ApiProxyStreamSessionRegistry {
   private readonly entries = new Map<string, ApiProxyStreamSessionEntry>();
   private readonly fetchImpl: StreamSessionFetch;
@@ -79,7 +91,10 @@ export class ApiProxyStreamSessionRegistry {
   }
 
   private evict(entry: ApiProxyStreamSessionEntry): void {
-    const url = apiProxyForwardUrl(entry.baseUrl, `/v1/stream/${entry.convId}`);
+    const url = apiProxyStreamSessionUrl({
+      baseUrl: entry.baseUrl,
+      convId: entry.convId,
+    });
     void this.fetchImpl(url, {
       method: "DELETE",
       headers: entry.authHeaders,

@@ -12,7 +12,10 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { apiProxyForwardUrl } from "./forwarder.js";
 import { proxyUpstreamFetch } from "./http.js";
-import type { ApiProxyStreamSessionEntry } from "./stream-session.js";
+import {
+  apiProxyStreamSessionUrl,
+  type ApiProxyStreamSessionEntry,
+} from "./stream-session.js";
 
 export const PENDING_RESUME_FILE = resolve(
   config.dataDir,
@@ -263,7 +266,10 @@ export class ApiProxyPendingResumeStore {
   }
 
   private deleteSession(entry: ApiProxyPendingResumeEntry): void {
-    const url = apiProxyForwardUrl(entry.baseUrl, `/v1/stream/${entry.convId}`);
+    const url = apiProxyStreamSessionUrl({
+      baseUrl: entry.baseUrl,
+      convId: entry.convId,
+    });
     void this.fetchImpl(url, {
       method: "DELETE",
       headers: entry.authHeaders,

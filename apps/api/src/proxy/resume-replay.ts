@@ -1,7 +1,6 @@
 import type { ApiProxyTargetRecord } from "@arriero/core";
 import type { Context } from "hono";
 
-import { apiProxyForwardUrl } from "./forwarder.js";
 import { CLIENT_ABORT_STATUS, proxyUpstreamFetch } from "./http.js";
 import type { ApiProxyInflightHandle } from "./inflight.js";
 import {
@@ -27,7 +26,10 @@ import {
   createResumableBufferState,
   finalFromState,
 } from "./resumable-forward.js";
-import { apiProxyStreamResumeKey } from "./stream-session.js";
+import {
+  apiProxyStreamResumeKey,
+  apiProxyStreamSessionUrl,
+} from "./stream-session.js";
 import {
   createAnthropicTranslationStream,
   prepareUpstreamExchange,
@@ -132,11 +134,11 @@ export async function serveResumedStreamSession(input: {
   const fetchImpl = input.fetchImpl ?? proxyUpstreamFetch;
   const store = input.store ?? apiProxyPendingResume;
 
-  const url = apiProxyForwardUrl(
+  const url = apiProxyStreamSessionUrl({
     baseUrl,
-    `/v1/stream/${entry.convId}`,
-    "from=0",
-  );
+    convId: entry.convId,
+    from: 0,
+  });
   let upstream: Response;
   try {
     upstream = await fetchImpl(url, {
