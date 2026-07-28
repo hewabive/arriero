@@ -109,11 +109,13 @@ export function ConfigGitView() {
     queryKey: ["config-git-status"],
     queryFn: getConfigGitStatus,
     refetchInterval: 10_000,
+    retry: false,
   });
   const status = statusQuery.data?.data ?? null;
   const validationQuery = useQuery({
     queryKey: ["config-git-validation"],
     queryFn: getConfigGitValidation,
+    enabled: status?.isGitRepo === true,
   });
   const diffQuery = useQuery({
     queryKey: ["config-git-diff"],
