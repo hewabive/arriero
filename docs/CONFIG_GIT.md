@@ -79,5 +79,6 @@ tree is validated again afterward.
 
 All routes are administrative `/api/*` routes and support the existing active
 node reverse proxy, so the page operates on the node selected in the header.
-When the API listens on a non-loopback address, the config Git routes refuse
-all requests until an admin password or password hash is configured.
+They carry no extra listener gate beyond `requireAdmin` — like every other
+configuration page, exposure is governed solely by whether admin auth is
+configured.

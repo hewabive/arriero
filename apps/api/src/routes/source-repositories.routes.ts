@@ -3,9 +3,8 @@ import {
   SourceRepositoryIdSchema,
   SourceRepositorySettingsUpdateSchema,
 } from "@arriero/core";
-import type { Context, Hono, MiddlewareHandler } from "hono";
+import type { Context, Hono } from "hono";
 
-import { config } from "../config.js";
 import { getSourceRepositoryDriftReport } from "../sources/drift.js";
 import {
   cloneSourceRepository,
@@ -25,25 +24,6 @@ function sourceId(c: Context): string {
   return SourceRepositoryIdSchema.parse(c.req.param("id"));
 }
 
-const loopbackHosts = new Set(["127.0.0.1", "::1", "localhost"]);
-
-export const sourceManagementGate: MiddlewareHandler = async (c, next) => {
-  if (
-    !loopbackHosts.has(config.host) &&
-    !config.auth.password &&
-    !config.auth.passwordHash
-  ) {
-    return c.json(
-      {
-        error:
-          "source repository management is disabled on a non-loopback listener until admin authentication is configured",
-      },
-      403,
-    );
-  }
-  await next();
-};
-
 function failure(c: Context, error: unknown) {
   const message = (error as Error).message;
   if (/has no drift adapter/.test(message)) {
@@ -56,8 +36,6 @@ function failure(c: Context, error: unknown) {
 }
 
 export function registerSourceRepositoryRoutes(app: Hono) {
-  app.use("/api/source-repositories/*", sourceManagementGate);
-
   app.get("/api/source-repositories", async (c) => {
     return c.json({ data: await listSourceRepositoryStatuses() });
   });

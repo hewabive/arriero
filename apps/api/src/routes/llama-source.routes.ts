@@ -14,14 +14,13 @@ import {
   saveLlamaSourceSettings,
 } from "../llama/source-repository.js";
 import { getLlamaSourceSyncReport } from "../llama/source-sync.js";
-import { sourceManagementGate } from "./source-repositories.routes.js";
 
 export function registerLlamaSourceRoutes(app: Hono) {
   app.get("/api/llama-source/settings", (c) => {
     return c.json({ data: getLlamaSourceSettings() });
   });
 
-  app.put("/api/llama-source/settings", sourceManagementGate, async (c) => {
+  app.put("/api/llama-source/settings", async (c) => {
     const parsed = LlamaSourceSettingsUpdateSchema.safeParse(
       await c.req.json(),
     );
@@ -63,7 +62,7 @@ export function registerLlamaSourceRoutes(app: Hono) {
     }
   });
 
-  app.post("/api/llama-source/checkout", sourceManagementGate, async (c) => {
+  app.post("/api/llama-source/checkout", async (c) => {
     const parsed = LlamaSourceCheckoutSchema.safeParse(await c.req.json());
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
@@ -82,7 +81,7 @@ export function registerLlamaSourceRoutes(app: Hono) {
     }
   });
 
-  app.post("/api/llama-source/pull", sourceManagementGate, async (c) => {
+  app.post("/api/llama-source/pull", async (c) => {
     return c.json({ data: await pullLlamaSource() });
   });
 }

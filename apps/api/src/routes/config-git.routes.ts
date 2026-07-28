@@ -45,24 +45,6 @@ function failure(c: Context, error: unknown) {
 }
 
 export function registerConfigGitRoutes(app: Hono) {
-  app.use("/api/config-git/*", async (c, next) => {
-    const loopback = new Set(["127.0.0.1", "::1", "localhost"]);
-    if (
-      !loopback.has(config.host) &&
-      !config.auth.password &&
-      !config.auth.passwordHash
-    ) {
-      return c.json(
-        {
-          error:
-            "configuration git is disabled on a non-loopback listener until admin authentication is configured",
-        },
-        403,
-      );
-    }
-    await next();
-  });
-
   app.get("/api/config-git/status", async (c) => {
     return c.json({ data: await getConfigGitStatus() });
   });

@@ -93,9 +93,8 @@ with no checks is not implicitly considered current.
 The existing `/api/llama-source/*` endpoints remain as compatibility adapters
 for Build and llama argument-documentation consumers.
 
-Everything under `/api/source-repositories/*` and the mutating compatibility
-adapters (`PUT /api/llama-source/settings`, `POST /api/llama-source/checkout`,
-`POST /api/llama-source/pull`) share one gate: on a non-loopback listener they
-return 403 until admin authentication is configured. Repository status and
-drift reads run on the async Git runner so the polled status endpoints do not
-block the event loop of the serving process.
+Everything under `/api/source-repositories/*` and the compatibility adapters are
+ordinary administrative `/api/*` routes behind `requireAdmin`; there is no extra
+listener gate, so exposure is governed solely by whether admin auth is
+configured. Repository status and drift reads run on the async Git runner so the
+polled status endpoints do not block the event loop of the serving process.
