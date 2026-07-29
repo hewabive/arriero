@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 
 import { config } from "../config.js";
+import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 
 const filePath = config.settingsFile;
 const seedPath = config.settingsSeedFile;
@@ -32,13 +33,17 @@ export function readSettings(): AppSettingsFile {
   } catch (error) {
     throw new Error(`Invalid JSON in ${filePath}: ${(error as Error).message}`);
   }
-  return AppSettingsFileSchema.parse(json);
+  return AppSettingsFileSchema.parse(fromPortableConfig(json));
 }
 
 export function writeSettings(next: AppSettingsFile): AppSettingsFile {
   const parsed = AppSettingsFileSchema.parse(next);
   const tmp = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  writeFileSync(
+    tmp,
+    `${JSON.stringify(toPortableConfig(parsed), null, 2)}\n`,
+    "utf8",
+  );
   renameSync(tmp, filePath);
   return parsed;
 }

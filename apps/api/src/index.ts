@@ -4,6 +4,7 @@ import pino from "pino";
 import { initArgumentDefaults } from "./arguments/defaults-repository.js";
 import { pruneMissingArgumentCatalogs } from "./arguments/repository.js";
 import { config } from "./config.js";
+import { normalizeConfigPaths } from "./config-paths-normalize.js";
 import { migrate } from "./db/index.js";
 import {
   app,
@@ -49,6 +50,7 @@ if (repairedPathDirectories.length > 0) {
 migrate();
 ensureConfigScaffold();
 const appliedMigrations = runMigrations();
+const normalizedConfigPaths = normalizeConfigPaths();
 initAppSettings();
 initArgumentDefaults();
 const seededResourcePools = ensureResourcePoolsScaffold();
@@ -92,6 +94,7 @@ const server = serve(
         address: info.address,
         port: info.port,
         appliedMigrations,
+        normalizedConfigPaths,
         reconciliation,
         prunedProcessRuns,
         prunedArgumentCatalogs,

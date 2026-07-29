@@ -16,6 +16,7 @@ import { dirname, resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 import { newId } from "../utils/id.js";
 
 export const PATH_CATALOG_FILE = resolve(config.configDir, "path-catalog.json");
@@ -48,7 +49,9 @@ function load(): PathCatalogEntry[] {
         `Invalid JSON in ${PATH_CATALOG_FILE}: ${(error as Error).message}`,
       );
     }
-    const parsed = z.array(PathCatalogEntrySchema).safeParse(json);
+    const parsed = z
+      .array(PathCatalogEntrySchema)
+      .safeParse(fromPortableConfig(json));
     if (!parsed.success) {
       throw new Error(
         `Invalid config in ${PATH_CATALOG_FILE}: ${parsed.error.message}`,
@@ -61,7 +64,10 @@ function load(): PathCatalogEntry[] {
 }
 
 function persist(entries: PathCatalogEntry[]) {
-  atomicWrite(PATH_CATALOG_FILE, `${JSON.stringify(entries, null, 2)}\n`);
+  atomicWrite(
+    PATH_CATALOG_FILE,
+    `${JSON.stringify(toPortableConfig(entries), null, 2)}\n`,
+  );
   cache = entries;
 }
 

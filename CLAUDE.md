@@ -201,7 +201,7 @@ reset all file-config caches; `.secrets.json` remains local. See `docs/CONFIG_GI
   (`process_runs.instanceId`, supervisor map, proxy endpoint `instance:<name>` / `target.instanceId`,
   `/api/instances/:id` param). Renaming = changing identity: the file moves but proxy targets
   referencing the old `instance:<name>` are **not** rewritten (fix them manually). Body = `Instance`
-  minus runtime `status`/`pid` (derived on read). `binaryPath` is stored literally;
+  minus runtime `status`/`pid` (derived on read). `binaryPath` is stored inline;
   `binaryPathRefId` (optional) re-resolves against the path catalog on read.
 - `config/settings.json` — `modelScan` / `sourceRepositories` / `build` sections
   (`settings/store.ts`). Portable source specs store adapter, origin and location policy; managed
@@ -230,6 +230,14 @@ reset all file-config caches; `.secrets.json` remains local. See `docs/CONFIG_GI
 
 JSON files seed from git-tracked repo-root `config/*.json` (not `data/config/`) and fail loud on
 malformed JSON; runtime-computed defaults fill absent sections.
+
+Paths under a managed root are **persisted as `${ARRIERO_HOME}` / `${ARRIERO_*_DIR}` placeholders**
+(`config-paths.ts`) in `instances/*.json`, `path-catalog.json`, `settings.json` and
+`argument-defaults.json`, expanded at each store's read boundary — repositories, API and UI only ever
+see absolute paths, and renaming/moving the app dir keeps config valid. The broadest containing root
+wins; paths under no managed root (and preset INIs, co-owned by `llama-server`) stay absolute. A
+startup pass `normalizeConfigPaths()` rewrites any absolute path that reappears (hand edits) — a
+standing normalizer, deliberately not a registry migration. See `docs/PORTABLE_PATHS.md`.
 
 ### Argument documentation
 

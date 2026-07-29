@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 
 import { config } from "../config.js";
+import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 
 const filePath = config.argumentDefaultsFile;
 const seedPath = config.argumentDefaultsSeedFile;
@@ -57,12 +58,16 @@ function readDefaults(): ArgumentDefaults {
   } catch (error) {
     throw new Error(`Invalid JSON in ${filePath}: ${(error as Error).message}`);
   }
-  return ArgumentDefaultsSchema.parse(json);
+  return ArgumentDefaultsSchema.parse(fromPortableConfig(json));
 }
 
 function writeDefaults(input: { instance: ArgumentDefault[] }) {
   const tmp = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(input, null, 2)}\n`, "utf8");
+  writeFileSync(
+    tmp,
+    `${JSON.stringify(toPortableConfig(input), null, 2)}\n`,
+    "utf8",
+  );
   renameSync(tmp, filePath);
 }
 

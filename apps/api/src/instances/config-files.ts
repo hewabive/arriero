@@ -15,6 +15,7 @@ import {
 } from "@arriero/core";
 
 import { config } from "../config.js";
+import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 
 const instancesDir = config.instancesDir;
 
@@ -51,7 +52,9 @@ function load(): Map<string, InstanceConfigRecord> {
         continue;
       }
       const path = resolve(instancesDir, entry.name);
-      const parsed = InstanceConfigRecordSchema.safeParse(parseJsonFile(path));
+      const parsed = InstanceConfigRecordSchema.safeParse(
+        fromPortableConfig(parseJsonFile(path)),
+      );
       if (!parsed.success) {
         throw new Error(
           `Invalid instance config in ${path}: ${parsed.error.message}`,
@@ -86,7 +89,7 @@ export function writeInstanceRecord(
   const map = load();
   atomicWrite(
     recordPath(validated.name),
-    `${JSON.stringify(validated, null, 2)}\n`,
+    `${JSON.stringify(toPortableConfig(validated), null, 2)}\n`,
   );
   if (previousName && previousName !== validated.name) {
     const previousPath = recordPath(previousName);
