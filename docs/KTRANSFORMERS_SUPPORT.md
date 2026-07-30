@@ -1,9 +1,10 @@
 # KTransformers support plan
 
-Status: implementation in progress.
+Status: initial LLAMAFILE profile implemented and qualified on real hardware.
 
 Implemented on `main`:
 
+- Phase 0 — real-hardware spike on the qualified AVX2 / RTX A5000 host;
 - Phase 1 — engine contracts, typed configuration, argparse argv semantics,
   scheduling defaults, and federation capability advertisement;
 - Phase 2 — provisioner registry, matched `kt-kernel` + `sglang-kt`
@@ -19,12 +20,16 @@ Implemented on `main`:
   guidance, scheduling policy controls, and production form enablement;
 - Phase 6 — descriptor-driven concurrency admission, typed stopped-model
   identity, persisted eviction-policy enforcement, idle-only drain behavior,
-  and capability-gated generic proxy forwarding.
+  and capability-gated generic proxy forwarding;
+- Phase 7 — pinned LLAMAFILE qualification covering semantic output, direct
+  and proxied protocols, concurrency, process-tree shutdown, adoption, and
+  measured memory.
 
-Phase 0 and real-engine parts of Phase 7 remain pending a supported Linux
-x86-64 NVIDIA host. Release qualification and post-MVP phases remain incomplete.
-The operator runbook, upgrade checklist, federation release gate, and host
-artifact collector are available in `docs/KTRANSFORMERS_OPERATIONS.md` and
+The exact qualified matrix is in
+`docs/qualification/ktransformers/0.6.4-2026-07-30.md`. Phase 8 and additional
+package/hardware/method matrices remain independent follow-up work. The
+operator runbook, upgrade checklist, federation release gate, and host artifact
+collector are available in `docs/KTRANSFORMERS_OPERATIONS.md` and
 `scripts/qualify-ktransformers-host.sh`.
 For session transfer and continuation state, start with
 `docs/KTRANSFORMERS_HANDOFF.md`.
@@ -41,14 +46,14 @@ documents; this file remains the delivery record.
 The supported product is current KTransformers, not the archived standalone
 `ktransformers/server/main.py` runtime.
 
-Upstream baseline inspected for this plan:
+Original upstream baseline inspected for this plan:
 
 - KTransformers commit `01fdfa609e731f0dc1c088e596ad189144a046bd`
   (2026-07-15), reporting version `0.6.3.post1` in `version.py`;
 - SGLang-KT submodule commit `1e098a77ba395dc1a5f2dcbdf57bdb188e84bcee`;
 - serving stack: `kt-kernel` + the `sglang-kt` fork;
-- launch surface: `sglang serve ...` (equivalent to
-  `python -m sglang.launch_server ...`);
+- managed launch surface: the cataloged `bin/sglang` resolves to sibling
+  `bin/python -m sglang.launch_server ...`;
 - health/model surface: `GET /health` and `GET /v1/models`;
 - public inference surface: OpenAI-compatible chat completions, completions,
   embeddings where supported by the model, and Responses;
@@ -61,15 +66,17 @@ The first product profile deliberately supports only:
 - Linux x86-64;
 - NVIDIA CUDA visible through NVML;
 - uv-managed CPython 3.11 or 3.12;
-- official, version-matched `kt-kernel` and `sglang-kt` wheels;
+- version-matched, hashed `kt-kernel` and `sglang-kt` artifacts;
 - one model bundle per managed process;
 - OpenAI-compatible serving through the arriero proxy;
 - explicit RAM and GPU reservations before start.
 
-ROCm, source builds, non-x86 platforms, automatic model downloads, weight
-conversion, and dynamic in-process model replacement are deferred. A manually
-built compatible environment remains usable through a tagged Path Catalog
-entry, but it is not a managed environment in the first release.
+ROCm, an integrated source-build job, non-x86 platforms, automatic model
+downloads, weight conversion, and dynamic in-process model replacement are
+deferred. A separately built wheel remains a supported managed wheel source
+when its source revision, build flags, and hash are recorded. The first
+qualified host requires exactly that path because the public 0.6.4 kernel wheel
+executes unsupported instructions.
 
 ## Accepted architecture decisions
 
@@ -154,7 +161,7 @@ Managed instance
   advanced args + env + reservations + scheduling policy
           |
           v
-sglang serve --model ... --kt-weight-path ... --kt-method ...
+bin/python -m sglang.launch_server --model-path ... --kt-weight-path ... --kt-method ...
           |
           +--> /health and /v1/models
           +--> OpenAI-compatible API
@@ -186,7 +193,7 @@ Target descriptor:
 | Proxy | `serveEndpoint:true`, `requestLease:true`, all llama-native capabilities `false` |
 | Probe | `openai-http`, authoritative HTTP health |
 | Native API | `none` |
-| Launch prefix | `serve` |
+| Launch | sibling Python module `-m sglang.launch_server` |
 | Argv builder | `argparse-flags` |
 | Preflight | `ktransformers` |
 | Argument catalog | `sglang-help` |
@@ -712,7 +719,7 @@ rendered. SGLang `/metrics` and native management endpoints are deferred.
 Add `sglang-help` with invocation:
 
 ```text
-<venv>/bin/sglang serve --help
+<venv>/bin/python -m sglang.launch_server --help
 ```
 
 Factor the existing vLLM argparse normalization into a reusable parser rather
@@ -765,7 +772,7 @@ capture fixtures; no product code.
 
 Answer and record:
 
-1. wall time and output of `sglang serve --help`;
+1. wall time and output of `bin/python -m sglang.launch_server --help`;
 2. exact `/health` status sequence during model load and warmup;
 3. `/v1/models` before and after readiness;
 4. SIGTERM to root and process group with idle and active requests;
@@ -825,7 +832,8 @@ Acceptance:
 
 ### Phase 3 — launch, preflight, logs, and process telemetry
 
-- compile typed configuration into `sglang serve` argv;
+- compile typed configuration into sibling-Python
+  `-m sglang.launch_server` argv;
 - implement KTransformers preflight and support matrix;
 - implement/refactor `sglang-help` and fallback catalog;
 - implement SGLang log parser using phase-0 fixtures;
@@ -1080,8 +1088,9 @@ following are true:
 4. Preview and start preflight reject unsupported hardware, invalid paths,
    missing reservations, invalid NUMA/TP settings, reserved arg collisions, and
    managed upstream API keys.
-5. The process launches with deterministic `sglang serve` argv and reaches ready
-   only after HTTP health returns 200.
+5. The process launches with deterministic sibling-Python
+   `-m sglang.launch_server` argv and reaches ready only after HTTP health
+   returns 200.
 6. Manager restart adopts the root process without duplicating it.
 7. Normal stop and shutdown leave no SGLang/KT descendants.
 8. RAM, VRAM, swap, and NUMA diagnostics include the complete process tree.
@@ -1100,3 +1109,8 @@ following are true:
 
 Anything less is partial plumbing and must remain non-creatable or explicitly
 experimental.
+
+The pinned LLAMAFILE profile in
+`docs/qualification/ktransformers/0.6.4-2026-07-30.md` satisfies this MVP
+definition for its exact artifacts and host restrictions. It does not qualify
+the unpatched public wheels or another method/topology.

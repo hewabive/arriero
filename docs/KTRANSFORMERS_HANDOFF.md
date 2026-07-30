@@ -8,10 +8,9 @@ Snapshot date: 2026-07-30 (UTC).
 
 Snapshot branch: `main`.
 
-Implementation tip before this handoff document: `35f3396` (`Add
-KTransformers release qualification gate`). Further work on the current machine
-may move `main`; update the snapshot fields and verification results immediately
-before transferring the work to another machine.
+Qualification implementation tip before this handoff update: `b940dc1`
+(`test(ktransformers): mirror module launcher layout`). The complete real-host
+result is `docs/qualification/ktransformers/0.6.4-2026-07-30.md`.
 
 ## Read in this order
 
@@ -29,42 +28,43 @@ before transferring the work to another machine.
 | Phase | State | Commit / evidence |
 | --- | --- | --- |
 | Plan | Complete | `284efec` — implementation plan and accepted decisions |
-| 0 — real-hardware spike | In progress on GPU hardware | The current host exposes an RTX A5000 through resident NVML telemetry without `nvidia-smi`; no real KTransformers runtime has been qualified yet |
+| 0 — real-hardware spike | Complete for the LLAMAFILE slice | RTX A5000 / AVX2 qualification, including negative public-wheel findings and independent GGUF validation |
 | 1 — contracts | Complete | `1d7ed5a` — engine descriptor, typed config, scheduling, federation capabilities |
 | 2 — environments | Complete | `9e164e5` — provisioner registry and matched transactional `kt-kernel` + `sglang-kt` environments |
-| 3 — lifecycle | Complete against fake/runtime fixtures | `2bfd830` — argv, preflight, SGLang adapters, health, process-tree telemetry, shutdown, adoption |
+| 3 — lifecycle | Complete against fixtures and real runtime | `2bfd830` plus the live stop/adoption result and `b940dc1` fixture correction |
 | 4 — resource safety | Complete | `5e1fc7f` — strict hybrid reservations, CUDA/TP matching, NUMA validation, memory diagnostics |
 | 5 — web flow | Complete | `e6143ec` — engine-aware environment and typed instance creation/editing |
 | 6 — proxy | Complete | `e273643` — concurrency, model identity, eviction policy, capability gating |
-| 7 — release qualification | Documentation/tooling complete; live execution pending | `35f3396` — runbook, federation release gate, and host artifact collector |
+| 7 — release qualification | Complete for the pinned LLAMAFILE profile | Exact 0.6.4 artifacts, model revisions, host matrix, proxy protocols, concurrency, shutdown, adoption, and memory evidence are committed |
 | 8 — post-MVP projects | Not started | Intentionally remains after real-hardware MVP qualification; see the independent list in the design record |
 
-Do not describe the feature as real-engine qualified until Phase 0 and the live
-part of Phase 7 have produced committed, sanitized evidence from a supported
-host.
+The initial KTransformers debt is closed for the exact LLAMAFILE combination in
+the qualification record. Do not generalize that verdict to public 0.6.4
+wheels, native/converted methods, another CPU ISA, multi-GPU, or multi-NUMA
+hosts without a new recorded qualification.
 
 ## Last verified state
 
-At implementation tip `35f3396`:
+At implementation tip `b940dc1`:
 
 - `pnpm check` passed;
-- `pnpm build` passed, with only the existing Vite large-chunk warning;
-- `pnpm --filter @arriero/api test` passed: 827 tests, 0 failures;
-- `bash -n scripts/qualify-ktransformers-host.sh` passed;
-- the worktree was clean before creating this handoff document.
+- `pnpm build` passed with only the existing Vite large-chunk warning;
+- `pnpm --filter @arriero/api test` passed: 941 tests, 0 failures;
+- the corrected detached process-tree fixture passed five consecutive runs;
+- the live tuned server remained semantically healthy through manager reload
+  and adoption.
 
-Repeat all four checks after syncing to the GPU machine and before changing
-runtime behavior. Do not treat a package install, fake-server test, or green
-typecheck as a substitute for the live qualification matrix.
+Repeat the repository checks after syncing or changing runtime behavior. Do not
+treat a package install, fake-server test, or green typecheck as a substitute
+for the live qualification matrix.
 
 ## Transfer state
 
-At snapshot time the local branch was 14 commits ahead of `origin/main`. This
-is an observation, not a request to publish immediately: more local work is
-expected. Before another machine can continue, transfer the final `main` tip by
-the chosen Git mechanism and verify on the destination that `git rev-parse
-HEAD` matches the intended source tip. Do not assume `origin/main` contains this
-state until that has been done.
+At `b940dc1` the local branch was 19 commits ahead of `origin/main`; this
+handoff update is a later local commit. This is an observation, not a request to
+publish. Before another machine continues, transfer the final `main` tip and
+verify that `git rev-parse HEAD` matches it. Do not assume `origin/main`
+contains the qualification work.
 
 After any additional work on the current machine, update:
 
@@ -81,10 +81,13 @@ Commit that update as the last handoff commit before transfer.
 - `ktransformers` is a distinct static instance kind, not vLLM or a dynamic
   plugin.
 - Managed environments install exact matching versions of `kt-kernel` and
-  `sglang-kt` transactionally and expose `bin/sglang`.
+  `sglang-kt` transactionally, verify local hashes, execute `CPUInfer(1)`, and
+  expose `bin/sglang`.
 - Main model, CPU weights, KT method, and optional served name live in typed
   `engineConfig`; their managed CLI spellings are rejected in raw `args`.
-- Launch is `sglang serve` with argparse token semantics.
+- The catalog entry is `bin/sglang`, but managed launch and help use its sibling
+  `bin/python -m sglang.launch_server` with argparse token semantics. This
+  avoids optional diffusion imports in the umbrella CLI.
 - HTTP `/health == 200` is the sole readiness authority; 503 is loading.
 - The complete descendant tree belongs to the instance for termination and
   RAM/VRAM/swap/NUMA telemetry.
@@ -100,29 +103,28 @@ Commit that update as the last handoff commit before transfer.
 - Federation peers must advertise KTransformers support before federated
   creation is considered release-safe.
 
-## Inputs still required on the GPU host
+## Qualified GPU-host inputs
 
-These are qualification inputs, not unresolved architecture decisions. Record
-their exact values before the first live run rather than letting a session infer
-or silently upgrade them.
+These values apply only to the committed LLAMAFILE result.
 
 | Input | Current state |
 | --- | --- |
-| `kt-kernel` version and wheel/hash | Not selected or qualified |
-| `sglang-kt` matching version and wheel/hash | Not selected or qualified |
-| Python patch version | Only the supported minor range 3.11/3.12 is fixed |
-| PyTorch/CUDA/runtime versions | Not measured on a supported host |
-| NVIDIA GPU model, driver, VRAM, and topology | Not selected |
-| CPU model, ISA, sockets, and NUMA topology | Not selected |
-| Native/converted KT test model and CPU weights | Not selected |
-| LLAMAFILE/GGUF test model and weights | Not selected |
-| Expected RAM/VRAM reservations | Must be chosen from artifacts and then calibrated from measurements |
+| `kt-kernel` version and wheel/hash | 0.6.4 host build / `f96de0b5cb06a3059b6f7342080fbbf2b481e1bc06129e07b136039a45775c35` |
+| `sglang-kt` matching version and wheel/hash | 0.6.4 plus upstream RoPE fix `04653fa` / `7d9a32e236424b156060fd6ef82cc437948e7fa0e70916b831622bde08ab3365` |
+| Python / PyTorch | 3.12.13 / 2.9.1, bundled CUDA 12.8 |
+| NVIDIA GPU | RTX A5000 24 GiB, compute capability 8.6, driver 595.71.05 |
+| CPU / topology | AMD EPYC 7402P, 8 visible AVX2 cores, one visible NUMA node |
+| Native/converted KT method | Not qualified on this host |
+| LLAMAFILE model | Qwen3-30B-A3B plus official Q4_K_M GGUF; exact revisions and checksum are in the result |
+| Declared RAM/VRAM reservations | 27 GiB host / 23 GiB GPU |
 
-The upstream planning baseline was KTransformers commit
+The original upstream planning baseline was KTransformers commit
 `01fdfa609e731f0dc1c088e596ad189144a046bd` (reported version
 `0.6.3.post1`) with SGLang-KT submodule commit
 `1e098a77ba395dc1a5f2dcbdf57bdb188e84bcee`. This is a research baseline,
-not proof that public wheels with those identifiers form a qualified pair.
+not a supported runtime. The final kernel source is official KTransformers
+`v0.6.4` commit `a8062bfa7e1060ce5855b5f1ad6aa6b116678307`;
+the SGLang artifact adds upstream commit `04653fa`.
 
 ## Destination-machine continuation procedure
 

@@ -9,7 +9,10 @@ idle-only scheduling default. See
 [KTransformers operations](docs/KTRANSFORMERS_OPERATIONS.md) and the
 [implementation record](docs/KTRANSFORMERS_SUPPORT.md). Codex continuation and
 GPU-machine handoff state is recorded in
-[docs/KTRANSFORMERS_HANDOFF.md](docs/KTRANSFORMERS_HANDOFF.md).
+[docs/KTRANSFORMERS_HANDOFF.md](docs/KTRANSFORMERS_HANDOFF.md). The first
+real-host LLAMAFILE qualification, including exact artifact hashes and hardware
+restrictions, is
+[docs/qualification/ktransformers/0.6.4-2026-07-30.md](docs/qualification/ktransformers/0.6.4-2026-07-30.md).
 
 ## Development
 

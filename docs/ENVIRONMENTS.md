@@ -82,6 +82,14 @@ KTransformers wheel artifacts may be listed in any order; the provisioner
 normalizes installation order to `kt-kernel`, then `sglang-kt`. A missing or
 duplicate root is rejected by the portable schema.
 
+The managed installer also verifies local artifact SHA-256 before invoking uv
+and executes a minimal `kt_kernel_ext.CPUInfer(1)` construction test after
+installation. Import success alone is insufficient: the public
+`kt-kernel==0.6.4` wheel imported on the qualified AVX2 host but terminated
+with `SIGILL` when the CPU backend was constructed. The exact host-built kernel
+and patched SGLang artifacts qualified on 2026-07-30 are recorded in
+`docs/qualification/ktransformers/0.6.4-2026-07-30.md`.
+
 ## Reproducibility and network policy
 
 Index sources carry two credential-free URLs. `indexUrl` is the index that holds

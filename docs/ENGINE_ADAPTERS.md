@@ -24,9 +24,9 @@ for plugging in a new engine.
 | `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` | serve + lease only | serve + lease only |
 | `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` | `openai-http`, `httpHealth: true` |
 | `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` | `none` |
-| `launch` | Slot-path injection, argv builder, fixed prefix | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` | no slot path, `argparse-flags`, `["serve"]` |
+| `launch` | Slot-path injection, argv builder, fixed prefix/module | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` | no slot path, `argparse-flags`, sibling Python module `sglang.launch_server` |
 | `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` | `none` | `ktransformers` |
-| `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) | `sglang-help` (`serve --help`) |
+| `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) | `sglang-help` (sibling Python module `--help`) |
 | `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` | `sglang` |
 | `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `vllm-gpu-util` | `none` |
 | `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` | `ktransformers-hybrid` |
@@ -41,7 +41,7 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 | `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http`, `tcp-accept`, `openai-http`; vLLM uses real health/models probes and explicit not-applicable llama-native fields |
 | `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm`, `sglang` |
 | `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts`; `ktransformers` → strict platform, runtime, model, CUDA, CPU-method, auth-boundary, TP, and argument checks; `none` → skip |
-| `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`, `sglang-help`; each owns argv, timeout, and parser. Route generation is async; cache rows/sidecars carry `parserId` |
+| `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`, `sglang-help`; SGLang help uses sibling `bin/python -m sglang.launch_server --help` to avoid unrelated umbrella-CLI imports. Route generation is async; cache rows/sidecars carry `parserId` |
 | `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` joins arrays as CSV; `argparse-flags` emits each array item as a separate token. Both put positionals first and sort flags deterministically |
 | `EngineEstimatorId` | dispatch in `apps/api/src/memory-estimate/service.ts` | `gguf` → tensor-aware llama estimate; `vllm-gpu-util` → one utilization-based draw per selected GPU |
 | `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args`, `ktransformers-hybrid` |
