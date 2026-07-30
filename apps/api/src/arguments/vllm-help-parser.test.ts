@@ -28,3 +28,60 @@ Frontend:
     "boolean",
   );
 });
+
+test("ignores option-shaped prose and JSON CLI examples", () => {
+  const options =
+    parseVllmArgumentOptions(`usage: vllm serve [model_tag] [options]
+
+Search by using: \`--help=<ConfigGroup>\` to explore options by section (e.g.,
+--help=ModelConfig, --help=Frontend)
+  Use \`--help=all\` to show all available flags at once.
+
+options:
+  --enable-log-requests, --no-enable-log-requests
+                        Enable request logging, dependent on log
+                        level:
+                        - INFO: request metadata.
+  -h, --help            show this help message and exit
+
+Frontend:
+  --host HOST           Host name
+
+When passing JSON CLI arguments, the following sets of arguments are equivalent:
+   --json-arg '{"key1": "value1"}'
+   --json-arg.key1 value1
+`);
+
+  assert.deepEqual(options.map((option) => option.primaryName).sort(), [
+    "--enable-log-requests",
+    "--help",
+    "--host",
+  ]);
+  assert.equal(
+    options.find((option) => option.primaryName === "--help")?.category,
+    options.find((option) => option.primaryName === "--enable-log-requests")
+      ?.category,
+  );
+  assert.match(
+    options.find((option) => option.primaryName === "--enable-log-requests")
+      ?.help ?? "",
+    /level:/,
+  );
+});
+
+test("returns unique primary names", () => {
+  const options = parseVllmArgumentOptions(`usage: vllm serve [options]
+
+options:
+  --host HOST           Host name
+  --port PORT           Port
+
+When passing JSON CLI arguments, the following sets of arguments are equivalent:
+   --json-arg '{"key1": "value1"}'
+   --json-arg '{"key2": "value2"}'
+`);
+  const names = options.map((option) => option.primaryName);
+
+  assert.equal(new Set(names).size, names.length);
+  assert.equal(names.includes("--json-arg"), false);
+});

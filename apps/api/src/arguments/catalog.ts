@@ -116,10 +116,12 @@ function isCacheCurrent(
   stat: ReturnType<typeof binaryStat>,
   parserId: ArgumentCatalogHelpParserId,
 ) {
+  const primaryNames = cached.options.map((option) => option.primaryName);
   return (
     cached.binarySize === stat.binarySize &&
     cached.binaryMtimeMs === stat.binaryMtimeMs &&
-    cached.parserId === parserId
+    cached.parserId === parserId &&
+    new Set(primaryNames).size === primaryNames.length
   );
 }
 
@@ -430,7 +432,7 @@ export function getArgumentCatalog(
 
   if (!input?.refresh) {
     const fromSidecar = readArgumentCatalogSidecar(binaryPath, stat);
-    if (fromSidecar && fromSidecar.parserId === parserId) {
+    if (fromSidecar && isCacheCurrent(fromSidecar, stat, parserId)) {
       return toCatalog({
         binaryPath,
         cached: saveArgumentCatalog(fromSidecar),
@@ -470,7 +472,7 @@ export async function getArgumentCatalogAsync(
   }
   if (!input?.refresh) {
     const fromSidecar = readArgumentCatalogSidecar(binaryPath, stat);
-    if (fromSidecar && fromSidecar.parserId === parserId) {
+    if (fromSidecar && isCacheCurrent(fromSidecar, stat, parserId)) {
       return toCatalog({
         binaryPath,
         cached: saveArgumentCatalog(fromSidecar),

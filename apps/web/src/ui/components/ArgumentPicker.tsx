@@ -23,16 +23,25 @@ export function ArgumentPicker(props: {
   const [value, setValue] = useState<string | null>(null);
   const [pickerKey, setPickerKey] = useState(0);
 
+  const data = useMemo(
+    () => [
+      ...new Map(
+        props.data.map((option) => [option.value, option] as const),
+      ).values(),
+    ],
+    [props.data],
+  );
+
   const termsByValue = useMemo(() => {
     const map = new Map<string, string[]>();
-    for (const option of props.data) {
+    for (const option of data) {
       map.set(
         option.value,
         (option.searchTerms ?? []).map((term) => term.toLowerCase()),
       );
     }
     return map;
-  }, [props.data]);
+  }, [data]);
 
   const filterOptions: OptionsFilter = ({ options, search }) => {
     const normalized = search.trim().toLowerCase();
@@ -75,7 +84,7 @@ export function ArgumentPicker(props: {
         setValue(null);
         setPickerKey((key) => key + 1);
       }}
-      data={props.data}
+      data={data}
       nothingFoundMessage={
         props.nothingFoundMessage ??
         (props.isFetching ? "Loading..." : "No arguments found")

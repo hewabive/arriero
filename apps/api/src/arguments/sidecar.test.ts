@@ -213,6 +213,56 @@ test("getArgumentCatalog hydrates the DB from the sidecar without running the bi
   }
 });
 
+test("getArgumentCatalog regenerates duplicate primary names from cache and sidecar", () => {
+  const dir = mkdtempSync(join(tmpdir(), "llm-args-duplicates-"));
+  try {
+    const binaryPath = join(dir, "vllm");
+    writeFileSync(
+      binaryPath,
+      [
+        "#!/bin/sh",
+        'echo "usage: vllm serve [model_tag] [options]"',
+        'echo "options:"',
+        'echo "  --host HOST           Host name"',
+        'echo "  --port PORT           Port"',
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    chmodSync(binaryPath, 0o755);
+    const stat = binaryStat(binaryPath);
+    const duplicate = parseLlamaArgumentOptions(`
+----- examples -----
+--json-arg JSON                        first example
+--json-arg JSON                        second example
+`);
+    const stale = {
+      binaryPath,
+      binarySize: stat.binarySize,
+      binaryMtimeMs: stat.binaryMtimeMs,
+      binaryModifiedAt: stat.binaryModifiedAt,
+      helpHash: "duplicate-hash",
+      options: duplicate,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      parserId: "vllm-help",
+    };
+    saveArgumentCatalog(stale);
+    writeArgumentCatalogSidecar(stale);
+
+    const catalog = getArgumentCatalog(binaryPath, {
+      parserId: "vllm-help",
+    });
+    const primaryNames = catalog.options.map((option) => option.primaryName);
+    assert.equal(catalog.cache.hit, false);
+    assert.equal(catalog.cache.refreshed, true);
+    assert.equal(catalog.cache.stale, true);
+    assert.equal(new Set(primaryNames).size, primaryNames.length);
+    assert.deepEqual(primaryNames, ["--host", "--port"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("vLLM catalog falls back when runtime help cannot initialize", () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-vllm-fallback-"));
   try {
