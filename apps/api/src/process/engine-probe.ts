@@ -12,7 +12,13 @@ import {
   probeLlamaServer,
   probeRpcWorker,
 } from "../llama/probe.js";
-import { instanceBaseUrl, probeJson } from "../instances/endpoint.js";
+import {
+  instanceBaseUrl,
+  probeJson,
+  requestJsonProbe,
+} from "../instances/endpoint.js";
+
+const KTRANSFORMERS_HTTP_PROBE_TIMEOUT_MS = 15_000;
 
 export type EngineProbeRunner = {
   probe: (instance: Instance) => Promise<LlamaProbe>;
@@ -50,12 +56,19 @@ async function probeOpenAiHttp(instance: Instance): Promise<LlamaProbe> {
   if (!baseUrl) {
     return offlineOpenAiProbe(instance, "HTTP endpoint is not configured.");
   }
+  const probe =
+    instance.kind === "ktransformers"
+      ? (url: string) =>
+          requestJsonProbe(url, {
+            timeoutMs: KTRANSFORMERS_HTTP_PROBE_TIMEOUT_MS,
+          })
+      : probeJson;
   const unavailable = notApplicable(
     "not applicable for OpenAI-compatible engine",
   );
   const [health, models] = await Promise.all([
-    probeJson(`${baseUrl}/health`),
-    probeJson(`${baseUrl}/v1/models`),
+    probe(`${baseUrl}/health`),
+    probe(`${baseUrl}/v1/models`),
   ]);
   return {
     baseUrl,
