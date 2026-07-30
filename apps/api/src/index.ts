@@ -34,6 +34,7 @@ import { sweepSourceCloneStaging } from "./sources/operations.js";
 import { supervisor } from "./process/supervisor.js";
 import { environmentRunner } from "./envs/runner.js";
 import { initializeEnvironments } from "./envs/service.js";
+import { nvidiaTelemetry } from "./nvidia/telemetry.js";
 
 const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
@@ -201,6 +202,7 @@ async function shutdown(signal: NodeJS.Signals) {
     process.exitCode = 1;
     logger.error({ error }, "shutdown failed");
   } finally {
+    nvidiaTelemetry.close();
     process.exit(process.exitCode ?? 0);
   }
 }

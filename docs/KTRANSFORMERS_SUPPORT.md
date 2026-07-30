@@ -59,7 +59,7 @@ Upstream baseline inspected for this plan:
 The first product profile deliberately supports only:
 
 - Linux x86-64;
-- NVIDIA CUDA visible through `nvidia-smi`;
+- NVIDIA CUDA visible through NVML;
 - uv-managed CPython 3.11 or 3.12;
 - official, version-matched `kt-kernel` and `sglang-kt` wheels;
 - one model bundle per managed process;
@@ -415,7 +415,7 @@ The resulting PID set feeds:
 
 - `/proc` RSS/anonymous/file-backed memory;
 - swap totals;
-- `nvidia-smi` per-process VRAM;
+- NVML per-process VRAM;
 - NUMA placement;
 - instance memory layout;
 - shutdown verification.

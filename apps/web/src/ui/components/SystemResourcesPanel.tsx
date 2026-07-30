@@ -155,7 +155,7 @@ export function SystemResourcesPanel(props: {
           </Group>
           {accelerators.length === 0 ? (
             <Text c="dimmed" size="xs">
-              No CUDA devices reported by nvidia-smi.
+              No NVIDIA devices reported by NVML.
             </Text>
           ) : (
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">

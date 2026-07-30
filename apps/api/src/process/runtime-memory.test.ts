@@ -5,7 +5,6 @@ import {
   createStaleWhileRevalidate,
   extractRouterChildPorts,
   isManagedDescendant,
-  parseNvidiaComputeAppsCsv,
   parseProcStatusRss,
   parseProcStatusSwap,
   parsePsOutput,
@@ -13,28 +12,6 @@ import {
 import { managedSignalPid } from "./supervisor.js";
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
-
-test("parseNvidiaComputeAppsCsv parses per-process VRAM usage", () => {
-  const apps = parseNvidiaComputeAppsCsv(`
-    1234, /opt/llama/bin/llama-server, 24576
-    5678, llama-server, 1024 MiB
-    bad, llama-server, 12
-    9999, llama-server, N/A
-  `);
-
-  assert.deepEqual(apps, [
-    {
-      pid: 1234,
-      processName: "/opt/llama/bin/llama-server",
-      usedMemoryBytes: 24576 * 1024 * 1024,
-    },
-    {
-      pid: 5678,
-      processName: "llama-server",
-      usedMemoryBytes: 1024 * 1024 * 1024,
-    },
-  ]);
-});
 
 test("parseProcStatusRss splits anonymous and file-backed resident memory", () => {
   const usage = parseProcStatusRss(`

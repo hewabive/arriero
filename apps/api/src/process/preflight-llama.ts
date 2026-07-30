@@ -124,8 +124,7 @@ function currentAccelerators(options: PreflightOptions) {
 function hasCudaAccelerator(options: PreflightOptions) {
   return currentAccelerators(options).some(
     (accelerator) =>
-      accelerator.kind === "gpu" &&
-      (accelerator.vendor === "NVIDIA" || accelerator.source === "nvidia-smi"),
+      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
   );
 }
 
@@ -241,7 +240,7 @@ function validateGpuLayerRequests(
       level: "warning",
       field: `args.${directGpuLayerArg}`,
       message:
-        "GPU layers are requested, but no NVIDIA GPU was detected by nvidia-smi; llama.cpp will likely ignore this option.",
+        "GPU layers are requested, but no NVIDIA GPU was detected through NVML; llama.cpp will likely ignore this option.",
     });
   }
 
@@ -263,7 +262,7 @@ function validateGpuLayerRequests(
     issues.push({
       level: "warning",
       field: "args.--models-preset",
-      message: `Models preset requests GPU layers for ${formatPresetSections(presetRequests.map((request) => request.section))}, but no NVIDIA GPU was detected by nvidia-smi; child llama-server processes will likely ignore n-gpu-layers.`,
+      message: `Models preset requests GPU layers for ${formatPresetSections(presetRequests.map((request) => request.section))}, but no NVIDIA GPU was detected through NVML; child llama-server processes will likely ignore n-gpu-layers.`,
     });
   } catch (error) {
     issues.push({

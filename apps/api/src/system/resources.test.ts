@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import { parseLinuxMeminfo, parseNvidiaSmiCsv } from "./resources.js";
+import { nvidiaDevicesToAccelerators, parseLinuxMeminfo } from "./resources.js";
 
 test("parseLinuxMeminfo uses MemAvailable as available RAM", () => {
   const memory = parseLinuxMeminfo(`
@@ -25,13 +25,22 @@ test("parseLinuxMeminfo returns null when required fields are missing", () => {
   assert.equal(parseLinuxMeminfo("MemTotal: 16384 kB\n"), null);
 });
 
-test("parseNvidiaSmiCsv reads CUDA device inventory", () => {
-  const accelerators = parseNvidiaSmiCsv(`
-0, NVIDIA RTX 4090, 24564, 1024, 12, 55
-1, NVIDIA RTX A6000, 49140, 2048, 0, 42
-`);
+test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
+  const accelerators = nvidiaDevicesToAccelerators([
+    {
+      index: 0,
+      name: "NVIDIA RTX 4090",
+      uuid: "GPU-0",
+      pciBusId: "",
+      totalMemoryBytes: 24_564 * 1024 * 1024,
+      freeMemoryBytes: (24_564 - 1_024) * 1024 * 1024,
+      usedMemoryBytes: 1_024 * 1024 * 1024,
+      utilizationPercent: 12,
+      temperatureC: 55,
+    },
+  ]);
 
-  assert.equal(accelerators.length, 2);
+  assert.equal(accelerators.length, 1);
   assert.deepEqual(accelerators[0], {
     id: "0",
     name: "NVIDIA RTX 4090",
@@ -43,14 +52,36 @@ test("parseNvidiaSmiCsv reads CUDA device inventory", () => {
     utilizationPercent: 12,
     temperatureC: 55,
     numaNode: null,
-    source: "nvidia-smi",
+    source: "nvml",
   });
 });
 
-test("parseNvidiaSmiCsv maps pci bus id to a NUMA node via the resolver", () => {
-  const accelerators = parseNvidiaSmiCsv(
-    `0, NVIDIA RTX 4090, 24564, 1024, 12, 55, 00000000:01:00.0\n` +
-      `1, NVIDIA RTX A6000, 49140, 2048, 0, 42, 00000000:81:00.0\n`,
+test("nvidiaDevicesToAccelerators maps pci bus ids to NUMA nodes", () => {
+  const accelerators = nvidiaDevicesToAccelerators(
+    [
+      {
+        index: 0,
+        name: "NVIDIA RTX 4090",
+        uuid: "GPU-0",
+        pciBusId: "00000000:01:00.0",
+        totalMemoryBytes: 24,
+        freeMemoryBytes: 20,
+        usedMemoryBytes: 4,
+        utilizationPercent: 12,
+        temperatureC: 55,
+      },
+      {
+        index: 1,
+        name: "NVIDIA RTX A6000",
+        uuid: "GPU-1",
+        pciBusId: "00000000:81:00.0",
+        totalMemoryBytes: 48,
+        freeMemoryBytes: 40,
+        usedMemoryBytes: 8,
+        utilizationPercent: 0,
+        temperatureC: 42,
+      },
+    ],
     (busId) => (busId === "00000000:81:00.0" ? 1 : 0),
   );
 

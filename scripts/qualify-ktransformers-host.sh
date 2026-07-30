@@ -10,6 +10,7 @@ bin_dir=$1
 artifact_dir=$2
 sglang=$bin_dir/sglang
 python=$bin_dir/python
+repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 if [[ ! -x $sglang || ! -x $python ]]; then
   echo "expected executable sglang and python in $bin_dir" >&2
@@ -19,16 +20,14 @@ if [[ $(uname -s) != Linux || $(uname -m) != x86_64 ]]; then
   echo "KTransformers qualification requires Linux x86-64" >&2
   exit 1
 fi
-if ! command -v nvidia-smi >/dev/null 2>&1; then
-  echo "nvidia-smi is required" >&2
-  exit 1
-fi
-
 mkdir -p "$artifact_dir"
 uname -a >"$artifact_dir/uname.txt"
 lscpu >"$artifact_dir/lscpu.txt"
-nvidia-smi -q >"$artifact_dir/nvidia-smi.txt"
-nvidia-smi topo -m >"$artifact_dir/nvidia-topology.txt"
+(cd "$repo_dir" && pnpm --filter @arriero/api nvml:report) \
+  >"$artifact_dir/nvml.json"
+if command -v lspci >/dev/null 2>&1; then
+  lspci -nnk -d 10de: >"$artifact_dir/nvidia-pci.txt"
+fi
 if command -v numactl >/dev/null 2>&1; then
   numactl --hardware >"$artifact_dir/numa.txt"
 fi

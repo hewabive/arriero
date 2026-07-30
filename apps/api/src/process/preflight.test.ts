@@ -471,7 +471,7 @@ test("validateInstancePreflight warns when direct GPU layers are requested witho
         level: "warning",
         field: "args.--n-gpu-layers",
         message:
-          "GPU layers are requested, but no NVIDIA GPU was detected by nvidia-smi; llama.cpp will likely ignore this option.",
+          "GPU layers are requested, but no NVIDIA GPU was detected through NVML; llama.cpp will likely ignore this option.",
       },
     );
   } finally {
@@ -517,7 +517,7 @@ test("validateInstancePreflight warns when models preset requests GPU layers wit
         level: "warning",
         field: "args.--models-preset",
         message:
-          "Models preset requests GPU layers for Gemma, but no NVIDIA GPU was detected by nvidia-smi; child llama-server processes will likely ignore n-gpu-layers.",
+          "Models preset requests GPU layers for Gemma, but no NVIDIA GPU was detected through NVML; child llama-server processes will likely ignore n-gpu-layers.",
       },
     );
   } finally {
@@ -556,7 +556,7 @@ test("validateInstancePreflight accepts GPU layers when an NVIDIA device is visi
             utilizationPercent: null,
             temperatureC: null,
             numaNode: null,
-            source: "nvidia-smi",
+            source: "nvml",
           },
         ],
       },

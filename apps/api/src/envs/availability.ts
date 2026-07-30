@@ -20,15 +20,14 @@ export function environmentAvailability(options: {
   }
   if (options.variant === "cuda") {
     const hasNvidia = options.accelerators.some(
-      (accelerator) =>
-        accelerator.vendor === "NVIDIA" || accelerator.source === "nvidia-smi",
+      (accelerator) => accelerator.vendor === "NVIDIA",
     );
     return hasNvidia
       ? { availability: "usable", availabilityReason: null }
       : {
           availability: "unavailable",
           availabilityReason:
-            "CUDA variant requires an NVIDIA GPU visible to nvidia-smi",
+            "CUDA variant requires an NVIDIA GPU available through NVML",
         };
   }
   return options.rocmDeviceAvailable

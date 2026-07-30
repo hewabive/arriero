@@ -13,6 +13,10 @@ import {
   probeAnyExecutable,
   probePkgConfigModule,
 } from "../system/tool-probe.js";
+import {
+  type NvidiaTelemetryStatus,
+  nvidiaTelemetry,
+} from "../nvidia/telemetry.js";
 import { probeOpensslDevelopmentFiles } from "./openssl.js";
 
 export type PrerequisiteUsage = {
@@ -71,7 +75,7 @@ export const prerequisiteGroups: PrerequisiteGroupDefinition[] = [
     id: "cuda",
     title: "NVIDIA GPU offload",
     description:
-      "CUDA toolkit and driver tooling for GPU builds and accelerator detection",
+      "CUDA toolkit and NVIDIA driver support for GPU builds and accelerator telemetry",
   },
   {
     id: "numa",
@@ -118,7 +122,7 @@ function devicePresenceProbe(path: string) {
   });
 }
 
-export function nvidiaSmiInstallCommands(release: OsRelease): string[] {
+export function nvidiaDriverInstallCommands(release: OsRelease): string[] {
   const family = new Set(
     [release.id, ...release.idLike].filter(
       (item): item is string => item !== null,
@@ -128,6 +132,23 @@ export function nvidiaSmiInstallCommands(release: OsRelease): string[] {
     return [];
   }
   return ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"];
+}
+
+export function nvidiaDriverProbeOutcome(
+  status: NvidiaTelemetryStatus,
+): PrerequisiteProbeOutcome {
+  return {
+    status:
+      status.state === "ready"
+        ? "ok"
+        : status.state === "permission-denied" ||
+            status.state === "gpu-lost" ||
+            status.state === "error"
+          ? "unknown"
+          : "missing",
+    detail: status.detail,
+    version: status.driverVersion,
+  };
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -392,19 +413,19 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     probe: executableProbe(["nvcc"], ["--version"]),
   },
   {
-    id: "nvidia-smi",
+    id: "nvidia-driver",
     group: "cuda",
-    title: "nvidia-smi",
-    kind: "executable",
+    title: "NVIDIA driver (NVML)",
+    kind: "capability",
     severity: "recommended",
     blocks: [],
     impact:
-      "GPU detection, VRAM pool capacity and per-process GPU memory telemetry all read nvidia-smi; without it GPU memory pools must be sized by hand.",
+      "GPU detection, VRAM pool capacity and per-process GPU memory telemetry use the resident NVML provider; without a usable NVIDIA driver GPU memory pools must be sized by hand.",
     packages: {},
-    commands: nvidiaSmiInstallCommands,
+    commands: nvidiaDriverInstallCommands,
     docPath: "docs/RESOURCE_MANAGEMENT.md",
-    note: "Ships with the NVIDIA driver, not with the CUDA toolkit. On Ubuntu the command above lets ubuntu-drivers select the compatible headless/server driver and nvidia-utils package for this GPU. After rebooting, restart arriero and press Re-check.",
-    probe: executableProbe(["nvidia-smi"]),
+    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. On Ubuntu the command above lets ubuntu-drivers select a compatible headless/server driver. After rebooting, restart arriero and press Re-check; nvidia-smi is not required.",
+    probe: async () => nvidiaDriverProbeOutcome(nvidiaTelemetry.status(true)),
   },
   {
     id: "numactl",

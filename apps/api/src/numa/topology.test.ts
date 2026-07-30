@@ -36,7 +36,7 @@ test("parseNodeMeminfo reads per-node MemTotal, MemFree and FilePages", () => {
   });
 });
 
-test("normalizePciAddress shrinks the nvidia-smi domain to sysfs form", () => {
+test("normalizePciAddress shrinks the NVML domain to sysfs form", () => {
   assert.equal(normalizePciAddress("00000000:01:00.0"), "0000:01:00.0");
   assert.equal(normalizePciAddress("0000:81:00.0"), "0000:81:00.0");
   assert.equal(normalizePciAddress("not-a-bdf"), null);

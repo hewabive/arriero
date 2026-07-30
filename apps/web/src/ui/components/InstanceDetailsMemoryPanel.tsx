@@ -47,7 +47,7 @@ function memoryLayoutSourceText(layout: InstanceMemoryLayout | undefined) {
     return layout.sourceDetail;
   }
   if (layout.source === "process-telemetry") {
-    return "Process-level runtime memory from nvidia-smi and /proc.";
+    return "Process-level runtime memory from NVIDIA NVML and /proc.";
   }
   if (layout.source === "log-projection") {
     return "Host memory projection parsed from llama.cpp logs.";

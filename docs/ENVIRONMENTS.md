@@ -21,7 +21,7 @@ After a manager restart job history is intentionally lost; abandoned `.staging` 
 
 Installation state is separate from hardware availability. For vLLM, an
 installed CPU variant is `usable`, CUDA requires an NVIDIA device visible
-through `nvidia-smi`, and ROCm requires `/dev/kfd`. KTransformers is usable only
+through NVML, and ROCm requires `/dev/kfd`. KTransformers is usable only
 on Linux x86-64 with Python 3.11 or 3.12 and a visible NVIDIA GPU. An ABI-valid
 environment without its accelerator remains `installed` but is reported as
 `unavailable` with a reason instead of being mislabeled as corrupt.

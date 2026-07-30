@@ -48,11 +48,21 @@ rather than risking a second round trip for the administrator.
 
 Per-item commands may also be resolved from `/etc/os-release` when a generic
 package name would be unsafe. In particular, Ubuntu's NVIDIA driver packages
-contain a changing branch number, so a missing `nvidia-smi` shows
+contain a changing branch number, so an unavailable NVIDIA NVML capability shows
 `sudo ubuntu-drivers install --gpgpu` followed by `sudo reboot`. The
-hardware-aware Ubuntu tool selects the compatible headless/server driver and
-matching `nvidia-utils` package; arriero does not pin a driver branch that will
-become stale or offer the Ubuntu command on other distributions.
+hardware-aware Ubuntu tool selects a compatible headless/server driver and its
+NVML runtime; arriero does not pin a driver branch that will become stale or
+offer the Ubuntu command on other distributions. The command does not have to
+install `nvidia-utils` or `nvidia-smi` because arriero calls
+`libnvidia-ml.so.1` directly.
+
+On Ubuntu 24.04 the install may repeat
+`udevadm hwdb is deprecated. Use systemd-hwdb instead.` while packages are
+configured. This warning comes from the current `ubuntu-drivers` integration
+and is non-fatal when the command exits successfully. Do not hide it: confirm
+that package configuration completed, reboot, then press **Re-check**. The
+upstream warning is tracked in
+[ubuntu-drivers-common issue 94](https://github.com/canonical/ubuntu-drivers-common/issues/94).
 
 Severity is `required` or `recommended`, resolved per report against what this
 node is actually configured to use, not statically: `nvcc` is required only

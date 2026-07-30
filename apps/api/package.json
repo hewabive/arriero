@@ -11,15 +11,17 @@
     "args:docs:quality": "tsx src/arguments/docs-quality.ts",
     "args:docs:source-sync": "tsx src/arguments/docs-source-sync-cli.ts",
     "auth:hash": "tsx src/auth-hash-cli.ts",
+    "nvml:report": "tsx src/nvidia/report-cli.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.7",
     "@arriero/anthropic-openai-bridge": "workspace:*",
     "@arriero/core": "workspace:*",
+    "@hono/node-server": "^1.19.7",
     "better-sqlite3": "^12.5.0",
     "drizzle-orm": "^0.45.0",
     "hono": "^4.10.7",
+    "koffi": "3.1.2",
     "pino": "^10.1.0",
     "undici": "^8.4.1",
     "uuidv7": "^1.2.1",

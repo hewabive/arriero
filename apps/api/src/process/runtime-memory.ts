@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 
 import { computeNumaPlacement, parseNumaMaps } from "../numa/placement.js";
 import { readNumaTopology } from "../numa/topology.js";
+import { nvidiaTelemetry } from "../nvidia/telemetry.js";
 import {
   compareMemoryPlacements,
   emptyMemoryPlacement,
@@ -22,22 +23,14 @@ import { isPidAlive } from "./pid.js";
 const execFileAsync = promisify(execFile);
 
 const KIB = 1024;
-const MIB = 1024 * 1024;
 const TELEMETRY_CACHE_MS = 2_000;
 const PS_TIMEOUT_MS = 1_000;
-const NVIDIA_SMI_TIMEOUT_MS = 2_000;
 
 type ProcessInfo = {
   pid: number;
   ppid: number | null;
   command: string;
   args: string;
-};
-
-export type NvidiaComputeApp = {
-  pid: number;
-  processName: string | null;
-  usedMemoryBytes: number;
 };
 
 export type ProcMemoryUsage = {
@@ -77,17 +70,6 @@ export function createStaleWhileRevalidate<T>(
       return snapshot?.data ?? options.empty;
     },
   };
-}
-
-function mibToBytes(value: string) {
-  const match = /([0-9]+(?:\.[0-9]+)?)/.exec(value);
-  if (!match) {
-    return null;
-  }
-  const parsed = Number(match[1]);
-  return Number.isFinite(parsed) && parsed >= 0
-    ? Math.round(parsed * MIB)
-    : null;
 }
 
 function kibToBytes(value: string) {
@@ -170,57 +152,6 @@ const processTable = createStaleWhileRevalidate(readProcessTable, {
 
 function cachedProcessTable(): ProcessInfo[] {
   return processTable.get();
-}
-
-export function parseNvidiaComputeAppsCsv(
-  contents: string,
-): NvidiaComputeApp[] {
-  return contents
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .flatMap((line): NvidiaComputeApp[] => {
-      const columns = line.split(",").map((part) => part.trim());
-      const pid = parsePositivePid(columns[0]);
-      const usedMemoryBytes = mibToBytes(columns[columns.length - 1] ?? "");
-      if (pid === null || usedMemoryBytes === null) {
-        return [];
-      }
-
-      const processName = columns.slice(1, -1).join(", ").trim() || null;
-      return [
-        {
-          pid,
-          processName,
-          usedMemoryBytes,
-        },
-      ];
-    });
-}
-
-async function readNvidiaComputeApps(): Promise<NvidiaComputeApp[]> {
-  const { stdout } = await execFileAsync(
-    "nvidia-smi",
-    [
-      "--query-compute-apps=pid,process_name,used_memory",
-      "--format=csv,noheader,nounits",
-    ],
-    {
-      encoding: "utf8",
-      timeout: NVIDIA_SMI_TIMEOUT_MS,
-      killSignal: "SIGKILL",
-    },
-  );
-  return parseNvidiaComputeAppsCsv(stdout);
-}
-
-const nvidiaComputeApps = createStaleWhileRevalidate(readNvidiaComputeApps, {
-  ttlMs: TELEMETRY_CACHE_MS,
-  empty: [] as NvidiaComputeApp[],
-});
-
-function cachedNvidiaComputeApps(): NvidiaComputeApp[] {
-  return nvidiaComputeApps.get();
 }
 
 export function parseProcStatusRss(
@@ -503,7 +434,7 @@ function layoutFromEntries(input: {
   return {
     source: "process-telemetry",
     sourceDetail:
-      "Process-level runtime memory from nvidia-smi and /proc/<pid>/status: anon = committed RAM (KV cache, compute buffers), mmap file = reclaimable file-backed pages (mmapped model weights). Engine-specific buffer categories are not available from this source.",
+      "Process-level runtime memory from NVIDIA NVML and /proc/<pid>/status: anon = committed RAM (KV cache, compute buffers), mmap file = reclaimable file-backed pages (mmapped model weights). Engine-specific buffer categories are not available from this source.",
     processIds: input.processIds,
     entries,
     deviceBytes: entries
@@ -537,7 +468,7 @@ export async function getRuntimeMemoryLayout(input: {
     number,
     { bytes: number; processNames: Set<string> }
   >();
-  for (const app of cachedNvidiaComputeApps()) {
+  for (const app of nvidiaTelemetry.computeProcesses()) {
     if (!pidSet.has(app.pid)) {
       continue;
     }

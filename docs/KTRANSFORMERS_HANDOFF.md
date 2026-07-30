@@ -4,7 +4,7 @@ This is the session-to-session state record for continuing KTransformers work
 with Codex, including on a different NVIDIA host. It supplements the design
 record and operator runbook; it does not replace either.
 
-Snapshot date: 2026-07-19 (Europe/Amsterdam).
+Snapshot date: 2026-07-30 (UTC).
 
 Snapshot branch: `main`.
 
@@ -29,7 +29,7 @@ before transferring the work to another machine.
 | Phase | State | Commit / evidence |
 | --- | --- | --- |
 | Plan | Complete | `284efec` — implementation plan and accepted decisions |
-| 0 — real-hardware spike | Pending external hardware | The current host is Linux x86-64 but has no `nvidia-smi`; no real KTransformers runtime was qualified here |
+| 0 — real-hardware spike | In progress on GPU hardware | The current host exposes an RTX A5000 through resident NVML telemetry without `nvidia-smi`; no real KTransformers runtime has been qualified yet |
 | 1 — contracts | Complete | `1d7ed5a` — engine descriptor, typed config, scheduling, federation capabilities |
 | 2 — environments | Complete | `9e164e5` — provisioner registry and matched transactional `kt-kernel` + `sglang-kt` environments |
 | 3 — lifecycle | Complete against fake/runtime fixtures | `2bfd830` — argv, preflight, SGLang adapters, health, process-tree telemetry, shutdown, adoption |
@@ -190,4 +190,3 @@ The first result document should contain:
 - negative preflight/admission cases;
 - manager restart/adoption and self-update observations;
 - final verdict: qualified, qualified with documented restrictions, or failed.
-

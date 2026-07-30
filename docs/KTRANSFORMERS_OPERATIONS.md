@@ -11,7 +11,7 @@ package pair.
 | Component | Supported contract |
 | --- | --- |
 | OS / CPU | Linux x86-64 |
-| Accelerator | NVIDIA CUDA, visible through `nvidia-smi` |
+| Accelerator | NVIDIA CUDA, visible through NVML |
 | Python | uv-managed CPython 3.11 or 3.12 |
 | Packages | exact matching versions of `kt-kernel` and `sglang-kt` |
 | Entrypoint | environment `bin/sglang serve` |
@@ -73,8 +73,8 @@ a substitute for this gate.
 ## Troubleshooting
 
 - **Environment installed but unavailable:** confirm Linux x86-64,
-  `nvidia-smi`, and Python 3.11/3.12. Availability and installation integrity
-  are separate states.
+  an NVIDIA driver reported as available on **Environment prerequisites**, and
+  Python 3.11/3.12. Availability and installation integrity are separate states.
 - **Runtime imports failed:** rebuild the immutable environment. Both package
   metadata versions, imports, and freeze pins must match the environment spec.
 - **CPU method rejected:** select a method supported by host ISA or regenerate
@@ -92,4 +92,3 @@ a substitute for this gate.
 - **Proxy requests queue:** check `--max-running-requests`, resource contention,
   target priority, and eviction policy. Under `idle-only`, active work drains
   instead of being interrupted.
-

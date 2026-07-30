@@ -578,8 +578,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     systemResourcesQuery.data?.data.accelerators ?? []
   ).filter(
     (accelerator) =>
-      accelerator.kind === "gpu" &&
-      (accelerator.vendor === "NVIDIA" || accelerator.source === "nvidia-smi"),
+      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
   );
   const cudaVisibleDevices = envDraft?.CUDA_VISIBLE_DEVICES;
   const cudaMode =

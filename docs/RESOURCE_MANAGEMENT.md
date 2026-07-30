@@ -31,8 +31,13 @@ Pools live in file-backed config `data/config/resources.json`
 They are **not** seeded from repo-root `config/*.json` because capacities are
 machine-specific (same rule as `path-catalog`). On first run
 `ensureResourcePoolsScaffold()` generates defaults from `system/resources.ts`
-(nvidia-smi + `/proc/meminfo`); `refreshAutoCapacities()` re-syncs capacity for
+(NVIDIA NVML + `/proc/meminfo`); `refreshAutoCapacities()` re-syncs capacity for
 pools with `autoCapacity` on every startup and shows drift otherwise.
+
+The API loads `libnvidia-ml.so.1` through Koffi and keeps one NVML session for
+the lifetime of the process. Static device identity is read once, live GPU
+metrics are cached for three seconds, and per-process VRAM is cached separately
+for two seconds. `nvidia-smi` is not spawned or required.
 
 ### Draws
 
@@ -90,7 +95,7 @@ planning (evict the preemptible tier).
 
 Truly-external usage (a game, a foreign process — not a arriero instance)
 never enters the ledger; the static `reservedBytes` is the only buffer against it
-in v1 (live nvidia-smi subtraction is a v2 concern). When a request cannot fit
+in v1 (live NVML subtraction is a v2 concern). When a request cannot fit
 and the obstacle is immovable/protected, it queues and waits rather than 503-ing;
 the wait is bounded only by the request's own timeout/abort.
 

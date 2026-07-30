@@ -17,7 +17,7 @@ const nvidia: SystemAccelerator = {
   utilizationPercent: 0,
   temperatureC: null,
   numaNode: null,
-  source: "nvidia-smi",
+  source: "nvml",
 };
 
 test("CPU environments are usable without an accelerator", () => {

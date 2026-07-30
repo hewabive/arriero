@@ -243,15 +243,14 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       };
     }
     const hasNvidia = context.accelerators.some(
-      (accelerator) =>
-        accelerator.vendor === "NVIDIA" || accelerator.source === "nvidia-smi",
+      (accelerator) => accelerator.vendor === "NVIDIA",
     );
     return hasNvidia
       ? { availability: "usable", availabilityReason: null }
       : {
           availability: "unavailable",
           availabilityReason:
-            "KTransformers requires an NVIDIA GPU visible to nvidia-smi",
+            "KTransformers requires an NVIDIA GPU available through NVML",
         };
   },
   catalogName(spec) {

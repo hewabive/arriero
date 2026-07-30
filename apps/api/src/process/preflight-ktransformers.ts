@@ -34,8 +34,7 @@ function localAccelerators(options: PreflightOptions): SystemAccelerator[] {
 function nvidiaAccelerators(options: PreflightOptions) {
   return localAccelerators(options).filter(
     (accelerator) =>
-      accelerator.kind === "gpu" &&
-      (accelerator.vendor === "NVIDIA" || accelerator.source === "nvidia-smi"),
+      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
   );
 }
 
@@ -180,7 +179,7 @@ function validateCuda(
       issues,
       "error",
       "env.CUDA_VISIBLE_DEVICES",
-      "KTransformers requires an NVIDIA GPU visible to nvidia-smi",
+      "KTransformers requires an NVIDIA GPU available through NVML",
     );
     return;
   }

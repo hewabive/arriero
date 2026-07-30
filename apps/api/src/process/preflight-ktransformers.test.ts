@@ -23,7 +23,7 @@ const nvidia: SystemAccelerator = {
   utilizationPercent: 0,
   temperatureC: null,
   numaNode: 0,
-  source: "nvidia-smi",
+  source: "nvml",
 };
 
 const now = "2026-01-01T00:00:00.000Z";
