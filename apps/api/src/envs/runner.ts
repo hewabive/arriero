@@ -5,7 +5,9 @@ import type {
   EnvironmentSpec,
 } from "@arriero/core";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
+  createReadStream,
   createWriteStream,
   existsSync,
   renameSync,
@@ -15,6 +17,7 @@ import {
 } from "node:fs";
 import { resolve } from "node:path";
 import type { Readable } from "node:stream";
+import { fileURLToPath } from "node:url";
 
 import { config } from "../config.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
@@ -36,8 +39,61 @@ import {
   uvPythonPreflightCommand,
 } from "./uv.js";
 
+type LocalWheelArtifact = {
+  path: string;
+  sha256: string;
+};
+
 function nowIso() {
   return new Date().toISOString();
+}
+
+function localWheelArtifacts(spec: EnvironmentSpec): LocalWheelArtifact[] {
+  const sources =
+    spec.engine === "vllm" && spec.source.kind === "wheel"
+      ? [spec.source]
+      : spec.engine === "ktransformers" && spec.source.kind === "wheels"
+        ? spec.source.artifacts
+        : [];
+  return sources.flatMap((artifact) => {
+    if (
+      !artifact.sha256 ||
+      new URL(artifact.url).protocol !== "file:"
+    ) {
+      return [];
+    }
+    return [
+      {
+        path: fileURLToPath(artifact.url),
+        sha256: artifact.sha256.toLowerCase(),
+      },
+    ];
+  });
+}
+
+function sha256File(path: string) {
+  return new Promise<string>((resolveHash, reject) => {
+    const hash = createHash("sha256");
+    const input = createReadStream(path);
+    input.on("error", reject);
+    input.on("data", (chunk) => hash.update(chunk));
+    input.on("end", () => resolveHash(hash.digest("hex")));
+  });
+}
+
+async function verifyLocalWheelArtifacts(
+  spec: EnvironmentSpec,
+  log: WriteStream,
+) {
+  for (const artifact of localWheelArtifacts(spec)) {
+    const actual = await sha256File(artifact.path);
+    if (actual !== artifact.sha256) {
+      throw new Error(
+        `wheel SHA-256 mismatch for ${artifact.path}: expected ${artifact.sha256}, got ${actual}`,
+      );
+    }
+    log.write(`# verified SHA-256 ${actual}  ${artifact.path}\n`);
+  }
 }
 
 export function environmentJobSteps(
@@ -95,6 +151,9 @@ export function environmentJobSteps(
       spec.pythonVersion,
       staging,
     ]),
+    ...(localWheelArtifacts(spec).length
+      ? [step("artifact-verify", ["verify-local-wheel-sha256"])]
+      : []),
     step("package-install", install),
     step("freeze", [uv, "pip", "freeze", "--python", python]),
     step("finalize", ["finalize-environment", staging, final]),
@@ -197,7 +256,9 @@ export class EnvironmentRunner {
         log.write(`$ ${planned.command.join(" ")}\n`);
         let output = "";
         let exitCode = 0;
-        if (planned.name === "finalize") {
+        if (planned.name === "artifact-verify") {
+          await verifyLocalWheelArtifacts(spec, log);
+        } else if (planned.name === "finalize") {
           const stagingEntrypoint = resolve(
             staging,
             provisioner.entrypointRelative,

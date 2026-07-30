@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { getEnvironmentJob } from "./repository.js";
 import { environmentDirectory, environmentStagingDirectory } from "./paths.js";
@@ -273,12 +274,99 @@ test("KTransformers wheel plan orders both roots and carries hashes", () => {
     (step) => step.name === "package-install",
   )!.command;
   const ktIndex = command.indexOf(`file:///bundle/kt_kernel.whl#sha256=${a}`);
+  const verify = steps.find((step) => step.name === "artifact-verify");
+  const localKtIndex = command.indexOf("/bundle/kt_kernel.whl");
   const sglangIndex = command.indexOf(
     `https://packages.example/sglang_kt.whl#sha256=${b}`,
   );
-  assert.ok(ktIndex > 0);
-  assert.ok(sglangIndex > ktIndex);
+  assert.ok(verify);
+  assert.equal(ktIndex, -1);
+  assert.ok(localKtIndex > 0);
+  assert.ok(sglangIndex > localKtIndex);
   assert.deepEqual(command.slice(-2), ["--torch-backend", "cu128"]);
+});
+
+test("local wheel hash mismatch fails before package installation", async () => {
+  const fakeBin = mkdtempSync(join(tmpdir(), "arriero-hash-uv-"));
+  const artifacts = mkdtempSync(join(tmpdir(), "arriero-wheel-artifacts-"));
+  const uv = join(fakeBin, "uv");
+  const ktWheel = join(artifacts, "kt_kernel-0.6.3.post1-py3-none-any.whl");
+  const sglangWheel = join(
+    artifacts,
+    "sglang_kt-0.6.3.post1-py3-none-any.whl",
+  );
+  writeFileSync(ktWheel, "not the expected wheel");
+  writeFileSync(sglangWheel, "also not the expected wheel");
+  writeFileSync(
+    uv,
+    [
+      "#!/bin/sh",
+      'if [ "$1" = "python" ]; then exit 0; fi',
+      'if [ "$1" = "venv" ]; then',
+      "  for last; do :; done",
+      '  mkdir -p "$last/bin"',
+      "  exit 0",
+      "fi",
+      "exit 99",
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+  const environment = EnvironmentSpecSchema.parse({
+    ...ktransformersSpec({
+      kind: "wheels",
+      artifacts: [
+        {
+          distribution: "kt-kernel",
+          url: pathToFileURL(ktWheel).href,
+          sha256: "a".repeat(64),
+        },
+        {
+          distribution: "sglang-kt",
+          url: pathToFileURL(sglangWheel).href,
+          sha256: "b".repeat(64),
+        },
+      ],
+      dependencyIndexUrl: null,
+      torchBackend: null,
+    }),
+    id: "env-kt-hash-test-1234",
+  });
+  rmSync(environmentDirectory(environment), { recursive: true, force: true });
+  rmSync(environmentStagingDirectory(environment), {
+    recursive: true,
+    force: true,
+  });
+  const previousPath = process.env.PATH;
+  process.env.PATH = `${fakeBin}${delimiter}${previousPath ?? ""}`;
+  try {
+    const started = environmentRunner.start(environment);
+    let job = getEnvironmentJob(started.id);
+    for (
+      let attempt = 0;
+      attempt < 200 && job?.status === "running";
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      job = getEnvironmentJob(started.id);
+    }
+    assert.equal(job?.status, "failed");
+    assert.match(job?.error ?? "", /wheel SHA-256 mismatch/);
+    assert.equal(
+      job?.steps.find((step) => step.name === "artifact-verify")?.status,
+      "failed",
+    );
+    assert.equal(
+      job?.steps.find((step) => step.name === "package-install")?.status,
+      "pending",
+    );
+    assert.equal(existsSync(environmentDirectory(environment)), false);
+    assert.equal(existsSync(environmentStagingDirectory(environment)), false);
+  } finally {
+    process.env.PATH = previousPath;
+    rmSync(fakeBin, { recursive: true, force: true });
+    rmSync(artifacts, { recursive: true, force: true });
+  }
 });
 
 test("KTransformers source requires one wheel for each root distribution", () => {

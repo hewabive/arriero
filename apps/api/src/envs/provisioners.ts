@@ -6,6 +6,7 @@ import type {
 import { packageIndexInstallOptions } from "@arriero/core";
 import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   environmentAvailability,
@@ -36,6 +37,7 @@ export type EnvironmentProvisioner = {
 };
 
 function wheelRequirement(url: string, sha256: string | null) {
+  if (new URL(url).protocol === "file:") return fileURLToPath(url);
   return `${url}${sha256 ? `#sha256=${sha256}` : ""}`;
 }
 

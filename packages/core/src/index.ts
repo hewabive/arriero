@@ -2362,6 +2362,7 @@ export const EnvironmentJobStepNameSchema = z.enum([
   "python-preflight",
   "python-install",
   "venv-create",
+  "artifact-verify",
   "package-install",
   "freeze",
   "finalize",
