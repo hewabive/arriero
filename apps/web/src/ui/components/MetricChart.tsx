@@ -31,6 +31,13 @@ type PlotPoint = { x: number; y: number };
 const GRID_DIVISIONS = 4;
 const GAP_TOLERANCE = 2.5;
 
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
 function niceCeiling(value: number): number {
   if (!Number.isFinite(value) || value <= 0) {
     return 1;
@@ -305,7 +312,7 @@ export function MetricChart(props: MetricChartProps) {
             style={{ pointerEvents: "none", minWidth: 130 }}
           >
             <Text c="dimmed" size="xs">
-              {new Date(hoverTime).toLocaleTimeString()}
+              {timeFormatter.format(hoverTime)}
             </Text>
             {rendered.map((entry) => {
               const value = entry.values[hoverIndex];
