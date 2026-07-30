@@ -23,6 +23,7 @@ test("SGLang log readiness is progress only and captures the listener", () => {
     lines: [
       "Application startup complete.",
       "Uvicorn running on http://127.0.0.1:30000 (Press CTRL+C to quit)",
+      "Performance config: https://example.test/not-the-listener",
     ],
     cudaDevicesDisabled: false,
   });
