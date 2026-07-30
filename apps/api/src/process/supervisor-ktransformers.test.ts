@@ -2,6 +2,7 @@ import type { Instance, ProcessPreflightResult } from "@arriero/core";
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -29,10 +30,14 @@ async function waitFor(
 
 test("KTransformers supervisor stops the complete detached worker tree", async () => {
   const root = mkdtempSync(join(tmpdir(), "arriero-kt-supervisor-"));
-  const binary = join(root, "sglang");
+  const binDir = join(root, "bin");
+  const binary = join(binDir, "sglang");
+  const python = join(binDir, "python");
   const childPidFile = join(root, "child.pid");
+  mkdirSync(binDir);
+  writeFileSync(binary, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   writeFileSync(
-    binary,
+    python,
     [
       "#!/bin/sh",
       "sleep 30 &",
