@@ -151,6 +151,17 @@ test("vllm estimator reserves utilization on each tensor-parallel GPU", () => {
   resetResourcePoolsCache();
 });
 
+test("vllm estimator refuses a version-dependent implicit utilization", () => {
+  const result = estimateMemory({
+    kind: "vllm",
+    positionalArgs: ["Qwen/Qwen3-8B"],
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.reason, /Set --gpu-memory-utilization explicitly/);
+  }
+});
+
 test("estimateMemory produces a breakdown for a local model", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-"));
   const path = join(dir, "model.gguf");

@@ -65,8 +65,14 @@ function estimateVllmGpuUtil(input: {
         "vLLM CPU memory remains manual; the GPU utilization estimator is not applicable.",
     };
   }
-  const utilization =
-    argNumber(input.args, ["--gpu-memory-utilization"]) ?? 0.9;
+  const utilization = argNumber(input.args, ["--gpu-memory-utilization"]);
+  if (utilization === null) {
+    return {
+      ok: false,
+      reason:
+        "Set --gpu-memory-utilization explicitly before estimating; the vLLM default depends on the installed version.",
+    };
+  }
   if (utilization <= 0 || utilization > 1) {
     return {
       ok: false,

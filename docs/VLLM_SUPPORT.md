@@ -120,7 +120,7 @@ Acceptance: full create-launch-observe flow for a vllm instance through the UI, 
 ## Phase 5 — proxy integration + estimator (done)
 
 - Verify the generic path end-to-end with a managed vllm target: endpoint catalog entry, target creation, autostart via `start-instance`, domain lease (manual draws), plain forwarder streaming, drain on self-update. Expected to mostly "just work" via `serveEndpoint`/`requestLease`; this phase is the proof plus fixes.
-- `vllm-gpu-util` estimator: gpu draw = `--gpu-memory-utilization` (default 0.9) × bound gpu pool capacity, split across `--tensor-parallel-size` pools when applicable; host draw stays manual. Dispatch in `memory-estimate/service.ts` (the seam is prepared).
+- `vllm-gpu-util` estimator: gpu draw = explicit `--gpu-memory-utilization` × bound gpu pool capacity, split across `--tensor-parallel-size` pools when applicable; host draw stays manual. The estimator refuses an omitted utilization because upstream defaults vary by vLLM version (0.26.0 uses 0.92 while older releases used 0.9). Dispatch in `memory-estimate/service.ts` (the seam is prepared).
 - Stats/traces sanity: no `sseTimings` — verify usage metering falls back correctly for a managed non-llama OpenAI upstream.
 
 Acceptance: vllm model served through `/v1/*` with autostart, queueing, and correct memory accounting.
