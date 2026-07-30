@@ -11,6 +11,7 @@ import type { AddressInfo } from "node:net";
 import { type BrowserContext, chromium, devices, type Page } from "playwright";
 
 const BASE_URL = process.env.BROWSE_URL ?? "http://127.0.0.1:5173";
+const BROWSER_CHANNEL = process.env.BROWSE_CHANNEL ?? "chrome";
 const SERVER_FILE = "tmp/.browse-server.json";
 const WS_FILE = "tmp/.browse-ws";
 const URL_FILE = "tmp/.browse-url.txt";
@@ -308,7 +309,7 @@ function printResult(result: DaemonResult) {
 }
 
 async function runDaemon(mobile: boolean) {
-  const browserServer = await chromium.launchServer({ headless: true });
+  const browserServer = await chromium.launchServer(browserLaunchOptions());
   writeFileSync(WS_FILE, browserServer.wsEndpoint());
   const browser = await chromium.connect(browserServer.wsEndpoint());
   const context = await browser.newContext(mobile ? MOBILE_DEVICE : {});
@@ -436,7 +437,7 @@ async function withBrowser(
   fn: (context: BrowserContext, page: Page) => Promise<void>,
   mobile = false,
 ) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(browserLaunchOptions());
   const context = await browser.newContext(mobile ? MOBILE_DEVICE : {});
   const page = await context.newPage();
 
@@ -445,6 +446,11 @@ async function withBrowser(
   } finally {
     await browser.close();
   }
+}
+
+function browserLaunchOptions() {
+  if (BROWSER_CHANNEL === "playwright") return { headless: true };
+  return { channel: BROWSER_CHANNEL, headless: true };
 }
 
 ensureDirs();
@@ -503,6 +509,7 @@ Global flags:
   --mobile           Emulate mobile device (iPhone 14: 390x844)
 
 Base URL: ${BASE_URL} (override with BROWSE_URL).
+Browser channel: ${BROWSER_CHANNEL} (override with BROWSE_CHANNEL; use "playwright" for bundled Chromium).
 When persistent browser is open, goto/screenshot use it automatically.
 Without persistent browser, each command launches a fresh browser.`);
     process.exit(command ? 1 : 0);
