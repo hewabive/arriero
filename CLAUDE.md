@@ -82,7 +82,8 @@ logic/test files:
 `arguments` · `build` (`docs/BUILD.md`) · `envs` (immutable uv-managed Python engine environments,
 `docs/ENVIRONMENTS.md`) · `models` (gguf/scanner/cache) · `presets` · `llama` (probe + source repo) ·
 `path-catalog` · `resources` (memory pools + capacity ledger) · `memory-estimate` (a-priori per-pool
-footprint from GGUF + args, `docs/MEMORY_ESTIMATION.md`) · `system` · `api-lab` · `filesystem` ·
+footprint from GGUF + args, `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
+1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `filesystem` ·
 `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`) · `update` (manager
 version/run-mode + UI self-update runner, `docs/SELF_UPDATE.md`) · `prerequisites` (host-tooling
 registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITES.md`).
@@ -90,6 +91,11 @@ registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITE
 Two `prerequisites` rules constrain code elsewhere: every PATH lookup goes through the one primitive
 `system/tool-probe.ts` (`build/cuda.ts:findNvcc` and `envs/uv.ts:findUv` included), and the UI never
 installs packages. A check is added only after it actually blocked a deployment.
+
+`system/metrics-history.ts` is the single owner of every counter delta (cpu/net/disk): it ticks at
+1 Hz always-on and feeds both `/api/system/metrics*` and the `cpu`/`network`/`disk` fields of
+`getSystemResources()`. Never sample those counters from a request path — ad-hoc reads corrupt the
+rates for every other caller.
 
 ### Process supervision
 

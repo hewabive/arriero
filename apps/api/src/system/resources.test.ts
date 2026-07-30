@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import { nvidiaDevicesToAccelerators, parseLinuxMeminfo } from "./resources.js";
+import { parseLinuxMeminfo } from "./memory.js";
+import { nvidiaDevicesToAccelerators } from "./resources.js";
 
 test("parseLinuxMeminfo uses MemAvailable as available RAM", () => {
   const memory = parseLinuxMeminfo(`

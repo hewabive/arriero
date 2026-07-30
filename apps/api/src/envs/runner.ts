@@ -56,10 +56,7 @@ function localWheelArtifacts(spec: EnvironmentSpec): LocalWheelArtifact[] {
         ? spec.source.artifacts
         : [];
   return sources.flatMap((artifact) => {
-    if (
-      !artifact.sha256 ||
-      new URL(artifact.url).protocol !== "file:"
-    ) {
+    if (!artifact.sha256 || new URL(artifact.url).protocol !== "file:") {
       return [];
     }
     return [

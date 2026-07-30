@@ -95,10 +95,7 @@ function lastMatch(lines: string[], pattern: RegExp) {
 
 export const sglangLogParser: EngineLogParser = {
   parse: ({ lines }) => ({
-    listeningUrl: lastMatch(
-      lines,
-      /Uvicorn running on\s+(https?:\/\/[^\s]+)/i,
-    ),
+    listeningUrl: lastMatch(lines, /Uvicorn running on\s+(https?:\/\/[^\s]+)/i),
     modelPath: lastMatch(
       lines,
       /(?:model(?:_path)?|model path)\s*[:=]\s*["']?([^\s,"']+)/i,

@@ -298,10 +298,7 @@ test("local wheel hash mismatch fails before package installation", async () => 
   const artifacts = mkdtempSync(join(tmpdir(), "arriero-wheel-artifacts-"));
   const uv = join(fakeBin, "uv");
   const ktWheel = join(artifacts, "kt_kernel-0.6.3.post1-py3-none-any.whl");
-  const sglangWheel = join(
-    artifacts,
-    "sglang_kt-0.6.3.post1-py3-none-any.whl",
-  );
+  const sglangWheel = join(artifacts, "sglang_kt-0.6.3.post1-py3-none-any.whl");
   writeFileSync(ktWheel, "not the expected wheel");
   writeFileSync(sglangWheel, "also not the expected wheel");
   writeFileSync(

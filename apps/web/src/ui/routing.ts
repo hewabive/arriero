@@ -212,7 +212,8 @@ export const navSections: NavSection[] = [
         route: "system",
         label: "System",
         title: "System resources",
-        description: "Live RAM, accelerator, and disk activity for this node",
+        description:
+          "Live CPU, RAM, accelerator, disk and network activity for this node",
       },
       {
         route: "prerequisites",

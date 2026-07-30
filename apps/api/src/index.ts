@@ -35,6 +35,7 @@ import { supervisor } from "./process/supervisor.js";
 import { environmentRunner } from "./envs/runner.js";
 import { initializeEnvironments } from "./envs/service.js";
 import { nvidiaTelemetry } from "./nvidia/telemetry.js";
+import { systemMetricsRecorder } from "./system/metrics-history.js";
 
 const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
@@ -60,6 +61,7 @@ const environments = initializeEnvironments();
 const sweptSourceCloneStaging = sweepSourceCloneStaging();
 const prunedArgumentCatalogs = pruneMissingArgumentCatalogs();
 const prunedModelCache = pruneMissingCachedModels();
+systemMetricsRecorder.start();
 const reconciliation = reconcileProcessRuns(listInstances());
 const prunedProcessRuns = pruneProcessRunHistory();
 const pendingResume = apiProxyPendingResume.adopt();
@@ -183,6 +185,7 @@ async function shutdown(signal: NodeJS.Signals) {
     }
     stopApiProxyIdleMaintenance();
     stopApiProxyRuntimeReconcile();
+    systemMetricsRecorder.stop();
     await closeServer();
     logger.info("http server closed");
     await environmentRunner.shutdown();

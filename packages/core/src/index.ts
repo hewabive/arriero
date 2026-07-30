@@ -2915,13 +2915,90 @@ export const SystemDiskActivitySchema = z.object({
   intervalMs: z.number().nonnegative().nullable(),
 });
 
+export const SystemCpuCoreSchema = z.object({
+  id: z.number().int().nonnegative(),
+  usagePercent: z.number().min(0).max(100),
+});
+
+export const SystemCpuActivitySchema = z.object({
+  usagePercent: z.number().min(0).max(100),
+  userPercent: z.number().min(0).max(100),
+  systemPercent: z.number().min(0).max(100),
+  ioWaitPercent: z.number().min(0).max(100),
+  stealPercent: z.number().min(0).max(100),
+  cores: z.array(SystemCpuCoreSchema),
+  loadAverage: z.tuple([z.number(), z.number(), z.number()]),
+  intervalMs: z.number().nonnegative().nullable(),
+});
+
+export const SystemNetworkInterfaceSchema = z.object({
+  name: z.string(),
+  rxBytesPerSec: z.number().nonnegative().nullable(),
+  txBytesPerSec: z.number().nonnegative().nullable(),
+  rxPacketsPerSec: z.number().nonnegative().nullable(),
+  txPacketsPerSec: z.number().nonnegative().nullable(),
+  speedMbps: z.number().nonnegative().nullable(),
+  up: z.boolean(),
+});
+
+export const SystemNetworkActivitySchema = z.object({
+  interfaces: z.array(SystemNetworkInterfaceSchema),
+  totalRxBytesPerSec: z.number().nonnegative().nullable(),
+  totalTxBytesPerSec: z.number().nonnegative().nullable(),
+  intervalMs: z.number().nonnegative().nullable(),
+});
+
 export const SystemResourcesSchema = z.object({
   checkedAt: z.string(),
   memory: SystemMemorySchema,
   accelerators: z.array(SystemAcceleratorSchema),
   disk: SystemDiskActivitySchema.nullable(),
+  cpu: SystemCpuActivitySchema.nullable().default(null),
+  network: SystemNetworkActivitySchema.nullable().default(null),
   numa: NumaCapabilitiesSchema,
   tools: z.object({ uv: UvToolStatusSchema }).optional(),
+});
+
+export const SystemMetricsGpuSampleSchema = z.object({
+  id: z.string(),
+  utilizationPercent: z.number().nullable(),
+  memoryUsedBytes: z.number().nullable(),
+  memoryTotalBytes: z.number().nullable(),
+  temperatureC: z.number().nullable(),
+});
+
+export const SystemMetricsDiskSampleSchema = z.object({
+  name: z.string(),
+  utilPercent: z.number().nullable(),
+  readBytesPerSec: z.number().nullable(),
+  writeBytesPerSec: z.number().nullable(),
+});
+
+export const SystemMetricsNetworkSampleSchema = z.object({
+  name: z.string(),
+  rxBytesPerSec: z.number().nullable(),
+  txBytesPerSec: z.number().nullable(),
+});
+
+export const SystemMetricsSampleSchema = z.object({
+  at: z.number().int().nonnegative(),
+  cpuPercent: z.number().nullable(),
+  cpuIoWaitPercent: z.number().nullable(),
+  cpuCorePercents: z.array(z.number()).nullable(),
+  memoryUsedBytes: z.number().nonnegative(),
+  memoryTotalBytes: z.number().nonnegative(),
+  gpus: z.array(SystemMetricsGpuSampleSchema),
+  disks: z.array(SystemMetricsDiskSampleSchema),
+  network: z.array(SystemMetricsNetworkSampleSchema),
+});
+
+export const SystemMetricsWindowSchema = z.enum(["live", "hour", "day"]);
+
+export const SystemMetricsHistorySchema = z.object({
+  window: SystemMetricsWindowSchema,
+  intervalMs: z.number().int().positive(),
+  capacity: z.number().int().positive(),
+  samples: z.array(SystemMetricsSampleSchema),
 });
 
 export const HostPackageManagerSchema = z.enum([
@@ -3688,6 +3765,24 @@ export type SystemAccelerator = z.infer<typeof SystemAcceleratorSchema>;
 export type SystemDiskDevice = z.infer<typeof SystemDiskDeviceSchema>;
 export type SystemIoPressure = z.infer<typeof SystemIoPressureSchema>;
 export type SystemDiskActivity = z.infer<typeof SystemDiskActivitySchema>;
+export type SystemCpuCore = z.infer<typeof SystemCpuCoreSchema>;
+export type SystemCpuActivity = z.infer<typeof SystemCpuActivitySchema>;
+export type SystemNetworkInterface = z.infer<
+  typeof SystemNetworkInterfaceSchema
+>;
+export type SystemNetworkActivity = z.infer<typeof SystemNetworkActivitySchema>;
+export type SystemMetricsGpuSample = z.infer<
+  typeof SystemMetricsGpuSampleSchema
+>;
+export type SystemMetricsDiskSample = z.infer<
+  typeof SystemMetricsDiskSampleSchema
+>;
+export type SystemMetricsNetworkSample = z.infer<
+  typeof SystemMetricsNetworkSampleSchema
+>;
+export type SystemMetricsSample = z.infer<typeof SystemMetricsSampleSchema>;
+export type SystemMetricsWindow = z.infer<typeof SystemMetricsWindowSchema>;
+export type SystemMetricsHistory = z.infer<typeof SystemMetricsHistorySchema>;
 export type NumaNode = z.infer<typeof NumaNodeSchema>;
 export type NumaCapabilities = z.infer<typeof NumaCapabilitiesSchema>;
 export type InstanceNuma = z.infer<typeof InstanceNumaSchema>;

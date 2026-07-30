@@ -58,9 +58,8 @@ test("SGLang parser treats optional DeepSeek-V4 imports as notices", () => {
 
   assert.deepEqual(parsed.errors, []);
   assert.equal(
-    parsed.notices.filter((line) =>
-      /DeepSeek-V4|deepseek_v4/.test(line),
-    ).length,
+    parsed.notices.filter((line) => /DeepSeek-V4|deepseek_v4/.test(line))
+      .length,
     3,
   );
   assert.equal(parsed.ready, true);

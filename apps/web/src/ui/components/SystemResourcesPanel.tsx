@@ -1,15 +1,22 @@
-import type { SystemDiskDevice, SystemResources } from "@arriero/core";
+import type {
+  SystemDiskDevice,
+  SystemMetricsSample,
+  SystemMetricsWindow,
+  SystemResources,
+} from "@arriero/core";
 import {
   Badge,
   Group,
   Paper,
   Progress,
+  SegmentedControl,
   SimpleGrid,
   Stack,
   Text,
 } from "@mantine/core";
 
 import { formatAcceleratorName } from "../utils/pools";
+import { MetricChart, type MetricSeries } from "./MetricChart";
 
 const bytesFormatter = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
@@ -30,11 +37,11 @@ function formatBytes(value: number | null | undefined) {
   return `${bytesFormatter.format(size)} ${units[unitIndex]}`;
 }
 
-function formatRatio(value: number | undefined) {
-  if (value === undefined) {
+function formatPercent(value: number | null | undefined) {
+  if (value === undefined || value === null) {
     return "-";
   }
-  return `${Math.round(value * 100)}%`;
+  return `${Math.round(value)}%`;
 }
 
 function formatRate(value: number | null | undefined) {
@@ -57,22 +64,10 @@ function ioPressureColor(avg10: number) {
   return "gray";
 }
 
-function memoryColor(usedRatio: number | undefined) {
-  if (usedRatio === undefined) return "gray";
+function loadColor(usedRatio: number) {
   if (usedRatio >= 0.9) return "red";
   if (usedRatio >= 0.75) return "orange";
   return "green";
-}
-
-function acceleratorMemoryLabel(
-  accelerator: SystemResources["accelerators"][number],
-) {
-  if (accelerator.totalMemoryBytes === null) {
-    return "memory unknown";
-  }
-  const usedRatio = accelerator.memoryUsedRatio ?? 0;
-  const usedBytes = Math.round(accelerator.totalMemoryBytes * usedRatio);
-  return `${formatBytes(usedBytes)} / ${formatBytes(accelerator.totalMemoryBytes)}`;
 }
 
 function ResourceMetric(props: { label: string; value: string }) {
@@ -86,14 +81,35 @@ function ResourceMetric(props: { label: string; value: string }) {
   );
 }
 
+const WINDOW_OPTIONS: { value: SystemMetricsWindow; label: string }[] = [
+  { value: "live", label: "5 min" },
+  { value: "hour", label: "1 hour" },
+  { value: "day", label: "24 hours" },
+];
+
+function seriesFrom(
+  samples: SystemMetricsSample[],
+  pick: (sample: SystemMetricsSample) => number | null | undefined,
+): (number | null)[] {
+  return samples.map((sample) => pick(sample) ?? null);
+}
+
 export function SystemResourcesPanel(props: {
   resources: SystemResources | undefined;
+  samples: SystemMetricsSample[];
+  windowMs: number;
+  window: SystemMetricsWindow;
+  onWindowChange: (window: SystemMetricsWindow) => void;
   fetching?: boolean;
 }) {
   const memory = props.resources?.memory;
-  const memoryPercent = memory ? Math.round(memory.usedRatio * 100) : 0;
+  const cpu = props.resources?.cpu ?? null;
   const accelerators = props.resources?.accelerators ?? [];
   const disk = props.resources?.disk ?? null;
+  const network = props.resources?.network ?? null;
+  const samples = props.samples;
+  const times = samples.map((sample) => sample.at);
+  const latest = samples[samples.length - 1] ?? null;
 
   return (
     <Paper withBorder p="md" radius="sm">
@@ -104,28 +120,61 @@ export function SystemResourcesPanel(props: {
               System resources
             </Text>
             <Text c="dimmed" size="sm">
-              RAM, accelerator, and disk activity
+              CPU, RAM, accelerator, disk and network activity over time
             </Text>
           </div>
-          <Badge color={props.fetching ? "blue" : "gray"} variant="light">
-            {memory?.source ?? "waiting"}
-          </Badge>
+          <Group gap="xs">
+            <SegmentedControl
+              size="xs"
+              value={props.window}
+              onChange={(value) =>
+                props.onWindowChange(value as SystemMetricsWindow)
+              }
+              data={WINDOW_OPTIONS}
+            />
+            <Badge color={props.fetching ? "blue" : "gray"} variant="light">
+              {memory?.source ?? "waiting"}
+            </Badge>
+          </Group>
         </Group>
 
-        <Stack gap={6}>
-          <Group justify="space-between">
-            <Text fw={700}>Memory</Text>
-            <Text c="dimmed" size="sm">
-              {formatRatio(memory?.usedRatio)} used
-            </Text>
-          </Group>
-          <Progress
-            value={memoryPercent}
-            color={memoryColor(memory?.usedRatio)}
-            size="lg"
-            radius="xs"
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
+          <MetricChart
+            title="CPU"
+            headline={formatPercent(cpu?.usagePercent)}
+            times={times}
+            windowMs={props.windowMs}
+            domain={{ kind: "fixed", max: 100 }}
+            formatValue={(value) => `${Math.round(value)}%`}
+            series={[
+              {
+                id: "cpu",
+                label: "Total",
+                tone: "cpu",
+                values: seriesFrom(samples, (sample) => sample.cpuPercent),
+              },
+            ]}
           />
-        </Stack>
+          <MetricChart
+            title="Memory"
+            headline={`${formatBytes(memory?.usedBytes)} / ${formatBytes(memory?.totalBytes)}`}
+            times={times}
+            windowMs={props.windowMs}
+            domain={{
+              kind: "fixed",
+              max: memory?.totalBytes ?? latest?.memoryTotalBytes ?? 1,
+            }}
+            formatValue={formatBytes}
+            series={[
+              {
+                id: "memory",
+                label: "Used",
+                tone: "memory",
+                values: seriesFrom(samples, (sample) => sample.memoryUsedBytes),
+              },
+            ]}
+          />
+        </SimpleGrid>
 
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
           <ResourceMetric label="Used" value={formatBytes(memory?.usedBytes)} />
@@ -138,6 +187,49 @@ export function SystemResourcesPanel(props: {
             value={formatBytes(memory?.totalBytes)}
           />
         </SimpleGrid>
+
+        {cpu && (
+          <Stack gap="xs">
+            <Group gap="md">
+              <Text c="dimmed" size="xs" tt="uppercase">
+                Load average
+              </Text>
+              <Text size="xs">
+                {cpu.loadAverage.map((value) => value.toFixed(2)).join(" · ")}
+              </Text>
+              <Text c="dimmed" size="xs">
+                user {formatPercent(cpu.userPercent)} · system{" "}
+                {formatPercent(cpu.systemPercent)} · iowait{" "}
+                {formatPercent(cpu.ioWaitPercent)}
+                {cpu.stealPercent > 0
+                  ? ` · steal ${formatPercent(cpu.stealPercent)}`
+                  : ""}
+              </Text>
+            </Group>
+            {cpu.cores.length > 0 && (
+              <Stack gap={4}>
+                <Text c="dimmed" size="xs" tt="uppercase">
+                  Logical processors
+                </Text>
+                <SimpleGrid cols={{ base: 4, sm: 8, md: 12 }} spacing={4}>
+                  {cpu.cores.map((core) => (
+                    <Stack key={core.id} gap={2}>
+                      <Progress
+                        value={core.usagePercent}
+                        color={loadColor(core.usagePercent / 100)}
+                        size="sm"
+                        radius="xs"
+                      />
+                      <Text c="dimmed" size="xs">
+                        {core.id}
+                      </Text>
+                    </Stack>
+                  ))}
+                </SimpleGrid>
+              </Stack>
+            )}
+          </Stack>
+        )}
 
         <Stack gap="xs">
           <Group gap="xs">
@@ -155,18 +247,32 @@ export function SystemResourcesPanel(props: {
           </Group>
           {accelerators.length === 0 ? (
             <Text c="dimmed" size="xs">
-              No NVIDIA devices reported by NVML.
+              No NVIDIA devices reported through NVML.
             </Text>
           ) : (
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-              {accelerators.map((accelerator) => (
-                <Paper key={accelerator.id} withBorder p="xs" radius="sm">
-                  <Stack gap={6}>
+              {accelerators.map((accelerator) => {
+                const gpuAt = (sample: SystemMetricsSample) =>
+                  sample.gpus.find((entry) => entry.id === accelerator.id);
+                const usedBytes =
+                  accelerator.totalMemoryBytes === null
+                    ? null
+                    : Math.round(
+                        accelerator.totalMemoryBytes *
+                          (accelerator.memoryUsedRatio ?? 0),
+                      );
+                return (
+                  <Stack key={accelerator.id} gap="xs">
                     <Group justify="space-between" gap="xs" wrap="nowrap">
                       <Text fw={600} size="sm" lineClamp={1}>
                         {formatAcceleratorName(accelerator)}
                       </Text>
                       <Group gap={4} wrap="nowrap">
+                        {accelerator.temperatureC !== null && (
+                          <Badge variant="light" color="gray">
+                            {accelerator.temperatureC}C
+                          </Badge>
+                        )}
                         {accelerator.numaNode !== null && (
                           <Badge variant="light" color="grape">
                             node {accelerator.numaNode}
@@ -177,54 +283,56 @@ export function SystemResourcesPanel(props: {
                         </Badge>
                       </Group>
                     </Group>
-                    <Stack gap={2}>
-                      <Group justify="space-between" gap="xs">
-                        <Text c="dimmed" size="xs" tt="uppercase">
-                          VRAM
-                        </Text>
-                        <Text c="dimmed" size="xs">
-                          {acceleratorMemoryLabel(accelerator)}
-                        </Text>
-                      </Group>
-                      <Progress
-                        value={Math.round(
-                          (accelerator.memoryUsedRatio ?? 0) * 100,
-                        )}
-                        color={memoryColor(
-                          accelerator.memoryUsedRatio ?? undefined,
-                        )}
-                        size="sm"
-                        radius="xs"
-                      />
-                    </Stack>
-                    {accelerator.utilizationPercent !== null && (
-                      <Stack gap={2}>
-                        <Group justify="space-between" gap="xs">
-                          <Text c="dimmed" size="xs" tt="uppercase">
-                            GPU load
-                          </Text>
-                          <Text c="dimmed" size="xs">
-                            {accelerator.utilizationPercent}%
-                          </Text>
-                        </Group>
-                        <Progress
-                          value={accelerator.utilizationPercent}
-                          color={memoryColor(
-                            accelerator.utilizationPercent / 100,
-                          )}
-                          size="sm"
-                          radius="xs"
-                        />
-                      </Stack>
-                    )}
-                    {accelerator.temperatureC !== null && (
-                      <Text c="dimmed" size="xs">
-                        {accelerator.temperatureC}C
-                      </Text>
-                    )}
+                    <MetricChart
+                      title="GPU load"
+                      headline={formatPercent(accelerator.utilizationPercent)}
+                      times={times}
+                      windowMs={props.windowMs}
+                      domain={{ kind: "fixed", max: 100 }}
+                      formatValue={(value) => `${Math.round(value)}%`}
+                      height={90}
+                      series={[
+                        {
+                          id: `gpu-${accelerator.id}-load`,
+                          label: "Load",
+                          tone: "gpuLoad",
+                          values: seriesFrom(
+                            samples,
+                            (sample) => gpuAt(sample)?.utilizationPercent,
+                          ),
+                        },
+                      ]}
+                    />
+                    <MetricChart
+                      title="VRAM"
+                      headline={
+                        accelerator.totalMemoryBytes === null
+                          ? "memory unknown"
+                          : `${formatBytes(usedBytes)} / ${formatBytes(accelerator.totalMemoryBytes)}`
+                      }
+                      times={times}
+                      windowMs={props.windowMs}
+                      domain={{
+                        kind: "fixed",
+                        max: accelerator.totalMemoryBytes ?? 1,
+                      }}
+                      formatValue={formatBytes}
+                      height={90}
+                      series={[
+                        {
+                          id: `gpu-${accelerator.id}-vram`,
+                          label: "Used",
+                          tone: "gpuMemory",
+                          values: seriesFrom(
+                            samples,
+                            (sample) => gpuAt(sample)?.memoryUsedBytes,
+                          ),
+                        },
+                      ]}
+                    />
                   </Stack>
-                </Paper>
-              ))}
+                );
+              })}
             </SimpleGrid>
           )}
         </Stack>
@@ -268,9 +376,31 @@ export function SystemResourcesPanel(props: {
               </Text>
             ) : (
               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-                {disk.devices.map((device) => (
-                  <Paper key={device.name} withBorder p="xs" radius="sm">
-                    <Stack gap={6}>
+                {disk.devices.map((device) => {
+                  const diskAt = (sample: SystemMetricsSample) =>
+                    sample.disks.find((entry) => entry.name === device.name);
+                  const throughput: MetricSeries[] = [
+                    {
+                      id: `${device.name}-read`,
+                      label: "Read",
+                      tone: "inbound",
+                      values: seriesFrom(
+                        samples,
+                        (sample) => diskAt(sample)?.readBytesPerSec,
+                      ),
+                    },
+                    {
+                      id: `${device.name}-write`,
+                      label: "Write",
+                      tone: "outbound",
+                      values: seriesFrom(
+                        samples,
+                        (sample) => diskAt(sample)?.writeBytesPerSec,
+                      ),
+                    },
+                  ];
+                  return (
+                    <Stack key={device.name} gap="xs">
                       <Group justify="space-between" gap="xs" wrap="nowrap">
                         <Text fw={600} size="sm" lineClamp={1}>
                           {device.name}
@@ -287,38 +417,36 @@ export function SystemResourcesPanel(props: {
                           </Badge>
                         </Group>
                       </Group>
-                      <Stack gap={2}>
-                        <Group justify="space-between" gap="xs">
-                          <Text c="dimmed" size="xs" tt="uppercase">
-                            Active time
-                          </Text>
-                          <Text c="dimmed" size="xs">
-                            {device.utilPercent === null
-                              ? "-"
-                              : `${Math.round(device.utilPercent)}%`}
-                          </Text>
-                        </Group>
-                        <Progress
-                          value={device.utilPercent ?? 0}
-                          color={memoryColor((device.utilPercent ?? 0) / 100)}
-                          size="sm"
-                          radius="xs"
-                        />
-                      </Stack>
-                      <SimpleGrid cols={2} spacing="xs" verticalSpacing={2}>
-                        <Text size="xs">
-                          <Text span c="dimmed">
-                            R{" "}
-                          </Text>
-                          {formatRate(device.readBytesPerSec)}
-                        </Text>
-                        <Text size="xs">
-                          <Text span c="dimmed">
-                            W{" "}
-                          </Text>
-                          {formatRate(device.writeBytesPerSec)}
-                        </Text>
-                      </SimpleGrid>
+                      <MetricChart
+                        title="Active time"
+                        headline={formatPercent(device.utilPercent)}
+                        times={times}
+                        windowMs={props.windowMs}
+                        domain={{ kind: "fixed", max: 100 }}
+                        formatValue={(value) => `${Math.round(value)}%`}
+                        height={90}
+                        series={[
+                          {
+                            id: `${device.name}-util`,
+                            label: "Active",
+                            tone: "cpu",
+                            values: seriesFrom(
+                              samples,
+                              (sample) => diskAt(sample)?.utilPercent,
+                            ),
+                          },
+                        ]}
+                      />
+                      <MetricChart
+                        title="Transfer rate"
+                        headline={`${formatRate(device.readBytesPerSec)} · ${formatRate(device.writeBytesPerSec)}`}
+                        times={times}
+                        windowMs={props.windowMs}
+                        domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
+                        formatValue={formatRate}
+                        height={90}
+                        series={throughput}
+                      />
                       {(device.readIops !== null ||
                         device.avgReadLatencyMs !== null) && (
                         <Text c="dimmed" size="xs">
@@ -331,10 +459,95 @@ export function SystemResourcesPanel(props: {
                         </Text>
                       )}
                     </Stack>
-                  </Paper>
-                ))}
+                  );
+                })}
               </SimpleGrid>
             )}
+          </Stack>
+        )}
+
+        {network && (
+          <Stack gap="xs">
+            <Group gap="xs" justify="space-between">
+              <Group gap="xs">
+                <Text c="dimmed" size="sm">
+                  Network activity
+                </Text>
+                <Badge
+                  variant="outline"
+                  color={network.interfaces.length ? "blue" : "gray"}
+                >
+                  {network.interfaces.length
+                    ? `${network.interfaces.length} ${network.interfaces.length === 1 ? "interface" : "interfaces"}`
+                    : "none detected"}
+                </Badge>
+              </Group>
+              <Group gap="md">
+                <Text c="dimmed" size="xs">
+                  in {formatRate(network.totalRxBytesPerSec)}
+                </Text>
+                <Text c="dimmed" size="xs">
+                  out {formatRate(network.totalTxBytesPerSec)}
+                </Text>
+              </Group>
+            </Group>
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
+              {network.interfaces.map((entry) => {
+                const netAt = (sample: SystemMetricsSample) =>
+                  sample.network.find((item) => item.name === entry.name);
+                return (
+                  <Stack key={entry.name} gap="xs">
+                    <Group justify="space-between" gap="xs" wrap="nowrap">
+                      <Text fw={600} size="sm" lineClamp={1}>
+                        {entry.name}
+                      </Text>
+                      <Group gap={4} wrap="nowrap">
+                        {entry.speedMbps !== null && (
+                          <Badge variant="light" color="gray">
+                            {entry.speedMbps} Mb/s
+                          </Badge>
+                        )}
+                        <Badge
+                          variant="light"
+                          color={entry.up ? "green" : "gray"}
+                        >
+                          {entry.up ? "up" : "down"}
+                        </Badge>
+                      </Group>
+                    </Group>
+                    <MetricChart
+                      title="Throughput"
+                      headline={`${formatRate(entry.rxBytesPerSec)} · ${formatRate(entry.txBytesPerSec)}`}
+                      times={times}
+                      windowMs={props.windowMs}
+                      domain={{ kind: "auto", minimumMax: 128 * 1024 }}
+                      formatValue={formatRate}
+                      height={90}
+                      series={[
+                        {
+                          id: `${entry.name}-rx`,
+                          label: "In",
+                          tone: "inbound",
+                          values: seriesFrom(
+                            samples,
+                            (sample) => netAt(sample)?.rxBytesPerSec,
+                          ),
+                        },
+                        {
+                          id: `${entry.name}-tx`,
+                          label: "Out",
+                          tone: "outbound",
+                          values: seriesFrom(
+                            samples,
+                            (sample) => netAt(sample)?.txBytesPerSec,
+                          ),
+                        },
+                      ]}
+                    />
+                  </Stack>
+                );
+              })}
+            </SimpleGrid>
           </Stack>
         )}
       </Stack>

@@ -1,7 +1,12 @@
-import { ExternalProcessKillSchema } from "@arriero/core";
+import {
+  ExternalProcessKillSchema,
+  SystemMetricsWindowSchema,
+} from "@arriero/core";
 import type { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 
 import { listFilesystemDirectory } from "../filesystem/browser.js";
+import { systemMetricsRecorder } from "../system/metrics-history.js";
 import {
   killExternalLlamaProcess,
   listExternalLlamaProcesses,
@@ -9,6 +14,8 @@ import {
 import { getPublicStatus } from "../public-status.js";
 import { listNetworkInterfaceAddresses } from "../system/network.js";
 import { getSystemResources } from "../system/resources.js";
+
+const SYSTEM_METRICS_STREAM_BACKLOG = 300;
 
 export function registerSystemRoutes(app: Hono) {
   app.get("/api/health", (c) => {
@@ -25,6 +32,40 @@ export function registerSystemRoutes(app: Hono) {
 
   app.get("/api/system/resources", (c) => {
     return c.json({ data: getSystemResources() });
+  });
+
+  app.get("/api/system/metrics", (c) => {
+    const parsed = SystemMetricsWindowSchema.safeParse(
+      c.req.query("window") ?? "live",
+    );
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    return c.json({ data: systemMetricsRecorder.history(parsed.data) });
+  });
+
+  app.get("/api/system/metrics/stream", (c) => {
+    return streamSSE(c, async (stream) => {
+      const queue: string[] = [];
+      const unsubscribe = systemMetricsRecorder.subscribe((sample) => {
+        queue.push(JSON.stringify(sample));
+        if (queue.length > SYSTEM_METRICS_STREAM_BACKLOG) {
+          queue.splice(0, queue.length - SYSTEM_METRICS_STREAM_BACKLOG);
+        }
+      });
+
+      stream.onAbort(unsubscribe);
+
+      while (!stream.aborted) {
+        const pending = queue.splice(0, queue.length);
+        for (const data of pending) {
+          await stream.writeSSE({ event: "sample", data });
+        }
+        await stream.sleep(500);
+      }
+
+      unsubscribe();
+    });
   });
 
   app.get("/api/filesystem/list", (c) => {

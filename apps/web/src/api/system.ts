@@ -5,9 +5,12 @@ import type {
   PathCatalogEntry,
   PathCatalogKind,
   PathCatalogUpdate,
+  SystemMetricsHistory,
+  SystemMetricsWindow,
   SystemResources,
 } from "@arriero/core";
 
+import { activeNodeScopedPath, apiBase } from "./base.js";
 import { buildQuery, nodeRequest as request } from "./http.js";
 
 export async function listNetworkInterfaces() {
@@ -16,6 +19,16 @@ export async function listNetworkInterfaces() {
 
 export async function getSystemResources() {
   return request<{ data: SystemResources }>("/api/system/resources");
+}
+
+export async function getSystemMetrics(window: SystemMetricsWindow) {
+  return request<{ data: SystemMetricsHistory }>(
+    `/api/system/metrics${buildQuery({ window })}`,
+  );
+}
+
+export function systemMetricsStreamUrl() {
+  return `${apiBase}${activeNodeScopedPath("/api/system/metrics/stream")}`;
 }
 
 export async function listFilesystemDirectory(path?: string) {

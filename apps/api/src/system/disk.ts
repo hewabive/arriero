@@ -6,7 +6,6 @@ import type {
 import { readFileSync, statSync } from "node:fs";
 
 const SECTOR_BYTES = 512;
-const MIN_SAMPLE_INTERVAL_MS = 750;
 const EXCLUDED_PREFIXES = ["loop", "ram", "zram", "dm-", "md", "sr", "fd"];
 
 export type DiskCounters = {
@@ -199,8 +198,19 @@ function readIoPressure(): SystemIoPressure | null {
 let previousSample: { at: number; counters: Map<string, DiskCounters> } | null =
   null;
 let latest: SystemDiskActivity | null = null;
+const metaCache = new Map<string, DiskMeta>();
 
-export function readDiskActivity(): SystemDiskActivity | null {
+function cachedDiskMeta(name: string): DiskMeta {
+  const cached = metaCache.get(name);
+  if (cached) {
+    return cached;
+  }
+  const meta = readDiskMeta(name);
+  metaCache.set(name, meta);
+  return meta;
+}
+
+export function sampleDiskActivity(): SystemDiskActivity | null {
   if (process.platform !== "linux") {
     return null;
   }
@@ -216,20 +226,18 @@ export function readDiskActivity(): SystemDiskActivity | null {
   const names = [...all.keys()].filter(isReportableDisk).sort();
   const counters = new Map(names.map((name) => [name, all.get(name)!]));
 
-  const elapsed = previousSample ? now - previousSample.at : Infinity;
-  if (previousSample && elapsed < MIN_SAMPLE_INTERVAL_MS && latest) {
-    return latest;
-  }
-
-  const meta = new Map(names.map((name) => [name, readDiskMeta(name)]));
   latest = computeDiskActivity({
     previous: previousSample?.counters ?? counters,
     current: counters,
-    intervalMs: previousSample ? elapsed : 0,
+    intervalMs: previousSample ? now - previousSample.at : 0,
     names,
-    meta,
+    meta: new Map(names.map((name) => [name, cachedDiskMeta(name)])),
     ioPressure: readIoPressure(),
   });
   previousSample = { at: now, counters };
   return latest;
+}
+
+export function readDiskActivity(): SystemDiskActivity | null {
+  return latest ?? sampleDiskActivity();
 }
