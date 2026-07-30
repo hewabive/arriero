@@ -106,15 +106,11 @@ function ktransformersValidationScript(version: string) {
   return [
     "import importlib.metadata as metadata",
     "import kt_kernel",
-    "import remote_pdb",
     "import sglang",
     `assert metadata.version('kt-kernel') == ${JSON.stringify(version)}`,
-    "assert metadata.version('remote-pdb') == '2.1.0'",
     `assert metadata.version('sglang-kt') == ${JSON.stringify(version)}`,
   ].join("; ");
 }
-
-const KTRANSFORMERS_COMPATIBILITY_REQUIREMENTS = ["remote-pdb==2.1.0"];
 
 const VLLM_PROVISIONER: EnvironmentProvisioner = {
   displayName: "vLLM",
@@ -183,23 +179,16 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       throw new Error("KTransformers provisioner kind mismatch");
     }
     if (spec.source.kind === "pypi") {
-      return [
-        `kt-kernel==${spec.version}`,
-        `sglang-kt==${spec.version}`,
-        ...KTRANSFORMERS_COMPATIBILITY_REQUIREMENTS,
-      ];
+      return [`kt-kernel==${spec.version}`, `sglang-kt==${spec.version}`];
     }
     const source = spec.source;
-    return [
-      ...(["kt-kernel", "sglang-kt"] as const).map((distribution) => {
-        const artifact = source.artifacts.find(
-          (candidate) => candidate.distribution === distribution,
-        );
-        if (!artifact) throw new Error(`${distribution} wheel is missing`);
-        return wheelRequirement(artifact.url, artifact.sha256);
-      }),
-      ...KTRANSFORMERS_COMPATIBILITY_REQUIREMENTS,
-    ];
+    return (["kt-kernel", "sglang-kt"] as const).map((distribution) => {
+      const artifact = source.artifacts.find(
+        (candidate) => candidate.distribution === distribution,
+      );
+      if (!artifact) throw new Error(`${distribution} wheel is missing`);
+      return wheelRequirement(artifact.url, artifact.sha256);
+    });
   },
   installOptions(spec) {
     if (spec.engine !== "ktransformers") {
@@ -229,11 +218,7 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       finalDir,
       entrypointRelative: this.entrypointRelative,
       entrypointDescription: "KTransformers SGLang entrypoint",
-      freezePins: [
-        `kt-kernel==${spec.version}`,
-        "remote-pdb==2.1.0",
-        `sglang-kt==${spec.version}`,
-      ],
+      freezePins: [`kt-kernel==${spec.version}`, `sglang-kt==${spec.version}`],
     });
   },
   availability(spec, context) {

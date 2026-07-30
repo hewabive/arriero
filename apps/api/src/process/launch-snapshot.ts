@@ -71,13 +71,18 @@ export type LaunchSnapshot = {
 };
 
 export function buildLaunchSnapshot(instance: Instance): LaunchSnapshot {
-  const buildArgv = engineArgvBuilder(
-    engineDescriptor(instance.kind).launch.argv,
-  );
+  const launchDescriptor = engineDescriptor(instance.kind).launch;
+  const buildArgv = engineArgvBuilder(launchDescriptor.argv);
+  const pythonModule = launchDescriptor.pythonModule;
   return {
-    binaryPath: instance.binaryPath,
+    binaryPath: pythonModule
+      ? resolve(
+          dirname(instance.binaryPath),
+          process.platform === "win32" ? "python.exe" : "python",
+        )
+      : instance.binaryPath,
     cliArgs: buildArgv(effectiveLaunchArgs(instance), [
-      ...engineDescriptor(instance.kind).launch.argvPrefix,
+      ...(pythonModule ? ["-m", pythonModule] : launchDescriptor.argvPrefix),
       ...(instance.positionalArgs ?? []),
     ]),
     env: { ...instance.env },

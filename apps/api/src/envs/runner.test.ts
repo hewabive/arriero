@@ -237,12 +237,10 @@ test("KTransformers PyPI plan installs both matched roots in one transaction", (
   const installs = steps.filter((step) => step.name === "package-install");
   assert.equal(installs.length, 1);
   assert.ok(installs[0]?.command.includes("kt-kernel==0.6.3.post1"));
-  assert.ok(installs[0]?.command.includes("remote-pdb==2.1.0"));
   assert.ok(installs[0]?.command.includes("sglang-kt==0.6.3.post1"));
   assert.ok(installs[0]?.command.includes("https://packages.example/simple"));
   const validate = steps.find((step) => step.name === "validate")!;
   assert.ok(validate.command.at(-1)?.includes("import kt_kernel"));
-  assert.ok(validate.command.at(-1)?.includes("import remote_pdb"));
   assert.ok(validate.command.at(-1)?.includes("import sglang"));
   assert.ok(validate.command[0]?.endsWith("/bin/python"));
 });
@@ -279,7 +277,6 @@ test("KTransformers wheel plan orders both roots and carries hashes", () => {
   );
   assert.ok(ktIndex > 0);
   assert.ok(sglangIndex > ktIndex);
-  assert.ok(command.includes("remote-pdb==2.1.0"));
   assert.deepEqual(command.slice(-2), ["--torch-backend", "cu128"]);
 });
 

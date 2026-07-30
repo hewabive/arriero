@@ -79,7 +79,8 @@ test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () =>
   assert.deepEqual(descriptor.launch, {
     injectSlotSavePath: false,
     argv: "argparse-flags",
-    argvPrefix: ["serve"],
+    argvPrefix: [],
+    pythonModule: "sglang.launch_server",
   });
   assert.equal(descriptor.preflight.engineChecks, "ktransformers");
   assert.equal(descriptor.preflight.argumentCatalogParser, "sglang-help");

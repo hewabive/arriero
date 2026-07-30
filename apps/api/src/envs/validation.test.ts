@@ -53,7 +53,7 @@ const ktSpec = EnvironmentSpecSchema.parse({
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
-test("KTransformers layout requires roots and the CLI compatibility pin", () => {
+test("KTransformers layout requires sglang and both exact package pins", () => {
   const directory = environmentDirectory(ktSpec);
   rmSync(directory, { recursive: true, force: true });
   mkdirSync(resolve(directory, "bin"), { recursive: true });
@@ -69,18 +69,11 @@ test("KTransformers layout requires roots and the CLI compatibility pin", () => 
     "utf8",
   );
 
-  assert.match(environmentLayoutError(ktSpec) ?? "", /remote-pdb/);
-
-  writeFileSync(
-    resolve(directory, "freeze.txt"),
-    "kt-kernel==0.6.3.post1\nremote-pdb==2.1.0\n",
-    "utf8",
-  );
   assert.match(environmentLayoutError(ktSpec) ?? "", /sglang-kt/);
 
   writeFileSync(
     resolve(directory, "freeze.txt"),
-    "KT-Kernel==0.6.3.post1\nremote-pdb==2.1.0\nsglang-kt==0.6.3.post1\n",
+    "KT-Kernel==0.6.3.post1\nsglang-kt==0.6.3.post1\n",
     "utf8",
   );
   assert.equal(environmentLayoutError(ktSpec), null);

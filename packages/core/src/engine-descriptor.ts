@@ -62,6 +62,7 @@ export type EngineDescriptor = {
     injectSlotSavePath: boolean;
     argv: EngineArgvBuilderId;
     argvPrefix: readonly string[];
+    pythonModule?: string;
   };
   preflight: {
     engineChecks: EnginePreflightId;
@@ -206,7 +207,8 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     launch: {
       injectSlotSavePath: false,
       argv: "argparse-flags",
-      argvPrefix: ["serve"],
+      argvPrefix: [],
+      pythonModule: "sglang.launch_server",
     },
     preflight: {
       engineChecks: "ktransformers",

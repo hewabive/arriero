@@ -107,8 +107,10 @@ test("KTransformers launch snapshot compiles typed model configuration", () => {
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   });
+  assert.equal(snapshot.binaryPath, "/tmp/env/bin/python");
   assert.deepEqual(snapshot.cliArgs, [
-    "serve",
+    "-m",
+    "sglang.launch_server",
     "--kt-method",
     "AMXINT4",
     "--kt-numa-nodes",
