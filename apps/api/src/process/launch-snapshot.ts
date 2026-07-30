@@ -42,7 +42,7 @@ function effectiveLaunchArgs(instance: Instance): InstanceArgs {
   const engineArgs =
     instance.engineConfig?.type === "ktransformers"
       ? {
-          "--model": instance.engineConfig.model,
+          "--model-path": instance.engineConfig.model,
           "--kt-weight-path": instance.engineConfig.cpuWeights,
           "--kt-method": instance.engineConfig.method,
           ...(instance.engineConfig.servedModelName

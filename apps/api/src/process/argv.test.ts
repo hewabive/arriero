@@ -116,7 +116,7 @@ test("KTransformers launch snapshot compiles typed model configuration", () => {
     "1",
     "--kt-weight-path",
     "/models/deepseek-v3-kt",
-    "--model",
+    "--model-path",
     "deepseek-ai/DeepSeek-V3",
     "--port",
     "30001",
