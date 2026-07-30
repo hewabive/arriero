@@ -33,9 +33,20 @@ if command -v numactl >/dev/null 2>&1; then
 fi
 
 start_ns=$(date +%s%N)
+set +e
 "$sglang" serve --help >"$artifact_dir/sglang-serve-help.txt" 2>&1
+help_status=$?
+set -e
 end_ns=$(date +%s%N)
 printf '%s\n' "$(((end_ns - start_ns) / 1000000))" >"$artifact_dir/help-wall-ms.txt"
+printf '%s\n' "$help_status" >"$artifact_dir/help-exit-code.txt"
+
+start_ns=$(date +%s%N)
+"$python" -m sglang.launch_server --help \
+  >"$artifact_dir/sglang-language-server-help.txt" 2>&1
+end_ns=$(date +%s%N)
+printf '%s\n' "$(((end_ns - start_ns) / 1000000))" \
+  >"$artifact_dir/language-server-help-wall-ms.txt"
 
 "$python" - <<'PY' >"$artifact_dir/runtime.txt"
 import importlib.metadata

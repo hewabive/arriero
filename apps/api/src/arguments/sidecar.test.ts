@@ -282,3 +282,47 @@ test("SGLang catalog falls back when runtime help cannot initialize", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("SGLang catalog reads language-server help through the environment Python", () => {
+  const dir = mkdtempSync(join(tmpdir(), "llm-sglang-live-help-"));
+  try {
+    const binaryPath = join(dir, "sglang");
+    const pythonPath = join(dir, "python");
+    writeFileSync(binaryPath, "#!/bin/sh\nexit 99\n", "utf8");
+    writeFileSync(
+      pythonPath,
+      `#!/bin/sh
+test "$1" = "-m"
+test "$2" = "sglang.launch_server"
+test "$3" = "--help"
+printf '%s\\n' 'usage: launch_server.py [options]' \
+  'KTransformers:' \
+  '  --kt-weight-path KT_WEIGHT_PATH' \
+  '                               CPU weight directory'
+`,
+      "utf8",
+    );
+    chmodSync(binaryPath, 0o755);
+    chmodSync(pythonPath, 0o755);
+
+    const catalog = getArgumentCatalog(binaryPath, {
+      parserId: "sglang-help",
+      refresh: true,
+    });
+
+    assert.deepEqual(catalog.source.command, [
+      pythonPath,
+      "-m",
+      "sglang.launch_server",
+      "--help",
+    ]);
+    assert.ok(!catalog.source.hash.startsWith("fallback:"));
+    assert.ok(
+      catalog.options.some(
+        (option) => option.primaryName === "--kt-weight-path",
+      ),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

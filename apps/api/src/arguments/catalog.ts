@@ -6,7 +6,7 @@ import type {
 import { ArgumentCatalogSchema } from "@arriero/core";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import {
   getCachedArgumentCatalog,
@@ -76,7 +76,35 @@ function helpCommand(
   binaryPath: string,
   parserId: ArgumentCatalogHelpParserId,
 ) {
-  return [binaryPath, ...HELP_INVOCATIONS[parserId].args];
+  const invocation = helpInvocation(binaryPath, parserId);
+  return [invocation.binaryPath, ...invocation.args];
+}
+
+function helpInvocation(
+  binaryPath: string,
+  parserId: ArgumentCatalogHelpParserId,
+) {
+  const configured = HELP_INVOCATIONS[parserId];
+  if (parserId !== "sglang-help") {
+    return { binaryPath, ...configured };
+  }
+
+  // The SGLang umbrella CLI builds both language- and diffusion-server help.
+  // Some sglang-kt wheels omit diffusion-only dependencies, so `sglang serve
+  // --help` can print the complete language-server help and then exit non-zero.
+  // The direct module is the same language-server argparse surface without the
+  // unrelated diffusion import.
+  const pythonPath = resolve(
+    dirname(binaryPath),
+    process.platform === "win32" ? "python.exe" : "python",
+  );
+  return existsSync(pythonPath)
+    ? {
+        binaryPath: pythonPath,
+        args: ["-m", "sglang.launch_server", "--help"],
+        timeoutMs: configured.timeoutMs,
+      }
+    : { binaryPath, ...configured };
 }
 
 function nowIso() {
@@ -305,12 +333,12 @@ function generateCatalog(
   stat: ReturnType<typeof binaryStat>,
   parserId: ArgumentCatalogHelpParserId,
 ) {
-  const invocation = HELP_INVOCATIONS[parserId];
+  const invocation = helpInvocation(binaryPath, parserId);
   let helpHash: string;
   let options: ArgumentOption[];
   try {
     const helpOutput = runHelp(
-      binaryPath,
+      invocation.binaryPath,
       invocation.args,
       invocation.timeoutMs,
     );
@@ -344,12 +372,12 @@ async function generateCatalogAsync(
   stat: ReturnType<typeof binaryStat>,
   parserId: ArgumentCatalogHelpParserId,
 ) {
-  const invocation = HELP_INVOCATIONS[parserId];
+  const invocation = helpInvocation(binaryPath, parserId);
   let helpHash: string;
   let options: ArgumentOption[];
   try {
     const helpOutput = await runHelpAsync(
-      binaryPath,
+      invocation.binaryPath,
       invocation.args,
       invocation.timeoutMs,
     );
