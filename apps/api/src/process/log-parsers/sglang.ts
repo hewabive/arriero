@@ -7,10 +7,17 @@ import {
 const READY = /Uvicorn running on|Application startup complete/i;
 const ERROR = /\b(error|fatal|failed|exception|traceback|out of memory|oom)\b/i;
 const WARNING = /\b(warn|warning)\b/i;
+const OPTIONAL_MODEL_IMPORT =
+  /(?:DSV4 side-effect import failed:|In import_model_classes: Ignore import error when loading sglang\.srt\.models\.deepseek_v4(?:_nextn)?\b)/i;
 
-function tailMatches(lines: string[], pattern: RegExp, limit: number) {
+function tailMatches(
+  lines: string[],
+  pattern: RegExp,
+  limit: number,
+  exclude?: RegExp,
+) {
   return lines
-    .filter((line) => pattern.test(line))
+    .filter((line) => pattern.test(line) && !exclude?.test(line))
     .map((line) => line.trim())
     .slice(-limit);
 }
@@ -108,10 +115,10 @@ export const sglangLogParser: EngineLogParser = {
     slots: null,
     ready: lines.some((line) => READY.test(line)),
     warnings: tailMatches(lines, WARNING, 8),
-    errors: tailMatches(lines, ERROR, 8),
+    errors: tailMatches(lines, ERROR, 8, OPTIONAL_MODEL_IMPORT),
     notices: tailMatches(
       lines,
-      /Uvicorn running|Application startup complete|KTransformers|kt[-_ ]kernel|checkpoint shards?|cuda graph|warmup|scheduler/i,
+      /Uvicorn running|Application startup complete|KTransformers|kt[-_ ]kernel|checkpoint shards?|cuda graph|warmup|scheduler|DSV4 side-effect import failed:|Ignore import error when loading sglang\.srt\.models\.deepseek_v4/i,
       12,
     ),
     loadProgress: progress(lines),

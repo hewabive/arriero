@@ -43,3 +43,35 @@ test("SGLang parser surfaces traceback and OOM failures", () => {
   assert.equal(parsed.loadProgress.stage, "error");
   assert.equal(parsed.errors.length, 2);
 });
+
+test("SGLang parser treats optional DeepSeek-V4 imports as notices", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "DSV4 side-effect import failed: sglang.srt.layers.quantization.mxfp4_deepseek -> DeepSeek-V4-Flash MXFP4 MoE requires flashinfer >= 0.6.9 (found 0.6.3). DSV4 model will register but the affected plugin may not be available.",
+      "In import_model_classes: Ignore import error when loading sglang.srt.models.deepseek_v4: No module named 'tilelang'",
+      "In import_model_classes: Ignore import error when loading sglang.srt.models.deepseek_v4_nextn: No module named 'tilelang'",
+      "Application startup complete.",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(
+    parsed.notices.filter((line) =>
+      /DeepSeek-V4|deepseek_v4/.test(line),
+    ).length,
+    3,
+  );
+  assert.equal(parsed.ready, true);
+});
+
+test("SGLang parser still reports non-optional import failures", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "In import_model_classes: import error when loading qwen3_moe: missing kernel",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.equal(parsed.errors.length, 1);
+});
