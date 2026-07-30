@@ -155,7 +155,15 @@ export function environmentJobSteps(
       ? [step("artifact-verify", ["verify-local-wheel-sha256"])]
       : []),
     step("package-install", install),
-    step("freeze", [uv, "pip", "freeze", "--python", python]),
+    step("freeze", [
+      uv,
+      "pip",
+      "list",
+      "--format",
+      "freeze",
+      "--python",
+      python,
+    ]),
     step("finalize", ["finalize-environment", staging, final]),
     step("validate", provisioner.validationCommand(spec, final)),
   ];

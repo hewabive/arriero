@@ -91,6 +91,13 @@ test("pypi environment plan pins Python, version, extras and index", () => {
   const install = steps.find((step) => step.name === "package-install")!;
   assert.ok(install.command.includes("vllm[audio]==0.24.0"));
   assert.ok(install.command.includes("https://packages.example/simple"));
+  const freeze = steps.find((step) => step.name === "freeze")!;
+  assert.deepEqual(freeze.command.slice(1, 5), [
+    "pip",
+    "list",
+    "--format",
+    "freeze",
+  ]);
   const validate = steps.find((step) => step.name === "validate")!;
   assert.ok(validate.command.at(-1)?.includes("import vllm"));
 });
