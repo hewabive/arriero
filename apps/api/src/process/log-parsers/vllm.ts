@@ -5,8 +5,10 @@ import {
 } from "./types.js";
 
 const READY = /Application startup complete\.|Started server process \[\d+\]/i;
-const ERROR = /\b(error|fatal|failed|exception|traceback)\b/i;
-const WARNING = /\b(warn|warning)\b/i;
+const ERROR = /\b(?:ERROR|FATAL|Exception|Traceback)\b/;
+const WARNING = /\b(?:WARN|WARNING)\b/;
+const CAPABILITY_NOTICE =
+  /Model Runner V2 does not yet support the thinking_token_budget request parameter\./;
 
 function tailMatches(lines: string[], pattern: RegExp, limit: number) {
   return lines
@@ -48,6 +50,15 @@ function progress(lines: string[]) {
   return loadProgress("starting", 5, "Starting the vLLM API server.");
 }
 
+function modelPath(line: string) {
+  return (
+    /\bmodel\s{2,}([^\s]+)\s*$/.exec(line)?.[1] ??
+    /\bmodel=['"]([^'"]+)['"]/.exec(line)?.[1] ??
+    /['"]model['"]:\s*['"]([^'"]+)['"]/.exec(line)?.[1] ??
+    null
+  );
+}
+
 export const vllmLogParser: EngineLogParser = {
   parse: ({ lines }) => ({
     listeningUrl:
@@ -55,26 +66,21 @@ export const vllmLogParser: EngineLogParser = {
         .reverse()
         .map((line) => /(https?:\/\/[^\s]+)/i.exec(line)?.[1] ?? null)
         .find(Boolean) ?? null,
-    modelPath:
-      [...lines]
-        .reverse()
-        .map(
-          (line) =>
-            /(?:model|served model)[^:=]*[:=]\s*["']?([^\s,"']+)/i.exec(
-              line,
-            )?.[1] ?? null,
-        )
-        .find(Boolean) ?? null,
+    modelPath: [...lines].reverse().map(modelPath).find(Boolean) ?? null,
     modelAlias: null,
     contextSize: null,
     gpuLayers: null,
     slots: null,
     ready: lines.some((line) => READY.test(line)),
-    warnings: tailMatches(lines, WARNING, 8),
+    warnings: tailMatches(
+      lines.filter((line) => !CAPABILITY_NOTICE.test(line)),
+      WARNING,
+      8,
+    ),
     errors: tailMatches(lines, ERROR, 8),
     notices: tailMatches(
       lines,
-      /Application startup complete|Started server process|loading model weights|EngineCore/i,
+      /Application startup complete|Started server process|loading model weights|EngineCore|Model Runner V2 does not yet support the thinking_token_budget/i,
       10,
     ),
     loadProgress: progress(lines),
