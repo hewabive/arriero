@@ -107,6 +107,9 @@ function ktransformersValidationScript(version: string) {
     "import importlib.metadata as metadata",
     "import kt_kernel",
     "import sglang",
+    "from kt_kernel import kt_kernel_ext",
+    "cpu_infer = kt_kernel_ext.CPUInfer(1)",
+    "del cpu_infer",
     `assert metadata.version('kt-kernel') == ${JSON.stringify(version)}`,
     `assert metadata.version('sglang-kt') == ${JSON.stringify(version)}`,
   ].join("; ");

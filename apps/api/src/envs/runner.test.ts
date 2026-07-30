@@ -242,6 +242,7 @@ test("KTransformers PyPI plan installs both matched roots in one transaction", (
   const validate = steps.find((step) => step.name === "validate")!;
   assert.ok(validate.command.at(-1)?.includes("import kt_kernel"));
   assert.ok(validate.command.at(-1)?.includes("import sglang"));
+  assert.ok(validate.command.at(-1)?.includes("kt_kernel_ext.CPUInfer(1)"));
   assert.ok(validate.command[0]?.endsWith("/bin/python"));
 });
 
