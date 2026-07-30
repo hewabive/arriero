@@ -56,6 +56,48 @@ test("refreshAutoCapacities only retargets pools with autoCapacity enabled", () 
   assert.equal(getMemoryPool("host")?.capacityBytes, 1);
 });
 
+test("refreshAutoCapacities adds a GPU detected after the scaffold was created", () => {
+  const initial = getSystemResources();
+  ensureResourcePoolsScaffold({ ...initial, accelerators: [] });
+  assert.equal(
+    listMemoryPools().some((pool) => pool.kind === "gpu"),
+    false,
+  );
+  const storedBeforeRefresh = readFileSync(RESOURCES_FILE, "utf8");
+
+  const detectedGpu = {
+    id: "7",
+    name: "Late NVIDIA GPU",
+    vendor: "NVIDIA" as const,
+    kind: "gpu" as const,
+    totalMemoryBytes: 24_000,
+    availableMemoryBytes: 23_000,
+    memoryUsedRatio: 1 / 24,
+    utilizationPercent: 0,
+    temperatureC: null,
+    numaNode: 0,
+    source: "nvml" as const,
+  };
+  assert.equal(
+    refreshAutoCapacities({
+      ...initial,
+      accelerators: [detectedGpu],
+    }),
+    true,
+  );
+  assert.deepEqual(
+    listMemoryPools()
+      .filter((pool) => pool.kind === "gpu")
+      .map((pool) => ({
+        id: pool.id,
+        deviceRef: pool.deviceRef,
+        capacityBytes: pool.capacityBytes,
+      })),
+    [{ id: "gpu7", deviceRef: "7", capacityBytes: 24_000 }],
+  );
+  assert.equal(readFileSync(RESOURCES_FILE, "utf8"), storedBeforeRefresh);
+});
+
 test("listMemoryPools returns gpu pools before the host pool", () => {
   ensureResourcePoolsScaffold();
   const pools = listMemoryPools();

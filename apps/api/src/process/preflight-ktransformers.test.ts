@@ -73,7 +73,15 @@ const numaNodes: NumaNode[] = [0, 1].map((id) => ({
 }));
 
 function preflightOptions(accelerators: SystemAccelerator[] = [nvidia]) {
-  return { accelerators, memoryPools: pools, numaNodes };
+  return {
+    accelerators,
+    memoryPools: pools,
+    numaNodes,
+    cpuFlags: ["avx2", "avx512f"],
+    physicalCoreCount: 16,
+    hostAvailableMemoryBytes: 128_000,
+    swapTotalBytes: 0,
+  };
 }
 
 function fixture() {
@@ -83,15 +91,20 @@ function fixture() {
   mkdirSync(bin, { recursive: true });
   mkdirSync(weights, { recursive: true });
   writeFileSync(join(bin, "sglang"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-  writeFileSync(join(bin, "python"), "#!/bin/sh\necho 3.12\n", {
-    mode: 0o755,
-  });
+  writeFileSync(
+    join(bin, "python"),
+    '#!/bin/sh\nprintf \'ARRIERO_KT_RUNTIME=["3.12","0.6.3.post1","0.6.3.post1"]\\n\'\n',
+    { mode: 0o755 },
+  );
   const instance: Instance = {
     name: "kt-preflight",
     kind: "ktransformers",
     binaryPath: join(bin, "sglang"),
     binaryPathRefId: "kt-bin",
-    args: {},
+    args: {
+      "--kt-cpuinfer": 16,
+      "--kt-num-gpu-experts": 1,
+    },
     env: { CUDA_VISIBLE_DEVICES: "0" },
     memory: [
       { poolId: "gpu0", bytes: 8_000 },
@@ -257,6 +270,127 @@ test("KTransformers memory shortfalls are blocking", () => {
     assert.equal(result.ok, false);
     assert.ok(
       result.issues.some((entry) => /strict admission/.test(entry.message)),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers preflight enforces the CPU method support matrix", () => {
+  const { root, instance } = fixture();
+  try {
+    const fp8 = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      cpuFlags: ["avx2"],
+    });
+    assert.equal(fp8.ok, false);
+    assert.ok(
+      fp8.issues.some(
+        (entry) =>
+          entry.field === "engineConfig.method" &&
+          /avx512f/.test(entry.message),
+      ),
+    );
+
+    instance.engineConfig!.method = "BF16";
+    const bf16 = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      cpuFlags: ["avx2", "avx512f"],
+    });
+    assert.equal(bf16.ok, false);
+    assert.ok(
+      bf16.issues.some(
+        (entry) =>
+          entry.field === "engineConfig.method" &&
+          /avx512_bf16/.test(entry.message),
+      ),
+    );
+
+    instance.engineConfig!.method = "LLAMAFILE";
+    const llamafile = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      cpuFlags: ["avx2"],
+    });
+    assert.equal(llamafile.ok, true, JSON.stringify(llamafile.issues));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers preflight validates CPU threads and GPU expert placement", () => {
+  const { root, instance } = fixture();
+  try {
+    instance.args["--kt-cpuinfer"] = 17;
+    delete instance.args["--kt-num-gpu-experts"];
+    const result = validateInstancePreflight(instance, preflightOptions());
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.issues.some(
+        (entry) =>
+          entry.field === "args.--kt-cpuinfer" &&
+          /exceed 16 physical core/.test(entry.message),
+      ),
+    );
+    assert.ok(
+      result.issues.some(
+        (entry) =>
+          entry.field === "args.--kt-num-gpu-experts" &&
+          /requires/.test(entry.message),
+      ),
+    );
+
+    instance.args["--kt-cpuinfer"] = 16;
+    instance.args["--kt-gpu-experts-ratio"] = 1.5;
+    const ratio = validateInstancePreflight(instance, preflightOptions());
+    assert.equal(ratio.ok, false);
+    assert.ok(
+      ratio.issues.some(
+        (entry) =>
+          entry.field === "args.--kt-gpu-experts-ratio" &&
+          /between 0 and 1/.test(entry.message),
+      ),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers preflight requires matching roots and versions RAWINT4 ISA", () => {
+  const { root, instance } = fixture();
+  const python = join(root, "bin", "python");
+  try {
+    writeFileSync(
+      python,
+      '#!/bin/sh\nprintf \'ARRIERO_KT_RUNTIME=["3.12","0.6.3.post1","0.6.4"]\\n\'\n',
+      { mode: 0o755 },
+    );
+    const mismatch = validateInstancePreflight(instance, preflightOptions());
+    assert.equal(mismatch.ok, false);
+    assert.ok(
+      mismatch.issues.some(
+        (entry) =>
+          entry.field === "binaryPathRefId" &&
+          /versions do not match/.test(entry.message),
+      ),
+    );
+
+    writeFileSync(
+      python,
+      '#!/bin/sh\nprintf \'ARRIERO_KT_RUNTIME=["3.12","0.6.1","0.6.1"]\\n\'\n',
+      { mode: 0o755 },
+    );
+    instance.engineConfig!.method = "RAWINT4";
+    const oldRawInt4 = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      cpuFlags: ["avx2"],
+    });
+    assert.equal(oldRawInt4.ok, false);
+    assert.ok(
+      oldRawInt4.issues.some(
+        (entry) =>
+          entry.field === "engineConfig.method" &&
+          /avx512f/.test(entry.message),
+      ),
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

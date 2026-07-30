@@ -1,5 +1,6 @@
 import type {
   Instance,
+  KTransformersMethod,
   MemoryPool,
   NumaNode,
   ProcessPreflightIssue,
@@ -8,6 +9,7 @@ import type {
 import { parseCudaVisibleDevices } from "@arriero/core";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 
 import { getSystemResources } from "../system/resources.js";
@@ -40,6 +42,23 @@ function nvidiaAccelerators(options: PreflightOptions) {
 
 function validateModel(model: string, issues: ProcessPreflightIssue[]) {
   if (existsSync(model)) {
+    try {
+      if (!statSync(model).isDirectory()) {
+        issue(
+          issues,
+          "error",
+          "engineConfig.model",
+          "KTransformers local model must be a directory",
+        );
+      }
+    } catch (error) {
+      issue(
+        issues,
+        "error",
+        "engineConfig.model",
+        `Unable to inspect KTransformers model: ${(error as Error).message}`,
+      );
+    }
     return;
   }
   if (isAbsolute(model) || model.startsWith("./") || model.startsWith("../")) {
@@ -73,12 +92,12 @@ function validateCpuWeights(path: string, issues: ProcessPreflightIssue[]) {
   }
   try {
     const stat = statSync(path);
-    if (!stat.isDirectory() && !stat.isFile()) {
+    if (!stat.isDirectory()) {
       issue(
         issues,
         "error",
         "engineConfig.cpuWeights",
-        `KTransformers CPU weights are not a file or directory: ${path}`,
+        "KTransformers CPU weights must be a directory for the supported package profile",
       );
     }
   } catch (error) {
@@ -91,7 +110,16 @@ function validateCpuWeights(path: string, issues: ProcessPreflightIssue[]) {
   }
 }
 
-function validateRuntime(instance: Instance, issues: ProcessPreflightIssue[]) {
+type KTransformersRuntime = {
+  pythonMinor: string;
+  ktKernelVersion: string;
+  sglangKtVersion: string;
+};
+
+function validateRuntime(
+  instance: Instance,
+  issues: ProcessPreflightIssue[],
+): KTransformersRuntime | null {
   if (basename(instance.binaryPath) !== "sglang") {
     issue(
       issues,
@@ -108,17 +136,19 @@ function validateRuntime(instance: Instance, issues: ProcessPreflightIssue[]) {
       "binaryPathRefId",
       `KTransformers environment Python is missing: ${python}`,
     );
-    return;
+    return null;
   }
   const result = spawnSync(
     python,
     [
       "-c",
       [
+        "import importlib.metadata as metadata",
+        "import json",
         "import sys",
         "import kt_kernel",
         "import sglang",
-        "print(f'{sys.version_info.major}.{sys.version_info.minor}')",
+        "print('ARRIERO_KT_RUNTIME=' + json.dumps([f'{sys.version_info.major}.{sys.version_info.minor}', metadata.version('kt-kernel'), metadata.version('sglang-kt')]))",
       ].join("; "),
     ],
     { encoding: "utf8", timeout: 3_000 },
@@ -130,17 +160,55 @@ function validateRuntime(instance: Instance, issues: ProcessPreflightIssue[]) {
       "binaryPathRefId",
       "KTransformers runtime imports failed in the selected environment",
     );
-    return;
+    return null;
   }
-  const version = result.stdout.trim().split(/\s+/).at(-1) ?? "";
-  if (version !== "3.11" && version !== "3.12") {
+  const prefix = "ARRIERO_KT_RUNTIME=";
+  const runtimeLine = result.stdout
+    .split(/\r?\n/)
+    .find((line) => line.startsWith(prefix));
+  let runtimeValues: unknown = null;
+  try {
+    runtimeValues = runtimeLine
+      ? (JSON.parse(runtimeLine.slice(prefix.length)) as unknown)
+      : null;
+  } catch {
+    runtimeValues = null;
+  }
+  if (
+    !Array.isArray(runtimeValues) ||
+    runtimeValues.length !== 3 ||
+    runtimeValues.some((value) => typeof value !== "string")
+  ) {
     issue(
       issues,
       "error",
       "binaryPathRefId",
-      `KTransformers requires Python 3.11 or 3.12; selected environment reports ${version || "unknown"}`,
+      "KTransformers runtime did not report Python and root package versions",
+    );
+    return null;
+  }
+  const [pythonMinor, ktKernelVersion, sglangKtVersion] = runtimeValues as [
+    string,
+    string,
+    string,
+  ];
+  if (pythonMinor !== "3.11" && pythonMinor !== "3.12") {
+    issue(
+      issues,
+      "error",
+      "binaryPathRefId",
+      `KTransformers requires Python 3.11 or 3.12; selected environment reports ${pythonMinor || "unknown"}`,
     );
   }
+  if (ktKernelVersion !== sglangKtVersion) {
+    issue(
+      issues,
+      "error",
+      "binaryPathRefId",
+      `KTransformers root package versions do not match: kt-kernel=${ktKernelVersion}, sglang-kt=${sglangKtVersion}`,
+    );
+  }
+  return { pythonMinor, ktKernelVersion, sglangKtVersion };
 }
 
 function argNumber(instance: Instance, keys: string[], fallback: number) {
@@ -392,7 +460,7 @@ function validateNuma(
   }
 }
 
-function cpuFlags() {
+function detectedCpuFlags() {
   if (process.platform !== "linux") return new Set<string>();
   try {
     const match = /^flags\s*:\s*(.+)$/im.exec(
@@ -406,35 +474,250 @@ function cpuFlags() {
   }
 }
 
+function detectedPhysicalCoreCount() {
+  const available = availableParallelism();
+  if (process.platform !== "linux") return available;
+  try {
+    const blocks = readFileSync("/proc/cpuinfo", "utf8")
+      .split(/\n\s*\n/)
+      .filter(Boolean);
+    const processors = new Set<string>();
+    const physicalCores = new Set<string>();
+    for (const block of blocks) {
+      const processor = /^processor\s*:\s*(\d+)$/im.exec(block)?.[1];
+      if (processor) {
+        processors.add(processor);
+      }
+      const physicalId = /^physical id\s*:\s*(\d+)$/im.exec(block)?.[1];
+      const coreId = /^core id\s*:\s*(\d+)$/im.exec(block)?.[1];
+      if (physicalId !== undefined && coreId !== undefined) {
+        physicalCores.add(`${physicalId}:${coreId}`);
+      }
+    }
+    const detected =
+      physicalCores.size > 0 ? physicalCores.size : processors.size;
+    return detected > 0 ? Math.min(detected, available) : available;
+  } catch {
+    return available;
+  }
+}
+
+function detectedSwapTotalBytes() {
+  if (process.platform !== "linux") return 0;
+  try {
+    const match = /^SwapTotal:\s+(\d+)\s+kB$/im.exec(
+      readFileSync("/proc/meminfo", "utf8"),
+    );
+    return match ? Number(match[1]) * 1024 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+const METHOD_CPU_FEATURES: Record<KTransformersMethod, string[]> = {
+  AMXINT4: ["amx_int8"],
+  AMXINT8: ["amx_int8"],
+  RAWINT4: ["avx2"],
+  FP8: ["avx512f"],
+  FP8_PERCHANNEL: ["avx512f"],
+  BF16: ["avx512f", "avx512_bf16"],
+  LLAMAFILE: ["avx2"],
+};
+
+function versionAtLeast(version: string, minimum: [number, number, number]) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!match) return false;
+  const current = [Number(match[1]), Number(match[2]), Number(match[3])];
+  for (let index = 0; index < minimum.length; index += 1) {
+    if (current[index]! > minimum[index]!) return true;
+    if (current[index]! < minimum[index]!) return false;
+  }
+  return true;
+}
+
 function validateCpuMethod(
   instance: Instance,
   issues: ProcessPreflightIssue[],
+  options: PreflightOptions,
+  runtime: KTransformersRuntime | null,
 ) {
   if (instance.engineConfig?.type !== "ktransformers") return;
   const method = instance.engineConfig.method;
-  const flags = cpuFlags();
-  if (["AMXINT4", "AMXINT8"].includes(method) && !flags.has("amx_int8")) {
+  const flags = options.cpuFlags
+    ? new Set(options.cpuFlags.map((flag) => flag.toLowerCase()))
+    : detectedCpuFlags();
+  const required =
+    method === "RAWINT4" &&
+    runtime &&
+    !versionAtLeast(runtime.ktKernelVersion, [0, 6, 2])
+      ? ["avx512f"]
+      : METHOD_CPU_FEATURES[method];
+  const missing = required.filter((feature) => !flags.has(feature));
+  if (missing.length > 0) {
     issue(
       issues,
       "error",
       "engineConfig.method",
-      `${method} requires the CPU amx_int8 instruction set`,
+      `${method} requires CPU instruction set ${missing.join(", ")} in the supported package profile`,
     );
   }
-  if (["RAWINT4", "LLAMAFILE"].includes(method) && !flags.has("avx2")) {
+}
+
+function validateCpuSizing(
+  instance: Instance,
+  issues: ProcessPreflightIssue[],
+  options: PreflightOptions,
+) {
+  const value = instance.args["--kt-cpuinfer"];
+  if (value === undefined || value === null || value === false) return;
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1) {
     issue(
       issues,
       "error",
-      "engineConfig.method",
-      `${method} requires the CPU avx2 instruction set`,
+      "args.--kt-cpuinfer",
+      "KTransformers CPU inference threads must be a positive integer",
     );
+    return;
   }
-  if (method === "BF16" && !flags.has("avx512_bf16")) {
+  const physicalCores =
+    options.physicalCoreCount ?? detectedPhysicalCoreCount();
+  if (physicalCores > 0 && count > physicalCores) {
+    issue(
+      issues,
+      "error",
+      "args.--kt-cpuinfer",
+      `KTransformers CPU inference threads ${count} exceed ${physicalCores} physical core(s) available to the manager`,
+    );
+  } else if (
+    physicalCores > 0 &&
+    Math.abs(count - physicalCores) / physicalCores >= 0.25
+  ) {
     issue(
       issues,
       "warning",
-      "engineConfig.method",
-      "BF16 was selected but avx512_bf16 was not detected; verify upstream CPU support",
+      "args.--kt-cpuinfer",
+      `KTransformers CPU inference threads ${count} differ substantially from ${physicalCores} detected physical core(s)`,
+    );
+  }
+}
+
+function configuredArg(instance: Instance, keys: string[]) {
+  for (const key of keys) {
+    const value = instance.args[key];
+    if (value !== undefined && value !== null && value !== false) {
+      return { key, value };
+    }
+  }
+  return null;
+}
+
+function validateGpuExpertPlacement(
+  instance: Instance,
+  issues: ProcessPreflightIssue[],
+) {
+  const count = configuredArg(instance, [
+    "--kt-num-gpu-experts",
+    "--kt-gpu-experts",
+  ]);
+  const ratio = configuredArg(instance, ["--kt-gpu-experts-ratio"]);
+  if (!count && !ratio) {
+    issue(
+      issues,
+      "error",
+      "args.--kt-num-gpu-experts",
+      "KTransformers requires --kt-num-gpu-experts or --kt-gpu-experts-ratio",
+    );
+    return;
+  }
+  if (count) {
+    const parsed = Number(count.value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      issue(
+        issues,
+        "error",
+        `args.${count.key}`,
+        `${count.key} must be a non-negative integer`,
+      );
+    }
+  }
+  if (ratio) {
+    const parsed = Number(ratio.value);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+      issue(
+        issues,
+        "error",
+        `args.${ratio.key}`,
+        `${ratio.key} must be between 0 and 1`,
+      );
+    }
+  }
+  if (count && ratio) {
+    issue(
+      issues,
+      "warning",
+      `args.${ratio.key}`,
+      `${count.key} and ${ratio.key} are both set; verify the selected SGLang-KT version's precedence rule`,
+    );
+  }
+}
+
+function validateOperationalWarnings(
+  instance: Instance,
+  issues: ProcessPreflightIssue[],
+  options: PreflightOptions,
+) {
+  if (instance.engineConfig?.type !== "ktransformers") return;
+  const { model, cpuWeights } = instance.engineConfig;
+  if (!existsSync(model)) {
+    issue(
+      issues,
+      "warning",
+      "engineConfig.model",
+      "Remote KTransformers model resolution can download data and makes cold-start time unbounded",
+    );
+  } else if (resolve(model) === resolve(cpuWeights)) {
+    issue(
+      issues,
+      "warning",
+      "engineConfig.cpuWeights",
+      "KTransformers model and CPU weights resolve to the same directory",
+    );
+  }
+  if (!configuredArg(instance, ["--mem-fraction-static"])) {
+    issue(
+      issues,
+      "warning",
+      "args.--mem-fraction-static",
+      "SGLang-KT will choose GPU static-memory allocation because --mem-fraction-static is not set",
+    );
+  }
+  const swapTotal = options.swapTotalBytes ?? detectedSwapTotalBytes();
+  if (swapTotal > 0) {
+    issue(
+      issues,
+      "warning",
+      "memory",
+      `Host swap is enabled (${(swapTotal / 1024 ** 3).toFixed(1)} GiB); swapping CPU expert weights can severely degrade KTransformers`,
+    );
+  }
+  const availableHost =
+    options.hostAvailableMemoryBytes ??
+    getSystemResources().memory.availableBytes;
+  const hostPoolIds = new Set(
+    (options.memoryPools ?? listMemoryPools())
+      .filter((pool) => pool.kind === "host")
+      .map((pool) => pool.id),
+  );
+  const declaredHostBytes = instance.memory
+    .filter((draw) => hostPoolIds.has(draw.poolId))
+    .reduce((total, draw) => total + Math.max(0, draw.bytes), 0);
+  if (declaredHostBytes > availableHost) {
+    issue(
+      issues,
+      "warning",
+      "memory",
+      `Declared host-memory draw exceeds currently available RAM by ${((declaredHostBytes - availableHost) / 1024 ** 3).toFixed(1)} GiB`,
     );
   }
 }
@@ -546,11 +829,14 @@ export function validateKTransformersPreflight(
 
   validateModel(instance.engineConfig.model, issues);
   validateCpuWeights(instance.engineConfig.cpuWeights, issues);
-  validateRuntime(instance, issues);
+  const runtime = validateRuntime(instance, issues);
   validateArgumentCompatibility(instance, issues);
   validateCuda(instance, issues, options);
   validateMemoryReservations(instance, issues, options);
   validateNuma(instance, issues, options);
-  validateCpuMethod(instance, issues);
+  validateCpuMethod(instance, issues, options, runtime);
+  validateCpuSizing(instance, issues, options);
+  validateGpuExpertPlacement(instance, issues);
+  validateOperationalWarnings(instance, issues, options);
   validateManagedBoundary(instance, issues);
 }

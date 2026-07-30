@@ -2,6 +2,7 @@ import {
   MemoryPoolSchema,
   type MemoryPool,
   type MemoryPoolUpdate,
+  type SystemResources,
 } from "@arriero/core";
 import {
   existsSync,
@@ -77,8 +78,9 @@ function floorToGib(bytes: number): number {
   return Math.floor(bytes / GIB) * GIB;
 }
 
-export function defaultPoolsFromHardware(): MemoryPool[] {
-  const detected = getSystemResources();
+export function defaultPoolsFromHardware(
+  detected: SystemResources = getSystemResources(),
+): MemoryPool[] {
   const timestamp = nowIso();
   const pools: MemoryPool[] = [];
   for (const accelerator of detected.accelerators) {
@@ -111,17 +113,20 @@ export function defaultPoolsFromHardware(): MemoryPool[] {
   return sortPools(pools);
 }
 
-export function ensureResourcePoolsScaffold(): boolean {
+export function ensureResourcePoolsScaffold(
+  detected: SystemResources = getSystemResources(),
+): boolean {
   if (existsSync(RESOURCES_FILE)) {
     return false;
   }
-  persist(defaultPoolsFromHardware());
+  persist(defaultPoolsFromHardware(detected));
   return true;
 }
 
-export function refreshAutoCapacities(): boolean {
+export function refreshAutoCapacities(
+  detected: SystemResources = getSystemResources(),
+): boolean {
   const pools = load();
-  const detected = getSystemResources();
   const acceleratorById = new Map(
     detected.accelerators.map((accelerator) => [accelerator.id, accelerator]),
   );
@@ -143,6 +148,39 @@ export function refreshAutoCapacities(): boolean {
     changed = true;
     return { ...pool, capacityBytes, updatedAt: nowIso() };
   });
+  const knownDeviceRefs = new Set(
+    next
+      .filter((pool) => pool.kind === "gpu" && pool.deviceRef)
+      .map((pool) => pool.deviceRef),
+  );
+  const knownIds = new Set(next.map((pool) => pool.id));
+  for (const accelerator of detected.accelerators) {
+    if (accelerator.kind !== "gpu" || knownDeviceRefs.has(accelerator.id)) {
+      continue;
+    }
+    const baseId = `gpu${accelerator.id}`;
+    let id = baseId;
+    let suffix = 2;
+    while (knownIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    const timestamp = nowIso();
+    next.push({
+      id,
+      name: accelerator.name,
+      kind: "gpu",
+      capacityBytes: accelerator.totalMemoryBytes ?? 0,
+      reservedBytes: 0,
+      deviceRef: accelerator.id,
+      autoCapacity: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    knownDeviceRefs.add(accelerator.id);
+    knownIds.add(id);
+    changed = true;
+  }
   if (changed) {
     cache = next;
   }

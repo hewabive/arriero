@@ -23,6 +23,10 @@ export type PreflightOptions = {
   capacityAdmission?: ResourceAdmission | undefined;
   memoryPools?: MemoryPool[] | undefined;
   numaNodes?: NumaNode[] | undefined;
+  cpuFlags?: string[] | undefined;
+  physicalCoreCount?: number | undefined;
+  hostAvailableMemoryBytes?: number | undefined;
+  swapTotalBytes?: number | undefined;
 };
 
 type EnginePreflightCheck = (

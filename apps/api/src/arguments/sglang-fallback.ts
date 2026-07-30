@@ -26,9 +26,11 @@ KTransformers:
   --kt-weight-path PATH               CPU-side expert weight path
   --kt-method {AMXINT4,AMXINT8,RAWINT4,FP8,FP8_PERCHANNEL,BF16,LLAMAFILE}
                                       KTransformers compute method
+  --kt-cpuinfer N                      Number of physical CPU inference threads
   --kt-threadpool-count N             Number of KTransformers CPU thread pools
   --kt-numa-nodes NODE [NODE ...]     NUMA node assigned to each thread pool
-  --kt-gpu-experts N                  Experts placed on the GPU
+  --kt-num-gpu-experts N              Experts placed on the GPU
+  --kt-gpu-experts-ratio RATIO        Fraction of experts placed on the GPU
 `;
 
 export const sglangFallbackHelpHash = `fallback:${createHash("sha256")
