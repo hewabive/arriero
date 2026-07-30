@@ -9,10 +9,10 @@ import type {
 
 import { latestProcessRun } from "../process/runs-repository.js";
 import {
-  instanceBaseUrl,
   modelRecordsFromProbe,
   requestJsonProbe,
 } from "../instances/endpoint.js";
+import { runtimeInstanceBaseUrl } from "../process/runtime-endpoint.js";
 import { llamaEndpointErrorMessage } from "./errors.js";
 
 const CAPABILITY_PROBE_TIMEOUT_MS = 4_000;
@@ -312,7 +312,7 @@ export async function probeLlamaCapabilities(
 async function runCapabilityProbe(
   instance: Instance,
 ): Promise<LlamaCapabilitiesResult> {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket capability probes are not implemented yet");
   }

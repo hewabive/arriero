@@ -1,16 +1,17 @@
 import type { FleetNode, Instance, RpcWorkerRef } from "@arriero/core";
 
 import { getInstanceRecord } from "../instances/config-files.js";
-import { rpcWorkerEndpoint } from "../instances/endpoint.js";
 import { fetchNodeInstances } from "../nodes/remote-instances.js";
 import { getNode } from "../nodes/repository.js";
+import { rpcWorkerEndpoint } from "../instances/endpoint.js";
+import { runtimeRpcWorkerEndpoint } from "./runtime-endpoint.js";
 
 function localRpcWorkerHost(ref: RpcWorkerRef): string {
   const record = getInstanceRecord(ref.instanceName);
   if (!record || record.kind !== "rpc-worker") {
     throw new Error(`rpc worker "${ref.instanceName}" not found on this node`);
   }
-  const endpoint = rpcWorkerEndpoint(record);
+  const endpoint = runtimeRpcWorkerEndpoint(record);
   if (!endpoint) {
     throw new Error(
       `rpc worker "${ref.instanceName}" has no reachable host:port`,

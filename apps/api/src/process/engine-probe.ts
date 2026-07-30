@@ -12,11 +12,8 @@ import {
   probeLlamaServer,
   probeRpcWorker,
 } from "../llama/probe.js";
-import {
-  instanceBaseUrl,
-  probeJson,
-  requestJsonProbe,
-} from "../instances/endpoint.js";
+import { probeJson, requestJsonProbe } from "../instances/endpoint.js";
+import { runtimeInstanceBaseUrl } from "./runtime-endpoint.js";
 
 const KTRANSFORMERS_HTTP_PROBE_TIMEOUT_MS = 15_000;
 
@@ -30,7 +27,7 @@ function notApplicable(error: string): EndpointProbe {
 }
 
 function offlineOpenAiProbe(instance: Instance, error: string): LlamaProbe {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   const failed = (path: string): EndpointProbe => ({
     ok: false,
     url: baseUrl ? `${baseUrl}${path}` : "",
@@ -52,7 +49,7 @@ function offlineOpenAiProbe(instance: Instance, error: string): LlamaProbe {
 }
 
 async function probeOpenAiHttp(instance: Instance): Promise<LlamaProbe> {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     return offlineOpenAiProbe(instance, "HTTP endpoint is not configured.");
   }

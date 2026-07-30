@@ -46,7 +46,9 @@ export function probeHost(host: string): string {
   return host;
 }
 
-export function apiPrefix(instance: Instance): string {
+type HttpEndpointInstance = Pick<Instance, "kind" | "args">;
+
+export function apiPrefix(instance: HttpEndpointInstance): string {
   const http = engineDescriptor(instance.kind ?? "llama-server").http;
   const raw = asString(firstArg(instance.args, http.apiPrefixArgKeys), "");
   if (!raw) {
@@ -57,7 +59,7 @@ export function apiPrefix(instance: Instance): string {
     : `/${raw.replace(/\/$/, "")}`;
 }
 
-export function instanceBaseUrl(instance: Instance): string {
+export function instanceBaseUrl(instance: HttpEndpointInstance): string {
   const http = engineDescriptor(instance.kind ?? "llama-server").http;
   const rawHost = asString(
     firstArg(instance.args, http.hostArgKeys),

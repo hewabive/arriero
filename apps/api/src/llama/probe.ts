@@ -12,13 +12,15 @@ import { performance } from "node:perf_hooks";
 
 import { instanceApiProbeTarget } from "./api-probe-request.js";
 import {
-  instanceBaseUrl,
   modelRecordsFromProbe,
   objectBody,
   probeJson,
   requestJsonProbe,
-  rpcWorkerEndpoint,
 } from "../instances/endpoint.js";
+import {
+  runtimeInstanceBaseUrl,
+  runtimeRpcWorkerEndpoint,
+} from "../process/runtime-endpoint.js";
 
 export * from "./errors.js";
 export * from "./capabilities.js";
@@ -49,7 +51,7 @@ export function offlineLlamaProbe(
   instance: Instance,
   error: string,
 ): LlamaProbe {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   const endpoint = (path: string): EndpointProbe =>
     failedEndpoint(baseUrl ? `${baseUrl}${path}` : "", error);
   return {
@@ -177,7 +179,7 @@ function probeTcpAccept(
 
 export async function probeRpcWorker(instance: Instance): Promise<LlamaProbe> {
   const notApplicable = failedEndpoint("", "not applicable for rpc-server");
-  const endpoint = rpcWorkerEndpoint(instance);
+  const endpoint = runtimeRpcWorkerEndpoint(instance);
   if (!endpoint) {
     return {
       baseUrl: "",
@@ -205,7 +207,7 @@ export async function probeRpcWorker(instance: Instance): Promise<LlamaProbe> {
 export async function probeLlamaServer(
   instance: Instance,
 ): Promise<LlamaProbe> {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     const unsupported = failedEndpoint(
       "",

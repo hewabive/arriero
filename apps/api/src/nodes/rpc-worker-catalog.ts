@@ -2,7 +2,7 @@ import type { Instance, RpcWorkerCandidate } from "@arriero/core";
 import { hostname } from "node:os";
 
 import { listInstances } from "../instances/repository.js";
-import { rpcWorkerEndpoint } from "../instances/endpoint.js";
+import { runtimeRpcWorkerEndpoint } from "../process/runtime-endpoint.js";
 import { listRemoteInstancesByNode } from "./remote-instances.js";
 
 function isWorker(instance: Instance): boolean {
@@ -10,7 +10,7 @@ function isWorker(instance: Instance): boolean {
 }
 
 function endpointLabel(instance: Instance, host?: string): string | null {
-  const endpoint = rpcWorkerEndpoint(instance);
+  const endpoint = runtimeRpcWorkerEndpoint(instance);
   if (!endpoint) {
     return null;
   }

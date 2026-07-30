@@ -1,9 +1,7 @@
 import type { ApiProbeRequest, Instance } from "@arriero/core";
 
-import {
-  compactOptionalString,
-  instanceBaseUrl,
-} from "../instances/endpoint.js";
+import { compactOptionalString } from "../instances/endpoint.js";
+import { runtimeInstanceBaseUrl } from "../process/runtime-endpoint.js";
 
 function withModel<T extends Record<string, unknown>>(
   body: T,
@@ -182,7 +180,7 @@ export function instanceApiProbeTarget(
   input: ApiProbeRequest,
   options: { stream?: boolean } = {},
 ) {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket API probes are not implemented yet");
   }

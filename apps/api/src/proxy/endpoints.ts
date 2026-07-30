@@ -13,9 +13,9 @@ import { z } from "zod";
 import { newId } from "../utils/id.js";
 
 import { config } from "../config.js";
-import { instanceBaseUrl } from "../instances/endpoint.js";
 import { listRemoteInstancesByNode } from "../nodes/remote-instances.js";
 import { getNode } from "../nodes/repository.js";
+import { runtimeInstanceBaseUrl } from "../process/runtime-endpoint.js";
 import {
   readCollection,
   readSecret,
@@ -172,7 +172,7 @@ function instanceEndpoint(instance: Instance): ApiEndpointRecord | null {
   if (!engineDescriptor(instance.kind).proxy.serveEndpoint) {
     return null;
   }
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     return null;
   }

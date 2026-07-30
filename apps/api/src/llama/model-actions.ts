@@ -8,9 +8,9 @@ import type {
 
 import {
   compactOptionalString,
-  instanceBaseUrl,
   requestJsonProbe,
 } from "../instances/endpoint.js";
+import { runtimeInstanceBaseUrl } from "../process/runtime-endpoint.js";
 import { llamaEndpointErrorMessage } from "./errors.js";
 
 const ACTION_TIMEOUT_MS = 15 * 60 * 1_000;
@@ -27,7 +27,7 @@ export async function requestLlamaModelAction(
   action: "load" | "unload" | "reload",
   model?: string,
 ) {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket model actions are not implemented yet");
   }
@@ -80,7 +80,7 @@ export async function requestLlamaSlotAction(
   slotId: number,
   input: LlamaSlotActionRequest,
 ): Promise<LlamaSlotActionResult> {
-  const baseUrl = instanceBaseUrl(instance);
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error("UNIX socket slot actions are not implemented yet");
   }
