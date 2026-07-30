@@ -150,6 +150,9 @@ function validateRuntime(
         "import sys",
         "import kt_kernel",
         "import sglang",
+        "from kt_kernel import kt_kernel_ext",
+        "cpu_infer = kt_kernel_ext.CPUInfer(1)",
+        "del cpu_infer",
         "print('ARRIERO_KT_RUNTIME=' + json.dumps([f'{sys.version_info.major}.{sys.version_info.minor}', metadata.version('kt-kernel'), metadata.version('sglang-kt')]))",
       ].join("; "),
     ],
@@ -164,7 +167,7 @@ function validateRuntime(
       "binaryPathRefId",
       timedOut
         ? `KTransformers runtime import probe timed out after ${timeoutMs} ms`
-        : "KTransformers runtime imports failed in the selected environment",
+        : "KTransformers runtime import or CPU-kernel smoke test failed in the selected environment",
     );
     return null;
   }

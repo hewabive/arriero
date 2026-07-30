@@ -424,3 +424,26 @@ test("KTransformers runtime probe timeout is configurable and diagnostic", () =>
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("KTransformers preflight blocks a failing CPU-kernel smoke test", () => {
+  const { root, instance } = fixture();
+  const python = join(root, "bin", "python");
+  try {
+    assert.equal(
+      validateInstancePreflight(instance, preflightOptions()).ok,
+      true,
+    );
+    writeFileSync(python, "#!/bin/sh\nexit 132\n", { mode: 0o755 });
+    const result = validateInstancePreflight(instance, preflightOptions());
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.issues.some(
+        (entry) =>
+          entry.field === "binaryPathRefId" &&
+          /CPU-kernel smoke test failed/.test(entry.message),
+      ),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
