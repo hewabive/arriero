@@ -5,7 +5,8 @@ import {
 } from "./types.js";
 
 const READY = /Application startup complete\.|Started server process \[\d+\]/i;
-const ERROR = /\b(?:ERROR|FATAL|Exception|Traceback)\b/;
+const ERROR =
+  /\b(?:ERROR|FATAL|Exception|Traceback)\b|(?:^|\)\s)(?:[\w.]+(?:Error|Exception)):\s+\S/;
 const WARNING = /\b(?:WARN|WARNING)\b/;
 const CAPABILITY_NOTICE =
   /Model Runner V2 does not yet support the thinking_token_budget request parameter\./;

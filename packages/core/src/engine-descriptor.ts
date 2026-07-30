@@ -22,7 +22,11 @@ export type EngineResourceProfileId =
   | "rpc-device-args"
   | "vllm-args"
   | "ktransformers-hybrid";
-export type EnginePreflightId = "llama-server" | "ktransformers" | "none";
+export type EnginePreflightId =
+  | "llama-server"
+  | "vllm"
+  | "ktransformers"
+  | "none";
 export type EngineProcessTreePolicy =
   | "root-only"
   | "named-descendants"
@@ -173,7 +177,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       argvPrefix: ["serve"],
     },
     preflight: {
-      engineChecks: "none",
+      engineChecks: "vllm",
       argumentCatalogParser: "vllm-help",
     },
     logs: { parser: "vllm" },

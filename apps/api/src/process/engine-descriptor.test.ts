@@ -56,6 +56,7 @@ test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () =
   assert.equal(descriptor.probe.id, "openai-http");
   assert.equal(descriptor.nativeApi, "none");
   assert.deepEqual(descriptor.launch.argvPrefix, ["serve"]);
+  assert.equal(descriptor.preflight.engineChecks, "vllm");
   assert.equal(descriptor.preflight.argumentCatalogParser, "vllm-help");
   assert.equal(descriptor.logs.parser, "vllm");
   assert.equal(descriptor.resourceProfile, "vllm-args");

@@ -64,3 +64,18 @@ test("vllm parser keeps real error levels", () => {
   assert.deepEqual(result.errors, [line]);
   assert.equal(result.loadProgress.stage, "error");
 });
+
+test("vllm parser exposes the terminal Python exception", () => {
+  const traceback = [
+    "(APIServer pid=1) Traceback (most recent call last):",
+    '(APIServer pid=1)   File "/env/bin/vllm", line 12, in <module>',
+    "(APIServer pid=1) huggingface_hub.errors.HFValidationError: invalid repo id",
+    "(APIServer pid=1) OSError: Local model path does not exist",
+  ];
+  const result = vllmLogParser.parse({
+    lines: traceback,
+    cudaDevicesDisabled: false,
+  });
+
+  assert.deepEqual(result.errors, [traceback[0], traceback[2], traceback[3]]);
+});

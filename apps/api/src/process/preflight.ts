@@ -15,6 +15,7 @@ import { dirname } from "node:path";
 
 import { validateLlamaServerPreflight } from "./preflight-llama.js";
 import { validateKTransformersPreflight } from "./preflight-ktransformers.js";
+import { validateVllmPreflight } from "./preflight-vllm.js";
 import { validateRpcWorkerReadiness } from "./rpc-preflight.js";
 
 export type PreflightOptions = {
@@ -41,6 +42,7 @@ const ENGINE_PREFLIGHT_CHECKS: Record<
   EnginePreflightCheck | null
 > = {
   "llama-server": validateLlamaServerPreflight,
+  vllm: validateVllmPreflight,
   ktransformers: validateKTransformersPreflight,
   none: null,
 };
