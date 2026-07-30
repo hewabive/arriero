@@ -61,7 +61,8 @@ export async function evaluatePrerequisite(
   context: PrerequisiteProbeContext,
 ): Promise<PrerequisiteCheck> {
   const outcome = await definition.probe(context);
-  const packageManager = packageManagerForOsRelease(readOsRelease());
+  const release = readOsRelease();
+  const packageManager = packageManagerForOsRelease(release);
   const packages = definition.packages[packageManager] ?? [];
   const prefix = installCommandPrefix(packageManager);
   return {
@@ -80,7 +81,10 @@ export async function evaluatePrerequisite(
         prefix && packages.length > 0
           ? `${prefix} ${packages.join(" ")}`
           : null,
-      commands: definition.commands,
+      commands:
+        typeof definition.commands === "function"
+          ? definition.commands(release)
+          : definition.commands,
       docPath: definition.docPath,
       note: definition.note,
     },

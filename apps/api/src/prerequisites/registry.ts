@@ -7,6 +7,7 @@ import type {
 import { existsSync } from "node:fs";
 
 import { detectNumaBind } from "../numa/capability.js";
+import type { OsRelease } from "../system/os-release.js";
 import {
   findHeader,
   probeAnyExecutable,
@@ -45,7 +46,7 @@ export type PrerequisiteDefinition = {
   blocks: string[];
   impact: string;
   packages: Partial<Record<HostPackageManager, string[]>>;
-  commands: string[];
+  commands: string[] | ((release: OsRelease) => string[]);
   docPath: string | null;
   note: string | null;
   probe: (
@@ -115,6 +116,18 @@ function devicePresenceProbe(path: string) {
     detail: path,
     version: null,
   });
+}
+
+export function nvidiaSmiInstallCommands(release: OsRelease): string[] {
+  const family = new Set(
+    [release.id, ...release.idLike].filter(
+      (item): item is string => item !== null,
+    ),
+  );
+  if (!family.has("ubuntu")) {
+    return [];
+  }
+  return ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"];
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -388,9 +401,9 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     impact:
       "GPU detection, VRAM pool capacity and per-process GPU memory telemetry all read nvidia-smi; without it GPU memory pools must be sized by hand.",
     packages: {},
-    commands: [],
+    commands: nvidiaSmiInstallCommands,
     docPath: "docs/RESOURCE_MANAGEMENT.md",
-    note: "Ships with the NVIDIA driver, not with the CUDA toolkit.",
+    note: "Ships with the NVIDIA driver, not with the CUDA toolkit. On Ubuntu the command above lets ubuntu-drivers select the compatible headless/server driver and nvidia-utils package for this GPU. After rebooting, restart arriero and press Re-check.",
     probe: executableProbe(["nvidia-smi"]),
   },
   {

@@ -46,6 +46,14 @@ Extend the registry when a new blocker is found in the field.
 package installs are idempotent, so an unverifiable requirement is included
 rather than risking a second round trip for the administrator.
 
+Per-item commands may also be resolved from `/etc/os-release` when a generic
+package name would be unsafe. In particular, Ubuntu's NVIDIA driver packages
+contain a changing branch number, so a missing `nvidia-smi` shows
+`sudo ubuntu-drivers install --gpgpu` followed by `sudo reboot`. The
+hardware-aware Ubuntu tool selects the compatible headless/server driver and
+matching `nvidia-utils` package; arriero does not pin a driver branch that will
+become stale or offer the Ubuntu command on other distributions.
+
 Severity is `required` or `recommended`, resolved per report against what this
 node is actually configured to use, not statically: `nvcc` is required only
 when `build.cuda` is on, `numactl` only when an instance declares

@@ -57,7 +57,7 @@ test("buildProcessEnv discovers nvcc from CUDA_HOME", () => {
     const env = buildProcessEnv(
       settings({
         CUDA_HOME: dir,
-        PATH: "/usr/bin",
+        PATH: join(dir, "path-without-nvcc"),
       }),
     );
 
