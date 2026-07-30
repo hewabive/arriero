@@ -1,6 +1,10 @@
 # vLLM support plan
 
-Planning document for the second managed engine (vLLM) and the Python environment domain that carries it. Written before implementation; as phases land, durable content moves into `docs/ENGINE_ADAPTERS.md` and `docs/ENVIRONMENTS.md`, and the phase sections here get marked done or pruned.
+Historical planning document for the second managed engine (vLLM) and the
+Python environment domain that carries it. All planned implementation phases
+are complete. The production contract and real-GPU release gate now live in
+`docs/VLLM_OPERATIONS.md`; the pinned qualification record is
+`docs/qualification/vllm/0.26.0-2026-07-30.md`.
 
 ## Accepted decisions (2026-07-06)
 
@@ -31,6 +35,18 @@ Planning document for the second managed engine (vLLM) and the Python environmen
 - **vLLM model identity comes from the first positional argument** (descriptor prefix `serve` is not stored in the instance). `--served-model-name` wins when present. This is used by managed-target model discovery even while the process is stopped.
 - **Lease behavior follows declared/estimated draws.** `requestLease` is wired as an explicit gate; without it no compute-domain lease is acquired. Initial vLLM instances use manual draws; the later estimator creates one draw per selected GPU.
 - **GPU utilization is per device.** For tensor parallelism, each selected GPU draw is `gpu-memory-utilization × that pool's capacity`; the value is not divided across GPUs. `CUDA_VISIBLE_DEVICES` order selects the first `tensor-parallel-size` pools.
+- **Explicit local vLLM model paths are preflighted.** A Hugging Face id remains
+  free text, while an absolute or explicitly relative local path must exist and
+  be readable before the process may start. Terminal Python exception lines are
+  retained in the short log summary when a later runtime failure still occurs.
+
+## GPU qualification (done, 2026-07-30)
+
+The official vLLM 0.26.0 wheel and pinned Qwen3-4B model passed the managed
+single-GPU gate on an RTX A5000 24-GiB host. Direct and proxied OpenAI Chat and
+Responses, the Anthropic bridge, streaming, `max-num-seqs` queueing, process
+accounting, autostart, adoption, idle/active stop, and failure diagnostics were
+exercised. See `docs/qualification/vllm/0.26.0-2026-07-30.md`.
 
 ## Phase 0 — spike (no product code)
 

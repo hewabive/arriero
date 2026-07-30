@@ -3,6 +3,10 @@
 Local web control plane for `llama.cpp`, `llama-server`, vLLM, and
 KTransformers (SGLang-KT).
 
+Managed vLLM has a qualified Linux x86-64/NVIDIA single-GPU profile. See
+[vLLM operations](docs/VLLM_OPERATIONS.md) and the pinned
+[vLLM 0.26.0 GPU qualification](docs/qualification/vllm/0.26.0-2026-07-30.md).
+
 Managed KTransformers support uses a strict Linux x86-64/NVIDIA profile,
 matched immutable Python packages, explicit hybrid memory reservations, and an
 idle-only scheduling default. See
