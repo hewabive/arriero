@@ -1,13 +1,14 @@
-import type {
-  SystemCpuActivity,
-  SystemDiskActivity,
-  SystemMetricsDiskSample,
-  SystemMetricsGpuSample,
-  SystemMetricsHistory,
-  SystemMetricsNetworkSample,
-  SystemMetricsSample,
-  SystemMetricsWindow,
-  SystemNetworkActivity,
+import {
+  SYSTEM_METRICS_TIERS,
+  type SystemCpuActivity,
+  type SystemDiskActivity,
+  type SystemMetricsDiskSample,
+  type SystemMetricsGpuSample,
+  type SystemMetricsHistory,
+  type SystemMetricsNetworkSample,
+  type SystemMetricsSample,
+  type SystemMetricsWindow,
+  type SystemNetworkActivity,
 } from "@arriero/core";
 
 import { nvidiaTelemetry } from "../nvidia/telemetry.js";
@@ -17,22 +18,17 @@ import {
   readCpuCounters,
   readLoadAverage,
 } from "./cpu.js";
-import { sampleDiskActivity } from "./disk.js";
+import {
+  buildDiskActivity,
+  type DiskCounters,
+  readDiskCounters,
+} from "./disk.js";
 import { readSystemMemory } from "./memory.js";
 import {
   buildNetworkActivity,
   type NetCounters,
   readNetCounters,
 } from "./net.js";
-
-export const SYSTEM_METRICS_TIERS: Record<
-  SystemMetricsWindow,
-  { intervalMs: number; capacity: number }
-> = {
-  live: { intervalMs: 1_000, capacity: 300 },
-  hour: { intervalMs: 10_000, capacity: 360 },
-  day: { intervalMs: 60_000, capacity: 1_440 },
-};
 
 const COARSE_WINDOWS: SystemMetricsWindow[] = ["hour", "day"];
 
@@ -96,10 +92,6 @@ export function averageSamples(
   return {
     at: last.at,
     cpuPercent: averageNullable(samples.map((sample) => sample.cpuPercent)),
-    cpuIoWaitPercent: averageNullable(
-      samples.map((sample) => sample.cpuIoWaitPercent),
-    ),
-    cpuCorePercents: null,
     memoryUsedBytes:
       samples.reduce((sum, sample) => sum + sample.memoryUsedBytes, 0) /
       samples.length,
@@ -155,12 +147,41 @@ type SystemMetricsListener = (sample: SystemMetricsSample) => void;
 
 type SystemMetricsHistoryOptions = {
   now?: () => number;
-  tickMs?: number;
 };
+
+function gpuSamples(): SystemMetricsGpuSample[] {
+  return nvidiaTelemetry.accelerators().map((device) => ({
+    id: String(device.index),
+    utilizationPercent: device.utilizationPercent,
+    memoryUsedBytes: device.usedMemoryBytes,
+    memoryTotalBytes: device.totalMemoryBytes,
+    temperatureC: device.temperatureC,
+  }));
+}
+
+function diskSamples(
+  disk: SystemDiskActivity | null,
+): SystemMetricsDiskSample[] {
+  return (disk?.devices ?? []).map((device) => ({
+    name: device.name,
+    utilPercent: device.utilPercent,
+    readBytesPerSec: device.readBytesPerSec,
+    writeBytesPerSec: device.writeBytesPerSec,
+  }));
+}
+
+function networkSamples(
+  network: SystemNetworkActivity | null,
+): SystemMetricsNetworkSample[] {
+  return (network?.interfaces ?? []).map((entry) => ({
+    name: entry.name,
+    rxBytesPerSec: entry.rxBytesPerSec,
+    txBytesPerSec: entry.txBytesPerSec,
+  }));
+}
 
 export class SystemMetricsRecorder {
   private readonly now: () => number;
-  private readonly tickMs: number;
   private readonly buffers = new Map<
     SystemMetricsWindow,
     RingBuffer<SystemMetricsSample>
@@ -173,6 +194,7 @@ export class SystemMetricsRecorder {
   private timer: NodeJS.Timeout | null = null;
   private previousCpu: CpuCounters | null = null;
   private previousNet: Map<string, NetCounters> | null = null;
+  private previousDisk: Map<string, DiskCounters> | null = null;
   private previousAt: number | null = null;
   private snapshot: SystemMetricsSnapshot = {
     cpu: null,
@@ -182,7 +204,6 @@ export class SystemMetricsRecorder {
 
   constructor(options: SystemMetricsHistoryOptions = {}) {
     this.now = options.now ?? Date.now;
-    this.tickMs = options.tickMs ?? SYSTEM_METRICS_TIERS.live.intervalMs;
     for (const [window, tier] of Object.entries(SYSTEM_METRICS_TIERS)) {
       this.buffers.set(
         window as SystemMetricsWindow,
@@ -198,7 +219,10 @@ export class SystemMetricsRecorder {
     if (this.previousAt === null) {
       this.tick();
     }
-    this.timer = setInterval(() => this.tick(), this.tickMs);
+    this.timer = setInterval(
+      () => this.tick(),
+      SYSTEM_METRICS_TIERS.live.intervalMs,
+    );
     this.timer.unref();
   }
 
@@ -218,6 +242,7 @@ export class SystemMetricsRecorder {
     this.listeners.clear();
     this.previousCpu = null;
     this.previousNet = null;
+    this.previousDisk = null;
     this.previousAt = null;
     this.snapshot = { cpu: null, network: null, disk: null };
   }
@@ -230,9 +255,6 @@ export class SystemMetricsRecorder {
   }
 
   current(): SystemMetricsSnapshot {
-    if (this.previousAt === null) {
-      this.tick();
-    }
     return this.snapshot;
   }
 
@@ -249,9 +271,6 @@ export class SystemMetricsRecorder {
   tick() {
     const at = this.now();
     const intervalMs = this.previousAt === null ? 0 : at - this.previousAt;
-    if (this.previousAt !== null && intervalMs < this.tickMs / 2) {
-      return;
-    }
 
     const cpuCounters = readCpuCounters();
     const cpu = cpuCounters
@@ -275,7 +294,16 @@ export class SystemMetricsRecorder {
       : null;
     this.previousNet = netCounters;
 
-    const disk = sampleDiskActivity();
+    const diskCounters = readDiskCounters();
+    const disk = diskCounters
+      ? buildDiskActivity({
+          previous: this.previousDisk,
+          current: diskCounters,
+          intervalMs,
+        })
+      : null;
+    this.previousDisk = diskCounters;
+
     const memory = readSystemMemory();
     this.previousAt = at;
     this.snapshot = { cpu, network, disk };
@@ -283,13 +311,11 @@ export class SystemMetricsRecorder {
     const sample: SystemMetricsSample = {
       at,
       cpuPercent: cpu?.usagePercent ?? null,
-      cpuIoWaitPercent: cpu?.ioWaitPercent ?? null,
-      cpuCorePercents: cpu ? cpu.cores.map((core) => core.usagePercent) : null,
       memoryUsedBytes: memory.usedBytes,
       memoryTotalBytes: memory.totalBytes,
-      gpus: this.gpuSamples(),
-      disks: this.diskSamples(disk),
-      network: this.networkSamples(network),
+      gpus: gpuSamples(),
+      disks: diskSamples(disk),
+      network: networkSamples(network),
     };
 
     this.buffers.get("live")?.push(sample);
@@ -297,37 +323,6 @@ export class SystemMetricsRecorder {
     for (const listener of this.listeners) {
       listener(sample);
     }
-  }
-
-  private gpuSamples(): SystemMetricsGpuSample[] {
-    return nvidiaTelemetry.accelerators().map((device) => ({
-      id: String(device.index),
-      utilizationPercent: device.utilizationPercent,
-      memoryUsedBytes: device.usedMemoryBytes,
-      memoryTotalBytes: device.totalMemoryBytes,
-      temperatureC: device.temperatureC,
-    }));
-  }
-
-  private diskSamples(
-    disk: SystemDiskActivity | null,
-  ): SystemMetricsDiskSample[] {
-    return (disk?.devices ?? []).map((device) => ({
-      name: device.name,
-      utilPercent: device.utilPercent,
-      readBytesPerSec: device.readBytesPerSec,
-      writeBytesPerSec: device.writeBytesPerSec,
-    }));
-  }
-
-  private networkSamples(
-    network: SystemNetworkActivity | null,
-  ): SystemMetricsNetworkSample[] {
-    return (network?.interfaces ?? []).map((entry) => ({
-      name: entry.name,
-      rxBytesPerSec: entry.rxBytesPerSec,
-      txBytesPerSec: entry.txBytesPerSec,
-    }));
   }
 
   private accumulate(sample: SystemMetricsSample) {

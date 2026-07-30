@@ -2967,24 +2967,23 @@ export const SystemMetricsGpuSampleSchema = z.object({
   temperatureC: z.number().nullable(),
 });
 
-export const SystemMetricsDiskSampleSchema = z.object({
-  name: z.string(),
-  utilPercent: z.number().nullable(),
-  readBytesPerSec: z.number().nullable(),
-  writeBytesPerSec: z.number().nullable(),
+export const SystemMetricsDiskSampleSchema = SystemDiskDeviceSchema.pick({
+  name: true,
+  utilPercent: true,
+  readBytesPerSec: true,
+  writeBytesPerSec: true,
 });
 
-export const SystemMetricsNetworkSampleSchema = z.object({
-  name: z.string(),
-  rxBytesPerSec: z.number().nullable(),
-  txBytesPerSec: z.number().nullable(),
-});
+export const SystemMetricsNetworkSampleSchema =
+  SystemNetworkInterfaceSchema.pick({
+    name: true,
+    rxBytesPerSec: true,
+    txBytesPerSec: true,
+  });
 
 export const SystemMetricsSampleSchema = z.object({
   at: z.number().int().nonnegative(),
   cpuPercent: z.number().nullable(),
-  cpuIoWaitPercent: z.number().nullable(),
-  cpuCorePercents: z.array(z.number()).nullable(),
   memoryUsedBytes: z.number().nonnegative(),
   memoryTotalBytes: z.number().nonnegative(),
   gpus: z.array(SystemMetricsGpuSampleSchema),
@@ -3000,6 +2999,15 @@ export const SystemMetricsHistorySchema = z.object({
   capacity: z.number().int().positive(),
   samples: z.array(SystemMetricsSampleSchema),
 });
+
+export const SYSTEM_METRICS_TIERS: Record<
+  z.infer<typeof SystemMetricsWindowSchema>,
+  { intervalMs: number; capacity: number }
+> = {
+  live: { intervalMs: 1_000, capacity: 300 },
+  hour: { intervalMs: 10_000, capacity: 360 },
+  day: { intervalMs: 60_000, capacity: 1_440 },
+};
 
 export const HostPackageManagerSchema = z.enum([
   "apt",

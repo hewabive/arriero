@@ -14,6 +14,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
+import { useMemo } from "react";
 
 import { formatAcceleratorName } from "../utils/pools";
 import { MetricChart, type MetricSeries } from "./MetricChart";
@@ -98,6 +99,7 @@ export function SystemResourcesPanel(props: {
   resources: SystemResources | undefined;
   samples: SystemMetricsSample[];
   windowMs: number;
+  intervalMs: number;
   window: SystemMetricsWindow;
   onWindowChange: (window: SystemMetricsWindow) => void;
   fetching?: boolean;
@@ -108,8 +110,15 @@ export function SystemResourcesPanel(props: {
   const disk = props.resources?.disk ?? null;
   const network = props.resources?.network ?? null;
   const samples = props.samples;
-  const times = samples.map((sample) => sample.at);
   const latest = samples[samples.length - 1] ?? null;
+  const axis = useMemo(
+    () => ({
+      times: samples.map((sample) => sample.at),
+      windowMs: props.windowMs,
+      intervalMs: props.intervalMs,
+    }),
+    [samples, props.windowMs, props.intervalMs],
+  );
 
   return (
     <Paper withBorder p="md" radius="sm">
@@ -142,10 +151,9 @@ export function SystemResourcesPanel(props: {
           <MetricChart
             title="CPU"
             headline={formatPercent(cpu?.usagePercent)}
-            times={times}
-            windowMs={props.windowMs}
+            axis={axis}
             domain={{ kind: "fixed", max: 100 }}
-            formatValue={(value) => `${Math.round(value)}%`}
+            formatValue={formatPercent}
             series={[
               {
                 id: "cpu",
@@ -158,8 +166,7 @@ export function SystemResourcesPanel(props: {
           <MetricChart
             title="Memory"
             headline={`${formatBytes(memory?.usedBytes)} / ${formatBytes(memory?.totalBytes)}`}
-            times={times}
-            windowMs={props.windowMs}
+            axis={axis}
             domain={{
               kind: "fixed",
               max: memory?.totalBytes ?? latest?.memoryTotalBytes ?? 1,
@@ -286,10 +293,9 @@ export function SystemResourcesPanel(props: {
                     <MetricChart
                       title="GPU load"
                       headline={formatPercent(accelerator.utilizationPercent)}
-                      times={times}
-                      windowMs={props.windowMs}
+                      axis={axis}
                       domain={{ kind: "fixed", max: 100 }}
-                      formatValue={(value) => `${Math.round(value)}%`}
+                      formatValue={formatPercent}
                       height={90}
                       series={[
                         {
@@ -310,8 +316,7 @@ export function SystemResourcesPanel(props: {
                           ? "memory unknown"
                           : `${formatBytes(usedBytes)} / ${formatBytes(accelerator.totalMemoryBytes)}`
                       }
-                      times={times}
-                      windowMs={props.windowMs}
+                      axis={axis}
                       domain={{
                         kind: "fixed",
                         max: accelerator.totalMemoryBytes ?? 1,
@@ -420,10 +425,9 @@ export function SystemResourcesPanel(props: {
                       <MetricChart
                         title="Active time"
                         headline={formatPercent(device.utilPercent)}
-                        times={times}
-                        windowMs={props.windowMs}
+                        axis={axis}
                         domain={{ kind: "fixed", max: 100 }}
-                        formatValue={(value) => `${Math.round(value)}%`}
+                        formatValue={formatPercent}
                         height={90}
                         series={[
                           {
@@ -440,8 +444,7 @@ export function SystemResourcesPanel(props: {
                       <MetricChart
                         title="Transfer rate"
                         headline={`${formatRate(device.readBytesPerSec)} · ${formatRate(device.writeBytesPerSec)}`}
-                        times={times}
-                        windowMs={props.windowMs}
+                        axis={axis}
                         domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
                         formatValue={formatRate}
                         height={90}
@@ -518,8 +521,7 @@ export function SystemResourcesPanel(props: {
                     <MetricChart
                       title="Throughput"
                       headline={`${formatRate(entry.rxBytesPerSec)} · ${formatRate(entry.txBytesPerSec)}`}
-                      times={times}
-                      windowMs={props.windowMs}
+                      axis={axis}
                       domain={{ kind: "auto", minimumMax: 128 * 1024 }}
                       formatValue={formatRate}
                       height={90}

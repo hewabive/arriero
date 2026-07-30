@@ -1,19 +1,13 @@
-import type { SystemMetricsSample } from "@arriero/core";
+import { SYSTEM_METRICS_TIERS, type SystemMetricsSample } from "@arriero/core";
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import {
-  averageSamples,
-  SYSTEM_METRICS_TIERS,
-  SystemMetricsRecorder,
-} from "./metrics-history.js";
+import { averageSamples, SystemMetricsRecorder } from "./metrics-history.js";
 
 function sample(input: Partial<SystemMetricsSample>): SystemMetricsSample {
   return {
     at: 0,
     cpuPercent: 0,
-    cpuIoWaitPercent: 0,
-    cpuCorePercents: [0],
     memoryUsedBytes: 0,
     memoryTotalBytes: 1_000,
     gpus: [],
@@ -33,11 +27,6 @@ test("averageSamples averages scalars and keeps the newest timestamp", () => {
   assert.equal(averaged.at, 2_000);
   assert.equal(averaged.cpuPercent, 30);
   assert.equal(averaged.memoryUsedBytes, 200);
-});
-
-test("averageSamples drops per-core detail from coarse tiers", () => {
-  const averaged = averageSamples([sample({ cpuCorePercents: [10, 90] })]);
-  assert.equal(averaged?.cpuCorePercents, null);
 });
 
 test("averageSamples merges devices by identity across the window", () => {
@@ -139,7 +128,6 @@ test("the recorder folds live ticks into the coarse tiers", () => {
   assert.equal(hour.samples.length, 12);
   assert.equal(day.intervalMs, 60_000);
   assert.equal(day.samples.length, 2);
-  assert.equal(hour.samples[0]?.cpuCorePercents, null);
   recorder.reset();
 });
 

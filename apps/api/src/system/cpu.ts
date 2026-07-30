@@ -2,48 +2,44 @@ import type { SystemCpuActivity, SystemCpuCore } from "@arriero/core";
 import { readFileSync } from "node:fs";
 import { loadavg } from "node:os";
 
-export type CpuTimes = {
-  user: number;
-  nice: number;
-  system: number;
-  idle: number;
-  iowait: number;
-  irq: number;
-  softirq: number;
-  steal: number;
-};
+import { clampPercent } from "./clamp.js";
+
+const CPU_FIELDS = [
+  "user",
+  "nice",
+  "system",
+  "idle",
+  "iowait",
+  "irq",
+  "softirq",
+  "steal",
+] as const;
+
+type CpuField = (typeof CPU_FIELDS)[number];
+
+export type CpuTimes = Record<CpuField, number>;
 
 export type CpuCounters = {
   total: CpuTimes;
   cores: Map<number, CpuTimes>;
 };
 
-const EMPTY_TIMES: CpuTimes = {
-  user: 0,
-  nice: 0,
-  system: 0,
-  idle: 0,
-  iowait: 0,
-  irq: 0,
-  softirq: 0,
-  steal: 0,
-};
+function buildTimes(
+  pick: (field: CpuField, index: number) => number,
+): CpuTimes {
+  return Object.fromEntries(
+    CPU_FIELDS.map((field, index) => [field, pick(field, index)]),
+  ) as CpuTimes;
+}
+
+const EMPTY_TIMES: CpuTimes = buildTimes(() => 0);
 
 function parseTimes(fields: string[]): CpuTimes | null {
   const values = fields.map(Number);
   if (values.length < 4 || values.some((value) => !Number.isFinite(value))) {
     return null;
   }
-  return {
-    user: values[0] ?? 0,
-    nice: values[1] ?? 0,
-    system: values[2] ?? 0,
-    idle: values[3] ?? 0,
-    iowait: values[4] ?? 0,
-    irq: values[5] ?? 0,
-    softirq: values[6] ?? 0,
-    steal: values[7] ?? 0,
-  };
+  return buildTimes((_field, index) => values[index] ?? 0);
 }
 
 export function parseProcStat(contents: string): CpuCounters | null {
@@ -77,36 +73,11 @@ export function parseProcStat(contents: string): CpuCounters | null {
 }
 
 function totalTicks(times: CpuTimes): number {
-  return (
-    times.user +
-    times.nice +
-    times.system +
-    times.idle +
-    times.iowait +
-    times.irq +
-    times.softirq +
-    times.steal
-  );
-}
-
-function clampPercent(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.min(100, Math.max(0, value));
+  return CPU_FIELDS.reduce((sum, field) => sum + times[field], 0);
 }
 
 function delta(current: CpuTimes, previous: CpuTimes): CpuTimes {
-  return {
-    user: current.user - previous.user,
-    nice: current.nice - previous.nice,
-    system: current.system - previous.system,
-    idle: current.idle - previous.idle,
-    iowait: current.iowait - previous.iowait,
-    irq: current.irq - previous.irq,
-    softirq: current.softirq - previous.softirq,
-    steal: current.steal - previous.steal,
-  };
+  return buildTimes((field) => current[field] - previous[field]);
 }
 
 function busyRatio(times: CpuTimes): number {

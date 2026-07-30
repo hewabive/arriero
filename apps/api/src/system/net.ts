@@ -4,6 +4,8 @@ import type {
 } from "@arriero/core";
 import { readFileSync } from "node:fs";
 
+import { readSysString } from "./sysfs.js";
+
 const EXCLUDED_PREFIXES = ["lo", "veth", "docker", "br-", "virbr", "dummy"];
 const META_CACHE_MS = 30_000;
 
@@ -108,15 +110,6 @@ export function computeNetworkActivity(input: {
     totalTxBytesPerSec: totalTx,
     intervalMs: input.intervalMs > 0 ? Math.round(input.intervalMs) : null,
   };
-}
-
-function readSysString(path: string): string | null {
-  try {
-    const value = readFileSync(path, "utf8").trim();
-    return value.length > 0 ? value : null;
-  } catch {
-    return null;
-  }
 }
 
 function readInterfaceMeta(name: string): NetInterfaceMeta {

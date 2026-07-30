@@ -9,16 +9,10 @@ import {
   type NvidiaDeviceSnapshot,
   nvidiaTelemetry,
 } from "../nvidia/telemetry.js";
+import { clampRatio } from "./clamp.js";
 import { readSystemMemory } from "./memory.js";
 import { systemMetricsRecorder } from "./metrics-history.js";
 import { uvToolStatus } from "../envs/uv.js";
-
-function clampRatio(value: number) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.min(1, Math.max(0, value));
-}
 
 export function nvidiaDevicesToAccelerators(
   devices: NvidiaDeviceSnapshot[],

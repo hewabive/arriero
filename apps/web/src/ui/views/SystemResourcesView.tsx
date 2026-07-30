@@ -20,6 +20,7 @@ export function SystemResourcesView() {
       resources={resourcesQuery.data?.data}
       samples={metrics.samples}
       windowMs={metrics.windowMs}
+      intervalMs={metrics.intervalMs}
       window={window}
       onWindowChange={setWindow}
       fetching={resourcesQuery.isFetching}

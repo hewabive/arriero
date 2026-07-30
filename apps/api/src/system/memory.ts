@@ -2,12 +2,7 @@ import type { SystemMemory } from "@arriero/core";
 import { readFileSync } from "node:fs";
 import { freemem, totalmem } from "node:os";
 
-function clampRatio(value: number) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.min(1, Math.max(0, value));
-}
+import { clampRatio } from "./clamp.js";
 
 function toMemory(input: {
   totalBytes: number;

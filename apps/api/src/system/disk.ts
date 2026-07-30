@@ -5,6 +5,9 @@ import type {
 } from "@arriero/core";
 import { readFileSync, statSync } from "node:fs";
 
+import { clampPercent } from "./clamp.js";
+import { readSysString } from "./sysfs.js";
+
 const SECTOR_BYTES = 512;
 const EXCLUDED_PREFIXES = ["loop", "ram", "zram", "dm-", "md", "sr", "fd"];
 
@@ -101,7 +104,7 @@ export function computeDiskActivity(input: {
     const readIops = valid ? Math.max(0, dRdIos) / seconds : null;
     const writeIops = valid ? Math.max(0, dWrIos) / seconds : null;
     const utilPercent = valid
-      ? Math.min(100, (Math.max(0, dTicks) / input.intervalMs) * 100)
+      ? clampPercent((Math.max(0, dTicks) / input.intervalMs) * 100)
       : null;
     const avgReadLatencyMs =
       valid && dRdIos > 0 ? Math.max(0, dRdMs) / dRdIos : null;
@@ -139,7 +142,7 @@ export function computeDiskActivity(input: {
   };
 }
 
-function isReportableDisk(name: string): boolean {
+function probeReportableDisk(name: string): boolean {
   if (EXCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix))) {
     return false;
   }
@@ -147,15 +150,6 @@ function isReportableDisk(name: string): boolean {
     return statSync(`/sys/block/${name}`).isDirectory();
   } catch {
     return false;
-  }
-}
-
-function readSysString(path: string): string | null {
-  try {
-    const value = readFileSync(path, "utf8").trim();
-    return value.length > 0 ? value : null;
-  } catch {
-    return null;
   }
 }
 
@@ -181,10 +175,7 @@ export function parseIoPressure(contents: string): SystemIoPressure | null {
   if (!Number.isFinite(avg10) || !Number.isFinite(avg60)) {
     return null;
   }
-  return {
-    avg10: Math.min(100, Math.max(0, avg10)),
-    avg60: Math.min(100, Math.max(0, avg60)),
-  };
+  return { avg10: clampPercent(avg10), avg60: clampPercent(avg60) };
 }
 
 function readIoPressure(): SystemIoPressure | null {
@@ -195,10 +186,8 @@ function readIoPressure(): SystemIoPressure | null {
   }
 }
 
-let previousSample: { at: number; counters: Map<string, DiskCounters> } | null =
-  null;
-let latest: SystemDiskActivity | null = null;
 const metaCache = new Map<string, DiskMeta>();
+const reportableCache = new Map<string, boolean>();
 
 function cachedDiskMeta(name: string): DiskMeta {
   const cached = metaCache.get(name);
@@ -210,34 +199,39 @@ function cachedDiskMeta(name: string): DiskMeta {
   return meta;
 }
 
-export function sampleDiskActivity(): SystemDiskActivity | null {
+function isReportableDisk(name: string): boolean {
+  const cached = reportableCache.get(name);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const reportable = probeReportableDisk(name);
+  reportableCache.set(name, reportable);
+  return reportable;
+}
+
+export function readDiskCounters(): Map<string, DiskCounters> | null {
   if (process.platform !== "linux") {
     return null;
   }
-  let contents: string;
   try {
-    contents = readFileSync("/proc/diskstats", "utf8");
+    return parseDiskStats(readFileSync("/proc/diskstats", "utf8"));
   } catch {
     return null;
   }
+}
 
-  const now = Date.now();
-  const all = parseDiskStats(contents);
-  const names = [...all.keys()].filter(isReportableDisk).sort();
-  const counters = new Map(names.map((name) => [name, all.get(name)!]));
-
-  latest = computeDiskActivity({
-    previous: previousSample?.counters ?? counters,
-    current: counters,
-    intervalMs: previousSample ? now - previousSample.at : 0,
+export function buildDiskActivity(input: {
+  previous: Map<string, DiskCounters> | null;
+  current: Map<string, DiskCounters>;
+  intervalMs: number;
+}): SystemDiskActivity {
+  const names = [...input.current.keys()].filter(isReportableDisk).sort();
+  return computeDiskActivity({
+    previous: input.previous ?? input.current,
+    current: input.current,
+    intervalMs: input.intervalMs,
     names,
     meta: new Map(names.map((name) => [name, cachedDiskMeta(name)])),
     ioPressure: readIoPressure(),
   });
-  previousSample = { at: now, counters };
-  return latest;
-}
-
-export function readDiskActivity(): SystemDiskActivity | null {
-  return latest ?? sampleDiskActivity();
 }

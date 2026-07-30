@@ -2,6 +2,7 @@ import { Box, Group, Paper, Text, useComputedColorScheme } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { useMemo, useState } from "react";
 
+import { formatLocalClock } from "../utils/time";
 import { metricToneColor, type MetricTone } from "./metric-palette";
 
 export type MetricSeries = {
@@ -9,6 +10,12 @@ export type MetricSeries = {
   label: string;
   tone: MetricTone;
   values: (number | null)[];
+};
+
+export type MetricAxis = {
+  times: number[];
+  windowMs: number;
+  intervalMs: number;
 };
 
 export type MetricDomain =
@@ -19,8 +26,7 @@ type MetricChartProps = {
   title: string;
   headline: string;
   series: MetricSeries[];
-  times: number[];
-  windowMs: number;
+  axis: MetricAxis;
   domain: MetricDomain;
   formatValue: (value: number) => string;
   height?: number;
@@ -30,13 +36,6 @@ type PlotPoint = { x: number; y: number };
 
 const GRID_DIVISIONS = 4;
 const GAP_TOLERANCE = 2.5;
-
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-});
 
 function niceCeiling(value: number): number {
   if (!Number.isFinite(value) || value <= 0) {
@@ -129,6 +128,7 @@ export function MetricChart(props: MetricChartProps) {
   const { ref, width } = useElementSize();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const height = props.height ?? 120;
+  const { times, windowMs, intervalMs } = props.axis;
 
   const gridColor =
     colorScheme === "dark"
@@ -141,38 +141,54 @@ export function MetricChart(props: MetricChartProps) {
     [props.domain, props.series],
   );
 
-  const latestTime = props.times[props.times.length - 1] ?? 0;
-  const startTime = latestTime - props.windowMs;
+  const latestTime = times[times.length - 1] ?? 0;
+  const startTime = latestTime - windowMs;
   const plotWidth = Math.max(width, 1);
 
-  const scaleX = (time: number) =>
-    ((time - startTime) / props.windowMs) * plotWidth;
+  const scaleX = (time: number) => ((time - startTime) / windowMs) * plotWidth;
   const scaleY = (value: number) =>
     height - Math.min(1, Math.max(0, value / max)) * height;
 
-  const rendered = props.series.map((entry) => ({
-    ...entry,
-    color: metricToneColor(entry.tone, colorScheme),
-    segments: buildSegments(
-      entry.values,
-      props.times,
-      scaleX,
-      scaleY,
-      GAP_TOLERANCE * (props.windowMs / Math.max(props.times.length, 1)),
-    ),
-  }));
+  const rendered = useMemo(
+    () =>
+      props.series.map((entry) => {
+        const segments = buildSegments(
+          entry.values,
+          times,
+          scaleX,
+          scaleY,
+          GAP_TOLERANCE * intervalMs,
+        );
+        return {
+          ...entry,
+          color: metricToneColor(entry.tone, colorScheme),
+          segments,
+          area: areaPath(segments, height),
+          line: linePath(segments),
+        };
+      }),
+    [
+      props.series,
+      times,
+      intervalMs,
+      startTime,
+      windowMs,
+      plotWidth,
+      height,
+      max,
+      colorScheme,
+    ],
+  );
 
-  const hoverTime =
-    hoverIndex === null ? null : (props.times[hoverIndex] ?? null);
+  const hoverTime = hoverIndex === null ? null : (times[hoverIndex] ?? null);
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const offsetX = event.clientX - bounds.left;
-    const time =
-      startTime + (offsetX / Math.max(bounds.width, 1)) * props.windowMs;
+    const time = startTime + (offsetX / Math.max(bounds.width, 1)) * windowMs;
     let nearest: number | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
-    props.times.forEach((value, index) => {
+    times.forEach((value, index) => {
       const distance = Math.abs(value - time);
       if (distance < nearestDistance) {
         nearestDistance = distance;
@@ -237,7 +253,7 @@ export function MetricChart(props: MetricChartProps) {
           {rendered.map((entry) => (
             <path
               key={`${entry.id}-area`}
-              d={areaPath(entry.segments, height)}
+              d={entry.area}
               fill={entry.color}
               fillOpacity={0.1}
             />
@@ -246,7 +262,7 @@ export function MetricChart(props: MetricChartProps) {
           {rendered.map((entry) => (
             <path
               key={`${entry.id}-line`}
-              d={linePath(entry.segments)}
+              d={entry.line}
               fill="none"
               stroke={entry.color}
               strokeWidth={2}
@@ -312,7 +328,7 @@ export function MetricChart(props: MetricChartProps) {
             style={{ pointerEvents: "none", minWidth: 130 }}
           >
             <Text c="dimmed" size="xs">
-              {timeFormatter.format(hoverTime)}
+              {formatLocalClock(hoverTime)}
             </Text>
             {rendered.map((entry) => {
               const value = entry.values[hoverIndex];

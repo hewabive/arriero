@@ -1,14 +1,12 @@
-import type { SystemMetricsSample, SystemMetricsWindow } from "@arriero/core";
+import {
+  SYSTEM_METRICS_TIERS,
+  type SystemMetricsSample,
+  type SystemMetricsWindow,
+} from "@arriero/core";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { getSystemMetrics, systemMetricsStreamUrl } from "../../api/client";
-
-const COARSE_REFETCH_MS: Record<SystemMetricsWindow, number | false> = {
-  live: false,
-  hour: 10_000,
-  day: 60_000,
-};
 
 function mergeSamples(
   history: SystemMetricsSample[],
@@ -28,10 +26,11 @@ function mergeSamples(
 }
 
 export function useSystemMetrics(window: SystemMetricsWindow) {
+  const tier = SYSTEM_METRICS_TIERS[window];
   const query = useQuery({
     queryKey: ["system-metrics", window],
     queryFn: () => getSystemMetrics(window),
-    refetchInterval: COARSE_REFETCH_MS[window],
+    refetchInterval: window === "live" ? false : tier.intervalMs,
   });
   const [live, setLive] = useState<SystemMetricsSample[]>([]);
 
@@ -41,10 +40,11 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
       return;
     }
 
+    const limit = SYSTEM_METRICS_TIERS[window].capacity;
     const source = new EventSource(systemMetricsStreamUrl());
     const handler = (event: MessageEvent<string>) => {
       const sample = JSON.parse(event.data) as SystemMetricsSample;
-      setLive((previous) => [...previous.slice(-600), sample]);
+      setLive((previous) => [...previous, sample].slice(-limit));
     };
     source.addEventListener("sample", handler as EventListener);
 
@@ -54,8 +54,8 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
     };
   }, [window]);
 
-  const capacity = query.data?.data.capacity ?? 300;
-  const intervalMs = query.data?.data.intervalMs ?? 1_000;
+  const capacity = query.data?.data.capacity ?? tier.capacity;
+  const intervalMs = query.data?.data.intervalMs ?? tier.intervalMs;
   const samples = useMemo(
     () => mergeSamples(query.data?.data.samples ?? [], live, capacity),
     [query.data, live, capacity],
