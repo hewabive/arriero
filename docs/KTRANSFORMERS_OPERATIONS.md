@@ -134,8 +134,9 @@ a substitute for this gate.
   process-tree memory with declared reservations. Stop the instance and raise
   its draws before admitting competitors.
 - **Healthy model remains degraded:** inspect swap and warnings. The qualified
-  32-GiB host swaps roughly 2.8 GiB of the process tree, so degraded status is
-  intentional. Do not hide it or disable admission checks.
+  32-GiB host swapped roughly 2.8–3.4 GiB of the process tree during
+  qualification, so degraded status is intentional. Do not hide it or disable
+  admission checks.
 - **Proxy requests queue:** check `--max-running-requests`, resource contention,
   target priority, and eviction policy. Under `idle-only`, active work drains
   instead of being interrupted.
