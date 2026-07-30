@@ -119,6 +119,7 @@ type KTransformersRuntime = {
 function validateRuntime(
   instance: Instance,
   issues: ProcessPreflightIssue[],
+  options: PreflightOptions,
 ): KTransformersRuntime | null {
   if (basename(instance.binaryPath) !== "sglang") {
     issue(
@@ -138,6 +139,7 @@ function validateRuntime(
     );
     return null;
   }
+  const timeoutMs = options.runtimeProbeTimeoutMs ?? 30_000;
   const result = spawnSync(
     python,
     [
@@ -151,14 +153,18 @@ function validateRuntime(
         "print('ARRIERO_KT_RUNTIME=' + json.dumps([f'{sys.version_info.major}.{sys.version_info.minor}', metadata.version('kt-kernel'), metadata.version('sglang-kt')]))",
       ].join("; "),
     ],
-    { encoding: "utf8", timeout: 3_000 },
+    { encoding: "utf8", timeout: timeoutMs },
   );
   if (result.error || result.status !== 0) {
+    const timedOut =
+      (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
     issue(
       issues,
       "error",
       "binaryPathRefId",
-      "KTransformers runtime imports failed in the selected environment",
+      timedOut
+        ? `KTransformers runtime import probe timed out after ${timeoutMs} ms`
+        : "KTransformers runtime imports failed in the selected environment",
     );
     return null;
   }
@@ -829,7 +835,7 @@ export function validateKTransformersPreflight(
 
   validateModel(instance.engineConfig.model, issues);
   validateCpuWeights(instance.engineConfig.cpuWeights, issues);
-  const runtime = validateRuntime(instance, issues);
+  const runtime = validateRuntime(instance, issues, options);
   validateArgumentCompatibility(instance, issues);
   validateCuda(instance, issues, options);
   validateMemoryReservations(instance, issues, options);

@@ -27,6 +27,7 @@ export type PreflightOptions = {
   physicalCoreCount?: number | undefined;
   hostAvailableMemoryBytes?: number | undefined;
   swapTotalBytes?: number | undefined;
+  runtimeProbeTimeoutMs?: number | undefined;
 };
 
 type EnginePreflightCheck = (

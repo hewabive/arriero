@@ -396,3 +396,31 @@ test("KTransformers preflight requires matching roots and versions RAWINT4 ISA",
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("KTransformers runtime probe timeout is configurable and diagnostic", () => {
+  const { root, instance } = fixture();
+  const python = join(root, "bin", "python");
+  try {
+    // Populate the argument catalog before replacing the shared Python
+    // launcher with a deliberately hanging runtime probe.
+    assert.equal(
+      validateInstancePreflight(instance, preflightOptions()).ok,
+      true,
+    );
+    writeFileSync(python, "#!/bin/sh\nwhile :; do :; done\n", { mode: 0o755 });
+    const result = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      runtimeProbeTimeoutMs: 10,
+    });
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.issues.some(
+        (entry) =>
+          entry.field === "binaryPathRefId" &&
+          /timed out after 10 ms/.test(entry.message),
+      ),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
