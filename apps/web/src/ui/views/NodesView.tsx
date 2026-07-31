@@ -2,16 +2,24 @@ import type {
   FleetNodeCreate,
   FleetNodeUpdate,
   FleetNodeView,
-  FleetSystemEntry,
+  UpdateFleetNode,
+  UpdateJob,
+  UpdateJobStep,
 } from "@arriero/core";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
+  Card,
+  Code,
+  Collapse,
   Group,
+  Loader,
   Modal,
   Paper,
   PasswordInput,
+  ScrollArea,
   Stack,
   Switch,
   Text,
@@ -19,18 +27,29 @@ import {
   ThemeIcon,
   Tooltip,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Server, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  cancelNodeUpdateJob,
+  checkForUpdate,
   createNode,
   deleteNode,
-  getFleetSystem,
+  getNodeUpdateJob,
+  getNodeUpdateJobLogs,
+  getUpdateFleet,
   listNodes,
+  startNodeUpdate,
   updateNode,
 } from "../../api/client";
+import { forceReloadUi } from "../utils/reload";
+import { formatLocalDateTime } from "../utils/time";
+
+const SELF_RELOAD_DELAY_MS = 1500;
+const AUTO_CHECK_STALE_MS = 15 * 60_000;
 
 type Draft = {
   name: string;
@@ -50,26 +69,88 @@ const emptyDraft: Draft = {
   clearToken: false,
 };
 
+function modeColor(mode: string): string {
+  return mode === "serve" ? "teal" : mode === "dev" ? "yellow" : "gray";
+}
+
+function jobColor(status: UpdateJob["status"]): string {
+  switch (status) {
+    case "succeeded":
+      return "teal";
+    case "running":
+      return "blue";
+    case "failed":
+      return "red";
+    case "canceled":
+      return "orange";
+    default:
+      return "gray";
+  }
+}
+
+function stepColor(status: UpdateJobStep["status"]): string {
+  switch (status) {
+    case "succeeded":
+      return "teal";
+    case "running":
+      return "blue";
+    case "failed":
+      return "red";
+    default:
+      return "gray";
+  }
+}
+
+function isEligible(node: UpdateFleetNode): boolean {
+  return Boolean(
+    node.ok && node.outdated && node.version?.canUpdate && !node.version?.dirty,
+  );
+}
+
 function reachability(
-  node: FleetNodeView,
-  entry: FleetSystemEntry | undefined,
+  registryNode: FleetNodeView,
+  fleetNode: UpdateFleetNode | null,
 ): { color: string; label: string; tooltip: string | null } {
-  if (!node.enabled) {
+  if (!registryNode.enabled) {
     return { color: "gray", label: "disabled", tooltip: null };
   }
-  if (!entry) {
+  if (!fleetNode) {
     return { color: "yellow", label: "checking", tooltip: null };
   }
-  if (entry.ok) {
+  if (fleetNode.ok) {
     return { color: "green", label: "reachable", tooltip: null };
   }
-  return { color: "red", label: "unreachable", tooltip: entry.error };
+  return { color: "red", label: "unreachable", tooltip: fleetNode.error };
+}
+
+function disabledReason(node: UpdateFleetNode): string | null {
+  if (!node.ok) {
+    return node.error ?? "unreachable";
+  }
+  if (node.version?.dirty) {
+    return "working tree is dirty";
+  }
+  if (!node.version?.canUpdate) {
+    return node.version?.updateBlockedReason ?? "update unavailable";
+  }
+  if (!node.outdated) {
+    return "already up to date";
+  }
+  return null;
 }
 
 export function NodesView() {
   const queryClient = useQueryClient();
   const [editor, setEditor] = useState<Editor | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [visibleJobs, setVisibleJobs] = useState<Record<string, string>>({});
+  const [runningJobs, setRunningJobs] = useState<Record<string, true>>({});
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkFetchError, setCheckFetchError] = useState<string | null>(null);
+  const autoCheckedRef = useRef(false);
+
+  const anyJobRunning = Object.keys(runningJobs).length > 0;
 
   const nodesQuery = useQuery({
     queryKey: ["nodes"],
@@ -77,23 +158,24 @@ export function NodesView() {
     staleTime: 10_000,
   });
   const fleetQuery = useQuery({
-    queryKey: ["fleet-system"],
-    queryFn: getFleetSystem,
-    refetchInterval: 10_000,
+    queryKey: ["update-fleet"],
+    queryFn: getUpdateFleet,
+    retry: 1,
+    refetchInterval: () => (anyJobRunning ? 2500 : 15_000),
   });
 
-  const nodes = nodesQuery.data?.data ?? [];
+  const registryNodes = nodesQuery.data?.data ?? [];
+  const fleet = fleetQuery.data?.data;
+  const upstream = fleet?.upstream ?? null;
   const fleetByNodeId = useMemo(
-    () =>
-      new Map(
-        (fleetQuery.data?.data ?? []).map((entry) => [entry.nodeId, entry]),
-      ),
-    [fleetQuery.data?.data],
+    () => new Map((fleet?.nodes ?? []).map((entry) => [entry.nodeId, entry])),
+    [fleet],
   );
+  const selfNode = fleetByNodeId.get("self") ?? null;
 
   async function invalidate() {
     await queryClient.invalidateQueries({ queryKey: ["nodes"] });
-    await queryClient.invalidateQueries({ queryKey: ["fleet-system"] });
+    await queryClient.invalidateQueries({ queryKey: ["update-fleet"] });
   }
 
   function reportError(title: string, error: unknown) {
@@ -175,84 +257,191 @@ export function NodesView() {
     createMutation.mutate(input);
   }
 
-  function renderNode(node: FleetNodeView) {
-    const state = reachability(node, fleetByNodeId.get(node.id));
-    const badge = (
-      <Badge color={state.color} variant="light">
-        {state.label}
-      </Badge>
+  const runCheck = useCallback(async () => {
+    setChecking(true);
+    setCheckFetchError(null);
+    try {
+      const res = await checkForUpdate();
+      setCheckFetchError(res.fetchError);
+      await queryClient.invalidateQueries({ queryKey: ["update-fleet"] });
+    } catch (error) {
+      setCheckFetchError((error as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (autoCheckedRef.current || !fleet) {
+      return;
+    }
+    autoCheckedRef.current = true;
+    const checkedAt = fleet.upstream
+      ? Date.parse(fleet.upstream.lastCheckedAt)
+      : Number.NaN;
+    if (!Number.isFinite(checkedAt) || Date.now() - checkedAt > AUTO_CHECK_STALE_MS) {
+      void runCheck();
+    }
+  }, [fleet, runCheck]);
+
+  const startOne = useCallback(async (node: UpdateFleetNode) => {
+    const result = await startNodeUpdate(
+      node.nodeId,
+      Boolean(node.version?.supervised),
     );
-    return (
-      <Paper key={node.id} withBorder p="sm" radius="sm">
-        <Group justify="space-between" align="flex-start" wrap="wrap">
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <ThemeIcon color="blue" variant="light" radius="sm" size={34}>
-              <Server size={18} />
-            </ThemeIcon>
-            <Stack gap={4}>
-              <Group gap="xs" wrap="wrap">
-                <Text fw={650}>{node.name}</Text>
-                {state.tooltip ? (
-                  <Tooltip label={state.tooltip}>{badge}</Tooltip>
-                ) : (
-                  badge
-                )}
-                <Badge
-                  variant={node.hasToken ? "light" : "outline"}
-                  color="gray"
-                >
-                  {node.hasToken ? "token set" : "no token"}
-                </Badge>
-              </Group>
-              <Text c="dimmed" size="xs">
-                {node.baseUrl}
-              </Text>
-            </Stack>
-          </Group>
-          <Group gap="xs" wrap="nowrap">
-            <ActionIcon
-              aria-label="Edit node"
-              variant="subtle"
-              onClick={() => openEdit(node)}
-            >
-              <Pencil size={16} />
-            </ActionIcon>
-            <ActionIcon
-              aria-label="Remove node"
-              color="red"
-              variant="subtle"
-              loading={
-                deleteMutation.isPending && deleteMutation.variables === node.id
-              }
-              onClick={() => deleteMutation.mutate(node.id)}
-            >
-              <Trash2 size={16} />
-            </ActionIcon>
-          </Group>
-        </Group>
-      </Paper>
-    );
-  }
+    setVisibleJobs((prev) => ({ ...prev, [node.nodeId]: result.data.id }));
+    setRunningJobs((prev) => ({ ...prev, [node.nodeId]: true }));
+  }, []);
+
+  const onJobSettled = useCallback(
+    (nodeId: string) => {
+      setRunningJobs((prev) => {
+        if (!(nodeId in prev)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[nodeId];
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: ["update-fleet"] });
+    },
+    [queryClient],
+  );
+
+  const startNode = useCallback(
+    (node: UpdateFleetNode) => {
+      setActionError(null);
+      startOne(node).catch((error) => setActionError((error as Error).message));
+    },
+    [startOne],
+  );
+
+  const eligible = (fleet?.nodes ?? []).filter(isEligible);
+
+  const startAll = useCallback(async () => {
+    setActionError(null);
+    const peers = eligible.filter((node) => !node.self);
+    const selves = eligible.filter((node) => node.self);
+    try {
+      for (const node of peers) {
+        await startOne(node);
+      }
+      for (const node of selves) {
+        await startOne(node);
+      }
+    } catch (error) {
+      setActionError((error as Error).message);
+    }
+  }, [eligible, startOne]);
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
-        <Text c="dimmed" size="sm">
-          Peer nodes are reached through this node; their tokens are stored
-          locally and never returned.
-        </Text>
-        <Button leftSection={<Plus size={16} />} onClick={openCreate}>
-          Add node
-        </Button>
-      </Group>
+      <Card withBorder radius="md" padding="md">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Stack gap={2}>
+            <Group gap="xs">
+              <Text fw={600}>Remote</Text>
+              {upstream ? (
+                <>
+                  <Text size="sm" c="dimmed">
+                    {upstream.ref ?? "upstream"}
+                  </Text>
+                  <Code>{upstream.shortCommit}</Code>
+                  {upstream.committedAt && (
+                    <Text size="sm" c="dimmed">
+                      · {formatLocalDateTime(upstream.committedAt)}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  not checked yet
+                </Text>
+              )}
+            </Group>
+            <Text size="xs" c="dimmed">
+              {checking
+                ? "checking…"
+                : upstream?.lastCheckedAt
+                  ? `checked ${formatLocalDateTime(upstream.lastCheckedAt)}`
+                  : "never checked"}
+            </Text>
+          </Stack>
+          <Group gap="xs">
+            <Button
+              variant="default"
+              loading={checking}
+              onClick={() => void runCheck()}
+            >
+              Check for updates
+            </Button>
+            <Button
+              color="blue"
+              disabled={eligible.length === 0}
+              onClick={() => void startAll()}
+            >
+              Update all ({eligible.length})
+            </Button>
+            <Button leftSection={<Plus size={16} />} onClick={openCreate}>
+              Add node
+            </Button>
+          </Group>
+        </Group>
+        {checkFetchError && (
+          <Alert color="yellow" mt="sm" variant="light">
+            git fetch reported: {checkFetchError}
+          </Alert>
+        )}
+        {actionError && (
+          <Alert color="red" mt="sm" variant="light">
+            {actionError}
+          </Alert>
+        )}
+      </Card>
 
-      {nodes.length === 0 ? (
-        <Paper withBorder p="lg" radius="sm">
-          <Text c="dimmed">No nodes registered yet.</Text>
-        </Paper>
-      ) : (
-        <Stack gap="xs">{nodes.map(renderNode)}</Stack>
-      )}
+      <Text c="dimmed" size="sm">
+        Peer nodes are reached through this node; their tokens are stored
+        locally and never returned.
+      </Text>
+
+      <Stack gap="xs">
+        {selfNode ? (
+          <NodeCard
+            registryNode={null}
+            fleetNode={selfNode}
+            jobId={visibleJobs[selfNode.nodeId] ?? null}
+            onStart={startNode}
+            onSettled={onJobSettled}
+            onEdit={null}
+            onDelete={null}
+            deletePending={false}
+          />
+        ) : (
+          <Group justify="center" py="md">
+            <Loader size="sm" />
+          </Group>
+        )}
+        {registryNodes.map((node) => (
+          <NodeCard
+            key={node.id}
+            registryNode={node}
+            fleetNode={fleetByNodeId.get(node.id) ?? null}
+            jobId={visibleJobs[node.id] ?? null}
+            onStart={startNode}
+            onSettled={onJobSettled}
+            onEdit={openEdit}
+            onDelete={(id) => deleteMutation.mutate(id)}
+            deletePending={
+              deleteMutation.isPending && deleteMutation.variables === node.id
+            }
+          />
+        ))}
+        {registryNodes.length === 0 && (
+          <Paper withBorder p="lg" radius="sm">
+            <Text c="dimmed">No peer nodes registered yet.</Text>
+          </Paper>
+        )}
+      </Stack>
 
       <Modal
         opened={Boolean(editor)}
@@ -327,5 +516,294 @@ export function NodesView() {
         </Stack>
       </Modal>
     </Stack>
+  );
+}
+
+function NodeCard({
+  registryNode,
+  fleetNode,
+  jobId,
+  onStart,
+  onSettled,
+  onEdit,
+  onDelete,
+  deletePending,
+}: {
+  registryNode: FleetNodeView | null;
+  fleetNode: UpdateFleetNode | null;
+  jobId: string | null;
+  onStart: (node: UpdateFleetNode) => void;
+  onSettled: (nodeId: string) => void;
+  onEdit: ((node: FleetNodeView) => void) | null;
+  onDelete: ((id: string) => void) | null;
+  deletePending: boolean;
+}) {
+  const [logsOpen, logs] = useDisclosure(false);
+  const nodeId = fleetNode?.nodeId ?? registryNode?.id ?? "self";
+  const isSelf = Boolean(fleetNode?.self);
+  const version = fleetNode?.version ?? null;
+  const supervised = Boolean(version?.supervised);
+
+  const jobQuery = useQuery({
+    queryKey: ["update-job", nodeId, jobId],
+    queryFn: () => getNodeUpdateJob(nodeId, jobId!),
+    enabled: Boolean(jobId),
+    retry: 1,
+    refetchInterval: (query) =>
+      query.state.data?.data.status === "running" ? 1500 : false,
+  });
+  const job = jobQuery.data?.data ?? null;
+
+  const isRestarting = Boolean(
+    job &&
+    job.willRestart &&
+    job.status === "running" &&
+    (job.currentStep === "restart" || jobQuery.isError),
+  );
+  const applied = Boolean(
+    job &&
+    job.fromCommit &&
+    version?.commit &&
+    version.commit !== job.fromCommit,
+  );
+  const settled =
+    job !== null &&
+    (applied ||
+      (job.status === "succeeded" && !job.willRestart) ||
+      job.status === "failed" ||
+      job.status === "canceled");
+
+  useEffect(() => {
+    if (jobId && settled) {
+      onSettled(nodeId);
+    }
+  }, [jobId, settled, nodeId, onSettled]);
+
+  useEffect(() => {
+    if (!isSelf || !jobId || !applied) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void forceReloadUi();
+    }, SELF_RELOAD_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [isSelf, jobId, applied]);
+
+  const logsQuery = useQuery({
+    queryKey: ["update-logs", nodeId, jobId],
+    queryFn: () => getNodeUpdateJobLogs(nodeId, jobId!),
+    enabled: Boolean(jobId) && logsOpen,
+    retry: 1,
+    refetchInterval: () =>
+      logsOpen && job?.status === "running" && !isRestarting ? 1500 : false,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelNodeUpdateJob(nodeId, jobId!),
+  });
+
+  const reason = fleetNode ? disabledReason(fleetNode) : null;
+  const updating = Boolean(jobId) && !settled;
+  const state = registryNode ? reachability(registryNode, fleetNode) : null;
+  const reachBadge = state ? (
+    <Badge color={state.color} variant="light">
+      {state.label}
+    </Badge>
+  ) : null;
+
+  return (
+    <Card withBorder radius="md" padding="sm">
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="xs">
+        <Group gap="sm" align="flex-start" wrap="nowrap">
+          <ThemeIcon color="blue" variant="light" radius="sm" size={34}>
+            <Server size={18} />
+          </ThemeIcon>
+          <Stack gap={4}>
+            <Group gap="xs" wrap="wrap">
+              <Text fw={650}>
+                {registryNode?.name ?? fleetNode?.nodeName ?? "?"}
+              </Text>
+              {isSelf && (
+                <Badge size="sm" variant="light" color="gray">
+                  self
+                </Badge>
+              )}
+              {state &&
+                (state.tooltip ? (
+                  <Tooltip label={state.tooltip} multiline maw={320}>
+                    {reachBadge}
+                  </Tooltip>
+                ) : (
+                  reachBadge
+                ))}
+              {registryNode && (
+                <Badge
+                  variant={registryNode.hasToken ? "light" : "outline"}
+                  color="gray"
+                >
+                  {registryNode.hasToken ? "token set" : "no token"}
+                </Badge>
+              )}
+              {version && (
+                <Badge size="sm" variant="light" color={modeColor(version.mode)}>
+                  {version.mode}
+                </Badge>
+              )}
+              {version && !supervised && version.mode === "serve" && (
+                <Tooltip label="no supervisor; update will not auto-restart">
+                  <Badge size="sm" variant="outline" color="gray">
+                    unsupervised
+                  </Badge>
+                </Tooltip>
+              )}
+              {version?.dirty && (
+                <Badge size="sm" variant="light" color="red">
+                  dirty
+                </Badge>
+              )}
+            </Group>
+            {registryNode && (
+              <Text c="dimmed" size="xs">
+                {registryNode.baseUrl}
+              </Text>
+            )}
+          </Stack>
+        </Group>
+
+        <Group gap="sm" wrap="wrap" justify="flex-end">
+          {fleetNode?.ok &&
+            (fleetNode.outdated ? (
+              <Group gap={6}>
+                <Code>{version?.shortCommit ?? "?"}</Code>
+                {version?.committedAt && (
+                  <Text size="xs" c="dimmed">
+                    {formatLocalDateTime(version.committedAt)}
+                  </Text>
+                )}
+                <Text size="sm" c="orange" fw={600}>
+                  {fleetNode.behindCount === null
+                    ? "behind"
+                    : `behind ${fleetNode.behindCount}`}
+                </Text>
+              </Group>
+            ) : (
+              <Text size="sm" c="teal">
+                up to date
+              </Text>
+            ))}
+
+          {fleetNode &&
+            (updating ? (
+              <Badge color={jobColor(job?.status ?? "running")} variant="light">
+                {isRestarting
+                  ? "restarting…"
+                  : (job?.currentStep ?? "starting…")}
+              </Badge>
+            ) : (
+              <Tooltip
+                label={reason ?? ""}
+                disabled={!reason}
+                multiline
+                maw={320}
+              >
+                <Button
+                  size="xs"
+                  color={supervised ? "blue" : "yellow"}
+                  disabled={reason !== null}
+                  onClick={() => onStart(fleetNode)}
+                >
+                  {supervised ? "Update & restart" : "Update"}
+                </Button>
+              </Tooltip>
+            ))}
+
+          {registryNode && onEdit && (
+            <ActionIcon
+              aria-label="Edit node"
+              variant="subtle"
+              onClick={() => onEdit(registryNode)}
+            >
+              <Pencil size={16} />
+            </ActionIcon>
+          )}
+          {registryNode && onDelete && (
+            <ActionIcon
+              aria-label="Remove node"
+              color="red"
+              variant="subtle"
+              loading={deletePending}
+              onClick={() => onDelete(registryNode.id)}
+            >
+              <Trash2 size={16} />
+            </ActionIcon>
+          )}
+        </Group>
+      </Group>
+
+      {jobId && job && (
+        <Stack gap={6} mt="sm">
+          {applied && (
+            <Text size="sm" c="teal">
+              {isSelf
+                ? `updated to ${version?.shortCommit} — reloading UI…`
+                : `updated to ${version?.shortCommit}`}
+            </Text>
+          )}
+          {job.status === "succeeded" && !job.willRestart && (
+            <Text size="sm" c="teal">
+              built; restart the node to apply
+            </Text>
+          )}
+          {job.error && (
+            <Text size="sm" c="red">
+              {job.error}
+            </Text>
+          )}
+          <Group gap={6}>
+            {job.steps.map((step) => (
+              <Badge
+                key={step.name}
+                size="sm"
+                variant="outline"
+                color={stepColor(step.status)}
+              >
+                {step.name}
+              </Badge>
+            ))}
+            <Button size="compact-xs" variant="subtle" onClick={logs.toggle}>
+              {logsOpen ? "hide log" : "log"}
+            </Button>
+            {job.status === "running" && !isRestarting && (
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                color="red"
+                loading={cancelMutation.isPending}
+                onClick={() => cancelMutation.mutate()}
+              >
+                cancel
+              </Button>
+            )}
+          </Group>
+          <Collapse in={logsOpen}>
+            <ScrollArea h={220} type="auto" offsetScrollbars>
+              <Stack gap={2}>
+                {logsQuery.data?.data.lines.map((line, index) => (
+                  <Code key={`${nodeId}-${index}`} block>
+                    {line}
+                  </Code>
+                ))}
+                {(!logsQuery.data ||
+                  logsQuery.data.data.lines.length === 0) && (
+                  <Text c="dimmed" size="sm" ta="center" py="md">
+                    no log output yet
+                  </Text>
+                )}
+              </Stack>
+            </ScrollArea>
+          </Collapse>
+        </Stack>
+      )}
+    </Card>
   );
 }

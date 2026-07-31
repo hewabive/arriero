@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 export type AppRoute =
   | "status"
   | "nodes"
-  | "update"
   | "config-git"
   | "dashboard"
   | "instances"
@@ -49,14 +48,8 @@ export const navSections: NavSection[] = [
         route: "nodes",
         label: "Nodes",
         title: "Nodes",
-        description: "Register arriero nodes to manage from one address",
-      },
-      {
-        route: "update",
-        label: "Updates",
-        title: "Manager Updates",
         description:
-          "Per-node version across the fleet and one-click update to the latest revision",
+          "Register arriero nodes to manage from one address and update them to the latest revision",
       },
       {
         route: "config-git",
@@ -244,6 +237,7 @@ const navLeaves = navSections.flatMap((section) => section.items);
 const routeIds = new Set<AppRoute>(navLeaves.map((leaf) => leaf.route));
 
 const legacyAlias: Record<string, { route: AppRoute; subpath: string }> = {
+  update: { route: "nodes", subpath: "" },
   routing: { route: "proxy", subpath: "pipelines" },
   endpoints: { route: "proxy", subpath: "endpoints" },
   sources: { route: "proxy", subpath: "sources" },

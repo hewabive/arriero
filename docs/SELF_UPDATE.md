@@ -92,12 +92,16 @@ entry node only.
 
 ## Fleet view
 
-The Manager Updates page is a **Network page** (ignores the node switcher). It
-shows one card per node — self plus every registered peer — and the latest
-remote commit at the top.
+The fleet update surface lives on the **Nodes** page (`#/nodes`, a **Network
+page** — ignores the node switcher; `#/update` is a legacy alias), merged with
+the peer registry: one card per node — self plus every registered peer — carries
+both registry controls (edit/remove, reachability from the same
+`/api/update/fleet` fan-out) and update state, with the latest remote commit at
+the top.
 
 - The remote state is fetched **once, on the entry node** (`/api/update/check`,
-  run automatically on page load, then on demand). Peers never fetch; their
+  run automatically when the page opens and the cached check is older than
+  15 minutes, then on demand). Peers never fetch; their
   `/api/version` just reports their own HEAD, and the entry node compares each
   HEAD to the cached upstream to derive `outdated`/`behindCount`.
 - A card shows its commit + date only when the node is **behind**; an up-to-date
@@ -122,7 +126,7 @@ Three layers keep the managing browser off a stale bundle after a restart:
   `public, max-age=31536000, immutable` for `/assets/*`, which are content-
   hashed by Vite and safe to cache forever. API namespaces (`/api/`, `/v1`,
   `/proxy/`) are never stamped.
-- **Auto hard-reload of the updating tab** (`UpdateView`): when the self node's
+- **Auto hard-reload of the updating tab** (`NodesView`): when the self node's
   update job applies (fleet reports the new commit after restart), the tab
   re-fetches its own document with `cache: "reload"` (bypasses and refreshes
   the HTTP cache — `location.reload(true)` is deprecated) and then reloads

@@ -57,7 +57,6 @@ import { ProxySection } from "./views/ProxySection";
 import { PublicStatusView } from "./views/PublicStatusView";
 import { SourceSyncView } from "./views/SourceSyncView";
 import { SystemResourcesView } from "./views/SystemResourcesView";
-import { UpdateView } from "./views/UpdateView";
 import { useUiVersionGuard } from "./use-ui-version-guard";
 
 export function App() {
@@ -353,8 +352,6 @@ export function App() {
           )}
 
           {canUseAdmin && route === "nodes" && <NodesView />}
-
-          {canUseAdmin && route === "update" && <UpdateView />}
 
           {canUseAdmin && route === "config-git" && <ConfigGitView />}
 
