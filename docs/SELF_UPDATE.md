@@ -111,6 +111,32 @@ remote commit at the top.
 This rides on the F0 reverse-proxy transport; deeper remote control (logs,
 lifecycle parity) is the F1 federation layer.
 
+## Browser-cache freshness after an update
+
+Three layers keep the managing browser off a stale bundle after a restart:
+
+- **Static cache headers** (`http.ts`): a wrapper middleware around the
+  `web/dist` static mount stamps `Cache-Control` on every static response —
+  `no-cache` for `index.html` (direct hits and the SPA deep-link fallback), so
+  the browser revalidates the entry document on every navigation, and
+  `public, max-age=31536000, immutable` for `/assets/*`, which are content-
+  hashed by Vite and safe to cache forever. API namespaces (`/api/`, `/v1`,
+  `/proxy/`) are never stamped.
+- **Auto hard-reload of the updating tab** (`UpdateView`): when the self node's
+  update job applies (fleet reports the new commit after restart), the tab
+  re-fetches its own document with `cache: "reload"` (bypasses and refreshes
+  the HTTP cache — `location.reload(true)` is deprecated) and then reloads
+  (`ui/utils/reload.ts:forceReloadUi`).
+- **Version-mismatch watchdog** (`ui/use-ui-version-guard.tsx`): the build
+  embeds the git commit into the bundle (`__ARRIERO_UI_COMMIT__`, Vite
+  `define`); a long-lived tab compares it against `/api/version` on window
+  focus and every 10 minutes (throttled to one check per minute) and shows a
+  one-shot reload notification on mismatch. Disabled in dev (Vite serves live
+  sources; the config-load-time commit would go stale mid-session). The prompt
+  is remembered per `(ui commit, server commit)` pair in `sessionStorage`, so
+  an unsupervised `serve` node whose dist was rebuilt but whose process was not
+  restarted (persistent mismatch) prompts once, not on every focus.
+
 ## Shared kit contract
 
 The update domain doubles as a **copyable kit** shared with the sibling repos

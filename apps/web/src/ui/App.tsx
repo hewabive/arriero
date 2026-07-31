@@ -58,8 +58,10 @@ import { PublicStatusView } from "./views/PublicStatusView";
 import { SourceSyncView } from "./views/SourceSyncView";
 import { SystemResourcesView } from "./views/SystemResourcesView";
 import { UpdateView } from "./views/UpdateView";
+import { useUiVersionGuard } from "./use-ui-version-guard";
 
 export function App() {
+  useUiVersionGuard();
   const [route, setRoute] = useHashRoute();
   const [proxySubpath] = useHashSubpath("proxy");
   const [mobileNavOpened, { toggle: toggleNav, close: closeNav }] =

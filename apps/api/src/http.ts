@@ -84,17 +84,34 @@ const webDistDir = resolve(
   "../../web/dist",
 );
 
+const API_NAMESPACE_PREFIXES = ["/api/", "/v1", "/proxy/"];
+
+function isApiNamespacePath(path: string): boolean {
+  return API_NAMESPACE_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+function staticCacheControl(path: string): string {
+  return path.startsWith("/assets/")
+    ? "public, max-age=31536000, immutable"
+    : "no-cache";
+}
+
 if (existsSync(webDistDir)) {
+  app.use("/*", async (c, next) => {
+    await next();
+    if (c.req.method !== "GET" && c.req.method !== "HEAD") {
+      return;
+    }
+    if (!c.res.ok || isApiNamespacePath(c.req.path)) {
+      return;
+    }
+    c.res.headers.set("cache-control", staticCacheControl(c.req.path));
+  });
   app.use("/*", serveStatic({ root: webDistDir }));
 
   const serveWebIndex = serveStatic({ root: webDistDir, path: "index.html" });
   app.notFound((c) => {
-    const path = c.req.path;
-    const isApiNamespace =
-      path.startsWith("/api/") ||
-      path.startsWith("/v1") ||
-      path.startsWith("/proxy/");
-    if (c.req.method === "GET" && !isApiNamespace) {
+    if (c.req.method === "GET" && !isApiNamespacePath(c.req.path)) {
       return serveWebIndex(c, async () => undefined) as Promise<Response>;
     }
     return c.json({ error: "not found" }, 404);

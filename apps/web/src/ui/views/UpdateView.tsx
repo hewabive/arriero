@@ -25,7 +25,10 @@ import {
   getUpdateFleet,
   startNodeUpdate,
 } from "../../api/client";
+import { forceReloadUi } from "../utils/reload";
 import { formatLocalDateTime } from "../utils/time";
+
+const SELF_RELOAD_DELAY_MS = 1500;
 
 function modeColor(mode: string): string {
   return mode === "serve" ? "teal" : mode === "dev" ? "yellow" : "gray";
@@ -306,6 +309,16 @@ function NodeUpdateCard({
     }
   }, [jobId, settled, node.nodeId, onSettled]);
 
+  useEffect(() => {
+    if (!node.self || !jobId || !applied) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void forceReloadUi();
+    }, SELF_RELOAD_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [node.self, jobId, applied]);
+
   const logsQuery = useQuery({
     queryKey: ["update-logs", node.nodeId, jobId],
     queryFn: () => getNodeUpdateJobLogs(node.nodeId, jobId!),
@@ -406,7 +419,9 @@ function NodeUpdateCard({
         <Stack gap={6} mt="sm">
           {applied && (
             <Text size="sm" c="teal">
-              updated to {version?.shortCommit}
+              {node.self
+                ? `updated to ${version?.shortCommit} — reloading UI…`
+                : `updated to ${version?.shortCommit}`}
             </Text>
           )}
           {job.status === "succeeded" && !job.willRestart && (

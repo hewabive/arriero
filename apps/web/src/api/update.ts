@@ -8,6 +8,10 @@ import type {
 import { nodeScopedPath } from "./base.js";
 import { request } from "./http.js";
 
+export async function getSelfVersion() {
+  return request<{ data: AppVersion }>("/api/version");
+}
+
 export async function getUpdateFleet() {
   return request<{ data: UpdateFleet }>("/api/update/fleet");
 }
