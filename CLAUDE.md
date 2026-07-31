@@ -284,7 +284,7 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
 
 ## Runtime layout & key env vars
 
-- `data/arriero.db` (WAL): binary `path_catalog`, process-run metadata, and rebuildable caches —
+- `data/arriero.db` (WAL): process-run metadata (`process_runs`) and rebuildable caches —
   `model_cache`; `llama_argument_catalogs` (parsed `--help`, keyed by binary path, invalidated by
   size/mtime, mirrored to a per-binary sidecar read on DB miss (`arguments/sidecar.ts`) so it
   survives DB recreation and travels with the binary); `proxy_response_cache`.
