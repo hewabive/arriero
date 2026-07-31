@@ -2,6 +2,7 @@ import {
   MemoryPoolSchema,
   type MemoryPool,
   type MemoryPoolUpdate,
+  type MemoryPoolView,
   type SystemResources,
 } from "@arriero/core";
 import {
@@ -15,7 +16,11 @@ import { dirname, resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
-import { getSystemResources } from "../system/resources.js";
+import {
+  getKnownGpuInventory,
+  getSystemResources,
+  type GpuInventory,
+} from "../system/resources.js";
 
 export const RESOURCES_FILE = resolve(config.configDir, "resources.json");
 
@@ -191,6 +196,27 @@ export function listMemoryPools(): MemoryPool[] {
   return sortPools(load());
 }
 
+export function isMemoryPoolOrphaned(
+  pool: MemoryPool,
+  inventory: GpuInventory,
+): boolean {
+  return (
+    pool.kind === "gpu" &&
+    pool.deviceRef !== null &&
+    inventory.authoritative &&
+    !inventory.deviceRefs.has(pool.deviceRef)
+  );
+}
+
+export function listMemoryPoolsWithStatus(
+  inventory: GpuInventory = getKnownGpuInventory(),
+): MemoryPoolView[] {
+  return listMemoryPools().map((pool) => ({
+    ...pool,
+    orphaned: isMemoryPoolOrphaned(pool, inventory),
+  }));
+}
+
 export function getMemoryPool(id: string): MemoryPool | null {
   return load().find((pool) => pool.id === id) ?? null;
 }
@@ -220,6 +246,16 @@ export function updateMemoryPool(
   };
   persist(pools.map((pool) => (pool.id === id ? updated : pool)));
   return updated;
+}
+
+export function deleteMemoryPool(id: string): boolean {
+  const pools = load();
+  const next = pools.filter((pool) => pool.id !== id);
+  if (next.length === pools.length) {
+    return false;
+  }
+  persist(next);
+  return true;
 }
 
 export function resetResourcePoolsCache(): void {

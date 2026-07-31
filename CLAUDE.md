@@ -224,8 +224,9 @@ reset all file-config caches; `.secrets.json` remains local. See `docs/CONFIG_GI
   kinds `gpu`/`host`). `budget = capacityBytes − reservedBytes`; instances declare a per-pool
   `memory` draw. The pure ledger `buildResourceLedger`/`checkDrawAdmission` in core is shared by
   manual-start admission and the proxy eviction planner. Scaffolded from detected hardware on first
-  run; `autoCapacity` pools re-sync in memory at startup without dirtying Git. See
-  `docs/RESOURCE_MANAGEMENT.md`.
+  run; `autoCapacity` pools re-sync in memory at startup without dirtying Git. A gpu pool whose
+  device disappeared gets a derived (never persisted) `orphaned` flag and is deletable via API/UI
+  only while orphaned and unreferenced by instance draws. See `docs/RESOURCE_MANAGEMENT.md`.
 - `config/proxy/{targets,models,pipelines,endpoints,sources}.json` — API-proxy config
   (`proxy/config-files.ts` low-level store; `proxy/repository.ts` + `proxy/endpoints.ts` +
   `proxy/sources.ts` CRUD). Aggregate-per-type arrays; in-memory cache + write-through, external

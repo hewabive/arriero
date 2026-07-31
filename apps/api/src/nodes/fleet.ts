@@ -10,7 +10,7 @@ import {
 import { hostname } from "node:os";
 
 import { currentResourceLedger } from "../resources/ledger.js";
-import { listMemoryPools } from "../resources/repository.js";
+import { listMemoryPoolsWithStatus } from "../resources/repository.js";
 import { getSystemResources } from "../system/resources.js";
 import { listNodes } from "./repository.js";
 import { fetchNodeJson } from "./remote.js";
@@ -73,7 +73,7 @@ async function peerEntry<T>(
 
 function localResourcesPayload(): FleetResourcesPayload {
   return {
-    pools: listMemoryPools(),
+    pools: listMemoryPoolsWithStatus(),
     ledger: currentResourceLedger(),
     detected: getSystemResources(),
   };

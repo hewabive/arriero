@@ -5,9 +5,11 @@ import { beforeEach, test } from "node:test";
 import { getSystemResources } from "../system/resources.js";
 import {
   RESOURCES_FILE,
+  deleteMemoryPool,
   ensureResourcePoolsScaffold,
   getMemoryPool,
   listMemoryPools,
+  listMemoryPoolsWithStatus,
   refreshAutoCapacities,
   resetResourcePoolsCache,
   updateMemoryPool,
@@ -96,6 +98,76 @@ test("refreshAutoCapacities adds a GPU detected after the scaffold was created",
     [{ id: "gpu7", deviceRef: "7", capacityBytes: 24_000 }],
   );
   assert.equal(readFileSync(RESOURCES_FILE, "utf8"), storedBeforeRefresh);
+});
+
+function scaffoldWithGpu(deviceRef: string) {
+  const initial = getSystemResources();
+  ensureResourcePoolsScaffold({
+    ...initial,
+    accelerators: [
+      {
+        id: deviceRef,
+        name: "Test NVIDIA GPU",
+        vendor: "NVIDIA" as const,
+        kind: "gpu" as const,
+        totalMemoryBytes: 24_000,
+        availableMemoryBytes: 23_000,
+        memoryUsedRatio: 1 / 24,
+        utilizationPercent: 0,
+        temperatureC: null,
+        numaNode: 0,
+        source: "nvml" as const,
+      },
+    ],
+  });
+}
+
+test("listMemoryPoolsWithStatus flags a gpu pool whose device is gone", () => {
+  scaffoldWithGpu("0");
+  const pools = listMemoryPoolsWithStatus({
+    authoritative: true,
+    deviceRefs: new Set(),
+  });
+  assert.equal(pools.find((pool) => pool.id === "gpu0")?.orphaned, true);
+  assert.equal(pools.find((pool) => pool.id === "host")?.orphaned, false);
+});
+
+test("listMemoryPoolsWithStatus keeps pools intact when the device is present", () => {
+  scaffoldWithGpu("0");
+  const pools = listMemoryPoolsWithStatus({
+    authoritative: true,
+    deviceRefs: new Set(["0"]),
+  });
+  assert.equal(
+    pools.every((pool) => pool.orphaned === false),
+    true,
+  );
+});
+
+test("listMemoryPoolsWithStatus never flags pools without an authoritative inventory", () => {
+  scaffoldWithGpu("0");
+  const pools = listMemoryPoolsWithStatus({
+    authoritative: false,
+    deviceRefs: new Set(),
+  });
+  assert.equal(
+    pools.every((pool) => pool.orphaned === false),
+    true,
+  );
+});
+
+test("deleteMemoryPool removes the pool and persists the file", () => {
+  scaffoldWithGpu("0");
+  assert.equal(deleteMemoryPool("gpu0"), true);
+  assert.equal(getMemoryPool("gpu0"), null);
+  resetResourcePoolsCache();
+  assert.equal(getMemoryPool("gpu0"), null);
+  assert.ok(getMemoryPool("host"));
+});
+
+test("deleteMemoryPool returns false for an unknown pool", () => {
+  ensureResourcePoolsScaffold();
+  assert.equal(deleteMemoryPool("nope"), false);
 });
 
 test("listMemoryPools returns gpu pools before the host pool", () => {

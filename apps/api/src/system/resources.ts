@@ -41,6 +41,21 @@ export function getSystemAccelerators(): SystemAccelerator[] {
   return nvidiaDevicesToAccelerators(nvidiaTelemetry.accelerators());
 }
 
+export type GpuInventory = {
+  authoritative: boolean;
+  deviceRefs: Set<string>;
+};
+
+export function getKnownGpuInventory(): GpuInventory {
+  const state = nvidiaTelemetry.status().state;
+  return {
+    authoritative: state === "ready" || state === "no-devices",
+    deviceRefs: new Set(
+      nvidiaTelemetry.accelerators().map((device) => String(device.index)),
+    ),
+  };
+}
+
 export function getSystemResources(): SystemResources {
   const sampled = systemMetricsRecorder.current();
   return {

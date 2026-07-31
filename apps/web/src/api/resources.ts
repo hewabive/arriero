@@ -3,6 +3,7 @@ import type {
   MemoryEstimateRequest,
   MemoryPool,
   MemoryPoolUpdate,
+  MemoryPoolView,
   ResourceLedger,
   SystemResources,
 } from "@arriero/core";
@@ -11,7 +12,7 @@ import { nodeScopedPath } from "./base.js";
 import { nodeRequest, request } from "./http.js";
 
 export type ResourcesSnapshot = {
-  pools: MemoryPool[];
+  pools: MemoryPoolView[];
   ledger: ResourceLedger;
   detected: SystemResources;
 };
@@ -31,6 +32,13 @@ export async function updateMemoryPool(
       method: "PUT",
       body: JSON.stringify(input),
     },
+  );
+}
+
+export async function deleteMemoryPool(id: string, nodeId?: string) {
+  return request<{ data: { deleted: string } }>(
+    nodeScopedPath(nodeId, `/api/resources/pools/${id}`),
+    { method: "DELETE" },
   );
 }
 

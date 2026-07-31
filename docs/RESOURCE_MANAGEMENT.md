@@ -34,6 +34,18 @@ machine-specific (same rule as `path-catalog`). On first run
 (NVIDIA NVML + `/proc/meminfo`); `refreshAutoCapacities()` re-syncs capacity for
 pools with `autoCapacity` on every startup and shows drift otherwise.
 
+A gpu pool whose `deviceRef` no longer matches a detected device keeps its
+last-known capacity and is surfaced with a derived `orphaned` flag
+(`listMemoryPoolsWithStatus`). The flag is computed at the API read boundary,
+never persisted, and set only when NVML reports the device list authoritatively
+(`ready`/`no-devices` states) — a driver failure must not mark live pools
+orphaned. Orphaned pools deliberately keep participating in the ledger
+unchanged; the flag is informational. `DELETE /api/resources/pools/:id` (and
+the Delete button on `#/resources`) removes a pool only when it is orphaned and
+no instance declares a draw on it — pools for present hardware are re-created
+by `refreshAutoCapacities()` on the next startup, so deleting them is refused
+rather than silently undone.
+
 The API loads `libnvidia-ml.so.1` through Koffi and keeps one NVML session for
 the lifetime of the process. Static device identity is read once, live GPU
 metrics are cached for three seconds, and per-process VRAM is cached separately

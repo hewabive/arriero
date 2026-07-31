@@ -2,6 +2,7 @@ import type {
   FleetResourcesEntry,
   Instance,
   MemoryPool,
+  MemoryPoolView,
   ResourcePoolUsage,
 } from "@arriero/core";
 import {
@@ -22,10 +23,11 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Cpu, MemoryStick, Pencil, Save, Server } from "lucide-react";
+import { Cpu, MemoryStick, Pencil, Save, Server, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import {
+  deleteMemoryPool,
   getFleetResources,
   listInstances,
   updateMemoryPool,
@@ -112,6 +114,25 @@ export function ResourcesView() {
       );
   }
 
+  const deleteMutation = useMutation({
+    mutationFn: (input: { id: string; nodeId: string }) =>
+      deleteMemoryPool(input.id, input.nodeId),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["fleet-resources"] });
+      await queryClient.invalidateQueries({ queryKey: ["resources"] });
+      notifications.show({
+        title: "Pool deleted",
+        message: result.data.deleted,
+      });
+    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Pool delete failed",
+        message: (error as Error).message,
+      }),
+  });
+
   const updateMutation = useMutation({
     mutationFn: (input: { id: string; nodeId: string; draft: PoolDraft }) =>
       updateMemoryPool(
@@ -160,7 +181,7 @@ export function ResourcesView() {
   }
 
   function renderPool(
-    pool: MemoryPool,
+    pool: MemoryPoolView,
     nodeId: string,
     usageByPool: Map<string, ResourcePoolUsage>,
     showResidents: boolean,
@@ -200,6 +221,13 @@ export function ResourcesView() {
                     auto capacity
                   </Badge>
                 )}
+                {pool.orphaned && (
+                  <Tooltip label="Device no longer detected; capacity is the last known value">
+                    <Badge variant="light" color="red">
+                      orphaned
+                    </Badge>
+                  </Tooltip>
+                )}
               </Group>
               <Text c="dimmed" size="xs">
                 capacity {formatBytes(pool.capacityBytes)} · reserved{" "}
@@ -207,16 +235,40 @@ export function ResourcesView() {
               </Text>
             </Stack>
           </Group>
-          <Tooltip label="Edit capacity & reserve">
-            <Button
-              variant="light"
-              size="xs"
-              leftSection={<Pencil size={14} />}
-              onClick={() => openEdit(pool, nodeId)}
-            >
-              Edit
-            </Button>
-          </Tooltip>
+          <Group gap="xs" wrap="nowrap">
+            {pool.orphaned && (
+              <Tooltip label="Remove this pool; its device is gone">
+                <Button
+                  variant="light"
+                  color="red"
+                  size="xs"
+                  leftSection={<Trash2 size={14} />}
+                  loading={deleteMutation.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Delete orphaned pool ${pool.name} (${pool.id})?`,
+                      )
+                    ) {
+                      deleteMutation.mutate({ id: pool.id, nodeId });
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip label="Edit capacity & reserve">
+              <Button
+                variant="light"
+                size="xs"
+                leftSection={<Pencil size={14} />}
+                onClick={() => openEdit(pool, nodeId)}
+              >
+                Edit
+              </Button>
+            </Tooltip>
+          </Group>
         </Group>
 
         <Stack gap={4} mt="sm">

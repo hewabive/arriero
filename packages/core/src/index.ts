@@ -102,6 +102,10 @@ export const MemoryPoolSchema = z.object({
   updatedAt: z.string(),
 });
 
+export const MemoryPoolViewSchema = MemoryPoolSchema.extend({
+  orphaned: z.boolean().default(false),
+});
+
 export const MemoryPoolUpdateSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   capacityBytes: z.number().int().nonnegative().optional(),
@@ -3238,7 +3242,7 @@ export const FleetSystemEntrySchema = FleetNodeResultMetaSchema.extend({
 export type FleetSystemEntry = z.infer<typeof FleetSystemEntrySchema>;
 
 export const FleetResourcesPayloadSchema = z.object({
-  pools: z.array(MemoryPoolSchema),
+  pools: z.array(MemoryPoolViewSchema),
   ledger: ResourceLedgerSchema,
   detected: SystemResourcesSchema,
 });
@@ -3483,6 +3487,7 @@ export type PathCatalogCreate = z.infer<typeof PathCatalogCreateSchema>;
 export type PathCatalogUpdate = z.infer<typeof PathCatalogUpdateSchema>;
 export type MemoryPoolKind = z.infer<typeof MemoryPoolKindSchema>;
 export type MemoryPool = z.infer<typeof MemoryPoolSchema>;
+export type MemoryPoolView = z.infer<typeof MemoryPoolViewSchema>;
 export type MemoryPoolUpdate = z.infer<typeof MemoryPoolUpdateSchema>;
 export type RpcWorkerRef = z.infer<typeof RpcWorkerRefSchema>;
 export type RpcWorkerCandidate = z.infer<typeof RpcWorkerCandidateSchema>;
