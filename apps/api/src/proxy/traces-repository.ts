@@ -21,11 +21,12 @@ import {
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 
 import { db } from "../db/index.js";
+import { parsePersistedJson } from "../db/persisted-json.js";
+import { startRetentionLoop } from "../db/retention.js";
 import { proxyRequestTraces } from "../db/schema.js";
 import { pruneApiProxyRequestFiles } from "./request-files.js";
 
 export const TRACE_RETENTION_DAYS = 30;
-const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 500;
 
@@ -67,15 +68,9 @@ function parseTraceRows(
 ): ApiProxyRequestTrace[] {
   const traces: ApiProxyRequestTrace[] = [];
   for (const row of rows) {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(row.traceJson);
-    } catch {
-      continue;
-    }
-    const parsed = ApiProxyRequestTraceSchema.safeParse(raw);
-    if (parsed.success) {
-      traces.push(parsed.data);
+    const trace = parsePersistedJson(ApiProxyRequestTraceSchema, row.traceJson);
+    if (trace) {
+      traces.push(trace);
     }
   }
   return traces;
@@ -242,15 +237,7 @@ export function pruneApiProxyTraceHistory(now = new Date()): {
 export function startApiProxyTraceRetentionLoop(options: {
   onError?: (error: unknown) => void;
 }): () => void {
-  const timer = setInterval(() => {
-    try {
-      pruneApiProxyTraceHistory();
-    } catch (error) {
-      options.onError?.(error);
-    }
-  }, PRUNE_INTERVAL_MS);
-  timer.unref();
-  return () => clearInterval(timer);
+  return startRetentionLoop(() => pruneApiProxyTraceHistory(), options);
 }
 
 export function clearApiProxyTraceHistory(): void {

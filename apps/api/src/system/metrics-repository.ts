@@ -1,21 +1,20 @@
 import {
   SYSTEM_METRICS_TIERS,
   SystemMetricsSampleSchema,
+  type SystemMetricsCoarseWindow,
   type SystemMetricsSample,
 } from "@arriero/core";
 import { and, asc, eq, gte, lt } from "drizzle-orm";
 
 import { db } from "../db/index.js";
+import { parsePersistedJson } from "../db/persisted-json.js";
+import { startRetentionLoop } from "../db/retention.js";
 import { systemMetricsHistory } from "../db/schema.js";
 import {
   averageSamples,
   COARSE_METRICS_WINDOWS,
-  type SystemMetricsCoarseWindow,
   type SystemMetricsRecorder,
 } from "./metrics-history.js";
-
-const DAY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 
 function tierSpanMs(window: SystemMetricsCoarseWindow): number {
   const tier = SYSTEM_METRICS_TIERS[window];
@@ -23,7 +22,9 @@ function tierSpanMs(window: SystemMetricsCoarseWindow): number {
 }
 
 function retentionMs(window: SystemMetricsCoarseWindow): number {
-  return window === "day" ? DAY_RETENTION_MS : tierSpanMs(window);
+  return window === "day"
+    ? Math.max(tierSpanMs("day"), tierSpanMs("month"))
+    : tierSpanMs(window);
 }
 
 export function insertSystemMetricsSample(
@@ -39,17 +40,6 @@ export function insertSystemMetricsSample(
       set: { sampleJson },
     })
     .run();
-}
-
-function parseSampleJson(sampleJson: string): SystemMetricsSample | null {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(sampleJson);
-  } catch {
-    return null;
-  }
-  const parsed = SystemMetricsSampleSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
 }
 
 function selectWindowRows(window: SystemMetricsCoarseWindow, since: number) {
@@ -69,6 +59,24 @@ function selectWindowRows(window: SystemMetricsCoarseWindow, since: number) {
     .all();
 }
 
+function selectBucketStarts(
+  window: SystemMetricsCoarseWindow,
+  since: number,
+): number[] {
+  return db
+    .select({ bucketAt: systemMetricsHistory.bucketAt })
+    .from(systemMetricsHistory)
+    .where(
+      and(
+        eq(systemMetricsHistory.window, window),
+        gte(systemMetricsHistory.bucketAt, since),
+      ),
+    )
+    .orderBy(asc(systemMetricsHistory.bucketAt))
+    .all()
+    .map((row) => row.bucketAt);
+}
+
 export function readSystemMetricsHistory(
   window: SystemMetricsCoarseWindow,
   now = Date.now(),
@@ -76,7 +84,10 @@ export function readSystemMetricsHistory(
   const rows = selectWindowRows(window, now - tierSpanMs(window));
   const samples: SystemMetricsSample[] = [];
   for (const row of rows) {
-    const sample = parseSampleJson(row.sampleJson);
+    const sample = parsePersistedJson(
+      SystemMetricsSampleSchema,
+      row.sampleJson,
+    );
     if (sample) {
       samples.push(sample);
     }
@@ -87,34 +98,53 @@ export function readSystemMetricsHistory(
 export function backfillSystemMetricsMonthTier(now = Date.now()): number {
   const intervalMs = SYSTEM_METRICS_TIERS.month.intervalMs;
   const since = now - tierSpanMs("month");
-  const currentBucket = Math.floor(now / intervalMs);
-  const existing = new Set(
-    selectWindowRows("month", since).map((row) => row.bucketAt),
-  );
+  const currentBucketAt = Math.floor(now / intervalMs) * intervalMs;
+  const monthBucketOf = (bucketAt: number) =>
+    Math.floor(bucketAt / intervalMs) * intervalMs;
+
+  const dayBucketStarts = selectBucketStarts("day", since);
+  if (dayBucketStarts.length === 0) {
+    return 0;
+  }
+  const existing = new Set(selectBucketStarts("month", since));
+  const missing = new Set<number>();
+  for (const dayBucketAt of dayBucketStarts) {
+    const monthBucketAt = monthBucketOf(dayBucketAt);
+    if (monthBucketAt < currentBucketAt && !existing.has(monthBucketAt)) {
+      missing.add(monthBucketAt);
+    }
+  }
+  if (missing.size === 0) {
+    return 0;
+  }
+
   const groups = new Map<number, SystemMetricsSample[]>();
-  for (const row of selectWindowRows("day", since)) {
-    const bucket = Math.floor(row.bucketAt / intervalMs);
-    if (bucket >= currentBucket || existing.has(bucket * intervalMs)) {
+  for (const row of selectWindowRows("day", Math.min(...missing))) {
+    const monthBucketAt = monthBucketOf(row.bucketAt);
+    if (!missing.has(monthBucketAt)) {
       continue;
     }
-    const sample = parseSampleJson(row.sampleJson);
+    const sample = parsePersistedJson(
+      SystemMetricsSampleSchema,
+      row.sampleJson,
+    );
     if (!sample) {
       continue;
     }
-    const group = groups.get(bucket);
+    const group = groups.get(monthBucketAt);
     if (group) {
       group.push(sample);
     } else {
-      groups.set(bucket, [sample]);
+      groups.set(monthBucketAt, [sample]);
     }
   }
   let inserted = 0;
-  for (const [bucket, samples] of groups) {
+  for (const [monthBucketAt, samples] of groups) {
     const averaged = averageSamples(samples);
     if (!averaged) {
       continue;
     }
-    insertSystemMetricsSample("month", bucket * intervalMs, averaged);
+    insertSystemMetricsSample("month", monthBucketAt, averaged);
     inserted += 1;
   }
   return inserted;
@@ -175,16 +205,23 @@ export function attachSystemMetricsPersistence(
   });
 }
 
+export function initSystemMetricsPersistence(
+  recorder: SystemMetricsRecorder,
+  options: { onError?: (error: unknown) => void } = {},
+): {
+  pruned: number;
+  backfilledMonth: number;
+  seeded: Record<SystemMetricsCoarseWindow, number>;
+} {
+  const pruned = pruneSystemMetricsHistory();
+  const backfilledMonth = backfillSystemMetricsMonthTier();
+  const seeded = seedSystemMetricsRecorder(recorder);
+  attachSystemMetricsPersistence(recorder, options);
+  return { pruned, backfilledMonth, seeded };
+}
+
 export function startSystemMetricsRetentionLoop(options: {
   onError?: (error: unknown) => void;
 }): () => void {
-  const timer = setInterval(() => {
-    try {
-      pruneSystemMetricsHistory();
-    } catch (error) {
-      options.onError?.(error);
-    }
-  }, PRUNE_INTERVAL_MS);
-  timer.unref();
-  return () => clearInterval(timer);
+  return startRetentionLoop(() => pruneSystemMetricsHistory(), options);
 }

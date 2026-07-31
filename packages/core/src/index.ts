@@ -3087,6 +3087,9 @@ export const SystemMetricsWindowSchema = z.enum([
   "month",
 ]);
 
+export const SystemMetricsCoarseWindowSchema =
+  SystemMetricsWindowSchema.exclude(["live"]);
+
 export const SystemMetricsHistorySchema = z.object({
   window: SystemMetricsWindowSchema,
   intervalMs: z.number().int().positive(),
@@ -3930,6 +3933,9 @@ export type SystemMetricsNetworkSample = z.infer<
 >;
 export type SystemMetricsSample = z.infer<typeof SystemMetricsSampleSchema>;
 export type SystemMetricsWindow = z.infer<typeof SystemMetricsWindowSchema>;
+export type SystemMetricsCoarseWindow = z.infer<
+  typeof SystemMetricsCoarseWindowSchema
+>;
 export type SystemMetricsHistory = z.infer<typeof SystemMetricsHistorySchema>;
 export type NumaNode = z.infer<typeof NumaNodeSchema>;
 export type NumaCapabilities = z.infer<typeof NumaCapabilitiesSchema>;

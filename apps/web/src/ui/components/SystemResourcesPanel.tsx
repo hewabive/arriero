@@ -1,8 +1,9 @@
-import type {
-  SystemDiskDevice,
-  SystemMetricsSample,
-  SystemMetricsWindow,
-  SystemResources,
+import {
+  SystemMetricsWindowSchema,
+  type SystemDiskDevice,
+  type SystemMetricsSample,
+  type SystemMetricsWindow,
+  type SystemResources,
 } from "@arriero/core";
 import {
   Alert,
@@ -101,12 +102,17 @@ function ResourceMetric(props: { label: string; value: string }) {
   );
 }
 
-const WINDOW_OPTIONS: { value: SystemMetricsWindow; label: string }[] = [
-  { value: "live", label: "5 min" },
-  { value: "hour", label: "1 hour" },
-  { value: "day", label: "24 hours" },
-  { value: "month", label: "30 days" },
-];
+const WINDOW_LABELS: Record<SystemMetricsWindow, string> = {
+  live: "5 min",
+  hour: "1 hour",
+  day: "24 hours",
+  month: "30 days",
+};
+
+const WINDOW_OPTIONS = SystemMetricsWindowSchema.options.map((value) => ({
+  value,
+  label: WINDOW_LABELS[value],
+}));
 
 function seriesFrom(
   samples: SystemMetricsSample[],

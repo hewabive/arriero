@@ -1,7 +1,9 @@
 import {
   SYSTEM_METRICS_TIERS,
+  SystemMetricsCoarseWindowSchema,
   type SystemCpuActivity,
   type SystemDiskActivity,
+  type SystemMetricsCoarseWindow,
   type SystemMetricsDiskSample,
   type SystemMetricsGpuSample,
   type SystemMetricsHistory,
@@ -30,10 +32,16 @@ import {
   readNetCounters,
 } from "./net.js";
 
-export const COARSE_METRICS_WINDOWS = ["hour", "day", "month"] as const;
+export const COARSE_METRICS_WINDOWS = SystemMetricsCoarseWindowSchema.options;
 
-export type SystemMetricsCoarseWindow =
-  (typeof COARSE_METRICS_WINDOWS)[number];
+const COARSE_TIER_SOURCES: Record<
+  SystemMetricsCoarseWindow,
+  SystemMetricsWindow
+> = {
+  hour: "live",
+  day: "live",
+  month: "day",
+};
 
 class RingBuffer<T> {
   private readonly items: T[] = [];
@@ -274,7 +282,7 @@ export class SystemMetricsRecorder {
     };
   }
 
-  seed(window: SystemMetricsWindow, samples: SystemMetricsSample[]) {
+  seed(window: SystemMetricsCoarseWindow, samples: SystemMetricsSample[]) {
     const buffer = this.buffers.get(window);
     if (!buffer) {
       return;
@@ -356,32 +364,50 @@ export class SystemMetricsRecorder {
   }
 
   private accumulate(sample: SystemMetricsSample) {
+    const closed = new Map<SystemMetricsWindow, SystemMetricsSample>([
+      ["live", sample],
+    ]);
     for (const window of COARSE_METRICS_WINDOWS) {
-      const intervalMs = SYSTEM_METRICS_TIERS[window].intervalMs;
-      const bucket = Math.floor(sample.at / intervalMs);
-      const pending = this.pending.get(window);
-      if (!pending) {
-        this.pending.set(window, { bucket, samples: [sample] });
+      const source = closed.get(COARSE_TIER_SOURCES[window]);
+      if (!source) {
         continue;
       }
-      if (pending.bucket === bucket) {
-        pending.samples.push(sample);
-        continue;
-      }
-      const averaged = averageSamples(pending.samples);
+      const averaged = this.fold(window, source);
       if (averaged) {
-        this.buffers.get(window)?.push(averaged);
-        const entry: SystemMetricsCoarseSample = {
-          window,
-          bucketAt: pending.bucket * intervalMs,
-          sample: averaged,
-        };
-        for (const listener of this.coarseListeners) {
-          listener(entry);
-        }
+        closed.set(window, averaged);
       }
-      this.pending.set(window, { bucket, samples: [sample] });
     }
+  }
+
+  private fold(
+    window: SystemMetricsCoarseWindow,
+    sample: SystemMetricsSample,
+  ): SystemMetricsSample | null {
+    const intervalMs = SYSTEM_METRICS_TIERS[window].intervalMs;
+    const bucket = Math.floor(sample.at / intervalMs);
+    const pending = this.pending.get(window);
+    if (!pending) {
+      this.pending.set(window, { bucket, samples: [sample] });
+      return null;
+    }
+    if (pending.bucket === bucket) {
+      pending.samples.push(sample);
+      return null;
+    }
+    const averaged = averageSamples(pending.samples);
+    if (averaged) {
+      this.buffers.get(window)?.push(averaged);
+      const entry: SystemMetricsCoarseSample = {
+        window,
+        bucketAt: pending.bucket * intervalMs,
+        sample: averaged,
+      };
+      for (const listener of this.coarseListeners) {
+        listener(entry);
+      }
+    }
+    this.pending.set(window, { bucket, samples: [sample] });
+    return averaged;
   }
 }
 

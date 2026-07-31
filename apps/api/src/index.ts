@@ -42,10 +42,7 @@ import { initializeEnvironments } from "./envs/service.js";
 import { nvidiaTelemetry } from "./nvidia/telemetry.js";
 import { systemMetricsRecorder } from "./system/metrics-history.js";
 import {
-  attachSystemMetricsPersistence,
-  backfillSystemMetricsMonthTier,
-  pruneSystemMetricsHistory,
-  seedSystemMetricsRecorder,
+  initSystemMetricsPersistence,
   startSystemMetricsRetentionLoop,
 } from "./system/metrics-repository.js";
 
@@ -67,14 +64,13 @@ const appliedMigrations = runMigrations();
 const normalizedConfigPaths = normalizeConfigPaths();
 initAppSettings();
 initArgumentDefaults();
-const prunedSystemMetricsHistory = pruneSystemMetricsHistory();
-const backfilledSystemMetricsMonth = backfillSystemMetricsMonthTier();
-const seededSystemMetricsHistory =
-  seedSystemMetricsRecorder(systemMetricsRecorder);
-attachSystemMetricsPersistence(systemMetricsRecorder, {
-  onError: (error) =>
-    logger.error({ error }, "system metrics history write failed"),
-});
+const systemMetricsPersistence = initSystemMetricsPersistence(
+  systemMetricsRecorder,
+  {
+    onError: (error) =>
+      logger.error({ error }, "system metrics history write failed"),
+  },
+);
 systemMetricsRecorder.start();
 const seededResourcePools = ensureResourcePoolsScaffold();
 const refreshedResourcePools = refreshAutoCapacities();
@@ -124,9 +120,7 @@ const server = serve(
         prunedProcessRuns,
         prunedTraceHistory,
         seededStatsTraces,
-        prunedSystemMetricsHistory,
-        backfilledSystemMetricsMonth,
-        seededSystemMetricsHistory,
+        systemMetricsPersistence,
         prunedArgumentCatalogs,
         prunedModelCache,
         seededResourcePools,

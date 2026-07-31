@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { SYSTEM_METRICS_TIERS, type SystemMetricsSample } from "@arriero/core";
+import { SYSTEM_METRICS_TIERS } from "@arriero/core";
 
 import { db } from "../db/index.js";
 import { systemMetricsHistory } from "../db/schema.js";
+import { metricsSampleFixture as sample } from "../test/metrics-sample.js";
 import { SystemMetricsRecorder } from "./metrics-history.js";
 import {
   attachSystemMetricsPersistence,
@@ -15,19 +16,6 @@ import {
   readSystemMetricsHistory,
   seedSystemMetricsRecorder,
 } from "./metrics-repository.js";
-
-function sample(input: Partial<SystemMetricsSample>): SystemMetricsSample {
-  return {
-    at: 0,
-    cpuPercent: 0,
-    memoryUsedBytes: 0,
-    memoryTotalBytes: 1_000,
-    gpus: [],
-    disks: [],
-    network: [],
-    ...input,
-  };
-}
 
 const NOW = Date.parse("2026-07-31T12:00:00.000Z");
 const HOUR_SPAN_MS =

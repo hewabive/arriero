@@ -64,9 +64,17 @@ Two things keep it cheap and must stay that way:
 
 `SYSTEM_METRICS_TIERS` defines four in-memory ring buffers. It lives in `packages/core` because the
 web side derives its refetch cadence and live-buffer bound from the same table — mirroring the
-numbers by hand let a server-side tier change drift silently past the client. Coarse tiers are fed by
-averaging the 1 Hz samples inside each wall-clock bucket (`Math.floor(at / intervalMs)`), so tier
-boundaries are aligned rather than relative to when the process started:
+numbers by hand let a server-side tier change drift silently past the client; the coarse subset is
+`SystemMetricsCoarseWindowSchema` (the window enum minus `live`), so a new tier reaches
+accumulation/persistence/prune without touching a hand-kept list. Each coarse tier folds samples
+from a source tier declared in `COARSE_TIER_SOURCES` (`system/metrics-history.ts`): `hour` and `day`
+average the 1 Hz ticks inside each wall-clock bucket (`Math.floor(at / intervalMs)`), while `month`
+averages closed `day` buckets — the same average-of-averages the boot backfill produces, and it caps
+the pending state at ~30 held samples instead of 1800 raw ticks per month bucket. A tier's interval
+must be a whole multiple of its source tier's interval so buckets nest; a cascaded tier closes one
+source interval later than its wall-clock boundary (the closing signal is the first source sample
+of the next bucket). Bucket boundaries are aligned rather than relative to when the process
+started:
 
 | Window | Interval | Capacity | Span |
 | ------ | -------- | -------- | ---- |
@@ -89,7 +97,9 @@ subscribers, and `attachSystemMetricsPersistence` (`system/metrics-repository.ts
 the `system_metrics_history` table keyed by `(window, bucket start)`. On boot
 `seedSystemMetricsRecorder()` reads each tier's span back into its ring buffer before the recorder
 starts, so the coarse graphs resume where they left off and the downtime renders as an honest gap
-via the chart's gap-break rule.
+via the chart's gap-break rule. The order matters — prune, then month backfill, then seed, then
+attach, all before `recorder.start()` — so the whole sequence is one call,
+`initSystemMetricsPersistence()`, and the entrypoint cannot reorder it.
 
 Two deliberate limits. The pending partial bucket is dropped at shutdown rather than flushed —
 merging pre- and post-restart state into one bucket would hide the restart, and the counter-delta
@@ -104,9 +114,11 @@ history the day it shipped, and it keeps healing afterwards — a month bucket t
 through entirely is reconstructed from its `day` rows at the next boot, while a bucket spanning the
 restart keeps its post-restart average only (the same class of loss as the dropped pending bucket).
 
-Retention is per window: `hour` rows are kept for the tier span (1 h — exactly what reseeding
-needs), `day` and `month` rows for 30 days (`day` doubles as the backfill source for the month
-tier). A boot-time prune plus an hourly loop (`startSystemMetricsRetentionLoop`) keep the table
+Retention is per window: a tier's rows are kept for its own span (exactly what reseeding needs),
+except `day` rows are kept for `max(day span, month span)` = 30 days because they double as the
+backfill source for the month tier — computed from `SYSTEM_METRICS_TIERS` so a month-tier resize
+cannot silently shrink the source window. A boot-time prune plus an hourly loop
+(`startSystemMetricsRetentionLoop`, the shared `db/retention.ts` scaffold) keep the table
 bounded. The write cost is one upsert per closed bucket (6/min + 1/min + 2/h), small enough that
 the recorder's own WAL traffic stays invisible in its disk charts — persisting every 1 Hz tick was
 rejected for exactly that self-observation plus the fact that no chart reads 1 s resolution beyond

@@ -1,21 +1,9 @@
-import { SYSTEM_METRICS_TIERS, type SystemMetricsSample } from "@arriero/core";
+import { SYSTEM_METRICS_TIERS } from "@arriero/core";
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
+import { metricsSampleFixture as sample } from "../test/metrics-sample.js";
 import { averageSamples, SystemMetricsRecorder } from "./metrics-history.js";
-
-function sample(input: Partial<SystemMetricsSample>): SystemMetricsSample {
-  return {
-    at: 0,
-    cpuPercent: 0,
-    memoryUsedBytes: 0,
-    memoryTotalBytes: 1_000,
-    gpus: [],
-    disks: [],
-    network: [],
-    ...input,
-  };
-}
 
 test("averageSamples averages scalars and keeps the newest timestamp", () => {
   const averaged = averageSamples([
