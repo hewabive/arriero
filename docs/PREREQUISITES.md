@@ -18,8 +18,10 @@ machine, and a refusal to start long operations that are already doomed.
 | HTTPS usage predicate       | `apps/api/src/prerequisites/https-usage.ts` |
 | Report assembly             | `apps/api/src/prerequisites/report.ts`      |
 | Install-command aggregation | `apps/api/src/prerequisites/install-plan.ts`|
+| Elevation capability probe  | `apps/api/src/prerequisites/install-capability.ts` |
+| UI install runner           | `apps/api/src/prerequisites/install-runner.ts` |
 | Build fail-fast             | `apps/api/src/build/preflight.ts`           |
-| Route                       | `GET /api/prerequisites`                    |
+| Routes                      | `GET /api/prerequisites`, `POST …/install`, `GET …/install/latest` |
 | Page                        | `#/prerequisites`                           |
 
 `tool-probe.ts` is the single PATH-lookup implementation; `build/cuda.ts`
@@ -136,13 +138,28 @@ with a 400 naming every missing tool and the install command — before the
 source checkout, `npm ci` and the llama.cpp web UI build burn several minutes.
 No job row and no log file are created for a refused build.
 
-## No package installation from the UI
+## Package installation from the UI
 
-The page shows commands; it never runs them. Installing system packages needs
-`sudo`, the manager runs as an ordinary user (`systemd --user`), and admin auth
-is **off by default** — a package-install endpoint would be a privilege
-escalation reachable by anything that can talk to the port. PATH repair is the
-only remediation the manager performs itself, and it needs no elevation.
+By default the page shows commands and never runs them: the manager is an
+ordinary user and admin auth is off by default, so an unconditional install
+endpoint would be a privilege escalation. Run buttons appear only when the
+manager can already elevate **non-interactively** — root, or `sudo -n true`
+succeeds — probed per report into `installRunner` (`install-capability.ts`).
+Then the boundary is already gone (the admin surface can spawn arbitrary
+binaries as instances), so the button adds convenience, not privilege.
+
+Runner rules (`install-runner.ts`):
+
+- `POST /api/prerequisites/install` takes `{ scope: "required" | "all" }` or
+  `{ checkId }`; the command is re-derived server-side
+  (`resolveInstallCommand`) — clients never submit command text.
+- Only package-manager commands are runnable; free-form `commands`
+  (`ubuntu-drivers` + `sudo reboot`, the delegation script, `pipx install uv`)
+  stay copy-paste.
+- One run at a time, in memory only (log tail 256 KiB), exposed at
+  `GET /api/prerequisites/install/latest` and polled while running.
+  `DEBIAN_FRONTEND=noninteractive`; under root the `sudo` prefix is stripped.
+  On finish the page re-fetches the report.
 
 ## Caches
 

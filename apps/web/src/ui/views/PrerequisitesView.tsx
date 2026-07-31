@@ -7,25 +7,27 @@ import type {
 } from "@arriero/core";
 import {
   Accordion,
-  ActionIcon,
   Alert,
   Badge,
   Button,
   Code,
-  CopyButton,
   Group,
   Loader,
   Paper,
   Stack,
   Text,
   Title,
-  Tooltip,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy } from "lucide-react";
 
 import { getPrerequisiteReport } from "../../api/client";
 import { formatLocalDateTime } from "../utils/time";
+import {
+  CommandBlock,
+  InstallRunPanel,
+  usePrerequisiteInstall,
+  type PrerequisiteInstallControls,
+} from "./prerequisites/InstallControls";
 
 function statusColor(status: PrerequisiteStatus): string {
   if (status === "ok") return "green";
@@ -39,38 +41,6 @@ function statusLabel(status: PrerequisiteStatus): string {
   if (status === "out-of-path") return "not on PATH";
   if (status === "unknown") return "not verified";
   return "missing";
-}
-
-function CommandBlock(props: { command: string }) {
-  return (
-    <Group gap="xs" align="center" wrap="nowrap">
-      <Code
-        block
-        style={{
-          flex: 1,
-          minWidth: 0,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-        }}
-      >
-        {props.command}
-      </Code>
-      <CopyButton value={props.command} timeout={1500}>
-        {({ copied, copy }) => (
-          <Tooltip label={copied ? "Copied" : "Copy command"}>
-            <ActionIcon
-              variant="subtle"
-              color={copied ? "green" : "gray"}
-              onClick={copy}
-              aria-label="Copy command"
-            >
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-            </ActionIcon>
-          </Tooltip>
-        )}
-      </CopyButton>
-    </Group>
-  );
 }
 
 function SummaryBadges(props: { summary: PrerequisiteSummary }) {
@@ -136,8 +106,11 @@ function HostFacts(props: { host: PrerequisiteHost }) {
   );
 }
 
-function CheckRow(props: { check: PrerequisiteCheck }) {
-  const { check } = props;
+function CheckRow(props: {
+  check: PrerequisiteCheck;
+  install: PrerequisiteInstallControls;
+}) {
+  const { check, install } = props;
   const resolved = check.status === "ok" || check.status === "out-of-path";
 
   return (
@@ -191,7 +164,11 @@ function CheckRow(props: { check: PrerequisiteCheck }) {
         )}
 
         {!resolved && check.remediation.installCommand && (
-          <CommandBlock command={check.remediation.installCommand} />
+          <CommandBlock
+            command={check.remediation.installCommand}
+            install={install}
+            request={{ checkId: check.id }}
+          />
         )}
 
         {!resolved &&
@@ -215,8 +192,11 @@ function CheckRow(props: { check: PrerequisiteCheck }) {
   );
 }
 
-function GroupCard(props: { group: PrerequisiteGroup }) {
-  const { group } = props;
+function GroupCard(props: {
+  group: PrerequisiteGroup;
+  install: PrerequisiteInstallControls;
+}) {
+  const { group, install } = props;
   const blocking = group.checks.filter(
     (check) => check.status === "missing" && check.severity === "required",
   ).length;
@@ -234,7 +214,7 @@ function GroupCard(props: { group: PrerequisiteGroup }) {
           {blocking > 0 && <Badge color="red">{blocking} blocking</Badge>}
         </Group>
         {group.checks.map((check) => (
-          <CheckRow key={check.id} check={check} />
+          <CheckRow key={check.id} check={check} install={install} />
         ))}
       </Stack>
     </Paper>
@@ -247,6 +227,7 @@ export function PrerequisitesView() {
     queryFn: getPrerequisiteReport,
   });
   const report = reportQuery.data?.data;
+  const install = usePrerequisiteInstall(report?.installRunner);
 
   return (
     <Stack gap="md">
@@ -293,16 +274,26 @@ export function PrerequisitesView() {
             <Alert color="red" title="Required tooling is missing">
               <Stack gap="xs">
                 <Text size="sm">
-                  Run this as an administrator on the host, then press Re-check.
+                  {report.installRunner.available
+                    ? "Run this as an administrator on the host — or run it from here: the manager can elevate without a password. Then press Re-check."
+                    : "Run this as an administrator on the host, then press Re-check."}
                 </Text>
-                <CommandBlock command={report.install.requiredCommand} />
+                <CommandBlock
+                  command={report.install.requiredCommand}
+                  install={install}
+                  request={{ scope: "required" }}
+                />
                 {report.install.allCommand !==
                   report.install.requiredCommand && (
                   <>
                     <Text size="xs" c="dimmed">
                       Including the recommended tooling:
                     </Text>
-                    <CommandBlock command={report.install.allCommand!} />
+                    <CommandBlock
+                      command={report.install.allCommand!}
+                      install={install}
+                      request={{ scope: "all" }}
+                    />
                   </>
                 )}
               </Stack>
@@ -325,12 +316,40 @@ export function PrerequisitesView() {
             </Alert>
           )}
 
+          {report &&
+            !report.install.requiredCommand &&
+            report.install.allCommand && (
+              <Alert color="yellow" title="Recommended tooling is missing">
+                <Stack gap="xs">
+                  <Text size="sm">
+                    Nothing is blocked, but the recommended tooling below is
+                    absent.
+                    {report.installRunner.available &&
+                      " The manager can install it from here — it elevates without a password."}
+                  </Text>
+                  <CommandBlock
+                    command={report.install.allCommand}
+                    install={install}
+                    request={{ scope: "all" }}
+                  />
+                </Stack>
+              </Alert>
+            )}
+
+          {install.startError && (
+            <Alert color="red" title="Could not start the installation">
+              {install.startError.message}
+            </Alert>
+          )}
+
+          {install.run && <InstallRunPanel run={install.run} />}
+
           {report && <HostFacts host={report.host} />}
         </Stack>
       </Paper>
 
       {report?.groups.map((group) => (
-        <GroupCard key={group.id} group={group} />
+        <GroupCard key={group.id} group={group} install={install} />
       ))}
     </Stack>
   );

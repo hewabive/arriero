@@ -2,6 +2,8 @@ import type {
   HostPackageManager,
   PrerequisiteCheck,
   PrerequisiteInstallPlan,
+  PrerequisiteInstallStart,
+  PrerequisiteReport,
   PrerequisiteSummary,
 } from "@arriero/core";
 
@@ -43,6 +45,24 @@ export function buildInstallPlan(
     requiredCommand: toCommand(packagesFor(checks, ["required"])),
     allCommand: toCommand(packagesFor(checks, ["required", "recommended"])),
   };
+}
+
+export function resolveInstallCommand(
+  report: PrerequisiteReport,
+  request: PrerequisiteInstallStart,
+): string | null {
+  if ("checkId" in request) {
+    for (const group of report.groups) {
+      const check = group.checks.find((item) => item.id === request.checkId);
+      if (check) {
+        return check.remediation.installCommand;
+      }
+    }
+    return null;
+  }
+  return request.scope === "required"
+    ? report.install.requiredCommand
+    : report.install.allCommand;
 }
 
 export function summarizeChecks(

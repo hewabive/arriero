@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { PrerequisiteCheck } from "@arriero/core";
+import type { PrerequisiteCheck, PrerequisiteReport } from "@arriero/core";
 
-import { buildInstallPlan, summarizeChecks } from "./install-plan.js";
+import {
+  buildInstallPlan,
+  resolveInstallCommand,
+  summarizeChecks,
+} from "./install-plan.js";
 
 function check(overrides: Partial<PrerequisiteCheck>): PrerequisiteCheck {
   return {
@@ -118,6 +122,83 @@ test("unknown package manager yields no command", () => {
   const plan = buildInstallPlan([check({})], "unknown");
   assert.equal(plan.requiredCommand, null);
   assert.equal(plan.packageManager, "unknown");
+});
+
+function report(checks: PrerequisiteCheck[]): PrerequisiteReport {
+  return {
+    checkedAt: "2026-07-31T00:00:00.000Z",
+    host: {
+      platform: "linux",
+      osName: null,
+      osId: null,
+      packageManager: "apt",
+      runMode: "dev",
+      path: [],
+      autoRepairedPath: [],
+    },
+    groups: [{ id: "build", title: "Build", description: "", checks }],
+    summary: summarizeChecks(checks),
+    install: buildInstallPlan(checks, "apt"),
+    installRunner: {
+      available: true,
+      method: "passwordless-sudo",
+      reason: null,
+    },
+  };
+}
+
+test("resolves scope requests against the aggregated plan", () => {
+  const subject = report([
+    check({ id: "cmake" }),
+    check({
+      id: "ccache",
+      severity: "recommended",
+      remediation: {
+        packages: ["ccache"],
+        installCommand: null,
+        commands: [],
+        docPath: null,
+        note: null,
+      },
+    }),
+  ]);
+
+  assert.equal(
+    resolveInstallCommand(subject, { scope: "required" }),
+    "sudo apt install -y cmake",
+  );
+  assert.equal(
+    resolveInstallCommand(subject, { scope: "all" }),
+    "sudo apt install -y cmake ccache",
+  );
+});
+
+test("resolves a check request to that check's own install command", () => {
+  const subject = report([check({ id: "cmake" })]);
+  assert.equal(
+    resolveInstallCommand(subject, { checkId: "cmake" }),
+    "sudo apt install -y cmake",
+  );
+  assert.equal(resolveInstallCommand(subject, { checkId: "nope" }), null);
+});
+
+test("a check without a package command resolves to null", () => {
+  const subject = report([
+    check({
+      id: "nvidia-driver",
+      remediation: {
+        packages: [],
+        installCommand: null,
+        commands: ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"],
+        docPath: null,
+        note: null,
+      },
+    }),
+  ]);
+  assert.equal(
+    resolveInstallCommand(subject, { checkId: "nvidia-driver" }),
+    null,
+  );
 });
 
 test("summary separates severities and non-missing states", () => {

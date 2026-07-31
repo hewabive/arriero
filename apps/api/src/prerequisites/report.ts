@@ -17,6 +17,7 @@ import { autoRepairedPathDirectories } from "../system/path-repair.js";
 import { pathEntries } from "../system/tool-probe.js";
 import { detectRunMode } from "../update/version.js";
 import { instanceArgsNeedHttps } from "./https-usage.js";
+import { detectInstallCapability } from "./install-capability.js";
 import { buildInstallPlan, summarizeChecks } from "./install-plan.js";
 import {
   prerequisiteDefinitions,
@@ -101,11 +102,14 @@ export function prerequisiteProbeContext(): PrerequisiteProbeContext {
 
 export async function getPrerequisiteReport(): Promise<PrerequisiteReport> {
   const context = prerequisiteProbeContext();
-  const checks = await Promise.all(
-    prerequisiteDefinitions.map((definition) =>
-      evaluatePrerequisite(definition, context),
+  const [checks, installRunner] = await Promise.all([
+    Promise.all(
+      prerequisiteDefinitions.map((definition) =>
+        evaluatePrerequisite(definition, context),
+      ),
     ),
-  );
+    detectInstallCapability(),
+  ]);
   const byId = new Map(
     prerequisiteDefinitions.map((definition, index) => [
       definition.id,
@@ -129,5 +133,6 @@ export async function getPrerequisiteReport(): Promise<PrerequisiteReport> {
     groups,
     summary: summarizeChecks(checks),
     install: buildInstallPlan(checks, host.packageManager),
+    installRunner,
   };
 }

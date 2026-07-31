@@ -89,8 +89,9 @@ version/run-mode + UI self-update runner, `docs/SELF_UPDATE.md`) · `prerequisit
 registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITES.md`).
 
 Two `prerequisites` rules constrain code elsewhere: every PATH lookup goes through the one primitive
-`system/tool-probe.ts` (`build/cuda.ts:findNvcc` and `envs/uv.ts:findUv` included), and the UI never
-installs packages. A check is added only after it actually blocked a deployment.
+`system/tool-probe.ts` (`build/cuda.ts:findNvcc` and `envs/uv.ts:findUv` included), and the UI
+installs packages only via the gated runner (root/passwordless-sudo only, command re-derived
+server-side). A check is added only after it actually blocked a deployment.
 
 `system/metrics-history.ts` is the single owner of every counter delta (cpu/net/disk): it ticks at
 1 Hz always-on and feeds both `/api/system/metrics*` and the `cpu`/`network`/`disk` fields of

@@ -3086,12 +3086,43 @@ export const PrerequisiteInstallPlanSchema = z.object({
   allCommand: z.string().nullable(),
 });
 
+export const PrerequisiteInstallCapabilitySchema = z.object({
+  available: z.boolean(),
+  method: z.enum(["root", "passwordless-sudo"]).nullable(),
+  reason: z.string().nullable(),
+});
+
+export const PrerequisiteInstallScopeSchema = z.enum(["required", "all"]);
+
+export const PrerequisiteInstallStartSchema = z.union([
+  z.object({ scope: PrerequisiteInstallScopeSchema }),
+  z.object({ checkId: z.string().min(1) }),
+]);
+
+export const PrerequisiteInstallRunStatusSchema = z.enum([
+  "running",
+  "succeeded",
+  "failed",
+]);
+
+export const PrerequisiteInstallRunSchema = z.object({
+  id: z.string(),
+  request: PrerequisiteInstallStartSchema,
+  command: z.string(),
+  status: PrerequisiteInstallRunStatusSchema,
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+  exitCode: z.number().int().nullable(),
+  log: z.string(),
+});
+
 export const PrerequisiteReportSchema = z.object({
   checkedAt: z.string(),
   host: PrerequisiteHostSchema,
   groups: z.array(PrerequisiteGroupSchema),
   summary: PrerequisiteSummarySchema,
   install: PrerequisiteInstallPlanSchema,
+  installRunner: PrerequisiteInstallCapabilitySchema,
 });
 
 export const FleetNodeResultMetaSchema = z.object({
@@ -3808,6 +3839,21 @@ export type PrerequisiteHost = z.infer<typeof PrerequisiteHostSchema>;
 export type PrerequisiteSummary = z.infer<typeof PrerequisiteSummarySchema>;
 export type PrerequisiteInstallPlan = z.infer<
   typeof PrerequisiteInstallPlanSchema
+>;
+export type PrerequisiteInstallCapability = z.infer<
+  typeof PrerequisiteInstallCapabilitySchema
+>;
+export type PrerequisiteInstallScope = z.infer<
+  typeof PrerequisiteInstallScopeSchema
+>;
+export type PrerequisiteInstallStart = z.infer<
+  typeof PrerequisiteInstallStartSchema
+>;
+export type PrerequisiteInstallRunStatus = z.infer<
+  typeof PrerequisiteInstallRunStatusSchema
+>;
+export type PrerequisiteInstallRun = z.infer<
+  typeof PrerequisiteInstallRunSchema
 >;
 export type PrerequisiteReport = z.infer<typeof PrerequisiteReportSchema>;
 export type AuthState = z.infer<typeof AuthStateSchema>;
