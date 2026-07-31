@@ -31,7 +31,7 @@ test("saves sequential per-request files and reads them back", () => {
   assert.equal(second.name, "02-capture-request.json");
   assert.equal(
     first.path,
-    "2026-06-10/2026-06-10T12-34-56-789Z-0197a000-0000-7000-8000-000000000001/01-capture-request.json",
+    "public-model/2026-06-10T12-34-56-789Z-0197a000-0000-7000-8000-000000000001/01-capture-request.json",
   );
   assert.ok(first.bytes > 0);
 
@@ -47,12 +47,29 @@ test("saves sequential per-request files and reads them back", () => {
   assert.equal(secondRecord.label, null);
 });
 
+test("sanitizes the model id into a safe directory name", () => {
+  const slash = saveApiProxyRequestFile(
+    saveInput({ modelId: "anthropic/claude-3.5-sonnet" }),
+  );
+  assert.ok(slash.path.startsWith("anthropic-claude-3.5-sonnet/"));
+
+  const record = readApiProxyRequestFile(slash.path);
+  assert.ok(record);
+  assert.equal(record.modelId, "anthropic/claude-3.5-sonnet");
+
+  const dots = saveApiProxyRequestFile(saveInput({ modelId: ".." }));
+  assert.ok(dots.path.startsWith("unknown-model/"));
+
+  const long = saveApiProxyRequestFile(saveInput({ modelId: "m".repeat(500) }));
+  assert.ok(long.path.startsWith(`${"m".repeat(100)}/`));
+});
+
 test("rejects paths escaping the request files root", () => {
   assert.equal(readApiProxyRequestFile("../arriero.db"), null);
   assert.equal(readApiProxyRequestFile("/etc/passwd"), null);
   assert.equal(
-    readApiProxyRequestFile("2026-06-10/../../config/settings.json"),
+    readApiProxyRequestFile("public-model/../../config/settings.json"),
     null,
   );
-  assert.equal(readApiProxyRequestFile("missing-day/missing.json"), null);
+  assert.equal(readApiProxyRequestFile("missing-model/missing.json"), null);
 });

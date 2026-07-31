@@ -15,6 +15,14 @@ function requestDirName(traceId: string, traceAt: string) {
   return `${traceAt.replace(/[:.]/g, "-")}-${traceId}`;
 }
 
+function modelDirName(modelId: string) {
+  const cleaned = modelId.replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 100);
+  if (cleaned === "" || /^\.+$/.test(cleaned)) {
+    return "unknown-model";
+  }
+  return cleaned;
+}
+
 function existingJsonFileCount(dir: string) {
   try {
     return readdirSync(dir).filter((file) => file.endsWith(".json")).length;
@@ -35,9 +43,9 @@ export function saveApiProxyRequestFile(input: {
   data: unknown;
 }): ApiProxyTraceFile {
   const createdAt = new Date().toISOString();
-  const day = input.traceAt.slice(0, 10);
+  const modelDir = modelDirName(input.modelId);
   const dirName = requestDirName(input.traceId, input.traceAt);
-  const dir = resolve(requestFilesRoot, day, dirName);
+  const dir = resolve(requestFilesRoot, modelDir, dirName);
   mkdirSync(dir, { recursive: true });
   const seq = existingJsonFileCount(dir) + 1;
   const name = `${String(seq).padStart(2, "0")}-${input.kind}.json`;
@@ -56,7 +64,7 @@ export function saveApiProxyRequestFile(input: {
   writeFileSync(resolve(dir, name), content, "utf8");
   return ApiProxyTraceFileSchema.parse({
     name,
-    path: `${day}/${dirName}/${name}`,
+    path: `${modelDir}/${dirName}/${name}`,
     kind: input.kind,
     label: input.label,
     bytes: Buffer.byteLength(content, "utf8"),

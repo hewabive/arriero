@@ -260,7 +260,10 @@ single-survivor fusion bypass when it streams directly, and upstream error
 bodies.
 
 All files saved for one proxied request share a per-request directory
-`data/proxy-requests/<YYYY-MM-DD>/<timestamp>-<traceId>/`, named
+`data/proxy-requests/<model>/<timestamp>-<traceId>/` — `<model>` is the inbound
+proxy model id sanitized for the filesystem (everything outside
+`[A-Za-z0-9._-]` collapses to `-`, capped at 100 chars, dot-only ids fall back
+to `unknown-model`) — named
 `<NN>-<node-kind>.json` in visit order (response files land after the request
 files, in completion order); future nodes that persist other per-request
 artifacts write into the same directory. Each file is an

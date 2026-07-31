@@ -293,9 +293,9 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
   rebuildable, not git-tracked. `lastRequestAt` is memory-only.
 - `data/config/` (= `ARRIERO_CONFIG_DIR`): file-backed portable config — see above.
 - `data/proxy-requests/`: per-request artifact files (opt-in via pipeline nodes like
-  `capture-request`), one dir per request `<day>/<timestamp>-<traceId>/<NN>-<kind>.json`; metadata
-  lands in `trace.files`, content served by `GET /api/proxy/request-file?path=`
-  (`proxy/request-files.ts`).
+  `capture-request`), one dir per request `<model>/<timestamp>-<traceId>/<NN>-<kind>.json` (inbound
+  proxy model id, sanitized); metadata lands in `trace.files`, content served by
+  `GET /api/proxy/request-file?path=` (`proxy/request-files.ts`).
 - `runtime/logs/`: managed-process stdout/stderr.
 - `runtime/slots/<instance>/`: per-instance llama.cpp KV slot dumps (`config.slotsDir`).
   `--slot-save-path` is auto-injected at launch (never persisted into the instance JSON) so proxy
