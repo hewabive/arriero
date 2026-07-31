@@ -7,6 +7,13 @@ import {
   type ApiProxyStatsTotals,
 } from "@arriero/core";
 
+import {
+  clearApiProxyTraceHistory,
+  insertApiProxyTrace,
+  listApiProxyTraces,
+  listApiProxyTracesSince,
+} from "./traces-repository.js";
+
 const MAX_HOURS = 24;
 const MAX_TRACES = 50;
 
@@ -96,15 +103,29 @@ function toBucket(bucket: MutableBucket): ApiProxyStatsBucket {
 }
 
 class ApiProxyStats {
-  private traces: ApiProxyRequestTrace[] = [];
   private buckets = new Map<string, MutableBucket>();
 
   record(trace: ApiProxyRequestTrace): void {
-    this.traces.push(trace);
-    if (this.traces.length > MAX_TRACES) {
-      this.traces.splice(0, this.traces.length - MAX_TRACES);
+    this.applyToBuckets(trace);
+    try {
+      insertApiProxyTrace(trace);
+    } catch {
+      return;
     }
+  }
 
+  seedFromHistory(now = new Date()): number {
+    const since = new Date(
+      now.getTime() - MAX_HOURS * 60 * 60 * 1000,
+    ).toISOString();
+    const traces = listApiProxyTracesSince(since);
+    for (const trace of traces) {
+      this.applyToBuckets(trace);
+    }
+    return traces.length;
+  }
+
+  private applyToBuckets(trace: ApiProxyRequestTrace): void {
     const hour = trace.at.slice(0, 13);
     let bucket = this.buckets.get(hour);
     if (!bucket) {
@@ -156,13 +177,12 @@ class ApiProxyStats {
   }
 
   recentTraces(limit = MAX_TRACES): ApiProxyRequestTrace[] {
-    const safeLimit = Math.max(0, Math.min(limit, MAX_TRACES));
-    return this.traces.slice(-safeLimit).reverse();
+    return listApiProxyTraces({ limit });
   }
 
   reset(): void {
-    this.traces = [];
     this.buckets.clear();
+    clearApiProxyTraceHistory();
   }
 }
 

@@ -39,6 +39,27 @@ export const llamaArgumentCatalogs = sqliteTable("llama_argument_catalogs", {
   parserId: text("parser_id").notNull().default("llama-help"),
 });
 
+export const proxyRequestTraces = sqliteTable("proxy_request_traces", {
+  id: text("id").primaryKey(),
+  at: text("at").notNull(),
+  protocol: text("protocol").notNull(),
+  endpoint: text("endpoint").notNull(),
+  modelId: text("model_id").notNull(),
+  sourceId: text("source_id"),
+  targetId: text("target_id"),
+  status: integer("status").notNull(),
+  ok: integer("ok").notNull(),
+  errorCode: text("error_code"),
+  cache: text("cache"),
+  resumed: integer("resumed").notNull(),
+  stream: integer("stream"),
+  translated: integer("translated").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  promptTokens: integer("prompt_tokens"),
+  completionTokens: integer("completion_tokens"),
+  traceJson: text("trace_json").notNull(),
+});
+
 export const apiProxyResponseCache = sqliteTable("proxy_response_cache", {
   key: text("key").primaryKey(),
   modelId: text("model_id").notNull(),

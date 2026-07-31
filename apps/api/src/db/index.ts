@@ -89,6 +89,38 @@ export function migrate() {
   );
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS proxy_request_traces (
+      id TEXT PRIMARY KEY NOT NULL,
+      at TEXT NOT NULL,
+      protocol TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      source_id TEXT,
+      target_id TEXT,
+      status INTEGER NOT NULL,
+      ok INTEGER NOT NULL,
+      error_code TEXT,
+      cache TEXT,
+      resumed INTEGER NOT NULL,
+      stream INTEGER,
+      translated INTEGER NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      prompt_tokens INTEGER,
+      completion_tokens INTEGER,
+      trace_json TEXT NOT NULL
+    )
+  `);
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS proxy_request_traces_at ON proxy_request_traces (at)`,
+  );
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS proxy_request_traces_model_at ON proxy_request_traces (model_id, at)`,
+  );
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS proxy_request_traces_source_at ON proxy_request_traces (source_id, at)`,
+  );
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS proxy_response_cache (
       key TEXT PRIMARY KEY NOT NULL,
       model_id TEXT NOT NULL,

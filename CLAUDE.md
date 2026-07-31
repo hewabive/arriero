@@ -284,10 +284,13 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
 
 ## Runtime layout & key env vars
 
-- `data/arriero.db` (WAL): process-run metadata (`process_runs`) and rebuildable caches —
-  `model_cache`; `llama_argument_catalogs` (parsed `--help`, keyed by binary path, invalidated by
-  size/mtime, mirrored to a per-binary sidecar read on DB miss (`arguments/sidecar.ts`) so it
-  survives DB recreation and travels with the binary); `proxy_response_cache`.
+- `data/arriero.db` (WAL): process-run metadata (`process_runs`); request-trace history
+  (`proxy_request_traces`, `proxy/traces-repository.ts` — 30-day retention whose prune also deletes
+  `data/proxy-requests/` artifacts past the cutoff; reseeds the in-memory hourly stats at boot);
+  rebuildable caches — `model_cache`; `llama_argument_catalogs` (parsed `--help`, keyed by binary
+  path, invalidated by size/mtime, mirrored to a per-binary sidecar read on DB miss
+  (`arguments/sidecar.ts`) so it survives DB recreation and travels with the binary);
+  `proxy_response_cache`.
 - `data/proxy-runtime-metadata.json`: API-proxy runtime metadata (per-target saved-slot ids for
   preemption restore). In-memory map + atomic write-through (`proxy/runtime-metadata-store.ts`);
   rebuildable, not git-tracked. `lastRequestAt` is memory-only.
@@ -295,7 +298,8 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
 - `data/proxy-requests/`: per-request artifact files (opt-in via pipeline nodes like
   `capture-request`), one dir per request `<model>/<timestamp>-<traceId>/<NN>-<kind>.json` (inbound
   proxy model id, sanitized); metadata lands in `trace.files`, content served by
-  `GET /api/proxy/request-file?path=` (`proxy/request-files.ts`).
+  `GET /api/proxy/request-file?path=` (`proxy/request-files.ts`); pruned with the 30-day
+  request-trace retention by directory timestamp.
 - `runtime/logs/`: managed-process stdout/stderr.
 - `runtime/slots/<instance>/`: per-instance llama.cpp KV slot dumps (`config.slotsDir`).
   `--slot-save-path` is auto-injected at launch (never persisted into the instance JSON) so proxy

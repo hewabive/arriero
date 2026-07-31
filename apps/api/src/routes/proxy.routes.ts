@@ -32,6 +32,7 @@ import {
 } from "../proxy/sources.js";
 import { serveApiProxyPinnedInstance } from "../proxy/serve-pinned.js";
 import { apiProxyStats } from "../proxy/stats.js";
+import { listApiProxyTraces } from "../proxy/traces-repository.js";
 import { buildApiProxyTargetModelCatalog } from "../proxy/target-models.js";
 
 export function registerProxyRoutes(app: Hono) {
@@ -91,8 +92,21 @@ export function registerProxyRoutes(app: Hono) {
 
   app.get("/api/proxy/traces", (c) => {
     const limit = Number(c.req.query("limit") ?? 50);
+    const before = c.req.query("before");
+    const modelId = c.req.query("modelId");
+    const sourceId = c.req.query("sourceId");
+    const targetId = c.req.query("targetId");
+    const ok = c.req.query("ok");
     return c.json({
-      data: apiProxyStats.recentTraces(Number.isFinite(limit) ? limit : 50),
+      data: listApiProxyTraces({
+        limit: Number.isFinite(limit) ? limit : 50,
+        ...(before !== undefined ? { before } : {}),
+        ...(modelId !== undefined ? { modelId } : {}),
+        ...(sourceId !== undefined ? { sourceId } : {}),
+        ...(targetId !== undefined ? { targetId } : {}),
+        ...(ok === "true" ? { ok: true } : {}),
+        ...(ok === "false" ? { ok: false } : {}),
+      }),
     });
   });
 

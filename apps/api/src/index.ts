@@ -14,6 +14,8 @@ import {
 import { runMigrations } from "./migrations/index.js";
 import { ensureConfigScaffold } from "./proxy/config-files.js";
 import { apiProxyPendingResume } from "./proxy/pending-resume.js";
+import { apiProxyStats } from "./proxy/stats.js";
+import { pruneApiProxyTraceHistory } from "./proxy/traces-repository.js";
 import { apiProxyStreamSessions } from "./proxy/stream-session.js";
 import { collectApiProxyPipelineGraphWarnings } from "./proxy/pipeline-validation.js";
 import {
@@ -64,6 +66,8 @@ const prunedArgumentCatalogs = pruneMissingArgumentCatalogs();
 const prunedModelCache = pruneMissingCachedModels();
 const reconciliation = reconcileProcessRuns(listInstances());
 const prunedProcessRuns = pruneProcessRunHistory();
+const prunedTraceHistory = pruneApiProxyTraceHistory();
+const seededStatsTraces = apiProxyStats.seedFromHistory();
 const pendingResume = apiProxyPendingResume.adopt();
 if (pendingResume.adopted > 0) {
   logger.info(
@@ -100,6 +104,8 @@ const server = serve(
         normalizedConfigPaths,
         reconciliation,
         prunedProcessRuns,
+        prunedTraceHistory,
+        seededStatsTraces,
         prunedArgumentCatalogs,
         prunedModelCache,
         seededResourcePools,

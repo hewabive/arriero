@@ -391,7 +391,7 @@ export function StatsSection(props: StatsSectionProps) {
             <Text fw={600}>Statistics</Text>
           </Group>
           <Text c="dimmed" size="sm">
-            Last {snapshot?.hours ?? 24}h, in-memory (resets on restart).
+            Last {snapshot?.hours ?? 24}h.
           </Text>
         </Group>
 

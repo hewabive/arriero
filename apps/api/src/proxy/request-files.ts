@@ -4,7 +4,14 @@ import {
   type ApiProxyRequestFileRecord,
   type ApiProxyTraceFile,
 } from "@arriero/core";
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  rmdirSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve, sep } from "node:path";
 
 import { config } from "../config.js";
@@ -70,6 +77,47 @@ export function saveApiProxyRequestFile(input: {
     bytes: Buffer.byteLength(content, "utf8"),
     createdAt,
   });
+}
+
+const requestDirStampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+
+function readDirectoryEntries(path: string) {
+  try {
+    return readdirSync(path, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+export function pruneApiProxyRequestFiles(cutoffIso: string): number {
+  const cutoffStamp = cutoffIso.replace(/[:.]/g, "-");
+  let removed = 0;
+  for (const modelEntry of readDirectoryEntries(requestFilesRoot)) {
+    if (!modelEntry.isDirectory()) {
+      continue;
+    }
+    const modelDir = resolve(requestFilesRoot, modelEntry.name);
+    for (const requestEntry of readDirectoryEntries(modelDir)) {
+      if (!requestEntry.isDirectory()) {
+        continue;
+      }
+      const stamp = requestEntry.name.slice(0, cutoffStamp.length);
+      if (!requestDirStampPattern.test(stamp) || stamp >= cutoffStamp) {
+        continue;
+      }
+      rmSync(resolve(modelDir, requestEntry.name), {
+        recursive: true,
+        force: true,
+      });
+      removed += 1;
+    }
+    try {
+      rmdirSync(modelDir);
+    } catch {
+      continue;
+    }
+  }
+  return removed;
 }
 
 export function readApiProxyRequestFile(

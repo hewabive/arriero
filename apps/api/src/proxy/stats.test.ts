@@ -4,6 +4,7 @@ import { beforeEach, test } from "node:test";
 import type { ApiProxyRequestTrace } from "@arriero/core";
 
 import { apiProxyStats } from "./stats.js";
+import { insertApiProxyTrace } from "./traces-repository.js";
 
 function trace(
   over: Partial<ApiProxyRequestTrace> & { at: string; modelId: string },
@@ -152,6 +153,23 @@ test("reset clears traces and buckets", () => {
   assert.equal(snap.buckets.length, 0);
   assert.equal(snap.totals.requests, 0);
   assert.equal(apiProxyStats.recentTraces().length, 0);
+});
+
+test("seedFromHistory replays persisted traces within the 24h window", () => {
+  insertApiProxyTrace(trace({ at: HOUR, modelId: "m1", id: "seed-1" }));
+  insertApiProxyTrace(
+    trace({ at: "2026-06-01T21:00:00.000Z", modelId: "m1", id: "seed-2" }),
+  );
+
+  const seeded = apiProxyStats.seedFromHistory(
+    new Date("2026-06-03T22:00:00.000Z"),
+  );
+  assert.equal(seeded, 1);
+
+  const snap = apiProxyStats.snapshot();
+  assert.equal(snap.totals.requests, 1);
+  assert.equal(snap.buckets[0]?.hour, "2026-06-03T21");
+  assert.equal(apiProxyStats.recentTraces().length, 2);
 });
 
 test("counts resumed replays in totals and per-model entries", () => {
