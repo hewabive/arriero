@@ -8,6 +8,7 @@ import { systemMetricsHistory } from "../db/schema.js";
 import { SystemMetricsRecorder } from "./metrics-history.js";
 import {
   attachSystemMetricsPersistence,
+  backfillSystemMetricsMonthTier,
   clearSystemMetricsHistory,
   insertSystemMetricsSample,
   pruneSystemMetricsHistory,
@@ -143,10 +144,59 @@ test("seedSystemMetricsRecorder preloads hour and day tiers from the database", 
   const recorder = new SystemMetricsRecorder({ now: () => NOW });
   const seeded = seedSystemMetricsRecorder(recorder, NOW);
 
-  assert.deepEqual(seeded, { hour: 1, day: 1 });
+  assert.deepEqual(seeded, { hour: 1, day: 1, month: 0 });
   assert.equal(recorder.history("hour").samples[0]?.cpuPercent, 5);
   assert.equal(recorder.history("day").samples[0]?.cpuPercent, 7);
   assert.equal(recorder.history("live").samples.length, 0);
+});
+
+test("backfills missing month buckets from persisted day rows", () => {
+  const interval = SYSTEM_METRICS_TIERS.month.intervalMs;
+  const bucketA = NOW - 2 * interval;
+  const bucketB = NOW - interval;
+  insertSystemMetricsSample(
+    "day",
+    bucketA + 60_000,
+    sample({ at: bucketA + 60_000, cpuPercent: 10 }),
+  );
+  insertSystemMetricsSample(
+    "day",
+    bucketA + 120_000,
+    sample({ at: bucketA + 120_000, cpuPercent: 30 }),
+  );
+  insertSystemMetricsSample(
+    "day",
+    bucketB + 60_000,
+    sample({ at: bucketB + 60_000, cpuPercent: 50 }),
+  );
+  insertSystemMetricsSample(
+    "day",
+    NOW + 60_000,
+    sample({ at: NOW + 60_000, cpuPercent: 70 }),
+  );
+  insertSystemMetricsSample(
+    "month",
+    bucketB,
+    sample({ at: bucketB, cpuPercent: 99 }),
+  );
+
+  assert.equal(backfillSystemMetricsMonthTier(NOW + 600_000), 1);
+
+  const rows = db
+    .select()
+    .from(systemMetricsHistory)
+    .all()
+    .filter((row) => row.window === "month")
+    .sort((a, b) => a.bucketAt - b.bucketAt);
+  assert.deepEqual(
+    rows.map((row) => row.bucketAt),
+    [bucketA, bucketB],
+  );
+  const read = readSystemMetricsHistory("month", NOW + 600_000);
+  assert.deepEqual(
+    read.map((entry) => entry.cpuPercent),
+    [20, 99],
+  );
 });
 
 test("attachSystemMetricsPersistence writes each closed coarse bucket", () => {

@@ -3080,7 +3080,12 @@ export const SystemMetricsSampleSchema = z.object({
   network: z.array(SystemMetricsNetworkSampleSchema),
 });
 
-export const SystemMetricsWindowSchema = z.enum(["live", "hour", "day"]);
+export const SystemMetricsWindowSchema = z.enum([
+  "live",
+  "hour",
+  "day",
+  "month",
+]);
 
 export const SystemMetricsHistorySchema = z.object({
   window: SystemMetricsWindowSchema,
@@ -3096,6 +3101,7 @@ export const SYSTEM_METRICS_TIERS: Record<
   live: { intervalMs: 1_000, capacity: 300 },
   hour: { intervalMs: 10_000, capacity: 360 },
   day: { intervalMs: 60_000, capacity: 1_440 },
+  month: { intervalMs: 1_800_000, capacity: 1_440 },
 };
 
 export const HostPackageManagerSchema = z.enum([

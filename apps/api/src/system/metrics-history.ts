@@ -30,7 +30,7 @@ import {
   readNetCounters,
 } from "./net.js";
 
-export const COARSE_METRICS_WINDOWS = ["hour", "day"] as const;
+export const COARSE_METRICS_WINDOWS = ["hour", "day", "month"] as const;
 
 export type SystemMetricsCoarseWindow =
   (typeof COARSE_METRICS_WINDOWS)[number];

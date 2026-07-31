@@ -62,7 +62,7 @@ Two things keep it cheap and must stay that way:
 
 ## Retention tiers
 
-`SYSTEM_METRICS_TIERS` defines three in-memory ring buffers. It lives in `packages/core` because the
+`SYSTEM_METRICS_TIERS` defines four in-memory ring buffers. It lives in `packages/core` because the
 web side derives its refetch cadence and live-buffer bound from the same table — mirroring the
 numbers by hand let a server-side tier change drift silently past the client. Coarse tiers are fed by
 averaging the 1 Hz samples inside each wall-clock bucket (`Math.floor(at / intervalMs)`), so tier
@@ -73,6 +73,7 @@ boundaries are aligned rather than relative to when the process started:
 | `live` | 1 s | 300 | 5 minutes |
 | `hour` | 10 s | 360 | 1 hour |
 | `day` | 60 s | 1440 | 24 hours |
+| `month` | 30 min | 1440 | 30 days |
 
 A sample carries only what a chart plots. Per-core CPU detail and iowait were recorded at first, but
 nothing ever read them — the per-core bars and the iowait line come from the `/api/system/resources`
@@ -82,26 +83,34 @@ a retention rule instead of a per-field special case inside `averageSamples()`.
 
 ## Persistence
 
-The `live` tier is memory-only, but closed `hour`/`day` buckets survive a manager restart. When
-`accumulate()` finishes a wall-clock bucket, the recorder emits the averaged sample to coarse
+The `live` tier is memory-only, but closed `hour`/`day`/`month` buckets survive a manager restart.
+When `accumulate()` finishes a wall-clock bucket, the recorder emits the averaged sample to coarse
 subscribers, and `attachSystemMetricsPersistence` (`system/metrics-repository.ts`) upserts it into
 the `system_metrics_history` table keyed by `(window, bucket start)`. On boot
 `seedSystemMetricsRecorder()` reads each tier's span back into its ring buffer before the recorder
-starts, so the hour/day graphs resume where they left off and the downtime renders as an honest gap
+starts, so the coarse graphs resume where they left off and the downtime renders as an honest gap
 via the chart's gap-break rule.
 
-Two deliberate limits. The pending partial bucket is dropped at shutdown (≤9 s of hour data, ≤59 s
-of day data) rather than flushed — merging pre- and post-restart state into one bucket would hide
-the restart, and the counter-delta state is process-local anyway, so the first post-boot tick has no
-rates. And a tier is only ever seeded from rows written for that same tier: samples spaced at a
-different interval would trigger the gap-break logic between every pair of points.
+Two deliberate limits. The pending partial bucket is dropped at shutdown rather than flushed —
+merging pre- and post-restart state into one bucket would hide the restart, and the counter-delta
+state is process-local anyway, so the first post-boot tick has no rates. And a tier is only ever
+seeded from rows written for that same tier: samples spaced at a different interval would trigger
+the gap-break logic between every pair of points.
+
+The month tier is additionally backfilled at boot: `backfillSystemMetricsMonthTier()` derives every
+missing complete 30-minute bucket by averaging the persisted `day` rows inside it, skipping the
+in-progress bucket and buckets that already have a month row. That gave the tier up to 30 days of
+history the day it shipped, and it keeps healing afterwards — a month bucket the manager slept
+through entirely is reconstructed from its `day` rows at the next boot, while a bucket spanning the
+restart keeps its post-restart average only (the same class of loss as the dropped pending bucket).
 
 Retention is per window: `hour` rows are kept for the tier span (1 h — exactly what reseeding
-needs), `day` rows for 30 days, which is also raw material for a future week/month tier. A boot-time
-prune plus an hourly loop (`startSystemMetricsRetentionLoop`) keep the table bounded. The write cost
-is one upsert per closed bucket (6/min + 1/min), small enough that the recorder's own WAL traffic
-stays invisible in its disk charts — persisting every 1 Hz tick was rejected for exactly that
-self-observation plus the fact that no chart reads 1 s resolution beyond the 5-minute live window.
+needs), `day` and `month` rows for 30 days (`day` doubles as the backfill source for the month
+tier). A boot-time prune plus an hourly loop (`startSystemMetricsRetentionLoop`) keep the table
+bounded. The write cost is one upsert per closed bucket (6/min + 1/min + 2/h), small enough that
+the recorder's own WAL traffic stays invisible in its disk charts — persisting every 1 Hz tick was
+rejected for exactly that self-observation plus the fact that no chart reads 1 s resolution beyond
+the 5-minute live window.
 
 ## Surfaces
 

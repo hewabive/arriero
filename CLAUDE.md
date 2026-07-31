@@ -288,9 +288,9 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
   (`proxy_request_traces`, `proxy/traces-repository.ts` — 30-day retention whose prune also deletes
   `data/proxy-requests/` artifacts past the cutoff; reseeds the in-memory hourly stats at boot;
   browsable with full filters + facets at `#/proxy/traces`); system-metrics history
-  (`system_metrics_history`, `system/metrics-repository.ts` — closed hour/day buckets upserted per
-  bucket, reseeded into the recorder at boot; hour kept for its 1 h span, day 30 days —
-  `docs/SYSTEM_METRICS.md` § Persistence);
+  (`system_metrics_history`, `system/metrics-repository.ts` — closed hour/day/month buckets upserted
+  per bucket, reseeded into the recorder at boot, month backfilled from day rows; hour kept for its
+  1 h span, day/month 30 days — `docs/SYSTEM_METRICS.md` § Persistence);
   rebuildable caches — `model_cache`; `llama_argument_catalogs` (parsed `--help`, keyed by binary
   path, invalidated by size/mtime, mirrored to a per-binary sidecar read on DB miss
   (`arguments/sidecar.ts`) so it survives DB recreation and travels with the binary);

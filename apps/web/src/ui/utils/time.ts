@@ -11,14 +11,16 @@ export function formatLocalClock(value: number | Date) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-export function formatLocalDateTime(value: string | null | undefined) {
-  if (!value) {
+export function formatLocalDateTime(
+  value: string | number | Date | null | undefined,
+) {
+  if (value === null || value === undefined || value === "") {
     return "-";
   }
 
-  const date = new Date(value);
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return String(value);
   }
 
   return [

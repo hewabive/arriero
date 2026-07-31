@@ -8,6 +8,7 @@ import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { systemMetricsHistory } from "../db/schema.js";
 import {
+  averageSamples,
   COARSE_METRICS_WINDOWS,
   type SystemMetricsCoarseWindow,
   type SystemMetricsRecorder,
@@ -40,35 +41,83 @@ export function insertSystemMetricsSample(
     .run();
 }
 
-export function readSystemMetricsHistory(
-  window: SystemMetricsCoarseWindow,
-  now = Date.now(),
-): SystemMetricsSample[] {
-  const rows = db
-    .select({ sampleJson: systemMetricsHistory.sampleJson })
+function parseSampleJson(sampleJson: string): SystemMetricsSample | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(sampleJson);
+  } catch {
+    return null;
+  }
+  const parsed = SystemMetricsSampleSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+function selectWindowRows(window: SystemMetricsCoarseWindow, since: number) {
+  return db
+    .select({
+      bucketAt: systemMetricsHistory.bucketAt,
+      sampleJson: systemMetricsHistory.sampleJson,
+    })
     .from(systemMetricsHistory)
     .where(
       and(
         eq(systemMetricsHistory.window, window),
-        gte(systemMetricsHistory.bucketAt, now - tierSpanMs(window)),
+        gte(systemMetricsHistory.bucketAt, since),
       ),
     )
     .orderBy(asc(systemMetricsHistory.bucketAt))
     .all();
+}
+
+export function readSystemMetricsHistory(
+  window: SystemMetricsCoarseWindow,
+  now = Date.now(),
+): SystemMetricsSample[] {
+  const rows = selectWindowRows(window, now - tierSpanMs(window));
   const samples: SystemMetricsSample[] = [];
   for (const row of rows) {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(row.sampleJson);
-    } catch {
-      continue;
-    }
-    const parsed = SystemMetricsSampleSchema.safeParse(raw);
-    if (parsed.success) {
-      samples.push(parsed.data);
+    const sample = parseSampleJson(row.sampleJson);
+    if (sample) {
+      samples.push(sample);
     }
   }
   return samples;
+}
+
+export function backfillSystemMetricsMonthTier(now = Date.now()): number {
+  const intervalMs = SYSTEM_METRICS_TIERS.month.intervalMs;
+  const since = now - tierSpanMs("month");
+  const currentBucket = Math.floor(now / intervalMs);
+  const existing = new Set(
+    selectWindowRows("month", since).map((row) => row.bucketAt),
+  );
+  const groups = new Map<number, SystemMetricsSample[]>();
+  for (const row of selectWindowRows("day", since)) {
+    const bucket = Math.floor(row.bucketAt / intervalMs);
+    if (bucket >= currentBucket || existing.has(bucket * intervalMs)) {
+      continue;
+    }
+    const sample = parseSampleJson(row.sampleJson);
+    if (!sample) {
+      continue;
+    }
+    const group = groups.get(bucket);
+    if (group) {
+      group.push(sample);
+    } else {
+      groups.set(bucket, [sample]);
+    }
+  }
+  let inserted = 0;
+  for (const [bucket, samples] of groups) {
+    const averaged = averageSamples(samples);
+    if (!averaged) {
+      continue;
+    }
+    insertSystemMetricsSample("month", bucket * intervalMs, averaged);
+    inserted += 1;
+  }
+  return inserted;
 }
 
 export function pruneSystemMetricsHistory(now = Date.now()): number {
@@ -109,6 +158,7 @@ export function seedSystemMetricsRecorder(
   return {
     hour: seedWindow(recorder, "hour", now),
     day: seedWindow(recorder, "day", now),
+    month: seedWindow(recorder, "month", now),
   };
 }
 

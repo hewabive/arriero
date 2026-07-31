@@ -2,7 +2,7 @@ import { Box, Group, Paper, Text, useComputedColorScheme } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import { useMemo, useState } from "react";
 
-import { formatLocalClock } from "../utils/time";
+import { formatLocalClock, formatLocalDateTime } from "../utils/time";
 import { metricToneColor, type MetricTone } from "./metric-palette";
 
 export type MetricSeries = {
@@ -328,7 +328,9 @@ export function MetricChart(props: MetricChartProps) {
             style={{ pointerEvents: "none", minWidth: 130 }}
           >
             <Text c="dimmed" size="xs">
-              {formatLocalClock(hoverTime)}
+              {windowMs > 24 * 60 * 60 * 1000
+                ? formatLocalDateTime(hoverTime)
+                : formatLocalClock(hoverTime)}
             </Text>
             {rendered.map((entry) => {
               const value = entry.values[hoverIndex];

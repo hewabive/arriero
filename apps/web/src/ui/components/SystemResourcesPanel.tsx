@@ -105,6 +105,7 @@ const WINDOW_OPTIONS: { value: SystemMetricsWindow; label: string }[] = [
   { value: "live", label: "5 min" },
   { value: "hour", label: "1 hour" },
   { value: "day", label: "24 hours" },
+  { value: "month", label: "30 days" },
 ];
 
 function seriesFrom(

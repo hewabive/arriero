@@ -43,6 +43,7 @@ import { nvidiaTelemetry } from "./nvidia/telemetry.js";
 import { systemMetricsRecorder } from "./system/metrics-history.js";
 import {
   attachSystemMetricsPersistence,
+  backfillSystemMetricsMonthTier,
   pruneSystemMetricsHistory,
   seedSystemMetricsRecorder,
   startSystemMetricsRetentionLoop,
@@ -67,6 +68,7 @@ const normalizedConfigPaths = normalizeConfigPaths();
 initAppSettings();
 initArgumentDefaults();
 const prunedSystemMetricsHistory = pruneSystemMetricsHistory();
+const backfilledSystemMetricsMonth = backfillSystemMetricsMonthTier();
 const seededSystemMetricsHistory =
   seedSystemMetricsRecorder(systemMetricsRecorder);
 attachSystemMetricsPersistence(systemMetricsRecorder, {
@@ -123,6 +125,7 @@ const server = serve(
         prunedTraceHistory,
         seededStatsTraces,
         prunedSystemMetricsHistory,
+        backfilledSystemMetricsMonth,
         seededSystemMetricsHistory,
         prunedArgumentCatalogs,
         prunedModelCache,
