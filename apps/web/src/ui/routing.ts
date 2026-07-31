@@ -109,6 +109,14 @@ export const navSections: NavSection[] = [
       },
       {
         route: "proxy",
+        subpath: "traces",
+        label: "Requests",
+        title: "Request history",
+        description:
+          "Browse, filter and inspect the persisted proxy request history",
+      },
+      {
+        route: "proxy",
         subpath: "models",
         label: "API models",
         title: "API models",

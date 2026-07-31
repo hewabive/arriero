@@ -10,10 +10,13 @@ import { sqlite } from "../db/index.js";
 import { saveApiProxyRequestFile } from "./request-files.js";
 import {
   clearApiProxyTraceHistory,
+  countApiProxyTraces,
+  getApiProxyTraceFacets,
   insertApiProxyTrace,
   listApiProxyTraces,
   listApiProxyTracesSince,
   pruneApiProxyTraceHistory,
+  type ApiProxyTraceListFilter,
 } from "./traces-repository.js";
 
 function trace(
@@ -132,6 +135,109 @@ test("filters by model, source, target and outcome", () => {
     listApiProxyTraces({ ok: true }).map((entry) => entry.id),
     ["a"],
   );
+});
+
+test("filters by protocol, endpoint, status, error code, cache and flags", () => {
+  insertApiProxyTrace(trace({ id: "openai-chat", at: daysBefore(1) }));
+  insertApiProxyTrace(
+    trace({
+      id: "anthropic-messages",
+      at: daysBefore(2),
+      protocol: "anthropic",
+      endpoint: "messages",
+      translated: true,
+      stream: true,
+      resumed: true,
+      cache: "hit",
+      status: 429,
+      ok: false,
+      errorCode: "overloaded",
+      durationMs: 5000,
+    }),
+  );
+
+  const ids = (filter: ApiProxyTraceListFilter) =>
+    listApiProxyTraces(filter).map((entry) => entry.id);
+
+  assert.deepEqual(ids({ protocol: "anthropic" }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ endpoint: "messages" }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ status: 429 }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ errorCode: "overloaded" }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ cache: "hit" }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ cache: "none" }), ["openai-chat"]);
+  assert.deepEqual(ids({ stream: true }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ resumed: true }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ translated: true }), ["anthropic-messages"]);
+  assert.deepEqual(ids({ minDurationMs: 1000 }), ["anthropic-messages"]);
+});
+
+test("filters by inclusive time range", () => {
+  insertApiProxyTrace(trace({ id: "a", at: daysBefore(5) }));
+  insertApiProxyTrace(trace({ id: "b", at: daysBefore(3) }));
+  insertApiProxyTrace(trace({ id: "c", at: daysBefore(1) }));
+
+  assert.deepEqual(
+    listApiProxyTraces({ from: daysBefore(4), to: daysBefore(2) }).map(
+      (entry) => entry.id,
+    ),
+    ["b"],
+  );
+  assert.deepEqual(
+    listApiProxyTraces({ from: daysBefore(3), to: daysBefore(3) }).map(
+      (entry) => entry.id,
+    ),
+    ["b"],
+  );
+});
+
+test("counts traces matching the filter", () => {
+  insertApiProxyTrace(trace({ id: "a", at: daysBefore(1) }));
+  insertApiProxyTrace(
+    trace({ id: "b", at: daysBefore(2), ok: false, status: 500 }),
+  );
+
+  assert.equal(countApiProxyTraces(), 2);
+  assert.equal(countApiProxyTraces({ ok: false }), 1);
+  assert.equal(countApiProxyTraces({ modelId: "absent" }), 0);
+});
+
+test("facets aggregate distinct values with names and counts", () => {
+  insertApiProxyTrace(
+    trace({
+      id: "a",
+      at: daysBefore(1),
+      modelId: "m1",
+      sourceId: "s1",
+      sourceName: "claude-code",
+    }),
+  );
+  insertApiProxyTrace(
+    trace({
+      id: "b",
+      at: daysBefore(2),
+      modelId: "m1",
+      targetId: "tg1",
+      targetName: "local",
+      protocol: "anthropic",
+      endpoint: "messages",
+      status: 503,
+      ok: false,
+      errorCode: "model_disabled",
+    }),
+  );
+
+  const facets = getApiProxyTraceFacets();
+  assert.deepEqual(facets.models, [{ value: "m1", name: null, count: 2 }]);
+  assert.deepEqual(facets.sources, [
+    { value: "s1", name: "claude-code", count: 1 },
+  ]);
+  assert.deepEqual(facets.targets, [{ value: "tg1", name: "local", count: 1 }]);
+  assert.deepEqual(facets.errorCodes, [
+    { value: "model_disabled", name: null, count: 1 },
+  ]);
+  assert.equal(facets.protocols.length, 2);
+  assert.equal(facets.endpoints.length, 2);
+  assert.equal(facets.statuses.length, 2);
 });
 
 test("listApiProxyTracesSince returns ascending traces from the cutoff", () => {

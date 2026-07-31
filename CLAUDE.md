@@ -286,7 +286,8 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
 
 - `data/arriero.db` (WAL): process-run metadata (`process_runs`); request-trace history
   (`proxy_request_traces`, `proxy/traces-repository.ts` — 30-day retention whose prune also deletes
-  `data/proxy-requests/` artifacts past the cutoff; reseeds the in-memory hourly stats at boot);
+  `data/proxy-requests/` artifacts past the cutoff; reseeds the in-memory hourly stats at boot;
+  browsable with full filters + facets at `#/proxy/traces`);
   rebuildable caches — `model_cache`; `llama_argument_catalogs` (parsed `--help`, keyed by binary
   path, invalidated by size/mtime, mirrored to a per-binary sidecar read on DB miss
   (`arguments/sidecar.ts`) so it survives DB recreation and travels with the binary);

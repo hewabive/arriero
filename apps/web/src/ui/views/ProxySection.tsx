@@ -5,6 +5,7 @@ import { ProxyDashboardView } from "./ProxyView";
 import { ProxyModelsView } from "./ProxyModelsView";
 import { ProxyPipelinesView } from "./ProxyPipelinesView";
 import { ProxyTargetsView } from "./ProxyTargetsView";
+import { ProxyTracesView } from "./ProxyTracesView";
 import { ResourcesView } from "./ResourcesView";
 
 function splitHead(subpath: string): { head: string; rest: string } {
@@ -15,6 +16,10 @@ function splitHead(subpath: string): { head: string; rest: string } {
 export function ProxySection() {
   const [subpath, setSubpath] = useHashSubpath("proxy");
   const { head, rest } = splitHead(subpath);
+
+  if (head === "traces") {
+    return <ProxyTracesView />;
+  }
 
   if (head === "models") {
     return <ProxyModelsView />;

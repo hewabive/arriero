@@ -1421,6 +1421,22 @@ export const ApiProxyStatsSnapshotSchema = z.object({
   buckets: z.array(ApiProxyStatsBucketSchema).default([]),
 });
 
+export const ApiProxyTraceFacetSchema = z.object({
+  value: z.string(),
+  name: z.string().nullable().default(null),
+  count: z.number().int().min(0),
+});
+
+export const ApiProxyTraceFacetsSchema = z.object({
+  models: z.array(ApiProxyTraceFacetSchema).default([]),
+  sources: z.array(ApiProxyTraceFacetSchema).default([]),
+  targets: z.array(ApiProxyTraceFacetSchema).default([]),
+  endpoints: z.array(ApiProxyTraceFacetSchema).default([]),
+  protocols: z.array(ApiProxyTraceFacetSchema).default([]),
+  statuses: z.array(ApiProxyTraceFacetSchema).default([]),
+  errorCodes: z.array(ApiProxyTraceFacetSchema).default([]),
+});
+
 export const ApiProxyRuntimeMetadataRecordSchema = z.object({
   targetId: ApiProxyIdSchema,
   savedSlotIds: z.array(z.number().int().min(0)).default([]),
@@ -3603,6 +3619,8 @@ export type ApiProxyStatsModelEntry = z.infer<
 export type ApiProxyStatsTotals = z.infer<typeof ApiProxyStatsTotalsSchema>;
 export type ApiProxyStatsBucket = z.infer<typeof ApiProxyStatsBucketSchema>;
 export type ApiProxyStatsSnapshot = z.infer<typeof ApiProxyStatsSnapshotSchema>;
+export type ApiProxyTraceFacet = z.infer<typeof ApiProxyTraceFacetSchema>;
+export type ApiProxyTraceFacets = z.infer<typeof ApiProxyTraceFacetsSchema>;
 export type ApiProxyRuntimeMetadataRecord = z.infer<
   typeof ApiProxyRuntimeMetadataRecordSchema
 >;

@@ -25,6 +25,7 @@ import type {
   ApiProxyInflightStopResult,
   ApiProxyRuntimeSnapshot,
   ApiProxyStatsSnapshot,
+  ApiProxyTraceFacets,
   ApiProxyTargetModelCatalog,
   ApiProxyTargetCreate,
   ApiProxyTargetRecord,
@@ -144,6 +145,44 @@ export async function getApiProxyTraces(limit = 50) {
   return request<{ data: ApiProxyRequestTrace[] }>(
     `/api/proxy/traces?${params.toString()}`,
   );
+}
+
+export type ApiProxyTraceHistoryQuery = {
+  limit?: number;
+  before?: string;
+  from?: string;
+  to?: string;
+  protocol?: string;
+  endpoint?: string;
+  modelId?: string;
+  sourceId?: string;
+  targetId?: string;
+  ok?: boolean;
+  status?: number;
+  errorCode?: string;
+  cache?: string;
+  resumed?: boolean;
+  stream?: boolean;
+  translated?: boolean;
+  minDurationMs?: number;
+};
+
+export async function listApiProxyTraceHistory(
+  query: ApiProxyTraceHistoryQuery,
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) {
+      params.set(key, String(value));
+    }
+  }
+  return request<{ data: ApiProxyRequestTrace[]; total: number }>(
+    `/api/proxy/traces?${params.toString()}`,
+  );
+}
+
+export async function getApiProxyTraceFacets() {
+  return request<{ data: ApiProxyTraceFacets }>("/api/proxy/traces/facets");
 }
 
 export async function getApiProxyCacheStats() {
