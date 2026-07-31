@@ -41,6 +41,12 @@ import { environmentRunner } from "./envs/runner.js";
 import { initializeEnvironments } from "./envs/service.js";
 import { nvidiaTelemetry } from "./nvidia/telemetry.js";
 import { systemMetricsRecorder } from "./system/metrics-history.js";
+import {
+  attachSystemMetricsPersistence,
+  pruneSystemMetricsHistory,
+  seedSystemMetricsRecorder,
+  startSystemMetricsRetentionLoop,
+} from "./system/metrics-repository.js";
 
 const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
@@ -60,6 +66,13 @@ const appliedMigrations = runMigrations();
 const normalizedConfigPaths = normalizeConfigPaths();
 initAppSettings();
 initArgumentDefaults();
+const prunedSystemMetricsHistory = pruneSystemMetricsHistory();
+const seededSystemMetricsHistory =
+  seedSystemMetricsRecorder(systemMetricsRecorder);
+attachSystemMetricsPersistence(systemMetricsRecorder, {
+  onError: (error) =>
+    logger.error({ error }, "system metrics history write failed"),
+});
 systemMetricsRecorder.start();
 const seededResourcePools = ensureResourcePoolsScaffold();
 const refreshedResourcePools = refreshAutoCapacities();
@@ -109,6 +122,8 @@ const server = serve(
         prunedProcessRuns,
         prunedTraceHistory,
         seededStatsTraces,
+        prunedSystemMetricsHistory,
+        seededSystemMetricsHistory,
         prunedArgumentCatalogs,
         prunedModelCache,
         seededResourcePools,
@@ -134,6 +149,11 @@ const stopApiProxyRuntimeReconcile = startApiProxyRuntimeReconcileLoop({
 const stopApiProxyTraceRetention = startApiProxyTraceRetentionLoop({
   onError: (error) =>
     logger.error({ error }, "api proxy trace retention prune failed"),
+});
+
+const stopSystemMetricsRetention = startSystemMetricsRetentionLoop({
+  onError: (error) =>
+    logger.error({ error }, "system metrics retention prune failed"),
 });
 
 type ForceClosableServer = typeof server & {
@@ -200,6 +220,7 @@ async function shutdown(signal: NodeJS.Signals) {
     stopApiProxyIdleMaintenance();
     stopApiProxyRuntimeReconcile();
     stopApiProxyTraceRetention();
+    stopSystemMetricsRetention();
     systemMetricsRecorder.stop();
     await closeServer();
     logger.info("http server closed");

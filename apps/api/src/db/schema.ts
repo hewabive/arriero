@@ -1,4 +1,9 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 
 export const processRuns = sqliteTable("process_runs", {
   id: text("id").primaryKey(),
@@ -61,6 +66,16 @@ export const proxyRequestTraces = sqliteTable("proxy_request_traces", {
   completionTokens: integer("completion_tokens"),
   traceJson: text("trace_json").notNull(),
 });
+
+export const systemMetricsHistory = sqliteTable(
+  "system_metrics_history",
+  {
+    window: text("window").notNull(),
+    bucketAt: integer("bucket_at").notNull(),
+    sampleJson: text("sample_json").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.window, table.bucketAt] })],
+);
 
 export const apiProxyResponseCache = sqliteTable("proxy_response_cache", {
   key: text("key").primaryKey(),

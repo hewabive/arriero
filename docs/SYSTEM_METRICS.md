@@ -80,8 +80,28 @@ poll, not from history — so an `ncores`-long array per second was ~40% of the 
 series nobody drew. Add such a field back only together with the chart that consumes it, and give it
 a retention rule instead of a per-field special case inside `averageSamples()`.
 
-History is memory-only and does not survive a manager restart. On a self-update restart the graphs
-start empty again.
+## Persistence
+
+The `live` tier is memory-only, but closed `hour`/`day` buckets survive a manager restart. When
+`accumulate()` finishes a wall-clock bucket, the recorder emits the averaged sample to coarse
+subscribers, and `attachSystemMetricsPersistence` (`system/metrics-repository.ts`) upserts it into
+the `system_metrics_history` table keyed by `(window, bucket start)`. On boot
+`seedSystemMetricsRecorder()` reads each tier's span back into its ring buffer before the recorder
+starts, so the hour/day graphs resume where they left off and the downtime renders as an honest gap
+via the chart's gap-break rule.
+
+Two deliberate limits. The pending partial bucket is dropped at shutdown (≤9 s of hour data, ≤59 s
+of day data) rather than flushed — merging pre- and post-restart state into one bucket would hide
+the restart, and the counter-delta state is process-local anyway, so the first post-boot tick has no
+rates. And a tier is only ever seeded from rows written for that same tier: samples spaced at a
+different interval would trigger the gap-break logic between every pair of points.
+
+Retention is per window: `hour` rows are kept for the tier span (1 h — exactly what reseeding
+needs), `day` rows for 30 days, which is also raw material for a future week/month tier. A boot-time
+prune plus an hourly loop (`startSystemMetricsRetentionLoop`) keep the table bounded. The write cost
+is one upsert per closed bucket (6/min + 1/min), small enough that the recorder's own WAL traffic
+stays invisible in its disk charts — persisting every 1 Hz tick was rejected for exactly that
+self-observation plus the fact that no chart reads 1 s resolution beyond the 5-minute live window.
 
 ## Surfaces
 

@@ -131,6 +131,56 @@ test("the recorder folds live ticks into the coarse tiers", () => {
   recorder.reset();
 });
 
+test("the recorder emits closed coarse buckets with their bucket start", () => {
+  let clock = 0;
+  const recorder = new SystemMetricsRecorder({ now: () => (clock += 1_000) });
+  const seen: Array<{ window: string; bucketAt: number; at: number }> = [];
+  const unsubscribe = recorder.subscribeCoarse((entry) =>
+    seen.push({
+      window: entry.window,
+      bucketAt: entry.bucketAt,
+      at: entry.sample.at,
+    }),
+  );
+
+  for (let index = 0; index < 25; index += 1) {
+    recorder.tick();
+  }
+
+  assert.deepEqual(
+    seen.map((entry) => [entry.window, entry.bucketAt]),
+    [
+      ["hour", 0],
+      ["hour", 10_000],
+    ],
+  );
+  assert.equal(seen[0]?.at, 9_000);
+
+  unsubscribe();
+  for (let index = 0; index < 10; index += 1) {
+    recorder.tick();
+  }
+  assert.equal(seen.length, 2);
+  recorder.reset();
+});
+
+test("seed preloads a tier up to its capacity", () => {
+  const recorder = new SystemMetricsRecorder({ now: () => 0 });
+  const capacity = SYSTEM_METRICS_TIERS.day.capacity;
+  const samples = Array.from({ length: capacity + 5 }, (_, index) =>
+    sample({ at: (index + 1) * 60_000 }),
+  );
+  recorder.seed("day", samples);
+
+  const day = recorder.history("day");
+  assert.equal(day.samples.length, capacity);
+  assert.equal(day.samples[0]?.at, 6 * 60_000);
+  assert.equal(
+    day.samples[day.samples.length - 1]?.at,
+    (capacity + 5) * 60_000,
+  );
+});
+
 test("the recorder fans samples out to subscribers until unsubscribed", () => {
   let clock = 0;
   const recorder = new SystemMetricsRecorder({ now: () => (clock += 1_000) });

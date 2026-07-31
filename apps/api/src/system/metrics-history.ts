@@ -30,7 +30,10 @@ import {
   readNetCounters,
 } from "./net.js";
 
-const COARSE_WINDOWS: SystemMetricsWindow[] = ["hour", "day"];
+export const COARSE_METRICS_WINDOWS = ["hour", "day"] as const;
+
+export type SystemMetricsCoarseWindow =
+  (typeof COARSE_METRICS_WINDOWS)[number];
 
 class RingBuffer<T> {
   private readonly items: T[] = [];
@@ -145,6 +148,14 @@ export type SystemMetricsSnapshot = {
 
 type SystemMetricsListener = (sample: SystemMetricsSample) => void;
 
+export type SystemMetricsCoarseSample = {
+  window: SystemMetricsCoarseWindow;
+  bucketAt: number;
+  sample: SystemMetricsSample;
+};
+
+type SystemMetricsCoarseListener = (entry: SystemMetricsCoarseSample) => void;
+
 type SystemMetricsHistoryOptions = {
   now?: () => number;
 };
@@ -187,10 +198,11 @@ export class SystemMetricsRecorder {
     RingBuffer<SystemMetricsSample>
   >();
   private readonly pending = new Map<
-    SystemMetricsWindow,
+    SystemMetricsCoarseWindow,
     { bucket: number; samples: SystemMetricsSample[] }
   >();
   private readonly listeners = new Set<SystemMetricsListener>();
+  private readonly coarseListeners = new Set<SystemMetricsCoarseListener>();
   private timer: NodeJS.Timeout | null = null;
   private previousCpu: CpuCounters | null = null;
   private previousNet: Map<string, NetCounters> | null = null;
@@ -240,6 +252,7 @@ export class SystemMetricsRecorder {
     }
     this.pending.clear();
     this.listeners.clear();
+    this.coarseListeners.clear();
     this.previousCpu = null;
     this.previousNet = null;
     this.previousDisk = null;
@@ -252,6 +265,23 @@ export class SystemMetricsRecorder {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  subscribeCoarse(listener: SystemMetricsCoarseListener): () => void {
+    this.coarseListeners.add(listener);
+    return () => {
+      this.coarseListeners.delete(listener);
+    };
+  }
+
+  seed(window: SystemMetricsWindow, samples: SystemMetricsSample[]) {
+    const buffer = this.buffers.get(window);
+    if (!buffer) {
+      return;
+    }
+    for (const sample of samples) {
+      buffer.push(sample);
+    }
   }
 
   current(): SystemMetricsSnapshot {
@@ -326,10 +356,9 @@ export class SystemMetricsRecorder {
   }
 
   private accumulate(sample: SystemMetricsSample) {
-    for (const window of COARSE_WINDOWS) {
-      const bucket = Math.floor(
-        sample.at / SYSTEM_METRICS_TIERS[window].intervalMs,
-      );
+    for (const window of COARSE_METRICS_WINDOWS) {
+      const intervalMs = SYSTEM_METRICS_TIERS[window].intervalMs;
+      const bucket = Math.floor(sample.at / intervalMs);
       const pending = this.pending.get(window);
       if (!pending) {
         this.pending.set(window, { bucket, samples: [sample] });
@@ -342,6 +371,14 @@ export class SystemMetricsRecorder {
       const averaged = averageSamples(pending.samples);
       if (averaged) {
         this.buffers.get(window)?.push(averaged);
+        const entry: SystemMetricsCoarseSample = {
+          window,
+          bucketAt: pending.bucket * intervalMs,
+          sample: averaged,
+        };
+        for (const listener of this.coarseListeners) {
+          listener(entry);
+        }
       }
       this.pending.set(window, { bucket, samples: [sample] });
     }

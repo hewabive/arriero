@@ -142,6 +142,15 @@ export function migrate() {
   );
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS system_metrics_history (
+      "window" TEXT NOT NULL,
+      bucket_at INTEGER NOT NULL,
+      sample_json TEXT NOT NULL,
+      PRIMARY KEY ("window", bucket_at)
+    )
+  `);
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS proxy_response_cache (
       key TEXT PRIMARY KEY NOT NULL,
       model_id TEXT NOT NULL,
