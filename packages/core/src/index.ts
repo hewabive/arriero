@@ -2915,6 +2915,37 @@ export const SystemDiskActivitySchema = z.object({
   intervalMs: z.number().nonnegative().nullable(),
 });
 
+export const BeeGfsTargetSchema = z.object({
+  id: z.string(),
+  alias: z.string().nullable(),
+  node: z.string().nullable(),
+  kind: z.enum(["metadata", "storage"]),
+  storagePool: z.string().nullable(),
+  capacityPool: z.string().nullable(),
+  totalBytes: z.number().int().nonnegative().nullable(),
+  freeBytes: z.number().int().nonnegative().nullable(),
+  totalInodes: z.number().int().nonnegative().nullable(),
+  freeInodes: z.number().int().nonnegative().nullable(),
+});
+
+export const BeeGfsFilesystemSchema = z.object({
+  mountPath: z.string(),
+  source: z.string(),
+  targets: z.array(BeeGfsTargetSchema),
+  error: z.string().nullable(),
+});
+
+export const BeeGfsResourcesSchema = z.object({
+  checkedAt: z.string(),
+  status: z.enum(["ready", "missing-tool", "error"]),
+  tool: z.enum(["beegfs-df", "beegfs"]).nullable(),
+  clientVersion: z.string().nullable(),
+  requiredPackage: z.string().nullable(),
+  installCommand: z.string().nullable(),
+  filesystems: z.array(BeeGfsFilesystemSchema),
+  error: z.string().nullable(),
+});
+
 export const SystemCpuCoreSchema = z.object({
   id: z.number().int().nonnegative(),
   usagePercent: z.number().min(0).max(100),
@@ -2953,6 +2984,7 @@ export const SystemResourcesSchema = z.object({
   memory: SystemMemorySchema,
   accelerators: z.array(SystemAcceleratorSchema),
   disk: SystemDiskActivitySchema.nullable(),
+  beegfs: BeeGfsResourcesSchema.nullable().default(null),
   cpu: SystemCpuActivitySchema.nullable().default(null),
   network: SystemNetworkActivitySchema.nullable().default(null),
   numa: NumaCapabilitiesSchema,
@@ -3804,6 +3836,9 @@ export type SystemAccelerator = z.infer<typeof SystemAcceleratorSchema>;
 export type SystemDiskDevice = z.infer<typeof SystemDiskDeviceSchema>;
 export type SystemIoPressure = z.infer<typeof SystemIoPressureSchema>;
 export type SystemDiskActivity = z.infer<typeof SystemDiskActivitySchema>;
+export type BeeGfsTarget = z.infer<typeof BeeGfsTargetSchema>;
+export type BeeGfsFilesystem = z.infer<typeof BeeGfsFilesystemSchema>;
+export type BeeGfsResources = z.infer<typeof BeeGfsResourcesSchema>;
 export type SystemCpuCore = z.infer<typeof SystemCpuCoreSchema>;
 export type SystemCpuActivity = z.infer<typeof SystemCpuActivitySchema>;
 export type SystemNetworkInterface = z.infer<

@@ -5,7 +5,9 @@ import type {
   SystemResources,
 } from "@arriero/core";
 import {
+  Alert,
   Badge,
+  Code,
   Group,
   Paper,
   Progress,
@@ -71,6 +73,23 @@ function loadColor(usedRatio: number) {
   return "green";
 }
 
+function usedValue(total: number | null, free: number | null) {
+  return total === null || free === null ? null : Math.max(0, total - free);
+}
+
+function usedPercent(total: number | null, free: number | null) {
+  const used = usedValue(total, free);
+  return used === null || total === null || total === 0
+    ? null
+    : Math.min(100, (used / total) * 100);
+}
+
+function capacityPoolColor(pool: string | null) {
+  if (pool === "emergency") return "red";
+  if (pool === "low") return "orange";
+  return "gray";
+}
+
 function ResourceMetric(props: { label: string; value: string }) {
   return (
     <div>
@@ -108,6 +127,7 @@ export function SystemResourcesPanel(props: {
   const cpu = props.resources?.cpu ?? null;
   const accelerators = props.resources?.accelerators ?? [];
   const disk = props.resources?.disk ?? null;
+  const beegfs = props.resources?.beegfs ?? null;
   const network = props.resources?.network ?? null;
   const samples = props.samples;
   const latest = samples[samples.length - 1] ?? null;
@@ -466,6 +486,164 @@ export function SystemResourcesPanel(props: {
                 })}
               </SimpleGrid>
             )}
+          </Stack>
+        )}
+
+        {beegfs?.status === "missing-tool" && (
+          <Alert color="yellow" title="BeeGFS tooling is missing">
+            <Stack gap="xs">
+              <Text size="sm">
+                BeeGFS is mounted, but its target capacity cannot be read
+                because neither <Code>beegfs-df</Code> nor <Code>beegfs</Code>{" "}
+                is available to the manager.
+                {beegfs.clientVersion
+                  ? ` Detected client version ${beegfs.clientVersion}.`
+                  : ""}
+              </Text>
+              {beegfs.installCommand ? (
+                <Code
+                  block
+                  style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                >
+                  {beegfs.installCommand}
+                </Code>
+              ) : (
+                <Text size="sm">
+                  Install the <Code>{beegfs.requiredPackage}</Code> package from
+                  the configured BeeGFS repository.
+                </Text>
+              )}
+            </Stack>
+          </Alert>
+        )}
+
+        {beegfs?.status === "error" && (
+          <Alert color="orange" title="Could not read BeeGFS capacity">
+            {beegfs.error}
+          </Alert>
+        )}
+
+        {beegfs && beegfs.status !== "missing-tool" && (
+          <Stack gap="xs">
+            <Group gap="xs">
+              <Text c="dimmed" size="sm">
+                BeeGFS space
+              </Text>
+              <Badge variant="outline" color="blue">
+                {beegfs.filesystems.length}{" "}
+                {beegfs.filesystems.length === 1 ? "mount" : "mounts"}
+              </Badge>
+              {beegfs.tool && (
+                <Badge variant="light" color="gray">
+                  {beegfs.tool}
+                </Badge>
+              )}
+            </Group>
+
+            {beegfs.filesystems.map((filesystem) => (
+              <Stack key={filesystem.mountPath} gap="xs">
+                <Group justify="space-between" gap="xs" wrap="wrap">
+                  <Text fw={600} size="sm">
+                    {filesystem.mountPath}
+                  </Text>
+                  <Badge variant="outline" color="gray">
+                    {filesystem.targets.length}{" "}
+                    {filesystem.targets.length === 1 ? "target" : "targets"}
+                  </Badge>
+                </Group>
+
+                {filesystem.error && (
+                  <Alert color="orange" title="BeeGFS query failed">
+                    <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
+                      {filesystem.error}
+                    </Text>
+                  </Alert>
+                )}
+
+                {!filesystem.error && filesystem.targets.length === 0 && (
+                  <Text c="dimmed" size="xs">
+                    No metadata or storage targets were reported.
+                  </Text>
+                )}
+
+                {filesystem.targets.length > 0 && (
+                  <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
+                    {filesystem.targets.map((target) => {
+                      const percent = usedPercent(
+                        target.totalBytes,
+                        target.freeBytes,
+                      );
+                      const used = usedValue(
+                        target.totalBytes,
+                        target.freeBytes,
+                      );
+                      return (
+                        <Paper
+                          key={`${target.kind}-${target.id}`}
+                          withBorder
+                          p="sm"
+                          radius="sm"
+                        >
+                          <Stack gap="xs">
+                            <Group justify="space-between" gap="xs" wrap="wrap">
+                              <Text fw={600} size="sm">
+                                {target.alias ??
+                                  `${target.kind === "metadata" ? "Metadata" : "Storage"} target ${target.id}`}
+                              </Text>
+                              <Group gap={4}>
+                                <Badge variant="light">{target.kind}</Badge>
+                                {target.capacityPool && (
+                                  <Badge
+                                    variant="light"
+                                    color={capacityPoolColor(
+                                      target.capacityPool,
+                                    )}
+                                  >
+                                    {target.capacityPool}
+                                  </Badge>
+                                )}
+                              </Group>
+                            </Group>
+                            {percent !== null && (
+                              <Progress
+                                value={percent}
+                                color={loadColor(percent / 100)}
+                                size="sm"
+                                radius="xs"
+                              />
+                            )}
+                            <SimpleGrid cols={3} spacing="xs">
+                              <ResourceMetric
+                                label="Used"
+                                value={formatBytes(used)}
+                              />
+                              <ResourceMetric
+                                label="Free"
+                                value={formatBytes(target.freeBytes)}
+                              />
+                              <ResourceMetric
+                                label="Total"
+                                value={formatBytes(target.totalBytes)}
+                              />
+                            </SimpleGrid>
+                            <Text c="dimmed" size="xs">
+                              ID {target.id}
+                              {target.node ? ` · node ${target.node}` : ""}
+                              {target.storagePool
+                                ? ` · pool ${target.storagePool}`
+                                : ""}
+                              {target.freeInodes !== null
+                                ? ` · ${target.freeInodes.toLocaleString("en")} free inodes`
+                                : ""}
+                            </Text>
+                          </Stack>
+                        </Paper>
+                      );
+                    })}
+                  </SimpleGrid>
+                )}
+              </Stack>
+            ))}
           </Stack>
         )}
 

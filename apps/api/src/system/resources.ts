@@ -9,6 +9,7 @@ import {
   type NvidiaDeviceSnapshot,
   nvidiaTelemetry,
 } from "../nvidia/telemetry.js";
+import { getBeeGfsResources } from "./beegfs.js";
 import { clampRatio } from "./clamp.js";
 import { readSystemMemory } from "./memory.js";
 import { systemMetricsRecorder } from "./metrics-history.js";
@@ -47,6 +48,7 @@ export function getSystemResources(): SystemResources {
     memory: readSystemMemory(),
     accelerators: getSystemAccelerators(),
     disk: sampled.disk,
+    beegfs: null,
     cpu: sampled.cpu,
     network: sampled.network,
     numa: {
@@ -56,4 +58,10 @@ export function getSystemResources(): SystemResources {
     },
     tools: { uv: uvToolStatus() },
   };
+}
+
+export async function getSystemResourcesWithBeeGfs(): Promise<SystemResources> {
+  const resources = getSystemResources();
+  resources.beegfs = await getBeeGfsResources();
+  return resources;
 }

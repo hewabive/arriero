@@ -18,12 +18,20 @@ activity builder, and the previous-counter state lives exclusively in recorder f
 - `system/net.ts` — `readNetCounters()` + `buildNetworkActivity()`, `/proc/net/dev`, per-interface
   rx/tx bytes and packets.
 - `system/disk.ts` — `readDiskCounters()` + `buildDiskActivity()`, `/proc/diskstats`.
+- `system/beegfs.ts` — mounted BeeGFS discovery plus metadata/storage target capacity.
 
 Before the recorder existed, disk rates were computed between two arbitrary HTTP requests, so every
 page that polled `/api/system/resources` (environments, the instance form, fleet) perturbed the rates
 the others saw. `getSystemResources()` now reads `systemMetricsRecorder.current()` — a pure snapshot
 read that never ticks — for `cpu`/`network`/`disk`; only memory, accelerators and NUMA are still read
 inline, because none of them is a delta.
+
+BeeGFS is intentionally separate from the 1 Hz counter recorder. When a `beegfs` mount is present,
+the resources endpoint caches target capacity for 30 seconds and queries it with `beegfs-df -p`
+(BeeGFS 7, package `beegfs-utils`) or the structured `beegfs target list --capacity` interface
+(BeeGFS 8, package `beegfs-tools`). If there is no BeeGFS mount, the API returns `beegfs: null` and
+the page renders nothing. If a mount exists but neither CLI is available, only the System resources
+page shows a local installation hint; the global prerequisite registry is not involved.
 
 The recorder must therefore start before the first `getSystemResources()` caller
 (`ensureResourcePoolsScaffold()`), otherwise that caller sees an all-null snapshot until the first
