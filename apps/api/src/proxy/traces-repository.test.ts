@@ -3,7 +3,10 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, test } from "node:test";
 
-import type { ApiProxyRequestTrace } from "@arriero/core";
+import type {
+  ApiProxyRequestTrace,
+  ApiProxyTraceListFilter,
+} from "@arriero/core";
 
 import { config } from "../config.js";
 import { sqlite } from "../db/index.js";
@@ -16,7 +19,6 @@ import {
   listApiProxyTraces,
   listApiProxyTracesSince,
   pruneApiProxyTraceHistory,
-  type ApiProxyTraceListFilter,
 } from "./traces-repository.js";
 
 function trace(
@@ -227,6 +229,7 @@ test("facets aggregate distinct values with names and counts", () => {
   );
 
   const facets = getApiProxyTraceFacets();
+  assert.equal(facets.retentionDays, 30);
   assert.deepEqual(facets.models, [{ value: "m1", name: null, count: 2 }]);
   assert.deepEqual(facets.sources, [
     { value: "s1", name: "claude-code", count: 1 },

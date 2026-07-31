@@ -4,7 +4,11 @@ import { beforeEach, test } from "node:test";
 import type { ApiProxyRequestTrace } from "@arriero/core";
 
 import { apiProxyStats } from "./stats.js";
-import { insertApiProxyTrace } from "./traces-repository.js";
+import {
+  clearApiProxyTraceHistory,
+  insertApiProxyTrace,
+  listApiProxyTraces,
+} from "./traces-repository.js";
 
 function trace(
   over: Partial<ApiProxyRequestTrace> & { at: string; modelId: string },
@@ -45,6 +49,7 @@ const HOUR = "2026-06-03T21:00:00.000Z";
 
 beforeEach(() => {
   apiProxyStats.reset();
+  clearApiProxyTraceHistory();
 });
 
 test("aggregates totals, per-model breakdown, rate and error counts", () => {
@@ -123,11 +128,11 @@ test("buckets by hour and snapshot(hours) selects newest", () => {
   assert.equal(newest.totals.requests, 1);
 });
 
-test("recentTraces is a newest-first ring capped at 50", () => {
+test("record persists traces newest-first with the default list cap of 50", () => {
   for (let i = 0; i < 60; i += 1) {
     apiProxyStats.record(trace({ at: HOUR, modelId: "m1", id: `trace-${i}` }));
   }
-  const recent = apiProxyStats.recentTraces();
+  const recent = listApiProxyTraces();
   assert.equal(recent.length, 50);
   assert.equal(recent[0]?.id, "trace-59");
   assert.equal(recent.at(-1)?.id, "trace-10");
@@ -146,13 +151,13 @@ test("evicts oldest hourly buckets beyond the 24h window", () => {
   assert.equal(snap.buckets.at(-1)?.hour, "2026-06-03T06");
 });
 
-test("reset clears traces and buckets", () => {
+test("reset clears buckets but keeps persisted history", () => {
   apiProxyStats.record(trace({ at: HOUR, modelId: "m1" }));
   apiProxyStats.reset();
   const snap = apiProxyStats.snapshot();
   assert.equal(snap.buckets.length, 0);
   assert.equal(snap.totals.requests, 0);
-  assert.equal(apiProxyStats.recentTraces().length, 0);
+  assert.equal(listApiProxyTraces().length, 1);
 });
 
 test("seedFromHistory replays persisted traces within the 24h window", () => {
@@ -169,7 +174,7 @@ test("seedFromHistory replays persisted traces within the 24h window", () => {
   const snap = apiProxyStats.snapshot();
   assert.equal(snap.totals.requests, 1);
   assert.equal(snap.buckets[0]?.hour, "2026-06-03T21");
-  assert.equal(apiProxyStats.recentTraces().length, 2);
+  assert.equal(listApiProxyTraces().length, 2);
 });
 
 test("counts resumed replays in totals and per-model entries", () => {

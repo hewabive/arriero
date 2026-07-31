@@ -1352,6 +1352,12 @@ export const ApiProxyRouteExplainResultSchema = z.object({
   transformedBody: z.unknown(),
 });
 
+export const ApiProxyTraceCacheOutcomeSchema = z.enum([
+  "hit",
+  "store",
+  "coalesced",
+]);
+
 export const ApiProxyRequestTraceSchema = z.object({
   id: z.string(),
   at: z.string(),
@@ -1367,7 +1373,7 @@ export const ApiProxyRequestTraceSchema = z.object({
   targetName: z.string().nullable().default(null),
   slotId: z.number().int().min(0).nullable().default(null),
   cacheOrigin: z.enum(["live", "restored", "fresh"]).nullable().default(null),
-  cache: z.enum(["hit", "store", "coalesced"]).nullable().default(null),
+  cache: ApiProxyTraceCacheOutcomeSchema.nullable().default(null),
   resumed: z.boolean().default(false),
   textReplacementCount: z.number().int().min(0).default(0),
   routeTrace: z.array(ApiProxyRouteTraceStepSchema).default([]),
@@ -1428,6 +1434,7 @@ export const ApiProxyTraceFacetSchema = z.object({
 });
 
 export const ApiProxyTraceFacetsSchema = z.object({
+  retentionDays: z.number().int().min(1),
   models: z.array(ApiProxyTraceFacetSchema).default([]),
   sources: z.array(ApiProxyTraceFacetSchema).default([]),
   targets: z.array(ApiProxyTraceFacetSchema).default([]),
@@ -1436,6 +1443,40 @@ export const ApiProxyTraceFacetsSchema = z.object({
   statuses: z.array(ApiProxyTraceFacetSchema).default([]),
   errorCodes: z.array(ApiProxyTraceFacetSchema).default([]),
 });
+
+const traceQueryBooleanSchema = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true");
+
+export const ApiProxyTraceCacheFilterSchema = z.enum([
+  ...ApiProxyTraceCacheOutcomeSchema.options,
+  "none",
+]);
+
+export const ApiProxyTraceListFilterSchema = z.object({
+  limit: z.coerce.number().int().positive().optional(),
+  before: z.string().optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  protocol: z.string().optional(),
+  endpoint: z.string().optional(),
+  modelId: z.string().optional(),
+  sourceId: z.string().optional(),
+  targetId: z.string().optional(),
+  ok: traceQueryBooleanSchema.optional(),
+  status: z.coerce.number().int().optional(),
+  errorCode: z.string().optional(),
+  cache: ApiProxyTraceCacheFilterSchema.optional(),
+  resumed: traceQueryBooleanSchema.optional(),
+  stream: traceQueryBooleanSchema.optional(),
+  translated: traceQueryBooleanSchema.optional(),
+  minDurationMs: z.coerce.number().int().min(0).optional(),
+});
+
+export const ApiProxyTraceListQuerySchema =
+  ApiProxyTraceListFilterSchema.extend({
+    withTotal: traceQueryBooleanSchema.optional(),
+  });
 
 export const ApiProxyRuntimeMetadataRecordSchema = z.object({
   targetId: ApiProxyIdSchema,
@@ -3621,6 +3662,15 @@ export type ApiProxyStatsBucket = z.infer<typeof ApiProxyStatsBucketSchema>;
 export type ApiProxyStatsSnapshot = z.infer<typeof ApiProxyStatsSnapshotSchema>;
 export type ApiProxyTraceFacet = z.infer<typeof ApiProxyTraceFacetSchema>;
 export type ApiProxyTraceFacets = z.infer<typeof ApiProxyTraceFacetsSchema>;
+export type ApiProxyTraceCacheFilter = z.infer<
+  typeof ApiProxyTraceCacheFilterSchema
+>;
+export type ApiProxyTraceListFilter = z.infer<
+  typeof ApiProxyTraceListFilterSchema
+>;
+export type ApiProxyTraceListQuery = z.infer<
+  typeof ApiProxyTraceListQuerySchema
+>;
 export type ApiProxyRuntimeMetadataRecord = z.infer<
   typeof ApiProxyRuntimeMetadataRecordSchema
 >;

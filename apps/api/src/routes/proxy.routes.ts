@@ -4,6 +4,7 @@ import {
   ApiProxyServeRequestSchema,
   ApiProxySourceCreateSchema,
   ApiProxySourceUpdateSchema,
+  ApiProxyTraceListQuerySchema,
 } from "@arriero/core";
 import type { Hono } from "hono";
 
@@ -36,60 +37,8 @@ import {
   countApiProxyTraces,
   getApiProxyTraceFacets,
   listApiProxyTraces,
-  type ApiProxyTraceCacheFilter,
-  type ApiProxyTraceListFilter,
 } from "../proxy/traces-repository.js";
 import { buildApiProxyTargetModelCatalog } from "../proxy/target-models.js";
-
-function parseBooleanParam(value: string | undefined): boolean | undefined {
-  if (value === "true") {
-    return true;
-  }
-  if (value === "false") {
-    return false;
-  }
-  return undefined;
-}
-
-const traceCacheFilters: ApiProxyTraceCacheFilter[] = [
-  "hit",
-  "store",
-  "coalesced",
-  "none",
-];
-
-function parseTraceListFilter(
-  query: Record<string, string | undefined>,
-): ApiProxyTraceListFilter {
-  const status = Number(query.status);
-  const minDurationMs = Number(query.minDurationMs);
-  const ok = parseBooleanParam(query.ok);
-  const resumed = parseBooleanParam(query.resumed);
-  const stream = parseBooleanParam(query.stream);
-  const translated = parseBooleanParam(query.translated);
-  const cache = traceCacheFilters.find((value) => value === query.cache);
-  return {
-    ...(query.from !== undefined ? { from: query.from } : {}),
-    ...(query.to !== undefined ? { to: query.to } : {}),
-    ...(query.protocol !== undefined ? { protocol: query.protocol } : {}),
-    ...(query.endpoint !== undefined ? { endpoint: query.endpoint } : {}),
-    ...(query.modelId !== undefined ? { modelId: query.modelId } : {}),
-    ...(query.sourceId !== undefined ? { sourceId: query.sourceId } : {}),
-    ...(query.targetId !== undefined ? { targetId: query.targetId } : {}),
-    ...(ok !== undefined ? { ok } : {}),
-    ...(query.status !== undefined && Number.isFinite(status)
-      ? { status }
-      : {}),
-    ...(query.errorCode !== undefined ? { errorCode: query.errorCode } : {}),
-    ...(cache !== undefined ? { cache } : {}),
-    ...(resumed !== undefined ? { resumed } : {}),
-    ...(stream !== undefined ? { stream } : {}),
-    ...(translated !== undefined ? { translated } : {}),
-    ...(query.minDurationMs !== undefined && Number.isFinite(minDurationMs)
-      ? { minDurationMs }
-      : {}),
-  };
-}
 
 export function registerProxyRoutes(app: Hono) {
   app.post("/api/proxy/serve", async (c) => {
@@ -147,16 +96,14 @@ export function registerProxyRoutes(app: Hono) {
   });
 
   app.get("/api/proxy/traces", (c) => {
-    const filter = parseTraceListFilter(c.req.query());
-    const limit = Number(c.req.query("limit") ?? 50);
-    const before = c.req.query("before");
+    const parsed = ApiProxyTraceListQuerySchema.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    const { withTotal, ...filter } = parsed.data;
     return c.json({
-      data: listApiProxyTraces({
-        ...filter,
-        limit: Number.isFinite(limit) ? limit : 50,
-        ...(before !== undefined ? { before } : {}),
-      }),
-      total: countApiProxyTraces(filter),
+      data: listApiProxyTraces(filter),
+      ...(withTotal ? { total: countApiProxyTraces(filter) } : {}),
     });
   });
 

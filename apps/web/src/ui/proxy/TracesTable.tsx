@@ -21,7 +21,7 @@ import {
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { Braces, FileText } from "lucide-react";
-import { useState } from "react";
+import { memo, useState, type ReactNode } from "react";
 
 import { getApiProxyRequestFile } from "../../api/client";
 import { JsonTreeView } from "../components/JsonTreeView";
@@ -169,6 +169,37 @@ function TraceFilesCell(props: {
   );
 }
 
+function JsonViewPanel(props: { header: ReactNode; value: unknown }) {
+  const [view, setView] = useState<"tree" | "raw">("tree");
+  return (
+    <Stack gap="xs">
+      <Group gap="xs" wrap="wrap" justify="space-between">
+        <Group gap="xs" wrap="wrap">
+          {props.header}
+        </Group>
+        <SegmentedControl
+          size="xs"
+          value={view}
+          onChange={(value) => setView(value === "raw" ? "raw" : "tree")}
+          data={[
+            { value: "tree", label: "Tree" },
+            { value: "raw", label: "Raw" },
+          ]}
+        />
+      </Group>
+      <ScrollArea.Autosize mah="65vh">
+        {view === "tree" ? (
+          <JsonTreeView value={props.value} />
+        ) : (
+          <Code block style={{ whiteSpace: "pre-wrap" }}>
+            {JSON.stringify(props.value, null, 2)}
+          </Code>
+        )}
+      </ScrollArea.Autosize>
+    </Stack>
+  );
+}
+
 function TraceFileModal(props: {
   file: ApiProxyTraceFile | null;
   onClose: () => void;
@@ -180,7 +211,6 @@ function TraceFileModal(props: {
     enabled: path !== "",
   });
   const record = fileQuery.data?.data;
-  const [view, setView] = useState<"tree" | "raw">("tree");
   return (
     <Modal
       opened={props.file !== null}
@@ -199,9 +229,10 @@ function TraceFileModal(props: {
         </Text>
       )}
       {record && (
-        <Stack gap="xs">
-          <Group gap="xs" wrap="wrap" justify="space-between">
-            <Group gap="xs" wrap="wrap">
+        <JsonViewPanel
+          value={record.data}
+          header={
+            <>
               <Badge variant="light">{record.kind}</Badge>
               <Badge color="gray" variant="light">
                 {record.protocol}
@@ -209,27 +240,9 @@ function TraceFileModal(props: {
               <Text size="xs" c="dimmed">
                 {record.modelId} · {formatLocalDateTime(record.createdAt)}
               </Text>
-            </Group>
-            <SegmentedControl
-              size="xs"
-              value={view}
-              onChange={(value) => setView(value === "raw" ? "raw" : "tree")}
-              data={[
-                { value: "tree", label: "Tree" },
-                { value: "raw", label: "Raw" },
-              ]}
-            />
-          </Group>
-          <ScrollArea.Autosize mah="65vh">
-            {view === "tree" ? (
-              <JsonTreeView value={record.data} />
-            ) : (
-              <Code block style={{ whiteSpace: "pre-wrap" }}>
-                {JSON.stringify(record.data, null, 2)}
-              </Code>
-            )}
-          </ScrollArea.Autosize>
-        </Stack>
+            </>
+          }
+        />
       )}
     </Modal>
   );
@@ -239,7 +252,6 @@ function TraceInspectModal(props: {
   trace: ApiProxyRequestTrace | null;
   onClose: () => void;
 }) {
-  const [view, setView] = useState<"tree" | "raw">("tree");
   const trace = props.trace;
   return (
     <Modal
@@ -249,9 +261,10 @@ function TraceInspectModal(props: {
       size="xl"
     >
       {trace && (
-        <Stack gap="xs">
-          <Group gap="xs" wrap="wrap" justify="space-between">
-            <Group gap="xs" wrap="wrap">
+        <JsonViewPanel
+          value={trace}
+          header={
+            <>
               <Badge color={traceProtocolColor(trace.protocol)} variant="light">
                 {trace.protocol}
               </Badge>
@@ -261,27 +274,9 @@ function TraceInspectModal(props: {
               <Text size="xs" c="dimmed">
                 {trace.modelId || "—"} · {formatLocalDateTime(trace.at)}
               </Text>
-            </Group>
-            <SegmentedControl
-              size="xs"
-              value={view}
-              onChange={(value) => setView(value === "raw" ? "raw" : "tree")}
-              data={[
-                { value: "tree", label: "Tree" },
-                { value: "raw", label: "Raw" },
-              ]}
-            />
-          </Group>
-          <ScrollArea.Autosize mah="65vh">
-            {view === "tree" ? (
-              <JsonTreeView value={trace} />
-            ) : (
-              <Code block style={{ whiteSpace: "pre-wrap" }}>
-                {JSON.stringify(trace, null, 2)}
-              </Code>
-            )}
-          </ScrollArea.Autosize>
-        </Stack>
+            </>
+          }
+        />
       )}
     </Modal>
   );
@@ -367,6 +362,109 @@ function CacheBadge(props: { trace: ApiProxyRequestTrace }) {
   );
 }
 
+const TraceRow = memo(function TraceRow(props: {
+  trace: ApiProxyRequestTrace;
+  onOpenFile: (file: ApiProxyTraceFile) => void;
+  onInspect: (trace: ApiProxyRequestTrace) => void;
+}) {
+  const trace = props.trace;
+  return (
+    <Table.Tr>
+      <Table.Td>{formatLocalDateTime(trace.at)}</Table.Td>
+      <Table.Td>
+        {trace.sourceName ? (
+          <Badge color="grape" variant="light">
+            {trace.sourceName}
+          </Badge>
+        ) : (
+          <Text size="xs" c="dimmed">
+            anonymous
+          </Text>
+        )}
+      </Table.Td>
+      <Table.Td>
+        <Badge color={traceProtocolColor(trace.protocol)} variant="light">
+          {trace.translated ? `${trace.protocol} → openai` : trace.protocol}
+        </Badge>
+      </Table.Td>
+      <Table.Td>
+        <Tooltip label={trace.routePath}>
+          <Text size="xs">{formatTraceEndpoint(trace.endpoint)}</Text>
+        </Tooltip>
+      </Table.Td>
+      <Table.Td>
+        {trace.stream === null ? (
+          "—"
+        ) : (
+          <Badge color={trace.stream ? "teal" : "gray"} variant="light">
+            {trace.stream ? "stream" : "single"}
+          </Badge>
+        )}
+      </Table.Td>
+      <Table.Td>
+        <CacheBadge trace={trace} />
+      </Table.Td>
+      <Table.Td>{trace.modelId || "—"}</Table.Td>
+      <Table.Td>{trace.targetName ?? "—"}</Table.Td>
+      <Table.Td>
+        <RouteTraceCell trace={trace} />
+      </Table.Td>
+      <Table.Td>
+        <TraceFilesCell trace={trace} onOpen={props.onOpenFile} />
+      </Table.Td>
+      <Table.Td>
+        <SlotCell trace={trace} />
+      </Table.Td>
+      <Table.Td>
+        {trace.schedulerActions.length > 0 ? (
+          <Tooltip
+            multiline
+            label={
+              trace.displacedTargetIds.length > 0
+                ? `${trace.schedulerActions.join(
+                    ", ",
+                  )} — displaced: ${trace.displacedTargetIds.join(", ")}`
+                : trace.schedulerActions.join(", ")
+            }
+          >
+            <Text size="xs">{trace.schedulerActions.length}</Text>
+          </Tooltip>
+        ) : (
+          "—"
+        )}
+      </Table.Td>
+      <Table.Td>
+        <TokensCell usage={trace.usage} />
+      </Table.Td>
+      <Table.Td>
+        <CacheCell usage={trace.usage} />
+      </Table.Td>
+      <Table.Td>
+        {trace.usage ? formatTraceRate(trace.usage.ratePerSecond) : "—"}
+      </Table.Td>
+      <Table.Td>
+        <DetailBadge
+          color={traceStatusColor(trace)}
+          label={trace.status}
+          detail={trace.errorMessage}
+        />
+      </Table.Td>
+      <Table.Td>{trace.durationMs}</Table.Td>
+      <Table.Td>
+        <Tooltip label="Inspect full trace">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            onClick={() => props.onInspect(trace)}
+          >
+            <Braces size={14} />
+          </ActionIcon>
+        </Tooltip>
+      </Table.Td>
+    </Table.Tr>
+  );
+});
+
 export function TracesTable(props: { traces: ApiProxyRequestTrace[] }) {
   const [viewedFile, setViewedFile] = useState<ApiProxyTraceFile | null>(null);
   const [inspected, setInspected] = useState<ApiProxyRequestTrace | null>(null);
@@ -408,111 +506,12 @@ export function TracesTable(props: { traces: ApiProxyRequestTrace[] }) {
           </Table.Thead>
           <Table.Tbody>
             {props.traces.map((trace) => (
-              <Table.Tr key={trace.id}>
-                <Table.Td>{formatLocalDateTime(trace.at)}</Table.Td>
-                <Table.Td>
-                  {trace.sourceName ? (
-                    <Badge color="grape" variant="light">
-                      {trace.sourceName}
-                    </Badge>
-                  ) : (
-                    <Text size="xs" c="dimmed">
-                      anonymous
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Badge
-                    color={traceProtocolColor(trace.protocol)}
-                    variant="light"
-                  >
-                    {trace.translated
-                      ? `${trace.protocol} → openai`
-                      : trace.protocol}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Tooltip label={trace.routePath}>
-                    <Text size="xs">{formatTraceEndpoint(trace.endpoint)}</Text>
-                  </Tooltip>
-                </Table.Td>
-                <Table.Td>
-                  {trace.stream === null ? (
-                    "—"
-                  ) : (
-                    <Badge
-                      color={trace.stream ? "teal" : "gray"}
-                      variant="light"
-                    >
-                      {trace.stream ? "stream" : "single"}
-                    </Badge>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <CacheBadge trace={trace} />
-                </Table.Td>
-                <Table.Td>{trace.modelId || "—"}</Table.Td>
-                <Table.Td>{trace.targetName ?? "—"}</Table.Td>
-                <Table.Td>
-                  <RouteTraceCell trace={trace} />
-                </Table.Td>
-                <Table.Td>
-                  <TraceFilesCell trace={trace} onOpen={setViewedFile} />
-                </Table.Td>
-                <Table.Td>
-                  <SlotCell trace={trace} />
-                </Table.Td>
-                <Table.Td>
-                  {trace.schedulerActions.length > 0 ? (
-                    <Tooltip
-                      multiline
-                      label={
-                        trace.displacedTargetIds.length > 0
-                          ? `${trace.schedulerActions.join(
-                              ", ",
-                            )} — displaced: ${trace.displacedTargetIds.join(
-                              ", ",
-                            )}`
-                          : trace.schedulerActions.join(", ")
-                      }
-                    >
-                      <Text size="xs">{trace.schedulerActions.length}</Text>
-                    </Tooltip>
-                  ) : (
-                    "—"
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <TokensCell usage={trace.usage} />
-                </Table.Td>
-                <Table.Td>
-                  <CacheCell usage={trace.usage} />
-                </Table.Td>
-                <Table.Td>
-                  {trace.usage
-                    ? formatTraceRate(trace.usage.ratePerSecond)
-                    : "—"}
-                </Table.Td>
-                <Table.Td>
-                  <DetailBadge
-                    color={traceStatusColor(trace)}
-                    label={trace.status}
-                    detail={trace.errorMessage}
-                  />
-                </Table.Td>
-                <Table.Td>{trace.durationMs}</Table.Td>
-                <Table.Td>
-                  <Tooltip label="Inspect full trace">
-                    <ActionIcon
-                      size="sm"
-                      variant="subtle"
-                      onClick={() => setInspected(trace)}
-                    >
-                      <Braces size={14} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Table.Td>
-              </Table.Tr>
+              <TraceRow
+                key={trace.id}
+                trace={trace}
+                onOpenFile={setViewedFile}
+                onInspect={setInspected}
+              />
             ))}
           </Table.Tbody>
         </Table>

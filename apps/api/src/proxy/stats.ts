@@ -8,14 +8,11 @@ import {
 } from "@arriero/core";
 
 import {
-  clearApiProxyTraceHistory,
   insertApiProxyTrace,
-  listApiProxyTraces,
   listApiProxyTracesSince,
 } from "./traces-repository.js";
 
 const MAX_HOURS = 24;
-const MAX_TRACES = 50;
 
 type MutableCounters = {
   requests: number;
@@ -109,9 +106,7 @@ class ApiProxyStats {
     this.applyToBuckets(trace);
     try {
       insertApiProxyTrace(trace);
-    } catch {
-      return;
-    }
+    } catch {}
   }
 
   seedFromHistory(now = new Date()): number {
@@ -176,13 +171,8 @@ class ApiProxyStats {
     });
   }
 
-  recentTraces(limit = MAX_TRACES): ApiProxyRequestTrace[] {
-    return listApiProxyTraces({ limit });
-  }
-
   reset(): void {
     this.buckets.clear();
-    clearApiProxyTraceHistory();
   }
 }
 

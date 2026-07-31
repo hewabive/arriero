@@ -1,4 +1,9 @@
-import type { ApiProxyTraceFacet } from "@arriero/core";
+import {
+  ApiProxyTraceCacheFilterSchema,
+  type ApiProxyTraceCacheFilter,
+  type ApiProxyTraceFacet,
+  type ApiProxyTraceListQuery,
+} from "@arriero/core";
 import {
   Button,
   Group,
@@ -9,14 +14,14 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { FilterX, History, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   getApiProxyTraceFacets,
   listApiProxyTraceHistory,
-  type ApiProxyTraceHistoryQuery,
 } from "../../api/client";
 import { formatTraceEndpoint, TracesTable } from "../proxy/TracesTable";
 
@@ -56,7 +61,14 @@ type TraceFilterState = {
   stream: string | null;
   resumed: string | null;
   translated: string | null;
-  minDurationMs: string;
+  minDurationMs: number | string;
+};
+
+const CACHE_FILTER_LABELS: Record<ApiProxyTraceCacheFilter, string> = {
+  hit: "Hit",
+  coalesced: "Coalesced",
+  store: "Store",
+  none: "No cache",
 };
 
 const defaultFilters: TraceFilterState = {
@@ -86,10 +98,8 @@ function localInputToIso(value: string): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
-function buildHistoryQuery(
-  filters: TraceFilterState,
-): ApiProxyTraceHistoryQuery {
-  const query: ApiProxyTraceHistoryQuery = { limit: PAGE_SIZE };
+function buildHistoryQuery(filters: TraceFilterState): ApiProxyTraceListQuery {
+  const query: ApiProxyTraceListQuery = { limit: PAGE_SIZE };
   if (filters.period === "custom") {
     const from = localInputToIso(filters.customFrom);
     const to = localInputToIso(filters.customTo);
@@ -132,8 +142,9 @@ function buildHistoryQuery(
   if (filters.errorCode) {
     query.errorCode = filters.errorCode;
   }
-  if (filters.cache) {
-    query.cache = filters.cache;
+  const cache = ApiProxyTraceCacheFilterSchema.safeParse(filters.cache);
+  if (cache.success) {
+    query.cache = cache.data;
   }
   if (filters.stream === "stream") {
     query.stream = true;
@@ -153,13 +164,8 @@ function buildHistoryQuery(
   if (filters.translated === "no") {
     query.translated = false;
   }
-  const minDuration = Number(filters.minDurationMs);
-  if (
-    filters.minDurationMs !== "" &&
-    Number.isFinite(minDuration) &&
-    minDuration > 0
-  ) {
-    query.minDurationMs = Math.floor(minDuration);
+  if (typeof filters.minDurationMs === "number" && filters.minDurationMs > 0) {
+    query.minDurationMs = Math.floor(filters.minDurationMs);
   }
   return query;
 }
@@ -210,12 +216,14 @@ export function ProxyTracesView() {
   });
   const facets = facetsQuery.data?.data;
 
+  const [debouncedFilters] = useDebouncedValue(filters, 300);
+
   const historyQuery = useInfiniteQuery({
-    queryKey: ["api-proxy-trace-history", filters],
+    queryKey: ["api-proxy-trace-history", debouncedFilters],
     queryFn: ({ pageParam }) =>
       listApiProxyTraceHistory({
-        ...buildHistoryQuery(filters),
-        ...(pageParam ? { before: pageParam } : {}),
+        ...buildHistoryQuery(debouncedFilters),
+        ...(pageParam ? { before: pageParam } : { withTotal: true }),
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) =>
@@ -224,7 +232,10 @@ export function ProxyTracesView() {
         : (lastPage.data.at(-1)?.at ?? null),
   });
 
-  const traces = historyQuery.data?.pages.flatMap((page) => page.data) ?? [];
+  const traces = useMemo(
+    () => historyQuery.data?.pages.flatMap((page) => page.data) ?? [],
+    [historyQuery.data],
+  );
   const total = historyQuery.data?.pages[0]?.total ?? 0;
   const hasActiveFilters =
     JSON.stringify(filters) !== JSON.stringify(defaultFilters);
@@ -245,7 +256,9 @@ export function ProxyTracesView() {
               <Text c="dimmed" size="sm">
                 {historyQuery.isLoading
                   ? "Loading…"
-                  : `${traces.length} of ${total} shown · kept for 30 days`}
+                  : `${traces.length} of ${total} shown${
+                      facets ? ` · kept for ${facets.retentionDays} days` : ""
+                    }`}
               </Text>
             </Group>
             <Group gap="xs">
@@ -369,12 +382,9 @@ export function ProxyTracesView() {
             <FilterSelect
               label="Cache"
               value={filters.cache}
-              data={[
-                { value: "hit", label: "Hit" },
-                { value: "coalesced", label: "Coalesced" },
-                { value: "store", label: "Store" },
-                { value: "none", label: "No cache" },
-              ]}
+              data={Object.entries(CACHE_FILTER_LABELS).map(
+                ([value, label]) => ({ value, label }),
+              )}
               onChange={(value) => update({ cache: value })}
               w={120}
             />
@@ -413,14 +423,8 @@ export function ProxyTracesView() {
               w={130}
               label="Min duration ms"
               min={0}
-              value={
-                filters.minDurationMs === ""
-                  ? ""
-                  : Number(filters.minDurationMs)
-              }
-              onChange={(value) =>
-                update({ minDurationMs: value === "" ? "" : String(value) })
-              }
+              value={filters.minDurationMs}
+              onChange={(value) => update({ minDurationMs: value })}
             />
           </Group>
 

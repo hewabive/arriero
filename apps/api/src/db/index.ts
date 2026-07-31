@@ -24,14 +24,19 @@ sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
 
-function ensureColumn(table: string, column: string, definition: string) {
+function ensureColumn(
+  table: string,
+  column: string,
+  definition: string,
+): boolean {
   const columns = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{
     name: string;
   }>;
   if (columns.some((entry) => entry.name === column)) {
-    return;
+    return false;
   }
   sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  return true;
 }
 
 export function migrate() {
@@ -96,7 +101,9 @@ export function migrate() {
       endpoint TEXT NOT NULL,
       model_id TEXT NOT NULL,
       source_id TEXT,
+      source_name TEXT,
       target_id TEXT,
+      target_name TEXT,
       status INTEGER NOT NULL,
       ok INTEGER NOT NULL,
       error_code TEXT,
@@ -110,6 +117,17 @@ export function migrate() {
       trace_json TEXT NOT NULL
     )
   `);
+  const addedTraceNameColumns = [
+    ensureColumn("proxy_request_traces", "source_name", "TEXT"),
+    ensureColumn("proxy_request_traces", "target_name", "TEXT"),
+  ].some(Boolean);
+  if (addedTraceNameColumns) {
+    db.run(sql`
+      UPDATE proxy_request_traces SET
+        source_name = json_extract(trace_json, '$.sourceName'),
+        target_name = json_extract(trace_json, '$.targetName')
+    `);
+  }
   db.run(
     sql`CREATE INDEX IF NOT EXISTS proxy_request_traces_at ON proxy_request_traces (at)`,
   );
@@ -118,6 +136,9 @@ export function migrate() {
   );
   db.run(
     sql`CREATE INDEX IF NOT EXISTS proxy_request_traces_source_at ON proxy_request_traces (source_id, at)`,
+  );
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS proxy_request_traces_target_at ON proxy_request_traces (target_id, at)`,
   );
 
   db.run(sql`

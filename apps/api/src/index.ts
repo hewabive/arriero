@@ -15,7 +15,10 @@ import { runMigrations } from "./migrations/index.js";
 import { ensureConfigScaffold } from "./proxy/config-files.js";
 import { apiProxyPendingResume } from "./proxy/pending-resume.js";
 import { apiProxyStats } from "./proxy/stats.js";
-import { pruneApiProxyTraceHistory } from "./proxy/traces-repository.js";
+import {
+  pruneApiProxyTraceHistory,
+  startApiProxyTraceRetentionLoop,
+} from "./proxy/traces-repository.js";
 import { apiProxyStreamSessions } from "./proxy/stream-session.js";
 import { collectApiProxyPipelineGraphWarnings } from "./proxy/pipeline-validation.js";
 import {
@@ -128,6 +131,11 @@ const stopApiProxyRuntimeReconcile = startApiProxyRuntimeReconcileLoop({
     logger.error({ error }, "api proxy runtime reconcile pass failed"),
 });
 
+const stopApiProxyTraceRetention = startApiProxyTraceRetentionLoop({
+  onError: (error) =>
+    logger.error({ error }, "api proxy trace retention prune failed"),
+});
+
 type ForceClosableServer = typeof server & {
   closeAllConnections?: () => void;
   closeIdleConnections?: () => void;
@@ -191,6 +199,7 @@ async function shutdown(signal: NodeJS.Signals) {
     }
     stopApiProxyIdleMaintenance();
     stopApiProxyRuntimeReconcile();
+    stopApiProxyTraceRetention();
     systemMetricsRecorder.stop();
     await closeServer();
     logger.info("http server closed");

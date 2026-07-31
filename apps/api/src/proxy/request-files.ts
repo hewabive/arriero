@@ -18,8 +18,12 @@ import { config } from "../config.js";
 
 const requestFilesRoot = resolve(config.dataDir, "proxy-requests");
 
+function requestDirStamp(iso: string) {
+  return iso.replace(/[:.]/g, "-");
+}
+
 function requestDirName(traceId: string, traceAt: string) {
-  return `${traceAt.replace(/[:.]/g, "-")}-${traceId}`;
+  return `${requestDirStamp(traceAt)}-${traceId}`;
 }
 
 function modelDirName(modelId: string) {
@@ -90,7 +94,7 @@ function readDirectoryEntries(path: string) {
 }
 
 export function pruneApiProxyRequestFiles(cutoffIso: string): number {
-  const cutoffStamp = cutoffIso.replace(/[:.]/g, "-");
+  const cutoffStamp = requestDirStamp(cutoffIso);
   let removed = 0;
   for (const modelEntry of readDirectoryEntries(requestFilesRoot)) {
     if (!modelEntry.isDirectory()) {
@@ -113,9 +117,7 @@ export function pruneApiProxyRequestFiles(cutoffIso: string): number {
     }
     try {
       rmdirSync(modelDir);
-    } catch {
-      continue;
-    }
+    } catch {}
   }
   return removed;
 }

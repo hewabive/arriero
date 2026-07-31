@@ -3,6 +3,7 @@ import {
   type ApiProxyRequestTrace,
   type ApiProxyTraceFacet,
   type ApiProxyTraceFacets,
+  type ApiProxyTraceListFilter,
 } from "@arriero/core";
 import {
   and,
@@ -23,16 +24,14 @@ import { db } from "../db/index.js";
 import { proxyRequestTraces } from "../db/schema.js";
 import { pruneApiProxyRequestFiles } from "./request-files.js";
 
-const RETENTION_DAYS = 30;
+export const TRACE_RETENTION_DAYS = 30;
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 500;
 
-let lastPruneMs: number | null = null;
-
 function retentionCutoff(now: Date): string {
   return new Date(
-    now.getTime() - RETENTION_DAYS * 24 * 60 * 60 * 1000,
+    now.getTime() - TRACE_RETENTION_DAYS * 24 * 60 * 60 * 1000,
   ).toISOString();
 }
 
@@ -45,7 +44,9 @@ export function insertApiProxyTrace(trace: ApiProxyRequestTrace): void {
       endpoint: trace.endpoint,
       modelId: trace.modelId,
       sourceId: trace.sourceId,
+      sourceName: trace.sourceName,
       targetId: trace.targetId,
+      targetName: trace.targetName,
       status: trace.status,
       ok: trace.ok ? 1 : 0,
       errorCode: trace.errorCode,
@@ -59,15 +60,6 @@ export function insertApiProxyTrace(trace: ApiProxyRequestTrace): void {
       traceJson: JSON.stringify(trace),
     })
     .run();
-  const now = Date.now();
-  if (lastPruneMs === null) {
-    lastPruneMs = now;
-    return;
-  }
-  if (now - lastPruneMs >= PRUNE_INTERVAL_MS) {
-    lastPruneMs = now;
-    pruneApiProxyTraceHistory();
-  }
 }
 
 function parseTraceRows(
@@ -88,28 +80,6 @@ function parseTraceRows(
   }
   return traces;
 }
-
-export type ApiProxyTraceCacheFilter = "hit" | "store" | "coalesced" | "none";
-
-export type ApiProxyTraceListFilter = {
-  limit?: number;
-  before?: string;
-  from?: string;
-  to?: string;
-  protocol?: string;
-  endpoint?: string;
-  modelId?: string;
-  sourceId?: string;
-  targetId?: string;
-  ok?: boolean;
-  status?: number;
-  errorCode?: string;
-  cache?: ApiProxyTraceCacheFilter;
-  resumed?: boolean;
-  stream?: boolean;
-  translated?: boolean;
-  minDurationMs?: number;
-};
 
 function filterConditions(filter: ApiProxyTraceListFilter): SQL[] {
   const conditions: SQL[] = [];
@@ -190,10 +160,11 @@ export function listApiProxyTraces(
 export function countApiProxyTraces(
   filter: ApiProxyTraceListFilter = {},
 ): number {
+  const { before: _before, limit: _limit, ...matchFilter } = filter;
   const row = db
     .select({ count: sql<number>`count(*)` })
     .from(proxyRequestTraces)
-    .where(and(...filterConditions(filter)))
+    .where(and(...filterConditions(matchFilter)))
     .get();
   return row?.count ?? 0;
 }
@@ -224,18 +195,15 @@ function columnFacets(
 
 export function getApiProxyTraceFacets(): ApiProxyTraceFacets {
   return {
+    retentionDays: TRACE_RETENTION_DAYS,
     models: columnFacets(proxyRequestTraces.modelId),
     sources: columnFacets(proxyRequestTraces.sourceId, {
       skipNull: true,
-      name: sql<
-        string | null
-      >`max(json_extract(${proxyRequestTraces.traceJson}, '$.sourceName'))`,
+      name: sql<string | null>`max(${proxyRequestTraces.sourceName})`,
     }),
     targets: columnFacets(proxyRequestTraces.targetId, {
       skipNull: true,
-      name: sql<
-        string | null
-      >`max(json_extract(${proxyRequestTraces.traceJson}, '$.targetName'))`,
+      name: sql<string | null>`max(${proxyRequestTraces.targetName})`,
     }),
     endpoints: columnFacets(proxyRequestTraces.endpoint),
     protocols: columnFacets(proxyRequestTraces.protocol),
@@ -269,6 +237,20 @@ export function pruneApiProxyTraceHistory(now = new Date()): {
     prunedTraces: Number(result.changes),
     prunedRequestDirs: pruneApiProxyRequestFiles(cutoff),
   };
+}
+
+export function startApiProxyTraceRetentionLoop(options: {
+  onError?: (error: unknown) => void;
+}): () => void {
+  const timer = setInterval(() => {
+    try {
+      pruneApiProxyTraceHistory();
+    } catch (error) {
+      options.onError?.(error);
+    }
+  }, PRUNE_INTERVAL_MS);
+  timer.unref();
+  return () => clearInterval(timer);
 }
 
 export function clearApiProxyTraceHistory(): void {

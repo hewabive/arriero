@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import {
   getApiProxyRuntime,
   getApiProxyStats,
-  getApiProxyTraces,
+  listApiProxyTraceHistory,
   previewApiProxyPlan,
 } from "../../api/client";
 import { useProxyConfig } from "../proxy/data";
@@ -30,7 +30,7 @@ export function ProxyDashboardView() {
   });
   const tracesQuery = useQuery({
     queryKey: ["api-proxy-traces"],
-    queryFn: () => getApiProxyTraces(50),
+    queryFn: () => listApiProxyTraceHistory({ limit: 50 }),
     refetchInterval: 10_000,
   });
   const runtimeQuery = useQuery({
