@@ -57,7 +57,7 @@ function anthropicToolBlocks(
     .filter((call) => call.name)
     .map((call, index) => ({
       type: "tool_use",
-      id: call.id ?? `toolu_llama_manager_${index}`,
+      id: call.id ?? `toolu_arriero_${index}`,
       name: call.name ?? "",
       input: parseToolInput(call.arguments),
     }));
@@ -196,7 +196,7 @@ export const anthropicResumableCodec: ApiProxyResumableCodec = {
     promptTokens,
     toolCalls,
   }) {
-    const resolvedId = id ?? "msg_llama_manager";
+    const resolvedId = id ?? "msg_arriero";
     const resolvedModel = model ?? "unknown";
     const inputTokens = promptTokens ?? 0;
     const outputTokens = completionTokens ?? 0;

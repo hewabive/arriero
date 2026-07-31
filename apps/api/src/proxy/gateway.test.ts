@@ -105,7 +105,7 @@ test("buildApiProxyProtocolGatewayResponse rejects unbound published model", asy
         "Model qwen-public is published by arriero, but it is not bound to a proxy target.",
       type: "server_error",
       param: "model",
-      code: "llama_manager_proxy_model_unbound",
+      code: "arriero_proxy_model_unbound",
     },
   });
 });
@@ -141,7 +141,7 @@ test("buildApiProxyProtocolGatewayResponse reports blocked scheduler plan", asyn
   assert.equal(response.status, 503);
   assert.equal(
     (response.body as { error: { code: string } }).error.code,
-    "llama_manager_proxy_plan_blocked",
+    "arriero_proxy_plan_blocked",
   );
 });
 
@@ -176,7 +176,7 @@ test("buildApiProxyProtocolGatewayResponse reports readiness actions before forw
   assert.equal(response.status, 503);
   assert.equal(
     (response.body as { error: { code: string } }).error.code,
-    "llama_manager_proxy_target_not_ready",
+    "arriero_proxy_target_not_ready",
   );
 });
 
@@ -191,6 +191,6 @@ test("buildApiProxyProtocolGatewayResponse reaches forwarding stub when target i
   assert.equal(response.status, 501);
   assert.equal(
     (response.body as { error: { code: string } }).error.code,
-    "llama_manager_proxy_not_implemented",
+    "arriero_proxy_not_implemented",
   );
 });

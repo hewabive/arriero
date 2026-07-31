@@ -25,7 +25,7 @@ export function apiProxyDrainBody(protocol: "openai" | "anthropic"): unknown {
     error: {
       message,
       type: "server_error",
-      code: "llama_manager_restarting",
+      code: "arriero_restarting",
       param: null,
     },
   };

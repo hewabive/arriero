@@ -100,7 +100,7 @@ function actionSummary(actions: ApiProxySchedulerAction[]) {
 function blockedDiagnostic(preview: ApiProxyPlanPreview) {
   return {
     status: 503,
-    code: "llama_manager_proxy_plan_blocked",
+    code: "arriero_proxy_plan_blocked",
     param: "model",
     message: `Cannot route proxy target ${
       preview.plan.requestedTargetId ?? "unknown"
@@ -111,7 +111,7 @@ function blockedDiagnostic(preview: ApiProxyPlanPreview) {
 function unsupportedDiagnostic(action: ApiProxySchedulerAction) {
   return {
     status: 503,
-    code: "llama_manager_proxy_action_unsupported",
+    code: "arriero_proxy_action_unsupported",
     param: "model",
     message: `Proxy MVP cannot execute scheduler action ${action.type} for target ${action.targetId}.`,
   } satisfies ApiProxyProtocolDiagnostic;
@@ -120,7 +120,7 @@ function unsupportedDiagnostic(action: ApiProxySchedulerAction) {
 function missingInstanceDiagnostic(action: ApiProxySchedulerAction) {
   return {
     status: 503,
-    code: "llama_manager_proxy_instance_not_found",
+    code: "arriero_proxy_instance_not_found",
     param: "model",
     message: `Scheduler action ${action.type} points to missing instance ${action.instanceId}.`,
   } satisfies ApiProxyProtocolDiagnostic;
@@ -133,7 +133,7 @@ function targetNotReadyDiagnostic(
 ) {
   return {
     status: 503,
-    code: "llama_manager_proxy_target_not_ready",
+    code: "arriero_proxy_target_not_ready",
     param: "model",
     message: `Proxy target ${target.name} is not ready: ${detail}. Remaining action(s): ${actionSummary(
       actions,
@@ -144,7 +144,7 @@ function targetNotReadyDiagnostic(
 function upstreamDiagnostic(target: ApiProxyTargetRecord, message: string) {
   return {
     status: 502,
-    code: "llama_manager_proxy_upstream_error",
+    code: "arriero_proxy_upstream_error",
     param: "model",
     message: `Proxy target ${target.name} failed during MVP execution: ${message}`,
   } satisfies ApiProxyProtocolDiagnostic;
@@ -157,7 +157,7 @@ function startFailedDiagnostic(
 ) {
   return {
     status: 502,
-    code: "llama_manager_proxy_instance_start_failed",
+    code: "arriero_proxy_instance_start_failed",
     param: "model",
     message: `Proxy target ${target.name} could not start instance ${instanceId}: ${reason}`,
   } satisfies ApiProxyProtocolDiagnostic;

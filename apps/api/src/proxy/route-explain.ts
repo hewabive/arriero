@@ -51,7 +51,7 @@ export async function explainApiProxyRoute(
       ...base,
       diagnostic: {
         status: 400,
-        code: "llama_manager_proxy_model_unbound",
+        code: "arriero_proxy_model_unbound",
         message: "Request body has no model field.",
       },
     };
@@ -63,7 +63,7 @@ export async function explainApiProxyRoute(
       ...base,
       diagnostic: {
         status: 404,
-        code: "llama_manager_proxy_model_unbound",
+        code: "arriero_proxy_model_unbound",
         message: `Model ${modelId} is not configured.`,
       },
     };

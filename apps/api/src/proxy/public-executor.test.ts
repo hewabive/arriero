@@ -200,7 +200,7 @@ test("executeApiProxyPublicMvpPlan fails fast when a started instance crashes in
   if (!result.ok) {
     assert.equal(
       result.diagnostic.code,
-      "llama_manager_proxy_instance_start_failed",
+      "arriero_proxy_instance_start_failed",
     );
     assert.match(result.diagnostic.message, /unknown argument: --model/);
   }
@@ -243,7 +243,7 @@ test("executeApiProxyPublicMvpPlan rejects unload-model without an unload callba
   if (!result.ok) {
     assert.equal(
       result.diagnostic.code,
-      "llama_manager_proxy_action_unsupported",
+      "arriero_proxy_action_unsupported",
     );
   }
 });
@@ -308,7 +308,7 @@ test("executeApiProxyPublicMvpPlan surfaces not-ready when stop-instance never f
   if (!result.ok) {
     assert.equal(
       result.diagnostic.code,
-      "llama_manager_proxy_target_not_ready",
+      "arriero_proxy_target_not_ready",
     );
   }
   assert.equal(stops, 4);
@@ -328,7 +328,7 @@ test("executeApiProxyPublicMvpPlan rejects save-slot without a save callback", a
   if (!result.ok) {
     assert.equal(
       result.diagnostic.code,
-      "llama_manager_proxy_action_unsupported",
+      "arriero_proxy_action_unsupported",
     );
   }
 });
@@ -408,7 +408,7 @@ test("executeApiProxyPublicMvpPlan surfaces a 502 when restore fails and no drop
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.diagnostic.code, "llama_manager_proxy_upstream_error");
+    assert.equal(result.diagnostic.code, "arriero_proxy_upstream_error");
   }
 });
 
@@ -434,6 +434,6 @@ test("executeApiProxyPublicMvpPlan stops waiting on a blocked plan when the clie
   assert.equal(result.ok, false);
   assert.equal(
     result.ok ? null : result.diagnostic.code,
-    "llama_manager_proxy_plan_blocked",
+    "arriero_proxy_plan_blocked",
   );
 });

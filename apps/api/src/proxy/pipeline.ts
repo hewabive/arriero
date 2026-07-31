@@ -323,7 +323,7 @@ export async function resolveApiProxyRouteChain(input: {
       return fail(
         routeDiagnostic(
           503,
-          "llama_manager_proxy_route_unbound",
+          "arriero_proxy_route_unbound",
           currentPipeline
             ? `Proxy route for model ${modelId} ends at an unwired port in pipeline ${currentPipeline.name}.`
             : `Model ${modelId} is not routed to a pipeline or target.`,
@@ -364,7 +364,7 @@ export async function resolveApiProxyRouteChain(input: {
         return fail(
           routeDiagnostic(
             503,
-            "llama_manager_proxy_pipeline_not_found",
+            "arriero_proxy_pipeline_not_found",
             `Proxy route for model ${modelId} points to missing pipeline ${ref.id}.`,
           ),
         );
@@ -373,7 +373,7 @@ export async function resolveApiProxyRouteChain(input: {
         return fail(
           routeDiagnostic(
             503,
-            "llama_manager_proxy_pipeline_disabled",
+            "arriero_proxy_pipeline_disabled",
             `Proxy route for model ${modelId} points to disabled pipeline ${pipeline.name}.`,
           ),
         );
@@ -394,7 +394,7 @@ export async function resolveApiProxyRouteChain(input: {
       return fail(
         routeDiagnostic(
           503,
-          "llama_manager_proxy_route_invalid",
+          "arriero_proxy_route_invalid",
           `Proxy route for model ${modelId} references node ${ref.id} outside of a pipeline.`,
         ),
       );
@@ -409,7 +409,7 @@ export async function resolveApiProxyRouteChain(input: {
       return fail(
         routeDiagnostic(
           503,
-          "llama_manager_proxy_route_invalid",
+          "arriero_proxy_route_invalid",
           `Pipeline ${pipeline.name} has no node ${nodeId} (route for model ${modelId}).`,
         ),
       );
@@ -420,7 +420,7 @@ export async function resolveApiProxyRouteChain(input: {
       return fail(
         routeDiagnostic(
           503,
-          "llama_manager_proxy_pipeline_cycle",
+          "arriero_proxy_pipeline_cycle",
           `Proxy route for model ${modelId} exceeded ${maxVisitedNodes} routing nodes (possible cycle).`,
         ),
       );
@@ -717,7 +717,7 @@ export async function resolveApiProxyRouteChain(input: {
           return fail(
             routeDiagnostic(
               503,
-              "llama_manager_proxy_route_invalid",
+              "arriero_proxy_route_invalid",
               `Condition node ${node.name || node.id} in pipeline ${pipeline.name} failed: ${outcome.error}`,
             ),
           );
@@ -735,7 +735,7 @@ export async function resolveApiProxyRouteChain(input: {
           return fail(
             routeDiagnostic(
               503,
-              "llama_manager_proxy_pipeline_not_found",
+              "arriero_proxy_pipeline_not_found",
               `Call node ${node.name || node.id} in pipeline ${pipeline.name} points to missing pipeline ${node.config.pipelineId}.`,
             ),
           );
@@ -744,7 +744,7 @@ export async function resolveApiProxyRouteChain(input: {
           return fail(
             routeDiagnostic(
               503,
-              "llama_manager_proxy_pipeline_disabled",
+              "arriero_proxy_pipeline_disabled",
               `Call node ${node.name || node.id} in pipeline ${pipeline.name} points to disabled pipeline ${callee.name}.`,
             ),
           );
@@ -756,7 +756,7 @@ export async function resolveApiProxyRouteChain(input: {
           return fail(
             routeDiagnostic(
               503,
-              "llama_manager_proxy_pipeline_cycle",
+              "arriero_proxy_pipeline_cycle",
               `Call node ${node.name || node.id} in pipeline ${pipeline.name} calls pipeline ${callee.name} recursively.`,
             ),
           );
@@ -765,7 +765,7 @@ export async function resolveApiProxyRouteChain(input: {
           return fail(
             routeDiagnostic(
               503,
-              "llama_manager_proxy_pipeline_cycle",
+              "arriero_proxy_pipeline_cycle",
               `Proxy route for model ${modelId} exceeded call depth ${maxCallDepth}.`,
             ),
           );
@@ -796,7 +796,7 @@ export async function resolveApiProxyRouteChain(input: {
           return fail(
             routeDiagnostic(
               503,
-              "llama_manager_proxy_route_invalid",
+              "arriero_proxy_route_invalid",
               `Pipeline ${pipeline.name} exits via "${exitName}" without a calling pipeline (route for model ${modelId}).`,
             ),
           );
@@ -812,7 +812,7 @@ export async function resolveApiProxyRouteChain(input: {
           return fail(
             routeDiagnostic(
               503,
-              "llama_manager_proxy_route_unbound",
+              "arriero_proxy_route_unbound",
               `Call node ${frame.node.name || frame.node.id} in pipeline ${frame.ownerPipeline.name} has no wiring for exit "${exitName}".`,
             ),
           );

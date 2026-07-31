@@ -144,7 +144,7 @@ test("delegationErrorDiagnostic maps a headers timeout to a 504", () => {
   });
   const diagnostic = delegationErrorDiagnostic(diagTarget, diagNode, error);
   assert.equal(diagnostic.status, 504);
-  assert.equal(diagnostic.code, "llama_manager_proxy_upstream_timeout");
+  assert.equal(diagnostic.code, "arriero_proxy_upstream_timeout");
   assert.match(diagnostic.message, /NY/);
 });
 
@@ -154,7 +154,7 @@ test("delegationErrorDiagnostic maps a refused connection to a 503", () => {
   });
   const diagnostic = delegationErrorDiagnostic(diagTarget, diagNode, error);
   assert.equal(diagnostic.status, 503);
-  assert.equal(diagnostic.code, "llama_manager_proxy_upstream_unavailable");
+  assert.equal(diagnostic.code, "arriero_proxy_upstream_unavailable");
 });
 
 test("delegationErrorDiagnostic falls back to a 502 for unknown errors", () => {
@@ -164,5 +164,5 @@ test("delegationErrorDiagnostic falls back to a 502 for unknown errors", () => {
     new Error("weird"),
   );
   assert.equal(diagnostic.status, 502);
-  assert.equal(diagnostic.code, "llama_manager_proxy_upstream_error");
+  assert.equal(diagnostic.code, "arriero_proxy_upstream_error");
 });

@@ -36,9 +36,9 @@ function writeHelpBinary(binaryPath: string, helpOutput: string) {
     [
       "#!/bin/sh",
       'if [ "$1" = "--help" ]; then',
-      "cat <<'LLAMA_MANAGER_HELP'",
+      "cat <<'ARRIERO_HELP'",
       helpOutput.trimEnd(),
-      "LLAMA_MANAGER_HELP",
+      "ARRIERO_HELP",
       "exit 0",
       "fi",
       "exit 0",

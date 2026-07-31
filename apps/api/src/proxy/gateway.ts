@@ -38,7 +38,7 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
       ok: false,
       response: input.adapter.diagnosticError(input.request, {
         status: 503,
-        code: "llama_manager_proxy_model_unbound",
+        code: "arriero_proxy_model_unbound",
         param: "model",
         message: `Model ${input.request.modelId} is published by arriero, but it is not bound to a proxy target.`,
       }),
@@ -51,7 +51,7 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
       ok: false,
       response: input.adapter.diagnosticError(input.request, {
         status: 503,
-        code: "llama_manager_proxy_target_not_found",
+        code: "arriero_proxy_target_not_found",
         param: "model",
         message: `Model ${input.request.modelId} is bound to missing proxy target ${targetId}.`,
       }),
@@ -64,7 +64,7 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
       ok: false,
       response: input.adapter.diagnosticError(input.request, {
         status: 503,
-        code: "llama_manager_proxy_plan_blocked",
+        code: "arriero_proxy_plan_blocked",
         param: "model",
         message: `Cannot route model ${input.request.modelId}: ${
           preview.plan.blockingReason ?? "scheduler blocked the request"
@@ -81,7 +81,7 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
       ok: false,
       response: input.adapter.diagnosticError(input.request, {
         status: 503,
-        code: "llama_manager_proxy_target_not_ready",
+        code: "arriero_proxy_target_not_ready",
         param: "model",
         message: `Proxy target ${target.name} is not ready for model ${
           input.request.modelId

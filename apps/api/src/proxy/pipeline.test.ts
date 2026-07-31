@@ -1195,7 +1195,7 @@ test("recursive call fails with a cycle diagnostic", async () => {
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.diagnostic.code, "llama_manager_proxy_pipeline_cycle");
+    assert.equal(result.diagnostic.code, "arriero_proxy_pipeline_cycle");
   }
 });
 
@@ -1214,7 +1214,7 @@ test("unwired exit fails with route_unbound naming the call node", async () => {
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.diagnostic.code, "llama_manager_proxy_route_unbound");
+    assert.equal(result.diagnostic.code, "arriero_proxy_route_unbound");
     assert.match(result.diagnostic.message, /no wiring for exit "matched"/);
   }
 });
@@ -1243,7 +1243,7 @@ test("dangling node port fails with route_unbound", async () => {
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.diagnostic.code, "llama_manager_proxy_route_unbound");
+    assert.equal(result.diagnostic.code, "arriero_proxy_route_unbound");
   }
 });
 
@@ -1255,7 +1255,7 @@ test("model without route fails with route_unbound", async () => {
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.diagnostic.code, "llama_manager_proxy_route_unbound");
+    assert.equal(result.diagnostic.code, "arriero_proxy_route_unbound");
   }
 });
 

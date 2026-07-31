@@ -200,7 +200,7 @@ export async function serveResumedStreamSession(input: {
       trace.errorMessage = `Resumed stream replay failed: ${outcome.message}`;
       const response = input.adapter.diagnosticError(request, {
         status: 502,
-        code: "llama_manager_proxy_upstream_error",
+        code: "arriero_proxy_upstream_error",
         param: "model",
         message: trace.errorMessage,
       });

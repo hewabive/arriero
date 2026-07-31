@@ -67,7 +67,7 @@ export function notImplementedResponse(modelId: string, endpoint: string) {
   return openAiError({
     message: `Model ${modelId} is published by arriero, but ${endpoint} forwarding is not implemented yet.`,
     type: "server_error",
-    code: "llama_manager_proxy_not_implemented",
+    code: "arriero_proxy_not_implemented",
     param: "model",
   });
 }

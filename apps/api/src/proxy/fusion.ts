@@ -82,7 +82,7 @@ export async function executeApiProxyModelSubRequest(input: {
   if (!upstreamPath || !adapter.resumable) {
     return fail({
       status: 501,
-      code: "llama_manager_proxy_route_invalid",
+      code: "arriero_proxy_route_invalid",
       message: `fusion sub-requests support only chat/messages, not ${input.operation.endpoint}`,
     });
   }
@@ -91,7 +91,7 @@ export async function executeApiProxyModelSubRequest(input: {
   if (!target) {
     return fail({
       status: 503,
-      code: "llama_manager_proxy_route_invalid",
+      code: "arriero_proxy_route_invalid",
       message: `fusion branch target ${input.targetId} not found`,
     });
   }
@@ -125,7 +125,7 @@ export async function executeApiProxyModelSubRequest(input: {
     } catch {
       return fail({
         status: 503,
-        code: "llama_manager_proxy_upstream_error",
+        code: "arriero_proxy_upstream_error",
         message: `fusion branch target ${target.name} was aborted while queued`,
       });
     }
@@ -192,7 +192,7 @@ export async function executeApiProxyModelSubRequest(input: {
     if (outcome.type === "consumer-gone") {
       return fail({
         status: 503,
-        code: "llama_manager_proxy_upstream_error",
+        code: "arriero_proxy_upstream_error",
         message: `fusion branch target ${target.name} was aborted by the client`,
       });
     }
@@ -204,13 +204,13 @@ export async function executeApiProxyModelSubRequest(input: {
     ) {
       return fail({
         status: 503,
-        code: "llama_manager_proxy_upstream_error",
+        code: "arriero_proxy_upstream_error",
         message: `fusion branch target ${target.name} was ${outcome.type}`,
       });
     }
     return fail({
       status: 502,
-      code: "llama_manager_proxy_upstream_error",
+      code: "arriero_proxy_upstream_error",
       message: `fusion branch target ${target.name} failed: ${outcome.message}`,
     });
   } finally {
@@ -231,7 +231,7 @@ export type ApiProxyFusionOutcome =
   | { kind: "error"; diagnostic: ApiProxyProtocolDiagnostic };
 
 function fusionDiagnostic(message: string): ApiProxyProtocolDiagnostic {
-  return { status: 502, code: "llama_manager_proxy_upstream_error", message };
+  return { status: 502, code: "arriero_proxy_upstream_error", message };
 }
 
 function buildFusionSynthBody(input: {

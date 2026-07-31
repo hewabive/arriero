@@ -41,7 +41,7 @@ export function resolveApiProxyUpstreamContext(input: {
       ok: false,
       diagnostic: {
         status: 503,
-        code: "llama_manager_proxy_upstream_unavailable",
+        code: "arriero_proxy_upstream_unavailable",
         param: "model",
         message:
           targetResolution.error ??
@@ -55,7 +55,7 @@ export function resolveApiProxyUpstreamContext(input: {
       ok: false,
       diagnostic: {
         status: 503,
-        code: "llama_manager_proxy_upstream_unavailable",
+        code: "arriero_proxy_upstream_unavailable",
         param: "model",
         message: auth.error,
       },

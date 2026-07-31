@@ -312,7 +312,7 @@ async function proxyProtocolEndpointInner(
     trace.errorMessage = message;
     const response = adapter.diagnosticError(resolution.request, {
       status: 503,
-      code: "llama_manager_proxy_model_disabled",
+      code: "arriero_proxy_model_disabled",
       param: "model",
       message,
     });
@@ -485,7 +485,7 @@ async function proxyProtocolEndpointInner(
         trace.errorMessage = message;
         const response = adapter.diagnosticError(route.request, {
           status: 503,
-          code: "llama_manager_proxy_upstream_unavailable",
+          code: "arriero_proxy_upstream_unavailable",
           param: "model",
           message,
         });
@@ -721,7 +721,7 @@ export function delegationErrorDiagnostic(
   if (code && DELEGATION_TIMEOUT_CODES.has(code)) {
     return {
       status: 504,
-      code: "llama_manager_proxy_upstream_timeout",
+      code: "arriero_proxy_upstream_timeout",
       param: "model",
       message: `Proxy target ${target.name}: node ${node.name} did not respond in time (still preparing the model or stalled).`,
     };
@@ -729,14 +729,14 @@ export function delegationErrorDiagnostic(
   if (code && DELEGATION_UNREACHABLE_CODES.has(code)) {
     return {
       status: 503,
-      code: "llama_manager_proxy_upstream_unavailable",
+      code: "arriero_proxy_upstream_unavailable",
       param: "model",
       message: `Proxy target ${target.name}: node ${node.name} is unreachable (${describeFetchError(error)}).`,
     };
   }
   return {
     status: 502,
-    code: "llama_manager_proxy_upstream_error",
+    code: "arriero_proxy_upstream_error",
     param: "model",
     message: `Proxy target ${target.name} failed to delegate to node ${node.name}: ${describeFetchError(error)}`,
   };
@@ -885,7 +885,7 @@ export async function serveResolvedTarget(input: {
       trace.errorMessage = message;
       const response = adapter.diagnosticError(route.request, {
         status: 503,
-        code: "llama_manager_proxy_upstream_unavailable",
+        code: "arriero_proxy_upstream_unavailable",
         param: "model",
         message,
       });
@@ -1154,7 +1154,7 @@ export async function serveResolvedTarget(input: {
             trace.errorMessage = message;
             const response = adapter.diagnosticError(route.request, {
               status: 502,
-              code: "llama_manager_proxy_upstream_error",
+              code: "arriero_proxy_upstream_error",
               param: "model",
               message,
             });
@@ -1323,7 +1323,7 @@ export async function serveResolvedTarget(input: {
       trace.errorMessage = message;
       const response = adapter.diagnosticError(route.request, {
         status: 502,
-        code: "llama_manager_proxy_upstream_error",
+        code: "arriero_proxy_upstream_error",
         param: "model",
         message,
       });
@@ -1444,7 +1444,7 @@ export async function serveResolvedTarget(input: {
         trace.errorMessage = `Proxy target ${decision.target.name} failed to forward request: ${message}`;
         const response = adapter.diagnosticError(route.request, {
           status: 502,
-          code: "llama_manager_proxy_upstream_error",
+          code: "arriero_proxy_upstream_error",
           param: "model",
           message: `Proxy target ${decision.target.name} failed to forward request: ${message}`,
         });

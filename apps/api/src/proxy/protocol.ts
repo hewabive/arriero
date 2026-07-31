@@ -22,22 +22,22 @@ export type ApiProxyProtocolResponse = {
 };
 
 type ApiProxyProtocolDiagnosticCode =
-  | "llama_manager_proxy_model_unbound"
-  | "llama_manager_proxy_model_disabled"
-  | "llama_manager_proxy_target_not_found"
-  | "llama_manager_proxy_plan_blocked"
-  | "llama_manager_proxy_target_not_ready"
-  | "llama_manager_proxy_pipeline_not_found"
-  | "llama_manager_proxy_pipeline_disabled"
-  | "llama_manager_proxy_pipeline_cycle"
-  | "llama_manager_proxy_route_unbound"
-  | "llama_manager_proxy_route_invalid"
-  | "llama_manager_proxy_action_unsupported"
-  | "llama_manager_proxy_instance_not_found"
-  | "llama_manager_proxy_instance_start_failed"
-  | "llama_manager_proxy_upstream_unavailable"
-  | "llama_manager_proxy_upstream_timeout"
-  | "llama_manager_proxy_upstream_error";
+  | "arriero_proxy_model_unbound"
+  | "arriero_proxy_model_disabled"
+  | "arriero_proxy_target_not_found"
+  | "arriero_proxy_plan_blocked"
+  | "arriero_proxy_target_not_ready"
+  | "arriero_proxy_pipeline_not_found"
+  | "arriero_proxy_pipeline_disabled"
+  | "arriero_proxy_pipeline_cycle"
+  | "arriero_proxy_route_unbound"
+  | "arriero_proxy_route_invalid"
+  | "arriero_proxy_action_unsupported"
+  | "arriero_proxy_instance_not_found"
+  | "arriero_proxy_instance_start_failed"
+  | "arriero_proxy_upstream_unavailable"
+  | "arriero_proxy_upstream_timeout"
+  | "arriero_proxy_upstream_error";
 
 export type ApiProxyProtocolDiagnostic = {
   status: ContentfulStatusCode;

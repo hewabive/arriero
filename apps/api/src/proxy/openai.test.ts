@@ -90,7 +90,7 @@ test("notImplementedResponse returns OpenAI-compatible error shape", () => {
         "Model qwen is published by arriero, but /v1/chat/completions forwarding is not implemented yet.",
       type: "server_error",
       param: "model",
-      code: "llama_manager_proxy_not_implemented",
+      code: "arriero_proxy_not_implemented",
     },
   });
 });

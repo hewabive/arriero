@@ -9,7 +9,7 @@ import {
 
 import { config } from "./config.js";
 
-const cookieName = "llama_manager_admin";
+const cookieName = "arriero_admin";
 const passwordHashPrefix = "scrypt$";
 
 type SessionPayload = {
