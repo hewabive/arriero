@@ -234,6 +234,8 @@ export function nodeSummary(
       return reasoningSummary(node);
     case "output-limit":
       return `${node.outputLimitMode} max_tokens ${node.outputLimitMax || "?"}`;
+    case "context-limit":
+      return `reject ≥ ${node.contextLimitThreshold || "?"} tokens (est.)`;
     case "token-scale":
       return `visible / real ×${node.tokenScaleFactor || "?"}`;
     case "strip-attribution":

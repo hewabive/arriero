@@ -32,6 +32,7 @@ type ApiProxyProtocolDiagnosticCode =
   | "arriero_proxy_pipeline_cycle"
   | "arriero_proxy_route_unbound"
   | "arriero_proxy_route_invalid"
+  | "arriero_proxy_context_overflow"
   | "arriero_proxy_action_unsupported"
   | "arriero_proxy_instance_not_found"
   | "arriero_proxy_instance_start_failed"

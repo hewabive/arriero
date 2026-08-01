@@ -103,6 +103,37 @@ export function PipelineNodeFields(props: {
     );
   }
 
+  if (node.type === "context-limit") {
+    return (
+      <>
+        <NumberInput
+          label="Reject at estimated prompt tokens"
+          description="Returns a context-overflow error at or above this local estimate. Set it below the real context size to leave room for generation."
+          min={1}
+          max={100_000_000}
+          value={node.contextLimitThreshold}
+          onChange={(value) =>
+            update({
+              contextLimitThreshold: typeof value === "number" ? value : "",
+            })
+          }
+        />
+        <Text c="dimmed" size="xs">
+          The estimate covers prompt messages, system text and tools. It is a
+          fast approximation, so keep a safety margin for tokenizer differences
+          and output tokens.
+        </Text>
+        <PortSelect
+          label="Next"
+          ctx={ctx}
+          excludeNodeId={node.id}
+          value={node.portNext}
+          onChange={(portNext) => update({ portNext })}
+        />
+      </>
+    );
+  }
+
   if (node.type === "token-scale") {
     const factor = node.tokenScaleFactor === "" ? 1 : node.tokenScaleFactor;
     return (

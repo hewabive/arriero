@@ -1755,3 +1755,64 @@ test("token-scale divides request limits and defers inverse usage scaling", asyn
     );
   }
 });
+
+test("context-limit continues below its estimated prompt threshold", async () => {
+  const pipeline = pipelineRecord({
+    id: "pipeline-a",
+    entry: { type: "node", id: "guard" },
+    nodes: [
+      {
+        id: "guard",
+        name: "leave generation room",
+        type: "context-limit",
+        config: { thresholdTokens: 100 },
+        ports: { next: { type: "target", id: "target-a" } },
+      },
+    ],
+  });
+  const result = await resolveApiProxyRouteChain({
+    request: request(),
+    getPipeline: getPipelineFrom([pipeline]),
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.kind, "target");
+    assert.equal(result.routeTrace[1]?.kind, "context-limit");
+    assert.equal(result.routeTrace[1]?.port, "next");
+    assert.match(result.routeTrace[1]?.detail ?? "", /threshold 100 tokens$/);
+  }
+});
+
+test("context-limit rejects at its estimated prompt threshold", async () => {
+  const pipeline = pipelineRecord({
+    id: "pipeline-a",
+    entry: { type: "node", id: "guard" },
+    nodes: [
+      {
+        id: "guard",
+        name: "leave generation room",
+        type: "context-limit",
+        config: { thresholdTokens: 1 },
+        ports: { next: { type: "target", id: "target-a" } },
+      },
+    ],
+  });
+  const result = await resolveApiProxyRouteChain({
+    request: request(),
+    getPipeline: getPipelineFrom([pipeline]),
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.deepEqual(result.diagnostic, {
+      status: 400,
+      code: "arriero_proxy_context_overflow",
+      message: "Prompt is too long",
+      param: null,
+    });
+    assert.equal(result.routeTrace[1]?.kind, "context-limit");
+    assert.equal(result.routeTrace[1]?.port, null);
+    assert.match(result.routeTrace[1]?.detail ?? "", / · rejected$/);
+  }
+});

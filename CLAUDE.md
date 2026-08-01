@@ -153,7 +153,7 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
   nodes/targets/pipelines (a pipeline ref is a tail jump), `call` + named `exit`s give function
   semantics, and loops are forbidden (save-time `pipeline-validation.ts` + runtime budgets). Nodes:
   `replace-text`, `capture-request`, `edit-request`, `reasoning`, `output-limit`,
-  `strip-attribution`, `cache`, `condition`, `call`, `exit`. Resolution lands in `trace.routeTrace`;
+  `context-limit`, `token-scale`, `strip-attribution`, `cache`, `condition`, `call`, `exit`. Resolution lands in `trace.routeTrace`;
   dry-run via `POST /api/proxy/route-explain`. See `docs/API_PROXY_PIPELINES.md`, and
   `docs/API_PROXY_RESPONSE_CACHE.md` for the `cache` node (short-circuits before gateway/lease,
   single-flight coalescing, streaming fan-out, framing-matched store).

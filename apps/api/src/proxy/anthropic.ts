@@ -348,13 +348,19 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
       type: "not_found_error",
     }),
   }),
-  diagnosticError: (_request, diagnostic) => ({
-    status: diagnostic.status,
-    body: anthropicError({
-      message: `${diagnostic.message} (${diagnostic.code})`,
-      type: "api_error",
-    }),
-  }),
+  diagnosticError: (_request, diagnostic) => {
+    const contextOverflow =
+      diagnostic.code === "arriero_proxy_context_overflow";
+    return {
+      status: diagnostic.status,
+      body: anthropicError({
+        message: contextOverflow
+          ? diagnostic.message
+          : `${diagnostic.message} (${diagnostic.code})`,
+        type: contextOverflow ? "invalid_request_error" : "api_error",
+      }),
+    };
+  },
   upstreamPath: (operation) => upstreamPaths[operation.endpoint] ?? null,
   notImplemented: (request) => ({
     status: 501,

@@ -22,6 +22,10 @@ import {
   type ProxyPrefillProgress,
   type ProxyUsageCounts,
 } from "./usage-meter.js";
+import {
+  contextOverflowMessage,
+  isLlamaContextOverflow,
+} from "./context-overflow.js";
 
 const llamaServerRequestOptions = {
   namedToolChoice: "filter" as const,
@@ -125,6 +129,15 @@ export function translateOpenAiErrorText(status: number, text: string): string {
     parsed = JSON.parse(text);
   } catch {
     parsed = text;
+  }
+  if (isLlamaContextOverflow(status, parsed)) {
+    return JSON.stringify({
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: contextOverflowMessage,
+      },
+    });
   }
   return JSON.stringify(translateOpenAiError(status, parsed));
 }

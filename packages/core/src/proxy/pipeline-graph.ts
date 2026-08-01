@@ -80,6 +80,7 @@ export const apiProxySingleNextNodeTypes = [
   "edit-request",
   "reasoning",
   "output-limit",
+  "context-limit",
   "token-scale",
   "strip-attribution",
   "cache",

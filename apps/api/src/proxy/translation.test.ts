@@ -132,6 +132,48 @@ test("non-stream response and error bodies translate to anthropic shapes", () =>
   });
 });
 
+test("llama.cpp context overflow normalizes to Anthropic prompt-too-long error", () => {
+  const error = JSON.parse(
+    translateOpenAiErrorText(
+      400,
+      JSON.stringify({
+        error: {
+          type: "exceed_context_size_error",
+          message:
+            "request (32768 tokens) exceeds the available context size (32000 tokens)",
+          n_prompt_tokens: 32768,
+          n_ctx: 32000,
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(error, {
+    type: "error",
+    error: {
+      type: "invalid_request_error",
+      message: "Prompt is too long",
+    },
+  });
+});
+
+test("context overflow normalization is limited to llama.cpp HTTP 400 errors", () => {
+  const error = JSON.parse(
+    translateOpenAiErrorText(
+      500,
+      JSON.stringify({
+        error: {
+          type: "exceed_context_size_error",
+          message: "upstream failed",
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(error, {
+    type: "error",
+    error: { type: "api_error", message: "upstream failed" },
+  });
+});
+
 async function runTransform(
   frames: string[],
   callbacks: AnthropicTranslationStreamCallbacks = {},

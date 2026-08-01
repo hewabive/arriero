@@ -84,6 +84,9 @@ in the sub-sections below.
   (`next`)
 - **`output-limit`** — `maxTokens` + `mode: cap|set`: bounds `max_tokens` on the
   request (see below). (`next`)
+- **`context-limit`** — `thresholdTokens`: rejects a request with a
+  protocol-compatible context-overflow error when the locally estimated prompt
+  size reaches the threshold (see below). (`next`)
 - **`token-scale`** — `factor`: divides request token limits and multiplies
   client-visible response usage, while operational metrics stay actual (see
   below). (`next`)
@@ -199,6 +202,28 @@ op only when the value changes:
 The applied change is reported in the node's `routeTrace` detail (e.g.
 `set max_tokens = 4096 (was 32000)`), or `<mode> <n>: no change` when the bound
 was already satisfied.
+
+### Context limit
+
+The `context-limit` node is a preflight guard for context-window headroom. It
+uses the same fast local estimator as the `token-estimate` condition, counting
+message and system text, per-message overhead and serialized tools. When the
+estimate is greater than or equal to `thresholdTokens`, routing stops before a
+target, lease or model generation is started.
+
+Anthropic requests receive HTTP 400 with
+`invalid_request_error: Prompt is too long`, which Claude Code recognizes as a
+recoverable context overflow and can answer by compacting and retrying. OpenAI
+requests receive the equivalent HTTP 400 `invalid_request_error`. A request
+below the threshold follows `next` normally. Both the estimate and threshold
+are recorded in `routeTrace`.
+
+The estimator is deliberately approximate and measures prompt tokens, not the
+future generated response. Configure the threshold below the model's real
+context size, leaving enough margin for tokenizer differences and the desired
+output budget. The guard operates on the body as transformed by earlier
+pipeline nodes, so placement controls whether edits and attribution stripping
+affect its estimate.
 
 ### Response-side Replace text
 

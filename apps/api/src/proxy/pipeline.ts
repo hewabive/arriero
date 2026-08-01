@@ -16,6 +16,7 @@ import {
 
 import { sanitizeClaudeCodeAttribution } from "./attribution.js";
 import { evaluateApiProxyCondition } from "./condition.js";
+import { contextOverflowMessage } from "./context-overflow.js";
 import { apiProxyResponseCacheKey } from "./response-cache-key.js";
 import {
   bodyRequestsStreaming,
@@ -254,11 +255,12 @@ function nodeStep(
 }
 
 function routeDiagnostic(
-  status: 503,
+  status: 400 | 503,
   code: ApiProxyProtocolDiagnostic["code"],
   message: string,
+  param: string | null = "model",
 ): ApiProxyProtocolDiagnostic {
-  return { status, code, param: "model", message };
+  return { status, code, param, message };
 }
 
 function reasoningTraceDetail(config: ApiProxyReasoningConfig): string {
@@ -543,6 +545,28 @@ export async function resolveApiProxyRouteChain(input: {
                 : `${node.config.mode} ${node.config.maxTokens}: no change`,
           }),
         );
+        ref = node.ports.next;
+        break;
+      }
+      case "context-limit": {
+        const estimatedTokens = estimateTokens();
+        const rejected = estimatedTokens >= node.config.thresholdTokens;
+        state.routeTrace.push(
+          nodeStep(pipeline, node, {
+            port: rejected ? null : "next",
+            detail: `estimated ${estimatedTokens} / threshold ${node.config.thresholdTokens} tokens${rejected ? " · rejected" : ""}`,
+          }),
+        );
+        if (rejected) {
+          return fail(
+            routeDiagnostic(
+              400,
+              "arriero_proxy_context_overflow",
+              contextOverflowMessage,
+              null,
+            ),
+          );
+        }
         ref = node.ports.next;
         break;
       }

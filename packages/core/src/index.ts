@@ -941,6 +941,14 @@ export type ApiProxyOutputLimitConfig = z.infer<
   typeof ApiProxyOutputLimitConfigSchema
 >;
 
+export const ApiProxyContextLimitConfigSchema = z.object({
+  thresholdTokens: z.number().int().min(1).max(100_000_000).default(160_000),
+});
+
+export type ApiProxyContextLimitConfig = z.infer<
+  typeof ApiProxyContextLimitConfigSchema
+>;
+
 export const ApiProxyTokenScaleConfigSchema = z.object({
   factor: z.number().finite().min(0.000001).max(1_000_000).default(1),
 });
@@ -1046,6 +1054,11 @@ export const ApiProxyPipelineNodeSchema = z.discriminatedUnion("type", [
   ApiProxyPipelineNodeBaseSchema.extend({
     type: z.literal("output-limit"),
     config: ApiProxyOutputLimitConfigSchema,
+    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
+  }),
+  ApiProxyPipelineNodeBaseSchema.extend({
+    type: z.literal("context-limit"),
+    config: ApiProxyContextLimitConfigSchema,
     ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
   }),
   ApiProxyPipelineNodeBaseSchema.extend({
@@ -1335,6 +1348,7 @@ export const ApiProxyRouteTraceStepSchema = z.object({
     "edit-request",
     "reasoning",
     "output-limit",
+    "context-limit",
     "token-scale",
     "strip-attribution",
     "cache",

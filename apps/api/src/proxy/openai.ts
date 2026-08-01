@@ -341,7 +341,10 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
     status: diagnostic.status,
     body: openAiError({
       message: diagnostic.message,
-      type: "server_error",
+      type:
+        diagnostic.code === "arriero_proxy_context_overflow"
+          ? "invalid_request_error"
+          : "server_error",
       code: diagnostic.code,
       param: diagnostic.param,
     }),

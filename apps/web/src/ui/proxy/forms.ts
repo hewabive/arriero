@@ -96,6 +96,7 @@ export type PipelineNodeDraft = {
   reasoningCustomBudget: number | "";
   outputLimitMax: number | "";
   outputLimitMode: ApiProxyOutputLimitMode;
+  contextLimitThreshold: number | "";
   tokenScaleFactor: number | "";
   cacheTtlSeconds: number | "";
   cacheNamespace: string;
@@ -190,6 +191,7 @@ export function emptyPipelineNodeDraft(
     reasoningCustomBudget: 2048,
     outputLimitMax: 4096,
     outputLimitMode: "cap",
+    contextLimitThreshold: 160_000,
     tokenScaleFactor: 1,
     cacheTtlSeconds: 3600,
     cacheNamespace: "",
@@ -419,6 +421,10 @@ function nodeDraftFromRecord(node: ApiProxyPipelineNode): PipelineNodeDraft {
     case "output-limit":
       draft.outputLimitMax = node.config.maxTokens;
       draft.outputLimitMode = node.config.mode;
+      draft.portNext = portRefToValue(node.ports.next);
+      break;
+    case "context-limit":
+      draft.contextLimitThreshold = node.config.thresholdTokens;
       draft.portNext = portRefToValue(node.ports.next);
       break;
     case "token-scale":
@@ -718,6 +724,18 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         ...base,
         type: "output-limit",
         config: outputLimitConfigFromDraft(draft),
+        ports: { next: portRefFromValue(draft.portNext) },
+      };
+    case "context-limit":
+      return {
+        ...base,
+        type: "context-limit",
+        config: {
+          thresholdTokens:
+            draft.contextLimitThreshold === ""
+              ? 160_000
+              : draft.contextLimitThreshold,
+        },
         ports: { next: portRefFromValue(draft.portNext) },
       };
     case "token-scale":
