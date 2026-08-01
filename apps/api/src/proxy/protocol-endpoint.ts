@@ -42,6 +42,7 @@ import { executeApiProxyFusion } from "./fusion.js";
 import {
   apiProxyCacheStores,
   resolveApiProxyRouteChain,
+  type ApiProxyPipelineRecordRequestInput,
   type ApiProxyResponseEffect,
   type ApiProxyRouteChainResult,
 } from "./pipeline.js";
@@ -332,6 +333,22 @@ async function proxyProtocolEndpointInner(
     return c.json(response.body, response.status);
   }
 
+  const recordRouteRequest = (request: ApiProxyPipelineRecordRequestInput) => {
+    trace.files.push(
+      saveApiProxyRequestFile({
+        traceId: trace.id,
+        traceAt: trace.at,
+        kind: request.kind,
+        label: request.nodeName,
+        protocol: request.protocol,
+        endpoint: request.endpoint,
+        routePath: request.routePath,
+        modelId: request.modelId,
+        data: request.requestBody,
+      }),
+    );
+  };
+
   const routeResult = await resolveApiProxyRouteChain({
     request: resolution.request,
     getPipeline: getApiProxyPipeline,
@@ -341,21 +358,7 @@ async function proxyProtocolEndpointInner(
     registerOwner: registerApiProxyInFlight,
     findBroadcast: subscribeApiProxyBroadcast,
     registerBroadcast: registerApiProxyBroadcast,
-    recordRequest: (request) => {
-      trace.files.push(
-        saveApiProxyRequestFile({
-          traceId: trace.id,
-          traceAt: trace.at,
-          kind: request.kind,
-          label: request.nodeName,
-          protocol: request.protocol,
-          endpoint: request.endpoint,
-          routePath: request.routePath,
-          modelId: request.modelId,
-          data: request.requestBody,
-        }),
-      );
-    },
+    recordRequest: recordRouteRequest,
   });
   trace.routeTrace = routeResult.routeTrace;
 
@@ -385,6 +388,7 @@ async function proxyProtocolEndpointInner(
   if (routeResult.kind === "response") {
     trace.cache = routeResult.source === "coalesced" ? "coalesced" : "hit";
     trace.stream = routeResult.request.stream;
+    trace.textReplacementCount = routeResult.textReplacementCount;
     const responsePlan = createResponsePlan(routeResult.responseEffects);
     const { status, contentType } = routeResult.response;
     const init: ResponseInit = {
@@ -469,9 +473,42 @@ async function proxyProtocolEndpointInner(
       request: routeResult.request,
       sourceId: trace.sourceId,
       signal: c.req.raw.signal,
+      io: {
+        trace,
+        putCache: putApiProxyCachedResponse,
+        recordRequest: recordRouteRequest,
+        lookupCache: getApiProxyCachedResponse,
+        registerOwner: registerApiProxyInFlight,
+        ownedKeys: new Set(
+          apiProxyCacheStores(routeResult.responseEffects).map(
+            (effect) => effect.key,
+          ),
+        ),
+      },
     });
+    const branchReplacements = fusion.branches.reduce(
+      (sum, branch) => sum + branch.textReplacementCount,
+      0,
+    );
+    trace.routeTrace = [
+      ...routeResult.routeTrace,
+      ...fusion.branches.flatMap((branch) => [
+        {
+          kind: "fusion-branch" as const,
+          pipelineId: routeResult.pipeline.id,
+          pipelineName: routeResult.pipeline.name,
+          nodeId: routeResult.node.id,
+          nodeName: routeResult.node.name || null,
+          port: branch.branch,
+          detail: branch.detail,
+        },
+        ...branch.routeTrace,
+      ]),
+    ];
     if (fusion.kind === "error") {
       createResponsePlan(routeResult.responseEffects);
+      trace.textReplacementCount =
+        routeResult.textReplacementCount + branchReplacements;
       trace.errorMessage = fusion.diagnostic.message;
       const response = adapter.diagnosticError(
         routeResult.request,
@@ -481,6 +518,8 @@ async function proxyProtocolEndpointInner(
     }
     if (fusion.kind === "direct") {
       trace.stream = routeResult.request.stream;
+      trace.textReplacementCount =
+        routeResult.textReplacementCount + branchReplacements;
       const responsePlan = createResponsePlan([
         ...routeResult.responseEffects,
         ...fusion.responseEffects,
@@ -507,12 +546,13 @@ async function proxyProtocolEndpointInner(
       kind: "target",
       request: fusion.request,
       targetId: fusion.targetId,
-      textReplacementCount: routeResult.textReplacementCount,
+      textReplacementCount:
+        routeResult.textReplacementCount + branchReplacements,
       responseEffects: [
         ...routeResult.responseEffects,
         ...fusion.responseEffects,
       ],
-      routeTrace: routeResult.routeTrace,
+      routeTrace: trace.routeTrace,
     };
   } else {
     route = routeResult;

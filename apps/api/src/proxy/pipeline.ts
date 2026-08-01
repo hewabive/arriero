@@ -139,6 +139,7 @@ export type ApiProxyRouteChainResult =
       request: ApiProxyProtocolModelRequest;
       response: ApiProxyResponseResult;
       cacheKey: string;
+      textReplacementCount: number;
       responseEffects: ApiProxyResponseEffect[];
       routeTrace: ApiProxyRouteTraceStep[];
     }
@@ -290,6 +291,7 @@ export async function resolveApiProxyRouteChain(input: {
     | ((key: string) => ApiProxyBroadcastSubscription | null)
     | undefined;
   registerBroadcast?: ((key: string) => void) | undefined;
+  ownedKeys?: ReadonlySet<string> | undefined;
   maxVisitedNodes?: number | undefined;
   maxCallDepth?: number | undefined;
 }): Promise<ApiProxyRouteChainResult> {
@@ -603,9 +605,11 @@ export async function resolveApiProxyRouteChain(input: {
           modelId: input.request.modelId,
           body: state.request.body,
         });
-        const alreadyOwned = state.responseEffects.some(
-          (effect) => effect.type === "cache-store" && effect.key === key,
-        );
+        const alreadyOwned =
+          input.ownedKeys?.has(key) ||
+          state.responseEffects.some(
+            (effect) => effect.type === "cache-store" && effect.key === key,
+          );
         if (alreadyOwned) {
           state.routeTrace.push(
             nodeStep(pipeline, node, {
@@ -634,6 +638,7 @@ export async function resolveApiProxyRouteChain(input: {
                 body: cached.body,
               },
               cacheKey: key,
+              textReplacementCount: state.textReplacementCount,
               responseEffects: state.responseEffects,
               routeTrace: state.routeTrace,
             };
@@ -659,6 +664,7 @@ export async function resolveApiProxyRouteChain(input: {
                 body: subscription.body,
               },
               cacheKey: key,
+              textReplacementCount: state.textReplacementCount,
               responseEffects: state.responseEffects,
               routeTrace: state.routeTrace,
             };
@@ -696,6 +702,7 @@ export async function resolveApiProxyRouteChain(input: {
               body: cached.body,
             },
             cacheKey: key,
+            textReplacementCount: state.textReplacementCount,
             responseEffects: state.responseEffects,
             routeTrace: state.routeTrace,
           };
@@ -721,6 +728,7 @@ export async function resolveApiProxyRouteChain(input: {
                 body: coalesced.body,
               },
               cacheKey: key,
+              textReplacementCount: state.textReplacementCount,
               responseEffects: state.responseEffects,
               routeTrace: state.routeTrace,
             };

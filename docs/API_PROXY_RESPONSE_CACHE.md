@@ -198,10 +198,11 @@ key = sha256( formatVersion ‖ namespace ‖ modelId ‖ canonicalJson(body \ v
 - Cache node uses a single `next` port (= the miss/cold path); a hit is an
   implicit terminal that returns `kind:"response"`. No separate `hit` port.
 - The route-chain gains injected `lookupCache` (provided by the protocol
-  endpoint; `route-explain` and `fusion` omit it, so the node always misses in
-  dry-run / fusion branches). The handler computes the key from the body at the
-  node's position and appends a `cache-store` descriptor to
-  `state.responseEffects` on a miss.
+  endpoint; `route-explain` omits it, so the node always misses in dry-run).
+  Fusion panel branches get a buffered-only wrapper (non-SSE entries; panels
+  are always non-stream), the synthesizer branch stays store-only. The handler
+  computes the key from the body at the node's position and appends a
+  `cache-store` descriptor to `state.responseEffects` on a miss.
 - Writes are committed by the reverse response-plan executor at the cache
   node's boundary. Successful JSON and SSE bodies retain their actual status
   and content type; errors and incomplete streams are not stored.

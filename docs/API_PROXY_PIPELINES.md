@@ -105,6 +105,20 @@ in the sub-sections below.
 - **`condition`** — `predicate` (see below). (`true`, `false`)
 - **`call`** — `pipelineId`. (one port per callee exit name)
 - **`exit`** — `exitName` (default `done`). (no ports)
+- **`fusion`** — `minQuorum` + prompts: fans the request out over every `panel`
+  branch (each resolved as its own route chain and executed as a buffered
+  non-stream sub-request — `stream`/`stream_options` are stripped from the
+  branch body; the cache key is unaffected), then routes a synthesis request
+  through the `synthesizer` branch. Branch chains get the real chain IO:
+  capture-request nodes record files, panel cache nodes store and replay the
+  canonical JSON answer (buffered entries only; framing-independent because
+  panels are always non-stream), and registered coalesce keys are settled on
+  every branch failure. Each survivor's response effects run over its own
+  canonical answer **before** synthesis (so replace/capture/cache/scale apply
+  to the panel text the synthesizer sees); with a single survivor the bypass
+  serves the panel answer directly and its effects run at delivery like any
+  route effects. Branch route traces and replacement counts are merged into
+  the request trace as `fusion-branch` segments. (`panel[]`, `synthesizer`)
 
 ### Edit-request operations
 

@@ -1342,6 +1342,7 @@ export const ApiProxyRouteTraceStepSchema = z.object({
     "call",
     "exit",
     "fusion",
+    "fusion-branch",
   ]),
   pipelineId: z.string().nullable().default(null),
   pipelineName: z.string().nullable().default(null),

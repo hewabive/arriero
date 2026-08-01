@@ -64,12 +64,23 @@ function looksLikeErrorBody(data: unknown): boolean {
   );
 }
 
+export function settleAbandonedApiProxyCacheEffects(
+  effects: ApiProxyResponseEffect[],
+  reason: string,
+): void {
+  for (const effect of effects) {
+    if (effect.type === "cache-store") {
+      settleApiProxyInFlight(effect.key, null);
+      abortApiProxyBroadcast(effect.key, reason);
+    }
+  }
+}
+
 function settleCacheWithoutBody(
   effect: ApiProxyCacheStoreEffect,
   reason: string,
 ): void {
-  settleApiProxyInFlight(effect.key, null);
-  abortApiProxyBroadcast(effect.key, reason);
+  settleAbandonedApiProxyCacheEffects([effect], reason);
 }
 
 function isSuccessStatus(metadata: ApiProxyResponseMetadata): boolean {
