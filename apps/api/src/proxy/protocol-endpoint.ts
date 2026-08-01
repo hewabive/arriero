@@ -40,8 +40,10 @@ import {
 import { openAiResponsesUsageCodec } from "./openai.js";
 import { executeApiProxyFusion } from "./fusion.js";
 import {
+  apiProxyCacheStores,
+  apiProxyResponseCaptures,
   resolveApiProxyRouteChain,
-  type ApiProxyCacheWriteTarget,
+  type ApiProxyCacheStoreEffect,
   type ApiProxyRouteChainResult,
 } from "./pipeline.js";
 import {
@@ -354,8 +356,13 @@ async function proxyProtocolEndpointInner(
     return c.json(response.body, response.status);
   }
 
+  const responseCaptures = apiProxyResponseCaptures(
+    routeResult.responseEffects,
+  );
+  const cacheWrites = apiProxyCacheStores(routeResult.responseEffects);
+
   if (routeResult.kind === "response") {
-    for (const write of routeResult.cacheWrites) {
+    for (const write of cacheWrites) {
       settleApiProxyInFlight(write.key, null);
     }
     trace.cache = routeResult.source === "coalesced" ? "coalesced" : "hit";
@@ -383,8 +390,8 @@ async function proxyProtocolEndpointInner(
   }
 
   const responseSink = createApiProxyResponseCaptureSink({
-    captures: routeResult.responseCaptures,
-    cacheWrites: routeResult.cacheWrites,
+    captures: responseCaptures,
+    cacheWrites,
     putCache: putApiProxyCachedResponse,
     trace,
     operation,
@@ -414,7 +421,7 @@ async function proxyProtocolEndpointInner(
       operation,
       targetId: target.id,
       request: routeResult.request,
-      cacheWrites: routeResult.cacheWrites,
+      cacheWrites,
       trace,
       recorder,
       inflight,
@@ -456,8 +463,7 @@ async function proxyProtocolEndpointInner(
       request: fusion.request,
       targetId: fusion.targetId,
       textReplacementCount: routeResult.textReplacementCount,
-      responseCaptures: routeResult.responseCaptures,
-      cacheWrites: routeResult.cacheWrites,
+      responseEffects: routeResult.responseEffects,
       routeTrace: routeResult.routeTrace,
     };
   } else {
@@ -513,7 +519,7 @@ async function proxyProtocolEndpointInner(
     operation,
     targetId: route.targetId,
     request: route.request,
-    cacheWrites: route.cacheWrites,
+    cacheWrites: apiProxyCacheStores(route.responseEffects),
     trace,
     recorder,
     inflight,
@@ -748,7 +754,7 @@ export async function serveResolvedTarget(input: {
   operation: ApiProxyProtocolOperation;
   targetId: string;
   request: ApiProxyProtocolModelRequest;
-  cacheWrites?: ApiProxyCacheWriteTarget[] | undefined;
+  cacheWrites?: ApiProxyCacheStoreEffect[] | undefined;
   trace: ProxyTraceAccumulator;
   recorder: ProxyTraceRecorder;
   inflight: ApiProxyInflightHandle;

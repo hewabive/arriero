@@ -222,11 +222,68 @@ test("capture node response flag yields a deferred response capture", async () =
   assert.equal(saved.length, 0);
   assert.equal(result.ok, true);
   if (result.ok && result.kind === "target") {
-    assert.deepEqual(result.responseCaptures, [{ nodeName: "Audit" }]);
+    assert.deepEqual(result.responseEffects, [
+      { type: "capture-response", nodeName: "Audit" },
+    ]);
     assert.deepEqual(
       result.routeTrace.map((step) => step.detail),
       [null, "response at completion"],
     );
+  }
+});
+
+test("response effects preserve their request-path encounter order", async () => {
+  const pipelines = [
+    pipelineRecord({
+      id: "pipeline-a",
+      entry: { type: "node", id: "capture-before" },
+      nodes: [
+        {
+          id: "capture-before",
+          name: "Before",
+          type: "capture-request",
+          config: { request: false, response: true },
+          ports: { next: { type: "node", id: "cache" } },
+        },
+        {
+          id: "cache",
+          name: "Cache",
+          type: "cache",
+          config: { ttlSeconds: 600, namespace: "ordered-effects" },
+          ports: { next: { type: "node", id: "capture-after" } },
+        },
+        {
+          id: "capture-after",
+          name: "After",
+          type: "capture-request",
+          config: { request: false, response: true },
+          ports: { next: { type: "target", id: "target-a" } },
+        },
+      ],
+    }),
+  ];
+
+  const result = await resolveApiProxyRouteChain({
+    request: request(),
+    getPipeline: getPipelineFrom(pipelines),
+    lookupCache: () => null,
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok && result.kind === "target") {
+    assert.deepEqual(
+      result.responseEffects.map((effect) => effect.type),
+      ["capture-response", "cache-store", "capture-response"],
+    );
+    assert.equal(result.responseEffects[0]?.type, "capture-response");
+    assert.equal(result.responseEffects[2]?.type, "capture-response");
+    if (
+      result.responseEffects[0]?.type === "capture-response" &&
+      result.responseEffects[2]?.type === "capture-response"
+    ) {
+      assert.equal(result.responseEffects[0].nodeName, "Before");
+      assert.equal(result.responseEffects[2].nodeName, "After");
+    }
   }
 });
 
@@ -713,10 +770,13 @@ test("cache node misses to the target and records a cache write", async () => {
 
   assert.equal(result.ok, true);
   if (result.ok && result.kind === "target") {
+    const cacheWrites = result.responseEffects.filter(
+      (effect) => effect.type === "cache-store",
+    );
     assert.equal(result.targetId, "target-a");
-    assert.equal(result.cacheWrites.length, 1);
-    assert.equal(result.cacheWrites[0]?.key, seenKey);
-    assert.equal(result.cacheWrites[0]?.ttlSeconds, 600);
+    assert.equal(cacheWrites.length, 1);
+    assert.equal(cacheWrites[0]?.key, seenKey);
+    assert.equal(cacheWrites[0]?.ttlSeconds, 600);
     assert.equal(result.routeTrace.at(-1)?.detail, "cache miss");
   }
 });
@@ -758,9 +818,12 @@ test("cache node registers as owner when no request is in flight", async () => {
 
   assert.equal(result.ok, true);
   if (result.ok && result.kind === "target") {
-    assert.equal(result.cacheWrites.length, 1);
+    const cacheWrites = result.responseEffects.filter(
+      (effect) => effect.type === "cache-store",
+    );
+    assert.equal(cacheWrites.length, 1);
     assert.equal(owners.length, 1);
-    assert.equal(owners[0], result.cacheWrites[0]?.key);
+    assert.equal(owners[0], cacheWrites[0]?.key);
   }
 });
 
@@ -776,7 +839,11 @@ test("cache node falls through to a plain miss when the owner failed", async () 
 
   assert.equal(result.ok, true);
   if (result.ok && result.kind === "target") {
-    assert.equal(result.cacheWrites.length, 1);
+    assert.equal(
+      result.responseEffects.filter((effect) => effect.type === "cache-store")
+        .length,
+      1,
+    );
     assert.equal(
       result.routeTrace.at(-1)?.detail,
       "cache miss (coalesce fallthrough)",
@@ -859,9 +926,12 @@ test("streaming request becomes the broadcast owner on a miss", async () => {
 
   assert.equal(result.ok, true);
   if (result.ok && result.kind === "target") {
-    assert.equal(result.cacheWrites.length, 1);
+    const cacheWrites = result.responseEffects.filter(
+      (effect) => effect.type === "cache-store",
+    );
+    assert.equal(cacheWrites.length, 1);
     assert.equal(owners.length, 1);
-    assert.equal(owners[0], result.cacheWrites[0]?.key);
+    assert.equal(owners[0], cacheWrites[0]?.key);
     assert.equal(result.routeTrace.at(-1)?.detail, "stream cache miss (owner)");
   }
 });

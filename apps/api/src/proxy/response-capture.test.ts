@@ -42,7 +42,10 @@ test("response sink returns null when no captures are requested", () => {
 test("response sink writes one capture-response file per target and is idempotent", () => {
   const value = trace();
   const sink = createApiProxyResponseCaptureSink({
-    captures: [{ nodeName: "Audit" }, { nodeName: null }],
+    captures: [
+      { type: "capture-response", nodeName: "Audit" },
+      { type: "capture-response", nodeName: null },
+    ],
     cacheWrites: [],
     putCache: () => {},
     trace: value,
@@ -71,7 +74,7 @@ test("response sink writes one capture-response file per target and is idempoten
 test("response sink writes nothing when no body was seen", () => {
   const value = trace();
   const sink = createApiProxyResponseCaptureSink({
-    captures: [{ nodeName: null }],
+    captures: [{ type: "capture-response", nodeName: null }],
     cacheWrites: [],
     putCache: () => {},
     trace: value,
@@ -87,7 +90,7 @@ test("response sink writes non-stream bodies to the cache and marks the trace", 
   const writes: Array<{ key: string; body: string; ttlSeconds: number }> = [];
   const sink = createApiProxyResponseCaptureSink({
     captures: [],
-    cacheWrites: [{ key: "key-1", ttlSeconds: 600 }],
+    cacheWrites: [{ type: "cache-store", key: "key-1", ttlSeconds: 600 }],
     putCache: (input) =>
       writes.push({
         key: input.key,
@@ -113,7 +116,9 @@ test("response sink does not cache an error body or a streamed response", async 
   const writes: string[] = [];
   const sink = createApiProxyResponseCaptureSink({
     captures: [],
-    cacheWrites: [{ key: "key-err", ttlSeconds: 600 }],
+    cacheWrites: [
+      { type: "cache-store", key: "key-err", ttlSeconds: 600 },
+    ],
     putCache: (input) => writes.push(input.key),
     trace: value,
     operation,
@@ -136,7 +141,7 @@ test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async
 
   const sink = createApiProxyResponseCaptureSink({
     captures: [],
-    cacheWrites: [{ key: "bkey", ttlSeconds: 600 }],
+    cacheWrites: [{ type: "cache-store", key: "bkey", ttlSeconds: 600 }],
     putCache: (input) =>
       writes.push({
         isSse: input.isSse,
@@ -191,7 +196,7 @@ test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async
 test("response sink streams through tapped chunks and captures the raw text", async () => {
   const value = trace();
   const sink = createApiProxyResponseCaptureSink({
-    captures: [{ nodeName: null }],
+    captures: [{ type: "capture-response", nodeName: null }],
     cacheWrites: [],
     putCache: () => {},
     trace: value,

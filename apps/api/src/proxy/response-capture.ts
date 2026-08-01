@@ -1,7 +1,7 @@
 import { saveApiProxyRequestFile } from "./request-files.js";
 import type {
-  ApiProxyCacheWriteTarget,
-  ApiProxyResponseCaptureTarget,
+  ApiProxyCacheStoreEffect,
+  ApiProxyCaptureResponseEffect,
 } from "./pipeline.js";
 import type { ApiProxyProtocolOperation } from "./protocol.js";
 import { safeJsonParse, type ProxyTraceAccumulator } from "./protocol-trace.js";
@@ -38,8 +38,8 @@ function looksLikeErrorBody(data: unknown): boolean {
 }
 
 export function createApiProxyResponseCaptureSink(input: {
-  captures: ApiProxyResponseCaptureTarget[];
-  cacheWrites: ApiProxyCacheWriteTarget[];
+  captures: ApiProxyCaptureResponseEffect[];
+  cacheWrites: ApiProxyCacheStoreEffect[];
   putCache: ApiProxyResponseCacheWriter;
   trace: ProxyTraceAccumulator;
   operation: ApiProxyProtocolOperation;

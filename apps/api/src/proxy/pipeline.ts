@@ -32,14 +32,38 @@ export type ApiProxyPipelineRecordRequestInput = {
   requestBody: unknown;
 };
 
-export type ApiProxyResponseCaptureTarget = {
+export type ApiProxyCaptureResponseEffect = {
+  type: "capture-response";
   nodeName: string | null;
 };
 
-export type ApiProxyCacheWriteTarget = {
+export type ApiProxyCacheStoreEffect = {
+  type: "cache-store";
   key: string;
   ttlSeconds: number;
 };
+
+export type ApiProxyResponseEffect =
+  | ApiProxyCaptureResponseEffect
+  | ApiProxyCacheStoreEffect;
+
+export function apiProxyResponseCaptures(
+  effects: ApiProxyResponseEffect[],
+): ApiProxyCaptureResponseEffect[] {
+  return effects.filter(
+    (effect): effect is ApiProxyCaptureResponseEffect =>
+      effect.type === "capture-response",
+  );
+}
+
+export function apiProxyCacheStores(
+  effects: ApiProxyResponseEffect[],
+): ApiProxyCacheStoreEffect[] {
+  return effects.filter(
+    (effect): effect is ApiProxyCacheStoreEffect =>
+      effect.type === "cache-store",
+  );
+}
 
 export type ApiProxyCachedResponsePayload = {
   status: number;
@@ -78,8 +102,7 @@ export type ApiProxyRouteChainResult =
       request: ApiProxyProtocolModelRequest;
       targetId: string;
       textReplacementCount: number;
-      responseCaptures: ApiProxyResponseCaptureTarget[];
-      cacheWrites: ApiProxyCacheWriteTarget[];
+      responseEffects: ApiProxyResponseEffect[];
       routeTrace: ApiProxyRouteTraceStep[];
     }
   | {
@@ -89,8 +112,7 @@ export type ApiProxyRouteChainResult =
       node: ApiProxyFusionNode;
       pipeline: ApiProxyPipelineRecord;
       textReplacementCount: number;
-      responseCaptures: ApiProxyResponseCaptureTarget[];
-      cacheWrites: ApiProxyCacheWriteTarget[];
+      responseEffects: ApiProxyResponseEffect[];
       routeTrace: ApiProxyRouteTraceStep[];
     }
   | {
@@ -100,8 +122,7 @@ export type ApiProxyRouteChainResult =
       endpointId: string;
       upstreamModel: string | null;
       textReplacementCount: number;
-      responseCaptures: ApiProxyResponseCaptureTarget[];
-      cacheWrites: ApiProxyCacheWriteTarget[];
+      responseEffects: ApiProxyResponseEffect[];
       routeTrace: ApiProxyRouteTraceStep[];
     }
   | {
@@ -111,7 +132,7 @@ export type ApiProxyRouteChainResult =
       request: ApiProxyProtocolModelRequest;
       response: ApiProxyResponseResult;
       cacheKey: string;
-      cacheWrites: ApiProxyCacheWriteTarget[];
+      responseEffects: ApiProxyResponseEffect[];
       routeTrace: ApiProxyRouteTraceStep[];
     }
   | {
@@ -210,8 +231,7 @@ type CallFrame = {
 type RouteWalkState = {
   request: ApiProxyProtocolModelRequest;
   textReplacementCount: number;
-  responseCaptures: ApiProxyResponseCaptureTarget[];
-  cacheWrites: ApiProxyCacheWriteTarget[];
+  responseEffects: ApiProxyResponseEffect[];
   routeTrace: ApiProxyRouteTraceStep[];
 };
 
@@ -295,8 +315,7 @@ export async function resolveApiProxyRouteChain(input: {
   const state: RouteWalkState = {
     request: input.request,
     textReplacementCount: 0,
-    responseCaptures: [],
-    cacheWrites: [],
+    responseEffects: [],
     routeTrace: [],
   };
 
@@ -338,8 +357,7 @@ export async function resolveApiProxyRouteChain(input: {
         request: state.request,
         targetId: ref.id,
         textReplacementCount: state.textReplacementCount,
-        responseCaptures: state.responseCaptures,
-        cacheWrites: state.cacheWrites,
+        responseEffects: state.responseEffects,
         routeTrace: state.routeTrace,
       };
     }
@@ -352,8 +370,7 @@ export async function resolveApiProxyRouteChain(input: {
         endpointId: ref.endpointId,
         upstreamModel: ref.upstreamModel,
         textReplacementCount: state.textReplacementCount,
-        responseCaptures: state.responseCaptures,
-        cacheWrites: state.cacheWrites,
+        responseEffects: state.responseEffects,
         routeTrace: state.routeTrace,
       };
     }
@@ -568,7 +585,7 @@ export async function resolveApiProxyRouteChain(input: {
                 body: cached.body,
               },
               cacheKey: key,
-              cacheWrites: state.cacheWrites,
+              responseEffects: state.responseEffects,
               routeTrace: state.routeTrace,
             };
           }
@@ -593,14 +610,18 @@ export async function resolveApiProxyRouteChain(input: {
                 body: subscription.body,
               },
               cacheKey: key,
-              cacheWrites: state.cacheWrites,
+              responseEffects: state.responseEffects,
               routeTrace: state.routeTrace,
             };
           }
           if (input.registerBroadcast) {
             input.registerBroadcast(key);
           }
-          state.cacheWrites.push({ key, ttlSeconds: node.config.ttlSeconds });
+          state.responseEffects.push({
+            type: "cache-store",
+            key,
+            ttlSeconds: node.config.ttlSeconds,
+          });
           state.routeTrace.push(
             nodeStep(pipeline, node, {
               port: "next",
@@ -626,7 +647,7 @@ export async function resolveApiProxyRouteChain(input: {
               body: cached.body,
             },
             cacheKey: key,
-            cacheWrites: state.cacheWrites,
+            responseEffects: state.responseEffects,
             routeTrace: state.routeTrace,
           };
         }
@@ -651,11 +672,15 @@ export async function resolveApiProxyRouteChain(input: {
                 body: coalesced.body,
               },
               cacheKey: key,
-              cacheWrites: state.cacheWrites,
+              responseEffects: state.responseEffects,
               routeTrace: state.routeTrace,
             };
           }
-          state.cacheWrites.push({ key, ttlSeconds: node.config.ttlSeconds });
+          state.responseEffects.push({
+            type: "cache-store",
+            key,
+            ttlSeconds: node.config.ttlSeconds,
+          });
           state.routeTrace.push(
             nodeStep(pipeline, node, {
               port: "next",
@@ -668,7 +693,11 @@ export async function resolveApiProxyRouteChain(input: {
         if (input.registerOwner) {
           input.registerOwner(key);
         }
-        state.cacheWrites.push({ key, ttlSeconds: node.config.ttlSeconds });
+        state.responseEffects.push({
+          type: "cache-store",
+          key,
+          ttlSeconds: node.config.ttlSeconds,
+        });
         state.routeTrace.push(
           nodeStep(pipeline, node, { port: "next", detail: "cache miss" }),
         );
@@ -694,7 +723,10 @@ export async function resolveApiProxyRouteChain(input: {
           }
         }
         if (node.config.response) {
-          state.responseCaptures.push({ nodeName: node.name || null });
+          state.responseEffects.push({
+            type: "capture-response",
+            nodeName: node.name || null,
+          });
           details.push("response at completion");
         }
         state.routeTrace.push(
@@ -834,8 +866,7 @@ export async function resolveApiProxyRouteChain(input: {
           node,
           pipeline,
           textReplacementCount: state.textReplacementCount,
-          responseCaptures: state.responseCaptures,
-          cacheWrites: state.cacheWrites,
+          responseEffects: state.responseEffects,
           routeTrace: state.routeTrace,
         };
       }
