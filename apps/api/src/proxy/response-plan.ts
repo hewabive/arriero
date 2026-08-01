@@ -37,7 +37,6 @@ export type ApiProxyResponseMetadata = {
 };
 
 export type ApiProxyResponsePlanExecutor = {
-  append: (effects: ApiProxyResponseEffect[]) => void;
   processText: (text: string, metadata: ApiProxyResponseMetadata) => string;
   tap: (
     stream: ReadableStream<Uint8Array>,
@@ -50,7 +49,6 @@ type EffectState = {
   effect: ApiProxyResponseEffect;
   explicitText: string | null;
   streamedText: string;
-  metadata: ApiProxyResponseMetadata | null;
   tapped: boolean;
   streamComplete: boolean;
   flushed: boolean;
@@ -70,6 +68,10 @@ function settleCacheWithoutBody(effect: ApiProxyCacheStoreEffect): void {
   finishApiProxyBroadcast(effect.key);
 }
 
+function isSuccessStatus(metadata: ApiProxyResponseMetadata): boolean {
+  return metadata.status >= 200 && metadata.status < 300;
+}
+
 export function createApiProxyResponsePlanExecutor(input: {
   effects: ApiProxyResponseEffect[];
   putCache: ApiProxyResponseCacheWriter;
@@ -80,16 +82,15 @@ export function createApiProxyResponsePlanExecutor(input: {
     return null;
   }
 
-  const stateFor = (effect: ApiProxyResponseEffect): EffectState => ({
+  const states: EffectState[] = input.effects.map((effect) => ({
     effect,
     explicitText: null,
     streamedText: "",
-    metadata: null,
     tapped: false,
     streamComplete: false,
     flushed: false,
-  });
-  const states: EffectState[] = input.effects.map(stateFor);
+  }));
+  let metadata: ApiProxyResponseMetadata | null = null;
 
   const flushState = (state: EffectState) => {
     if (state.flushed) {
@@ -97,15 +98,15 @@ export function createApiProxyResponsePlanExecutor(input: {
     }
     state.flushed = true;
 
+    const meta = metadata;
     const text = state.tapped ? state.streamedText : state.explicitText;
     const complete = !state.tapped || state.streamComplete;
     if (state.effect.type === "capture-response") {
       if (
         text === null ||
         !complete ||
-        state.metadata === null ||
-        state.metadata.status < 200 ||
-        state.metadata.status >= 300 ||
+        meta === null ||
+        !isSuccessStatus(meta) ||
         Boolean(input.trace.errorMessage)
       ) {
         return;
@@ -120,7 +121,7 @@ export function createApiProxyResponsePlanExecutor(input: {
           endpoint: input.operation.endpoint,
           routePath: input.operation.routePath,
           modelId: input.trace.modelId,
-          data: state.metadata?.isSse ? text : (safeJsonParse(text) ?? text),
+          data: meta.isSse ? text : (safeJsonParse(text) ?? text),
         }),
       );
       return;
@@ -132,18 +133,15 @@ export function createApiProxyResponsePlanExecutor(input: {
       return;
     }
 
-    const metadata = state.metadata;
-    const parsed =
-      text === null || metadata?.isSse ? null : safeJsonParse(text);
+    const parsed = text === null || meta?.isSse ? null : safeJsonParse(text);
     const cacheable =
       text !== null &&
       text.length > 0 &&
       complete &&
-      metadata !== null &&
-      metadata.status >= 200 &&
-      metadata.status < 300 &&
+      meta !== null &&
+      isSuccessStatus(meta) &&
       !input.trace.errorMessage &&
-      (metadata.isSse || !looksLikeErrorBody(parsed));
+      (meta.isSse || !looksLikeErrorBody(parsed));
     if (!cacheable) {
       settleCacheWithoutBody(state.effect);
       return;
@@ -151,16 +149,16 @@ export function createApiProxyResponsePlanExecutor(input: {
     input.putCache({
       key: state.effect.key,
       modelId: input.trace.modelId,
-      status: metadata.status,
-      contentType: metadata.contentType,
-      isSse: metadata.isSse,
+      status: meta.status,
+      contentType: meta.contentType,
+      isSse: meta.isSse,
       body: text,
       ttlSeconds: state.effect.ttlSeconds,
     });
-    if (!metadata.isSse) {
+    if (!meta.isSse) {
       settleApiProxyInFlight(state.effect.key, {
-        status: metadata.status,
-        contentType: metadata.contentType,
+        status: meta.status,
+        contentType: meta.contentType,
         isSse: false,
         body: text,
       });
@@ -169,54 +167,61 @@ export function createApiProxyResponsePlanExecutor(input: {
     input.trace.cache = "store";
   };
 
-  const observeText = (
-    state: EffectState,
-    text: string,
-    metadata: ApiProxyResponseMetadata,
-  ) => {
+  const observeText = (state: EffectState, text: string) => {
     state.explicitText = text;
-    state.metadata = metadata;
-    if (state.effect.type === "cache-store" && metadata.isSse) {
+    if (state.effect.type === "cache-store" && metadata?.isSse) {
       pushApiProxyBroadcast(state.effect.key, new TextEncoder().encode(text));
     }
   };
 
-  const observeStream = (
+  const observeStreamGroup = (
     stream: ReadableStream<Uint8Array>,
-    state: EffectState,
-    metadata: ApiProxyResponseMetadata,
-  ) => {
-    state.tapped = true;
-    state.metadata = metadata;
+    group: EffectState[],
+  ): ReadableStream<Uint8Array> => {
+    for (const state of group) {
+      state.tapped = true;
+    }
+    const cacheKeys = group.flatMap((state) =>
+      state.effect.type === "cache-store" ? [state.effect.key] : [],
+    );
     const decoder = new TextDecoder();
+    let text = "";
     return stream.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
-          state.streamedText += decoder.decode(chunk, { stream: true });
-          if (state.effect.type === "cache-store") {
-            pushApiProxyBroadcast(state.effect.key, chunk);
+          text += decoder.decode(chunk, { stream: true });
+          for (const key of cacheKeys) {
+            pushApiProxyBroadcast(key, chunk);
           }
           controller.enqueue(chunk);
         },
         flush() {
-          state.streamedText += decoder.decode();
-          state.streamComplete = true;
-          flushState(state);
+          text += decoder.decode();
+          for (const state of group) {
+            state.streamedText = text;
+            state.streamComplete = true;
+            flushState(state);
+          }
         },
       }),
     );
   };
 
   return {
-    append(effects) {
-      states.push(...effects.map(stateFor));
-    },
-    processText(text, metadata) {
+    processText(text, meta) {
+      metadata = meta;
+      const applyTransforms = isSuccessStatus(meta);
       let current = text;
       for (let index = states.length - 1; index >= 0; index -= 1) {
         const state = states[index];
-        if (state?.effect.type === "replace-response-text") {
-          const replacement = metadata.isSse
+        if (!state) {
+          continue;
+        }
+        if (state.effect.type === "replace-response-text") {
+          if (!applyTransforms) {
+            continue;
+          }
+          const replacement = meta.isSse
             ? replaceApiProxyResponseSseText({
                 text: current,
                 operation: input.operation,
@@ -229,24 +234,43 @@ export function createApiProxyResponsePlanExecutor(input: {
               });
           current = replacement.text;
           input.trace.textReplacementCount += replacement.count;
-        } else if (state?.effect.type === "token-scale") {
+        } else if (state.effect.type === "token-scale") {
+          if (!applyTransforms) {
+            continue;
+          }
           current = scaleApiProxyResponseTokenText({
             text: current,
             factor: state.effect.factor,
             operation: input.operation,
-            isSse: metadata.isSse,
+            isSse: meta.isSse,
           }).text;
-        } else if (state) {
-          observeText(state, current, metadata);
+        } else {
+          observeText(state, current);
         }
       }
       return current;
     },
-    tap(stream, metadata) {
+    tap(stream, meta) {
+      metadata = meta;
+      const applyTransforms = isSuccessStatus(meta);
       let current = stream;
+      let group: EffectState[] = [];
+      const drainGroup = () => {
+        if (group.length > 0) {
+          current = observeStreamGroup(current, group);
+          group = [];
+        }
+      };
       for (let index = states.length - 1; index >= 0; index -= 1) {
         const state = states[index];
-        if (state?.effect.type === "replace-response-text") {
+        if (!state) {
+          continue;
+        }
+        if (state.effect.type === "replace-response-text") {
+          if (!applyTransforms) {
+            continue;
+          }
+          drainGroup();
           current = current.pipeThrough(
             createApiProxyResponseReplaceStream({
               operation: input.operation,
@@ -256,17 +280,22 @@ export function createApiProxyResponsePlanExecutor(input: {
               },
             }),
           );
-        } else if (state?.effect.type === "token-scale") {
+        } else if (state.effect.type === "token-scale") {
+          if (!applyTransforms) {
+            continue;
+          }
+          drainGroup();
           current = current.pipeThrough(
             createApiProxyTokenScaleStream({
               operation: input.operation,
               factor: state.effect.factor,
             }),
           );
-        } else if (state) {
-          current = observeStream(current, state, metadata);
+        } else {
+          group.push(state);
         }
       }
+      drainGroup();
       return current;
     },
     flush() {
@@ -278,4 +307,27 @@ export function createApiProxyResponsePlanExecutor(input: {
       }
     },
   };
+}
+
+export function applyApiProxyResponsePlanText(
+  plan: ApiProxyResponsePlanExecutor | null,
+  text: string,
+  metadata: ApiProxyResponseMetadata,
+): string {
+  return plan ? plan.processText(text, metadata) : text;
+}
+
+export function tapApiProxyResponsePlanStream(
+  plan: ApiProxyResponsePlanExecutor | null,
+  stream: ReadableStream<Uint8Array>,
+  status: number,
+  headers: Headers,
+): ReadableStream<Uint8Array> {
+  return plan
+    ? plan.tap(stream, {
+        status,
+        contentType: headers.get("content-type") ?? "text/event-stream",
+        isSse: true,
+      })
+    : stream;
 }

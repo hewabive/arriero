@@ -1,3 +1,7 @@
+import {
+  scaleApiProxyRequestTokenCount,
+  scaleApiProxyResponseTokenCount,
+} from "@arriero/core";
 import { Checkbox, NumberInput, Text, TextInput } from "@mantine/core";
 
 import { EditRequestFields } from "../edit-request-fields";
@@ -119,7 +123,7 @@ export function PipelineNodeFields(props: {
         <Text c="dimmed" size="xs">
           {factor === 1
             ? "Factor 1 leaves limits and usage unchanged."
-            : `Example: max_tokens 40000 → ${Math.max(1, Math.floor(40_000 / factor))}; usage 10000 → ${Math.ceil(10_000 * factor)}.`}
+            : `Example: max_tokens 40000 → ${scaleApiProxyRequestTokenCount(40_000, factor)}; usage 10000 → ${scaleApiProxyResponseTokenCount(10_000, factor)}.`}
         </Text>
         <PortSelect
           label="Next"

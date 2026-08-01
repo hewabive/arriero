@@ -1,16 +1,22 @@
-import type { ApiProxyTextReplacementRule } from "@arriero/core";
-
-import type { ApiProxyReplaceResponseTextEffect } from "./pipeline.js";
-import type { ApiProxyProtocolOperation } from "./protocol.js";
 import {
-  createApiProxySseFrameBuffer,
+  activeApiProxyTextReplacementRules,
+  applyApiProxyTextReplacements,
+  type ApiProxyTextReplacementRule,
+} from "@arriero/core";
+
+import { isRecord, type JsonRecord } from "./json.js";
+import type { ApiProxyReplaceResponseTextEffect } from "./pipeline.js";
+import {
+  apiProxyResponseShape,
+  type ApiProxyProtocolOperation,
+} from "./protocol.js";
+import {
   createApiProxySseTransform,
   mutateApiProxyJsonText,
-  mutateApiProxySseJsonFrame,
+  parseApiProxySseJsonFrame,
+  transformApiProxySseText,
   type ApiProxySseFrameTransformer,
 } from "./response-codec.js";
-
-type JsonRecord = Record<string, unknown>;
 
 type Replacement = {
   text: string;
@@ -23,33 +29,6 @@ type MutableDelta = {
   set: (text: string) => void;
 };
 
-function isRecord(value: unknown): value is JsonRecord {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function activeRules(
-  rules: ApiProxyTextReplacementRule[],
-): ApiProxyTextReplacementRule[] {
-  return rules.filter((rule) => rule.enabled && rule.find.length > 0);
-}
-
-export function replaceLiteralText(
-  text: string,
-  rules: ApiProxyTextReplacementRule[],
-): Replacement {
-  let next = text;
-  let count = 0;
-  for (const rule of activeRules(rules)) {
-    const parts = next.split(rule.find);
-    if (parts.length <= 1) {
-      continue;
-    }
-    count += parts.length - 1;
-    next = parts.join(rule.replace);
-  }
-  return { text: next, count };
-}
-
 function replaceStringField(
   record: JsonRecord,
   key: string,
@@ -59,7 +38,7 @@ function replaceStringField(
   if (typeof value !== "string") {
     return 0;
   }
-  const replacement = replaceLiteralText(value, rules);
+  const replacement = applyApiProxyTextReplacements(value, rules);
   if (replacement.count > 0) {
     record[key] = replacement.text;
   }
@@ -71,7 +50,7 @@ function replaceNestedStrings(
   rules: ApiProxyTextReplacementRule[],
 ): { value: unknown; count: number } {
   if (typeof value === "string") {
-    const replacement = replaceLiteralText(value, rules);
+    const replacement = applyApiProxyTextReplacements(value, rules);
     return { value: replacement.text, count: replacement.count };
   }
   if (Array.isArray(value)) {
@@ -215,13 +194,14 @@ function replaceResponseObject(
   if (!isRecord(value)) {
     return 0;
   }
-  if (operation.protocol === "anthropic") {
-    return replaceAnthropicContent(value, effect);
+  switch (apiProxyResponseShape(operation)) {
+    case "anthropic":
+      return replaceAnthropicContent(value, effect);
+    case "openai-responses":
+      return replaceOpenAiResponsesOutput(value, effect);
+    case "openai-chat":
+      return replaceOpenAiChoices(value, effect);
   }
-  if (operation.endpoint === "responses") {
-    return replaceOpenAiResponsesOutput(value, effect);
-  }
-  return replaceOpenAiChoices(value, effect);
 }
 
 export function replaceApiProxyResponseText(input: {
@@ -279,7 +259,7 @@ class StreamingLiteralChain {
   private readonly rules: StreamingLiteralRule[];
 
   constructor(rules: ApiProxyTextReplacementRule[], onReplacement: () => void) {
-    this.rules = activeRules(rules).map(
+    this.rules = activeApiProxyTextReplacementRules(rules).map(
       (rule) =>
         new StreamingLiteralRule(rule.find, rule.replace, onReplacement),
     );
@@ -427,19 +407,14 @@ function collectMutableDeltas(
   if (!isRecord(value)) {
     return [];
   }
-  if (operation.protocol === "anthropic") {
-    return collectAnthropicDeltas(value, effect);
+  switch (apiProxyResponseShape(operation)) {
+    case "anthropic":
+      return collectAnthropicDeltas(value, effect);
+    case "openai-responses":
+      return collectOpenAiResponsesDeltas(value, effect);
+    case "openai-chat":
+      return collectOpenAiChoiceDeltas(value, effect);
   }
-  if (operation.endpoint === "responses") {
-    return collectOpenAiResponsesDeltas(value, effect);
-  }
-  return collectOpenAiChoiceDeltas(value, effect);
-}
-
-function frameHasDone(frame: string): boolean {
-  return /(?:^|[\r\n])\uFEFF?[\t ]*data[\t ]*:[\t ]*\[DONE\][\t ]*(?=$|[\r\n])/.test(
-    frame,
-  );
 }
 
 function responseFinishesAllLanes(value: unknown): boolean {
@@ -499,21 +474,6 @@ function createResponseReplaceFrameTransformer(
   const lanes = new Map<string, LaneState>();
   const onReplacement = () => input.onReplacement?.(1);
 
-  const templateFor = (frame: string, lane: string) => (text: string) => {
-    const mutation = mutateApiProxySseJsonFrame(frame, (value) => {
-      const deltas = collectMutableDeltas(value, input.operation, input.effect);
-      const target = deltas.find((delta) => delta.lane === lane);
-      if (!target) {
-        return { changed: false, value };
-      }
-      for (const delta of deltas) {
-        delta.set(delta === target ? text : "");
-      }
-      return { changed: true, value };
-    });
-    return mutation.changed ? mutation.text : null;
-  };
-
   const flushLane = (lane: string, state: LaneState): string | null => {
     const text = state.chain.flush();
     lanes.delete(lane);
@@ -540,28 +500,46 @@ function createResponseReplaceFrameTransformer(
   };
 
   const transformFrame = (frame: string): string[] => {
-    let finishAll = frameHasDone(frame);
+    const parsed = parseApiProxySseJsonFrame(frame);
+    let finishAll = parsed.hasDone;
     const finishedLanes = new Set<string>();
     const presentLanes = new Set<string>();
-    mutateApiProxySseJsonFrame(frame, (value) => {
-      finishAll ||= responseFinishesAllLanes(value);
-      for (const lane of anthropicFinishedLanePrefixes(value)) {
+    const payloadDeltas = parsed.payloads.map((payload) => {
+      finishAll ||= responseFinishesAllLanes(payload.value);
+      for (const lane of anthropicFinishedLanePrefixes(payload.value)) {
         finishedLanes.add(lane);
       }
-      for (const delta of collectMutableDeltas(
-        value,
+      const deltas = collectMutableDeltas(
+        payload.value,
         input.operation,
         input.effect,
-      )) {
+      );
+      for (const delta of deltas) {
         presentLanes.add(delta.lane);
       }
-      return { changed: false, value };
+      return { payload, deltas };
     });
 
+    const templateFor =
+      (lane: string) =>
+      (text: string): string | null => {
+        let found = false;
+        for (const { payload, deltas } of payloadDeltas) {
+          const target = deltas.find((delta) => delta.lane === lane);
+          if (!target) {
+            continue;
+          }
+          found = true;
+          for (const delta of deltas) {
+            delta.set(delta === target ? text : "");
+          }
+          payload.replace(payload.value);
+        }
+        return found ? parsed.serialize().text : null;
+      };
+
     const output = flushMatching(finishAll, finishedLanes, presentLanes);
-    const mutation = mutateApiProxySseJsonFrame(frame, (value) => {
-      const deltas = collectMutableDeltas(value, input.operation, input.effect);
-      let changed = false;
+    for (const { payload, deltas } of payloadDeltas) {
       for (const delta of deltas) {
         let state = lanes.get(delta.lane);
         if (!state) {
@@ -571,7 +549,7 @@ function createResponseReplaceFrameTransformer(
           };
           lanes.set(delta.lane, state);
         }
-        state.template = templateFor(frame, delta.lane);
+        state.template = templateFor(delta.lane);
         let text = state.chain.push(delta.text);
         if (finishAll || finishedLanes.has(delta.lane)) {
           text += state.chain.flush();
@@ -579,12 +557,11 @@ function createResponseReplaceFrameTransformer(
         }
         if (text !== delta.text) {
           delta.set(text);
-          changed = true;
+          payload.replace(payload.value);
         }
       }
-      return { changed, value };
-    });
-    output.push(mutation.text);
+    }
+    output.push(parsed.serialize().text);
     return output;
   };
 
@@ -611,16 +588,6 @@ export function createApiProxyResponseReplaceStream(
   );
 }
 
-function appendFrameOutput(
-  output: string[],
-  value: string | string[] | null,
-): void {
-  if (value === null) {
-    return;
-  }
-  output.push(...(Array.isArray(value) ? value : [value]));
-}
-
 export function replaceApiProxyResponseSseText(input: {
   text: string;
   operation: ApiProxyProtocolOperation;
@@ -634,17 +601,5 @@ export function replaceApiProxyResponseSseText(input: {
       count += increment;
     },
   });
-  const frames = createApiProxySseFrameBuffer();
-  const output: string[] = [];
-  for (const frame of frames.push(new TextEncoder().encode(input.text))) {
-    appendFrameOutput(output, transformer.transform(frame));
-  }
-  const tail = frames.flush();
-  if (tail !== null) {
-    appendFrameOutput(output, transformer.transform(tail));
-  }
-  if (transformer.flush) {
-    appendFrameOutput(output, transformer.flush());
-  }
-  return { text: output.join(""), count };
+  return { text: transformApiProxySseText(input.text, transformer), count };
 }

@@ -9,6 +9,8 @@ export * from "./instance-resources.js";
 export * from "./memory-estimate.js";
 export * from "./proxy/request-edits.js";
 export * from "./proxy/pipeline-graph.js";
+export * from "./proxy/text-replacement.js";
+export * from "./proxy/token-scale.js";
 
 export const InstanceArgValueSchema = z.union([
   z.string(),

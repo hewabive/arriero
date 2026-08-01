@@ -20,7 +20,11 @@ import {
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
 import { observeBodyCompletion } from "./body-completion.js";
-import type { ApiProxyResponsePlanExecutor } from "./response-plan.js";
+import {
+  applyApiProxyResponsePlanText,
+  tapApiProxyResponsePlanStream,
+  type ApiProxyResponsePlanExecutor,
+} from "./response-plan.js";
 import {
   consumeResumableSse,
   createResumableBufferState,
@@ -161,15 +165,6 @@ export async function serveResumedStreamSession(input: {
   const effectiveCodec = translateAnthropic
     ? translatedAnthropicResumableCodec(claim.exchangeBody)
     : codec;
-  const planBody = (stream: ReadableStream<Uint8Array>) =>
-    input.responsePlan
-      ? input.responsePlan.tap(stream, {
-          status: upstream.status,
-          contentType:
-            upstream.headers.get("content-type") ?? "text/event-stream",
-          isSse: true,
-        })
-      : stream;
   const applyUsage = (usage: ProxyUsageCounts) => {
     trace.usage = {
       promptTokens: usage.promptTokens,
@@ -215,13 +210,15 @@ export async function serveResumedStreamSession(input: {
     }
     trace.usage = resumableTraceUsage(state);
     const final = finalFromState(effectiveCodec, state, false);
-    const delivered = input.responsePlan
-      ? input.responsePlan.processText(final.body, {
-          status: final.status,
-          contentType: final.headers["content-type"] ?? "application/json",
-          isSse: false,
-        })
-      : final.body;
+    const delivered = applyApiProxyResponsePlanText(
+      input.responsePlan,
+      final.body,
+      {
+        status: final.status,
+        contentType: final.headers["content-type"] ?? "application/json",
+        isSse: false,
+      },
+    );
     return new Response(delivered, {
       status: final.status,
       headers: final.headers,
@@ -247,7 +244,12 @@ export async function serveResumedStreamSession(input: {
     recorder.markDeferred();
     metered = new Response(
       observeBodyCompletion(
-        planBody(upstream.body.pipeThrough(translation.transform)),
+        tapApiProxyResponsePlanStream(
+          input.responsePlan,
+          upstream.body.pipeThrough(translation.transform),
+          upstream.status,
+          upstream.headers,
+        ),
         () => {
           store.finish(entry, { evict: true });
           translation.finalize();
@@ -273,7 +275,12 @@ export async function serveResumedStreamSession(input: {
   recorder.markDeferred();
   metered = new Response(
     observeBodyCompletion(
-      planBody(upstream.body.pipeThrough(meter.transform)),
+      tapApiProxyResponsePlanStream(
+        input.responsePlan,
+        upstream.body.pipeThrough(meter.transform),
+        upstream.status,
+        upstream.headers,
+      ),
       () => {
         store.finish(entry, { evict: true });
         meter.finalize();

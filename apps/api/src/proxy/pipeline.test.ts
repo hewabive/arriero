@@ -1668,7 +1668,7 @@ test("token-scale divides request limits and defers inverse usage scaling", asyn
     ]);
     assert.equal(
       result.routeTrace[1]?.detail,
-      "factor 10 · 2 request field(s)",
+      "factor 10 · set max_tokens = 4000 (was 40000); set thinking.budget_tokens = 2000 (was 20000)",
     );
   }
 });

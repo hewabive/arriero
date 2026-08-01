@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {
+  apiProxyTokenScaleEditOperations,
+  applyApiProxyRequestEdits,
+  scaleApiProxyRequestTokenCount,
+  scaleApiProxyResponseTokenCount,
+} from "@arriero/core";
+
 import type { ApiProxyProtocolOperation } from "./protocol.js";
 import {
   createApiProxyTokenScaleStream,
-  scaleApiProxyRequestTokenCount,
-  scaleApiProxyRequestTokens,
-  scaleApiProxyResponseTokenCount,
   scaleApiProxyResponseTokenText,
   scaleApiProxyResponseTokens,
 } from "./token-scale.js";
@@ -51,11 +55,13 @@ test("request scaling covers OpenAI, Anthropic, and common local limits", () => 
     reasoning: { max_tokens: 2_001 },
     messages: [{ role: "user", content: "keep 40000 unchanged" }],
   };
-  const result = scaleApiProxyRequestTokens(original, 10);
+  const operations = apiProxyTokenScaleEditOperations(10, original);
+  const result = applyApiProxyRequestEdits(original, operations);
 
-  assert.equal(result.count, 5);
-  assert.notEqual(result.value, original);
-  assert.deepEqual(result.value, {
+  assert.equal(operations.length, 5);
+  assert.equal(result.changed, true);
+  assert.notEqual(result.body, original);
+  assert.deepEqual(result.body, {
     max_tokens: 4_000,
     max_completion_tokens: 2_000,
     max_output_tokens: 819,

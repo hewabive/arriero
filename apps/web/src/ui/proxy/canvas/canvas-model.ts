@@ -1,6 +1,8 @@
 import {
+  activeApiProxyTextReplacementRules,
   apiProxyPipelineNodePorts,
   apiProxyReasoningEffortBudgets,
+  isApiProxySingleNextNodeType,
   type ApiProxyModelRecord,
   type ApiProxyPipelineRecord,
   type ApiProxyRouteTraceStep,
@@ -169,16 +171,10 @@ export function draftNodePorts(
   node: PipelineNodeDraft,
   exitNames: string[],
 ): Array<{ port: string; value: PortValue }> {
+  if (isApiProxySingleNextNodeType(node.type)) {
+    return [{ port: "next", value: node.portNext }];
+  }
   switch (node.type) {
-    case "replace-text":
-    case "capture-request":
-    case "edit-request":
-    case "reasoning":
-    case "output-limit":
-    case "token-scale":
-    case "strip-attribution":
-    case "cache":
-      return [{ port: "next", value: node.portNext }];
     case "condition":
       return [
         { port: "true", value: node.portTrue },
@@ -211,8 +207,8 @@ export function nodeSummary(
 ): string {
   switch (node.type) {
     case "replace-text": {
-      const count = node.replacements.filter(
-        (rule) => rule.enabled && rule.find.length > 0,
+      const count = activeApiProxyTextReplacementRules(
+        node.replacements,
       ).length;
       const surfaces = [
         node.replaceRequest ? "request" : null,

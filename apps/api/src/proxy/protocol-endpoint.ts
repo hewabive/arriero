@@ -42,7 +42,6 @@ import { executeApiProxyFusion } from "./fusion.js";
 import {
   apiProxyCacheStores,
   resolveApiProxyRouteChain,
-  type ApiProxyCacheStoreEffect,
   type ApiProxyResponseEffect,
   type ApiProxyRouteChainResult,
 } from "./pipeline.js";
@@ -83,7 +82,9 @@ import {
   subscribeApiProxyBroadcast,
 } from "./response-broadcast.js";
 import {
+  applyApiProxyResponsePlanText,
   createApiProxyResponsePlanExecutor,
+  tapApiProxyResponsePlanStream,
   type ApiProxyResponsePlanExecutor,
 } from "./response-plan.js";
 import {
@@ -353,38 +354,33 @@ async function proxyProtocolEndpointInner(
     return c.json(response.body, response.status);
   }
 
-  const cacheWrites = apiProxyCacheStores(routeResult.responseEffects);
-  let responsePlan = createApiProxyResponsePlanExecutor({
-    effects: routeResult.responseEffects,
-    putCache: putApiProxyCachedResponse,
-    trace,
-    operation,
-  });
-  if (responsePlan) {
-    recorder.beforeRecord(() => responsePlan?.flush());
-  }
-  const appendResponseEffects = (effects: ApiProxyResponseEffect[]) => {
-    if (effects.length === 0) {
-      return;
-    }
-    if (responsePlan) {
-      responsePlan.append(effects);
-      return;
-    }
-    responsePlan = createApiProxyResponsePlanExecutor({
+  const createResponsePlan = (effects: ApiProxyResponseEffect[]) => {
+    const plan = createApiProxyResponsePlanExecutor({
       effects,
       putCache: putApiProxyCachedResponse,
       trace,
       operation,
     });
-    if (responsePlan) {
-      recorder.beforeRecord(() => responsePlan?.flush());
+    if (plan) {
+      recorder.beforeRecord(() => plan.flush());
     }
+    return plan;
   };
 
   if (routeResult.kind === "response") {
     trace.cache = routeResult.source === "coalesced" ? "coalesced" : "hit";
     trace.stream = routeResult.request.stream;
+    const responsePlan = createResponsePlan(routeResult.responseEffects);
+    const { status, contentType } = routeResult.response;
+    const init: ResponseInit = {
+      status,
+      headers: { "content-type": contentType },
+    };
+    const metadata = {
+      status,
+      contentType,
+      isSse: contentType.startsWith("text/event-stream"),
+    };
     const responseBody = routeResult.response.body;
     if (typeof responseBody === "string") {
       const usage = usageFromNonStreamBody(operation.protocol, responseBody);
@@ -400,40 +396,23 @@ async function proxyProtocolEndpointInner(
           promptPerSecond: usage.promptPerSecond,
         };
       }
+      return new Response(
+        applyApiProxyResponsePlanText(responsePlan, responseBody, metadata),
+        init,
+      );
     }
-    const metadata = {
-      status: routeResult.response.status,
-      contentType: routeResult.response.contentType,
-      isSse: routeResult.response.contentType.startsWith("text/event-stream"),
-    };
-    if (typeof responseBody === "string") {
-      const delivered = responsePlan
-        ? responsePlan.processText(responseBody, metadata)
-        : responseBody;
-      return new Response(delivered, {
-        status: routeResult.response.status,
-        headers: { "content-type": routeResult.response.contentType },
-      });
-    }
-    const plannedBody = responsePlan
-      ? responsePlan.tap(responseBody, metadata)
-      : responseBody;
-    let response: Response;
     if (responsePlan) {
       recorder.markDeferred();
+      let response: Response;
       response = new Response(
-        observeBodyCompletion(plannedBody, () => recorder.record(response)),
-        {
-          status: routeResult.response.status,
-          headers: { "content-type": routeResult.response.contentType },
-        },
+        observeBodyCompletion(responsePlan.tap(responseBody, metadata), () =>
+          recorder.record(response),
+        ),
+        init,
       );
       return response;
     }
-    return new Response(plannedBody, {
-      status: routeResult.response.status,
-      headers: { "content-type": routeResult.response.contentType },
-    });
+    return new Response(responseBody, init);
   }
 
   if (routeResult.kind === "endpoint") {
@@ -457,12 +436,13 @@ async function proxyProtocolEndpointInner(
       operation,
       targetId: target.id,
       request: routeResult.request,
-      cacheWrites,
+      streamOwnerKey:
+        apiProxyCacheStores(routeResult.responseEffects)[0]?.key ?? null,
       trace,
       recorder,
       inflight,
       extraTarget: target,
-      responsePlan,
+      responsePlan: createResponsePlan(routeResult.responseEffects),
     });
   }
 
@@ -484,24 +464,28 @@ async function proxyProtocolEndpointInner(
       return c.json(response.body, response.status);
     }
     if (fusion.kind === "direct") {
-      appendResponseEffects(fusion.responseEffects);
       trace.stream = routeResult.request.stream;
+      const responsePlan = createResponsePlan([
+        ...routeResult.responseEffects,
+        ...fusion.responseEffects,
+      ]);
       const contentType =
         fusion.response.headers["content-type"] ??
         (routeResult.request.stream ? "text/event-stream" : "application/json");
-      const delivered = responsePlan
-        ? responsePlan.processText(fusion.response.body, {
-            status: fusion.response.status,
-            contentType,
-            isSse: routeResult.request.stream,
-          })
-        : fusion.response.body;
+      const delivered = applyApiProxyResponsePlanText(
+        responsePlan,
+        fusion.response.body,
+        {
+          status: fusion.response.status,
+          contentType,
+          isSse: routeResult.request.stream,
+        },
+      );
       return new Response(delivered, {
         status: fusion.response.status,
         headers: fusion.response.headers,
       });
     }
-    appendResponseEffects(fusion.responseEffects);
     route = {
       ok: true,
       kind: "target",
@@ -522,6 +506,7 @@ async function proxyProtocolEndpointInner(
   trace.textReplacementCount = route.textReplacementCount;
   inflight.setTarget(route.targetId);
   inflight.setStream(route.request.stream);
+  const responsePlan = createResponsePlan(route.responseEffects);
 
   const dispatchTarget = getApiProxyTarget(route.targetId);
   if (dispatchTarget) {
@@ -567,7 +552,7 @@ async function proxyProtocolEndpointInner(
     operation,
     targetId: route.targetId,
     request: route.request,
-    cacheWrites: apiProxyCacheStores(route.responseEffects),
+    streamOwnerKey: apiProxyCacheStores(route.responseEffects)[0]?.key ?? null,
     trace,
     recorder,
     inflight,
@@ -614,18 +599,6 @@ async function delegateRemoteTarget(input: {
     input;
   const inflight = input.inflight;
   const responsePlan = input.responsePlan ?? null;
-  const planBody = (
-    stream: ReadableStream<Uint8Array>,
-    status: number,
-    headers: Headers,
-  ) =>
-    responsePlan
-      ? responsePlan.tap(stream, {
-          status,
-          contentType: headers.get("content-type") ?? "text/event-stream",
-          isSse: true,
-        })
-      : stream;
 
   const wantsPrefill =
     request.stream &&
@@ -695,13 +668,11 @@ async function delegateRemoteTarget(input: {
           promptPerSecond: usage.promptPerSecond,
         };
       }
-      const delivered = responsePlan
-        ? responsePlan.processText(text, {
-            status: upstream.status,
-            contentType: headers.get("content-type") ?? "application/json",
-            isSse: false,
-          })
-        : text;
+      const delivered = applyApiProxyResponsePlanText(responsePlan, text, {
+        status: upstream.status,
+        contentType: headers.get("content-type") ?? "application/json",
+        isSse: false,
+      });
       return new Response(delivered, { status: upstream.status, headers });
     }
 
@@ -709,7 +680,12 @@ async function delegateRemoteTarget(input: {
       recorder.markDeferred();
       return new Response(
         observeBodyCompletion(
-          planBody(upstream.body, upstream.status, headers),
+          tapApiProxyResponsePlanStream(
+            responsePlan,
+            upstream.body,
+            upstream.status,
+            headers,
+          ),
           () => recorder.record(upstream),
         ),
         {
@@ -749,7 +725,8 @@ async function delegateRemoteTarget(input: {
     recorder.markDeferred();
     metered = new Response(
       observeBodyCompletion(
-        planBody(
+        tapApiProxyResponsePlanStream(
+          responsePlan,
           upstream.body.pipeThrough(meter.transform),
           upstream.status,
           headers,
@@ -823,7 +800,7 @@ export async function serveResolvedTarget(input: {
   operation: ApiProxyProtocolOperation;
   targetId: string;
   request: ApiProxyProtocolModelRequest;
-  cacheWrites?: ApiProxyCacheStoreEffect[] | undefined;
+  streamOwnerKey?: string | null | undefined;
   trace: ProxyTraceAccumulator;
   recorder: ProxyTraceRecorder;
   inflight: ApiProxyInflightHandle;
@@ -833,22 +810,10 @@ export async function serveResolvedTarget(input: {
   const { c, adapter, operation, trace, recorder, inflight } = input;
   const extraTarget = input.extraTarget ?? null;
   const responsePlan = input.responsePlan ?? null;
-  const planBody = (
-    stream: ReadableStream<Uint8Array>,
-    status: number,
-    headers: Headers,
-  ) =>
-    responsePlan
-      ? responsePlan.tap(stream, {
-          status,
-          contentType: headers.get("content-type") ?? "text/event-stream",
-          isSse: true,
-        })
-      : stream;
+  const streamOwnerKey = input.streamOwnerKey ?? null;
   const route = {
     targetId: input.targetId,
     request: input.request,
-    cacheWrites: input.cacheWrites ?? [],
   };
   const getTarget = (id: string) =>
     extraTarget && id === extraTarget.id ? extraTarget : getApiProxyTarget(id);
@@ -1248,14 +1213,15 @@ export async function serveResolvedTarget(input: {
           trace.usage = resumableTraceUsage(state);
           const task = resolveSlot();
           const final = finalFromState(bufferCodec, state, false);
-          const delivered = responsePlan
-            ? responsePlan.processText(final.body, {
-                status: final.status,
-                contentType:
-                  final.headers["content-type"] ?? "application/json",
-                isSse: false,
-              })
-            : final.body;
+          const delivered = applyApiProxyResponsePlanText(
+            responsePlan,
+            final.body,
+            {
+              status: final.status,
+              contentType: final.headers["content-type"] ?? "application/json",
+              isSse: false,
+            },
+          );
           return recordTraceWithDeferredTiming({
             recorder,
             trace,
@@ -1289,13 +1255,15 @@ export async function serveResolvedTarget(input: {
         const clientContentType = translatedText
           ? "application/json"
           : (upstream.headers.get("content-type") ?? "application/json");
-        const delivered = responsePlan
-          ? responsePlan.processText(clientText, {
-              status: upstream.status,
-              contentType: clientContentType,
-              isSse: false,
-            })
-          : clientText;
+        const delivered = applyApiProxyResponsePlanText(
+          responsePlan,
+          clientText,
+          {
+            status: upstream.status,
+            contentType: clientContentType,
+            isSse: false,
+          },
+        );
         const nonStreamResponse =
           translatedText !== null
             ? new Response(delivered, {
@@ -1315,10 +1283,6 @@ export async function serveResolvedTarget(input: {
         });
       }
 
-      const streamOwnerKey =
-        route.cacheWrites.length > 0
-          ? (route.cacheWrites[0]?.key ?? null)
-          : null;
       const finishStreamResponse = (
         observed: ReadableStream<Uint8Array>,
         status: number,
@@ -1370,7 +1334,8 @@ export async function serveResolvedTarget(input: {
         recorder.markDeferred();
         metered = finishStreamResponse(
           observeBodyCompletion(
-            planBody(
+            tapApiProxyResponsePlanStream(
+              responsePlan,
               upstream.body.pipeThrough(translation.transform),
               upstream.status,
               upstream.headers,
@@ -1387,7 +1352,12 @@ export async function serveResolvedTarget(input: {
         recorder.markDeferred();
         return finishStreamResponse(
           observeBodyCompletion(
-            planBody(upstream.body, upstream.status, upstream.headers),
+            tapApiProxyResponsePlanStream(
+              responsePlan,
+              upstream.body,
+              upstream.status,
+              upstream.headers,
+            ),
             () => recorder.record(upstream),
           ),
           upstream.status,
@@ -1412,7 +1382,8 @@ export async function serveResolvedTarget(input: {
       recorder.markDeferred();
       metered = finishStreamResponse(
         observeBodyCompletion(
-          planBody(
+          tapApiProxyResponsePlanStream(
+            responsePlan,
             upstream.body.pipeThrough(meter.transform),
             upstream.status,
             upstream.headers,
@@ -1577,20 +1548,17 @@ export async function serveResolvedTarget(input: {
     if (final.status === CLIENT_ABORT_STATUS) {
       markClientAbort();
     }
-    const responseBody =
-      final.status !== CLIENT_ABORT_STATUS &&
-      final.status >= 200 &&
-      final.status < 300 &&
-      !trace.errorMessage &&
-      responsePlan
-        ? responsePlan.processText(final.body, {
-            status: final.status,
-            contentType:
-              final.headers["content-type"] ??
-              (route.request.stream ? "text/event-stream" : "application/json"),
-            isSse: route.request.stream,
-          })
-        : final.body;
+    const responseBody = applyApiProxyResponsePlanText(
+      responsePlan,
+      final.body,
+      {
+        status: final.status,
+        contentType:
+          final.headers["content-type"] ??
+          (route.request.stream ? "text/event-stream" : "application/json"),
+        isSse: route.request.stream,
+      },
+    );
     return recordTraceWithDeferredTiming({
       recorder,
       trace,

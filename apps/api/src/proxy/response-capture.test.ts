@@ -175,16 +175,18 @@ test("token scaling leaves the inner capture real and the outer capture client-v
   assert.equal(value.usage.ratePerSecond, 2_000);
 });
 
-test("response plan can append a final-producing fusion branch", () => {
+test("response plan composes fusion branch effects after route effects", () => {
   const value = trace();
   const plan = createApiProxyResponsePlanExecutor({
-    effects: [{ type: "capture-response", nodeName: "Outer" }],
+    effects: [
+      { type: "capture-response", nodeName: "Outer" },
+      { type: "token-scale", factor: 10 },
+    ],
     putCache: () => {},
     trace: value,
     operation,
   });
   assert.ok(plan);
-  plan.append([{ type: "token-scale", factor: 10 }]);
   const delivered = plan.processText(
     '{"usage":{"prompt_tokens":100,"completion_tokens":20}}',
     jsonResponse,

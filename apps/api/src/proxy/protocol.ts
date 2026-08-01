@@ -150,6 +150,22 @@ export type ApiProxyProtocolAdapter = {
   ) => ApiProxyProtocolResponse;
 };
 
+export type ApiProxyResponseShape =
+  | "anthropic"
+  | "openai-responses"
+  | "openai-chat";
+
+export function apiProxyResponseShape(
+  operation: ApiProxyProtocolOperation,
+): ApiProxyResponseShape {
+  if (operation.protocol === "anthropic") {
+    return "anthropic";
+  }
+  return operation.endpoint === "responses"
+    ? "openai-responses"
+    : "openai-chat";
+}
+
 export function bodyRequestsStreaming(body: unknown) {
   return asObject(body)?.stream === true;
 }

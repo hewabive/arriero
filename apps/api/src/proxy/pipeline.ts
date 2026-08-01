@@ -1,6 +1,8 @@
 import {
   apiProxyOutputLimitEditOperations,
   apiProxyReasoningEditOperations,
+  apiProxyTokenScaleEditOperations,
+  applyApiProxyTextReplacements,
   applyApiProxyRequestEdits,
   resolveApiProxyReasoning,
   type ApiProxyPipelineNode,
@@ -21,7 +23,6 @@ import {
   type ApiProxyProtocolModelRequest,
 } from "./protocol.js";
 import { estimateRequestTokens } from "./token-estimate.js";
-import { scaleApiProxyRequestTokens } from "./token-scale.js";
 
 export type ApiProxyPipelineRecordRequestInput = {
   kind: string;
@@ -61,15 +62,6 @@ export type ApiProxyResponseEffect =
   | ApiProxyCacheStoreEffect
   | ApiProxyReplaceResponseTextEffect
   | ApiProxyTokenScaleResponseEffect;
-
-export function apiProxyResponseCaptures(
-  effects: ApiProxyResponseEffect[],
-): ApiProxyCaptureResponseEffect[] {
-  return effects.filter(
-    (effect): effect is ApiProxyCaptureResponseEffect =>
-      effect.type === "capture-response",
-  );
-}
 
 export function apiProxyCacheStores(
   effects: ApiProxyResponseEffect[],
@@ -163,30 +155,6 @@ type ReplacementResult = {
 
 const replacementExcludedKeys = new Set(["model"]);
 
-function replaceText(
-  value: string,
-  rules: ApiProxyTextReplacementRule[],
-): { value: string; count: number } {
-  let next = value;
-  let count = 0;
-
-  for (const rule of rules) {
-    if (!rule.enabled || !rule.find) {
-      continue;
-    }
-
-    const parts = next.split(rule.find);
-    if (parts.length <= 1) {
-      continue;
-    }
-
-    count += parts.length - 1;
-    next = parts.join(rule.replace);
-  }
-
-  return { value: next, count };
-}
-
 export function replaceRequestText(
   value: unknown,
   rules: ApiProxyTextReplacementRule[],
@@ -196,7 +164,8 @@ export function replaceRequestText(
     if (key && replacementExcludedKeys.has(key)) {
       return { value, count: 0 };
     }
-    return replaceText(value, rules);
+    const replacement = applyApiProxyTextReplacements(value, rules);
+    return { value: replacement.text, count: replacement.count };
   }
 
   if (Array.isArray(value)) {
@@ -570,17 +539,13 @@ export async function resolveApiProxyRouteChain(input: {
         break;
       }
       case "token-scale": {
-        const scaled = scaleApiProxyRequestTokens(
-          state.request.body,
+        const operations = apiProxyTokenScaleEditOperations(
           node.config.factor,
+          state.request.body,
         );
-        if (scaled.count > 0) {
-          state.request = {
-            ...state.request,
-            body: scaled.value,
-            stream: bodyRequestsStreaming(scaled.value),
-          };
-          tokenEstimate = null;
+        const edit = applyApiProxyRequestEdits(state.request.body, operations);
+        if (edit.changed) {
+          state.request = { ...state.request, body: edit.body };
         }
         if (node.config.factor !== 1) {
           state.responseEffects.push({
@@ -594,7 +559,13 @@ export async function resolveApiProxyRouteChain(input: {
             detail:
               node.config.factor === 1
                 ? "factor 1 (no-op)"
-                : `factor ${node.config.factor} · ${scaled.count} request field(s)`,
+                : `factor ${node.config.factor} · ${
+                    edit.outcomes.length > 0
+                      ? edit.outcomes
+                          .map((outcome) => outcome.detail)
+                          .join("; ")
+                      : "no request fields"
+                  }`,
           }),
         );
         ref = node.ports.next;

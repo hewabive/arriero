@@ -1,7 +1,11 @@
-export function asObject(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+export type JsonRecord = Record<string, unknown>;
+
+export function isRecord(value: unknown): value is JsonRecord {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export function asObject(value: unknown): JsonRecord | null {
+  return isRecord(value) ? value : null;
 }
 
 export function numberOrNull(value: unknown): number | null {

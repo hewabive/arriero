@@ -74,19 +74,46 @@ export type ApiProxyPipelineGraphShape = {
   nodes: Array<z.infer<typeof ApiProxyPipelineNodeSchema>>;
 };
 
+export const apiProxySingleNextNodeTypes = [
+  "replace-text",
+  "capture-request",
+  "edit-request",
+  "reasoning",
+  "output-limit",
+  "token-scale",
+  "strip-attribution",
+  "cache",
+] as const;
+
+export type ApiProxySingleNextNodeType =
+  (typeof apiProxySingleNextNodeTypes)[number];
+
+const singleNextNodeTypeSet: ReadonlySet<string> = new Set(
+  apiProxySingleNextNodeTypes,
+);
+
+export function isApiProxySingleNextNodeType(
+  type: string,
+): type is ApiProxySingleNextNodeType {
+  return singleNextNodeTypeSet.has(type);
+}
+
+export function isApiProxySingleNextNode(
+  node: z.infer<typeof ApiProxyPipelineNodeSchema>,
+): node is Extract<
+  z.infer<typeof ApiProxyPipelineNodeSchema>,
+  { type: ApiProxySingleNextNodeType }
+> {
+  return isApiProxySingleNextNodeType(node.type);
+}
+
 export function apiProxyPipelineNodePorts(
   node: z.infer<typeof ApiProxyPipelineNodeSchema>,
 ): Array<{ port: string; ref: z.infer<typeof ApiProxyPortRefSchema> }> {
+  if (isApiProxySingleNextNode(node)) {
+    return node.ports.next ? [{ port: "next", ref: node.ports.next }] : [];
+  }
   switch (node.type) {
-    case "replace-text":
-    case "capture-request":
-    case "edit-request":
-    case "reasoning":
-    case "output-limit":
-    case "token-scale":
-    case "strip-attribution":
-    case "cache":
-      return node.ports.next ? [{ port: "next", ref: node.ports.next }] : [];
     case "condition": {
       const refs: Array<{
         port: string;
@@ -207,20 +234,14 @@ export function collectApiProxyRouteHoles(
     pipeline: ApiProxyRoutePipelineShape,
     stack: CallFrame[],
   ): void => {
+    if (isApiProxySingleNextNode(node)) {
+      visit(node.ports.next, pipeline, stack, {
+        nodeId: node.id,
+        where: `port "next" of node ${label(node)}`,
+      });
+      return;
+    }
     switch (node.type) {
-      case "replace-text":
-      case "capture-request":
-      case "edit-request":
-      case "reasoning":
-      case "output-limit":
-      case "token-scale":
-      case "strip-attribution":
-      case "cache":
-        visit(node.ports.next, pipeline, stack, {
-          nodeId: node.id,
-          where: `port "next" of node ${label(node)}`,
-        });
-        return;
       case "condition":
         visit(node.ports.true, pipeline, stack, {
           nodeId: node.id,

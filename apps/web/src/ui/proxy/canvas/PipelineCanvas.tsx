@@ -1,5 +1,6 @@
 import {
   collectApiProxyRouteHoles,
+  isApiProxySingleNextNodeType,
   type ApiProxyRouteTraceStep,
 } from "@arriero/core";
 import {
@@ -71,16 +72,10 @@ function portPatch(
   port: string,
   value: PortValue,
 ): Partial<PipelineNodeDraft> | null {
+  if (isApiProxySingleNextNodeType(node.type)) {
+    return port === "next" ? { portNext: value } : null;
+  }
   switch (node.type) {
-    case "replace-text":
-    case "capture-request":
-    case "edit-request":
-    case "reasoning":
-    case "output-limit":
-    case "token-scale":
-    case "strip-attribution":
-    case "cache":
-      return port === "next" ? { portNext: value } : null;
     case "condition":
       if (port === "true") {
         return { portTrue: value };

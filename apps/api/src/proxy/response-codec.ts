@@ -31,36 +31,43 @@ export function mutateApiProxyJsonText(
   }
 }
 
+export type ApiProxySseFrameSplit = {
+  frames: string[];
+  tail: string | null;
+};
+
+const sseFrameTerminator = /(?:\r\n|\r(?!\n)|\n)(?:\r\n|\r(?!\n)|\n)/;
+
+export function splitApiProxySseFrames(text: string): ApiProxySseFrameSplit {
+  const frames: string[] = [];
+  let pending = text;
+  let match = sseFrameTerminator.exec(pending);
+  while (match?.index !== undefined) {
+    const end = match.index + match[0].length;
+    if (end === pending.length && match[0].endsWith("\r")) {
+      break;
+    }
+    frames.push(pending.slice(0, end));
+    pending = pending.slice(end);
+    match = sseFrameTerminator.exec(pending);
+  }
+  return { frames, tail: pending.length > 0 ? pending : null };
+}
+
 export type ApiProxySseFrameBuffer = {
   push: (chunk: Uint8Array) => string[];
   flush: () => string | null;
 };
 
-const sseFrameTerminator = /(?:\r\n|\r(?!\n)|\n)(?:\r\n|\r(?!\n)|\n)/;
-
 export function createApiProxySseFrameBuffer(): ApiProxySseFrameBuffer {
   const decoder = new TextDecoder();
   let pending = "";
-
-  const takeFrames = () => {
-    const frames: string[] = [];
-    let match = sseFrameTerminator.exec(pending);
-    while (match?.index !== undefined) {
-      const end = match.index + match[0].length;
-      if (end === pending.length && match[0].endsWith("\r")) {
-        break;
-      }
-      frames.push(pending.slice(0, end));
-      pending = pending.slice(end);
-      match = sseFrameTerminator.exec(pending);
-    }
-    return frames;
-  };
-
   return {
     push(chunk) {
       pending += decoder.decode(chunk, { stream: true });
-      return takeFrames();
+      const split = splitApiProxySseFrames(pending);
+      pending = split.tail ?? "";
+      return split.frames;
     },
     flush() {
       pending += decoder.decode();
@@ -104,59 +111,144 @@ function splitSseLines(frame: string): SseLine[] {
 
 const sseDataLine = /^(\uFEFF?[\t ]*data[\t ]*:[\t ]*)(.*)$/s;
 
+export type ApiProxySseJsonPayload = {
+  value: unknown;
+  replace: (next: unknown) => void;
+};
+
+export type ApiProxyParsedSseJsonFrame = {
+  payloads: ApiProxySseJsonPayload[];
+  hasDone: boolean;
+  serialize: () => ApiProxyTextMutation;
+};
+
+type ParsedSsePayload = ApiProxySseJsonPayload & {
+  lineIndex: number;
+  prefix: string;
+  changed: boolean;
+};
+
+export function parseApiProxySseJsonFrame(
+  frame: string,
+): ApiProxyParsedSseJsonFrame {
+  const lines = splitSseLines(frame);
+  const parsed: ParsedSsePayload[] = [];
+  let hasDone = false;
+  for (const [lineIndex, line] of lines.entries()) {
+    const match = sseDataLine.exec(line.content);
+    if (!match) {
+      continue;
+    }
+    const text = match[2] ?? "";
+    if (!text) {
+      continue;
+    }
+    if (text.trim() === "[DONE]") {
+      hasDone = true;
+      continue;
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(text);
+    } catch {
+      continue;
+    }
+    const payload: ParsedSsePayload = {
+      value,
+      lineIndex,
+      prefix: match[1] ?? "",
+      changed: false,
+      replace: (next) => {
+        payload.value = next;
+        payload.changed = true;
+      },
+    };
+    parsed.push(payload);
+  }
+  const serialize = (): ApiProxyTextMutation => {
+    const rendered = new Map<number, string>();
+    for (const payload of parsed) {
+      if (!payload.changed) {
+        continue;
+      }
+      try {
+        rendered.set(
+          payload.lineIndex,
+          `${payload.prefix}${JSON.stringify(payload.value)}`,
+        );
+      } catch {
+        continue;
+      }
+    }
+    if (rendered.size === 0) {
+      return { changed: false, text: frame };
+    }
+    let text = "";
+    for (const [lineIndex, line] of lines.entries()) {
+      text += `${rendered.get(lineIndex) ?? line.content}${line.ending}`;
+    }
+    return { changed: true, text };
+  };
+  return { payloads: parsed, hasDone, serialize };
+}
+
 export function mutateApiProxySseJsonFrame(
   frame: string,
   mutate: ApiProxyJsonMutator,
 ): ApiProxyTextMutation {
-  let changed = false;
-  const text = splitSseLines(frame)
-    .map((line) => {
-      const match = sseDataLine.exec(line.content);
-      if (!match) {
-        return `${line.content}${line.ending}`;
-      }
-      const prefix = match[1] ?? "";
-      const payload = match[2] ?? "";
-      if (!payload || payload.trim() === "[DONE]") {
-        return `${line.content}${line.ending}`;
-      }
-      const mutation = mutateApiProxyJsonText(payload, mutate);
-      if (!mutation.changed) {
-        return `${line.content}${line.ending}`;
-      }
-      changed = true;
-      return `${prefix}${mutation.text}${line.ending}`;
-    })
-    .join("");
-  return changed ? { changed: true, text } : { changed: false, text: frame };
-}
-
-export function mutateApiProxySseJsonText(
-  text: string,
-  mutate: ApiProxyJsonMutator,
-): ApiProxyTextMutation {
-  const frames = createApiProxySseFrameBuffer();
-  const output: string[] = [];
-  let changed = false;
-  const append = (frame: string) => {
-    const mutation = mutateApiProxySseJsonFrame(frame, mutate);
-    changed ||= mutation.changed;
-    output.push(mutation.text);
-  };
-  for (const frame of frames.push(new TextEncoder().encode(text))) {
-    append(frame);
+  const parsed = parseApiProxySseJsonFrame(frame);
+  for (const payload of parsed.payloads) {
+    const mutation = mutate(payload.value);
+    if (mutation.changed) {
+      payload.replace(mutation.value);
+    }
   }
-  const tail = frames.flush();
-  if (tail !== null) {
-    append(tail);
-  }
-  return changed ? { changed: true, text: output.join("") } : { changed, text };
+  return parsed.serialize();
 }
 
 export type ApiProxySseFrameTransformer = {
   transform: (frame: string) => string | string[] | null;
   flush?: (() => string | string[] | null) | undefined;
 };
+
+export function transformApiProxySseText(
+  text: string,
+  transformer: ApiProxySseFrameTransformer,
+): string {
+  const split = splitApiProxySseFrames(text);
+  const output: string[] = [];
+  const append = (value: string | string[] | null) => {
+    if (value === null) {
+      return;
+    }
+    output.push(...(Array.isArray(value) ? value : [value]));
+  };
+  for (const frame of split.frames) {
+    append(transformer.transform(frame));
+  }
+  if (split.tail !== null) {
+    append(transformer.transform(split.tail));
+  }
+  if (transformer.flush) {
+    append(transformer.flush());
+  }
+  return output.join("");
+}
+
+export function mutateApiProxySseJsonText(
+  text: string,
+  mutate: ApiProxyJsonMutator,
+): ApiProxyTextMutation {
+  let changed = false;
+  const output = transformApiProxySseText(text, {
+    transform: (frame) => {
+      const mutation = mutateApiProxySseJsonFrame(frame, mutate);
+      changed ||= mutation.changed;
+      return mutation.text;
+    },
+  });
+  return changed ? { changed, text: output } : { changed: false, text };
+}
 
 function enqueueText(
   controller: TransformStreamDefaultController<Uint8Array>,
