@@ -198,10 +198,7 @@ test("executeApiProxyPublicMvpPlan fails fast when a started instance crashes in
   assert.equal(result.ok, false);
   assert.equal(starts, 1);
   if (!result.ok) {
-    assert.equal(
-      result.diagnostic.code,
-      "arriero_proxy_instance_start_failed",
-    );
+    assert.equal(result.diagnostic.code, "arriero_proxy_instance_start_failed");
     assert.match(result.diagnostic.message, /unknown argument: --model/);
   }
 });
@@ -241,10 +238,7 @@ test("executeApiProxyPublicMvpPlan rejects unload-model without an unload callba
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(
-      result.diagnostic.code,
-      "arriero_proxy_action_unsupported",
-    );
+    assert.equal(result.diagnostic.code, "arriero_proxy_action_unsupported");
   }
 });
 
@@ -306,10 +300,7 @@ test("executeApiProxyPublicMvpPlan surfaces not-ready when stop-instance never f
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(
-      result.diagnostic.code,
-      "arriero_proxy_target_not_ready",
-    );
+    assert.equal(result.diagnostic.code, "arriero_proxy_target_not_ready");
   }
   assert.equal(stops, 4);
 });
@@ -326,10 +317,7 @@ test("executeApiProxyPublicMvpPlan rejects save-slot without a save callback", a
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(
-      result.diagnostic.code,
-      "arriero_proxy_action_unsupported",
-    );
+    assert.equal(result.diagnostic.code, "arriero_proxy_action_unsupported");
   }
 });
 

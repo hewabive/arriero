@@ -279,7 +279,10 @@ export function NodesView() {
     const checkedAt = fleet.upstream
       ? Date.parse(fleet.upstream.lastCheckedAt)
       : Number.NaN;
-    if (!Number.isFinite(checkedAt) || Date.now() - checkedAt > AUTO_CHECK_STALE_MS) {
+    if (
+      !Number.isFinite(checkedAt) ||
+      Date.now() - checkedAt > AUTO_CHECK_STALE_MS
+    ) {
       void runCheck();
     }
   }, [fleet, runCheck]);
@@ -645,7 +648,11 @@ function NodeCard({
                 </Badge>
               )}
               {version && (
-                <Badge size="sm" variant="light" color={modeColor(version.mode)}>
+                <Badge
+                  size="sm"
+                  variant="light"
+                  color={modeColor(version.mode)}
+                >
                   {version.mode}
                 </Badge>
               )}
