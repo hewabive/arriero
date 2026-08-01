@@ -8,6 +8,10 @@ import {
   registerApiProxyBroadcast,
   subscribeApiProxyBroadcast,
 } from "./response-broadcast.js";
+import {
+  findApiProxyInFlight,
+  registerApiProxyInFlight,
+} from "./response-coalesce.js";
 import { createApiProxyResponsePlanExecutor } from "./response-plan.js";
 
 function trace() {
@@ -428,4 +432,74 @@ test("response plan streams through tapped chunks and captures the raw text", as
   const record = readApiProxyRequestFile(value.files[0]!.path);
   assert.ok(record);
   assert.equal(record.data, "data: a\n\ndata: b\n\n");
+});
+
+test("flushing a plan that saw no response settles in-flight and aborts the broadcast", async () => {
+  clearApiProxyBroadcasts();
+  registerApiProxyBroadcast("leak-key");
+  registerApiProxyInFlight("leak-key");
+  const subscriber = subscribeApiProxyBroadcast("leak-key");
+  assert.ok(subscriber);
+  const reader = subscriber.body.getReader();
+
+  const value = trace();
+  value.errorMessage = "fusion quorum not met";
+  const writes: string[] = [];
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "cache-store", key: "leak-key", ttlSeconds: 600 }],
+    putCache: (input) => writes.push(input.key),
+    trace: value,
+    operation,
+  });
+  assert.ok(sink);
+  sink.flush();
+
+  await assert.rejects(reader.read(), /fusion quorum not met/);
+  assert.equal(findApiProxyInFlight("leak-key"), null);
+  assert.equal(subscribeApiProxyBroadcast("leak-key"), null);
+  assert.deepEqual(writes, []);
+});
+
+test("an upstream error final is not pushed to coalesced followers", async () => {
+  clearApiProxyBroadcasts();
+  registerApiProxyBroadcast("err-key");
+  const subscriber = subscribeApiProxyBroadcast("err-key");
+  assert.ok(subscriber);
+  const reader = subscriber.body.getReader();
+
+  const value = trace();
+  value.errorMessage = "Proxy target llama failed to forward request: boom";
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "cache-store", key: "err-key", ttlSeconds: 600 }],
+    putCache: () => {},
+    trace: value,
+    operation,
+  });
+  assert.ok(sink);
+  sink.processText('{"error":{"message":"boom"}}', {
+    status: 502,
+    contentType: "application/json",
+    isSse: true,
+  });
+  sink.flush();
+
+  await assert.rejects(reader.read(), /failed to forward request/);
+});
+
+test("a cache-served response keeps its hit marker when an upstream store flushes", () => {
+  const value = trace();
+  value.cache = "hit";
+  const writes: string[] = [];
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "cache-store", key: "upstream-key", ttlSeconds: 600 }],
+    putCache: (input) => writes.push(input.key),
+    trace: value,
+    operation,
+  });
+  assert.ok(sink);
+  sink.processText('{"object":"chat.completion"}', jsonResponse);
+  sink.flush();
+
+  assert.deepEqual(writes, ["upstream-key"]);
+  assert.equal(value.cache, "hit");
 });

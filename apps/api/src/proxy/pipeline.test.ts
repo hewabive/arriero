@@ -1001,6 +1001,89 @@ test("streaming request becomes the broadcast owner on a miss", async () => {
   }
 });
 
+function doubleCachePipeline(): ApiProxyPipelineRecord {
+  return pipelineRecord({
+    id: "pipeline-a",
+    entry: { type: "node", id: "cache-1" },
+    nodes: [
+      {
+        id: "cache-1",
+        name: "",
+        type: "cache",
+        config: { ttlSeconds: 600, namespace: "" },
+        ports: { next: { type: "node", id: "cache-2" } },
+      },
+      {
+        id: "cache-2",
+        name: "",
+        type: "cache",
+        config: { ttlSeconds: 600, namespace: "" },
+        ports: { next: { type: "target", id: "target-a" } },
+      },
+    ],
+  });
+}
+
+test("a second cache node with the same key passes through instead of self-coalescing", async () => {
+  const owners: string[] = [];
+  const result = await resolveApiProxyRouteChain({
+    request: request({ body: { model: "public-model", input: "x" } }),
+    getPipeline: getPipelineFrom([doubleCachePipeline()]),
+    lookupCache: () => null,
+    findInFlight: (key) =>
+      owners.includes(key) ? new Promise<null>(() => {}) : null,
+    registerOwner: (key) => owners.push(key),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.kind, "target");
+  if (result.ok && result.kind === "target") {
+    const cacheWrites = result.responseEffects.filter(
+      (effect) => effect.type === "cache-store",
+    );
+    assert.equal(cacheWrites.length, 1);
+    assert.equal(owners.length, 1);
+    assert.equal(
+      result.routeTrace.at(-1)?.detail,
+      "duplicate cache key (pass-through)",
+    );
+  }
+});
+
+test("a route failure after a cache miss still reports the registered store effect", async () => {
+  const owners: string[] = [];
+  const pipeline = pipelineRecord({
+    id: "pipeline-a",
+    entry: { type: "node", id: "cache" },
+    nodes: [
+      {
+        id: "cache",
+        name: "",
+        type: "cache",
+        config: { ttlSeconds: 600, namespace: "" },
+        ports: { next: null },
+      },
+    ],
+  });
+  const result = await resolveApiProxyRouteChain({
+    request: request({ body: { model: "public-model", input: "x" } }),
+    getPipeline: getPipelineFrom([pipeline]),
+    lookupCache: () => null,
+    findInFlight: () => null,
+    registerOwner: (key) => owners.push(key),
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(owners.length, 1);
+    const cacheWrites = result.responseEffects.filter(
+      (effect) => effect.type === "cache-store",
+    );
+    assert.equal(cacheWrites.length, 1);
+    assert.equal(cacheWrites[0]?.key, owners[0]);
+  }
+});
+
 function conditionPipeline(
   predicate: Extract<
     ApiProxyPipelineNode,

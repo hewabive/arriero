@@ -54,6 +54,24 @@ export function finishApiProxyBroadcast(key: string): void {
   entry.subscribers.clear();
 }
 
+export function abortApiProxyBroadcast(key: string, message: string): void {
+  const entry = broadcasts.get(key);
+  if (!entry) {
+    return;
+  }
+  entry.done = true;
+  broadcasts.delete(key);
+  const reason = new Error(message);
+  for (const subscriber of entry.subscribers) {
+    try {
+      subscriber.error(reason);
+    } catch {
+      entry.subscribers.delete(subscriber);
+    }
+  }
+  entry.subscribers.clear();
+}
+
 export function subscribeApiProxyBroadcast(
   key: string,
 ): { contentType: string; body: ReadableStream<Uint8Array> } | null {

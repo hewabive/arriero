@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
 import {
+  abortApiProxyBroadcast,
   clearApiProxyBroadcasts,
   finishApiProxyBroadcast,
   pushApiProxyBroadcast,
@@ -66,5 +67,18 @@ test("multiple subscribers each get the full stream", async () => {
 test("subscribing after finish returns null", () => {
   registerApiProxyBroadcast("k");
   finishApiProxyBroadcast("k");
+  assert.equal(subscribeApiProxyBroadcast("k"), null);
+});
+
+test("abort errors subscribers instead of closing them cleanly", async () => {
+  registerApiProxyBroadcast("k");
+  pushApiProxyBroadcast("k", enc.encode("partial"));
+  const sub = subscribeApiProxyBroadcast("k");
+  assert.ok(sub);
+  const collected = readAll(sub.body);
+
+  abortApiProxyBroadcast("k", "owner upstream failed");
+
+  await assert.rejects(collected, /owner upstream failed/);
   assert.equal(subscribeApiProxyBroadcast("k"), null);
 });

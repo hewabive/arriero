@@ -145,6 +145,7 @@ export type ApiProxyRouteChainResult =
   | {
       ok: false;
       diagnostic: ApiProxyProtocolDiagnostic;
+      responseEffects: ApiProxyResponseEffect[];
       routeTrace: ApiProxyRouteTraceStep[];
     };
 
@@ -313,7 +314,12 @@ export async function resolveApiProxyRouteChain(input: {
   let visitedNodes = 0;
 
   const fail = (diagnostic: ApiProxyProtocolDiagnostic) => {
-    return { ok: false as const, diagnostic, routeTrace: state.routeTrace };
+    return {
+      ok: false as const,
+      diagnostic,
+      responseEffects: state.responseEffects,
+      routeTrace: state.routeTrace,
+    };
   };
 
   const modelId = input.request.modelId;
@@ -597,6 +603,19 @@ export async function resolveApiProxyRouteChain(input: {
           modelId: input.request.modelId,
           body: state.request.body,
         });
+        const alreadyOwned = state.responseEffects.some(
+          (effect) => effect.type === "cache-store" && effect.key === key,
+        );
+        if (alreadyOwned) {
+          state.routeTrace.push(
+            nodeStep(pipeline, node, {
+              port: "next",
+              detail: "duplicate cache key (pass-through)",
+            }),
+          );
+          ref = node.ports.next;
+          break;
+        }
         const cached = input.lookupCache ? await input.lookupCache(key) : null;
 
         if (state.request.stream) {

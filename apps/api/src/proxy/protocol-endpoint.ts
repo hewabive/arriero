@@ -190,6 +190,19 @@ async function drainApiProxyStream(
   }
 }
 
+function decoupledStreamResponse(
+  observed: ReadableStream<Uint8Array>,
+  streamOwnerKey: string | null,
+  init: ResponseInit,
+): Response {
+  if (!streamOwnerKey) {
+    return new Response(observed, init);
+  }
+  const [client, drain] = observed.tee();
+  void drainApiProxyStream(drain);
+  return new Response(client, init);
+}
+
 export async function runWithProxyTrace(
   operation: ApiProxyProtocolOperation,
   run: (ctx: {
@@ -345,14 +358,6 @@ async function proxyProtocolEndpointInner(
     },
   });
   trace.routeTrace = routeResult.routeTrace;
-  if (!routeResult.ok) {
-    trace.errorMessage = routeResult.diagnostic.message;
-    const response = adapter.diagnosticError(
-      resolution.request,
-      routeResult.diagnostic,
-    );
-    return c.json(response.body, response.status);
-  }
 
   const createResponsePlan = (effects: ApiProxyResponseEffect[]) => {
     const plan = createApiProxyResponsePlanExecutor({
@@ -366,6 +371,16 @@ async function proxyProtocolEndpointInner(
     }
     return plan;
   };
+
+  if (!routeResult.ok) {
+    createResponsePlan(routeResult.responseEffects);
+    trace.errorMessage = routeResult.diagnostic.message;
+    const response = adapter.diagnosticError(
+      resolution.request,
+      routeResult.diagnostic,
+    );
+    return c.json(response.body, response.status);
+  }
 
   if (routeResult.kind === "response") {
     trace.cache = routeResult.source === "coalesced" ? "coalesced" : "hit";
@@ -456,6 +471,7 @@ async function proxyProtocolEndpointInner(
       signal: c.req.raw.signal,
     });
     if (fusion.kind === "error") {
+      createResponsePlan(routeResult.responseEffects);
       trace.errorMessage = fusion.diagnostic.message;
       const response = adapter.diagnosticError(
         routeResult.request,
@@ -542,6 +558,8 @@ async function proxyProtocolEndpointInner(
         recorder,
         inflight,
         responsePlan,
+        streamOwnerKey:
+          apiProxyCacheStores(route.responseEffects)[0]?.key ?? null,
       });
     }
   }
@@ -594,11 +612,13 @@ async function delegateRemoteTarget(input: {
   recorder: ProxyTraceRecorder;
   inflight: ApiProxyInflightHandle;
   responsePlan?: ApiProxyResponsePlanExecutor | null | undefined;
+  streamOwnerKey?: string | null | undefined;
 }): Promise<Response> {
   const { c, adapter, operation, request, target, node, trace, recorder } =
     input;
   const inflight = input.inflight;
   const responsePlan = input.responsePlan ?? null;
+  const streamOwnerKey = input.streamOwnerKey ?? null;
 
   const wantsPrefill =
     request.stream &&
@@ -678,7 +698,7 @@ async function delegateRemoteTarget(input: {
 
     if (!streamMeter) {
       recorder.markDeferred();
-      return new Response(
+      return decoupledStreamResponse(
         observeBodyCompletion(
           tapApiProxyResponsePlanStream(
             responsePlan,
@@ -688,6 +708,7 @@ async function delegateRemoteTarget(input: {
           ),
           () => recorder.record(upstream),
         ),
+        streamOwnerKey,
         {
           status: upstream.status,
           statusText: upstream.statusText,
@@ -723,7 +744,7 @@ async function delegateRemoteTarget(input: {
       },
     });
     recorder.markDeferred();
-    metered = new Response(
+    metered = decoupledStreamResponse(
       observeBodyCompletion(
         tapApiProxyResponsePlanStream(
           responsePlan,
@@ -733,6 +754,7 @@ async function delegateRemoteTarget(input: {
         ),
         () => meter.finalize(),
       ),
+      streamOwnerKey,
       { status: upstream.status, headers },
     );
     return metered;
@@ -1292,14 +1314,7 @@ export async function serveResolvedTarget(input: {
         const responseInit: ResponseInit = statusText
           ? { status, headers, statusText }
           : { status, headers };
-        if (streamOwnerKey) {
-          const subscription = subscribeApiProxyBroadcast(streamOwnerKey);
-          if (subscription) {
-            void drainApiProxyStream(observed);
-            return new Response(subscription.body, responseInit);
-          }
-        }
-        return new Response(observed, responseInit);
+        return decoupledStreamResponse(observed, streamOwnerKey, responseInit);
       };
 
       let metered: Response | undefined;

@@ -6,6 +6,7 @@ import type {
 import type { ApiProxyProtocolOperation } from "./protocol.js";
 import { safeJsonParse, type ProxyTraceAccumulator } from "./protocol-trace.js";
 import {
+  abortApiProxyBroadcast,
   finishApiProxyBroadcast,
   pushApiProxyBroadcast,
 } from "./response-broadcast.js";
@@ -63,9 +64,12 @@ function looksLikeErrorBody(data: unknown): boolean {
   );
 }
 
-function settleCacheWithoutBody(effect: ApiProxyCacheStoreEffect): void {
+function settleCacheWithoutBody(
+  effect: ApiProxyCacheStoreEffect,
+  reason: string,
+): void {
   settleApiProxyInFlight(effect.key, null);
-  finishApiProxyBroadcast(effect.key);
+  abortApiProxyBroadcast(effect.key, reason);
 }
 
 function isSuccessStatus(metadata: ApiProxyResponseMetadata): boolean {
@@ -143,7 +147,11 @@ export function createApiProxyResponsePlanExecutor(input: {
       !input.trace.errorMessage &&
       (meta.isSse || !looksLikeErrorBody(parsed));
     if (!cacheable) {
-      settleCacheWithoutBody(state.effect);
+      settleCacheWithoutBody(
+        state.effect,
+        input.trace.errorMessage ??
+          `Coalesced upstream request for ${input.trace.modelId || "model"} ended without a cacheable response.`,
+      );
       return;
     }
     input.putCache({
@@ -164,12 +172,17 @@ export function createApiProxyResponsePlanExecutor(input: {
       });
     }
     finishApiProxyBroadcast(state.effect.key);
-    input.trace.cache = "store";
+    input.trace.cache ??= "store";
   };
 
   const observeText = (state: EffectState, text: string) => {
     state.explicitText = text;
-    if (state.effect.type === "cache-store" && metadata?.isSse) {
+    if (
+      state.effect.type === "cache-store" &&
+      metadata?.isSse &&
+      isSuccessStatus(metadata) &&
+      !input.trace.errorMessage
+    ) {
       pushApiProxyBroadcast(state.effect.key, new TextEncoder().encode(text));
     }
   };
@@ -181,9 +194,13 @@ export function createApiProxyResponsePlanExecutor(input: {
     for (const state of group) {
       state.tapped = true;
     }
-    const cacheKeys = group.flatMap((state) =>
-      state.effect.type === "cache-store" ? [state.effect.key] : [],
-    );
+    const meta = metadata;
+    const cacheKeys =
+      meta && isSuccessStatus(meta)
+        ? group.flatMap((state) =>
+            state.effect.type === "cache-store" ? [state.effect.key] : [],
+          )
+        : [];
     const decoder = new TextDecoder();
     let text = "";
     return stream.pipeThrough(

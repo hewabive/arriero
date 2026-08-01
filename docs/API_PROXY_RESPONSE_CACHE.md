@@ -217,12 +217,19 @@ key = sha256( formatVersion ‖ namespace ‖ modelId ‖ canonicalJson(body \ v
   key is settled with the stored payload (success) or `null` (error/no body) —
   this releases waiters and removes the map entry, so an owner always settles
   its own key. The `kind:"response"` endpoint path also settles any owner keys
-  it carries (owner-then-downstream-hit). A 120s timeout in `findInFlight` is the
-  backstop for exotic never-settle paths (e.g. route resolution failing after
-  the owner registered); a timed-out waiter falls back to forwarding and cleans
-  the leaked entry.
+  it carries (owner-then-downstream-hit). Error paths settle too: a route-chain
+  failure returns its accumulated `responseEffects` in the `ok:false` result and
+  `protocol-endpoint` creates the response plan on that branch (and on the
+  fusion-error branch), so the guaranteed record-time flush settles/aborts every
+  registration. The 120s timeout in `findInFlight` remains only as a backstop
+  for owner hangs.
 - On owner failure, waiters resolve to `null` and fall through to a plain miss
   (forward + their own cache write), so a failed owner never poisons the herd.
+- A second cache node resolving to the same key inside one chain (shared
+  pipeline via `call`, no body-changing node between) is a pass-through, not a
+  lookup: the request already owns the key, so coalescing onto itself (a
+  guaranteed deadlock) and duplicate stores are impossible
+  (`duplicate cache key (pass-through)` in the route trace).
 - **Not yet done:** owner-lifetime decoupling from the originating client. If the
   owner's client aborts, its upstream is aborted too (no cache write ⇒ waiters
   fall back). Driving the owner to completion independent of its client is
@@ -246,24 +253,33 @@ Streaming requests now participate in the cache node (they were skipped in PR2).
 - **Two serve paths, two fan-out modes** (chosen: full live fan-out, owner
   outlives client):
   - Live `respond()` path (non-preemptible managed, external, translated):
-    `finishStreamResponse` subscribes the owner's own client to the broadcast
-    and **pumps** the metered stream to completion in the background
+    `decoupledStreamResponse` tees the fully transformed stream — one branch to
+    the owner's client, one **pumped** to completion in the background
     (`drainApiProxyStream`), decoupled from the client. The cache effect's tap
-    feeds the broadcast per chunk and stores the accumulated SSE on flush. If the
-    owner's client disconnects, the pump still finishes → subscribers + cache are
-    complete. ✅ option A fully honored here.
+    feeds the broadcast per chunk (bytes at the cache node's position, so
+    followers replay through their own transform prefix) and stores the
+    accumulated SSE on flush; the owner itself receives the post-transform
+    stream, never the raw broadcast bytes. If the owner's client disconnects,
+    the pump still finishes → subscribers + cache are complete. The remote
+    fleet-node delegation path uses the same helper, so delegated targets get
+    identical owner-disconnect decoupling. ✅ option A fully honored here.
   - Buffered resumable path (preemptible managed chat): the response is built
     all-at-once, so it does **completed fan-out** — on success it stores the
     final SSE, pushes it to the broadcast as one chunk, and finishes; subscribers
     that were waiting get the whole result. **Limitation:** this path is *not*
     decoupled — if the owner's client aborts mid-generation the upstream aborts,
-    no cache write, and the broadcast finishes empty (subscribers get nothing).
+    no cache write, and the broadcast aborts (subscribers' streams error).
     Managed-chat streaming via resumable is already buffered (the client gets the
     reply at the end), so this only affects the rare owner-abort case.
-- **No broadcast leak:** the response plan finishes the broadcast for every
-  cache key on flush (both branches), and the resumable path finishes
-  explicitly on success/abort, so subscribers never hang regardless of serve
-  path.
+- **No broadcast leak, failure = abort:** the response plan settles every cache
+  key on flush. A cacheable body finishes the broadcast (clean close); anything
+  else — upstream error, incomplete stream, route/fusion failure —
+  **aborts** it (`abortApiProxyBroadcast`), erroring subscribers' streams
+  instead of closing them as an empty 200 success, and error finals are never
+  pushed as broadcast bytes (followers must not receive JSON error bodies
+  inside an SSE stream).
+- A follower's `trace.cache:"hit"`/`"coalesced"` marker survives the flush of
+  upstream store effects (`trace.cache ??= "store"`).
 - **Telemetry:** subscribers report `trace.cache:"coalesced"`; only the owner is
   metered (subscription bodies skip `usageFromNonStreamBody`).
 - **Not unit-tested:** the live pump + client-disconnect integration (hard to
