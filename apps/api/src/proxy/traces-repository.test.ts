@@ -5,6 +5,7 @@ import { beforeEach, test } from "node:test";
 
 import type {
   ApiProxyRequestTrace,
+  ApiProxyTraceFile,
   ApiProxyTraceListFilter,
 } from "@arriero/core";
 
@@ -171,6 +172,55 @@ test("filters by protocol, endpoint, status, error code, cache and flags", () =>
   assert.deepEqual(ids({ resumed: true }), ["anthropic-messages"]);
   assert.deepEqual(ids({ translated: true }), ["anthropic-messages"]);
   assert.deepEqual(ids({ minDurationMs: 1000 }), ["anthropic-messages"]);
+});
+
+test("filters by attached files and facets their kinds", () => {
+  const file = (kind: string, seq: number): ApiProxyTraceFile => ({
+    name: `0${seq}-${kind}.json`,
+    path: `m1/dir/0${seq}-${kind}.json`,
+    kind,
+    label: null,
+    bytes: 12,
+    createdAt: NOW.toISOString(),
+  });
+
+  insertApiProxyTrace(trace({ id: "plain", at: daysBefore(1) }));
+  insertApiProxyTrace(
+    trace({
+      id: "captured",
+      at: daysBefore(2),
+      files: [
+        file("capture-request", 1),
+        file("capture-request", 2),
+        file("capture-response", 3),
+      ],
+    }),
+  );
+  insertApiProxyTrace(
+    trace({
+      id: "response-only",
+      at: daysBefore(3),
+      files: [file("capture-response", 1)],
+    }),
+  );
+
+  const ids = (filter: ApiProxyTraceListFilter) =>
+    listApiProxyTraces(filter).map((entry) => entry.id);
+
+  assert.deepEqual(ids({ hasFiles: true }), ["captured", "response-only"]);
+  assert.deepEqual(ids({ hasFiles: false }), ["plain"]);
+  assert.deepEqual(ids({ fileKind: "capture-request" }), ["captured"]);
+  assert.deepEqual(ids({ fileKind: "capture-response" }), [
+    "captured",
+    "response-only",
+  ]);
+  assert.deepEqual(ids({ fileKind: "capture" }), []);
+  assert.equal(countApiProxyTraces({ fileKind: "capture-request" }), 1);
+
+  assert.deepEqual(getApiProxyTraceFacets().fileKinds, [
+    { value: "capture-response", name: null, count: 2 },
+    { value: "capture-request", name: null, count: 1 },
+  ]);
 });
 
 test("filters by inclusive time range", () => {

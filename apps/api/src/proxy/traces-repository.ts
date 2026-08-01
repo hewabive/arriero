@@ -36,6 +36,16 @@ function retentionCutoff(now: Date): string {
   ).toISOString();
 }
 
+function traceFileKinds(trace: ApiProxyRequestTrace): string {
+  const kinds: string[] = [];
+  for (const file of trace.files) {
+    if (!kinds.includes(file.kind)) {
+      kinds.push(file.kind);
+    }
+  }
+  return JSON.stringify(kinds);
+}
+
 export function insertApiProxyTrace(trace: ApiProxyRequestTrace): void {
   db.insert(proxyRequestTraces)
     .values({
@@ -58,6 +68,7 @@ export function insertApiProxyTrace(trace: ApiProxyRequestTrace): void {
       durationMs: trace.durationMs,
       promptTokens: trace.usage?.promptTokens ?? null,
       completionTokens: trace.usage?.completionTokens ?? null,
+      fileKinds: traceFileKinds(trace),
       traceJson: JSON.stringify(trace),
     })
     .run();
@@ -129,6 +140,18 @@ function filterConditions(filter: ApiProxyTraceListFilter): SQL[] {
       eq(proxyRequestTraces.translated, filter.translated ? 1 : 0),
     );
   }
+  if (filter.hasFiles !== undefined) {
+    conditions.push(
+      filter.hasFiles
+        ? sql`json_array_length(${proxyRequestTraces.fileKinds}) > 0`
+        : sql`json_array_length(${proxyRequestTraces.fileKinds}) = 0`,
+    );
+  }
+  if (filter.fileKind !== undefined) {
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM json_each(${proxyRequestTraces.fileKinds}) WHERE value = ${filter.fileKind})`,
+    );
+  }
   if (filter.minDurationMs !== undefined) {
     conditions.push(gte(proxyRequestTraces.durationMs, filter.minDurationMs));
   }
@@ -188,6 +211,20 @@ function columnFacets(
   }));
 }
 
+function fileKindFacets(): ApiProxyTraceFacet[] {
+  const rows = db.all<{ value: string; count: number }>(sql`
+    SELECT kind.value AS value, count(*) AS count
+    FROM ${proxyRequestTraces}, json_each(${proxyRequestTraces.fileKinds}) AS kind
+    GROUP BY kind.value
+    ORDER BY count DESC
+  `);
+  return rows.map((row) => ({
+    value: String(row.value),
+    name: null,
+    count: Number(row.count),
+  }));
+}
+
 export function getApiProxyTraceFacets(): ApiProxyTraceFacets {
   return {
     retentionDays: TRACE_RETENTION_DAYS,
@@ -204,6 +241,7 @@ export function getApiProxyTraceFacets(): ApiProxyTraceFacets {
     protocols: columnFacets(proxyRequestTraces.protocol),
     statuses: columnFacets(proxyRequestTraces.status),
     errorCodes: columnFacets(proxyRequestTraces.errorCode, { skipNull: true }),
+    fileKinds: fileKindFacets(),
   };
 }
 

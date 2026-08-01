@@ -114,6 +114,7 @@ export function migrate() {
       duration_ms INTEGER NOT NULL,
       prompt_tokens INTEGER,
       completion_tokens INTEGER,
+      file_kinds TEXT NOT NULL DEFAULT '[]',
       trace_json TEXT NOT NULL
     )
   `);
@@ -126,6 +127,21 @@ export function migrate() {
       UPDATE proxy_request_traces SET
         source_name = json_extract(trace_json, '$.sourceName'),
         target_name = json_extract(trace_json, '$.targetName')
+    `);
+  }
+  if (
+    ensureColumn(
+      "proxy_request_traces",
+      "file_kinds",
+      "TEXT NOT NULL DEFAULT '[]'",
+    )
+  ) {
+    db.run(sql`
+      UPDATE proxy_request_traces SET file_kinds = (
+        SELECT json_group_array(DISTINCT json_extract(file.value, '$.kind'))
+        FROM json_each(proxy_request_traces.trace_json, '$.files') AS file
+      )
+      WHERE json_valid(trace_json)
     `);
   }
   db.run(

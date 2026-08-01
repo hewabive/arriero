@@ -1481,6 +1481,7 @@ export const ApiProxyTraceFacetsSchema = z.object({
   protocols: z.array(ApiProxyTraceFacetSchema).default([]),
   statuses: z.array(ApiProxyTraceFacetSchema).default([]),
   errorCodes: z.array(ApiProxyTraceFacetSchema).default([]),
+  fileKinds: z.array(ApiProxyTraceFacetSchema).default([]),
 });
 
 const traceQueryBooleanSchema = z
@@ -1509,6 +1510,8 @@ export const ApiProxyTraceListFilterSchema = z.object({
   resumed: traceQueryBooleanSchema.optional(),
   stream: traceQueryBooleanSchema.optional(),
   translated: traceQueryBooleanSchema.optional(),
+  hasFiles: traceQueryBooleanSchema.optional(),
+  fileKind: z.string().min(1).optional(),
   minDurationMs: z.coerce.number().int().min(0).optional(),
 });
 

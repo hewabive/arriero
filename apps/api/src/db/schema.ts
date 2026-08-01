@@ -64,6 +64,7 @@ export const proxyRequestTraces = sqliteTable("proxy_request_traces", {
   durationMs: integer("duration_ms").notNull(),
   promptTokens: integer("prompt_tokens"),
   completionTokens: integer("completion_tokens"),
+  fileKinds: text("file_kinds").notNull().default("[]"),
   traceJson: text("trace_json").notNull(),
 });
 

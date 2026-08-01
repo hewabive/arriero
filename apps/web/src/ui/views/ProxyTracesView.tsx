@@ -61,8 +61,13 @@ type TraceFilterState = {
   stream: string | null;
   resumed: string | null;
   translated: string | null;
+  files: string | null;
   minDurationMs: number | string;
 };
+
+const FILES_ANY = "any";
+const FILES_NONE = "none";
+const FILE_KIND_PREFIX = "kind:";
 
 const CACHE_FILTER_LABELS: Record<ApiProxyTraceCacheFilter, string> = {
   hit: "Hit",
@@ -87,6 +92,7 @@ const defaultFilters: TraceFilterState = {
   stream: null,
   resumed: null,
   translated: null,
+  files: null,
   minDurationMs: "",
 };
 
@@ -163,6 +169,15 @@ function buildHistoryQuery(filters: TraceFilterState): ApiProxyTraceListQuery {
   }
   if (filters.translated === "no") {
     query.translated = false;
+  }
+  if (filters.files === FILES_ANY) {
+    query.hasFiles = true;
+  }
+  if (filters.files === FILES_NONE) {
+    query.hasFiles = false;
+  }
+  if (filters.files?.startsWith(FILE_KIND_PREFIX)) {
+    query.fileKind = filters.files.slice(FILE_KIND_PREFIX.length);
   }
   if (typeof filters.minDurationMs === "number" && filters.minDurationMs > 0) {
     query.minDurationMs = Math.floor(filters.minDurationMs);
@@ -417,6 +432,20 @@ export function ProxyTracesView() {
               ]}
               onChange={(value) => update({ translated: value })}
               w={100}
+            />
+            <FilterSelect
+              label="Files"
+              value={filters.files}
+              data={[
+                { value: FILES_ANY, label: "Any attached" },
+                { value: FILES_NONE, label: "None" },
+                ...facetOptions(facets?.fileKinds).map((option) => ({
+                  value: `${FILE_KIND_PREFIX}${option.value}`,
+                  label: option.label,
+                })),
+              ]}
+              onChange={(value) => update({ files: value })}
+              w={170}
             />
             <NumberInput
               size="xs"
