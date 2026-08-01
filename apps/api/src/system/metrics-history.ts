@@ -8,9 +8,11 @@ import {
   type SystemMetricsGpuSample,
   type SystemMetricsHistory,
   type SystemMetricsNetworkSample,
+  type SystemMetricsRdmaSample,
   type SystemMetricsSample,
   type SystemMetricsWindow,
   type SystemNetworkActivity,
+  type SystemRdmaActivity,
 } from "@arriero/core";
 
 import { nvidiaTelemetry } from "../nvidia/telemetry.js";
@@ -31,6 +33,11 @@ import {
   type NetCounters,
   readNetCounters,
 } from "./net.js";
+import {
+  computeRdmaActivity,
+  type RdmaCounters,
+  readRdmaCounters,
+} from "./rdma.js";
 
 export const COARSE_METRICS_WINDOWS = SystemMetricsCoarseWindowSchema.options;
 
@@ -92,6 +99,30 @@ function averageBy<T, R>(
   return [...buckets.entries()].map(([id, items]) => merge(id, items));
 }
 
+function averageRdma(
+  samples: SystemMetricsSample[],
+): SystemMetricsRdmaSample | null {
+  const latest = samples.findLast((sample) => sample.rdma !== null)?.rdma;
+  if (!latest) {
+    return null;
+  }
+  const matching = samples.flatMap((sample) =>
+    sample.rdma?.device === latest.device && sample.rdma.port === latest.port
+      ? [sample.rdma]
+      : [],
+  );
+  return {
+    device: latest.device,
+    port: latest.port,
+    receiveBytesPerSec: averageNullable(
+      matching.map((sample) => sample.receiveBytesPerSec),
+    ),
+    transmitBytesPerSec: averageNullable(
+      matching.map((sample) => sample.transmitBytesPerSec),
+    ),
+  };
+}
+
 export function averageSamples(
   samples: SystemMetricsSample[],
 ): SystemMetricsSample | null {
@@ -145,6 +176,7 @@ export function averageSamples(
         txBytesPerSec: averageNullable(items.map((item) => item.txBytesPerSec)),
       }),
     ),
+    rdma: averageRdma(samples),
   };
 }
 
@@ -152,6 +184,7 @@ export type SystemMetricsSnapshot = {
   cpu: SystemCpuActivity | null;
   network: SystemNetworkActivity | null;
   disk: SystemDiskActivity | null;
+  rdma: SystemRdmaActivity | null;
 };
 
 type SystemMetricsListener = (sample: SystemMetricsSample) => void;
@@ -215,11 +248,13 @@ export class SystemMetricsRecorder {
   private previousCpu: CpuCounters | null = null;
   private previousNet: Map<string, NetCounters> | null = null;
   private previousDisk: Map<string, DiskCounters> | null = null;
+  private previousRdma: RdmaCounters | null = null;
   private previousAt: number | null = null;
   private snapshot: SystemMetricsSnapshot = {
     cpu: null,
     network: null,
     disk: null,
+    rdma: null,
   };
 
   constructor(options: SystemMetricsHistoryOptions = {}) {
@@ -264,8 +299,9 @@ export class SystemMetricsRecorder {
     this.previousCpu = null;
     this.previousNet = null;
     this.previousDisk = null;
+    this.previousRdma = null;
     this.previousAt = null;
-    this.snapshot = { cpu: null, network: null, disk: null };
+    this.snapshot = { cpu: null, network: null, disk: null, rdma: null };
   }
 
   subscribe(listener: SystemMetricsListener): () => void {
@@ -342,9 +378,19 @@ export class SystemMetricsRecorder {
       : null;
     this.previousDisk = diskCounters;
 
+    const rdmaCounters = readRdmaCounters(at);
+    const rdma = rdmaCounters
+      ? computeRdmaActivity({
+          previous: this.previousRdma,
+          current: rdmaCounters,
+          intervalMs,
+        })
+      : null;
+    this.previousRdma = rdmaCounters;
+
     const memory = readSystemMemory();
     this.previousAt = at;
-    this.snapshot = { cpu, network, disk };
+    this.snapshot = { cpu, network, disk, rdma };
 
     const sample: SystemMetricsSample = {
       at,
@@ -354,6 +400,14 @@ export class SystemMetricsRecorder {
       gpus: gpuSamples(),
       disks: diskSamples(disk),
       network: networkSamples(network),
+      rdma: rdma
+        ? {
+            device: rdma.device,
+            port: rdma.port,
+            receiveBytesPerSec: rdma.receiveBytesPerSec,
+            transmitBytesPerSec: rdma.transmitBytesPerSec,
+          }
+        : null,
     };
 
     this.buffers.get("live")?.push(sample);

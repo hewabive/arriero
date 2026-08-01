@@ -2976,35 +2976,31 @@ export const SystemDiskActivitySchema = z.object({
   intervalMs: z.number().nonnegative().nullable(),
 });
 
-export const BeeGfsTargetSchema = z.object({
-  id: z.string(),
-  alias: z.string().nullable(),
-  node: z.string().nullable(),
-  kind: z.enum(["metadata", "storage"]),
-  storagePool: z.string().nullable(),
-  capacityPool: z.string().nullable(),
-  totalBytes: z.number().int().nonnegative().nullable(),
-  freeBytes: z.number().int().nonnegative().nullable(),
-  totalInodes: z.number().int().nonnegative().nullable(),
-  freeInodes: z.number().int().nonnegative().nullable(),
+export const SystemRdmaActivitySchema = z.object({
+  device: z.string(),
+  port: z.number().int().positive(),
+  receiveBytesPerSec: z.number().nonnegative().nullable(),
+  transmitBytesPerSec: z.number().nonnegative().nullable(),
+  intervalMs: z.number().nonnegative().nullable(),
 });
 
 export const BeeGfsFilesystemSchema = z.object({
   mountPath: z.string(),
   source: z.string(),
-  targets: z.array(BeeGfsTargetSchema),
+  cfgFile: z.string().nullable(),
+  totalBytes: z.number().nonnegative().nullable(),
+  freeBytes: z.number().nonnegative().nullable(),
+  totalInodes: z.number().nonnegative().nullable(),
+  freeInodes: z.number().nonnegative().nullable(),
+  checkedAt: z.string().nullable(),
   error: z.string().nullable(),
 });
 
 export const BeeGfsResourcesSchema = z.object({
   checkedAt: z.string(),
-  status: z.enum(["ready", "missing-tool", "error"]),
-  tool: z.enum(["beegfs-df", "beegfs"]).nullable(),
-  clientVersion: z.string().nullable(),
-  requiredPackage: z.string().nullable(),
-  installCommand: z.string().nullable(),
+  status: z.enum(["collecting", "ready", "error"]),
   filesystems: z.array(BeeGfsFilesystemSchema),
-  error: z.string().nullable(),
+  rdma: SystemRdmaActivitySchema.nullable().default(null),
 });
 
 export const SystemCpuCoreSchema = z.object({
@@ -3074,6 +3070,13 @@ export const SystemMetricsNetworkSampleSchema =
     txBytesPerSec: true,
   });
 
+export const SystemMetricsRdmaSampleSchema = SystemRdmaActivitySchema.pick({
+  device: true,
+  port: true,
+  receiveBytesPerSec: true,
+  transmitBytesPerSec: true,
+});
+
 export const SystemMetricsSampleSchema = z.object({
   at: z.number().int().nonnegative(),
   cpuPercent: z.number().nullable(),
@@ -3082,6 +3085,7 @@ export const SystemMetricsSampleSchema = z.object({
   gpus: z.array(SystemMetricsGpuSampleSchema),
   disks: z.array(SystemMetricsDiskSampleSchema),
   network: z.array(SystemMetricsNetworkSampleSchema),
+  rdma: SystemMetricsRdmaSampleSchema.nullable().default(null),
 });
 
 export const SystemMetricsWindowSchema = z.enum([
@@ -3918,7 +3922,7 @@ export type SystemAccelerator = z.infer<typeof SystemAcceleratorSchema>;
 export type SystemDiskDevice = z.infer<typeof SystemDiskDeviceSchema>;
 export type SystemIoPressure = z.infer<typeof SystemIoPressureSchema>;
 export type SystemDiskActivity = z.infer<typeof SystemDiskActivitySchema>;
-export type BeeGfsTarget = z.infer<typeof BeeGfsTargetSchema>;
+export type SystemRdmaActivity = z.infer<typeof SystemRdmaActivitySchema>;
 export type BeeGfsFilesystem = z.infer<typeof BeeGfsFilesystemSchema>;
 export type BeeGfsResources = z.infer<typeof BeeGfsResourcesSchema>;
 export type SystemCpuCore = z.infer<typeof SystemCpuCoreSchema>;
@@ -3935,6 +3939,9 @@ export type SystemMetricsDiskSample = z.infer<
 >;
 export type SystemMetricsNetworkSample = z.infer<
   typeof SystemMetricsNetworkSampleSchema
+>;
+export type SystemMetricsRdmaSample = z.infer<
+  typeof SystemMetricsRdmaSampleSchema
 >;
 export type SystemMetricsSample = z.infer<typeof SystemMetricsSampleSchema>;
 export type SystemMetricsWindow = z.infer<typeof SystemMetricsWindowSchema>;

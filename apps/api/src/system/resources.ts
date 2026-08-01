@@ -75,8 +75,8 @@ export function getSystemResources(): SystemResources {
   };
 }
 
-export async function getSystemResourcesWithBeeGfs(): Promise<SystemResources> {
+export function getSystemResourcesWithBeeGfs(): SystemResources {
   const resources = getSystemResources();
-  resources.beegfs = await getBeeGfsResources();
+  resources.beegfs = getBeeGfsResources(systemMetricsRecorder.current().rdma);
   return resources;
 }

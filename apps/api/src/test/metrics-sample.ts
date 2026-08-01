@@ -11,6 +11,7 @@ export function metricsSampleFixture(
     gpus: [],
     disks: [],
     network: [],
+    rdma: null,
     ...input,
   };
 }

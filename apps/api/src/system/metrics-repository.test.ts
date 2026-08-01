@@ -117,6 +117,21 @@ test("skips rows that no longer parse", () => {
   assert.equal(readSystemMetricsHistory("day", NOW).length, 1);
 });
 
+test("reads persisted samples written before RDMA metrics existed", () => {
+  const { rdma: _rdma, ...legacySample } = sample({ at: NOW - 60_000 });
+  db.insert(systemMetricsHistory)
+    .values({
+      window: "day",
+      bucketAt: NOW - 60_000,
+      sampleJson: JSON.stringify(legacySample),
+    })
+    .run();
+
+  const read = readSystemMetricsHistory("day", NOW);
+  assert.equal(read.length, 1);
+  assert.equal(read[0]?.rdma, null);
+});
+
 test("seedSystemMetricsRecorder preloads hour and day tiers from the database", () => {
   insertSystemMetricsSample(
     "hour",

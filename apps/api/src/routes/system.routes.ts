@@ -30,8 +30,8 @@ export function registerSystemRoutes(app: Hono) {
     return c.json({ data: { interfaces: listNetworkInterfaceAddresses() } });
   });
 
-  app.get("/api/system/resources", async (c) => {
-    return c.json({ data: await getSystemResourcesWithBeeGfs() });
+  app.get("/api/system/resources", (c) => {
+    return c.json({ data: getSystemResourcesWithBeeGfs() });
   });
 
   app.get("/api/system/metrics", (c) => {

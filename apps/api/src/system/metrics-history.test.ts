@@ -82,6 +82,62 @@ test("averageSamples merges devices by identity across the window", () => {
   });
 });
 
+test("averageSamples averages RDMA traffic for the latest HCA port", () => {
+  const averaged = averageSamples([
+    sample({
+      rdma: {
+        device: "mlx5_0",
+        port: 1,
+        receiveBytesPerSec: 100,
+        transmitBytesPerSec: 200,
+      },
+    }),
+    sample({
+      rdma: {
+        device: "mlx5_0",
+        port: 1,
+        receiveBytesPerSec: 300,
+        transmitBytesPerSec: null,
+      },
+    }),
+  ]);
+
+  assert.deepEqual(averaged?.rdma, {
+    device: "mlx5_0",
+    port: 1,
+    receiveBytesPerSec: 200,
+    transmitBytesPerSec: 200,
+  });
+});
+
+test("averageSamples does not merge different RDMA ports", () => {
+  const averaged = averageSamples([
+    sample({
+      rdma: {
+        device: "mlx5_0",
+        port: 1,
+        receiveBytesPerSec: 1_000,
+        transmitBytesPerSec: 2_000,
+      },
+    }),
+    sample({
+      rdma: {
+        device: "mlx5_1",
+        port: 1,
+        receiveBytesPerSec: null,
+        transmitBytesPerSec: null,
+      },
+    }),
+  ]);
+
+  assert.deepEqual(averaged?.rdma, {
+    device: "mlx5_1",
+    port: 1,
+    receiveBytesPerSec: null,
+    transmitBytesPerSec: null,
+  });
+});
+
 test("averageSamples returns null for an empty window", () => {
   assert.equal(averageSamples([]), null);
 });

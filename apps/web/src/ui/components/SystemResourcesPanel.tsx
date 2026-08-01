@@ -8,7 +8,6 @@ import {
 import {
   Alert,
   Badge,
-  Code,
   Divider,
   Group,
   Paper,
@@ -93,12 +92,6 @@ function usedPercent(total: number | null, free: number | null) {
     : Math.min(100, (used / total) * 100);
 }
 
-function capacityPoolColor(pool: string | null) {
-  if (pool === "emergency") return "red";
-  if (pool === "low") return "orange";
-  return "gray";
-}
-
 function ResourceMetric(props: { label: string; value: string }) {
   return (
     <div>
@@ -161,6 +154,7 @@ export function SystemResourcesPanel(props: {
   const accelerators = props.resources?.accelerators ?? [];
   const disk = props.resources?.disk ?? null;
   const beegfs = props.resources?.beegfs ?? null;
+  const rdma = beegfs?.rdma ?? null;
   const network = props.resources?.network ?? null;
   const samples = props.samples;
   const latest = samples[samples.length - 1] ?? null;
@@ -549,41 +543,7 @@ export function SystemResourcesPanel(props: {
             </>
           )}
 
-          {beegfs?.status === "missing-tool" && (
-            <Alert color="yellow" title="BeeGFS tooling is missing">
-              <Stack gap="xs">
-                <Text size="sm">
-                  BeeGFS is mounted, but its target capacity cannot be read
-                  because neither <Code>beegfs-df</Code> nor <Code>beegfs</Code>{" "}
-                  is available to the manager.
-                  {beegfs.clientVersion
-                    ? ` Detected client version ${beegfs.clientVersion}.`
-                    : ""}
-                </Text>
-                {beegfs.installCommand ? (
-                  <Code
-                    block
-                    style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-                  >
-                    {beegfs.installCommand}
-                  </Code>
-                ) : (
-                  <Text size="sm">
-                    Install the <Code>{beegfs.requiredPackage}</Code> package
-                    from the configured BeeGFS repository.
-                  </Text>
-                )}
-              </Stack>
-            </Alert>
-          )}
-
-          {beegfs?.status === "error" && (
-            <Alert color="orange" title="Could not read BeeGFS capacity">
-              {beegfs.error}
-            </Alert>
-          )}
-
-          {beegfs && beegfs.status !== "missing-tool" && (
+          {beegfs && (
             <>
               <Divider />
               <Stack gap="xs">
@@ -595,116 +555,166 @@ export function SystemResourcesPanel(props: {
                         {beegfs.filesystems.length}{" "}
                         {beegfs.filesystems.length === 1 ? "mount" : "mounts"}
                       </Badge>
-                      {beegfs.tool && (
-                        <Badge variant="light" color="gray">
-                          {beegfs.tool}
+                      {beegfs.status === "collecting" && (
+                        <Badge variant="light" color="yellow">
+                          collecting capacity
                         </Badge>
                       )}
                     </>
                   }
                 />
 
-                {beegfs.filesystems.map((filesystem) => (
-                  <Stack key={filesystem.mountPath} gap="xs">
-                    <Group justify="space-between" gap="xs" wrap="wrap">
-                      <Text fw={600} size="sm">
-                        {filesystem.mountPath}
-                      </Text>
-                      <Badge variant="outline" color="gray">
-                        {filesystem.targets.length}{" "}
-                        {filesystem.targets.length === 1 ? "target" : "targets"}
-                      </Badge>
-                    </Group>
-
-                    {filesystem.error && (
-                      <Alert color="orange" title="BeeGFS query failed">
-                        <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
-                          {filesystem.error}
-                        </Text>
-                      </Alert>
-                    )}
-
-                    {!filesystem.error && filesystem.targets.length === 0 && (
-                      <Text c="dimmed" size="xs">
-                        No metadata or storage targets were reported.
-                      </Text>
-                    )}
-
-                    {filesystem.targets.length > 0 && (
-                      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-                        {filesystem.targets.map((target) => {
-                          const percent = usedPercent(
-                            target.totalBytes,
-                            target.freeBytes,
-                          );
-                          const used = usedValue(
-                            target.totalBytes,
-                            target.freeBytes,
-                          );
-                          return (
-                            <MetricCard
-                              key={`${target.kind}-${target.id}`}
-                              title={
-                                target.alias ??
-                                `${target.kind === "metadata" ? "Metadata" : "Storage"} target ${target.id}`
-                              }
-                              meta={
-                                <>
-                                  <Badge variant="light">{target.kind}</Badge>
-                                  {target.capacityPool && (
-                                    <Badge
-                                      variant="light"
-                                      color={capacityPoolColor(
-                                        target.capacityPool,
-                                      )}
-                                    >
-                                      {target.capacityPool}
-                                    </Badge>
-                                  )}
-                                </>
-                              }
-                              footer={
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
+                  {beegfs.filesystems.map((filesystem) => {
+                    const percent = usedPercent(
+                      filesystem.totalBytes,
+                      filesystem.freeBytes,
+                    );
+                    const used = usedValue(
+                      filesystem.totalBytes,
+                      filesystem.freeBytes,
+                    );
+                    const hasCapacity = filesystem.totalBytes !== null;
+                    return (
+                      <MetricCard
+                        key={filesystem.mountPath}
+                        title={filesystem.mountPath}
+                        meta={
+                          <Badge variant="light" color="gray">
+                            {filesystem.source}
+                          </Badge>
+                        }
+                        footer={
+                          filesystem.cfgFile ||
+                          (filesystem.totalInodes !== null &&
+                            filesystem.freeInodes !== null) ? (
+                            <Stack gap={2}>
+                              {filesystem.cfgFile && (
                                 <Text c="dimmed" size="xs">
-                                  ID {target.id}
-                                  {target.node ? ` · node ${target.node}` : ""}
-                                  {target.storagePool
-                                    ? ` · pool ${target.storagePool}`
-                                    : ""}
-                                  {target.freeInodes !== null
-                                    ? ` · ${target.freeInodes.toLocaleString("en")} free inodes`
-                                    : ""}
+                                  {filesystem.cfgFile}
                                 </Text>
-                              }
-                            >
-                              {percent !== null && (
-                                <Progress
-                                  value={percent}
-                                  color={loadColor(percent / 100)}
-                                  size="sm"
-                                  radius="xs"
-                                />
                               )}
-                              <SimpleGrid cols={3} spacing="xs">
-                                <ResourceMetric
-                                  label="Used"
-                                  value={formatBytes(used)}
-                                />
-                                <ResourceMetric
-                                  label="Free"
-                                  value={formatBytes(target.freeBytes)}
-                                />
-                                <ResourceMetric
-                                  label="Total"
-                                  value={formatBytes(target.totalBytes)}
-                                />
-                              </SimpleGrid>
-                            </MetricCard>
-                          );
-                        })}
-                      </SimpleGrid>
-                    )}
-                  </Stack>
-                ))}
+                              {filesystem.totalInodes !== null &&
+                                filesystem.freeInodes !== null && (
+                                  <Text c="dimmed" size="xs">
+                                    {filesystem.freeInodes.toLocaleString("en")}{" "}
+                                    of{" "}
+                                    {filesystem.totalInodes.toLocaleString(
+                                      "en",
+                                    )}{" "}
+                                    inodes free
+                                  </Text>
+                                )}
+                            </Stack>
+                          ) : undefined
+                        }
+                      >
+                        {filesystem.error && (
+                          <Alert color="orange" title="Capacity refresh failed">
+                            <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
+                              {filesystem.error}
+                            </Text>
+                          </Alert>
+                        )}
+                        {!hasCapacity && !filesystem.error && (
+                          <Text c="dimmed" size="xs">
+                            Capacity is being collected in the background.
+                          </Text>
+                        )}
+                        {hasCapacity && (
+                          <>
+                            {percent !== null && (
+                              <Progress
+                                value={percent}
+                                color={loadColor(percent / 100)}
+                                size="sm"
+                                radius="xs"
+                              />
+                            )}
+                            <SimpleGrid cols={3} spacing="xs">
+                              <ResourceMetric
+                                label="Used"
+                                value={formatBytes(used)}
+                              />
+                              <ResourceMetric
+                                label="Free"
+                                value={formatBytes(filesystem.freeBytes)}
+                              />
+                              <ResourceMetric
+                                label="Total"
+                                value={formatBytes(filesystem.totalBytes)}
+                              />
+                            </SimpleGrid>
+                          </>
+                        )}
+                      </MetricCard>
+                    );
+                  })}
+                </SimpleGrid>
+              </Stack>
+            </>
+          )}
+
+          {beegfs && rdma && (
+            <>
+              <Divider />
+              <Stack gap="xs">
+                <SectionHeading
+                  title="Host RDMA traffic"
+                  badges={
+                    <Badge variant="outline" color="blue">
+                      {rdma.device} · port {rdma.port}
+                    </Badge>
+                  }
+                  meta={
+                    <Group gap="md">
+                      <Text c="dimmed" size="xs">
+                        receive {formatRate(rdma.receiveBytesPerSec)}
+                      </Text>
+                      <Text c="dimmed" size="xs">
+                        transmit {formatRate(rdma.transmitBytesPerSec)}
+                      </Text>
+                    </Group>
+                  }
+                />
+                <Text c="dimmed" size="xs">
+                  Includes BeeGFS and any other RDMA traffic on this port, such
+                  as NCCL.
+                </Text>
+                <MetricCard title="All traffic on the RDMA port">
+                  <MetricChart
+                    title="Receive / transmit"
+                    headline={`${formatRate(rdma.receiveBytesPerSec)} · ${formatRate(rdma.transmitBytesPerSec)}`}
+                    axis={axis}
+                    domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
+                    formatValue={formatRate}
+                    height={DEVICE_CHART_HEIGHT}
+                    series={[
+                      {
+                        id: `${rdma.device}-${rdma.port}-receive`,
+                        label: "Receive",
+                        tone: "inbound",
+                        values: seriesFrom(samples, (sample) =>
+                          sample.rdma?.device === rdma.device &&
+                          sample.rdma.port === rdma.port
+                            ? sample.rdma.receiveBytesPerSec
+                            : null,
+                        ),
+                      },
+                      {
+                        id: `${rdma.device}-${rdma.port}-transmit`,
+                        label: "Transmit",
+                        tone: "outbound",
+                        values: seriesFrom(samples, (sample) =>
+                          sample.rdma?.device === rdma.device &&
+                          sample.rdma.port === rdma.port
+                            ? sample.rdma.transmitBytesPerSec
+                            : null,
+                        ),
+                      },
+                    ]}
+                  />
+                </MetricCard>
               </Stack>
             </>
           )}

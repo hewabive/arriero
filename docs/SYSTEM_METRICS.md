@@ -1,37 +1,48 @@
 # System metrics
 
-The `#/system` page plots CPU, memory, accelerator, disk and network activity over time instead of
-showing instantaneous bars. This document covers the sampler that produces the series, the retention
-tiers, and the constraints that shaped both.
+The `#/system` page plots CPU, memory, accelerator, disk, network and host-wide RDMA activity over
+time instead of showing instantaneous bars. This document covers the sampler that produces the
+series, the retention tiers, and the constraints that shaped both.
 
 ## The recorder owns every delta
 
 `apps/api/src/system/metrics-history.ts` runs one always-on sampler (`systemMetricsRecorder`) at 1 Hz,
 started from `src/index.ts` before anything reads host resources and stopped during shutdown. It is
 the **only** thing allowed to advance the counter-delta state of the rate-based samplers, and that is
-structural rather than conventional: each `/proc` module exports a pure counter read plus a pure
+structural rather than conventional: each counter module exports a pure counter read plus a pure
 activity builder, and the previous-counter state lives exclusively in recorder fields
-(`previousCpu`/`previousNet`/`previousDisk`).
+(`previousCpu`/`previousNet`/`previousDisk`/`previousRdma`).
 
 - `system/cpu.ts` — `readCpuCounters()` + `computeCpuActivity()`, `/proc/stat`, aggregate and
   per-core busy share (`total - idle - iowait`).
 - `system/net.ts` — `readNetCounters()` + `buildNetworkActivity()`, `/proc/net/dev`, per-interface
   rx/tx bytes and packets.
 - `system/disk.ts` — `readDiskCounters()` + `buildDiskActivity()`, `/proc/diskstats`.
-- `system/beegfs.ts` — mounted BeeGFS discovery plus metadata/storage target capacity.
+- `system/rdma.ts` — `readRdmaCounters()` + `computeRdmaActivity()`, the receive/transmit data
+  counters for a single active `/sys/class/infiniband/<device>/ports/<port>`.
+- `system/beegfs.ts` — mounted BeeGFS discovery plus per-mount `statfs` capacity.
 
 Before the recorder existed, disk rates were computed between two arbitrary HTTP requests, so every
 page that polled `/api/system/resources` (environments, the instance form, fleet) perturbed the rates
 the others saw. `getSystemResources()` now reads `systemMetricsRecorder.current()` — a pure snapshot
-read that never ticks — for `cpu`/`network`/`disk`; only memory, accelerators and NUMA are still read
-inline, because none of them is a delta.
+read that never ticks — for `cpu`/`network`/`disk`/`rdma`; only memory, accelerators and NUMA are
+still read inline, because none of them is a delta.
 
-BeeGFS is intentionally separate from the 1 Hz counter recorder. When a `beegfs` mount is present,
-the resources endpoint caches target capacity for 30 seconds and queries it with `beegfs-df -p`
-(BeeGFS 7, package `beegfs-utils`) or the structured `beegfs target list --capacity` interface
-(BeeGFS 8, package `beegfs-tools`). If there is no BeeGFS mount, the API returns `beegfs: null` and
-the page renders nothing. If a mount exists but neither CLI is available, only the System resources
-page shows a local installation hint; the global prerequisite registry is not involved.
+BeeGFS capacity is intentionally separate from the 1 Hz counter recorder. When a `beegfs` mount is
+present, the resources endpoint starts an asynchronous `statfs` refresh for each mount and returns
+the last successful value immediately. Refreshes have a 30-second TTL and never overlap for the same
+mount, so a BeeGFS kernel-client call that waits for its own cluster-side capacity refresh does not
+hold the HTTP response. BeeGFS reports inode totals as zero when they are unsupported; those values
+become `null` and are omitted from the page. No BeeGFS userspace CLI or package is required. If there
+is no BeeGFS mount, the API returns `beegfs: null` and the page renders nothing.
+
+RDMA traffic is sampled at 1 Hz only when exactly one active HCA port exposes both standard data
+counters. The counters are 64-bit values in four-byte units, so the recorder keeps them as `bigint`,
+computes the delta, multiplies by four, and only then emits numeric bytes per second. A reset, port
+change or read failure creates a gap. The counters cover all traffic on the port: on a BeeGFS host
+they commonly approximate filesystem reads (receive) and writes (transmit), but concurrent NCCL or
+other RDMA traffic is inseparable and is labelled accordingly in the UI. Zero or multiple active
+ports produce no RDMA series rather than a guessed port or an aggregate.
 
 The recorder must therefore start before the first `getSystemResources()` caller
 (`ensureResourcePoolsScaffold()`), otherwise that caller sees an all-null snapshot until the first
@@ -52,8 +63,9 @@ Two things keep it cheap and must stay that way:
   device, and so is the reportability probe that decides whether a `/proc/diskstats` name is a whole
   block device — partitions are not directories under `/sys/block`, so an uncached probe threw and
   caught one `ENOENT` per partition per tick. Interface speed and operstate
-  (`/sys/class/net/<if>/…`) carry a 30 s TTL. Re-reading them every tick was the single largest
-  avoidable cost.
+  (`/sys/class/net/<if>/…`) carry a 30 s TTL. RDMA active-port discovery uses the same TTL; only the
+  two selected counter files are read every tick. Re-reading static metadata every tick was the
+  single largest avoidable cost.
 - **GPU telemetry is a resident NVML session.** `nvidia/telemetry.ts` initialises NVML once and holds
   device handles, so a tick is three FFI calls per GPU rather than an `nvidia-smi` process spawn. The
   3 s accelerator cache means GPU series are stair-stepped relative to the 1 Hz CPU/disk series; if
@@ -126,7 +138,7 @@ the 5-minute live window.
 
 ## Surfaces
 
-- `GET /api/system/metrics?window=live|hour|day` → `SystemMetricsHistory` (the tier's samples).
+- `GET /api/system/metrics?window=live|hour|day|month` → `SystemMetricsHistory` (the tier's samples).
 - `GET /api/system/metrics/stream` → SSE, one `sample` event per tick. The route buffers at most 300
   pending samples per subscriber so a stalled client cannot grow the queue without bound.
 - Both are `/api/*` routes, so they are admin-gated and reverse-proxied to fleet peers by
