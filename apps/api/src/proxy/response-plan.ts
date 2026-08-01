@@ -10,6 +10,11 @@ import {
   pushApiProxyBroadcast,
 } from "./response-broadcast.js";
 import { settleApiProxyInFlight } from "./response-coalesce.js";
+import {
+  createApiProxyResponseReplaceStream,
+  replaceApiProxyResponseSseText,
+  replaceApiProxyResponseText,
+} from "./response-replace.js";
 
 export type ApiProxyResponseCacheWriter = (input: {
   key: string;
@@ -114,6 +119,9 @@ export function createApiProxyResponsePlanExecutor(input: {
       );
       return;
     }
+    if (state.effect.type === "replace-response-text") {
+      return;
+    }
 
     const metadata = state.metadata;
     const parsed =
@@ -195,7 +203,21 @@ export function createApiProxyResponsePlanExecutor(input: {
       let current = text;
       for (let index = states.length - 1; index >= 0; index -= 1) {
         const state = states[index];
-        if (state) {
+        if (state?.effect.type === "replace-response-text") {
+          const replacement = metadata.isSse
+            ? replaceApiProxyResponseSseText({
+                text: current,
+                operation: input.operation,
+                effect: state.effect,
+              })
+            : replaceApiProxyResponseText({
+                text: current,
+                operation: input.operation,
+                effect: state.effect,
+              });
+          current = replacement.text;
+          input.trace.textReplacementCount += replacement.count;
+        } else if (state) {
           observeText(state, current, metadata);
         }
       }
@@ -205,7 +227,17 @@ export function createApiProxyResponsePlanExecutor(input: {
       let current = stream;
       for (let index = states.length - 1; index >= 0; index -= 1) {
         const state = states[index];
-        if (state) {
+        if (state?.effect.type === "replace-response-text") {
+          current = current.pipeThrough(
+            createApiProxyResponseReplaceStream({
+              operation: input.operation,
+              effect: state.effect,
+              onReplacement: (count) => {
+                input.trace.textReplacementCount += count;
+              },
+            }),
+          );
+        } else if (state) {
           current = observeStream(current, state, metadata);
         }
       }

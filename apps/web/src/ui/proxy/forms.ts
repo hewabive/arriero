@@ -86,6 +86,10 @@ export type PipelineNodeDraft = {
   type: ApiProxyPipelineNode["type"];
   captureRequest: boolean;
   captureResponse: boolean;
+  replaceRequest: boolean;
+  replaceResponse: boolean;
+  replaceResponseReasoning: boolean;
+  replaceResponseToolArguments: boolean;
   replacements: ReplacementRuleDraft[];
   editOperations: EditOperationDraft[];
   reasoningEffort: ApiProxyReasoningEffort;
@@ -175,6 +179,10 @@ export function emptyPipelineNodeDraft(
     type,
     captureRequest: true,
     captureResponse: false,
+    replaceRequest: true,
+    replaceResponse: false,
+    replaceResponseReasoning: false,
+    replaceResponseToolArguments: false,
     replacements: [],
     editOperations: [],
     reasoningEffort: "medium",
@@ -379,6 +387,10 @@ function nodeDraftFromRecord(node: ApiProxyPipelineNode): PipelineNodeDraft {
         replace: rule.replace,
         enabled: rule.enabled,
       }));
+      draft.replaceRequest = node.config.request;
+      draft.replaceResponse = node.config.response;
+      draft.replaceResponseReasoning = node.config.responseReasoning;
+      draft.replaceResponseToolArguments = node.config.responseToolArguments;
       draft.portNext = portRefToValue(node.ports.next);
       break;
     case "capture-request":
@@ -657,6 +669,10 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         ...base,
         type: "replace-text",
         config: {
+          request: draft.replaceRequest,
+          response: draft.replaceResponse,
+          responseReasoning: draft.replaceResponseReasoning,
+          responseToolArguments: draft.replaceResponseToolArguments,
           rules: draft.replacements
             .filter((rule) => rule.find.length > 0)
             .map((rule) => ({

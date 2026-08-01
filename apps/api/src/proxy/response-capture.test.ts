@@ -84,6 +84,50 @@ test("response plan unwinds captures in reverse order and is idempotent", () => 
   });
 });
 
+test("captures on either side of a response transform see positional bodies", () => {
+  const value = trace();
+  const plan = createApiProxyResponsePlanExecutor({
+    effects: [
+      { type: "capture-response", nodeName: "Before replace" },
+      {
+        type: "replace-response-text",
+        rules: [{ enabled: true, find: "secret", replace: "[hidden]" }],
+        includeReasoning: false,
+        includeToolArguments: false,
+      },
+      { type: "capture-response", nodeName: "After replace" },
+    ],
+    putCache: () => {},
+    trace: value,
+    operation,
+  });
+  assert.ok(plan);
+
+  const delivered = plan.processText(
+    JSON.stringify({
+      choices: [{ message: { content: "the secret" } }],
+    }),
+    jsonResponse,
+  );
+  plan.flush();
+
+  assert.deepEqual(JSON.parse(delivered), {
+    choices: [{ message: { content: "the [hidden]" } }],
+  });
+  assert.deepEqual(
+    value.files.map((file) => file.label),
+    ["After replace", "Before replace"],
+  );
+  const raw = readApiProxyRequestFile(value.files[0]!.path);
+  const transformed = readApiProxyRequestFile(value.files[1]!.path);
+  assert.deepEqual(raw?.data, {
+    choices: [{ message: { content: "the secret" } }],
+  });
+  assert.deepEqual(transformed?.data, {
+    choices: [{ message: { content: "the [hidden]" } }],
+  });
+});
+
 test("response plan writes nothing when no body was seen", () => {
   const value = trace();
   const sink = createApiProxyResponsePlanExecutor({
@@ -120,6 +164,52 @@ test("response plan writes non-stream bodies to the cache and marks the trace", 
     { key: "key-1", body: '{"object":"list","data":[]}', ttlSeconds: 600 },
   ]);
   assert.equal(value.cache, "store");
+});
+
+test("cache stores the response visible at its position around a transform", () => {
+  const writes = new Map<string, string>();
+  const replacement = {
+    type: "replace-response-text" as const,
+    rules: [{ enabled: true, find: "secret", replace: "[hidden]" }],
+    includeReasoning: false,
+    includeToolArguments: false,
+  };
+  const raw = JSON.stringify({
+    choices: [{ message: { content: "secret" } }],
+  });
+  for (const effects of [
+    [
+      { type: "cache-store" as const, key: "outer", ttlSeconds: 600 },
+      replacement,
+    ],
+    [
+      replacement,
+      { type: "cache-store" as const, key: "inner", ttlSeconds: 600 },
+    ],
+  ]) {
+    const plan = createApiProxyResponsePlanExecutor({
+      effects,
+      putCache: (input) => writes.set(input.key, input.body),
+      trace: trace(),
+      operation,
+    });
+    assert.ok(plan);
+    plan.processText(raw, jsonResponse);
+    plan.flush();
+  }
+
+  assert.equal(
+    (JSON.parse(writes.get("outer") ?? "null") as {
+      choices: Array<{ message: { content: string } }>;
+    }).choices[0]?.message.content,
+    "[hidden]",
+  );
+  assert.equal(
+    (JSON.parse(writes.get("inner") ?? "null") as {
+      choices: Array<{ message: { content: string } }>;
+    }).choices[0]?.message.content,
+    "secret",
+  );
 });
 
 test("response plan does not cache an error body", async () => {

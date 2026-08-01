@@ -831,6 +831,10 @@ export const ApiProxyCaptureRequestConfigSchema = z.object({
 
 export const ApiProxyReplaceTextConfigSchema = z.object({
   rules: z.array(ApiProxyTextReplacementRuleSchema).max(50).default([]),
+  request: z.boolean().default(true),
+  response: z.boolean().default(false),
+  responseReasoning: z.boolean().default(false),
+  responseToolArguments: z.boolean().default(false),
 });
 
 const ApiProxyToolNamePatternSchema = z.string().trim().min(1).max(200);

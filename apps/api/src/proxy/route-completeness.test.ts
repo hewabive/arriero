@@ -27,7 +27,13 @@ function replaceNode(id: string, next: unknown): ApiProxyPipelineNode {
     id,
     name: "",
     type: "replace-text",
-    config: { rules: [] },
+    config: {
+      rules: [],
+      request: true,
+      response: false,
+      responseReasoning: false,
+      responseToolArguments: false,
+    },
     ports: { next: next as never },
   };
 }

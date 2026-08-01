@@ -43,9 +43,17 @@ export type ApiProxyCacheStoreEffect = {
   ttlSeconds: number;
 };
 
+export type ApiProxyReplaceResponseTextEffect = {
+  type: "replace-response-text";
+  rules: ApiProxyTextReplacementRule[];
+  includeReasoning: boolean;
+  includeToolArguments: boolean;
+};
+
 export type ApiProxyResponseEffect =
   | ApiProxyCaptureResponseEffect
-  | ApiProxyCacheStoreEffect;
+  | ApiProxyCacheStoreEffect
+  | ApiProxyReplaceResponseTextEffect;
 
 export function apiProxyResponseCaptures(
   effects: ApiProxyResponseEffect[],
@@ -445,10 +453,9 @@ export async function resolveApiProxyRouteChain(input: {
 
     switch (node.type) {
       case "replace-text": {
-        const replacement = replaceRequestText(
-          state.request.body,
-          node.config.rules,
-        );
+        const replacement = node.config.request
+          ? replaceRequestText(state.request.body, node.config.rules)
+          : { value: state.request.body, count: 0 };
         if (replacement.count > 0) {
           state.request = {
             ...state.request,
@@ -458,10 +465,24 @@ export async function resolveApiProxyRouteChain(input: {
           state.textReplacementCount += replacement.count;
           tokenEstimate = null;
         }
+        if (node.config.response) {
+          state.responseEffects.push({
+            type: "replace-response-text",
+            rules: node.config.rules,
+            includeReasoning: node.config.responseReasoning,
+            includeToolArguments: node.config.responseToolArguments,
+          });
+        }
+        const details = [
+          node.config.request
+            ? `request: ${replacement.count} replacement(s)`
+            : "request: disabled",
+          node.config.response ? "response at completion" : null,
+        ].filter((detail): detail is string => detail !== null);
         state.routeTrace.push(
           nodeStep(pipeline, node, {
             port: "next",
-            detail: `${replacement.count} replacement(s)`,
+            detail: details.join(" · "),
           }),
         );
         ref = node.ports.next;

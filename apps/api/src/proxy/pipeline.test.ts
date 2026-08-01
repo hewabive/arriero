@@ -95,6 +95,10 @@ test("legacy pipeline record upgrades steps and routeTo to a node graph", () => 
           enabled: true,
           type: "replace-text",
           config: {
+            request: true,
+            response: false,
+            responseReasoning: false,
+            responseToolArguments: false,
             rules: [{ enabled: true, find: "bad text", replace: "good text" }],
           },
         },
@@ -120,6 +124,10 @@ test("legacy pipeline record upgrades steps and routeTo to a node graph", () => 
     next: { type: "node", id: "replace" },
   });
   assert.ok(replaceNode && replaceNode.type === "replace-text");
+  assert.equal(replaceNode.config.request, true);
+  assert.equal(replaceNode.config.response, false);
+  assert.equal(replaceNode.config.responseReasoning, false);
+  assert.equal(replaceNode.config.responseToolArguments, false);
   assert.deepEqual(replaceNode.ports, {
     next: { type: "target", id: "target-a" },
   });
@@ -146,6 +154,10 @@ test("capture-request saves the request as it arrives at the node", async () => 
           name: "",
           type: "replace-text",
           config: {
+            request: true,
+            response: false,
+            responseReasoning: false,
+            responseToolArguments: false,
             rules: [{ enabled: true, find: "bad text", replace: "good text" }],
           },
           ports: { next: { type: "node", id: "capture-after" } },
@@ -299,6 +311,10 @@ test("replace-text does not touch the routing model field", async () => {
           type: "replace-text",
           config: {
             rules: [{ enabled: true, find: "bad text", replace: "good text" }],
+            request: true,
+            response: false,
+            responseReasoning: false,
+            responseToolArguments: false,
           },
           ports: { next: { type: "target", id: "target-a" } },
         },
@@ -317,6 +333,55 @@ test("replace-text does not touch the routing model field", async () => {
       model: "bad text",
       prompt: "good text",
     });
+  }
+});
+
+test("replace-text can defer response replacement without changing the request", async () => {
+  const pipelines = [
+    pipelineRecord({
+      id: "pipeline-a",
+      entry: { type: "node", id: "replace" },
+      nodes: [
+        {
+          id: "replace",
+          name: "Response scrubber",
+          type: "replace-text",
+          config: {
+            rules: [{ enabled: true, find: "secret", replace: "[hidden]" }],
+            request: false,
+            response: true,
+            responseReasoning: true,
+            responseToolArguments: false,
+          },
+          ports: { next: { type: "target", id: "target-a" } },
+        },
+      ],
+    }),
+  ];
+  const original = request({
+    body: { model: "public-model", prompt: "secret" },
+  });
+
+  const result = await resolveApiProxyRouteChain({
+    request: original,
+    getPipeline: getPipelineFrom(pipelines),
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok && result.kind === "target") {
+    assert.equal(result.request.body, original.body);
+    assert.deepEqual(result.responseEffects, [
+      {
+        type: "replace-response-text",
+        rules: [{ enabled: true, find: "secret", replace: "[hidden]" }],
+        includeReasoning: true,
+        includeToolArguments: false,
+      },
+    ]);
+    assert.equal(
+      result.routeTrace[1]?.detail,
+      "request: disabled · response at completion",
+    );
   }
 });
 
@@ -1299,7 +1364,13 @@ test("dangling node port fails with route_unbound", async () => {
           id: "replace",
           name: "",
           type: "replace-text",
-          config: { rules: [] },
+          config: {
+            rules: [],
+            request: true,
+            response: false,
+            responseReasoning: false,
+            responseToolArguments: false,
+          },
           ports: { next: null },
         },
       ],

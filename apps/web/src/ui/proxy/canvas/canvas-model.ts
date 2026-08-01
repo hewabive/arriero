@@ -213,7 +213,12 @@ export function nodeSummary(
       const count = node.replacements.filter(
         (rule) => rule.enabled && rule.find.length > 0,
       ).length;
-      return countLabel(count, "rule");
+      const surfaces = [
+        node.replaceRequest ? "request" : null,
+        node.replaceResponse ? "response" : null,
+      ].filter((surface): surface is string => surface !== null);
+      const suffix = surfaces.length > 0 ? ` · ${surfaces.join(" + ")}` : "";
+      return `${countLabel(count, "rule")}${suffix}`;
     }
     case "capture-request": {
       const saves = [

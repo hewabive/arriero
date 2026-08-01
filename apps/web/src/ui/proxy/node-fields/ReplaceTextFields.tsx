@@ -140,10 +140,56 @@ export function ReplaceTextFields(props: {
   return (
     <>
       <Stack gap="xs">
+        <Switch
+          size="sm"
+          label="Transform request text"
+          description="Apply rules to string fields before the request continues through the graph."
+          checked={node.replaceRequest}
+          onChange={(event) =>
+            ctx.updateNode(node.id, {
+              replaceRequest: event.currentTarget.checked,
+            })
+          }
+        />
+        <Switch
+          size="sm"
+          label="Transform response text"
+          description="Apply rules to visible assistant text while the response unwinds toward the client."
+          checked={node.replaceResponse}
+          onChange={(event) =>
+            ctx.updateNode(node.id, {
+              replaceResponse: event.currentTarget.checked,
+            })
+          }
+        />
+        <Group grow align="flex-start">
+          <Switch
+            size="xs"
+            label="Include reasoning"
+            checked={node.replaceResponseReasoning}
+            disabled={!node.replaceResponse}
+            onChange={(event) =>
+              ctx.updateNode(node.id, {
+                replaceResponseReasoning: event.currentTarget.checked,
+              })
+            }
+          />
+          <Switch
+            size="xs"
+            label="Include tool arguments"
+            checked={node.replaceResponseToolArguments}
+            disabled={!node.replaceResponse}
+            onChange={(event) =>
+              ctx.updateNode(node.id, {
+                replaceResponseToolArguments: event.currentTarget.checked,
+              })
+            }
+          />
+        </Group>
         {rules.length === 0 && (
           <Text c="dimmed" size="sm">
-            No replacements yet. Each rule rewrites matching text in the request
-            before routing.
+            No replacements yet. Each rule rewrites matching text in the
+            selected request and response surfaces.
           </Text>
         )}
         {rules.length > 0 && (
@@ -226,7 +272,7 @@ export function ReplaceTextFields(props: {
         </Button>
         <Text c="dimmed" size="xs">
           {
-            'Rules match literal text inside request string fields. The toggle only changes how rules are displayed and typed: the "JSON string" view shows text exactly as it appears inside a JSON string (quotes, line breaks and tabs read \\" \\n \\t) — paste text copied from a saved request file there.'
+            'Rules use literal matching. The toggle only changes how rules are displayed and typed: the "JSON string" view shows text exactly as it appears inside a JSON string (quotes, line breaks and tabs read \\" \\n \\t) — paste text copied from a saved request or response file there.'
           }
         </Text>
       </Stack>
@@ -275,7 +321,7 @@ export function ReplaceTextFields(props: {
             />
             <Text c="dimmed" size="xs">
               {
-                'Rules match literal text inside request string fields. The toggle only changes how rules are displayed and typed: the "JSON string" view shows text exactly as it appears inside a JSON string (quotes, line breaks and tabs read \\" \\n \\t) — paste text copied from a saved request file there.'
+                'Rules use literal matching. The toggle only changes how rules are displayed and typed: the "JSON string" view shows text exactly as it appears inside a JSON string (quotes, line breaks and tabs read \\" \\n \\t) — paste text copied from a saved request or response file there.'
               }
             </Text>
             <Group justify="space-between">
