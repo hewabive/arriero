@@ -128,6 +128,40 @@ test("captures on either side of a response transform see positional bodies", ()
   });
 });
 
+test("token scaling leaves the inner capture real and the outer capture client-visible", () => {
+  const value = trace();
+  const plan = createApiProxyResponsePlanExecutor({
+    effects: [
+      { type: "capture-response", nodeName: "Client-visible" },
+      { type: "token-scale", factor: 10 },
+      { type: "capture-response", nodeName: "Real target" },
+    ],
+    putCache: () => {},
+    trace: value,
+    operation,
+  });
+  assert.ok(plan);
+  const delivered = plan.processText(
+    JSON.stringify({
+      usage: { prompt_tokens: 10_000, completion_tokens: 2_000 },
+    }),
+    jsonResponse,
+  );
+  plan.flush();
+
+  assert.deepEqual(JSON.parse(delivered), {
+    usage: { prompt_tokens: 100_000, completion_tokens: 20_000 },
+  });
+  const real = readApiProxyRequestFile(value.files[0]!.path);
+  const visible = readApiProxyRequestFile(value.files[1]!.path);
+  assert.deepEqual(real?.data, {
+    usage: { prompt_tokens: 10_000, completion_tokens: 2_000 },
+  });
+  assert.deepEqual(visible?.data, {
+    usage: { prompt_tokens: 100_000, completion_tokens: 20_000 },
+  });
+});
+
 test("response plan writes nothing when no body was seen", () => {
   const value = trace();
   const sink = createApiProxyResponsePlanExecutor({
@@ -199,15 +233,19 @@ test("cache stores the response visible at its position around a transform", () 
   }
 
   assert.equal(
-    (JSON.parse(writes.get("outer") ?? "null") as {
-      choices: Array<{ message: { content: string } }>;
-    }).choices[0]?.message.content,
+    (
+      JSON.parse(writes.get("outer") ?? "null") as {
+        choices: Array<{ message: { content: string } }>;
+      }
+    ).choices[0]?.message.content,
     "[hidden]",
   );
   assert.equal(
-    (JSON.parse(writes.get("inner") ?? "null") as {
-      choices: Array<{ message: { content: string } }>;
-    }).choices[0]?.message.content,
+    (
+      JSON.parse(writes.get("inner") ?? "null") as {
+        choices: Array<{ message: { content: string } }>;
+      }
+    ).choices[0]?.message.content,
     "secret",
   );
 });

@@ -99,6 +99,39 @@ export function PipelineNodeFields(props: {
     );
   }
 
+  if (node.type === "token-scale") {
+    const factor = node.tokenScaleFactor === "" ? 1 : node.tokenScaleFactor;
+    return (
+      <>
+        <NumberInput
+          label="Client-visible / real tokens"
+          description="Request token limits are divided by this factor; response usage is multiplied by it."
+          min={0.000001}
+          max={1_000_000}
+          decimalScale={6}
+          value={node.tokenScaleFactor}
+          onChange={(value) =>
+            update({
+              tokenScaleFactor: typeof value === "number" ? value : "",
+            })
+          }
+        />
+        <Text c="dimmed" size="xs">
+          {factor === 1
+            ? "Factor 1 leaves limits and usage unchanged."
+            : `Example: max_tokens 40000 → ${Math.max(1, Math.floor(40_000 / factor))}; usage 10000 → ${Math.ceil(10_000 * factor)}.`}
+        </Text>
+        <PortSelect
+          label="Next"
+          ctx={ctx}
+          excludeNodeId={node.id}
+          value={node.portNext}
+          onChange={(portNext) => update({ portNext })}
+        />
+      </>
+    );
+  }
+
   if (node.type === "strip-attribution") {
     return (
       <>

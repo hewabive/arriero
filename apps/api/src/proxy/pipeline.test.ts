@@ -1630,3 +1630,45 @@ test("output-limit node caps a runaway max_tokens mid-route", async () => {
     assert.equal(result.routeTrace[1]?.kind, "output-limit");
   }
 });
+
+test("token-scale divides request limits and defers inverse usage scaling", async () => {
+  const pipeline = pipelineRecord({
+    id: "pipeline-a",
+    entry: { type: "node", id: "scale" },
+    nodes: [
+      {
+        id: "scale",
+        name: "128k local",
+        type: "token-scale",
+        config: { factor: 10 },
+        ports: { next: { type: "target", id: "target-a" } },
+      },
+    ],
+  });
+  const result = await resolveApiProxyRouteChain({
+    request: request({
+      body: {
+        model: "public-model",
+        max_tokens: 40_000,
+        thinking: { type: "enabled", budget_tokens: 20_000 },
+      },
+    }),
+    getPipeline: getPipelineFrom([pipeline]),
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok && result.kind === "target") {
+    assert.deepEqual(result.request.body, {
+      model: "public-model",
+      max_tokens: 4_000,
+      thinking: { type: "enabled", budget_tokens: 2_000 },
+    });
+    assert.deepEqual(result.responseEffects, [
+      { type: "token-scale", factor: 10 },
+    ]);
+    assert.equal(
+      result.routeTrace[1]?.detail,
+      "factor 10 · 2 request field(s)",
+    );
+  }
+});

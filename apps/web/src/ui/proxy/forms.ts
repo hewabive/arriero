@@ -96,6 +96,7 @@ export type PipelineNodeDraft = {
   reasoningCustomBudget: number | "";
   outputLimitMax: number | "";
   outputLimitMode: ApiProxyOutputLimitMode;
+  tokenScaleFactor: number | "";
   cacheTtlSeconds: number | "";
   cacheNamespace: string;
   predicateType: ApiProxyConditionPredicate["type"];
@@ -189,6 +190,7 @@ export function emptyPipelineNodeDraft(
     reasoningCustomBudget: 2048,
     outputLimitMax: 4096,
     outputLimitMode: "cap",
+    tokenScaleFactor: 1,
     cacheTtlSeconds: 3600,
     cacheNamespace: "",
     predicateType: "text-match",
@@ -417,6 +419,10 @@ function nodeDraftFromRecord(node: ApiProxyPipelineNode): PipelineNodeDraft {
     case "output-limit":
       draft.outputLimitMax = node.config.maxTokens;
       draft.outputLimitMode = node.config.mode;
+      draft.portNext = portRefToValue(node.ports.next);
+      break;
+    case "token-scale":
+      draft.tokenScaleFactor = node.config.factor;
       draft.portNext = portRefToValue(node.ports.next);
       break;
     case "strip-attribution":
@@ -712,6 +718,15 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         ...base,
         type: "output-limit",
         config: outputLimitConfigFromDraft(draft),
+        ports: { next: portRefFromValue(draft.portNext) },
+      };
+    case "token-scale":
+      return {
+        ...base,
+        type: "token-scale",
+        config: {
+          factor: draft.tokenScaleFactor === "" ? 1 : draft.tokenScaleFactor,
+        },
         ports: { next: portRefFromValue(draft.portNext) },
       };
     case "strip-attribution":

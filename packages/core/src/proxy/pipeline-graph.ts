@@ -83,6 +83,7 @@ export function apiProxyPipelineNodePorts(
     case "edit-request":
     case "reasoning":
     case "output-limit":
+    case "token-scale":
     case "strip-attribution":
     case "cache":
       return node.ports.next ? [{ port: "next", ref: node.ports.next }] : [];
@@ -212,6 +213,7 @@ export function collectApiProxyRouteHoles(
       case "edit-request":
       case "reasoning":
       case "output-limit":
+      case "token-scale":
       case "strip-attribution":
       case "cache":
         visit(node.ports.next, pipeline, stack, {

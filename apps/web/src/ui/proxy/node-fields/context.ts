@@ -24,6 +24,7 @@ const nodeTypeLabels: Record<ApiProxyPipelineNode["type"], string> = {
   "edit-request": "Edit request",
   reasoning: "Reasoning",
   "output-limit": "Limit output",
+  "token-scale": "Token scale",
   "strip-attribution": "Strip CC attribution",
   cache: "Cache response",
   condition: "Condition",
@@ -41,6 +42,7 @@ export const pipelineNodeTypeOptions: Array<{
   { value: "edit-request", label: nodeTypeLabels["edit-request"] },
   { value: "reasoning", label: nodeTypeLabels.reasoning },
   { value: "output-limit", label: nodeTypeLabels["output-limit"] },
+  { value: "token-scale", label: nodeTypeLabels["token-scale"] },
   {
     value: "strip-attribution",
     label: nodeTypeLabels["strip-attribution"],

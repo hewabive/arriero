@@ -15,6 +15,10 @@ import {
   replaceApiProxyResponseSseText,
   replaceApiProxyResponseText,
 } from "./response-replace.js";
+import {
+  createApiProxyTokenScaleStream,
+  scaleApiProxyResponseTokenText,
+} from "./token-scale.js";
 
 export type ApiProxyResponseCacheWriter = (input: {
   key: string;
@@ -119,7 +123,10 @@ export function createApiProxyResponsePlanExecutor(input: {
       );
       return;
     }
-    if (state.effect.type === "replace-response-text") {
+    if (
+      state.effect.type === "replace-response-text" ||
+      state.effect.type === "token-scale"
+    ) {
       return;
     }
 
@@ -217,6 +224,13 @@ export function createApiProxyResponsePlanExecutor(input: {
               });
           current = replacement.text;
           input.trace.textReplacementCount += replacement.count;
+        } else if (state?.effect.type === "token-scale") {
+          current = scaleApiProxyResponseTokenText({
+            text: current,
+            factor: state.effect.factor,
+            operation: input.operation,
+            isSse: metadata.isSse,
+          }).text;
         } else if (state) {
           observeText(state, current, metadata);
         }
@@ -235,6 +249,13 @@ export function createApiProxyResponsePlanExecutor(input: {
               onReplacement: (count) => {
                 input.trace.textReplacementCount += count;
               },
+            }),
+          );
+        } else if (state?.effect.type === "token-scale") {
+          current = current.pipeThrough(
+            createApiProxyTokenScaleStream({
+              operation: input.operation,
+              factor: state.effect.factor,
             }),
           );
         } else if (state) {

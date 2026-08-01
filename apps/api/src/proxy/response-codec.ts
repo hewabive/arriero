@@ -36,8 +36,7 @@ export type ApiProxySseFrameBuffer = {
   flush: () => string | null;
 };
 
-const sseFrameTerminator =
-  /(?:\r\n|\r(?!\n)|\n)(?:\r\n|\r(?!\n)|\n)/;
+const sseFrameTerminator = /(?:\r\n|\r(?!\n)|\n)(?:\r\n|\r(?!\n)|\n)/;
 
 export function createApiProxySseFrameBuffer(): ApiProxySseFrameBuffer {
   const decoder = new TextDecoder();
@@ -130,6 +129,28 @@ export function mutateApiProxySseJsonFrame(
     })
     .join("");
   return changed ? { changed: true, text } : { changed: false, text: frame };
+}
+
+export function mutateApiProxySseJsonText(
+  text: string,
+  mutate: ApiProxyJsonMutator,
+): ApiProxyTextMutation {
+  const frames = createApiProxySseFrameBuffer();
+  const output: string[] = [];
+  let changed = false;
+  const append = (frame: string) => {
+    const mutation = mutateApiProxySseJsonFrame(frame, mutate);
+    changed ||= mutation.changed;
+    output.push(mutation.text);
+  };
+  for (const frame of frames.push(new TextEncoder().encode(text))) {
+    append(frame);
+  }
+  const tail = frames.flush();
+  if (tail !== null) {
+    append(tail);
+  }
+  return changed ? { changed: true, text: output.join("") } : { changed, text };
 }
 
 export type ApiProxySseFrameTransformer = {

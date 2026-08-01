@@ -21,6 +21,7 @@ import {
   type ApiProxyProtocolModelRequest,
 } from "./protocol.js";
 import { estimateRequestTokens } from "./token-estimate.js";
+import { scaleApiProxyRequestTokens } from "./token-scale.js";
 
 export type ApiProxyPipelineRecordRequestInput = {
   kind: string;
@@ -50,10 +51,16 @@ export type ApiProxyReplaceResponseTextEffect = {
   includeToolArguments: boolean;
 };
 
+export type ApiProxyTokenScaleResponseEffect = {
+  type: "token-scale";
+  factor: number;
+};
+
 export type ApiProxyResponseEffect =
   | ApiProxyCaptureResponseEffect
   | ApiProxyCacheStoreEffect
-  | ApiProxyReplaceResponseTextEffect;
+  | ApiProxyReplaceResponseTextEffect
+  | ApiProxyTokenScaleResponseEffect;
 
 export function apiProxyResponseCaptures(
   effects: ApiProxyResponseEffect[],
@@ -557,6 +564,37 @@ export async function resolveApiProxyRouteChain(input: {
               edit.outcomes.length > 0
                 ? edit.outcomes.map((outcome) => outcome.detail).join("; ")
                 : `${node.config.mode} ${node.config.maxTokens}: no change`,
+          }),
+        );
+        ref = node.ports.next;
+        break;
+      }
+      case "token-scale": {
+        const scaled = scaleApiProxyRequestTokens(
+          state.request.body,
+          node.config.factor,
+        );
+        if (scaled.count > 0) {
+          state.request = {
+            ...state.request,
+            body: scaled.value,
+            stream: bodyRequestsStreaming(scaled.value),
+          };
+          tokenEstimate = null;
+        }
+        if (node.config.factor !== 1) {
+          state.responseEffects.push({
+            type: "token-scale",
+            factor: node.config.factor,
+          });
+        }
+        state.routeTrace.push(
+          nodeStep(pipeline, node, {
+            port: "next",
+            detail:
+              node.config.factor === 1
+                ? "factor 1 (no-op)"
+                : `factor ${node.config.factor} · ${scaled.count} request field(s)`,
           }),
         );
         ref = node.ports.next;

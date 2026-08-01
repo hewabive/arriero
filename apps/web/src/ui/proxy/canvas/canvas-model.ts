@@ -175,6 +175,7 @@ export function draftNodePorts(
     case "edit-request":
     case "reasoning":
     case "output-limit":
+    case "token-scale":
     case "strip-attribution":
     case "cache":
       return [{ port: "next", value: node.portNext }];
@@ -237,6 +238,8 @@ export function nodeSummary(
       return reasoningSummary(node);
     case "output-limit":
       return `${node.outputLimitMode} max_tokens ${node.outputLimitMax || "?"}`;
+    case "token-scale":
+      return `visible / real ×${node.tokenScaleFactor || "?"}`;
     case "strip-attribution":
       return "strip Claude Code attribution";
     case "cache": {

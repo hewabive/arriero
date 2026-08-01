@@ -36,6 +36,7 @@ export function apiProxyResponseCacheKey(input: {
   body: unknown;
 }): string {
   const payload = JSON.stringify({
+    version: 2,
     namespace: input.namespace,
     modelId: input.modelId,
     body: canonicalize(withoutVolatileKeys(input.body)),
