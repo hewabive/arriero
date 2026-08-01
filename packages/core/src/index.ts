@@ -2984,9 +2984,11 @@ export const SystemRdmaActivitySchema = z.object({
   intervalMs: z.number().nonnegative().nullable(),
 });
 
-export const BeeGfsFilesystemSchema = z.object({
+export const SystemStorageSpaceSchema = z.object({
   mountPath: z.string(),
   source: z.string(),
+  fsType: z.string(),
+  kind: z.enum(["local", "beegfs"]),
   cfgFile: z.string().nullable(),
   totalBytes: z.number().nonnegative().nullable(),
   freeBytes: z.number().nonnegative().nullable(),
@@ -2996,10 +2998,9 @@ export const BeeGfsFilesystemSchema = z.object({
   error: z.string().nullable(),
 });
 
-export const BeeGfsResourcesSchema = z.object({
+export const SystemStorageResourcesSchema = z.object({
   checkedAt: z.string(),
-  status: z.enum(["collecting", "ready", "error"]),
-  filesystems: z.array(BeeGfsFilesystemSchema),
+  filesystems: z.array(SystemStorageSpaceSchema),
   rdma: SystemRdmaActivitySchema.nullable().default(null),
 });
 
@@ -3041,7 +3042,7 @@ export const SystemResourcesSchema = z.object({
   memory: SystemMemorySchema,
   accelerators: z.array(SystemAcceleratorSchema),
   disk: SystemDiskActivitySchema.nullable(),
-  beegfs: BeeGfsResourcesSchema.nullable().default(null),
+  storage: SystemStorageResourcesSchema.nullable().default(null),
   cpu: SystemCpuActivitySchema.nullable().default(null),
   network: SystemNetworkActivitySchema.nullable().default(null),
   numa: NumaCapabilitiesSchema,
@@ -3923,8 +3924,10 @@ export type SystemDiskDevice = z.infer<typeof SystemDiskDeviceSchema>;
 export type SystemIoPressure = z.infer<typeof SystemIoPressureSchema>;
 export type SystemDiskActivity = z.infer<typeof SystemDiskActivitySchema>;
 export type SystemRdmaActivity = z.infer<typeof SystemRdmaActivitySchema>;
-export type BeeGfsFilesystem = z.infer<typeof BeeGfsFilesystemSchema>;
-export type BeeGfsResources = z.infer<typeof BeeGfsResourcesSchema>;
+export type SystemStorageSpace = z.infer<typeof SystemStorageSpaceSchema>;
+export type SystemStorageResources = z.infer<
+  typeof SystemStorageResourcesSchema
+>;
 export type SystemCpuCore = z.infer<typeof SystemCpuCoreSchema>;
 export type SystemCpuActivity = z.infer<typeof SystemCpuActivitySchema>;
 export type SystemNetworkInterface = z.infer<

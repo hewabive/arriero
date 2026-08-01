@@ -1,25 +1,42 @@
 import type {
-  BeeGfsFilesystem,
-  BeeGfsResources,
   SystemRdmaActivity,
+  SystemStorageResources,
+  SystemStorageSpace,
 } from "@arriero/core";
 import { readFileSync } from "node:fs";
 import { statfs } from "node:fs/promises";
 
-const BEEGFS_CAPACITY_REFRESH_MS = 30_000;
+const STORAGE_CAPACITY_REFRESH_MS = 30_000;
+const LOCAL_STORAGE_FILESYSTEMS = new Set([
+  "bcachefs",
+  "btrfs",
+  "ext2",
+  "ext3",
+  "ext4",
+  "f2fs",
+  "fuseblk",
+  "jfs",
+  "nilfs2",
+  "ntfs",
+  "ntfs3",
+  "overlay",
+  "reiserfs",
+  "vfat",
+  "xfs",
+  "zfs",
+]);
 
-export type BeeGfsMount = {
-  mountPath: string;
-  source: string;
-  cfgFile: string | null;
-};
+export type StorageMount = Pick<
+  SystemStorageSpace,
+  "mountPath" | "source" | "fsType" | "kind" | "cfgFile"
+>;
 
-export type BeeGfsCapacity = Pick<
-  BeeGfsFilesystem,
+export type StorageCapacity = Pick<
+  SystemStorageSpace,
   "totalBytes" | "freeBytes" | "totalInodes" | "freeInodes"
 >;
 
-type BeeGfsStatFs = {
+type StorageStatFs = {
   bsize: bigint;
   blocks: bigint;
   bavail: bigint;
@@ -29,7 +46,7 @@ type BeeGfsStatFs = {
 
 type CachedCapacity = {
   identity: string;
-  value: BeeGfsCapacity | null;
+  value: StorageCapacity | null;
   checkedAt: string | null;
   error: string | null;
   refreshAfter: number;
@@ -40,9 +57,9 @@ type PendingCapacity = {
   token: symbol;
 };
 
-type BeeGfsResourceCacheOptions = {
-  readMounts: () => BeeGfsMount[];
-  readCapacity: (mountPath: string) => Promise<BeeGfsCapacity>;
+type StorageResourceCacheOptions = {
+  readMounts: () => StorageMount[];
+  readCapacity: (mountPath: string) => Promise<StorageCapacity>;
   now?: () => number;
   refreshMs?: number;
 };
@@ -63,23 +80,36 @@ function cfgFileFromSuperOptions(value: string | undefined): string | null {
   return option ? decodeMountField(option.slice("cfgFile=".length)) : null;
 }
 
-export function parseBeeGfsMountInfo(contents: string): BeeGfsMount[] {
-  const mounts = new Map<string, BeeGfsMount>();
+function storageKind(fsType: string): SystemStorageSpace["kind"] | null {
+  if (fsType.startsWith("beegfs")) {
+    return "beegfs";
+  }
+  return LOCAL_STORAGE_FILESYSTEMS.has(fsType) ? "local" : null;
+}
+
+export function parseStorageMountInfo(contents: string): StorageMount[] {
+  const mounts = new Map<string, StorageMount>();
   for (const line of contents.split("\n")) {
     const fields = line.trim().split(/\s+/);
     const separator = fields.indexOf("-");
     if (separator < 6 || fields.length < separator + 3) {
       continue;
     }
-    const fsType = fields[separator + 1];
-    if (!fsType?.startsWith("beegfs")) {
+    const fsType = fields[separator + 1]!.toLowerCase();
+    const kind = storageKind(fsType);
+    if (!kind) {
       continue;
     }
     const mountPath = decodeMountField(fields[4]!);
     mounts.set(mountPath, {
       mountPath,
       source: decodeMountField(fields[separator + 2]!),
-      cfgFile: cfgFileFromSuperOptions(fields[separator + 3]),
+      fsType,
+      kind,
+      cfgFile:
+        kind === "beegfs"
+          ? cfgFileFromSuperOptions(fields[separator + 3])
+          : null,
     });
   }
   return [...mounts.values()].sort((a, b) =>
@@ -87,12 +117,12 @@ export function parseBeeGfsMountInfo(contents: string): BeeGfsMount[] {
   );
 }
 
-function readBeeGfsMounts(): BeeGfsMount[] {
+function readStorageMounts(): StorageMount[] {
   if (process.platform !== "linux") {
     return [];
   }
   try {
-    return parseBeeGfsMountInfo(readFileSync("/proc/self/mountinfo", "utf8"));
+    return parseStorageMountInfo(readFileSync("/proc/self/mountinfo", "utf8"));
   } catch {
     return [];
   }
@@ -103,7 +133,7 @@ function finiteNumber(value: bigint): number | null {
   return Number.isFinite(converted) && converted >= 0 ? converted : null;
 }
 
-export function capacityFromStatFs(stats: BeeGfsStatFs): BeeGfsCapacity {
+export function capacityFromStatFs(stats: StorageStatFs): StorageCapacity {
   const reportsInodes = stats.files > 0n;
   return {
     totalBytes: finiteNumber(stats.blocks * stats.bsize),
@@ -113,35 +143,43 @@ export function capacityFromStatFs(stats: BeeGfsStatFs): BeeGfsCapacity {
   };
 }
 
-async function readCapacity(mountPath: string): Promise<BeeGfsCapacity> {
+async function readCapacity(mountPath: string): Promise<StorageCapacity> {
   return capacityFromStatFs(await statfs(mountPath, { bigint: true }));
 }
 
-function mountIdentity(mount: BeeGfsMount): string {
-  return `${mount.mountPath}\0${mount.source}\0${mount.cfgFile ?? ""}`;
+function mountIdentity(mount: StorageMount): string {
+  return [
+    mount.mountPath,
+    mount.source,
+    mount.fsType,
+    mount.kind,
+    mount.cfgFile ?? "",
+  ].join("\0");
 }
 
 function errorMessage(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(-2_000);
 }
 
-export class BeeGfsResourceCache {
-  private readonly readMounts: () => BeeGfsMount[];
-  private readonly readCapacity: (mountPath: string) => Promise<BeeGfsCapacity>;
+export class StorageResourceCache {
+  private readonly readMounts: () => StorageMount[];
+  private readonly readCapacity: (
+    mountPath: string,
+  ) => Promise<StorageCapacity>;
   private readonly now: () => number;
   private readonly refreshMs: number;
   private readonly capacities = new Map<string, CachedCapacity>();
   private readonly pending = new Map<string, PendingCapacity>();
   private readonly currentIdentities = new Map<string, string>();
 
-  constructor(options: BeeGfsResourceCacheOptions) {
+  constructor(options: StorageResourceCacheOptions) {
     this.readMounts = options.readMounts;
     this.readCapacity = options.readCapacity;
     this.now = options.now ?? Date.now;
-    this.refreshMs = options.refreshMs ?? BEEGFS_CAPACITY_REFRESH_MS;
+    this.refreshMs = options.refreshMs ?? STORAGE_CAPACITY_REFRESH_MS;
   }
 
-  get(rdma: SystemRdmaActivity | null): BeeGfsResources | null {
+  get(rdma: SystemRdmaActivity | null): SystemStorageResources | null {
     const mounts = this.readMounts();
     if (mounts.length === 0) {
       this.currentIdentities.clear();
@@ -174,44 +212,26 @@ export class BeeGfsResourceCache {
       this.scheduleRefresh(mount, identity, now);
     }
 
-    const filesystems = mounts.map((mount): BeeGfsFilesystem => {
-      const cached = this.capacities.get(mount.mountPath);
-      return {
-        ...mount,
-        totalBytes: cached?.value?.totalBytes ?? null,
-        freeBytes: cached?.value?.freeBytes ?? null,
-        totalInodes: cached?.value?.totalInodes ?? null,
-        freeInodes: cached?.value?.freeInodes ?? null,
-        checkedAt: cached?.checkedAt ?? null,
-        error: cached?.error ?? null,
-      };
-    });
-    const hasCapacity = filesystems.some(
-      (filesystem) => filesystem.totalBytes !== null,
-    );
-    const allFailed = filesystems.every(
-      (filesystem) => filesystem.error !== null,
-    );
-    const collecting = filesystems.some(
-      (filesystem) =>
-        filesystem.totalBytes === null && filesystem.error === null,
-    );
-
     return {
       checkedAt: new Date(now).toISOString(),
-      status:
-        allFailed && !hasCapacity
-          ? "error"
-          : collecting
-            ? "collecting"
-            : "ready",
-      filesystems,
-      rdma,
+      filesystems: mounts.map((mount): SystemStorageSpace => {
+        const cached = this.capacities.get(mount.mountPath);
+        return {
+          ...mount,
+          totalBytes: cached?.value?.totalBytes ?? null,
+          freeBytes: cached?.value?.freeBytes ?? null,
+          totalInodes: cached?.value?.totalInodes ?? null,
+          freeInodes: cached?.value?.freeInodes ?? null,
+          checkedAt: cached?.checkedAt ?? null,
+          error: cached?.error ?? null,
+        };
+      }),
+      rdma: mounts.some((mount) => mount.kind === "beegfs") ? rdma : null,
     };
   }
 
   private scheduleRefresh(
-    mount: BeeGfsMount,
+    mount: StorageMount,
     identity: string,
     now: number,
   ): void {
@@ -270,13 +290,13 @@ export class BeeGfsResourceCache {
   }
 }
 
-const beeGfsResourceCache = new BeeGfsResourceCache({
-  readMounts: readBeeGfsMounts,
+const storageResourceCache = new StorageResourceCache({
+  readMounts: readStorageMounts,
   readCapacity,
 });
 
-export function getBeeGfsResources(
+export function getStorageResources(
   rdma: SystemRdmaActivity | null,
-): BeeGfsResources | null {
-  return beeGfsResourceCache.get(rdma);
+): SystemStorageResources | null {
+  return storageResourceCache.get(rdma);
 }

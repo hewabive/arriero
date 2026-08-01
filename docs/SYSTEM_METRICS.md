@@ -20,7 +20,8 @@ activity builder, and the previous-counter state lives exclusively in recorder f
 - `system/disk.ts` — `readDiskCounters()` + `buildDiskActivity()`, `/proc/diskstats`.
 - `system/rdma.ts` — `readRdmaCounters()` + `computeRdmaActivity()`, the receive/transmit data
   counters for a single active `/sys/class/infiniband/<device>/ports/<port>`.
-- `system/beegfs.ts` — mounted BeeGFS discovery plus per-mount `statfs` capacity.
+- `system/storage-space.ts` — mounted local/BeeGFS filesystem discovery plus per-mount `statfs`
+  capacity.
 
 Before the recorder existed, disk rates were computed between two arbitrary HTTP requests, so every
 page that polled `/api/system/resources` (environments, the instance form, fleet) perturbed the rates
@@ -28,13 +29,16 @@ the others saw. `getSystemResources()` now reads `systemMetricsRecorder.current(
 read that never ticks — for `cpu`/`network`/`disk`/`rdma`; only memory, accelerators and NUMA are
 still read inline, because none of them is a delta.
 
-BeeGFS capacity is intentionally separate from the 1 Hz counter recorder. When a `beegfs` mount is
-present, the resources endpoint starts an asynchronous `statfs` refresh for each mount and returns
-the last successful value immediately. Refreshes have a 30-second TTL and never overlap for the same
-mount, so a BeeGFS kernel-client call that waits for its own cluster-side capacity refresh does not
-hold the HTTP response. BeeGFS reports inode totals as zero when they are unsupported; those values
-become `null` and are omitted from the page. No BeeGFS userspace CLI or package is required. If there
-is no BeeGFS mount, the API returns `beegfs: null` and the page renders nothing.
+Filesystem capacity is intentionally separate from the 1 Hz counter recorder. The resources
+endpoint discovers mounted local storage filesystems plus BeeGFS, starts an asynchronous `statfs`
+refresh for each mount, and returns the last successful value immediately. Pseudo, in-memory and
+unrelated network filesystems are excluded so the compact table represents disk space rather than
+every mount namespace entry. Refreshes have a 30-second TTL and never overlap for the same mount, so
+a BeeGFS kernel-client call that waits for its own cluster-side capacity refresh does not hold the
+HTTP response. BeeGFS reports inode totals as zero when they are unsupported; those values become
+`null` and are omitted from the page. No BeeGFS userspace CLI or package is required. Without a
+BeeGFS mount the shared storage table still shows local filesystems, while BeeGFS-specific rows and
+the RDMA chart are absent.
 
 RDMA traffic is sampled at 1 Hz only when exactly one active HCA port exposes both standard data
 counters. The counters are 64-bit values in four-byte units, so the recorder keeps them as `bigint`,

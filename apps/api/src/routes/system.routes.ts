@@ -13,7 +13,7 @@ import {
 } from "../process/external.js";
 import { getPublicStatus } from "../public-status.js";
 import { listNetworkInterfaceAddresses } from "../system/network.js";
-import { getSystemResourcesWithBeeGfs } from "../system/resources.js";
+import { getSystemResourcesWithStorage } from "../system/resources.js";
 
 const SYSTEM_METRICS_STREAM_BACKLOG = 300;
 
@@ -31,7 +31,7 @@ export function registerSystemRoutes(app: Hono) {
   });
 
   app.get("/api/system/resources", (c) => {
-    return c.json({ data: getSystemResourcesWithBeeGfs() });
+    return c.json({ data: getSystemResourcesWithStorage() });
   });
 
   app.get("/api/system/metrics", (c) => {

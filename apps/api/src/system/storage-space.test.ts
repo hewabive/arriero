@@ -2,26 +2,48 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 
 import {
-  BeeGfsResourceCache,
+  StorageResourceCache,
   capacityFromStatFs,
-  parseBeeGfsMountInfo,
-  type BeeGfsCapacity,
-} from "./beegfs.js";
+  parseStorageMountInfo,
+  type StorageCapacity,
+  type StorageMount,
+} from "./storage-space.js";
 
-const mount = {
+const beeGfsMount: StorageMount = {
   mountPath: "/mnt/beegfs",
   source: "beegfs_nodev",
+  fsType: "beegfs",
+  kind: "beegfs",
   cfgFile: "/etc/beegfs/client.conf",
+};
+
+const localMount: StorageMount = {
+  mountPath: "/",
+  source: "/dev/nvme0n1p2",
+  fsType: "ext4",
+  kind: "local",
+  cfgFile: null,
+};
+
+const rdma = {
+  device: "mlx5_0",
+  port: 1,
+  receiveBytesPerSec: 100,
+  transmitBytesPerSec: 200,
+  intervalMs: 1_000,
 };
 
 function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-test("parseBeeGfsMountInfo finds BeeGFS mounts and reads cfgFile", () => {
-  const mounts = parseBeeGfsMountInfo(
+test("parseStorageMountInfo finds local and BeeGFS storage without pseudo filesystems", () => {
+  const mounts = parseStorageMountInfo(
     [
-      "35 24 0:30 / / rw,relatime - ext4 /dev/sda1 rw",
+      "35 24 259:2 / / rw,relatime - ext4 /dev/nvme0n1p2 rw",
+      "36 35 0:5 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw",
+      "37 35 0:6 / /run rw,nosuid,nodev - tmpfs tmpfs rw",
+      "38 35 0:42 / /mnt/share rw,relatime - nfs4 server:/share rw",
       "42 35 0:51 / /mnt/team\\040space rw,relatime shared:12 - beegfs beegfs_nodev rw,cfgFile=/etc/beegfs/team\\040client.conf",
       "43 35 0:52 / /mnt/ondemand rw,relatime - beegfs_ondemand beegfs_ondemand rw",
       "",
@@ -29,17 +51,40 @@ test("parseBeeGfsMountInfo finds BeeGFS mounts and reads cfgFile", () => {
   );
 
   assert.deepEqual(mounts, [
+    localMount,
     {
       mountPath: "/mnt/ondemand",
       source: "beegfs_ondemand",
+      fsType: "beegfs_ondemand",
+      kind: "beegfs",
       cfgFile: null,
     },
     {
       mountPath: "/mnt/team space",
       source: "beegfs_nodev",
+      fsType: "beegfs",
+      kind: "beegfs",
       cfgFile: "/etc/beegfs/team client.conf",
     },
   ]);
+});
+
+test("parseStorageMountInfo includes common device and overlay filesystems", () => {
+  const mounts = parseStorageMountInfo(
+    [
+      "30 20 0:28 / / rw,relatime - overlay overlay rw",
+      "31 20 8:1 / /data rw,relatime - xfs /dev/sda1 rw",
+      "32 20 7:1 / /snap ro,relatime - squashfs /dev/loop1 ro",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(
+    mounts.map((mount) => [mount.mountPath, mount.fsType]),
+    [
+      ["/", "overlay"],
+      ["/data", "xfs"],
+    ],
+  );
 });
 
 test("capacityFromStatFs converts blocks to bytes and hides unsupported inodes", () => {
@@ -73,15 +118,15 @@ test("capacityFromStatFs preserves supported inode counters", () => {
   assert.equal(capacity.freeInodes, 60);
 });
 
-test("BeeGfsResourceCache refreshes capacity without blocking the caller", async () => {
+test("StorageResourceCache refreshes capacity without blocking the caller", async () => {
   let now = 1_000;
   let calls = 0;
-  let complete!: (capacity: BeeGfsCapacity) => void;
-  const capacity = new Promise<BeeGfsCapacity>((resolve) => {
+  let complete!: (capacity: StorageCapacity) => void;
+  const capacity = new Promise<StorageCapacity>((resolve) => {
     complete = resolve;
   });
-  const cache = new BeeGfsResourceCache({
-    readMounts: () => [mount],
+  const cache = new StorageResourceCache({
+    readMounts: () => [localMount, beeGfsMount],
     readCapacity: () => {
       calls += 1;
       return capacity;
@@ -90,13 +135,13 @@ test("BeeGfsResourceCache refreshes capacity without blocking the caller", async
     refreshMs: 30_000,
   });
 
-  const initial = cache.get(null);
-  assert.equal(initial?.status, "collecting");
+  const initial = cache.get(rdma);
   assert.equal(initial?.filesystems[0]?.totalBytes, null);
-  assert.equal(calls, 1);
+  assert.deepEqual(initial?.rdma, rdma);
+  assert.equal(calls, 2);
 
-  cache.get(null);
-  assert.equal(calls, 1);
+  cache.get(rdma);
+  assert.equal(calls, 2);
 
   complete({
     totalBytes: 1_000,
@@ -106,40 +151,22 @@ test("BeeGfsResourceCache refreshes capacity without blocking the caller", async
   });
   await flushPromises();
 
-  const ready = cache.get(null);
-  assert.equal(ready?.status, "ready");
+  const ready = cache.get(rdma);
   assert.equal(ready?.filesystems[0]?.totalBytes, 1_000);
-  assert.equal(ready?.filesystems[0]?.freeBytes, 400);
+  assert.equal(ready?.filesystems[1]?.freeBytes, 400);
   assert.equal(ready?.filesystems[0]?.checkedAt, new Date(now).toISOString());
 
   now += 30_001;
-  const stale = cache.get(null);
+  const stale = cache.get(rdma);
   assert.equal(stale?.filesystems[0]?.totalBytes, 1_000);
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
 });
 
-test("BeeGfsResourceCache reports a failed initial refresh per mount", async () => {
-  const cache = new BeeGfsResourceCache({
-    readMounts: () => [mount],
-    readCapacity: async () => {
-      throw new Error("Host is down");
-    },
-    now: () => 1_000,
-  });
-
-  assert.equal(cache.get(null)?.status, "collecting");
-  await flushPromises();
-
-  const failed = cache.get(null);
-  assert.equal(failed?.status, "error");
-  assert.equal(failed?.filesystems[0]?.error, "Host is down");
-});
-
-test("BeeGfsResourceCache keeps the last capacity after a refresh failure", async () => {
+test("StorageResourceCache reports errors and keeps the last capacity", async () => {
   let now = 1_000;
   let calls = 0;
-  const cache = new BeeGfsResourceCache({
-    readMounts: () => [mount],
+  const cache = new StorageResourceCache({
+    readMounts: () => [localMount],
     readCapacity: async () => {
       calls += 1;
       if (calls > 1) {
@@ -148,33 +175,33 @@ test("BeeGfsResourceCache keeps the last capacity after a refresh failure", asyn
       return {
         totalBytes: 2_000,
         freeBytes: 500,
-        totalInodes: null,
-        freeInodes: null,
+        totalInodes: 100,
+        freeInodes: 50,
       };
     },
     now: () => now,
     refreshMs: 30_000,
   });
 
-  cache.get(null);
+  cache.get(rdma);
   await flushPromises();
   now += 30_001;
-  assert.equal(cache.get(null)?.filesystems[0]?.totalBytes, 2_000);
+  cache.get(rdma);
   await flushPromises();
 
-  const stale = cache.get(null);
-  assert.equal(stale?.status, "ready");
+  const stale = cache.get(rdma);
   assert.equal(stale?.filesystems[0]?.totalBytes, 2_000);
   assert.equal(stale?.filesystems[0]?.error, "Timed out");
+  assert.equal(stale?.rdma, null);
 });
 
-test("BeeGfsResourceCache stays absent when BeeGFS is not mounted", () => {
-  const cache = new BeeGfsResourceCache({
+test("StorageResourceCache stays absent without reportable storage", () => {
+  const cache = new StorageResourceCache({
     readMounts: () => [],
     readCapacity: async () => {
       throw new Error("must not run");
     },
   });
 
-  assert.equal(cache.get(null), null);
+  assert.equal(cache.get(rdma), null);
 });

@@ -15,6 +15,7 @@ import {
   SegmentedControl,
   SimpleGrid,
   Stack,
+  Table,
   Text,
 } from "@mantine/core";
 import { useMemo, type ReactNode } from "react";
@@ -153,8 +154,8 @@ export function SystemResourcesPanel(props: {
   const cpu = props.resources?.cpu ?? null;
   const accelerators = props.resources?.accelerators ?? [];
   const disk = props.resources?.disk ?? null;
-  const beegfs = props.resources?.beegfs ?? null;
-  const rdma = beegfs?.rdma ?? null;
+  const storage = props.resources?.storage ?? null;
+  const rdma = storage?.rdma ?? null;
   const network = props.resources?.network ?? null;
   const samples = props.samples;
   const latest = samples[samples.length - 1] ?? null;
@@ -543,119 +544,135 @@ export function SystemResourcesPanel(props: {
             </>
           )}
 
-          {beegfs && (
+          {storage && storage.filesystems.length > 0 && (
             <>
               <Divider />
               <Stack gap="xs">
                 <SectionHeading
-                  title="BeeGFS space"
+                  title="Storage space"
                   badges={
-                    <>
-                      <Badge variant="outline" color="blue">
-                        {beegfs.filesystems.length}{" "}
-                        {beegfs.filesystems.length === 1 ? "mount" : "mounts"}
-                      </Badge>
-                      {beegfs.status === "collecting" && (
-                        <Badge variant="light" color="yellow">
-                          collecting capacity
-                        </Badge>
-                      )}
-                    </>
+                    <Badge variant="outline" color="blue">
+                      {storage.filesystems.length}{" "}
+                      {storage.filesystems.length === 1
+                        ? "filesystem"
+                        : "filesystems"}
+                    </Badge>
                   }
                 />
 
-                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-                  {beegfs.filesystems.map((filesystem) => {
-                    const percent = usedPercent(
-                      filesystem.totalBytes,
-                      filesystem.freeBytes,
-                    );
-                    const used = usedValue(
-                      filesystem.totalBytes,
-                      filesystem.freeBytes,
-                    );
-                    const hasCapacity = filesystem.totalBytes !== null;
-                    return (
-                      <MetricCard
-                        key={filesystem.mountPath}
-                        title={filesystem.mountPath}
-                        meta={
-                          <Badge variant="light" color="gray">
-                            {filesystem.source}
-                          </Badge>
-                        }
-                        footer={
-                          filesystem.cfgFile ||
-                          (filesystem.totalInodes !== null &&
-                            filesystem.freeInodes !== null) ? (
-                            <Stack gap={2}>
-                              {filesystem.cfgFile && (
-                                <Text c="dimmed" size="xs">
-                                  {filesystem.cfgFile}
-                                </Text>
-                              )}
-                              {filesystem.totalInodes !== null &&
-                                filesystem.freeInodes !== null && (
-                                  <Text c="dimmed" size="xs">
-                                    {filesystem.freeInodes.toLocaleString("en")}{" "}
-                                    of{" "}
-                                    {filesystem.totalInodes.toLocaleString(
-                                      "en",
-                                    )}{" "}
-                                    inodes free
+                <Paper withBorder radius="sm" style={{ overflow: "hidden" }}>
+                  <Table.ScrollContainer minWidth={680}>
+                    <Table
+                      horizontalSpacing="sm"
+                      verticalSpacing="xs"
+                      highlightOnHover
+                    >
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Filesystem</Table.Th>
+                          <Table.Th>Used</Table.Th>
+                          <Table.Th ta="right">Free</Table.Th>
+                          <Table.Th ta="right">Total</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {storage.filesystems.map((filesystem) => {
+                          const percent = usedPercent(
+                            filesystem.totalBytes,
+                            filesystem.freeBytes,
+                          );
+                          const details = [
+                            filesystem.source,
+                            filesystem.cfgFile,
+                            filesystem.freeInodes !== null
+                              ? `${filesystem.freeInodes.toLocaleString("en")} free inodes`
+                              : null,
+                          ].filter((value): value is string => Boolean(value));
+                          return (
+                            <Table.Tr key={filesystem.mountPath}>
+                              <Table.Td>
+                                <Group gap="xs" wrap="nowrap">
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <Text fw={600} size="sm" lineClamp={1}>
+                                      {filesystem.mountPath}
+                                    </Text>
+                                    <Text
+                                      c="dimmed"
+                                      size="xs"
+                                      lineClamp={1}
+                                      title={details.join(" · ")}
+                                    >
+                                      {details.join(" · ")}
+                                    </Text>
+                                  </div>
+                                  <Badge
+                                    variant="light"
+                                    color={
+                                      filesystem.kind === "beegfs"
+                                        ? "blue"
+                                        : "gray"
+                                    }
+                                  >
+                                    {filesystem.kind === "beegfs"
+                                      ? "BeeGFS"
+                                      : filesystem.fsType}
+                                  </Badge>
+                                  {filesystem.error &&
+                                    filesystem.totalBytes !== null && (
+                                      <Badge variant="light" color="orange">
+                                        stale
+                                      </Badge>
+                                    )}
+                                </Group>
+                              </Table.Td>
+                              <Table.Td>
+                                {percent !== null ? (
+                                  <Group gap="xs" wrap="nowrap">
+                                    <Progress
+                                      value={percent}
+                                      color={loadColor(percent / 100)}
+                                      size="sm"
+                                      radius="xs"
+                                      style={{ flex: 1, minWidth: 100 }}
+                                    />
+                                    <Text size="xs" w={36} ta="right">
+                                      {Math.round(percent)}%
+                                    </Text>
+                                  </Group>
+                                ) : (
+                                  <Text
+                                    c={filesystem.error ? "orange" : "dimmed"}
+                                    size="xs"
+                                    title={filesystem.error ?? undefined}
+                                  >
+                                    {filesystem.error
+                                      ? "Unavailable"
+                                      : "Collecting…"}
                                   </Text>
                                 )}
-                            </Stack>
-                          ) : undefined
-                        }
-                      >
-                        {filesystem.error && (
-                          <Alert color="orange" title="Capacity refresh failed">
-                            <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
-                              {filesystem.error}
-                            </Text>
-                          </Alert>
-                        )}
-                        {!hasCapacity && !filesystem.error && (
-                          <Text c="dimmed" size="xs">
-                            Capacity is being collected in the background.
-                          </Text>
-                        )}
-                        {hasCapacity && (
-                          <>
-                            {percent !== null && (
-                              <Progress
-                                value={percent}
-                                color={loadColor(percent / 100)}
-                                size="sm"
-                                radius="xs"
-                              />
-                            )}
-                            <SimpleGrid cols={3} spacing="xs">
-                              <ResourceMetric
-                                label="Used"
-                                value={formatBytes(used)}
-                              />
-                              <ResourceMetric
-                                label="Free"
-                                value={formatBytes(filesystem.freeBytes)}
-                              />
-                              <ResourceMetric
-                                label="Total"
-                                value={formatBytes(filesystem.totalBytes)}
-                              />
-                            </SimpleGrid>
-                          </>
-                        )}
-                      </MetricCard>
-                    );
-                  })}
-                </SimpleGrid>
+                              </Table.Td>
+                              <Table.Td ta="right">
+                                <Text size="sm">
+                                  {formatBytes(filesystem.freeBytes)}
+                                </Text>
+                              </Table.Td>
+                              <Table.Td ta="right">
+                                <Text size="sm" fw={600}>
+                                  {formatBytes(filesystem.totalBytes)}
+                                </Text>
+                              </Table.Td>
+                            </Table.Tr>
+                          );
+                        })}
+                      </Table.Tbody>
+                    </Table>
+                  </Table.ScrollContainer>
+                </Paper>
               </Stack>
             </>
           )}
 
-          {beegfs && rdma && (
+          {storage && rdma && (
             <>
               <Divider />
               <Stack gap="xs">
