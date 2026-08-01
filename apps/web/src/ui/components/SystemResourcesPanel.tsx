@@ -681,40 +681,42 @@ export function SystemResourcesPanel(props: {
                   Includes BeeGFS and any other RDMA traffic on this port, such
                   as NCCL.
                 </Text>
-                <MetricCard title="All traffic on the RDMA port">
-                  <MetricChart
-                    title="Receive / transmit"
-                    headline={`${formatRate(rdma.receiveBytesPerSec)} · ${formatRate(rdma.transmitBytesPerSec)}`}
-                    axis={axis}
-                    domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
-                    formatValue={formatRate}
-                    height={DEVICE_CHART_HEIGHT}
-                    series={[
-                      {
-                        id: `${rdma.device}-${rdma.port}-receive`,
-                        label: "Receive",
-                        tone: "inbound",
-                        values: seriesFrom(samples, (sample) =>
-                          sample.rdma?.device === rdma.device &&
-                          sample.rdma.port === rdma.port
-                            ? sample.rdma.receiveBytesPerSec
-                            : null,
-                        ),
-                      },
-                      {
-                        id: `${rdma.device}-${rdma.port}-transmit`,
-                        label: "Transmit",
-                        tone: "outbound",
-                        values: seriesFrom(samples, (sample) =>
-                          sample.rdma?.device === rdma.device &&
-                          sample.rdma.port === rdma.port
-                            ? sample.rdma.transmitBytesPerSec
-                            : null,
-                        ),
-                      },
-                    ]}
-                  />
-                </MetricCard>
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
+                  <MetricCard title="All traffic on the RDMA port">
+                    <MetricChart
+                      title="Receive / transmit"
+                      headline={`${formatRate(rdma.receiveBytesPerSec)} · ${formatRate(rdma.transmitBytesPerSec)}`}
+                      axis={axis}
+                      domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
+                      formatValue={formatRate}
+                      height={DEVICE_CHART_HEIGHT}
+                      series={[
+                        {
+                          id: `${rdma.device}-${rdma.port}-receive`,
+                          label: "Receive",
+                          tone: "inbound",
+                          values: seriesFrom(samples, (sample) =>
+                            sample.rdma?.device === rdma.device &&
+                            sample.rdma.port === rdma.port
+                              ? sample.rdma.receiveBytesPerSec
+                              : null,
+                          ),
+                        },
+                        {
+                          id: `${rdma.device}-${rdma.port}-transmit`,
+                          label: "Transmit",
+                          tone: "outbound",
+                          values: seriesFrom(samples, (sample) =>
+                            sample.rdma?.device === rdma.device &&
+                            sample.rdma.port === rdma.port
+                              ? sample.rdma.transmitBytesPerSec
+                              : null,
+                          ),
+                        },
+                      ]}
+                    />
+                  </MetricCard>
+                </SimpleGrid>
               </Stack>
             </>
           )}
