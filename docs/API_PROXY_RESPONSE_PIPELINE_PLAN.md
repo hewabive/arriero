@@ -1,5 +1,12 @@
 # API proxy round-trip response pipeline plan
 
+## Implementation status
+
+Implemented through all seven delivery phases. The response plan is shared by
+managed/external targets, remote delegation, translation, resume/replay,
+cache hits, buffered/live SSE and fusion's final-producing branch. Workspace
+checks and the full API regression suite are required before each release.
+
 ## Goal
 
 Turn the request-only routing graph into a round-trip pipeline. Requests run
@@ -169,16 +176,16 @@ than silently broadening persistence.
 
 ## Delivery phases
 
-1. Introduce explicit ingress/observation/delivery contracts and the ordered
+1. ✅ Introduce explicit ingress/observation/delivery contracts and the ordered
    round-trip-plan data model without adding a new user-visible node.
-2. Add central JSON/SSE response execution and lossless protocol codecs.
-3. Migrate Save response and response cache to positional effects.
-4. Extend Replace text to response JSON and stateful streaming text lanes.
-5. Add Token scale on the shared request/response machinery.
-6. Close integration coverage for translation, streaming/non-streaming,
+2. ✅ Add central JSON/SSE response execution and lossless protocol codecs.
+3. ✅ Migrate Save response and response cache to positional effects.
+4. ✅ Extend Replace text to response JSON and stateful streaming text lanes.
+5. ✅ Add Token scale on the shared request/response machinery.
+6. ✅ Close integration coverage for translation, streaming/non-streaming,
    cache/coalescing, resume/replay, remote delegation, external targets, and
    fusion.
-7. Update the canvas/editor, Route Explain, Request history labels,
+7. ✅ Update the canvas/editor, Route Explain, Request history labels,
    operational UI, and API proxy documentation; run the full regression suite.
 
 Each significant phase is committed separately. Factor `1`, disabled response

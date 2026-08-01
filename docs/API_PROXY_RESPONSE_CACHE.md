@@ -36,14 +36,12 @@ upstream error bodies, caching fusion-node direct responses.
 - The route chain is a pure pre-pass: `resolveApiProxyRouteChain`
   (`apps/api/src/proxy/pipeline.ts`) walks the node graph mutating
   `state.request` and returns `ApiProxyRouteChainResult` with
-  `kind: target | endpoint | fusion | error`. **No node can currently return a
-  response.** `fusion` is the precedent for an early terminal kind handled
-  specially before gateway/lease.
-- Response capture already exists (`createApiProxyResponseCaptureSink`,
-  `apps/api/src/proxy/response-capture.ts`): for non-streaming it takes the
-  client-final text (`setText`), for streaming it tees via a passthrough
-  `TransformStream` (`tap`) and accumulates the client-final bytes
-  (post-translation). This is exactly the accumulation a cache write needs.
+  `kind: target | endpoint | fusion | response | error`. A cache hit returns
+  the early `response` terminal before gateway/lease.
+- Response work is centralized in `createApiProxyResponsePlanExecutor`
+  (`apps/api/src/proxy/response-plan.ts`). Cache stores and Save response are
+  ordered effects and therefore observe the exact body at their graph
+  position, for both JSON and SSE.
 - Embeddings/rerank are non-streaming, single JSON, deterministic — read whole
   via `upstream.text()`; metered by `usageFromNonStreamBody`
   (`apps/api/src/proxy/usage-meter.ts`).
@@ -82,7 +80,7 @@ upstream error bodies, caching fusion-node direct responses.
 ## Cache key specification
 
 ```
-key = sha256( namespace ‖ modelId ‖ canonicalJson(body \ volatile) )
+key = sha256( formatVersion ‖ namespace ‖ modelId ‖ canonicalJson(body \ volatile) )
 ```
 
 - `namespace` — optional `cache` node config field; disambiguates when one
@@ -93,6 +91,8 @@ key = sha256( namespace ‖ modelId ‖ canonicalJson(body \ volatile) )
   must not split the entry), keep everything else (messages/input/query/
   documents, temperature, top_p, top_k, seed, max_tokens, tools, …).
 - `canonicalJson` — stable key ordering so equal bodies hash equal.
+- `formatVersion` — invalidates entries when the cache boundary contract
+  changes (currently version 2, introduced with positional response effects).
 - The body is already attribution-clean **iff** a `strip-attribution` node ran
   earlier; otherwise volatile `cch` hashes churn the key (operator's
   responsibility, documented at the node).
@@ -121,25 +121,21 @@ key = sha256( namespace ‖ modelId ‖ canonicalJson(body \ volatile) )
 
 ### `cache` node + `kind:"response"` short-circuit (PR2 — Phase 1)
 
-- Core schema: `ApiProxyCacheConfigSchema` (`ttlSeconds`, optional `namespace`,
-  optional explicit key-field selection) + union variant. Ports: `{ hit, miss }`
-  (or single `miss`/`next` with implicit hit terminal).
+- Core schema: `ApiProxyCacheConfigSchema` (`ttlSeconds`, `namespace`) + union
+  variant. Port: `{ next }` for a miss; a hit is an implicit terminal.
 - New terminal in `ApiProxyRouteChainResult`:
   `{ ok:true, kind:"response", request, response: {...}, routeTrace }`.
 - `case "cache"` in `resolveApiProxyRouteChain`:
   - compute key; look up store.
   - warm → return `kind:"response"` with the stored body/content-type/is-sse.
-  - cold/hot → push a "cache-write" target into `state` (parallel to
-    `responseCaptures`) carrying the key + ttl, follow `miss`.
+  - cold/hot → append a `cache-store` response effect carrying the key + ttl,
+    then follow `next`.
 - `proxyProtocolEndpointInner` (`protocol-endpoint.ts`): after route resolution
   (~`:288`), before the gateway (~`:688`), handle `kind:"response"` exactly like
   `fusion` is handled early — build a `Response` from the stored bytes, mark the
   trace, return. Skips gateway/lease/readiness/forward entirely.
-- Write path: extend the response-capture sink (or a sibling sink) so the
-  accumulated client-final body is written to the cache store under the key on
-  completion (reuses `setText` for non-stream; `tap` accumulation already
-  present for stream). Phase 1 wires non-streaming only (embeddings, rerank,
-  non-stream chat).
+- Write path: the reverse response-plan executor accumulates JSON or SSE at the
+  cache node's exact boundary and commits it on successful completion.
 - Downstream consumers of the route result (`fusion.ts`, `gateway.ts`,
   `route-explain`) must tolerate/short-circuit the new kind.
 
@@ -204,11 +200,11 @@ key = sha256( namespace ‖ modelId ‖ canonicalJson(body \ volatile) )
 - The route-chain gains injected `lookupCache` (provided by the protocol
   endpoint; `route-explain` and `fusion` omit it, so the node always misses in
   dry-run / fusion branches). The handler computes the key from the body at the
-  node's position and stores it in `state.cacheWrites` on a miss.
-- Writes are committed by `createApiProxyResponseCaptureSink` on flush, only for
-  non-stream (`setText`) bodies that are not error-shaped; content-type stored
-  as `application/json`, status `200`.
-- Streaming requests skip the node entirely in this phase (PR4 adds fan-out).
+  node's position and appends a `cache-store` descriptor to
+  `state.responseEffects` on a miss.
+- Writes are committed by the reverse response-plan executor at the cache
+  node's boundary. Successful JSON and SSE bodies retain their actual status
+  and content type; errors and incomplete streams are not stored.
 
 ### PR3 implementation notes (as built)
 
@@ -217,7 +213,7 @@ key = sha256( namespace ‖ modelId ‖ canonicalJson(body \ volatile) )
   in-flight owner: present ⇒ `await` it (`kind:"response"`, `source:"coalesced"`,
   waiters do no compute and skip the lease since routing short-circuits);
   absent ⇒ register as owner and continue to the target.
-- Settlement is driven by the response-capture sink on flush: each cache-write
+- Settlement is driven by the response-plan cache effect on flush: each cache
   key is settled with the stored payload (success) or `null` (error/no body) —
   this releases waiters and removes the map entry, so an owner always settles
   its own key. The `kind:"response"` endpoint path also settles any owner keys
@@ -252,7 +248,7 @@ Streaming requests now participate in the cache node (they were skipped in PR2).
   - Live `respond()` path (non-preemptible managed, external, translated):
     `finishStreamResponse` subscribes the owner's own client to the broadcast
     and **pumps** the metered stream to completion in the background
-    (`drainApiProxyStream`), decoupled from the client. The capture sink's `tap`
+    (`drainApiProxyStream`), decoupled from the client. The cache effect's tap
     feeds the broadcast per chunk and stores the accumulated SSE on flush. If the
     owner's client disconnects, the pump still finishes → subscribers + cache are
     complete. ✅ option A fully honored here.
@@ -264,15 +260,17 @@ Streaming requests now participate in the cache node (they were skipped in PR2).
     no cache write, and the broadcast finishes empty (subscribers get nothing).
     Managed-chat streaming via resumable is already buffered (the client gets the
     reply at the end), so this only affects the rare owner-abort case.
-- **No broadcast leak:** the sink finishes the broadcast for every cache-write
-  key on flush (both branches), and the resumable path finishes explicitly on
-  success/abort, so subscribers never hang regardless of serve path.
+- **No broadcast leak:** the response plan finishes the broadcast for every
+  cache key on flush (both branches), and the resumable path finishes
+  explicitly on success/abort, so subscribers never hang regardless of serve
+  path.
 - **Telemetry:** subscribers report `trace.cache:"coalesced"`; only the owner is
   metered (subscription bodies skip `usageFromNonStreamBody`).
 - **Not unit-tested:** the live pump + client-disconnect integration (hard to
   exercise without a real streaming upstream). The broadcaster, the streaming
-  cache-node routing, and the sink's SSE store/feed/finish are unit-tested;
-  recommend a manual live verification of multi-client fan-out + disconnect.
+  cache-node routing, and the response plan's SSE store/feed/finish are
+  unit-tested; recommend a manual live verification of multi-client fan-out +
+  disconnect.
 
 ### PR5 implementation notes (as built)
 

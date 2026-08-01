@@ -1,9 +1,10 @@
 # API Proxy Pipelines: node-graph routing
 
-A pipeline is a named graph of nodes that transforms a request and decides which
-target receives it. Pipelines are the proxy's "ersatz programming" surface:
-conditions branch, calls reuse shared sub-graphs, and every resolution is
-recorded step by step. Loops are deliberately impossible.
+A pipeline is a named graph that transforms a request, decides which target
+receives it, and then transforms the successful response while it unwinds in
+the opposite direction. Pipelines are the proxy's "ersatz programming"
+surface: conditions branch, calls reuse shared sub-graphs, and every resolution
+is recorded step by step. Loops are deliberately impossible.
 
 Source map:
 
@@ -13,6 +14,12 @@ Source map:
   shared graph helpers (`apiProxyPipelineNodePorts`,
   `collectApiProxyPipelineExitNames`).
 - `apps/api/src/proxy/pipeline.ts` — the resolver (`resolveApiProxyRouteChain`).
+- `apps/api/src/proxy/response-plan.ts` — reverse response-effect executor.
+- `apps/api/src/proxy/response-codec.ts` — lossless JSON/SSE envelopes.
+- `apps/api/src/proxy/response-replace.ts` — response text surfaces and
+  stateful streaming replacement.
+- `apps/api/src/proxy/token-scale.ts` — request limits and response usage
+  scaling.
 - `apps/api/src/proxy/condition.ts` — predicate evaluation.
 - `apps/api/src/proxy/token-estimate.ts` — local token estimator.
 - `apps/api/src/proxy/request-text.ts` — request text extraction (scopes).
@@ -60,11 +67,12 @@ target is a pure alias). `null` anywhere means "unwired" and produces a
 Each entry is **`type`** — `config` (output `ports`). Richer configs are detailed
 in the sub-sections below.
 
-- **`replace-text`** — `rules: [{enabled, find, replace}]`: literal substring
-  rules over decoded string values of the parsed body (stored text is matched
-  as-is, no escape interpretation; the routing `model` field is never
-  rewritten). The web editor offers a display toggle that shows/accepts rules in
-  `\n`-escaped form and converts to literal text before saving. (`next`)
+- **`replace-text`** — `rules: [{enabled, find, replace}]`, `request` (default
+  `true`), `response` (default `false`), `responseReasoning` and
+  `responseToolArguments` (both default `false`): literal substring rules over
+  selected request/response text surfaces. The routing `model` field, response
+  IDs, model names, finish reasons, tool names and usage are never rewritten.
+  (`next`)
 - **`capture-request`** — `request: bool` (default `true`) + `response: bool`
   (default `false`): persist the request body at this node and/or the upstream
   response for this request (legacy `{}` upgrades to request-only). (`next`)
@@ -76,6 +84,9 @@ in the sub-sections below.
   (`next`)
 - **`output-limit`** — `maxTokens` + `mode: cap|set`: bounds `max_tokens` on the
   request (see below). (`next`)
+- **`token-scale`** — `factor`: divides request token limits and multiplies
+  client-visible response usage, while operational metrics stay actual (see
+  below). (`next`)
 - **`strip-attribution`** — no config: runs `sanitizeClaudeCodeAttribution` on
   the body in place, dropping Claude Code's `x-anthropic-billing-header`/`cch`
   attribution and pinning in-content `cch` hashes. Keeps the llama.cpp KV prefix
@@ -84,12 +95,13 @@ in the sub-sections below.
   See `docs/ANTHROPIC_OPENAI_BRIDGE.md`. (`next`)
 - **`cache`** — `ttlSeconds` (0 = no expiry) + `namespace`: on a hit, serves a
   saved response and **short-circuits routing/lease/forward** (route-chain
-  terminal `kind:"response"`); on a miss, follows `next` and registers a write
-  that the response-capture sink commits on non-stream completion. Key =
+  terminal `kind:"response"`); on a miss, follows `next` and registers a
+  positional response effect. Key =
   sha256(namespace ⊕ modelId ⊕ body-at-node), excluding `stream`/`stream_options`.
-  Non-streaming only (embeddings, rerank, non-stream chat); streaming requests
-  pass through untouched in this phase. Place a `strip-attribution` node before
-  it for a stable key. See `docs/API_PROXY_RESPONSE_CACHE.md`. (`next` = miss)
+  JSON and SSE entries are stored at the cache node's exact response boundary;
+  streaming misses also fan out to concurrent subscribers. Place a
+  `strip-attribution` node before it for a stable key. See
+  `docs/API_PROXY_RESPONSE_CACHE.md`. (`next` = miss)
 - **`condition`** — `predicate` (see below). (`true`, `false`)
 - **`call`** — `pipelineId`. (one port per callee exit name)
 - **`exit`** — `exitName` (default `done`). (no ports)
@@ -174,6 +186,56 @@ The applied change is reported in the node's `routeTrace` detail (e.g.
 `set max_tokens = 4096 (was 32000)`), or `<mode> <n>: no change` when the bound
 was already satisfied.
 
+### Response-side Replace text
+
+`replace-text` remains request-only for existing configurations. Enabling
+`response` applies the same rules to visible assistant text after target
+observation and protocol translation. Reasoning text and tool arguments are
+separate opt-ins. Supported response shapes cover OpenAI Chat/Completions,
+OpenAI Responses, and Anthropic Messages; endpoints without assistant text
+(embeddings, rerank, count-tokens) pass through unchanged.
+
+Streaming replacement is literal and bounded. Every choice, content block,
+reasoning channel and tool call has independent matcher state. A matcher holds
+only the longest suffix that could still become the beginning of `find`, so a
+match can cross SSE events without buffering the whole answer. If the suffix
+turns out not to match it is released immediately; any remaining suffix is
+emitted as a synthetic delta before the lane's finish/stop/DONE event. Unknown
+SSE fields, comments, event/id/retry fields, LF/CRLF framing and no-op frames
+are preserved.
+
+### Token scale
+
+`token-scale.factor` means **client-visible tokens / real target tokens**. It
+creates a virtual token scale without changing Arriero's actual target
+measurements:
+
+```text
+target request limit = floor(client limit / factor), positive minimum 1
+client usage         = ceil(actual usage * factor)
+```
+
+Thus factor `10` maps request `max_tokens: 40000` to `4000`, while target usage
+`input_tokens: 10000, output_tokens: 2000` is returned as `100000` and `20000`.
+Factor `0.5` scales in the opposite direction. Zero remains zero; negative
+llama.cpp unlimited sentinel values remain negative. A scaled `total_tokens`
+is recomputed from scaled prompt/completion or input/output components when
+both are present.
+
+Request mappings include OpenAI/Anthropic output limits, Responses
+`max_output_tokens`, common local-server `max_new_tokens`/`n_predict` fields,
+and nested thinking/reasoning budgets. On responses, every `*_tokens` field
+inside a standard `usage` tree is scaled recursively, including cache,
+reasoning and prediction details; Anthropic `messages/count_tokens` and
+Responses' echoed `max_output_tokens` are covered too. The same mapping runs
+for JSON and usage-bearing SSE events.
+
+Usage metering, Request history, stats, inflight token progress, TTFT,
+generation rate, and Proxy load answer/reasoning previews are recorded before
+the response plan and therefore remain actual. Explicit Save nodes are
+positional and can intentionally capture either actual or client-visible
+usage.
+
 ### Condition predicates
 
 - `text-match` — substring or regex (`regex: true`, validated at save time;
@@ -245,19 +307,26 @@ are included, later changes are not. Each capture node visit writes its own
 request file.
 
 With `response` enabled the node instead declares a **deferred response
-capture**: the route walk is a pure pre-pass with no response yet, so the
-intent rides on the route result (`ApiProxyRouteChainResult.responseCaptures`)
-and a file (kind `capture-response`) is written once the upstream reply for
-that request finalizes — one per visited capture node that asked for it.
-Position in the pipeline only gates *whether* the response is captured (e.g.
-behind a `condition` branch), not *what* it contains: there is a single
-response. Non-streaming, buffered and resumable replies are saved as the
-assembled JSON body; genuine pass-through streams are saved as the raw SSE
-text the client received. Writing is wired through the trace recorder's
-pre-record hook (`proxy/response-capture.ts`) so the file lands in
-`trace.files` before the trace snapshot is frozen. Not yet covered: the
-single-survivor fusion bypass when it streams directly, and upstream error
-bodies.
+capture** in the ordered `responseEffects` plan. Effects execute in reverse
+request-path order, so captures are positional:
+
+```text
+request:  Save A -> Replace -> Save B -> Target
+response: Target -> Save B (raw) -> Replace -> Save A (changed) -> Client
+```
+
+The same rule applies to cache and Token scale nodes. A cache hit executes only
+the prefix that was visited before the hit; the cached value already includes
+the downstream side of that cache boundary. Non-streaming, buffered,
+resumable, remote, translated, fusion and SSE replies all use the same response
+executor. JSON captures store the parsed body at that stage; SSE captures store
+the complete framed text at that stage. Response effects currently run only
+for successful replies, so upstream error bodies are not persisted.
+
+The executor runs after target metering/observation and protocol translation
+but before client delivery. This is why user transformations cannot rewrite
+Request history or Proxy load previews, while an explicit Save node still sees
+the exact graph-local value the user requested.
 
 All files saved for one proxied request share a per-request directory
 `data/proxy-requests/<model>/<timestamp>-<traceId>/` — `<model>` is the inbound
