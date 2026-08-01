@@ -1,6 +1,12 @@
 import { Box, Group, Paper, Text, useComputedColorScheme } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
-import { useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { formatLocalClock, formatLocalDateTime } from "../utils/time";
 import { metricToneColor, type MetricTone } from "./metric-palette";
@@ -33,9 +39,39 @@ type MetricChartProps = {
 };
 
 type PlotPoint = { x: number; y: number };
+type TimeSpan = { from: number; to: number };
 
 const GRID_DIVISIONS = 4;
 const GAP_TOLERANCE = 2.5;
+const CEILING_HEADROOM = 12;
+const SATURATION_RATIO = 0.995;
+const SATURATION_MARK_HEIGHT = 3;
+const SATURATION_MARK_MIN_WIDTH = 2;
+const TOOLTIP_WIDTH = 148;
+
+type MetricHoverState = {
+  time: number | null;
+  setTime: (time: number | null) => void;
+};
+
+const MetricHoverContext = createContext<MetricHoverState | null>(null);
+
+export function MetricHoverProvider(props: { children: ReactNode }) {
+  const [time, setTime] = useState<number | null>(null);
+  const state = useMemo(() => ({ time, setTime }), [time]);
+  return (
+    <MetricHoverContext.Provider value={state}>
+      {props.children}
+    </MetricHoverContext.Provider>
+  );
+}
+
+function useMetricHover(): MetricHoverState {
+  const shared = useContext(MetricHoverContext);
+  const [time, setTime] = useState<number | null>(null);
+  const isolated = useMemo(() => ({ time, setTime }), [time]);
+  return shared ?? isolated;
+}
 
 function niceCeiling(value: number): number {
   if (!Number.isFinite(value) || value <= 0) {
@@ -62,6 +98,19 @@ function resolveMax(domain: MetricDomain, series: MetricSeries[]): number {
     }
   }
   return Math.max(domain.minimumMax, niceCeiling(peak));
+}
+
+function nearestIndex(times: number[], time: number): number | null {
+  let nearest: number | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  times.forEach((value, index) => {
+    const distance = Math.abs(value - time);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = index;
+    }
+  });
+  return nearest;
 }
 
 function buildSegments(
@@ -99,6 +148,34 @@ function buildSegments(
   return segments;
 }
 
+function saturationSpans(
+  values: (number | null)[],
+  times: number[],
+  threshold: number,
+): TimeSpan[] {
+  const spans: TimeSpan[] = [];
+  let openedAt: number | null = null;
+  let lastSaturated: number | null = null;
+
+  values.forEach((value, index) => {
+    const time = times[index];
+    if (value !== null && time !== undefined && value >= threshold) {
+      openedAt ??= time;
+      lastSaturated = time;
+      return;
+    }
+    if (openedAt !== null) {
+      spans.push({ from: openedAt, to: lastSaturated ?? openedAt });
+      openedAt = null;
+    }
+  });
+
+  if (openedAt !== null) {
+    spans.push({ from: openedAt, to: lastSaturated ?? openedAt });
+  }
+  return spans;
+}
+
 function linePath(segments: PlotPoint[][]): string {
   return segments
     .filter((segment) => segment.length > 1)
@@ -126,14 +203,23 @@ function areaPath(segments: PlotPoint[][], baseline: number): string {
 export function MetricChart(props: MetricChartProps) {
   const colorScheme = useComputedColorScheme("dark");
   const { ref, width } = useElementSize();
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const height = props.height ?? 120;
+  const hover = useMetricHover();
+  const [pointerInside, setPointerInside] = useState(false);
+  const svgHeight = props.height ?? 120;
   const { times, windowMs, intervalMs } = props.axis;
 
   const gridColor =
     colorScheme === "dark"
-      ? "var(--mantine-color-dark-4)"
-      : "var(--mantine-color-gray-3)";
+      ? "var(--mantine-color-dark-5)"
+      : "var(--mantine-color-gray-2)";
+  const frameColor =
+    colorScheme === "dark"
+      ? "var(--mantine-color-dark-3)"
+      : "var(--mantine-color-gray-4)";
+  const cursorColor =
+    colorScheme === "dark"
+      ? "var(--mantine-color-dark-2)"
+      : "var(--mantine-color-gray-5)";
   const surfaceColor = "var(--mantine-color-body)";
 
   const max = useMemo(
@@ -141,13 +227,16 @@ export function MetricChart(props: MetricChartProps) {
     [props.domain, props.series],
   );
 
+  const plotTop = CEILING_HEADROOM;
+  const plotBottom = svgHeight - 1;
+  const plotHeight = plotBottom - plotTop;
   const latestTime = times[times.length - 1] ?? 0;
   const startTime = latestTime - windowMs;
   const plotWidth = Math.max(width, 1);
 
   const scaleX = (time: number) => ((time - startTime) / windowMs) * plotWidth;
   const scaleY = (value: number) =>
-    height - Math.min(1, Math.max(0, value / max)) * height;
+    plotBottom - Math.min(1, Math.max(0, value / max)) * plotHeight;
 
   const rendered = useMemo(
     () =>
@@ -163,8 +252,13 @@ export function MetricChart(props: MetricChartProps) {
           ...entry,
           color: metricToneColor(entry.tone, colorScheme),
           segments,
-          area: areaPath(segments, height),
+          area: areaPath(segments, plotBottom),
           line: linePath(segments),
+          saturation: saturationSpans(
+            entry.values,
+            times,
+            max * SATURATION_RATIO,
+          ),
         };
       }),
     [
@@ -174,32 +268,35 @@ export function MetricChart(props: MetricChartProps) {
       startTime,
       windowMs,
       plotWidth,
-      height,
+      plotTop,
+      plotBottom,
       max,
       colorScheme,
     ],
   );
 
+  const hoverIndex =
+    hover.time === null ? null : nearestIndex(times, hover.time);
   const hoverTime = hoverIndex === null ? null : (times[hoverIndex] ?? null);
+  const cursorX = hoverTime === null ? 0 : scaleX(hoverTime);
+  const tooltipFlipped = cursorX + 8 + TOOLTIP_WIDTH > plotWidth;
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const offsetX = event.clientX - bounds.left;
     const time = startTime + (offsetX / Math.max(bounds.width, 1)) * windowMs;
-    let nearest: number | null = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    times.forEach((value, index) => {
-      const distance = Math.abs(value - time);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = index;
-      }
-    });
-    setHoverIndex(nearest);
+    const index = nearestIndex(times, time);
+    setPointerInside(true);
+    hover.setTime(index === null ? null : (times[index] ?? null));
+  };
+
+  const handlePointerLeave = () => {
+    setPointerInside(false);
+    hover.setTime(null);
   };
 
   return (
-    <Paper withBorder p="xs" radius="sm">
+    <Box>
       <Group justify="space-between" align="baseline" gap="xs" wrap="nowrap">
         <Text fw={600} size="sm" lineClamp={1}>
           {props.title}
@@ -209,33 +306,41 @@ export function MetricChart(props: MetricChartProps) {
         </Text>
       </Group>
 
-      {props.series.length > 1 && (
-        <Group gap="md" mt={4}>
-          {rendered.map((entry) => (
-            <Group key={entry.id} gap={6} wrap="nowrap">
-              <Box
-                w={10}
-                h={2}
-                style={{ background: entry.color, borderRadius: 1 }}
-              />
-              <Text c="dimmed" size="xs">
-                {entry.label}
-              </Text>
-            </Group>
-          ))}
+      {(props.series.length > 1 || props.domain.kind === "auto") && (
+        <Group justify="space-between" gap="xs" mt={4} wrap="nowrap">
+          <Group gap="md" wrap="nowrap">
+            {props.series.length > 1 &&
+              rendered.map((entry) => (
+                <Group key={entry.id} gap={6} wrap="nowrap">
+                  <Box
+                    w={10}
+                    h={2}
+                    style={{ background: entry.color, borderRadius: 1 }}
+                  />
+                  <Text c="dimmed" size="xs">
+                    {entry.label}
+                  </Text>
+                </Group>
+              ))}
+          </Group>
+          {props.domain.kind === "auto" && (
+            <Text c="dimmed" size="xs">
+              scale {props.formatValue(max)}
+            </Text>
+          )}
         </Group>
       )}
 
       <Box ref={ref} pos="relative" mt={6} style={{ width: "100%" }}>
         <svg
           width="100%"
-          height={height}
+          height={svgHeight}
           style={{ display: "block", touchAction: "none" }}
           onPointerMove={handlePointerMove}
-          onPointerLeave={() => setHoverIndex(null)}
+          onPointerLeave={handlePointerLeave}
         >
-          {Array.from({ length: GRID_DIVISIONS + 1 }, (_, index) => {
-            const y = (height / GRID_DIVISIONS) * index;
+          {Array.from({ length: GRID_DIVISIONS - 1 }, (_, index) => {
+            const y = plotTop + (plotHeight / GRID_DIVISIONS) * (index + 1);
             return (
               <line
                 key={index}
@@ -249,6 +354,19 @@ export function MetricChart(props: MetricChartProps) {
               />
             );
           })}
+
+          {[plotTop, plotBottom].map((y) => (
+            <line
+              key={y}
+              x1={0}
+              x2={plotWidth}
+              y1={y}
+              y2={y}
+              stroke={frameColor}
+              strokeWidth={1}
+              shapeRendering="crispEdges"
+            />
+          ))}
 
           {rendered.map((entry) => (
             <path
@@ -271,19 +389,37 @@ export function MetricChart(props: MetricChartProps) {
             />
           ))}
 
+          {rendered.map((entry) =>
+            entry.saturation.map((span) => {
+              const from = scaleX(span.from);
+              const to = scaleX(span.to);
+              return (
+                <rect
+                  key={`${entry.id}-saturation-${span.from}`}
+                  x={from}
+                  y={plotTop - SATURATION_MARK_HEIGHT - 1}
+                  width={Math.max(to - from, SATURATION_MARK_MIN_WIDTH)}
+                  height={SATURATION_MARK_HEIGHT}
+                  rx={1}
+                  fill={entry.color}
+                />
+              );
+            }),
+          )}
+
           {hoverTime !== null && (
             <line
-              x1={scaleX(hoverTime)}
-              x2={scaleX(hoverTime)}
-              y1={0}
-              y2={height}
-              stroke={gridColor}
+              x1={cursorX}
+              x2={cursorX}
+              y1={plotTop}
+              y2={plotBottom}
+              stroke={cursorColor}
               strokeWidth={1}
+              shapeRendering="crispEdges"
             />
           )}
 
-          {hoverTime !== null &&
-            hoverIndex !== null &&
+          {hoverIndex !== null &&
             rendered.map((entry) => {
               const value = entry.values[hoverIndex];
               if (value === null || value === undefined) {
@@ -292,7 +428,7 @@ export function MetricChart(props: MetricChartProps) {
               return (
                 <circle
                   key={`${entry.id}-dot`}
-                  cx={scaleX(hoverTime)}
+                  cx={cursorX}
                   cy={scaleY(value)}
                   r={4}
                   fill={entry.color}
@@ -303,29 +439,33 @@ export function MetricChart(props: MetricChartProps) {
             })}
         </svg>
 
-        <Text
-          c="dimmed"
-          size="xs"
-          pos="absolute"
-          top={2}
-          right={4}
-          style={{ pointerEvents: "none" }}
-        >
-          {props.formatValue(max)}
-        </Text>
+        {times.length === 0 && (
+          <Text
+            c="dimmed"
+            size="xs"
+            pos="absolute"
+            top="50%"
+            left={0}
+            w="100%"
+            ta="center"
+            style={{ pointerEvents: "none", transform: "translateY(-50%)" }}
+          >
+            waiting for samples
+          </Text>
+        )}
 
-        {hoverIndex !== null && hoverTime !== null && (
+        {pointerInside && hoverIndex !== null && hoverTime !== null && (
           <Paper
             withBorder
             p={6}
             radius="sm"
             pos="absolute"
             top={0}
-            left={Math.min(
-              Math.max(scaleX(hoverTime) + 8, 0),
-              Math.max(plotWidth - 150, 0),
+            left={Math.max(
+              tooltipFlipped ? cursorX - 8 - TOOLTIP_WIDTH : cursorX + 8,
+              0,
             )}
-            style={{ pointerEvents: "none", minWidth: 130 }}
+            style={{ pointerEvents: "none", width: TOOLTIP_WIDTH }}
           >
             <Text c="dimmed" size="xs">
               {windowMs > 24 * 60 * 60 * 1000
@@ -343,13 +483,15 @@ export function MetricChart(props: MetricChartProps) {
                 >
                   <Group gap={6} wrap="nowrap">
                     <Box
-                      w={8}
-                      h={8}
-                      style={{ background: entry.color, borderRadius: 4 }}
+                      w={10}
+                      h={2}
+                      style={{ background: entry.color, borderRadius: 1 }}
                     />
-                    <Text size="xs">{entry.label}</Text>
+                    <Text c="dimmed" size="xs">
+                      {entry.label}
+                    </Text>
                   </Group>
-                  <Text size="xs" fw={600}>
+                  <Text size="xs" fw={700}>
                     {value === null || value === undefined
                       ? "-"
                       : props.formatValue(value)}
@@ -360,6 +502,6 @@ export function MetricChart(props: MetricChartProps) {
           </Paper>
         )}
       </Box>
-    </Paper>
+    </Box>
   );
 }
