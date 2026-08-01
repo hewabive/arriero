@@ -26,6 +26,7 @@ import {
 } from "../proxy/forms";
 import { TargetEditorModal } from "../proxy/editors";
 import { ProxyTargetsSection } from "../proxy/sections/index";
+import { countLabel } from "../utils/plural";
 
 export function ProxyTargetsView() {
   const { targets, endpointById, proxyUsage, invalidate } = useProxyConfig();
@@ -146,7 +147,7 @@ export function ProxyTargetsView() {
     <Stack gap="md">
       <Paper withBorder p="md" radius="sm">
         <Group justify="space-between" align="center" wrap="wrap">
-          <Badge variant="light">{targets.length} targets</Badge>
+          <Badge variant="light">{countLabel(targets.length, "target")}</Badge>
           <Button
             variant="light"
             leftSection={<Plus size={16} />}

@@ -14,6 +14,15 @@ import { NodeProvider } from "./ui/NodeContext";
 const queryClient = new QueryClient();
 
 const theme = createTheme({
+  headings: {
+    fontWeight: "600",
+    sizes: {
+      h1: { fontSize: "1.875rem", lineHeight: "1.3" },
+      h2: { fontSize: "1.5rem", lineHeight: "1.35" },
+      h3: { fontSize: "1.1875rem", lineHeight: "1.4" },
+      h4: { fontSize: "1.0625rem", lineHeight: "1.45" },
+    },
+  },
   components: {
     Tooltip: Tooltip.extend({
       defaultProps: { events: { hover: true, focus: true, touch: true } },
@@ -44,7 +53,7 @@ class RootErrorBoundary extends React.Component<
       return (
         <div className="root-error">
           <div>
-            <p className="root-error__eyebrow">arriero</p>
+            <p className="root-error__eyebrow">Arriero</p>
             <h1>UI render error</h1>
             <p>{this.state.error.message}</p>
             <button type="button" onClick={() => window.location.reload()}>

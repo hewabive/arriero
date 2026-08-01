@@ -15,6 +15,7 @@ import {
   Table,
   Text,
   Tooltip,
+  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ import { argString } from "../components/instance-form-helpers";
 import { InstanceTypeCell } from "../components/InstanceTypeCell";
 import type { LaunchMonitor } from "../utils/launch";
 import { pathBaseName } from "../utils/models";
+import { countLabel } from "../utils/plural";
 
 const HIDDEN_ARG_KEYS = new Set(["--host", "--port"]);
 
@@ -178,7 +180,9 @@ function InstancesHeader(props: {
     <Paper withBorder p="md" radius="sm">
       <Group justify="space-between" align="center" wrap="wrap">
         <Group gap="xs" wrap="wrap">
-          <Badge variant="light">{props.instancesCount} instances</Badge>
+          <Badge variant="light">
+            {countLabel(props.instancesCount, "instance")}
+          </Badge>
         </Group>
         <Button
           variant="light"
@@ -269,7 +273,7 @@ function BulkActionsToolbar(props: {
       <Paper withBorder p="sm" radius="sm">
         <Group justify="space-between" align="center" gap="sm">
           <div>
-            <Text fw={600}>Bulk actions</Text>
+            <Title order={4}>Bulk actions</Title>
             <Text c="dimmed" size="sm">
               Applies to all instances; ineligible instances are skipped.
             </Text>

@@ -13,6 +13,7 @@ import { Cpu, Database, MemoryStick } from "lucide-react";
 
 import { formatBytes } from "../utils/models";
 import { formatAcceleratorName } from "../utils/pools";
+import { countLabel } from "../utils/plural";
 
 function capabilityBadge(label: string, available: boolean) {
   return (
@@ -84,8 +85,8 @@ export function NumaTopologyPanel(props: { resources: SystemResources }) {
     <Paper withBorder p="md" radius="sm">
       <Group justify="space-between" align="center" wrap="wrap">
         <Group gap="xs" wrap="wrap">
-          <Title order={3}>NUMA topology</Title>
-          <Badge variant="light">{numaNodes.length} nodes</Badge>
+          <Title order={4}>NUMA topology</Title>
+          <Badge variant="light">{countLabel(numaNodes.length, "node")}</Badge>
         </Group>
         <Group gap="xs" wrap="wrap">
           {capabilityBadge("bind", numa.bind)}

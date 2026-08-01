@@ -27,6 +27,7 @@ import {
   MetricHoverProvider,
   type MetricSeries,
 } from "./MetricChart";
+import { countLabel } from "../utils/plural";
 
 const bytesFormatter = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
@@ -277,7 +278,7 @@ export function SystemResourcesPanel(props: {
               title="Logical processors"
               meta={
                 <Badge variant="light" color="gray">
-                  {cpu.cores.length} threads
+                  {countLabel(cpu.cores.length, "thread")}
                 </Badge>
               }
             >
@@ -418,7 +419,7 @@ export function SystemResourcesPanel(props: {
                         color={disk.devices.length ? "blue" : "gray"}
                       >
                         {disk.devices.length
-                          ? `${disk.devices.length} ${disk.devices.length === 1 ? "disk" : "disks"}`
+                          ? countLabel(disk.devices.length, "disk")
                           : "none detected"}
                       </Badge>
                       {disk.ioPressure && (
@@ -552,10 +553,7 @@ export function SystemResourcesPanel(props: {
                   title="Storage space"
                   badges={
                     <Badge variant="outline" color="blue">
-                      {storage.filesystems.length}{" "}
-                      {storage.filesystems.length === 1
-                        ? "filesystem"
-                        : "filesystems"}
+                      {countLabel(storage.filesystems.length, "filesystem")}
                     </Badge>
                   }
                 />
@@ -750,7 +748,7 @@ export function SystemResourcesPanel(props: {
                       color={network.interfaces.length ? "blue" : "gray"}
                     >
                       {network.interfaces.length
-                        ? `${network.interfaces.length} ${network.interfaces.length === 1 ? "interface" : "interfaces"}`
+                        ? countLabel(network.interfaces.length, "interface")
                         : "none detected"}
                     </Badge>
                   }

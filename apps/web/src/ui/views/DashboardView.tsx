@@ -1,5 +1,5 @@
 import type { Instance, InstanceHealthSummary } from "@arriero/core";
-import { Group, Paper, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Group, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 
 import { InstanceHealthBadge } from "../components/InstanceHealthBadge";
 import { formatLocalDateTime } from "../utils/time";
@@ -105,9 +105,7 @@ export function DashboardView(props: {
       <Paper withBorder p="md" radius="sm">
         <Stack gap="sm">
           <div className="section-heading">
-            <Text fw={700} size="lg">
-              Instances
-            </Text>
+            <Title order={4}>Instances</Title>
             <Text c="dimmed" size="sm">
               Health at a glance — click a card to open Diagnostics
             </Text>

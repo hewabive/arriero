@@ -39,6 +39,7 @@ import {
 import { PathPickerInput } from "../components/PathPickerInput";
 import { pathBaseName } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
+import { countLabel } from "../utils/plural";
 
 type Draft = {
   name: string;
@@ -401,18 +402,9 @@ export function PathCatalogView() {
 
     return (
       <Stack key={kind} gap="xs">
-        <Group justify="space-between" align="center" wrap="wrap">
-          <Group gap="xs" wrap="wrap">
-            <Title order={3}>{kindTitle(kind)}</Title>
-            <Badge variant="light">{kindEntries.length}</Badge>
-          </Group>
-          <Button
-            variant="light"
-            leftSection={<Plus size={16} />}
-            onClick={() => openCreate(kind)}
-          >
-            Add {kindLabel(kind)}
-          </Button>
+        <Group gap="xs" wrap="wrap">
+          <Title order={3}>{kindTitle(kind)}</Title>
+          <Badge variant="light">{kindEntries.length}</Badge>
         </Group>
 
         {kindEntries.length > 0 ? (
@@ -441,9 +433,11 @@ export function PathCatalogView() {
       <Paper withBorder p="md" radius="sm">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <Group gap="xs" wrap="wrap">
-            <Badge variant="light">{counts.binary} binaries</Badge>
+            <Badge variant="light">
+              {countLabel(counts.binary, "binary", "binaries")}
+            </Badge>
             <Badge variant="light" color="teal">
-              {counts.modelsDir} model dirs
+              {countLabel(counts.modelsDir, "model dir")}
             </Badge>
             <Badge variant="outline">{counts.linked} linked</Badge>
           </Group>

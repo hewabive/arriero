@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
   Textarea,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -167,14 +166,10 @@ export function ApiProxySourcesView() {
     <Stack gap="md">
       <Paper withBorder p="md">
         <Group justify="space-between" mb="sm">
-          <div>
-            <Title order={4}>Request sources</Title>
-            <Text size="sm" c="dimmed">
-              Map an API key to a source label so proxy requests show their
-              origin. Not real authentication — unknown or missing keys still
-              pass through as anonymous.
-            </Text>
-          </div>
+          <Text size="sm" c="dimmed">
+            Not real authentication — unknown or missing keys still pass through
+            as anonymous.
+          </Text>
           <Button leftSection={<Plus size={16} />} onClick={openCreate}>
             New source
           </Button>

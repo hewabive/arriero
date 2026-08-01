@@ -12,6 +12,7 @@ import {
   Table,
   Text,
   Tooltip,
+  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -135,9 +136,7 @@ export function ProcessesView() {
         <Stack gap="md">
           <Group justify="space-between" align="flex-start">
             <div className="section-heading">
-              <Text fw={700} size="lg">
-                llama-server processes
-              </Text>
+              <Title order={4}>llama-server processes</Title>
               <Text c="dimmed" size="sm">
                 Processes detected from the operating system process table
               </Text>

@@ -385,7 +385,7 @@ export function InstanceActions(props: {
             {stopConfirm?.message}
           </Text>
           <Text size="xs" c="dimmed">
-            Forcing this will break the RPC link and crash the orchestrator(s)
+            Forcing this will break the RPC link and crash the orchestrators
             currently using this worker. Stop them first unless they are already
             wedged.
           </Text>

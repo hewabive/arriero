@@ -10,6 +10,7 @@ import {
 import type { Edge, Node } from "@xyflow/react";
 
 import type { PipelineDraft, PipelineNodeDraft, PortValue } from "../forms";
+import { countLabel } from "../../utils/plural";
 
 export type FlowNodeKind =
   | PipelineNodeDraft["type"]
@@ -212,7 +213,7 @@ export function nodeSummary(
       const count = node.replacements.filter(
         (rule) => rule.enabled && rule.find.length > 0,
       ).length;
-      return `${count} rule(s)`;
+      return countLabel(count, "rule");
     }
     case "capture-request": {
       const saves = [
@@ -225,7 +226,7 @@ export function nodeSummary(
       const count = node.editOperations.filter(
         (operation) => operation.enabled,
       ).length;
-      return `${count} operation(s)`;
+      return countLabel(count, "operation");
     }
     case "reasoning":
       return reasoningSummary(node);

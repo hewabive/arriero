@@ -2,7 +2,7 @@ import type {
   ApiProxyRequestTrace,
   ApiProxyStatsSnapshot,
 } from "@arriero/core";
-import { Button, Group, Paper, Stack, Table, Text } from "@mantine/core";
+import { Button, Group, Paper, Stack, Table, Text, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Database, Trash2 } from "lucide-react";
 
@@ -78,7 +78,7 @@ export function StatsSection(props: StatsSectionProps) {
         <Group justify="space-between" align="center" wrap="wrap">
           <Group gap="xs">
             <BarChart3 size={18} />
-            <Text fw={600}>Statistics</Text>
+            <Title order={4}>Statistics</Title>
           </Group>
           <Text c="dimmed" size="sm">
             Last {snapshot?.hours ?? 24}h.

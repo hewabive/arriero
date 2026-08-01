@@ -1,5 +1,6 @@
 import { Badge, Button, Group, Paper } from "@mantine/core";
 import { Plus, Zap } from "lucide-react";
+import { countLabel } from "../../utils/plural";
 
 type ProxyHeaderProps = {
   modelsCount: number;
@@ -16,9 +17,15 @@ export function ProxyHeader(props: ProxyHeaderProps) {
     <Paper withBorder p="md" radius="sm">
       <Group justify="space-between" align="flex-start" wrap="wrap">
         <Group gap="xs" wrap="wrap">
-          <Badge variant="light">{props.modelsCount} models</Badge>
-          <Badge variant="light">{props.pipelinesCount} pipelines</Badge>
-          <Badge variant="light">{props.targetsCount} targets</Badge>
+          <Badge variant="light">
+            {countLabel(props.modelsCount, "model")}
+          </Badge>
+          <Badge variant="light">
+            {countLabel(props.pipelinesCount, "pipeline")}
+          </Badge>
+          <Badge variant="light">
+            {countLabel(props.targetsCount, "target")}
+          </Badge>
           <Badge color="gray" variant="outline">
             guarded forwarding
           </Badge>

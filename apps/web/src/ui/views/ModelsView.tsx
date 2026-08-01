@@ -17,7 +17,6 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -44,6 +43,7 @@ import {
   modelMatchesSearch,
   modelTitle,
 } from "../utils/models";
+import { countLabel } from "../utils/plural";
 
 function rootSourceLabel(root: ModelScanRoot) {
   if (root.source === "settings") {
@@ -488,50 +488,47 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
   return (
     <Paper withBorder p="md" radius="sm">
       <Stack gap="sm">
-        <Group justify="space-between" align="flex-end" wrap="wrap">
-          <div className="section-heading">
-            <Title order={3}>GGUF files</Title>
-            <Text c="dimmed" size="sm">
-              GGUF discovery, architecture and quantization metadata
-            </Text>
-          </div>
-          <Group className="model-scan-controls" gap="xs" align="flex-end">
-            <PathPickerInput
-              aria-label="Directory"
-              label="Directory"
-              mode="directory"
-              value={directory}
-              onChange={setDirectory}
-              className="model-directory-input"
-            />
-            <NumberInput
-              aria-label="Depth"
-              label="Depth"
-              value={maxDepth}
-              min={0}
-              max={16}
-              clampBehavior="strict"
-              onChange={(value) =>
-                setMaxDepth(typeof value === "number" ? value : 8)
-              }
-              w={92}
-            />
-            <Button
-              aria-label="Scan model directories"
-              onClick={requestScan}
-              loading={scanned.reconciling || settingsMutation.isPending}
-            >
-              Scan
-            </Button>
-            <Button
-              aria-label="Refresh model metadata"
-              variant="subtle"
-              onClick={() => refreshModelsMutation.mutate()}
-              loading={scanned.reconciling || refreshModelsMutation.isPending}
-            >
-              Refresh metadata
-            </Button>
-          </Group>
+        <Group
+          className="model-scan-controls"
+          gap="xs"
+          align="flex-end"
+          wrap="wrap"
+        >
+          <PathPickerInput
+            aria-label="Directory"
+            label="Directory"
+            mode="directory"
+            value={directory}
+            onChange={setDirectory}
+            className="model-directory-input"
+          />
+          <NumberInput
+            aria-label="Depth"
+            label="Depth"
+            value={maxDepth}
+            min={0}
+            max={16}
+            clampBehavior="strict"
+            onChange={(value) =>
+              setMaxDepth(typeof value === "number" ? value : 8)
+            }
+            w={92}
+          />
+          <Button
+            aria-label="Scan model directories"
+            onClick={requestScan}
+            loading={scanned.reconciling || settingsMutation.isPending}
+          >
+            Scan
+          </Button>
+          <Button
+            aria-label="Refresh model metadata"
+            variant="subtle"
+            onClick={() => refreshModelsMutation.mutate()}
+            loading={scanned.reconciling || refreshModelsMutation.isPending}
+          >
+            Refresh metadata
+          </Button>
         </Group>
 
         {scanned.isError && scanned.error && (
@@ -580,7 +577,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
                         </Badge>
                       )}
                       <Badge variant="outline" color="gray">
-                        {count} models
+                        {countLabel(count, "model")}
                       </Badge>
                     </Group>
                     <Text c="dimmed" size="xs" className="text-wrap">

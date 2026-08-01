@@ -1,11 +1,21 @@
 import type { ApiProxyPlanPreview, ApiProxyTargetRecord } from "@arriero/core";
-import { Badge, Button, Group, Paper, Stack, Table, Text } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Group,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from "@mantine/core";
 import { Activity, Play } from "lucide-react";
 
 import { TouchSelect } from "../../components/TouchCombobox";
 import { formatLocalDateTime } from "../../utils/time";
 import { actionLabels } from "../display";
 import type { SelectOption } from "./types";
+import { countLabel } from "../../utils/plural";
 
 type SchedulerSectionProps = {
   targetOptions: SelectOption[];
@@ -97,7 +107,7 @@ function planStatus(preview: ApiProxyPlanPreview) {
   return {
     color: "yellow",
     label: "needs preparation",
-    description: `The request is routable, but the manager must run ${readinessActions.length} preparation step(s) first.`,
+    description: `The request is routable, but the manager must run ${countLabel(readinessActions.length, "preparation step")} first.`,
   };
 }
 
@@ -112,7 +122,7 @@ export function SchedulerSection(props: SchedulerSectionProps) {
         <Group justify="space-between" align="center" wrap="wrap">
           <Group gap="xs">
             <Activity size={18} />
-            <Text fw={600}>Request plan check</Text>
+            <Title order={4}>Request plan check</Title>
           </Group>
           <Text c="dimmed" size="sm">
             Shows what a public API request would need to do; no action is

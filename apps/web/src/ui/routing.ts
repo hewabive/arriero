@@ -41,15 +41,15 @@ export const navSections: NavSection[] = [
       {
         route: "status",
         label: "Status",
-        title: "Public Status",
-        description: "Redacted diagnostics for this arriero node",
+        title: "Public status",
+        description: "Redacted diagnostics for this Arriero node",
       },
       {
         route: "nodes",
         label: "Nodes",
         title: "Nodes",
         description:
-          "Register arriero nodes to manage from one address and update them to the latest revision",
+          "Register Arriero nodes to manage from one address and update them to the latest revision",
       },
       {
         route: "config-git",
@@ -97,7 +97,7 @@ export const navSections: NavSection[] = [
       {
         route: "proxy",
         label: "Dashboard",
-        title: "API Proxy",
+        title: "API proxy",
         description: "Live proxy health: topology, scheduler plans, stats",
       },
       {
@@ -128,7 +128,7 @@ export const navSections: NavSection[] = [
         route: "proxy",
         subpath: "targets",
         label: "Targets",
-        title: "Proxy Targets",
+        title: "Proxy targets",
         description:
           "Managed instances and external APIs that receive routed requests",
       },
@@ -136,16 +136,16 @@ export const navSections: NavSection[] = [
         route: "proxy",
         subpath: "endpoints",
         label: "Endpoints",
-        title: "API Endpoints",
+        title: "API endpoints",
         description: "Registered external APIs and generated local endpoints",
       },
       {
         route: "proxy",
         subpath: "sources",
         label: "Sources",
-        title: "Request Sources",
+        title: "Request sources",
         description:
-          "Label proxy requests by API key to track and route by origin",
+          "Map an API key to a source label so proxy requests show their origin",
       },
       {
         route: "proxy",
@@ -176,13 +176,15 @@ export const navSections: NavSection[] = [
       {
         route: "paths",
         label: "Paths",
-        title: "Path Catalog",
-        description: "Shared binary paths for instances",
+        title: "Path catalog",
+        description: "Shared binary paths and model directories for instances",
       },
       {
         route: "args",
         label: "Arguments",
         title: "Arguments",
+        description:
+          "Every llama-server argument with engineering help and defaults",
       },
       {
         route: "build",
@@ -198,8 +200,8 @@ export const navSections: NavSection[] = [
       },
       {
         route: "source-sync",
-        label: "Source Sync",
-        title: "Source Sync",
+        label: "Source sync",
+        title: "Source sync",
         description:
           "Clone inference sources, manage origins, and inspect integration drift",
       },
@@ -225,8 +227,8 @@ export const navSections: NavSection[] = [
       },
       {
         route: "api-lab",
-        label: "API Lab",
-        title: "API Lab",
+        label: "API lab",
+        title: "API lab",
         description: "Manual probes for OpenAI-compatible and llama.cpp APIs",
       },
     ],

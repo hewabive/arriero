@@ -2,7 +2,6 @@ import { type Instance } from "@arriero/core";
 import {
   ActionIcon,
   AppShell,
-  Badge,
   Burger,
   Group,
   NavLink,
@@ -26,6 +25,7 @@ import {
   listInstances,
   logoutAdmin,
 } from "../api/client";
+import { AppLogo } from "./components/AppLogo";
 import { InstanceFormModal } from "./components/InstanceFormModal";
 import { NodeSwitcher } from "./components/NodeSwitcher";
 import {
@@ -125,6 +125,10 @@ export function App() {
     selectedInstance?.name === launchMonitor?.instanceId ? launchMonitor : null;
   const currentRoute = activeLeaf(route, proxySubpath);
 
+  useEffect(() => {
+    document.title = `${currentRoute.title} · Arriero`;
+  }, [currentRoute.title]);
+
   function goToLeaf(leaf: NavLeaf) {
     navigateToLeaf(leaf);
     closeNav();
@@ -211,10 +215,10 @@ export function App() {
               size="sm"
               aria-label="Toggle navigation"
             />
+            <AppLogo />
             <Title className="app-header__title" order={3}>
-              arriero
+              Arriero
             </Title>
-            <Badge variant="light">local</Badge>
           </Group>
           <Group className="app-header__actions" gap="xs">
             {canUseAdmin && <NodeSwitcher />}
@@ -300,16 +304,14 @@ export function App() {
 
       <AppShell.Main>
         <Stack gap="md">
-          <Group justify="space-between">
-            <div>
-              <Title order={2}>{currentRoute.title}</Title>
-              {currentRoute.description && (
-                <Text c="dimmed" size="sm">
-                  {currentRoute.description}
-                </Text>
-              )}
-            </div>
-          </Group>
+          <div className="page-header">
+            <Title order={2}>{currentRoute.title}</Title>
+            {currentRoute.description && (
+              <Text c="dimmed" size="sm">
+                {currentRoute.description}
+              </Text>
+            )}
+          </div>
 
           {isPublicRoute && <PublicStatusView />}
 

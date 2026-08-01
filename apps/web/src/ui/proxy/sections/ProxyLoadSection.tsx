@@ -11,6 +11,7 @@ import {
   Paper,
   Stack,
   Text,
+  Title,
 } from "@mantine/core";
 
 import {
@@ -99,9 +100,7 @@ export function ProxyLoadSection(props: {
         <Group justify="space-between" align="center" wrap="wrap">
           <div className="section-heading">
             <Group gap="xs" align="center">
-              <Text fw={700} size="lg">
-                Proxy load
-              </Text>
+              <Title order={4}>Proxy load</Title>
               {props.refreshing && <Loader size={12} />}
             </Group>
             <Text c="dimmed" size="sm">

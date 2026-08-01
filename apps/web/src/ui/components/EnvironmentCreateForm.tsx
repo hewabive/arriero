@@ -27,6 +27,7 @@ import { useMemo, useState } from "react";
 
 import { listEnvironmentIndexVersions } from "../../api/client";
 import { substringOptionsFilter, TouchAutocomplete } from "./TouchCombobox";
+import { countLabel } from "../utils/plural";
 
 const PUBLIC_INDEX_URL = "https://pypi.org/simple";
 
@@ -302,7 +303,7 @@ export function EnvironmentCreateForm({
           {lookup.versions.length === 1 ? "" : "s"} on {lookup.indexUrl}
           {showPreReleases
             ? ""
-            : ` · ${lookup.versions.length - visibleVersions.length} pre-release(s) hidden`}
+            : ` · ${countLabel(lookup.versions.length - visibleVersions.length, "pre-release")} hidden`}
         </Text>
       );
     }

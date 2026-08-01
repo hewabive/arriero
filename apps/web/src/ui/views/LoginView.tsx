@@ -6,6 +6,7 @@ import {
   Paper,
   Stack,
   Text,
+  Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -45,9 +46,7 @@ export function LoginView() {
       <form onSubmit={form.onSubmit((values) => loginMutation.mutate(values))}>
         <Stack gap="md">
           <div>
-            <Text fw={700} size="lg">
-              Admin login
-            </Text>
+            <Title order={4}>Admin login</Title>
             <Text c="dimmed" size="sm">
               Admin access is required for process control, logs, build and
               configuration.

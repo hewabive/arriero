@@ -33,6 +33,7 @@ import {
 import { PipelinePanel } from "../proxy/PipelinePanel";
 import { PipelinesSection } from "../proxy/sections/index";
 import { TestBench } from "../proxy/TestBench";
+import { countLabel } from "../utils/plural";
 
 const newPipelineSubpath = "new";
 
@@ -243,7 +244,9 @@ export function ProxyPipelinesView({
         <>
           <Paper withBorder p="md" radius="sm">
             <Group justify="space-between" align="center" wrap="wrap">
-              <Badge variant="light">{pipelines.length} pipelines</Badge>
+              <Badge variant="light">
+                {countLabel(pipelines.length, "pipeline")}
+              </Badge>
               <Button
                 variant="light"
                 leftSection={<Plus size={16} />}

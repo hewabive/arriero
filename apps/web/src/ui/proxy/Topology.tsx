@@ -5,7 +5,7 @@ import {
   type ApiProxyPortRef,
   type ApiProxyTargetRecord,
 } from "@arriero/core";
-import { Badge, Code, Group, Paper, Stack, Text } from "@mantine/core";
+import { Badge, Code, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { useMemo } from "react";
 
 type TopologyProps = {
@@ -123,7 +123,7 @@ export function Topology(props: TopologyProps) {
     <Paper withBorder p="md" radius="sm">
       <Stack gap="sm">
         <Group justify="space-between" align="center" wrap="wrap">
-          <Text fw={600}>Topology</Text>
+          <Title order={4}>Topology</Title>
           <Text c="dimmed" size="sm">
             What each published model can reach through its route.
           </Text>

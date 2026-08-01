@@ -22,6 +22,7 @@ import { useState } from "react";
 
 import { explainApiProxyRoute } from "../../api/client";
 import { TouchSelect } from "../components/TouchCombobox";
+import { countLabel } from "../utils/plural";
 
 type TestBenchProps = {
   models: ApiProxyModelRecord[];
@@ -214,7 +215,7 @@ export function TestBench(props: TestBenchProps) {
               )}
               {result.textReplacementCount > 0 && (
                 <Badge variant="light">
-                  {result.textReplacementCount} replacement(s)
+                  {countLabel(result.textReplacementCount, "replacement")}
                 </Badge>
               )}
             </Group>

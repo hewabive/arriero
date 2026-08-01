@@ -32,6 +32,7 @@ import {
 import { ModelEditorModal, QuickRouteModal } from "../proxy/editors";
 import { ExternalModelsSection } from "../proxy/sections/index";
 import { navigateProxy } from "../routing";
+import { countLabel } from "../utils/plural";
 
 function suggestPipelineName(modelId: string, taken: Set<string>): string {
   const base = modelId.slice(0, 72) || "route";
@@ -155,7 +156,7 @@ export function ProxyModelsView() {
       await invalidate();
       notifications.show({
         title: "Models disabled",
-        message: `${count} model(s) stopped serving.`,
+        message: `${countLabel(count, "model")} stopped serving.`,
       });
     },
     onError: (error) =>
@@ -238,7 +239,7 @@ export function ProxyModelsView() {
       <Paper withBorder p="md" radius="sm">
         <Group justify="space-between" align="center" wrap="wrap">
           <Group gap="xs">
-            <Badge variant="light">{models.length} models</Badge>
+            <Badge variant="light">{countLabel(models.length, "model")}</Badge>
             <Badge variant="light" color="green">
               {enabledCount} enabled
             </Badge>
@@ -252,7 +253,7 @@ export function ProxyModelsView() {
               onClick={() => {
                 if (
                   !window.confirm(
-                    `Disable all ${enabledCount} serving model(s)? They will respond model_disabled until re-enabled.`,
+                    `Disable all ${countLabel(enabledCount, "serving model")}? They will respond model_disabled until re-enabled.`,
                   )
                 ) {
                   return;

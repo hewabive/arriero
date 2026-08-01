@@ -13,6 +13,7 @@ import {
   Table,
   Text,
   Tooltip,
+  Title,
 } from "@mantine/core";
 import { GitBranchPlus, Pencil, Trash2, Workflow } from "lucide-react";
 
@@ -39,7 +40,7 @@ export function ExternalModelsSection(props: ExternalModelsSectionProps) {
     <Paper withBorder p="md" radius="sm">
       <Stack gap="sm">
         <Group justify="space-between" align="center" wrap="wrap">
-          <Text fw={600}>External models</Text>
+          <Title order={4}>External models</Title>
           <Group gap="xs" wrap="wrap">
             <Code>/proxy/v1/models</Code>
             <Code>/v1/models</Code>

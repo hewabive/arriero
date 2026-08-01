@@ -47,25 +47,22 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
     <Paper withBorder p="md" radius="sm">
       <Stack gap="sm">
         <Group justify="space-between" align="center" wrap="wrap">
-          <Group gap={6} align="center">
-            <Text fw={600}>Proxy targets</Text>
-            <Tooltip label="Refreshing runtime state">
-              <Box
-                h={16}
-                w={16}
-                style={{
-                  alignItems: "center",
-                  display: "inline-flex",
-                  justifyContent: "center",
-                }}
-              >
-                {props.runtimeRefreshing && <Loader size={12} />}
-              </Box>
-            </Tooltip>
-          </Group>
           <Text c="dimmed" size="sm">
             Targets describe which instance/model can receive proxied traffic.
           </Text>
+          <Tooltip label="Refreshing runtime state">
+            <Box
+              h={16}
+              w={16}
+              style={{
+                alignItems: "center",
+                display: "inline-flex",
+                justifyContent: "center",
+              }}
+            >
+              {props.runtimeRefreshing && <Loader size={12} />}
+            </Box>
+          </Tooltip>
         </Group>
         <Table.ScrollContainer minWidth={1160}>
           <Table striped highlightOnHover verticalSpacing="sm">

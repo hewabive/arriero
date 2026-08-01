@@ -14,6 +14,7 @@ import {
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { absoluteUrl } from "../../api/base.js";
+import { countLabel } from "../utils/plural";
 
 type ApiEndpointsSectionProps = {
   endpoints: ApiEndpointRecord[];
@@ -54,7 +55,9 @@ export function ApiEndpointsSection(props: ApiEndpointsSectionProps) {
     <Paper withBorder p="md" radius="sm">
       <Stack gap="sm">
         <Group justify="space-between" align="center" wrap="wrap">
-          <Text fw={600}>API endpoints</Text>
+          <Badge variant="light">
+            {countLabel(props.endpoints.length, "endpoint")}
+          </Badge>
           <Button
             variant="light"
             leftSection={<Plus size={16} />}
@@ -104,8 +107,10 @@ export function ApiEndpointsSection(props: ApiEndpointsSectionProps) {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    {props.targetCountByEndpointId.get(endpoint.id) ?? 0}{" "}
-                    target(s)
+                    {countLabel(
+                      props.targetCountByEndpointId.get(endpoint.id) ?? 0,
+                      "target",
+                    )}
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end" wrap="nowrap">

@@ -1,9 +1,10 @@
 import type { PublicProxyModel } from "@arriero/core";
-import { Alert, Badge, Group, Paper, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
 import { getPublicStatus } from "../../api/client";
+import { countLabel } from "../utils/plural";
 
 function modelLoadStateColor(value: PublicProxyModel["status"]["value"]) {
   switch (value) {
@@ -22,7 +23,7 @@ function modelLoadStateColor(value: PublicProxyModel["status"]["value"]) {
 
 function ProxyModelCard(props: { model: PublicProxyModel }) {
   const { status, modelId } = props.model;
-  const details = [`${status.activeRequests} active request(s)`];
+  const details = [countLabel(status.activeRequests, "active request")];
   if (status.queuedRequests > 0) {
     details.push(`${status.queuedRequests} queued`);
   }
@@ -75,9 +76,7 @@ export function PublicStatusView() {
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <div className="section-heading">
-              <Text fw={700} size="lg">
-                API models
-              </Text>
+              <Title order={4}>API models</Title>
               <Text c="dimmed" size="sm">
                 Published models — load state aggregated over route targets
               </Text>

@@ -280,8 +280,13 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
   `undefined`.
 - Realtime: prefer SSE (Hono `streamSSE`); WebSocket only for bidirectional terminal-like control.
 - Mantine component-wide defaults go in the `createTheme` in `web/src/main.tsx` (e.g. `Tooltip` opens
-  on hover/focus/touch so tooltips work on mobile) — don't set per-usage props for behavior every
-  usage should share.
+  on hover/focus/touch so tooltips work on mobile; the heading scale lives there too) — don't set
+  per-usage props for behavior every usage should share.
+- Web page chrome: the page title + one-line description are owned by the route entry in
+  `web/src/ui/routing.ts` and rendered by `App.tsx` — a view never repeats them. Titles and labels are
+  sentence case (acronyms kept: "API endpoints", "GGUF files"). Card headers are `Title order={4}`,
+  page-level section headers `order={3}`; counted labels go through `ui/utils/plural.ts:countLabel`
+  instead of hand-written `N items` / `N item(s)`.
 
 ## Runtime layout & key env vars
 

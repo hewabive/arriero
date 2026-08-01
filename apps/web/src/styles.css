@@ -65,13 +65,18 @@ code {
   flex: 0 0 auto;
 }
 
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .section-heading {
   min-width: 0;
 }
 
 .model-scan-controls {
-  flex: 1 1 620px;
-  justify-content: flex-end;
   min-width: 0;
 }
 
@@ -438,10 +443,6 @@ code {
   .build-jobs-table,
   .processes-table {
     display: none;
-  }
-
-  .model-scan-controls {
-    justify-content: flex-start;
   }
 
   .model-directory-input {

@@ -6,6 +6,7 @@ import {
 } from "@arriero/core";
 
 import { formatLocalDateTime } from "../utils/time";
+import { countLabel } from "../utils/plural";
 
 function formatMs(ms: number) {
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
@@ -134,7 +135,7 @@ export function runtimeDetails(runtime: ApiProxyTargetRuntime | undefined) {
     return ["not checked yet"];
   }
 
-  const details = [`${runtime.activeRequests} active request(s)`];
+  const details = [countLabel(runtime.activeRequests, "active request")];
   if (runtime.idleSince) {
     details.push(`idle since ${formatLocalDateTime(runtime.idleSince)}`);
   }

@@ -40,6 +40,7 @@ import {
   updateSourceRepositorySettings,
 } from "../../api/client";
 import { formatLocalDateTime } from "../utils/time";
+import { countLabel } from "../utils/plural";
 
 function checkStatusColor(status: SourceSyncSection["status"]) {
   if (status === "in-sync") return "green";
@@ -207,7 +208,7 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
         ? {
             color: "yellow",
             icon: <AlertTriangle size={16} />,
-            title: `${driftCheckCount} integration check(s) report drift`,
+            title: `${countLabel(driftCheckCount, "integration check")} report drift`,
           }
         : {
             color: "red",
@@ -215,7 +216,7 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
             title:
               report.status === "unavailable"
                 ? "Source is unavailable"
-                : `${errorCount} source check(s) failed`,
+                : `${countLabel(errorCount, "source check")} failed`,
           };
 
   return (

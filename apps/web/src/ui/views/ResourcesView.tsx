@@ -35,6 +35,7 @@ import {
 import { NumaTopologyPanel } from "../components/NumaTopologyPanel";
 import { formatBytes } from "../utils/models";
 import { formatMemoryPoolName } from "../utils/pools";
+import { countLabel } from "../utils/plural";
 
 const GIB = 1024 ** 3;
 
@@ -323,7 +324,7 @@ export function ResourcesView() {
                 {entry.self ? "self" : "peer"}
               </Badge>
               {!entry.self && nodeStateBadge(entry)}
-              <Badge variant="light">{pools.length} pools</Badge>
+              <Badge variant="light">{countLabel(pools.length, "pool")}</Badge>
             </Group>
             {detected && (
               <Group gap="xs" wrap="wrap">
@@ -372,8 +373,8 @@ export function ResourcesView() {
       <Paper withBorder p="md" radius="sm">
         <Group justify="space-between" align="center" wrap="wrap">
           <Group gap="xs" wrap="wrap">
-            <Title order={3}>Memory pools</Title>
-            <Badge variant="light">{entries.length} nodes</Badge>
+            <Title order={4}>Memory pools</Title>
+            <Badge variant="light">{countLabel(entries.length, "node")}</Badge>
           </Group>
         </Group>
         <Text c="dimmed" size="sm" mt={6}>

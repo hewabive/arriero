@@ -34,6 +34,7 @@ import {
 
 import { listFilesystemDirectory } from "../../api/client";
 import { formatBytes } from "../utils/models";
+import { countLabel } from "../utils/plural";
 
 type PathPickerMode = "file" | "directory";
 type PathPickerFilter = "any" | "binary" | "model";
@@ -323,7 +324,9 @@ export function PathPickerInput(props: {
               className="search-input"
             />
             <Group gap="xs">
-              <Badge variant="light">{visibleEntries.length} entries</Badge>
+              <Badge variant="light">
+                {countLabel(visibleEntries.length, "entry", "entries")}
+              </Badge>
               {props.mode === "directory" && directory?.path && (
                 <Button
                   type="button"

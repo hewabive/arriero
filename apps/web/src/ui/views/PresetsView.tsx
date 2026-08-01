@@ -9,7 +9,6 @@ import {
   Stack,
   Text,
   Textarea,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -25,6 +24,7 @@ import {
 } from "../../api/client";
 import { TouchSelect } from "../components/TouchCombobox";
 import { NewPresetModal } from "./presets/NewPresetModal";
+import { countLabel } from "../utils/plural";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
 
@@ -154,14 +154,7 @@ export function PresetsView() {
     <>
       <Paper withBorder p="md" radius="sm">
         <Stack gap="md">
-          <Group justify="space-between" align="flex-start">
-            <div>
-              <Title order={3}>Model presets</Title>
-              <Text c="dimmed" size="sm">
-                Edit a llama-server --models-preset INI file directly (the file
-                is the source of truth)
-              </Text>
-            </div>
+          <Group justify="flex-end" align="flex-start">
             <Group gap="xs">
               <Text size="sm" c={saveState === "error" ? "red" : "dimmed"}>
                 {saveLabel[saveState]}
@@ -196,7 +189,7 @@ export function PresetsView() {
             onChange={setSelectedName}
             data={presets.map((item) => ({
               value: item.name,
-              label: `${item.name} · ${item.entryCount} models`,
+              label: `${item.name} · ${countLabel(item.entryCount, "model")}`,
             }))}
             nothingFoundMessage="No presets in data/config/presets"
           />
