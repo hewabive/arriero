@@ -27,6 +27,7 @@ type MutableDelta = {
   lane: string;
   text: string;
   set: (text: string) => void;
+  flushFrame: (text: string) => string;
 };
 
 function replaceStringField(
@@ -162,6 +163,25 @@ function replaceAnthropicContent(
   return count;
 }
 
+function replaceOpenAiResponsesItem(
+  item: JsonRecord,
+  effect: ApiProxyReplaceResponseTextEffect,
+): number {
+  if (item.type === "message") {
+    return replaceTextContent(item, "content", effect.rules);
+  }
+  if (item.type === "reasoning" && effect.includeReasoning) {
+    return (
+      replaceTextContent(item, "summary", effect.rules) +
+      replaceTextContent(item, "content", effect.rules)
+    );
+  }
+  if (item.type === "function_call" && effect.includeToolArguments) {
+    return replaceStringField(item, "arguments", effect.rules);
+  }
+  return 0;
+}
+
 function replaceOpenAiResponsesOutput(
   body: JsonRecord,
   effect: ApiProxyReplaceResponseTextEffect,
@@ -171,19 +191,56 @@ function replaceOpenAiResponsesOutput(
     return count;
   }
   for (const item of body.output) {
-    if (!isRecord(item)) {
-      continue;
-    }
-    if (item.type === "message") {
-      count += replaceTextContent(item, "content", effect.rules);
-    } else if (item.type === "reasoning" && effect.includeReasoning) {
-      count += replaceTextContent(item, "summary", effect.rules);
-      count += replaceTextContent(item, "content", effect.rules);
-    } else if (item.type === "function_call" && effect.includeToolArguments) {
-      count += replaceStringField(item, "arguments", effect.rules);
+    if (isRecord(item)) {
+      count += replaceOpenAiResponsesItem(item, effect);
     }
   }
   return count;
+}
+
+function replaceOpenAiResponsesAggregate(
+  value: JsonRecord,
+  effect: ApiProxyReplaceResponseTextEffect,
+): number {
+  const type = typeof value.type === "string" ? value.type : "";
+  if (type === "response.output_text.done") {
+    return replaceStringField(value, "text", effect.rules);
+  }
+  if (
+    (type === "response.reasoning_summary_text.done" ||
+      type === "response.reasoning_text.done") &&
+    effect.includeReasoning
+  ) {
+    return replaceStringField(value, "text", effect.rules);
+  }
+  if (
+    type === "response.function_call_arguments.done" &&
+    effect.includeToolArguments
+  ) {
+    return replaceStringField(value, "arguments", effect.rules);
+  }
+  if (type === "response.output_item.done" && isRecord(value.item)) {
+    return replaceOpenAiResponsesItem(value.item, effect);
+  }
+  if (type === "response.content_part.done" && isRecord(value.part)) {
+    const part = value.part;
+    if (
+      part.type === "output_text" ||
+      (part.type === "summary_text" && effect.includeReasoning)
+    ) {
+      return replaceStringField(part, "text", effect.rules);
+    }
+    return 0;
+  }
+  if (
+    (type === "response.completed" ||
+      type === "response.failed" ||
+      type === "response.incomplete") &&
+    isRecord(value.response)
+  ) {
+    return replaceOpenAiResponsesOutput(value.response, effect);
+  }
+  return 0;
 }
 
 function replaceResponseObject(
@@ -287,6 +344,7 @@ function addStringDelta(
   owner: JsonRecord,
   key: string,
   lane: string,
+  flushFrame: (text: string) => string,
 ): void {
   const text = owner[key];
   if (typeof text !== "string" || text.length === 0) {
@@ -298,7 +356,12 @@ function addStringDelta(
     set: (next) => {
       owner[key] = next;
     },
+    flushFrame,
   });
+}
+
+function sseDataFrame(payload: JsonRecord): string {
+  return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
 function collectOpenAiChoiceDeltas(
@@ -315,15 +378,50 @@ function collectOpenAiChoiceDeltas(
     }
     const choiceIndex =
       typeof choice.index === "number" ? choice.index : arrayIndex;
-    addStringDelta(deltas, choice, "text", `answer:choice:${choiceIndex}`);
+    addStringDelta(
+      deltas,
+      choice,
+      "text",
+      `answer:choice:${choiceIndex}`,
+      (text) =>
+        sseDataFrame({
+          id: value.id,
+          object: value.object,
+          created: value.created,
+          model: value.model,
+          choices: [{ index: choiceIndex, text }],
+        }),
+    );
     if (!isRecord(choice.delta)) {
       return;
     }
     const delta = choice.delta;
-    addStringDelta(deltas, delta, "content", `answer:choice:${choiceIndex}`);
+    const deltaFrame = (deltaPayload: (text: string) => JsonRecord) => {
+      return (text: string) =>
+        sseDataFrame({
+          id: value.id,
+          object: value.object,
+          created: value.created,
+          model: value.model,
+          choices: [{ index: choiceIndex, delta: deltaPayload(text) }],
+        });
+    };
+    addStringDelta(
+      deltas,
+      delta,
+      "content",
+      `answer:choice:${choiceIndex}`,
+      deltaFrame((text) => ({ content: text })),
+    );
     if (effect.includeReasoning) {
       for (const key of ["reasoning_content", "reasoning", "reasoning_text"]) {
-        addStringDelta(deltas, delta, key, `reasoning:choice:${choiceIndex}`);
+        addStringDelta(
+          deltas,
+          delta,
+          key,
+          `reasoning:choice:${choiceIndex}`,
+          deltaFrame((text) => ({ [key]: text })),
+        );
       }
     }
     if (effect.includeToolArguments && Array.isArray(delta.tool_calls)) {
@@ -338,6 +436,9 @@ function collectOpenAiChoiceDeltas(
           toolCall.function,
           "arguments",
           `tool:choice:${choiceIndex}:${toolIndex}`,
+          deltaFrame((text) => ({
+            tool_calls: [{ index: toolIndex, function: { arguments: text } }],
+          })),
         );
       });
     }
@@ -351,12 +452,42 @@ function collectAnthropicDeltas(
 ): MutableDelta[] {
   const deltas: MutableDelta[] = [];
   const index = typeof value.index === "number" ? value.index : 0;
+  const eventFrame =
+    (delta: (text: string) => JsonRecord) => (text: string) => {
+      const payload = {
+        type: "content_block_delta",
+        index,
+        delta: delta(text),
+      };
+      return `event: content_block_delta\ndata: ${JSON.stringify(payload)}\n\n`;
+    };
+  const textFrame = eventFrame((text) => ({ type: "text_delta", text }));
+  const thinkingFrame = eventFrame((text) => ({
+    type: "thinking_delta",
+    thinking: text,
+  }));
+  const toolFrame = eventFrame((text) => ({
+    type: "input_json_delta",
+    partial_json: text,
+  }));
   if (value.type === "content_block_start" && isRecord(value.content_block)) {
     const block = value.content_block;
     if (block.type === "text") {
-      addStringDelta(deltas, block, "text", `answer:anthropic:${index}`);
+      addStringDelta(
+        deltas,
+        block,
+        "text",
+        `answer:anthropic:${index}`,
+        textFrame,
+      );
     } else if (block.type === "thinking" && effect.includeReasoning) {
-      addStringDelta(deltas, block, "thinking", `reasoning:anthropic:${index}`);
+      addStringDelta(
+        deltas,
+        block,
+        "thinking",
+        `reasoning:anthropic:${index}`,
+        thinkingFrame,
+      );
     }
   }
   if (value.type !== "content_block_delta" || !isRecord(value.delta)) {
@@ -364,13 +495,37 @@ function collectAnthropicDeltas(
   }
   const delta = value.delta;
   if (delta.type === "text_delta") {
-    addStringDelta(deltas, delta, "text", `answer:anthropic:${index}`);
+    addStringDelta(
+      deltas,
+      delta,
+      "text",
+      `answer:anthropic:${index}`,
+      textFrame,
+    );
   } else if (delta.type === "thinking_delta" && effect.includeReasoning) {
-    addStringDelta(deltas, delta, "thinking", `reasoning:anthropic:${index}`);
+    addStringDelta(
+      deltas,
+      delta,
+      "thinking",
+      `reasoning:anthropic:${index}`,
+      thinkingFrame,
+    );
   } else if (delta.type === "input_json_delta" && effect.includeToolArguments) {
-    addStringDelta(deltas, delta, "partial_json", `tool:anthropic:${index}`);
+    addStringDelta(
+      deltas,
+      delta,
+      "partial_json",
+      `tool:anthropic:${index}`,
+      toolFrame,
+    );
   }
   return deltas;
+}
+
+function openAiResponsesIdentity(value: JsonRecord): string {
+  return [value.item_id, value.output_index, value.content_index]
+    .filter((part) => typeof part === "string" || typeof part === "number")
+    .join(":");
 }
 
 function collectOpenAiResponsesDeltas(
@@ -379,22 +534,48 @@ function collectOpenAiResponsesDeltas(
 ): MutableDelta[] {
   const deltas: MutableDelta[] = [];
   const type = typeof value.type === "string" ? value.type : "";
-  const identity = [value.item_id, value.output_index, value.content_index]
-    .filter((part) => typeof part === "string" || typeof part === "number")
-    .join(":");
+  const identity = openAiResponsesIdentity(value);
+  const eventFrame = (eventType: string) => (text: string) => {
+    const payload: JsonRecord = { type: eventType };
+    for (const key of ["item_id", "output_index", "content_index"]) {
+      if (value[key] !== undefined) {
+        payload[key] = value[key];
+      }
+    }
+    payload.delta = text;
+    return sseDataFrame(payload);
+  };
   if (type === "response.output_text.delta") {
-    addStringDelta(deltas, value, "delta", `answer:responses:${identity}`);
+    addStringDelta(
+      deltas,
+      value,
+      "delta",
+      `answer:responses:${identity}`,
+      eventFrame(type),
+    );
   } else if (
     effect.includeReasoning &&
     (type === "response.reasoning_summary_text.delta" ||
       type === "response.reasoning_text.delta")
   ) {
-    addStringDelta(deltas, value, "delta", `reasoning:responses:${identity}`);
+    addStringDelta(
+      deltas,
+      value,
+      "delta",
+      `reasoning:responses:${identity}`,
+      eventFrame(type),
+    );
   } else if (
     effect.includeToolArguments &&
     type === "response.function_call_arguments.delta"
   ) {
-    addStringDelta(deltas, value, "delta", `tool:responses:${identity}`);
+    addStringDelta(
+      deltas,
+      value,
+      "delta",
+      `tool:responses:${identity}`,
+      eventFrame(type),
+    );
   }
   return deltas;
 }
@@ -417,49 +598,72 @@ function collectMutableDeltas(
   }
 }
 
-function responseFinishesAllLanes(value: unknown): boolean {
+type LaneFinish = {
+  finishAll: boolean;
+  lanePrefixes: string[];
+};
+
+function laneFinishesForPayload(value: unknown): LaneFinish {
   if (!isRecord(value)) {
-    return false;
+    return { finishAll: false, lanePrefixes: [] };
   }
-  if (
-    Array.isArray(value.choices) &&
-    value.choices.some(
-      (choice) => isRecord(choice) && choice.finish_reason != null,
-    )
-  ) {
-    return true;
+  const lanePrefixes: string[] = [];
+  if (Array.isArray(value.choices)) {
+    value.choices.forEach((choice, arrayIndex) => {
+      if (!isRecord(choice) || choice.finish_reason == null) {
+        return;
+      }
+      const choiceIndex =
+        typeof choice.index === "number" ? choice.index : arrayIndex;
+      lanePrefixes.push(
+        `answer:choice:${choiceIndex}`,
+        `reasoning:choice:${choiceIndex}`,
+        `tool:choice:${choiceIndex}`,
+      );
+    });
   }
   const type = typeof value.type === "string" ? value.type : "";
-  return (
+  if (
     type === "message_stop" ||
     (type === "message_delta" &&
       isRecord(value.delta) &&
       value.delta.stop_reason != null) ||
-    type.endsWith(".done") ||
     type === "response.completed" ||
     type === "response.failed" ||
     type === "response.incomplete"
-  );
-}
-
-function anthropicFinishedLanePrefixes(value: unknown): string[] {
-  if (
-    !isRecord(value) ||
-    value.type !== "content_block_stop" ||
-    typeof value.index !== "number"
   ) {
-    return [];
+    return { finishAll: true, lanePrefixes };
   }
-  return [
-    `answer:anthropic:${value.index}`,
-    `reasoning:anthropic:${value.index}`,
-    `tool:anthropic:${value.index}`,
-  ];
+  if (type === "content_block_stop" && typeof value.index === "number") {
+    lanePrefixes.push(
+      `answer:anthropic:${value.index}`,
+      `reasoning:anthropic:${value.index}`,
+      `tool:anthropic:${value.index}`,
+    );
+  }
+  if (type.startsWith("response.") && type.endsWith(".done")) {
+    const identity = openAiResponsesIdentity(value);
+    const lane = (kind: string) =>
+      identity ? `${kind}:responses:${identity}` : `${kind}:responses`;
+    if (type === "response.output_text.done") {
+      lanePrefixes.push(lane("answer"));
+    } else if (
+      type === "response.reasoning_summary_text.done" ||
+      type === "response.reasoning_text.done"
+    ) {
+      lanePrefixes.push(lane("reasoning"));
+    } else if (type === "response.function_call_arguments.done") {
+      lanePrefixes.push(lane("tool"));
+    } else {
+      lanePrefixes.push(lane("answer"), lane("reasoning"), lane("tool"));
+    }
+  }
+  return { finishAll: false, lanePrefixes };
 }
 
 type LaneState = {
   chain: StreamingLiteralChain;
-  template: ((text: string) => string | null) | null;
+  flushFrame: ((text: string) => string) | null;
 };
 
 type ResponseReplaceStreamInput = {
@@ -468,27 +672,59 @@ type ResponseReplaceStreamInput = {
   onReplacement?: ((count: number) => void) | undefined;
 };
 
+function jsonEscapedRules(
+  rules: ApiProxyTextReplacementRule[],
+): ApiProxyTextReplacementRule[] {
+  return rules.map((rule) => ({
+    ...rule,
+    find: JSON.stringify(rule.find).slice(1, -1),
+    replace: JSON.stringify(rule.replace).slice(1, -1),
+  }));
+}
+
 function createResponseReplaceFrameTransformer(
   input: ResponseReplaceStreamInput,
 ): ApiProxySseFrameTransformer {
+  const shape = apiProxyResponseShape(input.operation);
   const lanes = new Map<string, LaneState>();
   const onReplacement = () => input.onReplacement?.(1);
+
+  let anthropicToolRules: ApiProxyTextReplacementRule[] | null = null;
+  const rulesForLane = (lane: string): ApiProxyTextReplacementRule[] => {
+    if (!lane.startsWith("tool:anthropic")) {
+      return input.effect.rules;
+    }
+    anthropicToolRules ??= jsonEscapedRules(input.effect.rules);
+    return anthropicToolRules;
+  };
 
   const flushLane = (lane: string, state: LaneState): string | null => {
     const text = state.chain.flush();
     lanes.delete(lane);
-    return text && state.template ? state.template(text) : null;
+    return text && state.flushFrame ? state.flushFrame(text) : null;
   };
+
+  const laneFinishes = (
+    lane: string,
+    finishAll: boolean,
+    finishedPrefixes: string[],
+  ) =>
+    finishAll ||
+    finishedPrefixes.some(
+      (prefix) => lane === prefix || lane.startsWith(`${prefix}:`),
+    );
 
   const flushMatching = (
     finishAll: boolean,
-    finishedLanes: Set<string>,
+    finishedPrefixes: string[],
     presentLanes: Set<string>,
   ) => {
     const output: string[] = [];
-    for (const [lane, state] of lanes) {
-      const finishes = finishAll || finishedLanes.has(lane);
-      if (!finishes || presentLanes.has(lane)) {
+    for (const [lane, state] of [...lanes]) {
+      if (
+        !laneFinishes(lane, finishAll, finishedPrefixes) ||
+        presentLanes.has(lane)
+      ) {
         continue;
       }
       const frame = flushLane(lane, state);
@@ -502,13 +738,22 @@ function createResponseReplaceFrameTransformer(
   const transformFrame = (frame: string): string[] => {
     const parsed = parseApiProxySseJsonFrame(frame);
     let finishAll = parsed.hasDone;
-    const finishedLanes = new Set<string>();
+    const finishedPrefixes: string[] = [];
     const presentLanes = new Set<string>();
     const payloadDeltas = parsed.payloads.map((payload) => {
-      finishAll ||= responseFinishesAllLanes(payload.value);
-      for (const lane of anthropicFinishedLanePrefixes(payload.value)) {
-        finishedLanes.add(lane);
+      if (shape === "openai-responses" && isRecord(payload.value)) {
+        const aggregate = replaceOpenAiResponsesAggregate(
+          payload.value,
+          input.effect,
+        );
+        if (aggregate > 0) {
+          payload.replace(payload.value);
+          input.onReplacement?.(aggregate);
+        }
       }
+      const finish = laneFinishesForPayload(payload.value);
+      finishAll ||= finish.finishAll;
+      finishedPrefixes.push(...finish.lanePrefixes);
       const deltas = collectMutableDeltas(
         payload.value,
         input.operation,
@@ -520,38 +765,23 @@ function createResponseReplaceFrameTransformer(
       return { payload, deltas };
     });
 
-    const templateFor =
-      (lane: string) =>
-      (text: string): string | null => {
-        let found = false;
-        for (const { payload, deltas } of payloadDeltas) {
-          const target = deltas.find((delta) => delta.lane === lane);
-          if (!target) {
-            continue;
-          }
-          found = true;
-          for (const delta of deltas) {
-            delta.set(delta === target ? text : "");
-          }
-          payload.replace(payload.value);
-        }
-        return found ? parsed.serialize().text : null;
-      };
-
-    const output = flushMatching(finishAll, finishedLanes, presentLanes);
+    const output = flushMatching(finishAll, finishedPrefixes, presentLanes);
     for (const { payload, deltas } of payloadDeltas) {
       for (const delta of deltas) {
         let state = lanes.get(delta.lane);
         if (!state) {
           state = {
-            chain: new StreamingLiteralChain(input.effect.rules, onReplacement),
-            template: null,
+            chain: new StreamingLiteralChain(
+              rulesForLane(delta.lane),
+              onReplacement,
+            ),
+            flushFrame: null,
           };
           lanes.set(delta.lane, state);
         }
-        state.template = templateFor(delta.lane);
+        state.flushFrame = delta.flushFrame;
         let text = state.chain.push(delta.text);
-        if (finishAll || finishedLanes.has(delta.lane)) {
+        if (laneFinishes(delta.lane, finishAll, finishedPrefixes)) {
           text += state.chain.flush();
           lanes.delete(delta.lane);
         }

@@ -245,6 +245,121 @@ test("stream lanes stay independent and optional Anthropic surfaces are selectab
   );
 });
 
+test("one choice's finish does not flush other choices' lanes", async () => {
+  const output = await runStream({
+    operation: openAiChat,
+    frames: [
+      'data: {"choices":[{"index":1,"delta":{"content":"sec"}}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"content":"done"},"finish_reason":"stop"}]}\n\n',
+      'data: {"choices":[{"index":1,"delta":{"content":"ret is out"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ],
+  });
+  const perChoice = new Map<number, string>();
+  for (const body of jsonData(output)) {
+    const choices = body.choices as Array<{
+      index?: number;
+      delta?: { content?: string };
+    }>;
+    for (const choice of choices ?? []) {
+      const index = choice.index ?? 0;
+      perChoice.set(
+        index,
+        (perChoice.get(index) ?? "") + (choice.delta?.content ?? ""),
+      );
+    }
+  }
+  assert.equal(perChoice.get(1), "[hidden] is out");
+  assert.equal(perChoice.get(0), "done");
+});
+
+test("openai-responses aggregate events are replaced in streams", async () => {
+  const output = await runStream({
+    operation: openAiResponses,
+    frames: [
+      'data: {"type":"response.output_text.delta","item_id":"m1","output_index":0,"content_index":0,"delta":"sec"}\n\n',
+      'data: {"type":"response.output_text.delta","item_id":"m1","output_index":0,"content_index":0,"delta":"ret inside"}\n\n',
+      'data: {"type":"response.output_text.done","item_id":"m1","output_index":0,"content_index":0,"text":"secret inside"}\n\n',
+      'data: {"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","text":"secret inside"}]}]}}\n\n',
+    ],
+  });
+  const bodies = jsonData(output);
+  const deltas = bodies
+    .filter((body) => body.type === "response.output_text.delta")
+    .map((body) => body.delta)
+    .join("");
+  assert.equal(deltas, "[hidden] inside");
+  const done = bodies.find((body) => body.type === "response.output_text.done");
+  assert.equal(done?.text, "[hidden] inside");
+  const completed = bodies.find(
+    (body) => body.type === "response.completed",
+  ) as {
+    response?: {
+      output?: Array<{ content?: Array<{ text?: string }> }>;
+    };
+  };
+  assert.equal(
+    completed.response?.output?.[0]?.content?.[0]?.text,
+    "[hidden] inside",
+  );
+});
+
+test("anthropic streaming tool arguments match escaped JSON and splice validly", async () => {
+  const fragmentA = '{"note":"please say \\"';
+  const fragmentB = 'hi\\" now"}';
+  const frame = (partial: string) =>
+    `event: content_block_delta\ndata: ${JSON.stringify({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "input_json_delta", partial_json: partial },
+    })}\n\n`;
+  const output = await runStream({
+    operation: anthropicMessages,
+    effect: effect({
+      includeToolArguments: true,
+      rules: [{ enabled: true, find: 'say "hi"', replace: 'redacted "ok"' }],
+    }),
+    frames: [
+      frame(fragmentA),
+      frame(fragmentB),
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+    ],
+  });
+  const rebuilt = jsonData(output)
+    .map((body) => {
+      const delta = body.delta as { partial_json?: string } | undefined;
+      return delta?.partial_json ?? "";
+    })
+    .join("");
+  const parsed = JSON.parse(rebuilt) as { note: string };
+  assert.equal(parsed.note, 'please redacted "ok" now');
+});
+
+test("a held tail flushes as a synthetic delta, not a replayed start frame", async () => {
+  const output = await runStream({
+    operation: anthropicMessages,
+    frames: [
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"sec"}}\n\n',
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+    ],
+  });
+  assert.equal(output.split('"content_block_start"').length - 1, 1);
+  const tailIndex = output.indexOf('"text_delta"');
+  const stopIndex = output.indexOf('"content_block_stop"');
+  assert.ok(tailIndex >= 0 && tailIndex < stopIndex);
+  const rebuilt = jsonData(output)
+    .flatMap((body) => {
+      const fromStart = (body.content_block as { text?: string } | undefined)
+        ?.text;
+      const fromDelta = (body.delta as { text?: string } | undefined)?.text;
+      return [fromStart ?? "", fromDelta ?? ""];
+    })
+    .join("");
+  assert.equal(rebuilt, "sec");
+});
+
 test("stream response is byte-stable when no rule can match", async () => {
   const original =
     ': ping\r\ndata: {"choices":[{"index":0,"delta":{"content":"hello"}}]}\r\n\r\n';

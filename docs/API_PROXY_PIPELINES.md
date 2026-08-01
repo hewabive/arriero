@@ -210,13 +210,29 @@ OpenAI Responses, and Anthropic Messages; endpoints without assistant text
 (embeddings, rerank, count-tokens) pass through unchanged.
 
 Streaming replacement is literal and bounded. Every choice, content block,
-reasoning channel and tool call has independent matcher state. A matcher holds
+reasoning channel and tool call has independent matcher state, and lanes finish
+independently: a `finish_reason` closes only that choice's lanes, an
+Anthropic `content_block_stop` only that block's, an OpenAI Responses `*.done`
+only that item/part's — only stream-terminal events (`[DONE]`, `message_stop`,
+`response.completed/failed/incomplete`) flush everything. A matcher holds
 only the longest suffix that could still become the beginning of `find`, so a
 match can cross SSE events without buffering the whole answer. If the suffix
 turns out not to match it is released immediately; any remaining suffix is
-emitted as a synthetic delta before the lane's finish/stop/DONE event. Unknown
-SSE fields, comments, event/id/retry fields, LF/CRLF framing and no-op frames
-are preserved.
+emitted as a **synthesized minimal delta frame** (never a replay of the
+carrier frame, so start events, usage or finish markers are not duplicated)
+before the lane's finish/stop event. Unknown SSE fields, comments,
+event/id/retry fields, LF/CRLF framing and no-op frames are preserved.
+
+Two shape-specific rules keep streams consistent with the buffered path:
+OpenAI Responses aggregate events (`response.output_text.done`,
+`response.function_call_arguments.done`, `response.output_item.done`,
+`response.content_part.done` and the final `response.completed` output) are
+rewritten directly, matching what `replaceOpenAiResponsesOutput` does to a
+non-stream body; and Anthropic `input_json_delta.partial_json` fragments are
+matched with JSON-escaped rule variants (`find`/`replace` passed through
+`JSON.stringify`), so rules written against decoded values match the escaped
+wire form and a replacement containing quotes or backslashes splices valid
+JSON into the streamed tool arguments.
 
 ### Token scale
 
