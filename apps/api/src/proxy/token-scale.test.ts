@@ -111,6 +111,48 @@ test("Anthropic count_tokens scales its top-level result", () => {
   assert.deepEqual(body, { input_tokens: 6_173 });
 });
 
+test("Anthropic cache usage and Responses echoed limits are scaled", () => {
+  const messages = {
+    usage: {
+      input_tokens: 100,
+      output_tokens: 20,
+      cache_read_input_tokens: 80,
+      cache_creation_input_tokens: 10,
+      cache_creation: { ephemeral_5m_input_tokens: 7 },
+    },
+  };
+  scaleApiProxyResponseTokens({
+    value: messages,
+    factor: 2.5,
+    operation: { ...anthropicCount, endpoint: "messages" },
+  });
+  assert.deepEqual(messages.usage, {
+    input_tokens: 250,
+    output_tokens: 50,
+    cache_read_input_tokens: 200,
+    cache_creation_input_tokens: 25,
+    cache_creation: { ephemeral_5m_input_tokens: 18 },
+  });
+
+  const responses = {
+    response: {
+      max_output_tokens: 4_000,
+      usage: { input_tokens: 1_000, output_tokens: 200, total_tokens: 1_200 },
+    },
+  };
+  scaleApiProxyResponseTokens({
+    value: responses,
+    factor: 0.5,
+    operation: { ...openAiChat, endpoint: "responses" },
+  });
+  assert.deepEqual(responses, {
+    response: {
+      max_output_tokens: 2_000,
+      usage: { input_tokens: 500, output_tokens: 100, total_tokens: 600 },
+    },
+  });
+});
+
 test("buffered SSE usage scales without changing other frames", () => {
   const original =
     ": ping\r\n\r\n" +
@@ -166,7 +208,7 @@ test("streaming scale preserves chunk delivery and rewrites usage frames", async
   assert.ok(output.includes('"content":"hi"'));
   assert.ok(
     output.includes(
-      '"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":2}',
+      '"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":3}',
     ),
   );
 });

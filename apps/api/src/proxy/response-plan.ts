@@ -37,6 +37,7 @@ export type ApiProxyResponseMetadata = {
 };
 
 export type ApiProxyResponsePlanExecutor = {
+  append: (effects: ApiProxyResponseEffect[]) => void;
   processText: (text: string, metadata: ApiProxyResponseMetadata) => string;
   tap: (
     stream: ReadableStream<Uint8Array>,
@@ -79,7 +80,7 @@ export function createApiProxyResponsePlanExecutor(input: {
     return null;
   }
 
-  const states: EffectState[] = input.effects.map((effect) => ({
+  const stateFor = (effect: ApiProxyResponseEffect): EffectState => ({
     effect,
     explicitText: null,
     streamedText: "",
@@ -87,7 +88,8 @@ export function createApiProxyResponsePlanExecutor(input: {
     tapped: false,
     streamComplete: false,
     flushed: false,
-  }));
+  });
+  const states: EffectState[] = input.effects.map(stateFor);
 
   const flushState = (state: EffectState) => {
     if (state.flushed) {
@@ -206,6 +208,9 @@ export function createApiProxyResponsePlanExecutor(input: {
   };
 
   return {
+    append(effects) {
+      states.push(...effects.map(stateFor));
+    },
     processText(text, metadata) {
       let current = text;
       for (let index = states.length - 1; index >= 0; index -= 1) {

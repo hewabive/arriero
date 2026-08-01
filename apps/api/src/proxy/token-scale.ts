@@ -129,6 +129,9 @@ function scaleUsageTree(value: unknown, factor: number): number {
   }
   let count = 0;
   for (const [key, item] of Object.entries(value)) {
+    if (key === "total_tokens") {
+      continue;
+    }
     if (typeof item === "number" && key.endsWith("_tokens")) {
       const scaled = scaleApiProxyResponseTokenCount(item, factor);
       if (scaled !== item) {
@@ -138,6 +141,23 @@ function scaleUsageTree(value: unknown, factor: number): number {
       continue;
     }
     count += scaleUsageTree(item, factor);
+  }
+  if (typeof value.total_tokens === "number") {
+    const original = value.total_tokens;
+    const prompt = value.prompt_tokens;
+    const completion = value.completion_tokens;
+    const input = value.input_tokens;
+    const output = value.output_tokens;
+    const scaled =
+      typeof prompt === "number" && typeof completion === "number"
+        ? prompt + completion
+        : typeof input === "number" && typeof output === "number"
+          ? input + output
+          : scaleApiProxyResponseTokenCount(original, factor);
+    if (scaled !== original) {
+      value.total_tokens = scaled;
+      count += 1;
+    }
   }
   return count;
 }

@@ -43,6 +43,7 @@ import {
   apiProxyCacheStores,
   resolveApiProxyRouteChain,
   type ApiProxyCacheStoreEffect,
+  type ApiProxyResponseEffect,
   type ApiProxyRouteChainResult,
 } from "./pipeline.js";
 import {
@@ -353,15 +354,33 @@ async function proxyProtocolEndpointInner(
   }
 
   const cacheWrites = apiProxyCacheStores(routeResult.responseEffects);
-  const responsePlan = createApiProxyResponsePlanExecutor({
+  let responsePlan = createApiProxyResponsePlanExecutor({
     effects: routeResult.responseEffects,
     putCache: putApiProxyCachedResponse,
     trace,
     operation,
   });
   if (responsePlan) {
-    recorder.beforeRecord(() => responsePlan.flush());
+    recorder.beforeRecord(() => responsePlan?.flush());
   }
+  const appendResponseEffects = (effects: ApiProxyResponseEffect[]) => {
+    if (effects.length === 0) {
+      return;
+    }
+    if (responsePlan) {
+      responsePlan.append(effects);
+      return;
+    }
+    responsePlan = createApiProxyResponsePlanExecutor({
+      effects,
+      putCache: putApiProxyCachedResponse,
+      trace,
+      operation,
+    });
+    if (responsePlan) {
+      recorder.beforeRecord(() => responsePlan?.flush());
+    }
+  };
 
   if (routeResult.kind === "response") {
     trace.cache = routeResult.source === "coalesced" ? "coalesced" : "hit";
@@ -465,6 +484,7 @@ async function proxyProtocolEndpointInner(
       return c.json(response.body, response.status);
     }
     if (fusion.kind === "direct") {
+      appendResponseEffects(fusion.responseEffects);
       trace.stream = routeResult.request.stream;
       const contentType =
         fusion.response.headers["content-type"] ??
@@ -481,13 +501,17 @@ async function proxyProtocolEndpointInner(
         headers: fusion.response.headers,
       });
     }
+    appendResponseEffects(fusion.responseEffects);
     route = {
       ok: true,
       kind: "target",
       request: fusion.request,
       targetId: fusion.targetId,
       textReplacementCount: routeResult.textReplacementCount,
-      responseEffects: routeResult.responseEffects,
+      responseEffects: [
+        ...routeResult.responseEffects,
+        ...fusion.responseEffects,
+      ],
       routeTrace: routeResult.routeTrace,
     };
   } else {

@@ -214,6 +214,119 @@ test("fusion bypasses the synthesizer when only one panel survives", async () =>
   }
 });
 
+test("single-survivor fusion carries the panel branch response plan", async () => {
+  const target = seedExternalTarget("panel-a", "http://panel-a.local");
+  const failed = seedExternalTarget("panel-b", "http://panel-b.local");
+  const synth = seedExternalTarget("synth", "http://synth.local");
+  const replace = ApiProxyPipelineNodeSchema.parse({
+    id: "panel-replace",
+    name: "panel response",
+    type: "replace-text",
+    config: {
+      request: false,
+      response: true,
+      rules: [{ enabled: true, find: "secret", replace: "[hidden]" }],
+    },
+    ports: { next: { type: "target", id: target.id } },
+  });
+  const fusion = ApiProxyPipelineNodeSchema.parse({
+    id: "fnode",
+    name: "fuse",
+    type: "fusion",
+    config: { minQuorum: 1 },
+    ports: {
+      panel: [
+        { type: "node", id: replace.id },
+        { type: "target", id: failed.id },
+      ],
+      synthesizer: { type: "target", id: synth.id },
+    },
+  });
+  const pipeline = createApiProxyPipeline({
+    name: "panel-effects",
+    enabled: true,
+    entry: { type: "node", id: fusion.id },
+    nodes: [fusion, replace],
+  });
+  const fusionNode = pipeline.nodes.find((node) => node.id === fusion.id);
+  assert.ok(fusionNode?.type === "fusion");
+
+  const outcome = await executeApiProxyFusion({
+    node: fusionNode,
+    pipeline,
+    request: fusionRequest({ model: "m", messages: [] }),
+    fetchImpl: routedFetch([
+      ["panel-a.local", () => sseResponse(answerFrames("secret"))],
+      ["panel-b.local", () => new Response("down", { status: 500 })],
+    ]),
+  });
+
+  assert.equal(outcome.kind, "direct");
+  if (outcome.kind === "direct") {
+    assert.equal(outcome.responseEffects[0]?.type, "replace-response-text");
+  }
+});
+
+test("fusion carries the synthesizer branch response plan to the final target", async () => {
+  const panelA = seedExternalTarget("panel-a", "http://panel-a.local");
+  const panelB = seedExternalTarget("panel-b", "http://panel-b.local");
+  const synth = seedExternalTarget("synth", "http://synth.local");
+  const scale = ApiProxyPipelineNodeSchema.parse({
+    id: "synth-scale",
+    name: "virtual context",
+    type: "token-scale",
+    config: { factor: 10 },
+    ports: { next: { type: "target", id: synth.id } },
+  });
+  const fusion = ApiProxyPipelineNodeSchema.parse({
+    id: "fnode",
+    name: "fuse",
+    type: "fusion",
+    config: { minQuorum: 2 },
+    ports: {
+      panel: [
+        { type: "target", id: panelA.id },
+        { type: "target", id: panelB.id },
+      ],
+      synthesizer: { type: "node", id: scale.id },
+    },
+  });
+  const pipeline = createApiProxyPipeline({
+    name: "synth-effects",
+    enabled: true,
+    entry: { type: "node", id: fusion.id },
+    nodes: [fusion, scale],
+  });
+  const fusionNode = pipeline.nodes.find((node) => node.id === fusion.id);
+  assert.ok(fusionNode?.type === "fusion");
+
+  const outcome = await executeApiProxyFusion({
+    node: fusionNode,
+    pipeline,
+    request: fusionRequest({
+      model: "m",
+      max_tokens: 40_000,
+      messages: [],
+    }),
+    fetchImpl: routedFetch([
+      ["panel-a.local", () => sseResponse(answerFrames("Alpha"))],
+      ["panel-b.local", () => sseResponse(answerFrames("Beta"))],
+    ]),
+  });
+
+  assert.equal(outcome.kind, "route");
+  if (outcome.kind === "route") {
+    assert.equal(outcome.targetId, synth.id);
+    assert.equal(
+      (outcome.request.body as { max_tokens: number }).max_tokens,
+      4_000,
+    );
+    assert.deepEqual(outcome.responseEffects, [
+      { type: "token-scale", factor: 10 },
+    ]);
+  }
+});
+
 test("fusion errors when the quorum is not met", async () => {
   const a = seedExternalTarget("panel-a", "http://panel-a.local");
   const b = seedExternalTarget("panel-b", "http://panel-b.local");

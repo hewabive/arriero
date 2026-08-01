@@ -21,6 +21,7 @@ import { openAiProtocolAdapter } from "./openai.js";
 import {
   resolveApiProxyRouteChain,
   type ApiProxyFusionNode,
+  type ApiProxyResponseEffect,
 } from "./pipeline.js";
 import {
   bodyRequestsStreaming,
@@ -221,13 +222,23 @@ export async function executeApiProxyModelSubRequest(input: {
 type PanelAnswer = {
   state: ResumableBufferState;
   codec: ApiProxyResumableCodec;
+  responseEffects: ApiProxyResponseEffect[];
 };
 
 type PanelOutcome = ({ ok: true } & PanelAnswer) | { ok: false; error: string };
 
 export type ApiProxyFusionOutcome =
-  | { kind: "route"; targetId: string; request: ApiProxyProtocolModelRequest }
-  | { kind: "direct"; response: ApiProxyResumableFinalResponse }
+  | {
+      kind: "route";
+      targetId: string;
+      request: ApiProxyProtocolModelRequest;
+      responseEffects: ApiProxyResponseEffect[];
+    }
+  | {
+      kind: "direct";
+      response: ApiProxyResumableFinalResponse;
+      responseEffects: ApiProxyResponseEffect[];
+    }
   | { kind: "error"; diagnostic: ApiProxyProtocolDiagnostic };
 
 function fusionDiagnostic(message: string): ApiProxyProtocolDiagnostic {
@@ -353,7 +364,12 @@ export async function executeApiProxyFusion(input: {
     if (!sub.ok) {
       return { ok: false, error: sub.diagnostic.message };
     }
-    return { ok: true, state: sub.state, codec: sub.codec };
+    return {
+      ok: true,
+      state: sub.state,
+      codec: sub.codec,
+      responseEffects: resolved.responseEffects,
+    };
   };
 
   const panelRefs = input.node.ports.panel;
@@ -389,6 +405,7 @@ export async function executeApiProxyFusion(input: {
       return {
         kind: "direct",
         response: bypassResponse(only, input.request.stream),
+        responseEffects: only.responseEffects,
       };
     }
   }
@@ -444,7 +461,7 @@ export async function executeApiProxyFusion(input: {
         ),
       };
     }
-    return executeApiProxyFusion({
+    const nested = await executeApiProxyFusion({
       node: synthRoute.node,
       pipeline: synthRoute.pipeline,
       request: synthRoute.request,
@@ -453,10 +470,21 @@ export async function executeApiProxyFusion(input: {
       ...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
       depth: depth + 1,
     });
+    if (nested.kind === "error") {
+      return nested;
+    }
+    return {
+      ...nested,
+      responseEffects: [
+        ...synthRoute.responseEffects,
+        ...nested.responseEffects,
+      ],
+    };
   }
   return {
     kind: "route",
     targetId: synthRoute.targetId,
     request: synthRoute.request,
+    responseEffects: synthRoute.responseEffects,
   };
 }

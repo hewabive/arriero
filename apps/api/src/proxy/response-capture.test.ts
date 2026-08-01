@@ -130,6 +130,16 @@ test("captures on either side of a response transform see positional bodies", ()
 
 test("token scaling leaves the inner capture real and the outer capture client-visible", () => {
   const value = trace();
+  value.usage = {
+    promptTokens: 10_000,
+    cacheReadTokens: null,
+    cacheCreationTokens: null,
+    completionTokens: 2_000,
+    genMs: 1_000,
+    ratePerSecond: 2_000,
+    prefillMs: null,
+    promptPerSecond: null,
+  };
   const plan = createApiProxyResponsePlanExecutor({
     effects: [
       { type: "capture-response", nodeName: "Client-visible" },
@@ -159,6 +169,33 @@ test("token scaling leaves the inner capture real and the outer capture client-v
   });
   assert.deepEqual(visible?.data, {
     usage: { prompt_tokens: 100_000, completion_tokens: 20_000 },
+  });
+  assert.equal(value.usage.promptTokens, 10_000);
+  assert.equal(value.usage.completionTokens, 2_000);
+  assert.equal(value.usage.ratePerSecond, 2_000);
+});
+
+test("response plan can append a final-producing fusion branch", () => {
+  const value = trace();
+  const plan = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "capture-response", nodeName: "Outer" }],
+    putCache: () => {},
+    trace: value,
+    operation,
+  });
+  assert.ok(plan);
+  plan.append([{ type: "token-scale", factor: 10 }]);
+  const delivered = plan.processText(
+    '{"usage":{"prompt_tokens":100,"completion_tokens":20}}',
+    jsonResponse,
+  );
+  plan.flush();
+
+  assert.deepEqual(JSON.parse(delivered), {
+    usage: { prompt_tokens: 1_000, completion_tokens: 200 },
+  });
+  assert.deepEqual(readApiProxyRequestFile(value.files[0]!.path)?.data, {
+    usage: { prompt_tokens: 1_000, completion_tokens: 200 },
   });
 });
 
