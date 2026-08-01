@@ -8,7 +8,7 @@ import {
   registerApiProxyBroadcast,
   subscribeApiProxyBroadcast,
 } from "./response-broadcast.js";
-import { createApiProxyResponseCaptureSink } from "./response-capture.js";
+import { createApiProxyResponsePlanExecutor } from "./response-plan.js";
 
 function trace() {
   const value = createProxyTrace({
@@ -28,10 +28,21 @@ const operation = {
   transport: "http-json" as const,
 };
 
-test("response sink returns null when no captures are requested", () => {
-  const sink = createApiProxyResponseCaptureSink({
-    captures: [],
-    cacheWrites: [],
+const jsonResponse = {
+  status: 200,
+  contentType: "application/json",
+  isSse: false,
+};
+
+const sseResponse = {
+  status: 200,
+  contentType: "text/event-stream",
+  isSse: true,
+};
+
+test("response plan returns null when it has no effects", () => {
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [],
     putCache: () => {},
     trace: trace(),
     operation,
@@ -39,21 +50,23 @@ test("response sink returns null when no captures are requested", () => {
   assert.equal(sink, null);
 });
 
-test("response sink writes one capture-response file per target and is idempotent", () => {
+test("response plan unwinds captures in reverse order and is idempotent", () => {
   const value = trace();
-  const sink = createApiProxyResponseCaptureSink({
-    captures: [
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [
       { type: "capture-response", nodeName: "Audit" },
       { type: "capture-response", nodeName: null },
     ],
-    cacheWrites: [],
     putCache: () => {},
     trace: value,
     operation,
   });
   assert.ok(sink);
 
-  sink.setText(JSON.stringify({ choices: [{ message: { content: "hi" } }] }));
+  sink.processText(
+    JSON.stringify({ choices: [{ message: { content: "hi" } }] }),
+    jsonResponse,
+  );
   sink.flush();
   sink.flush();
 
@@ -61,21 +74,20 @@ test("response sink writes one capture-response file per target and is idempoten
   const [first, second] = value.files;
   assert.ok(first && second);
   assert.equal(first.kind, "capture-response");
-  assert.equal(first.label, "Audit");
-  assert.equal(second.label, null);
+  assert.equal(first.label, null);
+  assert.equal(second.label, "Audit");
 
-  const record = readApiProxyRequestFile(first.path);
+  const record = readApiProxyRequestFile(second.path);
   assert.ok(record);
   assert.deepEqual(record.data, {
     choices: [{ message: { content: "hi" } }],
   });
 });
 
-test("response sink writes nothing when no body was seen", () => {
+test("response plan writes nothing when no body was seen", () => {
   const value = trace();
-  const sink = createApiProxyResponseCaptureSink({
-    captures: [{ type: "capture-response", nodeName: null }],
-    cacheWrites: [],
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "capture-response", nodeName: null }],
     putCache: () => {},
     trace: value,
     operation,
@@ -85,12 +97,11 @@ test("response sink writes nothing when no body was seen", () => {
   assert.equal(value.files.length, 0);
 });
 
-test("response sink writes non-stream bodies to the cache and marks the trace", () => {
+test("response plan writes non-stream bodies to the cache and marks the trace", () => {
   const value = trace();
   const writes: Array<{ key: string; body: string; ttlSeconds: number }> = [];
-  const sink = createApiProxyResponseCaptureSink({
-    captures: [],
-    cacheWrites: [{ type: "cache-store", key: "key-1", ttlSeconds: 600 }],
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "cache-store", key: "key-1", ttlSeconds: 600 }],
     putCache: (input) =>
       writes.push({
         key: input.key,
@@ -102,7 +113,7 @@ test("response sink writes non-stream bodies to the cache and marks the trace", 
   });
   assert.ok(sink);
 
-  sink.setText('{"object":"list","data":[]}');
+  sink.processText('{"object":"list","data":[]}', jsonResponse);
   sink.flush();
 
   assert.deepEqual(writes, [
@@ -111,23 +122,44 @@ test("response sink writes non-stream bodies to the cache and marks the trace", 
   assert.equal(value.cache, "store");
 });
 
-test("response sink does not cache an error body or a streamed response", async () => {
+test("response plan does not cache an error body", async () => {
   const value = trace();
   const writes: string[] = [];
-  const sink = createApiProxyResponseCaptureSink({
-    captures: [],
-    cacheWrites: [
-      { type: "cache-store", key: "key-err", ttlSeconds: 600 },
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "cache-store", key: "key-err", ttlSeconds: 600 }],
+    putCache: (input) => writes.push(input.key),
+    trace: value,
+    operation,
+  });
+  assert.ok(sink);
+  sink.processText('{"error":{"message":"nope"}}', jsonResponse);
+  sink.flush();
+  assert.equal(writes.length, 0);
+  assert.equal(value.cache, null);
+});
+
+test("response plan skips captures and cache writes for failed responses", () => {
+  const value = trace();
+  const writes: string[] = [];
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [
+      { type: "capture-response", nodeName: "Success only" },
+      { type: "cache-store", key: "key-failed", ttlSeconds: 600 },
     ],
     putCache: (input) => writes.push(input.key),
     trace: value,
     operation,
   });
   assert.ok(sink);
-  sink.setText('{"error":{"message":"nope"}}');
+
+  sink.processText('{"error":{"message":"nope"}}', {
+    ...jsonResponse,
+    status: 502,
+  });
   sink.flush();
-  assert.equal(writes.length, 0);
-  assert.equal(value.cache, null);
+
+  assert.deepEqual(value.files, []);
+  assert.deepEqual(writes, []);
 });
 
 test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async () => {
@@ -139,9 +171,8 @@ test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async
   const subscriber = subscribeApiProxyBroadcast("bkey");
   assert.ok(subscriber);
 
-  const sink = createApiProxyResponseCaptureSink({
-    captures: [],
-    cacheWrites: [{ type: "cache-store", key: "bkey", ttlSeconds: 600 }],
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "cache-store", key: "bkey", ttlSeconds: 600 }],
     putCache: (input) =>
       writes.push({
         isSse: input.isSse,
@@ -161,7 +192,7 @@ test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async
       controller.close();
     },
   });
-  const reader = sink.tap(source).getReader();
+  const reader = sink.tap(source, sseResponse).getReader();
   for (;;) {
     const { done } = await reader.read();
     if (done) {
@@ -193,11 +224,10 @@ test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async
   assert.equal(subscribeApiProxyBroadcast("bkey"), null);
 });
 
-test("response sink streams through tapped chunks and captures the raw text", async () => {
+test("response plan streams through tapped chunks and captures the raw text", async () => {
   const value = trace();
-  const sink = createApiProxyResponseCaptureSink({
-    captures: [{ type: "capture-response", nodeName: null }],
-    cacheWrites: [],
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "capture-response", nodeName: null }],
     putCache: () => {},
     trace: value,
     operation,
@@ -213,7 +243,7 @@ test("response sink streams through tapped chunks and captures the raw text", as
     },
   });
 
-  const tapped = sink.tap(source);
+  const tapped = sink.tap(source, sseResponse);
   const reader = tapped.getReader();
   const decoder = new TextDecoder();
   let forwarded = "";

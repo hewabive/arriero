@@ -143,7 +143,7 @@ test("non-stream replay rebuilds the buffered response and evicts", async () => 
       trace,
       recorder,
       inflight,
-      responseSink: null,
+      responsePlan: null,
       store,
       fetchImpl: async (url) => {
         assert.match(url, /\/v1\/stream\?conv_id=conv-1&from=0$/);
@@ -185,7 +185,7 @@ test("stream replay pipes frames, strips usage, records at completion", async ()
       trace,
       recorder,
       inflight,
-      responseSink: null,
+      responsePlan: null,
       store,
       fetchImpl: async () => sseResponse(replaySse),
     });
@@ -224,7 +224,7 @@ test("expired replay falls through without evicting on 404", async () => {
       trace,
       recorder,
       inflight,
-      responseSink: null,
+      responsePlan: null,
       store,
       fetchImpl: async () => new Response("gone", { status: 404 }),
     });
@@ -257,7 +257,7 @@ test("offset-lost replay falls through and evicts the dead session", async () =>
       trace,
       recorder,
       inflight,
-      responseSink: null,
+      responsePlan: null,
       store,
       fetchImpl: async () => new Response("offset lost", { status: 400 }),
     });

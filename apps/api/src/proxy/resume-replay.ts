@@ -20,7 +20,7 @@ import {
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
 import { observeBodyCompletion } from "./body-completion.js";
-import type { ApiProxyResponseCaptureSink } from "./response-capture.js";
+import type { ApiProxyResponsePlanExecutor } from "./response-plan.js";
 import {
   consumeResumableSse,
   createResumableBufferState,
@@ -125,7 +125,7 @@ export async function serveResumedStreamSession(input: {
   trace: ProxyTraceAccumulator;
   recorder: ProxyTraceRecorder;
   inflight: ApiProxyInflightHandle;
-  responseSink: ApiProxyResponseCaptureSink | null;
+  responsePlan: ApiProxyResponsePlanExecutor | null;
   fetchImpl?: typeof proxyUpstreamFetch;
   store?: ApiProxyPendingResumeStore;
 }): Promise<Response | null> {
@@ -161,8 +161,15 @@ export async function serveResumedStreamSession(input: {
   const effectiveCodec = translateAnthropic
     ? translatedAnthropicResumableCodec(claim.exchangeBody)
     : codec;
-  const captureBody = (stream: ReadableStream<Uint8Array>) =>
-    input.responseSink ? input.responseSink.tap(stream) : stream;
+  const planBody = (stream: ReadableStream<Uint8Array>) =>
+    input.responsePlan
+      ? input.responsePlan.tap(stream, {
+          status: upstream.status,
+          contentType:
+            upstream.headers.get("content-type") ?? "text/event-stream",
+          isSse: true,
+        })
+      : stream;
   const applyUsage = (usage: ProxyUsageCounts) => {
     trace.usage = {
       promptTokens: usage.promptTokens,
@@ -208,10 +215,14 @@ export async function serveResumedStreamSession(input: {
     }
     trace.usage = resumableTraceUsage(state);
     const final = finalFromState(effectiveCodec, state, false);
-    if (typeof final.body === "string") {
-      input.responseSink?.setText(final.body);
-    }
-    return new Response(final.body, {
+    const delivered = input.responsePlan
+      ? input.responsePlan.processText(final.body, {
+          status: final.status,
+          contentType: final.headers["content-type"] ?? "application/json",
+          isSse: false,
+        })
+      : final.body;
+    return new Response(delivered, {
       status: final.status,
       headers: final.headers,
     });
@@ -236,7 +247,7 @@ export async function serveResumedStreamSession(input: {
     recorder.markDeferred();
     metered = new Response(
       observeBodyCompletion(
-        captureBody(upstream.body.pipeThrough(translation.transform)),
+        planBody(upstream.body.pipeThrough(translation.transform)),
         () => {
           store.finish(entry, { evict: true });
           translation.finalize();
@@ -262,7 +273,7 @@ export async function serveResumedStreamSession(input: {
   recorder.markDeferred();
   metered = new Response(
     observeBodyCompletion(
-      captureBody(upstream.body.pipeThrough(meter.transform)),
+      planBody(upstream.body.pipeThrough(meter.transform)),
       () => {
         store.finish(entry, { evict: true });
         meter.finalize();

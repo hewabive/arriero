@@ -41,7 +41,6 @@ import { openAiResponsesUsageCodec } from "./openai.js";
 import { executeApiProxyFusion } from "./fusion.js";
 import {
   apiProxyCacheStores,
-  apiProxyResponseCaptures,
   resolveApiProxyRouteChain,
   type ApiProxyCacheStoreEffect,
   type ApiProxyRouteChainResult,
@@ -77,18 +76,15 @@ import {
 import {
   findApiProxyInFlight,
   registerApiProxyInFlight,
-  settleApiProxyInFlight,
 } from "./response-coalesce.js";
 import {
-  finishApiProxyBroadcast,
-  pushApiProxyBroadcast,
   registerApiProxyBroadcast,
   subscribeApiProxyBroadcast,
 } from "./response-broadcast.js";
 import {
-  createApiProxyResponseCaptureSink,
-  type ApiProxyResponseCaptureSink,
-} from "./response-capture.js";
+  createApiProxyResponsePlanExecutor,
+  type ApiProxyResponsePlanExecutor,
+} from "./response-plan.js";
 import {
   claimApiProxyResumedSession,
   serveResumedStreamSession,
@@ -356,15 +352,18 @@ async function proxyProtocolEndpointInner(
     return c.json(response.body, response.status);
   }
 
-  const responseCaptures = apiProxyResponseCaptures(
-    routeResult.responseEffects,
-  );
   const cacheWrites = apiProxyCacheStores(routeResult.responseEffects);
+  const responsePlan = createApiProxyResponsePlanExecutor({
+    effects: routeResult.responseEffects,
+    putCache: putApiProxyCachedResponse,
+    trace,
+    operation,
+  });
+  if (responsePlan) {
+    recorder.beforeRecord(() => responsePlan.flush());
+  }
 
   if (routeResult.kind === "response") {
-    for (const write of cacheWrites) {
-      settleApiProxyInFlight(write.key, null);
-    }
     trace.cache = routeResult.source === "coalesced" ? "coalesced" : "hit";
     trace.stream = routeResult.request.stream;
     const responseBody = routeResult.response.body;
@@ -383,21 +382,39 @@ async function proxyProtocolEndpointInner(
         };
       }
     }
-    return new Response(responseBody, {
+    const metadata = {
+      status: routeResult.response.status,
+      contentType: routeResult.response.contentType,
+      isSse: routeResult.response.contentType.startsWith("text/event-stream"),
+    };
+    if (typeof responseBody === "string") {
+      const delivered = responsePlan
+        ? responsePlan.processText(responseBody, metadata)
+        : responseBody;
+      return new Response(delivered, {
+        status: routeResult.response.status,
+        headers: { "content-type": routeResult.response.contentType },
+      });
+    }
+    const plannedBody = responsePlan
+      ? responsePlan.tap(responseBody, metadata)
+      : responseBody;
+    let response: Response;
+    if (responsePlan) {
+      recorder.markDeferred();
+      response = new Response(
+        observeBodyCompletion(plannedBody, () => recorder.record(response)),
+        {
+          status: routeResult.response.status,
+          headers: { "content-type": routeResult.response.contentType },
+        },
+      );
+      return response;
+    }
+    return new Response(plannedBody, {
       status: routeResult.response.status,
       headers: { "content-type": routeResult.response.contentType },
     });
-  }
-
-  const responseSink = createApiProxyResponseCaptureSink({
-    captures: responseCaptures,
-    cacheWrites,
-    putCache: putApiProxyCachedResponse,
-    trace,
-    operation,
-  });
-  if (responseSink) {
-    recorder.beforeRecord(() => responseSink.flush());
   }
 
   if (routeResult.kind === "endpoint") {
@@ -426,7 +443,7 @@ async function proxyProtocolEndpointInner(
       recorder,
       inflight,
       extraTarget: target,
-      responseSink,
+      responsePlan,
     });
   }
 
@@ -449,10 +466,17 @@ async function proxyProtocolEndpointInner(
     }
     if (fusion.kind === "direct") {
       trace.stream = routeResult.request.stream;
-      if (responseSink && typeof fusion.response.body === "string") {
-        responseSink.setText(fusion.response.body);
-      }
-      return new Response(fusion.response.body, {
+      const contentType =
+        fusion.response.headers["content-type"] ??
+        (routeResult.request.stream ? "text/event-stream" : "application/json");
+      const delivered = responsePlan
+        ? responsePlan.processText(fusion.response.body, {
+            status: fusion.response.status,
+            contentType,
+            isSse: routeResult.request.stream,
+          })
+        : fusion.response.body;
+      return new Response(delivered, {
         status: fusion.response.status,
         headers: fusion.response.headers,
       });
@@ -508,7 +532,7 @@ async function proxyProtocolEndpointInner(
         trace,
         recorder,
         inflight,
-        responseSink,
+        responsePlan,
       });
     }
   }
@@ -523,7 +547,7 @@ async function proxyProtocolEndpointInner(
     trace,
     recorder,
     inflight,
-    responseSink,
+    responsePlan,
   });
 }
 
@@ -560,14 +584,24 @@ async function delegateRemoteTarget(input: {
   trace: ProxyTraceAccumulator;
   recorder: ProxyTraceRecorder;
   inflight: ApiProxyInflightHandle;
-  responseSink?: ApiProxyResponseCaptureSink | null | undefined;
+  responsePlan?: ApiProxyResponsePlanExecutor | null | undefined;
 }): Promise<Response> {
   const { c, adapter, operation, request, target, node, trace, recorder } =
     input;
   const inflight = input.inflight;
-  const responseSink = input.responseSink ?? null;
-  const captureBody = (stream: ReadableStream<Uint8Array>) =>
-    responseSink ? responseSink.tap(stream) : stream;
+  const responsePlan = input.responsePlan ?? null;
+  const planBody = (
+    stream: ReadableStream<Uint8Array>,
+    status: number,
+    headers: Headers,
+  ) =>
+    responsePlan
+      ? responsePlan.tap(stream, {
+          status,
+          contentType: headers.get("content-type") ?? "text/event-stream",
+          isSse: true,
+        })
+      : stream;
 
   const wantsPrefill =
     request.stream &&
@@ -637,15 +671,22 @@ async function delegateRemoteTarget(input: {
           promptPerSecond: usage.promptPerSecond,
         };
       }
-      responseSink?.setText(text);
-      return new Response(text, { status: upstream.status, headers });
+      const delivered = responsePlan
+        ? responsePlan.processText(text, {
+            status: upstream.status,
+            contentType: headers.get("content-type") ?? "application/json",
+            isSse: false,
+          })
+        : text;
+      return new Response(delivered, { status: upstream.status, headers });
     }
 
     if (!streamMeter) {
       recorder.markDeferred();
       return new Response(
-        observeBodyCompletion(captureBody(upstream.body), () =>
-          recorder.record(upstream),
+        observeBodyCompletion(
+          planBody(upstream.body, upstream.status, headers),
+          () => recorder.record(upstream),
         ),
         {
           status: upstream.status,
@@ -684,7 +725,11 @@ async function delegateRemoteTarget(input: {
     recorder.markDeferred();
     metered = new Response(
       observeBodyCompletion(
-        captureBody(upstream.body.pipeThrough(meter.transform)),
+        planBody(
+          upstream.body.pipeThrough(meter.transform),
+          upstream.status,
+          headers,
+        ),
         () => meter.finalize(),
       ),
       { status: upstream.status, headers },
@@ -759,13 +804,23 @@ export async function serveResolvedTarget(input: {
   recorder: ProxyTraceRecorder;
   inflight: ApiProxyInflightHandle;
   extraTarget?: ApiProxyTargetRecord | undefined;
-  responseSink?: ApiProxyResponseCaptureSink | null | undefined;
+  responsePlan?: ApiProxyResponsePlanExecutor | null | undefined;
 }): Promise<Response> {
   const { c, adapter, operation, trace, recorder, inflight } = input;
   const extraTarget = input.extraTarget ?? null;
-  const responseSink = input.responseSink ?? null;
-  const captureBody = (stream: ReadableStream<Uint8Array>) =>
-    responseSink ? responseSink.tap(stream) : stream;
+  const responsePlan = input.responsePlan ?? null;
+  const planBody = (
+    stream: ReadableStream<Uint8Array>,
+    status: number,
+    headers: Headers,
+  ) =>
+    responsePlan
+      ? responsePlan.tap(stream, {
+          status,
+          contentType: headers.get("content-type") ?? "text/event-stream",
+          isSse: true,
+        })
+      : stream;
   const route = {
     targetId: input.targetId,
     request: input.request,
@@ -799,7 +854,7 @@ export async function serveResolvedTarget(input: {
       trace,
       recorder,
       inflight,
-      responseSink,
+      responsePlan,
     });
     if (replayed) {
       return replayed;
@@ -1169,15 +1224,20 @@ export async function serveResolvedTarget(input: {
           trace.usage = resumableTraceUsage(state);
           const task = resolveSlot();
           const final = finalFromState(bufferCodec, state, false);
-          if (typeof final.body === "string") {
-            responseSink?.setText(final.body);
-          }
+          const delivered = responsePlan
+            ? responsePlan.processText(final.body, {
+                status: final.status,
+                contentType:
+                  final.headers["content-type"] ?? "application/json",
+                isSse: false,
+              })
+            : final.body;
           return recordTraceWithDeferredTiming({
             recorder,
             trace,
             instanceId,
             task,
-            response: new Response(final.body, {
+            response: new Response(delivered, {
               status: final.status,
               headers: final.headers,
             }),
@@ -1201,14 +1261,24 @@ export async function serveResolvedTarget(input: {
         const translatedText = translateAnthropic
           ? translateOpenAiResponseText(text)
           : null;
-        responseSink?.setText(translatedText ?? text);
+        const clientText = translatedText ?? text;
+        const clientContentType = translatedText
+          ? "application/json"
+          : (upstream.headers.get("content-type") ?? "application/json");
+        const delivered = responsePlan
+          ? responsePlan.processText(clientText, {
+              status: upstream.status,
+              contentType: clientContentType,
+              isSse: false,
+            })
+          : clientText;
         const nonStreamResponse =
           translatedText !== null
-            ? new Response(translatedText, {
+            ? new Response(delivered, {
                 status: upstream.status,
                 headers: { "content-type": "application/json" },
               })
-            : new Response(text, {
+            : new Response(delivered, {
                 status: upstream.status,
                 headers: upstream.headers,
               });
@@ -1276,7 +1346,11 @@ export async function serveResolvedTarget(input: {
         recorder.markDeferred();
         metered = finishStreamResponse(
           observeBodyCompletion(
-            captureBody(upstream.body.pipeThrough(translation.transform)),
+            planBody(
+              upstream.body.pipeThrough(translation.transform),
+              upstream.status,
+              upstream.headers,
+            ),
             () => translation.finalize(),
           ),
           upstream.status,
@@ -1288,8 +1362,9 @@ export async function serveResolvedTarget(input: {
       if (!streamMeter) {
         recorder.markDeferred();
         return finishStreamResponse(
-          observeBodyCompletion(captureBody(upstream.body), () =>
-            recorder.record(upstream),
+          observeBodyCompletion(
+            planBody(upstream.body, upstream.status, upstream.headers),
+            () => recorder.record(upstream),
           ),
           upstream.status,
           upstream.headers,
@@ -1313,7 +1388,11 @@ export async function serveResolvedTarget(input: {
       recorder.markDeferred();
       metered = finishStreamResponse(
         observeBodyCompletion(
-          captureBody(upstream.body.pipeThrough(meter.transform)),
+          planBody(
+            upstream.body.pipeThrough(meter.transform),
+            upstream.status,
+            upstream.headers,
+          ),
           () => meter.finalize(),
         ),
         upstream.status,
@@ -1471,45 +1550,29 @@ export async function serveResolvedTarget(input: {
       task = resolved.task;
     }
 
-    const streamWrite =
-      route.request.stream && route.cacheWrites.length > 0
-        ? (route.cacheWrites[0] ?? null)
-        : null;
     if (final.status === CLIENT_ABORT_STATUS) {
       markClientAbort();
-      if (streamWrite) {
-        finishApiProxyBroadcast(streamWrite.key);
-      }
-    } else if (streamWrite) {
-      if (typeof final.body === "string" && !trace.errorMessage) {
-        putApiProxyCachedResponse({
-          key: streamWrite.key,
-          modelId: trace.modelId,
-          status: 200,
-          contentType: "text/event-stream",
-          isSse: true,
-          body: final.body,
-          ttlSeconds: streamWrite.ttlSeconds,
-        });
-        trace.cache = "store";
-        pushApiProxyBroadcast(
-          streamWrite.key,
-          new TextEncoder().encode(final.body),
-        );
-      }
-      finishApiProxyBroadcast(streamWrite.key);
-    } else if (responseSink) {
-      const captured = finalFromState(effectiveCodec, state, false);
-      if (typeof captured.body === "string") {
-        responseSink.setText(captured.body);
-      }
     }
+    const responseBody =
+      final.status !== CLIENT_ABORT_STATUS &&
+      final.status >= 200 &&
+      final.status < 300 &&
+      !trace.errorMessage &&
+      responsePlan
+        ? responsePlan.processText(final.body, {
+            status: final.status,
+            contentType:
+              final.headers["content-type"] ??
+              (route.request.stream ? "text/event-stream" : "application/json"),
+            isSse: route.request.stream,
+          })
+        : final.body;
     return recordTraceWithDeferredTiming({
       recorder,
       trace,
       instanceId,
       task,
-      response: new Response(final.body, {
+      response: new Response(responseBody, {
         status: final.status,
         headers: final.headers,
       }),
