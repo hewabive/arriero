@@ -4,6 +4,7 @@ import pino from "pino";
 import { initArgumentDefaults } from "./arguments/defaults-repository.js";
 import { pruneMissingArgumentCatalogs } from "./arguments/repository.js";
 import { config } from "./config.js";
+import { untrackMachineStateFiles } from "./config-git/machine-state.js";
 import { normalizeConfigPaths } from "./config-paths-normalize.js";
 import { migrate } from "./db/index.js";
 import {
@@ -62,6 +63,7 @@ migrate();
 ensureConfigScaffold();
 const appliedMigrations = runMigrations();
 const normalizedConfigPaths = normalizeConfigPaths();
+const untrackedMachineState = untrackMachineStateFiles();
 initAppSettings();
 initArgumentDefaults();
 const systemMetricsPersistence = initSystemMetricsPersistence(
@@ -116,6 +118,7 @@ const server = serve(
         port: info.port,
         appliedMigrations,
         normalizedConfigPaths,
+        untrackedMachineState,
         reconciliation,
         prunedProcessRuns,
         prunedTraceHistory,

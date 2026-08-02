@@ -194,7 +194,10 @@ Portable/hand-editable config lives in files, not the DB, under one configurable
 domain and Configuration Git UI — in-place `init` (the only tree op allowed while processes run) or
 `clone` as a **full replacement** that keeps the old root as `<configDir>.backup-<ts>`. Tree-changing
 operations validate a detached worktree first, refuse while managed/build/environment jobs run, then
-reset all file-config caches; `.secrets.json` remains local. See `docs/CONFIG_GIT.md`.
+reset all file-config caches; `.secrets.json` remains local. **Machine-state files
+`path-catalog.json`/`envs.json` are gitignored** (`config-git/machine-state.ts`: startup untracker,
+snapshot/restore across tree ops, clone carry-over) and are the only config files keeping
+`createdAt`/`updatedAt`. See `docs/CONFIG_GIT.md`.
 
 - `config/presets/<name>.ini` — `--models-preset` files; the `presets` domain reads/parses and writes
   **raw INI verbatim** atomically with an mtime conflict check (the only file `llama-server` also
@@ -219,7 +222,8 @@ reset all file-config caches; `.secrets.json` remains local. See `docs/CONFIG_GI
 - `config/path-catalog.json` — named paths (`path-catalog/repository.ts`, in-memory array + atomic
   write-through; kinds `binary` and `models-dir`). Identity = `id` (uuidv7); `(kind, name)` is
   enforced unique in-code. `binary` entries are referenced by `binaryPathRefId` on instances;
-  `models-dir` entries are extra GGUF scan roots. Not seeded from repo-root (machine-specific paths).
+  `models-dir` entries are extra GGUF scan roots. Not seeded from repo-root and not git-tracked
+  (machine state: build completion and the env reconciler rewrite it).
 - `config/resources.json` — memory pools for capacity-aware scheduling (`resources/repository.ts`;
   kinds `gpu`/`host`). `budget = capacityBytes − reservedBytes`; instances declare a per-pool
   `memory` draw. The pure ledger `buildResourceLedger`/`checkDrawAdmission` in core is shared by

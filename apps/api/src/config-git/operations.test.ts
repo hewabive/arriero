@@ -1,17 +1,26 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, test } from "node:test";
 
 import { config } from "../config.js";
+import { untrackMachineStateFiles } from "./machine-state.js";
 import {
+  checkoutConfigCommit,
   cloneConfigRepository,
   commitConfigChanges,
   createConfigBranch,
   initConfigRepository,
   resetConfigChanges,
   setConfigRemote,
+  switchConfigBranch,
 } from "./operations.js";
 import { getConfigGitLog, getConfigGitStatus } from "./repository.js";
 
@@ -57,6 +66,68 @@ beforeEach(() => {
   git(["config", "user.email", "config@example.com"]);
   git(["add", "."]);
   git(["commit", "-m", "initial"]);
+});
+
+test("untrackMachineStateFiles stages removal once and keeps worktree files", async () => {
+  const untracked = untrackMachineStateFiles();
+  assert.deepEqual(untracked.sort(), ["envs.json", "path-catalog.json"]);
+
+  const gitignore = readFileSync(
+    resolve(config.configDir, ".gitignore"),
+    "utf8",
+  );
+  assert.ok(gitignore.includes("path-catalog.json"));
+  assert.ok(gitignore.includes("envs.json"));
+
+  const status = git(["status", "--porcelain"]);
+  assert.match(status, /D {2}envs\.json/);
+  assert.match(status, /D {2}path-catalog\.json/);
+  assert.ok(existsSync(resolve(config.configDir, "path-catalog.json")));
+
+  assert.deepEqual(untrackMachineStateFiles(), []);
+
+  const committed = await commitConfigChanges({
+    message: "untrack machine state",
+    authorName: null,
+    authorEmail: null,
+  });
+  assert.equal(committed.status.dirty, false);
+  assert.equal(git(["ls-files", "--", "path-catalog.json", "envs.json"]), "");
+  assert.ok(existsSync(resolve(config.configDir, "envs.json")));
+});
+
+test("tree operations preserve untracked machine-state files", async () => {
+  const legacyHead = git(["rev-parse", "HEAD"]);
+  untrackMachineStateFiles();
+  await commitConfigChanges({
+    message: "untrack machine state",
+    authorName: null,
+    authorEmail: null,
+  });
+
+  const catalogPath = resolve(config.configDir, "path-catalog.json");
+  writeJson(catalogPath, [
+    {
+      id: "0195a000-0000-7000-8000-000000000000",
+      kind: "binary",
+      name: "local llama-server",
+      path: "/opt/llama/llama-server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  ]);
+
+  const detached = await checkoutConfigCommit({ commit: legacyHead });
+  assert.equal(detached.status.detached, true);
+  assert.equal(
+    JSON.parse(readFileSync(catalogPath, "utf8")).length,
+    0,
+  );
+
+  const back = await switchConfigBranch({ branch: "main" });
+  assert.equal(back.status.dirty, false);
+  assert.ok(existsSync(catalogPath));
+  assert.equal(git(["ls-files", "--", "path-catalog.json"]), "");
 });
 
 test("commitConfigChanges records portable changes and exposes them in log", async () => {

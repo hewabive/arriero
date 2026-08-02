@@ -11,23 +11,27 @@ import type {
   ConfigGitValidation,
 } from "@arriero/core";
 import {
-  appendFileSync,
   copyFileSync,
   existsSync,
-  mkdirSync,
   mkdtempSync,
-  readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { buildRunner } from "../build/runner.js";
 import { config } from "../config.js";
 import { environmentRunner } from "../envs/runner.js";
 import { supervisor } from "../process/supervisor.js";
 import { anySourceRepositoryOperationActive } from "../sources/state.js";
+import {
+  CONFIG_GITIGNORE_CONTENT,
+  MACHINE_STATE_CONFIG_FILES,
+  ensureLocalExclude,
+  restoreMachineStateFiles,
+  snapshotMachineStateFiles,
+} from "./machine-state.js";
 import {
   assertGitRemoteUrl,
   gitOutput,
@@ -175,30 +179,9 @@ async function validateCommit(commit: string): Promise<ConfigGitValidation> {
   }
 }
 
-async function ensureLocalExclude(repository: string) {
-  const gitPath = await tryGit(repository, [
-    "rev-parse",
-    "--git-path",
-    "info/exclude",
-  ]);
-  if (!gitPath) return;
-  const path = isAbsolute(gitPath) ? gitPath : resolve(repository, gitPath);
-  mkdirSync(dirname(path), { recursive: true });
-  const current = existsSync(path) ? readFileSync(path, "utf8") : "";
-  const missing = [".secrets.json", "*.tmp"].filter(
-    (entry) => !current.split(/\r?\n/).includes(entry),
-  );
-  if (missing.length > 0) {
-    appendFileSync(
-      path,
-      `${current && !current.endsWith("\n") ? "\n" : ""}${missing.join("\n")}\n`,
-    );
-  }
-}
-
 async function assertPreparedRepository() {
   await assertConfigGitRepository();
-  await ensureLocalExclude(config.configDir);
+  ensureLocalExclude(config.configDir);
 }
 
 async function mutation(
@@ -233,11 +216,7 @@ export function initConfigRepository(
     const validation = validateConfigRoot(config.configDir);
     assertValid(validation);
     if (!existsSync(config.configGitignoreFile)) {
-      writeFileSync(
-        config.configGitignoreFile,
-        ".secrets.json\n*.tmp\n",
-        "utf8",
-      );
+      writeFileSync(config.configGitignoreFile, CONFIG_GITIGNORE_CONTENT, "utf8");
     }
 
     const initialized = await runGit(config.configDir, [
@@ -246,7 +225,7 @@ export function initConfigRepository(
       input.branch,
     ]);
     try {
-      await ensureLocalExclude(config.configDir);
+      ensureLocalExclude(config.configDir);
       if (input.authorName) {
         await runGit(config.configDir, [
           "config",
@@ -361,7 +340,14 @@ export function cloneConfigRepository(
       if (existsSync(config.secretsFile)) {
         copyFileSync(config.secretsFile, resolve(staging, ".secrets.json"));
       }
-      await ensureLocalExclude(staging);
+      for (const name of MACHINE_STATE_CONFIG_FILES) {
+        const source = resolve(config.configDir, name);
+        const destination = resolve(staging, name);
+        if (existsSync(source) && !existsSync(destination)) {
+          copyFileSync(source, destination);
+        }
+      }
+      ensureLocalExclude(staging);
       backupPath = `${config.configDir}.backup-${Date.now()}`;
       if (existsSync(config.configDir))
         renameSync(config.configDir, backupPath);
@@ -432,11 +418,13 @@ export function pullConfigRepository(): Promise<ConfigGitMutationResult> {
     ]);
     const validation = await validateCommit(upstreamCommit.stdout.trim());
     assertValid(validation);
+    const machineState = snapshotMachineStateFiles(config.configDir);
     const merged = await runGit(config.configDir, [
       "merge",
       "--ff-only",
       upstream,
     ]);
+    restoreMachineStateFiles(config.configDir, machineState);
     reloadPortableConfigCaches();
     return {
       output: [gitOutput(fetched), gitOutput(merged)]
@@ -473,6 +461,7 @@ export function switchConfigBranch(
     ]);
     const validation = await validateCommit(commit.stdout.trim());
     assertValid(validation);
+    const machineState = snapshotMachineStateFiles(config.configDir);
     const result = local
       ? await runGit(config.configDir, ["switch", input.branch])
       : await runGit(config.configDir, [
@@ -482,6 +471,7 @@ export function switchConfigBranch(
           input.branch,
           `origin/${input.branch}`,
         ]);
+    restoreMachineStateFiles(config.configDir, machineState);
     reloadPortableConfigCaches();
     return { output: gitOutput(result), validation };
   });
@@ -503,12 +493,14 @@ export function createConfigBranch(
     ]);
     const validation = await validateCommit(commit.stdout.trim());
     assertValid(validation);
+    const machineState = snapshotMachineStateFiles(config.configDir);
     const result = await runGit(config.configDir, [
       "switch",
       "-c",
       input.branch,
       commit.stdout.trim(),
     ]);
+    restoreMachineStateFiles(config.configDir, machineState);
     reloadPortableConfigCaches();
     return { output: gitOutput(result), validation };
   });
@@ -529,7 +521,9 @@ export function checkoutConfigCommit(
     const hash = commit.stdout.trim();
     const validation = await validateCommit(hash);
     assertValid(validation);
+    const machineState = snapshotMachineStateFiles(config.configDir);
     const result = await runGit(config.configDir, ["switch", "--detach", hash]);
+    restoreMachineStateFiles(config.configDir, machineState);
     reloadPortableConfigCaches();
     return { output: gitOutput(result), validation };
   });

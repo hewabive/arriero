@@ -190,21 +190,14 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
       z.array(MemoryPoolSchema),
       issues,
     ) as z.infer<typeof MemoryPoolSchema>[] | null) ?? [];
-  const paths =
-    (readJson(
-      root,
-      resolve(root, "path-catalog.json"),
-      z.array(PathCatalogEntrySchema),
-      issues,
-    ) as z.infer<typeof PathCatalogEntrySchema>[] | null) ?? [];
+  readJson(
+    root,
+    resolve(root, "path-catalog.json"),
+    z.array(PathCatalogEntrySchema),
+    issues,
+  );
   readJson(root, resolve(root, "nodes.json"), z.array(FleetNodeSchema), issues);
-  const environments =
-    (readJson(
-      root,
-      resolve(root, "envs.json"),
-      z.array(EnvironmentSpecSchema),
-      issues,
-    ) as z.infer<typeof EnvironmentSpecSchema>[] | null) ?? [];
+  readJson(root, resolve(root, "envs.json"), z.array(EnvironmentSpecSchema), issues);
   const instances = validateInstances(root, issues);
   validatePresets(root, issues);
 
@@ -242,7 +235,6 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
   );
 
   const resourceIds = new Set(resources.map((item) => item.id));
-  const pathIds = new Set(paths.map((item) => item.id));
   for (const instance of instances) {
     for (const draw of instance.memory) {
       if (!resourceIds.has(draw.poolId)) {
@@ -251,23 +243,6 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
           message: `references missing resource pool "${draw.poolId}"`,
         });
       }
-    }
-    if (instance.binaryPathRefId && !pathIds.has(instance.binaryPathRefId)) {
-      issues.push({
-        path: `instances/${instance.name}.json`,
-        message: `references missing path catalog entry "${instance.binaryPathRefId}"`,
-      });
-    }
-  }
-  for (const environment of environments) {
-    if (
-      environment.pathCatalogEntryId &&
-      !pathIds.has(environment.pathCatalogEntryId)
-    ) {
-      issues.push({
-        path: "envs.json",
-        message: `environment "${environment.id}" references missing path catalog entry "${environment.pathCatalogEntryId}"`,
-      });
     }
   }
 

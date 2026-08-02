@@ -33,6 +33,26 @@ test("validateConfigRoot accepts a minimal portable configuration", () => {
   assert.deepEqual(validateConfigRoot(root), { valid: true, issues: [] });
 });
 
+test("validateConfigRoot tolerates dangling machine-state references", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-machine-"));
+  mkdirSync(resolve(root, "instances"));
+  writeJson(resolve(root, "resources.json"), []);
+  writeJson(resolve(root, "instances", "worker.json"), {
+    name: "worker",
+    kind: "llama-server",
+    binaryPath: "/bin/false",
+    binaryPathRefId: "no-such-catalog-entry",
+    args: {},
+    env: {},
+    memory: [],
+    rpcWorkers: [],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  assert.deepEqual(validateConfigRoot(root), { valid: true, issues: [] });
+});
+
 test("validateConfigRoot rejects a repository without configuration", () => {
   const root = mkdtempSync(resolve(tmpdir(), "llama-config-empty-"));
   writeFileSync(resolve(root, "README.md"), "empty profile\n");

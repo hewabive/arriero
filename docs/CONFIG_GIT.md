@@ -40,9 +40,36 @@ cross-file references and pipeline graphs are validated, tracked secret files
 and symlinks are rejected, and only then is it moved into place. The replaced
 directory is retained as `<configDir>.backup-<timestamp>` so it can be
 recovered manually; those backups are listed in `status.backups` and are never
-deleted automatically. An existing local `.secrets.json` is copied into the
-new working tree and excluded through `.git/info/exclude` even when the remote
-does not provide a `.gitignore`.
+deleted automatically. An existing local `.secrets.json` and the machine-local
+files below are copied into the new working tree (machine files only when the
+remote does not track them) and excluded through `.git/info/exclude` even when
+the remote does not provide a `.gitignore`.
+
+## Machine-local files
+
+`path-catalog.json` and `envs.json` describe state of the current machine, not
+portable configuration: catalog entries are rewritten automatically by build
+completion and by the environment reconciler at startup, and environment specs
+carry ids of local catalog entries. Both files are therefore gitignored
+(`config-git/machine-state.ts` owns the list) and keep their
+`createdAt`/`updatedAt` fields — unlike tracked files, whose provenance is the
+commit history.
+
+The startup normalizer `untrackMachineStateFiles()` appends the missing
+`.gitignore` entries and, when a legacy repository still tracks these files,
+stages their removal with `git rm --cached`. The staged deletion is visible on
+the Configuration Git page and lands in the next commit; branch-changing
+operations are blocked by the dirty tree until then. Because the files are
+ignored afterwards, routine builds and restarts no longer dirty the tree.
+
+Tree-changing operations (`pull`, `switch`, `branches`, `checkout`) snapshot
+the machine-local files before running git and write them back afterwards when
+the new HEAD does not track them. Checking out a legacy commit that still
+tracks these files materializes the committed (stale) copies instead — the
+catalog regenerates at the next build or startup, and instances fall back to
+their inline `binaryPath`. Cross-file validation deliberately does not check
+`binaryPathRefId`/`pathCatalogEntryId` against the catalog: those ids are
+machine-local and dangling references degrade gracefully at runtime.
 
 ## Origin
 

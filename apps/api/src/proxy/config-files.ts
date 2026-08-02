@@ -10,6 +10,7 @@ import { dirname, resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { CONFIG_GITIGNORE_CONTENT } from "../config-git/machine-state.js";
 
 const collectionCache = new Map<string, unknown[]>();
 let secretsCache: Record<string, string> | null = null;
@@ -91,7 +92,7 @@ export function setSecret(id: string, key: string | null): void {
 export function ensureConfigScaffold(): void {
   mkdirSync(config.proxyConfigDir, { recursive: true });
   if (!existsSync(config.configGitignoreFile)) {
-    writeFileSync(config.configGitignoreFile, ".secrets.json\n*.tmp\n", "utf8");
+    writeFileSync(config.configGitignoreFile, CONFIG_GITIGNORE_CONTENT, "utf8");
   }
 }
 
