@@ -130,6 +130,18 @@ export function ApiProxySourcesView() {
       }),
   });
 
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      updateApiProxySource(id, { enabled }),
+    onSuccess: invalidate,
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Source update failed",
+        message: (error as Error).message,
+      }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteApiProxySource,
     onSuccess: async () => {
@@ -215,7 +227,7 @@ export function ApiProxySourcesView() {
             <Table.Tr>
               <Table.Th>Name</Table.Th>
               <Table.Th>API key</Table.Th>
-              <Table.Th>Status</Table.Th>
+              <Table.Th>Enabled</Table.Th>
               <Table.Th>Note</Table.Th>
               <Table.Th />
             </Table.Tr>
@@ -245,12 +257,14 @@ export function ApiProxySourcesView() {
                   )}
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={source.enabled ? "green" : "gray"}
-                    variant="light"
-                  >
-                    {source.enabled ? "enabled" : "disabled"}
-                  </Badge>
+                  <Switch
+                    checked={source.enabled}
+                    disabled={toggleMutation.isPending}
+                    onChange={(event) => {
+                      const enabled = event.currentTarget.checked;
+                      toggleMutation.mutate({ id: source.id, enabled });
+                    }}
+                  />
                 </Table.Td>
                 <Table.Td>{source.note || "—"}</Table.Td>
                 <Table.Td>
