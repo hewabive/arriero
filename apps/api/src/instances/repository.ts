@@ -41,10 +41,6 @@ function validateRecord(record: InstanceConfigRecord): InstanceConfigRecord {
   return parsed.data;
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 function latestStatus(id: string): Pick<Instance, "status" | "pid"> {
   const latestRun = latestProcessRun(id);
   const knownStatuses = new Set<Instance["status"]>([
@@ -103,8 +99,6 @@ function toInstance(record: InstanceConfigRecord): Instance {
     },
     status: processState?.status ?? durableState.status,
     pid: processState?.pid ?? durableState.pid,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
   };
 }
 
@@ -122,7 +116,6 @@ export function createInstance(input: InstanceCreate): Instance {
     throw new InstanceNameConflictError(input.name);
   }
 
-  const timestamp = nowIso();
   const binaryRef = getPathCatalogEntry(input.binaryPathRefId);
 
   const record: InstanceConfigRecord = {
@@ -145,8 +138,6 @@ export function createInstance(input: InstanceCreate): Instance {
     scheduling: input.scheduling ?? {
       evictionPolicy: engineDescriptor(input.kind).defaultEvictionPolicy,
     },
-    createdAt: timestamp,
-    updatedAt: timestamp,
   };
 
   const validated = validateRecord(record);
@@ -195,8 +186,6 @@ export function updateInstance(
       current.scheduling ?? {
         evictionPolicy: engineDescriptor(current.kind).defaultEvictionPolicy,
       },
-    createdAt: current.createdAt,
-    updatedAt: nowIso(),
   };
 
   const validated = validateRecord(record);

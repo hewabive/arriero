@@ -69,12 +69,13 @@ Deliberately **not** covered:
 
 ## Startup normalization
 
-`normalizeConfigPaths()` (`apps/api/src/config-paths-normalize.ts`) runs once per
-boot from `apps/api/src/index.ts`: it scans the four files above for absolute
-paths under a managed root and, for each file that has any, re-reads it through
-its store (Zod-validated) and writes it back through the same store. Files
-without such a path are not touched, so the config Git tree stays clean. The
-rewritten file names land in the startup log as `normalizedConfigPaths`.
+`normalizeConfigFiles()` (`apps/api/src/config-normalize.ts`) runs once per boot
+from `apps/api/src/index.ts`: it scans the files above for absolute paths under
+a managed root — and every tracked config file for legacy
+`createdAt`/`updatedAt` keys — and, for each stale file, re-reads it through its
+store (Zod-validated) and writes it back through the same store. Files without
+a stale marker are not touched, so the config Git tree stays clean. The
+rewritten file names land in the startup log as `normalizedConfigFiles`.
 
 This is deliberately **not** a registry migration (`docs/MIGRATIONS.md`).
 Migrations are one-shot and removable — their legacy marker never comes back

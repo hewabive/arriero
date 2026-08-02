@@ -21,8 +21,6 @@ const target: ApiProxyTargetRecord = {
   saveSlotsBeforeUnload: false,
   slotIds: [],
   idleUnloadMs: null,
-  createdAt: "2026-05-30T10:00:00.000Z",
-  updatedAt: "2026-05-30T10:00:00.000Z",
 };
 
 const instance: Instance = {
@@ -36,8 +34,6 @@ const instance: Instance = {
   memory: [],
   status: "running",
   pid: 100,
-  createdAt: "2026-05-30T10:00:00.000Z",
-  updatedAt: "2026-05-30T10:00:00.000Z",
 };
 
 function action(

@@ -23,10 +23,6 @@ const SECRET_PREFIX = "node:";
 
 let cache: FleetNode[] | null = null;
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 function atomicWrite(path: string, text: string) {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.${process.pid}.tmp`;
@@ -65,6 +61,10 @@ function load(): FleetNode[] {
   return nodes;
 }
 
+export function rewriteNodesFile(): void {
+  persist(load());
+}
+
 function persist(nodes: FleetNode[]) {
   atomicWrite(NODES_FILE, `${JSON.stringify(nodes, null, 2)}\n`);
   cache = nodes;
@@ -92,14 +92,11 @@ export function nodeHasToken(id: string): boolean {
 
 export function createNode(input: FleetNodeCreate): FleetNode {
   const nodes = load();
-  const timestamp = nowIso();
   const node: FleetNode = {
     id: newId(),
     name: input.name,
     baseUrl: normalizeBaseUrl(input.baseUrl),
     enabled: input.enabled,
-    createdAt: timestamp,
-    updatedAt: timestamp,
   };
   persist([...nodes, node]);
   if (input.token) {
@@ -126,7 +123,6 @@ export function updateNode(
         ? normalizeBaseUrl(input.baseUrl)
         : current.baseUrl,
     enabled: input.enabled ?? current.enabled,
-    updatedAt: nowIso(),
   };
   persist(nodes.map((node) => (node.id === id ? updated : node)));
   if (input.token !== undefined) {

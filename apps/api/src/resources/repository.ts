@@ -29,10 +29,6 @@ const HOST_RESERVE_RATIO = 0.15;
 
 let cache: MemoryPool[] | null = null;
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 function atomicWrite(path: string, text: string) {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.${process.pid}.tmp`;
@@ -67,6 +63,10 @@ function load(): MemoryPool[] {
   return pools;
 }
 
+export function rewriteResourcePoolsFile(): void {
+  persist(load());
+}
+
 function persist(pools: MemoryPool[]) {
   atomicWrite(RESOURCES_FILE, `${JSON.stringify(pools, null, 2)}\n`);
   cache = pools;
@@ -86,7 +86,6 @@ function floorToGib(bytes: number): number {
 export function defaultPoolsFromHardware(
   detected: SystemResources = getSystemResources(),
 ): MemoryPool[] {
-  const timestamp = nowIso();
   const pools: MemoryPool[] = [];
   for (const accelerator of detected.accelerators) {
     if (accelerator.kind !== "gpu") {
@@ -100,8 +99,6 @@ export function defaultPoolsFromHardware(
       reservedBytes: 0,
       deviceRef: accelerator.id,
       autoCapacity: true,
-      createdAt: timestamp,
-      updatedAt: timestamp,
     });
   }
   pools.push({
@@ -112,8 +109,6 @@ export function defaultPoolsFromHardware(
     reservedBytes: floorToGib(detected.memory.totalBytes * HOST_RESERVE_RATIO),
     deviceRef: null,
     autoCapacity: true,
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
   return sortPools(pools);
 }
@@ -151,7 +146,7 @@ export function refreshAutoCapacities(
       return pool;
     }
     changed = true;
-    return { ...pool, capacityBytes, updatedAt: nowIso() };
+    return { ...pool, capacityBytes };
   });
   const knownDeviceRefs = new Set(
     next
@@ -170,7 +165,6 @@ export function refreshAutoCapacities(
       id = `${baseId}-${suffix}`;
       suffix += 1;
     }
-    const timestamp = nowIso();
     next.push({
       id,
       name: accelerator.name,
@@ -179,8 +173,6 @@ export function refreshAutoCapacities(
       reservedBytes: 0,
       deviceRef: accelerator.id,
       autoCapacity: true,
-      createdAt: timestamp,
-      updatedAt: timestamp,
     });
     knownDeviceRefs.add(accelerator.id);
     knownIds.add(id);
@@ -242,7 +234,6 @@ export function updateMemoryPool(
     ...(input.autoCapacity !== undefined
       ? { autoCapacity: input.autoCapacity }
       : {}),
-    updatedAt: nowIso(),
   };
   persist(pools.map((pool) => (pool.id === id ? updated : pool)));
   return updated;

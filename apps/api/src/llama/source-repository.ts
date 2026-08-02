@@ -32,7 +32,6 @@ export function getLlamaSourceSettings(): LlamaSourceSettings {
   const spec = getSourceRepositorySpec(LLAMA_CPP_SOURCE_ID);
   return LlamaSourceSettingsSchema.parse({
     repoPath: sourceRepositoryPath(spec),
-    updatedAt: spec.updatedAt,
   });
 }
 
@@ -177,7 +176,6 @@ export async function getLlamaSourceStatus(): Promise<LlamaSourceStatus> {
   return LlamaSourceStatusSchema.parse({
     settings: {
       repoPath: status.repoPath,
-      updatedAt: status.spec.updatedAt,
     },
     exists: status.exists,
     isGitRepo: status.isGitRepo,

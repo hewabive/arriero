@@ -38,8 +38,6 @@ export const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
   extraHeaders: true,
   passthrough: true,
   modelFilter: true,
-  createdAt: true,
-  updatedAt: true,
 });
 
 type StoredEndpoint = z.infer<typeof StoredEndpointSchema>;
@@ -73,10 +71,6 @@ export function parseRemoteEndpointId(
   };
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 function readStoredEndpoints(): StoredEndpoint[] {
   return readCollection(ENDPOINTS_FILE, StoredEndpointSchema);
 }
@@ -86,6 +80,10 @@ function persistEndpoints(records: StoredEndpoint[]) {
     ENDPOINTS_FILE,
     sortedByKey(records, (item) => item.name),
   );
+}
+
+export function rewriteStoredEndpoints(): void {
+  persistEndpoints(readStoredEndpoints());
 }
 
 function assertUniqueName(
@@ -115,8 +113,6 @@ function toExternalEndpoint(stored: StoredEndpoint): ApiEndpointRecord {
     editable: true,
     authConfigured:
       Boolean(readSecret(stored.id)) || Boolean(stored.apiKeyEnvVar),
-    createdAt: stored.createdAt,
-    updatedAt: stored.updatedAt,
   });
 }
 
@@ -140,8 +136,6 @@ function remoteInstanceEndpoint(
     nodeId: node.id,
     editable: false,
     authConfigured: true,
-    createdAt: null,
-    updatedAt: null,
   });
 }
 
@@ -171,8 +165,6 @@ function managerProxyEndpoint(): ApiEndpointRecord {
     instanceId: null,
     editable: false,
     authConfigured: true,
-    createdAt: null,
-    updatedAt: null,
   });
 }
 
@@ -200,8 +192,6 @@ function instanceEndpoint(instance: Instance): ApiEndpointRecord | null {
     instanceId: instance.name,
     editable: false,
     authConfigured: true,
-    createdAt: instance.createdAt,
-    updatedAt: instance.updatedAt,
   });
 }
 
@@ -316,7 +306,6 @@ export function createApiEndpoint(input: ApiEndpointCreate): ApiEndpointRecord {
   const records = readStoredEndpoints();
   assertUniqueName(records, parsed.name, null);
   const id = newId();
-  const timestamp = nowIso();
   const stored = StoredEndpointSchema.parse({
     id,
     name: parsed.name,
@@ -328,8 +317,6 @@ export function createApiEndpoint(input: ApiEndpointCreate): ApiEndpointRecord {
     extraHeaders: parsed.extraHeaders,
     passthrough: parsed.passthrough,
     modelFilter: parsed.modelFilter,
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
   persistEndpoints([...records, stored]);
 
@@ -374,8 +361,6 @@ export function updateApiEndpoint(
       parsed.modelFilter !== undefined
         ? parsed.modelFilter
         : current.modelFilter,
-    createdAt: current.createdAt,
-    updatedAt: nowIso(),
   });
   assertUniqueName(records, next.name, id);
   persistEndpoints(records.map((item) => (item.id === id ? next : item)));

@@ -56,7 +56,6 @@ function inferredSpec(sourceId: string): SourceRepositorySpec {
     adapter: definition.adapter,
     originUrl: definition.defaultOriginUrl,
     location,
-    updatedAt: legacy?.updatedAt ?? null,
   });
 }
 
@@ -110,7 +109,6 @@ function saveSourceRepositorySpec(
       parsed.location.type === "external"
         ? { type: "external", path: resolve(parsed.location.path) }
         : parsed.location,
-    updatedAt: nowIso(),
   });
   const current = readSettings();
   const repositories = [

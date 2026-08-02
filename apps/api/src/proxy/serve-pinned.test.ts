@@ -6,7 +6,6 @@ import { ApiProxyServeRequestSchema } from "@arriero/core";
 import { instanceEndpointId } from "./endpoints.js";
 import { ephemeralTarget } from "./serve-pinned.js";
 
-const now = "2026-06-25T00:00:00.000Z";
 
 function serveRequest(overrides: Record<string, unknown> = {}) {
   return ApiProxyServeRequestSchema.parse({
@@ -20,7 +19,7 @@ function serveRequest(overrides: Record<string, unknown> = {}) {
 }
 
 test("ephemeralTarget points at the local instance endpoint", () => {
-  const target = ephemeralTarget(serveRequest(), now);
+  const target = ephemeralTarget(serveRequest());
   assert.equal(target.endpointId, instanceEndpointId("qwen-big"));
   assert.equal(target.id, "serve:qwen-big");
   assert.equal(target.name, "qwen-big");
@@ -36,7 +35,6 @@ test("ephemeralTarget carries the delegated QoS verbatim", () => {
       saveSlotsBeforeUnload: true,
       slotIds: [0, 1],
     }),
-    now,
   );
   assert.equal(target.priority, 900);
   assert.equal(target.preemptible, false);
@@ -48,7 +46,7 @@ test("ephemeralTarget carries the delegated QoS verbatim", () => {
 });
 
 test("ephemeralTarget defaults QoS to interactive preemptible", () => {
-  const target = ephemeralTarget(serveRequest(), now);
+  const target = ephemeralTarget(serveRequest());
   assert.equal(target.priority, 100);
   assert.equal(target.preemptible, true);
   assert.equal(target.role, "interactive");

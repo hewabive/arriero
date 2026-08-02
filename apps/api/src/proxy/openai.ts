@@ -38,6 +38,7 @@ export function openAiModelsList(
   models: ApiProxyModelRecord[],
   statusByModelId?: Map<string, ApiProxyPublicModelStatus>,
 ) {
+  const created = Math.floor(Date.now() / 1000);
   return {
     object: "list",
     data: models
@@ -47,7 +48,7 @@ export function openAiModelsList(
         return {
           id: model.modelId,
           object: "model",
-          created: Math.floor(Date.parse(model.createdAt) / 1000),
+          created,
           owned_by: model.ownedBy,
           ...(status
             ? {

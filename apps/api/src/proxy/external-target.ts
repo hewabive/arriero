@@ -4,7 +4,6 @@ export function externalEndpointTarget(input: {
   endpointId: string;
   upstreamModel: string | null;
   name: string;
-  now: string;
 }): ApiProxyTargetRecord {
   const modelSuffix = input.upstreamModel ?? input.name;
   return {
@@ -18,7 +17,5 @@ export function externalEndpointTarget(input: {
     saveSlotsBeforeUnload: false,
     slotIds: [],
     idleUnloadMs: null,
-    createdAt: input.now,
-    updatedAt: input.now,
   };
 }

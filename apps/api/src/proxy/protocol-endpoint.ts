@@ -441,7 +441,6 @@ async function proxyProtocolEndpointInner(
       endpointId: routeResult.endpointId,
       upstreamModel,
       name: routeResult.request.modelId,
-      now: new Date().toISOString(),
     });
     trace.targetId = target.id;
     trace.targetName = target.name;

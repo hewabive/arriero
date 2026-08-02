@@ -37,8 +37,6 @@ function instance(name = "instance-a"): Instance {
     memory: [],
     status: "running",
     pid: 100,
-    createdAt: "2026-05-30T10:00:00.000Z",
-    updatedAt: "2026-05-30T10:00:00.000Z",
   };
 }
 
@@ -60,8 +58,6 @@ function target(
     saveSlotsBeforeUnload: false,
     slotIds: [],
     idleUnloadMs: null,
-    createdAt: "2026-05-30T10:00:00.000Z",
-    updatedAt: "2026-05-30T10:00:00.000Z",
   };
 }
 
@@ -92,8 +88,6 @@ function apiEndpoint(
       input.instanceId === undefined ? "instance-a" : input.instanceId,
     nodeId: input.nodeId ?? null,
     editable: false,
-    createdAt: null,
-    updatedAt: null,
   };
 }
 

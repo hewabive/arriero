@@ -16,7 +16,6 @@ function passthroughModelRecord(input: {
   endpoint: ApiEndpointRecord;
   modelId: string;
   visible: boolean;
-  now: string;
 }): ApiProxyModelRecord {
   return ApiProxyModelRecordSchema.parse({
     id: `passthrough:${input.endpoint.id}:${input.modelId}`,
@@ -31,8 +30,6 @@ function passthroughModelRecord(input: {
       upstreamModel: input.modelId,
     },
     description: null,
-    createdAt: input.now,
-    updatedAt: input.now,
   });
 }
 
@@ -58,7 +55,6 @@ export function resolvePassthroughModel(
     endpoint: owner,
     modelId,
     visible: false,
-    now: new Date().toISOString(),
   });
 }
 
@@ -70,7 +66,6 @@ export async function listPublicProxyModels(): Promise<ApiProxyModelRecord[]> {
   }
 
   const seen = new Set(explicit.map((model) => model.modelId));
-  const now = new Date().toISOString();
   const lists = await Promise.all(
     endpoints.map((endpoint) => getEndpointModelIds(endpoint)),
   );
@@ -90,7 +85,6 @@ export async function listPublicProxyModels(): Promise<ApiProxyModelRecord[]> {
           endpoint,
           modelId: upstreamId,
           visible: true,
-          now,
         }),
       );
     }

@@ -100,8 +100,6 @@ export const MemoryPoolSchema = z.object({
   reservedBytes: z.number().int().nonnegative().default(0),
   deviceRef: z.string().min(1).nullable().default(null),
   autoCapacity: z.boolean().default(true),
-  createdAt: z.string(),
-  updatedAt: z.string(),
 });
 
 export const MemoryPoolViewSchema = MemoryPoolSchema.extend({
@@ -374,8 +372,6 @@ export const InstanceSchema = InstanceCreateBaseSchema.extend({
     "error",
   ]),
   pid: z.number().int().positive().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
 }).superRefine(validateInstanceEngineFields);
 
 export const InstanceStartRequestSchema = z.object({
@@ -397,8 +393,6 @@ export const InstanceConfigRecordSchema = z
     numa: InstanceNumaSchema.optional(),
     engineConfig: InstanceEngineConfigSchema.optional(),
     scheduling: InstanceSchedulingPolicySchema.optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
   })
   .superRefine(validateInstanceEngineFields);
 
@@ -662,8 +656,6 @@ export const ApiEndpointUpdateSchema = z.object({
 
 export const ApiEndpointRecordSchema = ApiEndpointConfigSchema.extend({
   authConfigured: z.boolean().default(false),
-  createdAt: z.string().nullable().default(null),
-  updatedAt: z.string().nullable().default(null),
 });
 
 export const ApiLabProbeKindsByProfile = {
@@ -1205,10 +1197,7 @@ export const ApiProxyPipelineUpdateSchema = z.object({
   nodes: z.array(ApiProxyPipelineNodeSchema).max(200).optional(),
 });
 
-export const ApiProxyTargetRecordSchema = ApiProxyTargetConfigSchema.extend({
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
+export const ApiProxyTargetRecordSchema = ApiProxyTargetConfigSchema;
 
 export const ApiProxyServeProtocolSchema = z.enum(["openai", "anthropic"]);
 
@@ -1226,16 +1215,9 @@ export const ApiProxyServeRequestSchema = z.object({
   body: z.unknown(),
 });
 
-export const ApiProxyModelRecordSchema = ApiProxyModelConfigSchema.extend({
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
+export const ApiProxyModelRecordSchema = ApiProxyModelConfigSchema;
 
-export const ApiProxyPipelineRecordSchema =
-  ApiProxyPipelineConfigBaseSchema.extend({
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  });
+export const ApiProxyPipelineRecordSchema = ApiProxyPipelineConfigBaseSchema;
 
 export const ApiProxyConfigSchema = z.object({
   models: z.array(ApiProxyModelRecordSchema),
@@ -1325,8 +1307,6 @@ export const ApiProxySourceUpdateSchema = z.object({
 
 export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
   keyConfigured: z.boolean().default(false),
-  createdAt: z.string().nullable().default(null),
-  updatedAt: z.string().nullable().default(null),
 });
 
 export const ApiProxyTraceUsageSchema = z.object({
@@ -1889,8 +1869,6 @@ export const FleetNodeSchema = z.object({
   name: FleetNodeNameSchema,
   baseUrl: FleetNodeBaseUrlSchema,
   enabled: z.boolean().default(true),
-  createdAt: z.string(),
-  updatedAt: z.string(),
 });
 export type FleetNode = z.infer<typeof FleetNodeSchema>;
 
@@ -1948,7 +1926,6 @@ export const SourceRepositorySpecSchema = z.object({
   adapter: z.string().trim().min(1).max(80),
   originUrl: z.string().trim().min(1).max(2048),
   location: SourceRepositoryLocationSchema,
-  updatedAt: z.string().nullable().default(null),
 });
 
 export const SourceRepositorySettingsUpdateSchema = z.object({
@@ -1997,7 +1974,6 @@ export const SourceRepositoryOperationResultSchema = z.object({
 
 export const LlamaSourceSettingsSchema = z.object({
   repoPath: z.string().min(1),
-  updatedAt: z.string().nullable().default(null),
 });
 
 export const LlamaSourceSettingsUpdateSchema = z.object({

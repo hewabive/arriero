@@ -24,18 +24,12 @@ const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
   name: true,
   enabled: true,
   note: true,
-  createdAt: true,
-  updatedAt: true,
 });
 
 type StoredSource = z.infer<typeof StoredSourceSchema>;
 
 function sourceSecretId(id: string) {
   return `source:${id}`;
-}
-
-function nowIso() {
-  return new Date().toISOString();
 }
 
 function readStoredSources(): StoredSource[] {
@@ -47,6 +41,10 @@ function persistSources(records: StoredSource[]) {
     SOURCES_FILE,
     sortedByKey(records, (item) => item.name),
   );
+}
+
+export function rewriteStoredSources(): void {
+  persistSources(readStoredSources());
 }
 
 function assertUniqueName(
@@ -66,8 +64,6 @@ function toRecord(stored: StoredSource): ApiProxySourceRecord {
     enabled: stored.enabled,
     note: stored.note,
     keyConfigured: Boolean(readSecret(sourceSecretId(stored.id))),
-    createdAt: stored.createdAt,
-    updatedAt: stored.updatedAt,
   });
 }
 
@@ -89,14 +85,11 @@ export function createApiProxySource(
   const records = readStoredSources();
   assertUniqueName(records, parsed.name, null);
   const id = newId();
-  const timestamp = nowIso();
   const stored = StoredSourceSchema.parse({
     id,
     name: parsed.name,
     enabled: parsed.enabled,
     note: parsed.note,
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
   persistSources([...records, stored]);
   if (parsed.apiKey) {
@@ -125,8 +118,6 @@ export function updateApiProxySource(
     name: parsed.name ?? current.name,
     enabled: parsed.enabled ?? current.enabled,
     note: parsed.note !== undefined ? parsed.note : current.note,
-    createdAt: current.createdAt,
-    updatedAt: nowIso(),
   });
   assertUniqueName(records, next.name, id);
   if (parsed.apiKey !== undefined && parsed.apiKey) {

@@ -248,8 +248,10 @@ Paths under a managed root are **persisted as `${ARRIERO_HOME}` / `${ARRIERO_*_D
 `argument-defaults.json`, expanded at each store's read boundary — repositories, API and UI only ever
 see absolute paths, and renaming/moving the app dir keeps config valid. The broadest containing root
 wins; paths under no managed root (and preset INIs, co-owned by `llama-server`) stay absolute. A
-startup pass `normalizeConfigPaths()` rewrites any absolute path that reappears (hand edits) — a
-standing normalizer, deliberately not a registry migration. See `docs/PORTABLE_PATHS.md`.
+startup pass `normalizeConfigFiles()` rewrites any absolute path that reappears (hand edits) and
+strips legacy `createdAt`/`updatedAt` from tracked config — **tracked config files carry no
+timestamps; provenance = config-git commit history** — a standing normalizer, deliberately not a
+registry migration. See `docs/PORTABLE_PATHS.md`.
 
 ### Argument documentation
 

@@ -33,8 +33,6 @@ function pipelineRecord(input: {
     enabled: input.enabled ?? true,
     entry: input.entry,
     nodes: input.nodes ?? [],
-    createdAt: "2026-05-30T10:00:00.000Z",
-    updatedAt: "2026-05-30T10:00:00.000Z",
   };
 }
 
@@ -66,8 +64,6 @@ function request(
       targetId: null,
       routeTo: { type: "pipeline", id: "pipeline-a" },
       description: null,
-      createdAt: "2026-05-30T10:00:00.000Z",
-      updatedAt: "2026-05-30T10:00:00.000Z",
     },
     stream: false,
     ...update,
@@ -111,8 +107,6 @@ test("legacy pipeline record upgrades steps and routeTo to a node graph", () => 
         },
       ],
       routeTo: { type: "target", id: "target-a" },
-      createdAt: "2026-05-30T10:00:00.000Z",
-      updatedAt: "2026-05-30T10:00:00.000Z",
     }),
   );
 

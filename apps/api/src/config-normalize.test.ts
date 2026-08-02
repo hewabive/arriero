@@ -5,10 +5,7 @@ import { test } from "node:test";
 
 import { getArgumentDefaults } from "./arguments/defaults-repository.js";
 import { config } from "./config.js";
-import {
-  configFilesWithAbsolutePaths,
-  normalizeConfigPaths,
-} from "./config-paths-normalize.js";
+import { normalizeConfigFiles } from "./config-normalize.js";
 import {
   listInstanceRecords,
   resetInstancesCache,
@@ -18,11 +15,13 @@ import {
   listPathCatalogEntries,
   resetPathCatalogCache,
 } from "./path-catalog/repository.js";
+import { resetConfigFilesCache } from "./proxy/config-files.js";
 import { readSettings } from "./settings/store.js";
 
 const binaryPath = resolve(config.buildsDir, "master/bin/llama-server");
 const modelPath = resolve(config.modelsDir, "demo/model.gguf");
 const instanceFile = resolve(config.instancesDir, "demo.json");
+const targetsFile = resolve(config.proxyConfigDir, "targets.json");
 
 function writeJson(path: string, value: unknown) {
   mkdirSync(resolve(path, ".."), { recursive: true });
@@ -62,8 +61,6 @@ function seedAbsolutePathConfig() {
     binaryPathRefId: "01",
     args: { "--model": modelPath, "--port": 5190 },
     env: { LD_LIBRARY_PATH: resolve(config.buildsDir, "master/lib") },
-    createdAt: "2026-07-01T00:00:00.000Z",
-    updatedAt: "2026-07-01T00:00:00.000Z",
   });
   resetInstancesCache();
   resetPathCatalogCache();
@@ -74,22 +71,23 @@ function cleanup() {
   rmSync(PATH_CATALOG_FILE, { force: true });
   rmSync(config.settingsFile, { force: true });
   rmSync(config.argumentDefaultsFile, { force: true });
+  rmSync(targetsFile, { force: true });
   resetInstancesCache();
   resetPathCatalogCache();
+  resetConfigFilesCache();
 }
 
 test("rewrites stored absolute paths as placeholders and keeps reads absolute", (t) => {
   t.after(cleanup);
   seedAbsolutePathConfig();
 
-  assert.deepEqual(normalizeConfigPaths().sort(), [
+  assert.deepEqual(normalizeConfigFiles().sort(), [
     "argument-defaults.json",
     "instances/demo.json",
     "path-catalog.json",
     "settings.json",
   ]);
-  assert.deepEqual(configFilesWithAbsolutePaths(), []);
-  assert.deepEqual(normalizeConfigPaths(), []);
+  assert.deepEqual(normalizeConfigFiles(), []);
 
   const instanceRaw = readFileSync(instanceFile, "utf8");
   assert.match(
@@ -116,6 +114,73 @@ test("rewrites stored absolute paths as placeholders and keeps reads absolute", 
   assert.equal(getArgumentDefaults().instance[0]?.value, modelPath);
 });
 
+test("strips legacy createdAt/updatedAt from tracked config files", (t) => {
+  t.after(cleanup);
+  writeJson(config.settingsFile, {
+    sourceRepositories: [
+      {
+        id: "llama-cpp",
+        adapter: "llama-cpp",
+        originUrl: "https://github.com/ggml-org/llama.cpp",
+        location: { type: "managed" },
+        updatedAt: "2026-07-01T00:00:00.000Z",
+      },
+    ],
+  });
+  writeJson(instanceFile, {
+    name: "demo",
+    kind: "llama-server",
+    binaryPath: "${ARRIERO_RUNTIME_DIR}/builds/master/bin/llama-server",
+    args: {},
+    env: {},
+    createdAt: "2026-07-01T00:00:00.000Z",
+    updatedAt: "2026-07-01T00:00:00.000Z",
+  });
+  writeJson(targetsFile, [
+    {
+      id: "t1",
+      name: "alpha",
+      endpointId: "external:test",
+      model: null,
+      role: "background",
+      priority: 100,
+      preemptible: true,
+      saveSlotsBeforeUnload: false,
+      slotIds: [],
+      idleUnloadMs: null,
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+    },
+  ]);
+  writeJson(PATH_CATALOG_FILE, [
+    {
+      id: "01",
+      kind: "binary",
+      name: "llama-server",
+      path: "${ARRIERO_RUNTIME_DIR}/builds/master/bin/llama-server",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+    },
+  ]);
+  resetInstancesCache();
+  resetPathCatalogCache();
+  resetConfigFilesCache();
+
+  assert.deepEqual(normalizeConfigFiles().sort(), [
+    "instances/demo.json",
+    "proxy/targets.json",
+    "settings.json",
+  ]);
+  assert.deepEqual(normalizeConfigFiles(), []);
+
+  for (const path of [config.settingsFile, instanceFile, targetsFile]) {
+    const raw = readFileSync(path, "utf8");
+    assert.equal(raw.includes("createdAt"), false, path);
+    assert.equal(raw.includes("updatedAt"), false, path);
+  }
+  assert.match(readFileSync(PATH_CATALOG_FILE, "utf8"), /"createdAt"/);
+});
+
 test("survives an application directory rename", (t) => {
   t.after(() => {
     cleanup();
@@ -128,7 +193,7 @@ test("survives an application directory rename", (t) => {
   const originalModelsDir = config.modelsDir;
 
   seedAbsolutePathConfig();
-  normalizeConfigPaths();
+  normalizeConfigFiles();
 
   const movedRuntimeDir = resolve(originalRuntimeDir, "..", "runtime-moved");
   config.runtimeDir = movedRuntimeDir;

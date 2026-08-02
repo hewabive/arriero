@@ -75,8 +75,6 @@ test("KTransformers supervisor stops the complete detached worker tree", async (
     scheduling: { evictionPolicy: "idle-only" },
     status: "stopped",
     pid: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
   };
 
   try {

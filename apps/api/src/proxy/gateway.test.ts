@@ -22,8 +22,6 @@ const target: ApiProxyTargetRecord = {
   saveSlotsBeforeUnload: false,
   slotIds: [],
   idleUnloadMs: null,
-  createdAt: "2026-05-30T10:00:00.000Z",
-  updatedAt: "2026-05-30T10:00:00.000Z",
 };
 
 function model(update: Partial<ApiProxyModelRecord> = {}): ApiProxyModelRecord {
@@ -36,8 +34,6 @@ function model(update: Partial<ApiProxyModelRecord> = {}): ApiProxyModelRecord {
     targetId: target.id,
     routeTo: null,
     description: null,
-    createdAt: "2026-05-30T10:00:00.000Z",
-    updatedAt: "2026-05-30T10:00:00.000Z",
     ...update,
   };
 }

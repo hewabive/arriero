@@ -5,7 +5,7 @@ import { initArgumentDefaults } from "./arguments/defaults-repository.js";
 import { pruneMissingArgumentCatalogs } from "./arguments/repository.js";
 import { config } from "./config.js";
 import { untrackMachineStateFiles } from "./config-git/machine-state.js";
-import { normalizeConfigPaths } from "./config-paths-normalize.js";
+import { normalizeConfigFiles } from "./config-normalize.js";
 import { migrate } from "./db/index.js";
 import {
   app,
@@ -62,7 +62,7 @@ if (repairedPathDirectories.length > 0) {
 migrate();
 ensureConfigScaffold();
 const appliedMigrations = runMigrations();
-const normalizedConfigPaths = normalizeConfigPaths();
+const normalizedConfigFiles = normalizeConfigFiles();
 const untrackedMachineState = untrackMachineStateFiles();
 initAppSettings();
 initArgumentDefaults();
@@ -117,7 +117,7 @@ const server = serve(
         address: info.address,
         port: info.port,
         appliedMigrations,
-        normalizedConfigPaths,
+        normalizedConfigFiles,
         untrackedMachineState,
         reconciliation,
         prunedProcessRuns,

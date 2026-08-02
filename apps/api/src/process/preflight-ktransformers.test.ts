@@ -36,8 +36,6 @@ const pools: MemoryPool[] = [
     reservedBytes: 0,
     deviceRef: "0",
     autoCapacity: true,
-    createdAt: now,
-    updatedAt: now,
   },
   {
     id: "gpu1",
@@ -47,8 +45,6 @@ const pools: MemoryPool[] = [
     reservedBytes: 0,
     deviceRef: "1",
     autoCapacity: true,
-    createdAt: now,
-    updatedAt: now,
   },
   {
     id: "host",
@@ -58,8 +54,6 @@ const pools: MemoryPool[] = [
     reservedBytes: 0,
     deviceRef: null,
     autoCapacity: true,
-    createdAt: now,
-    updatedAt: now,
   },
 ];
 const numaNodes: NumaNode[] = [0, 1].map((id) => ({
@@ -120,8 +114,6 @@ function fixture() {
     scheduling: { evictionPolicy: "idle-only" },
     status: "stopped",
     pid: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
   };
   return { root, instance };
 }

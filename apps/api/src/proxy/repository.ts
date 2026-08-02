@@ -45,10 +45,6 @@ export const TARGETS_FILE = "targets.json";
 export const MODELS_FILE = "models.json";
 export const PIPELINES_FILE = "pipelines.json";
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 function readTargets(): ApiProxyTargetRecord[] {
   return readCollection(TARGETS_FILE, ApiProxyTargetRecordSchema);
 }
@@ -80,6 +76,12 @@ function persistPipelines(records: ApiProxyPipelineRecord[]) {
     PIPELINES_FILE,
     sortedByKey(records, (item) => item.name),
   );
+}
+
+export function rewriteApiProxyCollections(): void {
+  persistTargets(readTargets());
+  persistModels(readModels());
+  persistPipelines(readPipelines());
 }
 
 export function listApiProxyTargets(): ApiProxyTargetRecord[] {
@@ -165,12 +167,9 @@ export function createApiProxyTarget(
   const parsed = ApiProxyTargetCreateSchema.parse(input);
   const records = readTargets();
   assertUniqueTargetName(records, parsed.name, null);
-  const timestamp = nowIso();
   const record = ApiProxyTargetRecordSchema.parse({
     ...parsed,
     id: newId(),
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
   persistTargets([...records, record]);
   return record;
@@ -192,11 +191,7 @@ export function updateApiProxyTarget(
     id: current.id,
   });
   assertUniqueTargetName(records, merged.name, id);
-  const next = ApiProxyTargetRecordSchema.parse({
-    ...merged,
-    createdAt: current.createdAt,
-    updatedAt: nowIso(),
-  });
+  const next = ApiProxyTargetRecordSchema.parse(merged);
   persistTargets(records.map((target) => (target.id === id ? next : target)));
   return next;
 }
@@ -212,9 +207,7 @@ export function deleteApiProxyTarget(id: string): boolean {
   if (models.some((model) => model.targetId === id)) {
     persistModels(
       models.map((model) =>
-        model.targetId === id
-          ? { ...model, targetId: null, updatedAt: nowIso() }
-          : model,
+        model.targetId === id ? { ...model, targetId: null } : model,
       ),
     );
   }
@@ -229,12 +222,9 @@ export function createApiProxyModel(
   const parsed = ApiProxyModelCreateSchema.parse(input);
   const records = readModels();
   assertUniqueModelId(records, parsed.modelId, null);
-  const timestamp = nowIso();
   const record = ApiProxyModelRecordSchema.parse({
     ...parsed,
     id: newId(),
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
   persistModels([...records, record]);
   return record;
@@ -285,11 +275,7 @@ export function updateApiProxyModel(
     id: current.id,
   });
   assertUniqueModelId(records, merged.modelId, id);
-  const next = ApiProxyModelRecordSchema.parse({
-    ...merged,
-    createdAt: current.createdAt,
-    updatedAt: nowIso(),
-  });
+  const next = ApiProxyModelRecordSchema.parse(merged);
   persistModels(records.map((model) => (model.id === id ? next : model)));
   return next;
 }
@@ -309,12 +295,9 @@ export function createApiProxyPipeline(
   const parsed = ApiProxyPipelineCreateSchema.parse(input);
   const records = readPipelines();
   assertUniquePipelineName(records, parsed.name, null);
-  const timestamp = nowIso();
   const record = ApiProxyPipelineRecordSchema.parse({
     ...parsed,
     id: newId(),
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
   persistPipelines([...records, record]);
   return record;
@@ -336,11 +319,7 @@ export function updateApiProxyPipeline(
     id: current.id,
   });
   assertUniquePipelineName(records, merged.name, id);
-  const next = ApiProxyPipelineRecordSchema.parse({
-    ...merged,
-    createdAt: current.createdAt,
-    updatedAt: nowIso(),
-  });
+  const next = ApiProxyPipelineRecordSchema.parse(merged);
   persistPipelines(
     records.map((pipeline) => (pipeline.id === id ? next : pipeline)),
   );

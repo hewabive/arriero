@@ -45,8 +45,6 @@ test("KTransformers readiness follows HTTP health 503 to 200", async () => {
     scheduling: { evictionPolicy: "idle-only" },
     status: "running",
     pid: process.pid,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
   };
   try {
     const loading = await engineProbe("ktransformers").probe(instance);
@@ -102,8 +100,6 @@ test("KTransformers readiness tolerates a slow SGLang health response", async ()
     scheduling: { evictionPolicy: "idle-only" },
     status: "running",
     pid: process.pid,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
   };
   try {
     const healthy = await engineProbe("ktransformers").probe(instance);

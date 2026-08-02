@@ -9,6 +9,7 @@ import {
 } from "./openai.js";
 
 test("openAiModelsList exposes only visible proxy models", () => {
+  const before = Math.floor(Date.now() / 1000);
   const response = openAiModelsList([
     {
       id: "a",
@@ -19,8 +20,6 @@ test("openAiModelsList exposes only visible proxy models", () => {
       targetId: null,
       routeTo: null,
       description: null,
-      createdAt: "2026-05-30T10:00:00.000Z",
-      updatedAt: "2026-05-30T10:00:00.000Z",
     },
     {
       id: "b",
@@ -31,21 +30,21 @@ test("openAiModelsList exposes only visible proxy models", () => {
       targetId: null,
       routeTo: null,
       description: null,
-      createdAt: "2026-05-30T10:00:00.000Z",
-      updatedAt: "2026-05-30T10:00:00.000Z",
     },
   ]);
+  const after = Math.floor(Date.now() / 1000);
 
-  assert.deepEqual(response, {
-    object: "list",
-    data: [
-      {
-        id: "alpha",
-        object: "model",
-        created: 1780135200,
-        owned_by: "arriero",
-      },
-    ],
+  assert.equal(response.object, "list");
+  assert.equal(response.data.length, 1);
+  const model = response.data[0];
+  assert.ok(model);
+  const { created, ...rest } = model;
+  assert.ok(Number.isInteger(created));
+  assert.ok(created >= before && created <= after);
+  assert.deepEqual(rest, {
+    id: "alpha",
+    object: "model",
+    owned_by: "arriero",
   });
 });
 
@@ -61,8 +60,6 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
         targetId: null,
         routeTo: null,
         description: null,
-        createdAt: "2026-05-30T10:00:00.000Z",
-        updatedAt: "2026-05-30T10:00:00.000Z",
       },
     ],
     new Map([
@@ -70,10 +67,12 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
     ]),
   );
 
-  assert.deepEqual(response.data[0], {
+  const model = response.data[0];
+  assert.ok(model);
+  const { created: _created, ...rest } = model;
+  assert.deepEqual(rest, {
     id: "alpha",
     object: "model",
-    created: 1780135200,
     owned_by: "arriero",
     status: {
       value: "partial",

@@ -38,7 +38,6 @@ function serveOperation(
 
 export function ephemeralTarget(
   payload: ApiProxyServeRequest,
-  now: string,
 ): ApiProxyTargetRecord {
   return {
     id: `serve:${payload.instanceId}`,
@@ -51,8 +50,6 @@ export function ephemeralTarget(
     saveSlotsBeforeUnload: payload.saveSlotsBeforeUnload,
     slotIds: payload.slotIds,
     idleUnloadMs: null,
-    createdAt: now,
-    updatedAt: now,
   };
 }
 
@@ -74,8 +71,7 @@ export async function serveApiProxyPinnedInstance(
 
   const adapter = adapterForProtocol(payload.protocol);
   const operation = serveOperation(payload.protocol, payload.endpoint);
-  const now = new Date().toISOString();
-  const target = ephemeralTarget(payload, now);
+  const target = ephemeralTarget(payload);
   const modelId = adapter.modelIdFromBody(payload.body) ?? payload.instanceId;
   const model = ApiProxyModelRecordSchema.parse({
     id: target.id,
@@ -85,8 +81,6 @@ export async function serveApiProxyPinnedInstance(
     targetId: target.id,
     routeTo: null,
     description: null,
-    createdAt: now,
-    updatedAt: now,
   });
   const request: ApiProxyProtocolModelRequest = {
     operation,

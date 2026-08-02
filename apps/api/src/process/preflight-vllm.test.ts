@@ -21,8 +21,6 @@ function instance(model?: string): Instance {
     rpcWorkers: [],
     status: "stopped",
     pid: null,
-    createdAt: timestamp,
-    updatedAt: timestamp,
   };
 }
 

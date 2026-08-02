@@ -78,8 +78,6 @@ test("vllm launch snapshot inserts serve before the model positional", () => {
     rpcWorkers: [],
     status: "stopped",
     pid: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
   });
   assert.deepEqual(snapshot.cliArgs, ["serve", "org/model", "--port", "8001"]);
 });
@@ -104,8 +102,6 @@ test("KTransformers launch snapshot compiles typed model configuration", () => {
     scheduling: { evictionPolicy: "idle-only" },
     status: "stopped",
     pid: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
   });
   assert.equal(snapshot.binaryPath, "/tmp/env/bin/python");
   assert.deepEqual(snapshot.cliArgs, [

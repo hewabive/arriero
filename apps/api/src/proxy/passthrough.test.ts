@@ -106,7 +106,6 @@ test("a synthetic endpoint target resolves to the endpoint base URL, auth and mo
     endpointId: endpoint.id,
     upstreamModel: "anthropic/claude-3.5-sonnet",
     name: "anthropic/claude-3.5-sonnet",
-    now: new Date().toISOString(),
   });
 
   const resolved = resolveApiProxyUpstreamContext({

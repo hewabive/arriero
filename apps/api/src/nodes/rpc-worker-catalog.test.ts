@@ -24,8 +24,6 @@ function writeRecord(
     env: {},
     memory: [],
     rpcWorkers: [],
-    createdAt: "2026-06-25T00:00:00.000Z",
-    updatedAt: "2026-06-25T00:00:00.000Z",
   });
 }
 

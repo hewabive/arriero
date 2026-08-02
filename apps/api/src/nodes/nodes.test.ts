@@ -99,8 +99,6 @@ test("nodeApiUrl and nodeProxyRest map the proxy prefix to the peer /api path", 
     name: "peer",
     baseUrl: "http://10.0.0.5:8787",
     enabled: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
   };
 
   assert.equal(

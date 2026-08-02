@@ -14,8 +14,7 @@ A fresh installation synthesizes this portable source specification:
   "id": "llama-cpp",
   "adapter": "llama-cpp",
   "originUrl": "https://github.com/ggml-org/llama.cpp.git",
-  "location": { "type": "managed" },
-  "updatedAt": null
+  "location": { "type": "managed" }
 }
 ```
 

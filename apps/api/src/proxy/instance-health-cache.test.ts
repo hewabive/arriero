@@ -22,8 +22,6 @@ function instance(input: Partial<Instance>): Instance {
     memory: input.memory ?? [],
     status: input.status ?? "stopped",
     pid: input.pid ?? null,
-    createdAt: "2026-05-26T00:00:00.000Z",
-    updatedAt: "2026-05-26T00:00:00.000Z",
   };
 }
 

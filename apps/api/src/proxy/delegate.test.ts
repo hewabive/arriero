@@ -49,8 +49,6 @@ function modelRequest(input: {
       targetId: null,
       routeTo: null,
       description: null,
-      createdAt: "2026-06-25T00:00:00.000Z",
-      updatedAt: "2026-06-25T00:00:00.000Z",
     }),
     stream: input.stream,
   };
@@ -123,8 +121,6 @@ const diagTarget = ApiProxyTargetRecordSchema.parse({
   saveSlotsBeforeUnload: false,
   slotIds: [],
   idleUnloadMs: null,
-  createdAt: "2026-06-25T00:00:00.000Z",
-  updatedAt: "2026-06-25T00:00:00.000Z",
 });
 
 const diagNode: FleetNode = {
@@ -132,8 +128,6 @@ const diagNode: FleetNode = {
   name: "NY",
   baseUrl: "http://ny.local:8787",
   enabled: true,
-  createdAt: "2026-06-25T00:00:00.000Z",
-  updatedAt: "2026-06-25T00:00:00.000Z",
 };
 
 test("delegationErrorDiagnostic maps a headers timeout to a 504", () => {

@@ -140,7 +140,6 @@ export function registerInstanceRoutes(app: Hono) {
       return c.json({ error: refError }, 400);
     }
 
-    const timestamp = new Date().toISOString();
     const preview = parsed.data;
     const instance = resolveInstancePathRefs({
       name: preview.name ?? "preview",
@@ -159,8 +158,6 @@ export function registerInstanceRoutes(app: Hono) {
       scheduling: preview.scheduling,
       status: "stopped",
       pid: null,
-      createdAt: timestamp,
-      updatedAt: timestamp,
     });
     return c.json({
       data: await validateInstanceStartPreflight(instance, {

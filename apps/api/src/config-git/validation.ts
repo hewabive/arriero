@@ -34,8 +34,6 @@ const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
   extraHeaders: true,
   passthrough: true,
   modelFilter: true,
-  createdAt: true,
-  updatedAt: true,
 });
 
 const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
@@ -43,8 +41,6 @@ const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
   name: true,
   enabled: true,
   note: true,
-  createdAt: true,
-  updatedAt: true,
 });
 
 function issuePath(root: string, path: string): string {
