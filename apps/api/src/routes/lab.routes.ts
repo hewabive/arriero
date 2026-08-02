@@ -48,6 +48,15 @@ function apiLabProfileHeaders(
   return profile === "anthropic" ? { "anthropic-version": "2023-06-01" } : {};
 }
 
+function apiKeyAuthHeaders(
+  profile: ApiLabProbeProfile,
+  key: string,
+): Record<string, string> {
+  return profile === "anthropic"
+    ? { "x-api-key": key }
+    : { authorization: `Bearer ${key}` };
+}
+
 function sourceAuthHeaders(
   profile: ApiLabProbeProfile,
   sourceId: string,
@@ -60,9 +69,7 @@ function sourceAuthHeaders(
   if (!key) {
     throw new Error(`request source has no API key: ${source.name}`);
   }
-  return profile === "anthropic"
-    ? { "x-api-key": key }
-    : { authorization: `Bearer ${key}` };
+  return apiKeyAuthHeaders(profile, key);
 }
 
 function resolveApiLabEndpoint(input: {
@@ -70,11 +77,14 @@ function resolveApiLabEndpoint(input: {
   baseUrl?: string | undefined;
   endpointId?: string | undefined;
   sourceId?: string | undefined;
+  apiKey?: string | undefined;
 }) {
   const profileHeaders = apiLabProfileHeaders(input.profile);
-  const sourceHeaders = input.sourceId
-    ? sourceAuthHeaders(input.profile, input.sourceId)
-    : {};
+  const sourceHeaders = input.apiKey
+    ? apiKeyAuthHeaders(input.profile, input.apiKey)
+    : input.sourceId
+      ? sourceAuthHeaders(input.profile, input.sourceId)
+      : {};
   if (input.endpointId) {
     const endpoint = getApiEndpointFromCatalog(
       input.endpointId,
@@ -145,6 +155,7 @@ export function registerLabRoutes(app: Hono) {
         baseUrl: parsed.data.baseUrl,
         endpointId: parsed.data.endpointId,
         sourceId: parsed.data.sourceId,
+        apiKey: parsed.data.apiKey,
       });
       const data = await requestApiLabProbeBaseUrl(
         profile,
@@ -178,6 +189,7 @@ export function registerLabRoutes(app: Hono) {
         baseUrl: parsed.data.baseUrl,
         endpointId: parsed.data.endpointId,
         sourceId: parsed.data.sourceId,
+        apiKey: parsed.data.apiKey,
       });
       target = apiLabProbeTargetFromBaseUrl(
         parsed.data.profile,

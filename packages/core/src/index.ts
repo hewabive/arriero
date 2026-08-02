@@ -723,6 +723,7 @@ export const ApiLabProbeTargetRequestSchema = z
     baseUrl: z.string().trim().min(1).max(2_000).optional(),
     endpointId: ApiEndpointIdSchema.optional(),
     sourceId: z.string().trim().min(1).max(80).optional(),
+    apiKey: z.string().trim().min(1).max(4_000).optional(),
     probe: ApiProbeRequestSchema,
   })
   .superRefine((input, ctx) => {
@@ -731,6 +732,13 @@ export const ApiLabProbeTargetRequestSchema = z
         code: z.ZodIssueCode.custom,
         path: ["baseUrl"],
         message: "Base URL or endpoint is required",
+      });
+    }
+    if (input.sourceId && input.apiKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["apiKey"],
+        message: "Set either an API key or a request source, not both",
       });
     }
     if (

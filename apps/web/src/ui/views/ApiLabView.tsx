@@ -23,6 +23,7 @@ import {
   useEndpointModelCatalog,
   useEndpointModelOptions,
 } from "../components/endpoint-model-catalog";
+import { SecretInput } from "../components/SecretInput";
 import { StatusTooltipIcon } from "../components/StatusTooltipIcon";
 import { TouchSelect } from "../components/TouchCombobox";
 
@@ -66,6 +67,8 @@ export function ApiLabView(props: {
   const [endpointId, setEndpointId] = useState<string | null>(null);
   const [protocol, setProtocol] = useState<ApiLabProbeProfile>("openai");
   const [sourceId, setSourceId] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const manualApiKey = apiKey.trim();
 
   const { groups, endpointSelectData } = useEndpointModelCatalog(true);
   const selectedGroup = useMemo(
@@ -200,10 +203,19 @@ export function ApiLabView(props: {
             data={sourceOptions}
             value={sourceId}
             placeholder="Anonymous"
+            disabled={manualApiKey.length > 0}
             onChange={setSourceId}
             style={{ width: 220 }}
           />
         )}
+        <SecretInput
+          label="API key"
+          description="Sends the request with this key"
+          placeholder="None"
+          value={apiKey}
+          onChange={(event) => setApiKey(event.currentTarget.value)}
+          style={{ width: 240 }}
+        />
       </Group>
 
       <ApiProbePanel
@@ -217,7 +229,11 @@ export function ApiLabView(props: {
           runApiLabProbe({
             profile: protocol,
             ...(endpointId ? { endpointId } : {}),
-            ...(sourceId ? { sourceId } : {}),
+            ...(manualApiKey
+              ? { apiKey: manualApiKey }
+              : sourceId
+                ? { sourceId }
+                : {}),
             probe,
           })
         }
@@ -226,7 +242,11 @@ export function ApiLabView(props: {
             {
               profile: protocol,
               ...(endpointId ? { endpointId } : {}),
-              ...(sourceId ? { sourceId } : {}),
+              ...(manualApiKey
+                ? { apiKey: manualApiKey }
+                : sourceId
+                  ? { sourceId }
+                  : {}),
               probe,
             },
             callbacks,
