@@ -17,9 +17,9 @@ import {
   writeCollection,
 } from "./config-files.js";
 
-const SOURCES_FILE = "sources.json";
+export const SOURCES_FILE = "sources.json";
 
-const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
+export const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
   id: true,
   name: true,
   enabled: true,

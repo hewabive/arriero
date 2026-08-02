@@ -1,5 +1,8 @@
 import {
   classifyConfigGitPath,
+  configGitSensitivePathPattern,
+  isPlainRelativeConfigGitPath,
+  isRestorableConfigGitPath,
   type ConfigGitCheckoutCommit,
   type ConfigGitClone,
   type ConfigGitCommitInput,
@@ -17,7 +20,6 @@ import {
   copyFileSync,
   existsSync,
   lstatSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   renameSync,
@@ -32,13 +34,12 @@ import { normalizeConfigFiles } from "../config-normalize.js";
 import { environmentRunner } from "../envs/runner.js";
 import { supervisor } from "../process/supervisor.js";
 import { anySourceRepositoryOperationActive } from "../sources/state.js";
-import { assertSafeConfigRelativePath } from "./paths.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
 import {
   CONFIG_GITIGNORE_CONTENT,
   MACHINE_STATE_CONFIG_FILES,
   ensureLocalExclude,
-  restoreMachineStateFiles,
-  snapshotMachineStateFiles,
+  withMachineStatePreserved,
 } from "./machine-state.js";
 import {
   assertGitRemoteUrl,
@@ -48,7 +49,11 @@ import {
   tryGit,
 } from "./process.js";
 import { reloadPortableConfigCaches } from "./reload.js";
-import { assertConfigGitRepository, getConfigGitStatus } from "./repository.js";
+import {
+  assertConfigGitRepository,
+  getConfigGitStatus,
+  resolveConfigGitCommit,
+} from "./repository.js";
 import { withConfigGitOperation } from "./state.js";
 import { validateConfigBlob, validateConfigRoot } from "./validation.js";
 
@@ -59,8 +64,6 @@ type MutationWork = {
 };
 
 const activeStatuses = new Set(["starting", "running", "stopping"]);
-const forbiddenTrackedPath =
-  /(^|\/)(\.secrets\.json|\.env(?:\..*)?|.*\.(?:pem|key))$/i;
 
 function assertConfigContentCanChange() {
   const activeInstances = supervisor
@@ -132,7 +135,9 @@ async function stageAll(repository: string): Promise<string[]> {
   await runGit(repository, ["add", "-A", "--", "."]);
   const staged = await tryGit(repository, ["diff", "--cached", "--name-only"]);
   const paths = (staged?.split("\n") ?? []).filter(Boolean);
-  const forbidden = paths.find((path) => forbiddenTrackedPath.test(path));
+  const forbidden = paths.find((path) =>
+    configGitSensitivePathPattern.test(path),
+  );
   if (forbidden) {
     await runGit(repository, ["reset"]);
     throw new Error(`refusing to commit sensitive path: ${forbidden}`);
@@ -140,19 +145,24 @@ async function stageAll(repository: string): Promise<string[]> {
   return paths;
 }
 
-function assertValid(validation: ConfigGitValidation) {
-  if (validation.valid) return;
-  const summary = validation.issues
+function issuesSummary(issues: ConfigGitValidationIssue[]): string {
+  return issues
     .slice(0, 8)
     .map((item) => `${item.path}: ${item.message}`)
     .join("; ");
-  throw new Error(`configuration validation failed: ${summary}`);
+}
+
+function assertValid(validation: ConfigGitValidation) {
+  if (validation.valid) return;
+  throw new Error(
+    `configuration validation failed: ${issuesSummary(validation.issues)}`,
+  );
 }
 
 async function assertNoSensitiveTrackedFiles(repository: string) {
   const tracked = await tryGit(repository, ["ls-files"]);
   const forbidden = (tracked?.split("\n") ?? []).find((path) =>
-    forbiddenTrackedPath.test(path),
+    configGitSensitivePathPattern.test(path),
   );
   if (forbidden) {
     throw new Error(`repository tracks sensitive path: ${forbidden}`);
@@ -189,7 +199,7 @@ async function validateCommit(commit: string): Promise<ConfigGitValidation> {
 
 async function assertPreparedRepository() {
   await assertConfigGitRepository();
-  ensureLocalExclude(config.configDir);
+  await ensureLocalExclude(config.configDir);
 }
 
 async function mutation(
@@ -224,7 +234,11 @@ export function initConfigRepository(
     const validation = validateConfigRoot(config.configDir);
     assertValid(validation);
     if (!existsSync(config.configGitignoreFile)) {
-      writeFileSync(config.configGitignoreFile, CONFIG_GITIGNORE_CONTENT, "utf8");
+      writeFileSync(
+        config.configGitignoreFile,
+        CONFIG_GITIGNORE_CONTENT,
+        "utf8",
+      );
     }
 
     const initialized = await runGit(config.configDir, [
@@ -233,7 +247,7 @@ export function initConfigRepository(
       input.branch,
     ]);
     try {
-      ensureLocalExclude(config.configDir);
+      await ensureLocalExclude(config.configDir);
       if (input.authorName) {
         await runGit(config.configDir, [
           "config",
@@ -355,7 +369,7 @@ export function cloneConfigRepository(
           copyFileSync(source, destination);
         }
       }
-      ensureLocalExclude(staging);
+      await ensureLocalExclude(staging);
       backupPath = `${config.configDir}.backup-${Date.now()}`;
       if (existsSync(config.configDir))
         renameSync(config.configDir, backupPath);
@@ -419,20 +433,12 @@ export function pullConfigRepository(): Promise<ConfigGitMutationResult> {
         "local and upstream branches have diverged; merge manually",
       );
     }
-    const upstreamCommit = await runGit(config.configDir, [
-      "rev-parse",
-      "--verify",
-      `${upstream}^{commit}`,
-    ]);
-    const validation = await validateCommit(upstreamCommit.stdout.trim());
+    const upstreamCommit = await resolveConfigGitCommit(upstream);
+    const validation = await validateCommit(upstreamCommit);
     assertValid(validation);
-    const machineState = snapshotMachineStateFiles(config.configDir);
-    const merged = await runGit(config.configDir, [
-      "merge",
-      "--ff-only",
-      upstream,
-    ]);
-    restoreMachineStateFiles(config.configDir, machineState);
+    const merged = await withMachineStatePreserved(config.configDir, () =>
+      runGit(config.configDir, ["merge", "--ff-only", upstream]),
+    );
     reloadPortableConfigCaches();
     return {
       output: [gitOutput(fetched), gitOutput(merged)]
@@ -462,24 +468,22 @@ export function switchConfigBranch(
       `refs/remotes/origin/${input.branch}`,
     ]);
     if (!local && !remote) throw new Error(`unknown branch: ${input.branch}`);
-    const commit = await runGit(config.configDir, [
-      "rev-parse",
-      "--verify",
-      `${local ? input.branch : `origin/${input.branch}`}^{commit}`,
-    ]);
-    const validation = await validateCommit(commit.stdout.trim());
+    const commit = await resolveConfigGitCommit(
+      local ? input.branch : `origin/${input.branch}`,
+    );
+    const validation = await validateCommit(commit);
     assertValid(validation);
-    const machineState = snapshotMachineStateFiles(config.configDir);
-    const result = local
-      ? await runGit(config.configDir, ["switch", input.branch])
-      : await runGit(config.configDir, [
-          "switch",
-          "--track",
-          "-c",
-          input.branch,
-          `origin/${input.branch}`,
-        ]);
-    restoreMachineStateFiles(config.configDir, machineState);
+    const result = await withMachineStatePreserved(config.configDir, () =>
+      local
+        ? runGit(config.configDir, ["switch", input.branch])
+        : runGit(config.configDir, [
+            "switch",
+            "--track",
+            "-c",
+            input.branch,
+            `origin/${input.branch}`,
+          ]),
+    );
     reloadPortableConfigCaches();
     return { output: gitOutput(result), validation };
   });
@@ -494,21 +498,12 @@ export function createConfigBranch(
     await assertClean();
     await assertBranchName(input.branch);
     const startPoint = input.startPoint ?? "HEAD";
-    const commit = await runGit(config.configDir, [
-      "rev-parse",
-      "--verify",
-      `${startPoint}^{commit}`,
-    ]);
-    const validation = await validateCommit(commit.stdout.trim());
+    const commit = await resolveConfigGitCommit(startPoint);
+    const validation = await validateCommit(commit);
     assertValid(validation);
-    const machineState = snapshotMachineStateFiles(config.configDir);
-    const result = await runGit(config.configDir, [
-      "switch",
-      "-c",
-      input.branch,
-      commit.stdout.trim(),
-    ]);
-    restoreMachineStateFiles(config.configDir, machineState);
+    const result = await withMachineStatePreserved(config.configDir, () =>
+      runGit(config.configDir, ["switch", "-c", input.branch, commit]),
+    );
     reloadPortableConfigCaches();
     return { output: gitOutput(result), validation };
   });
@@ -521,17 +516,12 @@ export function checkoutConfigCommit(
     assertConfigContentCanChange();
     await assertPreparedRepository();
     await assertClean();
-    const commit = await runGit(config.configDir, [
-      "rev-parse",
-      "--verify",
-      `${input.commit}^{commit}`,
-    ]);
-    const hash = commit.stdout.trim();
+    const hash = await resolveConfigGitCommit(input.commit);
     const validation = await validateCommit(hash);
     assertValid(validation);
-    const machineState = snapshotMachineStateFiles(config.configDir);
-    const result = await runGit(config.configDir, ["switch", "--detach", hash]);
-    restoreMachineStateFiles(config.configDir, machineState);
+    const result = await withMachineStatePreserved(config.configDir, () =>
+      runGit(config.configDir, ["switch", "--detach", hash]),
+    );
     reloadPortableConfigCaches();
     return { output: gitOutput(result), validation };
   });
@@ -562,18 +552,33 @@ export function resetConfigChanges(
 
 const MAX_RESTORE_BLOB_BYTES = 1024 * 1024;
 
-function issuesSummary(issues: ConfigGitValidationIssue[]): string {
-  return issues
-    .slice(0, 8)
-    .map((item) => `${item.path}: ${item.message}`)
-    .join("; ");
-}
-
-function atomicWriteConfigFile(absolute: string, content: string) {
-  mkdirSync(dirname(absolute), { recursive: true });
-  const tmp = `${absolute}.${process.pid}.tmp`;
-  writeFileSync(tmp, content, "utf8");
-  renameSync(tmp, absolute);
+async function loadRestoreBlob(
+  hash: string,
+  ref: string,
+  path: string,
+): Promise<{
+  path: string;
+  issues: ConfigGitValidationIssue[];
+  content: string | null;
+}> {
+  const objectName = `${hash}:${path}`;
+  const type = await tryGit(config.configDir, ["cat-file", "-t", objectName]);
+  if (type !== "blob") {
+    const message =
+      type === "tree" ? `is a directory at ${ref}` : `does not exist at ${ref}`;
+    return { path, issues: [{ path, message }], content: null };
+  }
+  const size = Number(
+    (await tryGit(config.configDir, ["cat-file", "-s", objectName])) ?? 0,
+  );
+  if (size > MAX_RESTORE_BLOB_BYTES) {
+    const message = `file at ${ref} exceeds ${MAX_RESTORE_BLOB_BYTES} bytes`;
+    return { path, issues: [{ path, message }], content: null };
+  }
+  const content = (
+    await runGit(config.configDir, ["cat-file", "blob", objectName])
+  ).stdout;
+  return { path, issues: validateConfigBlob(path, content), content };
 }
 
 export function restoreConfigFiles(
@@ -582,75 +587,39 @@ export function restoreConfigFiles(
   return mutation("restore-files", async () => {
     await assertPreparedRepository();
     const paths = [...new Set(input.paths)];
-    const pathErrors: string[] = [];
+    const pathIssues: ConfigGitValidationIssue[] = [];
     for (const path of paths) {
-      try {
-        assertSafeConfigRelativePath(path);
-      } catch (error) {
-        pathErrors.push((error as Error).message);
-        continue;
-      }
-      if (
-        classifyConfigGitPath(path) === null ||
-        forbiddenTrackedPath.test(path)
-      ) {
-        pathErrors.push(`not a restorable configuration file: ${path}`);
+      if (!isPlainRelativeConfigGitPath(path)) {
+        pathIssues.push({ path, message: "invalid configuration path" });
+      } else if (!isRestorableConfigGitPath(path)) {
+        pathIssues.push({
+          path,
+          message: "not a restorable configuration file",
+        });
       }
     }
-    if (pathErrors.length > 0) {
-      throw new Error(pathErrors.slice(0, 8).join("; "));
+    if (pathIssues.length > 0) {
+      throw new Error(issuesSummary(pathIssues));
     }
-    if (paths.includes("settings.json")) {
+    if (paths.some((path) => classifyConfigGitPath(path) === "settings")) {
       assertConfigContentCanChange();
     }
-    if (input.ref.startsWith("-")) {
-      throw new Error(`unknown ref: ${input.ref}`);
-    }
-    const resolvedRef = await runGit(config.configDir, [
-      "rev-parse",
-      "--verify",
-      "--end-of-options",
-      `${input.ref}^{commit}`,
-    ]);
-    const hash = resolvedRef.stdout.trim();
+    const hash = await resolveConfigGitCommit(input.ref);
 
-    const blobs = new Map<string, string>();
-    const blobIssues: ConfigGitValidationIssue[] = [];
-    for (const path of paths) {
-      const objectName = `${hash}:${path}`;
-      const type = await tryGit(config.configDir, [
-        "cat-file",
-        "-t",
-        objectName,
-      ]);
-      if (type !== "blob") {
-        blobIssues.push({
-          path,
-          message:
-            type === "tree"
-              ? `is a directory at ${input.ref}`
-              : `does not exist at ${input.ref}`,
-        });
-        continue;
-      }
-      const size = Number(
-        (await tryGit(config.configDir, ["cat-file", "-s", objectName])) ?? 0,
-      );
-      if (size > MAX_RESTORE_BLOB_BYTES) {
-        blobIssues.push({
-          path,
-          message: `file at ${input.ref} exceeds ${MAX_RESTORE_BLOB_BYTES} bytes`,
-        });
-        continue;
-      }
-      const content = (
-        await runGit(config.configDir, ["cat-file", "blob", objectName])
-      ).stdout;
-      blobIssues.push(...validateConfigBlob(path, content));
-      blobs.set(path, content);
-    }
+    const blobResults = await Promise.all(
+      paths.map((path) => loadRestoreBlob(hash, input.ref, path)),
+    );
+    const blobIssues = blobResults.flatMap((result) => result.issues);
     if (blobIssues.length > 0) {
-      throw new Error(`restore validation failed: ${issuesSummary(blobIssues)}`);
+      throw new Error(
+        `restore validation failed: ${issuesSummary(blobIssues)}`,
+      );
+    }
+    const blobs = new Map<string, string>();
+    for (const result of blobResults) {
+      if (result.content !== null) {
+        blobs.set(result.path, result.content);
+      }
     }
 
     const written: string[] = [];
@@ -671,7 +640,7 @@ export function restoreConfigFiles(
       } else {
         snapshots.set(path, null);
       }
-      atomicWriteConfigFile(absolute, content);
+      atomicWriteFile(absolute, content);
       written.push(path);
     }
 
@@ -691,7 +660,7 @@ export function restoreConfigFiles(
           if (previous === null) {
             rmSync(absolute, { force: true });
           } else {
-            atomicWriteConfigFile(absolute, previous);
+            atomicWriteFile(absolute, previous);
           }
         }
       } catch (rollbackError) {

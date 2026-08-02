@@ -3,6 +3,8 @@ import {
   spawn,
   type ExecFileSyncOptionsWithStringEncoding,
 } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
@@ -231,5 +233,27 @@ export function tryGitSync(cwd: string, args: string[]): string | null {
     return runGitSync(cwd, args) || null;
   } catch {
     return null;
+  }
+}
+
+export async function isExactGitRepository(path: string): Promise<boolean> {
+  if (!existsSync(path)) return false;
+  try {
+    const result = await runGit(path, ["rev-parse", "--show-toplevel"]);
+    return realpathSync(result.stdout.trim()) === realpathSync(resolve(path));
+  } catch {
+    return false;
+  }
+}
+
+export function isExactGitRepositorySync(path: string): boolean {
+  if (!existsSync(path)) return false;
+  try {
+    return (
+      realpathSync(runGitSync(path, ["rev-parse", "--show-toplevel"])) ===
+      realpathSync(resolve(path))
+    );
+  } catch {
+    return false;
   }
 }

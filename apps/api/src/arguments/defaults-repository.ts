@@ -14,13 +14,14 @@ import {
 
 import { config } from "../config.js";
 import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
+import { sortedByKey } from "../utils/sort.js";
 
 const filePath = config.argumentDefaultsFile;
 const seedPath = config.argumentDefaultsSeedFile;
 
 function normalizeDefaults(defaults: ArgumentDefault[]) {
   const seen = new Set<string>();
-  return defaults
+  const cleaned = defaults
     .map((item) => ({
       key: item.key.trim(),
       value: item.value.trim(),
@@ -32,10 +33,8 @@ function normalizeDefaults(defaults: ArgumentDefault[]) {
       }
       seen.add(item.key);
       return true;
-    })
-    .sort((left, right) =>
-      left.key < right.key ? -1 : left.key > right.key ? 1 : 0,
-    );
+    });
+  return sortedByKey(cleaned, (item) => item.key);
 }
 
 function ensureFile() {

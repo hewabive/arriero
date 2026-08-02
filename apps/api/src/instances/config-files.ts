@@ -1,13 +1,5 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
+import { resolve } from "node:path";
 
 import {
   InstanceConfigRecordSchema,
@@ -16,6 +8,8 @@ import {
 
 import { config } from "../config.js";
 import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
+import { compareStrings } from "../utils/sort.js";
 
 const instancesDir = config.instancesDir;
 
@@ -25,17 +19,10 @@ function recordPath(name: string): string {
   return resolve(instancesDir, `${name}.json`);
 }
 
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
-
 function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
   return Object.fromEntries(
     Object.entries(record).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0,
+      compareStrings(left, right),
     ),
   );
 }
@@ -100,7 +87,7 @@ export function writeInstanceRecord(
     env: sortedRecord(parsed.env),
   };
   const map = load();
-  atomicWrite(
+  atomicWriteFile(
     recordPath(validated.name),
     `${JSON.stringify(toPortableConfig(validated), null, 2)}\n`,
   );

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 import {
@@ -8,7 +8,7 @@ import {
 import { config } from "./config.js";
 import { hasPortablePathCandidate } from "./config-paths.js";
 import {
-  listInstanceRecords,
+  getInstanceRecord,
   writeInstanceRecord,
 } from "./instances/config-files.js";
 import { NODES_FILE, rewriteNodesFile } from "./nodes/repository.js";
@@ -17,17 +17,14 @@ import {
   listPathCatalogEntries,
   seedPathCatalog,
 } from "./path-catalog/repository.js";
-import {
-  ENDPOINTS_FILE,
-  rewriteStoredEndpoints,
-} from "./proxy/endpoints.js";
+import { ENDPOINTS_FILE, rewriteStoredEndpoints } from "./proxy/endpoints.js";
 import {
   MODELS_FILE,
   PIPELINES_FILE,
   TARGETS_FILE,
   rewriteApiProxyCollections,
 } from "./proxy/repository.js";
-import { rewriteStoredSources } from "./proxy/sources.js";
+import { SOURCES_FILE, rewriteStoredSources } from "./proxy/sources.js";
 import {
   RESOURCES_FILE,
   rewriteResourcePoolsFile,
@@ -74,16 +71,15 @@ function settingsHasTimestampKeys(json: unknown): boolean {
   return hasTimestampKeys(settings.llamaSource);
 }
 
-function trackedCollectionIsStale(json: unknown): boolean {
-  return hasPortablePathCandidate(json) || collectionHasTimestampKeys(json);
-}
-
 function fileIsStale(
   path: string,
-  stale: (json: unknown) => boolean,
+  extraStale?: (json: unknown) => boolean,
 ): boolean {
   const json = readJsonFile(path);
-  return json !== undefined && stale(json);
+  return (
+    json !== undefined &&
+    (hasPortablePathCandidate(json) || (extraStale?.(json) ?? false))
+  );
 }
 
 export function normalizeConfigFiles(): string[] {
@@ -92,58 +88,68 @@ export function normalizeConfigFiles(): string[] {
     rewritten.push(relative(config.configDir, path));
   };
 
-  if (
-    fileIsStale(
-      config.settingsFile,
-      (json) => hasPortablePathCandidate(json) || settingsHasTimestampKeys(json),
-    )
-  ) {
+  if (fileIsStale(config.settingsFile, settingsHasTimestampKeys)) {
     writeSettings(readSettings());
     track(config.settingsFile);
   }
-  if (fileIsStale(config.argumentDefaultsFile, hasPortablePathCandidate)) {
+  if (fileIsStale(config.argumentDefaultsFile)) {
     saveArgumentDefaults(getArgumentDefaults());
     track(config.argumentDefaultsFile);
   }
-  if (fileIsStale(PATH_CATALOG_FILE, hasPortablePathCandidate)) {
+  if (fileIsStale(PATH_CATALOG_FILE)) {
     seedPathCatalog(listPathCatalogEntries());
     track(PATH_CATALOG_FILE);
   }
-  for (const record of listInstanceRecords()) {
-    const path = resolve(config.instancesDir, `${record.name}.json`);
-    if (
-      fileIsStale(
-        path,
-        (json) => hasPortablePathCandidate(json) || hasTimestampKeys(json),
-      )
-    ) {
-      writeInstanceRecord(record);
-      track(path);
+  if (existsSync(config.instancesDir)) {
+    for (const entry of readdirSync(config.instancesDir, {
+      withFileTypes: true,
+    })) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        continue;
+      }
+      const path = resolve(config.instancesDir, entry.name);
+      if (!fileIsStale(path, hasTimestampKeys)) {
+        continue;
+      }
+      const record = getInstanceRecord(entry.name.slice(0, -".json".length));
+      if (record) {
+        writeInstanceRecord(record);
+        track(path);
+      }
     }
   }
 
-  const staleProxyCollections = [TARGETS_FILE, MODELS_FILE, PIPELINES_FILE]
-    .map((name) => resolve(config.proxyConfigDir, name))
-    .filter((path) => fileIsStale(path, trackedCollectionIsStale));
+  const staleProxyCollections = [
+    TARGETS_FILE,
+    MODELS_FILE,
+    PIPELINES_FILE,
+  ].filter((name) =>
+    fileIsStale(
+      resolve(config.proxyConfigDir, name),
+      collectionHasTimestampKeys,
+    ),
+  );
   if (staleProxyCollections.length > 0) {
-    rewriteApiProxyCollections();
-    staleProxyCollections.forEach(track);
+    rewriteApiProxyCollections(staleProxyCollections);
+    for (const name of staleProxyCollections) {
+      track(resolve(config.proxyConfigDir, name));
+    }
   }
   const endpointsPath = resolve(config.proxyConfigDir, ENDPOINTS_FILE);
-  if (fileIsStale(endpointsPath, trackedCollectionIsStale)) {
+  if (fileIsStale(endpointsPath, collectionHasTimestampKeys)) {
     rewriteStoredEndpoints();
     track(endpointsPath);
   }
-  const sourcesPath = resolve(config.proxyConfigDir, "sources.json");
-  if (fileIsStale(sourcesPath, trackedCollectionIsStale)) {
+  const sourcesPath = resolve(config.proxyConfigDir, SOURCES_FILE);
+  if (fileIsStale(sourcesPath, collectionHasTimestampKeys)) {
     rewriteStoredSources();
     track(sourcesPath);
   }
-  if (fileIsStale(NODES_FILE, trackedCollectionIsStale)) {
+  if (fileIsStale(NODES_FILE, collectionHasTimestampKeys)) {
     rewriteNodesFile();
     track(NODES_FILE);
   }
-  if (fileIsStale(RESOURCES_FILE, trackedCollectionIsStale)) {
+  if (fileIsStale(RESOURCES_FILE, collectionHasTimestampKeys)) {
     rewriteResourcePoolsFile();
     track(RESOURCES_FILE);
   }

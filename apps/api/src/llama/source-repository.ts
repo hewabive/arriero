@@ -9,10 +9,11 @@ import {
   type LlamaSourceSettingsUpdate,
   type LlamaSourceStatus,
 } from "@arriero/core";
-import { existsSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
-
-import { runGitSync, tryGitSync } from "../git/process.js";
+import {
+  isExactGitRepositorySync,
+  runGitSync,
+  tryGitSync,
+} from "../git/process.js";
 import {
   getSourceRepositoryDefinition,
   LLAMA_CPP_SOURCE_ID,
@@ -45,26 +46,16 @@ export function saveLlamaSourceSettings(
 
 export function getLlamaSourceCurrentCommit(): string | null {
   const repoPath = getLlamaSourceSettings().repoPath;
-  if (!isExactGitRepository(repoPath)) {
+  if (!isExactGitRepositorySync(repoPath)) {
     return null;
   }
   return tryGitSync(repoPath, ["rev-parse", "HEAD"]);
 }
 
-function isExactGitRepository(repoPath: string): boolean {
-  if (!existsSync(repoPath)) return false;
-  try {
-    const topLevel = runGitSync(repoPath, ["rev-parse", "--show-toplevel"]);
-    return realpathSync(topLevel) === realpathSync(resolve(repoPath));
-  } catch {
-    return false;
-  }
-}
-
 export function getLlamaSourceVersionLabel(
   repoPath = getLlamaSourceSettings().repoPath,
 ): string | null {
-  if (!isExactGitRepository(repoPath)) {
+  if (!isExactGitRepositorySync(repoPath)) {
     return null;
   }
   return (
@@ -95,7 +86,7 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
     dirty: null,
   };
   if (
-    !isExactGitRepository(repoPath) ||
+    !isExactGitRepositorySync(repoPath) ||
     getSourceRepositoryDefinition(LLAMA_CPP_SOURCE_ID).validateCheckout(
       repoPath,
     ) !== null

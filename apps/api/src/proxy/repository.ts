@@ -78,10 +78,12 @@ function persistPipelines(records: ApiProxyPipelineRecord[]) {
   );
 }
 
-export function rewriteApiProxyCollections(): void {
-  persistTargets(readTargets());
-  persistModels(readModels());
-  persistPipelines(readPipelines());
+export function rewriteApiProxyCollections(
+  files: string[] = [TARGETS_FILE, MODELS_FILE, PIPELINES_FILE],
+): void {
+  if (files.includes(TARGETS_FILE)) persistTargets(readTargets());
+  if (files.includes(MODELS_FILE)) persistModels(readModels());
+  if (files.includes(PIPELINES_FILE)) persistPipelines(readPipelines());
 }
 
 export function listApiProxyTargets(): ApiProxyTargetRecord[] {

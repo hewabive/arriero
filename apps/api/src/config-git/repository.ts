@@ -11,25 +11,21 @@ import {
   type ConfigGitFileStatus,
   type ConfigGitStatus,
 } from "@arriero/core";
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
 import { assertSafeConfigRelativePath } from "./paths.js";
-import { gitOutput, redactGitOutput, runGit, tryGit } from "./process.js";
+import {
+  gitOutput,
+  isExactGitRepository,
+  redactGitOutput,
+  runGit,
+  tryGit,
+} from "./process.js";
 import { getActiveConfigGitOperation } from "./state.js";
 
 const DIFF_LIMIT = 512 * 1024;
-
-async function isGitRepository(path: string): Promise<boolean> {
-  if (!existsSync(path)) return false;
-  try {
-    const result = await runGit(path, ["rev-parse", "--show-toplevel"]);
-    return realpathSync(result.stdout.trim()) === realpathSync(resolve(path));
-  } catch {
-    return false;
-  }
-}
 
 function parseFileStatuses(output: string): ConfigGitFileStatus[] {
   return output
@@ -163,7 +159,7 @@ function emptyStatus(error: string | null): ConfigGitStatus {
 
 export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
   const path = config.configDir;
-  if (!(await isGitRepository(path))) return emptyStatus(null);
+  if (!(await isExactGitRepository(path))) return emptyStatus(null);
   try {
     const [
       head,
@@ -235,7 +231,7 @@ function limitDiff(value: string): { text: string; truncated: boolean } {
 }
 
 export async function getConfigGitDiff(path?: string): Promise<ConfigGitDiff> {
-  if (!(await isGitRepository(config.configDir))) {
+  if (!(await isExactGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
   }
   const pathspec = path ? ["--", assertSafeConfigRelativePath(path)] : [];
@@ -295,7 +291,7 @@ function parseCommits(output: string): ConfigGitCommit[] {
 const LOG_FORMAT = "%H%x1f%h%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e";
 
 export async function getConfigGitLog(limit = 50): Promise<ConfigGitCommit[]> {
-  if (!(await isGitRepository(config.configDir))) {
+  if (!(await isExactGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
   }
   const head = await tryGit(config.configDir, [
@@ -316,35 +312,36 @@ export async function getConfigGitLog(limit = 50): Promise<ConfigGitCommit[]> {
 function parseNameStatus(output: string): ConfigGitCommitFileChange[] {
   const parts = output.split("\0").filter(Boolean);
   const files: ConfigGitCommitFileChange[] = [];
-  let index = 0;
-  while (index < parts.length) {
-    const status = parts[index] ?? "";
-    const consumesTwoPaths = status.startsWith("R") || status.startsWith("C");
-    const path = parts[index + (consumesTwoPaths ? 2 : 1)];
-    if (path) {
-      files.push({ path, status: status.slice(0, 1) || "M" });
+  for (let index = 0; index + 1 < parts.length; index += 2) {
+    const status = parts[index];
+    const path = parts[index + 1];
+    if (status && path) {
+      files.push({ path, status: status.slice(0, 1) });
     }
-    index += consumesTwoPaths ? 3 : 2;
   }
   return files;
 }
 
-export async function getConfigGitCommit(
-  commit: string,
-): Promise<ConfigGitCommitDetail> {
-  if (!(await isGitRepository(config.configDir))) {
-    throw new Error("configuration directory is not a git repository");
-  }
-  if (commit.startsWith("-")) {
-    throw new Error(`commit not found: ${commit}`);
+export async function resolveConfigGitCommit(ref: string): Promise<string> {
+  if (ref.startsWith("-")) {
+    throw new Error(`unknown ref: ${ref}`);
   }
   const verified = await runGit(config.configDir, [
     "rev-parse",
     "--verify",
     "--end-of-options",
-    `${commit}^{commit}`,
+    `${ref}^{commit}`,
   ]);
-  const hash = verified.stdout.trim();
+  return verified.stdout.trim();
+}
+
+export async function getConfigGitCommit(
+  commit: string,
+): Promise<ConfigGitCommitDetail> {
+  if (!(await isExactGitRepository(config.configDir))) {
+    throw new Error("configuration directory is not a git repository");
+  }
+  const hash = await resolveConfigGitCommit(commit);
   const [result, changed, tree] = await Promise.all([
     runGit(config.configDir, [
       "show",
@@ -372,7 +369,7 @@ export async function getConfigGitCommit(
 }
 
 export async function assertConfigGitRepository(): Promise<void> {
-  if (!(await isGitRepository(config.configDir))) {
+  if (!(await isExactGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
   }
 }

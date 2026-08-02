@@ -6,7 +6,6 @@ import { ApiProxyServeRequestSchema } from "@arriero/core";
 import { instanceEndpointId } from "./endpoints.js";
 import { ephemeralTarget } from "./serve-pinned.js";
 
-
 function serveRequest(overrides: Record<string, unknown> = {}) {
   return ApiProxyServeRequestSchema.parse({
     instanceId: "qwen-big",

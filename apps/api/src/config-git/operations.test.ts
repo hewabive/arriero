@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 test("untrackMachineStateFiles stages removal once and keeps worktree files", async () => {
-  const untracked = untrackMachineStateFiles();
+  const untracked = await untrackMachineStateFiles();
   assert.deepEqual(untracked.sort(), ["envs.json", "path-catalog.json"]);
 
   const gitignore = readFileSync(
@@ -84,7 +84,7 @@ test("untrackMachineStateFiles stages removal once and keeps worktree files", as
   assert.match(status, /D {2}path-catalog\.json/);
   assert.ok(existsSync(resolve(config.configDir, "path-catalog.json")));
 
-  assert.deepEqual(untrackMachineStateFiles(), []);
+  assert.deepEqual(await untrackMachineStateFiles(), []);
 
   const committed = await commitConfigChanges({
     message: "untrack machine state",
@@ -98,7 +98,7 @@ test("untrackMachineStateFiles stages removal once and keeps worktree files", as
 
 test("tree operations preserve untracked machine-state files", async () => {
   const legacyHead = git(["rev-parse", "HEAD"]);
-  untrackMachineStateFiles();
+  await untrackMachineStateFiles();
   await commitConfigChanges({
     message: "untrack machine state",
     authorName: null,
@@ -119,10 +119,7 @@ test("tree operations preserve untracked machine-state files", async () => {
 
   const detached = await checkoutConfigCommit({ commit: legacyHead });
   assert.equal(detached.status.detached, true);
-  assert.equal(
-    JSON.parse(readFileSync(catalogPath, "utf8")).length,
-    0,
-  );
+  assert.equal(JSON.parse(readFileSync(catalogPath, "utf8")).length, 0);
 
   const back = await switchConfigBranch({ branch: "main" });
   assert.equal(back.status.dirty, false);

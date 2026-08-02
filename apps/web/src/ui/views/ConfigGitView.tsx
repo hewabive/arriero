@@ -1,5 +1,5 @@
 import {
-  classifyConfigGitPath,
+  isRestorableConfigGitPath,
   type ConfigGitCommit,
   type ConfigGitMutationResult,
   type ConfigGitStatus,
@@ -51,14 +51,16 @@ import { formatLocalDateTime } from "../utils/time";
 type MutationResponse = { data: ConfigGitMutationResult };
 
 function useConfigMutation<T>(
-  title: string,
+  title: string | ((input: T) => string),
   mutationFn: (input: T) => Promise<MutationResponse>,
   afterSuccess?: () => void,
 ) {
   const queryClient = useQueryClient();
+  const titleFor = (input: T) =>
+    typeof title === "function" ? title(input) : title;
   return useMutation({
     mutationFn,
-    onSuccess: async (result) => {
+    onSuccess: async (result, input) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["config-git-status"] }),
         queryClient.invalidateQueries({ queryKey: ["config-git-diff"] }),
@@ -74,14 +76,14 @@ function useConfigMutation<T>(
         ? ` Backup: ${result.data.backupPath}`
         : "";
       notifications.show({
-        title,
+        title: titleFor(input),
         message: `${result.data.output.slice(0, 300) || "Completed successfully"}${backup}`,
       });
     },
-    onError: (error) => {
+    onError: (error, input) => {
       notifications.show({
         color: "red",
-        title: `${title} failed`,
+        title: `${titleFor(input)} failed`,
         message: (error as Error).message,
       });
     },
@@ -241,18 +243,13 @@ export function ConfigGitView() {
       setIncludeUntracked(false);
     },
   );
-  const discardFileMutation = useConfigMutation(
-    "File change discarded",
-    (path: string) => restoreConfigFiles({ ref: "HEAD", paths: [path] }),
-    () => setDiscardPath(null),
-  );
   const restoreFilesMutation = useConfigMutation(
-    "Files restored",
+    (input: { ref: string; paths: string[] }) =>
+      input.ref === "HEAD" ? "File change discarded" : "Files restored",
     (input: { ref: string; paths: string[] }) => restoreConfigFiles(input),
     () => {
+      setDiscardPath(null);
       setRestoreCommit(null);
-      setRestorePaths([]);
-      setShowFullTree(false);
     },
   );
 
@@ -268,7 +265,6 @@ export function ConfigGitView() {
     checkoutMutation,
     commitMutation,
     resetMutation,
-    discardFileMutation,
     restoreFilesMutation,
   ];
   const busy = mutations.some((mutation) => mutation.isPending);
@@ -620,7 +616,7 @@ export function ConfigGitView() {
                           disabled={
                             busy ||
                             file.index === "?" ||
-                            classifyConfigGitPath(file.path) === null
+                            !isRestorableConfigGitPath(file.path)
                           }
                           onClick={() => setDiscardPath(file.path)}
                         >
@@ -935,9 +931,14 @@ export function ConfigGitView() {
             </Button>
             <Button
               color="red"
-              loading={discardFileMutation.isPending}
+              loading={restoreFilesMutation.isPending}
               onClick={() => {
-                if (discardPath) discardFileMutation.mutate(discardPath);
+                if (discardPath) {
+                  restoreFilesMutation.mutate({
+                    ref: "HEAD",
+                    paths: [discardPath],
+                  });
+                }
               }}
             >
               Discard file changes
@@ -976,7 +977,7 @@ export function ConfigGitView() {
                   key={candidate.path}
                   checked={restorePaths.includes(candidate.path)}
                   disabled={
-                    classifyConfigGitPath(candidate.path) === null ||
+                    !isRestorableConfigGitPath(candidate.path) ||
                     candidate.status === "D"
                   }
                   onChange={() => toggleRestorePath(candidate.path)}

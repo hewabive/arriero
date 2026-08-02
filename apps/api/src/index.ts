@@ -63,7 +63,7 @@ migrate();
 ensureConfigScaffold();
 const appliedMigrations = runMigrations();
 const normalizedConfigFiles = normalizeConfigFiles();
-const untrackedMachineState = untrackMachineStateFiles();
+const untrackedMachineState = await untrackMachineStateFiles();
 initAppSettings();
 initArgumentDefaults();
 const systemMetricsPersistence = initSystemMetricsPersistence(

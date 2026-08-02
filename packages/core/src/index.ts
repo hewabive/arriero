@@ -2695,6 +2695,17 @@ export const ConfigGitCommitInputSchema = z.object({
   authorEmail: z.string().trim().email().max(320).nullable().default(null),
 });
 
+export const CONFIG_GIT_PROXY_COLLECTIONS = [
+  "targets",
+  "models",
+  "pipelines",
+  "endpoints",
+  "sources",
+] as const;
+
+export type ConfigGitProxyCollection =
+  (typeof CONFIG_GIT_PROXY_COLLECTIONS)[number];
+
 export type ConfigGitPortableFileKind =
   | "settings"
   | "argument-defaults"
@@ -2702,16 +2713,13 @@ export type ConfigGitPortableFileKind =
   | "nodes"
   | "instance"
   | "preset"
-  | "proxy-targets"
-  | "proxy-models"
-  | "proxy-pipelines"
-  | "proxy-endpoints"
-  | "proxy-sources";
+  | `proxy-${ConfigGitProxyCollection}`;
 
 const configGitInstancePathPattern = /^instances\/[A-Za-z0-9._-]+\.json$/;
 const configGitPresetPathPattern = /^presets\/[A-Za-z0-9._-]+\.ini$/;
-const configGitProxyPathPattern =
-  /^proxy\/(targets|models|pipelines|endpoints|sources)\.json$/;
+const configGitProxyPathPattern = new RegExp(
+  `^proxy/(${CONFIG_GIT_PROXY_COLLECTIONS.join("|")})\\.json$`,
+);
 
 export function classifyConfigGitPath(
   path: string,
@@ -2741,21 +2749,37 @@ export function classifyConfigGitPath(
   return null;
 }
 
+export function isPlainRelativeConfigGitPath(path: string): boolean {
+  return (
+    path.length > 0 &&
+    path.length <= 512 &&
+    !path.startsWith("/") &&
+    !path.includes("\\") &&
+    !path.includes("\0") &&
+    !path.endsWith("/") &&
+    path
+      .split("/")
+      .every((segment) => segment !== "" && segment !== "." && segment !== "..")
+  );
+}
+
+export const configGitSensitivePathPattern =
+  /(^|\/)(\.secrets\.json|\.env(?:\..*)?|.*\.(?:pem|key))$/i;
+
+export function isRestorableConfigGitPath(path: string): boolean {
+  return (
+    classifyConfigGitPath(path) !== null &&
+    !configGitSensitivePathPattern.test(path)
+  );
+}
+
 const ConfigGitRestorePathSchema = z
   .string()
   .min(1)
   .max(512)
-  .refine(
-    (path) =>
-      !path.startsWith("/") &&
-      !path.includes("\\") &&
-      !path.includes("\0") &&
-      !path.endsWith("/") &&
-      path
-        .split("/")
-        .every((segment) => segment !== "" && segment !== "." && segment !== ".."),
-    { message: "path must be a plain relative file path" },
-  );
+  .refine(isPlainRelativeConfigGitPath, {
+    message: "path must be a plain relative file path",
+  });
 
 export const ConfigGitRestoreFilesSchema = z.object({
   ref: z.string().trim().min(1).max(255),

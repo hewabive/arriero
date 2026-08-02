@@ -1,16 +1,12 @@
 import {
-  ApiEndpointRecordSchema,
   ApiProxyModelRecordSchema,
   ApiProxyPipelineRecordSchema,
-  ApiProxySourceRecordSchema,
   ApiProxyTargetRecordSchema,
   AppSettingsFileSchema,
   ArgumentDefaultsSchema,
-  EnvironmentSpecSchema,
   FleetNodeSchema,
   InstanceConfigRecordSchema,
   MemoryPoolSchema,
-  PathCatalogEntrySchema,
   classifyConfigGitPath,
   type ConfigGitPortableFileKind,
   type ConfigGitValidation,
@@ -23,27 +19,10 @@ import { z } from "zod";
 
 import { parseModelPresetIni } from "../presets/ini.js";
 import { presetFileHasErrors } from "../presets/validate.js";
+import { StoredEndpointSchema } from "../proxy/endpoints.js";
 import { validateApiProxyPipelineGraph } from "../proxy/pipeline-validation.js";
-
-const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
-  id: true,
-  name: true,
-  enabled: true,
-  baseUrl: true,
-  profile: true,
-  apiKeyEnvVar: true,
-  authHeaderName: true,
-  extraHeaders: true,
-  passthrough: true,
-  modelFilter: true,
-});
-
-const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
-  id: true,
-  name: true,
-  enabled: true,
-  note: true,
-});
+import { StoredSourceSchema } from "../proxy/sources.js";
+import { MACHINE_STATE_FILE_SCHEMAS } from "./machine-state.js";
 
 function issuePath(root: string, path: string): string {
   return relative(root, path) || ".";
@@ -111,10 +90,12 @@ function presetContentIssues(
     .map((diagnostic) => ({ path: displayPath, message: diagnostic.message }));
 }
 
-const portableJsonSchemas: Record<
-  Exclude<ConfigGitPortableFileKind, "instance" | "preset">,
-  z.ZodType
-> = {
+type PortableJsonKind = Exclude<
+  ConfigGitPortableFileKind,
+  "instance" | "preset"
+>;
+
+const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
   settings: AppSettingsFileSchema,
   "argument-defaults": ArgumentDefaultsSchema,
   resources: z.array(MemoryPoolSchema),
@@ -125,6 +106,12 @@ const portableJsonSchemas: Record<
   "proxy-endpoints": z.array(StoredEndpointSchema),
   "proxy-sources": z.array(StoredSourceSchema),
 };
+
+function portableJsonFilePath(kind: PortableJsonKind): string {
+  return kind.startsWith("proxy-")
+    ? `proxy/${kind.slice("proxy-".length)}.json`
+    : `${kind}.json`;
+}
 
 export function validateConfigBlob(
   path: string,
@@ -195,7 +182,11 @@ function validateInstances(
     ) as InstanceConfigRecord | null;
     if (!record) continue;
     const fileName = entry.name.slice(0, -".json".length);
-    const nameIssue = instanceNameIssue(issuePath(root, path), fileName, record);
+    const nameIssue = instanceNameIssue(
+      issuePath(root, path),
+      fileName,
+      record,
+    );
     if (nameIssue) issues.push(nameIssue);
     instances.push(record);
   }
@@ -226,13 +217,15 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
   }
 
   rejectSymlinks(root, root, issues);
+  const portableJsonEntries = Object.entries(portableJsonSchemas) as [
+    PortableJsonKind,
+    z.ZodType,
+  ][];
   const recognizedPaths = [
-    "settings.json",
-    "argument-defaults.json",
-    "resources.json",
-    "path-catalog.json",
-    "nodes.json",
-    "envs.json",
+    ...portableJsonEntries
+      .map(([kind]) => portableJsonFilePath(kind))
+      .filter((path) => !path.startsWith("proxy/")),
+    ...Object.keys(MACHINE_STATE_FILE_SCHEMAS),
     "instances",
     "presets",
     "proxy",
@@ -243,63 +236,31 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
       message: "repository contains no recognized configuration files",
     });
   }
-  readJson(root, resolve(root, "settings.json"), AppSettingsFileSchema, issues);
-  readJson(
-    root,
-    resolve(root, "argument-defaults.json"),
-    ArgumentDefaultsSchema,
-    issues,
-  );
-  const resources =
-    (readJson(
+  const parsed: Partial<Record<PortableJsonKind, unknown>> = {};
+  for (const [kind, schema] of portableJsonEntries) {
+    parsed[kind] = readJson(
       root,
-      resolve(root, "resources.json"),
-      z.array(MemoryPoolSchema),
+      resolve(root, portableJsonFilePath(kind)),
+      schema,
       issues,
-    ) as z.infer<typeof MemoryPoolSchema>[] | null) ?? [];
-  readJson(
-    root,
-    resolve(root, "path-catalog.json"),
-    z.array(PathCatalogEntrySchema),
-    issues,
-  );
-  readJson(root, resolve(root, "nodes.json"), z.array(FleetNodeSchema), issues);
-  readJson(root, resolve(root, "envs.json"), z.array(EnvironmentSpecSchema), issues);
+    );
+  }
+  for (const [name, schema] of Object.entries(MACHINE_STATE_FILE_SCHEMAS)) {
+    readJson(root, resolve(root, name), schema, issues);
+  }
   const instances = validateInstances(root, issues);
   validatePresets(root, issues);
 
+  const resources =
+    (parsed.resources as z.infer<typeof MemoryPoolSchema>[] | null) ?? [];
   const targets =
-    (readJson(
-      root,
-      resolve(root, "proxy/targets.json"),
-      z.array(ApiProxyTargetRecordSchema),
-      issues,
-    ) as z.infer<typeof ApiProxyTargetRecordSchema>[] | null) ?? [];
-  readJson(
-    root,
-    resolve(root, "proxy/models.json"),
-    z.array(ApiProxyModelRecordSchema),
-    issues,
-  );
+    (parsed["proxy-targets"] as
+      | z.infer<typeof ApiProxyTargetRecordSchema>[]
+      | null) ?? [];
   const pipelines =
-    (readJson(
-      root,
-      resolve(root, "proxy/pipelines.json"),
-      z.array(ApiProxyPipelineRecordSchema),
-      issues,
-    ) as z.infer<typeof ApiProxyPipelineRecordSchema>[] | null) ?? [];
-  readJson(
-    root,
-    resolve(root, "proxy/endpoints.json"),
-    z.array(StoredEndpointSchema),
-    issues,
-  );
-  readJson(
-    root,
-    resolve(root, "proxy/sources.json"),
-    z.array(StoredSourceSchema),
-    issues,
-  );
+    (parsed["proxy-pipelines"] as
+      | z.infer<typeof ApiProxyPipelineRecordSchema>[]
+      | null) ?? [];
 
   const resourceIds = new Set(resources.map((item) => item.id));
   for (const instance of instances) {

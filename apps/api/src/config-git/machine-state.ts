@@ -1,18 +1,20 @@
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { EnvironmentSpecSchema, PathCatalogEntrySchema } from "@arriero/core";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
+import { z } from "zod";
 
 import { config } from "../config.js";
-import { runGitSync, tryGitSync } from "../git/process.js";
+import { isExactGitRepository, runGit, tryGit } from "../git/process.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
 
-export const MACHINE_STATE_CONFIG_FILES = ["path-catalog.json", "envs.json"];
+export const MACHINE_STATE_FILE_SCHEMAS: Record<string, z.ZodType> = {
+  "path-catalog.json": z.array(PathCatalogEntrySchema),
+  "envs.json": z.array(EnvironmentSpecSchema),
+};
+
+export const MACHINE_STATE_CONFIG_FILES = Object.keys(
+  MACHINE_STATE_FILE_SCHEMAS,
+);
 
 export const CONFIG_GITIGNORE_ENTRIES = [
   ".secrets.json",
@@ -22,7 +24,7 @@ export const CONFIG_GITIGNORE_ENTRIES = [
 
 export const CONFIG_GITIGNORE_CONTENT = `${CONFIG_GITIGNORE_ENTRIES.join("\n")}\n`;
 
-function appendMissingLines(path: string, entries: string[]): string[] {
+function appendMissingLines(path: string, entries: string[]): void {
   const current = existsSync(path) ? readFileSync(path, "utf8") : "";
   const lines = current.split(/\r?\n/);
   const missing = entries.filter((entry) => !lines.includes(entry));
@@ -32,11 +34,10 @@ function appendMissingLines(path: string, entries: string[]): string[] {
       `${current && !current.endsWith("\n") ? "\n" : ""}${missing.join("\n")}\n`,
     );
   }
-  return missing;
 }
 
-export function ensureLocalExclude(repository: string): void {
-  const gitPath = tryGitSync(repository, [
+export async function ensureLocalExclude(repository: string): Promise<void> {
+  const gitPath = await tryGit(repository, [
     "rev-parse",
     "--git-path",
     "info/exclude",
@@ -58,39 +59,41 @@ export function snapshotMachineStateFiles(root: string): Map<string, string> {
   return snapshot;
 }
 
-export function restoreMachineStateFiles(
+export async function restoreMachineStateFiles(
   root: string,
   snapshot: Map<string, string>,
-): void {
+): Promise<void> {
+  if (snapshot.size === 0) return;
+  const tracked = new Set(
+    ((await tryGit(root, ["ls-files", "--", ...snapshot.keys()])) ?? "")
+      .split("\n")
+      .filter(Boolean),
+  );
   for (const [name, content] of snapshot) {
-    if (tryGitSync(root, ["ls-files", "--", name])) {
-      continue;
-    }
+    if (tracked.has(name)) continue;
     const path = resolve(root, name);
-    const tmp = `${path}.${process.pid}.tmp`;
-    writeFileSync(tmp, content, "utf8");
-    renameSync(tmp, path);
+    if (existsSync(path) && readFileSync(path, "utf8") === content) continue;
+    atomicWriteFile(path, content);
   }
 }
 
-function isConfigRepository(root: string): boolean {
-  if (!existsSync(root)) return false;
-  const toplevel = tryGitSync(root, ["rev-parse", "--show-toplevel"]);
-  if (!toplevel) return false;
-  try {
-    return realpathSync(toplevel) === realpathSync(root);
-  } catch {
-    return false;
-  }
+export async function withMachineStatePreserved<T>(
+  root: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  const snapshot = snapshotMachineStateFiles(root);
+  const result = await work();
+  await restoreMachineStateFiles(root, snapshot);
+  return result;
 }
 
-export function untrackMachineStateFiles(): string[] {
+export async function untrackMachineStateFiles(): Promise<string[]> {
   appendMissingLines(config.configGitignoreFile, CONFIG_GITIGNORE_ENTRIES);
-  if (!isConfigRepository(config.configDir)) {
+  if (!(await isExactGitRepository(config.configDir))) {
     return [];
   }
-  ensureLocalExclude(config.configDir);
-  const tracked = tryGitSync(config.configDir, [
+  await ensureLocalExclude(config.configDir);
+  const tracked = await tryGit(config.configDir, [
     "ls-files",
     "--",
     ...MACHINE_STATE_CONFIG_FILES,
@@ -99,7 +102,7 @@ export function untrackMachineStateFiles(): string[] {
     return [];
   }
   const files = tracked.split("\n").filter(Boolean);
-  runGitSync(config.configDir, [
+  await runGit(config.configDir, [
     "rm",
     "--cached",
     "--ignore-unmatch",
