@@ -1,4 +1,9 @@
-import type { ConfigGitMutationResult, ConfigGitStatus } from "@arriero/core";
+import {
+  classifyConfigGitPath,
+  type ConfigGitCommit,
+  type ConfigGitMutationResult,
+  type ConfigGitStatus,
+} from "@arriero/core";
 import {
   Alert,
   Badge,
@@ -27,6 +32,7 @@ import {
   commitConfigChanges,
   createConfigBranch,
   fetchConfigRepository,
+  getConfigGitCommit,
   getConfigGitDiff,
   getConfigGitLog,
   getConfigGitStatus,
@@ -35,9 +41,11 @@ import {
   pullConfigRepository,
   pushConfigRepository,
   resetConfigChanges,
+  restoreConfigFiles,
   setConfigRemote,
   switchConfigBranch,
 } from "../../api/client";
+import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
 
 type MutationResponse = { data: ConfigGitMutationResult };
@@ -114,6 +122,13 @@ export function ConfigGitView() {
   const [originDraft, setOriginDraft] = useState("");
   const [replaceOpened, setReplaceOpened] = useState(false);
   const [replaceConfirmation, setReplaceConfirmation] = useState("");
+  const [diffPath, setDiffPath] = useState<string | null>(null);
+  const [discardPath, setDiscardPath] = useState<string | null>(null);
+  const [restoreCommit, setRestoreCommit] = useState<ConfigGitCommit | null>(
+    null,
+  );
+  const [restorePaths, setRestorePaths] = useState<string[]>([]);
+  const [showFullTree, setShowFullTree] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: ["config-git-status"],
@@ -129,13 +144,23 @@ export function ConfigGitView() {
   });
   const diffQuery = useQuery({
     queryKey: ["config-git-diff"],
-    queryFn: getConfigGitDiff,
+    queryFn: () => getConfigGitDiff(),
     enabled: status?.isGitRepo === true,
   });
   const logQuery = useQuery({
     queryKey: ["config-git-log"],
     queryFn: () => getConfigGitLog(50),
     enabled: status?.isGitRepo === true && status.hasCommits,
+  });
+  const fileDiffQuery = useQuery({
+    queryKey: ["config-git-diff", diffPath],
+    queryFn: () => getConfigGitDiff(diffPath ?? undefined),
+    enabled: status?.isGitRepo === true && diffPath !== null,
+  });
+  const commitDetailQuery = useQuery({
+    queryKey: ["config-git-commit", restoreCommit?.hash],
+    queryFn: () => getConfigGitCommit(restoreCommit?.hash ?? ""),
+    enabled: restoreCommit !== null,
   });
 
   useEffect(() => {
@@ -216,6 +241,20 @@ export function ConfigGitView() {
       setIncludeUntracked(false);
     },
   );
+  const discardFileMutation = useConfigMutation(
+    "File change discarded",
+    (path: string) => restoreConfigFiles({ ref: "HEAD", paths: [path] }),
+    () => setDiscardPath(null),
+  );
+  const restoreFilesMutation = useConfigMutation(
+    "Files restored",
+    (input: { ref: string; paths: string[] }) => restoreConfigFiles(input),
+    () => {
+      setRestoreCommit(null);
+      setRestorePaths([]);
+      setShowFullTree(false);
+    },
+  );
 
   const mutations = [
     cloneMutation,
@@ -229,6 +268,8 @@ export function ConfigGitView() {
     checkoutMutation,
     commitMutation,
     resetMutation,
+    discardFileMutation,
+    restoreFilesMutation,
   ];
   const busy = mutations.some((mutation) => mutation.isPending);
   const branchOptions = useMemo(() => {
@@ -248,6 +289,20 @@ export function ConfigGitView() {
       ...(remote.length > 0 ? [{ group: "Remote", items: remote }] : []),
     ];
   }, [status]);
+
+  const commitDetail = commitDetailQuery.data?.data ?? null;
+  const restoreCandidates = useMemo<{ path: string; status?: string }[]>(() => {
+    if (!commitDetail) return [];
+    if (showFullTree) return commitDetail.tree.map((path) => ({ path }));
+    return commitDetail.files;
+  }, [commitDetail, showFullTree]);
+  const toggleRestorePath = (path: string) => {
+    setRestorePaths((current) =>
+      current.includes(path)
+        ? current.filter((item) => item !== path)
+        : [...current, path],
+    );
+  };
 
   if (!status && statusQuery.isError) {
     return (
@@ -535,14 +590,43 @@ export function ConfigGitView() {
               <ScrollArea.Autosize mah={260}>
                 <Stack gap={4}>
                   {status.files.map((file, index) => (
-                    <Group key={`${file.path}:${index}`} gap="xs" wrap="nowrap">
-                      <Code>
-                        {file.index}
-                        {file.worktree}
-                      </Code>
-                      <Text size="sm" className="text-wrap">
-                        {file.path}
-                      </Text>
+                    <Group
+                      key={`${file.path}:${index}`}
+                      gap="xs"
+                      justify="space-between"
+                      wrap="nowrap"
+                    >
+                      <Group gap="xs" wrap="nowrap">
+                        <Code>
+                          {file.index}
+                          {file.worktree}
+                        </Code>
+                        <Text size="sm" className="text-wrap">
+                          {file.path}
+                        </Text>
+                      </Group>
+                      <Group gap={4} wrap="nowrap">
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          onClick={() => setDiffPath(file.path)}
+                        >
+                          Diff
+                        </Button>
+                        <Button
+                          size="compact-xs"
+                          color="red"
+                          variant="subtle"
+                          disabled={
+                            busy ||
+                            file.index === "?" ||
+                            classifyConfigGitPath(file.path) === null
+                          }
+                          onClick={() => setDiscardPath(file.path)}
+                        >
+                          Discard
+                        </Button>
+                      </Group>
                     </Group>
                   ))}
                 </Stack>
@@ -632,14 +716,28 @@ export function ConfigGitView() {
                   {commit.authorName} · {formatLocalDateTime(commit.authoredAt)}
                 </Text>
               </Stack>
-              <Button
-                size="xs"
-                variant="subtle"
-                disabled={busy || status.dirty || commit.hash === status.head}
-                onClick={() => checkoutMutation.mutate(commit.hash)}
-              >
-                Check out
-              </Button>
+              <Group gap={4} wrap="nowrap">
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  disabled={busy}
+                  onClick={() => {
+                    setRestorePaths([]);
+                    setShowFullTree(false);
+                    setRestoreCommit(commit);
+                  }}
+                >
+                  Restore files…
+                </Button>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  disabled={busy || status.dirty || commit.hash === status.head}
+                  onClick={() => checkoutMutation.mutate(commit.hash)}
+                >
+                  Check out
+                </Button>
+              </Group>
             </Group>
           ))}
         </Stack>
@@ -788,6 +886,136 @@ export function ConfigGitView() {
               }
             >
               Replace configuration
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={diffPath !== null}
+        onClose={() => setDiffPath(null)}
+        title={diffPath ?? ""}
+        size="xl"
+        centered
+      >
+        <Stack gap="sm">
+          {fileDiffQuery.data?.data.truncated && (
+            <Alert color="yellow">Diff output was truncated.</Alert>
+          )}
+          <Tabs defaultValue="unstaged">
+            <Tabs.List>
+              <Tabs.Tab value="unstaged">Unstaged</Tabs.Tab>
+              <Tabs.Tab value="staged">Staged</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="unstaged" pt="sm">
+              <DiffText value={fileDiffQuery.data?.data.unstaged ?? ""} />
+            </Tabs.Panel>
+            <Tabs.Panel value="staged" pt="sm">
+              <DiffText value={fileDiffQuery.data?.data.staged ?? ""} />
+            </Tabs.Panel>
+          </Tabs>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={discardPath !== null}
+        onClose={() => setDiscardPath(null)}
+        title="Discard file changes"
+        centered
+      >
+        <Stack gap="md">
+          <Alert color="red">
+            {discardPath} is restored to its committed content at HEAD; a
+            deleted file is recreated. Uncommitted changes to this file are
+            lost.
+          </Alert>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setDiscardPath(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={discardFileMutation.isPending}
+              onClick={() => {
+                if (discardPath) discardFileMutation.mutate(discardPath);
+              }}
+            >
+              Discard file changes
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={restoreCommit !== null}
+        onClose={() => setRestoreCommit(null)}
+        title={
+          restoreCommit ? `Restore files from ${restoreCommit.shortHash}` : ""
+        }
+        size="lg"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {restoreCommit?.subject}
+          </Text>
+          <Alert color="yellow">
+            Restored files become uncommitted working-tree changes — review the
+            diff, then commit or discard. Local uncommitted changes to the
+            selected files are overwritten.
+          </Alert>
+          <Checkbox
+            checked={showFullTree}
+            onChange={(event) => setShowFullTree(event.currentTarget.checked)}
+            label="Show all files at this commit"
+          />
+          <ScrollArea.Autosize mah={320}>
+            <Stack gap={6}>
+              {restoreCandidates.map((candidate) => (
+                <Checkbox
+                  key={candidate.path}
+                  checked={restorePaths.includes(candidate.path)}
+                  disabled={
+                    classifyConfigGitPath(candidate.path) === null ||
+                    candidate.status === "D"
+                  }
+                  onChange={() => toggleRestorePath(candidate.path)}
+                  label={
+                    <Group gap="xs" wrap="nowrap">
+                      {candidate.status && <Code>{candidate.status}</Code>}
+                      <Text size="sm" className="text-wrap">
+                        {candidate.path}
+                      </Text>
+                    </Group>
+                  }
+                />
+              ))}
+              {restoreCandidates.length === 0 && (
+                <Text c="dimmed" size="sm">
+                  {commitDetailQuery.isPending
+                    ? "Loading commit files…"
+                    : "This commit changed no files; use the full-tree view."}
+                </Text>
+              )}
+            </Stack>
+          </ScrollArea.Autosize>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setRestoreCommit(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={busy || restorePaths.length === 0}
+              loading={restoreFilesMutation.isPending}
+              onClick={() => {
+                if (restoreCommit) {
+                  restoreFilesMutation.mutate({
+                    ref: restoreCommit.hash,
+                    paths: restorePaths,
+                  });
+                }
+              }}
+            >
+              Restore {countLabel(restorePaths.length, "file")}
             </Button>
           </Group>
         </Stack>

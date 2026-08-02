@@ -2,6 +2,7 @@ import type {
   ConfigGitCheckoutCommit,
   ConfigGitClone,
   ConfigGitCommit,
+  ConfigGitCommitDetail,
   ConfigGitCommitInput,
   ConfigGitCreateBranch,
   ConfigGitDiff,
@@ -9,6 +10,7 @@ import type {
   ConfigGitMutationResult,
   ConfigGitRemote,
   ConfigGitReset,
+  ConfigGitRestoreFiles,
   ConfigGitStatus,
   ConfigGitSwitch,
   ConfigGitValidation,
@@ -26,13 +28,21 @@ export function getConfigGitValidation() {
   );
 }
 
-export function getConfigGitDiff() {
-  return nodeRequest<{ data: ConfigGitDiff }>("/api/config-git/diff");
+export function getConfigGitDiff(path?: string) {
+  return nodeRequest<{ data: ConfigGitDiff }>(
+    `/api/config-git/diff${buildQuery(path ? { path } : {})}`,
+  );
 }
 
 export function getConfigGitLog(limit = 50) {
   return nodeRequest<{ data: ConfigGitCommit[] }>(
     `/api/config-git/log${buildQuery({ limit: String(limit) })}`,
+  );
+}
+
+export function getConfigGitCommit(hash: string) {
+  return nodeRequest<{ data: ConfigGitCommitDetail }>(
+    `/api/config-git/commits/${encodeURIComponent(hash)}`,
   );
 }
 
@@ -84,6 +94,10 @@ export function checkoutConfigCommit(input: ConfigGitCheckoutCommit) {
 
 export function resetConfigChanges(input: ConfigGitReset) {
   return mutate("/api/config-git/reset", input);
+}
+
+export function restoreConfigFiles(input: ConfigGitRestoreFiles) {
+  return mutate("/api/config-git/restore-files", input);
 }
 
 export function commitConfigChanges(input: ConfigGitCommitInput) {
