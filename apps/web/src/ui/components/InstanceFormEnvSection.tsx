@@ -4,7 +4,6 @@ import {
   Group,
   JsonInput,
   Paper,
-  PasswordInput,
   Stack,
   Switch,
   Text,
@@ -13,6 +12,7 @@ import {
 } from "@mantine/core";
 import { Plus, Trash2 } from "lucide-react";
 
+import { SecretInput } from "./SecretInput";
 import { MANAGED_ENV_KEYS } from "./instance-form-helpers";
 import { type InstanceFormController } from "./use-instance-form";
 
@@ -104,7 +104,7 @@ export function InstanceFormEnvSection({ fm }: { fm: InstanceFormController }) {
                     style={{ flex: 1 }}
                   />
                   {secret ? (
-                    <PasswordInput
+                    <SecretInput
                       placeholder="value"
                       value={row.value}
                       onChange={(event) =>

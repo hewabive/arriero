@@ -4,7 +4,6 @@ import {
   Button,
   Group,
   Paper,
-  PasswordInput,
   SegmentedControl,
   Stack,
   Text,
@@ -15,6 +14,7 @@ import { formatBytes } from "../utils/models";
 import { InstanceFormHostPort } from "./InstanceFormHostPort";
 import { MmprojSelect } from "./MmprojSelect";
 import { PathPickerInput } from "./PathPickerInput";
+import { SecretInput } from "./SecretInput";
 import { TouchSelect } from "./TouchCombobox";
 import { type LaunchMode, type RemoteSource } from "./instance-form-helpers";
 import { type InstanceFormController } from "./use-instance-form";
@@ -174,14 +174,10 @@ export function InstanceFormModelSection({
                 />
               </>
             )}
-            <PasswordInput
+            <SecretInput
               label="HF token"
               placeholder="(optional) for gated/private repos"
               description="Stored in the instance environment as HF_TOKEN — kept out of the command line."
-              autoComplete="new-password"
-              data-1p-ignore
-              data-lpignore="true"
-              data-bwignore
               value={fm.envDraft?.HF_TOKEN ?? ""}
               onChange={(event) => fm.applyHfToken(event.currentTarget.value)}
             />

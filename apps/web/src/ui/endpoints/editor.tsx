@@ -4,7 +4,6 @@ import {
   Divider,
   Group,
   Modal,
-  PasswordInput,
   Select,
   Stack,
   Switch,
@@ -14,6 +13,7 @@ import {
 } from "@mantine/core";
 import { Plus, Save, Trash2 } from "lucide-react";
 
+import { SecretInput } from "../components/SecretInput";
 import type { EndpointDraft, EndpointEditor } from "./forms";
 
 type EndpointEditorModalProps = {
@@ -104,7 +104,7 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
           header override below.
         </Text>
         <Group grow align="flex-start">
-          <PasswordInput
+          <SecretInput
             label="API key"
             disabled={hasEnvVar}
             placeholder={

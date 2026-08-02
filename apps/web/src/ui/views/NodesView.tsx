@@ -18,7 +18,6 @@ import {
   Loader,
   Modal,
   Paper,
-  PasswordInput,
   ScrollArea,
   Stack,
   Switch,
@@ -45,6 +44,7 @@ import {
   startNodeUpdate,
   updateNode,
 } from "../../api/client";
+import { SecretInput } from "../components/SecretInput";
 import { forceReloadUi } from "../utils/reload";
 import { formatLocalDateTime } from "../utils/time";
 
@@ -472,7 +472,7 @@ export function NodesView() {
               setDraft((current) => ({ ...current, baseUrl: value }));
             }}
           />
-          <PasswordInput
+          <SecretInput
             label="Token"
             description={
               editor?.mode === "edit"
