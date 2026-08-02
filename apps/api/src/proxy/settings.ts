@@ -7,10 +7,10 @@ import {
 
 import { readObjectFile, writeObjectFile } from "./config-files.js";
 
-export const PROXY_SETTINGS_FILE = "settings.json";
+const SETTINGS_FILE = "settings.json";
 
 export function getApiProxySettings(): ApiProxySettings {
-  return readObjectFile(PROXY_SETTINGS_FILE, ApiProxySettingsSchema);
+  return readObjectFile(SETTINGS_FILE, ApiProxySettingsSchema);
 }
 
 export function updateApiProxySettings(
@@ -18,9 +18,9 @@ export function updateApiProxySettings(
 ): ApiProxySettings {
   const parsed = ApiProxySettingsUpdateSchema.parse(input);
   const current = getApiProxySettings();
-  const next = ApiProxySettingsSchema.parse({
+  const next: ApiProxySettings = {
     allowAnonymous: parsed.allowAnonymous ?? current.allowAnonymous,
-  });
-  writeObjectFile(PROXY_SETTINGS_FILE, next);
+  };
+  writeObjectFile(SETTINGS_FILE, next);
   return next;
 }

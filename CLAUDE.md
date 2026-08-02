@@ -240,7 +240,7 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   `Authorization: Bearer`/`x-api-key` is resolved (`resolveApiProxyRequestSource`) to stamp
   `trace.sourceId`/`sourceName`; a disabled source's key is always rejected `403` with its
   `blockedMessage`, and with `allowAnonymous:false` unknown/missing keys get `401` — gate
-  (`apiProxyRequestSourceRejection`) runs pre-model-resolution in `protocol-endpoint.ts` and on
+  (`apiProxyRequestGate`) runs pre-body-read in `protocol-endpoint.ts` and on
   `GET /v1/models`, shaped per facade by adapter `authError`
   (`docs/API_PROXY_FOUNDATION.md` § Request sources). Default `allowAnonymous:true` keeps
   labeling-only passthrough. Source keys live in `.secrets.json` keyed `source:<id>`.

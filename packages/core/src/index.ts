@@ -2719,6 +2719,7 @@ export const CONFIG_GIT_PROXY_COLLECTIONS = [
   "pipelines",
   "endpoints",
   "sources",
+  "settings",
 ] as const;
 
 export type ConfigGitProxyCollection =
@@ -2731,7 +2732,6 @@ export type ConfigGitPortableFileKind =
   | "nodes"
   | "instance"
   | "preset"
-  | "proxy-settings"
   | `proxy-${ConfigGitProxyCollection}`;
 
 const configGitInstancePathPattern = /^instances\/[A-Za-z0-9._-]+\.json$/;
@@ -2752,8 +2752,6 @@ export function classifyConfigGitPath(
       return "resources";
     case "nodes.json":
       return "nodes";
-    case "proxy/settings.json":
-      return "proxy-settings";
     default:
       break;
   }

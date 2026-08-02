@@ -12,8 +12,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { CONFIG_GITIGNORE_CONTENT } from "../config-git/machine-state.js";
 
-const collectionCache = new Map<string, unknown[]>();
-const objectCache = new Map<string, unknown>();
+const fileCache = new Map<string, unknown>();
 let secretsCache: Record<string, string> | null = null;
 
 function atomicWrite(path: string, text: string) {
@@ -32,55 +31,49 @@ function parseJsonFile(path: string): unknown {
   }
 }
 
-export function readCollection<T>(fileName: string, schema: z.ZodType<T>): T[] {
-  const cached = collectionCache.get(fileName);
-  if (cached) {
-    return cached as T[];
+function readFile<T>(
+  fileName: string,
+  schema: z.ZodType<T>,
+  missing: unknown,
+): T {
+  if (fileCache.has(fileName)) {
+    return fileCache.get(fileName) as T;
   }
 
   const path = resolve(config.proxyConfigDir, fileName);
-  let records: T[] = [];
-  if (existsSync(path)) {
-    const parsed = z.array(schema).safeParse(parseJsonFile(path));
-    if (!parsed.success) {
-      throw new Error(`Invalid config in ${path}: ${parsed.error.message}`);
-    }
-    records = parsed.data;
-  }
-
-  collectionCache.set(fileName, records as unknown[]);
-  return records;
-}
-
-export function writeCollection<T>(fileName: string, records: T[]): void {
-  atomicWrite(
-    resolve(config.proxyConfigDir, fileName),
-    `${JSON.stringify(records, null, 2)}\n`,
+  const parsed = schema.safeParse(
+    existsSync(path) ? parseJsonFile(path) : missing,
   );
-  collectionCache.set(fileName, records as unknown[]);
-}
-
-export function readObjectFile<T>(fileName: string, schema: z.ZodType<T>): T {
-  if (objectCache.has(fileName)) {
-    return objectCache.get(fileName) as T;
-  }
-
-  const path = resolve(config.proxyConfigDir, fileName);
-  const parsed = schema.safeParse(existsSync(path) ? parseJsonFile(path) : {});
   if (!parsed.success) {
     throw new Error(`Invalid config in ${path}: ${parsed.error.message}`);
   }
 
-  objectCache.set(fileName, parsed.data);
+  fileCache.set(fileName, parsed.data);
   return parsed.data;
 }
 
-export function writeObjectFile<T>(fileName: string, value: T): void {
+function writeFile<T>(fileName: string, value: T): void {
   atomicWrite(
     resolve(config.proxyConfigDir, fileName),
     `${JSON.stringify(value, null, 2)}\n`,
   );
-  objectCache.set(fileName, value);
+  fileCache.set(fileName, value);
+}
+
+export function readCollection<T>(fileName: string, schema: z.ZodType<T>): T[] {
+  return readFile(fileName, z.array(schema), []);
+}
+
+export function writeCollection<T>(fileName: string, records: T[]): void {
+  writeFile(fileName, records);
+}
+
+export function readObjectFile<T>(fileName: string, schema: z.ZodType<T>): T {
+  return readFile(fileName, schema, {});
+}
+
+export function writeObjectFile<T>(fileName: string, value: T): void {
+  writeFile(fileName, value);
 }
 
 function loadSecrets(): Record<string, string> {
@@ -121,7 +114,6 @@ export function ensureConfigScaffold(): void {
 }
 
 export function resetConfigFilesCache(): void {
-  collectionCache.clear();
-  objectCache.clear();
+  fileCache.clear();
   secretsCache = null;
 }

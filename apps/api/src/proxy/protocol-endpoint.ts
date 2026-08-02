@@ -108,14 +108,8 @@ import {
   resolveApiProxyUpstreamContext,
   type ApiProxyUpstreamContext,
 } from "./upstream-context.js";
-import { getApiProxySettings } from "./settings.js";
 import { apiProxySlotTracker } from "./slot-tracker.js";
-import {
-  apiProxyRequestSourceRejection,
-  extractRequestApiKey,
-  resolveApiProxyRequestSource,
-  type RequestSourceResolution,
-} from "./sources.js";
+import { apiProxyRequestGate } from "./sources.js";
 import { apiProxyStats } from "./stats.js";
 import {
   apiProxyStreamResumeKey,
@@ -278,19 +272,21 @@ export async function proxyProtocolEndpoint(
     c.header("retry-after", "5");
     return c.json(apiProxyDrainBody(operation.protocol), 503);
   }
-  return runWithProxyTrace(operation, ({ trace, recorder, inflight }) => {
-    const source = resolveApiProxyRequestSource(
-      extractRequestApiKey(c.req.raw.headers),
-    );
-    if (source.kind === "source" || source.kind === "disabled") {
-      trace.sourceId = source.id;
-      trace.sourceName = source.name;
+  return runWithProxyTrace(operation, async ({ trace, recorder, inflight }) => {
+    const { resolution, rejection } = apiProxyRequestGate(c.req.raw.headers);
+    if (resolution.kind === "source") {
+      trace.sourceId = resolution.id;
+      trace.sourceName = resolution.name;
+    }
+    if (rejection) {
+      trace.errorMessage = rejection.message;
+      const response = adapter.authError(rejection);
+      return c.json(response.body, response.status);
     }
     return proxyProtocolEndpointInner(
       c,
       adapter,
       operation,
-      source,
       trace,
       recorder,
       inflight,
@@ -302,7 +298,6 @@ async function proxyProtocolEndpointInner(
   c: Context,
   adapter: ApiProxyProtocolAdapter,
   operation: ApiProxyProtocolOperation,
-  source: RequestSourceResolution,
   trace: ProxyTraceAccumulator,
   recorder: ProxyTraceRecorder,
   inflight: ApiProxyInflightHandle,
@@ -313,15 +308,6 @@ async function proxyProtocolEndpointInner(
     if (typeof model === "string") {
       trace.modelId = model;
     }
-  }
-  const rejection = apiProxyRequestSourceRejection(
-    source,
-    getApiProxySettings().allowAnonymous,
-  );
-  if (rejection) {
-    trace.errorMessage = rejection.message;
-    const response = adapter.authError(rejection);
-    return c.json(response.body, response.status);
   }
   const resolution = resolveApiProxyProtocolModelRequest({
     adapter,

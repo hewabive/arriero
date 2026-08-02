@@ -58,6 +58,15 @@ function draftFromRecord(source: ApiProxySourceRecord): SourceDraft {
   };
 }
 
+function notifyFailure(title: string) {
+  return (error: unknown) =>
+    notifications.show({
+      color: "red",
+      title,
+      message: (error as Error).message,
+    });
+}
+
 export function ApiProxySourcesView() {
   const queryClient = useQueryClient();
   const [editor, setEditor] = useState<SourceEditor | null>(null);
@@ -80,12 +89,7 @@ export function ApiProxySourcesView() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["api-proxy-settings"] });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Settings update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyFailure("Settings update failed"),
   });
 
   const invalidate = () =>
@@ -106,12 +110,7 @@ export function ApiProxySourcesView() {
         message: "Requests with this key will be labeled with the source.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Source save failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyFailure("Source save failed"),
   });
 
   const updateMutation = useMutation({
@@ -122,24 +121,14 @@ export function ApiProxySourcesView() {
       closeEditor();
       notifications.show({ title: "Source updated", message: "Saved." });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Source update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyFailure("Source update failed"),
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       updateApiProxySource(id, { enabled }),
     onSuccess: invalidate,
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Source update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyFailure("Source update failed"),
   });
 
   const deleteMutation = useMutation({
@@ -148,12 +137,7 @@ export function ApiProxySourcesView() {
       await invalidate();
       notifications.show({ title: "Source deleted", message: "Removed." });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Source delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyFailure("Source delete failed"),
   });
 
   function openCreate() {
@@ -205,11 +189,11 @@ export function ApiProxySourcesView() {
         <Group justify="space-between" mb="sm" align="flex-start">
           <Switch
             label="Allow anonymous requests"
-            description={
+            description={`${
               allowAnonymous
-                ? "Unknown or missing keys pass through as anonymous — sources only label requests. Disabled sources are always rejected."
-                : "Requests without a configured source key are rejected with 401. Disabled sources are always rejected."
-            }
+                ? "Unknown or missing keys pass through as anonymous — sources only label requests."
+                : "Requests without a configured source key are rejected with 401."
+            } Disabled sources are always rejected.`}
             checked={allowAnonymous}
             disabled={settingsQuery.isPending || settingsMutation.isPending}
             onChange={(event) => {
@@ -259,7 +243,10 @@ export function ApiProxySourcesView() {
                 <Table.Td>
                   <Switch
                     checked={source.enabled}
-                    disabled={toggleMutation.isPending}
+                    disabled={
+                      toggleMutation.isPending &&
+                      toggleMutation.variables.id === source.id
+                    }
                     onChange={(event) => {
                       const enabled = event.currentTarget.checked;
                       toggleMutation.mutate({ id: source.id, enabled });

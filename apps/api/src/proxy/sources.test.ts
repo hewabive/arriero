@@ -31,7 +31,13 @@ test("keeps the API key out of sources.json and resolves by key", () => {
   assert.equal(source.keyConfigured, true);
 
   const resolved = resolveApiProxyRequestSource("sk-cline");
-  assert.deepEqual(resolved, { kind: "source", id: source.id, name: "cline" });
+  assert.deepEqual(resolved, {
+    kind: "source",
+    id: source.id,
+    name: "cline",
+    enabled: true,
+    blockedMessage: "",
+  });
 });
 
 test("missing key resolves to anonymous, unmatched key to unknown", () => {
@@ -46,7 +52,7 @@ test("missing key resolves to anonymous, unmatched key to unknown", () => {
   assert.deepEqual(resolveApiProxyRequestSource("nope"), { kind: "unknown" });
 });
 
-test("a disabled source resolves to disabled with its blocked message", () => {
+test("a disabled source still resolves, carrying its blocked message", () => {
   const source = createApiProxySource({
     name: "a",
     enabled: true,
@@ -59,18 +65,20 @@ test("a disabled source resolves to disabled with its blocked message", () => {
     blockedMessage: "Contact the admin.",
   });
   assert.deepEqual(resolveApiProxyRequestSource("k1"), {
-    kind: "disabled",
+    kind: "source",
     id: source.id,
     name: "a",
+    enabled: false,
     blockedMessage: "Contact the admin.",
   });
 });
 
 test("rejection: disabled source gets 403 regardless of anonymous policy", () => {
   const resolution = {
-    kind: "disabled",
+    kind: "source",
     id: "x",
     name: "a",
+    enabled: false,
     blockedMessage: "Contact the admin.",
   } as const;
   for (const allowAnonymous of [true, false]) {
@@ -86,7 +94,7 @@ test("rejection: disabled source gets 403 regardless of anonymous policy", () =>
 
 test("rejection: disabled source without a custom message gets the default", () => {
   const rejection = apiProxyRequestSourceRejection(
-    { kind: "disabled", id: "x", name: "a", blockedMessage: "" },
+    { kind: "source", id: "x", name: "a", enabled: false, blockedMessage: "" },
     true,
   );
   assert.equal(rejection?.status, 403);
@@ -101,7 +109,7 @@ test("rejection: anonymous and unknown pass when anonymous is allowed", () => {
   assert.equal(apiProxyRequestSourceRejection({ kind: "unknown" }, true), null);
   assert.equal(
     apiProxyRequestSourceRejection(
-      { kind: "source", id: "x", name: "a" },
+      { kind: "source", id: "x", name: "a", enabled: true, blockedMessage: "" },
       false,
     ),
     null,
@@ -153,6 +161,8 @@ test("update without apiKey keeps the stored key", () => {
     kind: "source",
     id: source.id,
     name: "a",
+    enabled: true,
+    blockedMessage: "",
   });
 });
 

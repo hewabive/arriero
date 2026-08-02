@@ -57,10 +57,7 @@ function apiKeyAuthHeaders(
     : { authorization: `Bearer ${key}` };
 }
 
-function sourceAuthHeaders(
-  profile: ApiLabProbeProfile,
-  sourceId: string,
-): Record<string, string> {
+function requireApiProxySourceKey(sourceId: string): string {
   const source = getApiProxySource(sourceId);
   if (!source) {
     throw new Error("request source not found");
@@ -69,7 +66,7 @@ function sourceAuthHeaders(
   if (!key) {
     throw new Error(`request source has no API key: ${source.name}`);
   }
-  return apiKeyAuthHeaders(profile, key);
+  return key;
 }
 
 function resolveApiLabEndpoint(input: {
@@ -80,11 +77,10 @@ function resolveApiLabEndpoint(input: {
   apiKey?: string | undefined;
 }) {
   const profileHeaders = apiLabProfileHeaders(input.profile);
-  const sourceHeaders = input.apiKey
-    ? apiKeyAuthHeaders(input.profile, input.apiKey)
-    : input.sourceId
-      ? sourceAuthHeaders(input.profile, input.sourceId)
-      : {};
+  const key =
+    input.apiKey ??
+    (input.sourceId ? requireApiProxySourceKey(input.sourceId) : null);
+  const sourceHeaders = key ? apiKeyAuthHeaders(input.profile, key) : {};
   if (input.endpointId) {
     const endpoint = getApiEndpointFromCatalog(
       input.endpointId,

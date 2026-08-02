@@ -47,9 +47,14 @@ export type ApiProxyProtocolDiagnostic = {
   param?: string | null | undefined;
 };
 
+type ApiProxyAuthDiagnosticCode =
+  | "arriero_proxy_source_required"
+  | "arriero_proxy_source_disabled"
+  | "invalid_api_key";
+
 export type ApiProxyAuthDiagnostic = {
   status: 401 | 403;
-  code: string;
+  code: ApiProxyAuthDiagnosticCode;
   message: string;
 };
 

@@ -16,6 +16,8 @@ import {
   setSecret,
   writeCollection,
 } from "./config-files.js";
+import type { ApiProxyAuthDiagnostic } from "./protocol.js";
+import { getApiProxySettings } from "./settings.js";
 
 export const SOURCES_FILE = "sources.json";
 
@@ -120,11 +122,8 @@ export function updateApiProxySource(
     id: current.id,
     name: parsed.name ?? current.name,
     enabled: parsed.enabled ?? current.enabled,
-    note: parsed.note !== undefined ? parsed.note : current.note,
-    blockedMessage:
-      parsed.blockedMessage !== undefined
-        ? parsed.blockedMessage
-        : current.blockedMessage,
+    note: parsed.note ?? current.note,
+    blockedMessage: parsed.blockedMessage ?? current.blockedMessage,
   });
   assertUniqueName(records, next.name, id);
   if (parsed.apiKey !== undefined && parsed.apiKey) {
@@ -183,8 +182,13 @@ export function extractRequestApiKey(headers: Headers): string | null {
 export type RequestSourceResolution =
   | { kind: "anonymous" }
   | { kind: "unknown" }
-  | { kind: "source"; id: string; name: string }
-  | { kind: "disabled"; id: string; name: string; blockedMessage: string };
+  | {
+      kind: "source";
+      id: string;
+      name: string;
+      enabled: boolean;
+      blockedMessage: string;
+    };
 
 export function resolveApiProxyRequestSource(
   key: string | null,
@@ -194,33 +198,26 @@ export function resolveApiProxyRequestSource(
   }
   for (const stored of readStoredSources()) {
     if (readSecret(sourceSecretId(stored.id)) === key) {
-      return stored.enabled
-        ? { kind: "source", id: stored.id, name: stored.name }
-        : {
-            kind: "disabled",
-            id: stored.id,
-            name: stored.name,
-            blockedMessage: stored.blockedMessage,
-          };
+      return {
+        kind: "source",
+        id: stored.id,
+        name: stored.name,
+        enabled: stored.enabled,
+        blockedMessage: stored.blockedMessage,
+      };
     }
   }
   return { kind: "unknown" };
 }
 
-export type RequestSourceRejection = {
-  status: 401 | 403;
-  code:
-    | "arriero_proxy_source_required"
-    | "invalid_api_key"
-    | "arriero_proxy_source_disabled";
-  message: string;
-};
-
 export function apiProxyRequestSourceRejection(
   resolution: RequestSourceResolution,
   allowAnonymous: boolean,
-): RequestSourceRejection | null {
-  if (resolution.kind === "disabled") {
+): ApiProxyAuthDiagnostic | null {
+  if (resolution.kind === "source") {
+    if (resolution.enabled) {
+      return null;
+    }
     return {
       status: 403,
       code: "arriero_proxy_source_disabled",
@@ -232,20 +229,32 @@ export function apiProxyRequestSourceRejection(
   if (allowAnonymous) {
     return null;
   }
-  if (resolution.kind === "anonymous") {
-    return {
-      status: 401,
-      code: "arriero_proxy_source_required",
-      message:
-        "Anonymous requests are disabled. Provide a source API key via Authorization: Bearer or x-api-key.",
-    };
-  }
-  if (resolution.kind === "unknown") {
-    return {
-      status: 401,
-      code: "invalid_api_key",
-      message: "Unknown API key. Requests must use a configured source key.",
-    };
-  }
-  return null;
+  return resolution.kind === "anonymous"
+    ? {
+        status: 401,
+        code: "arriero_proxy_source_required",
+        message:
+          "Anonymous requests are disabled. Provide a source API key via Authorization: Bearer or x-api-key.",
+      }
+    : {
+        status: 401,
+        code: "invalid_api_key",
+        message: "Unknown API key. Requests must use a configured source key.",
+      };
+}
+
+export function apiProxyRequestGate(headers: Headers): {
+  resolution: RequestSourceResolution;
+  rejection: ApiProxyAuthDiagnostic | null;
+} {
+  const resolution = resolveApiProxyRequestSource(
+    extractRequestApiKey(headers),
+  );
+  return {
+    resolution,
+    rejection: apiProxyRequestSourceRejection(
+      resolution,
+      getApiProxySettings().allowAnonymous,
+    ),
+  };
 }

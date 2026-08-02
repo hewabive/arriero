@@ -69,6 +69,11 @@ export function ApiLabView(props: {
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
   const manualApiKey = apiKey.trim();
+  const probeTarget = {
+    profile: protocol,
+    ...(endpointId ? { endpointId } : {}),
+    ...(manualApiKey ? { apiKey: manualApiKey } : sourceId ? { sourceId } : {}),
+  };
 
   const { groups, endpointSelectData } = useEndpointModelCatalog(true);
   const selectedGroup = useMemo(
@@ -225,33 +230,9 @@ export function ApiLabView(props: {
         modelOptions={modelOptions}
         requestOptions={requestOptions}
         autoloadVisible={protocol === "llama-native"}
-        runProbe={(probe) =>
-          runApiLabProbe({
-            profile: protocol,
-            ...(endpointId ? { endpointId } : {}),
-            ...(manualApiKey
-              ? { apiKey: manualApiKey }
-              : sourceId
-                ? { sourceId }
-                : {}),
-            probe,
-          })
-        }
+        runProbe={(probe) => runApiLabProbe({ ...probeTarget, probe })}
         streamProbe={(_id, probe, callbacks, signal) =>
-          streamApiLabProbe(
-            {
-              profile: protocol,
-              ...(endpointId ? { endpointId } : {}),
-              ...(manualApiKey
-                ? { apiKey: manualApiKey }
-                : sourceId
-                  ? { sourceId }
-                  : {}),
-              probe,
-            },
-            callbacks,
-            signal,
-          )
+          streamApiLabProbe({ ...probeTarget, probe }, callbacks, signal)
         }
         invalidateInstanceQueries={false}
         onProbeSettled={() => {
