@@ -5,10 +5,11 @@ import { beforeEach, test } from "node:test";
 import { config } from "../config.js";
 import { resetConfigFilesCache } from "./config-files.js";
 import {
+  apiProxyRequestSourceRejection,
   createApiProxySource,
   deleteApiProxySource,
   extractRequestApiKey,
-  resolveApiProxySourceByKey,
+  resolveApiProxyRequestSource,
   updateApiProxySource,
 } from "./sources.js";
 
@@ -24,35 +25,118 @@ test("keeps the API key out of sources.json and resolves by key", () => {
     name: "cline",
     enabled: true,
     note: "",
+    blockedMessage: "",
     apiKey: "sk-cline",
   });
   assert.equal(source.keyConfigured, true);
 
-  const resolved = resolveApiProxySourceByKey("sk-cline");
-  assert.deepEqual(resolved, { id: source.id, name: "cline" });
+  const resolved = resolveApiProxyRequestSource("sk-cline");
+  assert.deepEqual(resolved, { kind: "source", id: source.id, name: "cline" });
 });
 
-test("unknown and missing keys resolve to anonymous (null)", () => {
-  createApiProxySource({ name: "a", enabled: true, note: "", apiKey: "k1" });
-  assert.equal(resolveApiProxySourceByKey("nope"), null);
-  assert.equal(resolveApiProxySourceByKey(null), null);
+test("missing key resolves to anonymous, unmatched key to unknown", () => {
+  createApiProxySource({
+    name: "a",
+    enabled: true,
+    note: "",
+    blockedMessage: "",
+    apiKey: "k1",
+  });
+  assert.deepEqual(resolveApiProxyRequestSource(null), { kind: "anonymous" });
+  assert.deepEqual(resolveApiProxyRequestSource("nope"), { kind: "unknown" });
 });
 
-test("disabled sources do not resolve", () => {
+test("a disabled source resolves to disabled with its blocked message", () => {
   const source = createApiProxySource({
     name: "a",
     enabled: true,
     note: "",
+    blockedMessage: "",
     apiKey: "k1",
   });
-  updateApiProxySource(source.id, { enabled: false });
-  assert.equal(resolveApiProxySourceByKey("k1"), null);
+  updateApiProxySource(source.id, {
+    enabled: false,
+    blockedMessage: "Contact the admin.",
+  });
+  assert.deepEqual(resolveApiProxyRequestSource("k1"), {
+    kind: "disabled",
+    id: source.id,
+    name: "a",
+    blockedMessage: "Contact the admin.",
+  });
+});
+
+test("rejection: disabled source gets 403 regardless of anonymous policy", () => {
+  const resolution = {
+    kind: "disabled",
+    id: "x",
+    name: "a",
+    blockedMessage: "Contact the admin.",
+  } as const;
+  for (const allowAnonymous of [true, false]) {
+    const rejection = apiProxyRequestSourceRejection(
+      resolution,
+      allowAnonymous,
+    );
+    assert.equal(rejection?.status, 403);
+    assert.equal(rejection?.code, "arriero_proxy_source_disabled");
+    assert.equal(rejection?.message, "Contact the admin.");
+  }
+});
+
+test("rejection: disabled source without a custom message gets the default", () => {
+  const rejection = apiProxyRequestSourceRejection(
+    { kind: "disabled", id: "x", name: "a", blockedMessage: "" },
+    true,
+  );
+  assert.equal(rejection?.status, 403);
+  assert.match(rejection?.message ?? "", /disabled by the administrator/);
+});
+
+test("rejection: anonymous and unknown pass when anonymous is allowed", () => {
+  assert.equal(
+    apiProxyRequestSourceRejection({ kind: "anonymous" }, true),
+    null,
+  );
+  assert.equal(apiProxyRequestSourceRejection({ kind: "unknown" }, true), null);
+  assert.equal(
+    apiProxyRequestSourceRejection(
+      { kind: "source", id: "x", name: "a" },
+      false,
+    ),
+    null,
+  );
+});
+
+test("rejection: anonymous and unknown get 401 when anonymous is denied", () => {
+  const anonymous = apiProxyRequestSourceRejection(
+    { kind: "anonymous" },
+    false,
+  );
+  assert.equal(anonymous?.status, 401);
+  assert.equal(anonymous?.code, "arriero_proxy_source_required");
+
+  const unknown = apiProxyRequestSourceRejection({ kind: "unknown" }, false);
+  assert.equal(unknown?.status, 401);
+  assert.equal(unknown?.code, "invalid_api_key");
 });
 
 test("rejects assigning a key already used by another source", () => {
-  createApiProxySource({ name: "a", enabled: true, note: "", apiKey: "dup" });
+  createApiProxySource({
+    name: "a",
+    enabled: true,
+    note: "",
+    blockedMessage: "",
+    apiKey: "dup",
+  });
   assert.throws(() =>
-    createApiProxySource({ name: "b", enabled: true, note: "", apiKey: "dup" }),
+    createApiProxySource({
+      name: "b",
+      enabled: true,
+      note: "",
+      blockedMessage: "",
+      apiKey: "dup",
+    }),
   );
 });
 
@@ -61,10 +145,12 @@ test("update without apiKey keeps the stored key", () => {
     name: "a",
     enabled: true,
     note: "",
+    blockedMessage: "",
     apiKey: "k1",
   });
   updateApiProxySource(source.id, { note: "edited" });
-  assert.deepEqual(resolveApiProxySourceByKey("k1"), {
+  assert.deepEqual(resolveApiProxyRequestSource("k1"), {
+    kind: "source",
     id: source.id,
     name: "a",
   });
@@ -75,10 +161,11 @@ test("deleting a source drops its key", () => {
     name: "a",
     enabled: true,
     note: "",
+    blockedMessage: "",
     apiKey: "k1",
   });
   deleteApiProxySource(source.id);
-  assert.equal(resolveApiProxySourceByKey("k1"), null);
+  assert.deepEqual(resolveApiProxyRequestSource("k1"), { kind: "unknown" });
 });
 
 test("extractRequestApiKey reads x-api-key and Bearer", () => {

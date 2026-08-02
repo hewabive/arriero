@@ -47,6 +47,12 @@ export type ApiProxyProtocolDiagnostic = {
   param?: string | null | undefined;
 };
 
+export type ApiProxyAuthDiagnostic = {
+  status: 401 | 403;
+  code: string;
+  message: string;
+};
+
 export type ApiProxyProtocolModelRequest = {
   operation: ApiProxyProtocolOperation;
   body: unknown;
@@ -145,6 +151,7 @@ export type ApiProxyProtocolAdapter = {
     request: ApiProxyProtocolModelRequest,
     diagnostic: ApiProxyProtocolDiagnostic,
   ) => ApiProxyProtocolResponse;
+  authError: (diagnostic: ApiProxyAuthDiagnostic) => ApiProxyProtocolResponse;
   upstreamPath: (operation: ApiProxyProtocolOperation) => string | null;
   notImplemented: (
     request: ApiProxyProtocolModelRequest,

@@ -231,14 +231,19 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   run; `autoCapacity` pools re-sync in memory at startup without dirtying Git. A gpu pool whose
   device disappeared gets a derived (never persisted) `orphaned` flag and is deletable via API/UI
   only while orphaned and unreferenced by instance draws. See `docs/RESOURCE_MANAGEMENT.md`.
-- `config/proxy/{targets,models,pipelines,endpoints,sources}.json` — API-proxy config
+- `config/proxy/{targets,models,pipelines,endpoints,sources,settings}.json` — API-proxy config
   (`proxy/config-files.ts` low-level store; `proxy/repository.ts` + `proxy/endpoints.ts` +
-  `proxy/sources.ts` CRUD). Aggregate-per-type arrays; in-memory cache + write-through, external
-  edits apply on restart. API keys live in `config/.secrets.json` (gitignored), never in
-  `endpoints.json`; env-var auth stays preferred. `sources` = ersatz request labeling: an inbound
-  `Authorization: Bearer`/`x-api-key` is resolved (`resolveApiProxySourceByKey`) to stamp
-  `trace.sourceId`/`sourceName` — **not** auth, an unknown or missing key passes through as
-  anonymous; source keys live in `.secrets.json` keyed `source:<id>`.
+  `proxy/sources.ts` + `proxy/settings.ts` CRUD). Aggregate-per-type arrays (`settings.json` is a
+  single object, currently `allowAnonymous`); in-memory cache + write-through, external edits apply
+  on restart. API keys live in `config/.secrets.json` (gitignored), never in `endpoints.json`;
+  env-var auth stays preferred. `sources` = request labeling + optional auth gate: an inbound
+  `Authorization: Bearer`/`x-api-key` is resolved (`resolveApiProxyRequestSource`) to stamp
+  `trace.sourceId`/`sourceName`; a disabled source's key is always rejected `403` with its
+  `blockedMessage`, and with `allowAnonymous:false` unknown/missing keys get `401` — gate
+  (`apiProxyRequestSourceRejection`) runs pre-model-resolution in `protocol-endpoint.ts` and on
+  `GET /v1/models`, shaped per facade by adapter `authError`
+  (`docs/API_PROXY_FOUNDATION.md` § Request sources). Default `allowAnonymous:true` keeps
+  labeling-only passthrough. Source keys live in `.secrets.json` keyed `source:<id>`.
 
 JSON files seed from git-tracked repo-root `config/*.json` (not `data/config/`) and fail loud on
 malformed JSON; runtime-computed defaults fill absent sections.

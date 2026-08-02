@@ -15,6 +15,8 @@ import {
 export type AnthropicErrorType =
   | "invalid_request_error"
   | "not_found_error"
+  | "authentication_error"
+  | "permission_error"
   | "api_error";
 
 export function anthropicError(input: {
@@ -361,6 +363,14 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
       }),
     };
   },
+  authError: (diagnostic) => ({
+    status: diagnostic.status,
+    body: anthropicError({
+      message: diagnostic.message,
+      type:
+        diagnostic.status === 403 ? "permission_error" : "authentication_error",
+    }),
+  }),
   upstreamPath: (operation) => upstreamPaths[operation.endpoint] ?? null,
   notImplemented: (request) => ({
     status: 501,

@@ -1,6 +1,7 @@
 import {
   ApiProxyModelRecordSchema,
   ApiProxyPipelineRecordSchema,
+  ApiProxySettingsSchema,
   ApiProxyTargetRecordSchema,
   AppSettingsFileSchema,
   ArgumentDefaultsSchema,
@@ -105,6 +106,7 @@ const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
   "proxy-pipelines": z.array(ApiProxyPipelineRecordSchema),
   "proxy-endpoints": z.array(StoredEndpointSchema),
   "proxy-sources": z.array(StoredSourceSchema),
+  "proxy-settings": ApiProxySettingsSchema,
 };
 
 function portableJsonFilePath(kind: PortableJsonKind): string {

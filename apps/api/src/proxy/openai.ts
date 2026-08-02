@@ -16,6 +16,8 @@ import { openaiCachedTokens } from "./usage-meter.js";
 export type OpenAiErrorType =
   | "invalid_request_error"
   | "not_found_error"
+  | "authentication_error"
+  | "permission_error"
   | "server_error";
 
 function openAiError(input: {
@@ -348,6 +350,15 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
           : "server_error",
       code: diagnostic.code,
       param: diagnostic.param,
+    }),
+  }),
+  authError: (diagnostic) => ({
+    status: diagnostic.status,
+    body: openAiError({
+      message: diagnostic.message,
+      type:
+        diagnostic.status === 403 ? "permission_error" : "authentication_error",
+      code: diagnostic.code,
     }),
   }),
   upstreamPath: (operation) => upstreamPaths[operation.endpoint] ?? null,

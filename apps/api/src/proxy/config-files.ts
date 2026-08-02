@@ -13,6 +13,7 @@ import { config } from "../config.js";
 import { CONFIG_GITIGNORE_CONTENT } from "../config-git/machine-state.js";
 
 const collectionCache = new Map<string, unknown[]>();
+const objectCache = new Map<string, unknown>();
 let secretsCache: Record<string, string> | null = null;
 
 function atomicWrite(path: string, text: string) {
@@ -59,6 +60,29 @@ export function writeCollection<T>(fileName: string, records: T[]): void {
   collectionCache.set(fileName, records as unknown[]);
 }
 
+export function readObjectFile<T>(fileName: string, schema: z.ZodType<T>): T {
+  if (objectCache.has(fileName)) {
+    return objectCache.get(fileName) as T;
+  }
+
+  const path = resolve(config.proxyConfigDir, fileName);
+  const parsed = schema.safeParse(existsSync(path) ? parseJsonFile(path) : {});
+  if (!parsed.success) {
+    throw new Error(`Invalid config in ${path}: ${parsed.error.message}`);
+  }
+
+  objectCache.set(fileName, parsed.data);
+  return parsed.data;
+}
+
+export function writeObjectFile<T>(fileName: string, value: T): void {
+  atomicWrite(
+    resolve(config.proxyConfigDir, fileName),
+    `${JSON.stringify(value, null, 2)}\n`,
+  );
+  objectCache.set(fileName, value);
+}
+
 function loadSecrets(): Record<string, string> {
   if (secretsCache) {
     return secretsCache;
@@ -98,5 +122,6 @@ export function ensureConfigScaffold(): void {
 
 export function resetConfigFilesCache(): void {
   collectionCache.clear();
+  objectCache.clear();
   secretsCache = null;
 }

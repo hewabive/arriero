@@ -2,6 +2,7 @@ import {
   ApiProxyPlanPreviewRequestSchema,
   ApiProxyRouteExplainRequestSchema,
   ApiProxyServeRequestSchema,
+  ApiProxySettingsUpdateSchema,
   ApiProxySourceCreateSchema,
   ApiProxySourceUpdateSchema,
   ApiProxyTraceListQuerySchema,
@@ -32,6 +33,10 @@ import {
   updateApiProxySource,
 } from "../proxy/sources.js";
 import { serveApiProxyPinnedInstance } from "../proxy/serve-pinned.js";
+import {
+  getApiProxySettings,
+  updateApiProxySettings,
+} from "../proxy/settings.js";
 import { apiProxyStats } from "../proxy/stats.js";
 import {
   countApiProxyTraces,
@@ -118,6 +123,18 @@ export function registerProxyRoutes(app: Hono) {
   app.delete("/api/proxy/cache", (c) => {
     clearApiProxyResponseCache();
     return c.json({ data: { cleared: true } });
+  });
+
+  app.get("/api/proxy/settings", (c) => {
+    return c.json({ data: getApiProxySettings() });
+  });
+
+  app.patch("/api/proxy/settings", async (c) => {
+    const parsed = ApiProxySettingsUpdateSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    return c.json({ data: updateApiProxySettings(parsed.data) });
   });
 
   app.get("/api/proxy/sources", (c) => {

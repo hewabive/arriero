@@ -17,6 +17,8 @@ import type {
   ApiProxyRouteExplainResult,
   ApiProxyRequestFileRecord,
   ApiProxyRequestTrace,
+  ApiProxySettings,
+  ApiProxySettingsUpdate,
   ApiProxySourceCreate,
   ApiProxySourceRecord,
   ApiProxySourceUpdate,
@@ -73,6 +75,17 @@ export async function updateApiEndpoint(id: string, input: ApiEndpointUpdate) {
 export async function deleteApiEndpoint(id: string) {
   return request<{ data: { deleted: boolean } }>(`/api/endpoints/${id}`, {
     method: "DELETE",
+  });
+}
+
+export async function getApiProxySettings() {
+  return request<{ data: ApiProxySettings }>("/api/proxy/settings");
+}
+
+export async function updateApiProxySettings(input: ApiProxySettingsUpdate) {
+  return request<{ data: ApiProxySettings }>("/api/proxy/settings", {
+    method: "PATCH",
+    body: JSON.stringify(input),
   });
 }
 

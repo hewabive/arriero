@@ -22,7 +22,9 @@ import { useState } from "react";
 import {
   createApiProxySource,
   deleteApiProxySource,
+  getApiProxySettings,
   listApiProxySources,
+  updateApiProxySettings,
   updateApiProxySource,
 } from "../../api/client";
 
@@ -35,6 +37,7 @@ type SourceDraft = {
   apiKey: string;
   note: string;
   enabled: boolean;
+  blockedMessage: string;
 };
 
 const emptyDraft: SourceDraft = {
@@ -42,6 +45,7 @@ const emptyDraft: SourceDraft = {
   apiKey: "",
   note: "",
   enabled: true,
+  blockedMessage: "",
 };
 
 function draftFromRecord(source: ApiProxySourceRecord): SourceDraft {
@@ -50,6 +54,7 @@ function draftFromRecord(source: ApiProxySourceRecord): SourceDraft {
     apiKey: "",
     note: source.note,
     enabled: source.enabled,
+    blockedMessage: source.blockedMessage,
   };
 }
 
@@ -63,6 +68,25 @@ export function ApiProxySourcesView() {
     queryFn: listApiProxySources,
   });
   const sources = sourcesQuery.data?.data ?? [];
+
+  const settingsQuery = useQuery({
+    queryKey: ["api-proxy-settings"],
+    queryFn: getApiProxySettings,
+  });
+  const allowAnonymous = settingsQuery.data?.data.allowAnonymous ?? true;
+
+  const settingsMutation = useMutation({
+    mutationFn: updateApiProxySettings,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["api-proxy-settings"] });
+    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Settings update failed",
+        message: (error as Error).message,
+      }),
+  });
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["api-proxy-sources"] });
@@ -144,6 +168,7 @@ export function ApiProxySourcesView() {
         name: draft.name,
         enabled: draft.enabled,
         note: draft.note,
+        blockedMessage: draft.blockedMessage,
       };
       if (draft.apiKey.trim()) {
         input.apiKey = draft.apiKey.trim();
@@ -155,6 +180,7 @@ export function ApiProxySourcesView() {
       name: draft.name,
       enabled: draft.enabled,
       note: draft.note,
+      blockedMessage: draft.blockedMessage,
       ...(draft.apiKey.trim() ? { apiKey: draft.apiKey.trim() } : {}),
     });
   }
@@ -164,11 +190,21 @@ export function ApiProxySourcesView() {
   return (
     <Stack gap="md">
       <Paper withBorder p="md">
-        <Group justify="space-between" mb="sm">
-          <Text size="sm" c="dimmed">
-            Not real authentication — unknown or missing keys still pass through
-            as anonymous.
-          </Text>
+        <Group justify="space-between" mb="sm" align="flex-start">
+          <Switch
+            label="Allow anonymous requests"
+            description={
+              allowAnonymous
+                ? "Unknown or missing keys pass through as anonymous — sources only label requests. Disabled sources are always rejected."
+                : "Requests without a configured source key are rejected with 401. Disabled sources are always rejected."
+            }
+            checked={allowAnonymous}
+            disabled={settingsQuery.isPending || settingsMutation.isPending}
+            onChange={(event) => {
+              const checked = event.currentTarget.checked;
+              settingsMutation.mutate({ allowAnonymous: checked });
+            }}
+          />
           <Button leftSection={<Plus size={16} />} onClick={openCreate}>
             New source
           </Button>
@@ -301,6 +337,17 @@ export function ApiProxySourcesView() {
             onChange={(event) => {
               const checked = event.currentTarget.checked;
               setDraft((current) => ({ ...current, enabled: checked }));
+            }}
+          />
+          <Textarea
+            label="Blocked message"
+            description="Returned to the caller while this source is disabled. Empty uses a default message."
+            autosize
+            minRows={1}
+            value={draft.blockedMessage}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setDraft((current) => ({ ...current, blockedMessage: value }));
             }}
           />
           <Group justify="flex-end">

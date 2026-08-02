@@ -1298,6 +1298,7 @@ export const ApiProxySourceConfigSchema = z.object({
   name: ApiProxySourceNameSchema,
   enabled: z.boolean().default(true),
   note: z.string().trim().max(400).default(""),
+  blockedMessage: z.string().trim().max(400).default(""),
 });
 
 export const ApiProxySourceCreateSchema = ApiProxySourceConfigSchema.omit({
@@ -1310,11 +1311,20 @@ export const ApiProxySourceUpdateSchema = z.object({
   name: ApiProxySourceNameSchema.optional(),
   enabled: z.boolean().optional(),
   note: z.string().trim().max(400).optional(),
+  blockedMessage: z.string().trim().max(400).optional(),
   apiKey: ApiProxySourceKeySchema,
 });
 
 export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
   keyConfigured: z.boolean().default(false),
+});
+
+export const ApiProxySettingsSchema = z.object({
+  allowAnonymous: z.boolean().default(true),
+});
+
+export const ApiProxySettingsUpdateSchema = z.object({
+  allowAnonymous: z.boolean().optional(),
 });
 
 export const ApiProxyTraceUsageSchema = z.object({
@@ -2721,6 +2731,7 @@ export type ConfigGitPortableFileKind =
   | "nodes"
   | "instance"
   | "preset"
+  | "proxy-settings"
   | `proxy-${ConfigGitProxyCollection}`;
 
 const configGitInstancePathPattern = /^instances\/[A-Za-z0-9._-]+\.json$/;
@@ -2741,6 +2752,8 @@ export function classifyConfigGitPath(
       return "resources";
     case "nodes.json":
       return "nodes";
+    case "proxy/settings.json":
+      return "proxy-settings";
     default:
       break;
   }
@@ -3794,6 +3807,10 @@ export type ApiProxySourceConfig = z.infer<typeof ApiProxySourceConfigSchema>;
 export type ApiProxySourceCreate = z.infer<typeof ApiProxySourceCreateSchema>;
 export type ApiProxySourceUpdate = z.infer<typeof ApiProxySourceUpdateSchema>;
 export type ApiProxySourceRecord = z.infer<typeof ApiProxySourceRecordSchema>;
+export type ApiProxySettings = z.infer<typeof ApiProxySettingsSchema>;
+export type ApiProxySettingsUpdate = z.infer<
+  typeof ApiProxySettingsUpdateSchema
+>;
 export type ApiProxyRequestTrace = z.infer<typeof ApiProxyRequestTraceSchema>;
 export type ApiProxyTraceUsage = z.infer<typeof ApiProxyTraceUsageSchema>;
 export type ApiProxyStatsModelEntry = z.infer<

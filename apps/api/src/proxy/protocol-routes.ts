@@ -1,3 +1,4 @@
+import type { Context } from "hono";
 import type { Hono } from "hono";
 
 import { anthropicProtocolAdapter } from "./anthropic.js";
@@ -9,6 +10,24 @@ import type {
   ApiProxyProtocolOperation,
   ApiProxyProtocolTransport,
 } from "./protocol.js";
+import { getApiProxySettings } from "./settings.js";
+import {
+  apiProxyRequestSourceRejection,
+  extractRequestApiKey,
+  resolveApiProxyRequestSource,
+} from "./sources.js";
+
+function modelsListSourceRejection(c: Context): Response | null {
+  const rejection = apiProxyRequestSourceRejection(
+    resolveApiProxyRequestSource(extractRequestApiKey(c.req.raw.headers)),
+    getApiProxySettings().allowAnonymous,
+  );
+  if (!rejection) {
+    return null;
+  }
+  const response = openAiProtocolAdapter.authError(rejection);
+  return c.json(response.body, response.status);
+}
 
 function protocolOperation(input: {
   protocol: ApiProxyProtocolOperation["protocol"];
@@ -26,6 +45,10 @@ function protocolOperation(input: {
 
 export function registerOpenAiProxyRoutes(app: Hono, prefix: string) {
   app.get(`${prefix}/models`, async (c) => {
+    const rejected = modelsListSourceRejection(c);
+    if (rejected) {
+      return rejected;
+    }
     const models = await listPublicProxyModels();
     const statuses = await getApiProxyPublicModelStatuses(models);
     return c.json(openAiModelsList(models, statuses));
