@@ -11,6 +11,7 @@ import {
 } from "@arriero/core";
 import { z } from "zod";
 import { newId } from "../utils/id.js";
+import { sortedByKey } from "../utils/sort.js";
 
 import { config } from "../config.js";
 import { listRemoteInstancesByNode } from "../nodes/remote-instances.js";
@@ -78,6 +79,13 @@ function nowIso() {
 
 function readStoredEndpoints(): StoredEndpoint[] {
   return readCollection(ENDPOINTS_FILE, StoredEndpointSchema);
+}
+
+function persistEndpoints(records: StoredEndpoint[]) {
+  writeCollection(
+    ENDPOINTS_FILE,
+    sortedByKey(records, (item) => item.name),
+  );
 }
 
 function assertUniqueName(
@@ -323,7 +331,7 @@ export function createApiEndpoint(input: ApiEndpointCreate): ApiEndpointRecord {
     createdAt: timestamp,
     updatedAt: timestamp,
   });
-  writeCollection(ENDPOINTS_FILE, [...records, stored]);
+  persistEndpoints([...records, stored]);
 
   if (parsed.apiKey && !parsed.apiKeyEnvVar) {
     setSecret(id, parsed.apiKey);
@@ -370,10 +378,7 @@ export function updateApiEndpoint(
     updatedAt: nowIso(),
   });
   assertUniqueName(records, next.name, id);
-  writeCollection(
-    ENDPOINTS_FILE,
-    records.map((item) => (item.id === id ? next : item)),
-  );
+  persistEndpoints(records.map((item) => (item.id === id ? next : item)));
 
   if (next.apiKeyEnvVar) {
     setSecret(id, null);
@@ -389,10 +394,7 @@ export function deleteApiEndpoint(id: string): boolean {
   if (!records.some((item) => item.id === id)) {
     return false;
   }
-  writeCollection(
-    ENDPOINTS_FILE,
-    records.filter((item) => item.id !== id),
-  );
+  persistEndpoints(records.filter((item) => item.id !== id));
   setSecret(id, null);
   return true;
 }

@@ -67,6 +67,31 @@ test("createInstance writes a file and resolves the binary path", () => {
   assert.equal("pid" in stored, false);
 });
 
+test("instance file stores args and env keys sorted", () => {
+  const name = uniqueName("sorted");
+  createInstance({
+    name,
+    kind: "llama-server",
+    rpcWorkers: [],
+    binaryPathRefId: binaryRefId,
+    args: { "--port": 8080, "--alias": "m", "--ctx-size": 4096 },
+    env: { ZED: "1", ALPHA: "2" },
+    memory: [],
+  });
+
+  const filePath = resolve(config.instancesDir, `${name}.json`);
+  const stored = JSON.parse(readFileSync(filePath, "utf8")) as {
+    args: Record<string, unknown>;
+    env: Record<string, unknown>;
+  };
+  assert.deepEqual(Object.keys(stored.args), [
+    "--alias",
+    "--ctx-size",
+    "--port",
+  ]);
+  assert.deepEqual(Object.keys(stored.env), ["ALPHA", "ZED"]);
+});
+
 test("updateInstance preserves positionalArgs when the patch omits them", () => {
   const name = uniqueName("pos");
   createInstance({

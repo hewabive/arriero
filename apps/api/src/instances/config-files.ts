@@ -32,6 +32,14 @@ function atomicWrite(path: string, text: string) {
   renameSync(tmp, path);
 }
 
+function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(record).sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0,
+    ),
+  );
+}
+
 function parseJsonFile(path: string): unknown {
   const raw = readFileSync(path, "utf8");
   try {
@@ -85,7 +93,12 @@ export function writeInstanceRecord(
   record: InstanceConfigRecord,
   previousName?: string,
 ): void {
-  const validated = InstanceConfigRecordSchema.parse(record);
+  const parsed = InstanceConfigRecordSchema.parse(record);
+  const validated = {
+    ...parsed,
+    args: sortedRecord(parsed.args),
+    env: sortedRecord(parsed.env),
+  };
   const map = load();
   atomicWrite(
     recordPath(validated.name),

@@ -9,6 +9,7 @@ import {
 import { z } from "zod";
 
 import { newId } from "../utils/id.js";
+import { sortedByKey } from "../utils/sort.js";
 import {
   readCollection,
   readSecret,
@@ -39,6 +40,13 @@ function nowIso() {
 
 function readStoredSources(): StoredSource[] {
   return readCollection(SOURCES_FILE, StoredSourceSchema);
+}
+
+function persistSources(records: StoredSource[]) {
+  writeCollection(
+    SOURCES_FILE,
+    sortedByKey(records, (item) => item.name),
+  );
 }
 
 function assertUniqueName(
@@ -90,7 +98,7 @@ export function createApiProxySource(
     createdAt: timestamp,
     updatedAt: timestamp,
   });
-  writeCollection(SOURCES_FILE, [...records, stored]);
+  persistSources([...records, stored]);
   if (parsed.apiKey) {
     assertUniqueKey(records, parsed.apiKey, null);
     setSecret(sourceSecretId(id), parsed.apiKey);
@@ -124,10 +132,7 @@ export function updateApiProxySource(
   if (parsed.apiKey !== undefined && parsed.apiKey) {
     assertUniqueKey(records, parsed.apiKey, id);
   }
-  writeCollection(
-    SOURCES_FILE,
-    records.map((item) => (item.id === id ? next : item)),
-  );
+  persistSources(records.map((item) => (item.id === id ? next : item)));
   if (parsed.apiKey !== undefined) {
     setSecret(sourceSecretId(id), parsed.apiKey || null);
   }
@@ -139,10 +144,7 @@ export function deleteApiProxySource(id: string): boolean {
   if (!records.some((item) => item.id === id)) {
     return false;
   }
-  writeCollection(
-    SOURCES_FILE,
-    records.filter((item) => item.id !== id),
-  );
+  persistSources(records.filter((item) => item.id !== id));
   setSecret(sourceSecretId(id), null);
   return true;
 }

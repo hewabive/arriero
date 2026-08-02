@@ -27,6 +27,7 @@ import {
   type ApiProxyTargetUpdate,
 } from "@arriero/core";
 import { newId } from "../utils/id.js";
+import { sortedByKey } from "../utils/sort.js";
 import { readCollection, writeCollection } from "./config-files.js";
 import { deleteApiProxyRuntimeMetadata } from "./runtime-metadata-store.js";
 
@@ -58,6 +59,27 @@ function readModels(): ApiProxyModelRecord[] {
 
 function readPipelines(): ApiProxyPipelineRecord[] {
   return readCollection(PIPELINES_FILE, ApiProxyPipelineRecordSchema);
+}
+
+function persistTargets(records: ApiProxyTargetRecord[]) {
+  writeCollection(
+    TARGETS_FILE,
+    sortedByKey(records, (item) => item.name),
+  );
+}
+
+function persistModels(records: ApiProxyModelRecord[]) {
+  writeCollection(
+    MODELS_FILE,
+    sortedByKey(records, (item) => item.modelId),
+  );
+}
+
+function persistPipelines(records: ApiProxyPipelineRecord[]) {
+  writeCollection(
+    PIPELINES_FILE,
+    sortedByKey(records, (item) => item.name),
+  );
 }
 
 export function listApiProxyTargets(): ApiProxyTargetRecord[] {
@@ -150,7 +172,7 @@ export function createApiProxyTarget(
     createdAt: timestamp,
     updatedAt: timestamp,
   });
-  writeCollection(TARGETS_FILE, [...records, record]);
+  persistTargets([...records, record]);
   return record;
 }
 
@@ -175,10 +197,7 @@ export function updateApiProxyTarget(
     createdAt: current.createdAt,
     updatedAt: nowIso(),
   });
-  writeCollection(
-    TARGETS_FILE,
-    records.map((target) => (target.id === id ? next : target)),
-  );
+  persistTargets(records.map((target) => (target.id === id ? next : target)));
   return next;
 }
 
@@ -187,15 +206,11 @@ export function deleteApiProxyTarget(id: string): boolean {
   if (!records.some((target) => target.id === id)) {
     return false;
   }
-  writeCollection(
-    TARGETS_FILE,
-    records.filter((target) => target.id !== id),
-  );
+  persistTargets(records.filter((target) => target.id !== id));
 
   const models = readModels();
   if (models.some((model) => model.targetId === id)) {
-    writeCollection(
-      MODELS_FILE,
+    persistModels(
       models.map((model) =>
         model.targetId === id
           ? { ...model, targetId: null, updatedAt: nowIso() }
@@ -221,7 +236,7 @@ export function createApiProxyModel(
     createdAt: timestamp,
     updatedAt: timestamp,
   });
-  writeCollection(MODELS_FILE, [...records, record]);
+  persistModels([...records, record]);
   return record;
 }
 
@@ -275,10 +290,7 @@ export function updateApiProxyModel(
     createdAt: current.createdAt,
     updatedAt: nowIso(),
   });
-  writeCollection(
-    MODELS_FILE,
-    records.map((model) => (model.id === id ? next : model)),
-  );
+  persistModels(records.map((model) => (model.id === id ? next : model)));
   return next;
 }
 
@@ -287,10 +299,7 @@ export function deleteApiProxyModel(id: string): boolean {
   if (!records.some((model) => model.id === id)) {
     return false;
   }
-  writeCollection(
-    MODELS_FILE,
-    records.filter((model) => model.id !== id),
-  );
+  persistModels(records.filter((model) => model.id !== id));
   return true;
 }
 
@@ -307,7 +316,7 @@ export function createApiProxyPipeline(
     createdAt: timestamp,
     updatedAt: timestamp,
   });
-  writeCollection(PIPELINES_FILE, [...records, record]);
+  persistPipelines([...records, record]);
   return record;
 }
 
@@ -332,8 +341,7 @@ export function updateApiProxyPipeline(
     createdAt: current.createdAt,
     updatedAt: nowIso(),
   });
-  writeCollection(
-    PIPELINES_FILE,
+  persistPipelines(
     records.map((pipeline) => (pipeline.id === id ? next : pipeline)),
   );
   return next;
@@ -344,9 +352,6 @@ export function deleteApiProxyPipeline(id: string): boolean {
   if (!records.some((pipeline) => pipeline.id === id)) {
     return false;
   }
-  writeCollection(
-    PIPELINES_FILE,
-    records.filter((pipeline) => pipeline.id !== id),
-  );
+  persistPipelines(records.filter((pipeline) => pipeline.id !== id));
   return true;
 }

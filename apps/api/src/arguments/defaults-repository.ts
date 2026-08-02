@@ -18,7 +18,7 @@ import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 const filePath = config.argumentDefaultsFile;
 const seedPath = config.argumentDefaultsSeedFile;
 
-function sanitizeDefaults(defaults: ArgumentDefault[]) {
+function normalizeDefaults(defaults: ArgumentDefault[]) {
   const seen = new Set<string>();
   return defaults
     .map((item) => ({
@@ -32,7 +32,10 @@ function sanitizeDefaults(defaults: ArgumentDefault[]) {
       }
       seen.add(item.key);
       return true;
-    });
+    })
+    .sort((left, right) =>
+      left.key < right.key ? -1 : left.key > right.key ? 1 : 0,
+    );
 }
 
 function ensureFile() {
@@ -90,7 +93,7 @@ export function saveArgumentDefaults(
 ): ArgumentDefaults {
   const parsed = ArgumentDefaultsSchema.parse(input);
   writeDefaults({
-    instance: sanitizeDefaults(parsed.instance),
+    instance: normalizeDefaults(parsed.instance),
   });
   return getArgumentDefaults();
 }

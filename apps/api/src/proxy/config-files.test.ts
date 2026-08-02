@@ -60,6 +60,19 @@ test("create persists a target to targets.json", () => {
   assert.equal(raw[0]?.name, "alpha");
 });
 
+test("targets.json keeps entries sorted by name", () => {
+  seedTarget("zulu");
+  seedTarget("alpha");
+  seedTarget("mike");
+  const raw = JSON.parse(
+    readFileSync(`${config.proxyConfigDir}/targets.json`, "utf8"),
+  ) as Array<{ name: string }>;
+  assert.deepEqual(
+    raw.map((item) => item.name),
+    ["alpha", "mike", "zulu"],
+  );
+});
+
 test("duplicate target name is rejected", () => {
   seedTarget("dup");
   assert.throws(() => seedTarget("dup"), /already exists/);
