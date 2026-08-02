@@ -15,7 +15,6 @@ import {
 import { Pencil, Trash2 } from "lucide-react";
 
 import type { ProxyUsageRef } from "../usage";
-import { formatLocalDateTime } from "../../utils/time";
 import { targetStatusColor } from "../display";
 import { UsedByCell } from "./UsedByCell";
 
@@ -69,7 +68,6 @@ export function PipelinesSection(props: PipelinesSectionProps) {
                 <Table.Th>Used by</Table.Th>
                 <Table.Th>Nodes</Table.Th>
                 <Table.Th>Entry</Table.Th>
-                <Table.Th>Updated</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -117,7 +115,6 @@ export function PipelinesSection(props: PipelinesSectionProps) {
                       props.pipelineById,
                     )}
                   </Table.Td>
-                  <Table.Td>{formatLocalDateTime(pipeline.updatedAt)}</Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end" wrap="nowrap">
                       <Tooltip label="Edit node">
@@ -146,7 +143,7 @@ export function PipelinesSection(props: PipelinesSectionProps) {
               ))}
               {props.pipelines.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={6}>
+                  <Table.Td colSpan={5}>
                     <Text c="dimmed" ta="center" py="lg">
                       No pipelines configured
                     </Text>

@@ -18,7 +18,6 @@ import {
 import { GitBranchPlus, Pencil, Trash2, Workflow } from "lucide-react";
 
 import { modelDirectTargetId } from "../forms";
-import { formatLocalDateTime } from "../../utils/time";
 
 type ExternalModelsSectionProps = {
   models: ApiProxyModelRecord[];
@@ -63,7 +62,6 @@ export function ExternalModelsSection(props: ExternalModelsSectionProps) {
                 <Table.Th>Route to</Table.Th>
                 <Table.Th>Owned by</Table.Th>
                 <Table.Th>Description</Table.Th>
-                <Table.Th>Updated</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -123,7 +121,6 @@ export function ExternalModelsSection(props: ExternalModelsSectionProps) {
                         </Text>
                       )}
                     </Table.Td>
-                    <Table.Td>{formatLocalDateTime(model.updatedAt)}</Table.Td>
                     <Table.Td>
                       <Group gap={4} justify="flex-end" wrap="nowrap">
                         {model.routeTo?.type === "pipeline" &&
@@ -185,7 +182,7 @@ export function ExternalModelsSection(props: ExternalModelsSectionProps) {
               })}
               {props.models.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={8}>
+                  <Table.Td colSpan={7}>
                     <Text c="dimmed" ta="center" py="lg">
                       No external models configured
                     </Text>

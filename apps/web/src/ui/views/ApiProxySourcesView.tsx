@@ -25,7 +25,6 @@ import {
   listApiProxySources,
   updateApiProxySource,
 } from "../../api/client";
-import { formatLocalDateTime } from "../utils/time";
 
 type SourceEditor =
   | { mode: "create" }
@@ -182,14 +181,13 @@ export function ApiProxySourcesView() {
               <Table.Th>API key</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Note</Table.Th>
-              <Table.Th>Updated</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {sources.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={6}>
+                <Table.Td colSpan={5}>
                   <Text size="sm" c="dimmed">
                     No sources yet.
                   </Text>
@@ -219,7 +217,6 @@ export function ApiProxySourcesView() {
                   </Badge>
                 </Table.Td>
                 <Table.Td>{source.note || "—"}</Table.Td>
-                <Table.Td>{formatLocalDateTime(source.updatedAt)}</Table.Td>
                 <Table.Td>
                   <Group gap="xs" justify="flex-end">
                     <Tooltip label="Edit">

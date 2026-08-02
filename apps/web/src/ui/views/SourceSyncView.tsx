@@ -273,7 +273,7 @@ function SourceRepositoryPanel({
 
   useEffect(() => {
     setOriginUrl(repository.spec.originUrl);
-  }, [repository.spec.originUrl, repository.spec.updatedAt]);
+  }, [repository.spec.originUrl]);
 
   const driftQuery = useQuery({
     queryKey: ["source-repository-drift", repository.spec.id],

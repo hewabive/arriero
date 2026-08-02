@@ -19,7 +19,6 @@ import {
 import { Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import type { ProxyUsageRef } from "../usage";
-import { formatLocalDateTime } from "../../utils/time";
 import {
   runtimeDetails,
   runtimeStateColor,
@@ -75,7 +74,6 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
                 <Table.Th>Priority</Table.Th>
                 <Table.Th>Policy</Table.Th>
                 <Table.Th>Runtime</Table.Th>
-                <Table.Th>Updated</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -158,7 +156,6 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
                         )}
                       </Stack>
                     </Table.Td>
-                    <Table.Td>{formatLocalDateTime(target.updatedAt)}</Table.Td>
                     <Table.Td>
                       <Group gap={4} justify="flex-end" wrap="nowrap">
                         {props.onEdit && (
@@ -204,7 +201,7 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
               })}
               {props.targets.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={9}>
+                  <Table.Td colSpan={8}>
                     <Text c="dimmed" ta="center" py="lg">
                       No proxy targets configured
                     </Text>
