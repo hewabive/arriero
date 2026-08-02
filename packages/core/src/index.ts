@@ -2695,6 +2695,83 @@ export const ConfigGitCommitInputSchema = z.object({
   authorEmail: z.string().trim().email().max(320).nullable().default(null),
 });
 
+export type ConfigGitPortableFileKind =
+  | "settings"
+  | "argument-defaults"
+  | "resources"
+  | "nodes"
+  | "instance"
+  | "preset"
+  | "proxy-targets"
+  | "proxy-models"
+  | "proxy-pipelines"
+  | "proxy-endpoints"
+  | "proxy-sources";
+
+const configGitInstancePathPattern = /^instances\/[A-Za-z0-9._-]+\.json$/;
+const configGitPresetPathPattern = /^presets\/[A-Za-z0-9._-]+\.ini$/;
+const configGitProxyPathPattern =
+  /^proxy\/(targets|models|pipelines|endpoints|sources)\.json$/;
+
+export function classifyConfigGitPath(
+  path: string,
+): ConfigGitPortableFileKind | null {
+  switch (path) {
+    case "settings.json":
+      return "settings";
+    case "argument-defaults.json":
+      return "argument-defaults";
+    case "resources.json":
+      return "resources";
+    case "nodes.json":
+      return "nodes";
+    default:
+      break;
+  }
+  if (configGitInstancePathPattern.test(path)) {
+    return "instance";
+  }
+  if (configGitPresetPathPattern.test(path)) {
+    return "preset";
+  }
+  const proxy = configGitProxyPathPattern.exec(path);
+  if (proxy) {
+    return `proxy-${proxy[1]}` as ConfigGitPortableFileKind;
+  }
+  return null;
+}
+
+const ConfigGitRestorePathSchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine(
+    (path) =>
+      !path.startsWith("/") &&
+      !path.includes("\\") &&
+      !path.includes("\0") &&
+      !path.endsWith("/") &&
+      path
+        .split("/")
+        .every((segment) => segment !== "" && segment !== "." && segment !== ".."),
+    { message: "path must be a plain relative file path" },
+  );
+
+export const ConfigGitRestoreFilesSchema = z.object({
+  ref: z.string().trim().min(1).max(255),
+  paths: z.array(ConfigGitRestorePathSchema).min(1).max(50),
+});
+
+export const ConfigGitCommitFileChangeSchema = z.object({
+  path: z.string(),
+  status: z.string().min(1).max(1),
+});
+
+export const ConfigGitCommitDetailSchema = ConfigGitCommitSchema.extend({
+  files: z.array(ConfigGitCommitFileChangeSchema),
+  tree: z.array(z.string()),
+});
+
 export const ArgumentValueTypeSchema = z.enum([
   "flag",
   "boolean",
@@ -3905,6 +3982,11 @@ export type ConfigGitCheckoutCommit = z.infer<
 >;
 export type ConfigGitReset = z.infer<typeof ConfigGitResetSchema>;
 export type ConfigGitCommitInput = z.infer<typeof ConfigGitCommitInputSchema>;
+export type ConfigGitRestoreFiles = z.infer<typeof ConfigGitRestoreFilesSchema>;
+export type ConfigGitCommitFileChange = z.infer<
+  typeof ConfigGitCommitFileChangeSchema
+>;
+export type ConfigGitCommitDetail = z.infer<typeof ConfigGitCommitDetailSchema>;
 export type ArgumentValueType = z.infer<typeof ArgumentValueTypeSchema>;
 export type ArgumentControlKind = z.infer<typeof ArgumentControlKindSchema>;
 export type ArgumentCliEncoding = z.infer<typeof ArgumentCliEncodingSchema>;

@@ -11,6 +11,8 @@ import {
   InstanceConfigRecordSchema,
   MemoryPoolSchema,
   PathCatalogEntrySchema,
+  classifyConfigGitPath,
+  type ConfigGitPortableFileKind,
   type ConfigGitValidation,
   type ConfigGitValidationIssue,
   type InstanceConfigRecord,
@@ -47,6 +49,26 @@ function issuePath(root: string, path: string): string {
   return relative(root, path) || ".";
 }
 
+function jsonContentIssues(
+  displayPath: string,
+  content: string,
+  schema: z.ZodType,
+  issues: ConfigGitValidationIssue[],
+): unknown {
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    const result = schema.safeParse(parsed);
+    if (!result.success) {
+      issues.push({ path: displayPath, message: result.error.message });
+      return null;
+    }
+    return result.data;
+  } catch (error) {
+    issues.push({ path: displayPath, message: (error as Error).message });
+    return null;
+  }
+}
+
 function readJson(
   root: string,
   path: string,
@@ -54,24 +76,84 @@ function readJson(
   issues: ConfigGitValidationIssue[],
 ): unknown {
   if (!existsSync(path)) return null;
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
-    const result = schema.safeParse(parsed);
-    if (!result.success) {
-      issues.push({
-        path: issuePath(root, path),
-        message: result.error.message,
-      });
-      return null;
-    }
-    return result.data;
-  } catch (error) {
-    issues.push({
-      path: issuePath(root, path),
-      message: (error as Error).message,
-    });
+  return jsonContentIssues(
+    issuePath(root, path),
+    readFileSync(path, "utf8"),
+    schema,
+    issues,
+  );
+}
+
+function instanceNameIssue(
+  displayPath: string,
+  fileName: string,
+  record: InstanceConfigRecord,
+): ConfigGitValidationIssue | null {
+  if (record.name === fileName) {
     return null;
   }
+  return {
+    path: displayPath,
+    message: `instance name "${record.name}" does not match file name "${fileName}"`,
+  };
+}
+
+function presetContentIssues(
+  displayPath: string,
+  content: string,
+): ConfigGitValidationIssue[] {
+  const parsed = parseModelPresetIni(content);
+  if (!presetFileHasErrors(parsed.diagnostics)) {
+    return [];
+  }
+  return parsed.diagnostics
+    .filter((item) => item.severity === "error")
+    .map((diagnostic) => ({ path: displayPath, message: diagnostic.message }));
+}
+
+const portableJsonSchemas: Record<
+  Exclude<ConfigGitPortableFileKind, "instance" | "preset">,
+  z.ZodType
+> = {
+  settings: AppSettingsFileSchema,
+  "argument-defaults": ArgumentDefaultsSchema,
+  resources: z.array(MemoryPoolSchema),
+  nodes: z.array(FleetNodeSchema),
+  "proxy-targets": z.array(ApiProxyTargetRecordSchema),
+  "proxy-models": z.array(ApiProxyModelRecordSchema),
+  "proxy-pipelines": z.array(ApiProxyPipelineRecordSchema),
+  "proxy-endpoints": z.array(StoredEndpointSchema),
+  "proxy-sources": z.array(StoredSourceSchema),
+};
+
+export function validateConfigBlob(
+  path: string,
+  content: string,
+): ConfigGitValidationIssue[] {
+  const kind = classifyConfigGitPath(path);
+  if (kind === null) {
+    return [{ path, message: "not a restorable configuration file" }];
+  }
+  if (kind === "preset") {
+    return presetContentIssues(path, content);
+  }
+  const issues: ConfigGitValidationIssue[] = [];
+  if (kind === "instance") {
+    const record = jsonContentIssues(
+      path,
+      content,
+      InstanceConfigRecordSchema,
+      issues,
+    ) as InstanceConfigRecord | null;
+    if (record) {
+      const fileName = path.slice("instances/".length, -".json".length);
+      const nameIssue = instanceNameIssue(path, fileName, record);
+      if (nameIssue) issues.push(nameIssue);
+    }
+    return issues;
+  }
+  jsonContentIssues(path, content, portableJsonSchemas[kind], issues);
+  return issues;
 }
 
 function rejectSymlinks(
@@ -113,12 +195,8 @@ function validateInstances(
     ) as InstanceConfigRecord | null;
     if (!record) continue;
     const fileName = entry.name.slice(0, -".json".length);
-    if (record.name !== fileName) {
-      issues.push({
-        path: issuePath(root, path),
-        message: `instance name "${record.name}" does not match file name "${fileName}"`,
-      });
-    }
+    const nameIssue = instanceNameIssue(issuePath(root, path), fileName, record);
+    if (nameIssue) issues.push(nameIssue);
     instances.push(record);
   }
   return instances;
@@ -130,16 +208,9 @@ function validatePresets(root: string, issues: ConfigGitValidationIssue[]) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".ini")) continue;
     const path = resolve(directory, entry.name);
-    const parsed = parseModelPresetIni(readFileSync(path, "utf8"));
-    if (!presetFileHasErrors(parsed.diagnostics)) continue;
-    for (const diagnostic of parsed.diagnostics.filter(
-      (item) => item.severity === "error",
-    )) {
-      issues.push({
-        path: issuePath(root, path),
-        message: diagnostic.message,
-      });
-    }
+    issues.push(
+      ...presetContentIssues(issuePath(root, path), readFileSync(path, "utf8")),
+    );
   }
 }
 

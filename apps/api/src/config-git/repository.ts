@@ -1,9 +1,12 @@
 import {
+  ConfigGitCommitDetailSchema,
   ConfigGitCommitSchema,
   ConfigGitDiffSchema,
   ConfigGitStatusSchema,
   type ConfigGitBranch,
   type ConfigGitCommit,
+  type ConfigGitCommitDetail,
+  type ConfigGitCommitFileChange,
   type ConfigGitDiff,
   type ConfigGitFileStatus,
   type ConfigGitStatus,
@@ -12,6 +15,7 @@ import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
+import { assertSafeConfigRelativePath } from "./paths.js";
 import { gitOutput, redactGitOutput, runGit, tryGit } from "./process.js";
 import { getActiveConfigGitOperation } from "./state.js";
 
@@ -230,10 +234,11 @@ function limitDiff(value: string): { text: string; truncated: boolean } {
   };
 }
 
-export async function getConfigGitDiff(): Promise<ConfigGitDiff> {
+export async function getConfigGitDiff(path?: string): Promise<ConfigGitDiff> {
   if (!(await isGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
   }
+  const pathspec = path ? ["--", assertSafeConfigRelativePath(path)] : [];
   const [stagedResult, unstagedResult] = await Promise.all([
     runGit(config.configDir, [
       "diff",
@@ -241,12 +246,14 @@ export async function getConfigGitDiff(): Promise<ConfigGitDiff> {
       "--no-ext-diff",
       "--no-textconv",
       "--no-color",
+      ...pathspec,
     ]),
     runGit(config.configDir, [
       "diff",
       "--no-ext-diff",
       "--no-textconv",
       "--no-color",
+      ...pathspec,
     ]),
   ]);
   const staged = limitDiff(stagedResult.stdout);
@@ -306,26 +313,62 @@ export async function getConfigGitLog(limit = 50): Promise<ConfigGitCommit[]> {
   return parseCommits(result.stdout);
 }
 
+function parseNameStatus(output: string): ConfigGitCommitFileChange[] {
+  const parts = output.split("\0").filter(Boolean);
+  const files: ConfigGitCommitFileChange[] = [];
+  let index = 0;
+  while (index < parts.length) {
+    const status = parts[index] ?? "";
+    const consumesTwoPaths = status.startsWith("R") || status.startsWith("C");
+    const path = parts[index + (consumesTwoPaths ? 2 : 1)];
+    if (path) {
+      files.push({ path, status: status.slice(0, 1) || "M" });
+    }
+    index += consumesTwoPaths ? 3 : 2;
+  }
+  return files;
+}
+
 export async function getConfigGitCommit(
   commit: string,
-): Promise<ConfigGitCommit> {
+): Promise<ConfigGitCommitDetail> {
   if (!(await isGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
+  }
+  if (commit.startsWith("-")) {
+    throw new Error(`commit not found: ${commit}`);
   }
   const verified = await runGit(config.configDir, [
     "rev-parse",
     "--verify",
+    "--end-of-options",
     `${commit}^{commit}`,
   ]);
-  const result = await runGit(config.configDir, [
-    "show",
-    "--no-patch",
-    `--format=${LOG_FORMAT}`,
-    verified.stdout.trim(),
+  const hash = verified.stdout.trim();
+  const [result, changed, tree] = await Promise.all([
+    runGit(config.configDir, [
+      "show",
+      "--no-patch",
+      `--format=${LOG_FORMAT}`,
+      hash,
+    ]),
+    runGit(config.configDir, [
+      "show",
+      "--format=",
+      "--name-status",
+      "--no-renames",
+      "-z",
+      hash,
+    ]),
+    runGit(config.configDir, ["ls-tree", "-r", "--name-only", "-z", hash]),
   ]);
   const parsed = parseCommits(result.stdout)[0];
   if (!parsed) throw new Error(`commit not found: ${commit}`);
-  return parsed;
+  return ConfigGitCommitDetailSchema.parse({
+    ...parsed,
+    files: parseNameStatus(changed.stdout),
+    tree: tree.stdout.split("\0").filter(Boolean),
+  });
 }
 
 export async function assertConfigGitRepository(): Promise<void> {

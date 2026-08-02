@@ -127,6 +127,43 @@ hiding it would just misreport the configured origin. A displayed origin that
 was redacted is marked `status.originRedacted` so the UI does not offer it back
 as an editable value.
 
+## Per-file restore
+
+`POST /api/config-git/restore-files` (`{ref, paths[]}`) restores up to 50
+individual files to their content at any commit without touching the rest of
+the tree; `ref: "HEAD"` doubles as per-file discard of uncommitted changes. The
+result is a plain **unstaged worktree change** — nothing is committed and the
+index is untouched, so the diff can be reviewed and then committed or
+discarded like any manual edit.
+
+The operation never runs `git checkout`. Each blob is read with
+`git cat-file blob` (raw bytes, 1 MiB cap), validated against the owning
+schema via `validateConfigBlob` (a pre-migration blob shape is rejected, e.g.
+`numaNode` from before migration 0008), and only then written atomically. The
+allowlist is `classifyConfigGitPath` in `@arriero/core`: `settings.json`,
+`argument-defaults.json`, `resources.json`, `nodes.json`, `instances/*.json`,
+`presets/*.ini` and `proxy/*.json`; machine-local files, `.gitignore` and
+sensitive paths are not restorable. After all files are written the whole root
+is re-validated (`validateConfigRoot`: pool references, pipeline graph) — on
+failure every written file is rolled back to its previous content and the
+operation fails, so a partial restore can never leave dangling cross-file
+references undetected. On success the portable-config caches reload and
+`normalizeConfigFiles()` canonicalizes the restored files (placeholders,
+dropped legacy timestamps) inside the same reviewable change.
+
+Restoring is deliberately allowed while managed processes run — it is
+equivalent to an admin edit through the API, and a running instance whose file
+changed shows the existing `config drift` badge. The one exception is
+`settings.json` (build/source-operation inputs): it requires the same
+quiescence guard as tree-changing operations. A restored preset INI triggers
+the editor's mtime conflict check as usual. Concurrent admin API writes remain
+last-writer-wins per file, the same story as external edits.
+
+Supporting reads: `GET /api/config-git/diff?path=` scopes both diffs to one
+file, and `GET /api/config-git/commits/:commit` returns the commit's changed
+files (`files`, renames reported as add+delete) and full tree (`tree`) for the
+restore picker. Merge commits list no changed files — use the full tree there.
+
 ## Reset semantics
 
 Discard changes always performs `git reset --hard HEAD` for tracked files. The
@@ -137,11 +174,11 @@ tree is validated again afterward.
 
 ## API
 
-- `GET /api/config-git/status`, `/diff`, `/log`, `/validation`
+- `GET /api/config-git/status`, `/diff?path=`, `/log`, `/validation`
 - `GET /api/config-git/commits/:commit`
 - `POST /api/config-git/init`, `/remote`, `/clone`
 - `POST /api/config-git/fetch`, `/pull`, `/switch`, `/checkout`
-- `POST /api/config-git/branches`, `/reset`, `/commit`, `/push`
+- `POST /api/config-git/branches`, `/reset`, `/restore-files`, `/commit`, `/push`
 
 All routes are administrative `/api/*` routes and support the existing active
 node reverse proxy, so the page operates on the node selected in the header.

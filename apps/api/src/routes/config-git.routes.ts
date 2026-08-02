@@ -6,6 +6,7 @@ import {
   ConfigGitInitSchema,
   ConfigGitRemoteSchema,
   ConfigGitResetSchema,
+  ConfigGitRestoreFilesSchema,
   ConfigGitSwitchSchema,
 } from "@arriero/core";
 import type { Context, Hono } from "hono";
@@ -20,6 +21,7 @@ import {
   pullConfigRepository,
   pushConfigRepository,
   resetConfigChanges,
+  restoreConfigFiles,
   setConfigRemote,
   switchConfigBranch,
 } from "../config-git/operations.js";
@@ -59,7 +61,7 @@ export function registerConfigGitRoutes(app: Hono) {
 
   app.get("/api/config-git/diff", async (c) => {
     try {
-      return c.json({ data: await getConfigGitDiff() });
+      return c.json({ data: await getConfigGitDiff(c.req.query("path")) });
     } catch (error) {
       return failure(c, error);
     }
@@ -155,6 +157,16 @@ export function registerConfigGitRoutes(app: Hono) {
     if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
     try {
       return c.json({ data: await checkoutConfigCommit(parsed.data) });
+    } catch (error) {
+      return failure(c, error);
+    }
+  });
+
+  app.post("/api/config-git/restore-files", async (c) => {
+    const parsed = ConfigGitRestoreFilesSchema.safeParse(await input(c));
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+    try {
+      return c.json({ data: await restoreConfigFiles(parsed.data) });
     } catch (error) {
       return failure(c, error);
     }

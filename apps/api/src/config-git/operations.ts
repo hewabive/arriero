@@ -1,19 +1,25 @@
-import type {
-  ConfigGitCheckoutCommit,
-  ConfigGitClone,
-  ConfigGitCommitInput,
-  ConfigGitCreateBranch,
-  ConfigGitInit,
-  ConfigGitMutationResult,
-  ConfigGitRemote,
-  ConfigGitReset,
-  ConfigGitSwitch,
-  ConfigGitValidation,
+import {
+  classifyConfigGitPath,
+  type ConfigGitCheckoutCommit,
+  type ConfigGitClone,
+  type ConfigGitCommitInput,
+  type ConfigGitCreateBranch,
+  type ConfigGitInit,
+  type ConfigGitMutationResult,
+  type ConfigGitRemote,
+  type ConfigGitReset,
+  type ConfigGitRestoreFiles,
+  type ConfigGitSwitch,
+  type ConfigGitValidation,
+  type ConfigGitValidationIssue,
 } from "@arriero/core";
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
+  mkdirSync,
   mkdtempSync,
+  readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -22,9 +28,11 @@ import { dirname, resolve } from "node:path";
 
 import { buildRunner } from "../build/runner.js";
 import { config } from "../config.js";
+import { normalizeConfigFiles } from "../config-normalize.js";
 import { environmentRunner } from "../envs/runner.js";
 import { supervisor } from "../process/supervisor.js";
 import { anySourceRepositoryOperationActive } from "../sources/state.js";
+import { assertSafeConfigRelativePath } from "./paths.js";
 import {
   CONFIG_GITIGNORE_CONTENT,
   MACHINE_STATE_CONFIG_FILES,
@@ -42,7 +50,7 @@ import {
 import { reloadPortableConfigCaches } from "./reload.js";
 import { assertConfigGitRepository, getConfigGitStatus } from "./repository.js";
 import { withConfigGitOperation } from "./state.js";
-import { validateConfigRoot } from "./validation.js";
+import { validateConfigBlob, validateConfigRoot } from "./validation.js";
 
 type MutationWork = {
   output: string;
@@ -549,6 +557,164 @@ export function resetConfigChanges(
       output: [gitOutput(reset), cleanOutput].filter(Boolean).join("\n"),
       validation: currentValidation,
     };
+  });
+}
+
+const MAX_RESTORE_BLOB_BYTES = 1024 * 1024;
+
+function issuesSummary(issues: ConfigGitValidationIssue[]): string {
+  return issues
+    .slice(0, 8)
+    .map((item) => `${item.path}: ${item.message}`)
+    .join("; ");
+}
+
+function atomicWriteConfigFile(absolute: string, content: string) {
+  mkdirSync(dirname(absolute), { recursive: true });
+  const tmp = `${absolute}.${process.pid}.tmp`;
+  writeFileSync(tmp, content, "utf8");
+  renameSync(tmp, absolute);
+}
+
+export function restoreConfigFiles(
+  input: ConfigGitRestoreFiles,
+): Promise<ConfigGitMutationResult> {
+  return mutation("restore-files", async () => {
+    await assertPreparedRepository();
+    const paths = [...new Set(input.paths)];
+    const pathErrors: string[] = [];
+    for (const path of paths) {
+      try {
+        assertSafeConfigRelativePath(path);
+      } catch (error) {
+        pathErrors.push((error as Error).message);
+        continue;
+      }
+      if (
+        classifyConfigGitPath(path) === null ||
+        forbiddenTrackedPath.test(path)
+      ) {
+        pathErrors.push(`not a restorable configuration file: ${path}`);
+      }
+    }
+    if (pathErrors.length > 0) {
+      throw new Error(pathErrors.slice(0, 8).join("; "));
+    }
+    if (paths.includes("settings.json")) {
+      assertConfigContentCanChange();
+    }
+    if (input.ref.startsWith("-")) {
+      throw new Error(`unknown ref: ${input.ref}`);
+    }
+    const resolvedRef = await runGit(config.configDir, [
+      "rev-parse",
+      "--verify",
+      "--end-of-options",
+      `${input.ref}^{commit}`,
+    ]);
+    const hash = resolvedRef.stdout.trim();
+
+    const blobs = new Map<string, string>();
+    const blobIssues: ConfigGitValidationIssue[] = [];
+    for (const path of paths) {
+      const objectName = `${hash}:${path}`;
+      const type = await tryGit(config.configDir, [
+        "cat-file",
+        "-t",
+        objectName,
+      ]);
+      if (type !== "blob") {
+        blobIssues.push({
+          path,
+          message:
+            type === "tree"
+              ? `is a directory at ${input.ref}`
+              : `does not exist at ${input.ref}`,
+        });
+        continue;
+      }
+      const size = Number(
+        (await tryGit(config.configDir, ["cat-file", "-s", objectName])) ?? 0,
+      );
+      if (size > MAX_RESTORE_BLOB_BYTES) {
+        blobIssues.push({
+          path,
+          message: `file at ${input.ref} exceeds ${MAX_RESTORE_BLOB_BYTES} bytes`,
+        });
+        continue;
+      }
+      const content = (
+        await runGit(config.configDir, ["cat-file", "blob", objectName])
+      ).stdout;
+      blobIssues.push(...validateConfigBlob(path, content));
+      blobs.set(path, content);
+    }
+    if (blobIssues.length > 0) {
+      throw new Error(`restore validation failed: ${issuesSummary(blobIssues)}`);
+    }
+
+    const written: string[] = [];
+    const unchanged: string[] = [];
+    const snapshots = new Map<string, string | null>();
+    for (const [path, content] of blobs) {
+      const absolute = resolve(config.configDir, path);
+      if (existsSync(absolute)) {
+        if (lstatSync(absolute).isSymbolicLink()) {
+          throw new Error(`refusing to overwrite a symlinked path: ${path}`);
+        }
+        const current = readFileSync(absolute, "utf8");
+        if (current === content) {
+          unchanged.push(path);
+          continue;
+        }
+        snapshots.set(path, current);
+      } else {
+        snapshots.set(path, null);
+      }
+      atomicWriteConfigFile(absolute, content);
+      written.push(path);
+    }
+
+    if (written.length === 0) {
+      return {
+        output: `Already up to date with ${hash.slice(0, 7)}.`,
+        validation: validateConfigRoot(config.configDir),
+      };
+    }
+
+    const validation = validateConfigRoot(config.configDir);
+    if (!validation.valid) {
+      const failure = `restore would leave the configuration invalid: ${issuesSummary(validation.issues)}`;
+      try {
+        for (const [path, previous] of snapshots) {
+          const absolute = resolve(config.configDir, path);
+          if (previous === null) {
+            rmSync(absolute, { force: true });
+          } else {
+            atomicWriteConfigFile(absolute, previous);
+          }
+        }
+      } catch (rollbackError) {
+        throw new Error(
+          `${failure}; rollback failed: ${(rollbackError as Error).message}`,
+        );
+      }
+      throw new Error(failure);
+    }
+
+    reloadPortableConfigCaches();
+    const normalized = normalizeConfigFiles();
+    const lines = [
+      `Restored ${written.length} file(s) from ${hash.slice(0, 7)}:`,
+      ...written.map((path) => `  ${path}`),
+    ];
+    if (unchanged.length > 0) {
+      lines.push(`Already up to date: ${unchanged.join(", ")}`);
+    }
+    if (normalized.length > 0) {
+      lines.push(`Normalized after restore: ${normalized.join(", ")}`);
+    }
+    return { output: lines.join("\n"), validation };
   });
 }
 

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { validateConfigRoot } from "./validation.js";
+import { validateConfigBlob, validateConfigRoot } from "./validation.js";
 
 function writeJson(path: string, value: unknown) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -60,6 +60,57 @@ test("validateConfigRoot rejects a repository without configuration", () => {
   const result = validateConfigRoot(root);
   assert.equal(result.valid, false);
   assert.match(result.issues[0]?.message ?? "", /no recognized configuration/);
+});
+
+test("validateConfigBlob validates a single file by its path kind", () => {
+  assert.deepEqual(validateConfigBlob("settings.json", "{}"), []);
+  assert.deepEqual(
+    validateConfigBlob(
+      "instances/worker.json",
+      JSON.stringify({
+        name: "worker",
+        kind: "llama-server",
+        binaryPath: "/bin/false",
+        args: {},
+        env: {},
+        memory: [],
+        rpcWorkers: [],
+      }),
+    ),
+    [],
+  );
+
+  const mismatch = validateConfigBlob(
+    "instances/worker.json",
+    JSON.stringify({
+      name: "other",
+      kind: "llama-server",
+      binaryPath: "/bin/false",
+      args: {},
+      env: {},
+      memory: [],
+      rpcWorkers: [],
+    }),
+  );
+  assert.match(mismatch[0]?.message ?? "", /does not match file name/);
+
+  const invalid = validateConfigBlob("instances/worker.json", "{}");
+  assert.equal(invalid.length > 0, true);
+
+  const badIni = validateConfigBlob(
+    "presets/router.ini",
+    "[model]\nno equals sign here\n",
+  );
+  assert.equal(badIni.length > 0, true);
+
+  assert.match(
+    validateConfigBlob("path-catalog.json", "[]")[0]?.message ?? "",
+    /not a restorable/,
+  );
+  assert.match(
+    validateConfigBlob("README.md", "hello")[0]?.message ?? "",
+    /not a restorable/,
+  );
 });
 
 test("validateConfigRoot rejects symlinks and broken resource references", () => {
