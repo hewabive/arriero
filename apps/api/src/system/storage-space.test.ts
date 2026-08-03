@@ -87,6 +87,25 @@ test("parseStorageMountInfo includes common device and overlay filesystems", () 
   );
 });
 
+test("parseStorageMountInfo excludes boot partitions and container-runtime mounts", () => {
+  const mounts = parseStorageMountInfo(
+    [
+      "35 24 259:2 / / rw,relatime - ext4 /dev/nvme0n1p2 rw",
+      "36 35 259:1 / /boot rw,relatime - ext4 /dev/nvme0n1p1 rw",
+      "37 36 259:0 / /boot/efi rw,relatime - vfat /dev/nvme0n1p0 rw",
+      "38 35 259:3 / /efi rw,relatime - vfat /dev/nvme0n1p3 rw",
+      "39 35 0:60 / /var/lib/docker/overlay2/abc/merged rw,relatime - overlay overlay rw",
+      "40 35 0:61 / /run/containerd/io.containerd.runtime.v2.task/moby/abc/rootfs rw - overlay overlay rw",
+      "41 35 8:1 / /data rw,relatime - xfs /dev/sda1 rw",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(
+    mounts.map((mount) => mount.mountPath),
+    ["/", "/data"],
+  );
+});
+
 test("capacityFromStatFs converts blocks to bytes and hides unsupported inodes", () => {
   assert.deepEqual(
     capacityFromStatFs({

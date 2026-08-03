@@ -33,7 +33,10 @@ Filesystem capacity is intentionally separate from the 1 Hz counter recorder. Th
 endpoint discovers mounted local storage filesystems plus BeeGFS, starts an asynchronous `statfs`
 refresh for each mount, and returns the last successful value immediately. Pseudo, in-memory and
 unrelated network filesystems are excluded so the compact table represents disk space rather than
-every mount namespace entry. Refreshes have a 30-second TTL and never overlap for the same mount, so
+every mount namespace entry. Mount paths that never hold application data are also excluded:
+`/boot` (including `/boot/efi`), `/efi`, and container-runtime internals (`/var/lib/docker`,
+`/var/lib/containers`, `/var/lib/kubelet`, `/run/containerd`) — the latter keep per-container
+overlay mounts from flooding the table while an overlay root filesystem stays visible. Refreshes have a 30-second TTL and never overlap for the same mount, so
 a BeeGFS kernel-client call that waits for its own cluster-side capacity refresh does not hold the
 HTTP response. BeeGFS reports inode totals as zero when they are unsupported; those values become
 `null` and are omitted from the page. No BeeGFS userspace CLI or package is required. Without a

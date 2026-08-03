@@ -26,6 +26,15 @@ const LOCAL_STORAGE_FILESYSTEMS = new Set([
   "zfs",
 ]);
 
+const NON_STORAGE_MOUNT_ROOTS = [
+  "/boot",
+  "/efi",
+  "/run/containerd",
+  "/var/lib/containers",
+  "/var/lib/docker",
+  "/var/lib/kubelet",
+];
+
 export type StorageMount = Pick<
   SystemStorageSpace,
   "mountPath" | "source" | "fsType" | "kind" | "cfgFile"
@@ -80,6 +89,12 @@ function cfgFileFromSuperOptions(value: string | undefined): string | null {
   return option ? decodeMountField(option.slice("cfgFile=".length)) : null;
 }
 
+function isNonStorageMountPath(mountPath: string): boolean {
+  return NON_STORAGE_MOUNT_ROOTS.some(
+    (root) => mountPath === root || mountPath.startsWith(`${root}/`),
+  );
+}
+
 function storageKind(fsType: string): SystemStorageSpace["kind"] | null {
   if (fsType.startsWith("beegfs")) {
     return "beegfs";
@@ -101,6 +116,9 @@ export function parseStorageMountInfo(contents: string): StorageMount[] {
       continue;
     }
     const mountPath = decodeMountField(fields[4]!);
+    if (isNonStorageMountPath(mountPath)) {
+      continue;
+    }
     mounts.set(mountPath, {
       mountPath,
       source: decodeMountField(fields[separator + 2]!),
