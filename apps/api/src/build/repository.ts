@@ -9,6 +9,7 @@ import {
   type PathCatalogEntry,
 } from "@arriero/core";
 import { basename, resolve } from "node:path";
+import { createJobStore } from "../jobs/store.js";
 import { newId } from "../utils/id.js";
 
 import { config } from "../config.js";
@@ -131,26 +132,10 @@ export function registerBuiltBinaryInCatalog(
 }
 
 const BUILD_JOB_HISTORY_LIMIT = 20;
-const buildJobs = new Map<string, BuildJob>();
 
-function cloneJob(job: BuildJob): BuildJob {
-  return structuredClone(job);
-}
-
-function trimBuildJobHistory() {
-  if (buildJobs.size <= BUILD_JOB_HISTORY_LIMIT) {
-    return;
-  }
-  const removable = [...buildJobs.values()]
-    .filter((job) => job.status !== "running")
-    .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-  for (const job of removable) {
-    if (buildJobs.size <= BUILD_JOB_HISTORY_LIMIT) {
-      break;
-    }
-    buildJobs.delete(job.id);
-  }
-}
+export const buildJobs = createJobStore<BuildJob>({
+  historyLimit: BUILD_JOB_HISTORY_LIMIT,
+});
 
 export function createBuildJob(input: {
   status: BuildJobStatus;
@@ -160,7 +145,7 @@ export function createBuildJob(input: {
   startedAt: string;
   logPath: string;
 }): BuildJob {
-  const job: BuildJob = {
+  return buildJobs.insert({
     id: newId(),
     status: input.status,
     settings: input.settings,
@@ -172,10 +157,7 @@ export function createBuildJob(input: {
     logPath: input.logPath,
     binaryPath: null,
     error: null,
-  };
-  buildJobs.set(job.id, cloneJob(job));
-  trimBuildJobHistory();
-  return cloneJob(job);
+  });
 }
 
 export function updateBuildJob(
@@ -190,37 +172,13 @@ export function updateBuildJob(
     error: string | null;
   }>,
 ): BuildJob | null {
-  const current = buildJobs.get(id);
-  if (!current) {
-    return null;
-  }
-
-  const next: BuildJob = {
-    ...current,
-    status: input.status ?? current.status,
-    steps: input.steps ?? current.steps,
-    currentStep:
-      input.currentStep === undefined ? current.currentStep : input.currentStep,
-    finishedAt:
-      input.finishedAt === undefined ? current.finishedAt : input.finishedAt,
-    exitCode: input.exitCode === undefined ? current.exitCode : input.exitCode,
-    binaryPath:
-      input.binaryPath === undefined ? current.binaryPath : input.binaryPath,
-    error: input.error === undefined ? current.error : input.error,
-  };
-
-  buildJobs.set(id, cloneJob(next));
-  return cloneJob(next);
+  return buildJobs.patch(id, input);
 }
 
 export function getBuildJob(id: string): BuildJob | null {
-  const job = buildJobs.get(id);
-  return job ? cloneJob(job) : null;
+  return buildJobs.get(id);
 }
 
 export function listBuildJobs(limit = 20): BuildJob[] {
-  return [...buildJobs.values()]
-    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
-    .slice(0, Math.max(1, Math.min(limit, 100)))
-    .map(cloneJob);
+  return buildJobs.list(limit);
 }

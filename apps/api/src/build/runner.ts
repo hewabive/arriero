@@ -5,7 +5,6 @@ import type {
   BuildJobStepName,
   BuildSettings,
 } from "@arriero/core";
-import { spawn, type ChildProcessByStdio } from "node:child_process";
 import {
   createWriteStream,
   existsSync,
@@ -13,9 +12,11 @@ import {
   type WriteStream,
 } from "node:fs";
 import { basename, resolve } from "node:path";
-import type { Readable } from "node:stream";
 
 import { config } from "../config.js";
+import { runLoggedCommand } from "../jobs/exec.js";
+import { registerActiveJob } from "../jobs/registry.js";
+import { markJobStep } from "../jobs/steps.js";
 import { listLlamaSourceRefs } from "../llama/source-repository.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getActiveSourceRepositoryOperation } from "../sources/state.js";
@@ -38,6 +39,7 @@ import {
 } from "./plan.js";
 import { assertBuildPrerequisites } from "./preflight.js";
 import {
+  buildJobs,
   createBuildJob,
   getBuildJob,
   getBuildSettings,
@@ -55,7 +57,7 @@ export {
 
 type RunningBuild = {
   jobId: string;
-  child: ChildProcessByStdio<null, Readable, Readable> | null;
+  controller: AbortController;
   canceled: boolean;
 };
 
@@ -137,8 +139,20 @@ class LlamaBuildRunner {
       logPath: resolve(config.logsDir, `build-${Date.now()}.log`),
     });
 
-    this.running = { jobId: job.id, child: null, canceled: false };
-    void this.run(job.id);
+    this.running = {
+      jobId: job.id,
+      controller: new AbortController(),
+      canceled: false,
+    };
+    const completion = this.run(job.id);
+    registerActiveJob({
+      domain: "build",
+      jobId: job.id,
+      cancel: () => {
+        this.cancel(job.id);
+      },
+      completion,
+    });
     return job;
   }
 
@@ -148,7 +162,7 @@ class LlamaBuildRunner {
     }
 
     this.running.canceled = true;
-    this.running.child?.kill("SIGTERM");
+    this.running.controller.abort();
     return updateBuildJob(id, {
       status: "canceled",
       currentStep: null,
@@ -351,22 +365,7 @@ class LlamaBuildRunner {
     name: BuildJobStepName,
     patch: Partial<Omit<BuildJobStep, "name" | "command">>,
   ): BuildJob {
-    const current = getBuildJob(jobId);
-    if (!current) {
-      throw new Error(`build job not found: ${jobId}`);
-    }
-
-    const steps = current.steps.map((item) =>
-      item.name === name ? { ...item, ...patch } : item,
-    );
-    const updated = updateBuildJob(jobId, {
-      steps,
-      currentStep: patch.status === "running" ? name : current.currentStep,
-    });
-    if (!updated) {
-      throw new Error(`build job not found: ${jobId}`);
-    }
-    return updated;
+    return markJobStep<BuildJobStep, BuildJob>(buildJobs, jobId, name, patch);
   }
 
   private finish(
@@ -412,49 +411,20 @@ class LlamaBuildRunner {
     return 0;
   }
 
-  private runCommand(
+  private async runCommand(
     command: string[],
     cwd: string,
     logStream: WriteStream,
     env: NodeJS.ProcessEnv,
   ): Promise<number> {
-    return new Promise((resolveDone, reject) => {
-      const child = spawn(command[0]!, command.slice(1), {
-        cwd,
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      let settled = false;
-
-      if (this.running) {
-        this.running.child = child;
-      }
-
-      child.stdout.on("data", (chunk: Buffer) => logStream.write(chunk));
-      child.stderr.on("data", (chunk: Buffer) => logStream.write(chunk));
-
-      child.on("error", (error) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        reject(error);
-      });
-
-      child.on("close", (code, signal) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        if (this.running?.child === child) {
-          this.running.child = null;
-        }
-        if (signal) {
-          logStream.write(`\n# terminated by ${signal}\n`);
-        }
-        resolveDone(code ?? 1);
-      });
+    const signal = this.running?.controller.signal;
+    const result = await runLoggedCommand(command, {
+      log: logStream,
+      cwd,
+      env,
+      ...(signal ? { signal } : {}),
     });
+    return result.exitCode;
   }
 }
 
