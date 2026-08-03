@@ -15,6 +15,7 @@ import {
 import { startSourceRepositoryPull } from "../sources/jobs.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getLlamaSourceSyncReport } from "../llama/source-sync.js";
+import { sourceRepositoryFailure } from "./source-repositories.routes.js";
 
 export function registerLlamaSourceRoutes(app: Hono) {
   app.get("/api/llama-source/settings", (c) => {
@@ -89,13 +90,7 @@ export function registerLlamaSourceRoutes(app: Hono) {
         202,
       );
     } catch (error) {
-      const message = (error as Error).message;
-      return c.json(
-        { error: message },
-        /already running|while a build|while configuration Git/.test(message)
-          ? 409
-          : 400,
-      );
+      return sourceRepositoryFailure(c, error);
     }
   });
 }

@@ -3,6 +3,7 @@ import type {
   SourceSyncReport,
   SourceSyncSection,
 } from "@arriero/core";
+import { LLAMA_CPP_SOURCE_ID } from "@arriero/core";
 import {
   Alert,
   Badge,
@@ -42,7 +43,10 @@ import {
 import { formatLocalDateTime } from "../utils/time";
 import { countLabel } from "../utils/plural";
 import { SourceOperationPanel } from "./SourceOperationPanel";
-import { useSourceRepositoryOperation } from "./use-source-repository-operation";
+import {
+  invalidateSourceQueries,
+  useSourceRepositoryOperation,
+} from "./use-source-repository-operation";
 
 function checkStatusColor(status: SourceSyncSection["status"]) {
   if (status === "in-sync") return "green";
@@ -237,7 +241,7 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
           key={section.id}
           section={section}
           extra={
-            report.sourceId === "llama-cpp" &&
+            report.sourceId === LLAMA_CPP_SOURCE_ID &&
             section.id === "argument-help" ? (
               <ArgumentHelpDiff drift={section.status === "drift"} />
             ) : null
@@ -246,23 +250,6 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
       ))}
     </Stack>
   );
-}
-
-async function invalidateSourceQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-  sourceId: string,
-) {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["source-repositories"] }),
-    queryClient.invalidateQueries({
-      queryKey: ["source-repository-drift", sourceId],
-    }),
-    queryClient.invalidateQueries({ queryKey: ["llama-source-status"] }),
-    queryClient.invalidateQueries({ queryKey: ["llama-source-refs"] }),
-    queryClient.invalidateQueries({ queryKey: ["build-settings"] }),
-    queryClient.invalidateQueries({ queryKey: ["llama-arg-docs-sync"] }),
-    queryClient.invalidateQueries({ queryKey: ["llama-arg-help-diff"] }),
-  ]);
 }
 
 function SourceRepositoryPanel({
@@ -294,9 +281,8 @@ function SourceRepositoryPanel({
         originUrl: originUrl.trim(),
         branch: null,
       }),
-    onSuccess: async (response) => {
+    onSuccess: (response) => {
       sourceOperation.setJob(response.data);
-      await invalidateSourceQueries(queryClient, repository.spec.id);
       notifications.show({
         title: `${repository.displayName} clone started`,
         message: repository.repoPath,
@@ -335,9 +321,8 @@ function SourceRepositoryPanel({
 
   const pullMutation = useMutation({
     mutationFn: () => pullSourceRepository(repository.spec.id),
-    onSuccess: async (response) => {
+    onSuccess: (response) => {
       sourceOperation.setJob(response.data);
-      await invalidateSourceQueries(queryClient, repository.spec.id);
       notifications.show({
         title: `${repository.displayName} pull started`,
         message: "Progress is shown below.",
@@ -555,10 +540,7 @@ export function SourceSyncView() {
   const repositoriesQuery = useQuery({
     queryKey: ["source-repositories"],
     queryFn: listSourceRepositories,
-    refetchInterval: (query) =>
-      query.state.data?.data.some((item) => item.state === "busy")
-        ? 1_000
-        : 30_000,
+    refetchInterval: 30_000,
   });
 
   const refresh = async () => {

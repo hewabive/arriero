@@ -21,24 +21,13 @@ const MAX_LOG_LINE_LENGTH = 2_000;
 const MAX_OUTPUT_LENGTH = 32_000;
 
 const latestJobs = new Map<string, SourceRepositoryOperationJob>();
-const activeControllers = new Map<
+const activeJobs = new Map<
   string,
-  { jobId: string; controller: AbortController }
+  { jobId: string; controller: AbortController; completion: Promise<void> }
 >();
-const activePromises = new Map<string, Promise<void>>();
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function cloneJob(job: SourceRepositoryOperationJob) {
-  return structuredClone(job);
-}
-
-function setJob(job: SourceRepositoryOperationJob) {
-  const parsed = SourceRepositoryOperationJobSchema.parse(job);
-  latestJobs.set(parsed.sourceId, cloneJob(parsed));
-  return cloneJob(parsed);
 }
 
 function updateJob(
@@ -47,7 +36,9 @@ function updateJob(
 ): SourceRepositoryOperationJob | null {
   const current = latestJobs.get(sourceId);
   if (!current) return null;
-  return setJob({ ...current, ...input, id: current.id, sourceId });
+  const next = { ...current, ...input, id: current.id, sourceId };
+  latestJobs.set(sourceId, next);
+  return next;
 }
 
 function cleanLogLine(value: string): string {
@@ -68,25 +59,30 @@ function appendLogLine(sourceId: string, value: string) {
   });
 }
 
+const PHASE_PROGRESS: Record<
+  SourceRepositoryOperationPhase,
+  { base: number; span: number }
+> = {
+  starting: { base: 1, span: 0 },
+  updating: { base: 1, span: 0 },
+  receiving: { base: 5, span: 65 },
+  resolving: { base: 70, span: 20 },
+  "checking-out": { base: 90, span: 7 },
+  validating: { base: 98, span: 0 },
+  publishing: { base: 99, span: 0 },
+  complete: { base: 100, span: 0 },
+};
+
 function phaseProgress(
-  operation: SourceRepositoryOperationKind,
   phase: SourceRepositoryOperationPhase,
   stagePercent: number,
 ): number {
+  const { base, span } = PHASE_PROGRESS[phase];
   const percent = Math.max(0, Math.min(100, stagePercent));
-  if (phase === "receiving") return Math.round(5 + percent * 0.65);
-  if (phase === "resolving") return Math.round(70 + percent * 0.2);
-  if (phase === "checking-out") return Math.round(90 + percent * 0.07);
-  if (operation === "pull" && phase === "updating") {
-    return Math.max(1, Math.round(percent * 0.97));
-  }
-  return percent;
+  return Math.round(base + (span * percent) / 100);
 }
 
-export function parseSourceGitProgress(
-  operation: SourceRepositoryOperationKind,
-  line: string,
-): {
+export function parseSourceGitProgress(line: string): {
   phase: SourceRepositoryOperationPhase;
   progress: number;
   message: string;
@@ -97,7 +93,6 @@ export function parseSourceGitProgress(
     );
   if (!match) return null;
   const label = match[1]?.toLowerCase() ?? "";
-  const stagePercent = Number(match[2]);
   const phase: SourceRepositoryOperationPhase = label.startsWith("receiving")
     ? "receiving"
     : label.startsWith("resolving")
@@ -105,22 +100,29 @@ export function parseSourceGitProgress(
       : "checking-out";
   return {
     phase,
-    progress: phaseProgress(operation, phase, stagePercent),
+    progress: phaseProgress(phase, Number(match[2])),
     message: cleanLogLine(line),
   };
 }
 
 function createReporter(
   sourceId: string,
-  operation: SourceRepositoryOperationKind,
   signal: AbortSignal,
 ): SourceRepositoryOperationRuntime & { flush: () => void } {
   const pending = { stdout: "", stderr: "" };
 
   const consumeLine = (line: string) => {
-    appendLogLine(sourceId, line);
-    const progress = parseSourceGitProgress(operation, line);
-    if (progress) updateJob(sourceId, progress);
+    const current = latestJobs.get(sourceId);
+    if (!current) return;
+    const cleaned = cleanLogLine(line);
+    const progress = parseSourceGitProgress(line);
+    if (!cleaned && !progress) return;
+    updateJob(sourceId, {
+      ...(cleaned
+        ? { logLines: [...current.logLines, cleaned].slice(-MAX_LOG_LINES) }
+        : {}),
+      ...(progress ?? {}),
+    });
   };
 
   const consumeChunk = (target: "stdout" | "stderr", chunk: string) => {
@@ -133,7 +135,12 @@ function createReporter(
   return {
     signal,
     onGitOutput: consumeChunk,
-    onPhase: (input) => updateJob(sourceId, input),
+    onPhase: (input) =>
+      updateJob(sourceId, {
+        phase: input.phase,
+        progress: phaseProgress(input.phase, 0),
+        message: input.message,
+      }),
     flush: () => {
       for (const target of ["stdout", "stderr"] as const) {
         if (pending[target]) consumeLine(pending[target]);
@@ -160,7 +167,7 @@ function startJob(
   assertSourceRepositoryOperationIdle(sourceId);
   assertSourceContentCanChange(sourceId);
 
-  const job = setJob({
+  const job = SourceRepositoryOperationJobSchema.parse({
     id: newId(),
     sourceId,
     operation,
@@ -176,22 +183,20 @@ function startJob(
     error: null,
     logLines: [],
   });
+  latestJobs.set(sourceId, job);
   const controller = new AbortController();
-  activeControllers.set(sourceId, { jobId: job.id, controller });
-  const reporter = createReporter(sourceId, operation, controller.signal);
+  const reporter = createReporter(sourceId, controller.signal);
 
   const completion = work(reporter)
     .then((result) => {
       reporter.flush();
-      appendLogLine(
-        sourceId,
-        `${operation === "clone" ? "Clone" : "Pull"} completed.`,
-      );
+      const completed = `${operation === "clone" ? "Clone" : "Pull"} completed.`;
+      appendLogLine(sourceId, completed);
       updateJob(sourceId, {
         status: "succeeded",
         phase: "complete",
         progress: 100,
-        message: `${operation === "clone" ? "Clone" : "Pull"} completed.`,
+        message: completed,
         finishedAt: nowIso(),
         output: boundedOutput(result.output),
         error: null,
@@ -209,14 +214,11 @@ function startJob(
         output: null,
         error: canceled ? "canceled by user" : message,
       });
-    })
-    .then(() => undefined);
-  activePromises.set(sourceId, completion);
+    });
+  activeJobs.set(sourceId, { jobId: job.id, controller, completion });
   void completion.finally(() => {
-    const active = activeControllers.get(sourceId);
-    if (active?.jobId === job.id) activeControllers.delete(sourceId);
-    if (activePromises.get(sourceId) === completion) {
-      activePromises.delete(sourceId);
+    if (activeJobs.get(sourceId)?.jobId === job.id) {
+      activeJobs.delete(sourceId);
     }
   });
 
@@ -244,14 +246,14 @@ export function getSourceRepositoryOperationJob(
   sourceId: string,
 ): SourceRepositoryOperationJob | null {
   const job = latestJobs.get(sourceId);
-  return job ? cloneJob(job) : null;
+  return job ? structuredClone(job) : null;
 }
 
 export function cancelSourceRepositoryOperationJob(
   sourceId: string,
 ): SourceRepositoryOperationJob {
   const job = latestJobs.get(sourceId);
-  const active = activeControllers.get(sourceId);
+  const active = activeJobs.get(sourceId);
   if (!job || job.status !== "running" || active?.jobId !== job.id) {
     throw new Error(
       `no source repository operation is running for ${sourceId}`,
@@ -265,21 +267,19 @@ export function cancelSourceRepositoryOperationJob(
 }
 
 export function resetSourceRepositoryOperationJobsForTests(): void {
-  for (const active of activeControllers.values()) active.controller.abort();
-  activeControllers.clear();
-  activePromises.clear();
+  for (const active of activeJobs.values()) active.controller.abort();
+  activeJobs.clear();
   latestJobs.clear();
 }
 
 export async function shutdownSourceRepositoryOperationJobs(
   timeoutMs: number,
 ): Promise<number> {
-  const running = [...activeControllers.values()];
+  const running = [...activeJobs.values()];
   if (running.length === 0) return 0;
   for (const active of running) active.controller.abort();
-  const completions = [...activePromises.values()];
   await Promise.race([
-    Promise.allSettled(completions),
+    Promise.allSettled(running.map((active) => active.completion)),
     new Promise<void>((resolveDone) => {
       const timer = setTimeout(resolveDone, Math.max(1, timeoutMs));
       timer.unref?.();

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -13,6 +12,10 @@ import { pathToFileURL } from "node:url";
 import { beforeEach, test } from "node:test";
 
 import { config } from "../config.js";
+import {
+  createLlamaOriginRepository,
+  runFixtureGit,
+} from "../test/llama-origin.js";
 import {
   cloneSourceRepository,
   sweepSourceCloneStaging,
@@ -29,20 +32,6 @@ import {
   getSourceRepositorySpec,
   getSourceRepositoryStatus,
 } from "./repository.js";
-
-function git(cwd: string, args: string[]) {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: "Source Test",
-      GIT_AUTHOR_EMAIL: "source@example.com",
-      GIT_COMMITTER_NAME: "Source Test",
-      GIT_COMMITTER_EMAIL: "source@example.com",
-    },
-  }).trim();
-}
 
 function resetSettings(value: unknown = {}) {
   mkdirSync(config.configDir, { recursive: true });
@@ -67,29 +56,14 @@ function managedSettings() {
   };
 }
 
-function createLlamaOrigin(name: string): string {
-  const path = resolve(config.dataDir, name);
-  rmSync(path, { recursive: true, force: true });
-  mkdirSync(path, { recursive: true });
-  git(path, ["init", "-b", "main"]);
-  writeFileSync(
-    resolve(path, "CMakeLists.txt"),
-    "cmake_minimum_required(VERSION 3.20)\n",
-  );
-  writeFileSync(resolve(path, "README.md"), "test llama.cpp source\n");
-  git(path, ["add", "."]);
-  git(path, ["commit", "-m", "initial"]);
-  return path;
-}
-
 function createInvalidOrigin(name: string): string {
   const path = resolve(config.dataDir, name);
   rmSync(path, { recursive: true, force: true });
   mkdirSync(path, { recursive: true });
-  git(path, ["init", "-b", "main"]);
+  runFixtureGit(path, ["init", "-b", "main"]);
   writeFileSync(resolve(path, "README.md"), "not llama.cpp\n");
-  git(path, ["add", "."]);
-  git(path, ["commit", "-m", "initial"]);
+  runFixtureGit(path, ["add", "."]);
+  runFixtureGit(path, ["commit", "-m", "initial"]);
   return path;
 }
 
@@ -178,7 +152,7 @@ test("an internal directory is not allowed to adopt the manager parent repositor
 });
 
 test("clone publishes a validated managed checkout and persists a fork origin", async () => {
-  const origin = createLlamaOrigin("llama-origin");
+  const origin = createLlamaOriginRepository("llama-origin");
   const originUrl = pathToFileURL(origin).href;
 
   const cloned = await cloneSourceRepository(LLAMA_CPP_SOURCE_ID, {
@@ -191,7 +165,7 @@ test("clone publishes a validated managed checkout and persists a fork origin", 
   assert.equal(cloned.status.spec.originUrl, originUrl);
   assert.equal(cloned.status.remoteUrl, originUrl);
   assert.equal(
-    git(cloned.status.repoPath, ["rev-parse", "--show-toplevel"]),
+    runFixtureGit(cloned.status.repoPath, ["rev-parse", "--show-toplevel"]),
     cloned.status.repoPath,
   );
   const settings = JSON.parse(readFileSync(config.settingsFile, "utf8")) as {
@@ -207,7 +181,7 @@ test("clone publishes a validated managed checkout and persists a fork origin", 
 });
 
 test("background clone exposes busy state and completes as a source job", async () => {
-  const origin = createLlamaOrigin("llama-background-origin");
+  const origin = createLlamaOriginRepository("llama-background-origin");
   const originUrl = pathToFileURL(origin).href;
 
   const started = startSourceRepositoryClone(LLAMA_CPP_SOURCE_ID, {
@@ -297,8 +271,12 @@ test("startup sweep removes orphaned clone staging directories", () => {
 });
 
 test("origin update changes both portable settings and the Git remote", async () => {
-  const firstOrigin = pathToFileURL(createLlamaOrigin("llama-origin-a")).href;
-  const secondOrigin = pathToFileURL(createLlamaOrigin("llama-origin-b")).href;
+  const firstOrigin = pathToFileURL(
+    createLlamaOriginRepository("llama-origin-a"),
+  ).href;
+  const secondOrigin = pathToFileURL(
+    createLlamaOriginRepository("llama-origin-b"),
+  ).href;
   await cloneSourceRepository(LLAMA_CPP_SOURCE_ID, {
     originUrl: firstOrigin,
     branch: null,
@@ -311,7 +289,7 @@ test("origin update changes both portable settings and the Git remote", async ()
   assert.equal(changed.status.spec.originUrl, secondOrigin);
   assert.equal(changed.status.remoteUrl, secondOrigin);
   assert.equal(
-    git(changed.status.repoPath, ["remote", "get-url", "origin"]),
+    runFixtureGit(changed.status.repoPath, ["remote", "get-url", "origin"]),
     secondOrigin,
   );
 });

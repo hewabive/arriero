@@ -48,8 +48,7 @@ export type SourceRepositoryOperationRuntime = {
   onGitOutput?: (target: "stdout" | "stderr", chunk: string) => void;
   onPhase?: (input: {
     phase: SourceRepositoryOperationPhase;
-    progress: number | null;
-    message: string | null;
+    message: string;
   }) => void;
 };
 
@@ -154,7 +153,6 @@ export async function cloneSourceRepository(
       const staging = resolve(temporary, "repository");
       runtime.onPhase?.({
         phase: "starting",
-        progress: 1,
         message: `Starting full clone from ${originUrl}.`,
       });
       const args = ["clone", "--progress", "--origin", "origin"];
@@ -171,14 +169,12 @@ export async function cloneSourceRepository(
         assertOperationNotCanceled(runtime);
         runtime.onPhase?.({
           phase: "validating",
-          progress: 98,
           message: "Validating the cloned checkout.",
         });
         await validateClonedRepository(sourceId, staging);
         assertOperationNotCanceled(runtime);
         runtime.onPhase?.({
           phase: "publishing",
-          progress: 99,
           message: `Publishing the checkout to ${target}.`,
         });
         renameSync(staging, target);
@@ -252,7 +248,6 @@ export async function pullSourceRepository(
       const status = await assertSourceRepositoryReady(sourceId);
       runtime.onPhase?.({
         phase: "updating",
-        progress: 1,
         message: "Fetching and fast-forwarding the tracking branch.",
       });
       const pulled = await runGit(

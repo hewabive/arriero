@@ -252,6 +252,24 @@ async function untrackedFileDiff(file: string): Promise<string> {
   return result.stdout;
 }
 
+const UNTRACKED_DIFF_BATCH = 8;
+
+async function untrackedFileDiffs(files: string[]): Promise<string[]> {
+  const diffs: string[] = [];
+  let totalBytes = 0;
+  for (let index = 0; index < files.length; index += UNTRACKED_DIFF_BATCH) {
+    if (totalBytes > DIFF_LIMIT) break;
+    const batch = await Promise.all(
+      files.slice(index, index + UNTRACKED_DIFF_BATCH).map(untrackedFileDiff),
+    );
+    for (const diff of batch) {
+      diffs.push(diff);
+      totalBytes += Buffer.byteLength(diff, "utf8");
+    }
+  }
+  return diffs;
+}
+
 export async function getConfigGitDiff(path?: string): Promise<ConfigGitDiff> {
   if (!(await isExactGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
@@ -262,9 +280,7 @@ export async function getConfigGitDiff(path?: string): Promise<ConfigGitDiff> {
     runGit(config.configDir, ["diff", ...DIFF_ARGS, ...pathspec]),
     listUntrackedFiles(pathspec),
   ]);
-  const untrackedDiffs = await Promise.all(
-    untrackedFiles.map(untrackedFileDiff),
-  );
+  const untrackedDiffs = await untrackedFileDiffs(untrackedFiles);
   const staged = limitDiff(stagedResult.stdout);
   const unstaged = limitDiff(
     [unstagedResult.stdout, ...untrackedDiffs].filter(Boolean).join(""),

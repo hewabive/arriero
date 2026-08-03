@@ -1,7 +1,8 @@
+import { LLAMA_CPP_SOURCE_ID } from "@arriero/core";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const LLAMA_CPP_SOURCE_ID = "llama-cpp";
+export { LLAMA_CPP_SOURCE_ID };
 
 export type SourceRepositoryDefinition = {
   id: string;

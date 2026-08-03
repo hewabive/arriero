@@ -1,4 +1,5 @@
 import type { BuildSettings, LlamaSourceRefs } from "@arriero/core";
+import { LLAMA_CPP_SOURCE_ID } from "@arriero/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -26,8 +27,6 @@ import {
 } from "./build-view-helpers";
 import { useSourceRepositoryOperation } from "./use-source-repository-operation";
 
-const LLAMA_CPP_SOURCE_ID = "llama-cpp";
-
 export function useBuildView() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<BuildFormState | null>(null);
@@ -52,8 +51,7 @@ export function useBuildView() {
   const sourceStatusQuery = useQuery({
     queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
     queryFn: () => getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID),
-    refetchInterval: (query) =>
-      query.state.data?.data.state === "busy" ? 1_000 : 30_000,
+    refetchInterval: 30_000,
   });
   const refsQuery = useQuery({
     queryKey: ["llama-source-refs"],
@@ -88,8 +86,7 @@ export function useBuildView() {
     form !== null &&
     sourceStatus.repoPath === repoPath;
   const sourceBusy = sourceStatus?.state === "busy" || sourceOperation.running;
-  const sourceReady =
-    sourceStatus?.valid === true && sourceStatus.state !== "busy";
+  const sourceReady = sourceStatus?.valid === true;
   const refs: LlamaSourceRefs | null = refsQuery.data?.data ?? null;
   const dirty = refs?.dirty === true;
   const refIsTag = gitRef !== null && (refs?.tags.includes(gitRef) ?? false);
@@ -250,14 +247,8 @@ export function useBuildView() {
 
   const pullMutation = useMutation({
     mutationFn: () => pullSourceRepository(LLAMA_CPP_SOURCE_ID),
-    onSuccess: async (result) => {
+    onSuccess: (result) => {
       sourceOperation.setJob(result.data);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
-        }),
-        queryClient.invalidateQueries({ queryKey: ["llama-source-refs"] }),
-      ]);
       notifications.show({
         title: "llama.cpp pull started",
         message: "Progress is shown in Source activity.",
@@ -275,11 +266,8 @@ export function useBuildView() {
   const cloneMutation = useMutation({
     mutationFn: () =>
       cloneSourceRepository(LLAMA_CPP_SOURCE_ID, { branch: null }),
-    onSuccess: async (result) => {
+    onSuccess: (result) => {
       sourceOperation.setJob(result.data);
-      await queryClient.invalidateQueries({
-        queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
-      });
       notifications.show({
         title: "llama.cpp clone started",
         message: sourceStatus?.repoPath ?? repoPath,
@@ -293,6 +281,18 @@ export function useBuildView() {
       });
     },
   });
+
+  const cloneNeeded = sourceStatus?.exists !== true;
+  const sourceSync = {
+    label: cloneNeeded ? ("Clone" as const) : ("Pull" as const),
+    mutation: cloneNeeded ? cloneMutation : pullMutation,
+    disabled:
+      !settingsReady ||
+      Boolean(runningJob) ||
+      sourceBusy ||
+      !sourceStatusMatchesForm ||
+      (cloneNeeded ? sourceStatus?.state !== "missing" : !sourceReady),
+  };
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => cancelBuildJob(id),
@@ -368,8 +368,7 @@ export function useBuildView() {
     saveMutation,
     startMutation,
     checkoutMutation,
-    cloneMutation,
-    pullMutation,
+    sourceSync,
     cancelMutation,
   };
 }

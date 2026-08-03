@@ -1931,6 +1931,15 @@ export const SourceRepositoryIdSchema = z
   .max(80)
   .regex(/^[A-Za-z0-9._-]+$/);
 
+export const LLAMA_CPP_SOURCE_ID = "llama-cpp";
+
+export const BackgroundJobStatusSchema = z.enum([
+  "running",
+  "succeeded",
+  "failed",
+  "canceled",
+]);
+
 export const SourceRepositoryLocationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("managed") }),
   z.object({
@@ -1992,12 +2001,7 @@ export const SourceRepositoryOperationResultSchema = z.object({
 
 export const SourceRepositoryOperationKindSchema = z.enum(["clone", "pull"]);
 
-export const SourceRepositoryOperationStatusSchema = z.enum([
-  "running",
-  "succeeded",
-  "failed",
-  "canceled",
-]);
+export const SourceRepositoryOperationStatusSchema = BackgroundJobStatusSchema;
 
 export const SourceRepositoryOperationPhaseSchema = z.enum([
   "starting",
@@ -2078,12 +2082,7 @@ export const BuildSettingsSchema = z.object({
   parallelJobs: z.number().int().positive().max(256).nullable(),
 });
 
-export const BuildJobStatusSchema = z.enum([
-  "running",
-  "succeeded",
-  "failed",
-  "canceled",
-]);
+export const BuildJobStatusSchema = BackgroundJobStatusSchema;
 export const BuildJobStepNameSchema = z.enum([
   "git-checkout",
   "git-pull",
@@ -2476,12 +2475,7 @@ export const EnvironmentRecordSchema = z.preprocess(
   ]),
 );
 
-export const EnvironmentJobStatusSchema = z.enum([
-  "running",
-  "succeeded",
-  "failed",
-  "canceled",
-]);
+export const EnvironmentJobStatusSchema = BackgroundJobStatusSchema;
 export const EnvironmentJobStepNameSchema = z.enum([
   "python-preflight",
   "python-install",
@@ -3957,6 +3951,7 @@ export type SourceRepositoryOperationResult = z.infer<
 export type SourceRepositoryOperationKind = z.infer<
   typeof SourceRepositoryOperationKindSchema
 >;
+export type BackgroundJobStatus = z.infer<typeof BackgroundJobStatusSchema>;
 export type SourceRepositoryOperationStatus = z.infer<
   typeof SourceRepositoryOperationStatusSchema
 >;

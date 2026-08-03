@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
 
 import { config } from "../config.js";
+import { createLlamaOriginRepository } from "../test/llama-origin.js";
 import { resetSourceRepositoryOperationJobsForTests } from "../sources/jobs.js";
 import { registerLlamaSourceRoutes } from "./llama-source.routes.js";
 import { registerSourceRepositoryRoutes } from "./source-repositories.routes.js";
@@ -44,29 +43,7 @@ beforeEach(() => {
 });
 
 function createLlamaOrigin() {
-  const origin = resolve(config.dataDir, "route-llama-origin");
-  rmSync(origin, { recursive: true, force: true });
-  mkdirSync(origin, { recursive: true });
-  const git = (args: string[]) =>
-    execFileSync("git", args, {
-      cwd: origin,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        GIT_AUTHOR_NAME: "Route Test",
-        GIT_AUTHOR_EMAIL: "route@example.com",
-        GIT_COMMITTER_NAME: "Route Test",
-        GIT_COMMITTER_EMAIL: "route@example.com",
-      },
-    });
-  git(["init", "-b", "main"]);
-  writeFileSync(
-    resolve(origin, "CMakeLists.txt"),
-    "project(llama-route-test)\n",
-  );
-  git(["add", "."]);
-  git(["commit", "-m", "initial"]);
-  return pathToFileURL(origin).href;
+  return pathToFileURL(createLlamaOriginRepository("route-llama-origin")).href;
 }
 
 async function waitForOperation(app: Hono) {

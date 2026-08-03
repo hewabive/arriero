@@ -16,30 +16,14 @@ export function BuildView() {
         <Group justify="flex-end" align="flex-start" wrap="wrap">
           <Group gap="xs" wrap="wrap">
             <Button
-              aria-label={`${fm.sourceStatus?.exists ? "Pull" : "Clone"} llama.cpp repository`}
+              aria-label={`${fm.sourceSync.label} llama.cpp repository`}
               variant="default"
               leftSection={<DownloadCloud size={16} />}
-              loading={
-                fm.sourceStatus?.exists
-                  ? fm.pullMutation.isPending
-                  : fm.cloneMutation.isPending
-              }
-              disabled={
-                !fm.settingsReady ||
-                Boolean(fm.runningJob) ||
-                fm.sourceBusy ||
-                !fm.sourceStatusMatchesForm ||
-                (fm.sourceStatus?.exists
-                  ? !fm.sourceReady
-                  : fm.sourceStatus?.state !== "missing")
-              }
-              onClick={() =>
-                fm.sourceStatus?.exists
-                  ? fm.pullMutation.mutate()
-                  : fm.cloneMutation.mutate()
-              }
+              loading={fm.sourceSync.mutation.isPending}
+              disabled={fm.sourceSync.disabled}
+              onClick={() => fm.sourceSync.mutation.mutate()}
             >
-              {fm.sourceStatus?.exists ? "Pull" : "Clone"}
+              {fm.sourceSync.label}
             </Button>
             <Button
               aria-label="Save build settings"

@@ -26,7 +26,7 @@ function sourceId(c: Context): string {
   return SourceRepositoryIdSchema.parse(c.req.param("id"));
 }
 
-function failure(c: Context, error: unknown) {
+export function sourceRepositoryFailure(c: Context, error: unknown) {
   const message = (error as Error).message;
   if (/has no drift adapter/.test(message)) {
     return c.json({ error: message }, 404);
@@ -50,7 +50,7 @@ export function registerSourceRepositoryRoutes(app: Hono) {
     try {
       return c.json({ data: await getSourceRepositoryStatus(sourceId(c)) });
     } catch (error) {
-      return failure(c, error);
+      return sourceRepositoryFailure(c, error);
     }
   });
 
@@ -60,7 +60,7 @@ export function registerSourceRepositoryRoutes(app: Hono) {
         data: getSourceRepositoryOperationJob(sourceId(c)),
       });
     } catch (error) {
-      return failure(c, error);
+      return sourceRepositoryFailure(c, error);
     }
   });
 
@@ -70,7 +70,7 @@ export function registerSourceRepositoryRoutes(app: Hono) {
         data: await getSourceRepositoryDriftReport(sourceId(c)),
       });
     } catch (error) {
-      return failure(c, error);
+      return sourceRepositoryFailure(c, error);
     }
   });
 
@@ -86,7 +86,7 @@ export function registerSourceRepositoryRoutes(app: Hono) {
         data: await updateSourceRepositorySettings(sourceId(c), parsed.data),
       });
     } catch (error) {
-      return failure(c, error);
+      return sourceRepositoryFailure(c, error);
     }
   });
 
@@ -101,7 +101,7 @@ export function registerSourceRepositoryRoutes(app: Hono) {
         202,
       );
     } catch (error) {
-      return failure(c, error);
+      return sourceRepositoryFailure(c, error);
     }
   });
 
@@ -109,7 +109,7 @@ export function registerSourceRepositoryRoutes(app: Hono) {
     try {
       return c.json({ data: startSourceRepositoryPull(sourceId(c)) }, 202);
     } catch (error) {
-      return failure(c, error);
+      return sourceRepositoryFailure(c, error);
     }
   });
 
@@ -119,7 +119,7 @@ export function registerSourceRepositoryRoutes(app: Hono) {
         data: cancelSourceRepositoryOperationJob(sourceId(c)),
       });
     } catch (error) {
-      return failure(c, error);
+      return sourceRepositoryFailure(c, error);
     }
   });
 }
