@@ -154,6 +154,46 @@ export function nvidiaDriverInstallCommands(
   ];
 }
 
+export function cudaToolkitInstallCommands(
+  release: OsRelease,
+  architecture: NodeJS.Architecture = process.arch,
+): string[] {
+  if (architecture !== "x64") {
+    return [];
+  }
+
+  const majorVersion = release.versionId?.split(".")[0];
+  if (!majorVersion || !/^\d+$/.test(majorVersion)) {
+    return [];
+  }
+
+  let repository: string;
+  let addRepositoryCommand: string;
+  if (release.id === "fedora") {
+    repository = `fedora${majorVersion}`;
+    addRepositoryCommand = "sudo dnf config-manager addrepo --from-repofile=";
+  } else if (
+    release.id === "rhel" ||
+    release.id === "rocky" ||
+    release.id === "almalinux" ||
+    release.id === "ol"
+  ) {
+    repository = `rhel${majorVersion}`;
+    addRepositoryCommand = "sudo dnf config-manager --add-repo ";
+  } else {
+    return [];
+  }
+
+  const repositoryUrl =
+    `https://developer.download.nvidia.com/compute/cuda/repos/${repository}` +
+    `/x86_64/cuda-${repository}.repo`;
+  return [
+    `${addRepositoryCommand}${repositoryUrl}`,
+    "sudo dnf clean expire-cache",
+    "sudo dnf install -y cuda-toolkit",
+  ];
+}
+
 export function nvidiaDriverProbeOutcome(
   status: NvidiaTelemetryStatus,
 ): PrerequisiteProbeOutcome {
@@ -423,13 +463,12 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       "GGML_CUDA=ON builds need nvcc. The build environment auto-prepends its directory to PATH once nvcc is found on disk, so an out-of-path toolkit still works for builds.",
     packages: {
       apt: ["nvidia-cuda-toolkit"],
-      dnf: ["cuda-toolkit"],
       pacman: ["cuda"],
       zypper: ["cuda-toolkit"],
     },
-    commands: [],
+    commands: cudaToolkitInstallCommands,
     docPath: null,
-    note: "Also detected through CUDACXX, CUDA_HOME, CUDA_PATH, /usr/local/cuda and /opt/cuda.",
+    note: "DNF systems need NVIDIA's distribution-specific CUDA repository before the cuda-toolkit package is available. Also detected through CUDACXX, CUDA_HOME, CUDA_PATH, /usr/local/cuda and /opt/cuda.",
     probe: executableProbe(["nvcc"], ["--version"]),
   },
   {

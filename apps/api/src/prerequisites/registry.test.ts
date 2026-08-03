@@ -2,9 +2,84 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  cudaToolkitInstallCommands,
   nvidiaDriverInstallCommands,
   nvidiaDriverProbeOutcome,
+  prerequisiteDefinitions,
 } from "./registry.js";
+
+test("keeps CUDA out of the aggregated DNF transaction", () => {
+  const nvcc = prerequisiteDefinitions.find(
+    (definition) => definition.id === "nvcc",
+  );
+  assert.ok(nvcc);
+  assert.deepEqual(nvcc.packages.dnf, undefined);
+});
+
+test("adds NVIDIA's CUDA repository before installing the toolkit on Fedora", () => {
+  assert.deepEqual(
+    cudaToolkitInstallCommands(
+      {
+        id: "fedora",
+        idLike: [],
+        prettyName: "Fedora Linux 44",
+        versionId: "44",
+      },
+      "x64",
+    ),
+    [
+      "sudo dnf config-manager addrepo --from-repofile=https://developer.download.nvidia.com/compute/cuda/repos/fedora44/x86_64/cuda-fedora44.repo",
+      "sudo dnf clean expire-cache",
+      "sudo dnf install -y cuda-toolkit",
+    ],
+  );
+});
+
+test("uses the matching RHEL CUDA repository for Rocky Linux", () => {
+  assert.deepEqual(
+    cudaToolkitInstallCommands(
+      {
+        id: "rocky",
+        idLike: ["rhel", "centos", "fedora"],
+        prettyName: "Rocky Linux 9.8 (Blue Onyx)",
+        versionId: "9.8",
+      },
+      "x64",
+    ),
+    [
+      "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo",
+      "sudo dnf clean expire-cache",
+      "sudo dnf install -y cuda-toolkit",
+    ],
+  );
+});
+
+test("does not invent CUDA repository commands for unsupported DNF hosts", () => {
+  assert.deepEqual(
+    cudaToolkitInstallCommands(
+      {
+        id: "centos",
+        idLike: ["rhel", "fedora"],
+        prettyName: "CentOS Stream 10",
+        versionId: "10",
+      },
+      "x64",
+    ),
+    [],
+  );
+  assert.deepEqual(
+    cudaToolkitInstallCommands(
+      {
+        id: "rocky",
+        idLike: ["rhel", "centos", "fedora"],
+        prettyName: "Rocky Linux 9.8 (Blue Onyx)",
+        versionId: "9.8",
+      },
+      "arm64",
+    ),
+    [],
+  );
+});
 
 test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
   assert.deepEqual(

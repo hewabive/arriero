@@ -58,6 +58,14 @@ offer the Ubuntu command on other distributions. The command does not have to
 install `nvidia-utils` or `nvidia-smi` because arriero calls
 `libnvidia-ml.so.1` directly.
 
+The same rule keeps `cuda-toolkit` out of the aggregated DNF command. It is an
+NVIDIA package, not a package in the default Fedora or RHEL-family repositories;
+including it before NVIDIA's repository is configured makes DNF reject the
+whole transaction, including otherwise available tools. On supported x86-64
+Fedora, RHEL, AlmaLinux, Rocky Linux and Oracle Linux hosts, the `nvcc` check
+instead shows separate commands that add the matching NVIDIA network repository,
+expire DNF metadata and install `cuda-toolkit`.
+
 Rocky Linux 9 on x86-64 uses NVIDIA's equivalent hardware-aware helper. Its
 remediation enables Rocky's CRB and EPEL dependencies, installs matching kernel
 development files, adds NVIDIA's `rhel9/x86_64` network repository, and installs
