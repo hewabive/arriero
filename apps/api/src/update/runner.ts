@@ -1,8 +1,8 @@
-import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { resolve } from "node:path";
-import type { Readable } from "node:stream";
 
+import { runLoggedCommand } from "../jobs/exec.js";
+import { markJobStep } from "../jobs/steps.js";
 import { updateAdapter } from "./adapter.js";
 import type {
   UpdateJob,
@@ -10,14 +10,19 @@ import type {
   UpdateJobStep,
   UpdateJobStepName,
 } from "./adapter.js";
-import { createUpdateJob, getUpdateJob, patchUpdateJob } from "./repository.js";
+import {
+  createUpdateJob,
+  getUpdateJob,
+  patchUpdateJob,
+  updateJobs,
+} from "./repository.js";
 import { currentCommit, getAppVersion } from "./version.js";
 
 const RESTART_DELAY_MS = 800;
 
 type RunningUpdate = {
   jobId: string;
-  child: ChildProcessByStdio<null, Readable, Readable> | null;
+  controller: AbortController;
   canceled: boolean;
 };
 
@@ -102,7 +107,11 @@ class UpdateRunner {
       logPath: resolve(updateAdapter.logsDir, `update-${Date.now()}.log`),
     });
 
-    this.running = { jobId: job.id, child: null, canceled: false };
+    this.running = {
+      jobId: job.id,
+      controller: new AbortController(),
+      canceled: false,
+    };
     void this.run(job.id);
     return job;
   }
@@ -112,7 +121,7 @@ class UpdateRunner {
       return getUpdateJob(id);
     }
     this.running.canceled = true;
-    this.running.child?.kill("SIGTERM");
+    this.running.controller.abort();
     return patchUpdateJob(id, {
       status: "canceled",
       currentStep: null,
@@ -161,7 +170,7 @@ class UpdateRunner {
         const environment = updateStepEnvironment(step);
         const environmentPrefix = step === "install" ? "CI=true " : "";
         logStream.write(`$ ${environmentPrefix}${command.join(" ")}\n`);
-        const exitCode = await this.runCommand(command, logStream, environment);
+        const exitCode = await this.runStep(command, logStream, environment);
 
         if (this.isCanceled(jobId)) {
           this.markStep(jobId, step, {
@@ -250,7 +259,10 @@ class UpdateRunner {
       `\n# rolling back source to ${fromCommit} (step failed; not restarting)\n`,
     );
     try {
-      await this.runCommand(["git", "reset", "--hard", fromCommit], logStream);
+      await runLoggedCommand(["git", "reset", "--hard", fromCommit], {
+        log: logStream,
+        cwd: updateAdapter.rootDir,
+      });
     } catch (error) {
       logStream.write(`# rollback failed: ${(error as Error).message}\n`);
     }
@@ -261,21 +273,7 @@ class UpdateRunner {
     name: UpdateJobStepName,
     patch: Partial<Omit<UpdateJobStep, "name">>,
   ): UpdateJob {
-    const current = getUpdateJob(jobId);
-    if (!current) {
-      throw new Error(`update job not found: ${jobId}`);
-    }
-    const steps = current.steps.map((item) =>
-      item.name === name ? { ...item, ...patch } : item,
-    );
-    const updated = patchUpdateJob(jobId, {
-      steps,
-      currentStep: patch.status === "running" ? name : current.currentStep,
-    });
-    if (!updated) {
-      throw new Error(`update job not found: ${jobId}`);
-    }
-    return updated;
+    return markJobStep<UpdateJobStep, UpdateJob>(updateJobs, jobId, name, patch);
   }
 
   private finish(
@@ -308,48 +306,19 @@ class UpdateRunner {
     }
   }
 
-  private runCommand(
+  private async runStep(
     command: string[],
     logStream: WriteStream,
-    environment: NodeJS.ProcessEnv = process.env,
+    environment: NodeJS.ProcessEnv,
   ): Promise<number> {
-    return new Promise((resolveDone, reject) => {
-      const child = spawn(command[0]!, command.slice(1), {
-        cwd: updateAdapter.rootDir,
-        env: environment,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      let settled = false;
-
-      if (this.running) {
-        this.running.child = child;
-      }
-
-      child.stdout.on("data", (chunk: Buffer) => logStream.write(chunk));
-      child.stderr.on("data", (chunk: Buffer) => logStream.write(chunk));
-
-      child.on("error", (error) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        reject(error);
-      });
-
-      child.on("close", (code, signal) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        if (this.running?.child === child) {
-          this.running.child = null;
-        }
-        if (signal) {
-          logStream.write(`\n# terminated by ${signal}\n`);
-        }
-        resolveDone(code ?? 1);
-      });
+    const signal = this.running?.controller.signal;
+    const result = await runLoggedCommand(command, {
+      log: logStream,
+      cwd: updateAdapter.rootDir,
+      env: environment,
+      ...(signal ? { signal } : {}),
     });
+    return result.exitCode;
   }
 }
 
