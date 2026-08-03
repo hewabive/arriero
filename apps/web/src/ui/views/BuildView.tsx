@@ -4,6 +4,7 @@ import { DownloadCloud, Hammer, Save, X } from "lucide-react";
 import { BuildJobsPanel } from "./BuildJobsPanel";
 import { BuildSettingsForm } from "./BuildSettingsForm";
 import { BuildStartConfirmModal } from "./BuildStartConfirmModal";
+import { SourceOperationPanel } from "./SourceOperationPanel";
 import { useBuildView } from "./use-build-view";
 
 export function BuildView() {
@@ -15,21 +16,37 @@ export function BuildView() {
         <Group justify="flex-end" align="flex-start" wrap="wrap">
           <Group gap="xs" wrap="wrap">
             <Button
-              aria-label="Pull llama.cpp repository"
+              aria-label={`${fm.sourceStatus?.exists ? "Pull" : "Clone"} llama.cpp repository`}
               variant="default"
               leftSection={<DownloadCloud size={16} />}
-              loading={fm.pullMutation.isPending}
-              disabled={!fm.settingsReady || Boolean(fm.runningJob)}
-              onClick={() => fm.pullMutation.mutate()}
+              loading={
+                fm.sourceStatus?.exists
+                  ? fm.pullMutation.isPending
+                  : fm.cloneMutation.isPending
+              }
+              disabled={
+                !fm.settingsReady ||
+                Boolean(fm.runningJob) ||
+                fm.sourceBusy ||
+                !fm.sourceStatusMatchesForm ||
+                (fm.sourceStatus?.exists
+                  ? !fm.sourceReady
+                  : fm.sourceStatus?.state !== "missing")
+              }
+              onClick={() =>
+                fm.sourceStatus?.exists
+                  ? fm.pullMutation.mutate()
+                  : fm.cloneMutation.mutate()
+              }
             >
-              Pull
+              {fm.sourceStatus?.exists ? "Pull" : "Clone"}
             </Button>
             <Button
               aria-label="Save build settings"
               variant="light"
               leftSection={<Save size={16} />}
               loading={fm.saveMutation.isPending}
-              disabled={!fm.settingsReady}
+              disabled={!fm.settingsReady || fm.sourceBusy}
               onClick={() => fm.saveMutation.mutate()}
             >
               Save
@@ -77,6 +94,24 @@ export function BuildView() {
           </Text>
         )}
 
+        {fm.sourceStatus?.state === "missing" && !fm.sourceBusy && (
+          <Text c="dimmed" size="sm">
+            Clone the full llama.cpp repository before starting a build.
+          </Text>
+        )}
+
+        {fm.sourceStatus?.state === "busy" && (
+          <Text c="blue" size="sm">
+            Source operation {fm.sourceStatus.activeOperation ?? "in progress"}
+            {" — build actions are paused."}
+          </Text>
+        )}
+
+        <SourceOperationPanel
+          job={fm.sourceOperation.job}
+          canceling={fm.sourceOperation.cancelMutation.isPending}
+          onCancel={() => fm.sourceOperation.cancelMutation.mutate()}
+        />
         <BuildSettingsForm fm={fm} />
         <BuildJobsPanel fm={fm} />
       </Stack>

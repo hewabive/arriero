@@ -1,5 +1,6 @@
 import type {
   SourceRepositoryClone,
+  SourceRepositoryOperationJob,
   SourceRepositoryOperationResult,
   SourceRepositorySettingsUpdate,
   SourceRepositoryStatus,
@@ -18,6 +19,16 @@ export function listSourceRepositories() {
   );
 }
 
+export function getSourceRepositoryStatus(id: string) {
+  return request<{ data: SourceRepositoryStatus }>(sourcePath(id, "/status"));
+}
+
+export function getSourceRepositoryOperation(id: string) {
+  return request<{ data: SourceRepositoryOperationJob | null }>(
+    sourcePath(id, "/operation"),
+  );
+}
+
 export function getSourceRepositoryDrift(id: string) {
   return request<{ data: SourceSyncReport }>(sourcePath(id, "/drift"));
 }
@@ -26,7 +37,7 @@ export function cloneSourceRepository(
   id: string,
   input: SourceRepositoryClone,
 ) {
-  return request<{ data: SourceRepositoryOperationResult }>(
+  return request<{ data: SourceRepositoryOperationJob }>(
     sourcePath(id, "/clone"),
     {
       method: "POST",
@@ -49,8 +60,15 @@ export function updateSourceRepositorySettings(
 }
 
 export function pullSourceRepository(id: string) {
-  return request<{ data: SourceRepositoryOperationResult }>(
+  return request<{ data: SourceRepositoryOperationJob }>(
     sourcePath(id, "/pull"),
+    { method: "POST" },
+  );
+}
+
+export function cancelSourceRepositoryOperation(id: string) {
+  return request<{ data: SourceRepositoryOperationJob }>(
+    sourcePath(id, "/operation/cancel"),
     { method: "POST" },
   );
 }

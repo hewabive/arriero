@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
 
 import { config } from "../config.js";
+import { resetSourceRepositoryOperationJobsForTests } from "../sources/jobs.js";
 import { registerLlamaSourceRoutes } from "./llama-source.routes.js";
 import { registerSourceRepositoryRoutes } from "./source-repositories.routes.js";
 
@@ -15,6 +19,9 @@ function appWithRoutes() {
 }
 
 beforeEach(() => {
+  resetSourceRepositoryOperationJobsForTests();
+  rmSync(config.sourcesDir, { recursive: true, force: true });
+  mkdirSync(config.sourcesDir, { recursive: true });
   writeFileSync(
     config.settingsFile,
     `${JSON.stringify(
@@ -35,6 +42,47 @@ beforeEach(() => {
     "utf8",
   );
 });
+
+function createLlamaOrigin() {
+  const origin = resolve(config.dataDir, "route-llama-origin");
+  rmSync(origin, { recursive: true, force: true });
+  mkdirSync(origin, { recursive: true });
+  const git = (args: string[]) =>
+    execFileSync("git", args, {
+      cwd: origin,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "Route Test",
+        GIT_AUTHOR_EMAIL: "route@example.com",
+        GIT_COMMITTER_NAME: "Route Test",
+        GIT_COMMITTER_EMAIL: "route@example.com",
+      },
+    });
+  git(["init", "-b", "main"]);
+  writeFileSync(
+    resolve(origin, "CMakeLists.txt"),
+    "project(llama-route-test)\n",
+  );
+  git(["add", "."]);
+  git(["commit", "-m", "initial"]);
+  return pathToFileURL(origin).href;
+}
+
+async function waitForOperation(app: Hono) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const response = await app.request(
+      "/api/source-repositories/llama-cpp/operation",
+    );
+    const payload = (await response.json()) as {
+      data: { status: string; progress: number } | null;
+    };
+    if (payload.data?.status !== "running") return payload.data;
+    await new Promise((resolveDone) => setTimeout(resolveDone, 20));
+  }
+  throw new Error("source route job did not finish in time");
+}
 
 test("source repository routes expose a missing managed llama.cpp checkout", async () => {
   const app = appWithRoutes();
@@ -80,6 +128,33 @@ test("origin can be changed before the managed checkout is cloned", async () => 
   };
   assert.equal(payload.data.status.spec.originUrl, originUrl);
   assert.equal(payload.data.status.state, "missing");
+});
+
+test("clone route starts a pollable background source operation", async () => {
+  const app = appWithRoutes();
+  const response = await app.request(
+    "/api/source-repositories/llama-cpp/clone",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        originUrl: createLlamaOrigin(),
+        branch: null,
+      }),
+    },
+  );
+
+  assert.equal(response.status, 202);
+  const started = (await response.json()) as {
+    data: { operation: string; status: string; startedAt: string };
+  };
+  assert.equal(started.data.operation, "clone");
+  assert.equal(started.data.status, "running");
+  assert.ok(started.data.startedAt);
+
+  const finished = await waitForOperation(app);
+  assert.equal(finished?.status, "succeeded");
+  assert.equal(finished?.progress, 100);
 });
 
 test("mutating source routes stay reachable on a non-loopback listener without auth", async () => {

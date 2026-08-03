@@ -3,6 +3,7 @@ import {
   SourceRepositoryOperationResultSchema,
   SourceRepositorySettingsUpdateSchema,
   type SourceRepositoryClone,
+  type SourceRepositoryOperationPhase,
   type SourceRepositoryOperationResult,
   type SourceRepositorySettingsUpdate,
 } from "@arriero/core";
@@ -42,6 +43,24 @@ import { withSourceRepositoryOperation } from "./state.js";
 
 const CLONE_STAGING_PREFIX = ".source-clone-";
 
+export type SourceRepositoryOperationRuntime = {
+  signal?: AbortSignal;
+  onGitOutput?: (target: "stdout" | "stderr", chunk: string) => void;
+  onPhase?: (input: {
+    phase: SourceRepositoryOperationPhase;
+    progress: number | null;
+    message: string | null;
+  }) => void;
+};
+
+function assertOperationNotCanceled(
+  runtime: SourceRepositoryOperationRuntime,
+): void {
+  if (runtime.signal?.aborted) {
+    throw new Error("source repository operation canceled");
+  }
+}
+
 export function sweepSourceCloneStaging(): number {
   const parents = new Set<string>([config.sourcesDir]);
   for (const definition of listSourceRepositoryDefinitions()) {
@@ -64,7 +83,7 @@ export function sweepSourceCloneStaging(): number {
   return removed;
 }
 
-function assertSourceContentCanChange(sourceId: string) {
+export function assertSourceContentCanChange(sourceId: string) {
   if (sourceId === LLAMA_CPP_SOURCE_ID && buildRunner.isRunning()) {
     throw new Error(
       "cannot change a source repository while a build is running",
@@ -109,6 +128,7 @@ async function result(
 export async function cloneSourceRepository(
   sourceId: string,
   input: SourceRepositoryClone,
+  runtime: SourceRepositoryOperationRuntime = {},
 ): Promise<SourceRepositoryOperationResult> {
   const parsed = SourceRepositoryCloneSchema.parse(input);
   const current = getSourceRepositorySpec(sourceId);
@@ -123,6 +143,7 @@ export async function cloneSourceRepository(
     sourceId,
     "clone",
     async () => {
+      assertOperationNotCanceled(runtime);
       const target = sourceRepositoryPath(current);
       if (existsSync(target)) {
         throw new Error(`repository path already exists: ${target}`);
@@ -131,15 +152,35 @@ export async function cloneSourceRepository(
       mkdirSync(parent, { recursive: true });
       const temporary = mkdtempSync(resolve(parent, CLONE_STAGING_PREFIX));
       const staging = resolve(temporary, "repository");
-      const args = ["clone", "--origin", "origin"];
+      runtime.onPhase?.({
+        phase: "starting",
+        progress: 1,
+        message: `Starting full clone from ${originUrl}.`,
+      });
+      const args = ["clone", "--progress", "--origin", "origin"];
       if (parsed.branch) args.push("--branch", parsed.branch);
       args.push("--", originUrl, staging);
       try {
         const cloned = await runGit(parent, args, {
-          timeoutMs: 10 * 60_000,
+          timeoutMs: 30 * 60_000,
           maxOutputBytes: 8 * 1024 * 1024,
+          ...(runtime.signal ? { signal: runtime.signal } : {}),
+          ...(runtime.onGitOutput ? { onOutput: runtime.onGitOutput } : {}),
+          killProcessGroup: true,
+        });
+        assertOperationNotCanceled(runtime);
+        runtime.onPhase?.({
+          phase: "validating",
+          progress: 98,
+          message: "Validating the cloned checkout.",
         });
         await validateClonedRepository(sourceId, staging);
+        assertOperationNotCanceled(runtime);
+        runtime.onPhase?.({
+          phase: "publishing",
+          progress: 99,
+          message: `Publishing the checkout to ${target}.`,
+        });
         renameSync(staging, target);
         saveSourceRepositoryOrigin(sourceId, originUrl);
         return gitOutput(cloned) || `Cloned ${originUrl}.`;
@@ -200,17 +241,31 @@ export async function updateSourceRepositorySettings(
 
 export async function pullSourceRepository(
   sourceId: string,
+  runtime: SourceRepositoryOperationRuntime = {},
 ): Promise<SourceRepositoryOperationResult> {
   assertSourceContentCanChange(sourceId);
   const output = await withSourceRepositoryOperation(
     sourceId,
     "pull",
     async () => {
+      assertOperationNotCanceled(runtime);
       const status = await assertSourceRepositoryReady(sourceId);
-      const pulled = await runGit(status.repoPath, ["pull", "--ff-only"], {
-        timeoutMs: 10 * 60_000,
-        maxOutputBytes: 8 * 1024 * 1024,
+      runtime.onPhase?.({
+        phase: "updating",
+        progress: 1,
+        message: "Fetching and fast-forwarding the tracking branch.",
       });
+      const pulled = await runGit(
+        status.repoPath,
+        ["pull", "--progress", "--ff-only"],
+        {
+          timeoutMs: 10 * 60_000,
+          maxOutputBytes: 8 * 1024 * 1024,
+          ...(runtime.signal ? { signal: runtime.signal } : {}),
+          ...(runtime.onGitOutput ? { onOutput: runtime.onGitOutput } : {}),
+          killProcessGroup: true,
+        },
+      );
       return gitOutput(pulled) || "Already up to date.";
     },
   );

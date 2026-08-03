@@ -50,11 +50,21 @@ repository credentials must come from an SSH agent or Git credential helper.
 Git commands disable terminal prompts and repository hooks, bound runtime and
 output, and redact credentials from returned output.
 
+Clone intentionally fetches the full repository history. It does not use a
+shallow or filtered clone because Build exposes local branches and recent tags
+for ref selection. Clone and pull start background source-operation jobs; both
+Source Sync and Build show their phase, aggregate progress, elapsed time, live
+bounded log, terminal result, and cancel action. Leaving either page does not
+cancel the operation.
+
 Clone is staged in a temporary sibling directory, validated, and atomically
 renamed into place. An existing target is never overwritten. `llama-cpp`
 mutations are refused while a llama.cpp build is running, and vice versa.
 Staging directories (`.source-clone-*`) orphaned by an interrupted clone are
 swept from every configured source parent directory at startup.
+The latest job state is kept in API-process memory. A graceful API shutdown
+cancels the active Git process; startup clears the previous job state and
+sweeps an interrupted clone's staging directory.
 
 ## Repository identity
 
@@ -84,13 +94,21 @@ with no checks is not implicitly considered current.
 
 - `GET /api/source-repositories`
 - `GET /api/source-repositories/:id/status`
+- `GET /api/source-repositories/:id/operation`
 - `GET /api/source-repositories/:id/drift`
 - `PUT /api/source-repositories/:id/settings`
 - `POST /api/source-repositories/:id/clone`
 - `POST /api/source-repositories/:id/pull`
+- `POST /api/source-repositories/:id/operation/cancel`
+
+Clone and pull return `202 Accepted` with a
+`SourceRepositoryOperationJob`. Poll `operation` while its status is `running`;
+the same payload contains current phase, progress, log lines, and terminal
+error/output. Only one mutation may run for a source at a time.
 
 The existing `/api/llama-source/*` endpoints remain as compatibility adapters
-for Build and llama argument-documentation consumers.
+for llama argument-documentation consumers. Build reads the canonical source
+repository status directly so it preserves `busy` and `activeOperation`.
 
 Everything under `/api/source-repositories/*` and the compatibility adapters are
 ordinary administrative `/api/*` routes behind `requireAdmin`; there is no extra

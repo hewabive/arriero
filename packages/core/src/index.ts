@@ -1990,6 +1990,42 @@ export const SourceRepositoryOperationResultSchema = z.object({
   status: SourceRepositoryStatusSchema,
 });
 
+export const SourceRepositoryOperationKindSchema = z.enum(["clone", "pull"]);
+
+export const SourceRepositoryOperationStatusSchema = z.enum([
+  "running",
+  "succeeded",
+  "failed",
+  "canceled",
+]);
+
+export const SourceRepositoryOperationPhaseSchema = z.enum([
+  "starting",
+  "receiving",
+  "resolving",
+  "checking-out",
+  "validating",
+  "publishing",
+  "updating",
+  "complete",
+]);
+
+export const SourceRepositoryOperationJobSchema = z.object({
+  id: z.string().min(1),
+  sourceId: SourceRepositoryIdSchema,
+  operation: SourceRepositoryOperationKindSchema,
+  status: SourceRepositoryOperationStatusSchema,
+  phase: SourceRepositoryOperationPhaseSchema,
+  progress: z.number().min(0).max(100).nullable(),
+  message: z.string().nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+  cancelRequested: z.boolean(),
+  output: z.string().nullable(),
+  error: z.string().nullable(),
+  logLines: z.array(z.string()),
+});
+
 export const LlamaSourceSettingsSchema = z.object({
   repoPath: z.string().min(1),
 });
@@ -2013,11 +2049,6 @@ export const LlamaSourceStatusSchema = z.object({
   dirty: z.boolean().nullable(),
   checkedAt: z.string(),
   error: z.string().nullable(),
-});
-
-export const LlamaSourcePullResultSchema = z.object({
-  ok: z.boolean(),
-  output: z.string(),
 });
 
 export const LlamaSourceRefsSchema = z.object({
@@ -3923,12 +3954,23 @@ export type SourceRepositoryStatus = z.infer<
 export type SourceRepositoryOperationResult = z.infer<
   typeof SourceRepositoryOperationResultSchema
 >;
+export type SourceRepositoryOperationKind = z.infer<
+  typeof SourceRepositoryOperationKindSchema
+>;
+export type SourceRepositoryOperationStatus = z.infer<
+  typeof SourceRepositoryOperationStatusSchema
+>;
+export type SourceRepositoryOperationPhase = z.infer<
+  typeof SourceRepositoryOperationPhaseSchema
+>;
+export type SourceRepositoryOperationJob = z.infer<
+  typeof SourceRepositoryOperationJobSchema
+>;
 export type LlamaSourceSettings = z.infer<typeof LlamaSourceSettingsSchema>;
 export type LlamaSourceSettingsUpdate = z.infer<
   typeof LlamaSourceSettingsUpdateSchema
 >;
 export type LlamaSourceStatus = z.infer<typeof LlamaSourceStatusSchema>;
-export type LlamaSourcePullResult = z.infer<typeof LlamaSourcePullResultSchema>;
 export type LlamaSourceRefs = z.infer<typeof LlamaSourceRefsSchema>;
 export type LlamaSourceCheckout = z.infer<typeof LlamaSourceCheckoutSchema>;
 export type LlamaArgumentHelpSourceSnapshot = z.infer<

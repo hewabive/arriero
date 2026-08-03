@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { assertGitRemoteUrl, redactGitOutput } from "./process.js";
+import { config } from "../config.js";
+import { assertGitRemoteUrl, redactGitOutput, runGit } from "./process.js";
 
 test("source origins accept credential-free network and file URLs", () => {
   for (const value of [
@@ -47,4 +48,23 @@ test("Git output keeps the SSH login name, which is not a credential", () => {
     redactGitOutput("ssh://git@example.com:2222/team/repo.git"),
     "ssh://git@example.com:2222/team/repo.git",
   );
+});
+
+test("runGit aborts a cancellable Git process group", async () => {
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const running = runGit(
+    config.rootDir,
+    ["-c", "alias.wait=!sleep 30", "wait"],
+    {
+      timeoutMs: 35_000,
+      signal: controller.signal,
+      killProcessGroup: true,
+    },
+  );
+
+  setTimeout(() => controller.abort(), 50);
+
+  await assert.rejects(running, /git command canceled/);
+  assert.ok(Date.now() - startedAt < 5_000);
 });

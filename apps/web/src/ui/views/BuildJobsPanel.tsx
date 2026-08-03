@@ -22,7 +22,7 @@ import {
 import { type BuildViewController } from "./use-build-view";
 
 export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
-  const { jobs, pullLog, selectedJob, logsQuery } = fm;
+  const { jobs, selectedJob, logsQuery } = fm;
   return (
     <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
       <Box>
@@ -162,47 +162,32 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
       <Box>
         <Group justify="space-between" mb="xs">
           <Text fw={600} size="sm">
-            {pullLog ? "Pull log" : "Build log"}
+            Build log
           </Text>
           <Badge
-            color={
-              pullLog
-                ? buildStatusColor(pullLog.status)
-                : selectedJob
-                  ? buildStatusColor(selectedJob.status)
-                  : "gray"
-            }
+            color={selectedJob ? buildStatusColor(selectedJob.status) : "gray"}
             variant="light"
           >
-            {pullLog?.status ?? selectedJob?.status ?? "idle"}
+            {selectedJob?.status ?? "idle"}
           </Badge>
         </Group>
         <Text c="dimmed" size="xs" lineClamp={1} mb="xs">
-          {pullLog
-            ? "git pull --ff-only (not written to a log file)"
-            : (logsQuery.data?.data.logPath ??
-              selectedJob?.logPath ??
-              "No log file yet")}
+          {logsQuery.data?.data.logPath ??
+            selectedJob?.logPath ??
+            "No log file yet"}
         </Text>
         <ScrollArea h={300} type="auto" offsetScrollbars>
           <Stack gap={4}>
-            {pullLog
-              ? pullLog.lines.map((line, index) => (
-                  <Code key={`pull-${index}`} block>
-                    {line}
-                  </Code>
-                ))
-              : logsQuery.data?.data.lines.map((line, index) => (
-                  <Code key={`${selectedJob?.id}-${index}`} block>
-                    {line}
-                  </Code>
-                ))}
-            {!pullLog &&
-              (!logsQuery.data || logsQuery.data.data.lines.length === 0) && (
-                <Text c="dimmed" size="sm" ta="center" py="lg">
-                  No build log yet
-                </Text>
-              )}
+            {logsQuery.data?.data.lines.map((line, index) => (
+              <Code key={`${selectedJob?.id}-${index}`} block>
+                {line}
+              </Code>
+            ))}
+            {(!logsQuery.data || logsQuery.data.data.lines.length === 0) && (
+              <Text c="dimmed" size="sm" ta="center" py="lg">
+                No build log yet
+              </Text>
+            )}
           </Stack>
         </ScrollArea>
       </Box>

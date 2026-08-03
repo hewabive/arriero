@@ -10,9 +10,10 @@ import {
   getLlamaSourceSettings,
   getLlamaSourceStatus,
   listLlamaSourceRefs,
-  pullLlamaSource,
   saveLlamaSourceSettings,
 } from "../llama/source-repository.js";
+import { startSourceRepositoryPull } from "../sources/jobs.js";
+import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getLlamaSourceSyncReport } from "../llama/source-sync.js";
 
 export function registerLlamaSourceRoutes(app: Hono) {
@@ -82,6 +83,19 @@ export function registerLlamaSourceRoutes(app: Hono) {
   });
 
   app.post("/api/llama-source/pull", async (c) => {
-    return c.json({ data: await pullLlamaSource() });
+    try {
+      return c.json(
+        { data: startSourceRepositoryPull(LLAMA_CPP_SOURCE_ID) },
+        202,
+      );
+    } catch (error) {
+      const message = (error as Error).message;
+      return c.json(
+        { error: message },
+        /already running|while a build|while configuration Git/.test(message)
+          ? 409
+          : 400,
+      );
+    }
   });
 }

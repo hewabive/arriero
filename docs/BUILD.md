@@ -3,6 +3,12 @@
 The `build` domain drives CMake builds of the configured llama.cpp checkout and publishes the
 resulting binaries into the path catalog.
 
+Build consumes the canonical source-repository status. When llama.cpp is
+missing it offers the same full-clone operation as Source Sync; while clone,
+pull, or checkout is active, Pull, ref checkout, and Start job are disabled.
+Source-operation phase, progress, live log, and cancellation remain visible on
+the Build page without becoming part of the build-job log.
+
 ## Build trees live outside the checkout
 
 Build output goes to `runtime/builds/` (`ARRIERO_BUILDS_DIR`), never into the llama.cpp source tree,

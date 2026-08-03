@@ -101,6 +101,9 @@ export function runGit(
     timeoutMs?: number;
     maxOutputBytes?: number;
     allowExitCodes?: number[];
+    signal?: AbortSignal;
+    onOutput?: (target: "stdout" | "stderr", chunk: string) => void;
+    killProcessGroup?: boolean;
   } = {},
 ): Promise<GitResult> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -108,20 +111,53 @@ export function runGit(
   const allowed = new Set(options.allowExitCodes ?? [0]);
 
   return new Promise((resolveDone, reject) => {
+    if (options.signal?.aborted) {
+      reject(new Error("git command canceled"));
+      return;
+    }
+    const useProcessGroup =
+      options.killProcessGroup === true && process.platform !== "win32";
     const child = spawn("git", gitArguments(args), {
       cwd,
       env: gitEnvironment(),
       stdio: ["ignore", "pipe", "pipe"],
+      detached: useProcessGroup,
     });
     let stdout = "";
     let stderr = "";
     let outputBytes = 0;
     let settled = false;
+    let terminationError: Error | null = null;
+    let forceKillTimer: NodeJS.Timeout | null = null;
+
+    const signalChild = (signal: NodeJS.Signals) => {
+      try {
+        if (useProcessGroup && child.pid) {
+          process.kill(-child.pid, signal);
+        } else {
+          child.kill(signal);
+        }
+      } catch {
+        child.kill(signal);
+      }
+    };
+
+    const terminate = (error: Error) => {
+      if (terminationError || settled) return;
+      terminationError = error;
+      signalChild("SIGTERM");
+      forceKillTimer = setTimeout(() => signalChild("SIGKILL"), 2_000);
+      forceKillTimer.unref?.();
+    };
+
+    const abort = () => terminate(new Error("git command canceled"));
 
     const finish = (error?: Error, result?: GitResult) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      options.signal?.removeEventListener("abort", abort);
       if (error) reject(error);
       else resolveDone(result!);
     };
@@ -129,23 +165,28 @@ export function runGit(
     const append = (target: "stdout" | "stderr", chunk: Buffer) => {
       outputBytes += chunk.length;
       if (outputBytes > maxOutputBytes) {
-        child.kill("SIGKILL");
-        finish(
+        terminate(
           new Error(
             `git output exceeded ${Math.floor(maxOutputBytes / 1024)} KiB`,
           ),
         );
         return;
       }
-      if (target === "stdout") stdout += chunk.toString();
-      else stderr += chunk.toString();
+      const text = chunk.toString();
+      if (target === "stdout") stdout += text;
+      else stderr += text;
+      try {
+        options.onOutput?.(target, text);
+      } catch (error) {
+        terminate(error as Error);
+      }
     };
 
     const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      finish(new Error(`git command timed out after ${timeoutMs / 1000}s`));
+      terminate(new Error(`git command timed out after ${timeoutMs / 1000}s`));
     }, timeoutMs);
     timer.unref?.();
+    options.signal?.addEventListener("abort", abort, { once: true });
 
     child.stdout.on("data", (chunk: Buffer) => append("stdout", chunk));
     child.stderr.on("data", (chunk: Buffer) => append("stderr", chunk));
@@ -153,6 +194,10 @@ export function runGit(
     child.on("close", (code, signal) => {
       if (settled) return;
       const result = { stdout, stderr, exitCode: code ?? 1 };
+      if (terminationError) {
+        finish(terminationError);
+        return;
+      }
       if (signal) {
         finish(new GitCommandError(`git terminated by ${signal}`, result));
         return;

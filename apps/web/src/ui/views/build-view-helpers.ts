@@ -1,4 +1,8 @@
-import type { BuildJob, BuildSettings, LlamaSourceStatus } from "@arriero/core";
+import type {
+  BuildJob,
+  BuildSettings,
+  SourceRepositoryStatus,
+} from "@arriero/core";
 
 export function buildStatusColor(status: BuildJob["status"]) {
   if (status === "succeeded") return "green";
@@ -37,17 +41,19 @@ export function slugifyRef(ref: string): string {
   return slug || "build";
 }
 
-export function sourceStatusColor(status: LlamaSourceStatus) {
-  if (status.error || !status.exists || !status.isGitRepo) return "red";
-  if (status.dirty) return "yellow";
-  return "green";
+export function sourceStatusColor(status: SourceRepositoryStatus) {
+  if (status.state === "ready") return "green";
+  if (status.state === "dirty") return "yellow";
+  if (status.state === "busy") return "blue";
+  if (status.state === "missing") return "gray";
+  return "red";
 }
 
-export function sourceStatusLabel(status: LlamaSourceStatus) {
-  if (!status.exists) return "missing";
-  if (!status.isGitRepo) return "not git";
-  if (status.dirty) return "dirty";
-  return "clean";
+export function sourceStatusLabel(status: SourceRepositoryStatus) {
+  if (status.state === "busy") return status.activeOperation ?? "busy";
+  if (status.state === "ready") return "clean";
+  if (status.state === "invalid") return "invalid";
+  return status.state;
 }
 
 export type BuildFormState = {

@@ -35,7 +35,7 @@ export function BuildSettingsForm({ fm }: { fm: BuildViewController }) {
             label="llama.cpp repository"
             mode="directory"
             value={fm.repoPath}
-            disabled={!fm.settingsReady}
+            disabled={!fm.settingsReady || fm.sourceBusy}
             onChange={(value) => fm.setFormField("repoPath", value)}
           />
           {sourceStatus && (
@@ -100,6 +100,9 @@ export function BuildSettingsForm({ fm }: { fm: BuildViewController }) {
             searchable
             disabled={
               !fm.settingsReady ||
+              !fm.sourceStatusMatchesForm ||
+              !fm.sourceReady ||
+              fm.sourceBusy ||
               fm.dirty ||
               Boolean(fm.runningJob) ||
               fm.checkoutMutation.isPending

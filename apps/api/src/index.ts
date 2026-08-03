@@ -37,6 +37,7 @@ import {
 import { initAppSettings } from "./settings/store.js";
 import { augmentProcessPath } from "./system/path-repair.js";
 import { sweepSourceCloneStaging } from "./sources/operations.js";
+import { shutdownSourceRepositoryOperationJobs } from "./sources/jobs.js";
 import { supervisor } from "./process/supervisor.js";
 import { environmentRunner } from "./envs/runner.js";
 import { initializeEnvironments } from "./envs/service.js";
@@ -224,6 +225,15 @@ async function shutdown(signal: NodeJS.Signals) {
     systemMetricsRecorder.stop();
     await closeServer();
     logger.info("http server closed");
+    const stoppedSourceOperations = await shutdownSourceRepositoryOperationJobs(
+      config.shutdown.timeoutMs,
+    );
+    if (stoppedSourceOperations > 0) {
+      logger.info(
+        { stopped: stoppedSourceOperations },
+        "source repository operations stopped during shutdown",
+      );
+    }
     await environmentRunner.shutdown();
 
     if (config.shutdown.stopManagedOnExit) {

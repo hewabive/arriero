@@ -83,8 +83,11 @@ or an environment install is active. See
 On a fresh node, open **Source Sync** to clone llama.cpp into the managed
 `runtime/sources/llama.cpp` checkout. The official origin is prefilled and can
 be replaced with a fork before cloning; changing it later updates both portable
-settings and the checkout's `origin` remote. Managed source storage can be moved
-with `ARRIERO_SOURCES_DIR`.
+settings and the checkout's `origin` remote. The Build page also exposes the
+same clone action when the checkout is missing. Clone is a cancellable
+background job with live phase/progress/log output, and it deliberately fetches
+the full history needed for Build's branch and tag selector. Managed source
+storage can be moved with `ARRIERO_SOURCES_DIR`.
 
 Repository lifecycle is separate from integration drift checks, so a missing or
 invalid checkout is reported as unavailable rather than in sync. Existing

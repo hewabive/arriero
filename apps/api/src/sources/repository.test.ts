@@ -18,6 +18,12 @@ import {
   sweepSourceCloneStaging,
   updateSourceRepositorySettings,
 } from "./operations.js";
+import {
+  cancelSourceRepositoryOperationJob,
+  getSourceRepositoryOperationJob,
+  resetSourceRepositoryOperationJobsForTests,
+  startSourceRepositoryClone,
+} from "./jobs.js";
 import { LLAMA_CPP_SOURCE_ID } from "./registry.js";
 import {
   getSourceRepositorySpec,
@@ -88,10 +94,21 @@ function createInvalidOrigin(name: string): string {
 }
 
 beforeEach(() => {
+  resetSourceRepositoryOperationJobsForTests();
   resetSettings(managedSettings());
   rmSync(config.sourcesDir, { recursive: true, force: true });
   mkdirSync(config.sourcesDir, { recursive: true });
 });
+
+async function waitForSourceJob(sourceId: string) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const job = getSourceRepositoryOperationJob(sourceId);
+    if (job && job.status !== "running") return job;
+    await new Promise((resolveDone) => setTimeout(resolveDone, 20));
+  }
+  throw new Error("source job did not finish in time");
+}
 
 test("fresh settings use the managed source directory", async () => {
   const originalRootDir = config.rootDir;
@@ -187,6 +204,55 @@ test("clone publishes a validated managed checkout and persists a fork origin", 
   assert.deepEqual(settings.sourceRepositories[0]?.location, {
     type: "managed",
   });
+});
+
+test("background clone exposes busy state and completes as a source job", async () => {
+  const origin = createLlamaOrigin("llama-background-origin");
+  const originUrl = pathToFileURL(origin).href;
+
+  const started = startSourceRepositoryClone(LLAMA_CPP_SOURCE_ID, {
+    originUrl,
+    branch: null,
+  });
+  assert.equal(started.status, "running");
+  assert.equal(started.operation, "clone");
+
+  const busy = await getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+  assert.equal(busy.state, "busy");
+  assert.equal(busy.activeOperation, "clone");
+
+  const finished = await waitForSourceJob(LLAMA_CPP_SOURCE_ID);
+  assert.equal(finished.status, "succeeded");
+  assert.equal(finished.phase, "complete");
+  assert.equal(finished.progress, 100);
+  assert.ok(finished.logLines.some((line) => /Clone completed/.test(line)));
+
+  const ready = await getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID);
+  assert.equal(ready.state, "ready");
+  assert.equal(ready.valid, true);
+});
+
+test("background clone can be canceled and cleans its staging checkout", async () => {
+  const previousSshCommand = process.env.GIT_SSH_COMMAND;
+  process.env.GIT_SSH_COMMAND = "sh -c 'sleep 30'";
+  try {
+    startSourceRepositoryClone(LLAMA_CPP_SOURCE_ID, {
+      originUrl: "ssh://git@example.invalid/team/llama.cpp.git",
+      branch: null,
+    });
+
+    const canceling = cancelSourceRepositoryOperationJob(LLAMA_CPP_SOURCE_ID);
+    assert.equal(canceling.cancelRequested, true);
+
+    const finished = await waitForSourceJob(LLAMA_CPP_SOURCE_ID);
+    assert.equal(finished.status, "canceled");
+    assert.equal(finished.error, "canceled by user");
+    assert.equal(existsSync(resolve(config.sourcesDir, "llama.cpp")), false);
+    assert.deepEqual(readdirSync(config.sourcesDir), []);
+  } finally {
+    if (previousSshCommand === undefined) delete process.env.GIT_SSH_COMMAND;
+    else process.env.GIT_SSH_COMMAND = previousSshCommand;
+  }
 });
 
 test("failed validation leaves no checkout or staging directory", async () => {

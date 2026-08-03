@@ -6,11 +6,13 @@ import {
 import type { Context, Hono } from "hono";
 
 import { getSourceRepositoryDriftReport } from "../sources/drift.js";
+import { updateSourceRepositorySettings } from "../sources/operations.js";
 import {
-  cloneSourceRepository,
-  pullSourceRepository,
-  updateSourceRepositorySettings,
-} from "../sources/operations.js";
+  cancelSourceRepositoryOperationJob,
+  getSourceRepositoryOperationJob,
+  startSourceRepositoryClone,
+  startSourceRepositoryPull,
+} from "../sources/jobs.js";
 import {
   getSourceRepositoryStatus,
   listSourceRepositoryStatuses,
@@ -29,7 +31,11 @@ function failure(c: Context, error: unknown) {
   if (/has no drift adapter/.test(message)) {
     return c.json({ error: message }, 404);
   }
-  if (/already running|while a build|while configuration Git/.test(message)) {
+  if (
+    /already running|while a build|while configuration Git|no source repository operation is running/.test(
+      message,
+    )
+  ) {
     return c.json({ error: message }, 409);
   }
   return c.json({ error: message }, 400);
@@ -43,6 +49,16 @@ export function registerSourceRepositoryRoutes(app: Hono) {
   app.get("/api/source-repositories/:id/status", async (c) => {
     try {
       return c.json({ data: await getSourceRepositoryStatus(sourceId(c)) });
+    } catch (error) {
+      return failure(c, error);
+    }
+  });
+
+  app.get("/api/source-repositories/:id/operation", (c) => {
+    try {
+      return c.json({
+        data: getSourceRepositoryOperationJob(sourceId(c)),
+      });
     } catch (error) {
       return failure(c, error);
     }
@@ -81,8 +97,8 @@ export function registerSourceRepositoryRoutes(app: Hono) {
     }
     try {
       return c.json(
-        { data: await cloneSourceRepository(sourceId(c), parsed.data) },
-        201,
+        { data: startSourceRepositoryClone(sourceId(c), parsed.data) },
+        202,
       );
     } catch (error) {
       return failure(c, error);
@@ -91,8 +107,16 @@ export function registerSourceRepositoryRoutes(app: Hono) {
 
   app.post("/api/source-repositories/:id/pull", async (c) => {
     try {
+      return c.json({ data: startSourceRepositoryPull(sourceId(c)) }, 202);
+    } catch (error) {
+      return failure(c, error);
+    }
+  });
+
+  app.post("/api/source-repositories/:id/operation/cancel", (c) => {
+    try {
       return c.json({
-        data: await pullSourceRepository(sourceId(c)),
+        data: cancelSourceRepositoryOperationJob(sourceId(c)),
       });
     } catch (error) {
       return failure(c, error);

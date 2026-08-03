@@ -6,12 +6,13 @@ import { useEffect, useState } from "react";
 import {
   cancelBuildJob,
   checkoutLlamaSourceRef,
+  cloneSourceRepository,
   getBuildJobLogs,
   getBuildSettings,
   getLlamaSourceRefs,
-  getLlamaSourceStatus,
+  getSourceRepositoryStatus,
   listBuildJobs,
-  pullLlamaSource,
+  pullSourceRepository,
   startBuildJob,
   updateBuildSettings,
 } from "../../api/client";
@@ -23,6 +24,9 @@ import {
   parseExtraCmakeArgs,
   slugifyRef,
 } from "./build-view-helpers";
+import { useSourceRepositoryOperation } from "./use-source-repository-operation";
+
+const LLAMA_CPP_SOURCE_ID = "llama-cpp";
 
 export function useBuildView() {
   const queryClient = useQueryClient();
@@ -34,10 +38,7 @@ export function useBuildView() {
   const [runConfigure, setRunConfigure] = useState(true);
   const [runBuild, setRunBuild] = useState(true);
   const [startConfirmOpened, setStartConfirmOpened] = useState(false);
-  const [pullLog, setPullLog] = useState<{
-    status: "running" | "succeeded" | "failed";
-    lines: string[];
-  } | null>(null);
+  const sourceOperation = useSourceRepositoryOperation(LLAMA_CPP_SOURCE_ID);
 
   const settingsQuery = useQuery({
     queryKey: ["build-settings"],
@@ -49,9 +50,10 @@ export function useBuildView() {
     refetchInterval: 2_500,
   });
   const sourceStatusQuery = useQuery({
-    queryKey: ["llama-source-status"],
-    queryFn: getLlamaSourceStatus,
-    refetchInterval: 30_000,
+    queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
+    queryFn: () => getSourceRepositoryStatus(LLAMA_CPP_SOURCE_ID),
+    refetchInterval: (query) =>
+      query.state.data?.data.state === "busy" ? 1_000 : 30_000,
   });
   const refsQuery = useQuery({
     queryKey: ["llama-source-refs"],
@@ -84,7 +86,10 @@ export function useBuildView() {
   const sourceStatusMatchesForm =
     sourceStatus !== null &&
     form !== null &&
-    sourceStatus.settings.repoPath === repoPath;
+    sourceStatus.repoPath === repoPath;
+  const sourceBusy = sourceStatus?.state === "busy" || sourceOperation.running;
+  const sourceReady =
+    sourceStatus?.valid === true && sourceStatus.state !== "busy";
   const refs: LlamaSourceRefs | null = refsQuery.data?.data ?? null;
   const dirty = refs?.dirty === true;
   const refIsTag = gitRef !== null && (refs?.tags.includes(gitRef) ?? false);
@@ -107,7 +112,13 @@ export function useBuildView() {
     ...(runConfigure ? ["Configure CMake"] : []),
     ...(runBuild ? [`Build ${target.trim() || "all targets"}`] : []),
   ];
-  const canStartJob = settingsReady && selectedSteps.length > 0 && !runningJob;
+  const canStartJob =
+    settingsReady &&
+    selectedSteps.length > 0 &&
+    !runningJob &&
+    sourceReady &&
+    !sourceBusy &&
+    sourceStatusMatchesForm;
 
   const logsQuery = useQuery({
     queryKey: ["build-job-logs", selectedJob?.id],
@@ -166,7 +177,7 @@ export function useBuildView() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["build-settings"] });
       await queryClient.invalidateQueries({
-        queryKey: ["llama-source-status"],
+        queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
       });
       notifications.show({ title: "Build settings saved", message: buildDir });
     },
@@ -192,10 +203,9 @@ export function useBuildView() {
       }),
     onSuccess: async (result) => {
       setStartConfirmOpened(false);
-      setPullLog(null);
       await queryClient.invalidateQueries({ queryKey: ["build-settings"] });
       await queryClient.invalidateQueries({
-        queryKey: ["llama-source-status"],
+        queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
       });
       await queryClient.invalidateQueries({ queryKey: ["build-jobs"] });
       notifications.show({
@@ -216,7 +226,9 @@ export function useBuildView() {
     mutationFn: (ref: string) => checkoutLlamaSourceRef(ref),
     onSuccess: async (result) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["llama-source-status"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
+        }),
         queryClient.invalidateQueries({ queryKey: ["llama-source-refs"] }),
         queryClient.invalidateQueries({ queryKey: ["llama-arg-docs-sync"] }),
         queryClient.invalidateQueries({ queryKey: ["llama-arg-help-diff"] }),
@@ -237,24 +249,47 @@ export function useBuildView() {
   });
 
   const pullMutation = useMutation({
-    mutationFn: () => pullLlamaSource(),
-    onMutate: () => {
-      setPullLog({ status: "running", lines: ["$ git pull --ff-only"] });
-    },
+    mutationFn: () => pullSourceRepository(LLAMA_CPP_SOURCE_ID),
     onSuccess: async (result) => {
-      const output = result.data.output.split(/\r?\n/);
-      setPullLog({
-        status: result.data.ok ? "succeeded" : "failed",
-        lines: ["$ git pull --ff-only", ...output],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["llama-source-status"],
+      sourceOperation.setJob(result.data);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["llama-source-refs"] }),
+      ]);
+      notifications.show({
+        title: "llama.cpp pull started",
+        message: "Progress is shown in Source activity.",
       });
     },
     onError: (error) => {
-      setPullLog({
-        status: "failed",
-        lines: ["$ git pull --ff-only", (error as Error).message],
+      notifications.show({
+        color: "red",
+        title: "Pull failed to start",
+        message: (error as Error).message,
+      });
+    },
+  });
+
+  const cloneMutation = useMutation({
+    mutationFn: () =>
+      cloneSourceRepository(LLAMA_CPP_SOURCE_ID, { branch: null }),
+    onSuccess: async (result) => {
+      sourceOperation.setJob(result.data);
+      await queryClient.invalidateQueries({
+        queryKey: ["source-repository-status", LLAMA_CPP_SOURCE_ID],
+      });
+      notifications.show({
+        title: "llama.cpp clone started",
+        message: sourceStatus?.repoPath ?? repoPath,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Clone failed to start",
+        message: (error as Error).message,
       });
     },
   });
@@ -292,7 +327,6 @@ export function useBuildView() {
     setRunBuild,
     startConfirmOpened,
     setStartConfirmOpened,
-    pullLog,
     settingsQuery,
     logsQuery,
     jobs,
@@ -318,6 +352,9 @@ export function useBuildView() {
     buildEnvJson,
     sourceStatus,
     sourceStatusMatchesForm,
+    sourceBusy,
+    sourceReady,
+    sourceOperation,
     refs,
     dirty,
     refIsTag,
@@ -331,6 +368,7 @@ export function useBuildView() {
     saveMutation,
     startMutation,
     checkoutMutation,
+    cloneMutation,
     pullMutation,
     cancelMutation,
   };

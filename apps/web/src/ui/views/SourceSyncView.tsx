@@ -41,6 +41,8 @@ import {
 } from "../../api/client";
 import { formatLocalDateTime } from "../utils/time";
 import { countLabel } from "../utils/plural";
+import { SourceOperationPanel } from "./SourceOperationPanel";
+import { useSourceRepositoryOperation } from "./use-source-repository-operation";
 
 function checkStatusColor(status: SourceSyncSection["status"]) {
   if (status === "in-sync") return "green";
@@ -270,6 +272,7 @@ function SourceRepositoryPanel({
 }) {
   const queryClient = useQueryClient();
   const [originUrl, setOriginUrl] = useState(repository.spec.originUrl);
+  const sourceOperation = useSourceRepositoryOperation(repository.spec.id);
 
   useEffect(() => {
     setOriginUrl(repository.spec.originUrl);
@@ -292,10 +295,11 @@ function SourceRepositoryPanel({
         branch: null,
       }),
     onSuccess: async (response) => {
+      sourceOperation.setJob(response.data);
       await invalidateSourceQueries(queryClient, repository.spec.id);
       notifications.show({
-        title: `${repository.displayName} cloned`,
-        message: response.data.status.repoPath,
+        title: `${repository.displayName} clone started`,
+        message: repository.repoPath,
       });
     },
     onError: (error) => {
@@ -332,10 +336,11 @@ function SourceRepositoryPanel({
   const pullMutation = useMutation({
     mutationFn: () => pullSourceRepository(repository.spec.id),
     onSuccess: async (response) => {
+      sourceOperation.setJob(response.data);
       await invalidateSourceQueries(queryClient, repository.spec.id);
       notifications.show({
-        title: `${repository.displayName} updated`,
-        message: response.data.output,
+        title: `${repository.displayName} pull started`,
+        message: "Progress is shown below.",
       });
     },
     onError: (error) => {
@@ -349,6 +354,7 @@ function SourceRepositoryPanel({
 
   const busy =
     repository.state === "busy" ||
+    sourceOperation.running ||
     cloneMutation.isPending ||
     settingsMutation.isPending ||
     pullMutation.isPending;
@@ -511,6 +517,12 @@ function SourceRepositoryPanel({
           )}
         </Group>
 
+        <SourceOperationPanel
+          job={sourceOperation.job}
+          canceling={sourceOperation.cancelMutation.isPending}
+          onCancel={() => sourceOperation.cancelMutation.mutate()}
+        />
+
         {repository.driftSupported &&
           repository.valid &&
           repository.state !== "busy" && (
@@ -543,7 +555,10 @@ export function SourceSyncView() {
   const repositoriesQuery = useQuery({
     queryKey: ["source-repositories"],
     queryFn: listSourceRepositories,
-    refetchInterval: 30_000,
+    refetchInterval: (query) =>
+      query.state.data?.data.some((item) => item.state === "busy")
+        ? 1_000
+        : 30_000,
   });
 
   const refresh = async () => {

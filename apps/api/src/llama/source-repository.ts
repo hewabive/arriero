@@ -3,7 +3,6 @@ import {
   LlamaSourceSettingsSchema,
   LlamaSourceSettingsUpdateSchema,
   LlamaSourceStatusSchema,
-  type LlamaSourcePullResult,
   type LlamaSourceRefs,
   type LlamaSourceSettings,
   type LlamaSourceSettingsUpdate,
@@ -62,16 +61,6 @@ export function getLlamaSourceVersionLabel(
     tryGitSync(repoPath, ["describe", "--tags", "--abbrev=0"]) ??
     tryGitSync(repoPath, ["rev-parse", "--short", "HEAD"])
   );
-}
-
-export async function pullLlamaSource(): Promise<LlamaSourcePullResult> {
-  try {
-    const { pullSourceRepository } = await import("../sources/operations.js");
-    const pulled = await pullSourceRepository(LLAMA_CPP_SOURCE_ID);
-    return { ok: true, output: pulled.output };
-  } catch (error) {
-    return { ok: false, output: (error as Error).message };
-  }
 }
 
 const RECENT_TAG_LIMIT = 100;
