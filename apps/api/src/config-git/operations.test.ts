@@ -22,7 +22,11 @@ import {
   setConfigRemote,
   switchConfigBranch,
 } from "./operations.js";
-import { getConfigGitLog, getConfigGitStatus } from "./repository.js";
+import {
+  getConfigGitDiff,
+  getConfigGitLog,
+  getConfigGitStatus,
+} from "./repository.js";
 
 function git(args: string[]) {
   return execFileSync("git", args, {
@@ -137,6 +141,27 @@ test("commitConfigChanges records portable changes and exposes them in log", asy
   assert.equal(result.status.dirty, false);
   const log = await getConfigGitLog(2);
   assert.equal(log[0]?.subject, "add hardware profile");
+});
+
+test("getConfigGitDiff shows untracked files as new-file diffs", async () => {
+  writeJson(resolve(config.configDir, "proxy", "settings.json"), {
+    allowAnonymous: true,
+  });
+  writeJson(resolve(config.configDir, "resources.json"), [{ id: "gpu0" }]);
+  const full = await getConfigGitDiff();
+  assert.match(full.unstaged, /diff --git a\/resources\.json b\/resources\.json/);
+  assert.match(
+    full.unstaged,
+    /diff --git a\/proxy\/settings\.json b\/proxy\/settings\.json/,
+  );
+  assert.match(full.unstaged, /new file mode/);
+  assert.match(full.unstaged, /\+ {2}"allowAnonymous": true/);
+  const single = await getConfigGitDiff("proxy/settings.json");
+  assert.match(single.unstaged, /new file mode/);
+  assert.doesNotMatch(single.unstaged, /resources\.json/);
+  const tracked = await getConfigGitDiff("resources.json");
+  assert.doesNotMatch(tracked.unstaged, /new file mode/);
+  assert.match(tracked.unstaged, /"id": "gpu0"/);
 });
 
 test("createConfigBranch switches to a validated branch", async () => {

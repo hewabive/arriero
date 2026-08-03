@@ -230,30 +230,45 @@ function limitDiff(value: string): { text: string; truncated: boolean } {
   };
 }
 
+const DIFF_ARGS = ["--no-ext-diff", "--no-textconv", "--no-color"];
+
+async function listUntrackedFiles(pathspec: string[]): Promise<string[]> {
+  const result = await runGit(config.configDir, [
+    "ls-files",
+    "--others",
+    "--exclude-standard",
+    "-z",
+    ...pathspec,
+  ]);
+  return result.stdout.split("\0").filter(Boolean);
+}
+
+async function untrackedFileDiff(file: string): Promise<string> {
+  const result = await runGit(
+    config.configDir,
+    ["diff", ...DIFF_ARGS, "--no-index", "--", "/dev/null", file],
+    { allowExitCodes: [0, 1] },
+  );
+  return result.stdout;
+}
+
 export async function getConfigGitDiff(path?: string): Promise<ConfigGitDiff> {
   if (!(await isExactGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
   }
   const pathspec = path ? ["--", assertSafeConfigRelativePath(path)] : [];
-  const [stagedResult, unstagedResult] = await Promise.all([
-    runGit(config.configDir, [
-      "diff",
-      "--cached",
-      "--no-ext-diff",
-      "--no-textconv",
-      "--no-color",
-      ...pathspec,
-    ]),
-    runGit(config.configDir, [
-      "diff",
-      "--no-ext-diff",
-      "--no-textconv",
-      "--no-color",
-      ...pathspec,
-    ]),
+  const [stagedResult, unstagedResult, untrackedFiles] = await Promise.all([
+    runGit(config.configDir, ["diff", "--cached", ...DIFF_ARGS, ...pathspec]),
+    runGit(config.configDir, ["diff", ...DIFF_ARGS, ...pathspec]),
+    listUntrackedFiles(pathspec),
   ]);
+  const untrackedDiffs = await Promise.all(
+    untrackedFiles.map(untrackedFileDiff),
+  );
   const staged = limitDiff(stagedResult.stdout);
-  const unstaged = limitDiff(unstagedResult.stdout);
+  const unstaged = limitDiff(
+    [unstagedResult.stdout, ...untrackedDiffs].filter(Boolean).join(""),
+  );
   return ConfigGitDiffSchema.parse({
     staged: staged.text,
     unstaged: unstaged.text,
