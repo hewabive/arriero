@@ -153,10 +153,14 @@ Here `beforeRestart` performs the proxy drain (503 + bounded wait for
 non-resumable in-flight requests) before the self-`SIGTERM`.
 
 Copy-identical across the three repos: `version.ts`, `runner.ts`,
-`repository.ts`, `logs.ts`, `version.test.ts`, `utils/log-tail.ts` — keep them
-free of repo-specific imports (only `./adapter.js`, node builtins, and
-`../utils/log-tail.js`). Repo-specific here: `fleet.ts` (multi-node
-aggregation + the `currentUpstream`/`commitsBehind` git helpers), the routes,
-and the fleet UI. The `App*`/`UpdateJob*` Zod schema block in `packages/core`
-is part of the contract — keep field names and enum values identical across
-repos.
+`repository.ts`, `logs.ts`, `version.test.ts`, `runner.test.ts`,
+`utils/log-tail.ts`, plus the whole `jobs/` background-job kernel
+(`docs/BACKGROUND_JOBS.md`) that the update runner is built on — keep them
+free of repo-specific imports (only `./adapter.js`, node builtins,
+`../jobs/*.js`, and `../utils/log-tail.js`; the `jobs/` files import nothing
+repo-specific at all). `scripts/check-update-kit.mjs` verifies byte-identity
+against sibling checkouts and silently skips absent ones. Repo-specific here:
+`fleet.ts` (multi-node aggregation + the `currentUpstream`/`commitsBehind` git
+helpers), the routes, and the fleet UI. The `App*`/`UpdateJob*` Zod schema
+block in `packages/core` is part of the contract — keep field names and enum
+values identical across repos.

@@ -80,7 +80,10 @@ logic/test files:
 
 `instances` · `process` (supervisor, preflight, reconcile, stale, logs, health-summary) · `proxy` ·
 `arguments` · `build` (`docs/BUILD.md`) · `envs` (immutable uv-managed Python engine environments,
-`docs/ENVIRONMENTS.md`) · `models` (gguf/scanner/cache) · `presets` · `llama` (probe + source repo) ·
+`docs/ENVIRONMENTS.md`) · `jobs` (background-job kernel: stores, step transitions, pgid-killing
+exec, active-job registry + single shutdown path, log tail — used by build/envs/update/sources and
+copy-identical across the update-kit repos, `docs/BACKGROUND_JOBS.md`) ·
+`models` (gguf/scanner/cache) · `presets` · `llama` (probe + source repo) ·
 `path-catalog` · `resources` (memory pools + capacity ledger) · `memory-estimate` (a-priori per-pool
 footprint from GGUF + args, `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
 1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `filesystem` ·
@@ -357,5 +360,6 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
 - Self-update (UI Update button) needs the supervised `serve` deployment installed by
   `scripts/install-service.sh` (`deploy/arriero.service`, `systemd --user`). The `update` domain
   refuses in `dev` mode. It doubles as a copyable kit shared with llm-arena/rag-manager —
-  `update/adapter.ts` is the repo-specific seam, core files stay byte-identical. See
+  `update/adapter.ts` is the repo-specific seam; the other update files and the whole `jobs/` kernel
+  stay byte-identical (`node scripts/check-update-kit.mjs` verifies against sibling checkouts). See
   `docs/SELF_UPDATE.md`.
