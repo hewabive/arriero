@@ -4,7 +4,6 @@ import type {
   EnvironmentJobStepName,
   EnvironmentSpec,
 } from "@arriero/core";
-import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   createReadStream,
@@ -16,10 +15,12 @@ import {
   type WriteStream,
 } from "node:fs";
 import { resolve } from "node:path";
-import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { config } from "../config.js";
+import { runLoggedCommand } from "../jobs/exec.js";
+import { registerActiveJob } from "../jobs/registry.js";
+import { markJobStep } from "../jobs/steps.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
 import {
   environmentDirectory,
@@ -30,6 +31,7 @@ import { environmentLayoutError } from "./validation.js";
 import { environmentProvisioner } from "./provisioners.js";
 import {
   createEnvironmentJob,
+  environmentJobs,
   getEnvironmentJob,
   updateEnvironmentJob,
 } from "./repository.js";
@@ -169,7 +171,7 @@ export function environmentJobSteps(
 type Running = {
   jobId: string;
   environmentId: string;
-  child: ChildProcessByStdio<null, Readable, Readable> | null;
+  controller: AbortController;
   canceled: boolean;
   done: Promise<void>;
 };
@@ -208,18 +210,26 @@ export class EnvironmentRunner {
     this.running = {
       jobId: job.id,
       environmentId: spec.id,
-      child: null,
+      controller: new AbortController(),
       canceled: false,
       done,
     };
     void this.run(spec, job.id).finally(resolveDone);
+    registerActiveJob({
+      domain: "envs",
+      jobId: job.id,
+      cancel: () => {
+        this.cancel(job.id);
+      },
+      completion: done,
+    });
     return job;
   }
 
   cancel(jobId: string) {
     if (this.running?.jobId !== jobId) return getEnvironmentJob(jobId);
     this.running.canceled = true;
-    this.killChild(this.running.child);
+    this.running.controller.abort();
     return updateEnvironmentJob(jobId, {
       status: "canceled",
       currentStep: null,
@@ -233,14 +243,6 @@ export class EnvironmentRunner {
     if (!current) return;
     this.cancel(current.jobId);
     await current.done;
-  }
-
-  private killChild(child: Running["child"]) {
-    if (!child?.pid) return;
-    try {
-      if (process.platform === "win32") child.kill("SIGTERM");
-      else process.kill(-child.pid, "SIGTERM");
-    } catch {}
   }
 
   private async run(spec: EnvironmentSpec, jobId: string) {
@@ -337,50 +339,24 @@ export class EnvironmentRunner {
     status: EnvironmentJobStep["status"],
     exitCode: number | null,
   ) {
-    const job = getEnvironmentJob(jobId)!;
     const now = nowIso();
-    updateEnvironmentJob(jobId, {
-      currentStep: status === "running" ? name : job.currentStep,
-      steps: job.steps.map((step) =>
-        step.name === name
-          ? {
-              ...step,
-              status,
-              startedAt: status === "running" ? now : step.startedAt,
-              finishedAt: status === "running" ? null : now,
-              exitCode,
-            }
-          : step,
-      ),
-    });
+    markJobStep<EnvironmentJobStep, EnvironmentJob>(
+      environmentJobs,
+      jobId,
+      name,
+      status === "running"
+        ? { status, startedAt: now, finishedAt: null, exitCode }
+        : { status, finishedAt: now, exitCode },
+    );
   }
 
   private runCommand(command: string[], log: WriteStream) {
-    return new Promise<{ exitCode: number; stdout: string }>(
-      (resolveDone, reject) => {
-        const child = spawn(command[0]!, command.slice(1), {
-          env: process.env,
-          stdio: ["ignore", "pipe", "pipe"],
-          detached: process.platform !== "win32",
-        });
-        if (this.running) this.running.child = child;
-        const chunks: Buffer[] = [];
-        child.stdout.on("data", (chunk: Buffer) => {
-          chunks.push(chunk);
-          log.write(chunk);
-        });
-        child.stderr.on("data", (chunk: Buffer) => log.write(chunk));
-        child.once("error", reject);
-        child.once("close", (code, signal) => {
-          if (this.running?.child === child) this.running.child = null;
-          if (signal) log.write(`\n# terminated by ${signal}\n`);
-          resolveDone({
-            exitCode: code ?? 1,
-            stdout: Buffer.concat(chunks).toString("utf8"),
-          });
-        });
-      },
-    );
+    const signal = this.running?.controller.signal;
+    return runLoggedCommand(command, {
+      log,
+      collectStdout: true,
+      ...(signal ? { signal } : {}),
+    });
   }
 }
 

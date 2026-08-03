@@ -18,11 +18,16 @@ import { dirname, resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { createJobStore } from "../jobs/store.js";
 import { newId } from "../utils/id.js";
 
 export const ENVIRONMENTS_FILE = resolve(config.configDir, "envs.json");
+const ENVIRONMENT_JOB_HISTORY_LIMIT = 20;
 let cache: EnvironmentSpec[] | null = null;
-const jobs = new Map<string, EnvironmentJob>();
+
+export const environmentJobs = createJobStore<EnvironmentJob>({
+  historyLimit: ENVIRONMENT_JOB_HISTORY_LIMIT,
+});
 
 function nowIso() {
   return new Date().toISOString();
@@ -115,7 +120,7 @@ export function createEnvironmentJob(input: {
   steps: EnvironmentJobStep[];
   logPath: string;
 }): EnvironmentJob {
-  const job: EnvironmentJob = {
+  return environmentJobs.insert({
     id: newId(),
     environmentId: input.environmentId,
     status: "running",
@@ -125,9 +130,7 @@ export function createEnvironmentJob(input: {
     finishedAt: null,
     logPath: input.logPath,
     error: null,
-  };
-  jobs.set(job.id, structuredClone(job));
-  return structuredClone(job);
+  });
 }
 
 export function updateEnvironmentJob(
@@ -140,34 +143,18 @@ export function updateEnvironmentJob(
     error: string | null;
   }>,
 ) {
-  const current = jobs.get(id);
-  if (!current) return null;
-  const next = {
-    ...current,
-    ...patch,
-    currentStep:
-      patch.currentStep === undefined ? current.currentStep : patch.currentStep,
-    finishedAt:
-      patch.finishedAt === undefined ? current.finishedAt : patch.finishedAt,
-    error: patch.error === undefined ? current.error : patch.error,
-  };
-  jobs.set(id, structuredClone(next));
-  return structuredClone(next);
+  return environmentJobs.patch(id, patch);
 }
 
 export function getEnvironmentJob(id: string) {
-  const job = jobs.get(id);
-  return job ? structuredClone(job) : null;
+  return environmentJobs.get(id);
 }
 
 export function listEnvironmentJobs(limit = 20) {
-  return [...jobs.values()]
-    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
-    .slice(0, Math.max(1, Math.min(limit, 100)))
-    .map((job) => structuredClone(job));
+  return environmentJobs.list(limit);
 }
 
 export function resetEnvironmentRepository() {
   cache = null;
-  jobs.clear();
+  environmentJobs.clear();
 }
