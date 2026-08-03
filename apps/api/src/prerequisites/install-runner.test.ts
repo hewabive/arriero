@@ -16,6 +16,13 @@ test("strips the sudo prefix only when running as root", () => {
     executedInstallCommand("sudo apt install -y cmake", "passwordless-sudo"),
     "sudo apt install -y cmake",
   );
+  assert.equal(
+    executedInstallCommand(
+      "sudo dnf config-manager --add-repo cuda.repo && sudo dnf clean expire-cache && sudo dnf install -y cuda-toolkit",
+      "root",
+    ),
+    "dnf config-manager --add-repo cuda.repo && dnf clean expire-cache && dnf install -y cuda-toolkit",
+  );
 });
 
 test("runs a command to completion and captures the log", async () => {

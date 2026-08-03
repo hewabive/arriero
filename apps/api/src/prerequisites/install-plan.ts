@@ -32,18 +32,39 @@ function packagesFor(
   return packages;
 }
 
+function standaloneCommandsFor(
+  checks: PrerequisiteCheck[],
+  severities: PrerequisiteCheck["severity"][],
+): string[] {
+  return checks
+    .filter(
+      (check) =>
+        UNCONFIRMED.includes(check.status) &&
+        severities.includes(check.severity) &&
+        check.remediation.packages.length === 0 &&
+        check.remediation.installCommand,
+    )
+    .map((check) => check.remediation.installCommand!);
+}
+
 export function buildInstallPlan(
   checks: PrerequisiteCheck[],
   packageManager: HostPackageManager,
 ): PrerequisiteInstallPlan {
   const prefix = installCommandPrefix(packageManager);
-  const toCommand = (packages: string[]) =>
-    prefix && packages.length > 0 ? `${prefix} ${packages.join(" ")}` : null;
+  const toCommand = (severities: PrerequisiteCheck["severity"][]) => {
+    const packages = packagesFor(checks, severities);
+    const commands = standaloneCommandsFor(checks, severities);
+    if (prefix && packages.length > 0) {
+      commands.unshift(`${prefix} ${packages.join(" ")}`);
+    }
+    return commands.length > 0 ? commands.join(" && ") : null;
+  };
 
   return {
     packageManager,
-    requiredCommand: toCommand(packagesFor(checks, ["required"])),
-    allCommand: toCommand(packagesFor(checks, ["required", "recommended"])),
+    requiredCommand: toCommand(["required"]),
+    allCommand: toCommand(["required", "recommended"]),
   };
 }
 

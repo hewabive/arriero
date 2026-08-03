@@ -63,8 +63,8 @@ NVIDIA package, not a package in the default Fedora or RHEL-family repositories;
 including it before NVIDIA's repository is configured makes DNF reject the
 whole transaction, including otherwise available tools. On supported x86-64
 Fedora, RHEL, AlmaLinux, Rocky Linux and Oracle Linux hosts, the `nvcc` check
-instead shows separate commands that add the matching NVIDIA network repository,
-expire DNF metadata and install `cuda-toolkit`.
+instead shows and can run a server-generated command that adds the matching
+NVIDIA network repository, expires DNF metadata and installs `cuda-toolkit`.
 
 Rocky Linux 9 on x86-64 uses NVIDIA's equivalent hardware-aware helper. Its
 remediation enables Rocky's CRB and EPEL dependencies, installs matching kernel
@@ -129,13 +129,16 @@ unit has a far shorter PATH than an interactive shell — the classic failure is
 a Node.js installed through nvm that works in the terminal and is invisible to
 the service.
 
-`augmentProcessPath()` runs once at startup and **appends** every well-known
-tool directory that exists but is missing from PATH (`~/.local/bin`,
-`/usr/local/bin`, nvm's `node/*/bin`, `/usr/local/cuda/bin`, …). Appending, not
+`augmentProcessPath()` runs at startup and before each prerequisites report. It
+**appends** every well-known tool directory that exists but is missing from PATH
+(`~/.local/bin`, `/usr/local/bin`, nvm's `node/*/bin`,
+`/usr/local/cuda/bin`, …). Re-check therefore picks up a toolkit installed while
+arriero is running without requiring a service restart. Appending, not
 prepending: existing PATH entries keep winning, so nothing the operator chose
 is ever shadowed. The change is in-memory only and never persisted, keeping
-file-backed config machine-independent. The directories that were added are
-reported in `host.autoRepairedPath` and logged at startup.
+file-backed config machine-independent. The directories added across all
+repairs are reported in `host.autoRepairedPath`; startup additions are also
+logged.
 
 ## Build fail-fast
 
@@ -168,9 +171,10 @@ Runner rules (`install-runner.ts`):
 - `POST /api/prerequisites/install` takes `{ scope: "required" | "all" }` or
   `{ checkId }`; the command is re-derived server-side
   (`resolveInstallCommand`) — clients never submit command text.
-- Only package-manager commands are runnable; free-form `commands`
-  (`ubuntu-drivers` + `sudo reboot`, the delegation script, `pipx install uv`)
-  stay copy-paste.
+- Package-manager commands and explicitly allowlisted, server-generated install
+  sequences are runnable. The DNF `nvcc` remediation is one such sequence;
+  other free-form `commands` (`ubuntu-drivers` + `sudo reboot`, the delegation
+  script, `pipx install uv`) stay copy-paste.
 - One run at a time, in memory only (log tail 256 KiB), exposed at
   `GET /api/prerequisites/install/latest` and polled while running.
   `DEBIAN_FRONTEND=noninteractive`; under root the `sudo` prefix is stripped.

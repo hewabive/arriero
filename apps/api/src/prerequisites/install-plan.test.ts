@@ -86,6 +86,43 @@ test("required command excludes recommended packages", () => {
   assert.equal(plan.allCommand, "sudo apt install -y cmake ccache");
 });
 
+test("appends runnable standalone remediation to the aggregated command", () => {
+  const plan = buildInstallPlan(
+    [
+      check({
+        id: "ccache",
+        severity: "recommended",
+        remediation: {
+          packages: ["ccache"],
+          installCommand: "sudo dnf install -y ccache",
+          commands: [],
+          docPath: null,
+          note: null,
+        },
+      }),
+      check({
+        id: "nvcc",
+        severity: "recommended",
+        remediation: {
+          packages: [],
+          installCommand:
+            "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/cuda.repo && sudo dnf clean expire-cache && sudo dnf install -y cuda-toolkit",
+          commands: [],
+          docPath: null,
+          note: null,
+        },
+      }),
+    ],
+    "dnf",
+  );
+
+  assert.equal(plan.requiredCommand, null);
+  assert.equal(
+    plan.allCommand,
+    "sudo dnf install -y ccache && sudo dnf config-manager --add-repo https://developer.download.nvidia.com/cuda.repo && sudo dnf clean expire-cache && sudo dnf install -y cuda-toolkit",
+  );
+});
+
 test("present and out-of-path checks never enter the install plan", () => {
   const plan = buildInstallPlan(
     [check({ status: "ok" }), check({ id: "git", status: "out-of-path" })],

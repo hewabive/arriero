@@ -140,7 +140,7 @@ export function InstallRunPanel(props: { run: PrerequisiteInstallRun }) {
           <Badge color={installRunStatusColor(run.status)}>{run.status}</Badge>
           {run.status === "running" && <Loader size="xs" />}
           <Text size="sm" fw={600}>
-            Package installation
+            Tool installation
           </Text>
           <Text size="xs" c="dimmed">
             started {formatLocalDateTime(run.startedAt)}

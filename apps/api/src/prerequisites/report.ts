@@ -13,7 +13,10 @@ import {
   packageManagerForOsRelease,
   readOsRelease,
 } from "../system/os-release.js";
-import { autoRepairedPathDirectories } from "../system/path-repair.js";
+import {
+  augmentProcessPath,
+  autoRepairedPathDirectories,
+} from "../system/path-repair.js";
 import { pathEntries } from "../system/tool-probe.js";
 import { detectRunMode } from "../update/version.js";
 import { instanceArgsNeedHttps } from "./https-usage.js";
@@ -66,6 +69,12 @@ export async function evaluatePrerequisite(
   const packageManager = packageManagerForOsRelease(release);
   const packages = definition.packages[packageManager] ?? [];
   const prefix = installCommandPrefix(packageManager);
+  const commands =
+    typeof definition.commands === "function"
+      ? definition.commands(release)
+      : definition.commands;
+  const packageInstallCommand =
+    prefix && packages.length > 0 ? `${prefix} ${packages.join(" ")}` : null;
   return {
     id: definition.id,
     title: definition.title,
@@ -79,13 +88,11 @@ export async function evaluatePrerequisite(
     remediation: {
       packages,
       installCommand:
-        prefix && packages.length > 0
-          ? `${prefix} ${packages.join(" ")}`
-          : null,
-      commands:
-        typeof definition.commands === "function"
-          ? definition.commands(release)
-          : definition.commands,
+        packageInstallCommand ??
+        (definition.runnableCommands && commands.length > 0
+          ? commands.join(" && ")
+          : null),
+      commands,
       docPath: definition.docPath,
       note: definition.note,
     },
@@ -101,6 +108,7 @@ export function prerequisiteProbeContext(): PrerequisiteProbeContext {
 }
 
 export async function getPrerequisiteReport(): Promise<PrerequisiteReport> {
+  augmentProcessPath();
   const context = prerequisiteProbeContext();
   const [checks, installRunner] = await Promise.all([
     Promise.all(

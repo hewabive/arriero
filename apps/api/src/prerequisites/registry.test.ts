@@ -14,6 +14,7 @@ test("keeps CUDA out of the aggregated DNF transaction", () => {
   );
   assert.ok(nvcc);
   assert.deepEqual(nvcc.packages.dnf, undefined);
+  assert.equal(nvcc.runnableCommands, true);
 });
 
 test("adds NVIDIA's CUDA repository before installing the toolkit on Fedora", () => {

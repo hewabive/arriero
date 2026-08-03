@@ -13,7 +13,9 @@ export function executedInstallCommand(
   command: string,
   method: PrerequisiteInstallCapability["method"],
 ): string {
-  return method === "root" ? command.replace(/^sudo\s+/, "") : command;
+  return method === "root"
+    ? command.replace(/(^|&&\s+)sudo\s+/g, "$1")
+    : command;
 }
 
 export class PrerequisiteInstallRunner {

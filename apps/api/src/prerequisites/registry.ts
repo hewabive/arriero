@@ -51,6 +51,7 @@ export type PrerequisiteDefinition = {
   impact: string;
   packages: Partial<Record<HostPackageManager, string[]>>;
   commands: string[] | ((release: OsRelease) => string[]);
+  runnableCommands?: boolean;
   docPath: string | null;
   note: string | null;
   probe: (
@@ -467,6 +468,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       zypper: ["cuda-toolkit"],
     },
     commands: cudaToolkitInstallCommands,
+    runnableCommands: true,
     docPath: null,
     note: "DNF systems need NVIDIA's distribution-specific CUDA repository before the cuda-toolkit package is available. Also detected through CUDACXX, CUDA_HOME, CUDA_PATH, /usr/local/cuda and /opt/cuda.",
     probe: executableProbe(["nvcc"], ["--version"]),

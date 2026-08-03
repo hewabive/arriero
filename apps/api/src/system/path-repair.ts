@@ -16,20 +16,19 @@ export function missingPathDirectories(
 
 let repaired: string[] = [];
 
-export function augmentProcessPath(): string[] {
-  const added = missingPathDirectories(
-    process.env.PATH,
-    wellKnownToolDirectories(),
-  );
+export function augmentProcessPath(
+  candidates: string[] = wellKnownToolDirectories(),
+): string[] {
+  const added = missingPathDirectories(process.env.PATH, candidates);
   if (added.length > 0) {
     process.env.PATH = [...pathEntries(process.env.PATH), ...added].join(
       delimiter,
     );
+    repaired = [...new Set([...repaired, ...added])];
   }
-  repaired = added;
   return added;
 }
 
 export function autoRepairedPathDirectories(): string[] {
-  return repaired;
+  return [...repaired];
 }
