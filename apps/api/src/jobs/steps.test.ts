@@ -12,7 +12,13 @@ type TestJob = BackgroundJobBase & {
 };
 
 function pendingStep(name: TestStep["name"]): TestStep {
-  return { name, status: "pending", startedAt: null, finishedAt: null, exitCode: null };
+  return {
+    name,
+    status: "pending",
+    startedAt: null,
+    finishedAt: null,
+    exitCode: null,
+  };
 }
 
 function makeJob(): TestJob {
@@ -59,7 +65,10 @@ test("markJobStep sets currentStep for a running step and keeps it otherwise", (
 test("markJobStep throws for a missing job", () => {
   const store = createJobStore<TestJob>({ historyLimit: 5 });
   assert.throws(
-    () => markJobStep<TestStep, TestJob>(store, "ghost", "one", { status: "running" }),
+    () =>
+      markJobStep<TestStep, TestJob>(store, "ghost", "one", {
+        status: "running",
+      }),
     /job not found: ghost/,
   );
 });

@@ -7,6 +7,13 @@ import {
 } from "@arriero/core";
 
 import { redactGitOutput } from "../git/process.js";
+import {
+  getActiveJob,
+  listActiveJobs,
+  registerActiveJob,
+  resetActiveJobs,
+} from "../jobs/registry.js";
+import { createLatestJobStore } from "../jobs/store.js";
 import { newId } from "../utils/id.js";
 import {
   assertSourceContentCanChange,
@@ -20,11 +27,9 @@ const MAX_LOG_LINES = 500;
 const MAX_LOG_LINE_LENGTH = 2_000;
 const MAX_OUTPUT_LENGTH = 32_000;
 
-const latestJobs = new Map<string, SourceRepositoryOperationJob>();
-const activeJobs = new Map<
-  string,
-  { jobId: string; controller: AbortController; completion: Promise<void> }
->();
+const SOURCE_JOB_DOMAIN = "source";
+
+const latestJobs = createLatestJobStore<SourceRepositoryOperationJob>();
 
 function nowIso() {
   return new Date().toISOString();
@@ -34,11 +39,7 @@ function updateJob(
   sourceId: string,
   input: Partial<SourceRepositoryOperationJob>,
 ): SourceRepositoryOperationJob | null {
-  const current = latestJobs.get(sourceId);
-  if (!current) return null;
-  const next = { ...current, ...input, id: current.id, sourceId };
-  latestJobs.set(sourceId, next);
-  return next;
+  return latestJobs.patch(sourceId, input);
 }
 
 function cleanLogLine(value: string): string {
@@ -183,7 +184,7 @@ function startJob(
     error: null,
     logLines: [],
   });
-  latestJobs.set(sourceId, job);
+  latestJobs.start(sourceId, job);
   const controller = new AbortController();
   const reporter = createReporter(sourceId, controller.signal);
 
@@ -215,11 +216,12 @@ function startJob(
         error: canceled ? "canceled by user" : message,
       });
     });
-  activeJobs.set(sourceId, { jobId: job.id, controller, completion });
-  void completion.finally(() => {
-    if (activeJobs.get(sourceId)?.jobId === job.id) {
-      activeJobs.delete(sourceId);
-    }
+  registerActiveJob({
+    domain: SOURCE_JOB_DOMAIN,
+    entityId: sourceId,
+    jobId: job.id,
+    cancel: () => controller.abort(),
+    completion,
   });
 
   return job;
@@ -245,21 +247,20 @@ export function startSourceRepositoryPull(
 export function getSourceRepositoryOperationJob(
   sourceId: string,
 ): SourceRepositoryOperationJob | null {
-  const job = latestJobs.get(sourceId);
-  return job ? structuredClone(job) : null;
+  return latestJobs.get(sourceId);
 }
 
 export function cancelSourceRepositoryOperationJob(
   sourceId: string,
 ): SourceRepositoryOperationJob {
   const job = latestJobs.get(sourceId);
-  const active = activeJobs.get(sourceId);
+  const active = getActiveJob(SOURCE_JOB_DOMAIN, sourceId);
   if (!job || job.status !== "running" || active?.jobId !== job.id) {
     throw new Error(
       `no source repository operation is running for ${sourceId}`,
     );
   }
-  active.controller.abort();
+  active.cancel();
   return updateJob(sourceId, {
     cancelRequested: true,
     message: "Canceling source repository operation.",
@@ -267,23 +268,7 @@ export function cancelSourceRepositoryOperationJob(
 }
 
 export function resetSourceRepositoryOperationJobsForTests(): void {
-  for (const active of activeJobs.values()) active.controller.abort();
-  activeJobs.clear();
+  for (const active of listActiveJobs(SOURCE_JOB_DOMAIN)) active.cancel();
+  resetActiveJobs();
   latestJobs.clear();
-}
-
-export async function shutdownSourceRepositoryOperationJobs(
-  timeoutMs: number,
-): Promise<number> {
-  const running = [...activeJobs.values()];
-  if (running.length === 0) return 0;
-  for (const active of running) active.controller.abort();
-  await Promise.race([
-    Promise.allSettled(running.map((active) => active.completion)),
-    new Promise<void>((resolveDone) => {
-      const timer = setTimeout(resolveDone, Math.max(1, timeoutMs));
-      timer.unref?.();
-    }),
-  ]);
-  return running.length;
 }

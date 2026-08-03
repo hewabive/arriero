@@ -28,10 +28,9 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import { buildRunner } from "../build/runner.js";
 import { config } from "../config.js";
 import { normalizeConfigFiles } from "../config-normalize.js";
-import { environmentRunner } from "../envs/runner.js";
+import { getActiveJob } from "../jobs/registry.js";
 import { supervisor } from "../process/supervisor.js";
 import { anySourceRepositoryOperationActive } from "../sources/state.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
@@ -74,10 +73,10 @@ function assertConfigContentCanChange() {
       `stop managed processes before changing configuration: ${activeInstances.map((item) => item.instanceId).join(", ")}`,
     );
   }
-  if (buildRunner.isRunning()) {
+  if (getActiveJob("build")) {
     throw new Error("cannot change configuration while a build is running");
   }
-  if (environmentRunner.activeEnvironmentId()) {
+  if (getActiveJob("envs")) {
     throw new Error(
       "cannot change configuration while an environment install is running",
     );

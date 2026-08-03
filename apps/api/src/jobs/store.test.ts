@@ -9,7 +9,11 @@ import {
 
 type TestJob = BackgroundJobBase & { note: string; tags: string[] };
 
-function job(id: string, startedAt: string, status: TestJob["status"]): TestJob {
+function job(
+  id: string,
+  startedAt: string,
+  status: TestJob["status"],
+): TestJob {
   return {
     id,
     status,

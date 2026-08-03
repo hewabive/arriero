@@ -273,7 +273,12 @@ class UpdateRunner {
     name: UpdateJobStepName,
     patch: Partial<Omit<UpdateJobStep, "name">>,
   ): UpdateJob {
-    return markJobStep<UpdateJobStep, UpdateJob>(updateJobs, jobId, name, patch);
+    return markJobStep<UpdateJobStep, UpdateJob>(
+      updateJobs,
+      jobId,
+      name,
+      patch,
+    );
   }
 
   private finish(
