@@ -122,16 +122,36 @@ function devicePresenceProbe(path: string) {
   });
 }
 
-export function nvidiaDriverInstallCommands(release: OsRelease): string[] {
+export function nvidiaDriverInstallCommands(
+  release: OsRelease,
+  architecture: NodeJS.Architecture = process.arch,
+): string[] {
   const family = new Set(
     [release.id, ...release.idLike].filter(
       (item): item is string => item !== null,
     ),
   );
-  if (!family.has("ubuntu")) {
+  if (family.has("ubuntu")) {
+    return ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"];
+  }
+
+  if (
+    release.id !== "rocky" ||
+    release.versionId?.split(".")[0] !== "9" ||
+    architecture !== "x64"
+  ) {
     return [];
   }
-  return ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"];
+
+  return [
+    "sudo dnf config-manager --set-enabled crb",
+    "sudo dnf install -y epel-release kernel-devel-matched kernel-headers",
+    "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo",
+    "sudo dnf clean expire-cache",
+    "sudo dnf install -y nvidia-driver-assistant",
+    "nvidia-driver-assistant --install",
+    "sudo reboot",
+  ];
 }
 
 export function nvidiaDriverProbeOutcome(
@@ -424,7 +444,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     packages: {},
     commands: nvidiaDriverInstallCommands,
     docPath: "docs/RESOURCE_MANAGEMENT.md",
-    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. On Ubuntu the command above lets ubuntu-drivers select a compatible headless/server driver. After rebooting, restart arriero and press Re-check; nvidia-smi is not required.",
+    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. The distro-specific helper selects a driver compatible with the detected GPU: ubuntu-drivers on Ubuntu, or NVIDIA's driver assistant on Rocky Linux 9 x86-64. After rebooting, restart arriero and press Re-check; nvidia-smi is not required.",
     probe: async () => nvidiaDriverProbeOutcome(nvidiaTelemetry.status(true)),
   },
   {

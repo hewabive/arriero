@@ -23,6 +23,7 @@ test("parses quoted and bare os-release values", () => {
   assert.equal(release.prettyName, "Ubuntu 24.04.4 LTS");
   assert.equal(release.id, "ubuntu");
   assert.deepEqual(release.idLike, ["debian"]);
+  assert.equal(release.versionId, "24.04");
 });
 
 test("falls back to NAME when PRETTY_NAME is absent", () => {
@@ -36,6 +37,7 @@ test("maps distributions to package managers through ID_LIKE", () => {
       id: "linuxmint",
       idLike: ["ubuntu", "debian"],
       prettyName: null,
+      versionId: null,
     }),
     "apt",
   );
@@ -44,15 +46,26 @@ test("maps distributions to package managers through ID_LIKE", () => {
       id: "rocky",
       idLike: ["rhel", "centos", "fedora"],
       prettyName: null,
+      versionId: "9.8",
     }),
     "dnf",
   );
   assert.equal(
-    packageManagerForOsRelease({ id: "arch", idLike: [], prettyName: null }),
+    packageManagerForOsRelease({
+      id: "arch",
+      idLike: [],
+      prettyName: null,
+      versionId: null,
+    }),
     "pacman",
   );
   assert.equal(
-    packageManagerForOsRelease({ id: "plan9", idLike: [], prettyName: null }),
+    packageManagerForOsRelease({
+      id: "plan9",
+      idLike: [],
+      prettyName: null,
+      versionId: null,
+    }),
     "unknown",
   );
 });

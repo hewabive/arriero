@@ -5,6 +5,7 @@ export type OsRelease = {
   id: string | null;
   idLike: string[];
   prettyName: string | null;
+  versionId: string | null;
 };
 
 export function parseOsRelease(contents: string): OsRelease {
@@ -27,6 +28,7 @@ export function parseOsRelease(contents: string): OsRelease {
     id: values.get("ID") ?? null,
     idLike: idLike ? idLike.split(/\s+/).filter(Boolean) : [],
     prettyName: values.get("PRETTY_NAME") ?? values.get("NAME") ?? null,
+    versionId: values.get("VERSION_ID") ?? null,
   };
 }
 
@@ -66,7 +68,7 @@ export function readOsRelease(): OsRelease {
   try {
     cached = parseOsRelease(readFileSync("/etc/os-release", "utf8"));
   } catch {
-    cached = { id: null, idLike: [], prettyName: null };
+    cached = { id: null, idLike: [], prettyName: null, versionId: null };
   }
   return cached;
 }

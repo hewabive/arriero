@@ -58,6 +58,13 @@ offer the Ubuntu command on other distributions. The command does not have to
 install `nvidia-utils` or `nvidia-smi` because arriero calls
 `libnvidia-ml.so.1` directly.
 
+Rocky Linux 9 on x86-64 uses NVIDIA's equivalent hardware-aware helper. Its
+remediation enables Rocky's CRB and EPEL dependencies, installs matching kernel
+development files, adds NVIDIA's `rhel9/x86_64` network repository, and installs
+`nvidia-driver-assistant`. Running the assistant with `--install` selects the
+module flavor supported by the detected GPU instead of arriero assuming that
+every NVIDIA device can use the open kernel module. A reboot is still required.
+
 On Ubuntu 24.04 the install may repeat
 `udevadm hwdb is deprecated. Use systemd-hwdb instead.` while packages are
 configured. This warning comes from the current `ubuntu-drivers` integration
