@@ -23,7 +23,7 @@ function endpointGroupLabel(group: ApiProxyTargetModelGroup): string {
   return "Managed instances";
 }
 
-export function buildEndpointSelectData(groups: ApiProxyTargetModelGroup[]) {
+function buildEndpointSelectData(groups: ApiProxyTargetModelGroup[]) {
   const byGroup = new Map<string, { value: string; label: string }[]>();
   for (const group of groups) {
     const label = endpointGroupLabel(group);

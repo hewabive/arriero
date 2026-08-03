@@ -7,7 +7,6 @@ import type {
 import { opendir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 
-import { config } from "../config.js";
 import {
   getCachedModel,
   listAllCachedModels,
@@ -43,8 +42,6 @@ type ModelFile = FoundFile & {
   shardPaths: string[];
   missingShardNames: string[];
 };
-
-export const defaultModelsDirectory = config.modelsDir;
 
 async function walk(
   dir: string,

@@ -13,7 +13,7 @@ import {
   type EnvironmentAvailability,
 } from "./availability.js";
 
-export type EnvironmentAvailabilityContext = {
+type EnvironmentAvailabilityContext = {
   accelerators: SystemAccelerator[];
   installed: boolean;
   rocmDeviceAvailable: boolean;

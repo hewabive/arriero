@@ -10,7 +10,7 @@ export type IndexDistributionResult =
   | { outcome: "auth-required" | "not-found"; detail: string }
   | { outcome: "unreachable"; detail: string };
 
-export function normalizeDistributionName(name: string) {
+function normalizeDistributionName(name: string) {
   return name.replace(/[-_.]+/g, "-").toLowerCase();
 }
 
@@ -164,7 +164,7 @@ type ComparableVersion = {
   local: string;
 };
 
-export function parseVersion(value: string): ComparableVersion | null {
+function parseVersion(value: string): ComparableVersion | null {
   const match = VERSION_PATTERN.exec(value);
   if (!match) return null;
   const release = (match[2] ?? "").split(".").map(Number);

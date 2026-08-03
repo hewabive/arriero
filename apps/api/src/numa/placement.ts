@@ -1,6 +1,6 @@
 import type { NumaPlacement } from "@arriero/core";
 
-export const NUMA_SKEW_TOLERANCE = 0.5;
+const NUMA_SKEW_TOLERANCE = 0.5;
 
 export function parseNumaMaps(content: string): Map<number, number> {
   const perNode = new Map<number, number>();

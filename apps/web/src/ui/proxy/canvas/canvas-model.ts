@@ -21,7 +21,7 @@ export type FlowNodeKind =
   | "ref-pipeline"
   | "ref-model";
 
-export type FlowNodeData = {
+type FlowNodeData = {
   kind: FlowNodeKind;
   title: string;
   summary: string;
@@ -35,10 +35,10 @@ export type FlowNodeData = {
 export type FlowNode = Node<FlowNodeData>;
 
 export const entryNodeId = "__entry__";
-export const entryPortName = "start";
+const entryPortName = "start";
 export const referrerFlowPrefix = "in:";
 export const referrerPipelineFlowPrefix = "in:pipeline:";
-export const referrerPortName = "out";
+const referrerPortName = "out";
 
 export type PipelineReferrer = {
   flowId: string;
@@ -113,7 +113,7 @@ export function portValueFromFlowId(flowId: string): PortValue {
   return flowId.startsWith("ref:") ? flowId.slice(4) : `node:${flowId}`;
 }
 
-export function flowIdFromPortValue(value: string): string {
+function flowIdFromPortValue(value: string): string {
   return value.startsWith("node:") ? value.slice(5) : refNodeId(value);
 }
 
@@ -167,7 +167,7 @@ export function highlightFromTrace(
   return { nodes, ports };
 }
 
-export function draftNodePorts(
+function draftNodePorts(
   node: PipelineNodeDraft,
   exitNames: string[],
 ): Array<{ port: string; value: PortValue }> {
@@ -198,7 +198,7 @@ export function draftNodePorts(
   }
 }
 
-export function nodeSummary(
+function nodeSummary(
   node: PipelineNodeDraft,
   context: {
     pipelines: ApiProxyPipelineRecord[];

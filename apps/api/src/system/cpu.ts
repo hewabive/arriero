@@ -17,7 +17,7 @@ const CPU_FIELDS = [
 
 type CpuField = (typeof CPU_FIELDS)[number];
 
-export type CpuTimes = Record<CpuField, number>;
+type CpuTimes = Record<CpuField, number>;
 
 export type CpuCounters = {
   total: CpuTimes;

@@ -1,8 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "rules": {
+    "duplicates": "off"
+  },
   "workspaces": {
     ".": {
       "entry": ["scripts/*.{ts,mjs}"]
+    },
+    "apps/api": {
+      "ignore": ["src/jobs/store.ts", "src/jobs/exec.ts"],
+      "ignoreBinaries": ["numactl"]
     },
     "apps/web": {
       "entry": ["src/main.tsx", "index.html", "vite.config.ts"],

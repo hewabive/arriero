@@ -236,7 +236,7 @@ type PanelAnswer = {
   responseEffects: ApiProxyResponseEffect[];
 };
 
-export type ApiProxyFusionBranchTrace = {
+type ApiProxyFusionBranchTrace = {
   branch: string;
   detail: string | null;
   routeTrace: ApiProxyRouteTraceStep[];

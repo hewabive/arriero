@@ -205,10 +205,6 @@ function getStoredExternalApiEndpoint(id: string): StoredEndpoint | null {
   return readStoredEndpoints().find((item) => item.id === id) ?? null;
 }
 
-export function listExternalApiEndpoints(): ApiEndpointRecord[] {
-  return listStoredEndpointRecords();
-}
-
 export function listPassthroughEndpoints(): ApiEndpointRecord[] {
   return listStoredEndpointRecords().filter(
     (endpoint) => endpoint.enabled && endpoint.passthrough,

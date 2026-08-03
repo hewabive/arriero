@@ -1,18 +1,18 @@
 import type { ApiProbeRequest } from "@arriero/core";
 
-export type ApiProbeStreamMeta = {
+type ApiProbeStreamMeta = {
   kind: ApiProbeRequest["kind"];
   endpoint: string;
   requestBody: unknown;
 };
 
-export type ApiProbeStreamStatus = {
+type ApiProbeStreamStatus = {
   ok: boolean;
   status: number;
   latencyMs: number;
 };
 
-export type ApiProbeStreamDone = {
+type ApiProbeStreamDone = {
   latencyMs: number;
   finishReason: string | null;
   usage: unknown;
@@ -28,7 +28,7 @@ export type ApiProbeStreamCallbacks = {
   onCancelled?: (payload: unknown) => void;
 };
 
-export function parseSseBlock(block: string) {
+function parseSseBlock(block: string) {
   let event = "message";
   const data: string[] = [];
   for (const line of block.split(/\r?\n/)) {
@@ -41,7 +41,7 @@ export function parseSseBlock(block: string) {
   return { event, data: data.join("\n") };
 }
 
-export function parseSseJson(data: string): unknown {
+function parseSseJson(data: string): unknown {
   if (!data) return null;
   try {
     return JSON.parse(data) as unknown;
@@ -50,7 +50,7 @@ export function parseSseJson(data: string): unknown {
   }
 }
 
-export function dispatchApiProbeStreamEvent(
+function dispatchApiProbeStreamEvent(
   block: string,
   callbacks: ApiProbeStreamCallbacks,
 ) {

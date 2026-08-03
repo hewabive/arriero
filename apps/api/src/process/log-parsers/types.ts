@@ -4,7 +4,7 @@ import type {
   InstanceMemoryLayout,
 } from "@arriero/core";
 
-export type EngineLogParseInput = {
+type EngineLogParseInput = {
   lines: string[];
   cudaDevicesDisabled: boolean;
 };

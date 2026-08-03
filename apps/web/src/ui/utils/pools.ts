@@ -1,6 +1,6 @@
 import type { MemoryPool, SystemAccelerator } from "@arriero/core";
 
-export function formatGpuName(index: string, name: string): string {
+function formatGpuName(index: string, name: string): string {
   return `GPU ${index} · ${name}`;
 }
 

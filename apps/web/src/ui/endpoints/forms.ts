@@ -4,7 +4,7 @@ export type EndpointEditor =
   | { mode: "create"; endpoint: null }
   | { mode: "edit"; endpoint: ApiEndpointRecord };
 
-export type EndpointHeaderDraft = { name: string; value: string };
+type EndpointHeaderDraft = { name: string; value: string };
 
 export type EndpointDraft = {
   name: string;

@@ -4,7 +4,7 @@ import { detectNumaBind, detectNumaInterleave } from "./capability.js";
 import { applyNumaPin, buildPinnedShimArgs } from "./cgroup.js";
 import { readNumaTopology } from "./topology.js";
 
-export type NumaLaunch = {
+type NumaLaunch = {
   binary: string;
   args: string[];
   cgroupDir: string | null;

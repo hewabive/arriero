@@ -46,7 +46,6 @@ import {
   promptLabel,
 } from "./utils";
 
-export { modelOptionsFromProbe } from "./utils";
 export type { ModelOption, ProbeRequestOption } from "./types";
 
 const defaultPrompt =

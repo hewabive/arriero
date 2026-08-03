@@ -1,4 +1,4 @@
-export type ApiProxyJsonMutation = {
+type ApiProxyJsonMutation = {
   changed: boolean;
   value: unknown;
 };
@@ -31,14 +31,14 @@ export function mutateApiProxyJsonText(
   }
 }
 
-export type ApiProxySseFrameSplit = {
+type ApiProxySseFrameSplit = {
   frames: string[];
   tail: string | null;
 };
 
 const sseFrameTerminator = /(?:\r\n|\r(?!\n)|\n)(?:\r\n|\r(?!\n)|\n)/;
 
-export function splitApiProxySseFrames(text: string): ApiProxySseFrameSplit {
+function splitApiProxySseFrames(text: string): ApiProxySseFrameSplit {
   const frames: string[] = [];
   let pending = text;
   let match = sseFrameTerminator.exec(pending);
@@ -111,7 +111,7 @@ function splitSseLines(frame: string): SseLine[] {
 
 const sseDataLine = /^(\uFEFF?[\t ]*data[\t ]*:[\t ]*)(.*)$/s;
 
-export type ApiProxySseJsonPayload = {
+type ApiProxySseJsonPayload = {
   value: unknown;
   replace: (next: unknown) => void;
 };
@@ -233,21 +233,6 @@ export function transformApiProxySseText(
     append(transformer.flush());
   }
   return output.join("");
-}
-
-export function mutateApiProxySseJsonText(
-  text: string,
-  mutate: ApiProxyJsonMutator,
-): ApiProxyTextMutation {
-  let changed = false;
-  const output = transformApiProxySseText(text, {
-    transform: (frame) => {
-      const mutation = mutateApiProxySseJsonFrame(frame, mutate);
-      changed ||= mutation.changed;
-      return mutation.text;
-    },
-  });
-  return changed ? { changed, text: output } : { changed: false, text };
 }
 
 function enqueueText(

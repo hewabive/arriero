@@ -18,7 +18,7 @@ export type MetricSeries = {
   values: (number | null)[];
 };
 
-export type MetricAxis = {
+type MetricAxis = {
   times: number[];
   windowMs: number;
   intervalMs: number;

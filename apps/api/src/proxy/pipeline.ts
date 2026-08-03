@@ -35,7 +35,7 @@ export type ApiProxyPipelineRecordRequestInput = {
   requestBody: unknown;
 };
 
-export type ApiProxyCaptureResponseEffect = {
+type ApiProxyCaptureResponseEffect = {
   type: "capture-response";
   nodeName: string | null;
 };
@@ -53,7 +53,7 @@ export type ApiProxyReplaceResponseTextEffect = {
   includeToolArguments: boolean;
 };
 
-export type ApiProxyTokenScaleResponseEffect = {
+type ApiProxyTokenScaleResponseEffect = {
   type: "token-scale";
   factor: number;
 };
@@ -80,7 +80,7 @@ export type ApiProxyCachedResponsePayload = {
   body: string;
 };
 
-export type ApiProxyResponseResult = {
+type ApiProxyResponseResult = {
   status: number;
   contentType: string;
   body: string | ReadableStream<Uint8Array>;

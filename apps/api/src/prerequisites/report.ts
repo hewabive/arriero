@@ -29,7 +29,7 @@ import {
 } from "./registry.js";
 import { wellKnownToolDirectories } from "./search-paths.js";
 
-export function collectPrerequisiteUsage(): PrerequisiteUsage {
+function collectPrerequisiteUsage(): PrerequisiteUsage {
   const instances = listInstances();
   return {
     cudaBuild: getBuildSettings().cuda,

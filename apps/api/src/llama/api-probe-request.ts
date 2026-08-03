@@ -17,7 +17,7 @@ function endpointWithAutoload(endpoint: string, autoload: boolean) {
   return `${endpoint}?${query.toString()}`;
 }
 
-export function buildApiProbeRequestBody(
+function buildApiProbeRequestBody(
   input: ApiProbeRequest,
   options: { stream?: boolean } = {},
 ): {
@@ -188,7 +188,7 @@ export function instanceApiProbeTarget(
   return apiProbeTargetFromBaseUrl(baseUrl, input, options);
 }
 
-export function apiProbeTargetFromBaseUrl(
+function apiProbeTargetFromBaseUrl(
   baseUrl: string,
   input: ApiProbeRequest,
   options: { stream?: boolean } = {},

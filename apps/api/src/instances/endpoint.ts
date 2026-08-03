@@ -8,7 +8,7 @@ import {
 const RPC_HTTP = engineDescriptor("rpc-worker").http;
 const PROBE_TIMEOUT_MS = 1_500;
 
-export function firstArg(
+function firstArg(
   args: Instance["args"],
   keys: readonly string[],
 ): InstanceArgValue | undefined {
@@ -20,7 +20,7 @@ export function firstArg(
   return undefined;
 }
 
-export function asString(
+function asString(
   value: InstanceArgValue | undefined,
   fallback: string,
 ): string {
@@ -30,7 +30,7 @@ export function asString(
   return String(value);
 }
 
-export function asPort(
+function asPort(
   value: InstanceArgValue | undefined,
   defaultPort = 8080,
 ): number {
@@ -39,7 +39,7 @@ export function asPort(
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultPort;
 }
 
-export function probeHost(host: string): string {
+function probeHost(host: string): string {
   if (host === "0.0.0.0" || host === "::") {
     return "127.0.0.1";
   }
@@ -48,7 +48,7 @@ export function probeHost(host: string): string {
 
 type HttpEndpointInstance = Pick<Instance, "kind" | "args">;
 
-export function apiPrefix(instance: HttpEndpointInstance): string {
+function apiPrefix(instance: HttpEndpointInstance): string {
   const http = engineDescriptor(instance.kind ?? "llama-server").http;
   const raw = asString(firstArg(instance.args, http.apiPrefixArgKeys), "");
   if (!raw) {

@@ -36,7 +36,7 @@ export function InstanceConfigDriftBadge(props: {
   );
 }
 
-export function InstanceNumaSkewBadge(props: {
+function InstanceNumaSkewBadge(props: {
   health: InstanceHealthSummary | undefined;
 }) {
   const placement = props.health?.numaPlacement;

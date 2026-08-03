@@ -1,6 +1,6 @@
 import type { ApiProxyConditionScope } from "@arriero/core";
 
-export type ApiProxyRequestMessage = {
+type ApiProxyRequestMessage = {
   role: string | null;
   texts: string[];
 };
@@ -30,7 +30,7 @@ function textsFromContent(content: unknown): string[] {
   return texts;
 }
 
-export function extractRequestMessages(
+function extractRequestMessages(
   body: unknown,
 ): ApiProxyRequestMessage[] {
   if (!body || typeof body !== "object") {

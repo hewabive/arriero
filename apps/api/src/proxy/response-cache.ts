@@ -106,7 +106,7 @@ export function putApiProxyCachedResponse(input: {
   evictApiProxyResponseCache();
 }
 
-export function evictApiProxyResponseCache(): void {
+function evictApiProxyResponseCache(): void {
   evictExpiredStatement().run(Date.now());
   let total = (totalBytesStatement().get() as { total: number }).total;
   if (total <= maxTotalBytes) {

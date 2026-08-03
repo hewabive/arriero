@@ -30,12 +30,6 @@ export async function startNodeUpdate(nodeId: string, restart: boolean) {
   });
 }
 
-export async function getNodeLatestUpdateJob(nodeId: string) {
-  return request<{ data: UpdateJob | null }>(
-    nodeScopedPath(nodeId, "/api/update/latest"),
-  );
-}
-
 export async function getNodeUpdateJob(nodeId: string, id: string) {
   return request<{ data: UpdateJob }>(
     nodeScopedPath(nodeId, `/api/update/jobs/${id}`),

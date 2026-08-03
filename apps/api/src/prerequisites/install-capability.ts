@@ -9,7 +9,7 @@ export type SudoProbeResult = {
   spawnError: string | null;
 };
 
-export function probePasswordlessSudo(
+function probePasswordlessSudo(
   timeoutMs = SUDO_PROBE_TIMEOUT_MS,
 ): Promise<SudoProbeResult> {
   return new Promise((resolveDone) => {

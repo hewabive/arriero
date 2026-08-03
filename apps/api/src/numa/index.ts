@@ -5,5 +5,5 @@ export {
   instanceCgroupExists,
   removeNumaCgroup,
 } from "./cgroup.js";
-export { resolveNumaLaunch, type NumaLaunch } from "./launch.js";
+export { resolveNumaLaunch } from "./launch.js";
 export { readNumaTopology, readPciNumaNode } from "./topology.js";

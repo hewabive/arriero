@@ -73,7 +73,7 @@ export function formatBuildPrerequisiteError(
   return `missing build prerequisites: ${details}.${hint}`;
 }
 
-export async function checkBuildPrerequisites(
+async function checkBuildPrerequisites(
   ids: string[],
   context: PrerequisiteProbeContext,
 ): Promise<PrerequisiteCheck[]> {

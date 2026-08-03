@@ -3,7 +3,6 @@ import type {
   FleetNodeUpdate,
   FleetNodeView,
   FleetResourcesEntry,
-  FleetSystemEntry,
 } from "@arriero/core";
 
 import { request } from "./http.js";
@@ -30,10 +29,6 @@ export async function deleteNode(id: string) {
   return request<{ data: { deleted: boolean } }>(`/api/nodes/${id}`, {
     method: "DELETE",
   });
-}
-
-export async function getFleetSystem() {
-  return request<{ data: FleetSystemEntry[] }>("/api/fleet/system");
 }
 
 export async function getFleetResources() {

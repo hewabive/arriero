@@ -32,10 +32,6 @@ export type ModelEditor =
   | { mode: "create"; model: null }
   | { mode: "edit"; model: ApiProxyModelRecord };
 
-export type PipelineEditor =
-  | { mode: "create"; pipeline: null }
-  | { mode: "edit"; pipeline: ApiProxyPipelineRecord };
-
 export type TargetDraft = {
   name: string;
   endpointId: string | null;
@@ -66,7 +62,7 @@ export type QuickRouteDraft = {
 
 export type PortValue = string | null;
 
-export type ReplacementRuleDraft = {
+type ReplacementRuleDraft = {
   find: string;
   replace: string;
   enabled: boolean;
@@ -171,7 +167,7 @@ export const emptyPipelineDraft: PipelineDraft = {
   unbindModelIds: [],
 };
 
-export function emptyPipelineNodeDraft(
+function emptyPipelineNodeDraft(
   id: string,
   type: ApiProxyPipelineNode["type"],
 ): PipelineNodeDraft {
@@ -217,7 +213,7 @@ export function emptyPipelineNodeDraft(
   };
 }
 
-export function nextPipelineNodeId(nodes: PipelineNodeDraft[]): string {
+function nextPipelineNodeId(nodes: PipelineNodeDraft[]): string {
   let index = nodes.length + 1;
   while (nodes.some((node) => node.id === `node-${index}`)) {
     index += 1;
@@ -323,11 +319,11 @@ function routeToFromValue(value: string | null): ApiProxyRouteTo | null {
   return null;
 }
 
-export function portRefToValue(ref: ApiProxyPortRef | null): PortValue {
+function portRefToValue(ref: ApiProxyPortRef | null): PortValue {
   return ref ? `${ref.type}:${ref.id}` : null;
 }
 
-export function portRefFromValue(value: PortValue): ApiProxyPortRef | null {
+function portRefFromValue(value: PortValue): ApiProxyPortRef | null {
   if (!value || value === unboundTargetValue) {
     return null;
   }
@@ -494,7 +490,7 @@ export function pipelineDraftFromRecord(
   };
 }
 
-export function parseEditOperationValue(
+function parseEditOperationValue(
   valueText: string,
 ):
   | { value: Record<string, unknown>; error: null }

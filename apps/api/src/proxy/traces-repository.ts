@@ -26,7 +26,7 @@ import { startRetentionLoop } from "../db/retention.js";
 import { proxyRequestTraces } from "../db/schema.js";
 import { pruneApiProxyRequestFiles } from "./request-files.js";
 
-export const TRACE_RETENTION_DAYS = 30;
+const TRACE_RETENTION_DAYS = 30;
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 500;
 

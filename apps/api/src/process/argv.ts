@@ -64,7 +64,7 @@ function argparseFlagsArgv(
   return result;
 }
 
-export const ENGINE_ARGV_BUILDERS: Record<
+const ENGINE_ARGV_BUILDERS: Record<
   EngineArgvBuilderId,
   EngineArgvBuilder
 > = {

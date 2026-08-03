@@ -24,7 +24,7 @@ function modelMetadata(
   };
 }
 
-export function instanceResourceProfile(
+function instanceResourceProfile(
   instance: Instance,
   pools = listMemoryPools(),
 ): InstanceResourceProfile {

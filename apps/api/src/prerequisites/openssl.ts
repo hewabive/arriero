@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 import { findHeader, probePkgConfigModule } from "../system/tool-probe.js";
 
-export const minimumOpensslVersion = "3.0.0";
+const minimumOpensslVersion = "3.0.0";
 
 const opensslHeaderPath = "openssl/opensslv.h";
 

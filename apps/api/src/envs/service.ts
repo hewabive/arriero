@@ -86,11 +86,6 @@ export function listEnvironments() {
   });
 }
 
-export function getEnvironment(id: string) {
-  const spec = getEnvironmentSpec(id);
-  return spec ? toRecord(spec) : null;
-}
-
 function assertCanStart(
   spec: Pick<
     EnvironmentSpec,

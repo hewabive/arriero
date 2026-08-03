@@ -28,10 +28,6 @@ function browserReachableHost(host: string) {
   return host;
 }
 
-function managerReachableHost(host: string) {
-  return host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
-}
-
 function urlHost(host: string) {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
@@ -49,16 +45,6 @@ export function llamaServerWebUrl(instance: Instance) {
 
   const port = instancePort(instance) ?? 8080;
   return `http://${urlHost(browserReachableHost(rawHost))}:${port}${apiPrefixFromArgs(instance.args)}`;
-}
-
-export function llamaServerApiUrl(instance: Instance) {
-  const rawHost = argString(instance.args, "--host") || "127.0.0.1";
-  if (rawHost.endsWith(".sock")) {
-    return null;
-  }
-
-  const port = instancePort(instance) ?? 8080;
-  return `http://${urlHost(managerReachableHost(rawHost))}:${port}${apiPrefixFromArgs(instance.args)}`;
 }
 
 export function canOpenLlamaWebUi(

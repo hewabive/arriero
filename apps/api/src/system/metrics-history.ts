@@ -189,7 +189,7 @@ export type SystemMetricsSnapshot = {
 
 type SystemMetricsListener = (sample: SystemMetricsSample) => void;
 
-export type SystemMetricsCoarseSample = {
+type SystemMetricsCoarseSample = {
   window: SystemMetricsCoarseWindow;
   bucketAt: number;
   sample: SystemMetricsSample;

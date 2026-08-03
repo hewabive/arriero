@@ -14,7 +14,7 @@ function isDirectory(path: string) {
   }
 }
 
-export function llamaCppCacheDirectory() {
+function llamaCppCacheDirectory() {
   const fromEnv = process.env.LLAMA_CACHE;
   if (fromEnv) {
     return resolve(fromEnv);

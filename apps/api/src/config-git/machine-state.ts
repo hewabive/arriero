@@ -16,7 +16,7 @@ export const MACHINE_STATE_CONFIG_FILES = Object.keys(
   MACHINE_STATE_FILE_SCHEMAS,
 );
 
-export const CONFIG_GITIGNORE_ENTRIES = [
+const CONFIG_GITIGNORE_ENTRIES = [
   ".secrets.json",
   "*.tmp",
   ...MACHINE_STATE_CONFIG_FILES,
@@ -48,7 +48,7 @@ export async function ensureLocalExclude(repository: string): Promise<void> {
   appendMissingLines(path, CONFIG_GITIGNORE_ENTRIES);
 }
 
-export function snapshotMachineStateFiles(root: string): Map<string, string> {
+function snapshotMachineStateFiles(root: string): Map<string, string> {
   const snapshot = new Map<string, string>();
   for (const name of MACHINE_STATE_CONFIG_FILES) {
     const path = resolve(root, name);
@@ -59,7 +59,7 @@ export function snapshotMachineStateFiles(root: string): Map<string, string> {
   return snapshot;
 }
 
-export async function restoreMachineStateFiles(
+async function restoreMachineStateFiles(
   root: string,
   snapshot: Map<string, string>,
 ): Promise<void> {

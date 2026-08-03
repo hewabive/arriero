@@ -8,10 +8,6 @@ export function isApiProxyDraining(): boolean {
   return draining;
 }
 
-export function resetApiProxyDrain(): void {
-  draining = false;
-}
-
 export function apiProxyDrainBody(protocol: "openai" | "anthropic"): unknown {
   const message =
     "arriero is restarting to apply an update; retry in a few seconds.";

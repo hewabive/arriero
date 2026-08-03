@@ -1,4 +1,4 @@
-export const forceAnswerReasoningTags = {
+const forceAnswerReasoningTags = {
   open: "<think>",
   close: "</think>",
 } as const;

@@ -54,7 +54,7 @@ function replaceArgGroup(
   }
 }
 
-export function instanceWithLaunchEndpoint<T extends RuntimeEndpointInstance>(
+function instanceWithLaunchEndpoint<T extends RuntimeEndpointInstance>(
   instance: T,
   snapshot: LaunchSnapshot,
 ): T {

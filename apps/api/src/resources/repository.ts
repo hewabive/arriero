@@ -83,7 +83,7 @@ function floorToGib(bytes: number): number {
   return Math.floor(bytes / GIB) * GIB;
 }
 
-export function defaultPoolsFromHardware(
+function defaultPoolsFromHardware(
   detected: SystemResources = getSystemResources(),
 ): MemoryPool[] {
   const pools: MemoryPool[] = [];

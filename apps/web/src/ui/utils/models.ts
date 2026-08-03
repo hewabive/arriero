@@ -1,10 +1,4 @@
-import type {
-  GgufModel,
-  ArgumentDefault,
-  ModelPresetEntry,
-} from "@arriero/core";
-
-import { createUiId } from "./id";
+import type { GgufModel } from "@arriero/core";
 
 export function formatBytes(bytes: number) {
   const units = ["B", "KiB", "MiB", "GiB", "TiB"];
@@ -17,7 +11,7 @@ export function formatBytes(bytes: number) {
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-export function displayNameFromFileName(name: string) {
+function displayNameFromFileName(name: string) {
   return name.replace(/-\d+-of-\d+\.gguf$/i, "").replace(/\.gguf$/i, "");
 }
 
@@ -127,70 +121,3 @@ export function modelMatchesSearch(model: GgufModel, query: string) {
     .some((value) => String(value).toLowerCase().includes(normalized));
 }
 
-function presetEntryNameFromModel(model: GgufModel) {
-  const baseName = model.metadata.name || model.name.replace(/\.gguf$/i, "");
-  return baseName.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "model";
-}
-
-function applyPresetDefaults(
-  entry: ModelPresetEntry,
-  defaults: ArgumentDefault[],
-) {
-  let next = { ...entry };
-
-  for (const item of defaults) {
-    const key = item.key.trim().replace(/^-+/, "");
-    const value = item.value.trim();
-    if (!key || (!value && item.valueType !== "flag")) {
-      continue;
-    }
-
-    if (key === "mmproj") {
-      next = { ...next, mmprojPath: value || null };
-    }
-  }
-
-  return next;
-}
-
-export function presetEntryFromModel(
-  model: GgufModel,
-  defaults: ArgumentDefault[] = [],
-): ModelPresetEntry {
-  return applyPresetDefaults(
-    {
-      id: createUiId("preset"),
-      name: presetEntryNameFromModel(model),
-      modelPath: model.path,
-      mmprojPath: model.mmprojPaths[0] ?? null,
-      extraArgs: {},
-    },
-    defaults,
-  );
-}
-
-export function remotePresetEntry(): ModelPresetEntry {
-  return {
-    id: createUiId("preset"),
-    name: "remote-model",
-    modelPath: "",
-    mmprojPath: null,
-    extraArgs: {},
-  };
-}
-
-export type PresetEntrySource = "local" | "hf" | "url";
-
-function extraArgConfigured(entry: ModelPresetEntry, key: string) {
-  return Boolean(entry.extraArgs[key]?.trim());
-}
-
-export function presetEntrySource(entry: ModelPresetEntry): PresetEntrySource {
-  if (extraArgConfigured(entry, "hf-repo")) {
-    return "hf";
-  }
-  if (extraArgConfigured(entry, "model-url")) {
-    return "url";
-  }
-  return "local";
-}

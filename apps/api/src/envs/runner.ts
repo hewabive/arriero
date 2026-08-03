@@ -176,7 +176,7 @@ type Running = {
   done: Promise<void>;
 };
 
-export class EnvironmentRunner {
+class EnvironmentRunner {
   private running: Running | null = null;
 
   activeEnvironmentId() {

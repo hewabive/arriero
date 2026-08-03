@@ -17,8 +17,8 @@ import {
 import { relocatedCmakeCacheReason } from "./cmake-cache.js";
 import { findNvcc } from "./cuda.js";
 
-export const FIT_PARAMS_TARGET = "llama-fit-params";
-export const RPC_SERVER_TARGET = "ggml-rpc-server";
+const FIT_PARAMS_TARGET = "llama-fit-params";
+const RPC_SERVER_TARGET = "ggml-rpc-server";
 
 export function fitParamsSourceDir(settings: BuildSettings) {
   return resolve(settings.repoPath, "tools", "fit-params");
@@ -62,7 +62,7 @@ export function resolveBuildRef(gitRef: string | null): string {
   return commit ? `commit-${commit.slice(0, 12)}` : "build";
 }
 
-export function prependPathEntry(pathValue: string | undefined, entry: string) {
+function prependPathEntry(pathValue: string | undefined, entry: string) {
   const current = pathValue?.split(delimiter).filter(Boolean) ?? [];
   if (current.includes(entry)) {
     return current.join(delimiter);
@@ -70,7 +70,7 @@ export function prependPathEntry(pathValue: string | undefined, entry: string) {
   return [entry, ...current].join(delimiter);
 }
 
-export function hasCmakeDefinition(args: string[], name: string) {
+function hasCmakeDefinition(args: string[], name: string) {
   return args.some(
     (arg) =>
       arg === `-D${name}` ||
@@ -79,7 +79,7 @@ export function hasCmakeDefinition(args: string[], name: string) {
   );
 }
 
-export function cmakeDefinitionIfMissing(
+function cmakeDefinitionIfMissing(
   args: string[],
   name: string,
   value: string,
@@ -87,7 +87,7 @@ export function cmakeDefinitionIfMissing(
   return hasCmakeDefinition(args, name) ? [] : [`-D${name}=${value}`];
 }
 
-export function cmakeBooleanModeDefinition(
+function cmakeBooleanModeDefinition(
   args: string[],
   name: string,
   mode: "default" | "on" | "off",
@@ -98,7 +98,7 @@ export function cmakeBooleanModeDefinition(
   return cmakeDefinitionIfMissing(args, name, mode === "on" ? "ON" : "OFF");
 }
 
-export function serverBuildProfileDefinitions(args: string[]) {
+function serverBuildProfileDefinitions(args: string[]) {
   return [
     ...cmakeDefinitionIfMissing(args, "LLAMA_BUILD_COMMON", "ON"),
     ...cmakeDefinitionIfMissing(args, "LLAMA_BUILD_TESTS", "OFF"),

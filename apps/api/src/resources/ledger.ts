@@ -15,7 +15,7 @@ const RESIDENT_STATUSES = new Set<string>(["starting", "running"]);
 
 type ResidentDraw = { instanceId: string; draws: InstanceMemoryDraw[] };
 
-export function currentResidentDraws(
+function currentResidentDraws(
   options: { excludeInstanceId?: string } = {},
 ): ResidentDraw[] {
   return listInstances()

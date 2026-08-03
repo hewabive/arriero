@@ -17,7 +17,6 @@ import { basename, dirname, resolve } from "node:path";
 import { config } from "../config.js";
 import { assertSafeConfigRelativePath } from "./paths.js";
 import {
-  gitOutput,
   isExactGitRepository,
   redactGitOutput,
   runGit,
@@ -105,7 +104,7 @@ async function remoteBranches(path: string): Promise<string[]> {
     .map((name) => name.replace(/^origin\//, ""));
 }
 
-export function listConfigBackups(): string[] {
+function listConfigBackups(): string[] {
   const parent = dirname(config.configDir);
   const prefix = `${basename(config.configDir)}.backup-`;
   try {
@@ -403,10 +402,4 @@ export async function assertConfigGitRepository(): Promise<void> {
   if (!(await isExactGitRepository(config.configDir))) {
     throw new Error("configuration directory is not a git repository");
   }
-}
-
-export function commandOutput(
-  result: Awaited<ReturnType<typeof runGit>>,
-): string {
-  return gitOutput(result);
 }

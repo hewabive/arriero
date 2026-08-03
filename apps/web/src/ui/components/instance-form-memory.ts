@@ -2,7 +2,7 @@ import { type InstanceMemoryDraw } from "@arriero/core";
 
 import { createUiId } from "../utils/id";
 
-export const MEMORY_GIB = 1024 ** 3;
+const MEMORY_GIB = 1024 ** 3;
 
 export type MemoryDraftRow = {
   id: string;

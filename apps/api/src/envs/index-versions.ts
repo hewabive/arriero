@@ -27,7 +27,7 @@ export type IndexDistributionFetcher = (
   url: string,
 ) => Promise<IndexDistributionResult>;
 
-export async function fetchIndexDistribution(
+async function fetchIndexDistribution(
   url: string,
   timeoutMs = 8_000,
 ): Promise<IndexDistributionResult> {

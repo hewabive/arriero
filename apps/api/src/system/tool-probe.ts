@@ -49,7 +49,7 @@ export function resolveExecutable(
   return findExecutableInPath(value, env.PATH);
 }
 
-export function firstLine(output: string): string | null {
+function firstLine(output: string): string | null {
   const line = output.split("\n").find((item) => item.trim().length > 0);
   return line?.trim() ?? null;
 }
@@ -116,7 +116,7 @@ export async function probeAnyExecutable(
   return { found: null, inPath: false, version: null, name: null };
 }
 
-export const includeRoots = [
+const includeRoots = [
   "/usr/include",
   `/usr/include/${process.arch === "arm64" ? "aarch64" : "x86_64"}-linux-gnu`,
   "/usr/local/include",

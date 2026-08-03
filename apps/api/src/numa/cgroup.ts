@@ -15,7 +15,7 @@ const CGROUP_ROOT = "/sys/fs/cgroup";
 const INSTANCES_GROUP = "arriero-instances";
 const LEGACY_INSTANCES_GROUP = "llama-manager-instances";
 
-export class NumaPinError extends Error {}
+class NumaPinError extends Error {}
 
 export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;

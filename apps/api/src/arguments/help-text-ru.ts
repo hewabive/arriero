@@ -1,6 +1,6 @@
 import type { ArgumentOption } from "@arriero/core";
 
-export const categoryNamesRu: Record<string, string> = {
+const categoryNamesRu: Record<string, string> = {
   "common params": "Общие параметры",
   "sampling params": "Параметры сэмплинга",
   "speculative params": "Параметры speculative decoding",

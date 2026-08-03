@@ -17,7 +17,7 @@ import {
   type ApiProxyStreamSessionEntry,
 } from "./stream-session.js";
 
-export const PENDING_RESUME_FILE = resolve(
+const PENDING_RESUME_FILE = resolve(
   config.dataDir,
   "proxy-pending-resume.json",
 );

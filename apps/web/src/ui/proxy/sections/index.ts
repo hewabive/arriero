@@ -1,5 +1,4 @@
 export * from "./types";
-export * from "./ProxyHeader";
 export * from "./ExternalModelsSection";
 export * from "./UsedByCell";
 export * from "./DetailBadge";
