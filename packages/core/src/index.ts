@@ -2537,12 +2537,7 @@ export const AppVersionSchema = z.object({
   lastCheckedAt: z.string().nullable(),
 });
 
-export const UpdateJobStatusSchema = z.enum([
-  "running",
-  "succeeded",
-  "failed",
-  "canceled",
-]);
+export const UpdateJobStatusSchema = BackgroundJobStatusSchema;
 export const UpdateJobStepNameSchema = z.enum([
   "snapshot",
   "git-pull",
