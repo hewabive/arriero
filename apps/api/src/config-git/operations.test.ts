@@ -164,6 +164,18 @@ test("getConfigGitDiff shows untracked files as new-file diffs", async () => {
   assert.match(tracked.unstaged, /"id": "gpu0"/);
 });
 
+test("getConfigGitStatus preserves an unstaged status and complete path", async () => {
+  writeJson(resolve(config.configDir, "settings.json"), {
+    modelScan: { directory: "/models", maxDepth: 2 },
+  });
+
+  const status = await getConfigGitStatus();
+
+  assert.deepEqual(status.files, [
+    { index: " ", worktree: "M", path: "settings.json" },
+  ]);
+});
+
 test("createConfigBranch switches to a validated branch", async () => {
   const result = await createConfigBranch({
     branch: "gpu-a100",

@@ -185,7 +185,7 @@ export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
     const counts = upstream
       ? await aheadBehind(path, "HEAD", upstream)
       : { ahead: null, behind: null };
-    const files = parseFileStatuses(statusResult.stdout.trim());
+    const files = parseFileStatuses(statusResult.stdout);
     const [branches, remotes] = await Promise.all([
       listBranches(path, branch),
       remoteBranches(path),
