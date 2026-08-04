@@ -123,6 +123,38 @@ function devicePresenceProbe(path: string) {
   });
 }
 
+const NVIDIA_RHEL_FAMILY_IDS = new Set(["rhel", "rocky", "almalinux", "ol"]);
+
+function nvidiaCudaRepoCommands(
+  release: OsRelease,
+  architecture: NodeJS.Architecture,
+): string[] {
+  if (architecture !== "x64") {
+    return [];
+  }
+
+  const majorVersion = release.versionId?.split(".")[0];
+  if (!majorVersion || !/^\d+$/.test(majorVersion)) {
+    return [];
+  }
+
+  const fedora = release.id === "fedora";
+  if (!fedora && !NVIDIA_RHEL_FAMILY_IDS.has(release.id ?? "")) {
+    return [];
+  }
+
+  const repository = fedora ? `fedora${majorVersion}` : `rhel${majorVersion}`;
+  const repositoryUrl =
+    `https://developer.download.nvidia.com/compute/cuda/repos/${repository}` +
+    `/x86_64/cuda-${repository}.repo`;
+  return [
+    fedora
+      ? `sudo dnf config-manager addrepo --from-repofile=${repositoryUrl}`
+      : `sudo dnf config-manager --add-repo ${repositoryUrl}`,
+    "sudo dnf clean expire-cache",
+  ];
+}
+
 export function nvidiaDriverInstallCommands(
   release: OsRelease,
   architecture: NodeJS.Architecture = process.arch,
@@ -136,19 +168,18 @@ export function nvidiaDriverInstallCommands(
     return ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"];
   }
 
-  if (
-    release.id !== "rocky" ||
-    release.versionId?.split(".")[0] !== "9" ||
-    architecture !== "x64"
-  ) {
+  if (release.id !== "rocky" || release.versionId?.split(".")[0] !== "9") {
+    return [];
+  }
+  const repoCommands = nvidiaCudaRepoCommands(release, architecture);
+  if (repoCommands.length === 0) {
     return [];
   }
 
   return [
     "sudo dnf config-manager --set-enabled crb",
     "sudo dnf install -y epel-release kernel-devel-matched kernel-headers",
-    "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo",
-    "sudo dnf clean expire-cache",
+    ...repoCommands,
     "sudo dnf install -y nvidia-driver-assistant",
     "nvidia-driver-assistant --install",
     "sudo reboot",
@@ -159,40 +190,10 @@ export function cudaToolkitInstallCommands(
   release: OsRelease,
   architecture: NodeJS.Architecture = process.arch,
 ): string[] {
-  if (architecture !== "x64") {
-    return [];
-  }
-
-  const majorVersion = release.versionId?.split(".")[0];
-  if (!majorVersion || !/^\d+$/.test(majorVersion)) {
-    return [];
-  }
-
-  let repository: string;
-  let addRepositoryCommand: string;
-  if (release.id === "fedora") {
-    repository = `fedora${majorVersion}`;
-    addRepositoryCommand = "sudo dnf config-manager addrepo --from-repofile=";
-  } else if (
-    release.id === "rhel" ||
-    release.id === "rocky" ||
-    release.id === "almalinux" ||
-    release.id === "ol"
-  ) {
-    repository = `rhel${majorVersion}`;
-    addRepositoryCommand = "sudo dnf config-manager --add-repo ";
-  } else {
-    return [];
-  }
-
-  const repositoryUrl =
-    `https://developer.download.nvidia.com/compute/cuda/repos/${repository}` +
-    `/x86_64/cuda-${repository}.repo`;
-  return [
-    `${addRepositoryCommand}${repositoryUrl}`,
-    "sudo dnf clean expire-cache",
-    "sudo dnf install -y cuda-toolkit",
-  ];
+  const repoCommands = nvidiaCudaRepoCommands(release, architecture);
+  return repoCommands.length > 0
+    ? [...repoCommands, "sudo dnf install -y cuda-toolkit"]
+    : [];
 }
 
 export function nvidiaDriverProbeOutcome(

@@ -11,18 +11,25 @@ import { installCommandPrefix } from "../system/os-release.js";
 
 const UNCONFIRMED: PrerequisiteCheck["status"][] = ["missing", "unknown"];
 
-function packagesFor(
+export const INSTALL_COMMAND_SEPARATOR = " && ";
+
+export function joinInstallCommands(commands: string[]): string | null {
+  return commands.length > 0 ? commands.join(INSTALL_COMMAND_SEPARATOR) : null;
+}
+
+function unconfirmedChecks(
   checks: PrerequisiteCheck[],
   severities: PrerequisiteCheck["severity"][],
-): string[] {
+): PrerequisiteCheck[] {
+  return checks.filter(
+    (check) =>
+      UNCONFIRMED.includes(check.status) && severities.includes(check.severity),
+  );
+}
+
+function packagesFor(checks: PrerequisiteCheck[]): string[] {
   const packages: string[] = [];
   for (const check of checks) {
-    if (
-      !UNCONFIRMED.includes(check.status) ||
-      !severities.includes(check.severity)
-    ) {
-      continue;
-    }
     for (const name of check.remediation.packages) {
       if (!packages.includes(name)) {
         packages.push(name);
@@ -32,19 +39,12 @@ function packagesFor(
   return packages;
 }
 
-function standaloneCommandsFor(
-  checks: PrerequisiteCheck[],
-  severities: PrerequisiteCheck["severity"][],
-): string[] {
-  return checks
-    .filter(
-      (check) =>
-        UNCONFIRMED.includes(check.status) &&
-        severities.includes(check.severity) &&
-        check.remediation.packages.length === 0 &&
-        check.remediation.installCommand,
-    )
-    .map((check) => check.remediation.installCommand!);
+function standaloneCommandsFor(checks: PrerequisiteCheck[]): string[] {
+  return checks.flatMap((check) =>
+    check.remediation.packages.length === 0 && check.remediation.installCommand
+      ? [check.remediation.installCommand]
+      : [],
+  );
 }
 
 export function buildInstallPlan(
@@ -53,12 +53,13 @@ export function buildInstallPlan(
 ): PrerequisiteInstallPlan {
   const prefix = installCommandPrefix(packageManager);
   const toCommand = (severities: PrerequisiteCheck["severity"][]) => {
-    const packages = packagesFor(checks, severities);
-    const commands = standaloneCommandsFor(checks, severities);
+    const relevant = unconfirmedChecks(checks, severities);
+    const packages = packagesFor(relevant);
+    const commands = standaloneCommandsFor(relevant);
     if (prefix && packages.length > 0) {
       commands.unshift(`${prefix} ${packages.join(" ")}`);
     }
-    return commands.length > 0 ? commands.join(" && ") : null;
+    return joinInstallCommands(commands);
   };
 
   return {

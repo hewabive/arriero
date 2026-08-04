@@ -41,8 +41,5 @@ test("turns explicitly runnable remediation steps into one install command", asy
     check.remediation.installCommand,
     "sudo first-step && sudo second-step",
   );
-  assert.deepEqual(check.remediation.commands, [
-    "sudo first-step",
-    "sudo second-step",
-  ]);
+  assert.deepEqual(check.remediation.commands, []);
 });

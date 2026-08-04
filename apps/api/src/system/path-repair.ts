@@ -24,11 +24,11 @@ export function augmentProcessPath(
     process.env.PATH = [...pathEntries(process.env.PATH), ...added].join(
       delimiter,
     );
-    repaired = [...new Set([...repaired, ...added])];
+    repaired = [...repaired, ...added];
   }
   return added;
 }
 
 export function autoRepairedPathDirectories(): string[] {
-  return [...repaired];
+  return repaired;
 }

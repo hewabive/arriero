@@ -6,6 +6,7 @@ import type {
 import { spawn, type ChildProcess } from "node:child_process";
 
 import { newId } from "../utils/id.js";
+import { INSTALL_COMMAND_SEPARATOR } from "./install-plan.js";
 
 const LOG_LIMIT_CHARS = 256 * 1024;
 
@@ -13,9 +14,13 @@ export function executedInstallCommand(
   command: string,
   method: PrerequisiteInstallCapability["method"],
 ): string {
-  return method === "root"
-    ? command.replace(/(^|&&\s+)sudo\s+/g, "$1")
-    : command;
+  if (method !== "root") {
+    return command;
+  }
+  return command
+    .split(INSTALL_COMMAND_SEPARATOR)
+    .map((part) => part.replace(/^sudo\s+/, ""))
+    .join(INSTALL_COMMAND_SEPARATOR);
 }
 
 export class PrerequisiteInstallRunner {

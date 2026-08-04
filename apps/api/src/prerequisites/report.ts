@@ -21,7 +21,11 @@ import { pathEntries } from "../system/tool-probe.js";
 import { detectRunMode } from "../update/version.js";
 import { instanceArgsNeedHttps } from "./https-usage.js";
 import { detectInstallCapability } from "./install-capability.js";
-import { buildInstallPlan, summarizeChecks } from "./install-plan.js";
+import {
+  buildInstallPlan,
+  joinInstallCommands,
+  summarizeChecks,
+} from "./install-plan.js";
 import {
   prerequisiteDefinitions,
   prerequisiteGroups,
@@ -75,6 +79,10 @@ export async function evaluatePrerequisite(
       : definition.commands;
   const packageInstallCommand =
     prefix && packages.length > 0 ? `${prefix} ${packages.join(" ")}` : null;
+  const runnableSequence =
+    definition.runnableCommands && !packageInstallCommand
+      ? joinInstallCommands(commands)
+      : null;
   return {
     id: definition.id,
     title: definition.title,
@@ -87,12 +95,8 @@ export async function evaluatePrerequisite(
     version: outcome.version,
     remediation: {
       packages,
-      installCommand:
-        packageInstallCommand ??
-        (definition.runnableCommands && commands.length > 0
-          ? commands.join(" && ")
-          : null),
-      commands,
+      installCommand: packageInstallCommand ?? runnableSequence,
+      commands: runnableSequence ? [] : commands,
       docPath: definition.docPath,
       note: definition.note,
     },
@@ -108,8 +112,8 @@ export function prerequisiteProbeContext(): PrerequisiteProbeContext {
 }
 
 export async function getPrerequisiteReport(): Promise<PrerequisiteReport> {
-  augmentProcessPath();
   const context = prerequisiteProbeContext();
+  augmentProcessPath(context.searchDirectories);
   const [checks, installRunner] = await Promise.all([
     Promise.all(
       prerequisiteDefinitions.map((definition) =>

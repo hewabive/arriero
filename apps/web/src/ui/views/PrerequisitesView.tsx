@@ -172,8 +172,6 @@ function CheckRow(props: {
         )}
 
         {!resolved &&
-          (!check.remediation.installCommand ||
-            check.remediation.packages.length > 0) &&
           check.remediation.commands.map((command) => (
             <CommandBlock key={command} command={command} />
           ))}

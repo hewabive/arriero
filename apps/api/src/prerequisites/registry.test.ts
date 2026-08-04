@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import type { OsRelease } from "../system/os-release.js";
 import {
   cudaToolkitInstallCommands,
   nvidiaDriverInstallCommands,
   nvidiaDriverProbeOutcome,
   prerequisiteDefinitions,
 } from "./registry.js";
+
+const rocky9: OsRelease = {
+  id: "rocky",
+  idLike: ["rhel", "centos", "fedora"],
+  prettyName: "Rocky Linux 9.8 (Blue Onyx)",
+  versionId: "9.8",
+};
 
 test("keeps CUDA out of the aggregated DNF transaction", () => {
   const nvcc = prerequisiteDefinitions.find(
@@ -37,22 +45,11 @@ test("adds NVIDIA's CUDA repository before installing the toolkit on Fedora", ()
 });
 
 test("uses the matching RHEL CUDA repository for Rocky Linux", () => {
-  assert.deepEqual(
-    cudaToolkitInstallCommands(
-      {
-        id: "rocky",
-        idLike: ["rhel", "centos", "fedora"],
-        prettyName: "Rocky Linux 9.8 (Blue Onyx)",
-        versionId: "9.8",
-      },
-      "x64",
-    ),
-    [
-      "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo",
-      "sudo dnf clean expire-cache",
-      "sudo dnf install -y cuda-toolkit",
-    ],
-  );
+  assert.deepEqual(cudaToolkitInstallCommands(rocky9, "x64"), [
+    "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo",
+    "sudo dnf clean expire-cache",
+    "sudo dnf install -y cuda-toolkit",
+  ]);
 });
 
 test("does not invent CUDA repository commands for unsupported DNF hosts", () => {
@@ -68,18 +65,7 @@ test("does not invent CUDA repository commands for unsupported DNF hosts", () =>
     ),
     [],
   );
-  assert.deepEqual(
-    cudaToolkitInstallCommands(
-      {
-        id: "rocky",
-        idLike: ["rhel", "centos", "fedora"],
-        prettyName: "Rocky Linux 9.8 (Blue Onyx)",
-        versionId: "9.8",
-      },
-      "arm64",
-    ),
-    [],
-  );
+  assert.deepEqual(cudaToolkitInstallCommands(rocky9, "arm64"), []);
 });
 
 test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
@@ -104,26 +90,15 @@ test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
 });
 
 test("uses NVIDIA's hardware-aware driver assistant on Rocky Linux 9 x86-64", () => {
-  assert.deepEqual(
-    nvidiaDriverInstallCommands(
-      {
-        id: "rocky",
-        idLike: ["rhel", "centos", "fedora"],
-        prettyName: "Rocky Linux 9.8 (Blue Onyx)",
-        versionId: "9.8",
-      },
-      "x64",
-    ),
-    [
-      "sudo dnf config-manager --set-enabled crb",
-      "sudo dnf install -y epel-release kernel-devel-matched kernel-headers",
-      "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo",
-      "sudo dnf clean expire-cache",
-      "sudo dnf install -y nvidia-driver-assistant",
-      "nvidia-driver-assistant --install",
-      "sudo reboot",
-    ],
-  );
+  assert.deepEqual(nvidiaDriverInstallCommands(rocky9, "x64"), [
+    "sudo dnf config-manager --set-enabled crb",
+    "sudo dnf install -y epel-release kernel-devel-matched kernel-headers",
+    "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo",
+    "sudo dnf clean expire-cache",
+    "sudo dnf install -y nvidia-driver-assistant",
+    "nvidia-driver-assistant --install",
+    "sudo reboot",
+  ]);
 });
 
 test("does not suggest distro-specific driver commands on unsupported hosts", () => {
@@ -136,18 +111,7 @@ test("does not suggest distro-specific driver commands on unsupported hosts", ()
     }),
     [],
   );
-  assert.deepEqual(
-    nvidiaDriverInstallCommands(
-      {
-        id: "rocky",
-        idLike: ["rhel", "centos", "fedora"],
-        prettyName: "Rocky Linux 9.8 (Blue Onyx)",
-        versionId: "9.8",
-      },
-      "arm64",
-    ),
-    [],
-  );
+  assert.deepEqual(nvidiaDriverInstallCommands(rocky9, "arm64"), []);
 });
 
 test("maps NVML provider states to prerequisite outcomes", () => {
