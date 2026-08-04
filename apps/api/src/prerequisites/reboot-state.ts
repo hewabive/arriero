@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import { z } from "zod";
 
 import { config } from "../config.js";
 import { readSysString } from "../system/sysfs.js";
@@ -7,23 +8,13 @@ import { atomicWriteFile } from "../utils/atomic-write.js";
 
 const BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id";
 
-type RebootMarker = {
-  checkId: string;
-  bootId: string;
-  installedAt: string;
-};
+const RebootMarkerSchema = z.object({
+  checkId: z.string(),
+  bootId: z.string(),
+  installedAt: z.string(),
+});
 
-function isRebootMarker(value: unknown): value is RebootMarker {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const marker = value as Partial<RebootMarker>;
-  return (
-    typeof marker.checkId === "string" &&
-    typeof marker.bootId === "string" &&
-    typeof marker.installedAt === "string"
-  );
-}
+type RebootMarker = z.infer<typeof RebootMarkerSchema>;
 
 export class PrerequisiteRebootState {
   constructor(
@@ -33,7 +24,6 @@ export class PrerequisiteRebootState {
     ),
     private readonly readBootId: () => string | null = () =>
       readSysString(BOOT_ID_PATH),
-    private readonly now: () => Date = () => new Date(),
   ) {}
 
   isPending(checkId: string): boolean {
@@ -60,7 +50,7 @@ export class PrerequisiteRebootState {
     markers.set(checkId, {
       checkId,
       bootId,
-      installedAt: this.now().toISOString(),
+      installedAt: new Date().toISOString(),
     });
     this.persist(markers);
   }
@@ -77,13 +67,13 @@ export class PrerequisiteRebootState {
       return new Map();
     }
     try {
-      const value = JSON.parse(readFileSync(this.path, "utf8"));
-      if (!Array.isArray(value)) {
+      const parsed = z
+        .array(RebootMarkerSchema)
+        .safeParse(JSON.parse(readFileSync(this.path, "utf8")));
+      if (!parsed.success) {
         return new Map();
       }
-      return new Map(
-        value.filter(isRebootMarker).map((marker) => [marker.checkId, marker]),
-      );
+      return new Map(parsed.data.map((marker) => [marker.checkId, marker]));
     } catch {
       return new Map();
     }

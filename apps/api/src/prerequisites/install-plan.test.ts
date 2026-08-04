@@ -321,5 +321,6 @@ test("summary separates severities and non-missing states", () => {
     missingRecommended: 1,
     outOfPath: 1,
     unknown: 1,
+    unresolvedRequired: 2,
   });
 });

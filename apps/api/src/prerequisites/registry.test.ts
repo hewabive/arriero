@@ -6,7 +6,6 @@ import type { OsRelease } from "../system/os-release.js";
 import {
   cudaToolkitInstallCommands,
   nvidiaDriverInstallCommands,
-  nvidiaDriverManualCommands,
   nvidiaDriverProbeOutcome,
   nvidiaSmiInstallCommands,
   prerequisiteDefinitions,
@@ -189,7 +188,6 @@ test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
       'sudo apt-get install -y "$nvidia_utils_package"',
     ],
   );
-  assert.deepEqual(nvidiaDriverManualCommands(ubuntu2404), ["sudo reboot"]);
 });
 
 test("installs nvidia-smi from the driver-matched Ubuntu package", () => {
@@ -210,7 +208,6 @@ test("uses NVIDIA's hardware-aware driver assistant on Rocky Linux 9 x86-64", ()
     "nvidia-driver-assistant --install",
     "sudo dnf install -y nvidia-driver-cuda",
   ]);
-  assert.deepEqual(nvidiaDriverManualCommands(rocky9, "x64"), ["sudo reboot"]);
   assert.deepEqual(nvidiaSmiInstallCommands(rocky9, "x64"), [
     "sudo dnf install -y nvidia-driver-cuda",
   ]);

@@ -59,21 +59,17 @@ export function registerPrerequisiteRoutes(app: Hono) {
           ?.requiresRebootAfterInstall
           ? parsed.data.checkId
           : null;
-      const run = rebootCheckId
-        ? prerequisiteInstallRunner.start(
-            parsed.data,
-            command,
-            report.installRunner.method,
-            {
+      const run = prerequisiteInstallRunner.start(
+        parsed.data,
+        command,
+        report.installRunner.method,
+        rebootCheckId
+          ? {
               onSucceeded: () =>
                 prerequisiteRebootState.markPending(rebootCheckId),
-            },
-          )
-        : prerequisiteInstallRunner.start(
-            parsed.data,
-            command,
-            report.installRunner.method,
-          );
+            }
+          : {},
+      );
       return c.json({ data: run }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 409);

@@ -163,23 +163,20 @@ function CheckRow(props: {
           </Text>
         )}
 
-        {!resolved &&
-          check.remediation.installCommand &&
-          (check.remediation.rebootRequired ? (
-            <CommandBlock command={check.remediation.installCommand} />
-          ) : (
-            <CommandBlock
-              command={check.remediation.installCommand}
-              install={install}
-              request={{ checkId: check.id }}
-            />
-          ))}
+        {!resolved && check.remediation.installCommand && (
+          <CommandBlock
+            command={check.remediation.installCommand}
+            {...(check.remediation.rebootRequired
+              ? {}
+              : { install, request: { checkId: check.id } })}
+          />
+        )}
 
         {!resolved && check.remediation.rebootRequired && (
           <Alert color="yellow" title="Server reboot required">
             Installation completed successfully during this boot. Reboot the
-            server manually to load the NVIDIA driver; the install action stays
-            unavailable until the boot changes.
+            server manually to load the newly installed components; the install
+            action stays unavailable until the boot changes.
           </Alert>
         )}
 
@@ -240,15 +237,7 @@ export function PrerequisitesView() {
   });
   const report = reportQuery.data?.data;
   const install = usePrerequisiteInstall(report?.installRunner);
-  const requiredSetupIncomplete =
-    report?.groups.some((group) =>
-      group.checks.some(
-        (check) =>
-          check.severity === "required" &&
-          check.status !== "ok" &&
-          check.status !== "out-of-path",
-      ),
-    ) ?? false;
+  const requiredSetupIncomplete = (report?.summary.unresolvedRequired ?? 0) > 0;
 
   return (
     <Stack gap="md">

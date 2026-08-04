@@ -172,7 +172,7 @@ test("keeps a successful install local-only and pending across manager restarts"
     blocks: ["NVIDIA GPU use"],
     impact: "",
     packages: {},
-    commands: ["sudo reboot"],
+    commands: [],
     installCommands: ["sudo install-driver"],
     includeInInstallPlan: false,
     requiresRebootAfterInstall: true,

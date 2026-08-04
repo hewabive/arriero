@@ -3290,6 +3290,7 @@ export const PrerequisiteSummarySchema = z.object({
   missingRecommended: z.number().int().nonnegative(),
   outOfPath: z.number().int().nonnegative(),
   unknown: z.number().int().nonnegative(),
+  unresolvedRequired: z.number().int().nonnegative(),
 });
 
 export const PrerequisiteInstallPlanSchema = z.object({

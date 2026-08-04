@@ -10,11 +10,7 @@ test("keeps a successful install pending for the current boot", () => {
   const directory = mkdtempSync(join(tmpdir(), "arriero-reboot-state-"));
   const path = join(directory, "state.json");
   try {
-    const state = new PrerequisiteRebootState(
-      path,
-      () => "boot-a",
-      () => new Date("2026-08-04T09:00:00.000Z"),
-    );
+    const state = new PrerequisiteRebootState(path, () => "boot-a");
     state.markPending("nvidia-driver");
     assert.equal(state.isPending("nvidia-driver"), true);
 

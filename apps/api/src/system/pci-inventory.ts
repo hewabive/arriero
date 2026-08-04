@@ -6,17 +6,17 @@ import { readSysString } from "./sysfs.js";
 const PCI_DEVICES_PATH = "/sys/bus/pci/devices";
 const PCI_DISPLAY_BASE_CLASS = 0x03;
 
-export type PciDisplayVendor = {
+type PciDisplayVendor = {
   id: number;
   label: string;
 };
 
-export const NVIDIA_PCI_VENDOR: PciDisplayVendor = {
+const NVIDIA_PCI_VENDOR: PciDisplayVendor = {
   id: 0x10de,
   label: "NVIDIA",
 };
 
-export const AMD_PCI_VENDOR: PciDisplayVendor = {
+const AMD_PCI_VENDOR: PciDisplayVendor = {
   id: 0x1002,
   label: "AMD",
 };
@@ -40,6 +40,11 @@ export type DisplayPciInventory =
       detail: string;
     };
 
+export type DisplayPciInventories = {
+  nvidia: DisplayPciInventory;
+  amd: DisplayPciInventory;
+};
+
 function parsePciHex(value: string | null): number | null {
   if (!value || !/^0x[0-9a-f]+$/i.test(value)) {
     return null;
@@ -56,46 +61,74 @@ function boundDriver(devicePath: string): string | null {
   }
 }
 
-export function detectDisplayPciInventory(
-  vendor: PciDisplayVendor,
-  devicesPath = PCI_DEVICES_PATH,
-): DisplayPciInventory {
+type DisplayPciScan =
+  | {
+      state: "scanned";
+      devices: (DisplayPciDevice & { vendorId: number })[];
+      unreadableDevices: number;
+    }
+  | {
+      state: "unreadable";
+      detail: string;
+    };
+
+function scanDisplayPciDevices(devicesPath: string): DisplayPciScan {
   let addresses: string[];
   try {
     addresses = readdirSync(devicesPath);
   } catch (error) {
     return {
-      state: "unknown",
-      devices: [],
+      state: "unreadable",
       detail: `Unable to inspect PCI devices: ${(error as Error).message}`,
     };
   }
 
-  const devices: DisplayPciDevice[] = [];
+  const devices: (DisplayPciDevice & { vendorId: number })[] = [];
   let unreadableDevices = 0;
   for (const address of addresses) {
     const devicePath = resolve(devicesPath, address);
     const vendorText = readSysString(resolve(devicePath, "vendor"));
     const classText = readSysString(resolve(devicePath, "class"));
+    if (vendorText === null || classText === null) {
+      unreadableDevices += 1;
+      continue;
+    }
     const vendorId = parsePciHex(vendorText);
     const classCode = parsePciHex(classText);
     if (vendorId === null || classCode === null) {
       unreadableDevices += 1;
       continue;
     }
-    if (
-      vendorId !== vendor.id ||
-      ((classCode >> 16) & 0xff) !== PCI_DISPLAY_BASE_CLASS
-    ) {
+    if (((classCode >> 16) & 0xff) !== PCI_DISPLAY_BASE_CLASS) {
       continue;
     }
     devices.push({
       address,
+      vendorId,
       deviceId: readSysString(resolve(devicePath, "device")),
-      classCode: classText!,
+      classCode: classText,
       driver: boundDriver(devicePath),
     });
   }
+
+  return { state: "scanned", devices, unreadableDevices };
+}
+
+function inventoryFor(
+  vendor: PciDisplayVendor,
+  scan: DisplayPciScan,
+): DisplayPciInventory {
+  if (scan.state === "unreadable") {
+    return { state: "unknown", devices: [], detail: scan.detail };
+  }
+  const devices = scan.devices
+    .filter((device) => device.vendorId === vendor.id)
+    .map((device) => ({
+      address: device.address,
+      deviceId: device.deviceId,
+      classCode: device.classCode,
+      driver: device.driver,
+    }));
 
   if (devices.length > 0) {
     const bindings = devices
@@ -107,11 +140,11 @@ export function detectDisplayPciInventory(
       detail: `${devices.length} ${vendor.label} display controller${devices.length === 1 ? "" : "s"} detected through PCI: ${bindings}`,
     };
   }
-  if (unreadableDevices > 0) {
+  if (scan.unreadableDevices > 0) {
     return {
       state: "unknown",
       devices: [],
-      detail: `PCI inventory was incomplete: ${unreadableDevices} device entr${unreadableDevices === 1 ? "y was" : "ies were"} unreadable`,
+      detail: `PCI inventory was incomplete: ${scan.unreadableDevices} device entr${scan.unreadableDevices === 1 ? "y was" : "ies were"} unreadable`,
     };
   }
   return {
@@ -121,16 +154,26 @@ export function detectDisplayPciInventory(
   };
 }
 
+export function detectDisplayPciInventories(
+  devicesPath = PCI_DEVICES_PATH,
+): DisplayPciInventories {
+  const scan = scanDisplayPciDevices(devicesPath);
+  return {
+    nvidia: inventoryFor(NVIDIA_PCI_VENDOR, scan),
+    amd: inventoryFor(AMD_PCI_VENDOR, scan),
+  };
+}
+
 export function detectNvidiaPciInventory(
   devicesPath = PCI_DEVICES_PATH,
 ): DisplayPciInventory {
-  return detectDisplayPciInventory(NVIDIA_PCI_VENDOR, devicesPath);
+  return detectDisplayPciInventories(devicesPath).nvidia;
 }
 
 export function detectAmdPciInventory(
   devicesPath = PCI_DEVICES_PATH,
 ): DisplayPciInventory {
-  return detectDisplayPciInventory(AMD_PCI_VENDOR, devicesPath);
+  return detectDisplayPciInventories(devicesPath).amd;
 }
 
 export function displayPciInventoryUsesVfio(

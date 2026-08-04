@@ -9,15 +9,13 @@ import { getBuildSettings } from "../build/repository.js";
 import { rocmDeviceAvailable } from "../envs/availability.js";
 import { listEnvironmentSpecs } from "../envs/repository.js";
 import { listInstances } from "../instances/repository.js";
-import {
-  detectAmdPciInventory,
-  detectNvidiaPciInventory,
-} from "../system/pci-inventory.js";
+import { detectDisplayPciInventories } from "../system/pci-inventory.js";
 import {
   type NvidiaTelemetryStatus,
   nvidiaTelemetry,
 } from "../nvidia/telemetry.js";
 import {
+  type OsRelease,
   installCommandPrefix,
   packageManagerForOsRelease,
   readOsRelease,
@@ -79,12 +77,13 @@ function prerequisiteHost(): PrerequisiteHost {
 
 function resolveCommands(
   source: PrerequisiteDefinition["commands"] | undefined,
-  release: ReturnType<typeof readOsRelease>,
+  release: OsRelease,
+  context: PrerequisiteProbeContext,
 ): string[] {
   if (!source) {
     return [];
   }
-  return typeof source === "function" ? source(release) : source;
+  return typeof source === "function" ? source(release, context) : source;
 }
 
 export async function evaluatePrerequisite(
@@ -102,23 +101,30 @@ export async function evaluatePrerequisite(
   );
   const release = readOsRelease();
   const packageManager = packageManagerForOsRelease(release);
+  const unresolved =
+    outcome.status === "missing" || outcome.status === "unknown";
   const remediationAvailable = outcome.remediationAvailable !== false;
-  const showRemediation = remediationAvailable || rebootRequired;
+  const showRemediation =
+    unresolved && (remediationAvailable || rebootRequired);
   const packages = showRemediation
     ? (definition.packages[packageManager] ?? [])
     : [];
   const prefix = installCommandPrefix(packageManager);
-  const commands = showRemediation
-    ? resolveCommands(definition.commands, release)
-    : [];
   const installCommands = showRemediation
-    ? resolveCommands(definition.installCommands, release)
+    ? resolveCommands(definition.installCommands, release, context)
+    : [];
+  const rebootFollowUp =
+    definition.requiresRebootAfterInstall && installCommands.length > 0
+      ? ["sudo reboot"]
+      : [];
+  const commands = showRemediation
+    ? [
+        ...resolveCommands(definition.commands, release, context),
+        ...rebootFollowUp,
+      ]
     : [];
   const packageInstallCommand =
     prefix && packages.length > 0 ? `${prefix} ${packages.join(" ")}` : null;
-  const standaloneInstallCommand = !packageInstallCommand
-    ? joinInstallCommands(installCommands)
-    : null;
   return {
     id: definition.id,
     title: definition.title,
@@ -131,7 +137,8 @@ export async function evaluatePrerequisite(
     version: outcome.version,
     remediation: {
       packages,
-      installCommand: packageInstallCommand ?? standaloneInstallCommand,
+      installCommand:
+        packageInstallCommand ?? joinInstallCommands(installCommands),
       commands,
       includeInInstallPlan: definition.includeInInstallPlan !== false,
       rebootRequired,
@@ -143,12 +150,13 @@ export async function evaluatePrerequisite(
 
 export function prerequisiteProbeContext(): PrerequisiteProbeContext {
   let telemetryStatus: NvidiaTelemetryStatus | null = null;
+  const pci = detectDisplayPciInventories();
   return {
     env: process.env,
     searchDirectories: wellKnownToolDirectories(),
     usage: collectPrerequisiteUsage(),
-    nvidiaPci: detectNvidiaPciInventory(),
-    amdPci: detectAmdPciInventory(),
+    nvidiaPci: pci.nvidia,
+    amdPci: pci.amd,
     rocmDeviceAvailable: rocmDeviceAvailable(),
     nvidiaTelemetryStatus: () =>
       (telemetryStatus ??= nvidiaTelemetry.status(true)),

@@ -10,7 +10,10 @@ import { existsSync } from "node:fs";
 import { isSupportedUvVersionOutput } from "../envs/uv.js";
 import { detectNumaBind } from "../numa/capability.js";
 import type { OsRelease } from "../system/os-release.js";
-import { packageManagerForOsRelease } from "../system/os-release.js";
+import {
+  installCommandPrefix,
+  packageManagerForOsRelease,
+} from "../system/os-release.js";
 import {
   findHeader,
   findExecutableInPath,
@@ -49,7 +52,9 @@ export type PrerequisiteProbeOutcome = {
   remediationAvailable?: boolean;
 };
 
-type PrerequisiteCommandSource = string[] | ((release: OsRelease) => string[]);
+type PrerequisiteCommandSource =
+  | string[]
+  | ((release: OsRelease, context: PrerequisiteProbeContext) => string[]);
 
 export type PrerequisiteDefinition = {
   id: string;
@@ -170,24 +175,38 @@ function nvidiaCudaRepoCommands(
   ];
 }
 
+const UBUNTU_NVIDIA_UTILS_PACKAGE_COMMANDS = [
+  "nvidia_utils_package=\"$(ubuntu-drivers list --gpgpu --recommended | sed -nE 's/^nvidia-driver-([0-9]+(-server)?)(-open)?([[:space:]].*)?$/nvidia-utils-\\1/p' | head -n 1)\"",
+  'test -n "$nvidia_utils_package"',
+];
+
+const UBUNTU_NVIDIA_UTILS_INSTALL_COMMAND =
+  'sudo apt-get install -y "$nvidia_utils_package"';
+
+const ROCKY9_NVIDIA_USERSPACE_COMMAND =
+  "sudo dnf install -y nvidia-driver-cuda";
+
+function isUbuntuFamily(release: OsRelease): boolean {
+  return release.id === "ubuntu" || release.idLike.includes("ubuntu");
+}
+
+function isRocky9(release: OsRelease): boolean {
+  return release.id === "rocky" && release.versionId?.split(".")[0] === "9";
+}
+
 export function nvidiaDriverInstallCommands(
   release: OsRelease,
   architecture: NodeJS.Architecture = process.arch,
 ): string[] {
-  const family = new Set(
-    [release.id, ...release.idLike].filter(
-      (item): item is string => item !== null,
-    ),
-  );
-  if (family.has("ubuntu")) {
+  if (isUbuntuFamily(release)) {
     return [
-      ...ubuntuNvidiaUtilsPackageCommands(),
+      ...UBUNTU_NVIDIA_UTILS_PACKAGE_COMMANDS,
       "sudo ubuntu-drivers install --gpgpu",
-      'sudo apt-get install -y "$nvidia_utils_package"',
+      UBUNTU_NVIDIA_UTILS_INSTALL_COMMAND,
     ];
   }
 
-  if (release.id !== "rocky" || release.versionId?.split(".")[0] !== "9") {
+  if (!isRocky9(release)) {
     return [];
   }
   const repoCommands = nvidiaCudaRepoCommands(release, architecture);
@@ -201,14 +220,7 @@ export function nvidiaDriverInstallCommands(
     ...repoCommands,
     "sudo dnf install -y nvidia-driver-assistant",
     "nvidia-driver-assistant --install",
-    "sudo dnf install -y nvidia-driver-cuda",
-  ];
-}
-
-function ubuntuNvidiaUtilsPackageCommands(): string[] {
-  return [
-    "nvidia_utils_package=\"$(ubuntu-drivers list --gpgpu --recommended | sed -nE 's/^nvidia-driver-([0-9]+(-server)?)(-open)?([[:space:]].*)?$/nvidia-utils-\\1/p' | head -n 1)\"",
-    'test -n "$nvidia_utils_package"',
+    ROCKY9_NVIDIA_USERSPACE_COMMAND,
   ];
 }
 
@@ -216,34 +228,16 @@ export function nvidiaSmiInstallCommands(
   release: OsRelease,
   architecture: NodeJS.Architecture = process.arch,
 ): string[] {
-  const family = new Set(
-    [release.id, ...release.idLike].filter(
-      (item): item is string => item !== null,
-    ),
-  );
-  if (family.has("ubuntu")) {
+  if (isUbuntuFamily(release)) {
     return [
-      ...ubuntuNvidiaUtilsPackageCommands(),
-      'sudo apt-get install -y "$nvidia_utils_package"',
+      ...UBUNTU_NVIDIA_UTILS_PACKAGE_COMMANDS,
+      UBUNTU_NVIDIA_UTILS_INSTALL_COMMAND,
     ];
   }
-  if (
-    architecture === "x64" &&
-    release.id === "rocky" &&
-    release.versionId?.split(".")[0] === "9"
-  ) {
-    return ["sudo dnf install -y nvidia-driver-cuda"];
+  if (isRocky9(release) && architecture === "x64") {
+    return [ROCKY9_NVIDIA_USERSPACE_COMMAND];
   }
   return [];
-}
-
-export function nvidiaDriverManualCommands(
-  release: OsRelease,
-  architecture: NodeJS.Architecture = process.arch,
-): string[] {
-  return nvidiaDriverInstallCommands(release, architecture).length > 0
-    ? ["sudo reboot"]
-    : [];
 }
 
 export function cudaToolkitInstallCommands(
@@ -325,17 +319,18 @@ export function uvInstallCommands(
   if (pipxAvailable) {
     return [UV_PIPX_INSTALL_COMMAND];
   }
-  if (packageManager === "apt") {
-    return ["sudo apt install -y pipx", UV_PIPX_INSTALL_COMMAND];
-  }
-  if (release.id === "fedora") {
-    return ["sudo dnf install -y pipx", UV_PIPX_INSTALL_COMMAND];
-  }
-  if (packageManager === "pacman") {
-    return ["sudo pacman -S --needed python-pipx", UV_PIPX_INSTALL_COMMAND];
-  }
-  if (packageManager === "apk") {
-    return ["sudo apk add pipx", UV_PIPX_INSTALL_COMMAND];
+  const prefix = installCommandPrefix(packageManager);
+  if (prefix) {
+    if (packageManager === "pacman") {
+      return [`${prefix} python-pipx`, UV_PIPX_INSTALL_COMMAND];
+    }
+    if (
+      packageManager === "apt" ||
+      packageManager === "apk" ||
+      release.id === "fedora"
+    ) {
+      return [`${prefix} pipx`, UV_PIPX_INSTALL_COMMAND];
+    }
   }
   return [UV_STANDALONE_INSTALL_COMMAND];
 }
@@ -621,7 +616,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       zypper: ["cuda-toolkit"],
     },
     commands: [],
-    installCommands: cudaToolkitInstallCommands,
+    installCommands: (release) => cudaToolkitInstallCommands(release),
     applies: nvidiaCudaIsApplicable,
     docPath: null,
     note: "DNF systems need NVIDIA's distribution-specific CUDA repository before the cuda-toolkit package is available. Also detected through CUDACXX, CUDA_HOME, CUDA_PATH, /usr/local/cuda and /opt/cuda.",
@@ -637,8 +632,8 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     impact:
       "GPU detection, VRAM pool capacity and per-process GPU memory telemetry use the resident NVML provider; without a usable NVIDIA driver GPU memory pools must be sized by hand.",
     packages: {},
-    commands: nvidiaDriverManualCommands,
-    installCommands: nvidiaDriverInstallCommands,
+    commands: [],
+    installCommands: (release) => nvidiaDriverInstallCommands(release),
     includeInInstallPlan: false,
     requiresRebootAfterInstall: true,
     applies: nvidiaDriverIsApplicable,
@@ -661,7 +656,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       "nvidia-smi is useful for inspecting driver state, utilization, temperatures and per-process GPU memory from the host shell.",
     packages: {},
     commands: [],
-    installCommands: nvidiaSmiInstallCommands,
+    installCommands: (release) => nvidiaSmiInstallCommands(release),
     includeInInstallPlan: false,
     applies: nvidiaSmiIsApplicable,
     docPath: null,
@@ -718,10 +713,10 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       "uv is the only supported provisioner for Python inference engines; it also pins the interpreter, so there is no system-python fallback.",
     packages: {},
     commands: [],
-    installCommands: (release) =>
+    installCommands: (release, context) =>
       uvInstallCommands(
         release,
-        findExecutableInPath("pipx", process.env.PATH) !== null,
+        findExecutableInPath("pipx", context.env.PATH) !== null,
       ),
     docPath: "docs/ENVIRONMENTS.md",
     note: `Python environments require uv >=${ENVIRONMENT_UV_MIN_VERSION}; the configured Python mirror must cover the installed consumer uv version. User-scoped installers expose uv in ~/.local/bin; Re-check adds that directory to the manager PATH automatically.`,

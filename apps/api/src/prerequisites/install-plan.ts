@@ -100,8 +100,12 @@ export function summarizeChecks(
     missingRecommended: 0,
     outOfPath: 0,
     unknown: 0,
+    unresolvedRequired: 0,
   };
   for (const check of checks) {
+    if (UNCONFIRMED.includes(check.status) && check.severity === "required") {
+      summary.unresolvedRequired += 1;
+    }
     if (check.status === "ok") {
       summary.ok += 1;
     } else if (check.status === "out-of-path") {
