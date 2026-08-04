@@ -216,6 +216,10 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
 `llama-fit-params` over a config matrix and prints a comparison table (and JSON
 with `--out`). Build first (`pnpm build`), then:
 
+For a maintained menu of concrete dense, MoE, hybrid, SWA, MLA, multimodal,
+draft, classic and exotic GGUF artifacts, including known-gap canaries, see
+[`GGUF_MEMORY_TEST_MODELS.md`](GGUF_MEMORY_TEST_MODELS.md).
+
 ```bash
 # CPU box (analytical vs fit-params projection):
 pnpm memory:calibrate --out tmp/calib-cpu.json
