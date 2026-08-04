@@ -242,6 +242,23 @@ test("KTransformers preflight validates internal and manager NUMA placement", ()
   }
 });
 
+test("KTransformers preflight ignores manager NUMA placement on a single-node host", () => {
+  const { root, instance } = fixture();
+  try {
+    const options = { ...preflightOptions(), numaNodes: [numaNodes[0]!] };
+    instance.numa = { mode: "interleave", nodes: [0, 1] };
+    const interleave = validateInstancePreflight(instance, options);
+    assert.ok(!interleave.issues.some((entry) => entry.field === "numa.mode"));
+
+    instance.numa = { mode: "bind", node: 1 };
+    instance.args["--kt-numa-nodes"] = ["0"];
+    const bind = validateInstancePreflight(instance, options);
+    assert.ok(!bind.issues.some((entry) => entry.field === "numa.node"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("KTransformers memory shortfalls are blocking", () => {
   const { root, instance } = fixture();
   try {

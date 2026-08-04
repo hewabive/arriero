@@ -14,7 +14,7 @@ import { basename, dirname, isAbsolute, resolve } from "node:path";
 
 import { getSystemResources } from "../system/resources.js";
 import { getArgumentCatalog } from "../arguments/catalog.js";
-import { readNumaTopology } from "../numa/topology.js";
+import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { listMemoryPools } from "../resources/repository.js";
 import type { PreflightOptions } from "./preflight.js";
 
@@ -379,7 +379,9 @@ function validateNuma(
   issues: ProcessPreflightIssue[],
   options: PreflightOptions,
 ) {
-  if (instance.numa?.mode === "interleave") {
+  const topology: NumaNode[] = options.numaNodes ?? readNumaTopology();
+  const managerNumaApplies = numaIsApplicable(topology);
+  if (managerNumaApplies && instance.numa?.mode === "interleave") {
     issue(
       issues,
       "error",
@@ -434,7 +436,6 @@ function validateNuma(
       "Each KTransformers thread pool must use a distinct NUMA node",
     );
   }
-  const topology: NumaNode[] = options.numaNodes ?? readNumaTopology();
   const online = topology.filter((node) => node.online);
   const known = new Set(online.map((node) => node.id));
   for (const node of parsed) {
@@ -455,7 +456,9 @@ function validateNuma(
     }
   }
   const managerBindNode =
-    instance.numa?.mode === "bind" ? instance.numa.node : null;
+    managerNumaApplies && instance.numa?.mode === "bind"
+      ? instance.numa.node
+      : null;
   if (
     managerBindNode !== null &&
     parsed.some((node) => node !== managerBindNode)

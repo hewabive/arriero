@@ -1,6 +1,8 @@
 import {
   Box,
+  Button,
   Checkbox,
+  Group,
   Paper,
   SegmentedControl,
   SimpleGrid,
@@ -19,7 +21,46 @@ export function InstanceFormNumaSection({
   fm: InstanceFormController;
 }) {
   if (fm.numaNodes.length <= 1) {
-    return null;
+    if (fm.numaMode === "none" || fm.numaNodes.length === 0) {
+      return null;
+    }
+    const stored =
+      fm.numaMode === "bind"
+        ? `bind, node ${fm.numaBindNode ?? "?"}`
+        : fm.numaInterleaveNodes.length > 0
+          ? `interleave, nodes ${fm.numaInterleaveNodes.join(", ")}`
+          : "interleave, all nodes";
+    return (
+      <Paper withBorder p="sm" radius="sm">
+        <Group
+          align="flex-start"
+          justify="space-between"
+          gap="xs"
+          wrap="nowrap"
+        >
+          <Box>
+            <Text fw={600} size="sm">
+              NUMA placement
+            </Text>
+            <Text c="dimmed" size="xs">
+              A stored placement ({stored}) has no effect on this host — it has
+              a single NUMA node.
+            </Text>
+          </Box>
+          <Button
+            variant="light"
+            size="xs"
+            onClick={() => {
+              fm.setNumaMode("none");
+              fm.setNumaBindNode(null);
+              fm.setNumaInterleaveNodes([]);
+            }}
+          >
+            Clear
+          </Button>
+        </Group>
+      </Paper>
+    );
   }
 
   const modeData = [

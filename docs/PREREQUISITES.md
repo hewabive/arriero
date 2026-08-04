@@ -68,6 +68,14 @@ is shown only when a display-class AMD PCI device is visible through sysfs, or
 that exposes the device without a readable PCI inventory, mirroring the NVML
 fallback for NVIDIA.
 
+The NUMA placement group (`numactl`, cpuset delegation) is applicable only on
+multi-node hosts (`numaIsApplicable` over `/sys/devices/system/node`). On a
+single-node (UMA) machine both checks are omitted — stored `instance.numa`
+config is inert there (see `docs/NUMA_PINNING.md`), so recommending numactl or
+the cgroup delegation script would be noise. Deliberately keyed on topology, not
+on instances declaring `numa`: a config carried over from a multi-socket host
+does not resurrect the group.
+
 When PCI sees a GPU but NVML reports that the library or driver is unavailable,
 the driver is a **required** host prerequisite. Ubuntu's changing driver branch
 numbers make a static package name unsafe, so the check exposes

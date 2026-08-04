@@ -70,6 +70,10 @@ export function readPciNumaNode(busId: string): number | null {
   }
 }
 
+export function numaIsApplicable(topology: NumaNode[]): boolean {
+  return topology.length > 1;
+}
+
 export function readNumaTopology(): NumaNode[] {
   let entries: string[];
   try {

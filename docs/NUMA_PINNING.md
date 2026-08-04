@@ -22,6 +22,30 @@ The whole concern lives in the `numa/` domain (`topology`/`capability`/`cgroup`/
 `launch`), and `resolveNumaLaunch(instance, …)` is the single place that turns a
 config into a spawn wrapper.
 
+## Single-node (UMA) hosts
+
+Everything above presumes ≥2 nodes. `numaIsApplicable(topology)`
+(`apps/api/src/numa/topology.ts`, true only for a multi-node topology) is the
+one predicate for "NUMA matters on this host", and on a single-node machine the
+whole feature is inert by construction:
+
+- `resolveNumaLaunch` returns the plain launch for **any** stored `numa` config
+  — including a `bind` to a node id that does not exist here. Config carried
+  over from a multi-socket host via config-git stays valid and launches
+  normally; the "node not present" error is reserved for genuinely multi-node
+  hosts with a wrong id.
+- The KTransformers preflight skips manager-NUMA validation (interleave
+  forbidden, bind/`--kt-numa-nodes` match); engine-internal `--kt-*` argument
+  checks still run against the real topology.
+- The `numactl`/`cpuset-delegation` prerequisites are not applicable
+  (`docs/PREREQUISITES.md`), and the web UI hides the topology panel and the
+  NUMA form section — the instance form shows only an inert-config notice with
+  a clear action when an imported instance carries a `numa` binding.
+
+`SystemResources.numa.{ bind, interleave }` stay raw host facts (probed
+regardless of node count); consumers gate on the topology, not on the
+capability flags.
+
 Capabilities are probed at startup (`apps/api/src/numa/capability.ts`) into
 `SystemResources.numa.{ bind, interleave }` (booleans, shown in the UI): `bind`
 needs cgroup v2 unified **and** `cpuset` enabled in the delegated

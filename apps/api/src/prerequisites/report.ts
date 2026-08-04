@@ -9,6 +9,7 @@ import { getBuildSettings } from "../build/repository.js";
 import { rocmDeviceAvailable } from "../envs/availability.js";
 import { listEnvironmentSpecs } from "../envs/repository.js";
 import { listInstances } from "../instances/repository.js";
+import { numaIsApplicable, readNumaTopology } from "../numa/index.js";
 import { detectDisplayPciInventories } from "../system/pci-inventory.js";
 import {
   type NvidiaTelemetryStatus,
@@ -158,6 +159,7 @@ export function prerequisiteProbeContext(): PrerequisiteProbeContext {
     nvidiaPci: pci.nvidia,
     amdPci: pci.amd,
     rocmDeviceAvailable: rocmDeviceAvailable(),
+    numaMultiNode: numaIsApplicable(readNumaTopology()),
     nvidiaTelemetryStatus: () =>
       (telemetryStatus ??= nvidiaTelemetry.status(true)),
   };

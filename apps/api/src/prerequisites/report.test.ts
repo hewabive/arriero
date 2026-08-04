@@ -39,6 +39,7 @@ function context(
       detail: "No AMD GPU",
     },
     rocmDeviceAvailable: false,
+    numaMultiNode: false,
     nvidiaTelemetryStatus: () => ({
       state: "no-library",
       detail: "NVML unavailable",
@@ -48,6 +49,24 @@ function context(
     ...overrides,
   };
 }
+
+test("numa prerequisites apply only on multi-node hosts", () => {
+  for (const id of ["numactl", "cpuset-delegation"]) {
+    const definition = findPrerequisiteDefinition(id);
+    assert.ok(definition, id);
+    assert.equal(
+      prerequisiteDefinitionIsApplicable(definition, context()),
+      false,
+    );
+    assert.equal(
+      prerequisiteDefinitionIsApplicable(
+        definition,
+        context({ numaMultiNode: true }),
+      ),
+      true,
+    );
+  }
+});
 
 test("keeps runnable setup separate from manual follow-up commands", async () => {
   const definition: PrerequisiteDefinition = {

@@ -42,6 +42,7 @@ export type PrerequisiteProbeContext = {
   nvidiaPci: DisplayPciInventory;
   amdPci: DisplayPciInventory;
   rocmDeviceAvailable: boolean;
+  numaMultiNode: boolean;
   nvidiaTelemetryStatus: () => NvidiaTelemetryStatus;
 };
 
@@ -673,6 +674,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       zypper: ["numactl"],
     },
     commands: [],
+    applies: (context) => context.numaMultiNode,
     docPath: "docs/NUMA_PINNING.md",
     note: null,
     probe: executableProbe(["numactl"], ["--show"]),
@@ -688,6 +690,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       "Bind placement creates a cpuset cgroup under the delegated user@<uid>.service root; without the Delegate=cpuset drop-in that directory is not writable and bind instances cannot start.",
     packages: {},
     commands: ["scripts/setup-numa-cgroup-delegation.sh"],
+    applies: (context) => context.numaMultiNode,
     docPath: "docs/NUMA_PINNING.md",
     note: "One-time setup; the manager must then run inside that user session.",
     probe: async () => ({

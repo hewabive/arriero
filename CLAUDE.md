@@ -123,7 +123,9 @@ rates for every other caller.
   `launch`): `instance.numa` is a discriminated union of `{mode:"bind",node}` (CPUs+memory confined
   to one node via a cpuset cgroup + spawn shim) and `{mode:"interleave",nodes}` (spawn wrapped in
   `numactl --interleave`, the high-throughput mode for big CPU models). `resolveNumaLaunch(…)` is the
-  single place that picks the spawn wrapper; `SystemResources.numa.{bind,interleave}` gate it.
+  single place that picks the spawn wrapper; `SystemResources.numa.{bind,interleave}` gate it. On a
+  single-node (UMA) host `instance.numa` is inert everywhere — `numaIsApplicable` gates launch, KT
+  preflight and the prerequisites numa group (`docs/NUMA_PINNING.md` § Single-node hosts).
   `bind` additionally needs a one-time `Delegate=cpuset` drop-in
   (`scripts/setup-numa-cgroup-delegation.sh`) **and** the manager running inside that user session —
   see `docs/NUMA_PINNING.md`.
