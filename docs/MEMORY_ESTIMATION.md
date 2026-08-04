@@ -49,7 +49,9 @@ and, for the future measured path, its own pinned binary.
   4-shard model the tensor sum jumps from ~14.8 GiB to the full ~46 GiB,
   matching the `llama-fit-params` `model` column.
 - **GGUF metadata** — architecture, block count, embedding length, head counts,
-  context length, sliding window, vocabulary size.
+  key/value head lengths (including MLA), causal-attention mode, context length,
+  sliding-window pattern, recurrent/SSM geometry, vocabulary size, and RWKV
+  state geometry.
 - **Args** — parsed into resolved context params (`resolveContextParams`):
   `n_ctx`/`n_ctx_seq`/`n_batch`/`n_ubatch`/`n_seq_max`/`kv_unified`/`flash_attn`/
   cache types/`offload_kqv`/`n_gpu_layers`, matching `llama-server`'s defaults
@@ -60,16 +62,21 @@ and, for the future measured path, its own pinned binary.
 ## Categories
 
 - **Weights** — sum of per-tensor bytes, placed across pools by `-ngl`/`-ts`/
-  `--cpu-moe`/`--n-cpu-moe` (input embedding stays on host; output follows the
-  output layer). This is the **resident** footprint (mmap'd weights occupy
-  page-cache RAM and must stay resident to run without thrashing) — see the
-  calibration note below.
-- **KV cache** — derived from the **tensor geometry**, not hparams: per KV-bearing
-  layer, `n_embd_k_gqa` is read from `blk.N.attn_k.weight` dims and the cache
-  bytes are `ggmlRowSizeBytes(cache_type, n_embd_k_gqa) * n_ctx_seq * n_stream`
-  (likewise V). This is exact for GQA and correctly counts only the layers that
-  actually have a KV cache (hybrid models). Verified to the MiB against
-  `llama-fit-params` across dense models and cache types.
+  `--cpu-moe`/`--n-cpu-moe`. The input embedding stays on the host and the
+  output follows the output layer. When `output.weight` is absent under GPU
+  offload, llama.cpp uses the tied `token_embd.weight` as output and creates a
+  second device copy; the estimator includes both copies. This is the
+  **resident** footprint (mmap'd weights occupy page-cache RAM and must stay
+  resident to run without thrashing) — see the calibration note below.
+- **KV cache** — uses each cache-bearing layer's actual geometry. Separate
+  `blk.N.attn_k/v.weight` tensors supply the dimensions directly; fused GPT-2
+  `attn_qkv` and MLA `attn_kv_a_mqa` layouts derive them from the metadata head
+  counts and key/value lengths. Bytes are
+  `ggmlRowSizeBytes(cache_type, width) * n_ctx_seq * n_stream` for K and V.
+  Compressed MLA stores K only; legacy MLA stores K and V. This correctly counts
+  only attention layers in hybrid models. It matches `llama-fit-params` to the
+  displayed MiB across the dense, fused GPT-2, legacy DeepSeek MLA, and
+  quantized-cache anchors.
 - **Sliding-window attention (SWA) + KV sharing** — for SWA architectures with
   distinct global/SWA head dims (e.g. Gemma 3n/`gemma4`), SWA layers (the smaller
   `attn_k` dim) are capped at the window instead of the full context:
@@ -79,9 +86,11 @@ and, for the future measured path, its own pinned binary.
   the last `shared_kv_layers` layers reuse earlier layers' cache and allocate
   none, so only `block_count - shared_kv_layers` layers count. Reproduces the
   `llama-fit-params` `context` column to the MiB (verified on `gemma4` across
-  context sizes, cache types, `--ubatch-size` and `--parallel`). SWA models
-  **without** distinct dims (single-dim, scalar-period pattern — e.g. Gemma 2/3)
-  are left at the full-context upper bound with a warning.
+  context sizes, cache types, `--ubatch-size` and `--parallel`). Explicit GGUF
+  boolean patterns and scalar periods are honored even when every layer has the
+  same width. Known metadata-default periods are supplied for Gemma 2/3/3n and
+  GPT-OSS. Unknown single-width layouts remain a full-context upper bound with
+  a warning.
 - **Recurrent state** — for hybrid/SSM architectures (e.g. Qwen3-Next/`qwen35`,
   Mamba), each recurrent layer holds a fixed-size state cache instead of a KV
   cache: `(n_embd_r + n_embd_s) * 4 bytes` per layer **per sequence**, where
@@ -90,12 +99,18 @@ and, for the future measured path, its own pinned binary.
   hyperparameters. Unlike attention KV under `kv_unified`, this scales linearly
   with `--parallel` (one copy per sequence). It is folded into the KV/context
   category and reproduces `llama-fit-params`' `context` column to the MiB across
-  context sizes, cache types and parallelism (verified on `qwen35`). When the
-  `*.ssm.*` hyperparameters are absent the state is left unmodeled and the
-  estimate drops to `low` confidence.
-- **Compute** — dominated by the logits projection, `n_vocab * n_ubatch * 4`
-  (verified exact: linear in `n_ubatch`, independent of `n_ctx` and flash-attn),
-  plus an `n_embd`-scaled activation term.
+  context sizes, cache types and parallelism (verified on `qwen35` and Granite).
+  Pure Mamba follows llama.cpp's zero-group default when `ssm.group_count` is
+  absent. RWKV uses `(token_shift_count*n_embd + n_embd*wkv_head_size) * 4` per
+  layer and sequence. If the required geometry is still absent, the state is
+  left unmodeled and confidence drops to `low`.
+- **Compute** — the logits projection, `n_vocab * n_ubatch * 4`, plus activation
+  buffers sized from the largest embedding/FFN expansion width. Non-causal
+  encoders and classifier heads omit decoder logits and use their activation
+  envelope; they also allocate no persistent KV. GPU MLA with Flash Attention
+  or quantized K cache adds its context-sized host staging rows, matching the
+  otherwise-hidden RAM reservation. The result is a reservation projection,
+  not the subset of pages touched in host RSS.
 - **Multimodal projector (`--mmproj`)** — a vision/audio adapter is a separate
   GGUF (`clip` architecture) that `llama-server` loads alongside the model. Its
   weights (the per-tensor sum of the projector file, read via the shard-aware
@@ -129,11 +144,11 @@ and, for the future measured path, its own pinned binary.
 ## Confidence and warnings
 
 `MemoryEstimate.confidence` is `high` for plain dense/MoE transformers, `medium`
-when sliding-window (SWA), GPU placement, or a modeled hybrid recurrent state is
-involved, and `low` for MLA or recurrent/hybrid models whose state is **not**
-modeled (missing `*.ssm.*` hyperparameters). Each approximation adds a
-`warnings[]` entry (SWA KV is an upper bound; recurrent state included/omitted;
-GPU placement is unvalidated).
+when sliding-window attention, modeled MLA/recurrent state, cacheless roles, or
+GPU placement is involved, and `low` when a detected cache/state layout cannot
+be modeled. Warnings say whether SWA is capped or only an upper bound, whether
+recurrent/MLA state was included, when upstream automatic GPU placement is
+represented by conservative full offload, and which GPU assumptions remain.
 
 ## API
 
@@ -190,18 +205,20 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
   the target's `n_vocab × n_ubatch × 4` (a `--parallel`-capped variant was tried
   and reverted).
 
-### Open items (GPU machine + gold `llama_memory_breakdown_print` table)
+### Open items
 
 1. **GPU CUDA-context overhead** — replace the rough per-GPU constant with a
    measured value.
-2. **Compute residual** — the `n_embd`-scaled term under-predicts the fit
-   `compute` column by ~10–13% (gemma fit ≈ `1.13 × n_vocab × n_ubatch`); refine
-   from the gold breakdown.
+2. **Compute residuals** — the width-based activation envelope is within roughly
+   0–5% on the reviewed one-GPU Qwen3.5, Gemma 4, DeepSeek MLA, and TinyGemma
+   matrix, but architecture/backend outliers remain (for example Granite on the
+   reviewed CPU build). Refine per-architecture buffers only when a gold
+   `llama_memory_breakdown_print` table explains the difference.
 3. **Measured engine** — to report real host RSS (vs the conservative projection),
    probe the actual instance: resident weights (repack + mmap reclaim), compute
    touched, base process overhead. Not derivable analytically.
 
-**Closed (no GPU required — verified on the CPU box against `llama-fit-params`):**
+**Closed against the pinned CPU/CUDA `llama-fit-params`:**
 
 - Hybrid recurrent state (RS) cache (`qwen35`/Qwen3-Next), modeled from the
   `*.ssm.*` hyperparameters; matches the `context` column to the MiB across
@@ -209,6 +226,16 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
 - SWA + KV-sharing cache (`gemma4`/Gemma 3n): SWA layers capped at the window,
   `shared_kv_layers` reused layers dropped; matches the `context` column to the
   MiB across context sizes, cache types, `--ubatch-size` and `--parallel`.
+- Single-width periodic SWA for Gemma 2/3/3n and GPT-OSS, using GGUF patterns or
+  the architecture's llama.cpp default period.
+- Fused GPT-2 QKV, legacy/compressed MLA geometry, cacheless encoders and
+  classifier heads, pure Mamba without `ssm.group_count`, and RWKV state.
+- One-GPU tied-output placement: Qwen3.5 projects 497 MiB device + 199 MiB host
+  weights versus 497 + 198 MiB from the pinned CUDA binary. Gemma 4 and
+  TinyGemma exercise the same duplication rule.
+- MLA GPU host staging for Flash Attention and quantized KV. DeepSeek V2 Lite's
+  analytical context is exact at displayed MiB across the matrix; aggregate
+  compute differs by -3.6% to +5.1%.
 
 ## Running the calibration harness
 
@@ -232,4 +259,4 @@ Flags: `--models <dir>` (default `runtime/models`), `--fit-params <path>`
 (default the built companion), `--gpus N`, `--only <substr>`, `--out <file>`,
 or pass explicit `*.gguf` paths. On the GPU machine, share back the JSON plus,
 ideally, the gold `llama_memory_breakdown_print` table and per-pid RSS for a few
-real runs so items 1–5 above can be closed.
+real runs so the remaining open items above can be closed.

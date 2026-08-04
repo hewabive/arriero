@@ -41,13 +41,21 @@ const HPARAMS: MemoryEstimateHparams = {
   embeddingLength: 8,
   headCount: 4,
   headCountKv: 2,
+  attentionKeyLength: null,
+  attentionValueLength: null,
+  attentionKeyLengthMla: null,
+  attentionValueLengthMla: null,
+  causalAttention: null,
   contextLength: 1024,
   slidingWindow: null,
+  slidingWindowPattern: null,
   sharedKvLayers: null,
   ssmConvKernel: null,
   ssmGroupCount: null,
   ssmInnerSize: null,
   ssmStateSize: null,
+  wkvHeadSize: null,
+  tokenShiftCount: null,
   vocabularySize: 100,
 };
 
@@ -94,7 +102,7 @@ test("estimateInstanceMemory computes host weights, KV and compute", () => {
 
   assert.equal(estimate.weightsBytesTotal, 3968);
   assert.equal(estimate.kvBytesTotal, 2 * (8 + 8) * 1024);
-  assert.equal(estimate.computeBytesTotal, 100 * 512 * 4 + 8 * 512 * 4);
+  assert.equal(estimate.computeBytesTotal, 100 * 512 * 4 + 2 * 8 * 512 * 4);
   assert.equal(estimate.confidence, "high");
   assert.equal(estimate.warnings.length, 0);
   assert.equal(estimate.pools.length, 1);
@@ -215,6 +223,213 @@ test("sliding-window models flag KV as an upper bound", () => {
   assert.ok(estimate.warnings.some((warning) => /upper bound/.test(warning)));
 });
 
+test("scalar-period SWA models cap only their sliding-window layers", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: {
+      ...HPARAMS,
+      architecture: "gpt-oss",
+      slidingWindow: 128,
+    },
+    args: { "--ctx-size": 4096, "--parallel": 4 },
+    pools: HOST_POOLS,
+  });
+
+  const bytesPerTokenPerLayer = 8 + 8;
+  const swaTokens = 4 * Math.ceil((128 + 512) / 256) * 256;
+  assert.equal(
+    estimate.kvBytesTotal,
+    bytesPerTokenPerLayer * (swaTokens + 4096),
+  );
+  assert.ok(estimate.warnings.some((warning) => /capped/.test(warning)));
+});
+
+test("fused GPT-2 QKV tensors derive persistent cache geometry from heads", () => {
+  const tensors = syntheticTable([
+    f16Tensor("blk.0.attn_qkv.weight", [8, 24]),
+    f16Tensor("blk.1.attn_qkv.weight", [8, 24]),
+  ]);
+  tensors.tensors = tensors.tensors.filter(
+    (tensor) => !/\.attn_[kv]\.weight$/.test(tensor.name),
+  );
+  tensors.tensorCount = tensors.tensors.length;
+  tensors.totalBytes = tensors.tensors.reduce(
+    (sum, tensor) => sum + tensor.bytes,
+    0,
+  );
+  const estimate = estimateInstanceMemory({
+    tensors,
+    hparams: { ...HPARAMS, architecture: "gpt2", headCountKv: null },
+    args: { "--ctx-size": 256 },
+    pools: HOST_POOLS,
+  });
+
+  assert.equal(estimate.kvBytesTotal, 2 * (16 + 16) * 256);
+  assert.equal(estimate.confidence, "high");
+});
+
+test("legacy and compressed MLA use metadata-derived cache geometry", () => {
+  const tensors = syntheticTable([
+    f16Tensor("blk.0.attn_kv_a_mqa.weight", [8, 5]),
+  ]);
+  tensors.tensors = tensors.tensors.filter(
+    (tensor) => !/\.attn_[kv]\.weight$/.test(tensor.name),
+  );
+  tensors.tensorCount = tensors.tensors.length;
+  tensors.totalBytes = tensors.tensors.reduce(
+    (sum, tensor) => sum + tensor.bytes,
+    0,
+  );
+  const hparams = {
+    ...HPARAMS,
+    architecture: "deepseek2",
+    blockCount: 1,
+    headCount: 2,
+    headCountKv: 2,
+    attentionKeyLength: 3,
+    attentionValueLength: 2,
+  };
+  const legacy = estimateInstanceMemory({
+    tensors,
+    hparams,
+    args: { "--ctx-size": 256 },
+    pools: HOST_POOLS,
+  });
+  const compressed = estimateInstanceMemory({
+    tensors,
+    hparams: {
+      ...hparams,
+      attentionKeyLengthMla: 3,
+      attentionValueLengthMla: 2,
+    },
+    args: { "--ctx-size": 256 },
+    pools: HOST_POOLS,
+  });
+
+  assert.equal(legacy.kvBytesTotal, (12 + 8) * 256);
+  assert.equal(compressed.kvBytesTotal, 12 * 256);
+  assert.equal(legacy.confidence, "medium");
+  assert.ok(legacy.warnings.some((warning) => /legacy K\/V/.test(warning)));
+});
+
+test("GPU MLA reserves host staging for quantized cache rows", () => {
+  const tensors = syntheticTable([
+    f16Tensor("blk.0.attn_kv_a_mqa.weight", [8, 5]),
+  ]);
+  tensors.tensors = tensors.tensors.filter(
+    (tensor) => !/\.attn_[kv]\.weight$/.test(tensor.name),
+  );
+  tensors.tensorCount = tensors.tensors.length;
+  tensors.totalBytes = tensors.tensors.reduce(
+    (sum, tensor) => sum + tensor.bytes,
+    0,
+  );
+  const estimate = estimateInstanceMemory({
+    tensors,
+    hparams: {
+      ...HPARAMS,
+      architecture: "deepseek2",
+      blockCount: 1,
+      headCount: 2,
+      headCountKv: 2,
+      attentionKeyLength: 3,
+      attentionValueLength: 2,
+      attentionKeyLengthMla: 3,
+      attentionValueLengthMla: 2,
+    },
+    args: {
+      "--ctx-size": 256,
+      "--n-gpu-layers": 99,
+      "--cache-type-k": "q8_0",
+      "--cache-type-v": "q8_0",
+    },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  const activation = 8 * 256 * 4;
+  const mlaStaging = 2 * 34 * 256;
+  const host = estimate.pools.find((pool) => pool.poolId === "host");
+  const gpu = estimate.pools.find((pool) => pool.poolId === "gpu0");
+  assert.equal(host?.computeBytes, mlaStaging);
+  assert.equal(gpu?.computeBytes, 100 * 256 * 4 + 2 * activation);
+  assert.equal(
+    estimate.computeBytesTotal,
+    100 * 256 * 4 + 2 * activation + mlaStaging,
+  );
+});
+
+test("non-causal encoders have no persistent KV or vocabulary logits", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: { ...HPARAMS, architecture: "bert", causalAttention: false },
+    args: { "--ctx-size": 256 },
+    pools: HOST_POOLS,
+  });
+
+  assert.equal(estimate.kvBytesTotal, 0);
+  assert.equal(estimate.computeBytesTotal, 2 * 8 * 256 * 4);
+  assert.equal(estimate.confidence, "medium");
+  assert.ok(
+    estimate.warnings.some((warning) => /no persistent KV/.test(warning)),
+  );
+});
+
+test("Mamba defaults the absent SSM group count to zero", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable([
+      f16Tensor("blk.2.ssm_conv1d.weight", [4, 8]),
+      f16Tensor("blk.2.attn_qkv.weight", [8, 24]),
+    ]),
+    hparams: {
+      ...HPARAMS,
+      architecture: "mamba",
+      blockCount: 3,
+      ssmConvKernel: 4,
+      ssmGroupCount: null,
+      ssmInnerSize: 16,
+      ssmStateSize: 8,
+    },
+    args: { "--ctx-size": 256 },
+    pools: HOST_POOLS,
+  });
+
+  const attentionKv = 2 * (8 + 8) * 256;
+  const recurrent = ((4 - 1) * 16 + 8 * 16) * 4 * 4;
+  assert.equal(estimate.kvBytesTotal, attentionKv + recurrent);
+});
+
+test("RWKV state uses embedding width, head size, and token shifts", () => {
+  const tensors = syntheticTable([f16Tensor("blk.0.time_mix.weight", [8])]);
+  tensors.tensors = tensors.tensors.filter(
+    (tensor) =>
+      !tensor.name.startsWith("blk.1.") &&
+      !/\.attn_[kv]\.weight$/.test(tensor.name),
+  );
+  tensors.tensorCount = tensors.tensors.length;
+  tensors.totalBytes = tensors.tensors.reduce(
+    (sum, tensor) => sum + tensor.bytes,
+    0,
+  );
+  const estimate = estimateInstanceMemory({
+    tensors,
+    hparams: {
+      ...HPARAMS,
+      architecture: "rwkv7",
+      blockCount: 1,
+      wkvHeadSize: 4,
+      tokenShiftCount: 2,
+    },
+    args: { "--parallel": 4 },
+    pools: HOST_POOLS,
+  });
+
+  assert.equal(estimate.kvBytesTotal, (2 * 8 + 8 * 4) * 4 * 4);
+  assert.equal(estimate.confidence, "medium");
+});
+
 function gemmaLikeTable(): GgufTensorTable {
   const tensors: GgufTensorInfo[] = [
     f16Tensor("token_embd.weight", [8, 100]),
@@ -315,6 +530,66 @@ test("full GPU offload places weights, KV and compute on the GPU pool", () => {
   assert.equal(estimate.confidence, "medium");
 });
 
+test("full GPU offload duplicates a tied token embedding for output", () => {
+  const tensors = syntheticTable();
+  const outputBytes =
+    tensors.tensors.find((tensor) => tensor.name === "output.weight")?.bytes ??
+    0;
+  tensors.tensors = tensors.tensors.filter(
+    (tensor) => tensor.name !== "output.weight",
+  );
+  tensors.tensorCount = tensors.tensors.length;
+  tensors.totalBytes -= outputBytes;
+  const tokenBytes =
+    tensors.tensors.find((tensor) => tensor.name === "token_embd.weight")
+      ?.bytes ?? 0;
+
+  const cpu = estimateInstanceMemory({
+    tensors,
+    hparams: HPARAMS,
+    args: { "--n-gpu-layers": 0 },
+    pools: HOST_POOLS,
+  });
+  const gpu = estimateInstanceMemory({
+    tensors,
+    hparams: HPARAMS,
+    args: { "--n-gpu-layers": 99 },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  assert.equal(cpu.weightsBytesTotal, tensors.totalBytes);
+  assert.equal(gpu.weightsBytesTotal, tensors.totalBytes + tokenBytes);
+  assert.equal(
+    gpu.pools.find((pool) => pool.poolId === "host")?.weightsBytes,
+    tokenBytes,
+  );
+  assert.ok(
+    gpu.warnings.some((warning) => /Tied output embedding/.test(warning)),
+  );
+});
+
+test("upstream auto GPU layers use conservative full offload", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {},
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  assert.equal(estimate.context.nGpuLayers, 3);
+  assert.ok(
+    (estimate.pools.find((pool) => pool.poolId === "gpu0")?.totalBytes ?? 0) >
+      0,
+  );
+  assert.ok(estimate.warnings.some((warning) => /auto/.test(warning)));
+});
+
 test("no-kv-offload keeps KV on the host pool under GPU offload", () => {
   const estimate = estimateInstanceMemory({
     tensors: syntheticTable(),
@@ -368,7 +643,7 @@ test("multimodal projector offloads to the GPU and respects --no-mmproj-offload"
   const offloaded = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: {},
+    args: { "--n-gpu-layers": 0 },
     pools,
     mmproj: { tensors: mmproj },
   });
@@ -379,7 +654,7 @@ test("multimodal projector offloads to the GPU and respects --no-mmproj-offload"
   const host = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: { "--no-mmproj-offload": "on" },
+    args: { "--n-gpu-layers": 0, "--no-mmproj-offload": "on" },
     pools,
     mmproj: { tensors: mmproj },
   });

@@ -11,9 +11,10 @@ import { basename, dirname, join } from "node:path";
 import { parseSplitInfo, splitShardName } from "./split.js";
 
 type GgufScalar = string | number | boolean | null;
-type GgufValue = GgufScalar | string[];
+type GgufValue = GgufScalar | GgufScalar[];
 
 const STRING_ARRAY_CAPTURE_LIMIT = 64;
+const METADATA_ARRAY_CAPTURE_LIMIT = 4096;
 
 const GGUF_VALUE_SIZE: Record<number, number> = {
   0: 1,
@@ -142,7 +143,11 @@ function readScalar(reader: FileReader, type: number): GgufScalar {
   throw new Error(`unsupported GGUF metadata type: ${type}`);
 }
 
-function readValue(reader: FileReader, type: number): GgufValue {
+function readValue(
+  reader: FileReader,
+  type: number,
+  captureArray = false,
+): GgufValue {
   if (type !== 9) {
     return readScalar(reader, type);
   }
@@ -160,12 +165,25 @@ function readValue(reader: FileReader, type: number): GgufValue {
     for (let index = 0; index < count; index += 1) {
       reader.skip(reader.u64Number());
     }
-    return count;
+    return captureArray ? null : count;
   }
 
   const size = GGUF_VALUE_SIZE[elementType];
   if (!size) {
     throw new Error(`unsupported GGUF array type: ${elementType}`);
+  }
+
+  if (captureArray && count <= METADATA_ARRAY_CAPTURE_LIMIT) {
+    const values: GgufScalar[] = [];
+    for (let index = 0; index < count; index += 1) {
+      values.push(readScalar(reader, elementType));
+    }
+    return values;
+  }
+
+  if (captureArray) {
+    reader.skip(count * size);
+    return null;
   }
   if (count === 0) {
     return null;
@@ -222,11 +240,28 @@ function findBooleanBySuffix(metadata: Map<string, GgufValue>, suffix: string) {
   return null;
 }
 
+function findSwaPattern(metadata: Map<string, GgufValue>) {
+  for (const [key, value] of metadata.entries()) {
+    if (!key.endsWith(".attention.sliding_window_pattern")) {
+      continue;
+    }
+    if (typeof value === "number") {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.map(
+        (item) => item === true || (typeof item === "number" && item !== 0),
+      );
+    }
+  }
+  return null;
+}
+
 function stringArrayMetadata(metadata: Map<string, GgufValue>, keys: string[]) {
   for (const key of keys) {
     const value = metadata.get(key);
     if (Array.isArray(value)) {
-      return value;
+      return value.filter((item): item is string => typeof item === "string");
     }
   }
   return [];
@@ -272,7 +307,7 @@ function readQuantization(metadata: Map<string, GgufValue>) {
   return null;
 }
 
-export const GGUF_PARSER_VERSION = 8;
+export const GGUF_PARSER_VERSION = 9;
 
 function readHeader(reader: FileReader) {
   if (reader.read(4).toString("utf8") !== "GGUF") {
@@ -289,7 +324,14 @@ function readKv(reader: FileReader, kvCount: number) {
   for (let index = 0; index < kvCount; index += 1) {
     const key = reader.string();
     const type = reader.u32();
-    metadata.set(key, readValue(reader, type));
+    metadata.set(
+      key,
+      readValue(
+        reader,
+        type,
+        key.endsWith(".attention.sliding_window_pattern"),
+      ),
+    );
   }
   return metadata;
 }
@@ -299,7 +341,11 @@ function readTensorTable(reader: FileReader, tensorCount: number) {
   let hasClassifierHead = false;
   for (let index = 0; index < tensorCount; index += 1) {
     const name = reader.string();
-    if (name === "cls.output.weight" || name.startsWith("cls.output.")) {
+    if (
+      name === "cls.weight" ||
+      name.startsWith("cls.output.") ||
+      name.startsWith("classifier.")
+    ) {
       hasClassifierHead = true;
     }
     const dimensions = reader.u32();
@@ -373,12 +419,28 @@ function extractMetadata(
     ),
     headCount: findNumberBySuffix(metadata, ".attention.head_count"),
     headCountKv: findNumberBySuffix(metadata, ".attention.head_count_kv"),
+    attentionKeyLength: findNumberBySuffix(metadata, ".attention.key_length"),
+    attentionValueLength: findNumberBySuffix(
+      metadata,
+      ".attention.value_length",
+    ),
+    attentionKeyLengthMla: findNumberBySuffix(
+      metadata,
+      ".attention.key_length_mla",
+    ),
+    attentionValueLengthMla: findNumberBySuffix(
+      metadata,
+      ".attention.value_length_mla",
+    ),
     slidingWindow: findNumberBySuffix(metadata, ".attention.sliding_window"),
+    slidingWindowPattern: findSwaPattern(metadata),
     sharedKvLayers: findNumberBySuffix(metadata, ".attention.shared_kv_layers"),
     ssmConvKernel: findNumberBySuffix(metadata, ".ssm.conv_kernel"),
     ssmGroupCount: findNumberBySuffix(metadata, ".ssm.group_count"),
     ssmInnerSize: findNumberBySuffix(metadata, ".ssm.inner_size"),
     ssmStateSize: findNumberBySuffix(metadata, ".ssm.state_size"),
+    wkvHeadSize: findNumberBySuffix(metadata, ".wkv.head_size"),
+    tokenShiftCount: findNumberBySuffix(metadata, ".token_shift_count"),
     ropeFreqBase: findNumberBySuffix(metadata, ".rope.freq_base"),
     ropeScalingType: findStringBySuffix(metadata, ".rope.scaling.type"),
     ropeScalingFactor: findNumberBySuffix(metadata, ".rope.scaling.factor"),

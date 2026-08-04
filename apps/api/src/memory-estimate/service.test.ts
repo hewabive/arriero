@@ -89,6 +89,49 @@ function writeSyntheticModel(path: string) {
   );
 }
 
+function writeGpuPools() {
+  const at = "2026-01-01T00:00:00.000Z";
+  writeFileSync(
+    RESOURCES_FILE,
+    `${JSON.stringify([
+      {
+        id: "gpu0",
+        name: "GPU 0",
+        kind: "gpu",
+        capacityBytes: 10_000_000,
+        reservedBytes: 0,
+        deviceRef: "0",
+        autoCapacity: false,
+        createdAt: at,
+        updatedAt: at,
+      },
+      {
+        id: "gpu1",
+        name: "GPU 1",
+        kind: "gpu",
+        capacityBytes: 10_000_000,
+        reservedBytes: 0,
+        deviceRef: "1",
+        autoCapacity: false,
+        createdAt: at,
+        updatedAt: at,
+      },
+      {
+        id: "host",
+        name: "Host",
+        kind: "host",
+        capacityBytes: 10_000_000,
+        reservedBytes: 0,
+        deviceRef: null,
+        autoCapacity: false,
+        createdAt: at,
+        updatedAt: at,
+      },
+    ])}\n`,
+  );
+  resetResourcePoolsCache();
+}
+
 test("vllm estimator reserves utilization on each tensor-parallel GPU", () => {
   const at = "2026-01-01T00:00:00.000Z";
   writeFileSync(
@@ -177,12 +220,80 @@ test("estimateMemory produces a breakdown for a local model", () => {
     assert.equal(result.estimate.kvBytesTotal, 2 * (8 + 8) * 1024);
     assert.equal(
       result.estimate.computeBytesTotal,
-      100 * 512 * 4 + 8 * 512 * 4,
+      100 * 512 * 4 + 2 * 8 * 512 * 4,
     );
     assert.equal(result.estimate.confidence, "high");
     assert.ok(result.estimate.draws.length >= 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("GGUF estimate respects visible and disabled GPU devices", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-gpu-"));
+  const path = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(path);
+    writeGpuPools();
+    const visible = estimateMemory({
+      args: { "--model": path },
+      env: { CUDA_VISIBLE_DEVICES: "1" },
+    });
+    assert.equal(visible.ok, true);
+    if (visible.ok) {
+      assert.ok(visible.estimate.pools.some((pool) => pool.poolId === "gpu1"));
+      assert.ok(!visible.estimate.pools.some((pool) => pool.poolId === "gpu0"));
+      assert.equal(visible.estimate.context.nGpuLayers, 3);
+    }
+
+    const reordered = estimateMemory({
+      args: { "--model": path, "--n-gpu-layers": 99 },
+      env: { CUDA_VISIBLE_DEVICES: "1,0" },
+    });
+    assert.equal(reordered.ok, true);
+    if (reordered.ok) {
+      assert.equal(
+        reordered.estimate.pools.find((pool) => pool.poolId === "gpu1")
+          ?.weightsBytes,
+        2 * (64 + 64 + 256),
+      );
+      assert.equal(
+        reordered.estimate.pools.find((pool) => pool.poolId === "gpu0")
+          ?.weightsBytes,
+        1600,
+      );
+    }
+
+    const explicitLogical = estimateMemory({
+      args: {
+        "--model": path,
+        "--n-gpu-layers": 99,
+        "--device": "CUDA0",
+      },
+      env: { CUDA_VISIBLE_DEVICES: "1,0" },
+    });
+    assert.equal(explicitLogical.ok, true);
+    if (explicitLogical.ok) {
+      assert.ok(
+        explicitLogical.estimate.pools.some((pool) => pool.poolId === "gpu1"),
+      );
+      assert.ok(
+        !explicitLogical.estimate.pools.some((pool) => pool.poolId === "gpu0"),
+      );
+    }
+
+    const disabled = estimateMemory({
+      args: { "--model": path, "--device": "none" },
+    });
+    assert.equal(disabled.ok, true);
+    if (disabled.ok) {
+      assert.ok(disabled.estimate.pools.every((pool) => pool.kind === "host"));
+      assert.equal(disabled.estimate.context.nGpuLayers, 0);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(RESOURCES_FILE, { force: true });
+    resetResourcePoolsCache();
   }
 });
 

@@ -199,6 +199,16 @@ function kvStringArray(key: string, values: string[]) {
   ]);
 }
 
+function kvBoolArray(key: string, values: boolean[]) {
+  return Buffer.concat([
+    ggufString(key),
+    u32(9),
+    u32(7),
+    u64(values.length),
+    Buffer.from(values.map((value) => (value ? 1 : 0))),
+  ]);
+}
+
 function metadataFile(kvs: Buffer[], tensors: Buffer[] = []) {
   return Buffer.concat([
     Buffer.from("GGUF", "utf8"),
@@ -255,7 +265,6 @@ test("readGgufMetadata detects reranker via classifier head tensor", () => {
         [
           tensorInfo("token_embd.weight", [4, 8], 1),
           tensorInfo("cls.weight", [4, 4], 1),
-          tensorInfo("cls.output.weight", [4, 1], 1),
         ],
       ),
     );
@@ -287,6 +296,43 @@ test("readGgufMetadata leaves generative models without pooling signals", () => 
     assert.equal(metadata.poolingType, null);
     assert.equal(metadata.causalAttention, null);
     assert.equal(ggufModelRole(metadata), "generative");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readGgufMetadata captures cache and recurrent geometry", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-memory-meta-"));
+  const path = join(dir, "memory.gguf");
+  try {
+    writeFileSync(
+      path,
+      metadataFile([
+        kvString("general.architecture", "rwkv7"),
+        kvU32("rwkv7.attention.key_length", 192),
+        kvU32("rwkv7.attention.value_length", 128),
+        kvU32("rwkv7.attention.key_length_mla", 128),
+        kvU32("rwkv7.attention.value_length_mla", 128),
+        kvU32("rwkv7.attention.sliding_window", 512),
+        kvBoolArray("rwkv7.attention.sliding_window_pattern", [
+          true,
+          false,
+          true,
+        ]),
+        kvU32("rwkv7.wkv.head_size", 64),
+        kvU32("rwkv7.token_shift_count", 2),
+      ]),
+    );
+
+    const metadata = readGgufMetadata(path);
+    assert.equal(metadata.attentionKeyLength, 192);
+    assert.equal(metadata.attentionValueLength, 128);
+    assert.equal(metadata.attentionKeyLengthMla, 128);
+    assert.equal(metadata.attentionValueLengthMla, 128);
+    assert.equal(metadata.slidingWindow, 512);
+    assert.deepEqual(metadata.slidingWindowPattern, [true, false, true]);
+    assert.equal(metadata.wkvHeadSize, 64);
+    assert.equal(metadata.tokenShiftCount, 2);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

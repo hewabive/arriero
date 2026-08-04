@@ -39,13 +39,21 @@ export type MemoryEstimateHparams = {
   embeddingLength: number | null;
   headCount: number | null;
   headCountKv: number | null;
+  attentionKeyLength: number | null;
+  attentionValueLength: number | null;
+  attentionKeyLengthMla: number | null;
+  attentionValueLengthMla: number | null;
+  causalAttention: boolean | null;
   contextLength: number | null;
   slidingWindow: number | null;
+  slidingWindowPattern: number | boolean[] | null;
   sharedKvLayers: number | null;
   ssmConvKernel: number | null;
   ssmGroupCount: number | null;
   ssmInnerSize: number | null;
   ssmStateSize: number | null;
+  wkvHeadSize: number | null;
+  tokenShiftCount: number | null;
   vocabularySize: number | null;
 };
 
@@ -130,6 +138,7 @@ function cacheTypeId(value: string): number | null {
 export function resolveContextParams(
   args: MemoryEstimateArgs,
   hparams: MemoryEstimateHparams,
+  hasGpu = false,
 ): ResolvedContextParams {
   const nCtxTrain = hparams.contextLength ?? DEFAULT_CTX;
   const requestedCtx = argNumber(args, ["--ctx-size", "-c", "--context-size"]);
@@ -178,7 +187,11 @@ export function resolveContextParams(
     typeK,
     typeV,
     offloadKqv,
-    nGpuLayers: resolveGpuLayers(args, hparams.blockCount),
+    nGpuLayers:
+      argRaw(args, ["--n-gpu-layers", "-ngl", "--gpu-layers"]) === undefined &&
+      hasGpu
+        ? (hparams.blockCount ?? 0) + 1
+        : resolveGpuLayers(args, hparams.blockCount),
   };
 }
 
@@ -186,6 +199,8 @@ const LAYER_PATTERN = /^blk\.(\d+)\./;
 const EXPERT_PATTERN = /ffn_(up|down|gate|gate_up)_(ch)?exps/;
 const ATTN_K_PATTERN = /^blk\.(\d+)\.attn_k\.weight$/;
 const ATTN_V_PATTERN = /^blk\.(\d+)\.attn_v\.weight$/;
+const ATTN_QKV_PATTERN = /^blk\.(\d+)\.attn_qkv\.weight$/;
+const ATTN_KV_A_MQA_PATTERN = /^blk\.(\d+)\.attn_kv_a_mqa\.weight$/;
 const INPUT_TENSOR_PATTERN = /^(token_embd|per_layer_token_embd)\b/;
 const OUTPUT_TENSOR_PATTERN = /^(output|output_norm)\b/;
 const MLA_PATTERN = /attn_(kv_a_mqa|kv_b|k_b|v_b)/;
@@ -305,7 +320,26 @@ function accumulateModel(
   ensure: (poolId: string) => PoolAccumulator,
   warnings: string[],
 ): ModelAccumulation {
-  const context = resolveContextParams(model.args, model.hparams);
+  const context = resolveContextParams(
+    model.args,
+    model.hparams,
+    model.pools.some((pool) => pool.kind === "gpu"),
+  );
+  const gpuLayersArg = argRaw(model.args, [
+    "--n-gpu-layers",
+    "-ngl",
+    "--gpu-layers",
+  ]);
+  if (
+    model.pools.some((pool) => pool.kind === "gpu") &&
+    (gpuLayersArg === undefined ||
+      (typeof gpuLayersArg === "string" &&
+        gpuLayersArg.trim().toLowerCase() === "auto"))
+  ) {
+    warnings.push(
+      "GPU layers are set to upstream auto; the estimate uses full offload as a conservative upper bound. Set --n-gpu-layers explicitly for exact placement.",
+    );
+  }
   const placement = buildPlacement(model, context);
   const layerAll = (model.hparams.blockCount ?? 0) + 1;
 
@@ -336,6 +370,23 @@ function accumulateModel(
     weightsBytes += tensor.bytes;
   }
 
+  const outputWeight = model.tensors.tensors.find(
+    (tensor) => tensor.name === "output.weight",
+  );
+  const tokenEmbedding = model.tensors.tensors.find(
+    (tensor) => tensor.name === "token_embd.weight",
+  );
+  if (placement.usesGpu && !outputWeight && tokenEmbedding) {
+    ensure(placement.layerDevice(layerAll - 1)).weightsBytes +=
+      tokenEmbedding.bytes;
+    weightsBytes += tokenEmbedding.bytes;
+    warnings.push(
+      `Tied output embedding: llama.cpp keeps token_embd.weight on the host and duplicates ~${mib(
+        tokenEmbedding.bytes,
+      )} MiB on the output GPU because output.weight is absent.`,
+    );
+  }
+
   const kv = estimateKvCache(model, context, warnings);
   for (const [layer, bytes] of kv.bytesByLayer) {
     const device = context.offloadKqv
@@ -344,11 +395,13 @@ function accumulateModel(
     ensure(device).kvBytes += bytes;
   }
 
-  const computeBytes = estimateComputeBytes(model, context);
+  const compute = estimateComputeReservation(model, context, placement.usesGpu);
+  const computeBytes = compute.primaryBytes + compute.hostBytes;
   const computePoolId = placement.usesGpu
     ? placement.layerDevice(layerAll - 1)
     : placement.hostPoolId;
-  ensure(computePoolId).computeBytes += computeBytes;
+  ensure(computePoolId).computeBytes += compute.primaryBytes;
+  ensure(placement.hostPoolId).computeBytes += compute.hostBytes;
 
   return { context, placement, kv, computeBytes, weightsBytes, layerAll };
 }
@@ -381,6 +434,8 @@ function remapDraftArgs(args: MemoryEstimateArgs): MemoryEstimateArgs {
   copy("--batch-size", ["--batch-size", "-b"]);
   copy("--ubatch-size", ["--ubatch-size", "-ub"]);
   copy("--flash-attn", ["--flash-attn", "-fa"]);
+  copy("--kv-unified", ["--kv-unified", "-kvu"]);
+  copy("--no-kv-offload", ["--no-kv-offload", "-nkvo"]);
   copy("--n-gpu-layers", [
     "--spec-draft-ngl",
     "-ngld",
@@ -389,6 +444,13 @@ function remapDraftArgs(args: MemoryEstimateArgs): MemoryEstimateArgs {
   ]);
   copy("--cache-type-k", ["--spec-draft-type-k"]);
   copy("--cache-type-v", ["--spec-draft-type-v"]);
+  copy("--cpu-moe", ["--spec-draft-cpu-moe", "-cmoed", "--cpu-moe-draft"]);
+  copy("--n-cpu-moe", [
+    "--spec-draft-n-cpu-moe",
+    "--spec-draft-ncmoe",
+    "-ncmoed",
+    "--n-cpu-moe-draft",
+  ]);
   return draft;
 }
 
@@ -465,7 +527,7 @@ export function estimateInstanceMemory(
 
   if (placement.usesGpu || draftUsesGpu || mmprojOnGpu) {
     warnings.push(
-      "GPU placement (split, compute attribution, CUDA-context overhead) is source-derived and not yet validated on hardware.",
+      "GPU placement is calibrated against one-device CUDA; backend-specific allocations, multi-GPU splits, and the fixed context overhead remain conservative approximations.",
     );
   }
 
@@ -541,18 +603,89 @@ type KvEstimate = {
   recurrentBytes: number;
   recurrentModeled: boolean;
   mla: boolean;
+  mlaModeled: boolean;
   swa: boolean;
   recurrent: boolean;
+  cacheless: boolean;
 };
+
+const CACHELESS_ARCHITECTURES = new Set([
+  "bert",
+  "dream",
+  "eurobert",
+  "gemma-embedding",
+  "jina-bert-v2",
+  "jina-bert-v3",
+  "llada",
+  "llada-moe",
+  "modern-bert",
+  "neo-bert",
+  "nomic-bert",
+  "nomic-bert-moe",
+  "rnd1",
+  "wavtokenizer-dec",
+]);
+
+const DEFAULT_SWA_PERIOD: Readonly<Record<string, number>> = {
+  gemma2: 2,
+  gemma3: 6,
+  gemma3n: 5,
+  "gpt-oss": 2,
+};
+
+function isCachelessModel(input: MemoryEstimateInput): boolean {
+  const architecture = input.hparams.architecture?.toLowerCase() ?? "";
+  if (CACHELESS_ARCHITECTURES.has(architecture)) {
+    return true;
+  }
+  const attention = argString(input.args, ["--attention"])?.toLowerCase();
+  if (attention === "non-causal") {
+    return true;
+  }
+  if (attention === "causal") {
+    return false;
+  }
+  return input.hparams.causalAttention === false;
+}
+
+function isSwaLayer(
+  hparams: MemoryEstimateHparams,
+  layer: number,
+): boolean | null {
+  const configured = hparams.slidingWindowPattern;
+  if (Array.isArray(configured)) {
+    return configured[layer] ?? false;
+  }
+  const architecture = hparams.architecture?.toLowerCase() ?? "";
+  const period =
+    typeof configured === "number"
+      ? configured
+      : DEFAULT_SWA_PERIOD[architecture];
+  if (period === undefined) {
+    return null;
+  }
+  return period === 0 || layer % period < period - 1;
+}
 
 function recurrentStateBytesPerLayer(
   hparams: MemoryEstimateHparams,
   nSeqMax: number,
 ): number | null {
+  const nEmbd = hparams.embeddingLength;
+  const wkvHeadSize = hparams.wkvHeadSize;
+  if (nEmbd !== null && wkvHeadSize !== null && wkvHeadSize > 0) {
+    const tokenShiftCount = hparams.tokenShiftCount ?? 2;
+    const nEmbdR = tokenShiftCount * nEmbd;
+    const nEmbdS = nEmbd * wkvHeadSize;
+    return (nEmbdR + nEmbdS) * F32_BYTES * nSeqMax;
+  }
+
   const dConv = hparams.ssmConvKernel;
   const dInner = hparams.ssmInnerSize;
   const dState = hparams.ssmStateSize;
-  const nGroup = hparams.ssmGroupCount;
+  const nGroup =
+    hparams.ssmGroupCount ??
+    (hparams.architecture?.toLowerCase() === "mamba" ? 0 : null);
   if (
     dConv === null ||
     dInner === null ||
@@ -573,11 +706,9 @@ function estimateKvCache(
   context: ResolvedContextParams,
   warnings: string[],
 ): KvEstimate {
-  const typeKId = cacheTypeId(context.typeK);
-  const typeVId = cacheTypeId(context.typeV);
-  if (typeKId === null || typeVId === null) {
+  if (isCachelessModel(input)) {
     warnings.push(
-      `Unknown cache type (${context.typeK}/${context.typeV}); KV cache not estimated.`,
+      "Non-causal encoder/classifier: llama.cpp allocates no persistent KV cache; compute is estimated from the activation width.",
     );
     return {
       bytesByLayer: new Map(),
@@ -587,13 +718,17 @@ function estimateKvCache(
       recurrentBytes: 0,
       recurrentModeled: false,
       mla: false,
+      mlaModeled: false,
       swa: false,
       recurrent: false,
+      cacheless: true,
     };
   }
 
   const kBy = new Map<number, number>();
   const vBy = new Map<number, number>();
+  const fusedLayers = new Set<number>();
+  const mlaLayers = new Set<number>();
   const recurrentLayers = new Set<number>();
   let mla = false;
   let recurrent = false;
@@ -616,7 +751,58 @@ function estimateKvCache(
     const vMatch = ATTN_V_PATTERN.exec(tensor.name);
     if (vMatch) {
       vBy.set(Number(vMatch[1]), kvGeometryDim(tensor));
+      continue;
     }
+    const qkvMatch = ATTN_QKV_PATTERN.exec(tensor.name);
+    if (qkvMatch) {
+      fusedLayers.add(Number(qkvMatch[1]));
+      continue;
+    }
+    const mlaMatch = ATTN_KV_A_MQA_PATTERN.exec(tensor.name);
+    if (mlaMatch) {
+      mlaLayers.add(Number(mlaMatch[1]));
+    }
+  }
+
+  const nHead = input.hparams.headCount ?? 0;
+  const nHeadKv = input.hparams.headCountKv ?? nHead;
+  const defaultHeadLength =
+    nHead > 0 ? Math.floor((input.hparams.embeddingLength ?? 0) / nHead) : 0;
+  const keyLength = input.hparams.attentionKeyLength ?? defaultHeadLength;
+  const valueLength = input.hparams.attentionValueLength ?? defaultHeadLength;
+  const fusedKDim = keyLength * nHeadKv;
+  const fusedVDim = valueLength * nHeadKv;
+  for (const layer of fusedLayers) {
+    if (!recurrentLayers.has(layer) && !kBy.has(layer) && fusedKDim > 0) {
+      kBy.set(layer, fusedKDim);
+      vBy.set(layer, fusedVDim);
+    }
+  }
+
+  const compressedMla =
+    (input.hparams.attentionKeyLengthMla ?? 0) > 0 &&
+    (input.hparams.attentionValueLengthMla ?? 0) > 0;
+  const mlaModeled = mlaLayers.size === 0 || fusedKDim > 0;
+  for (const layer of mlaLayers) {
+    if (!kBy.has(layer) && fusedKDim > 0) {
+      kBy.set(layer, fusedKDim);
+      if (!compressedMla) {
+        vBy.set(layer, fusedVDim);
+      }
+    }
+  }
+
+  const typeKId = cacheTypeId(context.typeK);
+  const typeVId = cacheTypeId(context.typeV);
+  if (
+    (kBy.size > 0 || vBy.size > 0) &&
+    (typeKId === null || typeVId === null)
+  ) {
+    warnings.push(
+      `Unknown cache type (${context.typeK}/${context.typeV}); attention KV cache not estimated.`,
+    );
+    kBy.clear();
+    vBy.clear();
   }
 
   const blockCount = input.hparams.blockCount ?? kBy.size;
@@ -644,17 +830,25 @@ function estimateKvCache(
     if (layer >= uniqueLayers) {
       continue;
     }
-    const isSwa = swaWindow !== null && kDim < maxKDim;
+    const swaFromPattern = isSwaLayer(input.hparams, layer);
+    const isSwa =
+      swaWindow !== null &&
+      (swaFromPattern === true || (swaFromPattern === null && kDim < maxKDim));
     if (isSwa) {
       swaModeled = true;
     }
     const size = isSwa ? swaSize : globalSize;
     const stream = isSwa ? 1 : globalStream;
-    const kBytes = (ggmlRowSizeBytes(typeKId, kDim) ?? 0) * size * stream;
+    const kBytes =
+      (typeKId === null ? 0 : (ggmlRowSizeBytes(typeKId, kDim) ?? 0)) *
+      size *
+      stream;
     const vDim = vBy.get(layer);
     const vBytes =
       vDim !== undefined
-        ? (ggmlRowSizeBytes(typeVId, vDim) ?? 0) * size * stream
+        ? (typeVId === null ? 0 : (ggmlRowSizeBytes(typeVId, vDim) ?? 0)) *
+          size *
+          stream
         : 0;
     const layerBytes = kBytes + vBytes;
     bytesByLayer.set(layer, layerBytes);
@@ -678,9 +872,15 @@ function estimateKvCache(
     totalBytes += recurrentBytes;
   }
 
-  if (mla && kBy.size === 0) {
+  if (mla && !mlaModeled) {
     warnings.push(
-      "Model uses MLA attention; KV cache is not modeled yet (estimate omits it).",
+      "Model uses MLA attention but its key/value head lengths are missing; the attention cache is not modeled.",
+    );
+  } else if (mla) {
+    warnings.push(
+      `MLA attention: ${kBy.size} layers use metadata-derived ${
+        compressedMla ? "compressed K-only" : "legacy K/V"
+      } cache geometry.`,
     );
   }
   if (recurrent && !recurrentModeled) {
@@ -690,7 +890,9 @@ function estimateKvCache(
   } else if (recurrentModeled) {
     const mib = Math.round(recurrentBytes / (1024 * 1024));
     warnings.push(
-      `Hybrid architecture: ${kBy.size} attention + ${recurrentLayers.size} recurrent layers; recurrent state cache (~${mib} MiB at --parallel ${context.nSeqMax}) is included and scales with --parallel.`,
+      kBy.size > 0
+        ? `Hybrid architecture: ${kBy.size} attention + ${recurrentLayers.size} recurrent layers; recurrent state cache (~${mib} MiB at --parallel ${context.nSeqMax}) is included and scales with --parallel.`
+        : `Recurrent architecture: ${recurrentLayers.size} layers use a context-independent state cache (~${mib} MiB at --parallel ${context.nSeqMax}) that scales with --parallel.`,
     );
   } else if (kBy.size > 0 && kBy.size < blockCount) {
     warnings.push(
@@ -724,8 +926,69 @@ function estimateKvCache(
     recurrentBytes,
     recurrentModeled,
     mla,
+    mlaModeled,
     swa: input.hparams.slidingWindow !== null,
     recurrent,
+    cacheless: false,
+  };
+}
+
+const ACTIVATION_WIDTH_PATTERN =
+  /^blk\.\d+\.ffn_(?:up|gate|gate_up)(?:_(?:ch)?exps)?\.weight$/;
+
+function estimateComputeReservation(
+  input: MemoryEstimateInput,
+  context: ResolvedContextParams,
+  usesGpu = false,
+): { primaryBytes: number; hostBytes: number } {
+  const nVocab = input.hparams.vocabularySize ?? 0;
+  const nEmbd = input.hparams.embeddingLength ?? 0;
+  let activationWidth = nEmbd;
+  for (const tensor of input.tensors.tensors) {
+    if (ACTIVATION_WIDTH_PATTERN.test(tensor.name)) {
+      activationWidth = Math.max(
+        activationWidth,
+        tensor.dims[1] ?? tensor.dims[0] ?? 0,
+      );
+    }
+  }
+  const logits = isCachelessModel(input)
+    ? 0
+    : nVocab * context.nUbatch * F32_BYTES;
+  const hasClassifier = input.tensors.tensors.some((tensor) =>
+    /^(cls|classifier)\./.test(tensor.name),
+  );
+  const activation =
+    activationWidth *
+    context.nUbatch *
+    F32_BYTES *
+    (isCachelessModel(input) && hasClassifier ? 2 : 1);
+
+  let mlaHostStaging = 0;
+  const usesMla = input.tensors.tensors.some((tensor) =>
+    MLA_PATTERN.test(tensor.name),
+  );
+  const typeKId = cacheTypeId(context.typeK);
+  const f16TypeId = cacheTypeId(DEFAULT_CACHE_TYPE);
+  if (
+    usesGpu &&
+    context.offloadKqv &&
+    usesMla &&
+    typeKId !== null &&
+    (context.flashAttn || typeKId !== f16TypeId)
+  ) {
+    const nHead = input.hparams.headCount ?? 0;
+    const nHeadKv = input.hparams.headCountKv ?? nHead;
+    const defaultHeadLength = nHead > 0 ? Math.floor(nEmbd / nHead) : 0;
+    const keyLength = input.hparams.attentionKeyLength ?? defaultHeadLength;
+    const keyWidth = keyLength * nHeadKv;
+    const keyRowBytes = ggmlRowSizeBytes(typeKId, keyWidth) ?? 0;
+    mlaHostStaging = 2 * keyRowBytes * context.nCtxSeq;
+  }
+
+  return {
+    primaryBytes: logits + activation + (mlaHostStaging > 0 ? activation : 0),
+    hostBytes: mlaHostStaging > 0 ? mlaHostStaging : activation,
   };
 }
 
@@ -733,11 +996,8 @@ export function estimateComputeBytes(
   input: MemoryEstimateInput,
   context: ResolvedContextParams,
 ): number {
-  const nVocab = input.hparams.vocabularySize ?? 0;
-  const nEmbd = input.hparams.embeddingLength ?? 0;
-  const logits = nVocab * context.nUbatch * F32_BYTES;
-  const activation = nEmbd * context.nUbatch * F32_BYTES;
-  return logits + activation;
+  const estimate = estimateComputeReservation(input, context);
+  return estimate.primaryBytes + estimate.hostBytes;
 }
 
 function resolveConfidence(
@@ -747,13 +1007,13 @@ function resolveConfidence(
   kv: KvEstimate,
   warnings: string[],
 ): MemoryEstimateConfidence {
-  if (kv.mla) {
+  if (kv.mla && !kv.mlaModeled) {
     return "low";
   }
   if (kv.recurrent && !kv.recurrentModeled) {
     return "low";
   }
-  if (kv.kvLayerCount === 0 && !kv.recurrentModeled) {
+  if (kv.kvLayerCount === 0 && !kv.recurrentModeled && !kv.cacheless) {
     return "low";
   }
   if (kv.swa || placement.usesGpu || kv.recurrentModeled) {

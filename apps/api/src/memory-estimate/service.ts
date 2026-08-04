@@ -4,6 +4,7 @@ import {
   argNumber,
   argString,
   parseCudaVisibleDevices,
+  parseDeviceTokens,
   MemoryEstimateSchema,
   type InstanceArgs,
   type MemoryEstimate,
@@ -23,13 +24,55 @@ export type MemoryEstimateResolution =
   | { ok: true; modelPath: string; estimate: MemoryEstimate }
   | { ok: false; reason: string };
 
-function poolsForEstimate(): MemoryEstimatePoolInput[] {
-  return listMemoryPools().map((pool) => {
+function poolsForEstimate(
+  args: MemoryEstimateArgs,
+  env: Record<string, string>,
+): MemoryEstimatePoolInput[] {
+  const cuda = parseCudaVisibleDevices(env.CUDA_VISIBLE_DEVICES);
+  const deviceTokens = parseDeviceTokens(args);
+  const explicitCuda = deviceTokens.flatMap((token) => {
+    const match = /^cuda(\d+)$/i.exec(token);
+    return match?.[1] === undefined ? [] : [Number(match[1])];
+  });
+  const deviceDisablesGpu = deviceTokens.some(
+    (token) => token.toLowerCase() === "none",
+  );
+  const allPools = listMemoryPools();
+  const allGpu = allPools
+    .filter((pool) => pool.kind === "gpu")
+    .sort(
+      (left, right) =>
+        Number(left.deviceRef ?? Number.MAX_SAFE_INTEGER) -
+        Number(right.deviceRef ?? Number.MAX_SAFE_INTEGER),
+    );
+  const visibleGpu =
+    cuda.mode === "list"
+      ? cuda.ids.flatMap((id) => {
+          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+          return pool ? [pool] : [];
+        })
+      : cuda.mode === "none" || deviceDisablesGpu
+        ? []
+        : allGpu;
+  const selectedGpu =
+    explicitCuda.length > 0
+      ? explicitCuda.flatMap((index) => visibleGpu[index] ?? [])
+      : visibleGpu;
+  const gpuOrder = new Map(
+    selectedGpu.map((pool, index) => [pool.id, index] as const),
+  );
+
+  return allPools.flatMap((pool) => {
+    if (pool.kind === "gpu" && !gpuOrder.has(pool.id)) {
+      return [];
+    }
     const deviceIndex =
-      pool.deviceRef !== null && Number.isFinite(Number(pool.deviceRef))
-        ? Number(pool.deviceRef)
-        : null;
-    return { id: pool.id, kind: pool.kind, deviceIndex };
+      pool.kind === "gpu"
+        ? (gpuOrder.get(pool.id) ?? null)
+        : pool.deviceRef !== null && Number.isFinite(Number(pool.deviceRef))
+          ? Number(pool.deviceRef)
+          : null;
+    return [{ id: pool.id, kind: pool.kind, deviceIndex }];
   });
 }
 
@@ -178,13 +221,21 @@ function hparamsFromGguf(modelPath: string): MemoryEstimateHparams {
     embeddingLength: metadata.embeddingLength,
     headCount: metadata.headCount,
     headCountKv: metadata.headCountKv,
+    attentionKeyLength: metadata.attentionKeyLength,
+    attentionValueLength: metadata.attentionValueLength,
+    attentionKeyLengthMla: metadata.attentionKeyLengthMla,
+    attentionValueLengthMla: metadata.attentionValueLengthMla,
+    causalAttention: metadata.causalAttention,
     contextLength: metadata.contextLength,
     slidingWindow: metadata.slidingWindow,
+    slidingWindowPattern: metadata.slidingWindowPattern,
     sharedKvLayers: metadata.sharedKvLayers,
     ssmConvKernel: metadata.ssmConvKernel,
     ssmGroupCount: metadata.ssmGroupCount,
     ssmInnerSize: metadata.ssmInnerSize,
     ssmStateSize: metadata.ssmStateSize,
+    wkvHeadSize: metadata.wkvHeadSize,
+    tokenShiftCount: metadata.tokenShiftCount,
     vocabularySize: metadata.vocabularySize,
   };
 }
@@ -262,7 +313,7 @@ export function estimateMemory(
       tensors: readGgufModelTensorTable(modelPath),
       hparams: hparamsFromGguf(modelPath),
       args,
-      pools: poolsForEstimate(),
+      pools: poolsForEstimate(args, env),
       ...(mmprojPath
         ? { mmproj: { tensors: readGgufModelTensorTable(mmprojPath) } }
         : {}),
