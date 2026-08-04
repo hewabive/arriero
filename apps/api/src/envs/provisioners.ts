@@ -1,10 +1,8 @@
 import type {
   EnvironmentEngine,
-  EnvironmentRepositorySettings,
   EnvironmentSpec,
   SystemAccelerator,
 } from "@arriero/core";
-import { packageIndexInstallOptions } from "@arriero/core";
 import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,10 +25,7 @@ export type EnvironmentProvisioner = {
   entrypointRelative: string;
   distributions: readonly string[];
   requirements(spec: EnvironmentSpec): string[];
-  installOptions(
-    spec: EnvironmentSpec,
-    repositories: EnvironmentRepositorySettings,
-  ): string[];
+  installOptions(spec: EnvironmentSpec): string[];
   validationCommand(spec: EnvironmentSpec, finalDir: string): string[];
   validateLayout(spec: EnvironmentSpec, finalDir: string): string | null;
   availability(
@@ -136,14 +131,12 @@ const VLLM_PROVISIONER: EnvironmentProvisioner = {
       : "";
     return [`vllm${extras}==${spec.version}`];
   },
-  installOptions(spec, repositories) {
+  installOptions(spec) {
     if (spec.engine !== "vllm")
       throw new Error("vLLM provisioner kind mismatch");
-    const options = packageIndexInstallOptions(repositories.packageIndexUrl);
-    if (spec.source.kind === "wheel" && spec.source.torchBackend) {
-      options.push("--torch-backend", spec.source.torchBackend);
-    }
-    return options;
+    return spec.source.kind === "wheel" && spec.source.torchBackend
+      ? ["--torch-backend", spec.source.torchBackend]
+      : [];
   },
   validationCommand(spec, finalDir) {
     if (spec.engine !== "vllm")
@@ -199,15 +192,13 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       return wheelRequirement(artifact.url, artifact.sha256);
     });
   },
-  installOptions(spec, repositories) {
+  installOptions(spec) {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
     }
-    const options = packageIndexInstallOptions(repositories.packageIndexUrl);
-    if (spec.source.kind === "wheels" && spec.source.torchBackend) {
-      options.push("--torch-backend", spec.source.torchBackend);
-    }
-    return options;
+    return spec.source.kind === "wheels" && spec.source.torchBackend
+      ? ["--torch-backend", spec.source.torchBackend]
+      : [];
   },
   validationCommand(spec, finalDir) {
     if (spec.engine !== "ktransformers") {

@@ -6,10 +6,11 @@ import type {
   BuildSettings,
 } from "@arriero/core";
 import { existsSync, mkdirSync, rmSync, type WriteStream } from "node:fs";
-import { delimiter, dirname, parse, resolve, sep } from "node:path";
+import { delimiter, dirname, parse, resolve } from "node:path";
 import { homedir } from "node:os";
 
 import { config } from "../config.js";
+import { isPathWithin } from "../path-utils.js";
 import {
   getLlamaSourceCurrentCommit,
   listLlamaSourceRefs,
@@ -79,11 +80,7 @@ function hasCmakeDefinition(args: string[], name: string) {
   );
 }
 
-function cmakeDefinitionIfMissing(
-  args: string[],
-  name: string,
-  value: string,
-) {
+function cmakeDefinitionIfMissing(args: string[], name: string, value: string) {
   return hasCmakeDefinition(args, name) ? [] : [`-D${name}=${value}`];
 }
 
@@ -295,10 +292,6 @@ export function commandCwd(
   return config.rootDir;
 }
 
-function isPathInside(parent: string, child: string) {
-  return child.startsWith(`${parent}${sep}`);
-}
-
 export function validateBuildDirectoryCleanTarget(settings: BuildSettings) {
   const buildDir = resolve(settings.buildDir);
   const repoPath = resolve(settings.repoPath);
@@ -316,7 +309,7 @@ export function validateBuildDirectoryCleanTarget(settings: BuildSettings) {
   if (buildDir === repoPath) {
     throw new Error("refusing to clean llama.cpp repository directory");
   }
-  if (buildDir === parentOfRepo || isPathInside(buildDir, repoPath)) {
+  if (buildDir === parentOfRepo || isPathWithin(buildDir, repoPath)) {
     throw new Error("refusing to clean a parent directory of llama.cpp");
   }
   if (parent === root || parent === home) {

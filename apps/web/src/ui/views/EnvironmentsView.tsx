@@ -121,14 +121,9 @@ export function EnvironmentsView() {
   const repositoriesMutation = useMutation({
     mutationFn: updateEnvironmentRepositorySettings,
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["environment-repository-settings"],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["environment-index-versions"],
-        }),
-      ]);
+      await queryClient.invalidateQueries({
+        queryKey: ["environment-repository-settings"],
+      });
       notifications.show({
         title: "Python repositories saved",
         message: "New installs and rebuilds will use the updated site profile.",
@@ -149,6 +144,7 @@ export function EnvironmentsView() {
       {repositories && (
         <>
           <EnvironmentRepositorySettingsForm
+            key={`${repositories.packageIndexUrl ?? ""}|${repositories.pythonMirrorUrl ?? ""}`}
             settings={repositories}
             running={running}
             saving={repositoriesMutation.isPending}

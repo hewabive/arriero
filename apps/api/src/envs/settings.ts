@@ -5,10 +5,12 @@ import {
 
 import { readSettings, writeSettings } from "../settings/store.js";
 
+const DEFAULT_REPOSITORY_SETTINGS = EnvironmentRepositorySettingsSchema.parse(
+  {},
+);
+
 export function getEnvironmentRepositorySettings(): EnvironmentRepositorySettings {
-  return EnvironmentRepositorySettingsSchema.parse(
-    readSettings().environments ?? {},
-  );
+  return readSettings().environments ?? DEFAULT_REPOSITORY_SETTINGS;
 }
 
 export function saveEnvironmentRepositorySettings(

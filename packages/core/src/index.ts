@@ -2170,29 +2170,41 @@ function credentialFreeUrl(value: string) {
   }
 }
 
-const EnvironmentPackageIndexUrlSchema = z
-  .string()
-  .url()
-  .refine((value) => {
-    try {
-      return ["http:", "https:"].includes(new URL(value).protocol);
-    } catch {
-      return false;
-    }
-  }, "package index URL must use HTTP or HTTPS")
-  .refine(credentialFreeUrl, "package index URL must not contain credentials");
+function credentialFreeUrlSchema(
+  label: string,
+  protocols: string[],
+  protocolsLabel: string,
+) {
+  return z
+    .string()
+    .url()
+    .refine((value) => {
+      try {
+        return protocols.includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    }, `${label} must use ${protocolsLabel}`)
+    .refine(credentialFreeUrl, `${label} must not contain credentials`);
+}
 
-const EnvironmentPythonMirrorUrlSchema = z
-  .string()
-  .url()
-  .refine((value) => {
-    try {
-      return ["file:", "http:", "https:"].includes(new URL(value).protocol);
-    } catch {
-      return false;
-    }
-  }, "Python mirror URL must use file, HTTP, or HTTPS")
-  .refine(credentialFreeUrl, "Python mirror URL must not contain credentials");
+const EnvironmentPackageIndexUrlSchema = credentialFreeUrlSchema(
+  "package index URL",
+  ["http:", "https:"],
+  "HTTP or HTTPS",
+);
+
+const EnvironmentPythonMirrorUrlSchema = credentialFreeUrlSchema(
+  "Python mirror URL",
+  ["file:", "http:", "https:"],
+  "file, HTTP, or HTTPS",
+);
+
+const EnvironmentWheelUrlSchema = credentialFreeUrlSchema(
+  "wheel URL",
+  ["file:", "http:", "https:"],
+  "file, HTTP, or HTTPS",
+);
 
 export const EnvironmentRepositorySettingsSchema = z.object({
   packageIndexUrl: EnvironmentPackageIndexUrlSchema.nullable().default(null),
@@ -2206,17 +2218,7 @@ export const VllmEnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("wheel"),
-    url: z
-      .string()
-      .url()
-      .refine((value) => {
-        try {
-          return ["file:", "http:", "https:"].includes(new URL(value).protocol);
-        } catch {
-          return false;
-        }
-      }, "wheel URL must use file, HTTP, or HTTPS")
-      .refine(credentialFreeUrl, "wheel URL must not contain credentials"),
+    url: EnvironmentWheelUrlSchema,
     sha256: z
       .string()
       .regex(/^[a-f0-9]{64}$/i)
@@ -2235,17 +2237,7 @@ export const VllmEnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
 
 export const KTransformersWheelArtifactSchema = z.object({
   distribution: z.enum(["kt-kernel", "sglang-kt"]),
-  url: z
-    .string()
-    .url()
-    .refine((value) => {
-      try {
-        return ["file:", "http:", "https:"].includes(new URL(value).protocol);
-      } catch {
-        return false;
-      }
-    }, "wheel URL must use file, HTTP, or HTTPS")
-    .refine(credentialFreeUrl, "wheel URL must not contain credentials"),
+  url: EnvironmentWheelUrlSchema,
   sha256: z
     .string()
     .regex(/^[a-f0-9]{64}$/i)
@@ -2465,6 +2457,7 @@ export const UvToolStatusSchema = z.object({
   available: z.boolean(),
   path: z.string().nullable(),
   version: z.string().nullable(),
+  reason: z.string().nullable(),
 });
 
 export const AppRunModeSchema = z.enum(["serve", "dev", "unknown"]);

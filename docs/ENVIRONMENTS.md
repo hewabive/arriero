@@ -54,7 +54,10 @@ Diagnostics reports the installed uv version; the configured mirror must cover t
 consumer version.
 
 Every uv invocation uses `--no-config`, so a user-level `uv.toml` cannot alter
-resolution. The runner also removes inherited `UV_*` policy variables such as extra
+resolution. The enforcing layer is `UV_NO_CONFIG=1` in the runner's child-process
+environment, which covers every uv child unconditionally; the per-command
+`--no-config` flag is kept so recorded step commands stay reproducible when replayed
+outside the runner. The runner also removes inherited `UV_*` policy variables such as extra
 indexes, find-links, offline mode, and Python catalog/mirror overrides. Authentication
 variables, certificate/TLS settings, proxies, and HTTP timeout/retry settings remain
 available to the child process. Arriero owns the interpreter store and uv cache under

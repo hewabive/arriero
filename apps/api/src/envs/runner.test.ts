@@ -73,10 +73,7 @@ test("environment uv commands ignore inherited topology but retain transport and
 function repositorySettings(
   input: Partial<EnvironmentRepositorySettings>,
 ): EnvironmentRepositorySettings {
-  return EnvironmentRepositorySettingsSchema.parse({
-    ...ONLINE_REPOSITORIES,
-    ...input,
-  });
+  return EnvironmentRepositorySettingsSchema.parse(input);
 }
 
 function ktransformersSpec(source: unknown) {
@@ -354,7 +351,7 @@ test("local wheel hash mismatch fails before package installation", async () => 
   const previousPath = process.env.PATH;
   process.env.PATH = `${fakeBin}${delimiter}${previousPath ?? ""}`;
   try {
-    const started = environmentRunner.start(environment);
+    const started = environmentRunner.start(environment, uv);
     let job = getEnvironmentJob(started.id);
     for (
       let attempt = 0;
@@ -455,7 +452,7 @@ test("failed matched-root install removes KTransformers staging transaction", as
   const previousPath = process.env.PATH;
   process.env.PATH = `${fakeBin}${delimiter}${previousPath ?? ""}`;
   try {
-    const started = environmentRunner.start(environment);
+    const started = environmentRunner.start(environment, uv);
     let job = getEnvironmentJob(started.id);
     for (
       let attempt = 0;
@@ -512,7 +509,7 @@ test("canceling KTransformers install removes staging and publishes nothing", as
   const previousPath = process.env.PATH;
   process.env.PATH = `${fakeBin}${delimiter}${previousPath ?? ""}`;
   try {
-    const started = environmentRunner.start(environment);
+    const started = environmentRunner.start(environment, uv);
     let job = getEnvironmentJob(started.id);
     for (
       let attempt = 0;

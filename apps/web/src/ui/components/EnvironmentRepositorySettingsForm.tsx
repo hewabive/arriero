@@ -8,7 +8,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 export function EnvironmentRepositorySettingsForm({
   settings,
@@ -28,19 +28,6 @@ export function EnvironmentRepositorySettingsForm({
     settings.pythonMirrorUrl ?? "",
   );
 
-  useEffect(() => {
-    setPackageIndexUrl(settings.packageIndexUrl ?? "");
-    setPythonMirrorUrl(settings.pythonMirrorUrl ?? "");
-  }, [settings]);
-
-  const value = useMemo<EnvironmentRepositorySettings>(
-    () => ({
-      packageIndexUrl: packageIndexUrl.trim() || null,
-      pythonMirrorUrl: pythonMirrorUrl.trim() || null,
-    }),
-    [packageIndexUrl, pythonMirrorUrl],
-  );
-
   return (
     <Paper withBorder p="md">
       <Group justify="space-between" mb="md">
@@ -55,7 +42,12 @@ export function EnvironmentRepositorySettingsForm({
           size="xs"
           loading={saving}
           disabled={running}
-          onClick={() => onSave(value)}
+          onClick={() =>
+            onSave({
+              packageIndexUrl: packageIndexUrl.trim() || null,
+              pythonMirrorUrl: pythonMirrorUrl.trim() || null,
+            })
+          }
         >
           Save repositories
         </Button>

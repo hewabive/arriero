@@ -335,28 +335,22 @@ export function uvInstallCommands(
   return [UV_STANDALONE_INSTALL_COMMAND];
 }
 
+const uvExecutableProbe = executableProbe(["uv"]);
+
 async function uvPrerequisiteProbe(
   context: PrerequisiteProbeContext,
 ): Promise<PrerequisiteProbeOutcome> {
-  const probe = await probeAnyExecutable(["uv"], {
-    env: context.env,
-    extraDirectories: context.searchDirectories,
-    versionArgs: ["--version"],
-  });
-  if (!probe.found) {
-    return { status: "missing", detail: null, version: null };
-  }
-  if (!probe.version || !isSupportedUvVersionOutput(probe.version)) {
-    return {
-      status: "missing",
-      detail: `${probe.found}; Python environments require uv >=${ENVIRONMENT_UV_MIN_VERSION}`,
-      version: probe.version,
-    };
+  const outcome = await uvExecutableProbe(context);
+  if (
+    outcome.status === "missing" ||
+    (outcome.version !== null && isSupportedUvVersionOutput(outcome.version))
+  ) {
+    return outcome;
   }
   return {
-    status: probe.inPath ? "ok" : "out-of-path",
-    detail: probe.found,
-    version: probe.version,
+    status: "missing",
+    detail: `${outcome.detail}; Python environments require uv >=${ENVIRONMENT_UV_MIN_VERSION}`,
+    version: outcome.version,
   };
 }
 

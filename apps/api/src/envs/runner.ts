@@ -5,6 +5,7 @@ import type {
   EnvironmentRepositorySettings,
   EnvironmentSpec,
 } from "@arriero/core";
+import { packageIndexInstallOptions } from "@arriero/core";
 import { createHash } from "node:crypto";
 import {
   createReadStream,
@@ -37,7 +38,6 @@ import {
   updateEnvironmentJob,
 } from "./repository.js";
 import { getEnvironmentRepositorySettings } from "./settings.js";
-import { findSupportedUv, uvCompatibilityError } from "./uv.js";
 
 type LocalWheelArtifact = {
   path: string;
@@ -132,10 +132,7 @@ async function verifyLocalWheelArtifacts(
 export function environmentJobSteps(
   spec: EnvironmentSpec,
   uv: string,
-  repositories: EnvironmentRepositorySettings = {
-    packageIndexUrl: null,
-    pythonMirrorUrl: null,
-  },
+  repositories: EnvironmentRepositorySettings,
 ): EnvironmentJobStep[] {
   const staging = environmentStagingDirectory(spec);
   const final = environmentDirectory(spec);
@@ -149,7 +146,8 @@ export function environmentJobSteps(
     "--python",
     python,
     ...provisioner.requirements(spec),
-    ...provisioner.installOptions(spec, repositories),
+    ...packageIndexInstallOptions(repositories.packageIndexUrl),
+    ...provisioner.installOptions(spec),
   ];
   const step = (
     name: EnvironmentJobStepName,
@@ -222,16 +220,13 @@ class EnvironmentRunner {
     return this.running?.environmentId ?? null;
   }
 
-  start(spec: EnvironmentSpec): EnvironmentJob {
+  start(spec: EnvironmentSpec, uv: string): EnvironmentJob {
     if (
       this.running &&
       getEnvironmentJob(this.running.jobId)?.status === "running"
     ) {
       throw new Error("another environment installation is already running");
     }
-    const uv = findSupportedUv();
-    if (!uv)
-      throw new Error(uvCompatibilityError() ?? "supported uv was not found");
     const repositories = getEnvironmentRepositorySettings();
     const finalDir = environmentDirectory(spec);
     if (existsSync(finalDir))
