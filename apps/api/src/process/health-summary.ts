@@ -9,6 +9,7 @@ import {
 } from "@arriero/core";
 
 import { engineProbe } from "./engine-probe.js";
+import { evaluateInstanceMemoryAssessment } from "../memory-assessment/service.js";
 import {
   hasLaunchSnapshotDrift,
   parseLaunchSnapshot,
@@ -381,6 +382,13 @@ export async function getInstanceHealthSummary(
     swapBytes,
     numaPlacement,
   });
+  const configDrift = detectConfigDrift(instance, runtime, latestRun);
+  const memoryAssessment = evaluateInstanceMemoryAssessment(
+    instance,
+    runtime.status === "running" && logSummary.ready && !configDrift
+      ? logSummary.memoryLayout
+      : undefined,
+  );
 
   return {
     instanceId: instance.name,
@@ -392,7 +400,8 @@ export async function getInstanceHealthSummary(
     llama,
     logSummary,
     promptCache: promptCacheTracker.get(instance.name),
-    configDrift: detectConfigDrift(instance, runtime, latestRun),
+    configDrift,
+    ...(memoryAssessment ? { memoryAssessment } : {}),
     swapBytes,
     numaPlacement,
     checkedAt: nowIso(),

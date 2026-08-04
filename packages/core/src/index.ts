@@ -1,11 +1,13 @@
 import { z } from "zod";
 
 import { INSTANCE_KINDS, type InstanceKind } from "./engine-descriptor.js";
+import { MemoryAssessmentSummarySchema } from "./memory-assessment.js";
 import { parseApiProxyBodyFieldPath } from "./proxy/request-edits.js";
 
 export * from "./engine-descriptor.js";
 export * from "./ggml.js";
 export * from "./instance-resources.js";
+export * from "./memory-assessment.js";
 export * from "./memory-estimate.js";
 export * from "./proxy/request-edits.js";
 export * from "./proxy/pipeline-graph.js";
@@ -354,6 +356,7 @@ export const InstanceUpdateSchema = z
 export const MemoryEstimateRequestSchema = z.object({
   instanceId: z.string().min(1).optional(),
   kind: InstanceKindSchema.optional(),
+  binaryPathRefId: z.string().min(1).optional(),
   args: InstanceArgsSchema.optional(),
   positionalArgs: z.array(z.string()).optional(),
   env: InstanceEnvSchema.optional(),
@@ -1842,6 +1845,7 @@ export const InstanceHealthSummarySchema = z.object({
   logSummary: InstanceLogSummarySchema,
   promptCache: PromptCacheStateSchema.nullable().default(null),
   configDrift: z.boolean().default(false),
+  memoryAssessment: MemoryAssessmentSummarySchema.optional(),
   swapBytes: z.number().int().min(0).nullable().default(null),
   numaPlacement: NumaPlacementSchema.nullable().default(null),
   checkedAt: z.string(),

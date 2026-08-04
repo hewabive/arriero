@@ -7,6 +7,10 @@ import type {
 import { engineDescriptor, InstanceConfigRecordSchema } from "@arriero/core";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import {
+  deleteMemoryAssessmentForInstance,
+  renameMemoryAssessmentInstance,
+} from "../memory-assessment/repository.js";
+import {
   deleteProcessRunsForInstance,
   latestProcessRun,
 } from "../process/runs-repository.js";
@@ -190,6 +194,7 @@ export function updateInstance(
 
   const validated = validateRecord(record);
   writeInstanceRecord(validated, current.name);
+  renameMemoryAssessmentInstance(current.name, validated.name);
   return toInstance(validated);
 }
 
@@ -197,6 +202,7 @@ export function deleteInstance(name: string): boolean {
   const removed = removeInstanceRecord(name);
   if (removed) {
     deleteProcessRunsForInstance(name);
+    deleteMemoryAssessmentForInstance(name);
   }
   return removed;
 }

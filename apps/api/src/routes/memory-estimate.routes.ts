@@ -1,6 +1,7 @@
 import { MemoryEstimateRequestSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
+import { createMemoryAssessment } from "../memory-assessment/service.js";
 import { estimateMemory } from "../memory-estimate/service.js";
 
 export function registerMemoryEstimateRoutes(app: Hono) {
@@ -13,8 +14,13 @@ export function registerMemoryEstimateRoutes(app: Hono) {
     if (!result.ok) {
       return c.json({ error: result.reason }, 422);
     }
+    const assessmentId = createMemoryAssessment(parsed.data, result);
     return c.json({
-      data: { modelPath: result.modelPath, estimate: result.estimate },
+      data: {
+        modelPath: result.modelPath,
+        estimate: result.estimate,
+        assessmentId,
+      },
     });
   });
 }

@@ -185,5 +185,18 @@ export function migrate() {
     sql`CREATE INDEX IF NOT EXISTS proxy_response_cache_lru ON proxy_response_cache (last_access_at)`,
   );
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS memory_assessments (
+      id TEXT PRIMARY KEY NOT NULL,
+      instance_id TEXT,
+      receipt_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.run(
+    sql`CREATE UNIQUE INDEX IF NOT EXISTS memory_assessments_instance ON memory_assessments (instance_id) WHERE instance_id IS NOT NULL`,
+  );
+
   db.run(sql`DROP TABLE IF EXISTS llama_argument_help_overrides`);
 }

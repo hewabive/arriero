@@ -57,6 +57,42 @@ function InstanceNumaSkewBadge(props: {
   );
 }
 
+function InstanceMemoryAssessmentBadge(props: {
+  health: InstanceHealthSummary | undefined;
+}) {
+  const assessment = props.health?.memoryAssessment;
+  if (!assessment) return null;
+  const colors: Record<typeof assessment.status, string> = {
+    "not-assessed": "gray",
+    "update-required": "orange",
+    analytical: "blue",
+    verified: "green",
+    mismatch: "red",
+  };
+  const labels: Record<typeof assessment.status, string> = {
+    "not-assessed": "memory not assessed",
+    "update-required": "memory assessment stale",
+    analytical: "memory analytical",
+    verified: "memory verified",
+    mismatch: "memory mismatch",
+  };
+  return (
+    <Tooltip
+      label={[assessment.reason, assessment.recommendation]
+        .concat(`Reservation: ${assessment.reservationStatus}.`)
+        .filter(Boolean)
+        .join(" ")}
+      withArrow
+      multiline
+      w={360}
+    >
+      <Badge color={colors[assessment.status]} variant="light">
+        {labels[assessment.status]}
+      </Badge>
+    </Tooltip>
+  );
+}
+
 export function InstanceHealthBadge(props: {
   instance: Instance;
   health: InstanceHealthSummary | undefined;
@@ -78,6 +114,7 @@ export function InstanceHealthBadge(props: {
       </Tooltip>
       <InstanceConfigDriftBadge health={health} />
       <InstanceNumaSkewBadge health={health} />
+      <InstanceMemoryAssessmentBadge health={health} />
     </>
   );
 }

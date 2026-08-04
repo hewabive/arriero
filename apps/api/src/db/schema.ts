@@ -91,3 +91,11 @@ export const apiProxyResponseCache = sqliteTable("proxy_response_cache", {
   lastAccessAt: integer("last_access_at").notNull(),
   hitCount: integer("hit_count").notNull().default(0),
 });
+
+export const memoryAssessments = sqliteTable("memory_assessments", {
+  id: text("id").primaryKey(),
+  instanceId: text("instance_id"),
+  receiptJson: text("receipt_json").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

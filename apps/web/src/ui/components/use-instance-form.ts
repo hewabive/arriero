@@ -25,6 +25,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  bindInstanceMemoryAssessment,
   createInstance,
   estimateInstanceMemory,
   getDefaultLlamaServerBinary,
@@ -950,6 +951,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   const estimateArgsKey = draftPreview.input
     ? JSON.stringify({
         kind: draftPreview.input.kind,
+        binaryPathRefId: selectedBinaryPathRefId,
         args: draftPreview.input.args,
         positionalArgs: draftPreview.input.positionalArgs,
         env: draftPreview.input.env,
@@ -967,6 +969,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   const [memoryEstimate, setMemoryEstimate] = useState<{
     modelPath: string;
     estimate: MemoryEstimate;
+    assessmentId: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -980,6 +983,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       }
       return estimateInstanceMemory({
         kind,
+        binaryPathRefId: selectedBinaryPathRefId || undefined,
         args: estimateArgs,
         positionalArgs: draftPreview.input?.positionalArgs,
         env: draftPreview.input?.env,
@@ -1437,6 +1441,17 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     onSuccess: async (result) => {
       const created = result.data;
       props.onSaved?.(created);
+      let assessmentWarning: string | null = null;
+      if (memoryEstimate?.assessmentId) {
+        try {
+          await bindInstanceMemoryAssessment(
+            created.name,
+            memoryEstimate.assessmentId,
+          );
+        } catch (error) {
+          assessmentWarning = (error as Error).message;
+        }
+      }
       let notification: {
         title: string;
         message: string;
@@ -1479,6 +1494,14 @@ export function useInstanceForm(props: InstanceFormModalProps) {
             }
           }
         }
+      }
+
+      if (assessmentWarning && notification.color !== "red") {
+        notification = {
+          ...notification,
+          color: "yellow",
+          message: `${notification.message}. Memory assessment was not attached: ${assessmentWarning}`,
+        };
       }
 
       await invalidateSavedInstance(created.name);

@@ -16,6 +16,11 @@ import {
   resolveGpuLayers,
 } from "./instance-resources.js";
 
+// Increment this whenever the estimator semantics change. Stored assessments
+// deliberately become stale instead of trying to emulate older llama.cpp
+// releases.
+export const MEMORY_ESTIMATOR_VERSION = 1;
+
 const F32_BYTES = 4;
 const KV_PAD = 256;
 const DEFAULT_CTX = 4096;

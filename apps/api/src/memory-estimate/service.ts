@@ -18,13 +18,14 @@ import { existsSync } from "node:fs";
 
 import { getInstance } from "../instances/repository.js";
 import { readGgufMetadata, readGgufModelTensorTable } from "../models/gguf.js";
+import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { listMemoryPools } from "../resources/repository.js";
 
 export type MemoryEstimateResolution =
   | { ok: true; modelPath: string; estimate: MemoryEstimate }
   | { ok: false; reason: string };
 
-function poolsForEstimate(
+export function poolsForEstimate(
   args: MemoryEstimateArgs,
   env: Record<string, string>,
 ): MemoryEstimatePoolInput[] {
@@ -74,6 +75,51 @@ function poolsForEstimate(
           : null;
     return [{ id: pool.id, kind: pool.kind, deviceIndex }];
   });
+}
+
+export type MemoryEstimateContext = {
+  kind: InstanceKind;
+  binaryPath: string;
+  binaryPathRefId: string;
+  args: MemoryEstimateArgs;
+  env: Record<string, string>;
+  positionalArgs: string[];
+};
+
+export function resolveMemoryEstimateContext(
+  request: MemoryEstimateRequest,
+): MemoryEstimateContext | { error: string } {
+  let args: MemoryEstimateArgs = {};
+  let kind: InstanceKind = request.kind ?? "llama-server";
+  let env = request.env ?? {};
+  let positionalArgs = request.positionalArgs ?? [];
+  let binaryPathRefId = request.binaryPathRefId ?? "";
+  let binaryPath = binaryPathRefId
+    ? (getPathCatalogEntry(binaryPathRefId)?.path ?? "")
+    : "";
+  if (request.instanceId) {
+    const instance = getInstance(request.instanceId);
+    if (!instance) {
+      return { error: `instance not found: ${request.instanceId}` };
+    }
+    kind = instance.kind;
+    env = instance.env;
+    positionalArgs = instance.positionalArgs ?? [];
+    args = { ...(instance.args as InstanceArgs) };
+    binaryPath = instance.binaryPath;
+    binaryPathRefId = instance.binaryPathRefId;
+  }
+  if (request.args) {
+    args = { ...args, ...request.args };
+  }
+  return {
+    kind,
+    binaryPath,
+    binaryPathRefId,
+    args,
+    env,
+    positionalArgs,
+  };
 }
 
 function resolveExistingPath(
@@ -243,23 +289,11 @@ function hparamsFromGguf(modelPath: string): MemoryEstimateHparams {
 export function estimateMemory(
   request: MemoryEstimateRequest,
 ): MemoryEstimateResolution {
-  let args: MemoryEstimateArgs = {};
-  let kind: InstanceKind = request.kind ?? "llama-server";
-  let env = request.env ?? {};
-  let positionalArgs = request.positionalArgs ?? [];
-  if (request.instanceId) {
-    const instance = getInstance(request.instanceId);
-    if (!instance) {
-      return { ok: false, reason: `instance not found: ${request.instanceId}` };
-    }
-    kind = instance.kind;
-    env = instance.env;
-    positionalArgs = instance.positionalArgs ?? [];
-    args = { ...(instance.args as InstanceArgs) };
+  const context = resolveMemoryEstimateContext(request);
+  if ("error" in context) {
+    return { ok: false, reason: context.error };
   }
-  if (request.args) {
-    args = { ...args, ...request.args };
-  }
+  const { args, kind, env, positionalArgs } = context;
 
   const estimator = engineDescriptor(kind).estimator;
   if (estimator === "vllm-gpu-util") {

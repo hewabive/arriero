@@ -18,7 +18,7 @@ group. Host RAM is intentionally left as a manual draw.
 
 It is **per-instance, not per-model**: the estimate depends on the instance's
 own args (`--ctx-size`, `--cache-type-k/v`, `--n-gpu-layers`, `--parallel`, …)
-and, for the future measured path, its own pinned binary.
+and its selected current binary.
 
 ## Two engines
 
@@ -150,15 +150,64 @@ be modeled. Warnings say whether SWA is capped or only an upper bound, whether
 recurrent/MLA state was included, when upstream automatic GPU placement is
 represented by conservative full offload, and which GPU assumptions remain.
 
+## Instance assessment and drift detection
+
+A successful GGUF estimate also creates a local assessment receipt. The form
+binds that receipt to the instance when the configuration is saved. Receipts
+live in `data/arriero.db`, not in the portable instance configuration: they are
+evidence produced on one machine and must not migrate to a different machine.
+
+The receipt fingerprints:
+
+- `MEMORY_ESTIMATOR_VERSION` and the current estimator id;
+- memory-affecting args and environment (stored as a digest, not as plaintext);
+- the selected `llama-server` and adjacent llama.cpp runtime libraries;
+- the main GGUF, every split shard, draft GGUF, and mmproj by path, size, and
+  modification time;
+- the selected memory-pool hardware.
+
+Arriero supports one current estimator/binary pairing. It does not keep
+historical formulas for old llama.cpp revisions. The selected server must match
+the binary Arriero currently resolves as its default (normally the managed
+`master` build). A changed estimator, binary/runtime library, model artifact,
+configuration, hardware fingerprint, or newly selected current binary makes the
+receipt `update-required`.
+
+When a bound instance reaches `running` + ready with no launch-configuration
+drift, Arriero compares the analytical GPU and host allocation to exact
+llama.cpp `* buffer size` log lines. The comparison excludes the estimator's
+CUDA-context overhead because that is not a llama.cpp buffer allocation. An
+absolute difference above `max(128 MiB, 8%)` marks the assessment `mismatch`;
+otherwise it becomes `verified`. Process RSS/NVML telemetry and host projections
+remain useful operational telemetry but are not precise enough to verify the
+buffer-level estimate. A completed validation remains visible after the process
+stops, until its fingerprint becomes stale.
+
+Instance health exposes `not-assessed`, `analytical`, `verified`, `mismatch`, or
+`update-required`, plus whether the estimated draws were applied and remain
+unchanged. `mismatch` and `update-required` tell the administrator to update both
+Arriero and llama.cpp, rebuild the current `llama-server` /
+`llama-fit-params` pair, and reassess. If drift remains, the instance details
+page exports a redacted JSON report for a developer. Maintainers must increment
+`MEMORY_ESTIMATOR_VERSION` whenever estimator semantics change so old receipts
+fail closed instead of silently retaining an obsolete result.
+
 ## API
 
 `POST /api/memory-estimate` (`apps/api/src/memory-estimate/`):
 
-- body: `{ instanceId?, args? }` — load an existing instance's args, and/or pass
-  preview args; preview args override.
-- `200 { data: { modelPath, estimate } }` on success.
+- body: `{ instanceId?, kind?, binaryPathRefId?, args?, positionalArgs?, env? }`
+  — load an existing instance's inputs, and/or pass preview inputs; preview args
+  override.
+- `200 { data: { modelPath, estimate, assessmentId } }` on success. The
+  assessment id is non-null for a supported `llama-server` GGUF assessment.
 - `422 { error }` for routers (`--models-preset`), remote models
   (`--hf-repo`/`--model-url`), a missing model file, or an unknown instance.
+
+`POST /api/instances/:id/memory-assessment` with `{ assessmentId }` binds the
+receipt after rechecking its complete fingerprint. `GET
+/api/instances/:id/memory-assessment/report` returns the diagnostic report;
+sensitive argument/environment keys are redacted.
 
 The instance form surfaces this as an "Estimate footprint" panel with the
 per-pool breakdown and an "Apply as draws" button

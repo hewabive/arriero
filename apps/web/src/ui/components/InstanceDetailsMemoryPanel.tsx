@@ -1,10 +1,24 @@
 import type {
+  MemoryAssessmentSummary,
   InstanceMemoryDraw,
   InstanceMemoryLayout,
   InstanceMemoryPlacement,
 } from "@arriero/core";
-import { Badge, Group, Paper, SimpleGrid, Stack, Text } from "@mantine/core";
+import {
+  Alert,
+  Badge,
+  Button,
+  Group,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Text,
+} from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { useMutation } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 
+import { getInstanceMemoryAssessmentReport } from "../../api/client";
 import { formatBytes } from "./instance-details-helpers";
 
 function formatMemoryBytes(value: number) {
@@ -70,8 +84,10 @@ function memoryLayoutBadge(layout: InstanceMemoryLayout | undefined) {
 }
 
 export function MemoryLayoutPanel(props: {
+  instanceId: string;
   layout: InstanceMemoryLayout | undefined;
   declared?: InstanceMemoryDraw[] | undefined;
+  assessment?: MemoryAssessmentSummary | undefined;
 }) {
   const layout = props.layout;
   const entries = layout?.entries ?? [];
@@ -88,6 +104,37 @@ export function MemoryLayoutPanel(props: {
     layout && layout.source === "process-telemetry" && declaredBytes > 0
       ? layout.totalBytes - declaredBytes
       : null;
+  const reportMutation = useMutation({
+    mutationFn: () => getInstanceMemoryAssessmentReport(props.instanceId),
+    onSuccess: (result) => {
+      const blob = new Blob([JSON.stringify(result.data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${props.instanceId}-memory-assessment.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Report export failed",
+        message: (error as Error).message,
+      });
+    },
+  });
+  const assessmentColors: Record<
+    NonNullable<typeof props.assessment>["status"],
+    string
+  > = {
+    "not-assessed": "gray",
+    "update-required": "orange",
+    analytical: "blue",
+    verified: "green",
+    mismatch: "red",
+  };
 
   return (
     <Paper withBorder p="sm" radius="sm">
@@ -104,6 +151,63 @@ export function MemoryLayoutPanel(props: {
           {memoryLayoutBadge(layout)}
         </Badge>
       </Group>
+
+      {props.assessment && (
+        <Alert
+          color={assessmentColors[props.assessment.status]}
+          variant="light"
+          mb="xs"
+          title={
+            <Group gap="xs" justify="space-between">
+              <Text fw={600} size="sm">
+                Assessment: {props.assessment.status}
+              </Text>
+              {props.assessment.reportAvailable && (
+                <Button
+                  color={assessmentColors[props.assessment.status]}
+                  variant="subtle"
+                  size="compact-xs"
+                  leftSection={<Download size={13} />}
+                  loading={reportMutation.isPending}
+                  onClick={() => reportMutation.mutate()}
+                >
+                  Export report
+                </Button>
+              )}
+            </Group>
+          }
+        >
+          <Stack gap={4}>
+            <Text size="xs">{props.assessment.reason}</Text>
+            {props.assessment.reasons.map((reason) => (
+              <Text key={reason} c="dimmed" size="xs">
+                {reason}
+              </Text>
+            ))}
+            {props.assessment.deltas.map((delta) => (
+              <Text key={delta.scope} c="dimmed" size="xs">
+                {delta.scope.toUpperCase()}: observed{" "}
+                {formatMemoryBytes(delta.observedBytes)}, expected{" "}
+                {formatMemoryBytes(delta.expectedBytes)} (
+                {formatMemoryDelta(delta.deltaBytes)})
+              </Text>
+            ))}
+            {props.assessment.recommendation && (
+              <Text fw={500} size="xs">
+                {props.assessment.recommendation}
+              </Text>
+            )}
+            <Group gap="xs">
+              <Badge variant="outline" size="xs">
+                reservation {props.assessment.reservationStatus}
+              </Badge>
+              <Badge variant="outline" size="xs">
+                validation {props.assessment.validationSource}
+              </Badge>
+            </Group>
+          </Stack>
+        </Alert>
+      )}
 
       {declaredBytes > 0 && (
         <Group gap="xs" mb="xs">

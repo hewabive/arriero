@@ -104,6 +104,25 @@ export async function getInstanceHealthSummary(id: string) {
   );
 }
 
+export async function bindInstanceMemoryAssessment(
+  id: string,
+  assessmentId: string,
+) {
+  return request<{ data: InstanceHealthSummary["memoryAssessment"] }>(
+    `/api/instances/${id}/memory-assessment`,
+    {
+      method: "POST",
+      body: JSON.stringify({ assessmentId }),
+    },
+  );
+}
+
+export async function getInstanceMemoryAssessmentReport(id: string) {
+  return request<{ data: Record<string, unknown> }>(
+    `/api/instances/${id}/memory-assessment/report`,
+  );
+}
+
 export async function getInstanceResourceProfiles() {
   return request<{ data: Record<string, InstanceResourceProfile> }>(
     "/api/instances/resource-profiles",

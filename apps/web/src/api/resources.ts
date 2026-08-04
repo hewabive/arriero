@@ -43,11 +43,14 @@ export async function deleteMemoryPool(id: string, nodeId?: string) {
 }
 
 export async function estimateInstanceMemory(input: MemoryEstimateRequest) {
-  return nodeRequest<{ data: { modelPath: string; estimate: MemoryEstimate } }>(
-    "/api/memory-estimate",
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  );
+  return nodeRequest<{
+    data: {
+      modelPath: string;
+      estimate: MemoryEstimate;
+      assessmentId: string | null;
+    };
+  }>("/api/memory-estimate", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }

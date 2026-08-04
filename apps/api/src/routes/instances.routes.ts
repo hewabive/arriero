@@ -1,4 +1,5 @@
 import {
+  MemoryAssessmentBindRequestSchema,
   InstanceCreateSchema,
   InstancePreflightPreviewSchema,
   InstanceUpdateSchema,
@@ -11,6 +12,10 @@ import type { Hono } from "hono";
 
 import { admitInstanceDraw } from "../resources/ledger.js";
 import { getMemoryPool } from "../resources/repository.js";
+import {
+  bindMemoryAssessmentToInstance,
+  buildMemoryAssessmentReport,
+} from "../memory-assessment/service.js";
 
 import {
   InstanceConfigValidationError,
@@ -231,6 +236,40 @@ export function registerInstanceRoutes(app: Hono) {
         peers: listInstances(),
       }),
     });
+  });
+
+  app.post("/api/instances/:id/memory-assessment", async (c) => {
+    const instance = getInstance(c.req.param("id"));
+    if (!instance) {
+      return c.json({ error: "instance not found" }, 404);
+    }
+    const parsed = MemoryAssessmentBindRequestSchema.safeParse(
+      await c.req.json(),
+    );
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    try {
+      return c.json({
+        data: bindMemoryAssessmentToInstance(
+          parsed.data.assessmentId,
+          instance.name,
+        ),
+      });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 409);
+    }
+  });
+
+  app.get("/api/instances/:id/memory-assessment/report", async (c) => {
+    const instance = getInstance(c.req.param("id"));
+    if (!instance) {
+      return c.json({ error: "instance not found" }, 404);
+    }
+    const health = await getInstanceHealthSummary(instance, {
+      peers: listInstances(),
+    });
+    return c.json({ data: buildMemoryAssessmentReport(instance, health) });
   });
 
   app.get("/api/instances/:id/logs", (c) => {
