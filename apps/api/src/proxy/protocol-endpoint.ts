@@ -371,6 +371,9 @@ async function proxyProtocolEndpointInner(
       putCache: putApiProxyCachedResponse,
       trace,
       operation,
+      onLoopGuardFinish: () => {
+        apiProxyInflight.requestFinish(inflight.id);
+      },
     });
     if (plan) {
       recorder.beforeRecord(() => plan.flush());

@@ -84,6 +84,7 @@ export const apiProxySingleNextNodeTypes = [
   "token-scale",
   "strip-attribution",
   "cache",
+  "loop-guard",
 ] as const;
 
 export type ApiProxySingleNextNodeType =

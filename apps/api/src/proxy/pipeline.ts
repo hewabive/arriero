@@ -5,6 +5,7 @@ import {
   applyApiProxyTextReplacements,
   applyApiProxyRequestEdits,
   resolveApiProxyReasoning,
+  type ApiProxyLoopGuardConfig,
   type ApiProxyPipelineNode,
   type ApiProxyPipelineRecord,
   type ApiProxyPortRef,
@@ -58,11 +59,18 @@ type ApiProxyTokenScaleResponseEffect = {
   factor: number;
 };
 
+export type ApiProxyLoopGuardEffect = {
+  type: "loop-guard";
+  nodeName: string | null;
+  config: ApiProxyLoopGuardConfig;
+};
+
 export type ApiProxyResponseEffect =
   | ApiProxyCaptureResponseEffect
   | ApiProxyCacheStoreEffect
   | ApiProxyReplaceResponseTextEffect
-  | ApiProxyTokenScaleResponseEffect;
+  | ApiProxyTokenScaleResponseEffect
+  | ApiProxyLoopGuardEffect;
 
 export function apiProxyCacheStores(
   effects: ApiProxyResponseEffect[],
@@ -815,6 +823,28 @@ export async function resolveApiProxyRouteChain(input: {
             port: "next",
             detail:
               details.length > 0 ? details.join(" · ") : "nothing to save",
+          }),
+        );
+        ref = node.ports.next;
+        break;
+      }
+      case "loop-guard": {
+        state.responseEffects.push({
+          type: "loop-guard",
+          nodeName: node.name || null,
+          config: node.config,
+        });
+        const channels = [
+          node.config.answer ? "answer" : null,
+          node.config.reasoning ? "reasoning" : null,
+          node.config.toolArguments ? "tools" : null,
+        ]
+          .filter((channel) => channel !== null)
+          .join("+");
+        state.routeTrace.push(
+          nodeStep(pipeline, node, {
+            port: "next",
+            detail: `${node.config.action} · ${channels || "no channels"}`,
           }),
         );
         ref = node.ports.next;

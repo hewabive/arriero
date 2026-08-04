@@ -1,6 +1,15 @@
 import { saveApiProxyRequestFile } from "./request-files.js";
+import {
+  createApiProxyLoopGuardDetector,
+  type ApiProxyLoopGuardDetector,
+} from "./loop-guard.js";
+import {
+  createApiProxyLoopGuardStream,
+  feedApiProxyLoopGuardText,
+} from "./loop-guard-stream.js";
 import type {
   ApiProxyCacheStoreEffect,
+  ApiProxyLoopGuardEffect,
   ApiProxyResponseEffect,
 } from "./pipeline.js";
 import type { ApiProxyProtocolOperation } from "./protocol.js";
@@ -92,6 +101,7 @@ export function createApiProxyResponsePlanExecutor(input: {
   putCache: ApiProxyResponseCacheWriter;
   trace: ProxyTraceAccumulator;
   operation: ApiProxyProtocolOperation;
+  onLoopGuardFinish?: (() => void) | undefined;
 }): ApiProxyResponsePlanExecutor | null {
   if (input.effects.length === 0) {
     return null;
@@ -106,6 +116,21 @@ export function createApiProxyResponsePlanExecutor(input: {
     flushed: false,
   }));
   let metadata: ApiProxyResponseMetadata | null = null;
+  let loopGuardFinished = false;
+
+  const loopGuardDetectors = new Map<EffectState, ApiProxyLoopGuardDetector>();
+  const loopGuardDetector = (
+    state: EffectState,
+    effect: ApiProxyLoopGuardEffect,
+  ): ApiProxyLoopGuardDetector => {
+    const existing = loopGuardDetectors.get(state);
+    if (existing) {
+      return existing;
+    }
+    const created = createApiProxyLoopGuardDetector(effect.config);
+    loopGuardDetectors.set(state, created);
+    return created;
+  };
 
   const flushState = (state: EffectState) => {
     if (state.flushed) {
@@ -141,6 +166,56 @@ export function createApiProxyResponsePlanExecutor(input: {
       );
       return;
     }
+    if (state.effect.type === "loop-guard") {
+      const detector = loopGuardDetectors.get(state);
+      if (!detector) {
+        return;
+      }
+      detector.finalize();
+      const snapshot = detector.snapshot();
+      const capture =
+        snapshot.status === "triggered"
+          ? state.effect.config.captureTrigger
+          : snapshot.status === "near-miss"
+            ? state.effect.config.captureNearMiss
+            : false;
+      if (!capture) {
+        return;
+      }
+      input.trace.files.push(
+        saveApiProxyRequestFile({
+          traceId: input.trace.id,
+          traceAt: input.trace.at,
+          kind:
+            snapshot.status === "triggered"
+              ? "loop-guard-trigger"
+              : "loop-guard-near-miss",
+          label: state.effect.nodeName,
+          protocol: input.operation.protocol,
+          endpoint: input.operation.endpoint,
+          routePath: input.operation.routePath,
+          modelId: input.trace.modelId,
+          data: {
+            action: state.effect.config.action,
+            enforced: loopGuardFinished,
+            status: snapshot.status,
+            trigger: snapshot.trigger,
+            peak: snapshot.peak,
+            scannedChars: snapshot.scannedChars,
+            timeline: snapshot.timeline,
+            thresholds: {
+              minSpanChars: state.effect.config.minSpanChars,
+              noveltyThreshold: state.effect.config.noveltyThreshold,
+              compressionThreshold: state.effect.config.compressionThreshold,
+              entropyThreshold: state.effect.config.entropyThreshold,
+              periodMinRepeats: state.effect.config.periodMinRepeats,
+              nearMissRatio: state.effect.config.nearMissRatio,
+            },
+          },
+        }),
+      );
+      return;
+    }
     if (
       state.effect.type === "replace-response-text" ||
       state.effect.type === "token-scale"
@@ -156,6 +231,7 @@ export function createApiProxyResponsePlanExecutor(input: {
       meta !== null &&
       isSuccessStatus(meta) &&
       !input.trace.errorMessage &&
+      !loopGuardFinished &&
       (meta.isSse || !looksLikeErrorBody(parsed));
     if (!cacheable) {
       settleCacheWithoutBody(
@@ -272,6 +348,17 @@ export function createApiProxyResponsePlanExecutor(input: {
             operation: input.operation,
             isSse: meta.isSse,
           }).text;
+        } else if (state.effect.type === "loop-guard") {
+          if (!applyTransforms) {
+            continue;
+          }
+          feedApiProxyLoopGuardText({
+            detector: loopGuardDetector(state, state.effect),
+            config: state.effect.config,
+            operation: input.operation,
+            text: current,
+            isSse: meta.isSse,
+          });
         } else {
           observeText(state, current);
         }
@@ -317,6 +404,26 @@ export function createApiProxyResponsePlanExecutor(input: {
             createApiProxyTokenScaleStream({
               operation: input.operation,
               factor: state.effect.factor,
+            }),
+          );
+        } else if (state.effect.type === "loop-guard") {
+          if (!applyTransforms) {
+            continue;
+          }
+          drainGroup();
+          current = current.pipeThrough(
+            createApiProxyLoopGuardStream({
+              operation: input.operation,
+              config: state.effect.config,
+              detector: loopGuardDetector(state, state.effect),
+              onFinished: () => {
+                loopGuardFinished = true;
+                settleAbandonedApiProxyCacheEffects(
+                  input.effects,
+                  `Loop guard finished the response for ${input.trace.modelId || "model"} early.`,
+                );
+                input.onLoopGuardFinish?.();
+              },
             }),
           );
         } else {

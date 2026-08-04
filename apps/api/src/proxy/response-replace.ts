@@ -23,7 +23,7 @@ type Replacement = {
   count: number;
 };
 
-type MutableDelta = {
+export type MutableDelta = {
   lane: string;
   text: string;
   set: (text: string) => void;
@@ -580,7 +580,7 @@ function collectOpenAiResponsesDeltas(
   return deltas;
 }
 
-function collectMutableDeltas(
+export function collectMutableDeltas(
   value: unknown,
   operation: ApiProxyProtocolOperation,
   effect: ApiProxyReplaceResponseTextEffect,

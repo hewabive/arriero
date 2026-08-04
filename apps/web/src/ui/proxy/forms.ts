@@ -8,6 +8,7 @@ import type {
   ApiProxyConditionScope,
   ApiProxyEditRequestOperation,
   ApiProxyJsonValue,
+  ApiProxyLoopGuardAction,
   ApiProxyModelCreate,
   ApiProxyModelRecord,
   ApiProxyPipelineCreate,
@@ -96,6 +97,19 @@ export type PipelineNodeDraft = {
   tokenScaleFactor: number | "";
   cacheTtlSeconds: number | "";
   cacheNamespace: string;
+  loopGuardAction: ApiProxyLoopGuardAction;
+  loopGuardAnswer: boolean;
+  loopGuardReasoning: boolean;
+  loopGuardToolArguments: boolean;
+  loopGuardMinSpanChars: number | "";
+  loopGuardNoveltyThreshold: number | "";
+  loopGuardCompressionThreshold: number | "";
+  loopGuardEntropyThreshold: number | "";
+  loopGuardPeriodMinRepeats: number | "";
+  loopGuardNearMissRatio: number | "";
+  loopGuardCaptureTrigger: boolean;
+  loopGuardCaptureNearMiss: boolean;
+  loopGuardMarkerText: string;
   predicateType: ApiProxyConditionPredicate["type"];
   scope: ApiProxyConditionScope;
   pattern: string;
@@ -191,6 +205,19 @@ function emptyPipelineNodeDraft(
     tokenScaleFactor: 1,
     cacheTtlSeconds: 3600,
     cacheNamespace: "",
+    loopGuardAction: "observe",
+    loopGuardAnswer: true,
+    loopGuardReasoning: true,
+    loopGuardToolArguments: false,
+    loopGuardMinSpanChars: 1024,
+    loopGuardNoveltyThreshold: 0.05,
+    loopGuardCompressionThreshold: 0.1,
+    loopGuardEntropyThreshold: 2.5,
+    loopGuardPeriodMinRepeats: 8,
+    loopGuardNearMissRatio: 0.7,
+    loopGuardCaptureTrigger: true,
+    loopGuardCaptureNearMiss: true,
+    loopGuardMarkerText: "[генерация прервана: обнаружено зацикливание]",
     predicateType: "text-match",
     scope: "any-message",
     pattern: "",
@@ -433,6 +460,22 @@ function nodeDraftFromRecord(node: ApiProxyPipelineNode): PipelineNodeDraft {
     case "cache":
       draft.cacheTtlSeconds = node.config.ttlSeconds;
       draft.cacheNamespace = node.config.namespace;
+      draft.portNext = portRefToValue(node.ports.next);
+      break;
+    case "loop-guard":
+      draft.loopGuardAction = node.config.action;
+      draft.loopGuardAnswer = node.config.answer;
+      draft.loopGuardReasoning = node.config.reasoning;
+      draft.loopGuardToolArguments = node.config.toolArguments;
+      draft.loopGuardMinSpanChars = node.config.minSpanChars;
+      draft.loopGuardNoveltyThreshold = node.config.noveltyThreshold;
+      draft.loopGuardCompressionThreshold = node.config.compressionThreshold;
+      draft.loopGuardEntropyThreshold = node.config.entropyThreshold;
+      draft.loopGuardPeriodMinRepeats = node.config.periodMinRepeats;
+      draft.loopGuardNearMissRatio = node.config.nearMissRatio;
+      draft.loopGuardCaptureTrigger = node.config.captureTrigger;
+      draft.loopGuardCaptureNearMiss = node.config.captureNearMiss;
+      draft.loopGuardMarkerText = node.config.markerText;
       draft.portNext = portRefToValue(node.ports.next);
       break;
     case "condition": {
@@ -757,6 +800,45 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         config: {
           ttlSeconds: draft.cacheTtlSeconds === "" ? 0 : draft.cacheTtlSeconds,
           namespace: draft.cacheNamespace.trim(),
+        },
+        ports: { next: portRefFromValue(draft.portNext) },
+      };
+    case "loop-guard":
+      return {
+        ...base,
+        type: "loop-guard",
+        config: {
+          action: draft.loopGuardAction,
+          answer: draft.loopGuardAnswer,
+          reasoning: draft.loopGuardReasoning,
+          toolArguments: draft.loopGuardToolArguments,
+          minSpanChars:
+            draft.loopGuardMinSpanChars === ""
+              ? 1024
+              : draft.loopGuardMinSpanChars,
+          noveltyThreshold:
+            draft.loopGuardNoveltyThreshold === ""
+              ? 0.05
+              : draft.loopGuardNoveltyThreshold,
+          compressionThreshold:
+            draft.loopGuardCompressionThreshold === ""
+              ? 0.1
+              : draft.loopGuardCompressionThreshold,
+          entropyThreshold:
+            draft.loopGuardEntropyThreshold === ""
+              ? 2.5
+              : draft.loopGuardEntropyThreshold,
+          periodMinRepeats:
+            draft.loopGuardPeriodMinRepeats === ""
+              ? 8
+              : draft.loopGuardPeriodMinRepeats,
+          nearMissRatio:
+            draft.loopGuardNearMissRatio === ""
+              ? 0.7
+              : draft.loopGuardNearMissRatio,
+          captureTrigger: draft.loopGuardCaptureTrigger,
+          captureNearMiss: draft.loopGuardCaptureNearMiss,
+          markerText: draft.loopGuardMarkerText,
         },
         ports: { next: portRefFromValue(draft.portNext) },
       };

@@ -20,6 +20,8 @@ Source map:
   stateful streaming replacement.
 - `apps/api/src/proxy/token-scale.ts` — request limits and response usage
   scaling.
+- `apps/api/src/proxy/loop-guard.ts` + `loop-guard-stream.ts` — repetition-loop
+  detection and enforcement (`docs/API_PROXY_LOOP_GUARD.md`).
 - `apps/api/src/proxy/condition.ts` — predicate evaluation.
 - `apps/api/src/proxy/token-estimate.ts` — local token estimator.
 - `apps/api/src/proxy/request-text.ts` — request text extraction (scopes).
@@ -105,6 +107,14 @@ in the sub-sections below.
   streaming misses also fan out to concurrent subscribers. Place a
   `strip-attribution` node before it for a stable key. See
   `docs/API_PROXY_RESPONSE_CACHE.md`. (`next` = miss)
+- **`loop-guard`** — `action: observe|finish` + channel toggles + detection
+  thresholds + `markerText`: watches the response for repetition loops
+  (period / novelty / compression / entropy signals over answer, reasoning and
+  tool-argument channels) and records trigger / near-miss artifacts (kinds
+  `loop-guard-trigger` / `loop-guard-near-miss`). `finish` additionally cuts a
+  streaming OpenAI-chat/Anthropic reply with a marker text and a synthetic
+  protocol finish, stops the upstream request and excludes the response from
+  caching. See `docs/API_PROXY_LOOP_GUARD.md`. (`next`)
 - **`condition`** — `predicate` (see below). (`true`, `false`)
 - **`call`** — `pipelineId`. (one port per callee exit name)
 - **`exit`** — `exitName` (default `done`). (no ports)

@@ -835,6 +835,34 @@ export const ApiProxyCaptureRequestConfigSchema = z.object({
   response: z.boolean().default(false),
 });
 
+export const ApiProxyLoopGuardActionSchema = z.enum(["observe", "finish"]);
+
+export const ApiProxyLoopGuardConfigSchema = z.object({
+  action: ApiProxyLoopGuardActionSchema.default("observe"),
+  answer: z.boolean().default(true),
+  reasoning: z.boolean().default(true),
+  toolArguments: z.boolean().default(false),
+  minSpanChars: z.number().int().min(256).max(65_536).default(1024),
+  noveltyThreshold: z.number().min(0).max(1).default(0.05),
+  compressionThreshold: z.number().min(0).max(1).default(0.1),
+  entropyThreshold: z.number().min(0).max(8).default(2.5),
+  periodMinRepeats: z.number().int().min(3).max(1000).default(8),
+  nearMissRatio: z.number().min(0).max(1).default(0.7),
+  captureTrigger: z.boolean().default(true),
+  captureNearMiss: z.boolean().default(true),
+  markerText: z
+    .string()
+    .max(500)
+    .default("[генерация прервана: обнаружено зацикливание]"),
+});
+
+export type ApiProxyLoopGuardAction = z.infer<
+  typeof ApiProxyLoopGuardActionSchema
+>;
+export type ApiProxyLoopGuardConfig = z.infer<
+  typeof ApiProxyLoopGuardConfigSchema
+>;
+
 export const ApiProxyReplaceTextConfigSchema = z.object({
   rules: z.array(ApiProxyTextReplacementRuleSchema).max(50).default([]),
   request: z.boolean().default(true),
@@ -1078,6 +1106,11 @@ export const ApiProxyPipelineNodeSchema = z.discriminatedUnion("type", [
   ApiProxyPipelineNodeBaseSchema.extend({
     type: z.literal("cache"),
     config: ApiProxyCacheConfigSchema,
+    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
+  }),
+  ApiProxyPipelineNodeBaseSchema.extend({
+    type: z.literal("loop-guard"),
+    config: ApiProxyLoopGuardConfigSchema,
     ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
   }),
   ApiProxyPipelineNodeBaseSchema.extend({
@@ -1354,6 +1387,7 @@ export const ApiProxyRouteTraceStepSchema = z.object({
     "token-scale",
     "strip-attribution",
     "cache",
+    "loop-guard",
     "condition",
     "call",
     "exit",

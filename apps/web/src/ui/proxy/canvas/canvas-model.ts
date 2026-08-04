@@ -245,6 +245,14 @@ function nodeSummary(
       const ns = node.cacheNamespace ? `${node.cacheNamespace} · ` : "";
       return `${ns}${ttl > 0 ? `ttl ${ttl}s` : "no expiry"}`;
     }
+    case "loop-guard": {
+      const channels = [
+        node.loopGuardAnswer ? "answer" : null,
+        node.loopGuardReasoning ? "reasoning" : null,
+        node.loopGuardToolArguments ? "tools" : null,
+      ].filter((channel): channel is string => channel !== null);
+      return `${node.loopGuardAction} · ${channels.join(" + ") || "no channels"}`;
+    }
     case "condition": {
       if (node.predicateType === "token-estimate") {
         return `≥ ${node.minTokens || "?"} tokens (est.)`;

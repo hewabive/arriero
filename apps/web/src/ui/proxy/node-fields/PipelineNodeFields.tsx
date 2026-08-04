@@ -11,6 +11,7 @@ import { ConditionFields } from "./ConditionFields";
 import type { PipelineEditorContext } from "./context";
 import { editorCallExitNames, editorOtherPipelines } from "./editor-helpers";
 import { FusionFields } from "./FusionFields";
+import { LoopGuardFields } from "./LoopGuardFields";
 import { OutputLimitFields } from "./OutputLimitFields";
 import { PortSelect } from "./PortSelect";
 import { ReasoningFields } from "./ReasoningFields";
@@ -219,6 +220,21 @@ export function PipelineNodeFields(props: {
         />
         <PortSelect
           label="Next (on miss)"
+          ctx={ctx}
+          excludeNodeId={node.id}
+          value={node.portNext}
+          onChange={(portNext) => update({ portNext })}
+        />
+      </>
+    );
+  }
+
+  if (node.type === "loop-guard") {
+    return (
+      <>
+        <LoopGuardFields node={node} update={update} />
+        <PortSelect
+          label="Next"
           ctx={ctx}
           excludeNodeId={node.id}
           value={node.portNext}
