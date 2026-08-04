@@ -3299,6 +3299,8 @@ export const PrerequisiteRemediationSchema = z.object({
   packages: z.array(z.string()),
   installCommand: z.string().nullable(),
   commands: z.array(z.string()),
+  includeInInstallPlan: z.boolean(),
+  rebootRequired: z.boolean(),
   docPath: z.string().nullable(),
   note: z.string().nullable(),
 });

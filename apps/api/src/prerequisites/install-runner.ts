@@ -10,6 +10,10 @@ import { INSTALL_COMMAND_SEPARATOR } from "./install-plan.js";
 
 const LOG_LIMIT_CHARS = 256 * 1024;
 
+type PrerequisiteInstallRunOptions = {
+  onSucceeded?: () => void;
+};
+
 export function executedInstallCommand(
   command: string,
   method: PrerequisiteInstallCapability["method"],
@@ -40,6 +44,7 @@ export class PrerequisiteInstallRunner {
     request: PrerequisiteInstallStart,
     command: string,
     method: PrerequisiteInstallCapability["method"],
+    options: PrerequisiteInstallRunOptions = {},
   ): PrerequisiteInstallRun {
     if (this.isRunning()) {
       throw new Error("a package installation is already running");
@@ -55,7 +60,7 @@ export class PrerequisiteInstallRunner {
       log: "",
     };
     this.run = run;
-    this.settled = this.execute(run);
+    this.settled = this.execute(run, options);
     return { ...run };
   }
 
@@ -63,7 +68,10 @@ export class PrerequisiteInstallRunner {
     return this.settled;
   }
 
-  private execute(run: PrerequisiteInstallRun): Promise<void> {
+  private execute(
+    run: PrerequisiteInstallRun,
+    options: PrerequisiteInstallRunOptions,
+  ): Promise<void> {
     return new Promise((resolveDone) => {
       const child = spawn("bash", ["-c", run.command], {
         stdio: ["ignore", "pipe", "pipe"],
@@ -85,6 +93,15 @@ export class PrerequisiteInstallRunner {
         }
         if (failure) {
           append(`\n${failure}\n`);
+        }
+        if (exitCode === 0 && options.onSucceeded) {
+          try {
+            options.onSucceeded();
+          } catch (error) {
+            append(
+              `\npost-install state warning: ${(error as Error).message}\n`,
+            );
+          }
         }
         run.exitCode = exitCode;
         run.status = exitCode === 0 ? "succeeded" : "failed";

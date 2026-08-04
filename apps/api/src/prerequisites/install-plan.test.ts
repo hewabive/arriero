@@ -24,6 +24,8 @@ function check(overrides: Partial<PrerequisiteCheck>): PrerequisiteCheck {
       packages: ["cmake"],
       installCommand: "sudo apt install -y cmake",
       commands: [],
+      includeInInstallPlan: true,
+      rebootRequired: false,
       docPath: null,
       note: null,
     },
@@ -41,6 +43,8 @@ test("aggregates missing packages into one command and dedupes", () => {
           packages: ["build-essential"],
           installCommand: null,
           commands: [],
+          includeInInstallPlan: true,
+          rebootRequired: false,
           docPath: null,
           note: null,
         },
@@ -51,6 +55,8 @@ test("aggregates missing packages into one command and dedupes", () => {
           packages: ["build-essential"],
           installCommand: null,
           commands: [],
+          includeInInstallPlan: true,
+          rebootRequired: false,
           docPath: null,
           note: null,
         },
@@ -75,6 +81,8 @@ test("required command excludes recommended packages", () => {
         packages: ["ccache"],
         installCommand: null,
         commands: [],
+        includeInInstallPlan: true,
+        rebootRequired: false,
         docPath: null,
         note: null,
       },
@@ -96,6 +104,8 @@ test("appends runnable standalone remediation to the aggregated command", () => 
           packages: ["ccache"],
           installCommand: "sudo dnf install -y ccache",
           commands: [],
+          includeInInstallPlan: true,
+          rebootRequired: false,
           docPath: null,
           note: null,
         },
@@ -108,6 +118,8 @@ test("appends runnable standalone remediation to the aggregated command", () => 
           installCommand:
             "sudo dnf config-manager --add-repo https://developer.download.nvidia.com/cuda.repo && sudo dnf clean expire-cache && sudo dnf install -y cuda-toolkit",
           commands: [],
+          includeInInstallPlan: true,
+          rebootRequired: false,
           docPath: null,
           note: null,
         },
@@ -142,6 +154,8 @@ test("unverifiable checks still contribute packages so one command suffices", ()
           packages: ["libcurl4-openssl-dev"],
           installCommand: null,
           commands: [],
+          includeInInstallPlan: true,
+          rebootRequired: false,
           docPath: null,
           note: null,
         },
@@ -194,6 +208,8 @@ test("resolves scope requests against the aggregated plan", () => {
         packages: ["ccache"],
         installCommand: null,
         commands: [],
+        includeInInstallPlan: true,
+        rebootRequired: false,
         docPath: null,
         note: null,
       },
@@ -219,16 +235,40 @@ test("resolves a check request to that check's own install command", () => {
   assert.equal(resolveInstallCommand(subject, { checkId: "nope" }), null);
 });
 
-test("a check without a package command resolves to null", () => {
+test("keeps a local driver install out of the aggregated command", () => {
   const subject = report([
     check({
       id: "nvidia-driver",
       remediation: {
         packages: [],
-        installCommand: null,
-        commands: ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"],
+        installCommand: "sudo ubuntu-drivers install --gpgpu",
+        commands: ["sudo reboot"],
+        includeInInstallPlan: false,
+        rebootRequired: false,
         docPath: null,
         note: null,
+      },
+    }),
+  ]);
+  assert.equal(subject.install.requiredCommand, null);
+  assert.equal(subject.install.allCommand, null);
+  assert.equal(
+    resolveInstallCommand(subject, { checkId: "nvidia-driver" }),
+    "sudo ubuntu-drivers install --gpgpu",
+  );
+});
+
+test("refuses to repeat a local install while its reboot is pending", () => {
+  const subject = report([
+    check({
+      id: "nvidia-driver",
+      remediation: {
+        ...check({}).remediation,
+        packages: [],
+        installCommand: "sudo ubuntu-drivers install --gpgpu",
+        commands: ["sudo reboot"],
+        includeInInstallPlan: false,
+        rebootRequired: true,
       },
     }),
   ]);

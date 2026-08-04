@@ -5,6 +5,8 @@ import { resetUvToolStatusCache } from "../envs/uv.js";
 import { resetNumaInterleaveCache } from "../numa/capability.js";
 import { resolveInstallCommand } from "../prerequisites/install-plan.js";
 import { prerequisiteInstallRunner } from "../prerequisites/install-runner.js";
+import { prerequisiteRebootState } from "../prerequisites/reboot-state.js";
+import { findPrerequisiteDefinition } from "../prerequisites/registry.js";
 import { getPrerequisiteReport } from "../prerequisites/report.js";
 
 export function registerPrerequisiteRoutes(app: Hono) {
@@ -51,11 +53,27 @@ export function registerPrerequisiteRoutes(app: Hono) {
       );
     }
     try {
-      const run = prerequisiteInstallRunner.start(
-        parsed.data,
-        command,
-        report.installRunner.method,
-      );
+      const rebootCheckId =
+        "checkId" in parsed.data &&
+        findPrerequisiteDefinition(parsed.data.checkId)
+          ?.requiresRebootAfterInstall
+          ? parsed.data.checkId
+          : null;
+      const run = rebootCheckId
+        ? prerequisiteInstallRunner.start(
+            parsed.data,
+            command,
+            report.installRunner.method,
+            {
+              onSucceeded: () =>
+                prerequisiteRebootState.markPending(rebootCheckId),
+            },
+          )
+        : prerequisiteInstallRunner.start(
+            parsed.data,
+            command,
+            report.installRunner.method,
+          );
       return c.json({ data: run }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 409);

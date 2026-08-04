@@ -14,9 +14,10 @@ import {
   probePkgConfigModule,
 } from "../system/tool-probe.js";
 import {
-  type NvidiaTelemetryStatus,
-  nvidiaTelemetry,
-} from "../nvidia/telemetry.js";
+  type NvidiaPciInventory,
+  nvidiaPciInventoryUsesVfio,
+} from "../nvidia/pci-inventory.js";
+import type { NvidiaTelemetryStatus } from "../nvidia/telemetry.js";
 import { probeOpensslDevelopmentFiles } from "./openssl.js";
 
 export type PrerequisiteUsage = {
@@ -31,13 +32,18 @@ export type PrerequisiteProbeContext = {
   env: NodeJS.ProcessEnv;
   searchDirectories: string[];
   usage: PrerequisiteUsage;
+  nvidiaPci: NvidiaPciInventory;
+  nvidiaTelemetryStatus: () => NvidiaTelemetryStatus;
 };
 
 export type PrerequisiteProbeOutcome = {
   status: PrerequisiteStatus;
   detail: string | null;
   version: string | null;
+  remediationAvailable?: boolean;
 };
+
+type PrerequisiteCommandSource = string[] | ((release: OsRelease) => string[]);
 
 export type PrerequisiteDefinition = {
   id: string;
@@ -50,8 +56,11 @@ export type PrerequisiteDefinition = {
   blocks: string[];
   impact: string;
   packages: Partial<Record<HostPackageManager, string[]>>;
-  commands: string[] | ((release: OsRelease) => string[]);
-  runnableCommands?: boolean;
+  commands: PrerequisiteCommandSource;
+  installCommands?: PrerequisiteCommandSource;
+  includeInInstallPlan?: boolean;
+  requiresRebootAfterInstall?: boolean;
+  applies?: (context: PrerequisiteProbeContext) => boolean;
   docPath: string | null;
   note: string | null;
   probe: (
@@ -165,7 +174,7 @@ export function nvidiaDriverInstallCommands(
     ),
   );
   if (family.has("ubuntu")) {
-    return ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"];
+    return ["sudo ubuntu-drivers install --gpgpu"];
   }
 
   if (release.id !== "rocky" || release.versionId?.split(".")[0] !== "9") {
@@ -182,8 +191,16 @@ export function nvidiaDriverInstallCommands(
     ...repoCommands,
     "sudo dnf install -y nvidia-driver-assistant",
     "nvidia-driver-assistant --install",
-    "sudo reboot",
   ];
+}
+
+export function nvidiaDriverManualCommands(
+  release: OsRelease,
+  architecture: NodeJS.Architecture = process.arch,
+): string[] {
+  return nvidiaDriverInstallCommands(release, architecture).length > 0
+    ? ["sudo reboot"]
+    : [];
 }
 
 export function cudaToolkitInstallCommands(
@@ -198,19 +215,56 @@ export function cudaToolkitInstallCommands(
 
 export function nvidiaDriverProbeOutcome(
   status: NvidiaTelemetryStatus,
+  pci: NvidiaPciInventory,
 ): PrerequisiteProbeOutcome {
+  if (status.state === "ready") {
+    return {
+      status: "ok",
+      detail: status.detail,
+      version: status.driverVersion,
+      remediationAvailable: false,
+    };
+  }
+  if (pci.state !== "present") {
+    return {
+      status: "unknown",
+      detail: `${pci.detail}. ${status.detail ?? "NVML is unavailable"}`,
+      version: status.driverVersion,
+      remediationAvailable: false,
+    };
+  }
+  if (nvidiaPciInventoryUsesVfio(pci)) {
+    return {
+      status: "unknown",
+      detail: `${pci.detail}. At least one NVIDIA GPU is bound to vfio-pci and may be intentionally reserved for passthrough; automatic driver installation is disabled.`,
+      version: status.driverVersion,
+      remediationAvailable: false,
+    };
+  }
+
+  const installable =
+    status.state === "no-library" || status.state === "driver-not-loaded";
   return {
-    status:
-      status.state === "ready"
-        ? "ok"
-        : status.state === "permission-denied" ||
-            status.state === "gpu-lost" ||
-            status.state === "error"
-          ? "unknown"
-          : "missing",
-    detail: status.detail,
+    status: installable ? "missing" : "unknown",
+    detail: `${pci.detail}. ${status.detail ?? "NVML did not expose the detected GPU"}`,
     version: status.driverVersion,
+    remediationAvailable: installable,
   };
+}
+
+function nvidiaDriverIsApplicable(
+  context: PrerequisiteProbeContext,
+): boolean {
+  return (
+    context.nvidiaPci.state === "present" ||
+    context.nvidiaTelemetryStatus().state === "ready"
+  );
+}
+
+function nvidiaCudaIsApplicable(
+  context: PrerequisiteProbeContext,
+): boolean {
+  return context.usage.cudaBuild || nvidiaDriverIsApplicable(context);
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -468,8 +522,9 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       pacman: ["cuda"],
       zypper: ["cuda-toolkit"],
     },
-    commands: cudaToolkitInstallCommands,
-    runnableCommands: true,
+    commands: [],
+    installCommands: cudaToolkitInstallCommands,
+    applies: nvidiaCudaIsApplicable,
     docPath: null,
     note: "DNF systems need NVIDIA's distribution-specific CUDA repository before the cuda-toolkit package is available. Also detected through CUDACXX, CUDA_HOME, CUDA_PATH, /usr/local/cuda and /opt/cuda.",
     probe: executableProbe(["nvcc"], ["--version"]),
@@ -479,15 +534,23 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     group: "cuda",
     title: "NVIDIA driver (NVML)",
     kind: "capability",
-    severity: "recommended",
-    blocks: [],
+    severity: "required",
+    blocks: ["NVIDIA GPU use"],
     impact:
       "GPU detection, VRAM pool capacity and per-process GPU memory telemetry use the resident NVML provider; without a usable NVIDIA driver GPU memory pools must be sized by hand.",
     packages: {},
-    commands: nvidiaDriverInstallCommands,
+    commands: nvidiaDriverManualCommands,
+    installCommands: nvidiaDriverInstallCommands,
+    includeInInstallPlan: false,
+    requiresRebootAfterInstall: true,
+    applies: nvidiaDriverIsApplicable,
     docPath: "docs/RESOURCE_MANAGEMENT.md",
-    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. The distro-specific helper selects a driver compatible with the detected GPU: ubuntu-drivers on Ubuntu, or NVIDIA's driver assistant on Rocky Linux 9 x86-64. After rebooting, restart arriero and press Re-check; nvidia-smi is not required.",
-    probe: async () => nvidiaDriverProbeOutcome(nvidiaTelemetry.status(true)),
+    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. The distro-specific helper selects a driver compatible with the detected PCI GPU: ubuntu-drivers on Ubuntu, or NVIDIA's driver assistant on Rocky Linux 9 x86-64. Reboot remains a separate manual action; after the server returns, press Re-check. nvidia-smi is not required.",
+    probe: async (context) =>
+      nvidiaDriverProbeOutcome(
+        context.nvidiaTelemetryStatus(),
+        context.nvidiaPci,
+      ),
   },
   {
     id: "numactl",

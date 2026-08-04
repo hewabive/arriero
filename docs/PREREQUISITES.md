@@ -14,12 +14,14 @@ machine, and a refusal to start long operations that are already doomed.
 | Startup PATH repair         | `apps/api/src/system/path-repair.ts`        |
 | Directories searched        | `apps/api/src/prerequisites/search-paths.ts`|
 | Check registry              | `apps/api/src/prerequisites/registry.ts`    |
+| NVIDIA PCI inventory        | `apps/api/src/nvidia/pci-inventory.ts`      |
 | OpenSSL version probe       | `apps/api/src/prerequisites/openssl.ts`     |
 | HTTPS usage predicate       | `apps/api/src/prerequisites/https-usage.ts` |
 | Report assembly             | `apps/api/src/prerequisites/report.ts`      |
 | Install-command aggregation | `apps/api/src/prerequisites/install-plan.ts`|
 | Elevation capability probe  | `apps/api/src/prerequisites/install-capability.ts` |
 | UI install runner           | `apps/api/src/prerequisites/install-runner.ts` |
+| Reboot-required state       | `apps/api/src/prerequisites/reboot-state.ts` |
 | Build fail-fast             | `apps/api/src/build/preflight.ts`           |
 | Routes                      | `GET /api/prerequisites`, `POST …/install`, `GET …/install/latest` |
 | Page                        | `#/prerequisites`                           |
@@ -49,14 +51,29 @@ package installs are idempotent, so an unverifiable requirement is included
 rather than risking a second round trip for the administrator.
 
 Per-item commands may also be resolved from `/etc/os-release` when a generic
-package name would be unsafe. In particular, Ubuntu's NVIDIA driver packages
-contain a changing branch number, so an unavailable NVIDIA NVML capability shows
-`sudo ubuntu-drivers install --gpgpu` followed by `sudo reboot`. The
+package name would be unsafe. The NVIDIA driver check is applicable only when a
+display-class NVIDIA PCI device is visible through sysfs, or NVML itself already
+exposes a GPU. Directly reading `/sys/bus/pci/devices/*/{vendor,class}` avoids a
+dependency on the driver, NVML, `nvidia-smi`, `lspci`, or the PCI names database.
+Vendor `0x10de` plus PCI base class `0x03` includes VGA and compute-only 3D
+controllers while excluding the HDMI audio function commonly paired with a GPU.
+An unreadable PCI inventory is `unknown`, never an authoritative CPU-only result.
+If neither PCI nor NVML exposes NVIDIA hardware and CUDA builds are disabled, the
+whole NVIDIA group is omitted instead of advertising irrelevant recommended
+packages on a CPU node.
+
+When PCI sees a GPU but NVML reports that the library or driver is unavailable,
+the driver is a **required** host prerequisite. Ubuntu's changing driver branch
+numbers make a static package name unsafe, so the check exposes
+`sudo ubuntu-drivers install --gpgpu` as its own runnable command. A second
+`sudo reboot` row is deliberately manual and never sent to the runner. The
 hardware-aware Ubuntu tool selects a compatible headless/server driver and its
-NVML runtime; arriero does not pin a driver branch that will become stale or
-offer the Ubuntu command on other distributions. The command does not have to
-install `nvidia-utils` or `nvidia-smi` because arriero calls
-`libnvidia-ml.so.1` directly.
+NVML runtime; arriero does not pin a branch that will become stale or offer the
+Ubuntu command on other distributions. The command does not have to install
+`nvidia-utils` or `nvidia-smi` because arriero calls `libnvidia-ml.so.1`
+directly. NVML permission, lost-GPU and generic runtime errors remain diagnostic
+instead of triggering a blind reinstall. A GPU bound to `vfio-pci` is also
+diagnostic-only because it may be intentionally reserved for passthrough.
 
 The same rule keeps `cuda-toolkit` out of the aggregated DNF command. It is an
 NVIDIA package, not a package in the default Fedora or RHEL-family repositories;
@@ -71,7 +88,8 @@ remediation enables Rocky's CRB and EPEL dependencies, installs matching kernel
 development files, adds NVIDIA's `rhel9/x86_64` network repository, and installs
 `nvidia-driver-assistant`. Running the assistant with `--install` selects the
 module flavor supported by the detected GPU instead of arriero assuming that
-every NVIDIA device can use the open kernel module. A reboot is still required.
+every NVIDIA device can use the open kernel module. Those setup steps form one
+`&&`-joined runnable row; `sudo reboot` remains a separate manual row.
 
 On Ubuntu 24.04 the install may repeat
 `udevadm hwdb is deprecated. Use systemd-hwdb instead.` while packages are
@@ -173,12 +191,21 @@ Runner rules (`install-runner.ts`):
   (`resolveInstallCommand`) — clients never submit command text.
 - Package-manager commands and explicitly allowlisted, server-generated install
   sequences are runnable. The DNF `nvcc` remediation is one such sequence;
-  other free-form `commands` (`ubuntu-drivers` + `sudo reboot`, the delegation
-  script, `pipx install uv`) stay copy-paste.
+  the Ubuntu/Rocky NVIDIA driver setup is another. Driver setup is intentionally
+  excluded from the aggregated required/recommended command and is runnable only
+  from its own check. Its separate `sudo reboot` command, the delegation script
+  and `pipx install uv` stay copy-paste.
 - One run at a time, in memory only (log tail 256 KiB), exposed at
   `GET /api/prerequisites/install/latest` and polled while running.
   `DEBIAN_FRONTEND=noninteractive`; under root the `sudo` prefix is stripped.
   On finish the page re-fetches the report.
+- A successful per-item install whose definition requires reboot writes its
+  check id, timestamp and current `/proc/sys/kernel/random/boot_id` to
+  `data/prerequisite-reboot-state.json`. While that boot id is current the play
+  action is suppressed and the check shows **Server reboot required**. A manager
+  restart preserves the marker; a real host reboot changes the boot id, clears
+  it and makes the live probe authoritative again. Failed commands never create
+  a marker.
 
 ## Caches
 

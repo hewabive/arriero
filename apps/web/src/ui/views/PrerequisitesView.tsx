@@ -163,12 +163,24 @@ function CheckRow(props: {
           </Text>
         )}
 
-        {!resolved && check.remediation.installCommand && (
-          <CommandBlock
-            command={check.remediation.installCommand}
-            install={install}
-            request={{ checkId: check.id }}
-          />
+        {!resolved &&
+          check.remediation.installCommand &&
+          (check.remediation.rebootRequired ? (
+            <CommandBlock command={check.remediation.installCommand} />
+          ) : (
+            <CommandBlock
+              command={check.remediation.installCommand}
+              install={install}
+              request={{ checkId: check.id }}
+            />
+          ))}
+
+        {!resolved && check.remediation.rebootRequired && (
+          <Alert color="yellow" title="Server reboot required">
+            Installation completed successfully during this boot. Reboot the
+            server manually to load the NVIDIA driver; the install action stays
+            unavailable until the boot changes.
+          </Alert>
         )}
 
         {!resolved &&
@@ -228,6 +240,15 @@ export function PrerequisitesView() {
   });
   const report = reportQuery.data?.data;
   const install = usePrerequisiteInstall(report?.installRunner);
+  const requiredSetupIncomplete =
+    report?.groups.some((group) =>
+      group.checks.some(
+        (check) =>
+          check.severity === "required" &&
+          check.status !== "ok" &&
+          check.status !== "out-of-path",
+      ),
+    ) ?? false;
 
   return (
     <Stack gap="md">
@@ -271,12 +292,12 @@ export function PrerequisitesView() {
           )}
 
           {report?.install.requiredCommand && (
-            <Alert color="red" title="Required tooling is missing">
+            <Alert color="red" title="Required host setup is incomplete">
               <Stack gap="xs">
                 <Text size="sm">
                   {report.installRunner.available
-                    ? "Run this as an administrator on the host — or run it from here: the manager can elevate without a password. Then press Re-check."
-                    : "Run this as an administrator on the host, then press Re-check."}
+                    ? "Run the combined command as an administrator — or run it from here: the manager can elevate without a password. Resolve any remaining per-item actions below, then press Re-check."
+                    : "Run the combined command as an administrator, resolve any remaining per-item actions below, then press Re-check."}
                 </Text>
                 <CommandBlock
                   command={report.install.requiredCommand}
@@ -302,14 +323,14 @@ export function PrerequisitesView() {
 
           {report &&
             !report.install.requiredCommand &&
-            report.summary.missingRequired > 0 && (
-              <Alert color="red" title="Required tooling is missing">
-                No package-manager command is known for this host; follow the
-                per-item instructions below.
+            requiredSetupIncomplete && (
+              <Alert color="red" title="Required host setup is incomplete">
+                Resolve the required per-item actions below, then press
+                Re-check.
               </Alert>
             )}
 
-          {report && report.summary.missingRequired === 0 && (
+          {report && !requiredSetupIncomplete && (
             <Alert color="green" title="No blocking gaps">
               Every required prerequisite for the features configured on this
               node is present.
@@ -317,6 +338,7 @@ export function PrerequisitesView() {
           )}
 
           {report &&
+            !requiredSetupIncomplete &&
             !report.install.requiredCommand &&
             report.install.allCommand && (
               <Alert color="yellow" title="Recommended tooling is missing">

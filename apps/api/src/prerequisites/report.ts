@@ -8,6 +8,11 @@ import type {
 import { getBuildSettings } from "../build/repository.js";
 import { listEnvironmentSpecs } from "../envs/repository.js";
 import { listInstances } from "../instances/repository.js";
+import { detectNvidiaPciInventory } from "../nvidia/pci-inventory.js";
+import {
+  type NvidiaTelemetryStatus,
+  nvidiaTelemetry,
+} from "../nvidia/telemetry.js";
 import {
   installCommandPrefix,
   packageManagerForOsRelease,
@@ -34,6 +39,10 @@ import {
   type PrerequisiteProbeContext,
   type PrerequisiteUsage,
 } from "./registry.js";
+import {
+  PrerequisiteRebootState,
+  prerequisiteRebootState,
+} from "./reboot-state.js";
 import { wellKnownToolDirectories } from "./search-paths.js";
 
 function collectPrerequisiteUsage(): PrerequisiteUsage {
@@ -64,25 +73,48 @@ function prerequisiteHost(): PrerequisiteHost {
   };
 }
 
+function resolveCommands(
+  source: PrerequisiteDefinition["commands"] | undefined,
+  release: ReturnType<typeof readOsRelease>,
+): string[] {
+  if (!source) {
+    return [];
+  }
+  return typeof source === "function" ? source(release) : source;
+}
+
 export async function evaluatePrerequisite(
   definition: PrerequisiteDefinition,
   context: PrerequisiteProbeContext,
+  rebootState: PrerequisiteRebootState = prerequisiteRebootState,
 ): Promise<PrerequisiteCheck> {
   const outcome = await definition.probe(context);
+  if (definition.requiresRebootAfterInstall && outcome.status === "ok") {
+    rebootState.clear(definition.id);
+  }
+  const rebootRequired = Boolean(
+    definition.requiresRebootAfterInstall &&
+    rebootState.isPending(definition.id),
+  );
   const release = readOsRelease();
   const packageManager = packageManagerForOsRelease(release);
-  const packages = definition.packages[packageManager] ?? [];
+  const remediationAvailable = outcome.remediationAvailable !== false;
+  const showRemediation = remediationAvailable || rebootRequired;
+  const packages = showRemediation
+    ? (definition.packages[packageManager] ?? [])
+    : [];
   const prefix = installCommandPrefix(packageManager);
-  const commands =
-    typeof definition.commands === "function"
-      ? definition.commands(release)
-      : definition.commands;
+  const commands = showRemediation
+    ? resolveCommands(definition.commands, release)
+    : [];
+  const installCommands = showRemediation
+    ? resolveCommands(definition.installCommands, release)
+    : [];
   const packageInstallCommand =
     prefix && packages.length > 0 ? `${prefix} ${packages.join(" ")}` : null;
-  const runnableSequence =
-    definition.runnableCommands && !packageInstallCommand
-      ? joinInstallCommands(commands)
-      : null;
+  const standaloneInstallCommand = !packageInstallCommand
+    ? joinInstallCommands(installCommands)
+    : null;
   return {
     id: definition.id,
     title: definition.title,
@@ -95,8 +127,10 @@ export async function evaluatePrerequisite(
     version: outcome.version,
     remediation: {
       packages,
-      installCommand: packageInstallCommand ?? runnableSequence,
-      commands: runnableSequence ? [] : commands,
+      installCommand: packageInstallCommand ?? standaloneInstallCommand,
+      commands,
+      includeInInstallPlan: definition.includeInInstallPlan !== false,
+      rebootRequired,
       docPath: definition.docPath,
       note: definition.note,
     },
@@ -104,39 +138,59 @@ export async function evaluatePrerequisite(
 }
 
 export function prerequisiteProbeContext(): PrerequisiteProbeContext {
+  let telemetryStatus: NvidiaTelemetryStatus | null = null;
   return {
     env: process.env,
     searchDirectories: wellKnownToolDirectories(),
     usage: collectPrerequisiteUsage(),
+    nvidiaPci: detectNvidiaPciInventory(),
+    nvidiaTelemetryStatus: () =>
+      (telemetryStatus ??= nvidiaTelemetry.status(true)),
   };
+}
+
+export function prerequisiteDefinitionIsApplicable(
+  definition: PrerequisiteDefinition,
+  context: PrerequisiteProbeContext,
+  rebootState: PrerequisiteRebootState = prerequisiteRebootState,
+): boolean {
+  if (
+    definition.requiresRebootAfterInstall &&
+    rebootState.isPending(definition.id)
+  ) {
+    return true;
+  }
+  return definition.applies?.(context) ?? true;
 }
 
 export async function getPrerequisiteReport(): Promise<PrerequisiteReport> {
   const context = prerequisiteProbeContext();
   augmentProcessPath(context.searchDirectories);
+  const definitions = prerequisiteDefinitions.filter((definition) =>
+    prerequisiteDefinitionIsApplicable(definition, context),
+  );
   const [checks, installRunner] = await Promise.all([
     Promise.all(
-      prerequisiteDefinitions.map((definition) =>
+      definitions.map((definition) =>
         evaluatePrerequisite(definition, context),
       ),
     ),
     detectInstallCapability(),
   ]);
   const byId = new Map(
-    prerequisiteDefinitions.map((definition, index) => [
-      definition.id,
-      checks[index]!,
-    ]),
+    definitions.map((definition, index) => [definition.id, checks[index]!]),
   );
 
-  const groups: PrerequisiteGroup[] = prerequisiteGroups.map((group) => ({
-    id: group.id,
-    title: group.title,
-    description: group.description,
-    checks: prerequisiteDefinitions
-      .filter((definition) => definition.group === group.id)
-      .map((definition) => byId.get(definition.id)!),
-  }));
+  const groups: PrerequisiteGroup[] = prerequisiteGroups
+    .map((group) => ({
+      id: group.id,
+      title: group.title,
+      description: group.description,
+      checks: definitions
+        .filter((definition) => definition.group === group.id)
+        .map((definition) => byId.get(definition.id)!),
+    }))
+    .filter((group) => group.checks.length > 0);
 
   const host = prerequisiteHost();
   return {

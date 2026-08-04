@@ -53,7 +53,9 @@ export function buildInstallPlan(
 ): PrerequisiteInstallPlan {
   const prefix = installCommandPrefix(packageManager);
   const toCommand = (severities: PrerequisiteCheck["severity"][]) => {
-    const relevant = unconfirmedChecks(checks, severities);
+    const relevant = unconfirmedChecks(checks, severities).filter(
+      (check) => check.remediation.includeInInstallPlan,
+    );
     const packages = packagesFor(relevant);
     const commands = standaloneCommandsFor(relevant);
     if (prefix && packages.length > 0) {
@@ -77,7 +79,9 @@ export function resolveInstallCommand(
     for (const group of report.groups) {
       const check = group.checks.find((item) => item.id === request.checkId);
       if (check) {
-        return check.remediation.installCommand;
+        return check.remediation.rebootRequired
+          ? null
+          : check.remediation.installCommand;
       }
     }
     return null;

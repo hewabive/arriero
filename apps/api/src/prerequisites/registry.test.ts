@@ -5,6 +5,7 @@ import type { OsRelease } from "../system/os-release.js";
 import {
   cudaToolkitInstallCommands,
   nvidiaDriverInstallCommands,
+  nvidiaDriverManualCommands,
   nvidiaDriverProbeOutcome,
   prerequisiteDefinitions,
 } from "./registry.js";
@@ -16,13 +17,26 @@ const rocky9: OsRelease = {
   versionId: "9.8",
 };
 
+const nvidiaPci = {
+  state: "present" as const,
+  devices: [
+    {
+      address: "0000:01:00.0",
+      deviceId: "0x2231",
+      classCode: "0x030000",
+      driver: "nouveau",
+    },
+  ],
+  detail: "1 NVIDIA display controller detected through PCI",
+};
+
 test("keeps CUDA out of the aggregated DNF transaction", () => {
   const nvcc = prerequisiteDefinitions.find(
     (definition) => definition.id === "nvcc",
   );
   assert.ok(nvcc);
   assert.deepEqual(nvcc.packages.dnf, undefined);
-  assert.equal(nvcc.runnableCommands, true);
+  assert.equal(typeof nvcc.installCommands, "function");
 });
 
 test("adds NVIDIA's CUDA repository before installing the toolkit on Fedora", () => {
@@ -76,7 +90,7 @@ test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
       prettyName: "Ubuntu 24.04 LTS",
       versionId: "24.04",
     }),
-    ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"],
+    ["sudo ubuntu-drivers install --gpgpu"],
   );
   assert.deepEqual(
     nvidiaDriverInstallCommands({
@@ -85,7 +99,16 @@ test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
       prettyName: "Linux Mint",
       versionId: null,
     }),
-    ["sudo ubuntu-drivers install --gpgpu", "sudo reboot"],
+    ["sudo ubuntu-drivers install --gpgpu"],
+  );
+  assert.deepEqual(
+    nvidiaDriverManualCommands({
+      id: "ubuntu",
+      idLike: ["debian"],
+      prettyName: "Ubuntu 24.04 LTS",
+      versionId: "24.04",
+    }),
+    ["sudo reboot"],
   );
 });
 
@@ -97,8 +120,8 @@ test("uses NVIDIA's hardware-aware driver assistant on Rocky Linux 9 x86-64", ()
     "sudo dnf clean expire-cache",
     "sudo dnf install -y nvidia-driver-assistant",
     "nvidia-driver-assistant --install",
-    "sudo reboot",
   ]);
+  assert.deepEqual(nvidiaDriverManualCommands(rocky9, "x64"), ["sudo reboot"]);
 });
 
 test("does not suggest distro-specific driver commands on unsupported hosts", () => {
@@ -116,34 +139,61 @@ test("does not suggest distro-specific driver commands on unsupported hosts", ()
 
 test("maps NVML provider states to prerequisite outcomes", () => {
   assert.deepEqual(
-    nvidiaDriverProbeOutcome({
-      state: "ready",
-      detail: "1 NVIDIA GPU available through NVML",
-      driverVersion: "595.71.05",
-      deviceCount: 1,
-    }),
+    nvidiaDriverProbeOutcome(
+      {
+        state: "ready",
+        detail: "1 NVIDIA GPU available through NVML",
+        driverVersion: "595.71.05",
+        deviceCount: 1,
+      },
+      nvidiaPci,
+    ),
     {
       status: "ok",
       detail: "1 NVIDIA GPU available through NVML",
       version: "595.71.05",
+      remediationAvailable: false,
     },
   );
-  assert.equal(
-    nvidiaDriverProbeOutcome({
+  const missing = nvidiaDriverProbeOutcome(
+    {
       state: "driver-not-loaded",
       detail: "Driver Not Loaded",
       driverVersion: null,
       deviceCount: 0,
-    }).status,
-    "missing",
+    },
+    nvidiaPci,
   );
-  assert.equal(
-    nvidiaDriverProbeOutcome({
+  assert.equal(missing.status, "missing");
+  assert.equal(missing.remediationAvailable, true);
+
+  const denied = nvidiaDriverProbeOutcome(
+    {
       state: "permission-denied",
       detail: "No Permission",
       driverVersion: null,
       deviceCount: 0,
-    }).status,
-    "unknown",
+    },
+    nvidiaPci,
   );
+  assert.equal(denied.status, "unknown");
+  assert.equal(denied.remediationAvailable, false);
+});
+
+test("does not offer driver installation for a vfio-pci GPU", () => {
+  const outcome = nvidiaDriverProbeOutcome(
+    {
+      state: "driver-not-loaded",
+      detail: "Driver Not Loaded",
+      driverVersion: null,
+      deviceCount: 0,
+    },
+    {
+      ...nvidiaPci,
+      devices: [{ ...nvidiaPci.devices[0]!, driver: "vfio-pci" }],
+    },
+  );
+  assert.equal(outcome.status, "unknown");
+  assert.equal(outcome.remediationAvailable, false);
+  assert.match(outcome.detail ?? "", /vfio-pci/);
 });

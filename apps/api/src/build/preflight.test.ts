@@ -98,6 +98,8 @@ test("error message names every missing tool and its packages", () => {
           packages: ["cmake"],
           installCommand: null,
           commands: [],
+          includeInInstallPlan: true,
+          rebootRequired: false,
           docPath: null,
           note: null,
         },

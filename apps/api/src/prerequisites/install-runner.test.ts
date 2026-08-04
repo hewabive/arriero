@@ -53,6 +53,37 @@ test("reports a failing command with its exit code", async () => {
   assert.match(run.log, /boom/);
 });
 
+test("records post-install state only after a successful command", async () => {
+  const completed: string[] = [];
+  const succeeded = new PrerequisiteInstallRunner();
+  succeeded.start({ checkId: "nvidia-driver" }, "exit 0", null, {
+    onSucceeded: () => completed.push("nvidia-driver"),
+  });
+  await succeeded.waitForCompletion();
+  assert.deepEqual(completed, ["nvidia-driver"]);
+
+  const failed = new PrerequisiteInstallRunner();
+  failed.start({ checkId: "nvidia-driver" }, "exit 1", null, {
+    onSucceeded: () => completed.push("unexpected"),
+  });
+  await failed.waitForCompletion();
+  assert.deepEqual(completed, ["nvidia-driver"]);
+});
+
+test("keeps a successful install successful when state recording warns", async () => {
+  const runner = new PrerequisiteInstallRunner();
+  runner.start({ checkId: "nvidia-driver" }, "exit 0", null, {
+    onSucceeded: () => {
+      throw new Error("marker unavailable");
+    },
+  });
+  await runner.waitForCompletion();
+  const run = runner.latest();
+  assert.ok(run);
+  assert.equal(run.status, "succeeded");
+  assert.match(run.log, /post-install state warning: marker unavailable/);
+});
+
 test("refuses to start a second run while one is active", async () => {
   const runner = new PrerequisiteInstallRunner();
   runner.start({ scope: "required" }, "sleep 0.3", null);
