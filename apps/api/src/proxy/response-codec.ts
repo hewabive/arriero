@@ -206,10 +206,32 @@ export function mutateApiProxySseJsonFrame(
   return parsed.serialize();
 }
 
+export function apiProxySseDataFrame(payload: unknown): string {
+  return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+export function apiProxySseEventFrame(type: string, payload: unknown): string {
+  return `event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`;
+}
+
+export type ApiProxySseFrameTransformResult =
+  | string
+  | string[]
+  | null
+  | { frames: string[]; terminate: true };
+
 export type ApiProxySseFrameTransformer = {
-  transform: (frame: string) => string | string[] | null;
+  transform: (frame: string) => ApiProxySseFrameTransformResult;
   flush?: (() => string | string[] | null) | undefined;
 };
+
+function isTerminalResult(
+  result: ApiProxySseFrameTransformResult,
+): result is { frames: string[]; terminate: true } {
+  return (
+    result !== null && typeof result === "object" && !Array.isArray(result)
+  );
+}
 
 export function transformApiProxySseText(
   text: string,
@@ -217,17 +239,24 @@ export function transformApiProxySseText(
 ): string {
   const split = splitApiProxySseFrames(text);
   const output: string[] = [];
-  const append = (value: string | string[] | null) => {
+  const append = (value: ApiProxySseFrameTransformResult): boolean => {
     if (value === null) {
-      return;
+      return false;
+    }
+    if (isTerminalResult(value)) {
+      output.push(...value.frames);
+      return true;
     }
     output.push(...(Array.isArray(value) ? value : [value]));
+    return false;
   };
   for (const frame of split.frames) {
-    append(transformer.transform(frame));
+    if (append(transformer.transform(frame))) {
+      return output.join("");
+    }
   }
-  if (split.tail !== null) {
-    append(transformer.transform(split.tail));
+  if (split.tail !== null && append(transformer.transform(split.tail))) {
+    return output.join("");
   }
   if (transformer.flush) {
     append(transformer.flush());
@@ -255,16 +284,41 @@ export function createApiProxySseTransform(
 ): TransformStream<Uint8Array, Uint8Array> {
   const frames = createApiProxySseFrameBuffer();
   const encoder = new TextEncoder();
+  let terminated = false;
+  const apply = (
+    controller: TransformStreamDefaultController<Uint8Array>,
+    result: ApiProxySseFrameTransformResult,
+  ) => {
+    if (isTerminalResult(result)) {
+      enqueueText(controller, encoder, result.frames);
+      terminated = true;
+      controller.terminate();
+      return;
+    }
+    enqueueText(controller, encoder, result);
+  };
   return new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
+      if (terminated) {
+        return;
+      }
       for (const frame of frames.push(chunk)) {
-        enqueueText(controller, encoder, transformer.transform(frame));
+        apply(controller, transformer.transform(frame));
+        if (terminated) {
+          return;
+        }
       }
     },
     flush(controller) {
+      if (terminated) {
+        return;
+      }
       const tail = frames.flush();
       if (tail !== null) {
-        enqueueText(controller, encoder, transformer.transform(tail));
+        apply(controller, transformer.transform(tail));
+        if (terminated) {
+          return;
+        }
       }
       if (transformer.flush) {
         enqueueText(controller, encoder, transformer.flush());

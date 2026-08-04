@@ -11,6 +11,8 @@ import {
   type ApiProxyProtocolOperation,
 } from "./protocol.js";
 import {
+  apiProxySseDataFrame,
+  apiProxySseEventFrame,
   createApiProxySseTransform,
   mutateApiProxyJsonText,
   parseApiProxySseJsonFrame,
@@ -23,12 +25,36 @@ type Replacement = {
   count: number;
 };
 
+export type ApiProxyResponseTextChannel = "answer" | "reasoning" | "tool";
+
+export type MutableDeltaChannels = {
+  includeReasoning: boolean;
+  includeToolArguments: boolean;
+};
+
 export type MutableDelta = {
   lane: string;
+  channel: ApiProxyResponseTextChannel;
   text: string;
   set: (text: string) => void;
   flushFrame: (text: string) => string;
 };
+
+const openAiReasoningKeys = [
+  "reasoning_content",
+  "reasoning",
+  "reasoning_text",
+];
+
+function laneChannel(lane: string): ApiProxyResponseTextChannel {
+  if (lane.startsWith("reasoning:")) {
+    return "reasoning";
+  }
+  if (lane.startsWith("tool:")) {
+    return "tool";
+  }
+  return "answer";
+}
 
 function replaceStringField(
   record: JsonRecord,
@@ -75,6 +101,14 @@ function replaceNestedStrings(
   return { value, count: 0 };
 }
 
+function isTextPart(part: JsonRecord): boolean {
+  return (
+    part.type === "text" ||
+    part.type === "output_text" ||
+    part.type === "summary_text"
+  );
+}
+
 function replaceTextContent(
   owner: JsonRecord,
   key: string,
@@ -89,11 +123,7 @@ function replaceTextContent(
   }
   let count = 0;
   for (const part of content) {
-    if (!isRecord(part)) {
-      continue;
-    }
-    const type = typeof part.type === "string" ? part.type : "";
-    if (type === "text" || type === "output_text" || type === "summary_text") {
+    if (isRecord(part) && isTextPart(part)) {
       count += replaceStringField(part, "text", rules);
     }
   }
@@ -119,9 +149,9 @@ function replaceOpenAiChoices(
     const message = choice.message;
     count += replaceTextContent(message, "content", effect.rules);
     if (effect.includeReasoning) {
-      count += replaceStringField(message, "reasoning_content", effect.rules);
-      count += replaceStringField(message, "reasoning", effect.rules);
-      count += replaceStringField(message, "reasoning_text", effect.rules);
+      for (const key of openAiReasoningKeys) {
+        count += replaceStringField(message, key, effect.rules);
+      }
     }
     if (effect.includeToolArguments && Array.isArray(message.tool_calls)) {
       for (const toolCall of message.tool_calls) {
@@ -274,6 +304,142 @@ export function replaceApiProxyResponseText(input: {
   return { text: mutation.text, count };
 }
 
+type TextSurfaceVisit = (
+  channel: ApiProxyResponseTextChannel,
+  text: string,
+) => void;
+
+function visitStringField(
+  owner: JsonRecord,
+  key: string,
+  channel: ApiProxyResponseTextChannel,
+  visit: TextSurfaceVisit,
+): void {
+  const value = owner[key];
+  if (typeof value === "string" && value.length > 0) {
+    visit(channel, value);
+  }
+}
+
+function visitTextContent(
+  owner: JsonRecord,
+  key: string,
+  channel: ApiProxyResponseTextChannel,
+  visit: TextSurfaceVisit,
+): void {
+  const content = owner[key];
+  if (typeof content === "string") {
+    visitStringField(owner, key, channel, visit);
+    return;
+  }
+  if (!Array.isArray(content)) {
+    return;
+  }
+  for (const part of content) {
+    if (isRecord(part) && isTextPart(part)) {
+      visitStringField(part, "text", channel, visit);
+    }
+  }
+}
+
+function visitOpenAiChoices(body: JsonRecord, visit: TextSurfaceVisit): void {
+  if (!Array.isArray(body.choices)) {
+    return;
+  }
+  for (const choice of body.choices) {
+    if (!isRecord(choice)) {
+      continue;
+    }
+    visitStringField(choice, "text", "answer", visit);
+    if (!isRecord(choice.message)) {
+      continue;
+    }
+    const message = choice.message;
+    visitTextContent(message, "content", "answer", visit);
+    for (const key of openAiReasoningKeys) {
+      visitStringField(message, key, "reasoning", visit);
+    }
+    if (Array.isArray(message.tool_calls)) {
+      for (const toolCall of message.tool_calls) {
+        if (isRecord(toolCall) && isRecord(toolCall.function)) {
+          visitStringField(toolCall.function, "arguments", "tool", visit);
+        }
+      }
+    }
+  }
+}
+
+function visitAnthropicContent(
+  body: JsonRecord,
+  visit: TextSurfaceVisit,
+): void {
+  if (!Array.isArray(body.content)) {
+    return;
+  }
+  for (const block of body.content) {
+    if (!isRecord(block)) {
+      continue;
+    }
+    if (block.type === "text") {
+      visitStringField(block, "text", "answer", visit);
+    } else if (block.type === "thinking") {
+      visitStringField(block, "thinking", "reasoning", visit);
+    } else if (block.type === "tool_use" && block.input !== undefined) {
+      visit("tool", JSON.stringify(block.input));
+    }
+  }
+}
+
+function visitOpenAiResponsesItem(
+  item: JsonRecord,
+  visit: TextSurfaceVisit,
+): void {
+  if (item.type === "message") {
+    visitTextContent(item, "content", "answer", visit);
+  } else if (item.type === "reasoning") {
+    visitTextContent(item, "summary", "reasoning", visit);
+    visitTextContent(item, "content", "reasoning", visit);
+  } else if (item.type === "function_call") {
+    visitStringField(item, "arguments", "tool", visit);
+  }
+}
+
+function visitOpenAiResponsesOutput(
+  body: JsonRecord,
+  visit: TextSurfaceVisit,
+): void {
+  visitStringField(body, "output_text", "answer", visit);
+  if (!Array.isArray(body.output)) {
+    return;
+  }
+  for (const item of body.output) {
+    if (isRecord(item)) {
+      visitOpenAiResponsesItem(item, visit);
+    }
+  }
+}
+
+export function visitApiProxyResponseTextSurfaces(
+  value: unknown,
+  operation: ApiProxyProtocolOperation,
+  visit: TextSurfaceVisit,
+): void {
+  if (!isRecord(value)) {
+    return;
+  }
+  switch (apiProxyResponseShape(operation)) {
+    case "anthropic":
+      visitAnthropicContent(value, visit);
+      return;
+    case "openai-responses":
+      visitOpenAiResponsesOutput(value, visit);
+      return;
+    case "openai-chat":
+      visitOpenAiChoices(value, visit);
+      return;
+  }
+}
+
 class StreamingLiteralRule {
   private pending = "";
 
@@ -352,6 +518,7 @@ function addStringDelta(
   }
   deltas.push({
     lane,
+    channel: laneChannel(lane),
     text,
     set: (next) => {
       owner[key] = next;
@@ -360,13 +527,9 @@ function addStringDelta(
   });
 }
 
-function sseDataFrame(payload: JsonRecord): string {
-  return `data: ${JSON.stringify(payload)}\n\n`;
-}
-
 function collectOpenAiChoiceDeltas(
   value: JsonRecord,
-  effect: ApiProxyReplaceResponseTextEffect,
+  effect: MutableDeltaChannels,
 ): MutableDelta[] {
   const deltas: MutableDelta[] = [];
   if (!Array.isArray(value.choices)) {
@@ -384,7 +547,7 @@ function collectOpenAiChoiceDeltas(
       "text",
       `answer:choice:${choiceIndex}`,
       (text) =>
-        sseDataFrame({
+        apiProxySseDataFrame({
           id: value.id,
           object: value.object,
           created: value.created,
@@ -398,7 +561,7 @@ function collectOpenAiChoiceDeltas(
     const delta = choice.delta;
     const deltaFrame = (deltaPayload: (text: string) => JsonRecord) => {
       return (text: string) =>
-        sseDataFrame({
+        apiProxySseDataFrame({
           id: value.id,
           object: value.object,
           created: value.created,
@@ -414,7 +577,7 @@ function collectOpenAiChoiceDeltas(
       deltaFrame((text) => ({ content: text })),
     );
     if (effect.includeReasoning) {
-      for (const key of ["reasoning_content", "reasoning", "reasoning_text"]) {
+      for (const key of openAiReasoningKeys) {
         addStringDelta(
           deltas,
           delta,
@@ -448,19 +611,16 @@ function collectOpenAiChoiceDeltas(
 
 function collectAnthropicDeltas(
   value: JsonRecord,
-  effect: ApiProxyReplaceResponseTextEffect,
+  effect: MutableDeltaChannels,
 ): MutableDelta[] {
   const deltas: MutableDelta[] = [];
   const index = typeof value.index === "number" ? value.index : 0;
-  const eventFrame =
-    (delta: (text: string) => JsonRecord) => (text: string) => {
-      const payload = {
-        type: "content_block_delta",
-        index,
-        delta: delta(text),
-      };
-      return `event: content_block_delta\ndata: ${JSON.stringify(payload)}\n\n`;
-    };
+  const eventFrame = (delta: (text: string) => JsonRecord) => (text: string) =>
+    apiProxySseEventFrame("content_block_delta", {
+      type: "content_block_delta",
+      index,
+      delta: delta(text),
+    });
   const textFrame = eventFrame((text) => ({ type: "text_delta", text }));
   const thinkingFrame = eventFrame((text) => ({
     type: "thinking_delta",
@@ -530,7 +690,7 @@ function openAiResponsesIdentity(value: JsonRecord): string {
 
 function collectOpenAiResponsesDeltas(
   value: JsonRecord,
-  effect: ApiProxyReplaceResponseTextEffect,
+  effect: MutableDeltaChannels,
 ): MutableDelta[] {
   const deltas: MutableDelta[] = [];
   const type = typeof value.type === "string" ? value.type : "";
@@ -543,7 +703,7 @@ function collectOpenAiResponsesDeltas(
       }
     }
     payload.delta = text;
-    return sseDataFrame(payload);
+    return apiProxySseDataFrame(payload);
   };
   if (type === "response.output_text.delta") {
     addStringDelta(
@@ -583,7 +743,7 @@ function collectOpenAiResponsesDeltas(
 export function collectMutableDeltas(
   value: unknown,
   operation: ApiProxyProtocolOperation,
-  effect: ApiProxyReplaceResponseTextEffect,
+  effect: MutableDeltaChannels,
 ): MutableDelta[] {
   if (!isRecord(value)) {
     return [];

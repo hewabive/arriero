@@ -33,7 +33,12 @@ every ~512 chars over a 16 KiB rolling tail, each normalized to a score where
 
 - **`period`** — smallest exact period of the tail suffix (prefix-function
   over 512–4096-char windows); score = repeats / `periodMinRepeats`. Periods
-  ≤ 4 chars require a 2 KiB window so legit separator runs don't fire.
+  ≤ 4 chars require a 2 KiB window so legit separator runs don't fire. All
+  four windows share one prefix-function pass computed over the *reversed*
+  4096-char suffix (`suffixBorderLengths`): a string and its reverse have the
+  same smallest period, and every window is a suffix of the tail — i.e. a
+  prefix of the reversed sample — so `period(w) = w − π[w−1]` reads each
+  window's answer from the single pass.
 - **`novelty`** — rolling-hash 16-grams checked against everything already
   seen in the channel; score reaches 1.0 when the share of novel grams falls
   to `noveltyThreshold`. An honest first-pass enumeration stays ~0.5; only the

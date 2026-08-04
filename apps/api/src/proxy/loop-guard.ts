@@ -58,6 +58,8 @@ const ENTROPY_SAMPLE_CHARS = 2048;
 const ENTROPY_MIN_TAIL_CHARS = 1024;
 const ENTROPY_REFERENCE_BITS = 4;
 const PERIOD_WINDOW_CHARS = [512, 1024, 2048, 4096];
+const PERIOD_MIN_WINDOW_CHARS = Math.min(...PERIOD_WINDOW_CHARS);
+const PERIOD_MAX_WINDOW_CHARS = Math.max(...PERIOD_WINDOW_CHARS);
 const SHORT_PERIOD_CHARS = 4;
 const SHORT_PERIOD_MIN_WINDOW_CHARS = 2048;
 const SCORE_CAP = 2;
@@ -107,23 +109,20 @@ function ngramHashes(text: string): number[] {
   return hashes;
 }
 
-function smallestPeriod(text: string): number {
-  const length = text.length;
-  const prefix = new Int32Array(length);
-  for (let index = 1; index < length; index += 1) {
+function suffixBorderLengths(text: string, span: number): Int32Array {
+  const code = (index: number) => text.charCodeAt(text.length - 1 - index);
+  const prefix = new Int32Array(span);
+  for (let index = 1; index < span; index += 1) {
     let candidate = prefix[index - 1] ?? 0;
-    while (
-      candidate > 0 &&
-      text.charCodeAt(index) !== text.charCodeAt(candidate)
-    ) {
+    while (candidate > 0 && code(index) !== code(candidate)) {
       candidate = prefix[candidate - 1] ?? 0;
     }
-    if (text.charCodeAt(index) === text.charCodeAt(candidate)) {
+    if (code(index) === code(candidate)) {
       candidate += 1;
     }
     prefix[index] = candidate;
   }
-  return length - (prefix[length - 1] ?? 0);
+  return prefix;
 }
 
 function clampScore(score: number): number {
@@ -153,21 +152,14 @@ class LaneState {
     entropy: 0,
   };
 
-  constructor(
-    private readonly lane: ApiProxyLoopGuardLane,
-    private readonly config: ApiProxyLoopGuardConfig,
-  ) {}
+  constructor(private readonly config: ApiProxyLoopGuardConfig) {}
 
   push(text: string): void {
     this.pending += text;
   }
 
-  hasEvalReady(): boolean {
-    return this.pending.length >= EVAL_STEP_CHARS;
-  }
-
-  hasFinalizeReady(): boolean {
-    return this.pending.length >= FINALIZE_MIN_CHARS;
+  pendingLength(): number {
+    return this.pending.length;
   }
 
   evaluate(): SignalReading[] {
@@ -176,7 +168,10 @@ class LaneState {
     this.pending = this.pending.slice(step);
     const readings: SignalReading[] = [];
     const novelty = this.evaluateNovelty(slice);
-    this.tail = (this.tail + slice).slice(-TAIL_CAP_CHARS);
+    this.tail += slice;
+    if (this.tail.length > TAIL_CAP_CHARS * 2) {
+      this.tail = this.tail.slice(-TAIL_CAP_CHARS);
+    }
     this.totalChars += slice.length;
     const armed = this.totalChars >= this.config.minSpanChars;
     if (armed && novelty !== null) {
@@ -245,13 +240,17 @@ class LaneState {
   }
 
   private evaluatePeriod(): SignalReading | null {
+    const span = Math.min(this.tail.length, PERIOD_MAX_WINDOW_CHARS);
+    if (span < PERIOD_MIN_WINDOW_CHARS) {
+      return null;
+    }
+    const borders = suffixBorderLengths(this.tail, span);
     let best: SignalReading | null = null;
     for (const window of PERIOD_WINDOW_CHARS) {
-      if (this.tail.length < window) {
+      if (window > span) {
         continue;
       }
-      const sample = this.tail.slice(-window);
-      const period = smallestPeriod(sample);
+      const period = window - (borders[window - 1] ?? 0);
       if (period > window / 2) {
         continue;
       }
@@ -311,6 +310,52 @@ class LaneState {
   }
 }
 
+export type ApiProxyLoopGuardArtifact = {
+  kind: "loop-guard-trigger" | "loop-guard-near-miss";
+  data: Record<string, unknown>;
+};
+
+export function apiProxyLoopGuardArtifact(
+  config: ApiProxyLoopGuardConfig,
+  detector: ApiProxyLoopGuardDetector,
+  enforced: boolean,
+): ApiProxyLoopGuardArtifact | null {
+  detector.finalize();
+  const snapshot = detector.snapshot();
+  const capture =
+    snapshot.status === "triggered"
+      ? config.captureTrigger
+      : snapshot.status === "near-miss"
+        ? config.captureNearMiss
+        : false;
+  if (!capture) {
+    return null;
+  }
+  return {
+    kind:
+      snapshot.status === "triggered"
+        ? "loop-guard-trigger"
+        : "loop-guard-near-miss",
+    data: {
+      action: config.action,
+      enforced,
+      status: snapshot.status,
+      trigger: snapshot.trigger,
+      peak: snapshot.peak,
+      scannedChars: snapshot.scannedChars,
+      timeline: snapshot.timeline,
+      thresholds: {
+        minSpanChars: config.minSpanChars,
+        noveltyThreshold: config.noveltyThreshold,
+        compressionThreshold: config.compressionThreshold,
+        entropyThreshold: config.entropyThreshold,
+        periodMinRepeats: config.periodMinRepeats,
+        nearMissRatio: config.nearMissRatio,
+      },
+    },
+  };
+}
+
 export function createApiProxyLoopGuardDetector(
   config: ApiProxyLoopGuardConfig,
 ): ApiProxyLoopGuardDetector {
@@ -324,7 +369,7 @@ export function createApiProxyLoopGuardDetector(
     if (existing) {
       return existing;
     }
-    const created = new LaneState(lane, config);
+    const created = new LaneState(config);
     lanes.set(lane, created);
     return created;
   };
@@ -382,9 +427,9 @@ export function createApiProxyLoopGuardDetector(
   const drain = (
     lane: ApiProxyLoopGuardLane,
     state: LaneState,
-    ready: (state: LaneState) => boolean,
+    minPendingChars: number,
   ): ApiProxyLoopGuardHit | null => {
-    while (ready(state)) {
+    while (state.pendingLength() >= minPendingChars) {
       const hit = record(lane, state, state.evaluate());
       if (hit) {
         return hit;
@@ -400,14 +445,14 @@ export function createApiProxyLoopGuardDetector(
       }
       const state = laneState(lane);
       state.push(text);
-      return drain(lane, state, (item) => item.hasEvalReady());
+      return drain(lane, state, EVAL_STEP_CHARS);
     },
     finalize() {
       if (trigger) {
         return null;
       }
       for (const [lane, state] of lanes) {
-        const hit = drain(lane, state, (item) => item.hasFinalizeReady());
+        const hit = drain(lane, state, FINALIZE_MIN_CHARS);
         if (hit) {
           return hit;
         }

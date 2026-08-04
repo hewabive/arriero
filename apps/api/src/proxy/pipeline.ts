@@ -840,7 +840,7 @@ export async function resolveApiProxyRouteChain(input: {
           node.config.toolArguments ? "tools" : null,
         ]
           .filter((channel) => channel !== null)
-          .join("+");
+          .join(" + ");
         state.routeTrace.push(
           nodeStep(pipeline, node, {
             port: "next",

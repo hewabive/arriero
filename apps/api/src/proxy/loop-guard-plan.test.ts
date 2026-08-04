@@ -142,7 +142,7 @@ test("finish mode cuts the stream with marker and synthetic openai tail", async 
     putCache: (input) => cacheWrites.push(input.key),
     trace: value,
     operation: openAiOperation,
-    onLoopGuardFinish: () => {
+    onEarlyFinish: () => {
       finished += 1;
     },
   });

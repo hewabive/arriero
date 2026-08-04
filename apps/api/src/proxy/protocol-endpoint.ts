@@ -371,7 +371,7 @@ async function proxyProtocolEndpointInner(
       putCache: putApiProxyCachedResponse,
       trace,
       operation,
-      onLoopGuardFinish: () => {
+      onEarlyFinish: () => {
         apiProxyInflight.requestFinish(inflight.id);
       },
     });

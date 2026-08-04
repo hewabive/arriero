@@ -1,5 +1,6 @@
 import { saveApiProxyRequestFile } from "./request-files.js";
 import {
+  apiProxyLoopGuardArtifact,
   createApiProxyLoopGuardDetector,
   type ApiProxyLoopGuardDetector,
 } from "./loop-guard.js";
@@ -9,7 +10,6 @@ import {
 } from "./loop-guard-stream.js";
 import type {
   ApiProxyCacheStoreEffect,
-  ApiProxyLoopGuardEffect,
   ApiProxyResponseEffect,
 } from "./pipeline.js";
 import type { ApiProxyProtocolOperation } from "./protocol.js";
@@ -57,6 +57,7 @@ export type ApiProxyResponsePlanExecutor = {
 
 type EffectState = {
   effect: ApiProxyResponseEffect;
+  detector: ApiProxyLoopGuardDetector | null;
   explicitText: string | null;
   streamedText: string;
   tapped: boolean;
@@ -101,7 +102,7 @@ export function createApiProxyResponsePlanExecutor(input: {
   putCache: ApiProxyResponseCacheWriter;
   trace: ProxyTraceAccumulator;
   operation: ApiProxyProtocolOperation;
-  onLoopGuardFinish?: (() => void) | undefined;
+  onEarlyFinish?: (() => void) | undefined;
 }): ApiProxyResponsePlanExecutor | null {
   if (input.effects.length === 0) {
     return null;
@@ -109,6 +110,10 @@ export function createApiProxyResponsePlanExecutor(input: {
 
   const states: EffectState[] = input.effects.map((effect) => ({
     effect,
+    detector:
+      effect.type === "loop-guard"
+        ? createApiProxyLoopGuardDetector(effect.config)
+        : null,
     explicitText: null,
     streamedText: "",
     tapped: false,
@@ -116,21 +121,7 @@ export function createApiProxyResponsePlanExecutor(input: {
     flushed: false,
   }));
   let metadata: ApiProxyResponseMetadata | null = null;
-  let loopGuardFinished = false;
-
-  const loopGuardDetectors = new Map<EffectState, ApiProxyLoopGuardDetector>();
-  const loopGuardDetector = (
-    state: EffectState,
-    effect: ApiProxyLoopGuardEffect,
-  ): ApiProxyLoopGuardDetector => {
-    const existing = loopGuardDetectors.get(state);
-    if (existing) {
-      return existing;
-    }
-    const created = createApiProxyLoopGuardDetector(effect.config);
-    loopGuardDetectors.set(state, created);
-    return created;
-  };
+  let responseTruncated = false;
 
   const flushState = (state: EffectState) => {
     if (state.flushed) {
@@ -167,51 +158,28 @@ export function createApiProxyResponsePlanExecutor(input: {
       return;
     }
     if (state.effect.type === "loop-guard") {
-      const detector = loopGuardDetectors.get(state);
-      if (!detector) {
+      if (!state.detector) {
         return;
       }
-      detector.finalize();
-      const snapshot = detector.snapshot();
-      const capture =
-        snapshot.status === "triggered"
-          ? state.effect.config.captureTrigger
-          : snapshot.status === "near-miss"
-            ? state.effect.config.captureNearMiss
-            : false;
-      if (!capture) {
+      const artifact = apiProxyLoopGuardArtifact(
+        state.effect.config,
+        state.detector,
+        responseTruncated,
+      );
+      if (!artifact) {
         return;
       }
       input.trace.files.push(
         saveApiProxyRequestFile({
           traceId: input.trace.id,
           traceAt: input.trace.at,
-          kind:
-            snapshot.status === "triggered"
-              ? "loop-guard-trigger"
-              : "loop-guard-near-miss",
+          kind: artifact.kind,
           label: state.effect.nodeName,
           protocol: input.operation.protocol,
           endpoint: input.operation.endpoint,
           routePath: input.operation.routePath,
           modelId: input.trace.modelId,
-          data: {
-            action: state.effect.config.action,
-            enforced: loopGuardFinished,
-            status: snapshot.status,
-            trigger: snapshot.trigger,
-            peak: snapshot.peak,
-            scannedChars: snapshot.scannedChars,
-            timeline: snapshot.timeline,
-            thresholds: {
-              minSpanChars: state.effect.config.minSpanChars,
-              noveltyThreshold: state.effect.config.noveltyThreshold,
-              compressionThreshold: state.effect.config.compressionThreshold,
-              entropyThreshold: state.effect.config.entropyThreshold,
-              periodMinRepeats: state.effect.config.periodMinRepeats,
-              nearMissRatio: state.effect.config.nearMissRatio,
-            },
-          },
+          data: artifact.data,
         }),
       );
       return;
@@ -231,7 +199,7 @@ export function createApiProxyResponsePlanExecutor(input: {
       meta !== null &&
       isSuccessStatus(meta) &&
       !input.trace.errorMessage &&
-      !loopGuardFinished &&
+      !responseTruncated &&
       (meta.isSse || !looksLikeErrorBody(parsed));
     if (!cacheable) {
       settleCacheWithoutBody(
@@ -349,11 +317,11 @@ export function createApiProxyResponsePlanExecutor(input: {
             isSse: meta.isSse,
           }).text;
         } else if (state.effect.type === "loop-guard") {
-          if (!applyTransforms) {
+          if (!applyTransforms || !state.detector) {
             continue;
           }
           feedApiProxyLoopGuardText({
-            detector: loopGuardDetector(state, state.effect),
+            detector: state.detector,
             config: state.effect.config,
             operation: input.operation,
             text: current,
@@ -407,7 +375,7 @@ export function createApiProxyResponsePlanExecutor(input: {
             }),
           );
         } else if (state.effect.type === "loop-guard") {
-          if (!applyTransforms) {
+          if (!applyTransforms || !state.detector) {
             continue;
           }
           drainGroup();
@@ -415,14 +383,14 @@ export function createApiProxyResponsePlanExecutor(input: {
             createApiProxyLoopGuardStream({
               operation: input.operation,
               config: state.effect.config,
-              detector: loopGuardDetector(state, state.effect),
+              detector: state.detector,
               onFinished: () => {
-                loopGuardFinished = true;
+                responseTruncated = true;
                 settleAbandonedApiProxyCacheEffects(
                   input.effects,
                   `Loop guard finished the response for ${input.trace.modelId || "model"} early.`,
                 );
-                input.onLoopGuardFinish?.();
+                input.onEarlyFinish?.();
               },
             }),
           );

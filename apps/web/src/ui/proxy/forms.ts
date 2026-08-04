@@ -1,4 +1,5 @@
 import {
+  ApiProxyLoopGuardConfigSchema,
   defaultFusionAnswersTemplate,
   defaultFusionSynthesizerPrompt,
   parseApiProxyBodyFieldPath,
@@ -181,6 +182,8 @@ export const emptyPipelineDraft: PipelineDraft = {
   unbindModelIds: [],
 };
 
+const loopGuardDefaults = ApiProxyLoopGuardConfigSchema.parse({});
+
 function emptyPipelineNodeDraft(
   id: string,
   type: ApiProxyPipelineNode["type"],
@@ -205,19 +208,19 @@ function emptyPipelineNodeDraft(
     tokenScaleFactor: 1,
     cacheTtlSeconds: 3600,
     cacheNamespace: "",
-    loopGuardAction: "observe",
-    loopGuardAnswer: true,
-    loopGuardReasoning: true,
-    loopGuardToolArguments: false,
-    loopGuardMinSpanChars: 1024,
-    loopGuardNoveltyThreshold: 0.05,
-    loopGuardCompressionThreshold: 0.1,
-    loopGuardEntropyThreshold: 2.5,
-    loopGuardPeriodMinRepeats: 8,
-    loopGuardNearMissRatio: 0.7,
-    loopGuardCaptureTrigger: true,
-    loopGuardCaptureNearMiss: true,
-    loopGuardMarkerText: "[генерация прервана: обнаружено зацикливание]",
+    loopGuardAction: loopGuardDefaults.action,
+    loopGuardAnswer: loopGuardDefaults.answer,
+    loopGuardReasoning: loopGuardDefaults.reasoning,
+    loopGuardToolArguments: loopGuardDefaults.toolArguments,
+    loopGuardMinSpanChars: loopGuardDefaults.minSpanChars,
+    loopGuardNoveltyThreshold: loopGuardDefaults.noveltyThreshold,
+    loopGuardCompressionThreshold: loopGuardDefaults.compressionThreshold,
+    loopGuardEntropyThreshold: loopGuardDefaults.entropyThreshold,
+    loopGuardPeriodMinRepeats: loopGuardDefaults.periodMinRepeats,
+    loopGuardNearMissRatio: loopGuardDefaults.nearMissRatio,
+    loopGuardCaptureTrigger: loopGuardDefaults.captureTrigger,
+    loopGuardCaptureNearMiss: loopGuardDefaults.captureNearMiss,
+    loopGuardMarkerText: loopGuardDefaults.markerText,
     predicateType: "text-match",
     scope: "any-message",
     pattern: "",
@@ -814,27 +817,27 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
           toolArguments: draft.loopGuardToolArguments,
           minSpanChars:
             draft.loopGuardMinSpanChars === ""
-              ? 1024
+              ? loopGuardDefaults.minSpanChars
               : draft.loopGuardMinSpanChars,
           noveltyThreshold:
             draft.loopGuardNoveltyThreshold === ""
-              ? 0.05
+              ? loopGuardDefaults.noveltyThreshold
               : draft.loopGuardNoveltyThreshold,
           compressionThreshold:
             draft.loopGuardCompressionThreshold === ""
-              ? 0.1
+              ? loopGuardDefaults.compressionThreshold
               : draft.loopGuardCompressionThreshold,
           entropyThreshold:
             draft.loopGuardEntropyThreshold === ""
-              ? 2.5
+              ? loopGuardDefaults.entropyThreshold
               : draft.loopGuardEntropyThreshold,
           periodMinRepeats:
             draft.loopGuardPeriodMinRepeats === ""
-              ? 8
+              ? loopGuardDefaults.periodMinRepeats
               : draft.loopGuardPeriodMinRepeats,
           nearMissRatio:
             draft.loopGuardNearMissRatio === ""
-              ? 0.7
+              ? loopGuardDefaults.nearMissRatio
               : draft.loopGuardNearMissRatio,
           captureTrigger: draft.loopGuardCaptureTrigger,
           captureNearMiss: draft.loopGuardCaptureNearMiss,
