@@ -1,23 +1,37 @@
 import { readdirSync, readlinkSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
-import { readSysString } from "../system/sysfs.js";
+import { readSysString } from "./sysfs.js";
 
 const PCI_DEVICES_PATH = "/sys/bus/pci/devices";
-const NVIDIA_VENDOR_ID = 0x10de;
 const PCI_DISPLAY_BASE_CLASS = 0x03;
 
-type NvidiaPciDevice = {
+export type PciDisplayVendor = {
+  id: number;
+  label: string;
+};
+
+export const NVIDIA_PCI_VENDOR: PciDisplayVendor = {
+  id: 0x10de,
+  label: "NVIDIA",
+};
+
+export const AMD_PCI_VENDOR: PciDisplayVendor = {
+  id: 0x1002,
+  label: "AMD",
+};
+
+type DisplayPciDevice = {
   address: string;
   deviceId: string | null;
   classCode: string;
   driver: string | null;
 };
 
-export type NvidiaPciInventory =
+export type DisplayPciInventory =
   | {
       state: "present";
-      devices: NvidiaPciDevice[];
+      devices: DisplayPciDevice[];
       detail: string;
     }
   | {
@@ -42,9 +56,10 @@ function boundDriver(devicePath: string): string | null {
   }
 }
 
-export function detectNvidiaPciInventory(
+export function detectDisplayPciInventory(
+  vendor: PciDisplayVendor,
   devicesPath = PCI_DEVICES_PATH,
-): NvidiaPciInventory {
+): DisplayPciInventory {
   let addresses: string[];
   try {
     addresses = readdirSync(devicesPath);
@@ -56,20 +71,20 @@ export function detectNvidiaPciInventory(
     };
   }
 
-  const devices: NvidiaPciDevice[] = [];
+  const devices: DisplayPciDevice[] = [];
   let unreadableDevices = 0;
   for (const address of addresses) {
     const devicePath = resolve(devicesPath, address);
     const vendorText = readSysString(resolve(devicePath, "vendor"));
     const classText = readSysString(resolve(devicePath, "class"));
-    const vendor = parsePciHex(vendorText);
+    const vendorId = parsePciHex(vendorText);
     const classCode = parsePciHex(classText);
-    if (vendor === null || classCode === null) {
+    if (vendorId === null || classCode === null) {
       unreadableDevices += 1;
       continue;
     }
     if (
-      vendor !== NVIDIA_VENDOR_ID ||
+      vendorId !== vendor.id ||
       ((classCode >> 16) & 0xff) !== PCI_DISPLAY_BASE_CLASS
     ) {
       continue;
@@ -89,7 +104,7 @@ export function detectNvidiaPciInventory(
     return {
       state: "present",
       devices,
-      detail: `${devices.length} NVIDIA display controller${devices.length === 1 ? "" : "s"} detected through PCI: ${bindings}`,
+      detail: `${devices.length} ${vendor.label} display controller${devices.length === 1 ? "" : "s"} detected through PCI: ${bindings}`,
     };
   }
   if (unreadableDevices > 0) {
@@ -102,12 +117,24 @@ export function detectNvidiaPciInventory(
   return {
     state: "absent",
     devices: [],
-    detail: "No NVIDIA display controller was detected through PCI",
+    detail: `No ${vendor.label} display controller was detected through PCI`,
   };
 }
 
-export function nvidiaPciInventoryUsesVfio(
-  inventory: NvidiaPciInventory,
+export function detectNvidiaPciInventory(
+  devicesPath = PCI_DEVICES_PATH,
+): DisplayPciInventory {
+  return detectDisplayPciInventory(NVIDIA_PCI_VENDOR, devicesPath);
+}
+
+export function detectAmdPciInventory(
+  devicesPath = PCI_DEVICES_PATH,
+): DisplayPciInventory {
+  return detectDisplayPciInventory(AMD_PCI_VENDOR, devicesPath);
+}
+
+export function displayPciInventoryUsesVfio(
+  inventory: DisplayPciInventory,
 ): boolean {
   return (
     inventory.state === "present" &&

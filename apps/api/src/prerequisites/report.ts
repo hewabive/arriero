@@ -6,9 +6,13 @@ import type {
 } from "@arriero/core";
 
 import { getBuildSettings } from "../build/repository.js";
+import { rocmDeviceAvailable } from "../envs/availability.js";
 import { listEnvironmentSpecs } from "../envs/repository.js";
 import { listInstances } from "../instances/repository.js";
-import { detectNvidiaPciInventory } from "../nvidia/pci-inventory.js";
+import {
+  detectAmdPciInventory,
+  detectNvidiaPciInventory,
+} from "../system/pci-inventory.js";
 import {
   type NvidiaTelemetryStatus,
   nvidiaTelemetry,
@@ -144,6 +148,8 @@ export function prerequisiteProbeContext(): PrerequisiteProbeContext {
     searchDirectories: wellKnownToolDirectories(),
     usage: collectPrerequisiteUsage(),
     nvidiaPci: detectNvidiaPciInventory(),
+    amdPci: detectAmdPciInventory(),
+    rocmDeviceAvailable: rocmDeviceAvailable(),
     nvidiaTelemetryStatus: () =>
       (telemetryStatus ??= nvidiaTelemetry.status(true)),
   };

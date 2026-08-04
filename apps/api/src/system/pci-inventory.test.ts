@@ -7,12 +7,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import {
+  detectAmdPciInventory,
   detectNvidiaPciInventory,
-  nvidiaPciInventoryUsesVfio,
+  displayPciInventoryUsesVfio,
 } from "./pci-inventory.js";
 
 function fixture() {
@@ -74,7 +75,45 @@ test("detects NVIDIA display controllers without an NVIDIA driver", () => {
   }
 });
 
-test("reports an authoritative absence when readable PCI devices contain no NVIDIA GPU", () => {
+test("detects AMD display controllers independently of NVIDIA ones", () => {
+  const subject = fixture();
+  try {
+    subject.add({
+      address: "0000:03:00.0",
+      vendor: "0x1002",
+      device: "0x744c",
+      classCode: "0x030000",
+    });
+    subject.add({
+      address: "0000:03:00.1",
+      vendor: "0x1002",
+      classCode: "0x040300",
+      driver: "snd_hda_intel",
+    });
+    subject.add({
+      address: "0000:06:00.0",
+      vendor: "0x10de",
+      classCode: "0x030000",
+      driver: "nouveau",
+    });
+
+    const amd = detectAmdPciInventory(subject.root);
+    assert.equal(amd.state, "present");
+    assert.equal(amd.devices.length, 1);
+    assert.equal(amd.devices[0]?.address, "0000:03:00.0");
+    assert.equal(amd.devices[0]?.driver, null);
+    assert.match(amd.detail, /AMD display controller/);
+
+    const nvidia = detectNvidiaPciInventory(subject.root);
+    assert.equal(nvidia.state, "present");
+    assert.equal(nvidia.devices.length, 1);
+    assert.equal(nvidia.devices[0]?.address, "0000:06:00.0");
+  } finally {
+    subject.cleanup();
+  }
+});
+
+test("reports an authoritative absence when readable PCI devices contain no matching GPU", () => {
   const subject = fixture();
   try {
     subject.add({
@@ -88,6 +127,7 @@ test("reports an authoritative absence when readable PCI devices contain no NVID
       classCode: "0x040300",
     });
     assert.equal(detectNvidiaPciInventory(subject.root).state, "absent");
+    assert.equal(detectAmdPciInventory(subject.root).state, "absent");
   } finally {
     subject.cleanup();
   }
@@ -98,12 +138,13 @@ test("does not turn an unreadable inventory into an authoritative absence", () =
   try {
     mkdirSync(join(subject.root, "0000:00:00.0"));
     assert.equal(detectNvidiaPciInventory(subject.root).state, "unknown");
+    assert.equal(detectAmdPciInventory(subject.root).state, "unknown");
   } finally {
     subject.cleanup();
   }
 });
 
-test("recognises an NVIDIA GPU reserved through vfio-pci", () => {
+test("recognises a GPU reserved through vfio-pci", () => {
   const subject = fixture();
   try {
     subject.add({
@@ -114,8 +155,8 @@ test("recognises an NVIDIA GPU reserved through vfio-pci", () => {
     });
     const result = detectNvidiaPciInventory(subject.root);
     assert.equal(result.state, "present");
-    assert.equal(result.devices[0]?.driver, basename("vfio-pci"));
-    assert.equal(nvidiaPciInventoryUsesVfio(result), true);
+    assert.equal(result.devices[0]?.driver, "vfio-pci");
+    assert.equal(displayPciInventoryUsesVfio(result), true);
   } finally {
     subject.cleanup();
   }

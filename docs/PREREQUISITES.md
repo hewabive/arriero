@@ -14,7 +14,7 @@ machine, and a refusal to start long operations that are already doomed.
 | Startup PATH repair         | `apps/api/src/system/path-repair.ts`        |
 | Directories searched        | `apps/api/src/prerequisites/search-paths.ts`|
 | Check registry              | `apps/api/src/prerequisites/registry.ts`    |
-| NVIDIA PCI inventory        | `apps/api/src/nvidia/pci-inventory.ts`      |
+| Display-class PCI inventory | `apps/api/src/system/pci-inventory.ts`      |
 | OpenSSL version probe       | `apps/api/src/prerequisites/openssl.ts`     |
 | HTTPS usage predicate       | `apps/api/src/prerequisites/https-usage.ts` |
 | Report assembly             | `apps/api/src/prerequisites/report.ts`      |
@@ -61,6 +61,12 @@ An unreadable PCI inventory is `unknown`, never an authoritative CPU-only result
 If neither PCI nor NVML exposes NVIDIA hardware and CUDA builds are disabled, the
 whole NVIDIA group is omitted instead of advertising irrelevant recommended
 packages on a CPU node.
+
+The ROCm device check follows the same rule with the AMD vendor id `0x1002`: it
+is shown only when a display-class AMD PCI device is visible through sysfs, or
+`/dev/kfd` already exists — the latter keeps the check visible in a container
+that exposes the device without a readable PCI inventory, mirroring the NVML
+fallback for NVIDIA.
 
 When PCI sees a GPU but NVML reports that the library or driver is unavailable,
 the driver is a **required** host prerequisite. Ubuntu's changing driver branch

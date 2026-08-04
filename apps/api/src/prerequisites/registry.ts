@@ -14,9 +14,9 @@ import {
   probePkgConfigModule,
 } from "../system/tool-probe.js";
 import {
-  type NvidiaPciInventory,
-  nvidiaPciInventoryUsesVfio,
-} from "../nvidia/pci-inventory.js";
+  type DisplayPciInventory,
+  displayPciInventoryUsesVfio,
+} from "../system/pci-inventory.js";
 import type { NvidiaTelemetryStatus } from "../nvidia/telemetry.js";
 import { probeOpensslDevelopmentFiles } from "./openssl.js";
 
@@ -32,7 +32,9 @@ export type PrerequisiteProbeContext = {
   env: NodeJS.ProcessEnv;
   searchDirectories: string[];
   usage: PrerequisiteUsage;
-  nvidiaPci: NvidiaPciInventory;
+  nvidiaPci: DisplayPciInventory;
+  amdPci: DisplayPciInventory;
+  rocmDeviceAvailable: boolean;
   nvidiaTelemetryStatus: () => NvidiaTelemetryStatus;
 };
 
@@ -252,7 +254,7 @@ export function cudaToolkitInstallCommands(
 
 export function nvidiaDriverProbeOutcome(
   status: NvidiaTelemetryStatus,
-  pci: NvidiaPciInventory,
+  pci: DisplayPciInventory,
 ): PrerequisiteProbeOutcome {
   if (status.state === "ready") {
     return {
@@ -270,7 +272,7 @@ export function nvidiaDriverProbeOutcome(
       remediationAvailable: false,
     };
   }
-  if (nvidiaPciInventoryUsesVfio(pci)) {
+  if (displayPciInventoryUsesVfio(pci)) {
     return {
       status: "unknown",
       detail: `${pci.detail}. At least one NVIDIA GPU is bound to vfio-pci and may be intentionally reserved for passthrough; automatic driver installation is disabled.`,
@@ -302,6 +304,10 @@ function nvidiaCudaIsApplicable(context: PrerequisiteProbeContext): boolean {
 
 function nvidiaSmiIsApplicable(context: PrerequisiteProbeContext): boolean {
   return context.nvidiaTelemetryStatus().state === "ready";
+}
+
+function rocmKfdIsApplicable(context: PrerequisiteProbeContext): boolean {
+  return context.amdPci.state === "present" || context.rocmDeviceAvailable;
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -675,6 +681,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       "ROCm environment variants require an accessible /dev/kfd device; without it they are reported as unavailable.",
     packages: {},
     commands: [],
+    applies: rocmKfdIsApplicable,
     docPath: "docs/ENVIRONMENTS.md",
     note: "Needs the amdgpu/ROCm kernel driver and membership in the render/video group.",
     probe: devicePresenceProbe("/dev/kfd"),

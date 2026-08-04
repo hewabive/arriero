@@ -33,6 +33,12 @@ function context(
       devices: [],
       detail: "No NVIDIA GPU",
     },
+    amdPci: {
+      state: "absent",
+      devices: [],
+      detail: "No AMD GPU",
+    },
+    rocmDeviceAvailable: false,
     nvidiaTelemetryStatus: () => ({
       state: "no-library",
       detail: "NVML unavailable",
@@ -119,6 +125,36 @@ test("shows NVIDIA prerequisites when NVML exposes a container GPU", () => {
   assert.equal(prerequisiteDefinitionIsApplicable(driver, nvml), true);
   assert.equal(prerequisiteDefinitionIsApplicable(nvidiaSmi, nvml), true);
   assert.equal(prerequisiteDefinitionIsApplicable(nvidiaSmi, context()), false);
+});
+
+test("hides the ROCm device check on hosts without AMD display hardware", () => {
+  const rocm = findPrerequisiteDefinition("rocm-kfd");
+  assert.ok(rocm);
+  assert.equal(prerequisiteDefinitionIsApplicable(rocm, context()), false);
+  const amdGpu = context({
+    amdPci: {
+      state: "present",
+      devices: [
+        {
+          address: "0000:03:00.0",
+          deviceId: "0x744c",
+          classCode: "0x030000",
+          driver: null,
+        },
+      ],
+      detail: "1 AMD display controller detected through PCI",
+    },
+  });
+  assert.equal(prerequisiteDefinitionIsApplicable(rocm, amdGpu), true);
+  const kfdWithoutPci = context({
+    amdPci: {
+      state: "unknown",
+      devices: [],
+      detail: "PCI sysfs is unavailable",
+    },
+    rocmDeviceAvailable: true,
+  });
+  assert.equal(prerequisiteDefinitionIsApplicable(rocm, kfdWithoutPci), true);
 });
 
 test("keeps a successful install local-only and pending across manager restarts", async () => {

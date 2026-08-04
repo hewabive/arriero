@@ -94,9 +94,10 @@ registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITE
 Two `prerequisites` rules constrain code elsewhere: every PATH lookup goes through the one primitive
 `system/tool-probe.ts` (`build/cuda.ts:findNvcc` and `envs/uv.ts:findUv` included), and the UI
 installs packages only via the gated runner (root/passwordless-sudo only, command re-derived
-server-side). NVIDIA driver applicability comes from the driver-independent display-class PCI
-inventory, and its successful local-only install is boot-scoped until the operator reboots. A check
-is added only after it actually blocked a deployment.
+server-side). NVIDIA driver and ROCm `/dev/kfd` applicability come from the driver-independent
+display-class PCI inventory (`system/pci-inventory.ts`), and the driver's successful local-only
+install is boot-scoped until the operator reboots. A check is added only after it actually blocked a
+deployment.
 
 `system/metrics-history.ts` is the single owner of every counter delta (cpu/net/disk): it ticks at
 1 Hz always-on and feeds both `/api/system/metrics*` and the `cpu`/`network`/`disk` fields of
