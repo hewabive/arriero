@@ -2,6 +2,7 @@ import type {
   EnvironmentJob,
   EnvironmentJobStep,
   EnvironmentJobStepName,
+  EnvironmentRepositorySettings,
   EnvironmentSpec,
 } from "@arriero/core";
 import { createHash } from "node:crypto";
@@ -35,16 +36,49 @@ import {
   getEnvironmentJob,
   updateEnvironmentJob,
 } from "./repository.js";
-import {
-  assertUvPythonAvailable,
-  findUv,
-  uvPythonPreflightCommand,
-} from "./uv.js";
+import { getEnvironmentRepositorySettings } from "./settings.js";
+import { findSupportedUv, uvCompatibilityError } from "./uv.js";
 
 type LocalWheelArtifact = {
   path: string;
   sha256: string;
 };
+
+const UV_ENVIRONMENT_PASSTHROUGH = new Set([
+  "UV_CREDENTIALS_DIR",
+  "UV_HTTP_CONNECT_TIMEOUT",
+  "UV_HTTP_RETRIES",
+  "UV_HTTP_TIMEOUT",
+  "UV_INSECURE_HOST",
+  "UV_KEYRING_PROVIDER",
+  "UV_NATIVE_TLS",
+  "UV_NO_PROGRESS",
+  "UV_SYSTEM_CERTS",
+]);
+
+function uvEnvironmentPassthrough(key: string) {
+  return (
+    UV_ENVIRONMENT_PASSTHROUGH.has(key) ||
+    /^UV_INDEX_[A-Z0-9_]+_(?:USERNAME|PASSWORD)$/.test(key)
+  );
+}
+
+export function environmentUvProcessEnvironment(
+  source: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env = { ...source };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("UV_") && !uvEnvironmentPassthrough(key)) {
+      delete env[key];
+    }
+  }
+  return {
+    ...env,
+    UV_CACHE_DIR: config.uvCacheDir,
+    UV_NO_CONFIG: "1",
+    UV_PYTHON_INSTALL_DIR: config.pythonDir,
+  };
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -98,6 +132,10 @@ async function verifyLocalWheelArtifacts(
 export function environmentJobSteps(
   spec: EnvironmentSpec,
   uv: string,
+  repositories: EnvironmentRepositorySettings = {
+    packageIndexUrl: null,
+    pythonMirrorUrl: null,
+  },
 ): EnvironmentJobStep[] {
   const staging = environmentStagingDirectory(spec);
   const final = environmentDirectory(spec);
@@ -107,10 +145,11 @@ export function environmentJobSteps(
     uv,
     "pip",
     "install",
+    "--no-config",
     "--python",
     python,
     ...provisioner.requirements(spec),
-    ...provisioner.installOptions(spec),
+    ...provisioner.installOptions(spec, repositories),
   ];
   const step = (
     name: EnvironmentJobStepName,
@@ -124,28 +163,27 @@ export function environmentJobSteps(
     exitCode: null,
   });
   return [
-    spec.pythonProvisioning === "require-existing"
-      ? step(
-          "python-preflight",
-          uvPythonPreflightCommand(uv, spec.pythonVersion),
-        )
-      : step(
-          "python-install",
-          spec.pythonProvisioning === "mirror"
-            ? [
-                uv,
-                "python",
-                "install",
-                "--mirror",
-                spec.pythonMirrorUrl!,
-                spec.pythonVersion,
-              ]
-            : [uv, "python", "install", spec.pythonVersion],
-        ),
+    step(
+      "python-install",
+      repositories.pythonMirrorUrl
+        ? [
+            uv,
+            "python",
+            "install",
+            "--no-config",
+            "--mirror",
+            repositories.pythonMirrorUrl,
+            spec.pythonVersion,
+          ]
+        : [uv, "python", "install", "--no-config", spec.pythonVersion],
+    ),
     step("venv-create", [
       uv,
       "venv",
+      "--no-config",
       "--relocatable",
+      "--managed-python",
+      "--no-python-downloads",
       "--python",
       spec.pythonVersion,
       staging,
@@ -158,6 +196,7 @@ export function environmentJobSteps(
       uv,
       "pip",
       "list",
+      "--no-config",
       "--format",
       "freeze",
       "--python",
@@ -190,17 +229,16 @@ class EnvironmentRunner {
     ) {
       throw new Error("another environment installation is already running");
     }
-    const uv = findUv();
-    if (!uv) throw new Error("uv was not found on PATH");
-    if (spec.pythonProvisioning === "require-existing") {
-      assertUvPythonAvailable(uv, spec.pythonVersion);
-    }
+    const uv = findSupportedUv();
+    if (!uv)
+      throw new Error(uvCompatibilityError() ?? "supported uv was not found");
+    const repositories = getEnvironmentRepositorySettings();
     const finalDir = environmentDirectory(spec);
     if (existsSync(finalDir))
       throw new Error("environment is already installed");
     const job = createEnvironmentJob({
       environmentId: spec.id,
-      steps: environmentJobSteps(spec, uv),
+      steps: environmentJobSteps(spec, uv, repositories),
       logPath: resolve(config.logsDir, `env-${spec.id}-${Date.now()}.log`),
     });
     let resolveDone!: () => void;
@@ -355,6 +393,7 @@ class EnvironmentRunner {
     return runLoggedCommand(command, {
       log,
       collectStdout: true,
+      env: environmentUvProcessEnvironment(),
       ...(signal ? { signal } : {}),
     });
   }

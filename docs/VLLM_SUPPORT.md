@@ -28,7 +28,11 @@ are complete. The production contract and real-GPU release gate now live in
 - **Env specs are desired state.** The spec is persisted before installation. List responses derive `missing`/`installing`/`ready`/`failed` state from jobs and disk, and a missing/failed env can be rebuilt from the same spec.
 - **Installations are transactional.** Jobs build in a sibling staging directory, validate the `bin/vllm` entrypoint, write the resolved freeze, then atomically rename into the final directory. Cancellation/failure removes staging. Startup sweeps abandoned staging directories.
 - **Env identity is the stable generated `id`, not the mutable display tuple.** Runtime layout is `runtime/envs/<engine>-<version>-<id>/`; the suffix prevents collisions between Python/source variants and makes delete paths derivable without trusting catalog paths.
-- **Install source is a discriminated union.** `pypi` pins `vllm==version` and may carry extras plus a credential-free index URL; `wheel` carries an HTTPS/file wheel URL, optional SHA-256, and optional uv torch backend (needed for CPU wheels). URLs containing credentials are rejected. Secrets belong in process environment, not portable config.
+- **Install source is a discriminated union.** `pypi` pins `vllm==version` and may
+  carry extras; `wheel` carries a credential-free file/HTTP(S) wheel URL, optional
+  SHA-256, and optional uv torch backend (needed for CPU wheels). Repository URLs are
+  node-wide settings rather than application identity. Secrets belong in process
+  environment, not portable config.
 - **Recreation is dependency-resolved, not bit-reproducible.** `freeze.txt` records the realized environment for diagnosis, but the portable spec intentionally pins only engine/Python/source inputs. Exact lockfile reproduction is deferred and the UI must not claim otherwise.
 - **Jobs are single-flight and in-memory, like Build, but lifecycle-safe.** Logs use the existing JSON tail polling pattern rather than introducing env-only SSE. The active child runs in its own process group, cancel/shutdown terminates the group, and restart recovery reports the persisted spec as missing after staging cleanup.
 - **Env/catalog ownership is explicit.** The spec stores its path-catalog entry id. Reconciliation repairs a missing or edited generated entry. Delete is refused while an instance references that entry or a job is active; it removes only the env-owned, root-confined directory.
@@ -66,7 +70,12 @@ Run vLLM by hand in a scratch uv venv and answer the unknowns that shape phases 
 
 Extra findings that shaped decisions:
 
-- **System python is not enough**: the CPU backend JIT-compiles kernels through torch inductor even under `--enforce-eager` and dies on a missing `Python.h`; distro pythons lack dev headers unless `-dev` is installed. uv-managed interpreters (python-build-standalone) ship headers — the env domain uses only managed interpreters. Offline installs select `pythonProvisioning: "require-existing"`, which performs a no-download preflight before any installation work.
+- **System python is not enough**: the CPU backend JIT-compiles kernels through torch
+  inductor even under `--enforce-eager` and dies on a missing `Python.h`; distro
+  pythons lack dev headers unless `-dev` is installed. uv-managed interpreters
+  (python-build-standalone) ship headers — the env domain uses only managed
+  interpreters. A configured site-wide uv mirror supplies them in disconnected
+  deployments; venv creation then forbids an implicit Python download.
 - **CPU-variant wheels** live as GitHub release assets (`vllm-<v>+cpu-cp38-abi3-manylinux_2_34_x86_64.whl`, ~107 MiB vs 266 MiB CUDA-implied PyPI wheel), installable via `uv pip install <url> --torch-backend cpu`. The env spec should support a variant/wheel-source override so GPU-less dev machines can run real vLLM end-to-end.
 - **Argument help can require a working accelerator backend.** If `vllm serve --help=all`
   cannot initialize on the current node, arriero now serves a bundled conservative
@@ -100,7 +109,12 @@ Modeled on the build domain: a job runner with streamed step logs, producing a r
 
 - `envs/uv.ts` — uv detection, version surfaced in `SystemResources`/Diagnostics.
 - Env specs are file-backed portable config: `config/envs.json` (aggregate array, in-memory cache + atomic write-through, same pattern as `path-catalog.json`): `{ id, engine: "vllm", version, pythonVersion, source, pathCatalogEntryId, createdAt, updatedAt }`. The venv itself is runtime state — rebuildable from the spec, never in git.
-- Job steps: `uv python install <ver>` → `uv venv --relocatable --python <ver> <staging>` → `uv pip install --python <staging>/bin/python <source>` → write `freeze.txt` → validate entrypoint → atomic rename → register/reconcile the path-catalog entry. Relocatable mode keeps console-script shebangs valid after the staging directory is renamed.
+- Job steps: `uv python install [--mirror <site-mirror>] <ver>` → `uv venv
+  --relocatable --managed-python --no-python-downloads --python <ver> <staging>` →
+  `uv pip install --python <staging>/bin/python <source>` using the site package
+  index → write `freeze.txt` → validate entrypoint → atomic rename →
+  register/reconcile the path-catalog entry. Relocatable mode keeps console-script
+  shebangs valid after the staging directory is renamed.
 - Layout: `runtime/envs/`, overridable via `ARRIERO_ENVS_DIR`. Envs are immutable: a new version = a new venv; no in-place upgrades.
 - Delete = remove venv dir + catalog entry; refused while any instance references the entry via `binaryPathRefId`.
 - API supports list/create/rebuild/delete, one active install job, cancel, and polled log tail. Delete is guarded by instance references and active jobs.

@@ -19,13 +19,9 @@ test("environment specs persist desired state and catalog ownership", () => {
     version: "0.24.0",
     variant: "cuda",
     pythonVersion: "3.12",
-    pythonProvisioning: "download-if-missing",
-    pythonMirrorUrl: null,
     source: {
       kind: "pypi",
       extras: [],
-      indexUrl: null,
-      dependencyIndexUrl: null,
     },
   });
   assert.equal(created.pathCatalogEntryId, null);
@@ -52,9 +48,7 @@ test("KTransformers desired state persists its matched source pair", () => {
     version: "0.6.3.post1",
     variant: "cuda",
     pythonVersion: "3.12",
-    pythonProvisioning: "require-existing",
-    pythonMirrorUrl: null,
-    source: { kind: "pypi", indexUrl: null, dependencyIndexUrl: null },
+    source: { kind: "pypi" },
   });
   assert.equal(created.engine, "ktransformers");
   assert.match(readFileSync(ENVIRONMENTS_FILE, "utf8"), /ktransformers/);
@@ -82,6 +76,10 @@ test("legacy environment rows without engine normalize to vLLM in memory", () =>
     "utf8",
   );
   resetEnvironmentRepository();
-  assert.equal(getEnvironmentSpec("legacy-vllm")?.engine, "vllm");
+  const normalized = getEnvironmentSpec("legacy-vllm");
+  assert.equal(normalized?.engine, "vllm");
+  assert.equal("pythonProvisioning" in normalized!, false);
+  assert.equal("pythonMirrorUrl" in normalized!, false);
+  assert.equal("indexUrl" in normalized!.source, false);
   assert.equal(deleteEnvironmentSpec("legacy-vllm"), true);
 });

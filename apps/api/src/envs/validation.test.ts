@@ -11,7 +11,7 @@ const spec = EnvironmentSpecSchema.parse({
   engine: "vllm",
   version: "0.24.0",
   pythonVersion: "3.12.3",
-  source: { kind: "pypi", extras: [], indexUrl: null },
+  source: { kind: "pypi", extras: [] },
   id: "layout-validation-test",
   pathCatalogEntryId: null,
   createdAt: "2026-01-01T00:00:00.000Z",

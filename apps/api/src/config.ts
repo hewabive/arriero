@@ -47,6 +47,8 @@ export const config = {
   buildsDir: envPath("BUILDS_DIR") ?? resolve(runtimeDir, "builds"),
   sourcesDir: envPath("SOURCES_DIR") ?? resolve(runtimeDir, "sources"),
   envsDir: envPath("ENVS_DIR") ?? resolve(runtimeDir, "envs"),
+  pythonDir: envPath("PYTHON_DIR") ?? resolve(runtimeDir, "python"),
+  uvCacheDir: envPath("UV_CACHE_DIR") ?? resolve(runtimeDir, "uv-cache"),
   modelsDir: envPath("MODELS_DIR") ?? resolve(runtimeDir, "models"),
   slotsDir: envPath("SLOTS_DIR") ?? resolve(runtimeDir, "slots"),
   logs: {
@@ -90,4 +92,6 @@ mkdirSync(config.proxyConfigDir, { recursive: true });
 mkdirSync(config.logsDir, { recursive: true });
 mkdirSync(config.sourcesDir, { recursive: true });
 mkdirSync(config.envsDir, { recursive: true });
+mkdirSync(config.pythonDir, { recursive: true });
+mkdirSync(config.uvCacheDir, { recursive: true });
 mkdirSync(config.modelsDir, { recursive: true });

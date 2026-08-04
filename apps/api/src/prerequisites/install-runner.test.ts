@@ -25,10 +25,10 @@ test("strips the sudo prefix only when running as root", () => {
   );
   assert.equal(
     executedInstallCommand(
-      "sudo apt install -y pipx && pipx install uv",
+      "sudo apt install -y pipx && pipx install --force uv==0.11.16",
       "root",
     ),
-    "apt install -y pipx && pipx install uv",
+    "apt install -y pipx && pipx install --force uv==0.11.16",
   );
 });
 

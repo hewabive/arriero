@@ -1,11 +1,13 @@
-import type {
-  HostPackageManager,
-  PrerequisiteCheckKind,
-  PrerequisiteSeverity,
-  PrerequisiteStatus,
+import {
+  ENVIRONMENT_UV_MIN_VERSION,
+  type HostPackageManager,
+  type PrerequisiteCheckKind,
+  type PrerequisiteSeverity,
+  type PrerequisiteStatus,
 } from "@arriero/core";
 import { existsSync } from "node:fs";
 
+import { isSupportedUvVersionOutput } from "../envs/uv.js";
 import { detectNumaBind } from "../numa/capability.js";
 import type { OsRelease } from "../system/os-release.js";
 import { packageManagerForOsRelease } from "../system/os-release.js";
@@ -312,27 +314,55 @@ function rocmKfdIsApplicable(context: PrerequisiteProbeContext): boolean {
   return context.amdPci.state === "present" || context.rocmDeviceAvailable;
 }
 
-const UV_STANDALONE_INSTALL_COMMAND =
-  "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh";
+const UV_PIPX_INSTALL_COMMAND = `pipx install --force uv==${ENVIRONMENT_UV_MIN_VERSION}`;
+const UV_STANDALONE_INSTALL_COMMAND = `curl -LsSf https://astral.sh/uv/${ENVIRONMENT_UV_MIN_VERSION}/install.sh | env UV_NO_MODIFY_PATH=1 sh`;
 
 export function uvInstallCommands(
   release: OsRelease,
   pipxAvailable: boolean,
 ): string[] {
   const packageManager = packageManagerForOsRelease(release);
-  if (packageManager === "pacman" || packageManager === "apk") {
-    return [];
-  }
   if (pipxAvailable) {
-    return ["pipx install uv"];
+    return [UV_PIPX_INSTALL_COMMAND];
   }
   if (packageManager === "apt") {
-    return ["sudo apt install -y pipx", "pipx install uv"];
+    return ["sudo apt install -y pipx", UV_PIPX_INSTALL_COMMAND];
   }
   if (release.id === "fedora") {
-    return ["sudo dnf install -y pipx", "pipx install uv"];
+    return ["sudo dnf install -y pipx", UV_PIPX_INSTALL_COMMAND];
+  }
+  if (packageManager === "pacman") {
+    return ["sudo pacman -S --needed python-pipx", UV_PIPX_INSTALL_COMMAND];
+  }
+  if (packageManager === "apk") {
+    return ["sudo apk add pipx", UV_PIPX_INSTALL_COMMAND];
   }
   return [UV_STANDALONE_INSTALL_COMMAND];
+}
+
+async function uvPrerequisiteProbe(
+  context: PrerequisiteProbeContext,
+): Promise<PrerequisiteProbeOutcome> {
+  const probe = await probeAnyExecutable(["uv"], {
+    env: context.env,
+    extraDirectories: context.searchDirectories,
+    versionArgs: ["--version"],
+  });
+  if (!probe.found) {
+    return { status: "missing", detail: null, version: null };
+  }
+  if (!probe.version || !isSupportedUvVersionOutput(probe.version)) {
+    return {
+      status: "missing",
+      detail: `${probe.found}; Python environments require uv >=${ENVIRONMENT_UV_MIN_VERSION}`,
+      version: probe.version,
+    };
+  }
+  return {
+    status: probe.inPath ? "ok" : "out-of-path",
+    detail: probe.found,
+    version: probe.version,
+  };
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -686,10 +716,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     blocks: ["Python environments"],
     impact:
       "uv is the only supported provisioner for Python inference engines; it also pins the interpreter, so there is no system-python fallback.",
-    packages: {
-      pacman: ["uv"],
-      apk: ["uv"],
-    },
+    packages: {},
     commands: [],
     installCommands: (release) =>
       uvInstallCommands(
@@ -697,8 +724,8 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
         findExecutableInPath("pipx", process.env.PATH) !== null,
       ),
     docPath: "docs/ENVIRONMENTS.md",
-    note: "User-scoped installers expose uv in ~/.local/bin; Re-check adds that directory to the manager PATH automatically.",
-    probe: executableProbe(["uv"]),
+    note: `Python environments require uv >=${ENVIRONMENT_UV_MIN_VERSION}; the configured Python mirror must cover the installed consumer uv version. User-scoped installers expose uv in ~/.local/bin; Re-check adds that directory to the manager PATH automatically.`,
+    probe: uvPrerequisiteProbe,
   },
   {
     id: "rocm-kfd",

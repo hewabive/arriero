@@ -1,5 +1,12 @@
-import type { EnvironmentSpec } from "@arriero/core";
-import { EnvironmentCreateSchema, EnvironmentSpecSchema } from "@arriero/core";
+import type {
+  EnvironmentRepositorySettings,
+  EnvironmentSpec,
+} from "@arriero/core";
+import {
+  EnvironmentCreateSchema,
+  EnvironmentRepositorySettingsSchema,
+  EnvironmentSpecSchema,
+} from "@arriero/core";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,23 +14,19 @@ import { delimiter, join } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
+import { config } from "../config.js";
 import { getEnvironmentJob } from "./repository.js";
 import { environmentDirectory, environmentStagingDirectory } from "./paths.js";
-import { environmentJobSteps, environmentRunner } from "./runner.js";
+import {
+  environmentJobSteps,
+  environmentRunner,
+  environmentUvProcessEnvironment,
+} from "./runner.js";
 
-function spec(
-  source: unknown,
-  pythonProvisioning:
-    | "download-if-missing"
-    | "mirror"
-    | "require-existing" = "download-if-missing",
-  pythonMirrorUrl: string | null = null,
-) {
+function spec(source: unknown) {
   const input = EnvironmentCreateSchema.parse({
     version: "0.24.0",
     pythonVersion: "3.12.13",
-    pythonProvisioning,
-    pythonMirrorUrl,
     source,
   });
   return EnvironmentSpecSchema.parse({
@@ -32,6 +35,47 @@ function spec(
     pathCatalogEntryId: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+}
+
+const ONLINE_REPOSITORIES = EnvironmentRepositorySettingsSchema.parse({});
+
+test("environment uv commands ignore inherited topology but retain transport and auth", () => {
+  const env = environmentUvProcessEnvironment({
+    PATH: "/usr/bin",
+    UV_CONFIG_FILE: "/tmp/host-uv.toml",
+    UV_DEFAULT_INDEX: "https://unexpected.example/simple",
+    UV_FIND_LINKS: "/tmp/unexpected-wheels",
+    UV_INDEX: "https://second.example/simple",
+    UV_INDEX_GITEA_PASSWORD: "secret",
+    UV_INDEX_GITEA_USERNAME: "manager",
+    UV_OFFLINE: "1",
+    UV_PYTHON_DOWNLOADS_JSON_URL: "https://unexpected.example/python.json",
+    UV_PYTHON_INSTALL_MIRROR: "https://unexpected.example/python",
+    UV_SYSTEM_CERTS: "1",
+  });
+
+  assert.equal(env.PATH, "/usr/bin");
+  assert.equal(env.UV_DEFAULT_INDEX, undefined);
+  assert.equal(env.UV_FIND_LINKS, undefined);
+  assert.equal(env.UV_INDEX, undefined);
+  assert.equal(env.UV_OFFLINE, undefined);
+  assert.equal(env.UV_PYTHON_DOWNLOADS_JSON_URL, undefined);
+  assert.equal(env.UV_PYTHON_INSTALL_MIRROR, undefined);
+  assert.equal(env.UV_INDEX_GITEA_USERNAME, "manager");
+  assert.equal(env.UV_INDEX_GITEA_PASSWORD, "secret");
+  assert.equal(env.UV_SYSTEM_CERTS, "1");
+  assert.equal(env.UV_NO_CONFIG, "1");
+  assert.equal(env.UV_CACHE_DIR, config.uvCacheDir);
+  assert.equal(env.UV_PYTHON_INSTALL_DIR, config.pythonDir);
+});
+
+function repositorySettings(
+  input: Partial<EnvironmentRepositorySettings>,
+): EnvironmentRepositorySettings {
+  return EnvironmentRepositorySettingsSchema.parse({
+    ...ONLINE_REPOSITORIES,
+    ...input,
   });
 }
 
@@ -51,8 +95,11 @@ function ktransformersSpec(source: unknown) {
   });
 }
 
-function installCommand(environment: EnvironmentSpec) {
-  return environmentJobSteps(environment, "uv").find(
+function installCommand(
+  environment: EnvironmentSpec,
+  repositories = ONLINE_REPOSITORIES,
+) {
+  return environmentJobSteps(environment, "uv", repositories).find(
     (step) => step.name === "package-install",
   )!.command;
 }
@@ -67,13 +114,14 @@ function indexFlags(command: string[]) {
 }
 
 test("pypi environment plan pins Python, version, extras and index", () => {
+  const packageIndexUrl = "https://packages.example/simple";
   const steps = environmentJobSteps(
     spec({
       kind: "pypi",
       extras: ["audio"],
-      indexUrl: "https://packages.example/simple",
     }),
     "/usr/bin/uv",
+    repositorySettings({ packageIndexUrl }),
   );
   assert.deepEqual(
     steps.map((step) => step.name),
@@ -88,13 +136,16 @@ test("pypi environment plan pins Python, version, extras and index", () => {
   );
   const venv = steps.find((step) => step.name === "venv-create")!;
   assert.ok(venv.command.includes("--relocatable"));
+  assert.ok(venv.command.includes("--managed-python"));
+  assert.ok(venv.command.includes("--no-python-downloads"));
   const install = steps.find((step) => step.name === "package-install")!;
   assert.ok(install.command.includes("vllm[audio]==0.24.0"));
-  assert.ok(install.command.includes("https://packages.example/simple"));
+  assert.ok(install.command.includes(packageIndexUrl));
   const freeze = steps.find((step) => step.name === "freeze")!;
-  assert.deepEqual(freeze.command.slice(1, 5), [
+  assert.deepEqual(freeze.command.slice(1, 6), [
     "pip",
     "list",
+    "--no-config",
     "--format",
     "freeze",
   ]);
@@ -102,51 +153,30 @@ test("pypi environment plan pins Python, version, extras and index", () => {
   assert.ok(validate.command.at(-1)?.includes("import vllm"));
 });
 
-test("pypi environment plan without a dependency index resolves everything from one index", () => {
+test("pypi environment plan resolves roots and dependencies from one site index", () => {
+  const packageIndexUrl = "https://packages.example/simple";
   const command = installCommand(
     spec({
       kind: "pypi",
       extras: [],
-      indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
     }),
+    repositorySettings({ packageIndexUrl }),
   );
   assert.deepEqual(indexFlags(command), [
     "--default-index",
-    "https://gitea.local/api/packages/team/pypi/simple",
+    "https://packages.example/simple",
   ]);
 });
 
-test("pypi environment plan maps the dependency index to the default index and the root index to a priority index", () => {
-  const command = installCommand(
-    spec({
-      kind: "pypi",
-      extras: [],
-      indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
-      dependencyIndexUrl: "https://pypi.org/simple",
-    }),
-  );
-  assert.deepEqual(indexFlags(command), [
-    "--default-index",
-    "https://pypi.org/simple",
-    "--index",
-    "https://gitea.local/api/packages/team/pypi/simple",
-  ]);
-});
-
-test("KTransformers pypi plan carries the dependency index for both roots", () => {
+test("KTransformers pypi plan uses the site index for both roots", () => {
+  const packageIndexUrl = "https://packages.local/simple";
   const command = installCommand(
     ktransformersSpec({
       kind: "pypi",
-      indexUrl: "https://gitea.local/api/packages/team/pypi/simple",
-      dependencyIndexUrl: "https://packages.local/simple",
     }),
+    repositorySettings({ packageIndexUrl }),
   );
-  assert.deepEqual(indexFlags(command), [
-    "--default-index",
-    "https://packages.local/simple",
-    "--index",
-    "https://gitea.local/api/packages/team/pypi/simple",
-  ]);
+  assert.deepEqual(indexFlags(command), ["--default-index", packageIndexUrl]);
   assert.ok(command.includes("kt-kernel==0.6.3.post1"));
   assert.ok(command.includes("sglang-kt==0.6.3.post1"));
 });
@@ -158,77 +188,53 @@ test("wheel environment plan carries hash and torch backend", () => {
       kind: "wheel",
       url: "https://example/vllm.whl",
       sha256: hash,
-      dependencyIndexUrl: "http://gitea.local/api/packages/pypi/pypi/simple",
       torchBackend: "cpu",
     }),
     "uv",
+    repositorySettings({
+      packageIndexUrl: "https://packages.example/simple",
+    }),
   );
   const command = steps.find(
     (step) => step.name === "package-install",
   )!.command;
   assert.ok(command.includes(`https://example/vllm.whl#sha256=${hash}`));
-  assert.ok(
-    command.includes("http://gitea.local/api/packages/pypi/pypi/simple"),
-  );
+  assert.ok(command.includes("https://packages.example/simple"));
   assert.deepEqual(command.slice(-2), ["--torch-backend", "cpu"]);
 });
 
-test("offline environment plan preflights Python without downloads", () => {
+test("runtime mirror environment plan uses the configured Python mirror", () => {
+  const mirror = "file:///srv/python-mirror";
   const steps = environmentJobSteps(
-    spec(
-      {
-        kind: "pypi",
-        extras: [],
-        indexUrl: "http://gitea.local/api/packages/pypi/pypi/simple",
-      },
-      "require-existing",
-    ),
+    spec({ kind: "pypi", extras: [] }),
     "uv",
-  );
-
-  assert.equal(steps[0]?.name, "python-preflight");
-  assert.deepEqual(steps[0]?.command, [
-    "uv",
-    "python",
-    "find",
-    "--no-project",
-    "--managed-python",
-    "--no-python-downloads",
-    "--show-version",
-    "3.12.13",
-  ]);
-  assert.equal(
-    steps.some((step) => step.name === "python-install"),
-    false,
-  );
-});
-
-test("runtime mirror environment plan confines Python download to the bundle mirror", () => {
-  const mirror = "file:///media/airgap/python-runtime-mirror";
-  const steps = environmentJobSteps(
-    spec({ kind: "pypi", extras: [], indexUrl: null }, "mirror", mirror),
-    "uv",
+    repositorySettings({
+      packageIndexUrl: "https://packages.example/simple",
+      pythonMirrorUrl: mirror,
+    }),
   );
 
   assert.deepEqual(steps[0]?.command, [
     "uv",
     "python",
     "install",
+    "--no-config",
     "--mirror",
     mirror,
     "3.12.13",
   ]);
+  assert.equal(
+    steps
+      .find((step) => step.name === "package-install")
+      ?.command.includes("--only-binary=:all:"),
+    false,
+  );
 });
 
-test("environment source rejects credential-bearing URLs", () => {
+test("repository settings reject credential-bearing URLs", () => {
   assert.equal(
-    EnvironmentCreateSchema.safeParse({
-      version: "1.0.0",
-      source: {
-        kind: "pypi",
-        extras: [],
-        indexUrl: "https://user:secret@example.com/simple",
-      },
+    EnvironmentRepositorySettingsSchema.safeParse({
+      packageIndexUrl: "https://user:secret@example.com/simple",
     }).success,
     false,
   );
@@ -238,9 +244,11 @@ test("KTransformers PyPI plan installs both matched roots in one transaction", (
   const steps = environmentJobSteps(
     ktransformersSpec({
       kind: "pypi",
-      indexUrl: "https://packages.example/simple",
     }),
     "/usr/bin/uv",
+    repositorySettings({
+      packageIndexUrl: "https://packages.example/simple",
+    }),
   );
   const installs = steps.filter((step) => step.name === "package-install");
   assert.equal(installs.length, 1);
@@ -272,10 +280,12 @@ test("KTransformers wheel plan orders both roots and carries hashes", () => {
           sha256: a,
         },
       ],
-      dependencyIndexUrl: "https://packages.example/simple",
       torchBackend: "cu128",
     }),
     "uv",
+    repositorySettings({
+      packageIndexUrl: "https://packages.example/simple",
+    }),
   );
   const command = steps.find(
     (step) => step.name === "package-install",
@@ -305,6 +315,7 @@ test("local wheel hash mismatch fails before package installation", async () => 
     uv,
     [
       "#!/bin/sh",
+      'if [ "$1" = "--version" ]; then echo "uv 0.11.16"; exit 0; fi',
       'if [ "$1" = "python" ]; then exit 0; fi',
       'if [ "$1" = "venv" ]; then',
       "  for last; do :; done",
@@ -331,7 +342,6 @@ test("local wheel hash mismatch fails before package installation", async () => 
           sha256: "b".repeat(64),
         },
       ],
-      dependencyIndexUrl: null,
       torchBackend: null,
     }),
     id: "env-kt-hash-test-1234",
@@ -389,7 +399,6 @@ test("KTransformers source requires one wheel for each root distribution", () =>
           url: "file:///bundle/b.whl",
         },
       ],
-      dependencyIndexUrl: null,
       torchBackend: null,
     },
   });
@@ -422,6 +431,7 @@ test("failed matched-root install removes KTransformers staging transaction", as
     uv,
     [
       "#!/bin/sh",
+      'if [ "$1" = "--version" ]; then echo "uv 0.11.16"; exit 0; fi',
       'if [ "$1" = "python" ]; then exit 0; fi',
       'if [ "$1" = "venv" ]; then',
       "  for last; do :; done",
@@ -436,7 +446,7 @@ test("failed matched-root install removes KTransformers staging transaction", as
     ].join("\n"),
     { mode: 0o755 },
   );
-  const environment = ktransformersSpec({ kind: "pypi", indexUrl: null });
+  const environment = ktransformersSpec({ kind: "pypi" });
   rmSync(environmentDirectory(environment), { recursive: true, force: true });
   rmSync(environmentStagingDirectory(environment), {
     recursive: true,
@@ -475,6 +485,7 @@ test("canceling KTransformers install removes staging and publishes nothing", as
     uv,
     [
       "#!/bin/sh",
+      'if [ "$1" = "--version" ]; then echo "uv 0.11.16"; exit 0; fi',
       'if [ "$1" = "python" ]; then exit 0; fi',
       'if [ "$1" = "venv" ]; then',
       "  for last; do :; done",
@@ -490,7 +501,7 @@ test("canceling KTransformers install removes staging and publishes nothing", as
     { mode: 0o755 },
   );
   const environment = EnvironmentSpecSchema.parse({
-    ...ktransformersSpec({ kind: "pypi", indexUrl: null }),
+    ...ktransformersSpec({ kind: "pypi" }),
     id: "env-kt-cancel-1234",
   });
   rmSync(environmentDirectory(environment), { recursive: true, force: true });

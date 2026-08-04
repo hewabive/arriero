@@ -1,15 +1,18 @@
 import type {
   EnvironmentCreate,
   EnvironmentEngine,
+  EnvironmentRepositorySettings,
   PackageIndexVersion,
   UvToolStatus,
 } from "@arriero/core";
-import { packageIndexInstallOptions } from "@arriero/core";
+import {
+  ENVIRONMENT_UV_MIN_VERSION,
+  packageIndexInstallOptions,
+} from "@arriero/core";
 import {
   Badge,
   Button,
   Code,
-  Collapse,
   Group,
   Loader,
   Paper,
@@ -28,12 +31,6 @@ import { useMemo, useState } from "react";
 import { listEnvironmentIndexVersions } from "../../api/client";
 import { substringOptionsFilter, TouchAutocomplete } from "./TouchCombobox";
 import { countLabel } from "../utils/plural";
-
-const PUBLIC_INDEX_URL = "https://pypi.org/simple";
-
-type IndexChoice = "public" | "custom";
-type DependencySource = "same" | "public" | "custom";
-type PythonProvisioning = "download-if-missing" | "require-existing" | "mirror";
 
 function sectionHeading(step: number, title: string, hint?: string) {
   return (
@@ -66,11 +63,13 @@ function versionAnnotation(entry: PackageIndexVersion) {
 
 export function EnvironmentCreateForm({
   uv,
+  repositories,
   running,
   submitting,
   onSubmit,
 }: {
   uv: UvToolStatus | undefined;
+  repositories: EnvironmentRepositorySettings;
   running: boolean;
   submitting: boolean;
   onSubmit: (input: EnvironmentCreate) => void;
@@ -79,11 +78,6 @@ export function EnvironmentCreateForm({
   const [pythonVersion, setPythonVersion] = useState("3.12");
   const [variant, setVariant] = useState<"cuda" | "cpu" | "rocm">("cuda");
   const [sourceKind, setSourceKind] = useState<"pypi" | "wheel">("pypi");
-  const [indexChoice, setIndexChoice] = useState<IndexChoice>("public");
-  const [indexUrl, setIndexUrl] = useState("");
-  const [dependencySource, setDependencySource] =
-    useState<DependencySource>("same");
-  const [dependencyIndexUrl, setDependencyIndexUrl] = useState("");
   const [version, setVersion] = useState("");
   const [showPreReleases, setShowPreReleases] = useState(false);
   const [extras, setExtras] = useState("");
@@ -92,38 +86,16 @@ export function EnvironmentCreateForm({
   const [sglangWheelUrl, setSglangWheelUrl] = useState("");
   const [sglangWheelSha256, setSglangWheelSha256] = useState("");
   const [torchBackend, setTorchBackend] = useState("");
-  const [pythonProvisioning, setPythonProvisioning] =
-    useState<PythonProvisioning>("download-if-missing");
-  const [pythonMirrorUrl, setPythonMirrorUrl] = useState("");
-  const [runtimeOpen, setRuntimeOpen] = useState(false);
-
-  const rootIndexUrl =
-    indexChoice === "custom" ? indexUrl.trim() || null : null;
-  const effectiveDependencyIndexUrl =
-    indexChoice === "public"
-      ? null
-      : dependencySource === "public"
-        ? PUBLIC_INDEX_URL
-        : dependencySource === "custom"
-          ? dependencyIndexUrl.trim() || null
-          : null;
-
-  const [debouncedIndexUrl] = useDebouncedValue(rootIndexUrl, 600);
   const [debouncedPythonVersion] = useDebouncedValue(pythonVersion.trim(), 400);
 
   const versionsQuery = useQuery({
     queryKey: [
       "environment-index-versions",
       engine,
-      debouncedIndexUrl,
+      repositories.packageIndexUrl,
       debouncedPythonVersion,
     ],
-    queryFn: () =>
-      listEnvironmentIndexVersions(
-        engine,
-        debouncedIndexUrl,
-        debouncedPythonVersion,
-      ),
+    queryFn: () => listEnvironmentIndexVersions(engine, debouncedPythonVersion),
     enabled: sourceKind === "pypi",
     staleTime: 120_000,
   });
@@ -161,9 +133,6 @@ export function EnvironmentCreateForm({
   const createInput = useMemo<EnvironmentCreate>(() => {
     const common = {
       version: version.trim(),
-      pythonProvisioning,
-      pythonMirrorUrl:
-        pythonProvisioning === "mirror" ? pythonMirrorUrl.trim() || null : null,
     };
     if (engine === "ktransformers") {
       return {
@@ -175,8 +144,6 @@ export function EnvironmentCreateForm({
           sourceKind === "pypi"
             ? {
                 kind: "pypi",
-                indexUrl: rootIndexUrl,
-                dependencyIndexUrl: effectiveDependencyIndexUrl,
               }
             : {
                 kind: "wheels",
@@ -192,7 +159,6 @@ export function EnvironmentCreateForm({
                     sha256: sglangWheelSha256.trim() || null,
                   },
                 ],
-                dependencyIndexUrl: effectiveDependencyIndexUrl,
                 torchBackend: torchBackend.trim() || null,
               },
       };
@@ -210,14 +176,11 @@ export function EnvironmentCreateForm({
                 .split(",")
                 .map((item) => item.trim())
                 .filter(Boolean),
-              indexUrl: rootIndexUrl,
-              dependencyIndexUrl: effectiveDependencyIndexUrl,
             }
           : {
               kind: "wheel",
               url: wheelUrl.trim(),
               sha256: wheelSha256.trim() || null,
-              dependencyIndexUrl: effectiveDependencyIndexUrl,
               torchBackend: torchBackend.trim() || null,
             },
     };
@@ -226,12 +189,8 @@ export function EnvironmentCreateForm({
     version,
     variant,
     pythonVersion,
-    pythonProvisioning,
-    pythonMirrorUrl,
     sourceKind,
     extras,
-    rootIndexUrl,
-    effectiveDependencyIndexUrl,
     wheelUrl,
     wheelSha256,
     sglangWheelUrl,
@@ -240,10 +199,7 @@ export function EnvironmentCreateForm({
   ]);
 
   const plannedCommand = useMemo(() => {
-    const options = packageIndexInstallOptions({
-      indexUrl: sourceKind === "pypi" ? rootIndexUrl : null,
-      dependencyIndexUrl: effectiveDependencyIndexUrl,
-    });
+    const options = packageIndexInstallOptions(repositories.packageIndexUrl);
     if (torchBackend.trim() && sourceKind === "wheel") {
       options.push("--torch-backend", torchBackend.trim());
     }
@@ -266,8 +222,7 @@ export function EnvironmentCreateForm({
           : [`kt-kernel==${pin}`, `sglang-kt==${pin}`];
     return ["uv pip install", ...options, ...roots].join(" ");
   }, [
-    effectiveDependencyIndexUrl,
-    rootIndexUrl,
+    repositories.packageIndexUrl,
     torchBackend,
     sourceKind,
     version,
@@ -320,16 +275,20 @@ export function EnvironmentCreateForm({
     !running &&
     Boolean(version.trim()) &&
     Boolean(pythonVersion.trim()) &&
-    (sourceKind === "pypi" || Boolean(wheelUrl.trim())) &&
-    (indexChoice === "public" || Boolean(indexUrl.trim())) &&
-    (pythonProvisioning !== "mirror" || Boolean(pythonMirrorUrl.trim()));
+    (sourceKind === "pypi" ||
+      (Boolean(wheelUrl.trim()) &&
+        (engine !== "ktransformers" || Boolean(sglangWheelUrl.trim()))));
 
   return (
     <Paper withBorder p="md">
       <Group justify="space-between" mb="md">
         <Text fw={600}>Create immutable environment</Text>
         <Badge color={uv?.available ? "green" : "red"} variant="light">
-          {uv?.available ? (uv.version ?? "uv available") : "uv unavailable"}
+          {uv?.available
+            ? (uv.version ?? "uv available")
+            : uv?.version
+              ? `${uv.version}; requires uv >=${ENVIRONMENT_UV_MIN_VERSION}`
+              : `uv >=${ENVIRONMENT_UV_MIN_VERSION} unavailable`}
         </Badge>
       </Group>
 
@@ -405,63 +364,10 @@ export function EnvironmentCreateForm({
           />
 
           {sourceKind === "pypi" ? (
-            <Stack gap="sm">
-              <SegmentedControl
-                value={indexChoice}
-                onChange={(value) => {
-                  setIndexChoice(value as IndexChoice);
-                  if (value === "public") setDependencySource("same");
-                }}
-                data={[
-                  { label: "Public PyPI", value: "public" },
-                  { label: "Custom index", value: "custom" },
-                ]}
-              />
-              {indexChoice === "custom" && (
-                <>
-                  <TextInput
-                    label="Index URL"
-                    required
-                    description="Holds the root package; must be the Simple API root, usually ending in /simple. Credentials are rejected — private registries authenticate through the manager environment."
-                    placeholder="https://gitea.example.com/api/packages/team/pypi/simple"
-                    value={indexUrl}
-                    onChange={(event) => setIndexUrl(event.currentTarget.value)}
-                  />
-                  <Stack gap={4}>
-                    <Text size="sm" fw={500}>
-                      Dependencies resolve from
-                    </Text>
-                    <SegmentedControl
-                      value={dependencySource}
-                      onChange={(value) =>
-                        setDependencySource(value as DependencySource)
-                      }
-                      data={[
-                        { label: "The same index", value: "same" },
-                        { label: "Public PyPI", value: "public" },
-                        { label: "Another index", value: "custom" },
-                      ]}
-                    />
-                    <Text size="xs" c="dimmed">
-                      A registry that only holds the engine package cannot
-                      resolve torch and its peers. Keep &ldquo;the same
-                      index&rdquo; only for a closed network that mirrors
-                      everything.
-                    </Text>
-                  </Stack>
-                  {dependencySource === "custom" && (
-                    <TextInput
-                      label="Dependency index URL"
-                      required
-                      value={dependencyIndexUrl}
-                      onChange={(event) =>
-                        setDependencyIndexUrl(event.currentTarget.value)
-                      }
-                    />
-                  )}
-                </>
-              )}
-            </Stack>
+            <Text size="xs" c="dimmed">
+              Root package and dependencies resolve from the configured site
+              index: {repositories.packageIndexUrl ?? "public PyPI"}.
+            </Text>
           ) : (
             <Stack gap="sm">
               <TextInput
@@ -506,15 +412,10 @@ export function EnvironmentCreateForm({
                   />
                 </SimpleGrid>
               )}
-              <TextInput
-                label="Dependency index URL"
-                description="Use the closed-network index for wheel dependencies"
-                value={dependencyIndexUrl}
-                onChange={(event) => {
-                  setDependencySource("custom");
-                  setDependencyIndexUrl(event.currentTarget.value);
-                }}
-              />
+              <Text size="xs" c="dimmed">
+                Dependencies resolve from the configured site index:{" "}
+                {repositories.packageIndexUrl ?? "public PyPI"}.
+              </Text>
             </Stack>
           )}
         </Stack>
@@ -618,63 +519,11 @@ export function EnvironmentCreateForm({
         </Stack>
 
         <Stack gap="xs">
-          <Group gap="xs">
-            {sectionHeading(4, "Python runtime")}
-            <Button
-              size="compact-xs"
-              variant="subtle"
-              onClick={() => setRuntimeOpen((open) => !open)}
-            >
-              {runtimeOpen ? "Hide" : "Show"}
-            </Button>
-            {pythonProvisioning !== "download-if-missing" && (
-              <Badge size="sm" variant="light" color="orange">
-                {pythonProvisioning}
-              </Badge>
-            )}
-          </Group>
-          <Collapse in={runtimeOpen}>
-            <Stack gap="sm">
-              <SegmentedControl
-                fullWidth
-                value={pythonProvisioning}
-                onChange={(value) =>
-                  setPythonProvisioning(value as PythonProvisioning)
-                }
-                data={[
-                  {
-                    label: "Download if missing",
-                    value: "download-if-missing",
-                  },
-                  { label: "Require existing", value: "require-existing" },
-                  { label: "Mirror", value: "mirror" },
-                ]}
-              />
-              {pythonProvisioning === "mirror" && (
-                <TextInput
-                  label="Python runtime mirror URL"
-                  required
-                  description="An airgap bundle python-runtime-mirror directory, as a file, HTTP or HTTPS URL"
-                  placeholder="file:///media/airgap-bundle/python-runtime-mirror"
-                  value={pythonMirrorUrl}
-                  onChange={(event) =>
-                    setPythonMirrorUrl(event.currentTarget.value)
-                  }
-                />
-              )}
-              <Text size="xs" c="dimmed">
-                {pythonProvisioning === "download-if-missing"
-                  ? "uv downloads the interpreter when it is not already managed."
-                  : pythonProvisioning === "require-existing"
-                    ? "Installation fails before any download if the interpreter is not already managed by uv."
-                    : "uv installs the interpreter from the mirror. Every package URL must then be non-public."}
-              </Text>
-            </Stack>
-          </Collapse>
-        </Stack>
-
-        <Stack gap="xs">
-          {sectionHeading(5, "Review")}
+          {sectionHeading(4, "Review")}
+          <Text size="xs" c="dimmed">
+            Python runtime:{" "}
+            {repositories.pythonMirrorUrl ?? "uv public downloads"}
+          </Text>
           <Code block>{plannedCommand}</Code>
           <Button
             loading={submitting}

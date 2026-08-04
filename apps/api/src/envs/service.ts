@@ -26,12 +26,11 @@ import {
   listEnvironmentSpecs,
 } from "./repository.js";
 import { environmentRunner } from "./runner.js";
-import { assertUvPythonAvailable, findUv } from "./uv.js";
+import { uvCompatibilityError } from "./uv.js";
 import { environmentLayoutError } from "./validation.js";
 import { rocmDeviceAvailable } from "./availability.js";
 import { environmentProvisioner } from "./provisioners.js";
 import { getSystemAccelerators } from "../system/resources.js";
-import { offlineEnvironmentPolicyError } from "./offline-policy.js";
 
 function latestJob(spec: EnvironmentSpec) {
   return (
@@ -86,27 +85,17 @@ export function listEnvironments() {
   });
 }
 
-function assertCanStart(
-  spec: Pick<
-    EnvironmentSpec,
-    "pythonMirrorUrl" | "pythonProvisioning" | "pythonVersion" | "source"
-  >,
-) {
-  const uv = findUv();
-  if (!uv) throw new Error("uv was not found on PATH");
+function assertCanStart() {
+  const uvError = uvCompatibilityError();
+  if (uvError) throw new Error(uvError);
   if (environmentRunner.activeEnvironmentId()) {
     throw new Error("another environment installation is already running");
   }
-  if (spec.pythonProvisioning === "require-existing") {
-    assertUvPythonAvailable(uv, spec.pythonVersion);
-  }
-  const offlinePolicyError = offlineEnvironmentPolicyError(spec);
-  if (offlinePolicyError) throw new Error(offlinePolicyError);
 }
 
 export function createEnvironment(input: EnvironmentCreate) {
   const parsed = EnvironmentCreateSchema.parse(input);
-  assertCanStart(parsed);
+  assertCanStart();
   const spec = createEnvironmentSpec(parsed);
   return { environment: toRecord(spec), job: environmentRunner.start(spec) };
 }
@@ -114,7 +103,7 @@ export function createEnvironment(input: EnvironmentCreate) {
 export function rebuildEnvironment(id: string) {
   const spec = getEnvironmentSpec(id);
   if (!spec) return null;
-  assertCanStart(spec);
+  assertCanStart();
   if (existsSync(environmentDirectory(spec))) {
     throw new Error("environment is already installed");
   }

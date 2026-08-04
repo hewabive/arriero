@@ -5,6 +5,7 @@ import type {
   EnvironmentJob,
   EnvironmentLogTail,
   EnvironmentRecord,
+  EnvironmentRepositorySettings,
 } from "@arriero/core";
 
 import { nodeRequest as request } from "./http.js";
@@ -16,6 +17,21 @@ type EnvironmentJobStartResult = {
 
 export function listEnvironments() {
   return request<{ data: EnvironmentRecord[] }>("/api/environments");
+}
+
+export function getEnvironmentRepositorySettings() {
+  return request<{ data: EnvironmentRepositorySettings }>(
+    "/api/environments/settings",
+  );
+}
+
+export function updateEnvironmentRepositorySettings(
+  input: EnvironmentRepositorySettings,
+) {
+  return request<{ data: EnvironmentRepositorySettings }>(
+    "/api/environments/settings",
+    { method: "PUT", body: JSON.stringify(input) },
+  );
 }
 
 export function createEnvironment(input: EnvironmentCreate) {
@@ -40,11 +56,9 @@ export function deleteEnvironment(id: string) {
 
 export function listEnvironmentIndexVersions(
   engine: EnvironmentEngine,
-  indexUrl: string | null,
   pythonVersion?: string | null,
 ) {
   const query = new URLSearchParams({ engine });
-  if (indexUrl) query.set("indexUrl", indexUrl);
   if (pythonVersion) query.set("pythonVersion", pythonVersion);
   return request<{ data: EnvironmentIndexVersions }>(
     `/api/environments/index-versions?${query.toString()}`,

@@ -143,7 +143,8 @@ test("appends the runnable uv bootstrap sequence to the aggregated command", () 
         id: "uv",
         remediation: {
           packages: [],
-          installCommand: "sudo apt install -y pipx && pipx install uv",
+          installCommand:
+            "sudo apt install -y pipx && pipx install --force uv==0.11.16",
           commands: [],
           includeInInstallPlan: true,
           rebootRequired: false,
@@ -157,7 +158,7 @@ test("appends the runnable uv bootstrap sequence to the aggregated command", () 
 
   assert.equal(
     plan.requiredCommand,
-    "sudo apt install -y cmake && sudo apt install -y pipx && pipx install uv",
+    "sudo apt install -y cmake && sudo apt install -y pipx && pipx install --force uv==0.11.16",
   );
 });
 

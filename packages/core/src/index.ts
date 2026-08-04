@@ -2170,25 +2170,39 @@ function credentialFreeUrl(value: string) {
   }
 }
 
+const EnvironmentPackageIndexUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    try {
+      return ["http:", "https:"].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  }, "package index URL must use HTTP or HTTPS")
+  .refine(credentialFreeUrl, "package index URL must not contain credentials");
+
+const EnvironmentPythonMirrorUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    try {
+      return ["file:", "http:", "https:"].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  }, "Python mirror URL must use file, HTTP, or HTTPS")
+  .refine(credentialFreeUrl, "Python mirror URL must not contain credentials");
+
+export const EnvironmentRepositorySettingsSchema = z.object({
+  packageIndexUrl: EnvironmentPackageIndexUrlSchema.nullable().default(null),
+  pythonMirrorUrl: EnvironmentPythonMirrorUrlSchema.nullable().default(null),
+});
+
 export const VllmEnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("pypi"),
     extras: z.array(EnvironmentExtraSchema).max(20).default([]),
-    indexUrl: z
-      .string()
-      .url()
-      .refine(credentialFreeUrl, "index URL must not contain credentials")
-      .nullable()
-      .default(null),
-    dependencyIndexUrl: z
-      .string()
-      .url()
-      .refine(
-        credentialFreeUrl,
-        "dependency index URL must not contain credentials",
-      )
-      .nullable()
-      .default(null),
   }),
   z.object({
     kind: z.literal("wheel"),
@@ -2197,24 +2211,15 @@ export const VllmEnvironmentInstallSourceSchema = z.discriminatedUnion("kind", [
       .url()
       .refine((value) => {
         try {
-          return ["https:", "file:"].includes(new URL(value).protocol);
+          return ["file:", "http:", "https:"].includes(new URL(value).protocol);
         } catch {
           return false;
         }
-      }, "wheel URL must use https or file")
+      }, "wheel URL must use file, HTTP, or HTTPS")
       .refine(credentialFreeUrl, "wheel URL must not contain credentials"),
     sha256: z
       .string()
       .regex(/^[a-f0-9]{64}$/i)
-      .nullable()
-      .default(null),
-    dependencyIndexUrl: z
-      .string()
-      .url()
-      .refine(
-        credentialFreeUrl,
-        "dependency index URL must not contain credentials",
-      )
       .nullable()
       .default(null),
     torchBackend: z
@@ -2235,11 +2240,11 @@ export const KTransformersWheelArtifactSchema = z.object({
     .url()
     .refine((value) => {
       try {
-        return ["https:", "file:"].includes(new URL(value).protocol);
+        return ["file:", "http:", "https:"].includes(new URL(value).protocol);
       } catch {
         return false;
       }
-    }, "wheel URL must use https or file")
+    }, "wheel URL must use file, HTTP, or HTTPS")
     .refine(credentialFreeUrl, "wheel URL must not contain credentials"),
   sha256: z
     .string()
@@ -2270,34 +2275,10 @@ export const KTransformersEnvironmentInstallSourceSchema = z.discriminatedUnion(
   [
     z.object({
       kind: z.literal("pypi"),
-      indexUrl: z
-        .string()
-        .url()
-        .refine(credentialFreeUrl, "index URL must not contain credentials")
-        .nullable()
-        .default(null),
-      dependencyIndexUrl: z
-        .string()
-        .url()
-        .refine(
-          credentialFreeUrl,
-          "dependency index URL must not contain credentials",
-        )
-        .nullable()
-        .default(null),
     }),
     z.object({
       kind: z.literal("wheels"),
       artifacts: KTransformersWheelArtifactsSchema,
-      dependencyIndexUrl: z
-        .string()
-        .url()
-        .refine(
-          credentialFreeUrl,
-          "dependency index URL must not contain credentials",
-        )
-        .nullable()
-        .default(null),
       torchBackend: z
         .string()
         .trim()
@@ -2319,26 +2300,6 @@ export const EnvironmentEngineSchema = z.enum(["vllm", "ktransformers"]);
 
 const EnvironmentCommonShape = {
   version: EnvironmentVersionSchema,
-  pythonProvisioning: z
-    .enum(["download-if-missing", "mirror", "require-existing"])
-    .default("download-if-missing"),
-  pythonMirrorUrl: z
-    .string()
-    .url()
-    .refine((value) => {
-      try {
-        const url = new URL(value);
-        return (
-          ["file:", "http:", "https:"].includes(url.protocol) &&
-          !url.username &&
-          !url.password
-        );
-      } catch {
-        return false;
-      }
-    }, "Python mirror URL must be credential-free file, HTTP, or HTTPS")
-    .nullable()
-    .default(null),
 };
 
 const VllmEnvironmentCreateObjectSchema = z.object({
@@ -2349,8 +2310,6 @@ const VllmEnvironmentCreateObjectSchema = z.object({
   source: VllmEnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],
-    indexUrl: null,
-    dependencyIndexUrl: null,
   }),
 });
 
@@ -2361,8 +2320,6 @@ const KTransformersEnvironmentCreateObjectSchema = z.object({
   pythonVersion: z.enum(["3.11", "3.12"]).default("3.12"),
   source: KTransformersEnvironmentInstallSourceSchema.default({
     kind: "pypi",
-    indexUrl: null,
-    dependencyIndexUrl: null,
   }),
 });
 
@@ -2405,17 +2362,8 @@ export const EnvironmentSpecSchema = z.preprocess(
   ]),
 );
 
-export function packageIndexInstallOptions(source: {
-  indexUrl?: string | null;
-  dependencyIndexUrl: string | null;
-}) {
-  const rootIndexUrl = source.indexUrl ?? null;
-  if (!source.dependencyIndexUrl) {
-    return rootIndexUrl ? ["--default-index", rootIndexUrl] : [];
-  }
-  const options = ["--default-index", source.dependencyIndexUrl];
-  if (rootIndexUrl) options.push("--index", rootIndexUrl);
-  return options;
+export function packageIndexInstallOptions(indexUrl: string | null) {
+  return indexUrl ? ["--default-index", indexUrl] : [];
 }
 
 export const PackageIndexFileSchema = z.object({
@@ -2477,7 +2425,6 @@ export const EnvironmentRecordSchema = z.preprocess(
 
 export const EnvironmentJobStatusSchema = BackgroundJobStatusSchema;
 export const EnvironmentJobStepNameSchema = z.enum([
-  "python-preflight",
   "python-install",
   "venv-create",
   "artifact-verify",
@@ -2511,6 +2458,8 @@ export const EnvironmentLogTailSchema = z.object({
   lines: z.array(z.string()),
   truncated: z.boolean(),
 });
+
+export const ENVIRONMENT_UV_MIN_VERSION = "0.11.16";
 
 export const UvToolStatusSchema = z.object({
   available: z.boolean(),
@@ -3578,6 +3527,7 @@ export const AppSettingsFileSchema = z
     sourceRepositories: z.array(SourceRepositorySpecSchema).optional(),
     llamaSource: LlamaSourceSettingsSchema.optional(),
     build: BuildSettingsSchema.omit({ repoPath: true }).optional(),
+    environments: EnvironmentRepositorySettingsSchema.optional(),
   })
   .default({});
 
@@ -4009,6 +3959,9 @@ export type KTransformersEnvironmentInstallSource = z.infer<
   typeof KTransformersEnvironmentInstallSourceSchema
 >;
 export type EnvironmentEngine = z.infer<typeof EnvironmentEngineSchema>;
+export type EnvironmentRepositorySettings = z.infer<
+  typeof EnvironmentRepositorySettingsSchema
+>;
 export type EnvironmentCreate = z.infer<typeof EnvironmentCreateSchema>;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
 export type EnvironmentStatus = z.infer<typeof EnvironmentStatusSchema>;

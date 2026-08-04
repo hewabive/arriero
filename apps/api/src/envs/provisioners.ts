@@ -1,5 +1,6 @@
 import type {
   EnvironmentEngine,
+  EnvironmentRepositorySettings,
   EnvironmentSpec,
   SystemAccelerator,
 } from "@arriero/core";
@@ -26,7 +27,10 @@ export type EnvironmentProvisioner = {
   entrypointRelative: string;
   distributions: readonly string[];
   requirements(spec: EnvironmentSpec): string[];
-  installOptions(spec: EnvironmentSpec): string[];
+  installOptions(
+    spec: EnvironmentSpec,
+    repositories: EnvironmentRepositorySettings,
+  ): string[];
   validationCommand(spec: EnvironmentSpec, finalDir: string): string[];
   validateLayout(spec: EnvironmentSpec, finalDir: string): string | null;
   availability(
@@ -132,10 +136,10 @@ const VLLM_PROVISIONER: EnvironmentProvisioner = {
       : "";
     return [`vllm${extras}==${spec.version}`];
   },
-  installOptions(spec) {
+  installOptions(spec, repositories) {
     if (spec.engine !== "vllm")
       throw new Error("vLLM provisioner kind mismatch");
-    const options = packageIndexInstallOptions(spec.source);
+    const options = packageIndexInstallOptions(repositories.packageIndexUrl);
     if (spec.source.kind === "wheel" && spec.source.torchBackend) {
       options.push("--torch-backend", spec.source.torchBackend);
     }
@@ -195,11 +199,11 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       return wheelRequirement(artifact.url, artifact.sha256);
     });
   },
-  installOptions(spec) {
+  installOptions(spec, repositories) {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
     }
-    const options = packageIndexInstallOptions(spec.source);
+    const options = packageIndexInstallOptions(repositories.packageIndexUrl);
     if (spec.source.kind === "wheels" && spec.source.torchBackend) {
       options.push("--torch-backend", spec.source.torchBackend);
     }

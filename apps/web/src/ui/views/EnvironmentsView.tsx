@@ -16,13 +16,16 @@ import {
   cancelEnvironmentJob,
   createEnvironment,
   deleteEnvironment,
+  getEnvironmentRepositorySettings,
   getEnvironmentJobLogs,
   getSystemResources,
   listEnvironmentJobs,
   listEnvironments,
   rebuildEnvironment,
+  updateEnvironmentRepositorySettings,
 } from "../../api/client";
 import { EnvironmentCreateForm } from "../components/EnvironmentCreateForm";
+import { EnvironmentRepositorySettingsForm } from "../components/EnvironmentRepositorySettingsForm";
 import { formatLocalDateTime } from "../utils/time";
 
 function statusColor(status: string) {
@@ -44,6 +47,10 @@ export function EnvironmentsView() {
     queryKey: ["environment-jobs"],
     queryFn: () => listEnvironmentJobs(12),
     refetchInterval: 2_000,
+  });
+  const repositoriesQuery = useQuery({
+    queryKey: ["environment-repository-settings"],
+    queryFn: getEnvironmentRepositorySettings,
   });
   const systemQuery = useQuery({
     queryKey: ["system-resources"],
@@ -111,15 +118,57 @@ export function EnvironmentsView() {
     mutationFn: cancelEnvironmentJob,
     onSuccess: refresh,
   });
+  const repositoriesMutation = useMutation({
+    mutationFn: updateEnvironmentRepositorySettings,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["environment-repository-settings"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["environment-index-versions"],
+        }),
+      ]);
+      notifications.show({
+        title: "Python repositories saved",
+        message: "New installs and rebuilds will use the updated site profile.",
+      });
+    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Repository settings failed",
+        message: (error as Error).message,
+      }),
+  });
+
+  const repositories = repositoriesQuery.data?.data;
 
   return (
     <Stack gap="md">
-      <EnvironmentCreateForm
-        uv={uv}
-        running={running}
-        submitting={createMutation.isPending}
-        onSubmit={(input) => createMutation.mutate(input)}
-      />
+      {repositories && (
+        <>
+          <EnvironmentRepositorySettingsForm
+            settings={repositories}
+            running={running}
+            saving={repositoriesMutation.isPending}
+            onSave={(input) => repositoriesMutation.mutate(input)}
+          />
+          <EnvironmentCreateForm
+            uv={uv}
+            repositories={repositories}
+            running={running}
+            submitting={createMutation.isPending}
+            onSubmit={(input) => createMutation.mutate(input)}
+          />
+        </>
+      )}
+      {repositoriesQuery.isLoading && (
+        <Text c="dimmed">Loading Python repository settings…</Text>
+      )}
+      {repositoriesQuery.isError && (
+        <Text c="red">{(repositoriesQuery.error as Error).message}</Text>
+      )}
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Stack gap="sm">
@@ -150,7 +199,6 @@ export function EnvironmentsView() {
                   </Group>
                   <Text size="xs" c="dimmed">
                     Python {environment.pythonVersion} ·{" "}
-                    {environment.pythonProvisioning} ·{" "}
                     {formatLocalDateTime(environment.createdAt)}
                   </Text>
                   {environment.availabilityReason && (

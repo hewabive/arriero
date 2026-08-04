@@ -1,6 +1,7 @@
 import {
   EnvironmentCreateSchema,
   EnvironmentEngineSchema,
+  EnvironmentRepositorySettingsSchema,
 } from "@arriero/core";
 import type { Hono } from "hono";
 
@@ -8,6 +9,10 @@ import { resolveEnvironmentIndexVersions } from "../envs/index-versions.js";
 import { tailEnvironmentLog } from "../envs/logs.js";
 import { getEnvironmentJob, listEnvironmentJobs } from "../envs/repository.js";
 import { environmentRunner } from "../envs/runner.js";
+import {
+  getEnvironmentRepositorySettings,
+  saveEnvironmentRepositorySettings,
+} from "../envs/settings.js";
 import {
   createEnvironment,
   deleteEnvironment,
@@ -17,6 +22,29 @@ import {
 
 export function registerEnvironmentRoutes(app: Hono) {
   app.get("/api/environments", (c) => c.json({ data: listEnvironments() }));
+
+  app.get("/api/environments/settings", (c) =>
+    c.json({ data: getEnvironmentRepositorySettings() }),
+  );
+
+  app.put("/api/environments/settings", async (c) => {
+    const parsed = EnvironmentRepositorySettingsSchema.safeParse(
+      await c.req.json(),
+    );
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    if (environmentRunner.activeEnvironmentId()) {
+      return c.json(
+        {
+          error:
+            "cannot change repositories while an environment job is running",
+        },
+        409,
+      );
+    }
+    return c.json({ data: saveEnvironmentRepositorySettings(parsed.data) });
+  });
 
   app.post("/api/environments", async (c) => {
     const parsed = EnvironmentCreateSchema.safeParse(await c.req.json());
@@ -54,7 +82,7 @@ export function registerEnvironmentRoutes(app: Hono) {
     return c.json({
       data: await resolveEnvironmentIndexVersions({
         engine: engine.data,
-        indexUrl: c.req.query("indexUrl") ?? null,
+        indexUrl: getEnvironmentRepositorySettings().packageIndexUrl,
         pythonVersion: c.req.query("pythonVersion") ?? null,
       }),
     });

@@ -359,7 +359,6 @@ engine-specific source union without invalidating existing vLLM specs:
 type KTransformersInstallSource =
   | {
       kind: "pypi";
-      indexUrl: string | null;
     }
   | {
       kind: "wheels";
@@ -368,7 +367,6 @@ type KTransformersInstallSource =
         url: string;
         sha256: string | null;
       }>;
-      dependencyIndexUrl: string | null;
       torchBackend: string | null;
     };
 ```
@@ -376,10 +374,11 @@ type KTransformersInstallSource =
 Rules:
 
 - exactly one root artifact per required distribution;
-- HTTPS or file URLs only;
+- file, HTTP, or HTTPS URLs only;
 - credentials forbidden in stored URLs;
 - optional SHA-256 is appended to the uv requirement URL;
 - private credentials come from the manager environment;
+- root and dependency resolution use the node-wide package index setting;
 - dependency resolution still writes `freeze.txt`; exact transitive
   reproducibility remains out of scope until a lockfile domain is introduced.
 
