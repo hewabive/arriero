@@ -174,7 +174,11 @@ export function nvidiaDriverInstallCommands(
     ),
   );
   if (family.has("ubuntu")) {
-    return ["sudo ubuntu-drivers install --gpgpu"];
+    return [
+      ...ubuntuNvidiaUtilsPackageCommands(),
+      "sudo ubuntu-drivers install --gpgpu",
+      'sudo apt-get install -y "$nvidia_utils_package"',
+    ];
   }
 
   if (release.id !== "rocky" || release.versionId?.split(".")[0] !== "9") {
@@ -191,7 +195,40 @@ export function nvidiaDriverInstallCommands(
     ...repoCommands,
     "sudo dnf install -y nvidia-driver-assistant",
     "nvidia-driver-assistant --install",
+    "sudo dnf install -y nvidia-driver-cuda",
   ];
+}
+
+function ubuntuNvidiaUtilsPackageCommands(): string[] {
+  return [
+    "nvidia_utils_package=\"$(ubuntu-drivers list --gpgpu --recommended | sed -nE 's/^nvidia-driver-([0-9]+(-server)?)(-open)?([[:space:]].*)?$/nvidia-utils-\\1/p' | head -n 1)\"",
+    'test -n "$nvidia_utils_package"',
+  ];
+}
+
+export function nvidiaSmiInstallCommands(
+  release: OsRelease,
+  architecture: NodeJS.Architecture = process.arch,
+): string[] {
+  const family = new Set(
+    [release.id, ...release.idLike].filter(
+      (item): item is string => item !== null,
+    ),
+  );
+  if (family.has("ubuntu")) {
+    return [
+      ...ubuntuNvidiaUtilsPackageCommands(),
+      'sudo apt-get install -y "$nvidia_utils_package"',
+    ];
+  }
+  if (
+    architecture === "x64" &&
+    release.id === "rocky" &&
+    release.versionId?.split(".")[0] === "9"
+  ) {
+    return ["sudo dnf install -y nvidia-driver-cuda"];
+  }
+  return [];
 }
 
 export function nvidiaDriverManualCommands(
@@ -252,19 +289,19 @@ export function nvidiaDriverProbeOutcome(
   };
 }
 
-function nvidiaDriverIsApplicable(
-  context: PrerequisiteProbeContext,
-): boolean {
+function nvidiaDriverIsApplicable(context: PrerequisiteProbeContext): boolean {
   return (
     context.nvidiaPci.state === "present" ||
     context.nvidiaTelemetryStatus().state === "ready"
   );
 }
 
-function nvidiaCudaIsApplicable(
-  context: PrerequisiteProbeContext,
-): boolean {
+function nvidiaCudaIsApplicable(context: PrerequisiteProbeContext): boolean {
   return context.usage.cudaBuild || nvidiaDriverIsApplicable(context);
+}
+
+function nvidiaSmiIsApplicable(context: PrerequisiteProbeContext): boolean {
+  return context.nvidiaTelemetryStatus().state === "ready";
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -545,12 +582,30 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     requiresRebootAfterInstall: true,
     applies: nvidiaDriverIsApplicable,
     docPath: "docs/RESOURCE_MANAGEMENT.md",
-    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. The distro-specific helper selects a driver compatible with the detected PCI GPU: ubuntu-drivers on Ubuntu, or NVIDIA's driver assistant on Rocky Linux 9 x86-64. Reboot remains a separate manual action; after the server returns, press Re-check. nvidia-smi is not required.",
+    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. The distro-specific helper selects a driver compatible with the detected PCI GPU: ubuntu-drivers on Ubuntu, or NVIDIA's driver assistant on Rocky Linux 9 x86-64. The install also adds nvidia-smi for operator diagnostics. Reboot remains a separate manual action; after the server returns, press Re-check.",
     probe: async (context) =>
       nvidiaDriverProbeOutcome(
         context.nvidiaTelemetryStatus(),
         context.nvidiaPci,
       ),
+  },
+  {
+    id: "nvidia-smi",
+    group: "cuda",
+    title: "NVIDIA diagnostics (nvidia-smi)",
+    kind: "executable",
+    severity: "recommended",
+    blocks: [],
+    impact:
+      "nvidia-smi is useful for inspecting driver state, utilization, temperatures and per-process GPU memory from the host shell.",
+    packages: {},
+    commands: [],
+    installCommands: nvidiaSmiInstallCommands,
+    includeInInstallPlan: false,
+    applies: nvidiaSmiIsApplicable,
+    docPath: null,
+    note: "Arriero telemetry uses NVML directly and does not depend on this CLI. The installer adds the utility package matching the Ubuntu driver branch, or NVIDIA's compute userspace package on Rocky Linux 9.",
+    probe: executableProbe(["nvidia-smi"]),
   },
   {
     id: "numactl",

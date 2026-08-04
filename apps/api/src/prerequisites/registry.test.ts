@@ -7,8 +7,19 @@ import {
   nvidiaDriverInstallCommands,
   nvidiaDriverManualCommands,
   nvidiaDriverProbeOutcome,
+  nvidiaSmiInstallCommands,
   prerequisiteDefinitions,
 } from "./registry.js";
+
+const ubuntu2404: OsRelease = {
+  id: "ubuntu",
+  idLike: ["debian"],
+  prettyName: "Ubuntu 24.04 LTS",
+  versionId: "24.04",
+};
+
+const ubuntuNvidiaUtilsDetection =
+  "nvidia_utils_package=\"$(ubuntu-drivers list --gpgpu --recommended | sed -nE 's/^nvidia-driver-([0-9]+(-server)?)(-open)?([[:space:]].*)?$/nvidia-utils-\\1/p' | head -n 1)\"";
 
 const rocky9: OsRelease = {
   id: "rocky",
@@ -83,15 +94,12 @@ test("does not invent CUDA repository commands for unsupported DNF hosts", () =>
 });
 
 test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
-  assert.deepEqual(
-    nvidiaDriverInstallCommands({
-      id: "ubuntu",
-      idLike: ["debian"],
-      prettyName: "Ubuntu 24.04 LTS",
-      versionId: "24.04",
-    }),
-    ["sudo ubuntu-drivers install --gpgpu"],
-  );
+  assert.deepEqual(nvidiaDriverInstallCommands(ubuntu2404), [
+    ubuntuNvidiaUtilsDetection,
+    'test -n "$nvidia_utils_package"',
+    "sudo ubuntu-drivers install --gpgpu",
+    'sudo apt-get install -y "$nvidia_utils_package"',
+  ]);
   assert.deepEqual(
     nvidiaDriverInstallCommands({
       id: "linuxmint",
@@ -99,17 +107,22 @@ test("uses ubuntu-drivers for Ubuntu and its derivatives", () => {
       prettyName: "Linux Mint",
       versionId: null,
     }),
-    ["sudo ubuntu-drivers install --gpgpu"],
+    [
+      ubuntuNvidiaUtilsDetection,
+      'test -n "$nvidia_utils_package"',
+      "sudo ubuntu-drivers install --gpgpu",
+      'sudo apt-get install -y "$nvidia_utils_package"',
+    ],
   );
-  assert.deepEqual(
-    nvidiaDriverManualCommands({
-      id: "ubuntu",
-      idLike: ["debian"],
-      prettyName: "Ubuntu 24.04 LTS",
-      versionId: "24.04",
-    }),
-    ["sudo reboot"],
-  );
+  assert.deepEqual(nvidiaDriverManualCommands(ubuntu2404), ["sudo reboot"]);
+});
+
+test("installs nvidia-smi from the driver-matched Ubuntu package", () => {
+  assert.deepEqual(nvidiaSmiInstallCommands(ubuntu2404), [
+    ubuntuNvidiaUtilsDetection,
+    'test -n "$nvidia_utils_package"',
+    'sudo apt-get install -y "$nvidia_utils_package"',
+  ]);
 });
 
 test("uses NVIDIA's hardware-aware driver assistant on Rocky Linux 9 x86-64", () => {
@@ -120,8 +133,12 @@ test("uses NVIDIA's hardware-aware driver assistant on Rocky Linux 9 x86-64", ()
     "sudo dnf clean expire-cache",
     "sudo dnf install -y nvidia-driver-assistant",
     "nvidia-driver-assistant --install",
+    "sudo dnf install -y nvidia-driver-cuda",
   ]);
   assert.deepEqual(nvidiaDriverManualCommands(rocky9, "x64"), ["sudo reboot"]);
+  assert.deepEqual(nvidiaSmiInstallCommands(rocky9, "x64"), [
+    "sudo dnf install -y nvidia-driver-cuda",
+  ]);
 });
 
 test("does not suggest distro-specific driver commands on unsupported hosts", () => {
@@ -135,6 +152,7 @@ test("does not suggest distro-specific driver commands on unsupported hosts", ()
     [],
   );
   assert.deepEqual(nvidiaDriverInstallCommands(rocky9, "arm64"), []);
+  assert.deepEqual(nvidiaSmiInstallCommands(rocky9, "arm64"), []);
 });
 
 test("maps NVML provider states to prerequisite outcomes", () => {

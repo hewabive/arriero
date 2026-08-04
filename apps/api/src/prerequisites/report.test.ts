@@ -100,7 +100,9 @@ test("keeps CUDA build prerequisites even without a local GPU", () => {
 
 test("shows NVIDIA prerequisites when NVML exposes a container GPU", () => {
   const driver = findPrerequisiteDefinition("nvidia-driver");
+  const nvidiaSmi = findPrerequisiteDefinition("nvidia-smi");
   assert.ok(driver);
+  assert.ok(nvidiaSmi);
   const nvml = context({
     nvidiaPci: {
       state: "unknown",
@@ -115,6 +117,8 @@ test("shows NVIDIA prerequisites when NVML exposes a container GPU", () => {
     }),
   });
   assert.equal(prerequisiteDefinitionIsApplicable(driver, nvml), true);
+  assert.equal(prerequisiteDefinitionIsApplicable(nvidiaSmi, nvml), true);
+  assert.equal(prerequisiteDefinitionIsApplicable(nvidiaSmi, context()), false);
 });
 
 test("keeps a successful install local-only and pending across manager restarts", async () => {
