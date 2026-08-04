@@ -197,10 +197,17 @@ Runner rules (`install-runner.ts`):
   (`resolveInstallCommand`) — clients never submit command text.
 - Package-manager commands and explicitly allowlisted, server-generated install
   sequences are runnable. The DNF `nvcc` remediation is one such sequence;
-  the Ubuntu/Rocky NVIDIA driver setup is another. Driver setup is intentionally
-  excluded from the aggregated required/recommended command and is runnable only
-  from its own check. Its separate `sudo reboot` command, the delegation script
-  and `pipx install uv` stay copy-paste.
+  the Ubuntu/Rocky NVIDIA driver setup and the `uv` bootstrap are others. Driver
+  setup is intentionally excluded from the aggregated required/recommended
+  command and is runnable only from its own check. Its separate `sudo reboot`
+  command and the delegation script stay copy-paste.
+- A missing `uv` uses the native package on Arch and Alpine. Elsewhere an
+  existing `pipx` installs it without elevation. When `pipx` is absent, Ubuntu/
+  Debian and Fedora first install their distro `pipx` package, then run
+  `pipx install uv` as the manager user (never through `sudo`). Other hosts use
+  uv's official standalone installer with shell-profile modification disabled.
+  All user-scoped paths land in `~/.local/bin`, which the following report
+  refresh adds to the manager PATH automatically.
 - One run at a time, in memory only (log tail 256 KiB), exposed at
   `GET /api/prerequisites/install/latest` and polled while running.
   `DEBIAN_FRONTEND=noninteractive`; under root the `sudo` prefix is stripped.

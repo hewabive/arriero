@@ -135,6 +135,32 @@ test("appends runnable standalone remediation to the aggregated command", () => 
   );
 });
 
+test("appends the runnable uv bootstrap sequence to the aggregated command", () => {
+  const plan = buildInstallPlan(
+    [
+      check({ id: "cmake" }),
+      check({
+        id: "uv",
+        remediation: {
+          packages: [],
+          installCommand: "sudo apt install -y pipx && pipx install uv",
+          commands: [],
+          includeInInstallPlan: true,
+          rebootRequired: false,
+          docPath: "docs/ENVIRONMENTS.md",
+          note: null,
+        },
+      }),
+    ],
+    "apt",
+  );
+
+  assert.equal(
+    plan.requiredCommand,
+    "sudo apt install -y cmake && sudo apt install -y pipx && pipx install uv",
+  );
+});
+
 test("present and out-of-path checks never enter the install plan", () => {
   const plan = buildInstallPlan(
     [check({ status: "ok" }), check({ id: "git", status: "out-of-path" })],

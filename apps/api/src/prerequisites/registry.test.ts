@@ -9,6 +9,7 @@ import {
   nvidiaDriverProbeOutcome,
   nvidiaSmiInstallCommands,
   prerequisiteDefinitions,
+  uvInstallCommands,
 } from "./registry.js";
 
 const ubuntu2404: OsRelease = {
@@ -48,6 +49,75 @@ test("keeps CUDA out of the aggregated DNF transaction", () => {
   assert.ok(nvcc);
   assert.deepEqual(nvcc.packages.dnf, undefined);
   assert.equal(typeof nvcc.installCommands, "function");
+});
+
+test("installs uv through native packages on Arch and Alpine", () => {
+  assert.deepEqual(
+    uvInstallCommands(
+      {
+        id: "arch",
+        idLike: [],
+        prettyName: "Arch Linux",
+        versionId: null,
+      },
+      false,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    uvInstallCommands(
+      {
+        id: "alpine",
+        idLike: [],
+        prettyName: "Alpine Linux",
+        versionId: "3.23",
+      },
+      true,
+    ),
+    [],
+  );
+});
+
+test("uses an existing pipx without reinstalling it", () => {
+  assert.deepEqual(uvInstallCommands(ubuntu2404, true), ["pipx install uv"]);
+  assert.deepEqual(uvInstallCommands(rocky9, true), ["pipx install uv"]);
+});
+
+test("bootstraps pipx from supported distro packages before installing uv", () => {
+  assert.deepEqual(uvInstallCommands(ubuntu2404, false), [
+    "sudo apt install -y pipx",
+    "pipx install uv",
+  ]);
+  assert.deepEqual(
+    uvInstallCommands(
+      {
+        id: "fedora",
+        idLike: [],
+        prettyName: "Fedora Linux 44",
+        versionId: "44",
+      },
+      false,
+    ),
+    ["sudo dnf install -y pipx", "pipx install uv"],
+  );
+});
+
+test("uses the official standalone uv installer on other hosts without pipx", () => {
+  assert.deepEqual(uvInstallCommands(rocky9, false), [
+    "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh",
+  ]);
+  assert.deepEqual(
+    uvInstallCommands(
+      {
+        id: "opensuse-leap",
+        idLike: ["suse", "opensuse"],
+        prettyName: "openSUSE Leap",
+        versionId: "16.0",
+      },
+      false,
+    ),
+    ["curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh"],
+  );
 });
 
 test("adds NVIDIA's CUDA repository before installing the toolkit on Fedora", () => {

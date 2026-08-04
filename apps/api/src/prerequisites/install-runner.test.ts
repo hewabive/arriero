@@ -23,6 +23,13 @@ test("strips the sudo prefix only when running as root", () => {
     ),
     "dnf config-manager --add-repo cuda.repo && dnf clean expire-cache && dnf install -y cuda-toolkit",
   );
+  assert.equal(
+    executedInstallCommand(
+      "sudo apt install -y pipx && pipx install uv",
+      "root",
+    ),
+    "apt install -y pipx && pipx install uv",
+  );
 });
 
 test("runs a command to completion and captures the log", async () => {

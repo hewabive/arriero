@@ -8,8 +8,10 @@ import { existsSync } from "node:fs";
 
 import { detectNumaBind } from "../numa/capability.js";
 import type { OsRelease } from "../system/os-release.js";
+import { packageManagerForOsRelease } from "../system/os-release.js";
 import {
   findHeader,
+  findExecutableInPath,
   probeAnyExecutable,
   probePkgConfigModule,
 } from "../system/tool-probe.js";
@@ -308,6 +310,29 @@ function nvidiaSmiIsApplicable(context: PrerequisiteProbeContext): boolean {
 
 function rocmKfdIsApplicable(context: PrerequisiteProbeContext): boolean {
   return context.amdPci.state === "present" || context.rocmDeviceAvailable;
+}
+
+const UV_STANDALONE_INSTALL_COMMAND =
+  "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh";
+
+export function uvInstallCommands(
+  release: OsRelease,
+  pipxAvailable: boolean,
+): string[] {
+  const packageManager = packageManagerForOsRelease(release);
+  if (packageManager === "pacman" || packageManager === "apk") {
+    return [];
+  }
+  if (pipxAvailable) {
+    return ["pipx install uv"];
+  }
+  if (packageManager === "apt") {
+    return ["sudo apt install -y pipx", "pipx install uv"];
+  }
+  if (release.id === "fedora") {
+    return ["sudo dnf install -y pipx", "pipx install uv"];
+  }
+  return [UV_STANDALONE_INSTALL_COMMAND];
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -665,9 +690,14 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       pacman: ["uv"],
       apk: ["uv"],
     },
-    commands: ["pipx install uv"],
+    commands: [],
+    installCommands: (release) =>
+      uvInstallCommands(
+        release,
+        findExecutableInPath("pipx", process.env.PATH) !== null,
+      ),
     docPath: "docs/ENVIRONMENTS.md",
-    note: "pipx exposes uv in ~/.local/bin.",
+    note: "User-scoped installers expose uv in ~/.local/bin; Re-check adds that directory to the manager PATH automatically.",
     probe: executableProbe(["uv"]),
   },
   {
