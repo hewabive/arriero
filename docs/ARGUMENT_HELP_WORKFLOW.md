@@ -56,7 +56,11 @@ Steps:
 4. For a new argument, create a focused Russian Engineering help file using nearby argument docs as the style reference: practical behavior, safe defaults, interactions, diagnostics, and relevant source/issue links. To find the upstream PR behind an added or changed help row, run `git log -S "<new help text>" --oneline -- common/arg.cpp` in the configured llama.cpp checkout. Every doc must declare a frontmatter `estimation` class (`args:docs:quality` fails without it) — it feeds the memory-estimator gate (`apps/api/src/arguments/estimation.ts`): `normal` (estimable), `exits` (prints and exits before loading a model), `preset-rewrite` (built-in preset that rewrites launch arguments inside llama.cpp), `remote-selector` / `remote-mmproj` / `remote-draft` (fetches the main/mmproj/draft artifact remotely), `router` (loads a changing set of child models). Deciding this class for each new argument is part of writing its doc: a misclassified `normal` preset produces confidently wrong memory estimates.
 5. For a phantom arg (in the README help block but not in the source/binary), still write a doc, but add a `Статус в upstream` section: state it is not implemented in the current checkout, link the PR that introduced the README row, and note it will not appear in the arriero catalog (built from `--help`) until the feature lands. Do not present it as a working flag.
 6. For a removed argument, delete the matching doc only after confirming it was not renamed or moved.
-7. Once the docs match the new generated help, write the snapshot/hash with `--write`.
+7. Once the docs match the new generated help, write the snapshot/hash with `--write`. Sync only
+   against the checkout's own master state: verify claims in the configured checkout as it stands,
+   never against an unmerged upstream branch or out-of-band (web) content — that records a
+   `llamaCppCommit` unreachable from the checkout and documents behavior the built binary does not
+   have (this happened with `--repeat-last-n`/`--dry-penalty-last-n`, fixed in 1adc2ba).
 
 Do not add `docStatus`, `reviewedLlamaCppCommit`, or `reviewedHelpHash` to docs. The stored source snapshot hash is the only synchronization signal.
 
