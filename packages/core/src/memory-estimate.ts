@@ -19,7 +19,7 @@ import {
 // Increment this whenever the estimator semantics change. Stored assessments
 // deliberately become stale instead of trying to emulate older llama.cpp
 // releases.
-export const MEMORY_ESTIMATOR_VERSION = 2;
+export const MEMORY_ESTIMATOR_VERSION = 4;
 
 const F32_BYTES = 4;
 const KV_PAD = 256;
@@ -29,6 +29,19 @@ const DEFAULT_UBATCH = 512;
 const DEFAULT_SEQ_MAX = 4;
 const DEFAULT_CACHE_TYPE = "f16";
 const GPU_CONTEXT_OVERHEAD_BYTES = 400 * 1024 * 1024;
+const NGRAM_MOD_HOST_BYTES = 4 * 1024 * 1024 * F32_BYTES;
+const NGRAM_MAP_HOST_BYTES_PER_SEQUENCE = 262_144 * 4;
+
+// llama.cpp only keeps recurrent-state rollback snapshots for architectures
+// whose memory implementation can restore a partial sequence. Keep this list
+// in sync with llm_arch_supports_rs_rollback() in current llama.cpp.
+const RS_ROLLBACK_ARCHITECTURES = new Set(["qwen35", "qwen35moe", "deepseek4"]);
+
+// These current architectures use family-specific multi-head/fused-QKV/iSWA
+// MTP graphs. Their ordinary tensor/KV geometry is readable, but the complete
+// second-context compute reservation has not been qualified on manageable
+// hardware yet.
+const UNQUALIFIED_MTP_ARCHITECTURES = new Set(["step35", "hy_v3", "mimo2"]);
 
 export type MemoryEstimateArgValue =
   | string
@@ -157,44 +170,84 @@ export function resolveContextParams(
 ): ResolvedContextParams {
   const nCtxTrain = hparams.contextLength ?? DEFAULT_CTX;
   const requestedCtx = argNumber(args, ["--ctx-size", "-c", "--context-size"]);
-  const nCtx = pad(
-    requestedCtx && requestedCtx > 0 ? requestedCtx : nCtxTrain,
-    KV_PAD,
-  );
+  // llama_context limits a causal batch against the unpadded requested
+  // context, then pads the context to 256 cells. A non-unified cache pads the
+  // per-sequence slice once more and updates the reported total context to the
+  // resulting slice * slot count (which can be larger than the request).
+  const nCtxRequested =
+    requestedCtx !== null && requestedCtx > 0 ? requestedCtx : nCtxTrain;
 
   const requestedSeq = argNumber(args, ["--parallel", "-np"]);
+  const parallelIsAuto = requestedSeq === null || requestedSeq < 0;
   const nSeqMax =
     requestedSeq && requestedSeq > 0 ? requestedSeq : DEFAULT_SEQ_MAX;
 
   const kvUnifiedFlag = argFlag(args, ["--kv-unified", "-kvu"]);
   const noKvUnifiedFlag = argFlag(args, ["--no-kv-unified", "-no-kvu"]);
-  const kvUnified =
-    kvUnifiedFlag ??
-    (noKvUnifiedFlag === null ? requestedSeq === null : !noKvUnifiedFlag);
+  // server.cpp applies the negative-parallel auto mode after parsing all KV
+  // flags and unconditionally enables unified KV for its four resolved slots.
+  const kvUnified = parallelIsAuto
+    ? true
+    : (kvUnifiedFlag ?? (noKvUnifiedFlag === null ? false : !noKvUnifiedFlag));
   const swaFull = argFlag(args, ["--swa-full"]) ?? false;
 
-  const nCtxSeq = kvUnified ? nCtx : pad(Math.floor(nCtx / nSeqMax), KV_PAD);
+  const nCtxPadded = pad(nCtxRequested, KV_PAD);
+  const nCtxSeq = kvUnified
+    ? nCtxPadded
+    : pad(Math.floor(nCtxPadded / nSeqMax), KV_PAD);
+  const nCtx = kvUnified ? nCtxPadded : nCtxSeq * nSeqMax;
 
   const requestedBatch = argNumber(args, ["--batch-size", "-b"]);
-  const nBatch = Math.min(
-    nCtx,
-    requestedBatch && requestedBatch > 0 ? requestedBatch : DEFAULT_BATCH,
-  );
+  const configuredBatch =
+    requestedBatch !== null && requestedBatch > 0
+      ? requestedBatch
+      : DEFAULT_BATCH;
+  const attention = argString(args, ["--attention"])?.toLowerCase();
+  const causalAttention =
+    attention === "causal"
+      ? true
+      : attention === "non-causal"
+        ? false
+        : hparams.causalAttention !== false;
+  let nBatch = causalAttention
+    ? Math.min(nCtxRequested, configuredBatch)
+    : configuredBatch;
 
   const requestedUbatch = argNumber(args, ["--ubatch-size", "-ub"]);
   const nUbatch = Math.min(
     nBatch,
-    requestedUbatch && requestedUbatch > 0 ? requestedUbatch : DEFAULT_UBATCH,
+    requestedUbatch === 0
+      ? nBatch
+      : requestedUbatch !== null && requestedUbatch > 0
+        ? requestedUbatch
+        : DEFAULT_UBATCH,
   );
+  if (
+    (argFlag(args, ["--embedding", "--embeddings"]) === true ||
+      argFlag(args, ["--rerank", "--reranking"]) === true) &&
+    nBatch > nUbatch
+  ) {
+    // llama-server forces embedding/reranking batches into one ubatch before
+    // constructing the context (tools/server/server.cpp).
+    nBatch = nUbatch;
+  }
 
-  const flashAttn = argFlag(args, ["--flash-attn", "-fa"]) ?? false;
-  const offloadKqv = !(argFlag(args, ["--no-kv-offload", "-nkvo"]) ?? false);
+  const flashAttnRequested = argFlag(args, ["--flash-attn", "-fa"]);
+  const splitMode = argString(args, ["--split-mode", "-sm"])?.toLowerCase();
+  const typeV =
+    argString(args, ["--cache-type-v", "-ctv"]) ?? DEFAULT_CACHE_TYPE;
+  const quantizedV = (ggmlTypeTraitByName(typeV)?.blockSize ?? 1) > 1;
+  const flashAttn =
+    hparams.architecture?.toLowerCase() === "grok"
+      ? false
+      : (flashAttnRequested ?? (splitMode === "tensor" || quantizedV));
+  const kvOffloadFlag = argFlag(args, ["--kv-offload", "-kvo"]);
+  const noKvOffloadFlag = argFlag(args, ["--no-kv-offload", "-nkvo"]);
+  const offloadKqv =
+    kvOffloadFlag ?? (noKvOffloadFlag === null ? true : !noKvOffloadFlag);
 
   const typeK =
     argString(args, ["--cache-type-k", "-ctk"]) ?? DEFAULT_CACHE_TYPE;
-  const typeV =
-    argString(args, ["--cache-type-v", "-ctv"]) ?? DEFAULT_CACHE_TYPE;
-
   return {
     nCtx,
     nCtxSeq,
@@ -283,8 +336,17 @@ function buildPlacement(
   const gpuPools = gpuPoolsSorted(input.pools);
   const layerAll = (input.hparams.blockCount ?? 0) + 1;
   const nGpu = context.nGpuLayers;
+  const splitMode =
+    argString(input.args, ["--split-mode", "-sm"])?.toLowerCase() ?? "layer";
+  const requestedMainGpu = Math.floor(
+    argNumber(input.args, ["--main-gpu", "-mg"]) ?? 0,
+  );
 
-  if (gpuPools.length === 0 || nGpu <= 0) {
+  if (
+    gpuPools.length === 0 ||
+    nGpu <= 0 ||
+    (splitMode === "none" && requestedMainGpu < 0)
+  ) {
     return {
       layerDevice: () => hostPoolId,
       hostPoolId,
@@ -294,6 +356,11 @@ function buildPlacement(
   }
 
   const split = parseTensorSplit(input.args, gpuPools.length);
+  const mainGpuIndex = requestedMainGpu;
+  const mainGpu =
+    gpuPools.find((pool) => pool.index === mainGpuIndex) ??
+    gpuPools[mainGpuIndex] ??
+    gpuPools[0]!;
   const iGpuStart = Math.max(layerAll - nGpu, 0);
   const gpuLayerCount = Math.max(layerAll - iGpuStart, 1);
 
@@ -301,6 +368,9 @@ function buildPlacement(
     layerDevice: (layer: number) => {
       if (layer < iGpuStart) {
         return hostPoolId;
+      }
+      if (splitMode === "none") {
+        return mainGpu.id;
       }
       const ratio = (layer - iGpuStart) / gpuLayerCount;
       return gpuPoolForLayer(ratio, gpuPools, split);
@@ -329,6 +399,7 @@ function mib(bytes: number): number {
 type ModelAccumulation = {
   context: ResolvedContextParams;
   placement: Placement;
+  computeUsesGpu: boolean;
   kv: KvEstimate;
   computeBytes: number;
   weightsBytes: number;
@@ -339,14 +410,94 @@ type ContextLayerMode = "main" | "mtp" | "shared-target-kv";
 
 function hasSpeculativeType(
   args: MemoryEstimateArgs,
-  expected: string,
+  expected: string | readonly string[],
 ): boolean {
+  const expectedTypes = new Set(
+    (Array.isArray(expected) ? expected : [expected]).map((value) =>
+      value.toLowerCase(),
+    ),
+  );
   const value = argRaw(args, ["--spec-type"]);
   const values = Array.isArray(value) ? value : [value];
   return values.some(
     (item) =>
       typeof item === "string" &&
-      item.split(",").some((type) => type.trim().toLowerCase() === expected),
+      item
+        .split(",")
+        .some((type) => expectedTypes.has(type.trim().toLowerCase())),
+  );
+}
+
+function opOffloadEnabled(args: MemoryEstimateArgs): boolean {
+  if (argFlag(args, ["--no-op-offload"]) === true) {
+    return false;
+  }
+  return argFlag(args, ["--op-offload"]) ?? true;
+}
+
+function draftBackendSamplingEnabled(args: MemoryEstimateArgs): boolean {
+  if (argFlag(args, ["--no-spec-draft-backend-sampling"]) === true) {
+    return false;
+  }
+  return argFlag(args, ["--spec-draft-backend-sampling"]) ?? true;
+}
+
+function flashAttnIsAuto(args: MemoryEstimateArgs): boolean {
+  const raw = argRaw(args, ["--flash-attn", "-fa"]);
+  return (
+    raw === undefined ||
+    (typeof raw === "string" &&
+      ["auto", "-1"].includes(raw.trim().toLowerCase()))
+  );
+}
+
+function backendSamplingBufferBytes(
+  hparams: MemoryEstimateHparams,
+  nSeqMax: number,
+): number {
+  return (3 * (hparams.vocabularySize ?? 0) + 1) * nSeqMax * F32_BYTES;
+}
+
+function computePlacement(
+  input: MemoryEstimateInput,
+  placement: Placement,
+  layerAll: number,
+): { poolId: string; usesGpu: boolean } {
+  if (placement.usesGpu) {
+    return {
+      poolId: placement.layerDevice(layerAll - 1),
+      usesGpu: true,
+    };
+  }
+  if (
+    argString(input.args, ["--split-mode", "-sm"])?.toLowerCase() === "none" &&
+    (argNumber(input.args, ["--main-gpu", "-mg"]) ?? 0) < 0
+  ) {
+    return { poolId: placement.hostPoolId, usesGpu: false };
+  }
+  const firstGpu = gpuPoolsSorted(input.pools)[0];
+  if (firstGpu && opOffloadEnabled(input.args)) {
+    return { poolId: firstGpu.id, usesGpu: true };
+  }
+  return { poolId: placement.hostPoolId, usesGpu: false };
+}
+
+function speculativeRollbackDepth(input: MemoryEstimateInput): number {
+  const architecture = input.hparams.architecture?.toLowerCase() ?? "";
+  if (
+    !RS_ROLLBACK_ARCHITECTURES.has(architecture) ||
+    !hasSpeculativeType(input.args, [
+      "draft-mtp",
+      "draft-eagle3",
+      "draft-dflash",
+      "draft-dspark",
+    ])
+  ) {
+    return 0;
+  }
+  return Math.max(
+    0,
+    Math.floor(argNumber(input.args, ["--spec-draft-n-max"]) ?? 3),
   );
 }
 
@@ -431,15 +582,25 @@ function accumulateModel(
     ensure(device).kvBytes += bytes;
   }
 
-  const compute = estimateComputeReservation(model, context, placement.usesGpu);
+  const computeTarget = computePlacement(model, placement, layerAll);
+  const compute = estimateComputeReservation(
+    model,
+    context,
+    computeTarget.usesGpu,
+  );
   const computeBytes = compute.primaryBytes + compute.hostBytes;
-  const computePoolId = placement.usesGpu
-    ? placement.layerDevice(layerAll - 1)
-    : placement.hostPoolId;
-  ensure(computePoolId).computeBytes += compute.primaryBytes;
+  ensure(computeTarget.poolId).computeBytes += compute.primaryBytes;
   ensure(placement.hostPoolId).computeBytes += compute.hostBytes;
 
-  return { context, placement, kv, computeBytes, weightsBytes, layerAll };
+  return {
+    context,
+    placement,
+    computeUsesGpu: computeTarget.usesGpu,
+    kv,
+    computeBytes,
+    weightsBytes,
+    layerAll,
+  };
 }
 
 function mmprojPlacement(
@@ -484,6 +645,12 @@ function remapDraftArgs(args: MemoryEstimateArgs): MemoryEstimateArgs {
   copy("--no-kv-unified", ["--no-kv-unified", "-no-kvu"]);
   copy("--swa-full", ["--swa-full"]);
   copy("--no-kv-offload", ["--no-kv-offload", "-nkvo"]);
+  copy("--op-offload", ["--op-offload"]);
+  copy("--no-op-offload", ["--no-op-offload"]);
+  copy("--split-mode", ["--split-mode", "-sm"]);
+  copy("--tensor-split", ["--tensor-split", "-ts"]);
+  copy("--main-gpu", ["--main-gpu", "-mg"]);
+  copy("--fit", ["--fit", "-fit"]);
   copy("--n-gpu-layers", [
     "--spec-draft-ngl",
     "-ngld",
@@ -542,6 +709,132 @@ export function estimateInstanceMemory(
   let auxiliaryEstimateIncomplete = false;
   let placementEstimateIncomplete = false;
   let architectureEstimateIncomplete = false;
+  let runtimeEstimateIncomplete = false;
+
+  const mtpHparams =
+    input.draft && (input.draft.hparams.nextnPredictLayers ?? 0) > 0
+      ? input.draft.hparams
+      : input.hparams;
+  const mtpArchitecture = mtpHparams.architecture?.toLowerCase() ?? "";
+  if (usesMtp && UNQUALIFIED_MTP_ARCHITECTURES.has(mtpArchitecture)) {
+    auxiliaryEstimateIncomplete = true;
+    warnings.push(
+      `${mtpArchitecture} uses a family-specific MTP graph/cache layout; ordinary NextN weights and KV are included, but its complete MTP compute reservation is not hardware-qualified.`,
+    );
+  }
+
+  const gpuPools = gpuPoolsSorted(input.pools);
+  const gpuLayersArg = argRaw(input.args, [
+    "--n-gpu-layers",
+    "-ngl",
+    "--gpu-layers",
+  ]);
+  const gpuLayersAuto =
+    gpuLayersArg === undefined ||
+    (typeof gpuLayersArg === "string" &&
+      gpuLayersArg.trim().toLowerCase() === "auto");
+  const fitEnabled = argFlag(input.args, ["--fit", "-fit"]) ?? true;
+  if (
+    fitEnabled &&
+    argRaw(input.args, ["--ctx-size", "-c", "--context-size"]) === undefined
+  ) {
+    runtimeEstimateIncomplete = true;
+    warnings.push(
+      "--fit is enabled with an unset context size, so current free memory can reduce the model-default context at startup; set --ctx-size explicitly or use --fit off for a reproducible footprint.",
+    );
+  }
+  if (gpuPools.length > 0 && gpuLayersAuto && fitEnabled) {
+    placementEstimateIncomplete = true;
+    warnings.push(
+      "--fit is enabled with automatic GPU layers, so current free device memory can reduce GPU layers or move MoE tensors at startup; set --fit off and the placement arguments explicitly for an assessable footprint.",
+    );
+  }
+  if (
+    gpuPools.length > 1 &&
+    placement.usesGpu &&
+    (argString(input.args, ["--split-mode", "-sm"])?.toLowerCase() ??
+      "layer") !== "none" &&
+    argRaw(input.args, ["--tensor-split", "-ts"]) === undefined
+  ) {
+    placementEstimateIncomplete = true;
+    warnings.push(
+      "Multiple GPUs are selected without --tensor-split; current llama.cpp divides layers in proportion to free device memory, while the estimate cannot know that startup-time split.",
+    );
+  }
+  const configuredSplitMode =
+    argString(input.args, ["--split-mode", "-sm"])?.toLowerCase() ?? "layer";
+  if (
+    gpuPools.length > 1 &&
+    placement.usesGpu &&
+    configuredSplitMode === "layer"
+  ) {
+    placementEstimateIncomplete = true;
+    warnings.push(
+      "Multi-GPU layer placement for weights and KV is modeled, but llama.cpp scheduler scratch and pipeline-parallel buffers are backend-dependent across devices; per-pool compute memory is incomplete.",
+    );
+  }
+
+  const flashModeForcedByArgs =
+    argString(input.args, ["--split-mode", "-sm"])?.toLowerCase() ===
+      "tensor" ||
+    (ggmlTypeTraitByName(context.typeV)?.blockSize ?? 1) > 1 ||
+    input.hparams.architecture?.toLowerCase() === "grok";
+  if (
+    main.computeUsesGpu &&
+    flashAttnIsAuto(input.args) &&
+    !flashModeForcedByArgs
+  ) {
+    runtimeEstimateIncomplete = true;
+    warnings.push(
+      "--flash-attn is auto, so current llama.cpp probes the actual backend graph and may enable or disable Flash Attention at startup; use an explicit on/off mode for reproducible compute placement and buffer sizes.",
+    );
+  }
+
+  const sleepIdleSeconds = argNumber(input.args, ["--sleep-idle-seconds"]);
+  if (sleepIdleSeconds !== null && sleepIdleSeconds > 0) {
+    runtimeEstimateIncomplete = true;
+    warnings.push(
+      "--sleep-idle-seconds unloads the model, contexts, draft, and multimodal projector while idle; the displayed footprint describes the awake state, not the sleeping state.",
+    );
+  }
+
+  if (argRaw(input.args, ["--override-kv"]) !== undefined) {
+    architectureEstimateIncomplete = true;
+    warnings.push(
+      "--override-kv can replace memory-defining model metadata after GGUF inspection; the resulting geometry is not modeled.",
+    );
+  }
+  if (argFlag(input.args, ["--no-host"]) === true) {
+    placementEstimateIncomplete = true;
+    warnings.push(
+      "--no-host changes the backend buffer types used for host tensors; their placement and repacked size are not modeled.",
+    );
+  }
+  const repackDisabled =
+    argFlag(input.args, ["--no-repack", "-nr"]) === true ||
+    argFlag(input.args, ["--repack"]) === false;
+  if (repackDisabled) {
+    runtimeEstimateIncomplete = true;
+    warnings.push(
+      "Weight repacking is disabled, but the estimator does not model backend-specific original-versus-repacked buffer sizes.",
+    );
+  }
+  if (
+    argRaw(input.args, ["--load-mode", "-lm"]) !== undefined ||
+    argRaw(input.args, [
+      "--mmap",
+      "--no-mmap",
+      "--mlock",
+      "--direct-io",
+      "-dio",
+      "--no-direct-io",
+      "-ndio",
+    ]) !== undefined
+  ) {
+    warnings.push(
+      "Model load mode changes RSS residency, page-cache sharing, and locking rather than logical tensor bytes; those operating-system effects are outside this static estimate.",
+    );
+  }
 
   const architecture = input.hparams.architecture?.toLowerCase() ?? "";
   if (architecture === "minimax-m3") {
@@ -566,11 +859,44 @@ export function estimateInstanceMemory(
     );
   }
 
+  const ngramMod =
+    hasSpeculativeType(input.args, "ngram-mod") ||
+    (argFlag(input.args, ["--spec-default"]) ?? false);
+  const ngramMapCount =
+    Number(hasSpeculativeType(input.args, "ngram-map-k")) +
+    Number(hasSpeculativeType(input.args, "ngram-map-k4v"));
+  const ngramFixedHostBytes =
+    (ngramMod ? NGRAM_MOD_HOST_BYTES : 0) +
+    ngramMapCount * NGRAM_MAP_HOST_BYTES_PER_SEQUENCE * context.nSeqMax;
+  if (ngramFixedHostBytes > 0) {
+    ensure(placement.hostPoolId).overheadBytes += ngramFixedHostBytes;
+    warnings.push(
+      `N-gram speculative decoding adds ~${mib(ngramFixedHostBytes)} MiB of fixed host tables; map histories can grow further with request tokens.`,
+    );
+  }
+  if (hasSpeculativeType(input.args, "ngram-cache")) {
+    runtimeEstimateIncomplete = true;
+    warnings.push(
+      "ngram-cache lookup maps are loaded and updated from request history/files; their dynamic host memory is not statically bounded by the model or launch arguments.",
+    );
+  }
+
+  if (argFlag(input.args, ["--backend-sampling", "-bs"]) === true) {
+    const backendSamplingBytes = backendSamplingBufferBytes(
+      input.hparams,
+      context.nSeqMax,
+    );
+    ensure(placement.hostPoolId).computeBytes += backendSamplingBytes;
+    warnings.push(
+      `Backend sampling adds ~${mib(backendSamplingBytes)} MiB of persistent host logits/probabilities/candidate buffers at ${context.nSeqMax} slot(s); request-time output growth remains dynamic.`,
+    );
+  }
+
   const splitMode = argString(input.args, ["--split-mode", "-sm"]);
-  if (splitMode && splitMode.toLowerCase() !== "layer") {
+  if (splitMode && !["layer", "none"].includes(splitMode.toLowerCase())) {
     placementEstimateIncomplete = true;
     warnings.push(
-      `--split-mode ${splitMode} is configured, but the estimator currently models layer splitting only; per-pool placement is incomplete.`,
+      `--split-mode ${splitMode} is configured, but its per-row/per-tensor backend placement is not modeled; per-pool placement is incomplete.`,
     );
   }
   if (argRaw(input.args, ["--override-tensor", "-ot"]) !== undefined) {
@@ -615,6 +941,22 @@ export function estimateInstanceMemory(
       args: remapDraftArgs(input.args),
       pools: input.pools,
     };
+    const draftGpuLayersArg = argRaw(input.args, [
+      "--spec-draft-ngl",
+      "-ngld",
+      "--n-gpu-layers-draft",
+      "--gpu-layers-draft",
+    ]);
+    const draftGpuLayersAuto =
+      draftGpuLayersArg === undefined ||
+      (typeof draftGpuLayersArg === "string" &&
+        draftGpuLayersArg.trim().toLowerCase() === "auto");
+    if (gpuPools.length > 0 && draftGpuLayersAuto && fitEnabled) {
+      placementEstimateIncomplete = true;
+      warnings.push(
+        "--fit is enabled with automatic draft GPU layers, so current free device memory can change draft placement at startup; set --spec-draft-ngl explicitly or use --fit off.",
+      );
+    }
     const draftSharesTargetKv =
       input.draft.hparams.architecture?.toLowerCase() === "gemma4-assistant";
     const draftIsMtp =
@@ -625,9 +967,25 @@ export function estimateInstanceMemory(
       draftWarnings,
       draftSharesTargetKv ? "shared-target-kv" : draftIsMtp ? "mtp" : "main",
     );
-    draftUsesGpu = draft.placement.usesGpu;
+    draftUsesGpu = draft.computeUsesGpu;
+    const draftHasBackendSampling =
+      draftBackendSamplingEnabled(input.args) &&
+      (draftIsMtp || hasSpeculativeType(input.args, "draft-eagle3"));
+    const draftBackendSamplingBytes = draftHasBackendSampling
+      ? backendSamplingBufferBytes(input.draft.hparams, draft.context.nSeqMax)
+      : 0;
+    if (draftBackendSamplingBytes > 0) {
+      ensure(draft.placement.hostPoolId).computeBytes +=
+        draftBackendSamplingBytes;
+      warnings.push(
+        `Draft backend sampling adds ~${mib(draftBackendSamplingBytes)} MiB of persistent host output buffers; --no-spec-draft-backend-sampling removes them.`,
+      );
+    }
     draftBytesTotal =
-      draft.weightsBytes + draft.kv.totalBytes + draft.computeBytes;
+      draft.weightsBytes +
+      draft.kv.totalBytes +
+      draft.computeBytes +
+      draftBackendSamplingBytes;
     warnings.push(
       `Speculative ${draftIsMtp ? "MTP " : ""}draft model (--spec-draft-model): a second resident model (weights + ${draftSharesTargetKv ? "target-shared KV + " : "KV + "}compute, ~${mib(
         draftBytesTotal,
@@ -664,11 +1022,8 @@ export function estimateInstanceMemory(
       );
     }
     if (
-      argRaw(input.args, [
-        "--spec-draft-device",
-        "-devd",
-        "--device-draft",
-      ]) !== undefined
+      argRaw(input.args, ["--spec-draft-device", "-devd", "--device-draft"]) !==
+      undefined
     ) {
       placementEstimateIncomplete = true;
       warnings.push(
@@ -713,18 +1068,32 @@ export function estimateInstanceMemory(
           : placement.hostPoolId;
         ensure(device).kvBytes += bytes;
       }
+      const mtpComputeTarget = computePlacement(
+        mtpInput,
+        placement,
+        (input.hparams.blockCount ?? 0) + 1,
+      );
       const mtpCompute = estimateComputeReservation(
         mtpInput,
         mtpContext,
-        placement.usesGpu,
+        mtpComputeTarget.usesGpu,
       );
-      const computePoolId = placement.usesGpu
-        ? placement.layerDevice((input.hparams.blockCount ?? 1) - 1)
-        : placement.hostPoolId;
-      ensure(computePoolId).computeBytes += mtpCompute.primaryBytes;
+      ensure(mtpComputeTarget.poolId).computeBytes += mtpCompute.primaryBytes;
       ensure(placement.hostPoolId).computeBytes += mtpCompute.hostBytes;
+      const mtpBackendSamplingBytes = draftBackendSamplingEnabled(input.args)
+        ? backendSamplingBufferBytes(input.hparams, mtpContext.nSeqMax)
+        : 0;
+      if (mtpBackendSamplingBytes > 0) {
+        ensure(placement.hostPoolId).computeBytes += mtpBackendSamplingBytes;
+        warnings.push(
+          `MTP backend sampling adds ~${mib(mtpBackendSamplingBytes)} MiB of persistent host output buffers; --no-spec-draft-backend-sampling removes them.`,
+        );
+      }
       selfMtpBytesTotal =
-        mtpKv.totalBytes + mtpCompute.primaryBytes + mtpCompute.hostBytes;
+        mtpKv.totalBytes +
+        mtpCompute.primaryBytes +
+        mtpCompute.hostBytes +
+        mtpBackendSamplingBytes;
       warnings.push(
         `Built-in MTP: a second context shares the target weights; its ${nextnLayers} NextN layer(s), KV, and compute add ~${mib(selfMtpBytesTotal)} MiB without duplicating model weights.`,
       );
@@ -819,7 +1188,7 @@ export function estimateInstanceMemory(
     }
   }
 
-  if (placement.usesGpu || draftUsesGpu || mmprojOnGpu) {
+  if (main.computeUsesGpu || draftUsesGpu || mmprojOnGpu) {
     warnings.push(
       "GPU placement is calibrated against one-device CUDA; backend-specific allocations, multi-GPU splits, and the fixed context overhead remain conservative approximations.",
     );
@@ -872,7 +1241,8 @@ export function estimateInstanceMemory(
   if (
     auxiliaryEstimateIncomplete ||
     placementEstimateIncomplete ||
-    architectureEstimateIncomplete
+    architectureEstimateIncomplete ||
+    runtimeEstimateIncomplete
   ) {
     confidence = "low";
   }
@@ -1260,8 +1630,10 @@ function estimateKvCache(
     totalBytes += layerBytes;
   }
 
+  const rollbackDepth = speculativeRollbackDepth(input);
+  const recurrentStreams = context.nSeqMax * (1 + rollbackDepth);
   const recurrentPerLayer = recurrent
-    ? recurrentStateBytesPerLayer(input.hparams, context.nSeqMax)
+    ? recurrentStateBytesPerLayer(input.hparams, recurrentStreams)
     : null;
   const recurrentModeled =
     recurrentPerLayer !== null && recurrentLayers.size > 0;
@@ -1296,10 +1668,14 @@ function estimateKvCache(
     );
   } else if (recurrentModeled) {
     const mib = Math.round(recurrentBytes / (1024 * 1024));
+    const rollback =
+      rollbackDepth > 0
+        ? ` plus ${rollbackDepth} speculative rollback snapshot(s) per sequence`
+        : "";
     warnings.push(
       kBy.size > 0
-        ? `Hybrid architecture: ${kBy.size} attention + ${recurrentLayers.size} recurrent layers; recurrent state cache (~${mib} MiB at --parallel ${context.nSeqMax}) is included and scales with --parallel.`
-        : `Recurrent architecture: ${recurrentLayers.size} layers use a context-independent state cache (~${mib} MiB at --parallel ${context.nSeqMax}) that scales with --parallel.`,
+        ? `Hybrid architecture: ${kBy.size} attention + ${recurrentLayers.size} recurrent layers; recurrent state cache (~${mib} MiB at --parallel ${context.nSeqMax}${rollback}) is included and scales with --parallel${rollbackDepth > 0 ? " and --spec-draft-n-max" : ""}.`
+        : `Recurrent architecture: ${recurrentLayers.size} layers use a context-independent state cache (~${mib} MiB at --parallel ${context.nSeqMax}${rollback}) that scales with --parallel${rollbackDepth > 0 ? " and --spec-draft-n-max" : ""}.`,
     );
   } else if (kBy.size > 0 && kBy.size < contextBlockCount) {
     warnings.push(

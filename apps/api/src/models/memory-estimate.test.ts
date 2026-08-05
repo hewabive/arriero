@@ -98,6 +98,30 @@ test("resolveContextParams reads overrides and pads context", () => {
   assert.equal(ctx.nGpuLayers, 3);
 });
 
+test("context, batch, and zero ubatch follow current llama.cpp construction order", () => {
+  const ctx = resolveContextParams(
+    {
+      "--ctx-size": 1000,
+      "--parallel": 3,
+      "--batch-size": 2048,
+      "--ubatch-size": 0,
+    },
+    HPARAMS,
+  );
+
+  assert.equal(ctx.nCtx, 1536);
+  assert.equal(ctx.nCtxSeq, 512);
+  assert.equal(ctx.nBatch, 1000);
+  assert.equal(ctx.nUbatch, 1000);
+
+  const encoder = resolveContextParams(
+    { "--ctx-size": 128, "--batch-size": 1024, "--ubatch-size": 0 },
+    { ...HPARAMS, causalAttention: false },
+  );
+  assert.equal(encoder.nBatch, 1024);
+  assert.equal(encoder.nUbatch, 1024);
+});
+
 test("an explicit parallel count uses the server's non-unified KV default", () => {
   const explicit = resolveContextParams({ "--parallel": 4 }, HPARAMS);
   assert.equal(explicit.nSeqMax, 4);
@@ -111,15 +135,65 @@ test("an explicit parallel count uses the server's non-unified KV default", () =
   assert.equal(forced.kvUnified, true);
   assert.equal(forced.nCtxSeq, 1024);
 
-  const disabled = resolveContextParams({ "--no-kv-unified": true }, HPARAMS);
-  assert.equal(disabled.kvUnified, false);
+  const omittedParallelOverridesNegativeKvFlag = resolveContextParams(
+    { "--no-kv-unified": true },
+    HPARAMS,
+  );
+  assert.equal(omittedParallelOverridesNegativeKvFlag.kvUnified, true);
+
+  const explicitAuto = resolveContextParams({ "--parallel": -1 }, HPARAMS);
+  assert.equal(explicitAuto.nSeqMax, 4);
+  assert.equal(explicitAuto.kvUnified, true);
+  assert.equal(explicitAuto.nCtxSeq, 1024);
+
+  const autoOverridesNegativeKvFlag = resolveContextParams(
+    { "--parallel": -2, "--no-kv-unified": true },
+    HPARAMS,
+  );
+  assert.equal(autoOverridesNegativeKvFlag.kvUnified, true);
+});
+
+test("embedding and reranking modes force the logical batch into one ubatch", () => {
+  const embedding = resolveContextParams(
+    { "--embedding": true, "--batch-size": 1024, "--ubatch-size": 128 },
+    HPARAMS,
+  );
+  const rerank = resolveContextParams(
+    { "--rerank": true, "--batch-size": 1024, "--ubatch-size": 256 },
+    HPARAMS,
+  );
+
+  assert.equal(embedding.nBatch, 128);
+  assert.equal(embedding.nUbatch, 128);
+  assert.equal(rerank.nBatch, 256);
+  assert.equal(rerank.nUbatch, 256);
+});
+
+test("flash attention auto honors modes that force a deterministic choice", () => {
+  assert.equal(resolveContextParams({}, HPARAMS, true).flashAttn, false);
+  assert.equal(
+    resolveContextParams({ "--cache-type-v": "q8_0" }, HPARAMS, true).flashAttn,
+    true,
+  );
+  assert.equal(
+    resolveContextParams({ "--split-mode": "tensor" }, HPARAMS, true).flashAttn,
+    true,
+  );
+  assert.equal(
+    resolveContextParams(
+      { "--flash-attn": "on" },
+      { ...HPARAMS, architecture: "grok" },
+      true,
+    ).flashAttn,
+    false,
+  );
 });
 
 test("estimateInstanceMemory computes host weights, KV and compute", () => {
   const estimate = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: {},
+    args: { "--fit": "off" },
     pools: HOST_POOLS,
   });
 
@@ -166,11 +240,25 @@ test("KV scales with context size", () => {
   assert.equal(wide.kvBytesTotal, base.kvBytesTotal * 2);
 });
 
+test("fit with an unset context is host-state-dependent", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {},
+    pools: HOST_POOLS,
+  });
+
+  assert.equal(estimate.confidence, "low");
+  assert.ok(
+    estimate.warnings.some((warning) => /unset context size/.test(warning)),
+  );
+});
+
 test("hybrid models warn and lose confidence when some layers lack KV", () => {
   const estimate = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: { ...HPARAMS, blockCount: 4 },
-    args: {},
+    args: { "--fit": "off" },
     pools: HOST_POOLS,
   });
   assert.equal(estimate.confidence, "medium");
@@ -237,6 +325,54 @@ test("recurrent state scales with --parallel", () => {
   );
 });
 
+test("Qwen3.5 recurrent state includes speculative rollback snapshots", () => {
+  const tensors = syntheticTable([
+    f16Tensor("blk.2.ssm_conv1d.weight", [4, 8]),
+  ]);
+  const hparams = {
+    ...HPARAMS,
+    architecture: "qwen35",
+    blockCount: 3,
+    ssmConvKernel: 4,
+    ssmGroupCount: 2,
+    ssmInnerSize: 16,
+    ssmStateSize: 8,
+  };
+  const oneSnapshot = estimateInstanceMemory({
+    tensors,
+    hparams,
+    args: {
+      "--ctx-size": 256,
+      "--parallel": 1,
+      "--spec-type": "draft-dspark",
+      "--spec-draft-n-max": 1,
+    },
+    pools: HOST_POOLS,
+  });
+  const sevenSnapshots = estimateInstanceMemory({
+    tensors,
+    hparams,
+    args: {
+      "--ctx-size": 256,
+      "--parallel": 1,
+      "--spec-type": "draft-dspark",
+      "--spec-draft-n-max": 7,
+    },
+    pools: HOST_POOLS,
+  });
+
+  const attentionKv = 2 * (8 + 8) * 256;
+  assert.equal(
+    sevenSnapshots.kvBytesTotal - attentionKv,
+    (oneSnapshot.kvBytesTotal - attentionKv) * 4,
+  );
+  assert.ok(
+    sevenSnapshots.warnings.some((warning) =>
+      /7 speculative rollback snapshot/.test(warning),
+    ),
+  );
+});
+
 test("LFM2 short-convolution layers include their recurrent state", () => {
   const tensors = syntheticTable([
     f16Tensor("blk.2.shortconv.conv.weight", [3, 8]),
@@ -293,7 +429,9 @@ test("Kimi Linear KDA layers include convolution and matrix state", () => {
     attentionKv + compressedMlaKv + recurrent,
   );
   assert.ok(
-    estimate.warnings.some((warning) => /7|MLA|compressed K-only/.test(warning)),
+    estimate.warnings.some((warning) =>
+      /7|MLA|compressed K-only/.test(warning),
+    ),
   );
   assert.ok(!estimate.warnings.some((warning) => /not modeled/.test(warning)));
 });
@@ -316,7 +454,7 @@ test("sliding-window models flag KV as an upper bound", () => {
   const estimate = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: { ...HPARAMS, slidingWindow: 512 },
-    args: {},
+    args: { "--fit": "off" },
     pools: HOST_POOLS,
   });
   assert.equal(estimate.confidence, "medium");
@@ -470,7 +608,7 @@ test("non-causal encoders have no persistent KV or vocabulary logits", () => {
   });
 
   assert.equal(estimate.kvBytesTotal, 0);
-  assert.equal(estimate.computeBytesTotal, 2 * 8 * 256 * 4);
+  assert.equal(estimate.computeBytesTotal, 2 * 8 * 512 * 4);
   assert.equal(estimate.confidence, "medium");
   assert.ok(
     estimate.warnings.some((warning) => /no persistent KV/.test(warning)),
@@ -486,16 +624,15 @@ test("cacheless diffusion decoders retain vocabulary logits", () => {
   });
 
   assert.equal(estimate.kvBytesTotal, 0);
-  assert.equal(
-    estimate.computeBytesTotal,
-    100 * 256 * 4 + 3 * 8 * 256 * 4,
-  );
+  assert.equal(estimate.computeBytesTotal, 100 * 512 * 4 + 3 * 8 * 512 * 4);
   assert.equal(estimate.confidence, "medium");
   assert.ok(
     estimate.warnings.some((warning) => /diffusion decoder/.test(warning)),
   );
   assert.ok(
-    estimate.warnings.some((warning) => /classifier-free-guidance/.test(warning)),
+    estimate.warnings.some((warning) =>
+      /classifier-free-guidance/.test(warning),
+    ),
   );
 });
 
@@ -544,7 +681,7 @@ test("RWKV state uses embedding width, head size, and token shifts", () => {
       wkvHeadSize: 4,
       tokenShiftCount: 2,
     },
-    args: { "--parallel": 4 },
+    args: { "--parallel": 4, "--fit": "off" },
     pools: HOST_POOLS,
   });
 
@@ -663,7 +800,11 @@ test("full GPU offload places weights, KV and compute on the GPU pool", () => {
   const estimate = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: { "--n-gpu-layers": 99 },
+    args: {
+      "--n-gpu-layers": 99,
+      "--flash-attn": "off",
+      "--fit": "off",
+    },
     pools: [
       { id: "gpu0", kind: "gpu", deviceIndex: 0 },
       { id: "host", kind: "host" },
@@ -728,7 +869,7 @@ test("upstream auto GPU layers use conservative full offload", () => {
   const estimate = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: {},
+    args: { "--ctx-size": 1024 },
     pools: [
       { id: "gpu0", kind: "gpu", deviceIndex: 0 },
       { id: "host", kind: "host" },
@@ -741,6 +882,169 @@ test("upstream auto GPU layers use conservative full offload", () => {
       0,
   );
   assert.ok(estimate.warnings.some((warning) => /auto/.test(warning)));
+  assert.equal(estimate.confidence, "low");
+});
+
+test("op-offload uses GPU compute even when all weights stay on the host", () => {
+  const pools = [
+    { id: "gpu0", kind: "gpu" as const, deviceIndex: 0 },
+    { id: "host", kind: "host" as const },
+  ];
+  const offloaded = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--ctx-size": 256, "--n-gpu-layers": 0, "--fit": "off" },
+    pools,
+  });
+  const hostOnly = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--ctx-size": 256,
+      "--n-gpu-layers": 0,
+      "--fit": "off",
+      "--no-op-offload": true,
+    },
+    pools,
+  });
+
+  assert.ok(
+    (offloaded.pools.find((pool) => pool.poolId === "gpu0")?.computeBytes ??
+      0) > 0,
+  );
+  assert.equal(
+    hostOnly.pools.find((pool) => pool.poolId === "gpu0"),
+    undefined,
+  );
+  assert.ok(
+    (hostOnly.pools.find((pool) => pool.poolId === "host")?.computeBytes ?? 0) >
+      (offloaded.pools.find((pool) => pool.poolId === "host")?.computeBytes ??
+        0),
+  );
+  assert.equal(offloaded.computeBytesTotal, hostOnly.computeBytesTotal);
+});
+
+test("an implicit multi-GPU split fails confidence closed", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--n-gpu-layers": 99, "--fit": "off" },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "gpu1", kind: "gpu", deviceIndex: 1 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  assert.equal(estimate.confidence, "low");
+  assert.ok(
+    estimate.warnings.some((warning) => /free device memory/.test(warning)),
+  );
+});
+
+test("split-mode none places offloaded layers on main-gpu only", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--n-gpu-layers": 99,
+      "--split-mode": "none",
+      "--main-gpu": 1,
+      "--flash-attn": "off",
+      "--fit": "off",
+    },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "gpu1", kind: "gpu", deviceIndex: 1 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  assert.ok(estimate.pools.some((pool) => pool.poolId === "gpu1"));
+  assert.ok(!estimate.pools.some((pool) => pool.poolId === "gpu0"));
+  assert.ok(
+    !estimate.warnings.some((warning) => /free device memory/.test(warning)),
+  );
+  assert.equal(estimate.confidence, "medium");
+});
+
+test("split-mode none with negative main-gpu disables GPU offload", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--n-gpu-layers": 99,
+      "--split-mode": "none",
+      "--main-gpu": -1,
+      "--flash-attn": "off",
+      "--fit": "off",
+    },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  assert.ok(estimate.pools.every((pool) => pool.kind === "host"));
+  assert.equal(estimate.context.nGpuLayers, 3);
+});
+
+test("explicit multi-GPU layer split keeps compute placement confidence low", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--n-gpu-layers": 99,
+      "--tensor-split": "1,1",
+      "--flash-attn": "off",
+      "--fit": "off",
+    },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "gpu1", kind: "gpu", deviceIndex: 1 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  assert.equal(estimate.confidence, "low");
+  assert.ok(
+    estimate.warnings.some((warning) =>
+      /pipeline-parallel buffers/.test(warning),
+    ),
+  );
+});
+
+test("GPU flash-attn auto and sleep-on-idle fail confidence closed", () => {
+  const pools = [
+    { id: "gpu0", kind: "gpu" as const, deviceIndex: 0 },
+    { id: "host", kind: "host" as const },
+  ];
+  const auto = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--n-gpu-layers": 99, "--fit": "off" },
+    pools,
+  });
+  const sleeping = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--n-gpu-layers": 99,
+      "--flash-attn": "off",
+      "--fit": "off",
+      "--sleep-idle-seconds": 60,
+    },
+    pools,
+  });
+
+  assert.equal(auto.confidence, "low");
+  assert.ok(
+    auto.warnings.some((warning) => /flash-attn is auto/.test(warning)),
+  );
+  assert.equal(sleeping.confidence, "low");
+  assert.ok(
+    sleeping.warnings.some((warning) => /sleep-idle-seconds/.test(warning)),
+  );
 });
 
 test("no-kv-offload keeps KV on the host pool under GPU offload", () => {
@@ -760,18 +1064,35 @@ test("no-kv-offload keeps KV on the host pool under GPU offload", () => {
   assert.ok((host?.kvBytes ?? 0) > 0);
 });
 
+test("resolved false kv-offload environment value keeps KV on the host", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--n-gpu-layers": 99, "--kv-offload": "false" },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "host", kind: "host" },
+    ],
+  });
+
+  assert.equal(estimate.context.offloadKqv, false);
+  assert.ok(
+    (estimate.pools.find((pool) => pool.poolId === "host")?.kvBytes ?? 0) > 0,
+  );
+});
+
 test("multimodal projector weights are added to the footprint", () => {
   const mmproj = syntheticTable([f16Tensor("mm.proj.weight", [100, 100])]);
   const base = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: {},
+    args: { "--fit": "off" },
     pools: HOST_POOLS,
   });
   const withMmproj = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: {},
+    args: { "--fit": "off" },
     pools: HOST_POOLS,
     mmproj: { tensors: mmproj },
   });
@@ -807,7 +1128,11 @@ test("multimodal projector offloads to the GPU and respects --no-mmproj-offload"
   const host = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: { "--n-gpu-layers": 0, "--no-mmproj-offload": "on" },
+    args: {
+      "--n-gpu-layers": 0,
+      "--no-mmproj-offload": "on",
+      "--no-op-offload": true,
+    },
     pools,
     mmproj: { tensors: mmproj },
   });
@@ -845,6 +1170,67 @@ test("speculative draft model adds a second resident model", () => {
   assert.equal(withDraft.draftBytesTotal, draftExpect);
   assert.equal(withDraft.totalBytes, base.totalBytes + draftExpect);
   assert.ok(withDraft.warnings.some((warning) => /draft/i.test(warning)));
+});
+
+test("draft and built-in MTP inherit global operation-offload placement", () => {
+  const pools = [
+    { id: "gpu0", kind: "gpu" as const, deviceIndex: 0 },
+    { id: "host", kind: "host" as const },
+  ];
+  const args = {
+    "--ctx-size": 256,
+    "--n-gpu-layers": 0,
+    "--spec-draft-ngl": 0,
+    "--no-op-offload": true,
+    "--flash-attn": "off",
+    "--fit": "off",
+  };
+  const separate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args,
+    pools,
+    draft: { tensors: syntheticTable(), hparams: HPARAMS },
+  });
+  const embedded = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: { ...HPARAMS, nextnPredictLayers: 1 },
+    args: { ...args, "--spec-type": "draft-mtp" },
+    pools,
+  });
+
+  assert.equal(
+    separate.pools.find((pool) => pool.poolId === "gpu0"),
+    undefined,
+  );
+  assert.equal(
+    embedded.pools.find((pool) => pool.poolId === "gpu0"),
+    undefined,
+  );
+});
+
+test("fit with automatic draft GPU layers fails confidence closed", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--ctx-size": 256,
+      "--n-gpu-layers": 99,
+      "--flash-attn": "off",
+    },
+    pools: [
+      { id: "gpu0", kind: "gpu", deviceIndex: 0 },
+      { id: "host", kind: "host" },
+    ],
+    draft: { tensors: syntheticTable(), hparams: HPARAMS },
+  });
+
+  assert.equal(estimate.confidence, "low");
+  assert.ok(
+    estimate.warnings.some((warning) =>
+      /automatic draft GPU layers/.test(warning),
+    ),
+  );
 });
 
 test("draft model inherits SWA mode and all current draft KV aliases", () => {
@@ -887,8 +1273,8 @@ test("draft model inherits SWA mode and all current draft KV aliases", () => {
       draftAlone.computeBytesTotal,
   );
   assert.ok(
-    estimate.warnings.some(
-      (warning) => /Draft model:.*--swa-full/.test(warning),
+    estimate.warnings.some((warning) =>
+      /Draft model:.*--swa-full/.test(warning),
     ),
   );
 });
@@ -897,7 +1283,7 @@ test("special speculative families disclose unmodeled runtime scratch", () => {
   const dflash = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: { "--spec-type": "draft-dflash" },
+    args: { "--spec-type": "draft-dflash", "--fit": "off" },
     pools: HOST_POOLS,
     draft: { tensors: syntheticTable(), hparams: HPARAMS },
   });
@@ -907,7 +1293,7 @@ test("special speculative families disclose unmodeled runtime scratch", () => {
   const eagle3 = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: { "--spec-type": "draft-eagle3" },
+    args: { "--spec-type": "draft-eagle3", "--fit": "off" },
     pools: HOST_POOLS,
     draft: { tensors: syntheticTable(), hparams: HPARAMS },
   });
@@ -917,12 +1303,101 @@ test("special speculative families disclose unmodeled runtime scratch", () => {
   const dspark = estimateInstanceMemory({
     tensors: syntheticTable(),
     hparams: HPARAMS,
-    args: { "--spec-type": "draft-dspark" },
+    args: { "--spec-type": "draft-dspark", "--fit": "off" },
     pools: HOST_POOLS,
     draft: { tensors: syntheticTable(), hparams: HPARAMS },
   });
   assert.equal(dspark.confidence, "medium");
   assert.ok(dspark.warnings.some((warning) => /DSpark.*scratch/.test(warning)));
+});
+
+test("n-gram speculative modes include fixed host tables", () => {
+  const base = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--ctx-size": 256, "--parallel": 3 },
+    pools: HOST_POOLS,
+  });
+  const mod = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--ctx-size": 256,
+      "--parallel": 3,
+      "--spec-type": "ngram-mod",
+    },
+    pools: HOST_POOLS,
+  });
+  const maps = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--ctx-size": 256,
+      "--parallel": 3,
+      "--spec-type": "ngram-map-k,ngram-map-k4v",
+    },
+    pools: HOST_POOLS,
+  });
+  const preset = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--ctx-size": 256, "--parallel": 3, "--spec-default": true },
+    pools: HOST_POOLS,
+  });
+
+  assert.equal(
+    mod.overheadBytesTotal - base.overheadBytesTotal,
+    16 * 1024 ** 2,
+  );
+  assert.equal(
+    maps.overheadBytesTotal - base.overheadBytesTotal,
+    6 * 1024 ** 2,
+  );
+  assert.equal(
+    preset.overheadBytesTotal - base.overheadBytesTotal,
+    16 * 1024 ** 2,
+  );
+});
+
+test("backend sampling includes its persistent host output buffers", () => {
+  const base = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--ctx-size": 256, "--parallel": 2 },
+    pools: HOST_POOLS,
+  });
+  const backend = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: {
+      "--ctx-size": 256,
+      "--parallel": 2,
+      "--backend-sampling": true,
+    },
+    pools: HOST_POOLS,
+  });
+
+  assert.equal(
+    backend.computeBytesTotal - base.computeBytesTotal,
+    (3 * 100 + 1) * 2 * 4,
+  );
+});
+
+test("dynamic caches and memory-defining overrides fail confidence closed", () => {
+  for (const args of [
+    { "--spec-type": "ngram-cache" },
+    { "--override-kv": "llama.context_length=int:8192" },
+    { "--no-host": true },
+    { "--no-repack": true },
+  ]) {
+    const estimate = estimateInstanceMemory({
+      tensors: syntheticTable(),
+      hparams: HPARAMS,
+      args,
+      pools: HOST_POOLS,
+    });
+    assert.equal(estimate.confidence, "low");
+  }
 });
 
 test("built-in MTP adds a second context without duplicating target weights", () => {
@@ -949,15 +1424,56 @@ test("built-in MTP adds a second context without duplicating target weights", ()
     args: { "--ctx-size": 256, "--spec-type": "draft-mtp" },
     pools: HOST_POOLS,
   });
+  const mtpWithoutBackendSampling = estimateInstanceMemory({
+    tensors,
+    hparams,
+    args: {
+      "--ctx-size": 256,
+      "--spec-type": "draft-mtp",
+      "--no-spec-draft-backend-sampling": true,
+    },
+    pools: HOST_POOLS,
+  });
 
   const mtpKv = (8 + 8) * 256;
   const mtpCompute = 100 * 256 * 4 + 2 * 8 * 256 * 4;
+  const mtpBackendSampling = (3 * 100 + 1) * 4 * 4;
   assert.equal(base.kvBytesTotal, 2 * mtpKv);
   assert.equal(mtp.weightsBytesTotal, base.weightsBytesTotal);
   assert.equal(mtp.kvBytesTotal, base.kvBytesTotal + mtpKv);
-  assert.equal(mtp.selfMtpBytesTotal, mtpKv + mtpCompute);
+  assert.equal(mtp.selfMtpBytesTotal, mtpKv + mtpCompute + mtpBackendSampling);
   assert.equal(mtp.totalBytes, base.totalBytes + mtp.selfMtpBytesTotal);
+  assert.equal(
+    mtp.selfMtpBytesTotal - mtpWithoutBackendSampling.selfMtpBytesTotal,
+    mtpBackendSampling,
+  );
   assert.ok(mtp.warnings.some((warning) => /Built-in MTP/.test(warning)));
+});
+
+test("current family-specific MTP graphs fail confidence closed", () => {
+  for (const architecture of ["step35", "hy_v3", "mimo2"]) {
+    const estimate = estimateInstanceMemory({
+      tensors: syntheticTable([
+        f16Tensor("blk.2.attn_qkv.weight", [8, 12]),
+        f16Tensor("blk.2.nextn.eh_proj.weight", [16, 8]),
+      ]),
+      hparams: {
+        ...HPARAMS,
+        architecture,
+        blockCount: 3,
+        nextnPredictLayers: 1,
+      },
+      args: { "--ctx-size": 256, "--spec-type": "draft-mtp" },
+      pools: HOST_POOLS,
+    });
+
+    assert.equal(estimate.confidence, "low");
+    assert.ok(
+      estimate.warnings.some((warning) =>
+        /family-specific MTP graph/.test(warning),
+      ),
+    );
+  }
 });
 
 test("Gemma 4 assistant reuses the target KV cache", () => {
@@ -982,7 +1498,9 @@ test("Gemma 4 assistant reuses the target KV cache", () => {
 
   assert.equal(
     estimate.draftBytesTotal,
-    draftAlone.weightsBytesTotal + draftAlone.computeBytesTotal,
+    draftAlone.weightsBytesTotal +
+      draftAlone.computeBytesTotal +
+      (3 * 100 + 1) * 4 * 4,
   );
   assert.ok(
     estimate.warnings.some((warning) =>
@@ -1081,7 +1599,9 @@ test("unsupported placement overrides fail confidence closed", () => {
   });
   assert.equal(mainOverride.confidence, "low");
   assert.ok(
-    mainOverride.warnings.some((warning) => /layer splitting only/.test(warning)),
+    mainOverride.warnings.some((warning) =>
+      /per-row\/per-tensor/.test(warning),
+    ),
   );
   assert.ok(
     mainOverride.warnings.some((warning) => /individual tensor/.test(warning)),

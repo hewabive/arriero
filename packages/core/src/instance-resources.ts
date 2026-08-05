@@ -12,7 +12,10 @@ export function argRaw(
   for (const key of keys) {
     if (key in args) {
       const value = args[key];
-      if (value !== null && value !== "") {
+      // Arriero's argv builders omit boolean false. Resource and memory
+      // resolution must inspect the command that is actually launched, not
+      // reinterpret an unchecked UI toggle as an explicit `--option false`.
+      if (value !== null && value !== "" && value !== false) {
         return value;
       }
     }

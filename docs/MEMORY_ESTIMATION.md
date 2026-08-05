@@ -22,7 +22,8 @@ and its selected current binary.
 
 The server's parallel/KV default is conditional. With no explicit
 `--parallel`, current `llama-server` resolves auto to four slots and enables
-unified KV. Supplying an explicit slot count leaves KV non-unified unless
+unified KV. An explicit negative value is the same auto mode. Supplying a
+positive slot count leaves KV non-unified unless
 `--kv-unified` is also supplied. The estimator mirrors this distinction;
 `--parallel 4` and auto-parallel are not interchangeable configurations.
 
@@ -64,9 +65,34 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
 - **Args** — parsed into resolved context params (`resolveContextParams`):
   `n_ctx`/`n_ctx_seq`/`n_batch`/`n_ubatch`/`n_seq_max`/`kv_unified`/`flash_attn`/
   cache types/`offload_kqv`/`n_gpu_layers`, matching `llama-server`'s defaults
-  (parallel=4, kv_unified=true, ctx padded to 256, cache type f16). Local
+  (parallel=4, kv_unified=true, ctx padded to 256, cache type f16). The causal
+  batch limit is applied against the unpadded requested context; a non-unified
+  context then pads each per-slot slice and recomputes the total, exactly as in
+  current `llama-context.cpp`. Explicit `--ubatch-size 0` means the resolved
+  logical batch, not the 512-token default, except that current server-side
+  embedding/rerank clamping applies earlier and makes that combination fail;
+  Arriero rejects it. Negative/auto parallel unconditionally selects four
+  unified-KV slots even if a negative KV flag was also supplied. Local
   `--mmproj`, draft, LoRA, scaled-LoRA, control-vector, and scaled-control-vector
-  paths select the auxiliary resident artifacts/buffers.
+  paths select the auxiliary resident artifacts/buffers. The estimator also
+  handles `--op-offload`, recurrent speculative rollback depth, backend
+  sampling, and the fixed n-gram tables. Arguments that make the result depend
+  on free memory, backend buffer selection, mutable metadata, or request history
+  fail confidence closed instead of pretending to be deterministic. Before
+  resolution, `LLAMA_ARG_*` environment values are merged from the synchronized
+  current argument registry with llama.cpp's precedence: every CLI alias wins
+  over its env value, including compatibility `LLAMA_ARG_NO_*` toggles. This
+  applies to artifact paths, geometry, placement, cache types, fit, and server
+  cache controls—not just `CUDA_VISIBLE_DEVICES`. Embedding and reranking modes
+  also mirror the server's `n_batch = n_ubatch` clamp. Boolean `false` entries
+  are removed before this resolution because Arriero's argv builder does not
+  launch them; they therefore cannot silently override an environment value.
+  Value-taking booleans retain explicit `off` strings. Flag-style pairs such as
+  `--kv-offload`/`--no-kv-offload` accept only `true` on the chosen alias in
+  instance args; a string value would be emitted as a separate invalid token
+  and is rejected. An environment value such as
+  `LLAMA_ARG_KV_OFFLOAD=false` is parsed by llama.cpp's env layer and remains
+  valid.
 - **Pools** — gpu/host pools from `config/resources.json`; placement maps each
   tensor and KV layer to a pool.
 
@@ -79,6 +105,12 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
   second device copy; the estimator includes both copies. This is the
   **resident** footprint (mmap'd weights occupy page-cache RAM and must stay
   resident to run without thrashing) — see the calibration note below.
+  `--repack` (enabled by default) and `--no-host` can select different
+  backend-specific buffer representations whose size is not derivable from the
+  GGUF tensor table. An explicit `--no-repack` or `--no-host` therefore returns
+  `low`. `--load-mode`/mmap/mlock/DirectIO change RSS residency, sharing and
+  locking rather than the logical tensor sum and are reported as an OS-memory
+  warning.
 - **KV cache** — uses each cache-bearing layer's actual geometry. Separate
   `blk.N.attn_k/v.weight` tensors supply the dimensions directly; fused GPT-2
   `attn_qkv` and MLA `attn_kv_a_mqa` layouts derive them from the metadata head
@@ -125,6 +157,13 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
   and sequence. Falcon-H1 confirms that attention KV and recurrent state may
   coexist in the same layer. If the required geometry is still absent, the
   state is left unmodeled and confidence drops to `low`.
+  Current llama.cpp also widens target recurrent state for speculative
+  rollback, but only on `qwen35`, `qwen35moe`, and `deepseek4`: MTP, Eagle3,
+  DFlash, or DSpark allocate
+  `parallel * (1 + spec_draft_n_max)` state rows. On Qwen3.5 + DSpark at one
+  slot, the target RS buffer measured 38.53, 77.06, and 154.12 MiB for draft
+  depths 1, 3, and 7 respectively. Other recurrent architectures clamp the
+  rollback depth to zero in current llama.cpp.
 - **Specialized current caches** — MiniMax M3's MSA indexer-key cache,
   DeepSeek V3.2/GLM-DSA's DSA indexer cache, and DeepSeek V4's dedicated
   indexer/recurrent/checkpoint state are separate llama.cpp allocations. They
@@ -142,8 +181,30 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
   at ubatch 1024. Diffusion scheduling, sampler state, and optional CFG logits
   remain dynamic and are flagged. GPU MLA with Flash Attention or quantized K
   cache adds its context-sized host staging rows, matching the otherwise-hidden
-  RAM reservation. The result is a reservation projection, not the subset of
-  pages touched in host RSS.
+  RAM reservation. Default `--flash-attn auto` is a runtime backend-graph probe,
+  not a stable alias for `off`: on the reviewed DeepSeek V2 Lite CUDA case, auto
+  selected off and the compute split was 188.27 MiB CUDA + 16.01 MiB host,
+  versus 76.13 + 58.01 MiB for forced on and 180.27 + 24.01 MiB for forced off.
+  Arriero uses the conservative non-Flash branch but returns `low` until the
+  mode is explicit, except where current llama.cpp forces a deterministic
+  choice (for example tensor split or quantized V). With GPU devices available,
+  default `--op-offload` places
+  the primary compute reservation on the first GPU even when
+  `--n-gpu-layers 0` keeps all model weights and KV on the host;
+  `--no-op-offload` moves it back to host RAM. Main `--backend-sampling` adds
+  persistent host logits, probability, sampled-token, and candidate buffers of
+  `(3*n_vocab + 1) * n_seq_max * 4` bytes at startup. MTP/Eagle3 draft backend
+  sampling uses the same formula for the draft context and is enabled by
+  default; `--no-spec-draft-backend-sampling` removes it. The result is a
+  reservation projection, not the subset of pages touched in host RSS.
+- **N-gram speculative state** — `ngram-mod` (and `--spec-default`) owns one
+  shared 4,194,304-entry token table: exactly 16 MiB on current llama.cpp.
+  `ngram-map-k` and `ngram-map-k4v` each own a 262,144-entry `uint32` hash table
+  per slot: 1 MiB times `--parallel` for each enabled mode. Those fixed tables
+  are included as host overhead. Their token-history vectors may grow at
+  request time. `ngram-simple` has no persistent fixed table. `ngram-cache`
+  loads and updates history/file-dependent maps, so it remains unbounded by the
+  static model configuration and forces `low` confidence.
 - **Multimodal projector (`--mmproj`)** — an image/audio/video adapter is a
   separate GGUF that `llama-server` loads alongside the model. Its
   weights (the per-tensor sum of the projector file, read via the shard-aware
@@ -153,6 +214,11 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
   (flagged). `llama-fit-params` cannot anchor this — it rejects `--mmproj` — so
   projector weights are analytical-only. Surfaced as `mmprojBytesTotal` and
   qualified with both image (Gemma) and audio (Qwen3-ASR) requests.
+  `--image-min-tokens`, `--image-max-tokens`, and
+  `--mtmd-batch-max-tokens` affect that dynamic media workload, not another
+  resident GGUF allocation. The old server-side vocoder/TTS flags were removed
+  before b10276; current server audio is mmproj-backed input, while current TTS
+  belongs to the separate `llama-tts` executable.
 - **Speculative draft model (`--spec-draft-model`/`-md`)** — a second resident
   model loaded for speculative decoding. It is estimated recursively by the
   **same engine** over the draft GGUF, with the draft-specific args remapped onto the
@@ -166,7 +232,10 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
   compute and no duplicate persistent KV. Current server logs confirmed each
   sharing mapping. Current aliases `-ctkd`/`-ctvd` and
   `--cache-type-k/v-draft` are remapped too, and the global `--swa-full` mode is
-  inherited by the draft context just as it is in llama.cpp.
+  inherited by the draft context just as it is in llama.cpp. Global
+  `--op-offload`, split/tensor-split/main-GPU, fit, and draft-specific MoE
+  overrides are inherited/remapped too. Automatic draft GPU layers under
+  enabled fit depend on free memory and therefore return `low`.
 - **DFlash and DSpark drafts** — both use the normal recursive draft tensor
   sum and metadata-derived mixed global/iSWA KV. DFlash was qualified at
   1,753/56/553 MiB analytical weights/KV/compute versus
@@ -189,6 +258,11 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
   metadata/layer tensors are absent, confidence is `low` and the warning mirrors
   the configuration error that current llama.cpp rejects. Verified with an
   embedded one-layer Qwen3.5 model and a real accepted-draft request.
+  Step 3.5 (`step35`), MiMo2 (`mimo2`), and Hy3 (`hy_v3`) select
+  family-specific multi-head/fused-QKV/iSWA MTP graphs in current llama.cpp.
+  Arriero still includes their readable NextN weights and KV, but explicitly
+  returns `low` until the complete second-context compute/cache reservation is
+  measured on matching hardware.
 - **LoRA/aLoRA (`--lora`, `--lora-scaled`)** — every adapter GGUF tensor stays
   resident and follows the backend placement of its corresponding base tensor.
   Repeated/CSV arguments and scaled forms are all read; scale and
@@ -206,10 +280,30 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
   defaults to an 8192 MiB limit for a lazily populated serialized prompt-state
   cache, 32 per-slot context checkpoints, and idle-slot caching. The limit is
   not reserved at startup: actual host RAM depends on request history, target
-  and draft state sizes, and eviction. N-gram speculative lookup/cache data is
-  dynamic for the same reason. Static qualification should use
+  and draft state sizes, and eviction. Variable n-gram histories and
+  `ngram-cache` file maps are dynamic for the same reason; the fixed n-gram
+  tables described above are included. Static qualification should use
   `--cache-ram 0 --ctx-checkpoints 0`; peak-runtime qualification must measure
-  these mechanisms separately.
+  these mechanisms separately. With `--sleep-idle-seconds N` for `N > 0`, the
+  server destroys the target model/context, speculative context, and projector
+  after the idle interval and reloads them on the next request. Arriero reports
+  the **awake** footprint and returns `low`, so an intentionally near-empty
+  sleeping process is not mistaken for estimator drift.
+- **Fit-to-memory and implicit multi-GPU placement** — `--fit` defaults to on.
+  If context is unset it may reduce the model-default context using current free
+  memory. If GPU layers are unset/`auto`, it may also change layer count, tensor
+  split, and MoE tensor placement. Separately, multiple GPUs without an explicit
+  `--tensor-split` use a free-memory-proportional split. Arriero still shows the
+  conservative model-default/full-offload projection, but marks these
+  host-state-dependent configurations `low`. Set an explicit `--ctx-size`,
+  `--n-gpu-layers`, and multi-GPU `--tensor-split`, normally with `--fit off`,
+  when the estimate must describe a reproducible instance. `--split-mode none`
+  is modeled exactly: all offloaded layers/KV/compute use `--main-gpu`, and a
+  negative main-GPU value clears the accelerator list. An out-of-range index is
+  rejected as the current server would reject it. For layer split across
+  multiple GPUs, explicit tensor proportions make weights and KV reproducible,
+  but scheduler scratch/pipeline-parallel compute per device remains
+  backend-dependent and therefore `low`.
 - **Overhead** — a per-GPU CUDA-context margin (rough constant, flagged), added
   once per GPU pool that holds any bytes (so draft/projector/adapter contexts
   share the process CUDA context rather than each receiving another margin).
@@ -219,10 +313,14 @@ unified KV. Supplying an explicit slot count leaves KV non-unified unless
 `MemoryEstimate.confidence` is `high` for plain dense/MoE transformers, `medium`
 when sliding-window attention, modeled MLA/recurrent state, cacheless roles, or
 GPU placement is involved, and `low` when a detected cache/state/MTP layout
-cannot be modeled. Eagle3, the recognized MSA/DSA/DSV4 architectures, non-layer
-split modes, tensor backend overrides, RPC devices, and separate
-draft-device/override placement currently force `low`. Unknown tensor
-types do not return a low-confidence number:
+cannot be modeled. Eagle3, the recognized MSA/DSA/DSV4 architectures, row/tensor
+split modes, family-specific Step 3.5/MiMo2/Hy3 MTP, multi-GPU compute, tensor
+backend overrides, RPC devices, and separate draft-device/override placement
+currently force `low`. So do automatic
+fit-to-free-memory inputs, implicit multi-GPU splits, `--override-kv`,
+GPU `--flash-attn auto`, automatic fitted draft placement, sleep-on-idle,
+`--no-host`, `--no-repack`, and `ngram-cache`. Unknown tensor types do not
+return a low-confidence number:
 they fail the estimate outright. Warnings say whether SWA is capped or only an
 upper bound, whether recurrent/MLA/MTP state was included, which auxiliary
 scratch is omitted, when upstream automatic GPU placement is represented by
@@ -281,9 +379,13 @@ fail closed instead of silently retaining an obsolete result.
   and RPC-worker references override.
 - `200 { data: { modelPath, estimate, assessmentId } }` on success. The
   assessment id is non-null for a supported `llama-server` GGUF assessment.
-- `422 { error }` for routers (`--models-preset`), remote models
-  (`--hf-repo`/`--model-url`), a missing model/LoRA/control-vector file, an
-  unsupported GGML tensor type, or an unknown instance.
+- `422 { error }` for routers (`--models-preset`/`--models-dir`), built-in
+  presets that rewrite launch parameters, remote main/draft/mmproj selectors,
+  a missing model/mmproj/draft/LoRA/control-vector file, a selected device that
+  cannot be mapped to a local CUDA memory pool, an invalid main-GPU index, an
+  unsupported GGML tensor type, removed/non-inference llama.cpp arguments,
+  invalid context/batch/slot geometry, a separate speculative implementation
+  without its required local draft sidecar, or an unknown instance.
 
 `POST /api/instances/:id/memory-assessment` with `{ assessmentId }` binds the
 receipt after rechecking its complete fingerprint. `GET
@@ -323,6 +425,14 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
   alongside the mmap original). The `fit-params` `model` column is itself
   unreliable here (qwen0.5 reports 211, *excluding* layer weights). No single
   factor over the GGUF tensor sum is safe.
+- **The buffer-selection flags really do change the breakdown.** With current
+  b10276 and stories15M at ctx 4096, CPU weights plus default `--op-offload`
+  reported 17/27/6 MiB host model/context/compute and 72 MiB CUDA compute;
+  `--no-op-offload` moved that compute to host (17/27/63, zero CUDA). On the
+  CPU-only build, default repacking reported 14 MiB model while `--no-repack`
+  reported 17 MiB. In the CUDA build `--no-host` changed the host model/compute
+  split from 17/6 to 14/9 MiB. This is why op placement is modeled exactly but
+  explicit repack/no-host variants fail confidence closed.
 - **Linux nuance:** mmap'd weights (our tensor-sum number) are reclaimable
   file-backed page cache — they do **not** cause swap; the anonymous repack copies
   do. So the "correct" host number is neither the tensor sum nor the fit `model`.
@@ -350,8 +460,9 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
 4. **Request-time multimodal memory** — projector weights are resident and
    modeled, but image/audio/video preprocessing and graph buffers can grow only
    after media arrives. Qwen3-ASR rose by about 52 MiB after a real request on
-   the reviewed CUDA host. Model this only after mtmd exposes stable geometry or
-   a measured request probe exists.
+   the reviewed CUDA host. Their peak also depends on image token bounds and
+   `--mtmd-batch-max-tokens`. Model this only after mtmd exposes stable geometry
+   or a measured request probe exists.
 5. **Eagle3 compute** — weights and ordinary KV are correct, but the target
    hidden-state extraction/verification graph added about 375 MiB beyond the
    generic compute projection on the reviewed GPT-OSS pair. Derive it from
@@ -364,24 +475,31 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
    not fit this host; retain them as explicit `low`-confidence gaps rather than
    treating DeepSeek V2 Lite or compact Qwen DSpark as equivalent.
 7. **Additional MTP cache families** — one-layer dense Qwen NextN, embedded
-   MTP, and Gemma shared-KV assistant are hardware-qualified. Multi-head
-   NextN, fused-QKV and iSWA MTP variants remain source-derived until a
-   manageable current artifact can be run on matching hardware.
+   MTP, and Gemma shared-KV assistant are hardware-qualified. Current Step 3.5
+   uses three MTP heads, MiMo2 combines three heads with fused QKV and iSWA,
+   and Hy3 has another family-specific MTP graph. The estimator recognizes
+   their GGUF architecture names and returns `low`; the smallest reviewed full
+   artifacts are still roughly 64, 72, and 85 GiB respectively, so their
+   complete second-context buffers remain source-derived rather than measured
+   on this host.
 8. **Dynamic server caches** — prompt RAM cache, context checkpoints, idle-slot
-   snapshots, and n-gram structures are request-history-dependent and excluded
-   from the static total. Add a measured peak mode rather than counting the
-   8192 MiB default prompt-cache limit as if it were eagerly reserved.
-9. **Non-layer and RPC placement** — `--split-mode row`/`none`/`tensor`,
-   main-GPU selection, `--override-tensor`, separate draft device/tensor
-   overrides, and RPC workers can change per-pool placement. They currently
-   fail confidence closed with an explicit warning; for RPC, displayed draws
-   cover local pools only and omit remote-device overhead/client staging. The
-   aggregate tensor byte sum may still be useful.
+   snapshots, n-gram history vectors, and `ngram-cache` file maps are
+   request-history-dependent and excluded from the static total. Fixed
+   `ngram-mod`/map tables are modeled. Add a measured peak mode rather than
+   counting the 8192 MiB default prompt-cache limit as if it were eagerly
+   reserved.
+9. **Multi-GPU and RPC placement** — single-device `--split-mode none` plus
+   `--main-gpu` is closed. `row`/`tensor`, multi-GPU layer scheduler scratch,
+   `--override-tensor`, separate draft device/tensor overrides, and RPC workers
+   can still change per-pool placement. They fail confidence closed with an
+   explicit warning; for RPC, displayed draws cover local pools only and omit
+   remote-device overhead/client staging. The aggregate tensor byte sum may
+   still be useful.
 10. **Diffusion request and server integration** — cacheless language-model
     weights, zero KV, and stable logits/activation buffers are fit-qualified,
     and LLaDA completed a real CUDA generation through `llama-diffusion-cli`.
     Request scheduling, sampler/CFG allocations, and peak memory are still
-    dynamic. The reviewed b10270 `llama-server` asserted during LLaDA warmup,
+    dynamic. The reviewed b10276 `llama-server` still asserts during LLaDA warmup,
     so this branch must not be presented as a normal Arriero server instance
     until the newest server path itself passes an end-to-end request.
 
@@ -389,7 +507,10 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
 
 - Hybrid recurrent state (RS) cache (`qwen35`/Qwen3-Next), modeled from the
   `*.ssm.*` hyperparameters; matches the `context` column to the MiB across
-  context sizes, cache types and `--parallel`.
+  context sizes, cache types and `--parallel`. Current speculative rollback
+  snapshots multiply target recurrent state by `1 + --spec-draft-n-max` on the
+  three architectures that support it; Qwen3.5 + DSpark was measured at depths
+  1, 3, and 7.
 - SWA + KV-sharing cache (`gemma4`/Gemma 3n): SWA layers capped at the iSWA
   window (or expanded by `--swa-full`), `shared_kv_layers` reused layers dropped;
   matches the non-unified fit matrix and the current server's unified default/full
@@ -425,9 +546,21 @@ sweep (gemma Q3_K_S, qwen2.5-0.5B Q4_0, SmolLM2-360M Q4_K_M) established:
   draft tokens in the current CUDA server. Eagle3 remains open and deliberately
   `low` confidence.
 - Conditional unified-KV defaults: auto parallel means four unified slots,
-  while an explicit `--parallel N` remains non-unified unless `--kv-unified`
-  is set. Draft cache aliases and the inherited `--swa-full` mode are covered
-  by unit tests.
+  including an explicit negative value, while an explicit positive
+  `--parallel N` remains non-unified unless `--kv-unified` is set. Embedding and
+  reranking clamp the logical batch to one ubatch. Draft cache aliases and the
+  inherited `--swa-full` mode are covered by unit tests.
+- Launch-time memory controls from b10276: CPU-weight `--op-offload` compute
+  placement, `split-mode=none`/main-GPU placement, fixed n-gram tables, main and
+  MTP/Eagle3 backend-sampling output buffers, and draft inheritance of global
+  placement controls. GPU Flash-Attention auto, sleep-on-idle, automatic fitted
+  draft placement, `--fit`, multi-GPU compute, metadata overrides,
+  repack/no-host, and dynamic n-gram cache modes fail confidence closed.
+- CLI-equivalent `LLAMA_ARG_*` resolution for every current registry option,
+  including CLI-over-env precedence and `LLAMA_ARG_NO_*` compatibility forms.
+  Remote/missing main and sidecar artifacts, built-in/router presets,
+  unsupported device backends, and invalid selected indices fail the API rather
+  than yielding a partial estimate.
 - LoRA tensor residency and control-vector permanent buffer formula, including
   scaled/repeated CSV paths and assessment artifact fingerprints.
 

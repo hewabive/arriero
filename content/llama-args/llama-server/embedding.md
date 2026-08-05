@@ -70,7 +70,7 @@ llama-server --model /models/embed.gguf --embedding
 
 ## Влияние на производительность и память
 
-Embedding requests обычно нагружают prompt processing/prefill, а не autoregressive decode. Throughput зависит от `--batch-size`, `--ubatch-size`, `--parallel`, CPU/GPU backend и pooling. В server есть защита для embeddings: если `n_batch > n_ubatch`, параметры выравниваются, чтобы все токены embedding-запроса помещались в один ubatch.
+Embedding requests обычно нагружают prompt processing/prefill, а не autoregressive decode. Throughput зависит от `--batch-size`, `--ubatch-size`, `--parallel`, CPU/GPU backend и pooling. До создания context server проверяет `n_batch > n_ubatch` и принудительно делает `n_batch = n_ubatch`, чтобы все токены embedding-запроса помещались в один ubatch. Поэтому фактический batch и его compute reservation могут быть меньше прямо заданного `--batch-size`; Arriero повторяет это преобразование.
 
 ## Взаимодействие с другими аргументами
 

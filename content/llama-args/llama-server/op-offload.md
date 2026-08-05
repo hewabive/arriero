@@ -55,13 +55,17 @@ CLI использует две формы без отдельного знач�
 
 ## Влияние на производительность и память
 
-Включенный offload может уменьшить CPU-работу и лишние копирования, но конкретный эффект зависит от backend и графа вычислений. Отключение может повысить latency, зато иногда упрощает диагностику и снижает риск backend-specific ошибок.
+Включенный offload может уменьшить CPU-работу и лишние копирования, но конкретный эффект зависит от backend и графа вычислений. Важно: при видимом GPU он влияет и на размещение compute buffers даже при `--gpu-layers 0`. На CUDA b10276 для stories15M (ctx 4096) default разместил 72 MiB compute на GPU и 6 MiB на host, а `--no-op-offload` дал 0 MiB на GPU и 63 MiB на host. При полном offload весов breakdown в этой проверке не изменился.
+
+Arriero учитывает этот перенос: CPU-веса не означают нулевую VRAM, пока доступен GPU и не задан `--no-op-offload`.
+
+Параметр общий и наследуется вторым context: отдельной draft-моделью и built-in MTP. Поэтому `--no-op-offload` должен переносить на host не только compute target-модели, но и compute draft/MTP при их CPU placement; оценщик повторяет это наследование.
 
 ## Взаимодействие с другими аргументами
 
 `--gpu-layers`, `--device` и `--split-mode` определяют, какие backends участвуют в модели; `--op-offload` влияет уже на scheduler операций в context.
 
-Если GPU-offload фактически не используется, эффект параметра обычно минимален.
+Даже если веса не offload-ятся, наличие GPU backend достаточно для переноса host tensor operations. Чтобы получить действительно host-only footprint при видимом GPU, сочетайте `--gpu-layers 0` с `--no-op-offload` (и отдельно учитывайте mmproj/draft adapters).
 
 ## INI-пресеты и router-режим
 
@@ -82,7 +86,7 @@ no-op-offload = true
 ## Типовые проблемы и диагностика
 
 - Падение только на GPU backend: повторите запуск с `--no-op-offload`.
-- Нет разницы в скорости: проверьте, что реально используется GPU offload и что bottleneck не в prompt processing или sampling.
+- Нет разницы в скорости: сравните `CUDA* compute buffer size` и `Host compute buffer size`; весовой offload может быть нулевым, хотя operation offload активен.
 - Аргумент из env не работает: для этого аргумента в проверенном `arg.cpp` не задан `.set_env()`.
 
 ## Примеры

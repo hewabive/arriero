@@ -47,7 +47,7 @@ set Flash Attention use ('on', 'off', or 'auto', default: 'auto')
 
 Парсер принимает truthy-значения `on`, `enabled`, `true`, `1`, falsey-значения `off`, `disabled`, `false`, `0`, а также `auto` и `-1`. Значение сохраняется как `LLAMA_FLASH_ATTN_TYPE_ENABLED`, `DISABLED` или `AUTO`.
 
-При создании context llama.cpp выставляет внутренние флаги `flash_attn` и `auto_fa`. Для Grok Flash Attention принудительно отключается с предупреждением. Для `--split-mode tensor` `auto` принудительно включает Flash Attention, а `off` приводит к ошибке.
+При создании context llama.cpp выставляет внутренние флаги `flash_attn` и `auto_fa`. В `auto` текущий runtime резервирует пробный граф и проверяет, оказался ли fused Flash Attention на том же backend, что и слой; при несовпадении он отключает fused operation. Для Grok Flash Attention принудительно отключается с предупреждением. Для `--split-mode tensor` и quantized V cache `auto` принудительно включает Flash Attention, а `off` приводит к ошибке.
 
 ## Значения и формат
 
@@ -62,7 +62,9 @@ set Flash Attention use ('on', 'off', or 'auto', default: 'auto')
 
 ## Влияние на производительность и память
 
-Flash Attention часто снижает объем промежуточной памяти attention и ускоряет eval, но эффект зависит от backend, модели, размера context и batch. Несовместимая комбинация не "молча замедляется", а обычно дает явную ошибку на создании context.
+Flash Attention часто снижает объем промежуточной памяти attention и ускоряет eval, но эффект зависит от backend, модели, размера context и batch. На CUDA b10276 DeepSeek V2 Lite при ctx/batch/ubatch `4096/512/512` получил `76.13 MiB CUDA + 58.01 MiB host` compute с `on`, `180.27 + 24.01 MiB` с `off`; `auto` отклонил fused graph и получил `188.27 + 16.01 MiB`. Поэтому `auto` нельзя статически считать ни `on`, ни `off`.
+
+Arriero использует консервативную non-flash ветку, но помечает GPU-оценку `low`, если выбор оставлен `auto` и не принудительно разрешен архитектурой/другим аргументом. Для воспроизводимой проверки задайте `on` или `off` явно.
 
 ## Взаимодействие с другими аргументами
 
@@ -87,7 +89,7 @@ flash-attn = auto
 - `SPLIT_MODE_TENSOR requires flash_attn to be enabled`: поставьте `--flash-attn auto` или `--flash-attn on`.
 - `V cache quantization requires flash_attn`: не используйте `--flash-attn off` с quantized V cache.
 - Grok-модель: llama.cpp печатает предупреждение и отключает Flash Attention независимо от запроса.
-- Для проверки смотрите строку `flash_attn = ...` при создании context.
+- Для проверки одной строки `flash_attn = auto` недостаточно: ниже ищите `Flash Attention enabled` либо `Flash Attention not supported, set to disabled`, затем сравнивайте `compute buffer size`.
 
 ## Примеры
 

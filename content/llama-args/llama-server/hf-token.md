@@ -15,8 +15,6 @@ env:
 related:
   - "--hf-repo"
   - "--hf-file"
-  - "--hf-repo-v"
-  - "--hf-file-v"
   - "--model-url"
   - "--offline"
 ---
@@ -25,7 +23,7 @@ related:
 
 ## Кратко
 
-`--hf-token` задает access token для Hugging Face downloads. Значение записывается в `common_params.hf_token` и передается в `common_download_opts.bearer_token` при обработке основной модели, `mmproj`, draft model и vocoder model.
+`--hf-token` задает access token для Hugging Face downloads. Значение записывается в `common_params.hf_token` и передается в `common_download_opts.bearer_token` при обработке основной модели, `mmproj` и draft model.
 
 Переменная окружения для этого аргумента - `HF_TOKEN`, а не `LLAMA_ARG_HF_TOKEN`.
 
@@ -71,7 +69,6 @@ Hugging Face access token (default: value from HF_TOKEN environment variable)
 ## Взаимодействие с другими аргументами
 
 - `--hf-repo` и `--hf-file`: основной потребитель токена.
-- `--hf-repo-v` и `--hf-file-v`: vocoder downloads используют тот же token.
 - `--mmproj-url`/`--model-url`: token попадет в общие download options, если используется URL-скачивание.
 - `--offline`: при offline-режиме токен не вызывает сетевых запросов; требуются уже закэшированные файлы.
 

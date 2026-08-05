@@ -66,7 +66,9 @@ CLI-флаг ставит `params.sampling.backend_sampling = true`. При со
 
 ## Влияние на производительность и память
 
-Модель и KV-cache не меняются. Может немного увеличить служебную память на sampler configs per sequence. Выигрыш зависит от backend-а, размера словаря, batch/slot layout и состава цепочки.
+Модель и KV-cache не меняются, но output buffer увеличивается не только на маленькие sampler configs. Для каждого зарезервированного output llama.cpp добавляет две F32 строки длиной `n_vocab` (logits + probabilities), один массив token candidates длиной `n_vocab` и один sampled token. Стартовая добавка при server slots равна `(3 * n_vocab + 1) * n_parallel * 4` bytes; при request-time росте числа outputs buffer может быть увеличен повторно.
+
+На stories15M, ctx/batch/ubatch 128 и одном slot, b10276 увеличил host output buffer с 0.12 до 0.49 MiB. Arriero включает стартовую постоянную добавку; последующее увеличение остается динамическим.
 
 ## Взаимодействие с другими аргументами
 

@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { auxiliaryGgufPaths, estimateMemory } from "./service.js";
+import {
+  auxiliaryGgufPaths,
+  estimateMemory,
+  resolveLlamaArgumentEnvironment,
+} from "./service.js";
 import {
   RESOURCES_FILE,
   resetResourcePoolsCache,
@@ -147,6 +151,29 @@ test("auxiliaryGgufPaths expands repeated, CSV, and scaled arguments", () => {
   );
 });
 
+test("llama environment arguments are applied before estimation and CLI aliases win", () => {
+  const resolved = resolveLlamaArgumentEnvironment(
+    {
+      "--ctx-size": 256,
+      "--gpu-layers": false,
+      "--no-repack": true,
+    },
+    {
+      LLAMA_ARG_CTX_SIZE: "8192",
+      LLAMA_ARG_N_GPU_LAYERS: "0",
+      LLAMA_ARG_KV_OFFLOAD: "false",
+      LLAMA_ARG_NO_KV_UNIFIED: "0",
+      LLAMA_ARG_NO_REPACK: "present",
+    },
+  );
+
+  assert.equal(resolved["--ctx-size"], 256);
+  assert.equal(resolved["--gpu-layers"], "0");
+  assert.equal(resolved["--kv-offload"], "false");
+  assert.equal(resolved["--no-kv-unified"], true);
+  assert.equal(resolved["--no-repack"], true);
+});
+
 test("vllm estimator reserves utilization on each tensor-parallel GPU", () => {
   const at = "2026-01-01T00:00:00.000Z";
   writeFileSync(
@@ -225,7 +252,9 @@ test("estimateMemory produces a breakdown for a local model", () => {
   const path = join(dir, "model.gguf");
   try {
     writeSyntheticModel(path);
-    const result = estimateMemory({ args: { "--model": path } });
+    const result = estimateMemory({
+      args: { "--model": path, "--fit": "off" },
+    });
     assert.equal(result.ok, true);
     if (!result.ok) {
       return;
@@ -241,6 +270,56 @@ test("estimateMemory produces a breakdown for a local model", () => {
     assert.ok(result.estimate.draws.length >= 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("estimateMemory resolves memory-affecting LLAMA_ARG environment values", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-env-"));
+  const path = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(path);
+    writeGpuPools();
+    const result = estimateMemory({
+      env: {
+        LLAMA_ARG_MODEL: path,
+        LLAMA_ARG_CTX_SIZE: "512",
+        LLAMA_ARG_DEVICE: "none",
+        LLAMA_ARG_FIT: "off",
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.modelPath, path);
+    assert.equal(result.estimate.context.nCtx, 512);
+    assert.equal(result.estimate.context.nGpuLayers, 0);
+    assert.ok(result.estimate.pools.every((pool) => pool.kind === "host"));
+
+    const envDisabledKv = estimateMemory({
+      env: {
+        LLAMA_ARG_MODEL: path,
+        LLAMA_ARG_CTX_SIZE: "512",
+        LLAMA_ARG_DEVICE: "CUDA0",
+        LLAMA_ARG_N_GPU_LAYERS: "all",
+        LLAMA_ARG_KV_OFFLOAD: "false",
+        LLAMA_ARG_FIT: "off",
+      },
+    });
+    assert.equal(envDisabledKv.ok, true);
+    if (envDisabledKv.ok) {
+      assert.ok(
+        (envDisabledKv.estimate.pools.find((pool) => pool.poolId === "host")
+          ?.kvBytes ?? 0) > 0,
+      );
+      assert.equal(
+        envDisabledKv.estimate.pools.find((pool) => pool.poolId === "gpu0")
+          ?.kvBytes ?? 0,
+        0,
+      );
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(RESOURCES_FILE, { force: true });
+    resetResourcePoolsCache();
   }
 });
 
@@ -309,6 +388,47 @@ test("estimateMemory rejects a missing auxiliary GGUF", () => {
   }
 });
 
+test("estimateMemory rejects missing draft and multimodal GGUFs instead of omitting them", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-missing-sidecars-"));
+  const modelPath = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(modelPath);
+    for (const [key, label] of [
+      ["--mmproj", "Multimodal projector"],
+      ["--spec-draft-model", "Speculative draft"],
+    ] as const) {
+      const result = estimateMemory({
+        args: { "--model": modelPath, [key]: join(dir, "missing.gguf") },
+      });
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.match(result.reason, new RegExp(label));
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("estimateMemory rejects remote sidecars and selectors even beside a local model", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-remote-sidecars-"));
+  const modelPath = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(modelPath);
+    const cases = [
+      { "--model": modelPath, "--hf-repo": "org/repo" },
+      { "--model": modelPath, "--docker-repo": "model:q4" },
+      { "--model": modelPath, "--mmproj-url": "https://example/mmproj.gguf" },
+      { "--model": modelPath, "--spec-draft-hf": "org/draft" },
+    ];
+    for (const args of cases) {
+      assert.equal(estimateMemory({ args }).ok, false);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("GGUF estimate respects visible and disabled GPU devices", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-gpu-"));
   const path = join(dir, "model.gguf");
@@ -370,6 +490,57 @@ test("GGUF estimate respects visible and disabled GPU devices", () => {
       assert.ok(disabled.estimate.pools.every((pool) => pool.kind === "host"));
       assert.equal(disabled.estimate.context.nGpuLayers, 0);
     }
+
+    const cpuDevice = estimateMemory({
+      args: { "--model": path, "--device": "CPU" },
+    });
+    assert.equal(cpuDevice.ok, false);
+    if (!cpuDevice.ok) {
+      assert.match(cpuDevice.reason, /unsupported --device.*CPU/);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(RESOURCES_FILE, { force: true });
+    resetResourcePoolsCache();
+  }
+});
+
+test("GGUF estimate rejects device backends that cannot be mapped to local pools", () => {
+  const result = estimateMemory({
+    args: { "--model": "/not/read.gguf", "--device": "Vulkan0" },
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.reason, /unsupported --device.*Vulkan0/);
+  }
+});
+
+test("GGUF estimate rejects unavailable CUDA indices and invalid main-gpu", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-device-index-"));
+  const path = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(path);
+    writeGpuPools();
+    const unavailable = estimateMemory({
+      args: { "--model": path, "--device": "CUDA2" },
+    });
+    assert.equal(unavailable.ok, false);
+    if (!unavailable.ok) {
+      assert.match(unavailable.reason, /do not map to configured memory pools/);
+    }
+
+    const invalidMain = estimateMemory({
+      args: {
+        "--model": path,
+        "--device": "CUDA0",
+        "--split-mode": "none",
+        "--main-gpu": 1,
+      },
+    });
+    assert.equal(invalidMain.ok, false);
+    if (!invalidMain.ok) {
+      assert.match(invalidMain.reason, /outside the selected device list/);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(RESOURCES_FILE, { force: true });
@@ -390,6 +561,72 @@ test("estimateMemory rejects router presets", () => {
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.match(result.reason, /Router/);
+  }
+});
+
+test("estimateMemory rejects built-in presets until their rewritten args are resolved", () => {
+  const result = estimateMemory({ args: { "--gpt-oss-20b-default": true } });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.reason, /presets rewrite/);
+  }
+});
+
+test("estimateMemory rejects current parser exits and invalid context geometry", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-current-args-"));
+  const path = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(path);
+    const cases: Array<[Record<string, string | number | boolean>, RegExp]> = [
+      [{ "--draft": 4 }, /removed llama\.cpp argument/],
+      [{ "--help": true }, /print information and exit/],
+      [{ "--parallel": 0 }, /negative auto value/],
+      [{ "--parallel": 257 }, /through 256/],
+      [{ "--ctx-size": -1 }, /zero or a positive integer/],
+      [{ "--batch-size": 0 }, /positive integer/],
+      [{ "--ubatch-size": -1 }, /zero or a positive integer/],
+      [{ "--kv-offload": "false" }, /flag-style boolean/],
+      [
+        { "--embedding": true, "--ubatch-size": 0 },
+        /embedding\/rerank batch clamp/,
+      ],
+    ];
+
+    for (const [extraArgs, expected] of cases) {
+      const result = estimateMemory({
+        args: { "--model": path, "--fit": "off", ...extraArgs },
+      });
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.match(result.reason, expected);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("estimateMemory requires local sidecars for separate draft implementations", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-draft-required-"));
+  const path = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(path);
+    for (const type of [
+      "draft-simple",
+      "draft-eagle3",
+      "draft-dflash",
+      "draft-dspark",
+    ]) {
+      const result = estimateMemory({
+        args: {
+          "--model": path,
+          "--fit": "off",
+          "--spec-type": type,
+        },
+      });
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.match(result.reason, /requires an explicit local/);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

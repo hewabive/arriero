@@ -23,6 +23,7 @@ import { getAppVersion } from "../update/version.js";
 import {
   auxiliaryGgufPaths,
   poolsForEstimate,
+  resolveLlamaArgumentEnvironment,
   resolveMemoryEstimateContext,
   type MemoryEstimateContext,
   type MemoryEstimateResolution,
@@ -180,8 +181,15 @@ function buildFingerprint(
   context: MemoryEstimateContext,
   modelPath: string,
 ): MemoryAssessmentFingerprint {
+  const effectiveContext =
+    context.kind === "llama-server"
+      ? {
+          ...context,
+          args: resolveLlamaArgumentEnvironment(context.args, context.env),
+        }
+      : context;
   const selectedPools = new Set(
-    poolsForEstimate(context.args, context.env).map((pool) => pool.id),
+    poolsForEstimate(effectiveContext.args, context.env).map((pool) => pool.id),
   );
   const hardware = listMemoryPools()
     .filter((pool) => selectedPools.has(pool.id))
@@ -200,7 +208,7 @@ function buildFingerprint(
     // A missing/invalid current build is reported as an outdated assessment,
     // rather than making the whole instance health endpoint fail.
   }
-  const artifacts = artifactPaths(context, modelPath)
+  const artifacts = artifactPaths(effectiveContext, modelPath)
     .map(fileIdentity)
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   const configDigest = digest({

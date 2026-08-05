@@ -62,6 +62,8 @@ HTTP-переопределение `speculative.n_max` в `server-task.cpp` в 
 
 Большее `N` увеличивает потенциальное число target-токенов, подтверждаемых одним шагом, но также увеличивает работу draft-модели и объем speculative verification. При контекстах без дешевого sequence removal сервер может использовать checkpoints, что делает длинные draft дороже.
 
+Для target-архитектур, поддерживающих partial rollback recurrent state в текущем llama.cpp (`qwen35`, `qwen35moe`, `deepseek4`), MTP/Eagle3/DFlash/DSpark передают это значение как `n_rs_seq`. Постоянный target RS buffer тогда содержит `1 + N` state planes на каждый slot, то есть растет линейно с `--spec-draft-n-max` и `--parallel`. На Qwen3.5 0.8B + DSpark при одном slot измерено 38.53/77.06/154.12 MiB для N=1/3/7. На остальных recurrent architectures llama.cpp clamp-ит `n_rs_seq` к нулю.
+
 Диагностика: смотрите `accepted X/Y draft tokens`, `draft acceptance = ...`, а также `created speculative checkpoint ...`.
 
 ## Взаимодействие с другими аргументами

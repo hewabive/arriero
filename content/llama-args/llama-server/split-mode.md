@@ -86,6 +86,14 @@ how to split the model across multiple GPUs, one of:
 
 `--flash-attn` обязателен для `tensor`; в `auto` llama.cpp включает его сам.
 
+Arriero точно учитывает `none`: все offloaded layers, KV и основной compute идут
+на выбранный `--main-gpu`, а остальные GPU не получают фиктивную долю. Для
+multi-GPU `layer` явный `--tensor-split` стабилизирует веса и KV, но scheduler
+scratch/pipeline-parallel compute распределяются backend-зависимо, поэтому
+per-pool результат остается `low`; без split добавляется еще и зависимость от
+свободной VRAM. `row` и `tensor` также дают `low`, потому что их
+per-tensor/per-row placement нельзя представить послойным расчетом.
+
 ## INI-пресеты и router-режим
 
 В INI:

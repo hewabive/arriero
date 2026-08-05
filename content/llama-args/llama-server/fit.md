@@ -65,6 +65,8 @@ Fit добавляет время старта: он загружает моде
 
 Для multimodal и speculative configurations сервер дополнительно увеличивает `fit_params_target`, резервируя память под mmproj, draft model или MTP context.
 
+Такой результат зависит от свободной RAM/VRAM в момент старта. Поэтому Arriero показывает консервативную проекцию model-default/full-offload, но снижает confidence до `low`, если при включенном fit не задан context или GPU layers оставлены `auto`. Для воспроизводимой проверки задайте `--ctx-size`, `--gpu-layers` и multi-GPU `--tensor-split` явно и используйте `--fit off`.
+
 ## Взаимодействие с другими аргументами
 
 `--fit-target` задает запас памяти, который fit пытается оставить на каждом устройстве.

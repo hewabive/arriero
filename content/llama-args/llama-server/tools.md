@@ -30,7 +30,7 @@ related:
 ```text
 experimental: whether to enable built-in tools for AI agents - do not enable in untrusted environments (default: no tools)
 specify "all" to enable all tools
-available tools: read_file, file_glob_search, grep_search, exec_shell_command, write_file, edit_file, get_datetime
+available tools: read_file, file_glob_search, grep_search, exec_shell_command, write_file, edit_file, get_datetime, get_info
 note: for security reasons, this will limit --cors-origins to localhost by default
 ```
 
@@ -58,6 +58,7 @@ note: for security reasons, this will limit --cors-origins to localhost by defau
 - `write_file`: создает или перезаписывает файл, создает parent directories.
 - `edit_file`: применяет один или несколько непересекающихся exact-text replacements; каждый `old_text` должен быть уникален, при расхождении допускается ограниченная нормализация whitespace/типографики.
 - `get_datetime`: возвращает текущее время.
+- `get_info`: возвращает сведения о runtime-среде сервера, включая ОС и текущий рабочий каталог.
 
 ## Значения и формат
 

@@ -62,6 +62,8 @@ none,draft-simple,draft-eagle3,draft-mtp,draft-dflash,draft-dspark,ngram-simple,
 
 `draft-simple`, `draft-eagle3`, `draft-dflash` и `draft-dspark` используют отдельную совместимую draft-модель. `draft-mtp` может использовать MTP-контекст target-модели. При `--hf-repo` llama.cpp умеет автоматически найти MTP-, EAGLE-3- или DFlash-sidecar рядом с основной моделью; для DSpark автоопределения нет, `--spec-type draft-dspark` задаётся явно. N-gram варианты draft-модель не требуют.
 
+Arriero не оценивает remote selector до его разрешения. Поэтому для локального target `draft-simple`, `draft-eagle3`, `draft-dflash` и `draft-dspark` требуют существующий локальный `--spec-draft-model`; без него API оценки отвечает 422 вместо числа для конфигурации, которую текущий сервер не сможет инициализировать. `draft-mtp` остается исключением, поскольку может использовать embedded MTP target-модели.
+
 ## Значения и формат
 
 - `none` - speculative decoding выключен.
@@ -82,7 +84,11 @@ none,draft-simple,draft-eagle3,draft-mtp,draft-dflash,draft-dspark,ngram-simple,
 
 ## Влияние на производительность и память
 
-Draft-модель и MTP-контекст увеличивают время старта и память: отдельная модель добавляет веса, KV-cache и compute buffers; MTP добавляет отдельный контекст. DFlash также извлекает target-layer features и ограничивает `--spec-draft-n-max` размером блока (ключ metadata `dflash.block_size`, default 16). Тот же лимит действует для DSpark, но потолок на один токен выше: DFlash отдаёт максимум `block_size - 1` draft-токенов, DSpark — полный `block_size`, так как позиция 0 блока уже предсказывает первый токен. Превышение лимита не ошибка: сервер печатает `requested draft size ... exceeds the trained block size` и обрезает значение. N-gram варианты в основном добавляют CPU-работу и структуры истории/cache.
+Draft-модель и MTP-контекст увеличивают время старта и память: отдельная модель добавляет веса, KV-cache и compute buffers; MTP добавляет отдельный контекст. DFlash также извлекает target-layer features и ограничивает `--spec-draft-n-max` размером блока (ключ metadata `dflash.block_size`, default 16). Тот же лимит действует для DSpark, но потолок на один токен выше: DFlash отдаёт максимум `block_size - 1` draft-токенов, DSpark — полный `block_size`, так как позиция 0 блока уже предсказывает первый токен. Превышение лимита не ошибка: сервер печатает `requested draft size ... exceeds the trained block size` и обрезает значение.
+
+Arriero аппаратно квалифицировало обычный однослойный Qwen NextN, embedded MTP и Gemma shared-KV assistant. Текущие архитектуры Step 3.5 (`step35`), MiMo2 (`mimo2`) и Hy3 (`hy_v3`) используют семейно-специфичные multi-head/fused-QKV/iSWA MTP-графы. Для них известные веса и KV включаются, но оценка получает `low` confidence с явным предупреждением, пока полный второй контекст не измерен на подходящем оборудовании.
+
+N-gram варианты не добавляют GGUF, но имеют разные host allocations: `ngram-simple` не держит fixed table; `ngram-mod` держит общий 16 MiB token table; `ngram-map-k` и `ngram-map-k4v` держат по 1 MiB hash map на каждый slot и на каждый включенный mode. History vectors растут во время запросов. `ngram-cache` загружает/обновляет file- и history-dependent maps, поэтому Arriero считает его статически неограниченным и возвращает `low` confidence.
 
 Ускорение зависит от `draft acceptance`: если acceptance низкий, сервер тратит время на генерацию и откат draft-токенов без выигрыша. В логах завершения слота смотрите строку `draft acceptance = ...`, а при старте - `adding speculative implementation ...`.
 

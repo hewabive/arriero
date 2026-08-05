@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--offline"
 title: "--offline"
-summary: "Запрещает сетевые обращения общего downloader-а и заставляет использовать уже подготовленный cache. Применяется к HF/URL downloads, включая `mmproj`, draft и vocoder модели."
+summary: "Запрещает сетевые обращения общего downloader-а и заставляет использовать уже подготовленный cache. Применяется к HF/URL downloads, включая `mmproj` и draft-модели."
 category: "Общие параметры"
 valueType: "flag"
 valueHint: null
@@ -16,7 +16,6 @@ related:
   - "--hf-file"
   - "--model-url"
   - "--mmproj-url"
-  - "--hf-repo-v"
   - "--cache-list"
 ---
 
@@ -51,7 +50,6 @@ Offline mode: forces use of cache, prevents network access
 - основной модели;
 - `mmproj`;
 - speculative draft model;
-- vocoder model.
 
 В `common_download_file_single()` offline-режим проверяет только `std::filesystem::exists(path)`. Если файла нет, логируется `required file is not available in cache (offline mode)` и возвращается ошибка. Если файл есть, возвращается fake status `304` как cached response.
 
@@ -63,7 +61,7 @@ Offline mode: forces use of cache, prevents network access
 
 ## Когда использовать
 
-Используйте после того, как все нужные модели, split shards, `mmproj`, draft и vocoder файлы уже скачаны и доступны пользователю процесса. Это хороший production-default для инстансов, которые не должны зависеть от внешних сервисов.
+Используйте после того, как все нужные модели, split shards, `mmproj` и draft-файлы уже скачаны и доступны пользователю процесса. Это хороший production-default для инстансов, которые не должны зависеть от внешних сервисов.
 
 Не используйте для первого запуска HF/URL модели, если cache еще пуст.
 

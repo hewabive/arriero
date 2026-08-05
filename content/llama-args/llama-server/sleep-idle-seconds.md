@@ -65,6 +65,8 @@ number of seconds of idleness after which the server will sleep (default: -1; -1
 
 Во время sleep освобождаются модель, context и KV-cache, поэтому RAM/VRAM падают. Первый запрос после sleep получает cold-start latency: модель снова читается с диска/cache и создается контекст. Если включены GPU offload и большой context, wake может занимать заметное время.
 
+Статическая оценка Arriero при включенном sleep описывает **awake footprint** и возвращает `low` с явным предупреждением: наблюдаемое idle-состояние намеренно почти пустое и не должно сравниваться с загруженной моделью как estimator drift.
+
 ## Взаимодействие с другими аргументами
 
 - `GET /props` показывает `is_sleeping`; в router mode используйте `/props?model=<model_name>`.

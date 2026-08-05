@@ -60,6 +60,8 @@ CLI-флаг без значения. Для env достаточно прису
 
 Эффект backend-specific. Отключение host buffer может уменьшить использование pinned/host-visible памяти устройства, но также может убрать быстрый путь для некоторых тензоров и привести к другому fallback.
 
+На CUDA b10276 со stories15M и CPU-весами host model/compute изменились с 17/6 MiB до 14/9 MiB, хотя сумма почти сохранилась. Так как выбор buffer type и repack size backend-specific, Arriero возвращает для `--no-host` `low` confidence.
+
 ## Взаимодействие с другими аргументами
 
 `--repack` управляет extra buffer types для weight repacking. `--no-host` может изменить порядок выбора buffer types рядом с этим механизмом.

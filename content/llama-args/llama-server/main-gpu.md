@@ -67,6 +67,12 @@ the GPU to use for the model (with split-mode = none), or for intermediate resul
 
 В `row` неверный основной GPU может создать лишние межустройственные копирования и ухудшить latency.
 
+В оценщике Arriero `--main-gpu` применяется точно для `split-mode none`:
+отрицательное значение дает host-only placement, а индекс за пределами
+выбранного списка отклоняется. Для `row` итог остается `low`: веса делятся
+между устройствами, а KV/intermediate buffers выбирают main GPU по
+backend-specific схеме.
+
 ## Взаимодействие с другими аргументами
 
 `--device` задает порядок и набор устройств, к которым применяется индекс.

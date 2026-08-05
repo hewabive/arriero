@@ -69,6 +69,8 @@ advanced option to override model metadata by key. to specify multiple overrides
 
 Сам override не стоит памяти. Но он может изменить параметры, которые влияют на память и граф: context length, RoPE metadata, tokenizer behavior, architecture-specific flags. Поэтому после изменения сравнивайте логи загрузки модели и контекста, а не только успешный старт HTTP server.
 
+Arriero читает геометрию из исходного GGUF до применения loader override и поэтому не пытается угадывать эффект произвольного `--override-kv`: такая конфигурация получает `low` confidence с явным предупреждением.
+
 ## Взаимодействие с другими аргументами
 
 - Для RoPE часто проще и прозрачнее использовать прямые `--rope-*` аргументы, чем менять metadata через `--override-kv`.

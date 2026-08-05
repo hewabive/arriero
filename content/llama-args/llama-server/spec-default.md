@@ -72,7 +72,7 @@ spec-default = true
 
 ## Влияние на производительность и память
 
-Ngram speculative decoding не требует второй модели, поэтому его память обычно ниже, чем у draft-model speculative decoding. При этом добавляется служебная работа speculative subsystem, и на неподходящем workload ускорения может не быть.
+Ngram speculative decoding не требует второй модели, но `ngram-mod` создает один общий массив из 4,194,304 token entries: ровно 16 MiB host RAM в текущем llama.cpp. Arriero включает его в постоянный overhead. Дополнительно растут структуры истории запроса; на неподходящем workload ускорения может не быть.
 
 Параметры `n_match = 24`, `n_min = 48`, `n_max = 64` задают окно совпадений и диапазон предлагаемых ngram tokens для ngram-mod реализации.
 

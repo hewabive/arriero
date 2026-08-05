@@ -69,7 +69,7 @@ llama-server --model /models/reranker.gguf --embedding --pooling rank
 
 ## Влияние на производительность и память
 
-Reranking создает отдельную task на каждый документ. Latency растет с числом documents; throughput зависит от batching и parallel slots. Память context определяется обычными server/model параметрами, но длинные query/documents потребляют context tokens.
+Reranking создает отдельную task на каждый документ. Latency растет с числом documents; throughput зависит от batching и parallel slots. Поскольку `--rerank` включает embedding mode, server до создания context также прижимает `n_batch` к `n_ubatch`, если batch был больше; Arriero учитывает это в resolved context. Длинные query/documents потребляют context tokens.
 
 ## Взаимодействие с другими аргументами
 

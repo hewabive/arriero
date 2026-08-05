@@ -1,6 +1,7 @@
 import {
   engineDescriptor,
   estimateInstanceMemory,
+  argFlag,
   argNumber,
   argString,
   parseCudaVisibleDevices,
@@ -18,6 +19,7 @@ import {
 import { existsSync } from "node:fs";
 
 import { getInstance } from "../instances/repository.js";
+import { loadArgumentRegistry } from "../arguments/registry.js";
 import { readGgufMetadata, readGgufModelTensorTable } from "../models/gguf.js";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { listMemoryPools } from "../resources/repository.js";
@@ -39,6 +41,7 @@ export function poolsForEstimate(
   const deviceDisablesGpu = deviceTokens.some(
     (token) => token.toLowerCase() === "none",
   );
+  const deviceWasSet = hasArg(args, "--device") || hasArg(args, "-dev");
   const allPools = listMemoryPools();
   const allGpu = allPools
     .filter((pool) => pool.kind === "gpu")
@@ -53,7 +56,9 @@ export function poolsForEstimate(
           const pool = allGpu.find((candidate) => candidate.deviceRef === id);
           return pool ? [pool] : [];
         })
-      : cuda.mode === "none" || deviceDisablesGpu
+      : cuda.mode === "none" ||
+          deviceDisablesGpu ||
+          (deviceWasSet && explicitCuda.length === 0)
         ? []
         : allGpu;
   const selectedGpu =
@@ -87,6 +92,54 @@ export type MemoryEstimateContext = {
   positionalArgs: string[];
   rpcWorkers: RpcWorkerRef[];
 };
+
+/**
+ * Apply llama.cpp's environment-variable layer before interpreting memory
+ * arguments. The command line wins over the environment for every alias, just
+ * as common_params_parse_ex() does. For a boolean option llama.cpp also accepts
+ * a compatibility LLAMA_ARG_NO_* variable; its mere presence selects the
+ * negative CLI form.
+ *
+ * The map comes from the synchronized current llama-server argument registry,
+ * so model paths and future memory-affecting env aliases do not need a second
+ * hand-maintained list here.
+ */
+export function resolveLlamaArgumentEnvironment(
+  args: MemoryEstimateArgs,
+  env: Record<string, string>,
+): MemoryEstimateArgs {
+  const resolved = Object.fromEntries(
+    Object.entries(args).filter(([, value]) => value !== false),
+  ) as MemoryEstimateArgs;
+
+  for (const { option } of loadArgumentRegistry()) {
+    if (option.names.some((name) => hasArg(args, name))) {
+      continue;
+    }
+
+    const negativeName = option.names.find((name) => /^--no-/.test(name));
+    const hasPositiveName = option.names.some(
+      (name) => /^--/.test(name) && !/^--no-/.test(name),
+    );
+    if (negativeName && hasPositiveName) {
+      const negativeEnv = option.env.find((name) => {
+        const compatibilityName = name.replace(/^LLAMA_ARG_/, "LLAMA_ARG_NO_");
+        return Object.hasOwn(env, compatibilityName);
+      });
+      if (negativeEnv) {
+        resolved[negativeName] = true;
+        continue;
+      }
+    }
+
+    const envName = option.env.find((name) => Object.hasOwn(env, name));
+    if (envName) {
+      resolved[option.primaryName] = env[envName]!;
+    }
+  }
+
+  return resolved;
+}
 
 export function resolveMemoryEstimateContext(
   request: MemoryEstimateRequest,
@@ -322,7 +375,63 @@ function estimateVllmGpuUtil(input: {
 
 function hasArg(args: MemoryEstimateArgs, key: string): boolean {
   const value = args[key];
-  return value !== undefined && value !== null && value !== "";
+  return (
+    value !== undefined && value !== null && value !== "" && value !== false
+  );
+}
+
+const REMOVED_LLAMA_ARGUMENT_GROUPS = [
+  ["--draft", "--draft-n", "--draft-max"],
+  ["--draft-min", "--draft-n-min"],
+  ["--spec-ngram-size-n"],
+  ["--spec-ngram-size-m"],
+  ["--spec-ngram-min-hits"],
+] as const;
+
+const NON_INFERENCE_LLAMA_ARGUMENT_GROUPS = [
+  ["--help", "--usage", "-h"],
+  ["--version"],
+  ["--list-devices"],
+  ["--cache-list", "-cl"],
+  ["--completion-bash"],
+] as const;
+
+function configuredKey(
+  args: MemoryEstimateArgs,
+  keys: readonly string[],
+): string | null {
+  return keys.find((key) => hasArg(args, key)) ?? null;
+}
+
+function invalidNumericArgument(
+  args: MemoryEstimateArgs,
+  keys: string[],
+  isInvalid: (value: number) => boolean,
+  requirement: string,
+): string | null {
+  const key = configuredKey(args, keys);
+  if (!key) return null;
+  const value = argNumber(args, keys);
+  if (value === null || isInvalid(value)) {
+    return `${key} must be ${requirement} for the current llama-server`;
+  }
+  return null;
+}
+
+function invalidFlagStyleBooleanArgument(
+  args: MemoryEstimateArgs,
+): string | null {
+  for (const { option } of loadArgumentRegistry()) {
+    if (option.valueType !== "boolean" || option.allowedValues.length > 0) {
+      continue;
+    }
+    for (const name of option.names) {
+      if (hasArg(args, name) && args[name] !== true) {
+        return name;
+      }
+    }
+  }
+  return null;
 }
 
 function hparamsFromGguf(modelPath: string): MemoryEstimateHparams {
@@ -362,7 +471,21 @@ export function estimateMemory(
   if ("error" in context) {
     return { ok: false, reason: context.error };
   }
-  const { args, kind, env, positionalArgs, rpcWorkers } = context;
+  const { kind, env, positionalArgs, rpcWorkers } = context;
+  const invalidRawBoolean =
+    kind === "llama-server"
+      ? invalidFlagStyleBooleanArgument(context.args)
+      : null;
+  if (invalidRawBoolean) {
+    return {
+      ok: false,
+      reason: `${invalidRawBoolean} is a flag-style boolean in the current llama-server. Arriero's argv launcher accepts true (emit the selected alias) or false (omit it); use the negative alias to disable it.`,
+    };
+  }
+  const args =
+    kind === "llama-server"
+      ? resolveLlamaArgumentEnvironment(context.args, env)
+      : context.args;
 
   const estimator = engineDescriptor(kind).estimator;
   if (estimator === "vllm-gpu-util") {
@@ -378,22 +501,165 @@ export function estimateMemory(
     };
   }
 
+  const removedArgument = REMOVED_LLAMA_ARGUMENT_GROUPS.flatMap((keys) =>
+    configuredKey(args, keys) ? [configuredKey(args, keys)!] : [],
+  )[0];
+  if (removedArgument) {
+    return {
+      ok: false,
+      reason: `${removedArgument} is a removed llama.cpp argument; the current llama-server exits during argument parsing instead of loading a model.`,
+    };
+  }
+
+  const nonInferenceArgument = NON_INFERENCE_LLAMA_ARGUMENT_GROUPS.flatMap(
+    (keys) =>
+      argFlag(args, [...keys]) === true
+        ? [configuredKey(args, keys) ?? keys[0]]
+        : [],
+  )[0];
+  if (nonInferenceArgument) {
+    return {
+      ok: false,
+      reason: `${nonInferenceArgument} makes the current llama-server print information and exit before loading a model.`,
+    };
+  }
+
+  const invalidGeometry = [
+    invalidNumericArgument(
+      args,
+      ["--ctx-size", "-c", "--context-size"],
+      (value) => value < 0,
+      "zero or a positive integer",
+    ),
+    invalidNumericArgument(
+      args,
+      ["--batch-size", "-b"],
+      (value) => value <= 0,
+      "a positive integer",
+    ),
+    invalidNumericArgument(
+      args,
+      ["--ubatch-size", "-ub"],
+      (value) => value < 0,
+      "zero or a positive integer",
+    ),
+    invalidNumericArgument(
+      args,
+      ["--parallel", "-np"],
+      (value) => value === 0 || value > 256,
+      "a negative auto value or an integer from 1 through 256",
+    ),
+  ].find((reason): reason is string => reason !== null);
+  if (invalidGeometry) {
+    return { ok: false, reason: invalidGeometry };
+  }
+  if (
+    (argFlag(args, ["--embedding", "--embeddings"]) === true ||
+      argFlag(args, ["--rerank", "--reranking"]) === true) &&
+    argNumber(args, ["--ubatch-size", "-ub"]) === 0
+  ) {
+    return {
+      ok: false,
+      reason:
+        "The current llama-server applies the embedding/rerank batch clamp before the --ubatch-size 0 library fallback, producing a zero batch and failing context creation; use an explicit positive ubatch.",
+    };
+  }
+
+  const explicitDeviceTokens = parseDeviceTokens(args);
+  const unsupportedDevices = explicitDeviceTokens.filter(
+    (token) => !/^(?:cuda\d+|none)$/i.test(token),
+  );
+  if (unsupportedDevices.length > 0) {
+    return {
+      ok: false,
+      reason: `Memory estimation currently maps local CUDA devices and --device none only; unsupported --device value(s): ${unsupportedDevices.join(", ")}.`,
+    };
+  }
+
+  const estimatePools = poolsForEstimate(args, env);
+  const requestedCudaDeviceCount = new Set(
+    explicitDeviceTokens.filter((token) => /^cuda\d+$/i.test(token)),
+  ).size;
+  const selectedGpuCount = estimatePools.filter(
+    (pool) => pool.kind === "gpu",
+  ).length;
+  if (
+    requestedCudaDeviceCount > 0 &&
+    selectedGpuCount < requestedCudaDeviceCount
+  ) {
+    return {
+      ok: false,
+      reason:
+        "One or more explicit CUDA devices do not map to configured memory pools after CUDA_VISIBLE_DEVICES is applied.",
+    };
+  }
+
+  const splitMode = argString(args, ["--split-mode", "-sm"])?.toLowerCase();
+  const mainGpu = argNumber(args, ["--main-gpu", "-mg"]);
+  if (
+    splitMode === "none" &&
+    mainGpu !== null &&
+    mainGpu >= 0 &&
+    mainGpu >= selectedGpuCount &&
+    selectedGpuCount > 0 &&
+    rpcWorkers.length === 0 &&
+    !hasArg(args, "--rpc")
+  ) {
+    return {
+      ok: false,
+      reason: `--main-gpu ${mainGpu} is outside the selected device list (${selectedGpuCount} device(s)).`,
+    };
+  }
+
+  const routerArgs = ["--models-preset", "--models-dir"];
+  if (routerArgs.some((key) => hasArg(args, key))) {
+    return {
+      ok: false,
+      reason:
+        "Router instances (--models-preset/--models-dir) can load a changing set of child models; estimate each resolved child model separately.",
+    };
+  }
+
+  const presetArgs = [
+    "--embd-gemma-default",
+    "--fim-qwen-1.5b-default",
+    "--fim-qwen-3b-default",
+    "--fim-qwen-7b-default",
+    "--fim-qwen-7b-spec",
+    "--fim-qwen-14b-spec",
+    "--fim-qwen-30b-default",
+    "--gpt-oss-20b-default",
+    "--gpt-oss-120b-default",
+    "--vision-gemma-4b-default",
+    "--vision-gemma-12b-default",
+  ];
+  if (presetArgs.some((key) => hasArg(args, key))) {
+    return {
+      ok: false,
+      reason:
+        "Built-in model presets rewrite the model, context, batch, slot, and sometimes draft/mmproj arguments inside llama.cpp; resolve the preset to local GGUF paths and explicit arguments before estimating.",
+    };
+  }
+
+  const remoteMainArgs = [
+    "--hf-repo",
+    "-hf",
+    "-hfr",
+    "--model-url",
+    "-mu",
+    "--docker-repo",
+    "-dr",
+  ];
+  if (remoteMainArgs.some((key) => hasArg(args, key))) {
+    return {
+      ok: false,
+      reason:
+        "Remote model selectors (--hf-repo/--model-url/--docker-repo) can replace the local model and auto-discover mmproj/speculative sidecars; download the resolved artifacts and use explicit local paths before estimating.",
+    };
+  }
+
   const modelPath = resolveModelPath(args);
   if (!modelPath) {
-    if (hasArg(args, "--models-preset")) {
-      return {
-        ok: false,
-        reason:
-          "Router instances (--models-preset) are not a single model; a per-model estimate is unavailable.",
-      };
-    }
-    if (hasArg(args, "--hf-repo") || hasArg(args, "--model-url")) {
-      return {
-        ok: false,
-        reason:
-          "Remote models (--hf-repo/--model-url) are not supported yet; download the GGUF and set --model to estimate.",
-      };
-    }
     if (hasArg(args, "--model")) {
       return {
         ok: false,
@@ -403,12 +669,71 @@ export function estimateMemory(
     return { ok: false, reason: "No --model is configured." };
   }
 
-  const mmprojPath = resolveExistingPath(args, ["--mmproj"]);
-  const draftPath = resolveExistingPath(args, [
-    "--spec-draft-model",
-    "-md",
-    "--model-draft",
-  ]);
+  const mmprojKeys = ["--mmproj", "-mm"];
+  const draftKeys = ["--spec-draft-model", "-md", "--model-draft"];
+  const mmprojDisabled =
+    argFlag(args, ["--no-mmproj", "--no-mmproj-auto"]) === true ||
+    argFlag(args, ["--mmproj-auto"]) === false;
+  const mmprojPath = mmprojDisabled
+    ? null
+    : resolveExistingPath(args, mmprojKeys);
+  const draftPath = resolveExistingPath(args, draftKeys);
+  if (
+    !mmprojDisabled &&
+    (hasArg(args, "--mmproj-url") || hasArg(args, "-mmu"))
+  ) {
+    return {
+      ok: false,
+      reason:
+        "Remote multimodal projectors (--mmproj-url) are not supported yet; download the GGUF and set --mmproj to estimate it.",
+    };
+  }
+  if (
+    ["--spec-draft-hf", "-hfd", "-hfrd", "--hf-repo-draft"].some((key) =>
+      hasArg(args, key),
+    )
+  ) {
+    return {
+      ok: false,
+      reason:
+        "Remote speculative draft models are not supported yet; download the resolved draft/sidecar GGUF and set --spec-draft-model.",
+    };
+  }
+  if (
+    !mmprojDisabled &&
+    mmprojKeys.some((key) => hasArg(args, key)) &&
+    !mmprojPath
+  ) {
+    return {
+      ok: false,
+      reason: `Multimodal projector GGUF file not found: ${String(
+        args[mmprojKeys.find((key) => hasArg(args, key))!],
+      )}`,
+    };
+  }
+  if (draftKeys.some((key) => hasArg(args, key)) && !draftPath) {
+    return {
+      ok: false,
+      reason: `Speculative draft GGUF file not found: ${String(
+        args[draftKeys.find((key) => hasArg(args, key))!],
+      )}`,
+    };
+  }
+  const speculativeTypes = new Set(
+    stringArgItems(args, ["--spec-type"]).map((value) => value.toLowerCase()),
+  );
+  const missingRequiredDraftType = [
+    "draft-simple",
+    "draft-eagle3",
+    "draft-dflash",
+    "draft-dspark",
+  ].find((type) => speculativeTypes.has(type));
+  if (missingRequiredDraftType && !draftPath) {
+    return {
+      ok: false,
+      reason: `--spec-type ${missingRequiredDraftType} requires an explicit local --spec-draft-model after remote selectors are resolved.`,
+    };
+  }
   const auxiliaryPaths = auxiliaryGgufPaths(args);
   const missingAuxiliaryPath = [
     ...auxiliaryPaths.loraPaths,
@@ -427,7 +752,7 @@ export function estimateMemory(
       tensors: readGgufModelTensorTable(modelPath),
       hparams: hparamsFromGguf(modelPath),
       args,
-      pools: poolsForEstimate(args, env),
+      pools: estimatePools,
       ...(mmprojPath
         ? { mmproj: { tensors: readGgufModelTensorTable(mmprojPath) } }
         : {}),
