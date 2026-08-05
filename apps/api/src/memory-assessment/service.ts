@@ -9,16 +9,15 @@ import {
 import { getInstance } from "../instances/repository.js";
 import { getAppVersion } from "../update/version.js";
 import { canonicalJsonDigest as digest } from "../utils/canonical-json.js";
-import type { MemoryEstimateResolution } from "../memory-estimate/service.js";
 import {
-  MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION,
-  assessmentContextFromInstance,
-  assessmentEngine,
-  type AssessmentEngine,
-} from "./engines.js";
+  contextFromInstance,
+  type MemoryEstimateResolution,
+} from "../memory-estimate/service.js";
+import { assessmentEngine, type AssessmentEngine } from "./engines.js";
 import { measuredComparisonDeltas } from "./measured.js";
 import {
   drawsDigest,
+  exceedsTolerance,
   parseStoredReceipt,
   type AnalyticalReceipt,
   type MeasuredReceipt,
@@ -33,18 +32,18 @@ import {
   updateMemoryAssessmentReceipt,
 } from "./repository.js";
 
-export { MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION };
-export { captureMeasuredBaseline } from "./measured.js";
-
 type EvaluationInput = {
   layout?: InstanceMemoryLayout;
   runId?: string | null;
 };
 
+const NOT_ASSESSED_REASON =
+  "Memory has not been assessed for this instance configuration.";
+
 function notAssessedSummary(engine: AssessmentEngine): MemoryAssessmentSummary {
   return {
     status: "not-assessed",
-    reason: engine.notAssessedReason,
+    reason: NOT_ASSESSED_REASON,
     reasons: [],
     recommendation: engine.notAssessedRecommendation,
     assessedAt: null,
@@ -65,14 +64,14 @@ export function createMemoryAssessment(
 ): string | null {
   const context = result.context;
   const engine = assessmentEngine(context.kind);
-  if (!engine?.estimatorId) {
+  if (!engine?.analytical) {
     return null;
   }
   const createdAt = new Date().toISOString();
   const receipt: AnalyticalReceipt = {
     schemaVersion: 1,
     evidence: "analytical",
-    estimatorId: engine.estimatorId,
+    estimatorId: engine.analytical.estimatorId,
     estimatorVersion: MEMORY_ESTIMATOR_VERSION,
     createdAt,
     fingerprint: engine.buildFingerprint(context),
@@ -107,9 +106,7 @@ export function bindMemoryAssessmentToInstance(
       "only analytical assessments can be bound; measured baselines are captured in place",
     );
   }
-  const current = engine.buildFingerprint(
-    assessmentContextFromInstance(instance),
-  );
+  const current = engine.buildFingerprint(contextFromInstance(instance));
   if (current.digest !== receipt.fingerprint.digest) {
     throw new Error(
       "instance, binary, model files, or hardware changed after the estimate; run it again",
@@ -149,13 +146,6 @@ function measuredReservationStatus(
   return instance.memory.length === 0 ? "not-applied" : "modified";
 }
 
-function exceedsTolerance(delta: {
-  deltaBytes: number;
-  toleranceBytes: number;
-}): boolean {
-  return Math.abs(delta.deltaBytes) > delta.toleranceBytes;
-}
-
 function deltaReasons(validation: MemoryAssessmentValidation): string[] {
   return validation.deltas
     .filter(exceedsTolerance)
@@ -189,7 +179,7 @@ function analyticalSummary(
     baseline: null,
     reportAvailable: true,
   };
-  if (reasons.length > 0) {
+  if (reasons.length > 0 || !engine.analytical) {
     return {
       ...base,
       status: "update-required",
@@ -206,7 +196,7 @@ function analyticalSummary(
     receipt.validation.runId === input.runId;
   const validation =
     input.layout && !alreadyValidatedRun
-      ? engine.validateAnalytical(receipt, input.layout, input.runId)
+      ? engine.analytical.validate(receipt, input.layout, input.runId)
       : null;
   if (
     validation &&
@@ -225,7 +215,7 @@ function analyticalSummary(
     return {
       ...withValidation,
       status: "mismatch",
-      reason: engine.wording.mismatch,
+      reason: engine.analytical.wording.mismatch,
       reasons: deltaReasons(effective),
       recommendation: engine.updateRecommendation,
     };
@@ -234,7 +224,7 @@ function analyticalSummary(
     return {
       ...withValidation,
       status: "verified",
-      reason: engine.wording.verified,
+      reason: engine.analytical.wording.verified,
       reasons: [],
       recommendation: null,
     };
@@ -244,8 +234,8 @@ function analyticalSummary(
     status: "analytical",
     reason:
       effective?.verdict === "inconclusive"
-        ? engine.wording.inconclusive
-        : engine.wording.pending,
+        ? engine.analytical.wording.inconclusive
+        : engine.analytical.wording.pending,
     reasons:
       receipt.estimate.confidence === "low"
         ? ["The estimator reported low confidence for this model layout."]
@@ -388,12 +378,10 @@ export function evaluateInstanceMemoryAssessment(
       reportAvailable: true,
     };
   }
-  const current = engine.buildFingerprint(
-    assessmentContextFromInstance(instance),
-  );
+  const current = engine.buildFingerprint(contextFromInstance(instance));
   const reasons = engine.driftReasons(receipt.fingerprint, current);
   if (receipt.evidence === "analytical") {
-    if (receipt.estimatorId !== engine.estimatorId) {
+    if (receipt.estimatorId !== engine.analytical?.estimatorId) {
       reasons.unshift("A different estimator produced this assessment.");
     } else if (receipt.estimatorVersion !== MEMORY_ESTIMATOR_VERSION) {
       reasons.unshift(
@@ -438,7 +426,7 @@ export function buildMemoryAssessmentReport(
     generatedAt: new Date().toISOString(),
     app: getAppVersion(),
     estimator: {
-      id: engine?.estimatorId ?? null,
+      id: engine?.analytical?.estimatorId ?? null,
       version: MEMORY_ESTIMATOR_VERSION,
     },
     instance: {
@@ -455,7 +443,7 @@ export function buildMemoryAssessmentReport(
     assessment: health.memoryAssessment ?? null,
     receipt,
     currentFingerprint: engine
-      ? engine.buildFingerprint(assessmentContextFromInstance(instance))
+      ? engine.buildFingerprint(contextFromInstance(instance))
       : null,
     runtime: health.runtime,
     configDrift: health.configDrift,

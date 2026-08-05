@@ -110,14 +110,15 @@ export function helpBlockFlagRows(block: string) {
 }
 
 export function phantomHelpRows(block: string, argParserSource: string) {
+  const quotedFlags = new Set(
+    [...argParserSource.matchAll(/"(-[^"]*)"/g)].map((match) => match[1]),
+  );
   return helpBlockFlagRows(block)
-    .filter(
-      (row) => !row.flags.some((flag) => argParserSource.includes(`"${flag}"`)),
-    )
+    .filter((row) => !row.flags.some((flag) => quotedFlags.has(flag)))
     .map((row) => row.label);
 }
 
-function currentPhantomRows(): string[] | null {
+function currentPhantomRows(block: string): string[] | null {
   const argParserPath = resolve(
     getLlamaSourceSettings().repoPath,
     argParserRelativePath,
@@ -126,10 +127,7 @@ function currentPhantomRows(): string[] | null {
     return null;
   }
   try {
-    return phantomHelpRows(
-      readCurrentGeneratedHelpBlock(),
-      readFileSync(argParserPath, "utf8"),
-    );
+    return phantomHelpRows(block, readFileSync(argParserPath, "utf8"));
   } catch {
     return null;
   }
@@ -186,7 +184,7 @@ function readCurrentGeneratedHelpBlock() {
   return extractGeneratedHelpBlock(readFileSync(path, "utf8"));
 }
 
-function storedSnapshot() {
+function storedSnapshot(currentCommit: string | null) {
   const metadata = readMetadata();
   const block = readStoredGeneratedHelpBlock();
   if (!block) {
@@ -209,53 +207,70 @@ function storedSnapshot() {
     updatedAt:
       metadata?.updatedAt ??
       statSync(argumentHelpSourceSnapshotPath).mtime.toISOString(),
-    error: storedSnapshotError(metadata, computedHash),
+    error: storedSnapshotError(metadata, computedHash, currentCommit),
   };
 }
 
 function storedSnapshotError(
   metadata: HelpSourceMetadata | null,
   computedHash: string,
+  currentCommit: string | null,
 ) {
   if (metadata && metadata.hash !== computedHash) {
     return `metadata hash ${metadata.hash} does not match snapshot hash ${computedHash}`;
   }
   if (
     metadata?.llamaCppCommit &&
-    llamaSourceCommitIsReachable(metadata.llamaCppCommit) === false
+    llamaSourceCommitIsReachable(metadata.llamaCppCommit, currentCommit) ===
+      false
   ) {
     return `snapshot commit ${metadata.llamaCppCommit.slice(0, 9)} is not reachable from the llama.cpp checkout HEAD — the snapshot was not written from this checkout`;
   }
   return null;
 }
 
-function currentSnapshot() {
-  const path = sourceReadmePath();
+type CurrentHelpBlock =
+  | { block: string; error: null }
+  | { block: null; error: string };
+
+function readCurrentHelpBlockSafe(): CurrentHelpBlock {
   try {
-    const block = readCurrentGeneratedHelpBlock();
-    return {
-      path,
-      exists: true,
-      hash: hashHelpBlock(block),
-      llamaCppCommit: getLlamaSourceCurrentCommit(),
-      updatedAt: statSync(path).mtime.toISOString(),
-      error: null,
-    };
+    return { block: readCurrentGeneratedHelpBlock(), error: null };
   } catch (error) {
+    return { block: null, error: (error as Error).message };
+  }
+}
+
+function currentSnapshot(
+  read: CurrentHelpBlock,
+  llamaCppCommit: string | null,
+) {
+  const path = sourceReadmePath();
+  if (read.block === null) {
     return {
       path,
       exists: existsSync(path),
       hash: null,
-      llamaCppCommit: getLlamaSourceCurrentCommit(),
+      llamaCppCommit,
       updatedAt: existsSync(path) ? statSync(path).mtime.toISOString() : null,
-      error: (error as Error).message,
+      error: read.error,
     };
   }
+  return {
+    path,
+    exists: true,
+    hash: hashHelpBlock(read.block),
+    llamaCppCommit,
+    updatedAt: statSync(path).mtime.toISOString(),
+    error: null,
+  };
 }
 
 export function getLlamaArgumentHelpSourceSync(): LlamaArgumentHelpSourceSync {
-  const stored = storedSnapshot();
-  const current = currentSnapshot();
+  const llamaCppCommit = getLlamaSourceCurrentCommit();
+  const read = readCurrentHelpBlockSafe();
+  const stored = storedSnapshot(llamaCppCommit);
+  const current = currentSnapshot(read, llamaCppCommit);
   const inSync =
     stored.hash && current.hash && !stored.error && !current.error
       ? stored.hash === current.hash
@@ -269,7 +284,7 @@ export function getLlamaArgumentHelpSourceSync(): LlamaArgumentHelpSourceSync {
     stored,
     current,
     inSync,
-    phantomRows: currentPhantomRows(),
+    phantomRows: read.block === null ? null : currentPhantomRows(read.block),
   };
 }
 

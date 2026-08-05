@@ -1,6 +1,7 @@
 import {
   MEMORY_ESTIMATOR_VERSION,
   MemoryEstimateSchema,
+  engineDescriptor,
   type Instance,
   type InstanceMemoryLayout,
   type MemoryEstimate,
@@ -8,7 +9,8 @@ import {
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { assessmentContextFromInstance, assessmentEngine } from "./engines.js";
+import { contextFromInstance } from "../memory-estimate/service.js";
+import { assessmentEngine } from "./engines.js";
 import { measuredComparisonDeltas } from "./measured.js";
 import {
   drawsDigest,
@@ -134,7 +136,7 @@ const llama = assessmentEngine("llama-server");
 const vllm = assessmentEngine("vllm");
 
 test("exact llama.cpp buffers verify an estimate within tolerance", () => {
-  const result = llama?.validateAnalytical(
+  const result = llama?.analytical?.validate(
     analyticalReceipt(estimate(4_000 * MiB, 1_000 * MiB)),
     layout("log-buffers", 4_080 * MiB, 960 * MiB),
     null,
@@ -148,7 +150,7 @@ test("exact llama.cpp buffers verify an estimate within tolerance", () => {
 });
 
 test("exact llama.cpp buffers expose VRAM estimator drift", () => {
-  const result = llama?.validateAnalytical(
+  const result = llama?.analytical?.validate(
     analyticalReceipt(estimate(4_000 * MiB, 1_000 * MiB)),
     layout("log-buffers", 5_000 * MiB, 1_000 * MiB),
     null,
@@ -161,7 +163,7 @@ test("exact llama.cpp buffers expose VRAM estimator drift", () => {
 });
 
 test("process telemetry is not treated as a buffer-level verification", () => {
-  const result = llama?.validateAnalytical(
+  const result = llama?.analytical?.validate(
     analyticalReceipt(estimate(4_000 * MiB, 1_000 * MiB)),
     layout("process-telemetry", 8_000 * MiB, 2_000 * MiB),
     "run-1",
@@ -174,7 +176,7 @@ test("unclassified llama.cpp buffers do not produce a false verification", () =>
   const unknown = layout("log-buffers", 4_000 * MiB, 1_000 * MiB);
   unknown.otherBytes = 256 * MiB;
   unknown.totalBytes += unknown.otherBytes;
-  const result = llama?.validateAnalytical(
+  const result = llama?.analytical?.validate(
     analyticalReceipt(estimate(4_000 * MiB, 1_000 * MiB)),
     unknown,
     null,
@@ -184,7 +186,7 @@ test("unclassified llama.cpp buffers do not produce a false verification", () =>
 });
 
 test("vLLM reservation verifies against GPU telemetry within tolerance", () => {
-  const result = vllm?.validateAnalytical(
+  const result = vllm?.analytical?.validate(
     analyticalReceipt(estimate(20_000 * MiB, 0), "vllm-gpu-util"),
     layout("process-telemetry", 21_000 * MiB, 6_000 * MiB),
     "run-1",
@@ -198,7 +200,7 @@ test("vLLM reservation verifies against GPU telemetry within tolerance", () => {
 });
 
 test("vLLM reservation flags GPU telemetry outside tolerance", () => {
-  const result = vllm?.validateAnalytical(
+  const result = vllm?.analytical?.validate(
     analyticalReceipt(estimate(20_000 * MiB, 0), "vllm-gpu-util"),
     layout("process-telemetry", 12_000 * MiB, 0),
     "run-1",
@@ -208,7 +210,7 @@ test("vLLM reservation flags GPU telemetry outside tolerance", () => {
 });
 
 test("vLLM reservation validation is scoped to an identified run", () => {
-  const result = vllm?.validateAnalytical(
+  const result = vllm?.analytical?.validate(
     analyticalReceipt(estimate(20_000 * MiB, 0), "vllm-gpu-util"),
     layout("process-telemetry", 21_000 * MiB, 0),
     null,
@@ -319,9 +321,7 @@ test("a measured baseline evaluates, re-verifies per run, and goes stale on conf
     evidence: "measured",
     baselineVersion: 1,
     createdAt: "2026-08-05T00:00:00.000Z",
-    fingerprint: engine.buildFingerprint(
-      assessmentContextFromInstance(instance),
-    ),
+    fingerprint: engine.buildFingerprint(contextFromInstance(instance)),
     observation: {
       capturedAt: "2026-08-05T00:00:00.000Z",
       runId: "run-1",
@@ -385,6 +385,9 @@ test("rpc-worker has no assessment engine", () => {
 test("ktransformers has a measured-only assessment engine", () => {
   const engine = assessmentEngine("ktransformers");
   assert.ok(engine);
-  assert.equal(engine.estimatorId, null);
-  assert.equal(engine.measuredBaseline, true);
+  assert.equal(engine.analytical, null);
+  assert.equal(
+    engineDescriptor("ktransformers").assessment.measuredBaseline,
+    true,
+  );
 });

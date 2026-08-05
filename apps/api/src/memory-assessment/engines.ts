@@ -1,7 +1,6 @@
 import {
   engineDescriptor,
-  type Instance,
-  type InstanceEngineConfig,
+  type EngineAssessmentFingerprintId,
   type InstanceKind,
   type InstanceMemoryLayout,
   type MemoryEstimateArgs,
@@ -12,7 +11,6 @@ import { dirname, resolve } from "node:path";
 import { defaultBinaryPath } from "../arguments/binary-discovery.js";
 import {
   auxiliaryGgufPaths,
-  contextFromInstance,
   poolsForEstimate,
   resolveLlamaArgumentEnvironment,
   resolveModelPath,
@@ -23,34 +21,31 @@ import {
 import { resolveGgufShardPaths } from "../models/gguf.js";
 import { listMemoryPools } from "../resources/repository.js";
 import { canonicalJsonDigest as digest } from "../utils/canonical-json.js";
+import { sortedByKey } from "../utils/sort.js";
 import {
   artifactIdentities,
   cachedFingerprint,
   fileIdentity,
   normalizedPath,
-  sortedIdentities,
 } from "./fingerprint.js";
-import type {
-  AnalyticalReceipt,
-  FileIdentity,
-  MemoryAssessmentFingerprint,
-  MemoryAssessmentValidation,
+import {
+  exceedsTolerance,
+  type AnalyticalReceipt,
+  type FileIdentity,
+  type MemoryAssessmentFingerprint,
+  type MemoryAssessmentValidation,
 } from "./receipt.js";
 
-export const TELEMETRY_MIN_TOLERANCE_BYTES = 256 * 1024 * 1024;
-export const TELEMETRY_RELATIVE_TOLERANCE = 0.1;
+const TELEMETRY_MIN_TOLERANCE_BYTES = 256 * 1024 * 1024;
+const TELEMETRY_RELATIVE_TOLERANCE = 0.1;
 const LOG_BUFFER_MIN_TOLERANCE_BYTES = 128 * 1024 * 1024;
 const LOG_BUFFER_RELATIVE_TOLERANCE = 0.08;
 
-export const MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION =
+const LLAMA_UPDATE_RECOMMENDATION =
   "Update both Arriero and llama.cpp, rebuild the current llama-server and llama-fit-params pair, then run the memory assessment again. If the mismatch remains, export the diagnostic report for a developer.";
 
 const PYTHON_UPDATE_RECOMMENDATION =
   "Re-run the estimate or capture a new measured baseline after the environment, model, or configuration change, then apply the updated draws.";
-
-export type AssessmentContext = MemoryEstimateContext & {
-  engineConfig?: InstanceEngineConfig;
-};
 
 export type AssessmentWording = {
   verified: string;
@@ -59,33 +54,31 @@ export type AssessmentWording = {
   inconclusive: string;
 };
 
-export type AssessmentEngine = {
-  estimatorId: string | null;
-  measuredBaseline: boolean;
-  notAssessedReason: string;
-  notAssessedRecommendation: string;
-  updateRecommendation: string;
+export type AssessmentAnalytical = {
+  estimatorId: string;
   wording: AssessmentWording;
-  buildFingerprint(context: AssessmentContext): MemoryAssessmentFingerprint;
-  driftReasons(
-    stored: MemoryAssessmentFingerprint,
-    current: MemoryAssessmentFingerprint,
-  ): string[];
-  validateAnalytical(
+  validate(
     receipt: AnalyticalReceipt,
     layout: InstanceMemoryLayout,
     runId: string | null,
   ): MemoryAssessmentValidation | null;
 };
 
-export function assessmentContextFromInstance(
-  instance: Instance,
-): AssessmentContext {
-  return {
-    ...contextFromInstance(instance),
-    ...(instance.engineConfig ? { engineConfig: instance.engineConfig } : {}),
-  };
-}
+type FingerprintAdapter = {
+  buildFingerprint(context: MemoryEstimateContext): MemoryAssessmentFingerprint;
+  driftReasons(
+    stored: MemoryAssessmentFingerprint,
+    current: MemoryAssessmentFingerprint,
+  ): string[];
+};
+
+type AssessmentProfile = {
+  analytical: AssessmentAnalytical | null;
+  notAssessedRecommendation: string;
+  updateRecommendation: string;
+};
+
+export type AssessmentEngine = AssessmentProfile & FingerprintAdapter;
 
 export function telemetryToleranceBytes(expectedBytes: number): number {
   return Math.max(
@@ -94,7 +87,7 @@ export function telemetryToleranceBytes(expectedBytes: number): number {
   );
 }
 
-function configDigestFor(context: AssessmentContext): string {
+function configDigestFor(context: MemoryEstimateContext): string {
   return digest({
     kind: context.kind,
     args: context.args,
@@ -171,11 +164,11 @@ function llamaRuntimeFileIdentities(binaryPath: string): FileIdentity[] {
     .filter((name) => llamaLibrary.test(name))
     .map((name) => fileIdentity(resolve(directory, name)))
     .filter((entry): entry is FileIdentity => entry !== null);
-  return sortedIdentities([binary, ...libraries]);
+  return sortedByKey([binary, ...libraries], (entry) => entry.path);
 }
 
 function llamaFingerprint(
-  context: AssessmentContext,
+  context: MemoryEstimateContext,
 ): MemoryAssessmentFingerprint {
   const configDigest = configDigestFor(context);
   return cachedFingerprint(
@@ -289,14 +282,11 @@ function validateLlamaLogBuffers(
       toleranceBytes,
     };
   });
-  const mismatch = deltas.some(
-    (entry) => Math.abs(entry.deltaBytes) > entry.toleranceBytes,
-  );
   return {
     source: "log-buffers",
     observedAt: new Date().toISOString(),
     runId: null,
-    verdict: mismatch ? "mismatch" : "verified",
+    verdict: deltas.some(exceedsTolerance) ? "mismatch" : "verified",
     deltas,
   };
 }
@@ -314,22 +304,19 @@ function validateVllmGpuReservation(
     .filter((pool) => pool.kind === "gpu")
     .reduce((sum, pool) => sum + pool.totalBytes, 0);
   if (expectedBytes <= 0) return null;
-  const toleranceBytes = telemetryToleranceBytes(expectedBytes);
-  const deltaBytes = layout.deviceBytes - expectedBytes;
+  const delta = {
+    scope: "gpu" as const,
+    expectedBytes,
+    observedBytes: layout.deviceBytes,
+    deltaBytes: layout.deviceBytes - expectedBytes,
+    toleranceBytes: telemetryToleranceBytes(expectedBytes),
+  };
   return {
     source: "process-telemetry",
     observedAt: new Date().toISOString(),
     runId,
-    verdict: Math.abs(deltaBytes) > toleranceBytes ? "mismatch" : "verified",
-    deltas: [
-      {
-        scope: "gpu",
-        expectedBytes,
-        observedBytes: layout.deviceBytes,
-        deltaBytes,
-        toleranceBytes,
-      },
-    ],
+    verdict: exceedsTolerance(delta) ? "mismatch" : "verified",
+    deltas: [delta],
   };
 }
 
@@ -346,30 +333,32 @@ function pythonRuntimeFileIdentities(binaryPath: string): FileIdentity[] {
   ]
     .map(fileIdentity)
     .filter((entry): entry is FileIdentity => entry !== null);
-  return sortedIdentities(uniqueByPath([binary, ...companions]));
+  return sortedByKey(
+    uniqueByPath([binary, ...companions]),
+    (entry) => entry.path,
+  );
 }
 
-function pythonModelArtifacts(context: AssessmentContext): FileIdentity[] {
+function pythonModelArtifacts(context: MemoryEstimateContext): FileIdentity[] {
   const ktConfig =
     context.engineConfig?.type === "ktransformers"
       ? context.engineConfig
       : null;
+  const positional = context.positionalArgs.find((item) => item.trim());
   const argCandidates = ["--model", "--model-path"].flatMap((key) => {
     const value = context.args[key];
     return typeof value === "string" ? [value] : [];
   });
   const candidates = [
     ...(ktConfig ? [ktConfig.model, ktConfig.cpuWeights] : []),
-    ...(context.positionalArgs.find((item) => item.trim())
-      ? [context.positionalArgs.find((item) => item.trim())!]
-      : []),
+    ...(positional ? [positional] : []),
     ...argCandidates,
   ].filter((value) => value.trim().length > 0);
   return uniqueByPath(candidates.flatMap((path) => artifactIdentities(path)));
 }
 
 function pythonEnvFingerprint(
-  context: AssessmentContext,
+  context: MemoryEstimateContext,
 ): MemoryAssessmentFingerprint {
   const configDigest = configDigestFor(context);
   return cachedFingerprint(
@@ -416,80 +405,78 @@ function pythonDriftReasons(
   return reasons;
 }
 
-const NOT_ASSESSED_REASON =
-  "Memory has not been assessed for this instance configuration.";
-
-const llamaEngine: AssessmentEngine = {
-  estimatorId: "llama.cpp-gguf",
-  measuredBaseline: true,
-  notAssessedReason: NOT_ASSESSED_REASON,
-  notAssessedRecommendation:
-    "Run Estimate memory in the instance editor and save the resulting assessment.",
-  updateRecommendation: MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION,
-  wording: {
-    verified: "The estimate matches llama.cpp's reported buffer allocation.",
-    mismatch:
-      "Observed llama.cpp buffer allocation differs from Arriero's estimate.",
-    pending:
-      "The estimate is current, but no exact llama.cpp buffer allocation has been captured yet.",
-    inconclusive:
-      "llama.cpp reported exact buffers, but Arriero could not map every allocation to RAM or VRAM.",
+const FINGERPRINT_ADAPTERS: Record<
+  Exclude<EngineAssessmentFingerprintId, "none">,
+  FingerprintAdapter
+> = {
+  "llama-binary-gguf": {
+    buildFingerprint: llamaFingerprint,
+    driftReasons: llamaDriftReasons,
   },
-  buildFingerprint: llamaFingerprint,
-  driftReasons: llamaDriftReasons,
-  validateAnalytical: (receipt, layout) =>
-    validateLlamaLogBuffers(receipt, layout),
+  "python-env": {
+    buildFingerprint: pythonEnvFingerprint,
+    driftReasons: pythonDriftReasons,
+  },
 };
 
-const vllmEngine: AssessmentEngine = {
-  estimatorId: "vllm-gpu-util",
-  measuredBaseline: true,
-  notAssessedReason: NOT_ASSESSED_REASON,
-  notAssessedRecommendation:
-    "Run Estimate footprint with an explicit --gpu-memory-utilization and save the assessment, or capture a measured baseline while the instance is running; host RAM draws stay manual.",
-  updateRecommendation: PYTHON_UPDATE_RECOMMENDATION,
-  wording: {
-    verified: "Observed GPU memory matches the reserved utilization fraction.",
-    mismatch:
-      "Observed GPU memory differs from the reserved utilization fraction.",
-    pending:
-      "The estimate is current; GPU usage is compared against it on the next observed run.",
-    inconclusive:
-      "Runtime telemetry could not be compared against the reservation.",
-  },
-  buildFingerprint: pythonEnvFingerprint,
-  driftReasons: pythonDriftReasons,
-  validateAnalytical: validateVllmGpuReservation,
-};
-
-const ktransformersEngine: AssessmentEngine = {
-  estimatorId: null,
-  measuredBaseline: true,
-  notAssessedReason: NOT_ASSESSED_REASON,
-  notAssessedRecommendation:
-    "KTransformers has no analytical estimator; capture a measured baseline while the instance is running and apply it as declared draws.",
-  updateRecommendation:
-    "Capture a new measured baseline after the environment, model, or configuration change, then apply the updated draws.",
-  wording: {
-    verified: "Observed runtime memory matches the measured baseline.",
-    mismatch: "Observed runtime memory differs from the measured baseline.",
-    pending: "No runtime observation has been compared yet.",
-    inconclusive:
-      "Runtime telemetry could not be compared against the baseline.",
-  },
-  buildFingerprint: pythonEnvFingerprint,
-  driftReasons: pythonDriftReasons,
-  validateAnalytical: () => null,
-};
+function composedEngine(
+  kind: InstanceKind,
+  profile: AssessmentProfile,
+): AssessmentEngine | null {
+  const fingerprintId = engineDescriptor(kind).assessment.fingerprint;
+  if (fingerprintId === "none") return null;
+  return { ...profile, ...FINGERPRINT_ADAPTERS[fingerprintId] };
+}
 
 const ASSESSMENT_ENGINES: Record<InstanceKind, AssessmentEngine | null> = {
-  "llama-server": llamaEngine,
+  "llama-server": composedEngine("llama-server", {
+    analytical: {
+      estimatorId: "llama.cpp-gguf",
+      wording: {
+        verified:
+          "The estimate matches llama.cpp's reported buffer allocation.",
+        mismatch:
+          "Observed llama.cpp buffer allocation differs from Arriero's estimate.",
+        pending:
+          "The estimate is current, but no exact llama.cpp buffer allocation has been captured yet.",
+        inconclusive:
+          "llama.cpp reported exact buffers, but Arriero could not map every allocation to RAM or VRAM.",
+      },
+      validate: validateLlamaLogBuffers,
+    },
+    notAssessedRecommendation:
+      "Run Estimate memory in the instance editor and save the resulting assessment.",
+    updateRecommendation: LLAMA_UPDATE_RECOMMENDATION,
+  }),
   "rpc-worker": null,
-  vllm: vllmEngine,
-  ktransformers: ktransformersEngine,
+  vllm: composedEngine("vllm", {
+    analytical: {
+      estimatorId: "vllm-gpu-util",
+      wording: {
+        verified:
+          "Observed GPU memory matches the reserved utilization fraction.",
+        mismatch:
+          "Observed GPU memory differs from the reserved utilization fraction.",
+        pending:
+          "The estimate is current; GPU usage is compared against it on the next observed run.",
+        inconclusive:
+          "Runtime telemetry could not be compared against the reservation.",
+      },
+      validate: validateVllmGpuReservation,
+    },
+    notAssessedRecommendation:
+      "Run Estimate footprint with an explicit --gpu-memory-utilization and save the assessment, or capture a measured baseline while the instance is running; host RAM draws stay manual.",
+    updateRecommendation: PYTHON_UPDATE_RECOMMENDATION,
+  }),
+  ktransformers: composedEngine("ktransformers", {
+    analytical: null,
+    notAssessedRecommendation:
+      "KTransformers has no analytical estimator; capture a measured baseline while the instance is running and apply it as declared draws.",
+    updateRecommendation:
+      "Capture a new measured baseline after the environment, model, or configuration change, then apply the updated draws.",
+  }),
 };
 
 export function assessmentEngine(kind: InstanceKind): AssessmentEngine | null {
-  if (engineDescriptor(kind).assessment.fingerprint === "none") return null;
   return ASSESSMENT_ENGINES[kind];
 }

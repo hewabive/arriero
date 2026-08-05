@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import { INSTANCE_KINDS, type InstanceKind } from "./engine-descriptor.js";
-import { MemoryAssessmentSummarySchema } from "./memory-assessment.js";
+import {
+  InstanceMemoryDrawSchema,
+  MemoryAssessmentSummarySchema,
+  MemoryPoolIdSchema,
+  type InstanceMemoryDraw,
+} from "./memory-assessment.js";
 import { parseApiProxyBodyFieldPath } from "./proxy/request-edits.js";
 
 export * from "./engine-descriptor.js";
@@ -82,17 +87,6 @@ export function pathCatalogBinaryEngineKind(entry: {
 }
 
 export const MemoryPoolKindSchema = z.enum(["gpu", "host"]);
-
-const MemoryPoolIdSchema = z
-  .string()
-  .min(1)
-  .max(80)
-  .regex(/^[A-Za-z0-9._:-]+$/);
-
-export const InstanceMemoryDrawSchema = z.object({
-  poolId: MemoryPoolIdSchema,
-  bytes: z.number().int().nonnegative(),
-});
 
 export const MemoryPoolSchema = z.object({
   id: MemoryPoolIdSchema,
@@ -3657,7 +3651,6 @@ export type InstanceEvictionPolicy = z.infer<
 export type InstanceSchedulingPolicy = z.infer<
   typeof InstanceSchedulingPolicySchema
 >;
-export type InstanceMemoryDraw = z.infer<typeof InstanceMemoryDrawSchema>;
 export type ResourcePoolUsage = z.infer<typeof ResourcePoolUsageSchema>;
 export type ResourceLedger = z.infer<typeof ResourceLedgerSchema>;
 export type ResourceAdmissionShortfall = z.infer<

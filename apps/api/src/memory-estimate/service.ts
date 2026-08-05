@@ -15,6 +15,7 @@ import {
   type CudaVisibleDevices,
   type Instance,
   type InstanceArgs,
+  type InstanceEngineConfig,
   type MemoryEstimate,
   type MemoryEstimateArgs,
   type MemoryEstimatePoolInput,
@@ -112,6 +113,7 @@ export type MemoryEstimateContext = {
   env: Record<string, string>;
   positionalArgs: string[];
   rpcWorkers: RpcWorkerRef[];
+  engineConfig?: InstanceEngineConfig;
 };
 
 export function resolveLlamaArgumentEnvironment(
@@ -160,6 +162,7 @@ export function contextFromInstance(instance: Instance): MemoryEstimateContext {
     env: instance.env,
     positionalArgs: instance.positionalArgs ?? [],
     rpcWorkers: instance.rpcWorkers,
+    ...(instance.engineConfig ? { engineConfig: instance.engineConfig } : {}),
   };
 }
 

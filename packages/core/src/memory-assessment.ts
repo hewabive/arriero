@@ -35,8 +35,14 @@ export const MemoryAssessmentValidationSourceSchema = z.enum([
   "process-telemetry",
 ]);
 
-export const MemoryAssessmentDrawSchema = z.object({
-  poolId: z.string(),
+export const MemoryPoolIdSchema = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9._:-]+$/);
+
+export const InstanceMemoryDrawSchema = z.object({
+  poolId: MemoryPoolIdSchema,
   bytes: z.number().int().nonnegative(),
 });
 
@@ -45,7 +51,7 @@ export const MemoryAssessmentBaselineSchema = z.object({
   deviceBytes: z.number().int().nonnegative(),
   hostBytes: z.number().int().nonnegative(),
   mmapBytes: z.number().int().nonnegative(),
-  draws: z.array(MemoryAssessmentDrawSchema),
+  draws: z.array(InstanceMemoryDrawSchema),
 });
 
 export const MemoryAssessmentSummarySchema = z.object({
@@ -76,7 +82,7 @@ export type MemoryAssessmentEvidence = z.infer<
   typeof MemoryAssessmentEvidenceSchema
 >;
 export type MemoryAssessmentDelta = z.infer<typeof MemoryAssessmentDeltaSchema>;
-export type MemoryAssessmentDraw = z.infer<typeof MemoryAssessmentDrawSchema>;
+export type InstanceMemoryDraw = z.infer<typeof InstanceMemoryDrawSchema>;
 export type MemoryAssessmentBaseline = z.infer<
   typeof MemoryAssessmentBaselineSchema
 >;

@@ -1,4 +1,5 @@
 import {
+  InstanceMemoryDrawSchema,
   MemoryAssessmentDeltaSchema,
   MemoryAssessmentValidationSourceSchema,
   MemoryEstimateSchema,
@@ -7,6 +8,7 @@ import {
 import { z } from "zod";
 
 import { canonicalJsonDigest as digest } from "../utils/canonical-json.js";
+import { sortedByKey } from "../utils/sort.js";
 
 export const FileIdentitySchema = z.object({
   path: z.string(),
@@ -52,12 +54,7 @@ export const MeasuredObservationSchema = z.object({
   deviceBytes: z.number().int().nonnegative(),
   hostBytes: z.number().int().nonnegative(),
   mmapBytes: z.number().int().nonnegative(),
-  draws: z.array(
-    z.object({
-      poolId: z.string(),
-      bytes: z.number().int().nonnegative(),
-    }),
-  ),
+  draws: z.array(InstanceMemoryDrawSchema),
   notes: z.array(z.string()),
 });
 
@@ -98,10 +95,18 @@ export function parseStoredReceipt(
   return parsed.success ? parsed.data : null;
 }
 
+export function exceedsTolerance(delta: {
+  deltaBytes: number;
+  toleranceBytes: number;
+}): boolean {
+  return Math.abs(delta.deltaBytes) > delta.toleranceBytes;
+}
+
 export function drawsDigest(draws: Instance["memory"]): string {
   return digest(
-    [...draws]
-      .map((draw) => ({ poolId: draw.poolId, bytes: draw.bytes }))
-      .sort((left, right) => left.poolId.localeCompare(right.poolId)),
+    sortedByKey(
+      draws.map((draw) => ({ poolId: draw.poolId, bytes: draw.bytes })),
+      (draw) => draw.poolId,
+    ),
   );
 }

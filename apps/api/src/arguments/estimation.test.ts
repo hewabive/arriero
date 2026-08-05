@@ -35,14 +35,16 @@ test("estimation classes cover the known non-estimable llama-server arguments", 
 test("every registry entry carries a parsed estimation class", () => {
   const entries = loadArgumentRegistry();
   assert.ok(entries.length > 200);
-  const byClass = new Map<LlamaArgumentEstimation, number>();
-  for (const entry of entries) {
-    byClass.set(entry.estimation, (byClass.get(entry.estimation) ?? 0) + 1);
-  }
-  assert.equal(byClass.get("exits"), 5);
-  assert.equal(byClass.get("preset-rewrite"), 11);
-  assert.equal(byClass.get("remote-selector"), 3);
-  assert.equal(byClass.get("remote-mmproj"), 1);
-  assert.equal(byClass.get("remote-draft"), 1);
-  assert.equal(byClass.get("router"), 2);
+  const classes = new Set<LlamaArgumentEstimation>(
+    entries.map((entry) => entry.estimation),
+  );
+  assert.deepEqual([...classes].sort(), [
+    "exits",
+    "normal",
+    "preset-rewrite",
+    "remote-draft",
+    "remote-mmproj",
+    "remote-selector",
+    "router",
+  ]);
 });

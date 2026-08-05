@@ -6,17 +6,15 @@ import {
 } from "@arriero/core";
 
 import { latestProcessRun } from "../process/runs-repository.js";
+import { contextFromInstance } from "../memory-estimate/service.js";
 import {
   getRuntimeMemoryObservation,
   type RuntimeMemoryObservation,
 } from "../process/runtime-memory.js";
 import { listMemoryPools } from "../resources/repository.js";
 import { readTailLines } from "../utils/log-tail.js";
-import {
-  assessmentContextFromInstance,
-  assessmentEngine,
-  telemetryToleranceBytes,
-} from "./engines.js";
+import { compareStrings } from "../utils/sort.js";
+import { assessmentEngine, telemetryToleranceBytes } from "./engines.js";
 import {
   drawsDigest,
   parseStoredReceipt,
@@ -166,7 +164,7 @@ export async function captureMeasuredBaseline(input: {
       );
     }
   }
-  draws.sort((left, right) => left.poolId.localeCompare(right.poolId));
+  draws.sort((left, right) => compareStrings(left.poolId, right.poolId));
 
   const capturedAt = new Date().toISOString();
   const runId = latestProcessRun(instance.name)?.id ?? null;
@@ -199,9 +197,7 @@ export async function captureMeasuredBaseline(input: {
     evidence: "measured",
     baselineVersion: 1,
     createdAt: capturedAt,
-    fingerprint: engine.buildFingerprint(
-      assessmentContextFromInstance(instance),
-    ),
+    fingerprint: engine.buildFingerprint(contextFromInstance(instance)),
     observation,
     previousBaseline,
     proposedDrawsDigest: drawsDigest(draws),

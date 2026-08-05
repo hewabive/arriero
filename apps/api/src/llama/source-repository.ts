@@ -51,8 +51,23 @@ export function getLlamaSourceCurrentCommit(): string | null {
   return tryGitSync(repoPath, ["rev-parse", "HEAD"]);
 }
 
-export function llamaSourceCommitIsReachable(commit: string): boolean | null {
+const commitReachabilityCache = new Map<string, boolean>();
+
+export function llamaSourceCommitIsReachable(
+  commit: string,
+  head: string | null = null,
+): boolean | null {
+  if (head !== null && commit === head) {
+    return true;
+  }
   const repoPath = getLlamaSourceSettings().repoPath;
+  const cacheKey = head === null ? null : `${repoPath}|${commit}|${head}`;
+  if (cacheKey !== null) {
+    const cached = commitReachabilityCache.get(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+  }
   if (!isExactGitRepositorySync(repoPath)) {
     return null;
   }
@@ -61,12 +76,22 @@ export function llamaSourceCommitIsReachable(commit: string): boolean | null {
   ) {
     return null;
   }
+  let reachable: boolean;
   try {
-    runGitSync(repoPath, ["merge-base", "--is-ancestor", commit, "HEAD"]);
-    return true;
+    runGitSync(repoPath, [
+      "merge-base",
+      "--is-ancestor",
+      commit,
+      head ?? "HEAD",
+    ]);
+    reachable = true;
   } catch {
-    return false;
+    reachable = false;
   }
+  if (cacheKey !== null) {
+    commitReachabilityCache.set(cacheKey, reachable);
+  }
+  return reachable;
 }
 
 export function getLlamaSourceVersionLabel(

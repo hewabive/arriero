@@ -13,7 +13,10 @@ import { promisify } from "node:util";
 
 import { computeNumaPlacement, parseNumaMaps } from "../numa/placement.js";
 import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
-import { nvidiaTelemetry } from "../nvidia/telemetry.js";
+import {
+  nvidiaTelemetry,
+  type NvidiaComputeProcess,
+} from "../nvidia/telemetry.js";
 import {
   compareMemoryPlacements,
   emptyMemoryPlacement,
@@ -435,48 +438,63 @@ export type RuntimeMemoryObservation = {
   fileBytes: number;
 };
 
-export async function getRuntimeMemoryObservation(input: {
+type RuntimeMemorySample = {
+  processIds: number[];
+  gpuProcesses: NvidiaComputeProcess[];
+  processMemory: ProcMemoryUsage[];
+};
+
+async function sampleRuntimeMemory(input: {
   runtime: RuntimeState | undefined;
   lines: string[];
   kind: InstanceKind;
-}): Promise<RuntimeMemoryObservation | null> {
+}): Promise<RuntimeMemorySample | null> {
   const pids = await candidatePids(input);
   if (pids.length === 0) {
     return null;
   }
   const pidSet = new Set(pids);
+  const gpuProcesses = nvidiaTelemetry
+    .computeProcesses()
+    .filter((app) => pidSet.has(app.pid));
+  const processMemory = pids
+    .map(readProcMemory)
+    .filter((usage): usage is ProcMemoryUsage => usage !== null);
+  return { processIds: pids, gpuProcesses, processMemory };
+}
+
+export async function getRuntimeMemoryObservation(input: {
+  runtime: RuntimeState | undefined;
+  lines: string[];
+  kind: InstanceKind;
+}): Promise<RuntimeMemoryObservation | null> {
+  const sample = await sampleRuntimeMemory(input);
+  if (
+    !sample ||
+    (sample.gpuProcesses.length === 0 && sample.processMemory.length === 0)
+  ) {
+    return null;
+  }
   const deviceBytes = new Map<number, number>();
-  for (const app of nvidiaTelemetry.computeProcesses()) {
-    if (!pidSet.has(app.pid)) {
-      continue;
-    }
+  for (const app of sample.gpuProcesses) {
     deviceBytes.set(
       app.deviceIndex,
       (deviceBytes.get(app.deviceIndex) ?? 0) + app.usedMemoryBytes,
     );
   }
-  let anonBytes = 0;
-  let fileBytes = 0;
-  let measured = deviceBytes.size > 0;
-  for (const pid of pids) {
-    const usage = readProcMemory(pid);
-    if (!usage) {
-      continue;
-    }
-    measured = true;
-    anonBytes += usage.anonBytes;
-    fileBytes += usage.fileBytes;
-  }
-  if (!measured) {
-    return null;
-  }
   return {
-    processIds: pids,
+    processIds: sample.processIds,
     deviceByIndex: [...deviceBytes]
       .map(([deviceIndex, bytes]) => ({ deviceIndex, bytes }))
       .sort((left, right) => left.deviceIndex - right.deviceIndex),
-    anonBytes,
-    fileBytes,
+    anonBytes: sample.processMemory.reduce(
+      (sum, usage) => sum + usage.anonBytes,
+      0,
+    ),
+    fileBytes: sample.processMemory.reduce(
+      (sum, usage) => sum + usage.fileBytes,
+      0,
+    ),
   };
 }
 
@@ -514,20 +532,16 @@ export async function getRuntimeMemoryLayout(input: {
   baseLayout: InstanceMemoryLayout;
   kind: InstanceKind;
 }): Promise<InstanceMemoryLayout | null> {
-  const pids = await candidatePids(input);
-  if (pids.length === 0) {
+  const sample = await sampleRuntimeMemory(input);
+  if (!sample) {
     return null;
   }
 
-  const pidSet = new Set(pids);
   const gpuBytesByPid = new Map<
     number,
     { bytes: number; processNames: Set<string> }
   >();
-  for (const app of nvidiaTelemetry.computeProcesses()) {
-    if (!pidSet.has(app.pid)) {
-      continue;
-    }
+  for (const app of sample.gpuProcesses) {
     const current = gpuBytesByPid.get(app.pid) ?? {
       bytes: 0,
       processNames: new Set<string>(),
@@ -552,14 +566,10 @@ export async function getRuntimeMemoryLayout(input: {
     entries.push(placement);
   }
 
-  for (const pid of pids) {
-    const usage = readProcMemory(pid);
-    if (!usage) {
-      continue;
-    }
+  for (const usage of sample.processMemory) {
     if (usage.anonBytes > 0) {
       const placement = emptyMemoryPlacement(
-        `Process RAM pid ${pid} (anon)`,
+        `Process RAM pid ${usage.pid} (anon)`,
         "host",
       );
       placement.otherBytes = usage.anonBytes;
@@ -568,7 +578,7 @@ export async function getRuntimeMemoryLayout(input: {
     }
     if (usage.fileBytes > 0) {
       const placement = emptyMemoryPlacement(
-        `Process RAM pid ${pid} (mmap file)`,
+        `Process RAM pid ${usage.pid} (mmap file)`,
         "other",
       );
       placement.otherBytes = usage.fileBytes;

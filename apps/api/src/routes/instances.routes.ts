@@ -12,10 +12,10 @@ import type { Hono } from "hono";
 
 import { admitInstanceDraw } from "../resources/ledger.js";
 import { getMemoryPool } from "../resources/repository.js";
+import { captureMeasuredBaseline } from "../memory-assessment/measured.js";
 import {
   bindMemoryAssessmentToInstance,
   buildMemoryAssessmentReport,
-  captureMeasuredBaseline,
   evaluateInstanceMemoryAssessment,
 } from "../memory-assessment/service.js";
 

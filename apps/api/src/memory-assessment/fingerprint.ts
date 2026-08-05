@@ -2,6 +2,7 @@ import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { canonicalJsonDigest as digest } from "../utils/canonical-json.js";
+import { sortedByKey } from "../utils/sort.js";
 import type { FileIdentity, MemoryAssessmentFingerprint } from "./receipt.js";
 
 const DIRECTORY_FILE_LIMIT = 256;
@@ -71,16 +72,15 @@ function collectDirectoryFiles(
   }
 }
 
-export function directoryArtifactIdentities(path: string): FileIdentity[] {
+function directoryArtifactIdentities(path: string): FileIdentity[] {
   const normalized = normalizedPath(path);
   const files: FileIdentity[] = [];
   collectDirectoryFiles(normalized, DIRECTORY_WALK_DEPTH, files);
   if (files.length === 0) {
-    const single = fileIdentity(normalized);
-    return single ? [single] : [];
+    return [];
   }
   if (files.length <= DIRECTORY_FILE_LIMIT) {
-    return files.sort((left, right) => left.path.localeCompare(right.path));
+    return sortedByKey(files, (file) => file.path);
   }
   return [
     {
@@ -103,12 +103,6 @@ export function artifactIdentities(path: string): FileIdentity[] {
     return [];
   }
   return [];
-}
-
-export function sortedIdentities(entries: FileIdentity[]): FileIdentity[] {
-  return [...entries].sort((left, right) =>
-    left.path.localeCompare(right.path),
-  );
 }
 
 export function cachedFingerprint(
