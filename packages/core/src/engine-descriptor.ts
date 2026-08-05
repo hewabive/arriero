@@ -27,6 +27,10 @@ export type EnginePreflightId =
   | "vllm"
   | "ktransformers"
   | "none";
+export type EngineAssessmentFingerprintId =
+  | "llama-binary-gguf"
+  | "python-env"
+  | "none";
 export type EngineProcessTreePolicy =
   | "root-only"
   | "named-descendants"
@@ -74,6 +78,10 @@ export type EngineDescriptor = {
   };
   logs: { parser: EngineLogParserId };
   estimator: EngineEstimatorId;
+  assessment: {
+    fingerprint: EngineAssessmentFingerprintId;
+    measuredBaseline: boolean;
+  };
   resourceProfile: EngineResourceProfileId;
   processTree: EngineProcessTreePolicy;
   concurrency: EngineConcurrencyId;
@@ -112,6 +120,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "llama" },
     estimator: "gguf",
+    assessment: { fingerprint: "llama-binary-gguf", measuredBaseline: true },
     resourceProfile: "llama-args",
     processTree: "named-descendants",
     concurrency: "llama-parallel",
@@ -145,6 +154,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "llama" },
     estimator: "none",
+    assessment: { fingerprint: "none", measuredBaseline: false },
     resourceProfile: "rpc-device-args",
     processTree: "root-only",
     concurrency: "none",
@@ -182,6 +192,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "vllm" },
     estimator: "vllm-gpu-util",
+    assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "vllm-args",
     processTree: "all-descendants",
     concurrency: "vllm-sequences",
@@ -220,6 +231,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "sglang" },
     estimator: "none",
+    assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "ktransformers-hybrid",
     processTree: "all-descendants",
     concurrency: "sglang-max-running-requests",

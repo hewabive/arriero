@@ -212,7 +212,7 @@ function resolveExistingPath(
   return null;
 }
 
-function resolveModelPath(args: MemoryEstimateArgs): string | null {
+export function resolveModelPath(args: MemoryEstimateArgs): string | null {
   return resolveExistingPath(args, ["--model", "-m"]);
 }
 

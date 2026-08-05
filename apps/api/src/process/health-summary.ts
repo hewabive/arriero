@@ -383,12 +383,12 @@ export async function getInstanceHealthSummary(
     numaPlacement,
   });
   const configDrift = detectConfigDrift(instance, runtime, latestRun);
-  const memoryAssessment = evaluateInstanceMemoryAssessment(
-    instance,
-    runtime.status === "running" && logSummary.ready && !configDrift
-      ? logSummary.memoryLayout
-      : undefined,
-  );
+  const memoryAssessment = evaluateInstanceMemoryAssessment(instance, {
+    ...(runtime.status === "running" && logSummary.ready && !configDrift
+      ? { layout: logSummary.memoryLayout }
+      : {}),
+    runId: latestRun?.id ?? null,
+  });
 
   return {
     instanceId: instance.name,

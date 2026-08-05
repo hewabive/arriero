@@ -15,6 +15,8 @@ import { getMemoryPool } from "../resources/repository.js";
 import {
   bindMemoryAssessmentToInstance,
   buildMemoryAssessmentReport,
+  captureMeasuredBaseline,
+  evaluateInstanceMemoryAssessment,
 } from "../memory-assessment/service.js";
 
 import {
@@ -259,6 +261,26 @@ export function registerInstanceRoutes(app: Hono) {
     } catch (error) {
       return c.json({ error: (error as Error).message }, 409);
     }
+  });
+
+  app.post("/api/instances/:id/memory-assessment/measure", async (c) => {
+    const instance = getInstance(c.req.param("id"));
+    if (!instance) {
+      return c.json({ error: "instance not found" }, 404);
+    }
+    const health = await getInstanceHealthSummary(instance, {
+      peers: listInstances(),
+    });
+    const result = await captureMeasuredBaseline({ instance, health });
+    if (!result.ok) {
+      return c.json({ error: result.reason }, 409);
+    }
+    return c.json({
+      data:
+        evaluateInstanceMemoryAssessment(instance, {
+          runId: latestProcessRun(instance.name)?.id ?? null,
+        }) ?? null,
+    });
   });
 
   app.get("/api/instances/:id/memory-assessment/report", async (c) => {

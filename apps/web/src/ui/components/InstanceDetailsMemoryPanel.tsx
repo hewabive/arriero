@@ -1,8 +1,11 @@
-import type {
-  MemoryAssessmentSummary,
-  InstanceMemoryDraw,
-  InstanceMemoryLayout,
-  InstanceMemoryPlacement,
+import {
+  engineDescriptor,
+  type InstanceHealthSummaryStatus,
+  type InstanceKind,
+  type MemoryAssessmentSummary,
+  type InstanceMemoryDraw,
+  type InstanceMemoryLayout,
+  type InstanceMemoryPlacement,
 } from "@arriero/core";
 import {
   Alert,
@@ -15,10 +18,15 @@ import {
   Text,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation } from "@tanstack/react-query";
-import { Download } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Download, Gauge } from "lucide-react";
 
-import { getInstanceMemoryAssessmentReport } from "../../api/client";
+import {
+  getInstanceMemoryAssessmentReport,
+  measureInstanceMemoryBaseline,
+  updateInstance,
+} from "../../api/client";
+import { formatLocalDateTime } from "../utils/time";
 import {
   formatBytes,
   memoryAssessmentStatusColors,
@@ -88,11 +96,66 @@ function memoryLayoutBadge(layout: InstanceMemoryLayout | undefined) {
 
 export function MemoryLayoutPanel(props: {
   instanceId: string;
+  kind?: InstanceKind | undefined;
+  healthStatus?: InstanceHealthSummaryStatus | undefined;
   layout: InstanceMemoryLayout | undefined;
   declared?: InstanceMemoryDraw[] | undefined;
   assessment?: MemoryAssessmentSummary | undefined;
 }) {
   const layout = props.layout;
+  const queryClient = useQueryClient();
+  const measureSupported = props.kind
+    ? engineDescriptor(props.kind).assessment.measuredBaseline
+    : false;
+  const measureEnabled =
+    measureSupported &&
+    (props.healthStatus === "ready" || props.healthStatus === "degraded");
+  const baseline = props.assessment?.baseline ?? null;
+  const invalidateAssessment = () =>
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["instance-health-summary", props.instanceId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["instances-health-summary"] }),
+      queryClient.invalidateQueries({ queryKey: ["instances"] }),
+    ]);
+  const measureMutation = useMutation({
+    mutationFn: () => measureInstanceMemoryBaseline(props.instanceId),
+    onSuccess: async () => {
+      notifications.show({
+        color: "teal",
+        title: "Measured baseline captured",
+        message: "Runtime memory was recorded as the instance baseline.",
+      });
+      await invalidateAssessment();
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Baseline capture failed",
+        message: (error as Error).message,
+      });
+    },
+  });
+  const applyBaselineMutation = useMutation({
+    mutationFn: () =>
+      updateInstance(props.instanceId, { memory: baseline?.draws ?? [] }),
+    onSuccess: async () => {
+      notifications.show({
+        color: "teal",
+        title: "Draws applied",
+        message: "The measured baseline is now the declared reservation.",
+      });
+      await invalidateAssessment();
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Applying draws failed",
+        message: (error as Error).message,
+      });
+    },
+  });
   const entries = layout?.entries ?? [];
   const hasRuntimeEntries = layout && layout.totalBytes > 0 ? layout : null;
   const processTelemetry = layout?.source === "process-telemetry";
@@ -139,9 +202,26 @@ export function MemoryLayoutPanel(props: {
             {memoryLayoutSourceText(layout)}
           </Text>
         </Stack>
-        <Badge {...(processTelemetry ? { color: "cyan" } : {})} variant="light">
-          {memoryLayoutBadge(layout)}
-        </Badge>
+        <Group gap="xs">
+          {measureSupported && (
+            <Button
+              variant="light"
+              size="compact-xs"
+              leftSection={<Gauge size={13} />}
+              disabled={!measureEnabled}
+              loading={measureMutation.isPending}
+              onClick={() => measureMutation.mutate()}
+            >
+              Capture measured baseline
+            </Button>
+          )}
+          <Badge
+            {...(processTelemetry ? { color: "cyan" } : {})}
+            variant="light"
+          >
+            {memoryLayoutBadge(layout)}
+          </Badge>
+        </Group>
       </Group>
 
       {props.assessment && (
@@ -189,7 +269,31 @@ export function MemoryLayoutPanel(props: {
                 {props.assessment.recommendation}
               </Text>
             )}
+            {baseline && (
+              <Group gap="xs" align="center" wrap="wrap">
+                <Text c="dimmed" size="xs">
+                  Baseline {formatLocalDateTime(baseline.capturedAt)}: VRAM{" "}
+                  {formatMemoryBytes(baseline.deviceBytes)}, RAM{" "}
+                  {formatMemoryBytes(baseline.hostBytes)}, mmap{" "}
+                  {formatMemoryBytes(baseline.mmapBytes)}
+                </Text>
+                {baseline.draws.length > 0 &&
+                  props.assessment.reservationStatus !== "applied" && (
+                    <Button
+                      variant="subtle"
+                      size="compact-xs"
+                      loading={applyBaselineMutation.isPending}
+                      onClick={() => applyBaselineMutation.mutate()}
+                    >
+                      Apply as draws
+                    </Button>
+                  )}
+              </Group>
+            )}
             <Group gap="xs">
+              <Badge variant="outline" size="xs">
+                evidence {props.assessment.evidence ?? "none"}
+              </Badge>
               <Badge variant="outline" size="xs">
                 reservation {props.assessment.reservationStatus}
               </Badge>

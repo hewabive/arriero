@@ -29,6 +29,7 @@ for plugging in a new engine.
 | `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) | `sglang-help` (sibling Python module `--help`) |
 | `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` | `sglang` |
 | `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `vllm-gpu-util` | `none` |
+| `assessment` | Memory-assessment fingerprint id + measured-baseline capture | `llama-binary-gguf`, measured | `none` | `python-env`, measured | `python-env`, measured |
 | `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` | `ktransformers-hybrid` |
 | `processTree` | Runtime process ownership | named descendants | root only | all descendants | all descendants |
 | `concurrency` | Request-limit parser | llama parallel | none | vLLM sequences | SGLang max running requests |
@@ -44,6 +45,7 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 | `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`, `sglang-help`; SGLang help uses sibling `bin/python -m sglang.launch_server --help` to avoid unrelated umbrella-CLI imports. Route generation is async; cache rows/sidecars carry `parserId` |
 | `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` joins arrays as CSV; `argparse-flags` emits each array item as a separate token. Both put positionals first and sort flags deterministically |
 | `EngineEstimatorId` | dispatch in `apps/api/src/memory-estimate/service.ts` | `gguf` → tensor-aware llama estimate; `vllm-gpu-util` → one utilization-based draw per selected GPU |
+| `EngineAssessmentFingerprintId` | `apps/api/src/memory-assessment/engines.ts` | `llama-binary-gguf` → binary + llama.cpp libraries + GGUF artifacts + current-default-binary tracking; `python-env` → entrypoint + venv identity (`bin/python`, `pyvenv.cfg`, `freeze.txt`) + model dir artifacts; `none` → no `memoryAssessment` surface. Kinds with `measuredBaseline` also get the measured-baseline capture (`docs/MEMORY_ESTIMATION.md` § Instance assessment) |
 | `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args`, `ktransformers-hybrid` |
 
 Instance records may also carry typed `engineConfig` and a persisted
@@ -88,7 +90,7 @@ Not everything generalizes; these stay llama-specific implementations behind opt
 ## New-engine checklist
 
 1. Add the kind to `INSTANCE_KINDS` and write its `EngineDescriptor`; the `Record` exhaustiveness and this doc's registries are the to-do list.
-2. Implement and register: a probe (`engine-probe.ts`), a log parser (`log-parsers/`), a preflight module (or `none`), a `--help` parser (or `none` — the instance form then has no catalog; catalog resolution is kind-threaded end to end: `GET /api/llama-args?kind=` picks the parser and the web form sends its selected kind), an argv builder (or reuse `flag-map`; `instance.positionalArgs` covers `serve <model>`-style subcommand launches), a resource-profile strategy, an estimator (or `none` — draws are then declared manually, which the ledger already supports).
+2. Implement and register: a probe (`engine-probe.ts`), a log parser (`log-parsers/`), a preflight module (or `none`), a `--help` parser (or `none` — the instance form then has no catalog; catalog resolution is kind-threaded end to end: `GET /api/llama-args?kind=` picks the parser and the web form sends its selected kind), an argv builder (or reuse `flag-map`; `instance.positionalArgs` covers `serve <model>`-style subcommand launches), a resource-profile strategy, an estimator (or `none` — draws are then declared manually, which the ledger already supports), and an assessment fingerprint (or `none` — the instance then has no `memoryAssessment` surface; `python-env` is reusable for venv-launched engines, and `measuredBaseline: true` enables runtime baseline capture with no engine-specific code).
 3. Decide the `proxy` flags honestly; `modelLoadUnload:false` + `slotSave:false` + `streamResume:false` + `sseTimings:false` yields a correct start/stop-only managed target (the scheduler restarts the process from `unloaded` state instead of emitting load verbs).
 4. Decide `nativeApi` honestly: only `"llama"` renders the llama runtime panels (probe pills, Models, Slots, Capabilities, Web-UI button) in instance details; an OpenAI-compatible engine that does not speak llama's `/props`/`/slots` must say `"none"` even though it has HTTP health.
 5. If the engine forks worker children (tensor-parallel runtimes), extend the descendant-process matcher in `process/runtime-memory.ts` (`isLikelyLlamaServer` filters on the llama-server command name) — otherwise worker VRAM/RSS vanishes from the memory layout and the scheduler evicts into occupied memory.

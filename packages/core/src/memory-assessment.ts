@@ -4,8 +4,14 @@ export const MemoryAssessmentStatusSchema = z.enum([
   "not-assessed",
   "update-required",
   "analytical",
+  "measured",
   "verified",
   "mismatch",
+]);
+
+export const MemoryAssessmentEvidenceSchema = z.enum([
+  "analytical",
+  "measured",
 ]);
 
 export const MemoryAssessmentReservationStatusSchema = z.enum([
@@ -29,18 +35,33 @@ export const MemoryAssessmentValidationSourceSchema = z.enum([
   "process-telemetry",
 ]);
 
+export const MemoryAssessmentDrawSchema = z.object({
+  poolId: z.string(),
+  bytes: z.number().int().nonnegative(),
+});
+
+export const MemoryAssessmentBaselineSchema = z.object({
+  capturedAt: z.string(),
+  deviceBytes: z.number().int().nonnegative(),
+  hostBytes: z.number().int().nonnegative(),
+  mmapBytes: z.number().int().nonnegative(),
+  draws: z.array(MemoryAssessmentDrawSchema),
+});
+
 export const MemoryAssessmentSummarySchema = z.object({
   status: MemoryAssessmentStatusSchema,
   reason: z.string(),
   reasons: z.array(z.string()).default([]),
   recommendation: z.string().nullable().default(null),
   assessedAt: z.string().nullable().default(null),
+  evidence: MemoryAssessmentEvidenceSchema.nullable().default(null),
   estimatorId: z.string().nullable().default(null),
   estimatorVersion: z.number().int().nullable().default(null),
   confidence: z.enum(["high", "medium", "low"]).nullable().default(null),
   reservationStatus: MemoryAssessmentReservationStatusSchema,
   validationSource: MemoryAssessmentValidationSourceSchema,
   deltas: z.array(MemoryAssessmentDeltaSchema).default([]),
+  baseline: MemoryAssessmentBaselineSchema.nullable().default(null),
   reportAvailable: z.boolean().default(false),
 });
 
@@ -51,7 +72,14 @@ export const MemoryAssessmentBindRequestSchema = z.object({
 export type MemoryAssessmentStatus = z.infer<
   typeof MemoryAssessmentStatusSchema
 >;
+export type MemoryAssessmentEvidence = z.infer<
+  typeof MemoryAssessmentEvidenceSchema
+>;
 export type MemoryAssessmentDelta = z.infer<typeof MemoryAssessmentDeltaSchema>;
+export type MemoryAssessmentDraw = z.infer<typeof MemoryAssessmentDrawSchema>;
+export type MemoryAssessmentBaseline = z.infer<
+  typeof MemoryAssessmentBaselineSchema
+>;
 export type MemoryAssessmentSummary = z.infer<
   typeof MemoryAssessmentSummarySchema
 >;

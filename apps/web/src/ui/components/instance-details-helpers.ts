@@ -17,6 +17,7 @@ export const memoryAssessmentStatusColors: Record<
   "not-assessed": "gray",
   "update-required": "orange",
   analytical: "blue",
+  measured: "cyan",
   verified: "green",
   mismatch: "red",
 };

@@ -428,6 +428,58 @@ async function candidatePids(input: {
     .sort((left, right) => left - right);
 }
 
+export type RuntimeMemoryObservation = {
+  processIds: number[];
+  deviceByIndex: { deviceIndex: number; bytes: number }[];
+  anonBytes: number;
+  fileBytes: number;
+};
+
+export async function getRuntimeMemoryObservation(input: {
+  runtime: RuntimeState | undefined;
+  lines: string[];
+  kind: InstanceKind;
+}): Promise<RuntimeMemoryObservation | null> {
+  const pids = await candidatePids(input);
+  if (pids.length === 0) {
+    return null;
+  }
+  const pidSet = new Set(pids);
+  const deviceBytes = new Map<number, number>();
+  for (const app of nvidiaTelemetry.computeProcesses()) {
+    if (!pidSet.has(app.pid)) {
+      continue;
+    }
+    deviceBytes.set(
+      app.deviceIndex,
+      (deviceBytes.get(app.deviceIndex) ?? 0) + app.usedMemoryBytes,
+    );
+  }
+  let anonBytes = 0;
+  let fileBytes = 0;
+  let measured = deviceBytes.size > 0;
+  for (const pid of pids) {
+    const usage = readProcMemory(pid);
+    if (!usage) {
+      continue;
+    }
+    measured = true;
+    anonBytes += usage.anonBytes;
+    fileBytes += usage.fileBytes;
+  }
+  if (!measured) {
+    return null;
+  }
+  return {
+    processIds: pids,
+    deviceByIndex: [...deviceBytes]
+      .map(([deviceIndex, bytes]) => ({ deviceIndex, bytes }))
+      .sort((left, right) => left.deviceIndex - right.deviceIndex),
+    anonBytes,
+    fileBytes,
+  };
+}
+
 function layoutFromEntries(input: {
   entries: InstanceMemoryPlacement[];
   baseLayout: InstanceMemoryLayout;

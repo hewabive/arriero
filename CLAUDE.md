@@ -85,7 +85,8 @@ exec, active-job registry + single shutdown path, log tail — used by build/env
 copy-identical across the update-kit repos, `docs/BACKGROUND_JOBS.md`) ·
 `models` (gguf/scanner/cache) · `presets` · `llama` (probe + source repo) ·
 `path-catalog` · `resources` (memory pools + capacity ledger) · `memory-estimate` (a-priori per-pool
-footprint from GGUF + args, `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
+footprint from GGUF + args) + `memory-assessment` (per-engine analytical/measured evidence receipts +
+fingerprint drift, `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
 1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `filesystem` ·
 `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`) · `update` (manager
 version/run-mode + UI self-update runner, `docs/SELF_UPDATE.md`) · `prerequisites` (host-tooling

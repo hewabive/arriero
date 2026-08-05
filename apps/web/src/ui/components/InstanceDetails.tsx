@@ -423,6 +423,8 @@ export function InstanceDetails(props: {
         <SectionLabel>Memory &amp; cache</SectionLabel>
         <MemoryLayoutPanel
           instanceId={props.instance?.name ?? ""}
+          kind={props.instance?.kind}
+          healthStatus={health?.status}
           layout={statusSummary?.memoryLayout}
           declared={props.instance?.memory}
           assessment={health?.memoryAssessment}

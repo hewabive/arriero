@@ -68,6 +68,7 @@ function InstanceMemoryAssessmentBadge(props: {
     "not-assessed": "memory not assessed",
     "update-required": "memory assessment stale",
     analytical: "memory analytical",
+    measured: "memory measured",
     verified: "memory verified",
     mismatch: "memory mismatch",
   };

@@ -1,36 +1,30 @@
 import {
   MEMORY_ESTIMATOR_VERSION,
-  MemoryAssessmentDeltaSchema,
-  MemoryAssessmentValidationSourceSchema,
-  MemoryEstimateSchema,
-  engineDescriptor,
   type Instance,
   type InstanceHealthSummary,
   type InstanceMemoryLayout,
-  type MemoryAssessmentDelta,
   type MemoryAssessmentSummary,
-  type MemoryEstimate,
 } from "@arriero/core";
-import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { z } from "zod";
 
-import { defaultBinaryPath } from "../arguments/binary-discovery.js";
 import { getInstance } from "../instances/repository.js";
-import { resolveGgufShardPaths } from "../models/gguf.js";
-import { listMemoryPools } from "../resources/repository.js";
 import { getAppVersion } from "../update/version.js";
 import { canonicalJsonDigest as digest } from "../utils/canonical-json.js";
+import type { MemoryEstimateResolution } from "../memory-estimate/service.js";
 import {
-  auxiliaryGgufPaths,
-  contextFromInstance,
-  poolsForEstimate,
-  resolveLlamaArgumentEnvironment,
-  DRAFT_MODEL_ARG_KEYS,
-  MMPROJ_ARG_KEYS,
-  type MemoryEstimateContext,
-  type MemoryEstimateResolution,
-} from "../memory-estimate/service.js";
+  MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION,
+  assessmentContextFromInstance,
+  assessmentEngine,
+  type AssessmentEngine,
+} from "./engines.js";
+import { measuredComparisonDeltas } from "./measured.js";
+import {
+  drawsDigest,
+  parseStoredReceipt,
+  type AnalyticalReceipt,
+  type MeasuredReceipt,
+  type MemoryAssessmentReceipt,
+  type MemoryAssessmentValidation,
+} from "./receipt.js";
 import {
   bindMemoryAssessment as bindStoredAssessment,
   createMemoryAssessmentDraft as createStoredDraft,
@@ -39,219 +33,49 @@ import {
   updateMemoryAssessmentReceipt,
 } from "./repository.js";
 
-const ESTIMATOR_ID = "llama.cpp-gguf";
-const VALIDATION_MIN_TOLERANCE = 128 * 1024 * 1024;
-const VALIDATION_RELATIVE_TOLERANCE = 0.08;
+export { MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION };
+export { captureMeasuredBaseline } from "./measured.js";
 
-export const MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION =
-  "Update both Arriero and llama.cpp, rebuild the current llama-server and llama-fit-params pair, then run the memory assessment again. If the mismatch remains, export the diagnostic report for a developer.";
+type EvaluationInput = {
+  layout?: InstanceMemoryLayout;
+  runId?: string | null;
+};
 
-const FileIdentitySchema = z.object({
-  path: z.string(),
-  size: z.number().int().nonnegative(),
-  mtimeMs: z.number().nonnegative(),
-});
-
-const FingerprintSchema = z.object({
-  digest: z.string(),
-  configDigest: z.string(),
-  hardwareDigest: z.string(),
-  binary: FileIdentitySchema.nullable(),
-  runtimeFiles: z.array(FileIdentitySchema),
-  artifacts: z.array(FileIdentitySchema),
-  currentBinaryPath: z.string(),
-});
-
-const ValidationSchema = z.object({
-  source: MemoryAssessmentValidationSourceSchema.exclude(["none"]),
-  observedAt: z.string(),
-  verdict: z.enum(["verified", "mismatch", "inconclusive"]),
-  deltas: z.array(MemoryAssessmentDeltaSchema),
-});
-
-const ReceiptSchema = z.object({
-  schemaVersion: z.literal(1),
-  estimatorId: z.literal(ESTIMATOR_ID),
-  estimatorVersion: z.number().int(),
-  createdAt: z.string(),
-  fingerprint: FingerprintSchema,
-  estimate: MemoryEstimateSchema,
-  appliedDrawsDigest: z.string().nullable(),
-  validation: ValidationSchema.nullable(),
-});
-
-type MemoryAssessmentFingerprint = z.infer<typeof FingerprintSchema>;
-type MemoryAssessmentValidation = z.infer<typeof ValidationSchema>;
-type MemoryAssessmentReceipt = z.infer<typeof ReceiptSchema>;
-
-function normalizedPath(path: string): string {
-  if (!path) return "";
-  const absolute = resolve(path);
-  try {
-    return realpathSync(absolute);
-  } catch {
-    return absolute;
-  }
-}
-
-function fileIdentity(path: string): z.infer<typeof FileIdentitySchema> | null {
-  try {
-    if (!path || !existsSync(path)) return null;
-    const normalized = normalizedPath(path);
-    const stat = statSync(normalized);
-    return {
-      path: normalized,
-      size: stat.size,
-      mtimeMs: Math.trunc(stat.mtimeMs),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function artifactPaths(context: MemoryEstimateContext, modelPath: string) {
-  const auxiliary = auxiliaryGgufPaths(context.args);
-  const candidates = [
-    modelPath,
-    ...[...MMPROJ_ARG_KEYS, ...DRAFT_MODEL_ARG_KEYS].flatMap((key) =>
-      typeof context.args[key] === "string" ? [context.args[key]] : [],
-    ),
-    ...auxiliary.loraPaths,
-    ...auxiliary.controlVectorPaths,
-  ].filter((path): path is string => Boolean(path && existsSync(path)));
-  const expanded = candidates.flatMap((path) => {
-    try {
-      return resolveGgufShardPaths(path);
-    } catch {
-      return [path];
-    }
-  });
-  return [...new Set(expanded.map(normalizedPath))];
-}
-
-function runtimeFileIdentities(binaryPath: string) {
-  const binary = fileIdentity(binaryPath);
-  if (!binary) return [];
-  const directory = dirname(binary.path);
-  let names: string[] = [];
-  try {
-    names = readdirSync(directory);
-  } catch {
-    return [binary];
-  }
-  const llamaLibrary =
-    /^(?:lib)?(?:ggml|llama|mtmd).*(?:\.so(?:\.\d+)*|\.dylib|\.dll)$/i;
-  const libraries = names
-    .filter((name) => llamaLibrary.test(name))
-    .map((name) => fileIdentity(resolve(directory, name)))
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  return [binary, ...libraries].sort((left, right) =>
-    left.path.localeCompare(right.path),
-  );
-}
-
-const FINGERPRINT_CACHE_TTL_MS = 10_000;
-const FINGERPRINT_CACHE_LIMIT = 128;
-const fingerprintCache = new Map<
-  string,
-  { fingerprint: MemoryAssessmentFingerprint; expiresAt: number }
->();
-
-function buildFingerprint(
-  context: MemoryEstimateContext,
-  modelPath: string,
-): MemoryAssessmentFingerprint {
-  const configDigest = digest({
-    kind: context.kind,
-    args: context.args,
-    positionalArgs: context.positionalArgs,
-    env: context.env,
-    rpcWorkers: context.rpcWorkers,
-  });
-  const cacheKey = `${configDigest}|${context.binaryPath}|${modelPath}`;
-  const cached = fingerprintCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.fingerprint;
-  }
-
-  const effectiveContext =
-    context.kind === "llama-server"
-      ? {
-          ...context,
-          args: resolveLlamaArgumentEnvironment(context.args, context.env),
-        }
-      : context;
-  const selectedPools = new Set(
-    poolsForEstimate(effectiveContext.args, context.env).map((pool) => pool.id),
-  );
-  const hardware = listMemoryPools()
-    .filter((pool) => selectedPools.has(pool.id))
-    .map((pool) => ({
-      id: pool.id,
-      kind: pool.kind,
-      capacityBytes: pool.capacityBytes,
-      deviceRef: pool.deviceRef,
-    }));
-  const binary = fileIdentity(context.binaryPath);
-  const runtimeFiles = runtimeFileIdentities(context.binaryPath);
-  let currentBinaryPath = "";
-  try {
-    currentBinaryPath = normalizedPath(defaultBinaryPath());
-  } catch {
-    currentBinaryPath = "";
-  }
-  const artifacts = artifactPaths(effectiveContext, modelPath)
-    .map(fileIdentity)
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  const hardwareDigest = digest(hardware);
-  const fingerprintBase = {
-    configDigest,
-    hardwareDigest,
-    binary,
-    runtimeFiles,
-    artifacts,
-    currentBinaryPath,
+function notAssessedSummary(engine: AssessmentEngine): MemoryAssessmentSummary {
+  return {
+    status: "not-assessed",
+    reason: engine.notAssessedReason,
+    reasons: [],
+    recommendation: engine.notAssessedRecommendation,
+    assessedAt: null,
+    evidence: null,
+    estimatorId: null,
+    estimatorVersion: null,
+    confidence: null,
+    reservationStatus: "not-applied",
+    validationSource: "none",
+    deltas: [],
+    baseline: null,
+    reportAvailable: false,
   };
-  const fingerprint = { ...fingerprintBase, digest: digest(fingerprintBase) };
-  fingerprintCache.set(cacheKey, {
-    fingerprint,
-    expiresAt: Date.now() + FINGERPRINT_CACHE_TTL_MS,
-  });
-  while (fingerprintCache.size > FINGERPRINT_CACHE_LIMIT) {
-    const oldest = fingerprintCache.keys().next().value;
-    if (oldest === undefined) {
-      break;
-    }
-    fingerprintCache.delete(oldest);
-  }
-  return fingerprint;
-}
-
-function drawsDigest(draws: Instance["memory"]): string {
-  return digest(
-    [...draws]
-      .map((draw) => ({ poolId: draw.poolId, bytes: draw.bytes }))
-      .sort((left, right) => left.poolId.localeCompare(right.poolId)),
-  );
 }
 
 export function createMemoryAssessment(
   result: Extract<MemoryEstimateResolution, { ok: true }>,
 ): string | null {
   const context = result.context;
-  if (
-    context.kind !== "llama-server" ||
-    engineDescriptor(context.kind).estimator !== "gguf"
-  ) {
+  const engine = assessmentEngine(context.kind);
+  if (!engine?.estimatorId) {
     return null;
   }
   const createdAt = new Date().toISOString();
-  const receipt: MemoryAssessmentReceipt = {
+  const receipt: AnalyticalReceipt = {
     schemaVersion: 1,
-    estimatorId: ESTIMATOR_ID,
+    evidence: "analytical",
+    estimatorId: engine.estimatorId,
     estimatorVersion: MEMORY_ESTIMATOR_VERSION,
     createdAt,
-    fingerprint: buildFingerprint(context, result.modelPath),
+    fingerprint: engine.buildFingerprint(context),
     estimate: result.estimate,
     appliedDrawsDigest: null,
     validation: null,
@@ -265,17 +89,27 @@ export function bindMemoryAssessmentToInstance(
 ): MemoryAssessmentSummary {
   const instance = getInstance(instanceId);
   if (!instance) throw new Error("instance not found");
+  const engine = assessmentEngine(instance.kind);
+  if (!engine) {
+    throw new Error(
+      `memory assessments are not applicable to ${instance.kind} instances`,
+    );
+  }
   const stored = getMemoryAssessmentById(assessmentId);
   if (!stored) throw new Error("memory assessment not found");
   if (stored.instanceId && stored.instanceId !== instanceId) {
     throw new Error("memory assessment is already bound to another instance");
   }
-  const parsed = ReceiptSchema.safeParse(stored.receipt);
-  if (!parsed.success) throw new Error("memory assessment receipt is invalid");
-  const receipt = parsed.data;
-  const modelPath = receipt.fingerprint.artifacts[0]?.path;
-  if (!modelPath) throw new Error("memory assessment has no model artifact");
-  const current = buildFingerprint(contextFromInstance(instance), modelPath);
+  const receipt = parseStoredReceipt(stored.receipt);
+  if (!receipt) throw new Error("memory assessment receipt is invalid");
+  if (receipt.evidence !== "analytical") {
+    throw new Error(
+      "only analytical assessments can be bound; measured baselines are captured in place",
+    );
+  }
+  const current = engine.buildFingerprint(
+    assessmentContextFromInstance(instance),
+  );
   if (current.digest !== receipt.fingerprint.digest) {
     throw new Error(
       "instance, binary, model files, or hardware changed after the estimate; run it again",
@@ -283,18 +117,20 @@ export function bindMemoryAssessmentToInstance(
   }
   const currentDrawsDigest = drawsDigest(instance.memory);
   const estimateDrawsDigest = drawsDigest(receipt.estimate.draws);
-  const bound: MemoryAssessmentReceipt = {
+  const bound: AnalyticalReceipt = {
     ...receipt,
     appliedDrawsDigest:
       currentDrawsDigest === estimateDrawsDigest ? currentDrawsDigest : null,
   };
   bindStoredAssessment(assessmentId, instanceId, bound);
-  return evaluateInstanceMemoryAssessment(instance) ?? notAssessedSummary();
+  return (
+    evaluateInstanceMemoryAssessment(instance) ?? notAssessedSummary(engine)
+  );
 }
 
-function reservationStatus(
+function analyticalReservationStatus(
   instance: Instance,
-  receipt: MemoryAssessmentReceipt,
+  receipt: AnalyticalReceipt,
 ): MemoryAssessmentSummary["reservationStatus"] {
   if (!receipt.appliedDrawsDigest) return "not-applied";
   return drawsDigest(instance.memory) === receipt.appliedDrawsDigest
@@ -302,222 +138,280 @@ function reservationStatus(
     : "modified";
 }
 
-function fingerprintDriftReasons(
-  stored: MemoryAssessmentFingerprint,
-  current: MemoryAssessmentFingerprint,
-): string[] {
-  const reasons: string[] = [];
-  if (
-    current.binary === null ||
-    current.binary.path !== current.currentBinaryPath
-  ) {
-    reasons.push(
-      "The selected llama-server is not the current binary known to Arriero.",
-    );
-  }
-  if (stored.configDigest !== current.configDigest) {
-    reasons.push("Memory-affecting instance arguments or environment changed.");
-  }
-  if (JSON.stringify(stored.binary) !== JSON.stringify(current.binary)) {
-    reasons.push("The llama-server binary changed since the estimate.");
-  }
-  if (
-    JSON.stringify(stored.runtimeFiles) !== JSON.stringify(current.runtimeFiles)
-  ) {
-    reasons.push("The llama.cpp runtime libraries changed since the estimate.");
-  }
-  if (JSON.stringify(stored.artifacts) !== JSON.stringify(current.artifacts)) {
-    reasons.push(
-      "The model, draft model, mmproj, LoRA, control vector, or GGUF shards changed.",
-    );
-  }
-  if (stored.hardwareDigest !== current.hardwareDigest) {
-    reasons.push("The selected memory-pool hardware changed.");
-  }
-  if (stored.currentBinaryPath !== current.currentBinaryPath) {
-    reasons.push(
-      "Arriero now considers a different llama-server binary current.",
-    );
-  }
-  return reasons;
-}
-
-function expectedRuntimeBytes(estimate: MemoryEstimate, kind: "gpu" | "host") {
-  return estimate.pools
-    .filter((pool) => pool.kind === kind)
-    .reduce(
-      (sum, pool) => sum + pool.weightsBytes + pool.kvBytes + pool.computeBytes,
-      0,
-    );
-}
-
-export function validateMemoryAssessmentLayout(
-  estimate: MemoryEstimate,
-  layout: InstanceMemoryLayout,
-): MemoryAssessmentValidation | null {
-  if (layout.source !== "log-buffers" || layout.totalBytes <= 0) return null;
-  if (layout.otherBytes > 0) {
-    return {
-      source: "log-buffers",
-      observedAt: new Date().toISOString(),
-      verdict: "inconclusive",
-      deltas: [],
-    };
-  }
-  const pairs = [
-    {
-      scope: "gpu" as const,
-      expectedBytes: expectedRuntimeBytes(estimate, "gpu"),
-      observedBytes: layout.deviceBytes,
-    },
-    {
-      scope: "host" as const,
-      expectedBytes: expectedRuntimeBytes(estimate, "host"),
-      observedBytes: layout.hostBytes,
-    },
-  ].filter((entry) => entry.expectedBytes > 0 || entry.observedBytes > 0);
-  const deltas: MemoryAssessmentDelta[] = pairs.map((entry) => {
-    const toleranceBytes = Math.max(
-      VALIDATION_MIN_TOLERANCE,
-      Math.round(entry.expectedBytes * VALIDATION_RELATIVE_TOLERANCE),
-    );
-    return {
-      ...entry,
-      deltaBytes: entry.observedBytes - entry.expectedBytes,
-      toleranceBytes,
-    };
-  });
-  const mismatch = deltas.some(
-    (entry) => Math.abs(entry.deltaBytes) > entry.toleranceBytes,
-  );
-  return {
-    source: "log-buffers",
-    observedAt: new Date().toISOString(),
-    verdict: mismatch ? "mismatch" : "verified",
-    deltas,
-  };
-}
-
-function notAssessedSummary(): MemoryAssessmentSummary {
-  return {
-    status: "not-assessed",
-    reason: "Memory has not been assessed for this instance configuration.",
-    reasons: [],
-    recommendation:
-      "Run Estimate memory in the instance editor and save the resulting assessment.",
-    assessedAt: null,
-    estimatorId: null,
-    estimatorVersion: null,
-    confidence: null,
-    reservationStatus: "not-applied",
-    validationSource: "none",
-    deltas: [],
-    reportAvailable: false,
-  };
-}
-
-export function evaluateInstanceMemoryAssessment(
+function measuredReservationStatus(
   instance: Instance,
-  layout?: InstanceMemoryLayout,
-): MemoryAssessmentSummary | undefined {
-  if (instance.kind !== "llama-server") return undefined;
-  const stored = getMemoryAssessmentForInstance(instance.name);
-  if (!stored) return notAssessedSummary();
-  const parsed = ReceiptSchema.safeParse(stored.receipt);
-  if (!parsed.success) {
-    return {
-      ...notAssessedSummary(),
-      status: "update-required",
-      reason:
-        "The stored memory assessment cannot be read by this Arriero version.",
-      reasons: ["The local assessment receipt is invalid or obsolete."],
-      recommendation: MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION,
-      reportAvailable: true,
-    };
+  receipt: MeasuredReceipt,
+): MemoryAssessmentSummary["reservationStatus"] {
+  if (receipt.observation.draws.length === 0) return "not-applied";
+  if (drawsDigest(instance.memory) === receipt.proposedDrawsDigest) {
+    return "applied";
   }
-  let receipt = parsed.data;
-  const modelPath = receipt.fingerprint.artifacts[0]?.path ?? "";
-  const current = buildFingerprint(contextFromInstance(instance), modelPath);
-  const reasons = fingerprintDriftReasons(receipt.fingerprint, current);
-  if (receipt.estimatorVersion !== MEMORY_ESTIMATOR_VERSION) {
-    reasons.unshift(
-      "Arriero's memory estimator changed since this assessment.",
+  return instance.memory.length === 0 ? "not-applied" : "modified";
+}
+
+function exceedsTolerance(delta: {
+  deltaBytes: number;
+  toleranceBytes: number;
+}): boolean {
+  return Math.abs(delta.deltaBytes) > delta.toleranceBytes;
+}
+
+function deltaReasons(validation: MemoryAssessmentValidation): string[] {
+  return validation.deltas
+    .filter(exceedsTolerance)
+    .map(
+      (entry) =>
+        `${entry.scope.toUpperCase()} differs by ${entry.deltaBytes} bytes (tolerance ${entry.toleranceBytes}).`,
     );
-  }
-  const receiptBase = {
+}
+
+type SummaryContext<Receipt extends MemoryAssessmentReceipt> = {
+  engine: AssessmentEngine;
+  instance: Instance;
+  storedId: string;
+  receipt: Receipt;
+  reasons: string[];
+  layout: InstanceMemoryLayout | undefined;
+  runId: string | null;
+};
+
+function analyticalSummary(
+  input: SummaryContext<AnalyticalReceipt>,
+): MemoryAssessmentSummary {
+  const { engine, instance, receipt, reasons } = input;
+  const base = {
     assessedAt: receipt.createdAt,
+    evidence: "analytical" as const,
     estimatorId: receipt.estimatorId,
     estimatorVersion: receipt.estimatorVersion,
     confidence: receipt.estimate.confidence,
-    reservationStatus: reservationStatus(instance, receipt),
+    reservationStatus: analyticalReservationStatus(instance, receipt),
+    baseline: null,
     reportAvailable: true,
   };
   if (reasons.length > 0) {
     return {
-      ...receiptBase,
+      ...base,
       status: "update-required",
       reason: reasons[0] ?? "The memory assessment is stale.",
       reasons,
-      recommendation: MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION,
+      recommendation: engine.updateRecommendation,
       validationSource: receipt.validation?.source ?? "none",
       deltas: receipt.validation?.deltas ?? [],
     };
   }
 
-  const validation = layout
-    ? validateMemoryAssessmentLayout(receipt.estimate, layout)
-    : null;
+  const alreadyValidatedRun =
+    receipt.validation?.runId != null &&
+    receipt.validation.runId === input.runId;
+  const validation =
+    input.layout && !alreadyValidatedRun
+      ? engine.validateAnalytical(receipt, input.layout, input.runId)
+      : null;
   if (
     validation &&
     digest({ ...validation, observedAt: null }) !==
       digest({ ...receipt.validation, observedAt: null })
   ) {
-    receipt = { ...receipt, validation };
-    updateMemoryAssessmentReceipt(stored.id, receipt);
+    updateMemoryAssessmentReceipt(input.storedId, { ...receipt, validation });
   }
-  const effectiveValidation = validation ?? receipt.validation;
-  const base = {
-    ...receiptBase,
-    validationSource: effectiveValidation?.source ?? ("none" as const),
-    deltas: effectiveValidation?.deltas ?? [],
+  const effective = validation ?? receipt.validation;
+  const withValidation = {
+    ...base,
+    validationSource: effective?.source ?? ("none" as const),
+    deltas: effective?.deltas ?? [],
   };
-  if (effectiveValidation?.verdict === "mismatch") {
+  if (effective?.verdict === "mismatch") {
     return {
-      ...base,
+      ...withValidation,
       status: "mismatch",
-      reason:
-        "Observed llama.cpp buffer allocation differs from Arriero's estimate.",
-      reasons: effectiveValidation.deltas
-        .filter((entry) => Math.abs(entry.deltaBytes) > entry.toleranceBytes)
-        .map(
-          (entry) =>
-            `${entry.scope.toUpperCase()} differs by ${entry.deltaBytes} bytes (tolerance ${entry.toleranceBytes}).`,
-        ),
-      recommendation: MEMORY_ASSESSMENT_UPDATE_RECOMMENDATION,
+      reason: engine.wording.mismatch,
+      reasons: deltaReasons(effective),
+      recommendation: engine.updateRecommendation,
     };
   }
-  if (effectiveValidation?.verdict === "verified") {
+  if (effective?.verdict === "verified") {
     return {
-      ...base,
+      ...withValidation,
       status: "verified",
-      reason: "The estimate matches llama.cpp's reported buffer allocation.",
+      reason: engine.wording.verified,
       reasons: [],
       recommendation: null,
     };
   }
   return {
-    ...base,
+    ...withValidation,
     status: "analytical",
     reason:
-      effectiveValidation?.verdict === "inconclusive"
-        ? "llama.cpp reported exact buffers, but Arriero could not map every allocation to RAM or VRAM."
-        : "The estimate is current, but no exact llama.cpp buffer allocation has been captured yet.",
+      effective?.verdict === "inconclusive"
+        ? engine.wording.inconclusive
+        : engine.wording.pending,
     reasons:
       receipt.estimate.confidence === "low"
         ? ["The estimator reported low confidence for this model layout."]
         : [],
     recommendation: null,
   };
+}
+
+function maybeValidateMeasured(
+  receipt: MeasuredReceipt,
+  layout: InstanceMemoryLayout | undefined,
+  runId: string | null,
+): MemoryAssessmentValidation | null {
+  if (
+    !layout ||
+    layout.source !== "process-telemetry" ||
+    layout.totalBytes <= 0
+  ) {
+    return null;
+  }
+  if (!runId || runId === receipt.observation.runId) return null;
+  if (receipt.validation?.runId === runId) return null;
+  const deltas = measuredComparisonDeltas(receipt.observation, {
+    deviceBytes: layout.deviceBytes,
+    hostBytes: layout.hostBytes,
+    mmapBytes: layout.otherBytes,
+  });
+  const mismatch = deltas.some(exceedsTolerance);
+  return {
+    source: "process-telemetry",
+    observedAt: new Date().toISOString(),
+    runId,
+    verdict: mismatch ? "mismatch" : "verified",
+    deltas,
+  };
+}
+
+function previousBaselineReasons(receipt: MeasuredReceipt): string[] {
+  const previous = receipt.previousBaseline;
+  if (!previous) return [];
+  return previous.deltas
+    .filter(exceedsTolerance)
+    .map(
+      (entry) =>
+        `${entry.scope.toUpperCase()} changed by ${entry.deltaBytes} bytes versus the previous baseline captured ${previous.capturedAt}.`,
+    );
+}
+
+function measuredSummary(
+  input: SummaryContext<MeasuredReceipt>,
+): MemoryAssessmentSummary {
+  const { engine, instance, receipt, reasons } = input;
+  const base = {
+    assessedAt: receipt.createdAt,
+    evidence: "measured" as const,
+    estimatorId: null,
+    estimatorVersion: null,
+    confidence: null,
+    reservationStatus: measuredReservationStatus(instance, receipt),
+    baseline: {
+      capturedAt: receipt.observation.capturedAt,
+      deviceBytes: receipt.observation.deviceBytes,
+      hostBytes: receipt.observation.hostBytes,
+      mmapBytes: receipt.observation.mmapBytes,
+      draws: receipt.observation.draws,
+    },
+    reportAvailable: true,
+  };
+  if (reasons.length > 0) {
+    return {
+      ...base,
+      status: "update-required",
+      reason: reasons[0] ?? "The measured baseline is stale.",
+      reasons,
+      recommendation: engine.updateRecommendation,
+      validationSource: receipt.validation?.source ?? "none",
+      deltas: receipt.validation?.deltas ?? [],
+    };
+  }
+
+  const validation = maybeValidateMeasured(receipt, input.layout, input.runId);
+  if (validation) {
+    updateMemoryAssessmentReceipt(input.storedId, { ...receipt, validation });
+  }
+  const effective = validation ?? receipt.validation;
+  const informational = [
+    ...receipt.observation.notes,
+    ...previousBaselineReasons(receipt),
+  ];
+  if (effective?.verdict === "mismatch") {
+    return {
+      ...base,
+      status: "mismatch",
+      reason: "Observed runtime memory differs from the measured baseline.",
+      reasons: [...deltaReasons(effective), ...informational],
+      recommendation: engine.updateRecommendation,
+      validationSource: effective.source,
+      deltas: effective.deltas,
+    };
+  }
+  if (effective?.verdict === "verified") {
+    return {
+      ...base,
+      status: "verified",
+      reason: "Observed runtime memory matches the measured baseline.",
+      reasons: informational,
+      recommendation: null,
+      validationSource: effective.source,
+      deltas: effective.deltas,
+    };
+  }
+  return {
+    ...base,
+    status: "measured",
+    reason: "A measured baseline is recorded for this configuration.",
+    reasons: informational,
+    recommendation: null,
+    validationSource: "none",
+    deltas: [],
+  };
+}
+
+export function evaluateInstanceMemoryAssessment(
+  instance: Instance,
+  input: EvaluationInput = {},
+): MemoryAssessmentSummary | undefined {
+  const engine = assessmentEngine(instance.kind);
+  if (!engine) return undefined;
+  const stored = getMemoryAssessmentForInstance(instance.name);
+  if (!stored) return notAssessedSummary(engine);
+  const receipt = parseStoredReceipt(stored.receipt);
+  if (!receipt) {
+    return {
+      ...notAssessedSummary(engine),
+      status: "update-required",
+      reason:
+        "The stored memory assessment cannot be read by this Arriero version.",
+      reasons: ["The local assessment receipt is invalid or obsolete."],
+      recommendation: engine.updateRecommendation,
+      reportAvailable: true,
+    };
+  }
+  const current = engine.buildFingerprint(
+    assessmentContextFromInstance(instance),
+  );
+  const reasons = engine.driftReasons(receipt.fingerprint, current);
+  if (receipt.evidence === "analytical") {
+    if (receipt.estimatorId !== engine.estimatorId) {
+      reasons.unshift("A different estimator produced this assessment.");
+    } else if (receipt.estimatorVersion !== MEMORY_ESTIMATOR_VERSION) {
+      reasons.unshift(
+        "Arriero's memory estimator changed since this assessment.",
+      );
+    }
+  }
+  const context = {
+    engine,
+    instance,
+    storedId: stored.id,
+    reasons,
+    layout: input.layout,
+    runId: input.runId ?? null,
+  };
+  return receipt.evidence === "analytical"
+    ? analyticalSummary({ ...context, receipt })
+    : measuredSummary({ ...context, receipt });
 }
 
 function redactRecord<T>(record: Record<string, T>) {
@@ -534,19 +428,19 @@ export function buildMemoryAssessmentReport(
   instance: Instance,
   health: InstanceHealthSummary,
 ) {
+  const engine = assessmentEngine(instance.kind);
   const stored = getMemoryAssessmentForInstance(instance.name);
-  const parsedReceipt = stored ? ReceiptSchema.safeParse(stored.receipt) : null;
-  const receipt = parsedReceipt?.success
-    ? parsedReceipt.data
-    : (stored?.receipt ?? null);
-  const modelPath = parsedReceipt?.success
-    ? (parsedReceipt.data.fingerprint.artifacts[0]?.path ?? "")
-    : "";
+  const receipt = stored
+    ? (parseStoredReceipt(stored.receipt) ?? stored.receipt)
+    : null;
   return {
-    reportVersion: 1,
+    reportVersion: 2,
     generatedAt: new Date().toISOString(),
     app: getAppVersion(),
-    estimator: { id: ESTIMATOR_ID, version: MEMORY_ESTIMATOR_VERSION },
+    estimator: {
+      id: engine?.estimatorId ?? null,
+      version: MEMORY_ESTIMATOR_VERSION,
+    },
     instance: {
       name: instance.name,
       kind: instance.kind,
@@ -555,14 +449,14 @@ export function buildMemoryAssessmentReport(
       args: redactRecord(instance.args),
       positionalArgs: instance.positionalArgs ?? [],
       env: redactRecord(instance.env),
+      engineConfig: instance.engineConfig ?? null,
       memory: instance.memory,
     },
     assessment: health.memoryAssessment ?? null,
     receipt,
-    currentFingerprint:
-      modelPath && instance.kind === "llama-server"
-        ? buildFingerprint(contextFromInstance(instance), modelPath)
-        : null,
+    currentFingerprint: engine
+      ? engine.buildFingerprint(assessmentContextFromInstance(instance))
+      : null,
     runtime: health.runtime,
     configDrift: health.configDrift,
     memoryLayout: health.logSummary.memoryLayout,

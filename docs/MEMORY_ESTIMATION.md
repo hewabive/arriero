@@ -328,56 +328,101 @@ conservative full offload, and which GPU assumptions remain.
 
 ## Instance assessment and drift detection
 
-A successful GGUF estimate also creates a local assessment receipt. The form
-binds that receipt to the instance when the configuration is saved. Receipts
-live in `data/arriero.db`, not in the portable instance configuration: they are
-evidence produced on one machine and must not migrate to a different machine.
+Assessment is engine-generic. Every creatable kind except `rpc-worker` (whose
+memory is owned by the orchestrating instance) exposes
+`InstanceHealthSummary.memoryAssessment`; a kind with no stored evidence
+reports `not-assessed` with an engine-tailored recommendation instead of
+omitting the field. The per-kind wiring is `EngineDescriptor.assessment`
+(fingerprint id + `measuredBaseline` flag), implemented by the registry in
+`apps/api/src/memory-assessment/engines.ts` — contract in
+`docs/ENGINE_ADAPTERS.md`.
 
-The receipt fingerprints:
+A receipt carries one of two **evidence** types:
 
-- `MEMORY_ESTIMATOR_VERSION` and the current estimator id;
-- memory-affecting args, environment, and managed RPC-worker references (stored
-  as a digest, not as plaintext);
-- the selected `llama-server` and adjacent llama.cpp runtime libraries;
-- the main GGUF, every split shard, draft GGUF, mmproj, every LoRA, and every
-  control-vector file by path, size, and modification time;
-- the selected memory-pool hardware.
+- **`analytical`** — produced by a successful estimate (`llama.cpp-gguf` for
+  llama-server, `vllm-gpu-util` for vLLM). The form binds the receipt to the
+  instance when the configuration is saved.
+- **`measured`** — a runtime baseline captured on demand
+  (`POST /api/instances/:id/memory-assessment/measure`) from a `running` +
+  ready instance with no launch-configuration drift: per-GPU NVML bytes and
+  `/proc` anon+mmap RSS over the engine's process tree
+  (`process/runtime-memory.ts:getRuntimeMemoryObservation`, briefly retried),
+  attributed to memory pools — per-GPU by `deviceRef`, host RAM to the single
+  host pool. The observation stores proposed per-pool draws ("Apply as draws"
+  in instance details) and, when it replaces an older baseline, the deltas
+  against it — "actual memory changed after the update" survives
+  re-baselining. Available for every kind with `measuredBaseline`, including
+  llama-server; KTransformers has only this evidence.
 
-Arriero supports one current estimator/binary pairing. It does not keep
-historical formulas for old llama.cpp revisions. The selected server must match
-the binary Arriero currently resolves as its default (normally the managed
-`master` build). A changed estimator, binary/runtime library, model artifact,
-configuration, hardware fingerprint, or newly selected current binary makes the
-receipt `update-required`.
+An instance holds one receipt: capturing a baseline replaces a bound
+analytical receipt and vice versa.
+
+Receipts live in `data/arriero.db`, not in the portable instance
+configuration: they are evidence produced on one machine and must not migrate
+to a different machine. Every fingerprint covers the memory-affecting
+configuration digest (args, env, positionals, RPC workers, typed
+`engineConfig`) and the selected memory-pool hardware, plus per-engine
+runtime/artifact identities (path, size, mtime — no plaintext secrets):
+
+- `llama-binary-gguf` — the selected `llama-server` and adjacent llama.cpp
+  runtime libraries, the main GGUF and every split shard, draft GGUF, mmproj,
+  every LoRA and control-vector file, and the manager's current default
+  binary. Arriero supports one current estimator/binary pairing and keeps no
+  historical formulas for old llama.cpp revisions; a newly selected current
+  binary alone makes the receipt `update-required`.
+- `python-env` (vLLM, KTransformers) — the engine entrypoint, the
+  environment's `bin/python`, `pyvenv.cfg` and `freeze.txt` (immutable
+  uv-managed environments pin their package set there), plus model artifacts
+  (KT `engineConfig` model + CPU weights, the vLLM positional,
+  `--model`/`--model-path`). A directory artifact is fingerprinted per file
+  up to 256 files, beyond that as an aggregate total-size + max-mtime
+  identity. In-place package mutation inside a hand-built venv is not
+  detectable; managed environments are immutable, so this only affects
+  external venvs.
 
 The evaluation runs inside every instance health summary, which the proxy
 reconcile loop and the web UI poll continuously, so it degrades instead of
 throwing: an unreadable/invalid stored receipt and a missing current default
-binary both surface as `update-required` rather than failing the endpoint.
-Because the fingerprint stats model shards, runtime libraries and the argument
-registry on every rebuild, the computed fingerprint is cached for ~10 s per
-(config digest, binary, model) key and the parsed argument registry for ~5 s —
-config changes take effect immediately (they change the key); pure file-mtime
-or hardware changes appear within the TTL.
+binary both surface as `update-required` rather than failing the endpoint. The
+computed fingerprint is cached for ~10 s per (config digest, binary) key and
+the parsed argument registry for ~5 s — config changes take effect immediately
+(they change the key); pure file-mtime or hardware changes appear within the
+TTL.
 
-When a bound instance reaches `running` + ready with no launch-configuration
-drift, Arriero compares the analytical GPU and host allocation to exact
-llama.cpp `* buffer size` log lines. The comparison excludes the estimator's
-CUDA-context overhead because that is not a llama.cpp buffer allocation. An
-absolute difference above `max(128 MiB, 8%)` marks the assessment `mismatch`;
-otherwise it becomes `verified`. Process RSS/NVML telemetry and host projections
-remain useful operational telemetry but are not precise enough to verify the
-buffer-level estimate. A completed validation remains visible after the process
-stops, until its fingerprint becomes stale.
+### Validation
 
-Instance health exposes `not-assessed`, `analytical`, `verified`, `mismatch`, or
-`update-required`, plus whether the estimated draws were applied and remain
-unchanged. `mismatch` and `update-required` tell the administrator to update both
-Arriero and llama.cpp, rebuild the current `llama-server` /
-`llama-fit-params` pair, and reassess. If drift remains, the instance details
-page exports a redacted JSON report for a developer. Maintainers must increment
-`MEMORY_ESTIMATOR_VERSION` whenever estimator semantics change so old receipts
-fail closed instead of silently retaining an obsolete result.
+- **llama-server analytical**: when a bound instance reaches `running` + ready
+  with no drift, the analytical GPU and host allocation is compared to exact
+  llama.cpp `* buffer size` log lines (excluding the estimator's CUDA-context
+  overhead, which is not a llama.cpp buffer allocation) with tolerance
+  `max(128 MiB, 8%)` → `verified`/`mismatch`. Process RSS/NVML telemetry and
+  host projections remain useful operational telemetry but are not precise
+  enough for this buffer-level verification.
+- **vLLM analytical**: process telemetry compares observed GPU bytes against
+  the reserved utilization fraction once per run with the telemetry tolerance
+  `max(256 MiB, 10%)`; host RAM is not compared (intentionally manual).
+- **measured**: the first health evaluation of a **later** run with process
+  telemetry compares device and host (anon+mmap) totals against the baseline
+  with the telemetry tolerance, once per run (the validation stores its run
+  id) — so the comparison happens near ready time, before request-history
+  caches grow. Telemetry-vs-telemetry comparison is self-consistent, which
+  sidesteps the RSS-vs-analytical precision trap documented below. A
+  llama-server run whose layout came from log buffers skips measured
+  validation rather than comparing unlike measurement kinds.
+
+A completed validation remains visible after the process stops, until its
+fingerprint becomes stale.
+
+Instance health exposes `not-assessed`, `update-required`, `analytical`,
+`measured`, `verified`, or `mismatch`, plus `evidence`, the measured baseline
+block, and whether the estimated/proposed draws were applied and remain
+unchanged. `mismatch` and `update-required` carry an engine-specific
+recommendation; if drift remains, the instance details page exports a redacted
+JSON report for a developer. Maintainers must increment
+`MEMORY_ESTIMATOR_VERSION` whenever analytical estimator semantics change, and
+bump the measured receipt's `baselineVersion` literal when measured-baseline
+semantics change, so old receipts fail closed instead of silently retaining an
+obsolete result.
 
 ## API
 
@@ -388,7 +433,8 @@ fail closed instead of silently retaining an obsolete result.
   — load an existing instance's inputs, and/or pass preview inputs; preview args
   and RPC-worker references override.
 - `200 { data: { modelPath, estimate, assessmentId } }` on success. The
-  assessment id is non-null for a supported `llama-server` GGUF assessment.
+  assessment id is non-null for kinds with an analytical estimator
+  (`llama-server` GGUF, vLLM gpu-util).
 - `422 { error }` for routers (`--models-preset`/`--models-dir`), built-in
   presets that rewrite launch parameters, remote main/draft/mmproj selectors,
   a missing model/mmproj/draft/LoRA/control-vector file, a selected device that
@@ -404,7 +450,10 @@ fail closed instead of silently retaining an obsolete result.
   `apps/api/src/arguments/estimation.ts`.
 
 `POST /api/instances/:id/memory-assessment` with `{ assessmentId }` binds the
-receipt after rechecking its complete fingerprint. `GET
+receipt after rechecking its complete fingerprint.
+`POST /api/instances/:id/memory-assessment/measure` captures a measured
+baseline from the running instance (409 with a reason when the instance is not
+running/ready, its config drifted, or no telemetry is available). `GET
 /api/instances/:id/memory-assessment/report` returns the diagnostic report;
 sensitive argument/environment keys are redacted.
 
