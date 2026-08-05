@@ -132,7 +132,7 @@ export async function cloneSourceRepository(
   const parsed = SourceRepositoryCloneSchema.parse(input);
   const current = getSourceRepositorySpec(sourceId);
   const originUrl = parsed.originUrl ?? current.originUrl;
-  assertGitRemoteUrl(originUrl, { allowFile: true });
+  assertGitRemoteUrl(originUrl, { allowFile: true, allowHttp: true });
   if (parsed.branch?.startsWith("-")) {
     throw new Error("invalid branch name");
   }
@@ -193,7 +193,7 @@ export async function updateSourceRepositorySettings(
   input: SourceRepositorySettingsUpdate,
 ): Promise<SourceRepositoryOperationResult> {
   const parsed = SourceRepositorySettingsUpdateSchema.parse(input);
-  assertGitRemoteUrl(parsed.originUrl, { allowFile: true });
+  assertGitRemoteUrl(parsed.originUrl, { allowFile: true, allowHttp: true });
   assertSourceContentCanChange(sourceId);
 
   const output = await withSourceRepositoryOperation(

@@ -52,28 +52,35 @@ function gitArguments(args: string[]): string[] {
 
 export function assertGitRemoteUrl(
   value: string,
-  options: { allowFile?: boolean } = {},
+  options: { allowFile?: boolean; allowHttp?: boolean } = {},
 ): void {
   if (/^[\w.-]+@[\w.-]+:[^\s]+$/.test(value)) return;
+  const protocolLabel = options.allowHttp
+    ? "SSH, HTTPS or HTTP"
+    : "SSH or HTTPS";
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     throw new Error(
-      `origin must be an SSH or HTTPS repository URL${options.allowFile ? " (file: is also allowed)" : ""}`,
+      `origin must be an ${protocolLabel} repository URL${options.allowFile ? " (file: is also allowed)" : ""}`,
     );
   }
   const protocols = new Set([
     "https:",
     "ssh:",
+    ...(options.allowHttp ? ["http:"] : []),
     ...(options.allowFile ? ["file:"] : []),
   ]);
   if (!protocols.has(url.protocol)) {
     throw new Error(
-      `origin must use SSH or HTTPS${options.allowFile ? " (or file:)" : ""}`,
+      `origin must use ${protocolLabel}${options.allowFile ? " (or file:)" : ""}`,
     );
   }
-  if (url.password || (url.protocol === "https:" && url.username)) {
+  if (
+    url.password ||
+    ((url.protocol === "https:" || url.protocol === "http:") && url.username)
+  ) {
     throw new Error("origin URL must not contain credentials");
   }
 }

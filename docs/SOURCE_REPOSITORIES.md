@@ -45,8 +45,10 @@ The Source Sync page can:
 - show repository path, branch, commit, tag, and dirty state;
 - run adapter-specific integration drift checks.
 
-Clone accepts credential-free HTTPS, SSH/SCP, and `file:` URLs. Private
-repository credentials must come from an SSH agent or Git credential helper.
+Clone accepts credential-free HTTPS, HTTP, SSH/SCP, and `file:` URLs (plain
+HTTP serves local mirrors; the configuration Git repository still requires
+SSH or HTTPS). Private repository credentials must come from an SSH agent or
+Git credential helper.
 Git commands disable terminal prompts and repository hooks, bound runtime and
 output, and redact credentials from returned output.
 

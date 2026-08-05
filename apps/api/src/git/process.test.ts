@@ -7,11 +7,14 @@ import { assertGitRemoteUrl, redactGitOutput, runGit } from "./process.js";
 test("source origins accept credential-free network and file URLs", () => {
   for (const value of [
     "https://github.com/ggml-org/llama.cpp.git",
+    "http://gitea.lan/mirrors/llama.cpp.git",
     "ssh://git@example.com/team/llama.cpp.git",
     "git@example.com:team/llama.cpp.git",
     "file:///srv/git/llama.cpp",
   ]) {
-    assert.doesNotThrow(() => assertGitRemoteUrl(value, { allowFile: true }));
+    assert.doesNotThrow(() =>
+      assertGitRemoteUrl(value, { allowFile: true, allowHttp: true }),
+    );
   }
 });
 
@@ -20,15 +23,32 @@ test("source origins reject credentials and unsupported protocols", () => {
     () =>
       assertGitRemoteUrl("https://token@example.com/team/repo.git", {
         allowFile: true,
+        allowHttp: true,
       }),
     /credentials/,
   );
   assert.throws(
     () =>
-      assertGitRemoteUrl("http://example.com/team/repo.git", {
+      assertGitRemoteUrl("http://token@example.com/team/repo.git", {
         allowFile: true,
+        allowHttp: true,
+      }),
+    /credentials/,
+  );
+  assert.throws(
+    () =>
+      assertGitRemoteUrl("git://example.com/team/repo.git", {
+        allowFile: true,
+        allowHttp: true,
       }),
     /must use/,
+  );
+});
+
+test("origins without allowHttp keep rejecting plain http", () => {
+  assert.throws(
+    () => assertGitRemoteUrl("http://example.com/team/repo.git"),
+    /must use SSH or HTTPS/,
   );
 });
 
