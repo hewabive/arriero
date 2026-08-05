@@ -21,6 +21,7 @@ import { resolveGgufShardPaths } from "../models/gguf.js";
 import { listMemoryPools } from "../resources/repository.js";
 import { getAppVersion } from "../update/version.js";
 import {
+  auxiliaryGgufPaths,
   poolsForEstimate,
   resolveMemoryEstimateContext,
   type MemoryEstimateContext,
@@ -132,6 +133,7 @@ function fileIdentity(path: string): z.infer<typeof FileIdentitySchema> | null {
 }
 
 function artifactPaths(context: MemoryEstimateContext, modelPath: string) {
+  const auxiliary = auxiliaryGgufPaths(context.args);
   const candidates = [
     modelPath,
     typeof context.args["--mmproj"] === "string"
@@ -140,6 +142,8 @@ function artifactPaths(context: MemoryEstimateContext, modelPath: string) {
     ...["--spec-draft-model", "-md", "--model-draft"].flatMap((key) =>
       typeof context.args[key] === "string" ? [context.args[key]] : [],
     ),
+    ...auxiliary.loraPaths,
+    ...auxiliary.controlVectorPaths,
   ].filter((path): path is string => Boolean(path && existsSync(path)));
   const expanded = candidates.flatMap((path) => {
     try {
@@ -204,6 +208,7 @@ function buildFingerprint(
     args: context.args,
     positionalArgs: context.positionalArgs,
     env: context.env,
+    rpcWorkers: context.rpcWorkers,
   });
   const hardwareDigest = digest(hardware);
   const fingerprintBase = {
@@ -226,6 +231,7 @@ function contextForInstance(instance: Instance): MemoryEstimateContext {
     args: instance.args,
     env: instance.env,
     positionalArgs: instance.positionalArgs ?? [],
+    rpcWorkers: instance.rpcWorkers,
   };
 }
 
@@ -328,7 +334,9 @@ function fingerprintDriftReasons(
     reasons.push("The llama.cpp runtime libraries changed since the estimate.");
   }
   if (JSON.stringify(stored.artifacts) !== JSON.stringify(current.artifacts)) {
-    reasons.push("The model, draft model, mmproj, or GGUF shards changed.");
+    reasons.push(
+      "The model, draft model, mmproj, LoRA, control vector, or GGUF shards changed.",
+    );
   }
   if (stored.hardwareDigest !== current.hardwareDigest) {
     reasons.push("The selected memory-pool hardware changed.");

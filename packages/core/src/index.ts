@@ -360,6 +360,7 @@ export const MemoryEstimateRequestSchema = z.object({
   args: InstanceArgsSchema.optional(),
   positionalArgs: z.array(z.string()).optional(),
   env: InstanceEnvSchema.optional(),
+  rpcWorkers: z.array(RpcWorkerRefSchema).optional(),
 });
 export type MemoryEstimateRequest = z.infer<typeof MemoryEstimateRequestSchema>;
 
@@ -3460,12 +3461,15 @@ export const GgufMetadataSchema = z.object({
   slidingWindow: z.number().nullable(),
   slidingWindowPattern: z.union([z.number(), z.array(z.boolean())]).nullable(),
   sharedKvLayers: z.number().nullable(),
+  nextnPredictLayers: z.number().nullable(),
+  shortConvCacheLength: z.number().nullable(),
   ssmConvKernel: z.number().nullable(),
   ssmGroupCount: z.number().nullable(),
   ssmInnerSize: z.number().nullable(),
   ssmStateSize: z.number().nullable(),
   wkvHeadSize: z.number().nullable(),
   tokenShiftCount: z.number().nullable(),
+  kdaHeadDim: z.number().nullable(),
   ropeFreqBase: z.number().nullable(),
   ropeScalingType: z.string().nullable(),
   ropeScalingFactor: z.number().nullable(),

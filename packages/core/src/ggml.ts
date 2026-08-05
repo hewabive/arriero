@@ -42,6 +42,7 @@ const TRAITS: GgmlTypeTrait[] = [
   { id: 39, name: "mxfp4", blockSize: 32, typeSize: 17 },
   { id: 40, name: "nvfp4", blockSize: 64, typeSize: 36 },
   { id: 41, name: "q1_0", blockSize: 128, typeSize: 18 },
+  { id: 42, name: "q2_0", blockSize: 64, typeSize: 18 },
 ];
 
 export const GGML_TYPE_TRAITS: ReadonlyMap<number, GgmlTypeTrait> = new Map(

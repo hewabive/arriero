@@ -66,6 +66,7 @@ const GGUF_FILE_TYPES: Record<number, string> = {
   38: "MXFP4_MOE",
   39: "NVFP4",
   40: "Q1_0",
+  41: "Q2_0",
 };
 
 const LLAMA_FTYPE_GUESSED = 1024;
@@ -307,7 +308,7 @@ function readQuantization(metadata: Map<string, GgufValue>) {
   return null;
 }
 
-export const GGUF_PARSER_VERSION = 9;
+export const GGUF_PARSER_VERSION = 10;
 
 function readHeader(reader: FileReader) {
   if (reader.read(4).toString("utf8") !== "GGUF") {
@@ -435,12 +436,15 @@ function extractMetadata(
     slidingWindow: findNumberBySuffix(metadata, ".attention.sliding_window"),
     slidingWindowPattern: findSwaPattern(metadata),
     sharedKvLayers: findNumberBySuffix(metadata, ".attention.shared_kv_layers"),
+    nextnPredictLayers: findNumberBySuffix(metadata, ".nextn_predict_layers"),
+    shortConvCacheLength: findNumberBySuffix(metadata, ".shortconv.l_cache"),
     ssmConvKernel: findNumberBySuffix(metadata, ".ssm.conv_kernel"),
     ssmGroupCount: findNumberBySuffix(metadata, ".ssm.group_count"),
     ssmInnerSize: findNumberBySuffix(metadata, ".ssm.inner_size"),
     ssmStateSize: findNumberBySuffix(metadata, ".ssm.state_size"),
     wkvHeadSize: findNumberBySuffix(metadata, ".wkv.head_size"),
     tokenShiftCount: findNumberBySuffix(metadata, ".token_shift_count"),
+    kdaHeadDim: findNumberBySuffix(metadata, ".kda.head_dim"),
     ropeFreqBase: findNumberBySuffix(metadata, ".rope.freq_base"),
     ropeScalingType: findStringBySuffix(metadata, ".rope.scaling.type"),
     ropeScalingFactor: findNumberBySuffix(metadata, ".rope.scaling.factor"),

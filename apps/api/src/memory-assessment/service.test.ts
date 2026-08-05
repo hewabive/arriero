@@ -39,6 +39,9 @@ function estimate(gpuBytes: number, hostBytes: number) {
     overheadBytesTotal: 400 * MiB,
     mmprojBytesTotal: 0,
     draftBytesTotal: 0,
+    loraBytesTotal: 0,
+    controlVectorBytesTotal: 0,
+    selfMtpBytesTotal: 0,
     totalBytes: gpuBytes + hostBytes + 400 * MiB,
     context: {
       nCtx: 4096,
@@ -47,6 +50,7 @@ function estimate(gpuBytes: number, hostBytes: number) {
       nUbatch: 512,
       nSeqMax: 1,
       kvUnified: true,
+      swaFull: false,
       flashAttn: true,
       typeK: "f16",
       typeV: "f16",

@@ -955,6 +955,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         args: draftPreview.input.args,
         positionalArgs: draftPreview.input.positionalArgs,
         env: draftPreview.input.env,
+        rpcWorkers: draftPreview.input.rpcWorkers,
       })
     : null;
   const canEstimateMemory = Boolean(
@@ -987,6 +988,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         args: estimateArgs,
         positionalArgs: draftPreview.input?.positionalArgs,
         env: draftPreview.input?.env,
+        rpcWorkers: draftPreview.input?.rpcWorkers,
       });
     },
     onSuccess: (result) => setMemoryEstimate(result.data),

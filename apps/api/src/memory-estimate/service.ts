@@ -13,6 +13,7 @@ import {
   type MemoryEstimatePoolInput,
   type MemoryEstimateRequest,
   type InstanceKind,
+  type RpcWorkerRef,
 } from "@arriero/core";
 import { existsSync } from "node:fs";
 
@@ -84,6 +85,7 @@ export type MemoryEstimateContext = {
   args: MemoryEstimateArgs;
   env: Record<string, string>;
   positionalArgs: string[];
+  rpcWorkers: RpcWorkerRef[];
 };
 
 export function resolveMemoryEstimateContext(
@@ -93,6 +95,7 @@ export function resolveMemoryEstimateContext(
   let kind: InstanceKind = request.kind ?? "llama-server";
   let env = request.env ?? {};
   let positionalArgs = request.positionalArgs ?? [];
+  let rpcWorkers = request.rpcWorkers ?? [];
   let binaryPathRefId = request.binaryPathRefId ?? "";
   let binaryPath = binaryPathRefId
     ? (getPathCatalogEntry(binaryPathRefId)?.path ?? "")
@@ -108,9 +111,13 @@ export function resolveMemoryEstimateContext(
     args = { ...(instance.args as InstanceArgs) };
     binaryPath = instance.binaryPath;
     binaryPathRefId = instance.binaryPathRefId;
+    rpcWorkers = instance.rpcWorkers;
   }
   if (request.args) {
     args = { ...args, ...request.args };
+  }
+  if (request.rpcWorkers) {
+    rpcWorkers = request.rpcWorkers;
   }
   return {
     kind,
@@ -119,6 +126,7 @@ export function resolveMemoryEstimateContext(
     args,
     env,
     positionalArgs,
+    rpcWorkers,
   };
 }
 
@@ -140,6 +148,60 @@ function resolveExistingPath(
 
 function resolveModelPath(args: MemoryEstimateArgs): string | null {
   return resolveExistingPath(args, ["--model", "-m"]);
+}
+
+function stringArgItems(args: MemoryEstimateArgs, keys: string[]): string[] {
+  const splitCsv = (input: string): string[] => {
+    const result: string[] = [];
+    let current = "";
+    let quoted = false;
+    for (let index = 0; index < input.length; index += 1) {
+      const character = input[index];
+      if (character === '"') {
+        if (quoted && input[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (character === "," && !quoted) {
+        if (current.trim()) result.push(current.trim());
+        current = "";
+      } else {
+        current += character;
+      }
+    }
+    if (current.trim()) result.push(current.trim());
+    return result;
+  };
+  return keys.flatMap((key) => {
+    const value = args[key];
+    const values = Array.isArray(value) ? value : [value];
+    return values.flatMap((item) =>
+      typeof item === "string" ? splitCsv(item) : [],
+    );
+  });
+}
+
+function stripScaledPath(value: string): string {
+  const separator = value.lastIndexOf(":");
+  return separator > 0 ? value.slice(0, separator).trim() : value;
+}
+
+export function auxiliaryGgufPaths(args: MemoryEstimateArgs): {
+  loraPaths: string[];
+  controlVectorPaths: string[];
+} {
+  return {
+    loraPaths: [
+      ...stringArgItems(args, ["--lora"]),
+      ...stringArgItems(args, ["--lora-scaled"]).map(stripScaledPath),
+    ],
+    controlVectorPaths: [
+      ...stringArgItems(args, ["--control-vector"]),
+      ...stringArgItems(args, ["--control-vector-scaled"]).map(stripScaledPath),
+    ],
+  };
 }
 
 function estimateVllmGpuUtil(input: {
@@ -234,6 +296,9 @@ function estimateVllmGpuUtil(input: {
       overheadBytesTotal: totalBytes,
       mmprojBytesTotal: 0,
       draftBytesTotal: 0,
+      loraBytesTotal: 0,
+      controlVectorBytesTotal: 0,
+      selfMtpBytesTotal: 0,
       totalBytes,
       context: {
         nCtx: maxModelLen,
@@ -242,6 +307,7 @@ function estimateVllmGpuUtil(input: {
         nUbatch: 0,
         nSeqMax: 1,
         kvUnified: true,
+        swaFull: false,
         flashAttn: false,
         typeK: "managed-by-vllm",
         typeV: "managed-by-vllm",
@@ -276,12 +342,15 @@ function hparamsFromGguf(modelPath: string): MemoryEstimateHparams {
     slidingWindow: metadata.slidingWindow,
     slidingWindowPattern: metadata.slidingWindowPattern,
     sharedKvLayers: metadata.sharedKvLayers,
+    nextnPredictLayers: metadata.nextnPredictLayers,
+    shortConvCacheLength: metadata.shortConvCacheLength,
     ssmConvKernel: metadata.ssmConvKernel,
     ssmGroupCount: metadata.ssmGroupCount,
     ssmInnerSize: metadata.ssmInnerSize,
     ssmStateSize: metadata.ssmStateSize,
     wkvHeadSize: metadata.wkvHeadSize,
     tokenShiftCount: metadata.tokenShiftCount,
+    kdaHeadDim: metadata.kdaHeadDim,
     vocabularySize: metadata.vocabularySize,
   };
 }
@@ -293,7 +362,7 @@ export function estimateMemory(
   if ("error" in context) {
     return { ok: false, reason: context.error };
   }
-  const { args, kind, env, positionalArgs } = context;
+  const { args, kind, env, positionalArgs, rpcWorkers } = context;
 
   const estimator = engineDescriptor(kind).estimator;
   if (estimator === "vllm-gpu-util") {
@@ -340,6 +409,17 @@ export function estimateMemory(
     "-md",
     "--model-draft",
   ]);
+  const auxiliaryPaths = auxiliaryGgufPaths(args);
+  const missingAuxiliaryPath = [
+    ...auxiliaryPaths.loraPaths,
+    ...auxiliaryPaths.controlVectorPaths,
+  ].find((path) => !existsSync(path));
+  if (missingAuxiliaryPath) {
+    return {
+      ok: false,
+      reason: `Auxiliary GGUF file not found: ${missingAuxiliaryPath}`,
+    };
+  }
 
   let estimate: MemoryEstimate;
   try {
@@ -359,11 +439,20 @@ export function estimateMemory(
             },
           }
         : {}),
+      ...(auxiliaryPaths.loraPaths.length > 0
+        ? {
+            loras: auxiliaryPaths.loraPaths.map((path) => ({
+              tensors: readGgufModelTensorTable(path),
+            })),
+          }
+        : {}),
+      controlVector: auxiliaryPaths.controlVectorPaths.length > 0,
+      rpcWorkerCount: rpcWorkers.length,
     });
   } catch (error) {
     return {
       ok: false,
-      reason: `Failed to read GGUF: ${(error as Error).message}`,
+      reason: `Failed to estimate GGUF: ${(error as Error).message}`,
     };
   }
 

@@ -19,6 +19,7 @@
     "check:events": "node scripts/check-react-event-captures.mjs",
     "knip": "KNIP_DISABLE_RAW_TRANSFER=1 knip",
     "memory:calibrate": "node scripts/memory-estimate-calibrate.mjs",
+    "memory:check-ggml-types": "node scripts/check-ggml-types.mjs",
     "format": "prettier --write .",
     "browse": "node --experimental-strip-types --no-warnings scripts/browse.ts"
   },

@@ -127,12 +127,15 @@ function hparamsOf(metadata) {
     slidingWindow: metadata.slidingWindow,
     slidingWindowPattern: metadata.slidingWindowPattern,
     sharedKvLayers: metadata.sharedKvLayers,
+    nextnPredictLayers: metadata.nextnPredictLayers,
+    shortConvCacheLength: metadata.shortConvCacheLength,
     ssmConvKernel: metadata.ssmConvKernel,
     ssmGroupCount: metadata.ssmGroupCount,
     ssmInnerSize: metadata.ssmInnerSize,
     ssmStateSize: metadata.ssmStateSize,
     wkvHeadSize: metadata.wkvHeadSize,
     tokenShiftCount: metadata.tokenShiftCount,
+    kdaHeadDim: metadata.kdaHeadDim,
     vocabularySize: metadata.vocabularySize,
   };
 }
@@ -232,10 +235,14 @@ function main() {
     const name = modelPath.split("/").pop();
     const sizeMiB = Math.round(statSync(modelPath).size / MIB);
     for (const config of configs) {
+      // llama-fit-params does not expose the server's -kvu/--kv-unified flag.
+      // Compare like with like here; unified KV is qualified against a real
+      // llama-server memory breakdown instead.
+      const analyticArgs = { "--kv-unified": false, ...config.args };
       const estimate = estimateInstanceMemory({
         tensors,
         hparams: hparamsOf(metadata),
-        args: { ...config.args },
+        args: analyticArgs,
         pools,
       });
       const analytic = {
@@ -345,7 +352,16 @@ function main() {
   if (options.out) {
     writeFileSync(
       resolve(options.out),
-      `${JSON.stringify({ generatedFrom: options.fitParams, gpus: options.gpus, rows }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          generatedFrom: options.fitParams,
+          gpus: options.gpus,
+          kvMode: "non-unified (llama-fit-params does not expose --kv-unified)",
+          rows,
+        },
+        null,
+        2,
+      )}\n`,
     );
     console.log(`\nwrote ${options.out}`);
   }

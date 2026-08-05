@@ -24,6 +24,9 @@ test("ggufFileTypeLabel maps llama.cpp file types", () => {
   assert.equal(ggufFileTypeLabel(2), "Q4_0");
   assert.equal(ggufFileTypeLabel(10), "Q2_K");
   assert.equal(ggufFileTypeLabel(15), "Q4_K_M");
+  assert.equal(ggufFileTypeLabel(36), "TQ1_0");
+  assert.equal(ggufFileTypeLabel(37), "TQ2_0");
+  assert.equal(ggufFileTypeLabel(41), "Q2_0");
   assert.equal(ggufFileTypeLabel(1024 | 10), "Q2_K (guessed)");
   assert.equal(ggufFileTypeLabel(999), null);
 });
@@ -37,6 +40,10 @@ test("ggml type sizing matches ggml block math", () => {
   assert.equal(ggmlRowSizeBytes(1, 10), 20);
   assert.equal(ggmlRowSizeBytes(2, 32), 18);
   assert.equal(ggmlRowSizeBytes(8, 64), 68);
+  assert.equal(ggmlRowSizeBytes(34, 256), 54);
+  assert.equal(ggmlRowSizeBytes(35, 256), 66);
+  assert.equal(ggmlRowSizeBytes(41, 128), 18);
+  assert.equal(ggmlRowSizeBytes(42, 64), 18);
   assert.equal(ggmlRowSizeBytes(255, 32), null);
 
   assert.equal(ggmlTensorBytes(1, [4, 8]), 64);
@@ -314,6 +321,8 @@ test("readGgufMetadata captures cache and recurrent geometry", () => {
         kvU32("rwkv7.attention.key_length_mla", 128),
         kvU32("rwkv7.attention.value_length_mla", 128),
         kvU32("rwkv7.attention.sliding_window", 512),
+        kvU32("rwkv7.nextn_predict_layers", 1),
+        kvU32("rwkv7.shortconv.l_cache", 3),
         kvBoolArray("rwkv7.attention.sliding_window_pattern", [
           true,
           false,
@@ -321,6 +330,7 @@ test("readGgufMetadata captures cache and recurrent geometry", () => {
         ]),
         kvU32("rwkv7.wkv.head_size", 64),
         kvU32("rwkv7.token_shift_count", 2),
+        kvU32("rwkv7.kda.head_dim", 128),
       ]),
     );
 
@@ -330,9 +340,12 @@ test("readGgufMetadata captures cache and recurrent geometry", () => {
     assert.equal(metadata.attentionKeyLengthMla, 128);
     assert.equal(metadata.attentionValueLengthMla, 128);
     assert.equal(metadata.slidingWindow, 512);
+    assert.equal(metadata.nextnPredictLayers, 1);
+    assert.equal(metadata.shortConvCacheLength, 3);
     assert.deepEqual(metadata.slidingWindowPattern, [true, false, true]);
     assert.equal(metadata.wkvHeadSize, 64);
     assert.equal(metadata.tokenShiftCount, 2);
+    assert.equal(metadata.kdaHeadDim, 128);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

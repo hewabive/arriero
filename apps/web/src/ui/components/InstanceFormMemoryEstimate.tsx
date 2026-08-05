@@ -19,6 +19,15 @@ export function InstanceFormMemoryEstimate({
   const poolLabel = (poolId: string) =>
     fm.memoryPoolOptions.find((option) => option.value === poolId)?.label ??
     poolId;
+  const included = result
+    ? [
+        ["mmproj", result.estimate.mmprojBytesTotal],
+        ["draft", result.estimate.draftBytesTotal],
+        ["LoRA", result.estimate.loraBytesTotal],
+        ["control vector", result.estimate.controlVectorBytesTotal],
+        ["built-in MTP", result.estimate.selfMtpBytesTotal],
+      ].filter((entry): entry is [string, number] => Number(entry[1]) > 0)
+    : [];
 
   return (
     <Stack gap="xs">
@@ -89,17 +98,12 @@ export function InstanceFormMemoryEstimate({
             ngl {result.estimate.context.nGpuLayers}
           </Text>
 
-          {(result.estimate.mmprojBytesTotal > 0 ||
-            result.estimate.draftBytesTotal > 0) && (
+          {included.length > 0 && (
             <Text c="dimmed" size="xs">
-              incl.
-              {result.estimate.mmprojBytesTotal > 0 &&
-                ` mmproj ${formatBytes(result.estimate.mmprojBytesTotal)}`}
-              {result.estimate.mmprojBytesTotal > 0 &&
-                result.estimate.draftBytesTotal > 0 &&
-                " ·"}
-              {result.estimate.draftBytesTotal > 0 &&
-                ` draft ${formatBytes(result.estimate.draftBytesTotal)}`}
+              incl.{" "}
+              {included
+                .map(([label, bytes]) => `${label} ${formatBytes(bytes)}`)
+                .join(" · ")}
             </Text>
           )}
 

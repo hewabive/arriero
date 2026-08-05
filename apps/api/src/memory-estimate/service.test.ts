@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { estimateMemory } from "./service.js";
+import { auxiliaryGgufPaths, estimateMemory } from "./service.js";
 import {
   RESOURCES_FILE,
   resetResourcePoolsCache,
@@ -132,6 +132,21 @@ function writeGpuPools() {
   resetResourcePoolsCache();
 }
 
+test("auxiliaryGgufPaths expands repeated, CSV, and scaled arguments", () => {
+  assert.deepEqual(
+    auxiliaryGgufPaths({
+      "--lora": ["/a.gguf,/b.gguf", '"/c,quoted.gguf"'],
+      "--lora-scaled": "/d.gguf:0.5,/e.gguf:-1",
+      "--control-vector": "/v1.gguf,/v2.gguf",
+      "--control-vector-scaled": ["/v3.gguf:0.25"],
+    }),
+    {
+      loraPaths: ["/a.gguf", "/b.gguf", "/c,quoted.gguf", "/d.gguf", "/e.gguf"],
+      controlVectorPaths: ["/v1.gguf", "/v2.gguf", "/v3.gguf"],
+    },
+  );
+});
+
 test("vllm estimator reserves utilization on each tensor-parallel GPU", () => {
   const at = "2026-01-01T00:00:00.000Z";
   writeFileSync(
@@ -224,6 +239,71 @@ test("estimateMemory produces a breakdown for a local model", () => {
     );
     assert.equal(result.estimate.confidence, "high");
     assert.ok(result.estimate.draws.length >= 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("estimateMemory fails RPC placement confidence closed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-rpc-"));
+  const modelPath = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(modelPath);
+    const result = estimateMemory({
+      args: { "--model": modelPath },
+      rpcWorkers: [{ nodeId: null, instanceName: "worker" }],
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.estimate.confidence, "low");
+    assert.match(result.estimate.warnings.join("\n"), /RPC devices/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("estimateMemory loads LoRA tables and accounts for a control vector", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-aux-"));
+  const modelPath = join(dir, "model.gguf");
+  const loraPath = join(dir, "adapter.gguf");
+  const controlPath = join(dir, "direction.gguf");
+  try {
+    writeSyntheticModel(modelPath);
+    writeSyntheticModel(loraPath);
+    writeFileSync(controlPath, "fixture existence is sufficient");
+    const result = estimateMemory({
+      args: {
+        "--model": modelPath,
+        "--lora-scaled": `${loraPath}:0.5`,
+        "--control-vector": controlPath,
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.estimate.loraBytesTotal, 3968);
+    assert.equal(result.estimate.controlVectorBytesTotal, 8 * 4);
+    assert.match(result.estimate.warnings.join("\n"), /1 LoRA adapter/);
+    assert.match(result.estimate.warnings.join("\n"), /Control vector/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("estimateMemory rejects a missing auxiliary GGUF", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-aux-missing-"));
+  const modelPath = join(dir, "model.gguf");
+  try {
+    writeSyntheticModel(modelPath);
+    const result = estimateMemory({
+      args: {
+        "--model": modelPath,
+        "--lora": join(dir, "missing.gguf"),
+      },
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.reason, /Auxiliary GGUF file not found/);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

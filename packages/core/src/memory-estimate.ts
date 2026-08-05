@@ -19,7 +19,7 @@ import {
 // Increment this whenever the estimator semantics change. Stored assessments
 // deliberately become stale instead of trying to emulate older llama.cpp
 // releases.
-export const MEMORY_ESTIMATOR_VERSION = 1;
+export const MEMORY_ESTIMATOR_VERSION = 2;
 
 const F32_BYTES = 4;
 const KV_PAD = 256;
@@ -53,12 +53,15 @@ export type MemoryEstimateHparams = {
   slidingWindow: number | null;
   slidingWindowPattern: number | boolean[] | null;
   sharedKvLayers: number | null;
+  nextnPredictLayers: number | null;
+  shortConvCacheLength: number | null;
   ssmConvKernel: number | null;
   ssmGroupCount: number | null;
   ssmInnerSize: number | null;
   ssmStateSize: number | null;
   wkvHeadSize: number | null;
   tokenShiftCount: number | null;
+  kdaHeadDim: number | null;
   vocabularySize: number | null;
 };
 
@@ -75,6 +78,9 @@ export type MemoryEstimateInput = {
   pools: MemoryEstimatePoolInput[];
   mmproj?: { tensors: GgufTensorTable };
   draft?: { tensors: GgufTensorTable; hparams: MemoryEstimateHparams };
+  loras?: Array<{ tensors: GgufTensorTable }>;
+  controlVector?: boolean;
+  rpcWorkerCount?: number;
 };
 
 export const ResolvedContextParamsSchema = z.object({
@@ -84,6 +90,7 @@ export const ResolvedContextParamsSchema = z.object({
   nUbatch: z.number().int().nonnegative(),
   nSeqMax: z.number().int().positive(),
   kvUnified: z.boolean(),
+  swaFull: z.boolean(),
   flashAttn: z.boolean(),
   typeK: z.string(),
   typeV: z.string(),
@@ -117,6 +124,9 @@ export const MemoryEstimateSchema = z.object({
   overheadBytesTotal: z.number().int().nonnegative(),
   mmprojBytesTotal: z.number().int().nonnegative(),
   draftBytesTotal: z.number().int().nonnegative(),
+  loraBytesTotal: z.number().int().nonnegative(),
+  controlVectorBytesTotal: z.number().int().nonnegative(),
+  selfMtpBytesTotal: z.number().int().nonnegative(),
   totalBytes: z.number().int().nonnegative(),
   context: ResolvedContextParamsSchema,
   confidence: MemoryEstimateConfidenceSchema,
@@ -157,7 +167,11 @@ export function resolveContextParams(
     requestedSeq && requestedSeq > 0 ? requestedSeq : DEFAULT_SEQ_MAX;
 
   const kvUnifiedFlag = argFlag(args, ["--kv-unified", "-kvu"]);
-  const kvUnified = kvUnifiedFlag ?? true;
+  const noKvUnifiedFlag = argFlag(args, ["--no-kv-unified", "-no-kvu"]);
+  const kvUnified =
+    kvUnifiedFlag ??
+    (noKvUnifiedFlag === null ? requestedSeq === null : !noKvUnifiedFlag);
+  const swaFull = argFlag(args, ["--swa-full"]) ?? false;
 
   const nCtxSeq = kvUnified ? nCtx : pad(Math.floor(nCtx / nSeqMax), KV_PAD);
 
@@ -188,6 +202,7 @@ export function resolveContextParams(
     nUbatch,
     nSeqMax,
     kvUnified,
+    swaFull,
     flashAttn,
     typeK,
     typeV,
@@ -209,7 +224,7 @@ const ATTN_KV_A_MQA_PATTERN = /^blk\.(\d+)\.attn_kv_a_mqa\.weight$/;
 const INPUT_TENSOR_PATTERN = /^(token_embd|per_layer_token_embd)\b/;
 const OUTPUT_TENSOR_PATTERN = /^(output|output_norm)\b/;
 const MLA_PATTERN = /attn_(kv_a_mqa|kv_b|k_b|v_b)/;
-const RECURRENT_PATTERN = /(ssm_|linear_attn|time_mix|conv1d)/;
+const RECURRENT_PATTERN = /(ssm_|linear_attn|time_mix|conv1d|shortconv)/;
 
 function tensorLayerIndex(name: string): number | null {
   const match = LAYER_PATTERN.exec(name);
@@ -320,10 +335,26 @@ type ModelAccumulation = {
   layerAll: number;
 };
 
+type ContextLayerMode = "main" | "mtp" | "shared-target-kv";
+
+function hasSpeculativeType(
+  args: MemoryEstimateArgs,
+  expected: string,
+): boolean {
+  const value = argRaw(args, ["--spec-type"]);
+  const values = Array.isArray(value) ? value : [value];
+  return values.some(
+    (item) =>
+      typeof item === "string" &&
+      item.split(",").some((type) => type.trim().toLowerCase() === expected),
+  );
+}
+
 function accumulateModel(
   model: MemoryEstimateInput,
   ensure: (poolId: string) => PoolAccumulator,
   warnings: string[],
+  contextLayerMode: ContextLayerMode = "main",
 ): ModelAccumulation {
   const context = resolveContextParams(
     model.args,
@@ -392,7 +423,7 @@ function accumulateModel(
     );
   }
 
-  const kv = estimateKvCache(model, context, warnings);
+  const kv = estimateKvCache(model, context, warnings, contextLayerMode);
   for (const [layer, bytes] of kv.bytesByLayer) {
     const device = context.offloadKqv
       ? placement.layerDevice(layer)
@@ -426,6 +457,16 @@ function mmprojPlacement(
   return { poolId: hostPoolId, isGpu: false };
 }
 
+function assertKnownTensorTypes(role: string, table: GgufTensorTable): void {
+  if (table.unknownTypeIds.length === 0) {
+    return;
+  }
+  throw new Error(
+    `${role} contains unsupported GGML tensor type IDs: ${table.unknownTypeIds.join(", ")}. ` +
+      "Update Arriero's GGML type table before using this memory estimate.",
+  );
+}
+
 function remapDraftArgs(args: MemoryEstimateArgs): MemoryEstimateArgs {
   const draft: MemoryEstimateArgs = {};
   const copy = (target: string, keys: string[]) => {
@@ -440,6 +481,8 @@ function remapDraftArgs(args: MemoryEstimateArgs): MemoryEstimateArgs {
   copy("--ubatch-size", ["--ubatch-size", "-ub"]);
   copy("--flash-attn", ["--flash-attn", "-fa"]);
   copy("--kv-unified", ["--kv-unified", "-kvu"]);
+  copy("--no-kv-unified", ["--no-kv-unified", "-no-kvu"]);
+  copy("--swa-full", ["--swa-full"]);
   copy("--no-kv-offload", ["--no-kv-offload", "-nkvo"]);
   copy("--n-gpu-layers", [
     "--spec-draft-ngl",
@@ -447,8 +490,16 @@ function remapDraftArgs(args: MemoryEstimateArgs): MemoryEstimateArgs {
     "--n-gpu-layers-draft",
     "--gpu-layers-draft",
   ]);
-  copy("--cache-type-k", ["--spec-draft-type-k"]);
-  copy("--cache-type-v", ["--spec-draft-type-v"]);
+  copy("--cache-type-k", [
+    "--spec-draft-type-k",
+    "-ctkd",
+    "--cache-type-k-draft",
+  ]);
+  copy("--cache-type-v", [
+    "--spec-draft-type-v",
+    "-ctvd",
+    "--cache-type-v-draft",
+  ]);
   copy("--cpu-moe", ["--spec-draft-cpu-moe", "-cmoed", "--cpu-moe-draft"]);
   copy("--n-cpu-moe", [
     "--spec-draft-n-cpu-moe",
@@ -462,6 +513,17 @@ function remapDraftArgs(args: MemoryEstimateArgs): MemoryEstimateArgs {
 export function estimateInstanceMemory(
   input: MemoryEstimateInput,
 ): MemoryEstimate {
+  assertKnownTensorTypes("Main model", input.tensors);
+  if (input.mmproj) {
+    assertKnownTensorTypes("Multimodal projector", input.mmproj.tensors);
+  }
+  if (input.draft) {
+    assertKnownTensorTypes("Draft model", input.draft.tensors);
+  }
+  for (const [index, lora] of (input.loras ?? []).entries()) {
+    assertKnownTensorTypes(`LoRA adapter ${index + 1}`, lora.tensors);
+  }
+
   const warnings: string[] = [];
 
   const accumulators = new Map<string, PoolAccumulator>();
@@ -476,6 +538,56 @@ export function estimateInstanceMemory(
 
   const main = accumulateModel(input, ensure, warnings);
   const { context, placement, kv } = main;
+  const usesMtp = hasSpeculativeType(input.args, "draft-mtp");
+  let auxiliaryEstimateIncomplete = false;
+  let placementEstimateIncomplete = false;
+  let architectureEstimateIncomplete = false;
+
+  const architecture = input.hparams.architecture?.toLowerCase() ?? "";
+  if (architecture === "minimax-m3") {
+    architectureEstimateIncomplete = true;
+    warnings.push(
+      "MiniMax M3 uses an MSA indexer-key cache in addition to attention KV; the indexer cache is not modeled.",
+    );
+  } else if (architecture === "glm-dsa" || architecture === "deepseek32") {
+    architectureEstimateIncomplete = true;
+    warnings.push(
+      "This architecture uses a DSA indexer cache in addition to MLA KV; the indexer cache is not modeled.",
+    );
+  } else if (architecture === "deepseek4") {
+    architectureEstimateIncomplete = true;
+    warnings.push(
+      "DeepSeek V4 uses a dedicated DSV4 memory implementation; its indexer and recurrent/checkpoint state are not modeled.",
+    );
+  }
+  if (isCachelessLogitsModel(input)) {
+    warnings.push(
+      "Diffusion request scheduling, sampler state, and optional classifier-free-guidance logits are dynamic and are not included in the static context estimate.",
+    );
+  }
+
+  const splitMode = argString(input.args, ["--split-mode", "-sm"]);
+  if (splitMode && splitMode.toLowerCase() !== "layer") {
+    placementEstimateIncomplete = true;
+    warnings.push(
+      `--split-mode ${splitMode} is configured, but the estimator currently models layer splitting only; per-pool placement is incomplete.`,
+    );
+  }
+  if (argRaw(input.args, ["--override-tensor", "-ot"]) !== undefined) {
+    placementEstimateIncomplete = true;
+    warnings.push(
+      "--override-tensor can change individual tensor backends; those placement overrides are not modeled.",
+    );
+  }
+  if (
+    (input.rpcWorkerCount ?? 0) > 0 ||
+    argRaw(input.args, ["--rpc"]) !== undefined
+  ) {
+    placementEstimateIncomplete = true;
+    warnings.push(
+      "RPC devices are configured, but remote tensor placement, remote device overhead, and client-side staging are not modeled; the displayed pool draws cover local pools only.",
+    );
+  }
 
   let mmprojBytesTotal = 0;
   let mmprojOnGpu = false;
@@ -489,7 +601,7 @@ export function estimateInstanceMemory(
     warnings.push(
       `Multimodal projector (--mmproj): ~${mib(mmprojBytesTotal)} MiB of weights included on ${
         target.isGpu ? "the GPU" : "the host"
-      }; the vision compute buffer at image time is not modeled.`,
+      }; request-time image/audio/video preprocessing and compute buffers are not modeled.`,
     );
   }
 
@@ -503,17 +615,194 @@ export function estimateInstanceMemory(
       args: remapDraftArgs(input.args),
       pools: input.pools,
     };
-    const draft = accumulateModel(draftModel, ensure, draftWarnings);
+    const draftSharesTargetKv =
+      input.draft.hparams.architecture?.toLowerCase() === "gemma4-assistant";
+    const draftIsMtp =
+      usesMtp && (input.draft.hparams.nextnPredictLayers ?? 0) > 0;
+    const draft = accumulateModel(
+      draftModel,
+      ensure,
+      draftWarnings,
+      draftSharesTargetKv ? "shared-target-kv" : draftIsMtp ? "mtp" : "main",
+    );
     draftUsesGpu = draft.placement.usesGpu;
     draftBytesTotal =
       draft.weightsBytes + draft.kv.totalBytes + draft.computeBytes;
     warnings.push(
-      `Speculative draft model (--spec-draft-model): a second resident model (weights + KV + compute, ~${mib(
+      `Speculative ${draftIsMtp ? "MTP " : ""}draft model (--spec-draft-model): a second resident model (weights + ${draftSharesTargetKv ? "target-shared KV + " : "KV + "}compute, ~${mib(
         draftBytesTotal,
       )} MiB) is included.`,
     );
     for (const warning of draftWarnings) {
       warnings.push(`Draft model: ${warning}`);
+    }
+    if (draftSharesTargetKv) {
+      warnings.push(
+        "Gemma 4 assistant reuses the target context's global/SWA KV layers; no duplicate persistent KV buffer is added.",
+      );
+    } else if (usesMtp && !draftIsMtp) {
+      auxiliaryEstimateIncomplete = true;
+      warnings.push(
+        "draft-mtp is configured, but the draft GGUF has no nextn_predict_layers metadata; its context was treated as an ordinary draft model.",
+      );
+    }
+
+    if (hasSpeculativeType(input.args, "draft-dflash")) {
+      warnings.push(
+        "DFlash draft weights, metadata-derived global/SWA KV, and model compute buffers are included; request-time extracted-feature and speculative sampler scratch are not modeled.",
+      );
+    }
+    if (hasSpeculativeType(input.args, "draft-eagle3")) {
+      auxiliaryEstimateIncomplete = true;
+      warnings.push(
+        "Eagle3 extracted-target-feature, verification-state, and speculative sampler buffers are not modeled; draft weights/KV/ordinary compute alone are incomplete.",
+      );
+    }
+    if (hasSpeculativeType(input.args, "draft-dspark")) {
+      warnings.push(
+        "DSpark draft weights (including Markov/confidence tensors), metadata-derived KV, and model compute buffers are included; request-time extracted-feature and speculative sampler scratch are not modeled.",
+      );
+    }
+    if (
+      argRaw(input.args, [
+        "--spec-draft-device",
+        "-devd",
+        "--device-draft",
+      ]) !== undefined
+    ) {
+      placementEstimateIncomplete = true;
+      warnings.push(
+        "A separate draft device list is configured, but draft placement currently reuses the target model's device pools.",
+      );
+    }
+    if (
+      argRaw(input.args, [
+        "--spec-draft-override-tensor",
+        "-otd",
+        "--override-tensor-draft",
+      ]) !== undefined
+    ) {
+      placementEstimateIncomplete = true;
+      warnings.push(
+        "Draft tensor backend overrides are configured but not modeled.",
+      );
+    }
+  }
+
+  let selfMtpBytesTotal = 0;
+  if (usesMtp && !input.draft) {
+    const nextnLayers = input.hparams.nextnPredictLayers ?? 0;
+    if (nextnLayers <= 0) {
+      auxiliaryEstimateIncomplete = true;
+      warnings.push(
+        "draft-mtp is configured without a separate draft model, but the target GGUF has no MTP layers (nextn_predict_layers); llama.cpp will reject this context.",
+      );
+    } else {
+      const mtpArgs = remapDraftArgs(input.args);
+      const mtpInput: MemoryEstimateInput = { ...input, args: mtpArgs };
+      const mtpContext = resolveContextParams(
+        mtpArgs,
+        input.hparams,
+        input.pools.some((pool) => pool.kind === "gpu"),
+      );
+      const mtpWarnings: string[] = [];
+      const mtpKv = estimateKvCache(mtpInput, mtpContext, mtpWarnings, "mtp");
+      for (const [layer, bytes] of mtpKv.bytesByLayer) {
+        const device = mtpContext.offloadKqv
+          ? placement.layerDevice(layer)
+          : placement.hostPoolId;
+        ensure(device).kvBytes += bytes;
+      }
+      const mtpCompute = estimateComputeReservation(
+        mtpInput,
+        mtpContext,
+        placement.usesGpu,
+      );
+      const computePoolId = placement.usesGpu
+        ? placement.layerDevice((input.hparams.blockCount ?? 1) - 1)
+        : placement.hostPoolId;
+      ensure(computePoolId).computeBytes += mtpCompute.primaryBytes;
+      ensure(placement.hostPoolId).computeBytes += mtpCompute.hostBytes;
+      selfMtpBytesTotal =
+        mtpKv.totalBytes + mtpCompute.primaryBytes + mtpCompute.hostBytes;
+      warnings.push(
+        `Built-in MTP: a second context shares the target weights; its ${nextnLayers} NextN layer(s), KV, and compute add ~${mib(selfMtpBytesTotal)} MiB without duplicating model weights.`,
+      );
+      for (const warning of mtpWarnings) {
+        warnings.push(`MTP context: ${warning}`);
+      }
+      if (mtpKv.kvLayerCount === 0) {
+        auxiliaryEstimateIncomplete = true;
+        warnings.push(
+          "MTP layers were declared but their attention KV geometry was not found; the built-in MTP estimate is incomplete.",
+        );
+      }
+    }
+  }
+
+  let loraBytesTotal = 0;
+  if (input.loras && input.loras.length > 0) {
+    const layerAll = (input.hparams.blockCount ?? 0) + 1;
+    const loraDevice = (tensor: GgufTensorInfo): string => {
+      const baseName = tensor.name.replace(/\.lora_[ab]$/, "");
+      const layer = tensorLayerIndex(baseName);
+      if (INPUT_TENSOR_PATTERN.test(baseName)) {
+        return placement.hostPoolId;
+      }
+      if (
+        layer !== null &&
+        EXPERT_PATTERN.test(baseName) &&
+        layer < placement.expertHostLayers
+      ) {
+        return placement.hostPoolId;
+      }
+      if (layer !== null) {
+        return placement.layerDevice(layer);
+      }
+      if (OUTPUT_TENSOR_PATTERN.test(baseName)) {
+        return placement.layerDevice(layerAll - 1);
+      }
+      return placement.hostPoolId;
+    };
+    for (const lora of input.loras) {
+      for (const tensor of lora.tensors.tensors) {
+        ensure(loraDevice(tensor)).weightsBytes += tensor.bytes;
+        loraBytesTotal += tensor.bytes;
+      }
+    }
+    warnings.push(
+      `${input.loras.length} LoRA adapter(s): ~${mib(loraBytesTotal)} MiB of resident tensors are placed with their base-model layers; backend repacking/fallback copies and adapter graph scratch are not modeled.`,
+    );
+  }
+
+  let controlVectorBytesTotal = 0;
+  if (input.controlVector) {
+    const blockCount =
+      input.hparams.blockCount === null
+        ? null
+        : Math.max(
+            input.hparams.blockCount - (input.hparams.nextnPredictLayers ?? 0),
+            0,
+          );
+    const embeddingLength = input.hparams.embeddingLength;
+    if (
+      blockCount !== null &&
+      embeddingLength !== null &&
+      blockCount > 1 &&
+      embeddingLength > 0
+    ) {
+      const bytesPerLayer = embeddingLength * F32_BYTES;
+      for (let layer = 1; layer < blockCount; layer += 1) {
+        ensure(placement.layerDevice(layer)).weightsBytes += bytesPerLayer;
+        controlVectorBytesTotal += bytesPerLayer;
+      }
+      warnings.push(
+        `Control vector: llama.cpp combines all configured files into one ~${mib(controlVectorBytesTotal)} MiB resident F32 layer buffer.`,
+      );
+    } else {
+      warnings.push(
+        "Control vector is configured, but block count or embedding width is missing; its resident buffer is not modeled.",
+      );
     }
   }
 
@@ -580,6 +869,13 @@ export function estimateInstanceMemory(
   );
 
   let confidence = resolveConfidence(input, context, placement, kv, warnings);
+  if (
+    auxiliaryEstimateIncomplete ||
+    placementEstimateIncomplete ||
+    architectureEstimateIncomplete
+  ) {
+    confidence = "low";
+  }
   if (input.mmproj && confidence === "high") {
     confidence = "medium";
   }
@@ -592,6 +888,9 @@ export function estimateInstanceMemory(
     computeBytesTotal,
     mmprojBytesTotal,
     draftBytesTotal,
+    loraBytesTotal,
+    controlVectorBytesTotal,
+    selfMtpBytesTotal,
     overheadBytesTotal,
     totalBytes: pools.reduce((sum, pool) => sum + pool.totalBytes, 0),
     context,
@@ -631,6 +930,17 @@ const CACHELESS_ARCHITECTURES = new Set([
   "wavtokenizer-dec",
 ]);
 
+// These architectures deliberately allocate no persistent KV, but unlike an
+// encoder/classifier they still produce vocabulary logits for every ubatch
+// token. Their current graph keeps one embedding-width device activation and
+// two embedding-width host work rows alongside the logits buffer.
+const CACHELESS_LOGITS_ARCHITECTURES = new Set([
+  "dream",
+  "llada",
+  "llada-moe",
+  "rnd1",
+]);
+
 const DEFAULT_SWA_PERIOD: Readonly<Record<string, number>> = {
   gemma2: 2,
   gemma3: 6,
@@ -651,6 +961,11 @@ function isCachelessModel(input: MemoryEstimateInput): boolean {
     return false;
   }
   return input.hparams.causalAttention === false;
+}
+
+function isCachelessLogitsModel(input: MemoryEstimateInput): boolean {
+  const architecture = input.hparams.architecture?.toLowerCase() ?? "";
+  return CACHELESS_LOGITS_ARCHITECTURES.has(architecture);
 }
 
 function isSwaLayer(
@@ -685,7 +1000,31 @@ function recurrentStateBytesPerLayer(
     return (nEmbdR + nEmbdS) * F32_BYTES * nSeqMax;
   }
 
+  const shortConvCacheLength = hparams.shortConvCacheLength;
+  if (
+    nEmbd !== null &&
+    shortConvCacheLength !== null &&
+    shortConvCacheLength > 0
+  ) {
+    const nEmbdR = nEmbd * Math.max(shortConvCacheLength - 1, 0);
+    return nEmbdR * F32_BYTES * nSeqMax;
+  }
+
   const dConv = hparams.ssmConvKernel;
+  const kdaHeadDim = hparams.kdaHeadDim;
+  const nHead = hparams.headCount;
+  if (
+    dConv !== null &&
+    kdaHeadDim !== null &&
+    nHead !== null &&
+    kdaHeadDim > 0 &&
+    nHead > 0
+  ) {
+    const dInner = nHead * kdaHeadDim;
+    const nEmbdR = 3 * Math.max(dConv - 1, 0) * dInner;
+    const nEmbdS = kdaHeadDim * kdaHeadDim * nHead;
+    return (nEmbdR + nEmbdS) * F32_BYTES * nSeqMax;
+  }
   const dInner = hparams.ssmInnerSize;
   const dState = hparams.ssmStateSize;
   const nGroup =
@@ -710,10 +1049,28 @@ function estimateKvCache(
   input: MemoryEstimateInput,
   context: ResolvedContextParams,
   warnings: string[],
+  contextLayerMode: ContextLayerMode = "main",
 ): KvEstimate {
+  if (contextLayerMode === "shared-target-kv") {
+    return {
+      bytesByLayer: new Map(),
+      totalBytes: 0,
+      kvLayerCount: 0,
+      recurrentLayerCount: 0,
+      recurrentBytes: 0,
+      recurrentModeled: false,
+      mla: false,
+      mlaModeled: true,
+      swa: input.hparams.slidingWindow !== null,
+      recurrent: false,
+      cacheless: false,
+    };
+  }
   if (isCachelessModel(input)) {
     warnings.push(
-      "Non-causal encoder/classifier: llama.cpp allocates no persistent KV cache; compute is estimated from the activation width.",
+      isCachelessLogitsModel(input)
+        ? "Cacheless diffusion decoder: llama.cpp allocates no persistent KV cache, but its vocabulary-logits and activation buffers are included."
+        : "Non-causal encoder/classifier: llama.cpp allocates no persistent KV cache; compute is estimated from the activation width.",
     );
     return {
       bytesByLayer: new Map(),
@@ -733,11 +1090,25 @@ function estimateKvCache(
   const kBy = new Map<number, number>();
   const vBy = new Map<number, number>();
   const fusedLayers = new Set<number>();
-  const mlaLayers = new Set<number>();
+  const mlaLayers = new Map<number, number>();
   const recurrentLayers = new Set<number>();
   let mla = false;
   let recurrent = false;
+  const blockCount = input.hparams.blockCount ?? 0;
+  const nextnLayers = Math.min(
+    Math.max(input.hparams.nextnPredictLayers ?? 0, 0),
+    blockCount,
+  );
+  const mainLayerCount = blockCount - nextnLayers;
+  const layerBelongsToContext = (layer: number): boolean =>
+    contextLayerMode === "mtp"
+      ? nextnLayers > 0 && layer >= mainLayerCount && layer < blockCount
+      : layer < (nextnLayers > 0 ? mainLayerCount : blockCount || Infinity);
   for (const tensor of input.tensors.tensors) {
+    const tensorLayer = tensorLayerIndex(tensor.name);
+    if (tensorLayer !== null && !layerBelongsToContext(tensorLayer)) {
+      continue;
+    }
     if (MLA_PATTERN.test(tensor.name)) {
       mla = true;
     }
@@ -765,7 +1136,17 @@ function estimateKvCache(
     }
     const mlaMatch = ATTN_KV_A_MQA_PATTERN.exec(tensor.name);
     if (mlaMatch) {
-      mlaLayers.add(Number(mlaMatch[1]));
+      mlaLayers.set(Number(mlaMatch[1]), kvGeometryDim(tensor));
+    }
+  }
+
+  // Kimi KDA layers reuse attention-style Q/K/V projection names but keep
+  // recurrent convolution/matrix state instead of a token KV cache. Its true
+  // attention layers are the ones carrying the compressed MLA projection.
+  if (input.hparams.architecture?.toLowerCase() === "kimi-linear") {
+    for (const layer of recurrentLayers) {
+      kBy.delete(layer);
+      vBy.delete(layer);
     }
   }
 
@@ -787,10 +1168,15 @@ function estimateKvCache(
   const compressedMla =
     (input.hparams.attentionKeyLengthMla ?? 0) > 0 &&
     (input.hparams.attentionValueLengthMla ?? 0) > 0;
-  const mlaModeled = mlaLayers.size === 0 || fusedKDim > 0;
-  for (const layer of mlaLayers) {
-    if (!kBy.has(layer) && fusedKDim > 0) {
-      kBy.set(layer, fusedKDim);
+  const mlaModeled =
+    mlaLayers.size === 0 ||
+    [...mlaLayers.values()].every(
+      (tensorDim) => (compressedMla ? tensorDim : fusedKDim) > 0,
+    );
+  for (const [layer, tensorDim] of mlaLayers) {
+    const kDim = compressedMla ? tensorDim : fusedKDim;
+    if (!kBy.has(layer) && kDim > 0) {
+      kBy.set(layer, kDim);
       if (!compressedMla) {
         vBy.set(layer, fusedVDim);
       }
@@ -810,11 +1196,19 @@ function estimateKvCache(
     vBy.clear();
   }
 
-  const blockCount = input.hparams.blockCount ?? kBy.size;
-  const sharedKv = input.hparams.sharedKvLayers ?? 0;
+  const contextBlockCount =
+    contextLayerMode === "mtp"
+      ? nextnLayers
+      : nextnLayers > 0
+        ? mainLayerCount
+        : blockCount || kBy.size;
+  const sharedKv =
+    contextLayerMode === "main" ? (input.hparams.sharedKvLayers ?? 0) : 0;
   const uniqueLayers =
-    sharedKv > 0 && sharedKv < blockCount ? blockCount - sharedKv : blockCount;
-  const kvSharingModeled = uniqueLayers < blockCount;
+    sharedKv > 0 && sharedKv < contextBlockCount
+      ? contextBlockCount - sharedKv
+      : contextBlockCount;
+  const kvSharingModeled = uniqueLayers < contextBlockCount;
 
   const swaWindow = input.hparams.slidingWindow;
   const maxKDim = kBy.size > 0 ? Math.max(...kBy.values()) : 0;
@@ -822,17 +1216,23 @@ function estimateKvCache(
   const globalSize = context.nCtxSeq;
   const swaSize =
     swaWindow !== null
-      ? Math.min(
-          context.nCtx,
-          context.nSeqMax * pad(swaWindow + context.nUbatch, KV_PAD),
-        )
+      ? context.swaFull
+        ? globalSize
+        : pad(
+            Math.min(
+              globalSize,
+              swaWindow * (context.kvUnified ? context.nSeqMax : 1) +
+                context.nUbatch,
+            ),
+            KV_PAD,
+          )
       : 0;
 
   const bytesByLayer = new Map<number, number>();
   let totalBytes = 0;
   let swaModeled = false;
   for (const [layer, kDim] of kBy) {
-    if (layer >= uniqueLayers) {
+    if (contextLayerMode === "main" && layer >= uniqueLayers) {
       continue;
     }
     const swaFromPattern = isSwaLayer(input.hparams, layer);
@@ -843,7 +1243,7 @@ function estimateKvCache(
       swaModeled = true;
     }
     const size = isSwa ? swaSize : globalSize;
-    const stream = isSwa ? 1 : globalStream;
+    const stream = globalStream;
     const kBytes =
       (typeKId === null ? 0 : (ggmlRowSizeBytes(typeKId, kDim) ?? 0)) *
       size *
@@ -883,8 +1283,10 @@ function estimateKvCache(
     );
   } else if (mla) {
     warnings.push(
-      `MLA attention: ${kBy.size} layers use metadata-derived ${
-        compressedMla ? "compressed K-only" : "legacy K/V"
+      `MLA attention: ${kBy.size} layers use ${
+        compressedMla
+          ? "projection-derived compressed K-only"
+          : "metadata-derived legacy K/V"
       } cache geometry.`,
     );
   }
@@ -899,18 +1301,20 @@ function estimateKvCache(
         ? `Hybrid architecture: ${kBy.size} attention + ${recurrentLayers.size} recurrent layers; recurrent state cache (~${mib} MiB at --parallel ${context.nSeqMax}) is included and scales with --parallel.`
         : `Recurrent architecture: ${recurrentLayers.size} layers use a context-independent state cache (~${mib} MiB at --parallel ${context.nSeqMax}) that scales with --parallel.`,
     );
-  } else if (kBy.size > 0 && kBy.size < blockCount) {
+  } else if (kBy.size > 0 && kBy.size < contextBlockCount) {
     warnings.push(
-      `Hybrid architecture: ${kBy.size}/${blockCount} layers have a KV cache; the remaining layers' state memory is not modeled.`,
+      `Hybrid architecture: ${kBy.size}/${contextBlockCount} layers have a KV cache; the remaining layers' state memory is not modeled.`,
     );
   }
   if (swaWindow !== null && kBy.size > 0) {
     if (swaModeled) {
       const sharing = kvSharingModeled
-        ? `; ${sharedKv} of ${blockCount} layers share KV (allocate none)`
+        ? `; ${sharedKv} of ${contextBlockCount} layers share KV (allocate none)`
         : "";
       warnings.push(
-        `Sliding-window (SWA) model: SWA layers are capped at the ${swaWindow}-token window and scale with --parallel${sharing}.`,
+        context.swaFull
+          ? `Sliding-window (SWA) model: --swa-full expands SWA layers to the full context${sharing}.`
+          : `Sliding-window (SWA) model: SWA layers are capped at the ${swaWindow}-token window and scale with --parallel${sharing}.`,
       );
     } else {
       warnings.push(
@@ -919,7 +1323,7 @@ function estimateKvCache(
     }
   } else if (kvSharingModeled && kBy.size > 0) {
     warnings.push(
-      `${sharedKv} of ${blockCount} layers share KV (allocate none).`,
+      `${sharedKv} of ${contextBlockCount} layers share KV (allocate none).`,
     );
   }
 
@@ -948,6 +1352,14 @@ function estimateComputeReservation(
 ): { primaryBytes: number; hostBytes: number } {
   const nVocab = input.hparams.vocabularySize ?? 0;
   const nEmbd = input.hparams.embeddingLength ?? 0;
+  const cachelessLogits = isCachelessLogitsModel(input);
+  if (cachelessLogits) {
+    const activation = nEmbd * context.nUbatch * F32_BYTES;
+    return {
+      primaryBytes: nVocab * context.nUbatch * F32_BYTES + activation,
+      hostBytes: 2 * activation,
+    };
+  }
   let activationWidth = nEmbd;
   for (const tensor of input.tensors.tensors) {
     if (ACTIVATION_WIDTH_PATTERN.test(tensor.name)) {
