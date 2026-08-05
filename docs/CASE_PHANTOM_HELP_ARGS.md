@@ -34,26 +34,28 @@ arriero builds its argument catalog from the binary's `--help`, so a phantom arg
 
 A README help row with no matching entry in the parsed argument catalog (i.e. not printed by the configured binary's `--help`) is a phantom row. This is now automated: `args:docs:source-sync` reports help rows whose flags appear nowhere in the checkout's `common/arg.cpp` as `phantomRows` (also surfaced as a warning on the Arguments page). The check is a literal flag lookup — it cannot see `set_examples` per-tool gating, so a row that passes it can still be absent from the server build; the built `llama-server --help` remains the final arbiter.
 
-## Removed rows still present in the README (b10276)
+## The wrong-ref trap: "removed" vocoder args that were still real
 
-The opposite history produced the same observable mismatch in the current
-pin. Four vocoder/TTS arguments remain in `tools/server/README.md`, but are
-absent from both `common/arg.cpp` and the b10276 `llama-server --help`:
+A second worked example, this time of syncing against the wrong ref. An earlier
+revision of this section claimed four vocoder/TTS arguments
+(`--model-vocoder`, `--hf-repo-v`, `--hf-file-v`, `--tts-use-guide-tokens`)
+had been removed from the server by
+[PR #26254](https://github.com/ggml-org/llama.cpp/pull/26254), and their
+Arriero docs were deleted. Every one of those claims was checked against an
+out-of-band upstream state (an unmerged PR branch whose base master was ahead
+of the configured checkout), not against the checkout itself: locally the
+removal commit did not exist, `common/arg.cpp` still defined all four options
+with `LLAMA_EXAMPLE_SERVER` enabled, and the built `llama-server --help`
+printed them. The deletions were premature and the docs were restored.
 
-- `--model-vocoder`
-- `--hf-repo-v`
-- `--hf-file-v`
-- `--tts-use-guide-tokens`
+The forward-looking part stays true: once the checkout pulls past the upstream
+removal, the rows disappear from the generated help and the docs are deleted
+then, through the ordinary removed-argument step of the workflow — not before.
 
-They were removed from the server implementation by upstream commit
-`071327508` / [PR #26254](https://github.com/ggml-org/llama.cpp/pull/26254)
-when Qwen3-TTS support moved to the current mtmd/TTS
-shape. These are not forward-looking phantom features: they are stale generated
-README rows for options that no longer exist. Their Arriero argument documents
-were therefore deleted instead of being retained with a compatibility note.
-
-This distinction matters to memory coverage. The estimator must not load or
-count a second server vocoder from those rows. Current `llama-server` audio
-input is covered by the ordinary `--mmproj` path; current speech generation is
-handled by the separate `llama-tts` executable and is outside the
-`llama-server` instance estimator.
+Memory coverage: `llama-server` parses these options (and `--hf-repo-v` can
+even download the file at startup) but never loads a vocoder — only the
+separate `llama-tts` tool consumes it (`tools/tts/tts.cpp`; `tools/server/`
+has no vocoder code in its entire history). The options are therefore
+memory-neutral for a server instance and classified `estimation: "normal"`:
+the estimate is complete without the vocoder, and rejecting it would be
+wrong.
