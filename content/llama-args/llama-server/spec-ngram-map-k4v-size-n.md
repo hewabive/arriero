@@ -5,6 +5,7 @@ title: "--spec-ngram-map-k4v-size-n"
 summary: "Размер key n-gram для экспериментального `ngram-map-k4v`, который хранит до четырех value m-grams на key и выбирает наиболее устойчивое продолжение."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-map-k4v-size-n"

@@ -5,6 +5,7 @@ title: "--kv-offload"
 summary: "Управляет offload KV/KQV операций и буферов на device backend. По умолчанию включено; `--no-kv-offload` оставляет их на host."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-kvo"

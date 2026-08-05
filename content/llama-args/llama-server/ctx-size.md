@@ -5,6 +5,7 @@ title: "--ctx-size"
 summary: "Общий размер контекста, который выделяется для llama-context. В обычном KV-режиме он делится между слотами, а при `--kv-unified` становится размером общего KV-буфера."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 presetSupport: "supported"
 aliases:

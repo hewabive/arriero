@@ -5,6 +5,7 @@ title: "--chat-template-kwargs"
 summary: "Передает дополнительные JSON-параметры в Jinja chat template context. Используйте для template-specific переменных; `enable_thinking` через этот путь deprecated в пользу `--reasoning`."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "STRING"
 aliases:
   - "--chat-template-kwargs"

@@ -5,6 +5,7 @@ title: "--spec-draft-type-v"
 summary: "Задает тип данных V-части KV-cache для draft-модели или MTP draft-контекста. Используется отдельно от `--cache-type-v` основной модели."
 category: "Общие параметры"
 valueType: "enum"
+estimation: "normal"
 valueHint: "TYPE"
 aliases:
   - "--spec-draft-type-v"

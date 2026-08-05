@@ -5,6 +5,7 @@ title: "--cors-credentials"
 summary: "Включает или отключает `Access-Control-Allow-Credentials` для browser CORS. По умолчанию credentials разрешены."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--cors-credentials"

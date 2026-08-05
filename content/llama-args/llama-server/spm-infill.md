@@ -5,6 +5,7 @@ title: "--spm-infill"
 summary: "Переключает порядок FIM prompt для `/infill` с Prefix/Suffix/Middle на Suffix/Prefix/Middle. Нужен отдельным infill-моделям, обученным на SPM pattern."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--spm-infill"

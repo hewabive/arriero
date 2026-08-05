@@ -5,6 +5,7 @@ title: "--spec-draft-device"
 summary: "Ограничивает список backend-устройств для offload draft-модели. Значение `none` отключает offload draft-модели независимо от устройств target-модели."
 category: "Параметры speculative decoding"
 valueType: "list"
+estimation: "normal"
 valueHint: "<dev1,dev2,..>"
 aliases:
   - "--spec-draft-device"

@@ -5,6 +5,7 @@ title: "--grammar"
 summary: "Задает inline GBNF/BNF-like grammar, которая ограничивает допустимые токены генерации. CLI grammar считается пользовательской grammar и не prefill-ится generation prompt-ом."
 category: "Параметры сэмплинга"
 valueType: "string"
+estimation: "normal"
 valueHint: "GRAMMAR"
 aliases:
   - "--grammar"

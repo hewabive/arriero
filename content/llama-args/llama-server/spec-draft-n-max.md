@@ -5,6 +5,7 @@ title: "--spec-draft-n-max"
 summary: "Задает максимальную длину draft-последовательности для draft-model/MTP speculative decoding. Большее значение может повысить throughput при высокой acceptance, но увеличивает работу на неудачные draft."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-draft-n-max"

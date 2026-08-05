@@ -5,6 +5,7 @@ title: "--rerank"
 summary: "Включает reranking endpoint и автоматически настраивает embedding mode с `pooling rank`. Нужна reranker-модель, а не обычная embedding или chat модель."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--rerank"

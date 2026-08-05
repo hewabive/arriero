@@ -5,6 +5,7 @@ title: "--model-url"
 summary: "Скачивает основной GGUF по прямому URL и затем запускает сервер с локальной копией. Для URL используется ETag-кэш, а `--offline` разрешает только уже имеющийся файл."
 category: "Общие параметры"
 valueType: "string"
+estimation: "remote-selector"
 valueHint: "MODEL_URL"
 aliases:
   - "-mu"

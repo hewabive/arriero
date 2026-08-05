@@ -5,6 +5,7 @@ title: "--dry-sequence-breaker"
 summary: "Добавляет строку-разделитель для DRY и при первом использовании очищает default breakers. Значение `none` на CLI оставляет DRY без sequence breakers."
 category: "Параметры сэмплинга"
 valueType: "string"
+estimation: "normal"
 valueHint: "STRING"
 aliases:
   - "--dry-sequence-breaker"

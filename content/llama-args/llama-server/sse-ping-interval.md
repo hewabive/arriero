@@ -5,6 +5,7 @@ title: "--sse-ping-interval"
 summary: "Интервал keep-alive SSE-пингов в секундах для стриминговых ответов. Default 30; `-1` отключает. Защищает долгие стримы от таймаута клиента."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--sse-ping-interval"

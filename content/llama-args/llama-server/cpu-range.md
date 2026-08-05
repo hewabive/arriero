@@ -5,6 +5,7 @@ title: "--cpu-range"
 summary: "Задает CPU affinity основного CPU-профиля диапазоном индексов CPU. Диапазон дополняет `--cpu-mask` и заполняет ту же маску."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "lo-hi"
 aliases:
   - "-Cr"

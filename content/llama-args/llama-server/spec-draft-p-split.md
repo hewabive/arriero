@@ -5,6 +5,7 @@ title: "--spec-draft-p-split"
 summary: "Записывает split probability draft speculative decoding в `common_params.speculative.draft.p_split`. В проверенном commit значение парсится и хранится, но не используется в активной server/speculative логике."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "P"
 aliases:
   - "--spec-draft-p-split"

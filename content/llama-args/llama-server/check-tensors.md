@@ -5,6 +5,7 @@ title: "--check-tensors"
 summary: "Проверяет данные тензоров модели на недопустимые значения во время загрузки. Замедляет старт, но помогает диагностировать поврежденные или некорректные GGUF."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--check-tensors"

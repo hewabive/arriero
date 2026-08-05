@@ -5,6 +5,7 @@ title: "--models-max"
 summary: "Ограничивает число одновременно запущенных дочерних моделей в router-режиме. Значение 0 отключает лимит."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 presetSupport: "router-managed"
 aliases:

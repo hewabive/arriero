@@ -5,6 +5,7 @@ title: "--cpu-mask"
 summary: "Задает CPU affinity основного CPU-профиля как hex-маску до 512 бит. Маска дополняет `--cpu-range` и применяется к ggml threadpool, если в ней есть хотя бы один установленный бит."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "M"
 aliases:
   - "-C"

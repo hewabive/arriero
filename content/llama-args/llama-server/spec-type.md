@@ -5,6 +5,7 @@ title: "--spec-type"
 summary: "Выбирает реализации speculative decoding: обычную draft-модель, EAGLE-3, MTP, DFlash, DSpark или n-gram варианты. Значение задаётся списком через запятую."
 category: "Параметры speculative decoding"
 valueType: "list"
+estimation: "normal"
 valueHint: "none,draft-simple,draft-eagle3,draft-mtp,draft-dflash,draft-dspark,ngram-simple,ngram-map-k,ngram-map-k4v,ngram-mod,ngram-cache"
 aliases:
   - "--spec-type"

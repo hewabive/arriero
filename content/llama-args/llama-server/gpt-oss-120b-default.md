@@ -5,6 +5,7 @@ title: "--gpt-oss-120b-default"
 summary: "Встроенный пресет для gpt-oss-120b. Задает HF repo, порт 8013, большой контекст, Jinja и sampling defaults, но не фиксирует hf_file."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--gpt-oss-120b-default"

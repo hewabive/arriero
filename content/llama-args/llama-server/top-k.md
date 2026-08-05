@@ -5,6 +5,7 @@ title: "--top-k"
 summary: "Ограничивает кандидатов K самыми вероятными токенами до последующих sampler-фильтров. `0` и отрицательные значения отключают фильтр; значение может быть переопределено HTTP-полем `top_k`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--top-k"

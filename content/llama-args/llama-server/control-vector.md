@@ -5,6 +5,7 @@ title: "--control-vector"
 summary: "Загружает control vector GGUF со strength `1.0` и применяет его к слоям модели. Несколько файлов можно передать CSV-списком."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "FNAME"
 aliases:
   - "--control-vector"

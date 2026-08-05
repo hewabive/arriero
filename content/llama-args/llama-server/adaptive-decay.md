@@ -5,6 +5,7 @@ title: "--adaptive-decay"
 summary: "EMA decay для `adaptive_p`: меньшие значения быстрее реагируют на последние выбранные токены, большие дают более стабильную историю. В реализации значение clamp-ится в диапазон `0.0..0.99`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--adaptive-decay"

@@ -5,6 +5,7 @@ title: "--xtc-threshold"
 summary: "Порог XTC sampler-а: кандидаты с вероятностью не ниже threshold считаются слишком очевидными и могут быть удалены при срабатывании XTC. Значения выше `0.5` отключают XTC в реализации."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--xtc-threshold"

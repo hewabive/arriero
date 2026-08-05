@@ -5,6 +5,7 @@ title: "--log-timestamps"
 summary: "Включает или отключает относительные timestamps в log prefix. `common_init()` включает timestamps по умолчанию."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--no-log-timestamps"

@@ -5,6 +5,7 @@ title: "--models-preset"
 summary: "Подключает INI-файл с модельными пресетами для router-режима. Через него задают кастомные модели, алиасы, теги и параметры дочерних llama-server."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "router"
 valueHint: "PATH"
 presetSupport: "router-managed"
 aliases:

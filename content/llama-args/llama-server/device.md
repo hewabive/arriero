@@ -5,6 +5,7 @@ title: "--device"
 summary: "Ограничивает список не-CPU устройств, которые llama.cpp использует для offload. Значение `none` явно отключает offload на устройства."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "<dev1,dev2,..>"
 aliases:
   - "-dev"

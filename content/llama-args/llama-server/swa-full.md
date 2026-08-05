@@ -5,6 +5,7 @@ title: "--swa-full"
 summary: "Включает full-size SWA cache для моделей со Sliding Window Attention. Если модель не поддерживает SWA, сервер отключает флаг с предупреждением."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--swa-full"

@@ -5,6 +5,7 @@ title: "--image-min-tokens"
 summary: "Задает нижнюю границу числа токенов на изображение для vision-моделей с dynamic resolution. По умолчанию значение читается из projector/model metadata."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--image-min-tokens"

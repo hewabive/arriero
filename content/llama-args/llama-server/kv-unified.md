@@ -5,6 +5,7 @@ title: "--kv-unified"
 summary: "Использует единый KV-буфер для всех последовательностей вместо раздельного разделения контекста по слотам. Автоматически включается при `--parallel -1`."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-kvu"

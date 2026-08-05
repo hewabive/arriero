@@ -5,6 +5,7 @@ title: "--spec-ngram-simple-size-m"
 summary: "Длина m-gram продолжения, которое `ngram-simple` копирует после найденного совпадения. Чем больше значение, тем длиннее потенциальный draft и тем выше цена неверного совпадения."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-simple-size-m"

@@ -5,6 +5,7 @@ title: "--op-offload"
 summary: "Включает или отключает перенос host tensor operations на устройство в scheduler. По умолчанию включено; `--no-op-offload` оставляет такие операции на host."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--op-offload"

@@ -5,6 +5,7 @@ title: "--rope-freq-scale"
 summary: "Задает внутренний RoPE frequency scale напрямую: контекст расширяется примерно в `1/N` раз. Это низкоуровневая форма того же поля, которое `--rope-scale` задает как обратный коэффициент."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--rope-freq-scale"

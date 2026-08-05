@@ -5,6 +5,7 @@ title: "--mmap"
 summary: "Устаревшие boolean-флаги режима загрузки: `--mmap` эквивалентен `--load-mode mmap`, а `--no-mmap` — `--load-mode none`."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--mmap"

@@ -5,6 +5,7 @@ title: "--keep"
 summary: "Default для `n_keep`: сколько токенов начального prompt сохранять при context shift. `-1` означает сохранить весь prompt."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--keep"

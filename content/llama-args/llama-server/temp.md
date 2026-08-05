@@ -5,6 +5,7 @@ title: "--temp"
 summary: "Базовая температура sampling-цепочки: снижает или повышает случайность выбора следующего токена. Значение применяется как дефолт сервера и может быть переопределено в HTTP-запросе полем `temperature`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--temp"

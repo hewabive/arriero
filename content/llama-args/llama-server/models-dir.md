@@ -5,6 +5,7 @@ title: "--models-dir"
 summary: "Добавляет каталог локальных GGUF-моделей в каталог router-режима. Сервер сканирует каталог на старте и при reload списка моделей."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "router"
 valueHint: "PATH"
 presetSupport: "router-managed"
 aliases:

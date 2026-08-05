@@ -5,6 +5,7 @@ title: "--metrics"
 summary: "Включает `GET /metrics` в формате Prometheus text exposition. Без флага endpoint возвращает not supported."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 presetSupport: "router-managed"
 aliases:

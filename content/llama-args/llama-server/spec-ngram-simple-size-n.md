@@ -5,6 +5,7 @@ title: "--spec-ngram-simple-size-n"
 summary: "Размер n-gram ключа для `ngram-simple`: сколько последних токенов используется для поиска предыдущего совпадения в истории. Работает только при включенном `--spec-type ngram-simple`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-simple-size-n"

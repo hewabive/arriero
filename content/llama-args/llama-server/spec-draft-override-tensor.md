@@ -5,6 +5,7 @@ title: "--spec-draft-override-tensor"
 summary: "Переопределяет buffer type отдельных tensor draft-модели по regex-like pattern. Используется для точечного размещения draft tensor на CPU/GPU поверх общего `--spec-draft-ngl`."
 category: "Параметры speculative decoding"
 valueType: "list"
+estimation: "normal"
 valueHint: "<tensor name pattern>=<buffer type>,..."
 aliases:
   - "--spec-draft-override-tensor"

@@ -5,6 +5,7 @@ title: "--backend-sampling"
 summary: "Экспериментально переносит совместимые sampler-операции в backend llama.cpp. Режим может автоматически отключаться для конкретного запроса при grammar, reasoning budget, speculative decoding или pre-sampling logprobs."
 category: "Параметры сэмплинга"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-bs"

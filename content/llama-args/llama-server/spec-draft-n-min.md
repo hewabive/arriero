@@ -5,6 +5,7 @@ title: "--spec-draft-n-min"
 summary: "Задает минимальную длину draft-последовательности для draft-model/MTP speculative decoding. Если draft получился короче, он отбрасывается и target продолжает обычную генерацию."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-draft-n-min"

@@ -5,6 +5,7 @@ title: "--verbosity"
 summary: "Задает числовой порог логирования. Сообщения с verbosity выше порога игнорируются; значения `0..5` описаны в help, а `>9` дополнительно включает `__verbose` в server task responses."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-lv"

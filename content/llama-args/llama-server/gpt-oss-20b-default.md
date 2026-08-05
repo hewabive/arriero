@@ -5,6 +5,7 @@ title: "--gpt-oss-20b-default"
 summary: "Встроенный пресет для gpt-oss-20b MXFP4. Задает HF repo/file, порт 8013, большой контекст, Jinja и sampling defaults."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--gpt-oss-20b-default"

@@ -5,6 +5,7 @@ title: "--props"
 summary: "Разрешает `POST /props`; `GET /props` доступен и без этого флага. В текущем коде POST подтверждает успех, но не меняет полезные свойства."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 presetSupport: "router-managed"
 aliases:

@@ -5,6 +5,7 @@ title: "--spec-draft-n-cpu-moe"
 summary: "Оставляет MoE expert tensor первых N слоев draft-модели на CPU. Полезно для частичной экономии VRAM без полного CPU-размещения всех experts."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-draft-n-cpu-moe"

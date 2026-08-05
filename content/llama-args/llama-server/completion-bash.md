@@ -5,6 +5,7 @@ title: "--completion-bash"
 summary: "Печатает bash completion script для llama.cpp tools и завершает процесс. Используется для shell-интеграции, не для постоянного запуска `llama-server`."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "exits"
 valueHint: null
 aliases:
   - "--completion-bash"

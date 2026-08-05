@@ -5,6 +5,7 @@ title: "--presence-penalty"
 summary: "Добавляет фиксированный штраф за сам факт появления токена в окне `--repeat-last-n`. `0.0` отключает presence penalty."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--presence-penalty"

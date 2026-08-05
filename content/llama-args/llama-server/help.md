@@ -5,6 +5,7 @@ title: "--help"
 summary: "Печатает usage/help для текущего `llama-server` и завершает процесс с кодом 0. Это диагностический флаг, а не параметр постоянной конфигурации сервера."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "exits"
 valueHint: null
 aliases:
   - "-h"

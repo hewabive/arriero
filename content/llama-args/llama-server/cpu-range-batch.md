@@ -5,6 +5,7 @@ title: "--cpu-range-batch"
 summary: "Задает CPU affinity для batch/prompt CPU-профиля диапазоном индексов CPU. Если batch-профиль не задан, он наследует основной CPU-профиль."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "lo-hi"
 aliases:
   - "-Crb"

@@ -5,6 +5,7 @@ title: "--prio-batch"
 summary: "Задает scheduler priority для batch/prompt worker threads. В отличие от основного `--prio`, batch-вариант принимает только `0..3`."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
 allowedValues: []

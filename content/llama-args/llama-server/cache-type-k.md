@@ -5,6 +5,7 @@ title: "--cache-type-k"
 summary: "Тип данных K-части KV-cache. Главный регулятор памяти длинного контекста вместе с `--cache-type-v`; требует проверки качества и backend support."
 category: "Общие параметры"
 valueType: "enum"
+estimation: "normal"
 valueHint: "TYPE"
 aliases:
   - "-ctk"

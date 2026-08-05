@@ -5,6 +5,7 @@ title: "--cache-idle-slots"
 summary: "Сохраняет idle slots в RAM prompt cache при старте новой задачи; при `--kv-unified` дополнительно очищает их KV. Требует включенный `--cache-ram`."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--cache-idle-slots"

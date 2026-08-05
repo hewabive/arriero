@@ -5,6 +5,7 @@ title: "--main-gpu"
 summary: "Выбирает основной GPU по индексу в списке устройств. В `split-mode=none` оставляет для модели только этот GPU, а в `split-mode=row` используется для промежуточных результатов и KV."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "INDEX"
 aliases:
   - "-mg"

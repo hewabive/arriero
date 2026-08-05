@@ -5,6 +5,7 @@ title: "--jinja"
 summary: "Включает или отключает Jinja engine для chat templates. По умолчанию в server Jinja включен; `--no-jinja` оставляет только legacy/built-in templates и ограничивает поддержку tools/reasoning."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--jinja"

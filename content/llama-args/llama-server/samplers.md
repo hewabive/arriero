@@ -5,6 +5,7 @@ title: "--samplers"
 summary: "Задает полный порядок sampler-ов по именам через `;`. В отличие от `--sampler-seq`, явно помечает sequence как пользовательскую настройку, поэтому GGUF metadata `general.sampling.sequence` не перезапишет ее при загрузке модели."
 category: "Параметры сэмплинга"
 valueType: "string"
+estimation: "normal"
 valueHint: "SAMPLERS"
 aliases:
   - "--samplers"

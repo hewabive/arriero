@@ -5,6 +5,7 @@ title: "--hf-repo"
 summary: "Выбирает основной GGUF из Hugging Face repo в формате `<user>/<model>[:quant]`. Downloader использует HF cache, умеет split GGUF и автоматически подбирает `mmproj`, если он найден и не отключен."
 category: "Общие параметры"
 valueType: "string"
+estimation: "remote-selector"
 valueHint: "<user>/<model>[:quant]"
 aliases:
   - "-hf"

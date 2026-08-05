@@ -5,6 +5,7 @@ title: "--mmproj-auto"
 summary: "Управляет автоматическим использованием `mmproj`, найденного рядом с HF-моделью. По умолчанию включено; отрицательные формы `--no-mmproj` и `--no-mmproj-auto` запрещают projector."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--mmproj-auto"

@@ -5,6 +5,7 @@ title: "--top-p"
 summary: "Включает nucleus sampling: оставляет минимальный набор самых вероятных токенов с суммарной вероятностью не ниже P. `1.0` и выше отключают фильтр; HTTP-запрос может заменить дефолт полем `top_p`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--top-p"

@@ -5,6 +5,7 @@ title: "--tags"
 summary: "Добавляет информационные теги модели в metadata API. Теги выводятся в `/models`, но не участвуют в выборе маршрута."
 category: "Параметры llama-server"
 valueType: "list"
+estimation: "normal"
 valueHint: "STRING"
 aliases:
   - "--tags"

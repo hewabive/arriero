@@ -5,6 +5,7 @@ title: "--checkpoint-min-step"
 summary: "Минимальное расстояние между context checkpoints в токенах. По умолчанию 8192; последний user turn и точки у конца prompt могут обходить этот интервал."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-cms"

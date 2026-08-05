@@ -5,6 +5,7 @@ title: "--models-autoload"
 summary: "Управляет автоматической загрузкой модели по router-запросу. Парный `--no-models-autoload` требует предварительного `POST /models/load` или per-request `autoload=true`."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 presetSupport: "router-managed"
 aliases:

@@ -5,6 +5,7 @@ title: "--mmproj"
 summary: "Задает локальный файл multimodal projector для vision/audio-capable моделей. При наличии projector сервер инициализирует `mtmd_context` и включает multimodal обработку запросов."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "FILE"
 presetSupport: "model-managed"
 aliases:

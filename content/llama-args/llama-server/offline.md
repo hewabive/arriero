@@ -5,6 +5,7 @@ title: "--offline"
 summary: "Запрещает сетевые обращения общего downloader-а и заставляет использовать уже подготовленный cache. Применяется к HF/URL downloads, включая `mmproj` и draft-модели."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--offline"

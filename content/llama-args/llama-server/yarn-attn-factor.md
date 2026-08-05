@@ -5,6 +5,7 @@ title: "--yarn-attn-factor"
 summary: "Задает YaRN attention magnitude factor. По умолчанию `-1` означает значение из модели, но при активном YaRN extrapolation llama.cpp может пересчитать factor автоматически."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--yarn-attn-factor"

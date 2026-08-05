@@ -5,6 +5,7 @@ title: "--spec-draft-poll-batch"
 summary: "Задает polling для batch/prompt CPU-профиля draft-модели. Help показывает `<0|1>` и fallback от `--spec-draft-poll`; обработчик сохраняет целое значение в `uint32_t`."
 category: "Параметры speculative decoding"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "<0|1>"
 aliases:
   - "--poll-batch-draft"

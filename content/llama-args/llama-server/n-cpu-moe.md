@@ -5,6 +5,7 @@ title: "--n-cpu-moe"
 summary: "Оставляет MoE expert weights первых `N` блоков на CPU. `0` не добавляет overrides, отрицательные значения запрещены парсером."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-ncmoe"

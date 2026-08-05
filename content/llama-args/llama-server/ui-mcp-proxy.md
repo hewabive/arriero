@@ -5,6 +5,7 @@ title: "--ui-mcp-proxy"
 summary: "Экспериментально включает MCP CORS proxy для Web UI на `/cors-proxy`. Не следует включать в недоверенной сети."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--ui-mcp-proxy"

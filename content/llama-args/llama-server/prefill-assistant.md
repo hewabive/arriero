@@ -5,6 +5,7 @@ title: "--prefill-assistant"
 summary: "Разрешает использовать последний assistant message как prefill продолжения ответа. `--no-prefill-assistant` заставляет считать последний assistant message обычным завершенным сообщением."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--prefill-assistant"

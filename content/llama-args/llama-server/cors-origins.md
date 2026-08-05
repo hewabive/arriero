@@ -5,6 +5,7 @@ title: "--cors-origins"
 summary: "Задаёт разрешённые browser origins для CORS. Специальное значение `localhost` отражает только локальные origins; открытый default `*` требует осторожности."
 category: "Параметры llama-server"
 valueType: "list"
+estimation: "normal"
 valueHint: "ORIGINS"
 aliases:
   - "--cors-origins"

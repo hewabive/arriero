@@ -5,6 +5,7 @@ title: "--media-path"
 summary: "Каталог, из которого multimodal endpoints могут читать локальные `file://` media URLs. Без него `file://` запрещены."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "PATH"
 presetSupport: "router-managed"
 aliases:

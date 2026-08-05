@@ -5,6 +5,7 @@ title: "stop-timeout"
 summary: "Preset-only ключ models-preset INI: задает, сколько секунд router ждет graceful shutdown дочернего llama-server перед принудительным завершением."
 category: "Пресеты"
 valueType: "number"
+estimation: "normal"
 valueHint: "SECONDS"
 presetSupport: "preset-only"
 aliases:

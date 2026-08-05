@@ -5,6 +5,7 @@ title: "--poll"
 summary: "Задает уровень busy polling основного CPU threadpool при ожидании работы. `0` отключает polling, значение по умолчанию в `common_cpu_params` равно `50`."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "<0...100>"
 aliases:
 allowedValues: []

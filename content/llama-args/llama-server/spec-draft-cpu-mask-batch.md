@@ -5,6 +5,7 @@ title: "--spec-draft-cpu-mask-batch"
 summary: "Парсит hex-маску CPU affinity для batch/prompt профиля draft-модели. По help наследует основной `--cpu-mask`, но в текущем server load path draft affinity batch-профиля не копируется явно в draft runtime."
 category: "Параметры speculative decoding"
 valueType: "string"
+estimation: "normal"
 valueHint: "M"
 aliases:
   - "-Cbd"

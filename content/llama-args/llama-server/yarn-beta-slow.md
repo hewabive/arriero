@@ -5,6 +5,7 @@ title: "--yarn-beta-slow"
 summary: "Задает YaRN high correction dim, также называемый alpha. Значение `-1` оставляет параметр из metadata модели."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--yarn-beta-slow"

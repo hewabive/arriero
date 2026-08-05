@@ -5,6 +5,7 @@ title: "--special"
 summary: "Разрешает вывод special/control tokens как текста при detokenization. Полезно для диагностики templates и token streams, но обычно не нужно для публичного API."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-sp"

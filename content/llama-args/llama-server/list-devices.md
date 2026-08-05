@@ -5,6 +5,7 @@ title: "--list-devices"
 summary: "Печатает список доступных не-CPU устройств llama.cpp с описанием и памятью, затем завершает процесс. Используется для выбора точных имен для `--device`."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "exits"
 valueHint: null
 aliases:
   - "--list-devices"

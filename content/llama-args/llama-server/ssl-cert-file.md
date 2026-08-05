@@ -5,6 +5,7 @@ title: "--ssl-cert-file"
 summary: "PEM-файл сертификата для встроенного HTTPS listener. Должен использоваться вместе с `--ssl-key-file`."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 presetSupport: "router-managed"
 aliases:

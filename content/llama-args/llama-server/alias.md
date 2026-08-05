@@ -5,6 +5,7 @@ title: "--alias"
 summary: "Задает одно или несколько API-имен модели. В router-режиме алиасы используются для поиска модели и должны быть уникальны."
 category: "Параметры llama-server"
 valueType: "list"
+estimation: "normal"
 valueHint: "STRING"
 aliases:
   - "-a"

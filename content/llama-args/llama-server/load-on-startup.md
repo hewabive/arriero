@@ -5,6 +5,7 @@ title: "load-on-startup"
 summary: "Preset-only ключ models-preset INI: загружает выбранную модель при старте или reload router-а, не являясь CLI-аргументом llama-server."
 category: "Пресеты"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 controlKind: "toggle"
 presetSupport: "preset-only"

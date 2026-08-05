@@ -5,6 +5,7 @@ title: "--spec-ngram-size-m"
 summary: "Удаленный legacy-аргумент общего размера m-gram. Текущий `llama-server` отклоняет его; используйте `--spec-ngram-simple-size-m`, `--spec-ngram-map-k-size-m` или `--spec-ngram-map-k4v-size-m`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-size-m"

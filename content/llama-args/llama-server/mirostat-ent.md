@@ -5,6 +5,7 @@ title: "--mirostat-ent"
 summary: "Задает целевую энтропию Mirostat, параметр `tau`. Используется только в режимах `--mirostat 1` и `--mirostat 2`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--mirostat-ent"

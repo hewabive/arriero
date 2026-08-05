@@ -5,6 +5,7 @@ title: "--log-colors"
 summary: "Управляет ANSI-цветами common logger: `on`, `off` или `auto`. Режим `auto` включает цвета только для terminal output."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "[on|off|auto]"
 aliases:
 allowedValues:

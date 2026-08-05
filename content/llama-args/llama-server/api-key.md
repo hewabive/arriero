@@ -5,6 +5,7 @@ title: "--api-key"
 summary: "Добавляет один или несколько API-ключей для HTTP-аутентификации. Ключи принимаются из `Authorization: Bearer ...` или `X-Api-Key`."
 category: "Параметры llama-server"
 valueType: "list"
+estimation: "normal"
 valueHint: "KEY"
 presetSupport: "router-managed"
 aliases:

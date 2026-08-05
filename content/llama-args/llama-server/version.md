@@ -5,6 +5,7 @@ title: "--version"
 summary: "Печатает build number, commit, compiler и target текущего бинарника, затем завершает процесс. Используется для диагностики, а не для запуска server instance."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "exits"
 valueHint: null
 aliases:
   - "--version"

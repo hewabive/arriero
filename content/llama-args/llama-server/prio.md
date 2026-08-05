@@ -5,6 +5,7 @@ title: "--prio"
 summary: "Задает scheduler priority для worker threads основного CPU-профиля. `-1` разрешен только для основного `--prio` и означает low priority."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
 allowedValues: []

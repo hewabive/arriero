@@ -5,6 +5,7 @@ title: "--skip-chat-parsing"
 summary: "Принудительно использует pure content parser для chat responses. Formatting template остается, но reasoning и tool calls не извлекаются в отдельные поля."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--skip-chat-parsing"

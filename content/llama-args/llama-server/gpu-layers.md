@@ -5,6 +5,7 @@ title: "--gpu-layers"
 summary: "Задает, сколько слоев модели llama.cpp пытается разместить в VRAM. Поддерживает точное число, `auto` для подбора через fit-to-memory и `all` для полной выгрузки доступных слоев на GPU."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-ngl"

@@ -5,6 +5,7 @@ title: "--cache-list"
 summary: "Печатает список HF-моделей, найденных в cache, и сразу завершает процесс. Используется для диагностики `--hf-repo`/router cache, а не для KV-cache."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "exits"
 valueHint: null
 aliases:
   - "-cl"

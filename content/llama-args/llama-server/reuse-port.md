@@ -5,6 +5,7 @@ title: "--reuse-port"
 summary: "Включает `SO_REUSEPORT` для HTTP-сокета, если платформа его поддерживает. Нужен для специальных схем с несколькими listener-процессами на одном порту."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--reuse-port"

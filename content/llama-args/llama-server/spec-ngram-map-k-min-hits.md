@@ -5,6 +5,7 @@ title: "--spec-ngram-map-k-min-hits"
 summary: "Параметр сохраняется в конфигурации `ngram-map-k`, но в текущем коде не фильтрует drafts: ветка `key_only` создает draft до проверки `min_hits`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-map-k-min-hits"

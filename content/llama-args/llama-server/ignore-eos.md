@@ -5,6 +5,7 @@ title: "--ignore-eos"
 summary: "Запрещает выбор EOS/EOG токенов через logit bias `-INFINITY`, чтобы генерация не останавливалась на штатном конце потока. Длина ответа тогда должна ограничиваться `--predict`, stop-строками или клиентским `max_tokens`."
 category: "Параметры сэмплинга"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--ignore-eos"

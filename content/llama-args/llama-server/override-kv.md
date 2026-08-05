@@ -5,6 +5,7 @@ title: "--override-kv"
 summary: "Переопределяет отдельные GGUF metadata keys до загрузки модели. Формат строгий: `KEY=TYPE:VALUE`, типы только `int`, `float`, `bool`, `str`; ошибка формата останавливает запуск."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "KEY=TYPE:VALUE,..."
 aliases:
   - "--override-kv"

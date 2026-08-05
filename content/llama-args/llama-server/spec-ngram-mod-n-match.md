@@ -5,6 +5,7 @@ title: "--spec-ngram-mod-n-match"
 summary: "Длина n-gram ключа, который `ngram-mod` хеширует для поиска следующего токена. Слишком малые значения дают больше ложных совпадений; в текущем коде `n_match < 16` специально сопровождается предупреждением."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-mod-n-match"

@@ -5,6 +5,7 @@ title: "--spec-draft-cpu-strict-batch"
 summary: "Переключает strict CPU placement для batch/prompt CPU-профиля draft-модели. Help задает fallback от `--spec-draft-cpu-strict`, но текущий server load path не копирует этот флаг явно в draft runtime."
 category: "Параметры speculative decoding"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "<0|1>"
 aliases:
   - "--cpu-strict-batch-draft"

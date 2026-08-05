@@ -5,6 +5,7 @@ title: "--fit-ctx"
 summary: "Задает минимальный context size, до которого `--fit` может снизить автоматически выбранный контекст. По умолчанию минимум равен `4096`."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-fitc"

@@ -20,10 +20,15 @@ import {
   argumentDocSlug,
   parseArgumentDocFile,
 } from "./docs.js";
+import {
+  LlamaArgumentEstimationSchema,
+  type LlamaArgumentEstimation,
+} from "./estimation.js";
 
 type ArgumentRegistryEntry = {
   option: ArgumentOption;
   slug: string;
+  estimation: LlamaArgumentEstimation;
 };
 
 const emptyDoc = {
@@ -228,6 +233,11 @@ export function loadArgumentRegistry() {
       entries.push({
         option,
         slug: item.name.replace(/\.md$/, ""),
+        estimation: enumField(
+          stringField(parsed.frontmatter, "estimation"),
+          (value) => LlamaArgumentEstimationSchema.safeParse(value),
+          "normal",
+        ),
       });
     }
   }

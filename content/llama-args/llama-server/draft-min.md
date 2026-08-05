@@ -5,6 +5,7 @@ title: "--draft-min"
 summary: "Legacy-аргумент удален из llama.cpp: `--draft-min` и `--draft-n-min` завершают запуск ошибкой. Для draft-модели используйте `--spec-draft-n-min`, для ngram-mod - `--spec-ngram-mod-n-min`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--draft-n-min"

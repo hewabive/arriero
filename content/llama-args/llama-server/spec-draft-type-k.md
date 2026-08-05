@@ -5,6 +5,7 @@ title: "--spec-draft-type-k"
 summary: "Задает тип данных K-части KV-cache для draft-модели или MTP draft-контекста. Квантованные типы уменьшают память draft-контекста, но могут менять скорость и acceptance."
 category: "Общие параметры"
 valueType: "enum"
+estimation: "normal"
 valueHint: "TYPE"
 aliases:
   - "--spec-draft-type-k"

@@ -5,6 +5,7 @@ title: "--lora-init-without-apply"
 summary: "Загружает LoRA adapters в память, но не применяет их к контексту на старте. Их можно включить позже через `POST /lora-adapters` или per-request `lora`."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--lora-init-without-apply"

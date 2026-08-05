@@ -5,6 +5,7 @@ title: "--dry-allowed-length"
 summary: "Задает, сколько токенов повторяющейся последовательности DRY допускает без штрафа. Default `2` начинает штрафовать только продолжение более длинного повтора."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--dry-allowed-length"

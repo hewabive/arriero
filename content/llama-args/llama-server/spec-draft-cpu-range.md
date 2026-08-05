@@ -5,6 +5,7 @@ title: "--spec-draft-cpu-range"
 summary: "Задает диапазон CPU affinity для generation-профиля draft-модели в формате `lo-hi` и дополняет `--spec-draft-cpu-mask`. В текущем `llama-server` draft affinity парсится, но применение к draft runtime не подтверждается кодом загрузки."
 category: "Параметры speculative decoding"
 valueType: "string"
+estimation: "normal"
 valueHint: "lo-hi"
 aliases:
   - "-Crd"

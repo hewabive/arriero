@@ -5,6 +5,7 @@ title: "--escape"
 summary: "Включает или отключает обработку escape-последовательностей в prompt-related CLI строках. По умолчанию включено; `--no-escape` оставляет `\\n`, `\\t` и похожие последовательности буквальным текстом."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-e"

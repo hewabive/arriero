@@ -5,6 +5,7 @@ title: "--spec-ngram-simple-min-hits"
 summary: "Параметр парсится в `common_params.speculative.ngram_simple.min_hits`, но в текущем commit не влияет на алгоритм `ngram-simple`: runtime config передает только `size_n` и `size_m`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-simple-min-hits"

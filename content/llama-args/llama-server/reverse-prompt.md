@@ -5,6 +5,7 @@ title: "--reverse-prompt"
 summary: "Добавляет stop/anti-prompt строку, на которой generation останавливается. В server это становится default stop sequence для completion/chat задач, если request не передал собственный `stop`."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "PROMPT"
 aliases:
   - "-r"

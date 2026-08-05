@@ -5,6 +5,7 @@ title: "--reasoning"
 summary: "Управляет тем, будет ли chat template просить модель генерировать reasoning/thinking. `auto` использует поддержку template, `on` принудительно включает template kwarg, `off` отключает."
 category: "Параметры llama-server"
 valueType: "enum"
+estimation: "normal"
 valueHint: "[on|off|auto]"
 aliases:
   - "-rea"

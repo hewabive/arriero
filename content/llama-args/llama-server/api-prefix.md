@@ -5,6 +5,7 @@ title: "--api-prefix"
 summary: "URL-префикс, добавляемый ко всем HTTP routes `llama-server`. Значение задается без завершающего слеша, например `/llama`."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "PREFIX"
 presetSupport: "router-managed"
 aliases:

@@ -5,6 +5,7 @@ title: "--dynatemp-range"
 summary: "Включает динамическую температуру вокруг `--temp`: фактическая температура выбирается по энтропии распределения в диапазоне `[max(0, temp-range), temp+range]`. `0.0` отключает dynamic temperature."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--dynatemp-range"

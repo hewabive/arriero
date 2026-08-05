@@ -5,6 +5,7 @@ title: "--dynatemp-exp"
 summary: "Экспонента dynamic temperature: управляет тем, как нормализованная энтропия распределения превращается в температуру внутри диапазона `--dynatemp-range`. Работает только когда dynamic temperature включена."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--dynatemp-exp"

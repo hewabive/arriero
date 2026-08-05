@@ -5,6 +5,7 @@ title: "--api-key-file"
 summary: "Читает API-ключи из файла, по одному ключу на строку. Удобно для secret-файлов и rotation без записи секрета в argv."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 presetSupport: "router-managed"
 aliases:

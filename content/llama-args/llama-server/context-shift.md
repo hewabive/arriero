@@ -5,6 +5,7 @@ title: "--context-shift"
 summary: "Разрешает сдвиг контекста при бесконечной генерации, чтобы не останавливаться на заполнении `n_ctx`. По умолчанию выключено."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--context-shift"

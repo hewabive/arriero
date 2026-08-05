@@ -5,6 +5,7 @@ title: "--no-host"
 summary: "Запрещает добавлять host buffer type от GPU-устройств в CPU fallback list. Это низкоуровневый флаг загрузки весов, полезный только для тонкой настройки buffer types."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--no-host"

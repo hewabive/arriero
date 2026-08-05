@@ -5,6 +5,7 @@ title: "--port"
 summary: "TCP-порт, на котором `llama-server` принимает HTTP-запросы. Значение `0` просит ОС выбрать свободный порт автоматически."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "PORT"
 presetSupport: "router-managed"
 aliases:

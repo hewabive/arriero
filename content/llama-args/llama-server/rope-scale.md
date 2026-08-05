@@ -5,6 +5,7 @@ title: "--rope-scale"
 summary: "Задает человекочитаемый коэффициент расширения RoPE-контекста: `N` превращается во внутренний `rope_freq_scale = 1/N`. Используется на старте при создании контекста и конфликтует с прямым `--rope-freq-scale`."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--rope-scale"

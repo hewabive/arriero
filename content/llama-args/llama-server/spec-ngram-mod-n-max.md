@@ -5,6 +5,7 @@ title: "--spec-ngram-mod-n-max"
 summary: "Максимальная длина черновика, который `ngram-mod` может предложить за один speculative шаг. Ограничивает объем проверки главным контекстом и должен быть согласован с `--spec-ngram-mod-n-min` и `--spec-draft-n-max`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-mod-n-max"

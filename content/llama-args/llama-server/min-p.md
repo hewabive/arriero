@@ -5,6 +5,7 @@ title: "--min-p"
 summary: "Фильтрует токены по вероятности относительно лучшего кандидата: остаются токены с `p_i >= min_p * p_max`. `0.0` и ниже отключают фильтр; HTTP-запрос может заменить дефолт полем `min_p`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--min-p"

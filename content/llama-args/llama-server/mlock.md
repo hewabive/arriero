@@ -5,6 +5,7 @@ title: "--mlock"
 summary: "Устаревший флаг, эквивалентный `--load-mode mlock`: читает модель без mmap и удерживает её в RAM без swap или memory compression."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--mlock"

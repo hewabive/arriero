@@ -5,6 +5,7 @@ title: "--mirostat-lr"
 summary: "Задает learning rate Mirostat, параметр `eta`. Используется только когда `--mirostat` равен `1` или `2`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--mirostat-lr"

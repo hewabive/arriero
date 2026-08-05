@@ -5,6 +5,7 @@ title: "--ctx-checkpoints"
 summary: "Максимум context checkpoints на слот. Нужен для восстановления cache при SWA/hybrid/recurrent memory; на спекулятивные checkpoints (spec_ckpt) не влияет."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-ctxcp"

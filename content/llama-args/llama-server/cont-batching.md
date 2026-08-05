@@ -5,6 +5,7 @@ title: "--cont-batching"
 summary: "Включает continuous batching: новые задачи могут добавляться в batch на лету, пока сервер уже обрабатывает другие слоты. По умолчанию включено."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-cb"

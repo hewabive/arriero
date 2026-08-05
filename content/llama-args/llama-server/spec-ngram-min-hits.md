@@ -5,6 +5,7 @@ title: "--spec-ngram-min-hits"
 summary: "Удаленный legacy-аргумент общего порога hits для ngram speculative decoding. Текущий `llama-server` отклоняет его; используйте variant-specific `--spec-ngram-*-min-hits` с учетом реального поведения каждого варианта."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-min-hits"

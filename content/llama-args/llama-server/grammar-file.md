@@ -5,6 +5,7 @@ title: "--grammar-file"
 summary: "Читает user grammar из файла и использует ее как constraint для генерации. Путь читается на старте процесса; при ошибке открытия llama-server падает с сообщением `failed to open file`."
 category: "Параметры сэмплинга"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 aliases:
   - "--grammar-file"

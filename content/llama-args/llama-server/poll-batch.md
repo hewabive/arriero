@@ -5,6 +5,7 @@ title: "--poll-batch"
 summary: "Задает polling для batch/prompt CPU-профиля. Help показывает `0|1`, но поле хранит числовой уровень `uint32_t`, как и основной `--poll`."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "<0|1>"
 aliases:
 allowedValues: []

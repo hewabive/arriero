@@ -5,6 +5,7 @@ title: "--image-max-tokens"
 summary: "Задает верхнюю границу числа токенов на изображение для vision-моделей с dynamic resolution. Используется только через multimodal projector."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--image-max-tokens"

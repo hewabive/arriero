@@ -5,6 +5,7 @@ title: "--typical"
 summary: "Настраивает locally typical sampling (`typ_p`): фильтр оставляет токены с типичной информационной неожиданностью относительно энтропии распределения. `1.0` и выше отключают фильтр; HTTP API использует поле `typical_p`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--typical"

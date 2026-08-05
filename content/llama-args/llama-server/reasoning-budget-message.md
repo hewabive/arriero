@@ -5,6 +5,7 @@ title: "--reasoning-budget-message"
 summary: "Сообщение, которое sampler вставляет перед end-of-thinking tag, когда `--reasoning-budget` исчерпан. Не действует без активного reasoning budget и thinking tags в template."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "MESSAGE"
 aliases:
   - "--reasoning-budget-message"

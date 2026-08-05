@@ -5,6 +5,7 @@ title: "--fim-qwen-14b-spec"
 summary: "Встроенный пресет Qwen2.5-Coder 14B Q8_0 с Qwen2.5-Coder 0.5B draft-моделью для speculative decoding."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--fim-qwen-14b-spec"

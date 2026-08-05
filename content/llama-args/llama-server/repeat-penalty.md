@@ -5,6 +5,7 @@ title: "--repeat-penalty"
 summary: "Задает множитель штрафа для токенов, которые уже встречались в окне `--repeat-last-n`. Значение `1.0` отключает этот вид штрафа."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--repeat-penalty"

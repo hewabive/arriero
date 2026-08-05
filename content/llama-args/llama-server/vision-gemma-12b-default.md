@@ -5,6 +5,7 @@ title: "--vision-gemma-12b-default"
 summary: "Встроенный пресет для Gemma 3 12B IT QAT vision. Задает HF repo, порт 8014, auto context и включает Jinja."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--vision-gemma-12b-default"

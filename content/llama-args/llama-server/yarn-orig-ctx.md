@@ -5,6 +5,7 @@ title: "--yarn-orig-ctx"
 summary: "Задает исходную длину контекста, от которой YaRN считает растяжение. Значение `0` оставляет metadata модели, а если metadata нет, используется обучающий `n_ctx_train`."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--yarn-orig-ctx"

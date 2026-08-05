@@ -5,6 +5,7 @@ title: "--spec-draft-threads-batch"
 summary: "Задает CPU-потоки draft-контекста для batch и prompt processing. Если не задано, наследует `--spec-draft-threads`, а при отсутствии draft-профиля - итоговый batch-профиль target."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-tbd"

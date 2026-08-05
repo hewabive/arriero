@@ -5,6 +5,7 @@ title: "--rpc"
 summary: "Подключает один или несколько удалённых ggml RPC-серверов и регистрирует их устройства для offload. Доступен только в сборке llama.cpp с RPC backend."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "SERVERS"
 aliases:
   - "--rpc"

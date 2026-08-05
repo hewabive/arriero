@@ -5,6 +5,7 @@ title: "--spec-draft-threads"
 summary: "Задает число CPU-потоков, с которым draft-контекст speculative decoding выполняет generation. Если не задано, после постобработки наследует итоговое значение `--threads`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-td"

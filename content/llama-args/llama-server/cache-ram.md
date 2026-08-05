@@ -5,6 +5,7 @@ title: "--cache-ram"
 summary: "Лимит RAM-cache для сериализованных prompt states. `0` отключает, `-1` снимает MiB-лимит, по умолчанию 8192 MiB."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-cram"

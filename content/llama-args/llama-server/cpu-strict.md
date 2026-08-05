@@ -5,6 +5,7 @@ title: "--cpu-strict"
 summary: "Включает strict CPU placement для основного CPU-профиля: потоки получают отдельные CPU из affinity mask по кругу, а не всю маску целиком."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "<0|1>"
 aliases:
 allowedValues: []

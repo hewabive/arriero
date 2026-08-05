@@ -5,6 +5,7 @@ title: "--predict"
 summary: "Глобальный default максимального числа генерируемых токенов. `-1` означает без лимита, но запрос все равно ограничен EOS, stop words, `n_ctx` и context shift."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-n"

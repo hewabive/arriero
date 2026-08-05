@@ -5,6 +5,7 @@ title: "--threads-http"
 summary: "Задает число fixed worker threads HTTP-сервера cpp-httplib. При `N < 1` сервер выбирает `max(--parallel + 4, hardware_concurrency() - 1)` и пишет фактическое значение в лог."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 presetSupport: "router-managed"
 aliases:

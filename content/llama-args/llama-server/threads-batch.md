@@ -5,6 +5,7 @@ title: "--threads-batch"
 summary: "Задает число CPU-потоков для prompt/batch processing. Если параметр не указан, batch CPU-профиль наследуется от `--threads` после постобработки."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-tb"

@@ -5,6 +5,7 @@ title: "--path"
 summary: "Каталог статических файлов, которые `llama-server` будет отдавать вместо встроенных UI-ассетов. Применяется только когда Web UI включен."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "PATH"
 aliases:
   - "--path"

@@ -5,6 +5,7 @@ title: "--slot-prompt-similarity"
 summary: "Порог совпадения нового prompt с уже закешированным prompt слота для повторного выбора этого слота. `0.0` отключает выбор по similarity."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "SIMILARITY"
 aliases:
   - "-sps"

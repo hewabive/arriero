@@ -5,6 +5,7 @@ title: "--log-prefix"
 summary: "Включает или отключает prefix перед log messages. `common_init()` включает prefix по умолчанию, но paired flags позволяют явно управлять форматом."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--no-log-prefix"

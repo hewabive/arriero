@@ -5,6 +5,7 @@ title: "--mtmd-batch-max-tokens"
 summary: "Максимум image-токенов в одном батче при энкодинге изображений multimodal projector'ом. Default 1024; ограничивает пиковую память энкодера."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--mtmd-batch-max-tokens"

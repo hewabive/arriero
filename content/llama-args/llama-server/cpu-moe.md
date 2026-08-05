@@ -5,6 +5,7 @@ title: "--cpu-moe"
 summary: "Оставляет все веса Mixture of Experts на CPU через tensor buffer override для MoE expert tensors. Полезно для экономии VRAM на MoE-моделях, но обычно увеличивает latency."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-cmoe"

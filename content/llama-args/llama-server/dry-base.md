@@ -5,6 +5,7 @@ title: "--dry-base"
 summary: "Задает базу экспоненциального роста DRY penalty. Значения меньше `1.0` не принимаются как новое значение: CLI их игнорирует, HTTP task возвращает default."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--dry-base"

@@ -5,6 +5,7 @@ title: "--log-disable"
 summary: "Ставит common logger на pause: worker thread останавливается, а новые log entries отбрасываются. Порядок с другими log-флагами важен."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
 allowedValues: []

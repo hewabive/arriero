@@ -5,6 +5,7 @@ title: "--numa"
 summary: "Включает NUMA-стратегию CPU backend: `distribute`, `isolate` или `numactl`. По умолчанию NUMA-оптимизации выключены; пустое значение в обработчике соответствует `distribute`."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "TYPE"
 aliases:
 allowedValues:

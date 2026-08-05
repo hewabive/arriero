@@ -396,6 +396,12 @@ fail closed instead of silently retaining an obsolete result.
   unsupported GGML tensor type, removed/non-inference llama.cpp arguments,
   invalid context/batch/slot geometry, a separate speculative implementation
   without its required local draft sidecar, or an unknown instance.
+  The router/preset/exit/remote gates are registry-driven: each argument doc's
+  frontmatter `estimation` class (required by `args:docs:quality`, see
+  `docs/ARGUMENT_HELP_WORKFLOW.md`) feeds them, so a newly documented preset or
+  remote alias is classified in the same edit that adds its doc. Only removed
+  arguments (absent from `--help` and the registry) stay a hand list in
+  `apps/api/src/arguments/estimation.ts`.
 
 `POST /api/instances/:id/memory-assessment` with `{ assessmentId }` binds the
 receipt after rechecking its complete fingerprint. `GET

@@ -5,6 +5,7 @@ title: "--lora-scaled"
 summary: "Загружает LoRA adapter с явным scale в формате `FNAME:SCALE`. CSV-список позволяет добавить несколько adapters за один аргумент."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "FNAME:SCALE,..."
 aliases:
   - "--lora-scaled"

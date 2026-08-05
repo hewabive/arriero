@@ -5,6 +5,7 @@ title: "--spec-draft-cpu-strict"
 summary: "Переключает strict CPU placement для generation-профиля draft-модели: `0` дает каждому worker всю affinity mask, `1` раскладывает workers по CPU из mask. В текущем server load path draft strict flag парсится, но не копируется явно в draft runtime."
 category: "Параметры speculative decoding"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "<0|1>"
 aliases:
   - "--cpu-strict-draft"

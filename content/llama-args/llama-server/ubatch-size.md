@@ -5,6 +5,7 @@ title: "--ubatch-size"
 summary: "Физический maximum micro-batch size для backend-вычисления. Обычно это первый параметр, который уменьшают при OOM на prompt processing."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-ub"

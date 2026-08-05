@@ -5,6 +5,7 @@ title: "--parallel"
 summary: "Количество серверных слотов. `-1` включает auto: сервер использует 4 слота и принудительно включает `--kv-unified`."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-np"

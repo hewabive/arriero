@@ -5,6 +5,7 @@ title: "--verbose"
 summary: "Устанавливает порог verbosity в `INT_MAX`: логируются все сообщения, а server tasks начинают добавлять `__verbose` в ответы, потому что `verbosity > 9`."
 category: "Общие параметры"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-v"

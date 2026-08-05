@@ -5,6 +5,7 @@ title: "--cors-methods"
 summary: "Задаёт содержимое `Access-Control-Allow-Methods` в ответах на browser CORS preflight. По умолчанию разрешены GET, POST, DELETE и OPTIONS."
 category: "Параметры llama-server"
 valueType: "list"
+estimation: "normal"
 valueHint: "METHODS"
 aliases:
   - "--cors-methods"

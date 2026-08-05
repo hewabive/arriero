@@ -5,6 +5,7 @@ title: "--frequency-penalty"
 summary: "Добавляет штраф, зависящий от частоты появления токена в окне `--repeat-last-n`. `0.0` отключает frequency penalty."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--frequency-penalty"

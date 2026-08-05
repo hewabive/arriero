@@ -5,6 +5,7 @@ title: "--split-mode"
 summary: "Выбирает стратегию распределения модели между несколькими GPU: один GPU, послойное распределение, row split или экспериментальный tensor parallelism."
 category: "Общие параметры"
 valueType: "enum"
+estimation: "normal"
 valueHint: "{none,layer,row,tensor}"
 aliases:
   - "-sm"

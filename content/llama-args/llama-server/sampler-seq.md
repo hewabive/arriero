@@ -5,6 +5,7 @@ title: "--sampler-seq"
 summary: "Короткая запись sampler-цепочки символами (`edskypmxt` по умолчанию). В текущем коде не выставляет user sampling bit, поэтому sequence из GGUF metadata может переопределить это значение при загрузке модели."
 category: "Параметры сэмплинга"
 valueType: "string"
+estimation: "normal"
 valueHint: "SEQUENCE"
 aliases:
   - "--sampler-seq"

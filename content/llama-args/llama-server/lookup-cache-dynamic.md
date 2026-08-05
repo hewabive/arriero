@@ -5,6 +5,7 @@ title: "--lookup-cache-dynamic"
 summary: "Указывает dynamic n-gram lookup cache для speculative decoding типа `ngram-cache`. В текущем commit путь читается при инициализации; сохранение обратно в файл в этой ветке реализации не включено."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 aliases:
   - "-lcd"

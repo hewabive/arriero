@@ -5,6 +5,7 @@ title: "--json-schema-file"
 summary: "Читает JSON Schema из файла, парсит ее на старте и конвертирует в grammar для constrained JSON generation. Ошибка открытия файла или невалидный JSON прерывает запуск."
 category: "Параметры сэмплинга"
 valueType: "path"
+estimation: "normal"
 valueHint: "FILE"
 aliases:
   - "-jf"

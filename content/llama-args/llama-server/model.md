@@ -5,6 +5,7 @@ title: "--model"
 summary: "Задает локальный путь к основному GGUF-файлу модели. Это базовый источник весов, если модель не выбирается через `--hf-repo`, `--model-url` или `--docker-repo`."
 category: "Общие параметры"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 presetSupport: "model-managed"
 aliases:

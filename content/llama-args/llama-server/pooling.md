@@ -5,6 +5,7 @@ title: "--pooling"
 summary: "Выбирает pooling strategy для embedding context: `none`, `mean`, `cls`, `last` или `rank`. Для OpenAI-compatible embeddings нужен pooled режим, для rerank используется `rank`."
 category: "Параметры llama-server"
 valueType: "enum"
+estimation: "normal"
 valueHint: "{none,mean,cls,last,rank}"
 aliases:
   - "--pooling"

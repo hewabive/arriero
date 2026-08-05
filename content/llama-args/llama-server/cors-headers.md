@@ -5,6 +5,7 @@ title: "--cors-headers"
 summary: "Задаёт `Access-Control-Allow-Headers` для browser CORS preflight. Default `*` разрешает запрошенные браузером заголовки."
 category: "Параметры llama-server"
 valueType: "list"
+estimation: "normal"
 valueHint: "HEADERS"
 aliases:
   - "--cors-headers"

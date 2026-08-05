@@ -5,6 +5,7 @@ title: "--spec-draft-cpu-mask"
 summary: "Парсит hex-маску CPU affinity для generation-профиля draft-модели и наследует `--cpu-mask`, если draft-профиль не задан. В текущем server load path явно применяется только draft thread count, поэтому affinity draft-модели требует проверки на сборке."
 category: "Параметры speculative decoding"
 valueType: "string"
+estimation: "normal"
 valueHint: "M"
 aliases:
   - "-Cd"

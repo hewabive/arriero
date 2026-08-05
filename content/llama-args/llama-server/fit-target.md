@@ -5,6 +5,7 @@ title: "--fit-target"
 summary: "Задает запас свободной памяти в MiB, который `--fit` должен оставить на каждом устройстве. Одно значение распространяется на все устройства, список задает разные запасы."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "MiB0,MiB1,MiB2,..."
 aliases:
   - "-fitt"

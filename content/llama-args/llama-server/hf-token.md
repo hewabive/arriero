@@ -5,6 +5,7 @@ title: "--hf-token"
 summary: "Передает Hugging Face access token downloader-у как bearer token. По умолчанию значение берется из переменной окружения `HF_TOKEN`."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "TOKEN"
 aliases:
   - "-hft"

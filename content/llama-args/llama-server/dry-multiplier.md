@@ -5,6 +5,7 @@ title: "--dry-multiplier"
 summary: "Включает и масштабирует DRY repetition penalty. Значение `0.0` отключает DRY, даже если остальные `--dry-*` параметры заданы."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--dry-multiplier"

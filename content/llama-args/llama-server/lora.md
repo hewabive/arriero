@@ -5,6 +5,7 @@ title: "--lora"
 summary: "Загружает LoRA/aLoRA adapter с scale `1.0`. Несколько адаптеров можно передать повторением аргумента или CSV-списком; в server их scale можно менять через API."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "FNAME"
 aliases:
   - "--lora"

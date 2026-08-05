@@ -5,6 +5,7 @@ title: "--slots"
 summary: "Включает или отключает `GET /slots`, endpoint мониторинга состояния слотов. По умолчанию endpoint включен."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 presetSupport: "router-managed"
 aliases:

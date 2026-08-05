@@ -5,6 +5,7 @@ title: "--sleep-idle-seconds"
 summary: "Включает sleep-on-idle: после заданного числа секунд без задач сервер выгружает модель и KV-cache, а следующий запрос будит и перезагружает модель. `-1` отключает режим, `0` и значения меньше `-1` запрещены."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "SECONDS"
 aliases:
   - "--sleep-idle-seconds"

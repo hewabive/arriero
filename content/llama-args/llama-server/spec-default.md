@@ -5,6 +5,7 @@ title: "--spec-default"
 summary: "Включает встроенную ngram-mod speculative конфигурацию: match 24, min 48, max 64. Draft-модель этот флаг не задает."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--spec-default"

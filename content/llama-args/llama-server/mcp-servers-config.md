@@ -5,6 +5,7 @@ title: "--mcp-servers-config"
 summary: "Загружает Cursor-совместимый JSON-файл с командами локальных stdio MCP-серверов и публикует обнаруженные tools через `/tools`."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "PATH"
 aliases:
   - "--mcp-servers-config"

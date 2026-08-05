@@ -27,6 +27,10 @@ import { existsSync } from "node:fs";
 import { getInstance } from "../instances/repository.js";
 import { loadArgumentRegistry } from "../arguments/registry.js";
 import {
+  REMOVED_LLAMA_ARGUMENT_GROUPS,
+  type LlamaArgumentEstimation,
+} from "../arguments/estimation.js";
+import {
   memoryEstimateHparams,
   readGgufMetadata,
   readGgufModelTensorTable,
@@ -358,27 +362,28 @@ export const DRAFT_MODEL_ARG_KEYS = [
   "--model-draft",
 ];
 
-const REMOVED_LLAMA_ARGUMENT_GROUPS = [
-  ["--draft", "--draft-n", "--draft-max"],
-  ["--draft-min", "--draft-n-min"],
-  ["--spec-ngram-size-n"],
-  ["--spec-ngram-size-m"],
-  ["--spec-ngram-min-hits"],
-] as const;
-
-const NON_INFERENCE_LLAMA_ARGUMENT_GROUPS = [
-  ["--help", "--usage", "-h"],
-  ["--version"],
-  ["--list-devices"],
-  ["--cache-list", "-cl"],
-  ["--completion-bash"],
-] as const;
-
 function configuredKey(
   args: MemoryEstimateArgs,
   keys: readonly string[],
 ): string | null {
   return keys.find((key) => hasArg(args, key)) ?? null;
+}
+
+function estimationOptions(estimation: LlamaArgumentEstimation): string[][] {
+  return loadArgumentRegistry()
+    .filter((entry) => entry.estimation === estimation)
+    .map((entry) => entry.option.names);
+}
+
+function configuredEstimationArgument(
+  args: MemoryEstimateArgs,
+  estimation: LlamaArgumentEstimation,
+): string | null {
+  return (
+    estimationOptions(estimation)
+      .map((names) => configuredKey(args, names))
+      .find((key) => key !== null) ?? null
+  );
 }
 
 function invalidNumericArgument(
@@ -464,12 +469,13 @@ export function estimateMemory(
     };
   }
 
-  const nonInferenceArgument = NON_INFERENCE_LLAMA_ARGUMENT_GROUPS.map(
-    (keys) =>
-      argFlag(args, [...keys]) === true
-        ? (configuredKey(args, keys) ?? keys[0])
+  const nonInferenceArgument = estimationOptions("exits")
+    .map((names) =>
+      argFlag(args, names) === true
+        ? (configuredKey(args, names) ?? names[0])
         : null,
-  ).find((key) => key != null);
+    )
+    .find((key) => key != null);
   if (nonInferenceArgument) {
     return {
       ok: false,
@@ -564,8 +570,7 @@ export function estimateMemory(
     };
   }
 
-  const routerArgs = ["--models-preset", "--models-dir"];
-  if (routerArgs.some((key) => hasArg(args, key))) {
+  if (configuredEstimationArgument(args, "router")) {
     return {
       ok: false,
       reason:
@@ -573,20 +578,7 @@ export function estimateMemory(
     };
   }
 
-  const presetArgs = [
-    "--embd-gemma-default",
-    "--fim-qwen-1.5b-default",
-    "--fim-qwen-3b-default",
-    "--fim-qwen-7b-default",
-    "--fim-qwen-7b-spec",
-    "--fim-qwen-14b-spec",
-    "--fim-qwen-30b-default",
-    "--gpt-oss-20b-default",
-    "--gpt-oss-120b-default",
-    "--vision-gemma-4b-default",
-    "--vision-gemma-12b-default",
-  ];
-  if (presetArgs.some((key) => hasArg(args, key))) {
+  if (configuredEstimationArgument(args, "preset-rewrite")) {
     return {
       ok: false,
       reason:
@@ -594,16 +586,7 @@ export function estimateMemory(
     };
   }
 
-  const remoteMainArgs = [
-    "--hf-repo",
-    "-hf",
-    "-hfr",
-    "--model-url",
-    "-mu",
-    "--docker-repo",
-    "-dr",
-  ];
-  if (remoteMainArgs.some((key) => hasArg(args, key))) {
+  if (configuredEstimationArgument(args, "remote-selector")) {
     return {
       ok: false,
       reason:
@@ -632,21 +615,14 @@ export function estimateMemory(
     ? null
     : resolveExistingPath(args, MMPROJ_ARG_KEYS);
   const draftPath = resolveExistingPath(args, DRAFT_MODEL_ARG_KEYS);
-  if (
-    !mmprojDisabled &&
-    (hasArg(args, "--mmproj-url") || hasArg(args, "-mmu"))
-  ) {
+  if (!mmprojDisabled && configuredEstimationArgument(args, "remote-mmproj")) {
     return {
       ok: false,
       reason:
         "Remote multimodal projectors (--mmproj-url) are not supported yet; download the GGUF and set --mmproj to estimate it.",
     };
   }
-  if (
-    ["--spec-draft-hf", "-hfd", "-hfrd", "--hf-repo-draft"].some((key) =>
-      hasArg(args, key),
-    )
-  ) {
+  if (configuredEstimationArgument(args, "remote-draft")) {
     return {
       ok: false,
       reason:

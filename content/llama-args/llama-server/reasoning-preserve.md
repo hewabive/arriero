@@ -5,6 +5,7 @@ title: "--reasoning-preserve"
 summary: "Управляет сохранением reasoning trace во всей chat history для совместимых Jinja templates. Без флага действует поведение самого шаблона."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--reasoning-preserve"

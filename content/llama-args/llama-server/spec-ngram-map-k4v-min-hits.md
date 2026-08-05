@@ -5,6 +5,7 @@ title: "--spec-ngram-map-k4v-min-hits"
 summary: "Минимальное число попаданий key n-gram перед тем, как `ngram-map-k4v` начнет предлагать draft. В отличие от simple/map-k legacy-порогов, этот параметр реально проверяется в текущем коде."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-map-k4v-min-hits"

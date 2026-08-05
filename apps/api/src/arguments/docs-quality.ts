@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { argumentDocsDirectory, parseArgumentDocFile } from "./docs.js";
+import { LlamaArgumentEstimationSchema } from "./estimation.js";
 
 const stalePatterns = [
   /Этот файл создан автоматически/i,
@@ -19,6 +20,7 @@ const requiredFrontmatter = [
   "summary",
   "category",
   "valueType",
+  "estimation",
   "aliases",
   "related",
 ];
@@ -139,6 +141,18 @@ function lintFile(path: string) {
       path,
       severity: "error",
       message: `invalid presetSupport: ${presetSupport}`,
+    });
+  }
+
+  const estimation = stringValue(parsed.frontmatter.estimation);
+  if (
+    estimation &&
+    !LlamaArgumentEstimationSchema.safeParse(estimation).success
+  ) {
+    issues.push({
+      path,
+      severity: "error",
+      message: `invalid estimation: ${estimation}`,
     });
   }
 

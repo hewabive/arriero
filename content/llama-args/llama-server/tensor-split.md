@@ -5,6 +5,7 @@ title: "--tensor-split"
 summary: "Задает относительные доли распределения offload по GPU. Значения читаются как пропорции в порядке устройств, например `3,1`, а не как проценты."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "N0,N1,N2,..."
 aliases:
   - "-ts"

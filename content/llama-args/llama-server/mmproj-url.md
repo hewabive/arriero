@@ -5,6 +5,7 @@ title: "--mmproj-url"
 summary: "Скачивает multimodal projector по прямому URL и затем использует локальную копию как `--mmproj`. Для строгого воспроизведения лучше закреплять локальный путь через `--mmproj`."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "remote-mmproj"
 valueHint: "URL"
 aliases:
   - "-mmu"

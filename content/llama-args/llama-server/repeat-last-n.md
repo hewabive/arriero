@@ -5,6 +5,7 @@ title: "--repeat-last-n"
 summary: "Задает размер окна предыдущих токенов, по которому llama-server считает обычные repeat/frequency/presence penalties. `0` отключает это окно; отрицательные значения больше не принимаются."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--repeat-last-n"

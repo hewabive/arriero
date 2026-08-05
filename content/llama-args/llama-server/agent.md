@@ -5,6 +5,7 @@ title: "--agent"
 summary: "Шорткат «агентного» режима: одним флагом включает все встроенные tools (`--tools all`) и MCP CORS proxy (`--ui-mcp-proxy`). Экспериментально и опасно в недоверенной сети."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-ag"

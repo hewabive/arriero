@@ -5,6 +5,7 @@ title: "--chat-template-file"
 summary: "Читает chat template из файла и передает его как override вместо metadata модели. Подходит для длинных или многострочных Jinja templates, которые неудобно хранить прямо в argv."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "JINJA_TEMPLATE_FILE"
 aliases:
   - "--chat-template-file"

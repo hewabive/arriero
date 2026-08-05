@@ -5,6 +5,7 @@ title: "--seed"
 summary: "Задает seed RNG для sampler-ов `dist`, `xtc` и `adaptive_p`. Значение `-1` соответствует `LLAMA_DEFAULT_SEED` и дает случайный seed при инициализации sampler-а."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "SEED"
 aliases:
   - "-s"

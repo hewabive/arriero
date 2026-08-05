@@ -5,6 +5,7 @@ title: "--fim-qwen-1.5b-default"
 summary: "Встроенный пресет для Qwen2.5-Coder 1.5B Q8_0. Задает HF repo/file, порт 8012, auto context и cache reuse для FIM/code сценариев."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--fim-qwen-1.5b-default"

@@ -5,6 +5,7 @@ title: "--fim-qwen-7b-default"
 summary: "Встроенный пресет для Qwen2.5-Coder 7B Q8_0 без draft-модели. Настраивает HF repo/file, порт 8012, batch 1024, auto context и cache reuse."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--fim-qwen-7b-default"

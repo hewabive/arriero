@@ -5,6 +5,7 @@ title: "--hf-file"
 summary: "Выбирает конкретный файл внутри `--hf-repo` и тем самым переопределяет quant tag. Значение должно совпадать с путем файла в Hugging Face repo."
 category: "Общие параметры"
 valueType: "path"
+estimation: "normal"
 valueHint: "FILE"
 aliases:
   - "-hff"

@@ -5,6 +5,7 @@ title: "--cache-reuse"
 summary: "Минимальный размер совпадающего chunk для переиспользования KV через shifting; работает только когда новый prompt получается из старого удалением кусков. Lossy-оптимизация, по умолчанию `0` (выключено)."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--cache-reuse"

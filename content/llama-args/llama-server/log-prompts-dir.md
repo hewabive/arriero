@@ -5,6 +5,7 @@ title: "--log-prompts-dir"
 summary: "Каталог, куда сервер пишет промпт каждого запроса отдельным файлом. Только для отладки; по умолчанию выключено. Env-переменной нет."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "PATH"
 aliases:
   - "--log-prompts-dir"

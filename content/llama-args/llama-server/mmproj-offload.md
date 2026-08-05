@@ -5,6 +5,7 @@ title: "--mmproj-offload"
 summary: "Включает или отключает GPU offload для multimodal projector. По умолчанию включено; `--no-mmproj-offload` держит projector-вычисления на CPU."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--mmproj-offload"

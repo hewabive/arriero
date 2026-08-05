@@ -5,6 +5,7 @@ title: "--spec-draft-ngl"
 summary: "Управляет числом слоев draft-модели, размещаемых в VRAM. Поддерживает точное число, `auto` и `all`; применяется отдельно от `--gpu-layers` основной модели."
 category: "Параметры speculative decoding"
 valueType: "string"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-draft-ngl"

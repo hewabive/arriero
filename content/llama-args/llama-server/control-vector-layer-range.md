@@ -5,6 +5,7 @@ title: "--control-vector-layer-range"
 summary: "Ограничивает inclusive диапазон слоев, к которым применяется control vector. Если диапазон не задан, используется `1..n_layer`."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "START END"
 aliases:
   - "--control-vector-layer-range"

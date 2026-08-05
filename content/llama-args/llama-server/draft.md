@@ -5,6 +5,7 @@ title: "--draft"
 summary: "Legacy-аргумент удален из llama.cpp: передача `--draft`, `--draft-n` или `--draft-max` завершает парсинг ошибкой. Для draft-модели используйте `--spec-draft-n-max`, для ngram-mod - `--spec-ngram-mod-n-max`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--draft-n"

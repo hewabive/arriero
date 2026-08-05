@@ -5,6 +5,7 @@ title: "--fit"
 summary: "Включает автоматический подбор незаданных параметров под доступную память устройства. По умолчанию включен и может изменить `n_gpu_layers`, `tensor_split` и context size перед загрузкой модели."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "[on|off]"
 aliases:
   - "-fit"

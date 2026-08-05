@@ -5,6 +5,7 @@ title: "--chat-template"
 summary: "Задает chat template вручную и тем самым переопределяет шаблон из metadata GGUF. В Jinja-режиме это полноценный Jinja template, без `--jinja` принимаются только известные встроенные имена шаблонов."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "JINJA_TEMPLATE"
 aliases:
   - "--chat-template"

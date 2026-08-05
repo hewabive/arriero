@@ -5,6 +5,7 @@ title: "--direct-io"
 summary: "Устаревшие boolean-флаги режима загрузки: `--direct-io` эквивалентен `--load-mode dio`, отрицательная форма — `--load-mode none`."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "-dio"

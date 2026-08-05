@@ -5,6 +5,7 @@ title: "--adaptive-target"
 summary: "Целевая вероятность для experimental `adaptive_p` sampler-а. Отрицательное значение отключает адаптацию; sampler начинает работать только если явно добавить `adaptive_p` в `--samplers` или `a` в `--sampler-seq`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--adaptive-target"

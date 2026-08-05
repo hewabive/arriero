@@ -5,6 +5,7 @@ title: "--control-vector-scaled"
 summary: "Загружает control vector с явным strength в формате `FNAME:SCALE`. Несколько vectors можно передать CSV-списком."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "FNAME:SCALE,..."
 aliases:
   - "--control-vector-scaled"

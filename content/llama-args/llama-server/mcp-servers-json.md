@@ -5,6 +5,7 @@ title: "--mcp-servers-json"
 summary: "Передаёт Cursor-совместимые определения локальных stdio MCP-серверов прямо в CLI или env вместо отдельного файла."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "JSON"
 aliases:
   - "--mcp-servers-json"

@@ -5,6 +5,7 @@ title: "--ssl-key-file"
 summary: "PEM-файл приватного ключа для встроенного HTTPS listener. Работает только вместе с `--ssl-cert-file` и только в сборке с OpenSSL."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 presetSupport: "router-managed"
 aliases:

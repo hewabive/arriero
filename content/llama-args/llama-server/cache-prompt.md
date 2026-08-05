@@ -5,6 +5,7 @@ title: "--cache-prompt"
 summary: "Включает reuse KV-cache для общего prefix между запросами в слоте. По умолчанию включено и может быть переопределено в JSON-запросе `cache_prompt`."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--cache-prompt"

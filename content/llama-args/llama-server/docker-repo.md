@@ -5,6 +5,7 @@ title: "--docker-repo"
 summary: "Загружает GGUF-слой из Docker Hub model repository и подставляет скачанный файл как основную модель. Если namespace не указан, используется `ai/`, а tag по умолчанию - `latest`."
 category: "Общие параметры"
 valueType: "string"
+estimation: "remote-selector"
 valueHint: "[<repo>/]<model>[:quant]"
 aliases:
   - "-dr"

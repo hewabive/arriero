@@ -5,6 +5,7 @@ title: "--ui-config-file"
 summary: "Файл с JSON-настройками Web UI по умолчанию. Содержимое читается на старте и обрабатывается как `--ui-config`."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "PATH"
 aliases:
   - "--ui-config-file"

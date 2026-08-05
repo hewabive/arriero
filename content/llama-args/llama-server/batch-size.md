@@ -5,6 +5,7 @@ title: "--batch-size"
 summary: "Логический максимум токенов в batch при обработке prompt и decode. Увеличивает потенциальный throughput prefill, но повышает пиковое потребление памяти."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-b"

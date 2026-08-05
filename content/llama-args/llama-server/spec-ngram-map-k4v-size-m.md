@@ -5,6 +5,7 @@ title: "--spec-ngram-map-k4v-size-m"
 summary: "Длина value m-gram для `ngram-map-k4v`: столько токенов после key участвует в статистике вариантов продолжения и может попасть в draft."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-map-k4v-size-m"

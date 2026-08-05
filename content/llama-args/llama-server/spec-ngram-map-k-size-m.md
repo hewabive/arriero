@@ -5,6 +5,7 @@ title: "--spec-ngram-map-k-size-m"
 summary: "Длина value m-gram, который `ngram-map-k` копирует после найденного key n-gram. Итоговый draft может быть дополнительно обрезан общим лимитом speculative draft."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-map-k-size-m"

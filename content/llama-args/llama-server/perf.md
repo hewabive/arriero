@@ -5,6 +5,7 @@ title: "--perf"
 summary: "Управляет внутренними performance timings libllama и sampler. В коде состояние хранится инвертированно как `params.no_perf`: `--perf` сбрасывает его в `false`, `--no-perf` выставляет `true`."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--no-perf"

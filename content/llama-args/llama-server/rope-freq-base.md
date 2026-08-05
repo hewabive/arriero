@@ -5,6 +5,7 @@ title: "--rope-freq-base"
 summary: "Переопределяет базовую частоту RoPE (`rope_freq_base`) для контекста. Значение `0` или отсутствие аргумента оставляет частоту из метаданных модели."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--rope-freq-base"

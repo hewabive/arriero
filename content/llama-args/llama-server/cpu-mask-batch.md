@@ -5,6 +5,7 @@ title: "--cpu-mask-batch"
 summary: "Задает CPU affinity для batch/prompt CPU-профиля как hex-маску. Если batch-маска не задана, batch-профиль наследует основную маску `--cpu-mask`."
 category: "Общие параметры"
 valueType: "string"
+estimation: "normal"
 valueHint: "M"
 aliases:
   - "-Cb"

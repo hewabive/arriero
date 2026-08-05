@@ -5,6 +5,7 @@ title: "--defrag-thold"
 summary: "Deprecated-заглушка для старого порога дефрагментации KV-cache. В текущем коде значение игнорируется, печатается только warning."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-dt"

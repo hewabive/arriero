@@ -5,6 +5,7 @@ title: "--override-tensor"
 summary: "Принудительно задает buffer type для тензоров, имена которых совпадают с regex-паттерном. Это опасный низкоуровневый инструмент для ручного размещения весов."
 category: "Общие параметры"
 valueType: "list"
+estimation: "normal"
 valueHint: "<tensor name pattern>=<buffer type>,..."
 aliases:
   - "-ot"

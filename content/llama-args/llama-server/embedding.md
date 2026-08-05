@@ -5,6 +5,7 @@ title: "--embedding"
 summary: "Переводит server в embedding-capable context и открывает embedding endpoints. Используйте с dedicated embedding models; для rerank удобнее `--rerank`, который также ставит `--pooling rank`."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--embedding"

@@ -5,6 +5,7 @@ title: "--threads"
 summary: "Задает число CPU-потоков основного inference threadpool для генерации токенов. Значения `0` и ниже сразу заменяются на `std::thread::hardware_concurrency()`, а незаданное `-1` на этапе постобработки превращается в `common_cpu_get_num_math()`."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "-t"

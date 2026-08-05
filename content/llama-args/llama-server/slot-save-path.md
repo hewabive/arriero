@@ -5,6 +5,7 @@ title: "--slot-save-path"
 summary: "Каталог для файлов save/restore KV-cache слотов через `POST /slots/{id_slot}`. Каталог проверяется уже при парсинге аргумента и должен существовать."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "PATH"
 aliases:
   - "--slot-save-path"

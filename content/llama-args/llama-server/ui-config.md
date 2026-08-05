@@ -5,6 +5,7 @@ title: "--ui-config"
 summary: "JSON-строка с настройками Web UI по умолчанию. Сервер парсит JSON при загрузке модели и публикует его в `/props` как `ui_settings`."
 category: "Параметры llama-server"
 valueType: "json"
+estimation: "normal"
 valueHint: "JSON"
 aliases:
   - "--ui-config"

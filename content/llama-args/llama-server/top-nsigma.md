@@ -5,6 +5,7 @@ title: "--top-nsigma"
 summary: "Фильтр по расстоянию logits от лучшего токена: отсекает кандидатов ниже `max_logit - N * std`. По умолчанию отключен; в HTTP API соответствует полю `top_n_sigma`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--top-nsigma"

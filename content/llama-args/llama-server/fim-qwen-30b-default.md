@@ -5,6 +5,7 @@ title: "--fim-qwen-30b-default"
 summary: "Встроенный пресет для Qwen3-Coder-30B-A3B-Instruct Q8_0. Задает HF repo/file, порт 8012, batch 1024, auto context и cache reuse."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--fim-qwen-30b-default"

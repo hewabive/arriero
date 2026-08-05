@@ -5,6 +5,7 @@ title: "--spec-draft-poll"
 summary: "Задает polling level для ожидания работы draft-модели в generation CPU-профиле. Help показывает `<0|1>`, но обработчик сохраняет целое значение в `uint32_t`, как и основной CPU-параметр polling."
 category: "Параметры speculative decoding"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "<0|1>"
 aliases:
   - "--poll-draft"

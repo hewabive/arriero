@@ -5,6 +5,7 @@ title: "--tools"
 summary: "Включает экспериментальные built-in tools для Web UI/agents на endpoint `/tools`. Опасно в недоверенных окружениях, особенно с write и shell tools."
 category: "Параметры llama-server"
 valueType: "list"
+estimation: "normal"
 valueHint: "TOOL1,TOOL2,..."
 aliases:
   - "--tools"

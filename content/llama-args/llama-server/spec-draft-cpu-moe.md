@@ -5,6 +5,7 @@ title: "--spec-draft-cpu-moe"
 summary: "Оставляет все MoE expert tensor draft-модели на CPU. Это shorthand поверх tensor buffer override для экономии VRAM на MoE draft-моделях."
 category: "Параметры speculative decoding"
 valueType: "flag"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--spec-draft-cpu-moe"

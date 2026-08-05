@@ -5,6 +5,7 @@ title: "--spec-ngram-map-k-size-n"
 summary: "Размер key n-gram для `ngram-map-k`: по этому окну токенов строится поиск предыдущего совпадения в истории слота. Активен только с `--spec-type ngram-map-k`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-map-k-size-n"

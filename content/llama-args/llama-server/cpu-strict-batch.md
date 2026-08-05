@@ -5,6 +5,7 @@ title: "--cpu-strict-batch"
 summary: "Включает strict CPU placement для batch/prompt CPU-профиля. Если не задано, batch-профиль наследует значение `--cpu-strict`."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "<0|1>"
 aliases:
 allowedValues: []

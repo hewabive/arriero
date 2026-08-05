@@ -5,6 +5,7 @@ title: "--spec-ngram-mod-n-min"
 summary: "Минимальная длина черновика для `ngram-mod`: если общий n-gram hash pool не может продолжить последовательность хотя бы на это число токенов, черновик отбрасывается. Работает только при включенном `--spec-type ngram-mod` или `--spec-default`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-mod-n-min"

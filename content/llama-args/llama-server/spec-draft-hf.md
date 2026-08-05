@@ -5,6 +5,7 @@ title: "--spec-draft-hf"
 summary: "Задает Hugging Face repo для draft-модели в формате `<user>/<model>[:quant]`. Работает как `--hf-repo`, но заполняет параметры draft-модели и скачивает GGUF перед загрузкой speculative-контекста."
 category: "Параметры speculative decoding"
 valueType: "string"
+estimation: "remote-draft"
 valueHint: "<user>/<model>[:quant]"
 aliases:
   - "--spec-draft-hf"

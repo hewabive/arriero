@@ -5,6 +5,7 @@ title: "--timeout"
 summary: "Read/write timeout HTTP-сервера в секундах. Одно значение применяется сразу к чтению и записи ответа."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 presetSupport: "router-managed"
 aliases:

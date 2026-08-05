@@ -5,6 +5,7 @@ title: "--ui"
 summary: "Включает или отключает встроенный Web UI. По умолчанию UI включен; API endpoints продолжают работать и при `--no-ui`."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 presetSupport: "router-managed"
 aliases:

@@ -5,6 +5,7 @@ title: "--reasoning-format"
 summary: "Выбирает, как server распознает и возвращает thought/reasoning теги в ответе. `none` оставляет все в content, `deepseek` выносит мысли в `reasoning_content`, `deepseek-legacy` дублирует legacy `<think>` в content."
 category: "Параметры llama-server"
 valueType: "enum"
+estimation: "normal"
 valueHint: "FORMAT"
 aliases:
   - "--reasoning-format"

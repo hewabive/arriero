@@ -5,6 +5,7 @@ title: "--host"
 summary: "Адрес, на котором `llama-server` слушает HTTP API. Значение с суффиксом `.sock` переключает сервер на UNIX domain socket вместо TCP."
 category: "Параметры llama-server"
 valueType: "string"
+estimation: "normal"
 valueHint: "HOST"
 presetSupport: "router-managed"
 aliases:

@@ -5,6 +5,7 @@ title: "--log-file"
 summary: "Открывает файл логов через common logger. Запись в файл добавляется к stdout/stderr, файл открывается в режиме `w` и перезаписывается на старте."
 category: "Общие параметры"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 presetSupport: "router-managed"
 aliases:

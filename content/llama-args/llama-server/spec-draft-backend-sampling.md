@@ -5,6 +5,7 @@ title: "--spec-draft-backend-sampling"
 summary: "Включает или отключает backend-side sampling для MTP/Eagle3 draft-контекста. По умолчанию включено; отрицательная форма `--no-spec-draft-backend-sampling` возвращает sampling на CPU path."
 category: "Параметры speculative decoding"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--spec-draft-backend-sampling"

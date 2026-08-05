@@ -5,6 +5,7 @@ title: "--lookup-cache-static"
 summary: "Указывает бинарный static n-gram lookup cache для speculative decoding типа `ngram-cache`. Файл читается при инициализации speculative context и не должен ожидаться как обновляемый выходной файл."
 category: "Параметры llama-server"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 aliases:
   - "-lcs"

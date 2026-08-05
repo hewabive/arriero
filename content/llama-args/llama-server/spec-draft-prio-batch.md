@@ -5,6 +5,7 @@ title: "--spec-draft-prio-batch"
 summary: "Задает scheduler priority для batch/prompt CPU-профиля draft-модели: `0` normal, `1` medium, `2` high, `3` realtime. Значение `-1` здесь запрещено."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--prio-batch-draft"

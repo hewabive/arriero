@@ -5,6 +5,7 @@ title: "--rope-scaling"
 summary: "Выбирает алгоритм масштабирования RoPE при создании контекста: `none`, `linear` или `yarn`. Если аргумент не задан, llama.cpp берет тип из метаданных GGUF, а при отсутствии ключа модель считается `linear`."
 category: "Общие параметры"
 valueType: "enum"
+estimation: "normal"
 valueHint: "{none,linear,yarn}"
 aliases:
   - "--rope-scaling"

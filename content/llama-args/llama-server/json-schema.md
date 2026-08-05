@@ -5,6 +5,7 @@ title: "--json-schema"
 summary: "Принимает inline JSON Schema, парсит ее на старте и конвертирует в grammar для constrained JSON generation. Для external `$ref` текущая справка llama.cpp рекомендует заранее конвертировать schema в grammar."
 category: "Параметры сэмплинга"
 valueType: "string"
+estimation: "normal"
 valueHint: "SCHEMA"
 aliases:
   - "-j"

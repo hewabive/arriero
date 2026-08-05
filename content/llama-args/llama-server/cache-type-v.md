@@ -5,6 +5,7 @@ title: "--cache-type-v"
 summary: "Тип данных V-части KV-cache. Квантованный V-cache экономит память, но требует Flash Attention и аккуратной проверки качества."
 category: "Общие параметры"
 valueType: "enum"
+estimation: "normal"
 valueHint: "TYPE"
 aliases:
   - "-ctv"

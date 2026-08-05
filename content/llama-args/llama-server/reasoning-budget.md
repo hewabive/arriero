@@ -5,6 +5,7 @@ title: "--reasoning-budget"
 summary: "Ограничивает число токенов внутри thinking block. `-1` оставляет reasoning без лимита, `0` принудительно завершает block сразу после start tag, положительное `N` задает бюджет."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--reasoning-budget"

@@ -5,6 +5,7 @@ title: "--warmup"
 summary: "Выполняет пустой прогрев модели после создания контекста. По умолчанию включен; `--no-warmup` ускоряет старт, но первая реальная генерация может получить cold-start latency."
 category: "Параметры llama-server"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--warmup"

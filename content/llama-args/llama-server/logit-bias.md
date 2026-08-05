@@ -5,6 +5,7 @@ title: "--logit-bias"
 summary: "Сдвигает logit конкретного token id до остальных CPU samplers. CLI принимает форму `TOKEN_ID+BIAS` или `TOKEN_ID-BIAS`; HTTP API дополнительно принимает массивы, строки и OpenAI-style объект."
 category: "Параметры сэмплинга"
 valueType: "string"
+estimation: "normal"
 valueHint: "TOKEN_ID(+/-)BIAS"
 aliases:
   - "-l"

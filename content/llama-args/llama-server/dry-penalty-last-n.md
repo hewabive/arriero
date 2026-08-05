@@ -5,6 +5,7 @@ title: "--dry-penalty-last-n"
 summary: "Ограничивает, сколько последних токенов DRY сканирует в поиске повторов. По умолчанию окно равно `64`, `0` отключает DRY penalty по истории, отрицательные значения не принимаются."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--dry-penalty-last-n"

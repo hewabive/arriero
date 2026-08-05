@@ -5,6 +5,7 @@ title: "--embd-normalize"
 summary: "Задает нормализацию pooled embeddings: `-1` без нормализации, `0` max-absolute/int16 scale, `1` L1, `2` L2, `>2` p-norm. Request body может переопределить значение."
 category: "Параметры llama-server"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--embd-normalize"

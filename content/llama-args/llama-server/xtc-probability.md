@@ -5,6 +5,7 @@ title: "--xtc-probability"
 summary: "Задает вероятность срабатывания XTC sampler-а на каждом шаге. `0.0` отключает XTC; для работы также нужен активный sampler `xtc` и порог `--xtc-threshold <= 0.5`."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--xtc-probability"

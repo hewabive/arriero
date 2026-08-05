@@ -5,6 +5,7 @@ title: "--load-mode"
 summary: "Выбирает единый режим загрузки модели: обычное чтение, mmap, mlock без mmap, mmap с mlock или Direct I/O. Заменяет устаревшие `--mmap`, `--mlock` и `--direct-io`."
 category: "Общие параметры"
 valueType: "enum"
+estimation: "normal"
 valueHint: "MODE"
 aliases:
   - "-lm"

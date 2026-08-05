@@ -5,6 +5,7 @@ title: "--mirostat"
 summary: "Включает Mirostat sampling: `0` выключено, `1` Mirostat, `2` Mirostat 2.0. При включении обычная sampler chain с `top_k`, `top_p`, `typ_p`, `penalties` и `dry` не используется."
 category: "Параметры сэмплинга"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--mirostat"

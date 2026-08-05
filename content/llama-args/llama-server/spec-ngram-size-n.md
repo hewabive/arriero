@@ -5,6 +5,7 @@ title: "--spec-ngram-size-n"
 summary: "Удаленный legacy-аргумент. В текущем llama.cpp его использование завершает парсинг ошибкой; вместо него нужно задавать variant-specific `--spec-ngram-*-size-n` или `--spec-ngram-mod-n-match`."
 category: "Параметры speculative decoding"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--spec-ngram-size-n"

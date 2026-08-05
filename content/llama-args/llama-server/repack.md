@@ -5,6 +5,7 @@ title: "--repack"
 summary: "Управляет использованием extra buffer types для weight repacking. По умолчанию repacking включен; `--no-repack` отключает эти extra buffer types."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: null
 aliases:
   - "--repack"

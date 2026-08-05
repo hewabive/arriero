@@ -5,6 +5,7 @@ title: "--embd-gemma-default"
 summary: "Встроенный пресет для EmbeddingGemma 300M QAT Q4_0. Настраивает HF repo/file, embedding mode, порт 8011 и параметры batch/parallel/context."
 category: "Параметры llama-server"
 valueType: "flag"
+estimation: "preset-rewrite"
 valueHint: null
 aliases:
   - "--embd-gemma-default"

@@ -5,6 +5,7 @@ title: "--flash-attn"
 summary: "Управляет Flash Attention: `auto`, принудительно `on` или принудительно `off`. Режим влияет на создание context, совместимость KV-cache и tensor split."
 category: "Общие параметры"
 valueType: "boolean"
+estimation: "normal"
 valueHint: "[on|off|auto]"
 aliases:
   - "-fa"

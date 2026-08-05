@@ -5,6 +5,7 @@ title: "--spec-draft-model"
 summary: "Задает локальный GGUF-файл draft-модели для draft-model speculative decoding. Модель загружается на старте отдельно от target и должна быть tokenizer/vocab-совместима с основной моделью."
 category: "Параметры speculative decoding"
 valueType: "path"
+estimation: "normal"
 valueHint: "FNAME"
 aliases:
   - "--spec-draft-model"

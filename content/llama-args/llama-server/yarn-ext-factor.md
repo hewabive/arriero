@@ -5,6 +5,7 @@ title: "--yarn-ext-factor"
 summary: "Настраивает YaRN extrapolation mix factor. Значение по умолчанию `-1` означает auto: для `--rope-scaling yarn` llama.cpp использует `1.0`, для остальных режимов `0.0`."
 category: "Общие параметры"
 valueType: "number"
+estimation: "normal"
 valueHint: "N"
 aliases:
   - "--yarn-ext-factor"
