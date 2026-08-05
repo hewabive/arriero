@@ -12,9 +12,6 @@ export function argRaw(
   for (const key of keys) {
     if (key in args) {
       const value = args[key];
-      // Arriero's argv builders omit boolean false. Resource and memory
-      // resolution must inspect the command that is actually launched, not
-      // reinterpret an unchecked UI toggle as an explicit `--option false`.
       if (value !== null && value !== "" && value !== false) {
         return value;
       }
@@ -63,13 +60,53 @@ export function argFlag(args: LlamaArgRecord, keys: string[]): boolean | null {
   return null;
 }
 
+export function argPairedFlag(
+  args: LlamaArgRecord,
+  positiveKeys: string[],
+  negativeKeys: string[],
+  defaultValue: boolean,
+): boolean {
+  const positive = argFlag(args, positiveKeys);
+  if (positive !== null) {
+    return positive;
+  }
+  const negative = argFlag(args, negativeKeys);
+  return negative === null ? defaultValue : !negative;
+}
+
+export function splitCsvItems(input: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index];
+    if (character === '"') {
+      if (quoted && input[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === "," && !quoted) {
+      if (current.trim()) result.push(current.trim());
+      current = "";
+    } else {
+      current += character;
+    }
+  }
+  if (current.trim()) result.push(current.trim());
+  return result;
+}
+
 export type GpuLayersRequest = {
   kind: "none" | "all" | "count";
   count: number;
 };
 
+export const GPU_LAYERS_ARG_KEYS = ["--n-gpu-layers", "-ngl", "--gpu-layers"];
+
 export function parseGpuLayersRequest(args: LlamaArgRecord): GpuLayersRequest {
-  const raw = argRaw(args, ["--n-gpu-layers", "-ngl", "--gpu-layers"]);
+  const raw = argRaw(args, GPU_LAYERS_ARG_KEYS);
   if (raw === undefined) {
     return { kind: "none", count: 0 };
   }
@@ -177,6 +214,10 @@ export function parseCudaVisibleDevices(
 
 const CUDA_DEVICE_TOKEN = /^cuda(\d+)$/i;
 
+export function isCudaDeviceToken(token: string): boolean {
+  return CUDA_DEVICE_TOKEN.test(token);
+}
+
 export function parseDeviceTokens(args: LlamaArgRecord): string[] {
   const raw = argRaw(args, ["--device", "-dev"]);
   const text = Array.isArray(raw)
@@ -190,7 +231,7 @@ export function parseDeviceTokens(args: LlamaArgRecord): string[] {
     .filter(Boolean);
 }
 
-function cudaTokenIndices(tokens: string[]): string[] {
+export function cudaTokenIndices(tokens: string[]): string[] {
   const indices: string[] = [];
   for (const token of tokens) {
     const match = CUDA_DEVICE_TOKEN.exec(token);

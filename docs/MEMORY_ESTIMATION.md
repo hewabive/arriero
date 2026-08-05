@@ -350,6 +350,16 @@ the binary Arriero currently resolves as its default (normally the managed
 configuration, hardware fingerprint, or newly selected current binary makes the
 receipt `update-required`.
 
+The evaluation runs inside every instance health summary, which the proxy
+reconcile loop and the web UI poll continuously, so it degrades instead of
+throwing: an unreadable/invalid stored receipt and a missing current default
+binary both surface as `update-required` rather than failing the endpoint.
+Because the fingerprint stats model shards, runtime libraries and the argument
+registry on every rebuild, the computed fingerprint is cached for ~10 s per
+(config digest, binary, model) key and the parsed argument registry for ~5 s —
+config changes take effect immediately (they change the key); pure file-mtime
+or hardware changes appear within the TTL.
+
 When a bound instance reaches `running` + ready with no launch-configuration
 drift, Arriero compares the analytical GPU and host allocation to exact
 llama.cpp `* buffer size` log lines. The comparison excludes the estimator's

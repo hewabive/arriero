@@ -3,14 +3,20 @@ import {
   estimateInstanceMemory,
   argFlag,
   argNumber,
+  argPairedFlag,
+  argRaw,
   argString,
+  cudaTokenIndices,
+  isCudaDeviceToken,
   parseCudaVisibleDevices,
   parseDeviceTokens,
+  splitCsvItems,
   MemoryEstimateSchema,
+  type CudaVisibleDevices,
+  type Instance,
   type InstanceArgs,
   type MemoryEstimate,
   type MemoryEstimateArgs,
-  type MemoryEstimateHparams,
   type MemoryEstimatePoolInput,
   type MemoryEstimateRequest,
   type InstanceKind,
@@ -20,13 +26,39 @@ import { existsSync } from "node:fs";
 
 import { getInstance } from "../instances/repository.js";
 import { loadArgumentRegistry } from "../arguments/registry.js";
-import { readGgufMetadata, readGgufModelTensorTable } from "../models/gguf.js";
+import {
+  memoryEstimateHparams,
+  readGgufMetadata,
+  readGgufModelTensorTable,
+} from "../models/gguf.js";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { listMemoryPools } from "../resources/repository.js";
 
 export type MemoryEstimateResolution =
-  | { ok: true; modelPath: string; estimate: MemoryEstimate }
+  | {
+      ok: true;
+      modelPath: string;
+      estimate: MemoryEstimate;
+      context: MemoryEstimateContext;
+    }
   | { ok: false; reason: string };
+
+function cudaVisibleGpuPools(cuda: CudaVisibleDevices) {
+  const allGpu = listMemoryPools()
+    .filter((pool) => pool.kind === "gpu")
+    .sort(
+      (left, right) =>
+        Number(left.deviceRef ?? Number.MAX_SAFE_INTEGER) -
+        Number(right.deviceRef ?? Number.MAX_SAFE_INTEGER),
+    );
+  if (cuda.mode !== "list") {
+    return allGpu;
+  }
+  return cuda.ids.flatMap((id) => {
+    const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+    return pool ? [pool] : [];
+  });
+}
 
 export function poolsForEstimate(
   args: MemoryEstimateArgs,
@@ -34,33 +66,18 @@ export function poolsForEstimate(
 ): MemoryEstimatePoolInput[] {
   const cuda = parseCudaVisibleDevices(env.CUDA_VISIBLE_DEVICES);
   const deviceTokens = parseDeviceTokens(args);
-  const explicitCuda = deviceTokens.flatMap((token) => {
-    const match = /^cuda(\d+)$/i.exec(token);
-    return match?.[1] === undefined ? [] : [Number(match[1])];
-  });
+  const explicitCuda = cudaTokenIndices(deviceTokens).map(Number);
   const deviceDisablesGpu = deviceTokens.some(
     (token) => token.toLowerCase() === "none",
   );
   const deviceWasSet = hasArg(args, "--device") || hasArg(args, "-dev");
   const allPools = listMemoryPools();
-  const allGpu = allPools
-    .filter((pool) => pool.kind === "gpu")
-    .sort(
-      (left, right) =>
-        Number(left.deviceRef ?? Number.MAX_SAFE_INTEGER) -
-        Number(right.deviceRef ?? Number.MAX_SAFE_INTEGER),
-    );
   const visibleGpu =
-    cuda.mode === "list"
-      ? cuda.ids.flatMap((id) => {
-          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
-          return pool ? [pool] : [];
-        })
-      : cuda.mode === "none" ||
-          deviceDisablesGpu ||
-          (deviceWasSet && explicitCuda.length === 0)
-        ? []
-        : allGpu;
+    cuda.mode === "none" ||
+    deviceDisablesGpu ||
+    (deviceWasSet && explicitCuda.length === 0)
+      ? []
+      : cudaVisibleGpuPools(cuda);
   const selectedGpu =
     explicitCuda.length > 0
       ? explicitCuda.flatMap((index) => visibleGpu[index] ?? [])
@@ -93,17 +110,6 @@ export type MemoryEstimateContext = {
   rpcWorkers: RpcWorkerRef[];
 };
 
-/**
- * Apply llama.cpp's environment-variable layer before interpreting memory
- * arguments. The command line wins over the environment for every alias, just
- * as common_params_parse_ex() does. For a boolean option llama.cpp also accepts
- * a compatibility LLAMA_ARG_NO_* variable; its mere presence selects the
- * negative CLI form.
- *
- * The map comes from the synchronized current llama-server argument registry,
- * so model paths and future memory-affecting env aliases do not need a second
- * hand-maintained list here.
- */
 export function resolveLlamaArgumentEnvironment(
   args: MemoryEstimateArgs,
   env: Record<string, string>,
@@ -141,46 +147,49 @@ export function resolveLlamaArgumentEnvironment(
   return resolved;
 }
 
+export function contextFromInstance(instance: Instance): MemoryEstimateContext {
+  return {
+    kind: instance.kind,
+    binaryPath: instance.binaryPath,
+    binaryPathRefId: instance.binaryPathRefId,
+    args: { ...(instance.args as InstanceArgs) },
+    env: instance.env,
+    positionalArgs: instance.positionalArgs ?? [],
+    rpcWorkers: instance.rpcWorkers,
+  };
+}
+
 export function resolveMemoryEstimateContext(
   request: MemoryEstimateRequest,
 ): MemoryEstimateContext | { error: string } {
-  let args: MemoryEstimateArgs = {};
-  let kind: InstanceKind = request.kind ?? "llama-server";
-  let env = request.env ?? {};
-  let positionalArgs = request.positionalArgs ?? [];
-  let rpcWorkers = request.rpcWorkers ?? [];
-  let binaryPathRefId = request.binaryPathRefId ?? "";
-  let binaryPath = binaryPathRefId
-    ? (getPathCatalogEntry(binaryPathRefId)?.path ?? "")
-    : "";
+  let context: MemoryEstimateContext;
   if (request.instanceId) {
     const instance = getInstance(request.instanceId);
     if (!instance) {
       return { error: `instance not found: ${request.instanceId}` };
     }
-    kind = instance.kind;
-    env = instance.env;
-    positionalArgs = instance.positionalArgs ?? [];
-    args = { ...(instance.args as InstanceArgs) };
-    binaryPath = instance.binaryPath;
-    binaryPathRefId = instance.binaryPathRefId;
-    rpcWorkers = instance.rpcWorkers;
+    context = contextFromInstance(instance);
+  } else {
+    const binaryPathRefId = request.binaryPathRefId ?? "";
+    context = {
+      kind: request.kind ?? "llama-server",
+      binaryPath: binaryPathRefId
+        ? (getPathCatalogEntry(binaryPathRefId)?.path ?? "")
+        : "",
+      binaryPathRefId,
+      args: {},
+      env: request.env ?? {},
+      positionalArgs: request.positionalArgs ?? [],
+      rpcWorkers: request.rpcWorkers ?? [],
+    };
   }
   if (request.args) {
-    args = { ...args, ...request.args };
+    context.args = { ...context.args, ...request.args };
   }
   if (request.rpcWorkers) {
-    rpcWorkers = request.rpcWorkers;
+    context.rpcWorkers = request.rpcWorkers;
   }
-  return {
-    kind,
-    binaryPath,
-    binaryPathRefId,
-    args,
-    env,
-    positionalArgs,
-    rpcWorkers,
-  };
+  return context;
 }
 
 function resolveExistingPath(
@@ -204,34 +213,11 @@ function resolveModelPath(args: MemoryEstimateArgs): string | null {
 }
 
 function stringArgItems(args: MemoryEstimateArgs, keys: string[]): string[] {
-  const splitCsv = (input: string): string[] => {
-    const result: string[] = [];
-    let current = "";
-    let quoted = false;
-    for (let index = 0; index < input.length; index += 1) {
-      const character = input[index];
-      if (character === '"') {
-        if (quoted && input[index + 1] === '"') {
-          current += '"';
-          index += 1;
-        } else {
-          quoted = !quoted;
-        }
-      } else if (character === "," && !quoted) {
-        if (current.trim()) result.push(current.trim());
-        current = "";
-      } else {
-        current += character;
-      }
-    }
-    if (current.trim()) result.push(current.trim());
-    return result;
-  };
   return keys.flatMap((key) => {
     const value = args[key];
     const values = Array.isArray(value) ? value : [value];
     return values.flatMap((item) =>
-      typeof item === "string" ? splitCsv(item) : [],
+      typeof item === "string" ? splitCsvItems(item) : [],
     );
   });
 }
@@ -261,7 +247,9 @@ function estimateVllmGpuUtil(input: {
   args: MemoryEstimateArgs;
   env: Record<string, string>;
   model: string;
-}): MemoryEstimateResolution {
+}):
+  | { ok: true; modelPath: string; estimate: MemoryEstimate }
+  | { ok: false; reason: string } {
   if (argString(input.args, ["--device"])?.toLowerCase() === "cpu") {
     return {
       ok: false,
@@ -287,25 +275,11 @@ function estimateVllmGpuUtil(input: {
     1,
     Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
   );
-  const allGpu = listMemoryPools()
-    .filter((pool) => pool.kind === "gpu")
-    .sort(
-      (left, right) =>
-        Number(left.deviceRef ?? Number.MAX_SAFE_INTEGER) -
-        Number(right.deviceRef ?? Number.MAX_SAFE_INTEGER),
-    );
   const cuda = parseCudaVisibleDevices(input.env.CUDA_VISIBLE_DEVICES);
   if (cuda.mode === "none") {
     return { ok: false, reason: "CUDA_VISIBLE_DEVICES disables every GPU" };
   }
-  const visible =
-    cuda.mode === "list"
-      ? cuda.ids.flatMap((id) => {
-          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
-          return pool ? [pool] : [];
-        })
-      : allGpu;
-  const selected = visible.slice(0, tensorParallel);
+  const selected = cudaVisibleGpuPools(cuda).slice(0, tensorParallel);
   if (selected.length === 0) {
     return { ok: false, reason: "No GPU memory pools are available for vLLM" };
   }
@@ -374,11 +348,15 @@ function estimateVllmGpuUtil(input: {
 }
 
 function hasArg(args: MemoryEstimateArgs, key: string): boolean {
-  const value = args[key];
-  return (
-    value !== undefined && value !== null && value !== "" && value !== false
-  );
+  return argRaw(args, [key]) !== undefined;
 }
+
+export const MMPROJ_ARG_KEYS = ["--mmproj", "-mm"];
+export const DRAFT_MODEL_ARG_KEYS = [
+  "--spec-draft-model",
+  "-md",
+  "--model-draft",
+];
 
 const REMOVED_LLAMA_ARGUMENT_GROUPS = [
   ["--draft", "--draft-n", "--draft-max"],
@@ -434,34 +412,8 @@ function invalidFlagStyleBooleanArgument(
   return null;
 }
 
-function hparamsFromGguf(modelPath: string): MemoryEstimateHparams {
-  const metadata = readGgufMetadata(modelPath);
-  return {
-    architecture: metadata.architecture,
-    blockCount: metadata.blockCount,
-    embeddingLength: metadata.embeddingLength,
-    headCount: metadata.headCount,
-    headCountKv: metadata.headCountKv,
-    attentionKeyLength: metadata.attentionKeyLength,
-    attentionValueLength: metadata.attentionValueLength,
-    attentionKeyLengthMla: metadata.attentionKeyLengthMla,
-    attentionValueLengthMla: metadata.attentionValueLengthMla,
-    causalAttention: metadata.causalAttention,
-    contextLength: metadata.contextLength,
-    slidingWindow: metadata.slidingWindow,
-    slidingWindowPattern: metadata.slidingWindowPattern,
-    sharedKvLayers: metadata.sharedKvLayers,
-    nextnPredictLayers: metadata.nextnPredictLayers,
-    shortConvCacheLength: metadata.shortConvCacheLength,
-    ssmConvKernel: metadata.ssmConvKernel,
-    ssmGroupCount: metadata.ssmGroupCount,
-    ssmInnerSize: metadata.ssmInnerSize,
-    ssmStateSize: metadata.ssmStateSize,
-    wkvHeadSize: metadata.wkvHeadSize,
-    tokenShiftCount: metadata.tokenShiftCount,
-    kdaHeadDim: metadata.kdaHeadDim,
-    vocabularySize: metadata.vocabularySize,
-  };
+function hparamsFromGguf(modelPath: string) {
+  return memoryEstimateHparams(readGgufMetadata(modelPath));
 }
 
 export function estimateMemory(
@@ -492,7 +444,8 @@ export function estimateMemory(
     const model = positionalArgs.find((item) => item.trim())?.trim();
     if (!model)
       return { ok: false, reason: "No vLLM model positional is configured." };
-    return estimateVllmGpuUtil({ args, env, model });
+    const result = estimateVllmGpuUtil({ args, env, model });
+    return result.ok ? { ...result, context } : result;
   }
   if (estimator !== "gguf") {
     return {
@@ -501,9 +454,9 @@ export function estimateMemory(
     };
   }
 
-  const removedArgument = REMOVED_LLAMA_ARGUMENT_GROUPS.flatMap((keys) =>
-    configuredKey(args, keys) ? [configuredKey(args, keys)!] : [],
-  )[0];
+  const removedArgument = REMOVED_LLAMA_ARGUMENT_GROUPS.map((keys) =>
+    configuredKey(args, keys),
+  ).find((key) => key !== null);
   if (removedArgument) {
     return {
       ok: false,
@@ -511,12 +464,12 @@ export function estimateMemory(
     };
   }
 
-  const nonInferenceArgument = NON_INFERENCE_LLAMA_ARGUMENT_GROUPS.flatMap(
+  const nonInferenceArgument = NON_INFERENCE_LLAMA_ARGUMENT_GROUPS.map(
     (keys) =>
       argFlag(args, [...keys]) === true
-        ? [configuredKey(args, keys) ?? keys[0]]
-        : [],
-  )[0];
+        ? (configuredKey(args, keys) ?? keys[0])
+        : null,
+  ).find((key) => key != null);
   if (nonInferenceArgument) {
     return {
       ok: false,
@@ -567,7 +520,7 @@ export function estimateMemory(
 
   const explicitDeviceTokens = parseDeviceTokens(args);
   const unsupportedDevices = explicitDeviceTokens.filter(
-    (token) => !/^(?:cuda\d+|none)$/i.test(token),
+    (token) => !isCudaDeviceToken(token) && token.toLowerCase() !== "none",
   );
   if (unsupportedDevices.length > 0) {
     return {
@@ -578,7 +531,7 @@ export function estimateMemory(
 
   const estimatePools = poolsForEstimate(args, env);
   const requestedCudaDeviceCount = new Set(
-    explicitDeviceTokens.filter((token) => /^cuda\d+$/i.test(token)),
+    explicitDeviceTokens.filter(isCudaDeviceToken),
   ).size;
   const selectedGpuCount = estimatePools.filter(
     (pool) => pool.kind === "gpu",
@@ -669,15 +622,16 @@ export function estimateMemory(
     return { ok: false, reason: "No --model is configured." };
   }
 
-  const mmprojKeys = ["--mmproj", "-mm"];
-  const draftKeys = ["--spec-draft-model", "-md", "--model-draft"];
-  const mmprojDisabled =
-    argFlag(args, ["--no-mmproj", "--no-mmproj-auto"]) === true ||
-    argFlag(args, ["--mmproj-auto"]) === false;
+  const mmprojDisabled = !argPairedFlag(
+    args,
+    ["--mmproj-auto"],
+    ["--no-mmproj", "--no-mmproj-auto"],
+    true,
+  );
   const mmprojPath = mmprojDisabled
     ? null
-    : resolveExistingPath(args, mmprojKeys);
-  const draftPath = resolveExistingPath(args, draftKeys);
+    : resolveExistingPath(args, MMPROJ_ARG_KEYS);
+  const draftPath = resolveExistingPath(args, DRAFT_MODEL_ARG_KEYS);
   if (
     !mmprojDisabled &&
     (hasArg(args, "--mmproj-url") || hasArg(args, "-mmu"))
@@ -699,23 +653,21 @@ export function estimateMemory(
         "Remote speculative draft models are not supported yet; download the resolved draft/sidecar GGUF and set --spec-draft-model.",
     };
   }
-  if (
-    !mmprojDisabled &&
-    mmprojKeys.some((key) => hasArg(args, key)) &&
-    !mmprojPath
-  ) {
+  const configuredMmprojKey = configuredKey(args, MMPROJ_ARG_KEYS);
+  if (!mmprojDisabled && configuredMmprojKey && !mmprojPath) {
     return {
       ok: false,
       reason: `Multimodal projector GGUF file not found: ${String(
-        args[mmprojKeys.find((key) => hasArg(args, key))!],
+        args[configuredMmprojKey],
       )}`,
     };
   }
-  if (draftKeys.some((key) => hasArg(args, key)) && !draftPath) {
+  const configuredDraftKey = configuredKey(args, DRAFT_MODEL_ARG_KEYS);
+  if (configuredDraftKey && !draftPath) {
     return {
       ok: false,
       reason: `Speculative draft GGUF file not found: ${String(
-        args[draftKeys.find((key) => hasArg(args, key))!],
+        args[configuredDraftKey],
       )}`,
     };
   }
@@ -781,5 +733,5 @@ export function estimateMemory(
     };
   }
 
-  return { ok: true, modelPath, estimate };
+  return { ok: true, modelPath, estimate, context };
 }

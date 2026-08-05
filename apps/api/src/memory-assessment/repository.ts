@@ -4,10 +4,10 @@ import { db } from "../db/index.js";
 import { memoryAssessments } from "../db/schema.js";
 import { newId } from "../utils/id.js";
 
-export type StoredMemoryAssessment<T = unknown> = {
+export type StoredMemoryAssessment = {
   id: string;
   instanceId: string | null;
-  receipt: T;
+  receipt: unknown;
   createdAt: string;
   updatedAt: string;
 };
@@ -16,28 +16,27 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function fromRow<T>(
+function fromRow(
   row: typeof memoryAssessments.$inferSelect,
-): StoredMemoryAssessment<T> {
+): StoredMemoryAssessment {
   let receipt: unknown = null;
   try {
     receipt = JSON.parse(row.receiptJson) as unknown;
   } catch {
-    // Let the assessment service surface an obsolete/invalid receipt without
-    // taking down the complete instance health summary.
+    receipt = null;
   }
   return {
     id: row.id,
     instanceId: row.instanceId,
-    receipt: receipt as T,
+    receipt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-export function createMemoryAssessmentDraft<T>(
-  receipt: T,
-): StoredMemoryAssessment<T> {
+export function createMemoryAssessmentDraft(
+  receipt: unknown,
+): StoredMemoryAssessment {
   const timestamp = nowIso();
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString();
   db.delete(memoryAssessments)
@@ -48,43 +47,51 @@ export function createMemoryAssessmentDraft<T>(
       ),
     )
     .run();
-  const row: typeof memoryAssessments.$inferInsert = {
-    id: newId(),
+  const id = newId();
+  db.insert(memoryAssessments)
+    .values({
+      id,
+      instanceId: null,
+      receiptJson: JSON.stringify(receipt),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .run();
+  return {
+    id,
     instanceId: null,
-    receiptJson: JSON.stringify(receipt),
+    receipt,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
-  db.insert(memoryAssessments).values(row).run();
-  return fromRow<T>({ ...row, instanceId: null });
 }
 
-export function getMemoryAssessmentById<T>(
+export function getMemoryAssessmentById(
   id: string,
-): StoredMemoryAssessment<T> | null {
+): StoredMemoryAssessment | null {
   const row = db
     .select()
     .from(memoryAssessments)
     .where(eq(memoryAssessments.id, id))
     .get();
-  return row ? fromRow<T>(row) : null;
+  return row ? fromRow(row) : null;
 }
 
-export function getMemoryAssessmentForInstance<T>(
+export function getMemoryAssessmentForInstance(
   instanceId: string,
-): StoredMemoryAssessment<T> | null {
+): StoredMemoryAssessment | null {
   const row = db
     .select()
     .from(memoryAssessments)
     .where(eq(memoryAssessments.instanceId, instanceId))
     .get();
-  return row ? fromRow<T>(row) : null;
+  return row ? fromRow(row) : null;
 }
 
-export function bindMemoryAssessment<T>(
+export function bindMemoryAssessment(
   id: string,
   instanceId: string,
-  receipt: T,
+  receipt: unknown,
 ): void {
   db.delete(memoryAssessments)
     .where(
@@ -104,7 +111,10 @@ export function bindMemoryAssessment<T>(
     .run();
 }
 
-export function updateMemoryAssessmentReceipt<T>(id: string, receipt: T): void {
+export function updateMemoryAssessmentReceipt(
+  id: string,
+  receipt: unknown,
+): void {
   db.update(memoryAssessments)
     .set({ receiptJson: JSON.stringify(receipt), updatedAt: nowIso() })
     .where(eq(memoryAssessments.id, id))

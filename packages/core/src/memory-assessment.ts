@@ -22,6 +22,13 @@ export const MemoryAssessmentDeltaSchema = z.object({
   toleranceBytes: z.number().int().nonnegative(),
 });
 
+export const MemoryAssessmentValidationSourceSchema = z.enum([
+  "none",
+  "log-buffers",
+  "log-projection",
+  "process-telemetry",
+]);
+
 export const MemoryAssessmentSummarySchema = z.object({
   status: MemoryAssessmentStatusSchema,
   reason: z.string(),
@@ -32,12 +39,7 @@ export const MemoryAssessmentSummarySchema = z.object({
   estimatorVersion: z.number().int().nullable().default(null),
   confidence: z.enum(["high", "medium", "low"]).nullable().default(null),
   reservationStatus: MemoryAssessmentReservationStatusSchema,
-  validationSource: z.enum([
-    "none",
-    "log-buffers",
-    "log-projection",
-    "process-telemetry",
-  ]),
+  validationSource: MemoryAssessmentValidationSourceSchema,
   deltas: z.array(MemoryAssessmentDeltaSchema).default([]),
   reportAvailable: z.boolean().default(false),
 });

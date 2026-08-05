@@ -192,35 +192,51 @@ export function optionFromArgumentDocFrontmatter(
   };
 }
 
+const REGISTRY_CACHE_TTL_MS = 5_000;
+
+let registryCache: {
+  entries: ArgumentRegistryEntry[];
+  expiresAt: number;
+} | null = null;
+
 export function loadArgumentRegistry() {
+  const now = Date.now();
+  if (registryCache && registryCache.expiresAt > now) {
+    return registryCache.entries;
+  }
+
   const entries: ArgumentRegistryEntry[] = [];
-  if (!existsSync(argumentDocsDirectory)) {
-    return entries;
+  if (existsSync(argumentDocsDirectory)) {
+    for (const item of readdirSync(argumentDocsDirectory, {
+      withFileTypes: true,
+    })) {
+      if (
+        !item.isFile() ||
+        !item.name.endsWith(".md") ||
+        item.name[0] === "_"
+      ) {
+        continue;
+      }
+
+      const path = join(argumentDocsDirectory, item.name);
+      const parsed = parseArgumentDocFile(readFileSync(path, "utf8"));
+      const option = optionFromArgumentDocFrontmatter(parsed.frontmatter);
+      if (!option) {
+        continue;
+      }
+
+      entries.push({
+        option,
+        slug: item.name.replace(/\.md$/, ""),
+      });
+    }
   }
 
-  for (const item of readdirSync(argumentDocsDirectory, {
-    withFileTypes: true,
-  })) {
-    if (!item.isFile() || !item.name.endsWith(".md") || item.name[0] === "_") {
-      continue;
-    }
-
-    const path = join(argumentDocsDirectory, item.name);
-    const parsed = parseArgumentDocFile(readFileSync(path, "utf8"));
-    const option = optionFromArgumentDocFrontmatter(parsed.frontmatter);
-    if (!option) {
-      continue;
-    }
-
-    entries.push({
-      option,
-      slug: item.name.replace(/\.md$/, ""),
-    });
-  }
-
-  return entries.sort((left, right) =>
+  entries.sort((left, right) =>
     left.option.primaryName.localeCompare(right.option.primaryName),
   );
+  registryCache = { entries, expiresAt: now + REGISTRY_CACHE_TTL_MS };
+  return entries;
 }
 
 export function registryNameMap(entries = loadArgumentRegistry()) {

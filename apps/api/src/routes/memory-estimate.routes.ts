@@ -14,7 +14,7 @@ export function registerMemoryEstimateRoutes(app: Hono) {
     if (!result.ok) {
       return c.json({ error: result.reason }, 422);
     }
-    const assessmentId = createMemoryAssessment(parsed.data, result);
+    const assessmentId = createMemoryAssessment(result);
     return c.json({
       data: {
         modelPath: result.modelPath,

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { estimateInstanceMemory } from "../packages/core/dist/index.js";
 import {
+  memoryEstimateHparams,
   readGgufMetadata,
   readGgufModelTensorTable,
 } from "../apps/api/dist/models/gguf.js";
@@ -111,35 +112,6 @@ function poolsFor(options) {
   return pools;
 }
 
-function hparamsOf(metadata) {
-  return {
-    architecture: metadata.architecture,
-    blockCount: metadata.blockCount,
-    embeddingLength: metadata.embeddingLength,
-    headCount: metadata.headCount,
-    headCountKv: metadata.headCountKv,
-    attentionKeyLength: metadata.attentionKeyLength,
-    attentionValueLength: metadata.attentionValueLength,
-    attentionKeyLengthMla: metadata.attentionKeyLengthMla,
-    attentionValueLengthMla: metadata.attentionValueLengthMla,
-    causalAttention: metadata.causalAttention,
-    contextLength: metadata.contextLength,
-    slidingWindow: metadata.slidingWindow,
-    slidingWindowPattern: metadata.slidingWindowPattern,
-    sharedKvLayers: metadata.sharedKvLayers,
-    nextnPredictLayers: metadata.nextnPredictLayers,
-    shortConvCacheLength: metadata.shortConvCacheLength,
-    ssmConvKernel: metadata.ssmConvKernel,
-    ssmGroupCount: metadata.ssmGroupCount,
-    ssmInnerSize: metadata.ssmInnerSize,
-    ssmStateSize: metadata.ssmStateSize,
-    wkvHeadSize: metadata.wkvHeadSize,
-    tokenShiftCount: metadata.tokenShiftCount,
-    kdaHeadDim: metadata.kdaHeadDim,
-    vocabularySize: metadata.vocabularySize,
-  };
-}
-
 function argsToCli(args) {
   const cli = [];
   for (const [key, value] of Object.entries(args)) {
@@ -241,7 +213,7 @@ function main() {
       const analyticArgs = { "--kv-unified": false, ...config.args };
       const estimate = estimateInstanceMemory({
         tensors,
-        hparams: hparamsOf(metadata),
+        hparams: memoryEstimateHparams(metadata),
         args: analyticArgs,
         pools,
       });

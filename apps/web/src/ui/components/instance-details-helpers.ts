@@ -5,9 +5,21 @@ import type {
   LlamaModelActionName,
   LlamaProbe,
   LlamaSlotActionName,
+  MemoryAssessmentStatus,
 } from "@arriero/core";
 
 import { formatLocalDateTime } from "../utils/time";
+
+export const memoryAssessmentStatusColors: Record<
+  MemoryAssessmentStatus,
+  string
+> = {
+  "not-assessed": "gray",
+  "update-required": "orange",
+  analytical: "blue",
+  verified: "green",
+  mismatch: "red",
+};
 
 export type V1ModelInfo = {
   id: string;

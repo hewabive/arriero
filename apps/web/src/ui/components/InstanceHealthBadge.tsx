@@ -1,6 +1,8 @@
 import type { Instance, InstanceHealthSummary } from "@arriero/core";
 import { Badge, Tooltip } from "@mantine/core";
 
+import { memoryAssessmentStatusColors } from "./instance-details-helpers";
+
 export function statusColor(status: Instance["status"]) {
   if (status === "running") return "green";
   if (status === "starting" || status === "stopping") return "yellow";
@@ -62,13 +64,6 @@ function InstanceMemoryAssessmentBadge(props: {
 }) {
   const assessment = props.health?.memoryAssessment;
   if (!assessment) return null;
-  const colors: Record<typeof assessment.status, string> = {
-    "not-assessed": "gray",
-    "update-required": "orange",
-    analytical: "blue",
-    verified: "green",
-    mismatch: "red",
-  };
   const labels: Record<typeof assessment.status, string> = {
     "not-assessed": "memory not assessed",
     "update-required": "memory assessment stale",
@@ -86,7 +81,10 @@ function InstanceMemoryAssessmentBadge(props: {
       multiline
       w={360}
     >
-      <Badge color={colors[assessment.status]} variant="light">
+      <Badge
+        color={memoryAssessmentStatusColors[assessment.status]}
+        variant="light"
+      >
         {labels[assessment.status]}
       </Badge>
     </Tooltip>

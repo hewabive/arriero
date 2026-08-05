@@ -19,7 +19,10 @@ import { useMutation } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 
 import { getInstanceMemoryAssessmentReport } from "../../api/client";
-import { formatBytes } from "./instance-details-helpers";
+import {
+  formatBytes,
+  memoryAssessmentStatusColors,
+} from "./instance-details-helpers";
 
 function formatMemoryBytes(value: number) {
   return value > 0 ? (formatBytes(value) ?? "-") : "-";
@@ -125,17 +128,6 @@ export function MemoryLayoutPanel(props: {
       });
     },
   });
-  const assessmentColors: Record<
-    NonNullable<typeof props.assessment>["status"],
-    string
-  > = {
-    "not-assessed": "gray",
-    "update-required": "orange",
-    analytical: "blue",
-    verified: "green",
-    mismatch: "red",
-  };
-
   return (
     <Paper withBorder p="sm" radius="sm">
       <Group justify="space-between" mb="xs">
@@ -154,7 +146,7 @@ export function MemoryLayoutPanel(props: {
 
       {props.assessment && (
         <Alert
-          color={assessmentColors[props.assessment.status]}
+          color={memoryAssessmentStatusColors[props.assessment.status]}
           variant="light"
           mb="xs"
           title={
@@ -164,7 +156,7 @@ export function MemoryLayoutPanel(props: {
               </Text>
               {props.assessment.reportAvailable && (
                 <Button
-                  color={assessmentColors[props.assessment.status]}
+                  color={memoryAssessmentStatusColors[props.assessment.status]}
                   variant="subtle"
                   size="compact-xs"
                   leftSection={<Download size={13} />}

@@ -3,6 +3,7 @@ import type {
   GgufMetadata,
   GgufTensorInfo,
   GgufTensorTable,
+  MemoryEstimateHparams,
 } from "@arriero/core";
 import { ggmlTensorBytes, ggmlTypeName } from "@arriero/core";
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
@@ -466,6 +467,37 @@ function extractMetadata(
       "quantize.imatrix.entries_count",
     ]),
     imatrixChunks: numberMetadata(metadata, ["quantize.imatrix.chunks_count"]),
+  };
+}
+
+export function memoryEstimateHparams(
+  metadata: GgufMetadata,
+): MemoryEstimateHparams {
+  return {
+    architecture: metadata.architecture,
+    blockCount: metadata.blockCount,
+    embeddingLength: metadata.embeddingLength,
+    headCount: metadata.headCount,
+    headCountKv: metadata.headCountKv,
+    attentionKeyLength: metadata.attentionKeyLength,
+    attentionValueLength: metadata.attentionValueLength,
+    attentionKeyLengthMla: metadata.attentionKeyLengthMla,
+    attentionValueLengthMla: metadata.attentionValueLengthMla,
+    causalAttention: metadata.causalAttention,
+    contextLength: metadata.contextLength,
+    slidingWindow: metadata.slidingWindow,
+    slidingWindowPattern: metadata.slidingWindowPattern,
+    sharedKvLayers: metadata.sharedKvLayers,
+    nextnPredictLayers: metadata.nextnPredictLayers,
+    shortConvCacheLength: metadata.shortConvCacheLength,
+    ssmConvKernel: metadata.ssmConvKernel,
+    ssmGroupCount: metadata.ssmGroupCount,
+    ssmInnerSize: metadata.ssmInnerSize,
+    ssmStateSize: metadata.ssmStateSize,
+    wkvHeadSize: metadata.wkvHeadSize,
+    tokenShiftCount: metadata.tokenShiftCount,
+    kdaHeadDim: metadata.kdaHeadDim,
+    vocabularySize: metadata.vocabularySize,
   };
 }
 

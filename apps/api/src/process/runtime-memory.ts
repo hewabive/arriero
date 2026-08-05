@@ -12,7 +12,7 @@ import { readFileSync, statSync } from "node:fs";
 import { promisify } from "node:util";
 
 import { computeNumaPlacement, parseNumaMaps } from "../numa/placement.js";
-import { readNumaTopology } from "../numa/topology.js";
+import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { nvidiaTelemetry } from "../nvidia/telemetry.js";
 import {
   compareMemoryPlacements,
@@ -249,8 +249,12 @@ export async function getInstanceNumaPlacement(input: {
     return null;
   }
 
+  const topology = readNumaTopology();
+  if (!numaIsApplicable(topology)) {
+    return null;
+  }
   const interleaveNodeCount =
-    numa.nodes.length > 0 ? numa.nodes.length : readNumaTopology().length;
+    numa.nodes.length > 0 ? numa.nodes.length : topology.length;
   if (interleaveNodeCount <= 1) {
     return null;
   }
