@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--repeat-last-n"
 title: "--repeat-last-n"
-summary: "Задает размер окна предыдущих токенов, по которому llama-server считает обычные repeat/frequency/presence penalties. `0` отключает это окно; отрицательные значения больше не принимаются."
+summary: "Задает размер окна предыдущих токенов, по которому llama-server считает обычные repeat/frequency/presence penalties. `0` отключает это окно, `-1` разворачивается в размер контекста."
 category: "Параметры сэмплинга"
 valueType: "number"
 estimation: "normal"
@@ -24,12 +24,12 @@ related:
 
 `--repeat-last-n` управляет тем, сколько последних токенов учитывать в сэмплере `penalties`. Это не длина ответа и не размер контекста модели, а окно истории для штрафов повторения.
 
-Значение по умолчанию: `64`. `0` отключает применение penalties по истории. В актуальном llama.cpp отрицательные значения, включая прежнее специальное значение `-1`, отклоняются.
+Значение по умолчанию: `64`. `0` отключает применение penalties по истории. `-1` — специальное значение: окно равно размеру контекста; значения меньше `-1` отклоняются.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-last n tokens to consider for penalize (default: 64, 0 = disabled)
+last n tokens to consider for penalize (default: 64, 0 = disabled, -1 = ctx_size)
 ```
 
 ## Паспорт аргумента
@@ -40,12 +40,12 @@ last n tokens to consider for penalize (default: 64, 0 = disabled)
 - Поле в `common_params_sampling`: `penalty_last_n`
 - HTTP-поле для `/completion` и совместимых server routes: `repeat_last_n`
 - Значение по умолчанию в `common.h`: `64`
-- Проверка CLI: любое значение меньше `0` отклоняется как `invalid repeat-last-n`
-- Проверка HTTP task: любое значение меньше `0` отклоняется как `Error: repeat_last_n must be >= 0`
+- Проверка CLI: любое значение меньше `-1` отклоняется как `invalid repeat-last-n`
+- Проверка HTTP task: `tools/server/server-schema.cpp` задает hard limits `-1..INT32_MAX`; значение вне диапазона отклоняется с ошибкой `Value must be between -1 <= value <= 2147483647`
 
 ## Что меняет в llama-server
 
-При старте CLI-парсер записывает значение в `params.sampling.penalty_last_n`. При обработке HTTP-запроса `tools/server/server-task.cpp` может переопределить его из JSON-поля `repeat_last_n`; если в запросе поля нет, используется серверный default, полученный из CLI.
+При старте CLI-парсер записывает значение в `params.sampling.penalty_last_n`. При обработке HTTP-запроса `tools/server/server-schema.cpp` может переопределить его из JSON-поля `repeat_last_n`; если в запросе поля нет, используется серверный default, полученный из CLI. В post-processing запроса сервер разворачивает `-1` в размер контекста слота (`n_ctx_slot`); в не-серверных путях `common/sampling.cpp` заменяет `-1` на `n_ctx` контекста или `n_ctx_train` модели.
 
 Сэмплер создается для конкретной задачи/слота в `common_sampler_init`. Если `--mirostat 0`, цепочка сэмплеров по умолчанию начинается с `penalties`, затем идет `dry`, затем `top_k`/`top_p`/`min_p`/`temperature` и другие фильтры. Для `penalties` llama.cpp вызывает `llama_sampler_init_penalties(params.penalty_last_n, params.penalty_repeat, params.penalty_freq, params.penalty_present)`.
 
@@ -56,7 +56,8 @@ last n tokens to consider for penalize (default: 64, 0 = disabled)
 - `64`: default, небольшой локальный контроль повторов.
 - `0`: отключает окно penalties. На практике это выключает эффект `--repeat-penalty`, `--presence-penalty` и `--frequency-penalty`, даже если их коэффициенты заданы.
 - Положительное число: проверять не больше указанного числа последних токенов.
-- Отрицательное число: ошибка на CLI или при разборе HTTP task.
+- `-1`: окно равно размеру контекста слота — растет вместе с `--ctx-size` и делением на `--parallel`.
+- Меньше `-1`: ошибка на CLI или при разборе HTTP task.
 
 ## Когда использовать
 
@@ -68,14 +69,14 @@ last n tokens to consider for penalize (default: 64, 0 = disabled)
 
 Параметр не меняет KV-cache, RAM под модель или VRAM. Он влияет на CPU-side sampling: чем больше окно, тем больше история, которую должен учитывать penalties sampler. Обычно это малая часть latency по сравнению с eval модели, но при очень большом окне, большом vocab и высокой конкуренции слотов overhead может стать заметен.
 
-Размер окна ограничен явным неотрицательным числом и не растёт автоматически вместе с контекстом.
+При `-1` окно привязано к контексту слота, поэтому с ростом `--ctx-size` растет и стоимость sampling на токен.
 
 ## Взаимодействие с другими аргументами
 
 - `--repeat-penalty`, `--presence-penalty`, `--frequency-penalty`: коэффициенты штрафа, которые работают внутри окна `--repeat-last-n`.
 - `--samplers`: если из цепочки убрать `penalties`, этот аргумент не будет влиять на sampling.
 - `--mirostat`: при `--mirostat 1` или `--mirostat 2` обычная цепочка `params.samplers` не используется, поэтому `penalties` из default chain не добавляется.
-- `--ctx-size` и `--parallel` больше не разворачивают специальное значение `-1`: для большого окна его размер нужно задать явно.
+- `--ctx-size` и `--parallel`: при `-1` определяют фактическое окно — сервер разворачивает его в контекст слота.
 
 ## INI-пресеты и router-режим
 
@@ -90,8 +91,8 @@ repeat-last-n = 128
 
 ## Типовые проблемы и диагностика
 
-- Ошибка старта с `invalid repeat-last-n`: передано отрицательное число.
-- Ошибка HTTP-запроса `repeat_last_n must be >= 0`: клиент отправил отрицательное JSON-значение.
+- Ошибка старта с `invalid repeat-last-n`: передано значение меньше `-1`.
+- Ошибка HTTP-запроса `Value must be between -1 <= value <= ...`: клиент отправил JSON-значение меньше `-1`.
 - Параметр не меняет поведение: проверьте, что в `--samplers` есть `penalties` и что `--mirostat` равен `0`.
 - Повторы все еще есть: увеличивайте не только окно, но и сами коэффициенты `--repeat-penalty`, `--presence-penalty` или `--frequency-penalty`.
 
@@ -104,7 +105,7 @@ llama-server --model /models/model.gguf --repeat-last-n 128 --repeat-penalty 1.0
 ```
 
 ```bash
-llama-server --model /models/model.gguf --ctx-size 8192 --repeat-last-n 8192 --repeat-penalty 1.05
+llama-server --model /models/model.gguf --ctx-size 8192 --repeat-last-n -1 --repeat-penalty 1.05
 ```
 
 Пример per-request override:
@@ -121,6 +122,6 @@ llama-server --model /models/model.gguf --ctx-size 8192 --repeat-last-n 8192 --r
 
 - `llama.cpp/common/arg.cpp`: объявление `--repeat-last-n`, проверка CLI и `set_sampling()`.
 - `llama.cpp/common/common.h`: default `penalty_last_n = 64` и default цепочка `samplers`.
-- `llama.cpp/common/sampling.cpp`: создание `llama_sampler_init_penalties` и печать sampler params.
-- `llama.cpp/tools/server/server-task.cpp`: JSON-поле `repeat_last_n` и проверка `>= 0`.
+- `llama.cpp/common/sampling.cpp`: замена `-1` на размер контекста, создание `llama_sampler_init_penalties` и печать sampler params.
+- `llama.cpp/tools/server/server-schema.cpp`: JSON-поле `repeat_last_n`, hard limits `-1..INT32_MAX` и разворачивание `-1` в `n_ctx_slot`.
 - `llama.cpp/tools/server/README.md`: CLI help и описание request-параметра `repeat_last_n`.
