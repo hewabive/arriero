@@ -32,7 +32,7 @@ arriero builds its argument catalog from the binary's `--help`, so a phantom arg
 
 ## The cheap signal
 
-A README help row with no matching entry in the parsed argument catalog (i.e. not printed by the configured binary's `--help`) is a phantom row. Cross-check new rows against `common/arg.cpp` and the built `--help` before documenting them as real.
+A README help row with no matching entry in the parsed argument catalog (i.e. not printed by the configured binary's `--help`) is a phantom row. This is now automated: `args:docs:source-sync` reports help rows whose flags appear nowhere in the checkout's `common/arg.cpp` as `phantomRows` (also surfaced as a warning on the Arguments page). The check is a literal flag lookup — it cannot see `set_examples` per-tool gating, so a row that passes it can still be absent from the server build; the built `llama-server --help` remains the final arbiter.
 
 ## Removed rows still present in the README (b10276)
 

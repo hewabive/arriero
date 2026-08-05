@@ -2979,6 +2979,7 @@ export const LlamaArgumentHelpSourceSyncSchema = z.object({
   stored: LlamaArgumentHelpSourceSnapshotSchema,
   current: LlamaArgumentHelpSourceSnapshotSchema,
   inSync: z.boolean().nullable(),
+  phantomRows: z.array(z.string()).nullable(),
 });
 
 export const LlamaArgumentDocsSyncReportSchema = z.object({

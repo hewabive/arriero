@@ -31,8 +31,15 @@ export function SourceSyncPanel(props: {
     Boolean(report.helpSource.current.error) ||
     Boolean(report.helpSource.stored.error);
   const sourceDirty = report.source.dirty === true;
+  const phantomRows = report.helpSource.phantomRows ?? [];
 
-  if (!sourceUnavailable && !helpUnavailable && !helpChanged && !sourceDirty) {
+  if (
+    !sourceUnavailable &&
+    !helpUnavailable &&
+    !helpChanged &&
+    !sourceDirty &&
+    phantomRows.length === 0
+  ) {
     return null;
   }
 
@@ -78,6 +85,25 @@ export function SourceSyncPanel(props: {
             Подробный diff — на странице{" "}
             <Anchor href="#/source-sync">Source Sync</Anchor>.
           </Text>
+        </Alert>
+      )}
+
+      {phantomRows.length > 0 && (
+        <Alert
+          color="yellow"
+          icon={<AlertTriangle size={16} />}
+          variant="light"
+        >
+          <Text size="sm">
+            В сгенерированном help-блоке llama.cpp есть строки без
+            соответствующего аргумента в <Code>common/arg.cpp</Code> — такие
+            флаги бинарник не принимает:
+          </Text>
+          <Stack gap={2} mt={4}>
+            {phantomRows.map((row) => (
+              <Code key={row}>{row}</Code>
+            ))}
+          </Stack>
         </Alert>
       )}
 

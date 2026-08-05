@@ -51,6 +51,24 @@ export function getLlamaSourceCurrentCommit(): string | null {
   return tryGitSync(repoPath, ["rev-parse", "HEAD"]);
 }
 
+export function llamaSourceCommitIsReachable(commit: string): boolean | null {
+  const repoPath = getLlamaSourceSettings().repoPath;
+  if (!isExactGitRepositorySync(repoPath)) {
+    return null;
+  }
+  if (
+    tryGitSync(repoPath, ["rev-parse", "--is-shallow-repository"]) !== "false"
+  ) {
+    return null;
+  }
+  try {
+    runGitSync(repoPath, ["merge-base", "--is-ancestor", commit, "HEAD"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getLlamaSourceVersionLabel(
   repoPath = getLlamaSourceSettings().repoPath,
 ): string | null {

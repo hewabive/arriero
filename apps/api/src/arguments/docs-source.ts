@@ -14,6 +14,7 @@ import { config } from "../config.js";
 import {
   getLlamaSourceCurrentCommit,
   getLlamaSourceSettings,
+  llamaSourceCommitIsReachable,
 } from "../llama/source-repository.js";
 
 const helpStartMarker = "<!-- HELP_START -->";
@@ -78,6 +79,60 @@ export function extractGeneratedHelpBlock(readme: string) {
 
 function sourceReadmePath() {
   return resolve(getLlamaSourceSettings().repoPath, sourceRelativePath);
+}
+
+const argParserRelativePath = "common/arg.cpp";
+
+export function helpBlockFlagRows(block: string) {
+  const rows: { label: string; flags: string[] }[] = [];
+  for (const line of block.split("\n")) {
+    if (!line.startsWith("|")) {
+      continue;
+    }
+    const cellEnd = line.indexOf("|", 1);
+    if (cellEnd === -1) {
+      continue;
+    }
+    const cell = line.slice(1, cellEnd).trim();
+    if (!cell.startsWith("`")) {
+      continue;
+    }
+    const label = cell.replace(/^`|`$/g, "").trim();
+    const flags = label
+      .split(",")
+      .map((part) => part.trim().split(/\s+/)[0] ?? "")
+      .filter((token) => token.startsWith("-"));
+    if (flags.length > 0) {
+      rows.push({ label, flags });
+    }
+  }
+  return rows;
+}
+
+export function phantomHelpRows(block: string, argParserSource: string) {
+  return helpBlockFlagRows(block)
+    .filter(
+      (row) => !row.flags.some((flag) => argParserSource.includes(`"${flag}"`)),
+    )
+    .map((row) => row.label);
+}
+
+function currentPhantomRows(): string[] | null {
+  const argParserPath = resolve(
+    getLlamaSourceSettings().repoPath,
+    argParserRelativePath,
+  );
+  if (!existsSync(argParserPath)) {
+    return null;
+  }
+  try {
+    return phantomHelpRows(
+      readCurrentGeneratedHelpBlock(),
+      readFileSync(argParserPath, "utf8"),
+    );
+  } catch {
+    return null;
+  }
 }
 
 function readMetadata(): HelpSourceMetadata | null {
@@ -154,11 +209,24 @@ function storedSnapshot() {
     updatedAt:
       metadata?.updatedAt ??
       statSync(argumentHelpSourceSnapshotPath).mtime.toISOString(),
-    error:
-      metadata && metadata.hash !== computedHash
-        ? `metadata hash ${metadata.hash} does not match snapshot hash ${computedHash}`
-        : null,
+    error: storedSnapshotError(metadata, computedHash),
   };
+}
+
+function storedSnapshotError(
+  metadata: HelpSourceMetadata | null,
+  computedHash: string,
+) {
+  if (metadata && metadata.hash !== computedHash) {
+    return `metadata hash ${metadata.hash} does not match snapshot hash ${computedHash}`;
+  }
+  if (
+    metadata?.llamaCppCommit &&
+    llamaSourceCommitIsReachable(metadata.llamaCppCommit) === false
+  ) {
+    return `snapshot commit ${metadata.llamaCppCommit.slice(0, 9)} is not reachable from the llama.cpp checkout HEAD — the snapshot was not written from this checkout`;
+  }
+  return null;
 }
 
 function currentSnapshot() {
@@ -201,6 +269,7 @@ export function getLlamaArgumentHelpSourceSync(): LlamaArgumentHelpSourceSync {
     stored,
     current,
     inSync,
+    phantomRows: currentPhantomRows(),
   };
 }
 

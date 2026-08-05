@@ -51,16 +51,18 @@ pnpm --filter @arriero/api args:docs:quality
 Steps:
 
 1. Review the generated help diff (`--diff`). Identify only the arguments whose table rows were added, removed, or changed — do not review every argument just because the llama.cpp commit changed.
-2. Verify each added/changed row against the actual source, not just the README. The generated help block can run ahead of the code: a doc-regeneration commit can add rows to `tools/server/README.md` without a matching `common/arg.cpp` change, so the row describes a flag the built binary does not accept (a "phantom" arg). Cross-check with the configured llama.cpp checkout — grep `common/arg.cpp` and the `LLAMA_ARG_*` env name — and, when a build exists, the built `llama-server --help`. See `docs/CASE_PHANTOM_HELP_ARGS.md`.
+2. Verify each added/changed row against the actual source, not just the README. The generated help block can run ahead of the code: a doc-regeneration commit can add rows to `tools/server/README.md` without a matching `common/arg.cpp` change, so the row describes a flag the built binary does not accept (a "phantom" arg). The plain `args:docs:source-sync` report lists rows whose flags appear nowhere in the checkout's `common/arg.cpp` as `phantomRows` — treat a non-empty list as the phantom procedure trigger (step 5). The check is literal, so it cannot see per-example gating (`set_examples`); for a row that looks server-inapplicable, confirm against the built `llama-server --help`. See `docs/CASE_PHANTOM_HELP_ARGS.md`.
 3. For each affected argument, edit the matching file in `content/llama-args/llama-server/*.md`. Then grep `content/llama-args/llama-server/` for mentions of each changed argument and fix cross-references in other docs whose claims the change invalidated — this is targeted repair, not a mass-edit.
 4. For a new argument, create a focused Russian Engineering help file using nearby argument docs as the style reference: practical behavior, safe defaults, interactions, diagnostics, and relevant source/issue links. To find the upstream PR behind an added or changed help row, run `git log -S "<new help text>" --oneline -- common/arg.cpp` in the configured llama.cpp checkout. Every doc must declare a frontmatter `estimation` class (`args:docs:quality` fails without it) — it feeds the memory-estimator gate (`apps/api/src/arguments/estimation.ts`): `normal` (estimable), `exits` (prints and exits before loading a model), `preset-rewrite` (built-in preset that rewrites launch arguments inside llama.cpp), `remote-selector` / `remote-mmproj` / `remote-draft` (fetches the main/mmproj/draft artifact remotely), `router` (loads a changing set of child models). Deciding this class for each new argument is part of writing its doc: a misclassified `normal` preset produces confidently wrong memory estimates.
 5. For a phantom arg (in the README help block but not in the source/binary), still write a doc, but add a `Статус в upstream` section: state it is not implemented in the current checkout, link the PR that introduced the README row, and note it will not appear in the arriero catalog (built from `--help`) until the feature lands. Do not present it as a working flag.
 6. For a removed argument, delete the matching doc only after confirming it was not renamed or moved.
 7. Once the docs match the new generated help, write the snapshot/hash with `--write`. Sync only
    against the checkout's own master state: verify claims in the configured checkout as it stands,
-   never against an unmerged upstream branch or out-of-band (web) content — that records a
-   `llamaCppCommit` unreachable from the checkout and documents behavior the built binary does not
-   have (this happened with `--repeat-last-n`/`--dry-penalty-last-n`, fixed in 1adc2ba).
+   never against an unmerged upstream branch or out-of-band (web) content — that documents behavior
+   the built binary does not have (this happened with `--repeat-last-n`/`--dry-penalty-last-n`,
+   fixed in 1adc2ba). Never hand-author the snapshot/metadata files — `--write` is the only writer;
+   a stored `llamaCppCommit` unreachable from the checkout HEAD is reported as a `stored.error` by
+   `args:docs:source-sync` and blocks the completion criteria.
 
 Do not add `docStatus`, `reviewedLlamaCppCommit`, or `reviewedHelpHash` to docs. The stored source snapshot hash is the only synchronization signal.
 
