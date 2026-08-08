@@ -3458,7 +3458,7 @@ export const GgufMetadataSchema = z.object({
   modelType: z.string().nullable(),
   poolingType: z.number().nullable(),
   causalAttention: z.boolean().nullable(),
-  hasClassifierHead: z.boolean(),
+  hasClassifierHead: z.boolean().nullable(),
   quantization: z.string().nullable(),
   quantizationVersion: z.number().nullable(),
   sizeLabel: z.string().nullable(),

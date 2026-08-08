@@ -9,6 +9,7 @@ import { ggmlTensorBytes, ggmlTypeName } from "@arriero/core";
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
+import { logger } from "../logger.js";
 import { parseSplitInfo, splitShardName } from "./split.js";
 
 type GgufScalar = string | number | boolean | null;
@@ -365,7 +366,7 @@ function readTensorTable(reader: FileReader, tensorCount: number) {
 function extractMetadata(
   metadata: Map<string, GgufValue>,
   parameterCount: number | null,
-  hasClassifierHead: boolean,
+  hasClassifierHead: boolean | null,
 ): GgufMetadata {
   const contextLength =
     numberMetadata(metadata, [
@@ -508,13 +509,15 @@ export function readGgufMetadata(path: string): GgufMetadata {
     const { tensorCount, kvCount } = readHeader(reader);
     const metadata = readKv(reader, kvCount);
     let parameterCount: number | null = null;
-    let hasClassifierHead = false;
+    let hasClassifierHead: boolean | null = null;
     try {
       const table = readTensorTable(reader, tensorCount);
       parameterCount = table.parameterCount;
       hasClassifierHead = table.hasClassifierHead;
-    } catch {
+    } catch (error) {
       parameterCount = null;
+      hasClassifierHead = null;
+      logger.warn({ err: error, path }, "GGUF tensor table could not be read");
     }
     return extractMetadata(metadata, parameterCount, hasClassifierHead);
   } finally {

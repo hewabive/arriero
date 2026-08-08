@@ -31,7 +31,7 @@ function model(path: string): GgufModel {
       modelType: null,
       poolingType: null,
       causalAttention: null,
-      hasClassifierHead: false,
+      hasClassifierHead: null,
       quantization: null,
       quantizationVersion: null,
       sizeLabel: null,

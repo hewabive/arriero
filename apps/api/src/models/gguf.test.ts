@@ -227,6 +227,16 @@ function metadataFile(kvs: Buffer[], tensors: Buffer[] = []) {
   ]);
 }
 
+function truncatedTensorTableFile(kvs: Buffer[], declaredTensorCount: number) {
+  return Buffer.concat([
+    Buffer.from("GGUF", "utf8"),
+    u32(3),
+    u64(declaredTensorCount),
+    u64(kvs.length),
+    ...kvs,
+  ]);
+}
+
 test("readGgufMetadata captures embedding role signals", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-meta-"));
   const path = join(dir, "embedding.gguf");
@@ -281,6 +291,33 @@ test("readGgufMetadata detects reranker via classifier head tensor", () => {
     assert.equal(metadata.causalAttention, false);
     assert.equal(metadata.hasClassifierHead, true);
     assert.equal(ggufModelRole(metadata), "reranker");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readGgufMetadata reports an unreadable tensor table as unknown", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-truncated-"));
+  const path = join(dir, "truncated.gguf");
+  try {
+    writeFileSync(
+      path,
+      truncatedTensorTableFile(
+        [
+          kvString("general.architecture", "bert"),
+          kvString("general.type", "model"),
+          kvBool("bert.attention.causal", false),
+        ],
+        2,
+      ),
+    );
+
+    const metadata = readGgufMetadata(path);
+    assert.equal(metadata.architecture, "bert");
+    assert.equal(metadata.parameterCount, null);
+    assert.equal(metadata.hasClassifierHead, null);
+    assert.notEqual(metadata.hasClassifierHead, false);
+    assert.equal(ggufModelRole(metadata), "embedding");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -407,6 +444,22 @@ test("ggufModelRole classifies pooling and attention combinations", () => {
       hasClassifierHead: false,
     }),
     "generative",
+  );
+  assert.equal(
+    ggufModelRole({
+      poolingType: null,
+      causalAttention: null,
+      hasClassifierHead: null,
+    }),
+    "generative",
+  );
+  assert.equal(
+    ggufModelRole({
+      poolingType: 4,
+      causalAttention: null,
+      hasClassifierHead: null,
+    }),
+    "reranker",
   );
 });
 
