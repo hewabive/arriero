@@ -284,7 +284,17 @@ the persistence boundary.
 **Acceptance:** from stored data alone, answer "why was model B evicted rather than C", "why did
 this instance stop", "has it crash-looped", and "why did my model unload while I was away".
 
-## Stage 5 — Split `packages/core/src/index.ts`
+## Stage 5 — Split `packages/core/src/index.ts` — **done**
+
+Landed as 24 commits, `caeebef..7a3cdbc`, one domain per commit in dependency-topology order (not
+largest-first: extracted files must never import from the barrel, or Zod consts hit a TDZ at module
+load, so dependencies extracted before dependents). `index.ts` is now a 33-line pure barrel; no
+consumer import changed; the full gate ran green before every commit. Four previously private
+schemas became exports so split modules could reference them (`ApiEndpointIdSchema`,
+`ApiEndpointBaseUrlSchema`, `ApiProxyIdSchema`, `ApiProxyNodePortSchema`) — verified as the only
+runtime export-surface difference. `api-lab` deliberately shares `api-endpoints.ts` with the
+endpoint catalog (mutually interleaved schemas would otherwise form a runtime cycle), and
+`ProcessEvent`/`RuntimeState` live in `process.ts` rather than `instance.ts` for the same reason.
 
 4,220 lines, 268 `z.object` schemas, 729 exports, ≥19 domains, imported by 385 files, touched in 99
 of the last 300 commits. It is the one file every change must open — for an agent that means
