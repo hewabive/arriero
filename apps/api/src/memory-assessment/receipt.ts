@@ -10,14 +10,14 @@ import { z } from "zod";
 import { canonicalJsonDigest as digest } from "../utils/canonical-json.js";
 import { sortedByKey } from "../utils/sort.js";
 
-export const FileIdentitySchema = z.object({
+const FileIdentitySchema = z.object({
   path: z.string(),
   size: z.number().int().nonnegative(),
   mtimeMs: z.number().nonnegative(),
   fileCount: z.number().int().nonnegative().optional(),
 });
 
-export const FingerprintSchema = z.object({
+const FingerprintSchema = z.object({
   digest: z.string(),
   configDigest: z.string(),
   hardwareDigest: z.string(),
@@ -27,7 +27,7 @@ export const FingerprintSchema = z.object({
   currentBinaryPath: z.string(),
 });
 
-export const ValidationSchema = z.object({
+const ValidationSchema = z.object({
   source: MemoryAssessmentValidationSourceSchema.exclude(["none"]),
   observedAt: z.string(),
   runId: z.string().nullable().default(null),
@@ -35,7 +35,7 @@ export const ValidationSchema = z.object({
   deltas: z.array(MemoryAssessmentDeltaSchema),
 });
 
-export const AnalyticalReceiptSchema = z.object({
+const AnalyticalReceiptSchema = z.object({
   schemaVersion: z.literal(1),
   evidence: z.literal("analytical").default("analytical"),
   estimatorId: z.string().min(1),
@@ -47,7 +47,7 @@ export const AnalyticalReceiptSchema = z.object({
   validation: ValidationSchema.nullable(),
 });
 
-export const MeasuredObservationSchema = z.object({
+const MeasuredObservationSchema = z.object({
   capturedAt: z.string(),
   runId: z.string().nullable(),
   processIds: z.array(z.number().int().positive()),
@@ -58,7 +58,7 @@ export const MeasuredObservationSchema = z.object({
   notes: z.array(z.string()),
 });
 
-export const MeasuredReceiptSchema = z.object({
+const MeasuredReceiptSchema = z.object({
   schemaVersion: z.literal(1),
   evidence: z.literal("measured"),
   baselineVersion: z.literal(1),
@@ -75,10 +75,7 @@ export const MeasuredReceiptSchema = z.object({
   validation: ValidationSchema.nullable(),
 });
 
-export const ReceiptSchema = z.union([
-  MeasuredReceiptSchema,
-  AnalyticalReceiptSchema,
-]);
+const ReceiptSchema = z.union([MeasuredReceiptSchema, AnalyticalReceiptSchema]);
 
 export type FileIdentity = z.infer<typeof FileIdentitySchema>;
 export type MemoryAssessmentFingerprint = z.infer<typeof FingerprintSchema>;

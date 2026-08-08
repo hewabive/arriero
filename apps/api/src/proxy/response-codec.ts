@@ -214,7 +214,7 @@ export function apiProxySseEventFrame(type: string, payload: unknown): string {
   return `event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
-export type ApiProxySseFrameTransformResult =
+type ApiProxySseFrameTransformResult =
   | string
   | string[]
   | null

@@ -52,7 +52,7 @@ function feedLane(
   return detector.append(lane, text);
 }
 
-export function apiProxyLoopGuardFinishSupported(
+function apiProxyLoopGuardFinishSupported(
   operation: ApiProxyProtocolOperation,
 ): boolean {
   const shape = apiProxyResponseShape(operation);

@@ -59,7 +59,7 @@ type ApiProxyTokenScaleResponseEffect = {
   factor: number;
 };
 
-export type ApiProxyLoopGuardEffect = {
+type ApiProxyLoopGuardEffect = {
   type: "loop-guard";
   nodeName: string | null;
   config: ApiProxyLoopGuardConfig;

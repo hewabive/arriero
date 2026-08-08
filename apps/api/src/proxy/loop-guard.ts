@@ -3,13 +3,9 @@ import type { ApiProxyLoopGuardConfig } from "@arriero/core";
 
 export type ApiProxyLoopGuardLane = "answer" | "reasoning" | "tool";
 
-export type ApiProxyLoopGuardSignal =
-  | "period"
-  | "novelty"
-  | "compression"
-  | "entropy";
+type ApiProxyLoopGuardSignal = "period" | "novelty" | "compression" | "entropy";
 
-export type ApiProxyLoopGuardStatus = "clean" | "near-miss" | "triggered";
+type ApiProxyLoopGuardStatus = "clean" | "near-miss" | "triggered";
 
 export type ApiProxyLoopGuardHit = {
   lane: ApiProxyLoopGuardLane;
@@ -20,7 +16,7 @@ export type ApiProxyLoopGuardHit = {
   tail: string;
 };
 
-export type ApiProxyLoopGuardTimelineEntry = {
+type ApiProxyLoopGuardTimelineEntry = {
   atChars: number;
   lane: ApiProxyLoopGuardLane;
   signal: ApiProxyLoopGuardSignal;
@@ -28,7 +24,7 @@ export type ApiProxyLoopGuardTimelineEntry = {
   value: number;
 };
 
-export type ApiProxyLoopGuardSnapshot = {
+type ApiProxyLoopGuardSnapshot = {
   status: ApiProxyLoopGuardStatus;
   trigger: ApiProxyLoopGuardHit | null;
   peak: ApiProxyLoopGuardHit | null;

@@ -166,7 +166,7 @@ export function contextFromInstance(instance: Instance): MemoryEstimateContext {
   };
 }
 
-export function resolveMemoryEstimateContext(
+function resolveMemoryEstimateContext(
   request: MemoryEstimateRequest,
 ): MemoryEstimateContext | { error: string } {
   let context: MemoryEstimateContext;

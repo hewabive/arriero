@@ -47,14 +47,14 @@ const LLAMA_UPDATE_RECOMMENDATION =
 const PYTHON_UPDATE_RECOMMENDATION =
   "Re-run the estimate or capture a new measured baseline after the environment, model, or configuration change, then apply the updated draws.";
 
-export type AssessmentWording = {
+type AssessmentWording = {
   verified: string;
   mismatch: string;
   pending: string;
   inconclusive: string;
 };
 
-export type AssessmentAnalytical = {
+type AssessmentAnalytical = {
   estimatorId: string;
   wording: AssessmentWording;
   validate(

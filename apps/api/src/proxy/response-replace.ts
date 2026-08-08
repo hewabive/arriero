@@ -25,7 +25,7 @@ type Replacement = {
   count: number;
 };
 
-export type ApiProxyResponseTextChannel = "answer" | "reasoning" | "tool";
+type ApiProxyResponseTextChannel = "answer" | "reasoning" | "tool";
 
 export type MutableDeltaChannels = {
   includeReasoning: boolean;
