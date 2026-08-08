@@ -9,6 +9,9 @@ definitions, supervises child processes, scans GGUF models, builds llama.cpp fro
 `llama-server` arguments, and exposes an OpenAI/Anthropic-compatible API proxy in front of managed
 and external endpoints.
 
+Active structural work: `docs/IMMUNE_REFACTOR.md` (staged plan; a check lands before the change it
+protects). Remove that doc and this line together when its stages are done.
+
 ## Commands
 
 ```bash
