@@ -80,9 +80,21 @@ checkout without llama.cpp instead of reporting success.
 
 **Not in scope:** turning on knip's `duplicates` rule (see stage 6).
 
-## Stage 2 — Coherence checks for the unprotected pairs
+## Stage 2 — Coherence checks for the unprotected pairs — **done**
 
 Cheap, and it protects stages 4–6.
+
+Landed as `4ad1d7c` (doc claims), `18fdd29` (env), and the schema-parity commit below.
+`pnpm check` gained `check:docs` and `check:env`; the `db/schema.ts` ↔ `migrate()` pair is covered
+by `db/schema-migrate-parity.test.ts`.
+
+Two findings worth carrying forward. The doc-claims checker found a stale
+`http.ts:proxyProtocolEndpoint` in `docs/API_PROXY_PREEMPTION.md` that manual reading had missed, so
+its symbol check is deliberately strict: for an ambiguous filename it consults every candidate and
+flags only when the symbol is in none. And the env checker had to resolve `managerEnv` /
+`managedPath` / `envPath` before it was safe to run — the literal-grep version reported six working
+variables as dead, and a further two names that match the pattern are not environment variables at
+all.
 
 - Fix the known drift first, or the new checkers are red on arrival:
   - CLAUDE.md: `http.ts` "defines every route" (it is a 119-line composition root; routes live in
