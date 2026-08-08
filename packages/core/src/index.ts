@@ -1,7 +1,6 @@
 import { z } from "zod";
 
-import { type InstanceKind } from "./engine-descriptor.js";
-import { InstanceKindSchema, InstanceSchema } from "./instance.js";
+import { InstanceSchema } from "./instance.js";
 import {
   EndpointProbeSchema,
   LlamaProbeSchema,
@@ -31,52 +30,13 @@ export * from "./proxy/token-scale.js";
 export * from "./resources.js";
 export * from "./llama.js";
 export * from "./instance.js";
-
-export const PathCatalogKindSchema = z.enum(["binary", "models-dir"]);
+export * from "./path-catalog.js";
 
 export const PresetNameSchema = z
   .string()
   .min(1)
   .max(80)
   .regex(/^[A-Za-z0-9._-]+$/);
-
-export const PathCatalogEntrySchema = z.object({
-  id: z.string(),
-  kind: PathCatalogKindSchema,
-  name: z.string().min(1).max(80),
-  path: z.string().min(1),
-  engineKind: InstanceKindSchema.optional(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-
-export const PathCatalogCreateSchema = z.object({
-  kind: PathCatalogKindSchema,
-  name: z.string().min(1).max(80),
-  path: z.string().min(1),
-  engineKind: InstanceKindSchema.optional(),
-});
-
-export const PathCatalogUpdateSchema = z.object({
-  name: z.string().min(1).max(80).optional(),
-  path: z.string().min(1).optional(),
-  engineKind: InstanceKindSchema.nullable().optional(),
-});
-
-const RPC_SERVER_BINARY_BASENAME = "ggml-rpc-server";
-
-export function pathCatalogBinaryEngineKind(entry: {
-  path: string;
-  engineKind?: InstanceKind | undefined;
-}): InstanceKind {
-  if (entry.engineKind) {
-    return entry.engineKind;
-  }
-  const basename = entry.path.split("/").pop() ?? entry.path;
-  return basename === RPC_SERVER_BINARY_BASENAME
-    ? "rpc-worker"
-    : "llama-server";
-}
 
 export const ProcessEventSchema = z.object({
   type: z.enum(["log", "status", "exit", "error"]),
@@ -3199,10 +3159,6 @@ export const ModelPresetCreateSchema = z.object({
   name: PresetNameSchema,
 });
 
-export type PathCatalogKind = z.infer<typeof PathCatalogKindSchema>;
-export type PathCatalogEntry = z.infer<typeof PathCatalogEntrySchema>;
-export type PathCatalogCreate = z.infer<typeof PathCatalogCreateSchema>;
-export type PathCatalogUpdate = z.infer<typeof PathCatalogUpdateSchema>;
 export type ProcessEvent = z.infer<typeof ProcessEventSchema>;
 export type RuntimeState = z.infer<typeof RuntimeStateSchema>;
 export type ProcessPreflightIssue = z.infer<typeof ProcessPreflightIssueSchema>;
