@@ -111,6 +111,46 @@ function RouteTraceCell(props: { trace: ApiProxyRequestTrace }) {
   );
 }
 
+function schedulerActionLine(
+  action: ApiProxyRequestTrace["schedulerActions"][number],
+): string {
+  const subject = [action.instanceId, action.model]
+    .filter((part) => part !== null)
+    .join(" · ");
+  const head = subject ? `${action.type} [${subject}]` : action.type;
+  return action.reason ? `${head} — ${action.reason}` : head;
+}
+
+function SchedulerActionsCell(props: { trace: ApiProxyRequestTrace }) {
+  const { schedulerActions, displacedTargetIds } = props.trace;
+  if (schedulerActions.length === 0) {
+    return <>—</>;
+  }
+  return (
+    <Tooltip
+      multiline
+      maw={480}
+      withArrow
+      label={
+        <Stack gap={2}>
+          {schedulerActions.map((action, index) => (
+            <Text key={index} size="xs">
+              {schedulerActionLine(action)}
+            </Text>
+          ))}
+          {displacedTargetIds.length > 0 ? (
+            <Text size="xs">displaced: {displacedTargetIds.join(", ")}</Text>
+          ) : null}
+        </Stack>
+      }
+    >
+      <Text size="xs" style={{ cursor: "help" }}>
+        {schedulerActions.length}
+      </Text>
+    </Tooltip>
+  );
+}
+
 function SlotCell(props: { trace: ApiProxyRequestTrace }) {
   const { slotId, cacheOrigin } = props.trace;
   if (slotId === null) {
@@ -416,22 +456,7 @@ const TraceRow = memo(function TraceRow(props: {
         <SlotCell trace={trace} />
       </Table.Td>
       <Table.Td>
-        {trace.schedulerActions.length > 0 ? (
-          <Tooltip
-            multiline
-            label={
-              trace.displacedTargetIds.length > 0
-                ? `${trace.schedulerActions.join(
-                    ", ",
-                  )} — displaced: ${trace.displacedTargetIds.join(", ")}`
-                : trace.schedulerActions.join(", ")
-            }
-          >
-            <Text size="xs">{trace.schedulerActions.length}</Text>
-          </Tooltip>
-        ) : (
-          "—"
-        )}
+        <SchedulerActionsCell trace={trace} />
       </Table.Td>
       <Table.Td>
         <TokensCell usage={trace.usage} />

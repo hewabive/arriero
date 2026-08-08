@@ -1427,6 +1427,37 @@ export const ApiProxyTraceCacheOutcomeSchema = z.enum([
   "coalesced",
 ]);
 
+export const ApiProxySchedulerActionTypeSchema = z.enum([
+  "start-instance",
+  "wait-instance-ready",
+  "save-slot",
+  "restore-slot",
+  "unload-model",
+  "stop-instance",
+  "load-model",
+  "wait-model-ready",
+  "route-request",
+]);
+
+export const ApiProxySchedulerActionSchema = z.object({
+  type: ApiProxySchedulerActionTypeSchema,
+  targetId: ApiProxyIdSchema,
+  instanceId: z.string().min(1).nullable().default(null),
+  model: z.string().nullable(),
+  slotId: z.number().int().min(0).nullable().default(null),
+  reason: z.string(),
+});
+
+const LegacyApiProxySchedulerActionSchema =
+  ApiProxySchedulerActionTypeSchema.transform((type) => ({
+    type,
+    targetId: null,
+    instanceId: null,
+    model: null,
+    slotId: null,
+    reason: null,
+  }));
+
 export const ApiProxyRequestTraceSchema = z.object({
   id: z.string(),
   at: z.string(),
@@ -1447,7 +1478,14 @@ export const ApiProxyRequestTraceSchema = z.object({
   textReplacementCount: z.number().int().min(0).default(0),
   routeTrace: z.array(ApiProxyRouteTraceStepSchema).default([]),
   files: z.array(ApiProxyTraceFileSchema).default([]),
-  schedulerActions: z.array(z.string()).default([]),
+  schedulerActions: z
+    .array(
+      z.union([
+        ApiProxySchedulerActionSchema,
+        LegacyApiProxySchedulerActionSchema,
+      ]),
+    )
+    .default([]),
   displacedTargetIds: z.array(ApiProxyIdSchema).default([]),
   usage: ApiProxyTraceUsageSchema.nullable().default(null),
   status: z.number().int().min(0).default(0),
@@ -1660,27 +1698,6 @@ export const ApiProxySchedulerPoolInputSchema = z.object({
 });
 
 export const ApiProxySchedulerModeSchema = z.enum(["request", "idle"]);
-
-export const ApiProxySchedulerActionTypeSchema = z.enum([
-  "start-instance",
-  "wait-instance-ready",
-  "save-slot",
-  "restore-slot",
-  "unload-model",
-  "stop-instance",
-  "load-model",
-  "wait-model-ready",
-  "route-request",
-]);
-
-export const ApiProxySchedulerActionSchema = z.object({
-  type: ApiProxySchedulerActionTypeSchema,
-  targetId: ApiProxyIdSchema,
-  instanceId: z.string().min(1).nullable().default(null),
-  model: z.string().nullable(),
-  slotId: z.number().int().min(0).nullable().default(null),
-  reason: z.string(),
-});
 
 export const ApiProxySchedulerPlanRequestSchema = z.object({
   mode: ApiProxySchedulerModeSchema,

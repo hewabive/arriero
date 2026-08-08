@@ -304,6 +304,65 @@ test("listApiProxyTracesSince returns ascending traces from the cutoff", () => {
   );
 });
 
+test("round-trips full scheduler actions with reasons", () => {
+  const actions: ApiProxyRequestTrace["schedulerActions"] = [
+    {
+      type: "unload-model",
+      targetId: "tg-idle",
+      instanceId: "idle-instance",
+      model: "qwen-old",
+      slotId: null,
+      reason: "evicting idle target to free the pool",
+    },
+    {
+      type: "route-request",
+      targetId: "tg-hot",
+      instanceId: "hot-instance",
+      model: "qwen-new",
+      slotId: 1,
+      reason: "target is selected",
+    },
+  ];
+  insertApiProxyTrace(
+    trace({ id: "a", at: daysBefore(1), schedulerActions: actions }),
+  );
+
+  assert.deepEqual(listApiProxyTraces()[0]?.schedulerActions, actions);
+});
+
+test("normalizes legacy string scheduler actions to full action objects", () => {
+  const legacy: Record<string, unknown> = {
+    ...trace({ id: "legacy", at: daysBefore(1) }),
+    schedulerActions: ["start-instance", "route-request"],
+  };
+  sqlite
+    .prepare(
+      `INSERT INTO proxy_request_traces
+        (id, at, protocol, endpoint, model_id, status, ok, resumed, translated, duration_ms, trace_json)
+       VALUES ('legacy', ?, 'openai', 'chat.completions', 'm1', 200, 1, 0, 0, 1, ?)`,
+    )
+    .run(daysBefore(1), JSON.stringify(legacy));
+
+  assert.deepEqual(listApiProxyTraces()[0]?.schedulerActions, [
+    {
+      type: "start-instance",
+      targetId: null,
+      instanceId: null,
+      model: null,
+      slotId: null,
+      reason: null,
+    },
+    {
+      type: "route-request",
+      targetId: null,
+      instanceId: null,
+      model: null,
+      slotId: null,
+      reason: null,
+    },
+  ]);
+});
+
 test("skips rows whose stored JSON no longer parses", () => {
   insertApiProxyTrace(trace({ id: "good", at: daysBefore(1) }));
   sqlite

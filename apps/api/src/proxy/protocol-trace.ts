@@ -1,7 +1,17 @@
-import type { ApiProxyRouteTraceStep, ApiProxyTraceFile } from "@arriero/core";
+import type {
+  ApiProxyRouteTraceStep,
+  ApiProxySchedulerAction,
+  ApiProxyTraceFile,
+} from "@arriero/core";
+import type { Context } from "hono";
 
 import { newId } from "../utils/id.js";
-import type { ApiProxyProtocolOperation } from "./protocol.js";
+import type {
+  ApiProxyProtocolAdapter,
+  ApiProxyProtocolDiagnostic,
+  ApiProxyProtocolModelRequest,
+  ApiProxyProtocolOperation,
+} from "./protocol.js";
 import type { ResumableBufferState } from "./resumable-forward.js";
 import { apiProxySlotTracker } from "./slot-tracker.js";
 
@@ -25,7 +35,7 @@ export type ProxyTraceAccumulator = {
   textReplacementCount: number;
   routeTrace: ApiProxyRouteTraceStep[];
   files: ApiProxyTraceFile[];
-  schedulerActions: string[];
+  schedulerActions: ApiProxySchedulerAction[];
   displacedTargetIds: string[];
   usage: {
     promptTokens: number | null;
@@ -87,6 +97,29 @@ export function createProxyTrace(
     queueMs: null,
     ttftMs: null,
   };
+}
+
+export function applyTraceDiagnostic(
+  trace: ProxyTraceAccumulator,
+  diagnostic: ApiProxyProtocolDiagnostic,
+): void {
+  trace.errorCode = diagnostic.code;
+  trace.errorMessage = diagnostic.message;
+}
+
+export function traceDiagnosticResponse(input: {
+  c: Context;
+  adapter: ApiProxyProtocolAdapter;
+  request: ApiProxyProtocolModelRequest;
+  trace: ProxyTraceAccumulator;
+  diagnostic: ApiProxyProtocolDiagnostic;
+}): Response {
+  applyTraceDiagnostic(input.trace, input.diagnostic);
+  const response = input.adapter.diagnosticError(
+    input.request,
+    input.diagnostic,
+  );
+  return input.c.json(response.body, response.status);
 }
 
 export function safeJsonParse(text: string): unknown {

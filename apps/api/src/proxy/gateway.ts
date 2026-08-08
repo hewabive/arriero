@@ -2,6 +2,7 @@ import type { ApiProxyPlanPreview, ApiProxyTargetRecord } from "@arriero/core";
 
 import type {
   ApiProxyProtocolAdapter,
+  ApiProxyProtocolDiagnostic,
   ApiProxyProtocolModelRequest,
   ApiProxyProtocolResponse,
 } from "./protocol.js";
@@ -14,7 +15,7 @@ export type ApiProxyProtocolGatewayDecision =
     }
   | {
       ok: false;
-      response: ApiProxyProtocolResponse;
+      diagnostic: ApiProxyProtocolDiagnostic;
     };
 
 function actionSummary(actions: ApiProxyPlanPreview["plan"]["actions"]) {
@@ -36,12 +37,12 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
   if (!targetId) {
     return {
       ok: false,
-      response: input.adapter.diagnosticError(input.request, {
+      diagnostic: {
         status: 503,
         code: "arriero_proxy_model_unbound",
         param: "model",
         message: `Model ${input.request.modelId} is published by arriero, but it is not bound to a proxy target.`,
-      }),
+      },
     };
   }
 
@@ -49,12 +50,12 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
   if (!target) {
     return {
       ok: false,
-      response: input.adapter.diagnosticError(input.request, {
+      diagnostic: {
         status: 503,
         code: "arriero_proxy_target_not_found",
         param: "model",
         message: `Model ${input.request.modelId} is bound to missing proxy target ${targetId}.`,
-      }),
+      },
     };
   }
 
@@ -62,14 +63,14 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
   if (!preview.plan.ok) {
     return {
       ok: false,
-      response: input.adapter.diagnosticError(input.request, {
+      diagnostic: {
         status: 503,
         code: "arriero_proxy_plan_blocked",
         param: "model",
         message: `Cannot route model ${input.request.modelId}: ${
           preview.plan.blockingReason ?? "scheduler blocked the request"
         }.`,
-      }),
+      },
     };
   }
 
@@ -79,7 +80,7 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
   if (readinessActions.length > 0 && !input.allowReadinessActions) {
     return {
       ok: false,
-      response: input.adapter.diagnosticError(input.request, {
+      diagnostic: {
         status: 503,
         code: "arriero_proxy_target_not_ready",
         param: "model",
@@ -88,7 +89,7 @@ export async function prepareApiProxyProtocolGatewayRequest(input: {
         }. Scheduler requires ${readinessActions.length} action(s): ${actionSummary(
           readinessActions,
         )}.`,
-      }),
+      },
     };
   }
 
@@ -107,7 +108,7 @@ export async function buildApiProxyProtocolGatewayResponse(input: {
 }): Promise<ApiProxyProtocolResponse> {
   const decision = await prepareApiProxyProtocolGatewayRequest(input);
   if (!decision.ok) {
-    return decision.response;
+    return input.adapter.diagnosticError(input.request, decision.diagnostic);
   }
 
   return input.adapter.notImplemented(input.request);

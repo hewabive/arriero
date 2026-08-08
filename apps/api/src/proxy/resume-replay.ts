@@ -16,6 +16,7 @@ import type {
 } from "./protocol.js";
 import {
   resumableTraceUsage,
+  traceDiagnosticResponse,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
@@ -199,14 +200,18 @@ export async function serveResumedStreamSession(input: {
       return new Response(null, { status: CLIENT_ABORT_STATUS });
     }
     if (outcome.type === "error") {
-      trace.errorMessage = `Resumed stream replay failed: ${outcome.message}`;
-      const response = input.adapter.diagnosticError(request, {
-        status: 502,
-        code: "arriero_proxy_upstream_error",
-        param: "model",
-        message: trace.errorMessage,
+      return traceDiagnosticResponse({
+        c,
+        adapter: input.adapter,
+        request,
+        trace,
+        diagnostic: {
+          status: 502,
+          code: "arriero_proxy_upstream_error",
+          param: "model",
+          message: `Resumed stream replay failed: ${outcome.message}`,
+        },
       });
-      return c.json(response.body, response.status);
     }
     trace.usage = resumableTraceUsage(state);
     const final = finalFromState(effectiveCodec, state, false);

@@ -56,11 +56,13 @@ import {
 } from "./protocol.js";
 import {
   applyServerGenerationTiming,
+  applyTraceDiagnostic,
   createProxyTrace,
   errorBodyMessage,
   recordTraceWithDeferredTiming,
   resumableTraceUsage,
   safeJsonParse,
+  traceDiagnosticResponse,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
@@ -278,6 +280,7 @@ export async function proxyProtocolEndpoint(
       trace.sourceName = resolution.name;
     }
     if (rejection) {
+      trace.errorCode = rejection.code;
       trace.errorMessage = rejection.message;
       const response = adapter.authError(rejection);
       return c.json(response.body, response.status);
@@ -324,15 +327,18 @@ async function proxyProtocolEndpointInner(
   inflight.setModel(resolution.request.modelId);
 
   if (!resolution.request.model.enabled) {
-    const message = `Model ${resolution.request.modelId} is disabled`;
-    trace.errorMessage = message;
-    const response = adapter.diagnosticError(resolution.request, {
-      status: 503,
-      code: "arriero_proxy_model_disabled",
-      param: "model",
-      message,
+    return traceDiagnosticResponse({
+      c,
+      adapter,
+      request: resolution.request,
+      trace,
+      diagnostic: {
+        status: 503,
+        code: "arriero_proxy_model_disabled",
+        param: "model",
+        message: `Model ${resolution.request.modelId} is disabled`,
+      },
     });
-    return c.json(response.body, response.status);
   }
 
   const recordRouteRequest = (request: ApiProxyPipelineRecordRequestInput) => {
@@ -382,12 +388,13 @@ async function proxyProtocolEndpointInner(
 
   if (!routeResult.ok) {
     createResponsePlan(routeResult.responseEffects);
-    trace.errorMessage = routeResult.diagnostic.message;
-    const response = adapter.diagnosticError(
-      resolution.request,
-      routeResult.diagnostic,
-    );
-    return c.json(response.body, response.status);
+    return traceDiagnosticResponse({
+      c,
+      adapter,
+      request: resolution.request,
+      trace,
+      diagnostic: routeResult.diagnostic,
+    });
   }
 
   if (routeResult.kind === "response") {
@@ -513,12 +520,13 @@ async function proxyProtocolEndpointInner(
       createResponsePlan(routeResult.responseEffects);
       trace.textReplacementCount =
         routeResult.textReplacementCount + branchReplacements;
-      trace.errorMessage = fusion.diagnostic.message;
-      const response = adapter.diagnosticError(
-        routeResult.request,
-        fusion.diagnostic,
-      );
-      return c.json(response.body, response.status);
+      return traceDiagnosticResponse({
+        c,
+        adapter,
+        request: routeResult.request,
+        trace,
+        diagnostic: fusion.diagnostic,
+      });
     }
     if (fusion.kind === "direct") {
       trace.stream = routeResult.request.stream;
@@ -578,17 +586,20 @@ async function proxyProtocolEndpointInner(
       trace.targetName = dispatchTarget.name;
       const node = getNode(endpoint.nodeId);
       if (!node || !node.enabled) {
-        const message = `Proxy target ${dispatchTarget.name} points at ${
-          node ? "disabled" : "unknown"
-        } node ${endpoint.nodeId}`;
-        trace.errorMessage = message;
-        const response = adapter.diagnosticError(route.request, {
-          status: 503,
-          code: "arriero_proxy_upstream_unavailable",
-          param: "model",
-          message,
+        return traceDiagnosticResponse({
+          c,
+          adapter,
+          request: route.request,
+          trace,
+          diagnostic: {
+            status: 503,
+            code: "arriero_proxy_upstream_unavailable",
+            param: "model",
+            message: `Proxy target ${dispatchTarget.name} points at ${
+              node ? "disabled" : "unknown"
+            } node ${endpoint.nodeId}`,
+          },
         });
-        return c.json(response.body, response.status);
       }
       return delegateRemoteTarget({
         c,
@@ -808,10 +819,13 @@ async function delegateRemoteTarget(input: {
       trace.errorMessage = `Client closed the request before node ${node.name} responded`;
       return new Response(null, { status: CLIENT_ABORT_STATUS });
     }
-    const diagnostic = delegationErrorDiagnostic(target, node, error);
-    trace.errorMessage = diagnostic.message;
-    const response = adapter.diagnosticError(request, diagnostic);
-    return c.json(response.body, response.status);
+    return traceDiagnosticResponse({
+      c,
+      adapter,
+      request,
+      trace,
+      diagnostic: delegationErrorDiagnostic(target, node, error),
+    });
   }
 }
 
@@ -932,14 +946,17 @@ export async function serveResolvedTarget(input: {
     targetIdOverride: route.targetId,
   });
   if (!decision.ok) {
-    trace.errorMessage = errorBodyMessage(decision.response.body);
-    return c.json(decision.response.body, decision.response.status);
+    return traceDiagnosticResponse({
+      c,
+      adapter,
+      request: route.request,
+      trace,
+      diagnostic: decision.diagnostic,
+    });
   }
   trace.targetId = decision.target.id;
   trace.targetName = decision.target.name;
-  trace.schedulerActions = decision.preview.plan.actions.map(
-    (action) => action.type,
-  );
+  trace.schedulerActions = [...decision.preview.plan.actions];
   trace.displacedTargetIds = [
     ...new Set(
       decision.preview.plan.actions
@@ -997,15 +1014,18 @@ export async function serveResolvedTarget(input: {
         }),
       });
     } catch {
-      const message = `Request for model ${route.request.modelId} was aborted while queued.`;
-      trace.errorMessage = message;
-      const response = adapter.diagnosticError(route.request, {
-        status: 503,
-        code: "arriero_proxy_upstream_unavailable",
-        param: "model",
-        message,
+      return traceDiagnosticResponse({
+        c,
+        adapter,
+        request: route.request,
+        trace,
+        diagnostic: {
+          status: 503,
+          code: "arriero_proxy_upstream_unavailable",
+          param: "model",
+          message: `Request for model ${route.request.modelId} was aborted while queued.`,
+        },
       });
-      return c.json(response.body, response.status);
     }
   }
   markQueueResolved();
@@ -1070,12 +1090,16 @@ export async function serveResolvedTarget(input: {
       operation,
     });
     if (!resolved.ok) {
-      trace.errorMessage = resolved.diagnostic.message;
-      const response = adapter.diagnosticError(
-        route.request,
-        resolved.diagnostic,
-      );
-      return { ok: false, response: c.json(response.body, response.status) };
+      return {
+        ok: false,
+        response: traceDiagnosticResponse({
+          c,
+          adapter,
+          request: route.request,
+          trace,
+          diagnostic: resolved.diagnostic,
+        }),
+      };
     }
     trace.translated = resolved.context.translateAnthropic;
     return { ok: true, context: resolved.context };
@@ -1100,12 +1124,13 @@ export async function serveResolvedTarget(input: {
 
     const execution = await makeTargetReady(decision.preview);
     if (!execution.ok) {
-      trace.errorMessage = execution.diagnostic.message;
-      const response = adapter.diagnosticError(
-        route.request,
-        execution.diagnostic,
-      );
-      return c.json(response.body, response.status);
+      return traceDiagnosticResponse({
+        c,
+        adapter,
+        request: route.request,
+        trace,
+        diagnostic: execution.diagnostic,
+      });
     }
 
     const resolved = resolveUpstreamContext();
@@ -1266,15 +1291,18 @@ export async function serveResolvedTarget(input: {
             return new Response(null, { status: CLIENT_ABORT_STATUS });
           }
           if (outcome.type === "error") {
-            const message = `Proxy target ${decision.target.name} failed to forward request: ${outcome.message}`;
-            trace.errorMessage = message;
-            const response = adapter.diagnosticError(route.request, {
-              status: 502,
-              code: "arriero_proxy_upstream_error",
-              param: "model",
-              message,
+            return traceDiagnosticResponse({
+              c,
+              adapter,
+              request: route.request,
+              trace,
+              diagnostic: {
+                status: 502,
+                code: "arriero_proxy_upstream_error",
+                param: "model",
+                message: `Proxy target ${decision.target.name} failed to forward request: ${outcome.message}`,
+              },
             });
-            return c.json(response.body, response.status);
           }
           trace.usage = resumableTraceUsage(state);
           const task = resolveSlot();
@@ -1458,15 +1486,18 @@ export async function serveResolvedTarget(input: {
         markClientAbort();
         return new Response(null, { status: CLIENT_ABORT_STATUS });
       }
-      const message = `Proxy target ${decision.target.name} failed to forward request: ${describeFetchError(error)}`;
-      trace.errorMessage = message;
-      const response = adapter.diagnosticError(route.request, {
-        status: 502,
-        code: "arriero_proxy_upstream_error",
-        param: "model",
-        message,
+      return traceDiagnosticResponse({
+        c,
+        adapter,
+        request: route.request,
+        trace,
+        diagnostic: {
+          status: 502,
+          code: "arriero_proxy_upstream_error",
+          param: "model",
+          message: `Proxy target ${decision.target.name} failed to forward request: ${describeFetchError(error)}`,
+        },
       });
-      return c.json(response.body, response.status);
     }
   };
 
@@ -1537,7 +1568,7 @@ export async function serveResolvedTarget(input: {
         if (execution.ok) {
           return { ok: true };
         }
-        trace.errorMessage = execution.diagnostic.message;
+        applyTraceDiagnostic(trace, execution.diagnostic);
         const response = adapter.diagnosticError(
           route.request,
           execution.diagnostic,
@@ -1580,13 +1611,14 @@ export async function serveResolvedTarget(input: {
       wantsStream: route.request.stream,
       ...(buildForceAnswerTail ? { buildForceAnswerTail } : {}),
       onError: (message) => {
-        trace.errorMessage = `Proxy target ${decision.target.name} failed to forward request: ${message}`;
-        const response = adapter.diagnosticError(route.request, {
+        const diagnostic: ApiProxyProtocolDiagnostic = {
           status: 502,
           code: "arriero_proxy_upstream_error",
           param: "model",
           message: `Proxy target ${decision.target.name} failed to forward request: ${message}`,
-        });
+        };
+        applyTraceDiagnostic(trace, diagnostic);
+        const response = adapter.diagnosticError(route.request, diagnostic);
         return {
           status: response.status,
           headers: { "content-type": "application/json" },
