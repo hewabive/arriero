@@ -143,7 +143,7 @@ all.
 **Not in scope:** validating web's `/api/...` literals against registered routes (155 vs ~130
 independent strings, no shared table). Worth doing later; too large for this stage.
 
-## Stage 3 — Observability seam — **in progress**
+## Stage 3 — Observability seam — **done**
 
 Landed: the seam itself (`efb52e1` — `apps/api/src/logger.ts`, tests default `LOG_LEVEL=silent`,
 the rule recorded in CLAUDE.md), the gpu-capacity fix and the status-layer trade record (`d5cfdd3`),
@@ -152,8 +152,8 @@ yields `null` (and a `logger.warn`) instead of a manufactured `false`, and the s
 `emptyMetadata()` fallback follows. No branch changed: `ggufModelRole` treats `null` and `false`
 alike, so the fix only makes the unknown representable. Cached rows keep their old `false` until
 rescan — `GGUF_PARSER_VERSION` was deliberately not bumped, since a full re-parse buys nothing while
-no consumer branches on the tri-state; bump it when one does. Still open: `check-silent-catch.mjs`
-and `check-no-comments.mjs` with the nine existing comments resolved.
+no consumer branches on the tri-state; bump it when one does. Both checkers landed in
+`184e24b`, together with the eleven comments they cleared.
 
 87 sites in `apps/api` swallow an error without a trace, and this is structural rather than
 careless: `pino` is created at `index.ts:50` and never exported, and there are 6 `console.*` calls
