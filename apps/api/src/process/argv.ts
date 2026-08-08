@@ -64,10 +64,7 @@ function argparseFlagsArgv(
   return result;
 }
 
-const ENGINE_ARGV_BUILDERS: Record<
-  EngineArgvBuilderId,
-  EngineArgvBuilder
-> = {
+const ENGINE_ARGV_BUILDERS: Record<EngineArgvBuilderId, EngineArgvBuilder> = {
   "flag-map": flagMapArgv,
   "argparse-flags": argparseFlagsArgv,
 };

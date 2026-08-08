@@ -21,6 +21,7 @@
     "memory:calibrate": "node scripts/memory-estimate-calibrate.mjs",
     "memory:check-ggml-types": "node scripts/check-ggml-types.mjs",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "browse": "node --experimental-strip-types --no-warnings scripts/browse.ts"
   },
   "devDependencies": {

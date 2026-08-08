@@ -30,9 +30,7 @@ function textsFromContent(content: unknown): string[] {
   return texts;
 }
 
-function extractRequestMessages(
-  body: unknown,
-): ApiProxyRequestMessage[] {
+function extractRequestMessages(body: unknown): ApiProxyRequestMessage[] {
   if (!body || typeof body !== "object") {
     return [];
   }

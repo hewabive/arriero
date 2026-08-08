@@ -120,4 +120,3 @@ export function modelMatchesSearch(model: GgufModel, query: string) {
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(normalized));
 }
-

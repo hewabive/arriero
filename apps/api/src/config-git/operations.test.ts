@@ -149,7 +149,10 @@ test("getConfigGitDiff shows untracked files as new-file diffs", async () => {
   });
   writeJson(resolve(config.configDir, "resources.json"), [{ id: "gpu0" }]);
   const full = await getConfigGitDiff();
-  assert.match(full.unstaged, /diff --git a\/resources\.json b\/resources\.json/);
+  assert.match(
+    full.unstaged,
+    /diff --git a\/resources\.json b\/resources\.json/,
+  );
   assert.match(
     full.unstaged,
     /diff --git a\/proxy\/settings\.json b\/proxy\/settings\.json/,
