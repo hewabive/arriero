@@ -177,8 +177,13 @@ catches.
     everything on it. The same file already does this correctly at `:141-144` (`?? null`, skip).
     Make all three paths agree.
   - `process/health-summary.ts:245-250` returns `status: "ready"` when the readiness probe went
-    unanswered; the uncertainty exists only in the free-text `reason`. The machine-readable enum
-    must not claim readiness that was not observed.
+    unanswered. On inspection this is **not** a bug to flip: the branch is reachable only by engines
+    with `httpHealth: false`, which today means `rpc-worker` alone, and a busy single-threaded RPC
+    worker legitimately fails to accept the `tcp-accept` probe — escalating would alarm on healthy
+    workers. The real defect was that the trade was unrecorded, so it is now written into
+    `docs/STATUS_LAYERS.md` § Intentional cross-layer differences, together with the honest fix
+    (an `unknown` member on `InstanceHealthSummaryStatus`) and why it is deferred. A known unknown
+    is acceptable under U; a hidden one is not.
   - `models/gguf.ts:512-518` leaves `hasClassifierHead` at its initialised `false` on a read
     failure, which downstream reads as "not an embedding model".
   - `memory-assessment/fingerprint.ts:49-58` returns/continues past unreadable directory entries, so

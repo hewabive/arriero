@@ -129,6 +129,17 @@ Do **not** pull the llama.cpp vocabulary inward to "match" L4:
 - **Internal `ready` vs public `loaded`.** Same: internal serve-readiness vs
   the frozen public term, via the adapter.
 - **`partial` / `disabled` are L4-only** by nature (above).
+- **L2 `ready` on an unanswered probe, for `httpHealth: false` engines only.**
+  `deriveStatus` returns `ready` for a live process whose readiness probe went
+  unanswered, and says so in the `reason`. This is a deliberate leniency, not an
+  oversight, and it is reachable by exactly one engine: `rpc-worker`, whose probe
+  is `tcp-accept`. A busy single-threaded RPC worker legitimately fails to accept
+  a probe connection, so escalating to `error` or `degraded` would alarm on
+  healthy workers. The cost is real and accepted: the enum asserts readiness that
+  was not observed, and only the prose `reason` carries the uncertainty. Adding an
+  `unknown` member to `InstanceHealthSummaryStatus` is the honest fix and is
+  deliberately deferred — it ripples into L3, the web badge and action gating for
+  a single engine kind. Revisit when a second `httpHealth: false` engine appears.
 
 After these, the internal layers are already consistent: L2 and L3 share
 `ready` / `loading` / `error` / `stopped`. The only residual internal wart is

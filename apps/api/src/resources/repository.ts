@@ -12,6 +12,8 @@ import {
   renameSync,
   writeFileSync,
 } from "node:fs";
+
+import { logger } from "../logger.js";
 import { dirname, resolve } from "node:path";
 import { z } from "zod";
 
@@ -79,6 +81,16 @@ function sortPools(pools: MemoryPool[]): MemoryPool[] {
   );
 }
 
+function logUnknownAcceleratorCapacity(accelerator: {
+  id: string;
+  name: string;
+}): void {
+  logger.warn(
+    { deviceRef: accelerator.id, name: accelerator.name },
+    "no memory pool scaffolded for gpu: its total memory could not be read",
+  );
+}
+
 function floorToGib(bytes: number): number {
   return Math.floor(bytes / GIB) * GIB;
 }
@@ -91,11 +103,15 @@ function defaultPoolsFromHardware(
     if (accelerator.kind !== "gpu") {
       continue;
     }
+    if (accelerator.totalMemoryBytes === null) {
+      logUnknownAcceleratorCapacity(accelerator);
+      continue;
+    }
     pools.push({
       id: `gpu${accelerator.id}`,
       name: accelerator.name,
       kind: "gpu",
-      capacityBytes: accelerator.totalMemoryBytes ?? 0,
+      capacityBytes: accelerator.totalMemoryBytes,
       reservedBytes: 0,
       deviceRef: accelerator.id,
       autoCapacity: true,
@@ -158,6 +174,10 @@ export function refreshAutoCapacities(
     if (accelerator.kind !== "gpu" || knownDeviceRefs.has(accelerator.id)) {
       continue;
     }
+    if (accelerator.totalMemoryBytes === null) {
+      logUnknownAcceleratorCapacity(accelerator);
+      continue;
+    }
     const baseId = `gpu${accelerator.id}`;
     let id = baseId;
     let suffix = 2;
@@ -169,7 +189,7 @@ export function refreshAutoCapacities(
       id,
       name: accelerator.name,
       kind: "gpu",
-      capacityBytes: accelerator.totalMemoryBytes ?? 0,
+      capacityBytes: accelerator.totalMemoryBytes,
       reservedBytes: 0,
       deviceRef: accelerator.id,
       autoCapacity: true,
