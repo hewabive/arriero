@@ -15,6 +15,7 @@ const FileIdentitySchema = z.object({
   size: z.number().int().nonnegative(),
   mtimeMs: z.number().nonnegative(),
   fileCount: z.number().int().nonnegative().optional(),
+  unreadableCount: z.number().int().nonnegative().optional(),
 });
 
 const FingerprintSchema = z.object({

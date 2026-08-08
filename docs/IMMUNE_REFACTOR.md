@@ -143,7 +143,15 @@ all.
 **Not in scope:** validating web's `/api/...` literals against registered routes (155 vs ~130
 independent strings, no shared table). Worth doing later; too large for this stage.
 
-## Stage 3 — Observability seam
+## Stage 3 — Observability seam — **in progress**
+
+Landed: the seam itself (`efb52e1` — `apps/api/src/logger.ts`, tests default `LOG_LEVEL=silent`,
+the rule recorded in CLAUDE.md), the gpu-capacity fix and the status-layer trade record (`d5cfdd3`),
+and the fingerprint fix below. Still open: `check-silent-catch.mjs`, `check-no-comments.mjs` with
+the nine existing comments resolved, and `hasClassifierHead`, which is left at `false` when the
+tensor-table read fails and so reads downstream as a definite "not an embedding model" — the
+consumer surface is small (`ggufModelRole` plus a scanner fallback), and making it nullable does not
+change any current branch, only makes the unknown representable.
 
 87 sites in `apps/api` swallow an error without a trace, and this is structural rather than
 careless: `pino` is created at `index.ts:50` and never exported, and there are 6 `console.*` calls
@@ -186,9 +194,13 @@ catches.
     is acceptable under U; a hidden one is not.
   - `models/gguf.ts:512-518` leaves `hasClassifierHead` at its initialised `false` on a read
     failure, which downstream reads as "not an embedding model".
-  - `memory-assessment/fingerprint.ts:49-58` returns/continues past unreadable directory entries, so
-    a partial file set still produces a stable digest and a staleness check can pass that should
-    have failed.
+  - `memory-assessment/fingerprint.ts:49-58` returned/continued past unreadable directory entries,
+    so a partial file set still produced a stable digest and a staleness check could pass that
+    should have failed. Fixed by counting what could not be read and folding that count into the
+    fingerprint through an optional `unreadableCount` on `FileIdentity`: a partial walk now yields a
+    different digest, which surfaces as ordinary drift ("run it again") instead of false confidence.
+    The pattern is the one `system/pci-inventory.ts` already uses — count the unreadable, never drop
+    it — and the schema field is optional, so stored receipts keep parsing.
 
 **Acceptance:** a new silent swallow fails the gate; unknown GPU capacity surfaces as unknown, not
 as 0; no health verdict claims `ready` on an unobserved probe.
