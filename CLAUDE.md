@@ -312,6 +312,11 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
   constraints, gotchas), put it in a dedicated document under `docs/` and reference that doc from the
   relevant code path's surrounding documentation — never inline. This overrides any default tendency
   to add explanatory comments.
+- **A swallowed error must leave a trace.** A `catch` that neither rethrows nor returns a typed
+  failure has to log via the shared `logger` (`apps/api/src/logger.ts` — the one place `pino` is
+  constructed; background loops still prefer an injected `onError`). Unknown is an acceptable
+  result, silently substituting a plausible value for it is not: prefer `null` plus a caller-side
+  guard over `?? 0`/`?? []` when the real answer is "not measured".
 - **React event captures**: `pnpm check:events` (part of `pnpm check`) fails the build if
   `event.currentTarget`/`event.target` from an outer handler is referenced inside a nested callback
   (setState updater, timer, promise). Read the value into a local first.

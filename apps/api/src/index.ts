@@ -1,5 +1,4 @@
 import { serve } from "@hono/node-server";
-import pino from "pino";
 
 import { initArgumentDefaults } from "./arguments/defaults-repository.js";
 import { pruneMissingArgumentCatalogs } from "./arguments/repository.js";
@@ -7,6 +6,7 @@ import { config } from "./config.js";
 import { untrackMachineStateFiles } from "./config-git/machine-state.js";
 import { normalizeConfigFiles } from "./config-normalize.js";
 import { migrate } from "./db/index.js";
+import { logger } from "./logger.js";
 import {
   app,
   startApiProxyIdleMaintenanceLoop,
@@ -46,10 +46,6 @@ import {
   initSystemMetricsPersistence,
   startSystemMetricsRetentionLoop,
 } from "./system/metrics-repository.js";
-
-const logger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
-});
 
 const repairedPathDirectories = augmentProcessPath();
 if (repairedPathDirectories.length > 0) {

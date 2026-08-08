@@ -22,11 +22,23 @@ const helperPattern =
   /\b(?:managerEnv|managedPath|envPath)\(\s*"([A-Z0-9_]+)"/g;
 
 function sourceFiles() {
-  return execFileSync("git", ["ls-files", "*.ts", "*.tsx", "*.mjs"], {
-    cwd: root,
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-  })
+  return execFileSync(
+    "git",
+    [
+      "ls-files",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+      "*.ts",
+      "*.tsx",
+      "*.mjs",
+    ],
+    {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    },
+  )
     .split("\n")
     .filter((line) => line.length > 0);
 }

@@ -13,11 +13,15 @@ const pathClaimPattern = /`([A-Za-z0-9_@./-]+)`/g;
 const symbolClaimPattern =
   /`([A-Za-z0-9_/.-]+\.tsx?):([A-Za-z_][A-Za-z0-9_]*)`/g;
 
-const trackedFiles = execFileSync("git", ["ls-files"], {
-  cwd: root,
-  encoding: "utf8",
-  maxBuffer: 32 * 1024 * 1024,
-})
+const trackedFiles = execFileSync(
+  "git",
+  ["ls-files", "--cached", "--others", "--exclude-standard"],
+  {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  },
+)
   .split("\n")
   .filter((line) => line.length > 0);
 
