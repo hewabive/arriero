@@ -60,11 +60,11 @@ The second expected case is API adaptation: accepting one API shape and forwardi
   - rewrites the request `model` to the target upstream model when configured
   - preserves upstream response status, headers and body stream
   - accepts either a root URL or a `/v1` API Base URL
-- Public MVP executor in `apps/api/src/proxy/public-executor.ts`:
-  - can start a stopped instance for OpenAI-compatible requests
-  - can load the target model when the scheduler asks for `load-model`
-  - waits for instance/model readiness before forwarding
-  - rejects preemption, slot save/restore and unload actions for now
+- Public executor in `apps/api/src/proxy/public-executor.ts` — executes the full scheduler action
+  set, one handler per action: `start-instance`, `wait-instance-ready`, `load-model`,
+  `unload-model`, `stop-instance`, `save-slot`, `restore-slot`, `wait-model-ready`. Preemption,
+  slot save/restore and unload are implemented, not rejected; a failed `restore-slot` is tolerated
+  and the request proceeds with a cold cache.
 - Durable configuration in files under `data/config/proxy/` (`proxy/config-files.ts` store; `proxy/repository.ts` + `proxy/endpoints.ts` CRUD):
   - `endpoints.json` (external-API definitions; API keys in `data/config/.secrets.json`, gitignored)
   - `api_proxy_models` → `models.json`

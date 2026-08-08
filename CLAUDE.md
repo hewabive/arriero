@@ -61,13 +61,15 @@ resolution) even though sources are `.ts`.
   and gates — contract and new-engine checklist in `docs/ENGINE_ADAPTERS.md`.
 - `apps/api` — Hono server on `@hono/node-server`. `src/index.ts` is the entrypoint (migrate DB →
   reconcile process runs → serve, with graceful SIGINT/SIGTERM shutdown of supervised children).
-  `src/http.ts` defines every route. Persistence is SQLite via Drizzle + `better-sqlite3`. Logging
-  via `pino`.
+  `src/http.ts` is only the composition root — CORS, `requireAdmin`, static serving, and one
+  `register*Routes(app)` call per module in `src/routes/*.routes.ts` (plus
+  `proxy/protocol-routes.ts`). Persistence is SQLite via Drizzle + `better-sqlite3`. Logging via
+  `pino`.
 - `apps/web` — React 19 + Vite + Mantine UI, server state via TanStack Query; `@xyflow/react` powers
   the Routing pipeline canvas (`src/ui/proxy/canvas/`). `src/ui/views/*` are top-level pages;
-  `src/api/client.ts` is the typed fetch layer.
+  `src/api/` is the typed fetch layer (`http.ts` + `base.ts` do the work, `client.ts` re-exports).
 
-### API route conventions (`apps/api/src/http.ts`)
+### API route conventions (`apps/api/src/routes/*.routes.ts`)
 
 - Every mutating handler parses the body with a core Zod schema via `safeParse` and returns
   `{ error: parsed.error.flatten() }` with 400 on failure; success returns `{ data }`. Cross-entity
@@ -101,10 +103,15 @@ fingerprint drift, `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + th
 1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `filesystem` ·
 `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`) · `update` (manager
 version/run-mode + UI self-update runner, `docs/SELF_UPDATE.md`) · `prerequisites` (host-tooling
-registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITES.md`).
+registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITES.md`) ·
+`sources` (engine source checkouts + drift report, `docs/SOURCE_REPOSITORIES.md`) ·
+`nvidia` (NVML telemetry over a koffi FFI binding; the only GPU-memory authority) ·
+`git` (the one git-process primitive under `config-git`/`sources`) · `settings` ·
+`config-git` (`docs/CONFIG_GIT.md`) · `migrations` (`docs/MIGRATIONS.md`) · `numa`
+(`docs/NUMA_PINNING.md`) · `db` · `routes` (one `*.routes.ts` per domain) · `utils`.
 
 Two `prerequisites` rules constrain code elsewhere: every PATH lookup goes through the one primitive
-`system/tool-probe.ts` (`build/cuda.ts:findNvcc` and `envs/uv.ts:findUv` included), and the UI
+`system/tool-probe.ts` (`build/cuda.ts:findNvcc` and `envs/uv.ts:probeUv` included), and the UI
 installs packages only via the gated runner (root/passwordless-sudo only, command re-derived
 server-side). NVIDIA driver and ROCm `/dev/kfd` applicability come from the driver-independent
 display-class PCI inventory (`system/pci-inventory.ts`), and the driver's successful local-only
@@ -158,7 +165,8 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
   and returns an ordered action list (`start-instance`, `load-model`, `save-slot`, `unload-model`,
   `route-request`, …); only the executor (`proxy/public-executor.ts`) translates actions into real
   operations (autostart/autoload, preemption via unload/stop, slot save/restore).
-- Request flow in `http.ts:proxyProtocolEndpoint`: resolve model → route chain (`pipeline.ts`) →
+- Request flow in `proxy/protocol-endpoint.ts:proxyProtocolEndpoint`: resolve model → route chain
+  (`pipeline.ts`) →
   gateway decision (`gateway.ts`) → acquire domain lease → execute plan → forward (`forwarder.ts`) or
   resumable. `proxy/resumable-forward.ts` survives mid-request preemption (slot save → swap → restore
   → assistant-prefill resume, `docs/API_PROXY_PREEMPTION.md`). Protocol adapters (`openai.ts`,
@@ -329,6 +337,9 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
   (`system_metrics_history`, `system/metrics-repository.ts` — closed hour/day/month buckets upserted
   per bucket, reseeded into the recorder at boot, month backfilled from day rows; hour kept for its
   1 h span, day/month 30 days — `docs/SYSTEM_METRICS.md` § Persistence);
+  per-instance memory-assessment receipts (`memory_assessments`,
+  `memory-assessment/repository.ts` — one receipt per instance, analytical or measured, renamed and
+  deleted with the instance; machine-local evidence, deliberately not in portable config);
   rebuildable caches — `model_cache`; `llama_argument_catalogs` (parsed `--help`, keyed by binary
   path, invalidated by size/mtime, mirrored to a per-binary sidecar read on DB miss
   (`arguments/sidecar.ts`) so it survives DB recreation and travels with the binary);
