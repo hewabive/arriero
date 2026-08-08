@@ -22,35 +22,13 @@ export * from "./api-endpoints.js";
 export * from "./proxy/pipeline-nodes.js";
 export * from "./proxy/api-proxy.js";
 export * from "./instance-health.js";
+export * from "./filesystem.js";
 
 export const PresetNameSchema = z
   .string()
   .min(1)
   .max(80)
   .regex(/^[A-Za-z0-9._-]+$/);
-
-export const FileSystemEntrySchema = z.object({
-  name: z.string(),
-  path: z.string(),
-  type: z.enum(["directory", "file", "other"]),
-  extension: z.string().nullable(),
-  sizeBytes: z.number().int().nonnegative().nullable(),
-  modifiedAt: z.string().nullable(),
-  executable: z.boolean(),
-  readable: z.boolean(),
-});
-
-export const FileSystemRootSchema = z.object({
-  label: z.string(),
-  path: z.string(),
-});
-
-export const FileSystemListResultSchema = z.object({
-  path: z.string(),
-  parentPath: z.string().nullable(),
-  roots: z.array(FileSystemRootSchema),
-  entries: z.array(FileSystemEntrySchema),
-});
 
 export const FleetNodeIdSchema = z.string().regex(/^[A-Za-z0-9._-]+$/);
 export const FleetNodeNameSchema = z.string().trim().min(1).max(80);
@@ -1709,9 +1687,6 @@ export const ModelPresetCreateSchema = z.object({
   name: PresetNameSchema,
 });
 
-export type FileSystemEntry = z.infer<typeof FileSystemEntrySchema>;
-export type FileSystemRoot = z.infer<typeof FileSystemRootSchema>;
-export type FileSystemListResult = z.infer<typeof FileSystemListResultSchema>;
 export type SourceRepositoryId = z.infer<typeof SourceRepositoryIdSchema>;
 export type SourceRepositoryLocation = z.infer<
   typeof SourceRepositoryLocationSchema
