@@ -38,9 +38,22 @@ Three checkers read machine state absent from a fresh checkout: `check-ggml-type
 `args:docs:source-sync` need `runtime/sources/llama.cpp`; `check-update-kit` needs the sibling
 repositories. They cannot be unconditional members of `pnpm check`.
 
-## Stage 1 — Close the gate
+## Stage 1 — Close the gate — **done**
 
 Nothing later is trustworthy until this lands.
+
+Landed as `1eb5c66` (test discovery), `90015c6` (formatting), `53d5cab` (gate composition),
+`ee138fc` (knip), and the hook commit below. `pnpm check` is now one green command covering events,
+formatting, build, typecheck, knip, arg-doc quality and 1287 tests; `pnpm check:sources` covers the
+three machine-state checkers separately.
+
+Enable the hook once per clone — `core.hooksPath` is local git config, not tracked:
+
+```bash
+git config core.hooksPath scripts/hooks
+```
+
+`ARRIERO_SKIP_HOOKS=1 git push` is the deliberate escape hatch.
 
 - Quote the api test glob so Node, not the shell, expands it. One character; 1254 → 1286.
 - Add a test asserting the runner's discovered-file count equals a `find` over `src`, so an
@@ -85,11 +98,16 @@ Cheap, and it protects stages 4–6.
     corrects itself only six paragraphs later. **Rewrite the section; do not append another
     update.** Accreted corrections are worse than stale text for an agent that stops at the first
     matching passage.
-  - `.env.example`: 13 variables are read but undocumented (`ARRIERO_HOME`, `ARRIERO_DATA_DIR`,
-    `ARRIERO_LOGS_DIR`, `ARRIERO_BUILDS_DIR`, `ARRIERO_MODELS_DIR`, `ARRIERO_SLOTS_DIR`,
-    `ARRIERO_ENVS_DIR`, …); 6 are documented but never read
-    (`ARRIERO_PROXY_RESUME_CLAIM_WINDOW_MS`, `ARRIERO_PYTHON_DIR`, `ARRIERO_SECURE_COOKIE`,
-    `ARRIERO_SESSION_TTL_SECONDS`, `ARRIERO_UPDATE_DRAIN_TIMEOUT_MS`, `ARRIERO_UV_CACHE_DIR`).
+  - `.env.example` documents 15 of the 34 variables the code reads. **Nothing in it is dead** — an
+    earlier draft of this plan claimed six orphans, which was wrong: they are read through
+    `managerEnv("SECURE_COOKIE")` / `managedPath("PYTHON_DIR", …)`, helpers that prepend the
+    `ARRIERO_` prefix, so a grep for the literal name finds nothing. Of the 19 undocumented ones,
+    seven are internal and should stay out (`ARRIERO_ENV_TEST_*`, `ARRIERO_TEST_ROOT`,
+    `ARRIERO_HELP`, `ARRIERO_UI_COMMIT__`); the rest are operator-facing and belong in the file:
+    `ARRIERO_HOME`, `ARRIERO_DATA_DIR`, `ARRIERO_LOGS_DIR`, `ARRIERO_BUILDS_DIR`,
+    `ARRIERO_MODELS_DIR`, `ARRIERO_SLOTS_DIR`, `ARRIERO_ENVS_DIR`, `ARRIERO_FILTER_PROBE_LOGS`,
+    `ARRIERO_NUMA_CGROUP_ROOT`, `ARRIERO_PROXY_IDLE_INTERVAL_MS`, `ARRIERO_SHUTDOWN_TIMEOUT_MS`,
+    `ARRIERO_KT_RUNTIME`.
 - `scripts/check-doc-claims.mjs`: across CLAUDE.md and `docs/*.md`, assert every backticked file
   path exists and every `` `file.ts:symbol` `` claim resolves to that symbol in that file. A 10-line
   prototype found two real drifts; 2 of 17 symbol claims were stale. Wire into `check`.
@@ -98,7 +116,11 @@ Cheap, and it protects stages 4–6.
   against this document produced six such hits. Either scope the checker to prose outside fenced
   plan blocks, or require an explicit marker on absent-by-design references; do not weaken it to a
   warning.
-- `scripts/check-env-example.mjs`: diff `ARRIERO_*` read in sources against `.env.example`. Wire in.
+- `scripts/check-env-example.mjs`: diff the variables the code reads against `.env.example`. It must
+  resolve `managerEnv("X")` and `managedPath("X", …)` to `ARRIERO_X`, not grep literals — a literal
+  grep produces six false orphans, and a checker in the gate that reports working configuration as
+  dead is worse than no checker. It also needs an explicit internal-variable list, since test
+  fixtures and the build stamp legitimately never appear in the example file.
 - Test comparing `db/schema.ts` to `db/index.ts:migrate()`: open an in-memory DB, run `migrate()`,
   compare `PRAGMA table_info` per table against the Drizzle definitions. 70 columns across 7 tables
   are currently duplicated by hand with zero checks, and the two files are edited at near-identical
@@ -124,6 +146,19 @@ catches.
 - `scripts/check-silent-catch.mjs`, AST-based like `check-react-event-captures.mjs`: flag empty
   catch bodies and `catch { return <literal> }` with no log call. Ship it report-only against a
   recorded baseline, then enforce once the baseline is empty.
+- `scripts/check-no-comments.mjs` belongs here rather than in stage 1, because it lands on the same
+  four sites. The categorical no-comments rule is honoured to 9 lines in ~130k lines of non-test
+  source, and three of those nine are comment-only `catch` bodies where the comment *is* the reason
+  the swallow is acceptable — exactly what the silent-catch checker must judge. Resolve them once:
+  relocate the rationale (the five-line SGLang block in `arguments/catalog.ts` belongs in
+  `docs/KTRANSFORMERS_SUPPORT.md`), then enforce with no baseline file, since a baseline would be a
+  second owner of the rule and would only grow. Scan for comment trivia with the TypeScript scanner,
+  not a regex, so `//` inside strings and template literals is not flagged, and allow tooling
+  pragmas — there is exactly one, the `@deprecated` JSDoc in `proxy/domain-admission.ts:67`, which
+  is a machine-readable annotation rather than an explanation and should stay. Record that carve-out
+  in CLAUDE.md so the rule and the checker agree.
+  This must land before stage 5, because it guards the convention a delegated agent is most likely
+  to break and that typecheck cannot see.
 - Fix the highest-severity silent guesses by hand:
   - `resources/repository.ts:98` and `:172` — `capacityBytes: accelerator.totalMemoryBytes ?? 0`
     seeds a GPU whose VRAM could not be read as a zero-capacity pool, and admission then refuses

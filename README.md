@@ -22,8 +22,14 @@ restrictions, is
 
 ```bash
 pnpm install
+git config core.hooksPath scripts/hooks   # once per clone: run the gate on push
 pnpm dev
 ```
+
+`pnpm check` is the gate — formatting, typecheck, dead-code, argument-doc quality and every test
+suite in one command. The pre-push hook runs it; `ARRIERO_SKIP_HOOKS=1 git push` bypasses it
+deliberately. `pnpm check:sources` holds the checks that need a llama.cpp checkout or the sibling
+update-kit repositories, so a fresh clone is not asked to satisfy them.
 
 Default services:
 

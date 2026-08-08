@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+if [ -n "$ARRIERO_SKIP_HOOKS" ]; then
+  echo "pre-push: skipped via ARRIERO_SKIP_HOOKS" >&2
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+echo "pre-push: running pnpm check" >&2
+pnpm check
