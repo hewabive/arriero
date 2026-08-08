@@ -193,20 +193,26 @@ export function registerInstanceRoutes(app: Hono) {
 
     const latestRun = latestProcessRun(instance.name);
     const fallbackPid = latestRun?.pid ? Number(latestRun.pid) : null;
+    const stopReason = latestRun?.stopReason ?? null;
+    const state = supervisor.getState(instance.name);
     return c.json({
-      data: supervisor.getState(instance.name) ?? {
-        instanceId: instance.name,
-        pid: fallbackPid && Number.isFinite(fallbackPid) ? fallbackPid : null,
-        status: latestRun?.status ?? instance.status,
-        startedAt: latestRun?.startedAt ?? null,
-        stoppedAt: latestRun?.stoppedAt ?? null,
-        exitCode:
-          latestRun?.exitCode === null || latestRun?.exitCode === undefined
-            ? null
-            : Number(latestRun.exitCode),
-        logPath: latestRun?.logPath ?? null,
-        rawLogPath: latestRun?.rawLogPath ?? null,
-      },
+      data: state
+        ? { ...state, stopReason }
+        : {
+            instanceId: instance.name,
+            pid:
+              fallbackPid && Number.isFinite(fallbackPid) ? fallbackPid : null,
+            status: latestRun?.status ?? instance.status,
+            startedAt: latestRun?.startedAt ?? null,
+            stoppedAt: latestRun?.stoppedAt ?? null,
+            exitCode:
+              latestRun?.exitCode === null || latestRun?.exitCode === undefined
+                ? null
+                : Number(latestRun.exitCode),
+            logPath: latestRun?.logPath ?? null,
+            rawLogPath: latestRun?.rawLogPath ?? null,
+            stopReason,
+          },
     });
   });
 
@@ -359,9 +365,9 @@ export function registerInstanceRoutes(app: Hono) {
 
   app.delete("/api/instances/:id", async (c) => {
     const id = c.req.param("id");
-    supervisor.stop(id, 2_000);
+    supervisor.stop(id, "delete", 2_000);
     try {
-      await stopStaleProcess(id, 2_000);
+      await stopStaleProcess(id, "delete", 2_000);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }

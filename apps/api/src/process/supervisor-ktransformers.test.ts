@@ -92,7 +92,7 @@ test("KTransformers supervisor stops the complete detached worker tree", async (
     assert.equal(isPidAlive(rootPid), true);
     assert.equal(isPidAlive(childPid), true);
 
-    manager.stop(instance.name, 1_000);
+    manager.stop(instance.name, "operator", 1_000);
     assert.equal(
       await waitFor(() =>
         ["exited", "error"].includes(

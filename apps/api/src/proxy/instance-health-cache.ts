@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks";
 
 import type { Instance, InstanceHealthSummary } from "@arriero/core";
 
+import { logger } from "../logger.js";
 import { getInstanceHealthSummary } from "../process/health-summary.js";
 
 type Entry = { at: number; value: InstanceHealthSummary };
@@ -23,6 +24,18 @@ function computeAndStore(
     checkStartAvailability: false,
   })
     .then((value) => {
+      const previous = cache.get(key);
+      if (previous && previous.value.status !== value.status) {
+        logger.info(
+          {
+            instanceId: key,
+            from: previous.value.status,
+            to: value.status,
+            reason: value.reason,
+          },
+          "instance health status changed",
+        );
+      }
       cache.set(key, { at: performance.now(), value });
       return value;
     })

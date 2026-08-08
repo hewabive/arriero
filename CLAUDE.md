@@ -153,9 +153,10 @@ rates for every other caller.
   `process/runtime-memory.ts`: ≥64 MiB swapped out across the instance's pids (`swapBytes`), and —
   for a running `interleave` instance — NUMA placement skew where one node holds >1.5× its even share
   (`numaPlacement`, `numa skew` badge; the page-cache flood trap is in `docs/NUMA_PINNING.md`).
-- `process_runs` is pruned to the latest + open run per instance (`runs-repository.ts`); closed
-  history is not retained. The filtered log strips routine `/health`, `/props`, `/slots`,
-  `/v1/models` probes; `ARRIERO_FILTER_PROBE_LOGS=false` disables filtering.
+- `process_runs` keeps the last 20 closed runs + open runs per instance (`runs-repository.ts`);
+  every close records a `stopReason` (`operator`/`eviction`/`idle`/`shutdown`/`delete`/`stale`/
+  `crash`, owned by `db/schema.ts:ProcessStopReason`). The filtered log strips routine `/health`,
+  `/props`, `/slots`, `/v1/models` probes; `ARRIERO_FILTER_PROBE_LOGS=false` disables filtering.
 
 ### API proxy
 

@@ -4,6 +4,7 @@ import { isPidAlive } from "./pid.js";
 import {
   listOpenProcessRuns,
   type ProcessRun,
+  type ProcessStopReason,
   updateProcessRun,
 } from "./runs-repository.js";
 
@@ -46,6 +47,7 @@ export function liveStaleProcessRun(
 
 export async function stopStaleProcess(
   instanceId: string,
+  reason: ProcessStopReason,
   timeoutMs = 5_000,
 ): Promise<RuntimeState | null> {
   const stale = liveStaleProcessRun(instanceId);
@@ -60,14 +62,14 @@ export async function stopStaleProcess(
     throw new Error((error as Error).message);
   }
 
-  updateProcessRun(run.id, { status: "stopping" });
+  updateProcessRun(run.id, { status: "stopping", stopReason: reason });
 
   if (!(await waitForExit(pid, timeoutMs))) {
     try {
       process.kill(pid, "SIGKILL");
     } catch {}
     if (!(await waitForExit(pid, 1_000))) {
-      updateProcessRun(run.id, { status: "stale" });
+      updateProcessRun(run.id, { status: "stale", stopReason: null });
       throw new Error(`unable to stop stale process pid=${pid}`);
     }
   }
@@ -78,6 +80,7 @@ export async function stopStaleProcess(
     status: "exited",
     stoppedAt,
     exitCode: null,
+    stopReason: reason,
   });
 
   return {

@@ -39,6 +39,7 @@ export function reconcileProcessRuns(instances: Instance[]) {
         status: "exited",
         stoppedAt: nowIso(),
         exitCode: null,
+        stopReason: run.stopReason ?? "crash",
       });
       summary.exited += 1;
       continue;

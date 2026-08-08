@@ -162,7 +162,12 @@ export function registerInstanceActionRoutes(app: Hono) {
     const force =
       InstanceStartRequestSchema.safeParse(body).data?.force ?? false;
     try {
-      return c.json({ data: await stopManagedInstance(instanceId, { force }) });
+      return c.json({
+        data: await stopManagedInstance(instanceId, {
+          force,
+          reason: "operator",
+        }),
+      });
     } catch (error) {
       const payload = actionErrorPayload(error);
       return c.json(

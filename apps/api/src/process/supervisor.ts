@@ -41,6 +41,7 @@ import {
   createProcessRun,
   updateProcessRun,
   type ProcessRun,
+  type ProcessStopReason,
 } from "./runs-repository.js";
 
 type RuntimeStatus = Instance["status"];
@@ -67,6 +68,7 @@ type RuntimeProcess = MutableProcessState & {
   filteredStream: WriteStream;
   tail: RawLogTail | null;
   exitWaiters: Array<() => void>;
+  pendingStopReason: ProcessStopReason | null;
   forceKillTimer?: NodeJS.Timeout;
   adoptedExitPoll?: NodeJS.Timeout;
 };
@@ -222,6 +224,7 @@ export class ProcessSupervisor extends EventEmitter {
       filteredStream,
       tail: null,
       exitWaiters: [],
+      pendingStopReason: null,
       instanceId: instance.name,
       pid: child.pid ?? null,
       status: "starting",
@@ -307,6 +310,7 @@ export class ProcessSupervisor extends EventEmitter {
       filteredStream,
       tail: null,
       exitWaiters: [],
+      pendingStopReason: null,
       instanceId: instance.name,
       pid,
       status: "running",
@@ -349,19 +353,28 @@ export class ProcessSupervisor extends EventEmitter {
     runtime.adoptedExitPoll.unref();
 
     this.processes.set(instance.name, runtime);
-    updateProcessRun(run.id, { pid, status: "running", adopted: true });
+    updateProcessRun(run.id, {
+      pid,
+      status: "running",
+      adopted: true,
+      stopReason: null,
+    });
     this.emitEvent("status", instance.name, `adopted pid=${pid}`);
 
     return this.getState(instance.name)!;
   }
 
-  stop(instanceId: string, timeoutMs = 10_000): ProcessState | null {
+  stop(
+    instanceId: string,
+    reason: ProcessStopReason,
+    timeoutMs = 10_000,
+  ): ProcessState | null {
     const runtime = this.processes.get(instanceId);
     if (!runtime) {
       return null;
     }
 
-    this.requestStop(runtime, timeoutMs);
+    this.requestStop(runtime, timeoutMs, reason);
 
     return this.getState(instanceId)!;
   }
@@ -387,7 +400,7 @@ export class ProcessSupervisor extends EventEmitter {
         }
 
         result.requested += 1;
-        this.requestStop(runtime, effectiveTimeoutMs);
+        this.requestStop(runtime, effectiveTimeoutMs, "shutdown");
         if (await this.waitForExit(runtime, effectiveTimeoutMs)) {
           result.stopped += 1;
           return;
@@ -406,11 +419,12 @@ export class ProcessSupervisor extends EventEmitter {
 
   async restart(
     instance: Instance,
-    rpcArgs: string[] = [],
+    rpcArgs: string[],
+    stopReason: ProcessStopReason,
   ): Promise<ProcessState> {
     const runtime = this.processes.get(instance.name);
     if (runtime && !this.isTerminal(runtime)) {
-      this.requestStop(runtime, 5_000);
+      this.requestStop(runtime, 5_000, stopReason);
       await this.waitForExit(runtime, 7_000);
     }
     return this.start(instance, rpcArgs);
@@ -468,7 +482,11 @@ export class ProcessSupervisor extends EventEmitter {
     }
   }
 
-  private requestStop(runtime: RuntimeProcess, timeoutMs: number) {
+  private requestStop(
+    runtime: RuntimeProcess,
+    timeoutMs: number,
+    reason: ProcessStopReason,
+  ) {
     const effectiveTimeoutMs =
       Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10_000;
     if (this.isTerminal(runtime)) {
@@ -477,7 +495,11 @@ export class ProcessSupervisor extends EventEmitter {
 
     if (runtime.status !== "stopping") {
       runtime.status = "stopping";
-      updateProcessRun(runtime.runId, { status: "stopping" });
+      runtime.pendingStopReason = reason;
+      updateProcessRun(runtime.runId, {
+        status: "stopping",
+        stopReason: reason,
+      });
       this.emitEvent("status", runtime.instanceId, "stopping");
       this.killRuntime(runtime, "SIGTERM");
     }
@@ -513,6 +535,8 @@ export class ProcessSupervisor extends EventEmitter {
       clearInterval(runtime.adoptedExitPoll);
       delete runtime.adoptedExitPoll;
     }
+    const stopReason: ProcessStopReason | null =
+      runtime.status === "stopping" ? runtime.pendingStopReason : "crash";
     runtime.status = input.status;
     runtime.exitCode = input.exitCode;
     runtime.stoppedAt = nowIso();
@@ -522,6 +546,7 @@ export class ProcessSupervisor extends EventEmitter {
       status: input.status,
       stoppedAt: runtime.stoppedAt,
       exitCode: input.exitCode,
+      stopReason,
     });
     this.writeMarker(runtime, `${runtime.stoppedAt} ${input.marker}\n`);
     this.emitEvent(input.event.type, runtime.instanceId, input.event.message);

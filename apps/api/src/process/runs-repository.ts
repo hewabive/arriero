@@ -2,11 +2,22 @@ import { desc, eq, sql } from "drizzle-orm";
 import { newId } from "../utils/id.js";
 
 import { db } from "../db/index.js";
-import { processRuns } from "../db/schema.js";
+import { processRuns, type ProcessStopReason } from "../db/schema.js";
 
 export type ProcessRun = typeof processRuns.$inferSelect;
+export type { ProcessStopReason } from "../db/schema.js";
+
+const RETAINED_CLOSED_RUNS_PER_INSTANCE = 20;
 
 const openRunPredicate = sql`${processRuns.stoppedAt} IS NULL AND ${processRuns.status} IN ('starting', 'running', 'stopping', 'stale')`;
+
+const prunableClosedRunPredicate = sql`NOT (${openRunPredicate}) AND ${processRuns.id} NOT IN (
+  SELECT id FROM ${processRuns} AS retained
+  WHERE retained.instance_id = ${processRuns.instanceId}
+    AND NOT (retained.stopped_at IS NULL AND retained.status IN ('starting', 'running', 'stopping', 'stale'))
+  ORDER BY retained.started_at DESC
+  LIMIT ${RETAINED_CLOSED_RUNS_PER_INSTANCE}
+)`;
 
 export function createProcessRun(input: {
   instanceId: string;
@@ -34,7 +45,7 @@ export function createProcessRun(input: {
     })
     .run();
   db.run(
-    sql`DELETE FROM ${processRuns} WHERE ${processRuns.instanceId} = ${input.instanceId} AND ${processRuns.id} != ${id} AND NOT (${openRunPredicate})`,
+    sql`DELETE FROM ${processRuns} WHERE ${processRuns.instanceId} = ${input.instanceId} AND ${prunableClosedRunPredicate}`,
   );
   return id;
 }
@@ -50,7 +61,7 @@ export function deleteProcessRunsForInstance(instanceId: string): {
 
 export function pruneProcessRunHistory(): { deleted: number } {
   const result = db.run(
-    sql`DELETE FROM ${processRuns} WHERE NOT (${openRunPredicate}) AND ${processRuns.id} NOT IN (SELECT id FROM ${processRuns} AS latest WHERE latest.instance_id = ${processRuns}.instance_id ORDER BY latest.started_at DESC LIMIT 1)`,
+    sql`DELETE FROM ${processRuns} WHERE ${prunableClosedRunPredicate}`,
   );
   return { deleted: Number(result.changes) };
 }
@@ -63,6 +74,7 @@ export function updateProcessRun(
     stoppedAt?: string | null;
     exitCode?: number | null;
     adopted?: boolean;
+    stopReason?: ProcessStopReason | null;
   },
 ) {
   db.update(processRuns)
@@ -77,6 +89,9 @@ export function updateProcessRun(
         : {}),
       ...(input.adopted !== undefined
         ? { adopted: input.adopted ? "true" : null }
+        : {}),
+      ...(input.stopReason !== undefined
+        ? { stopReason: input.stopReason }
         : {}),
     })
     .where(eq(processRuns.id, id))

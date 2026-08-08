@@ -97,12 +97,13 @@ test("reconcile adopts a live process whose cmdline matches the launch snapshot"
     assert.equal(latestProcessRun("adopt-me")?.status, "running");
     assert.equal(latestProcessRun("adopt-me")?.adopted, "true");
 
-    supervisor.stop("adopt-me");
+    supervisor.stop("adopt-me", "operator");
     assert.ok(
       await waitFor(() => latestProcessRun("adopt-me")?.status === "exited"),
       "adopted process should be stopped and finalized",
     );
     assert.equal(supervisor.getState("adopt-me")?.status, "exited");
+    assert.equal(latestProcessRun("adopt-me")?.stopReason, "operator");
   } finally {
     try {
       process.kill(pid, "SIGKILL");
@@ -149,6 +150,7 @@ test("reconcile closes runs whose pid is gone", async () => {
 
   assert.ok(summary.exited >= 1);
   assert.equal(latestProcessRun("dead")?.status, "exited");
+  assert.equal(latestProcessRun("dead")?.stopReason, "crash");
 });
 
 test("reconcile adopts a KTransformers bin/sglang root process", async () => {
@@ -193,7 +195,7 @@ test("reconcile adopts a KTransformers bin/sglang root process", async () => {
     assert.equal(summary.adopted, 1);
     assert.equal(supervisor.getState(name)?.adopted, true);
 
-    supervisor.stop(name, 1_000);
+    supervisor.stop(name, "operator", 1_000);
     assert.ok(
       await waitFor(() => latestProcessRun(name)?.status === "exited"),
       "adopted KTransformers process should stop",

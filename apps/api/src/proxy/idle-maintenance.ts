@@ -7,6 +7,7 @@ import {
 
 import { config } from "../config.js";
 import { getInstance } from "../instances/repository.js";
+import { logger } from "../logger.js";
 import { listMemoryPools } from "../resources/repository.js";
 import { schedulerPoolInputs } from "../resources/ledger.js";
 import {
@@ -133,6 +134,27 @@ export async function getApiProxyPlanPreview(input: {
   return (await buildApiProxyPlanContext(input)).preview;
 }
 
+function logExecutedIdleAction(action: {
+  type: string;
+  targetId: string;
+  instanceId: string | null;
+  model: string | null;
+  slotId: number | null;
+  reason: string;
+}) {
+  logger.info(
+    {
+      action: action.type,
+      targetId: action.targetId,
+      instanceId: action.instanceId,
+      model: action.model,
+      slotId: action.slotId,
+      reason: action.reason,
+    },
+    "api proxy idle maintenance executed action",
+  );
+}
+
 async function runApiProxyIdleMaintenancePass() {
   apiProxyPendingResume.sweep();
   const preview = await getApiProxyPlanPreview({ mode: "idle" });
@@ -181,10 +203,13 @@ async function runApiProxyIdleMaintenancePass() {
             filename: apiProxySlotFilename(action.targetId, action.slotId),
           });
           addApiProxySavedSlotId(action.targetId, action.slotId);
+          logExecutedIdleAction(action);
         } else if (action.type === "unload-model" && action.model) {
           await requestLlamaModelAction(instance, "unload", action.model);
+          logExecutedIdleAction(action);
         } else if (action.type === "stop-instance") {
-          supervisor.stop(instance.name);
+          supervisor.stop(instance.name, "idle");
+          logExecutedIdleAction(action);
         }
       }
     } finally {

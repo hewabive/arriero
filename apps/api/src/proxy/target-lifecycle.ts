@@ -92,7 +92,7 @@ function runReadinessExecutor(
     },
     stopInstance: async (instance) => {
       try {
-        await stopManagedInstance(instance.name);
+        await stopManagedInstance(instance.name, { reason: "eviction" });
       } catch (error) {
         if (error instanceof ProcessActionHttpError && error.status === 404) {
           return;

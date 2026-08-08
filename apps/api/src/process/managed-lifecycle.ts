@@ -15,6 +15,7 @@ import {
 } from "./preflight.js";
 import { referencingOrchestrators } from "./rpc-preflight.js";
 import { resolveRpcArgs } from "./rpc-launch.js";
+import type { ProcessStopReason } from "./runs-repository.js";
 import { liveStaleProcessRun, stopStaleProcess } from "./stale.js";
 import { supervisor } from "./supervisor.js";
 
@@ -158,18 +159,18 @@ export async function startOrRecoverManagedInstance(
 
 export async function stopManagedInstance(
   instanceId: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; reason: ProcessStopReason },
 ): Promise<RuntimeState> {
   const instance = listInstances().find((item) => item.name === instanceId);
   if (instance) {
     assertWorkerNotReferenced(instance, options.force ?? false);
   }
-  const state = supervisor.stop(instanceId);
+  const state = supervisor.stop(instanceId, options.reason);
   if (state) {
     return state;
   }
 
-  const staleState = await stopStaleProcess(instanceId);
+  const staleState = await stopStaleProcess(instanceId, options.reason);
   if (staleState) {
     return staleState;
   }
@@ -193,7 +194,7 @@ export async function restartManagedInstance(
   }
   const rpcArgs = await resolveRpcArgsOrThrow(instance);
 
-  const staleState = await stopStaleProcess(instance.name);
+  const staleState = await stopStaleProcess(instance.name, "stale");
   if (staleState) {
     const startPreflight = await validateInstanceStartPreflight(instance, {
       peers: listInstances(),
@@ -211,7 +212,7 @@ export async function restartManagedInstance(
     return supervisor.start(instance, rpcArgs);
   }
 
-  return supervisor.restart(instance, rpcArgs);
+  return supervisor.restart(instance, rpcArgs, "operator");
 }
 
 export async function runInstanceAction(
@@ -219,6 +220,7 @@ export async function runInstanceAction(
   action: InstanceBulkActionName,
 ) {
   if (action === "start") return startManagedInstance(instance);
-  if (action === "stop") return stopManagedInstance(instance.name);
+  if (action === "stop")
+    return stopManagedInstance(instance.name, { reason: "operator" });
   return restartManagedInstance(instance);
 }

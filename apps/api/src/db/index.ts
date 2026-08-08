@@ -52,11 +52,13 @@ export function migrate() {
       log_path TEXT NOT NULL,
       raw_log_path TEXT,
       launch_snapshot TEXT,
-      adopted TEXT
+      adopted TEXT,
+      stop_reason TEXT
     )
   `);
   ensureColumn("process_runs", "launch_snapshot", "TEXT");
   ensureColumn("process_runs", "adopted", "TEXT");
+  ensureColumn("process_runs", "stop_reason", "TEXT");
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS model_cache (

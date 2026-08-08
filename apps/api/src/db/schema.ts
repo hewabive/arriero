@@ -5,6 +5,15 @@ import {
   text,
 } from "drizzle-orm/sqlite-core";
 
+export type ProcessStopReason =
+  | "operator"
+  | "eviction"
+  | "idle"
+  | "shutdown"
+  | "delete"
+  | "stale"
+  | "crash";
+
 export const processRuns = sqliteTable("process_runs", {
   id: text("id").primaryKey(),
   instanceId: text("instance_id").notNull(),
@@ -17,6 +26,7 @@ export const processRuns = sqliteTable("process_runs", {
   rawLogPath: text("raw_log_path"),
   launchSnapshot: text("launch_snapshot"),
   adopted: text("adopted"),
+  stopReason: text("stop_reason").$type<ProcessStopReason>(),
 });
 
 export const modelCache = sqliteTable("model_cache", {
