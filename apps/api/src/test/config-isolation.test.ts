@@ -50,14 +50,20 @@ function seedSentinel(configDir: string): string {
   return settingsFile;
 }
 
-function runRouteTest(
-  env: NodeJS.ProcessEnv,
-): Promise<{ status: number | null; output: string }> {
+const probeTimeoutMs = 120_000;
+
+type ProbeRun = {
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  output: string;
+};
+
+function runRouteTest(env: NodeJS.ProcessEnv): Promise<ProbeRun> {
   return new Promise((resolveRun) => {
     const child = spawn(
       process.execPath,
       ["--import", "tsx", "--test", routeTest],
-      { cwd: apiDir, env, timeout: 15_000 },
+      { cwd: apiDir, env, timeout: probeTimeoutMs },
     );
     let output = "";
     child.stdout.setEncoding("utf8");
@@ -69,12 +75,24 @@ function runRouteTest(
       output += chunk;
     });
     child.on("error", (error) => {
-      resolveRun({ status: null, output: `${output}\n${error.message}` });
+      resolveRun({
+        status: null,
+        signal: null,
+        output: `${output}\n${error.message}`,
+      });
     });
-    child.on("close", (status) => {
-      resolveRun({ status, output });
+    child.on("close", (status, signal) => {
+      resolveRun({ status, signal, output });
     });
   });
+}
+
+function assertProbeCompleted(result: ProbeRun): void {
+  assert.equal(
+    result.signal,
+    null,
+    `the isolation probe was killed by ${result.signal} before it could answer, so this test proves nothing. It is spawned with a ${probeTimeoutMs}ms timeout and runs a full route-test file, so a loaded machine can hit it.\n${result.output}`,
+  );
 }
 
 const refusalEnv = isolatedEnvironment(
@@ -101,6 +119,7 @@ const escapeRun = runRouteTest(escapeEnv);
 
 test("a direct API test run refuses to load mutable paths without the test bootstrap", async () => {
   const result = await refusalRun;
+  assertProbeCompleted(result);
   assert.notEqual(result.status, 0);
   assert.match(
     result.output,
@@ -111,6 +130,7 @@ test("a direct API test run refuses to load mutable paths without the test boots
 
 test("the API test bootstrap may write only below its dedicated test root", async () => {
   const result = await isolatedRun;
+  assertProbeCompleted(result);
   assert.equal(result.status, 0, result.output);
   assert.match(
     readFileSync(
@@ -123,6 +143,7 @@ test("the API test bootstrap may write only below its dedicated test root", asyn
 
 test("the test bootstrap rejects a mutable path outside its test root", async () => {
   const result = await escapeRun;
+  assertProbeCompleted(result);
   assert.notEqual(result.status, 0);
   assert.match(
     result.output,

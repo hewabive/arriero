@@ -55,6 +55,15 @@ git config core.hooksPath scripts/hooks
 
 `ARRIERO_SKIP_HOOKS=1 git push` is the deliberate escape hatch.
 
+A gate is only worth having if it is trustworthy, so one follow-up landed here rather than in a
+later stage. `test/config-isolation.test.ts` spawns probe subprocesses with a timeout and discarded
+the `signal` from their `close` event. Two of its three assertions are `notEqual(status, 0)` — "the
+probe must refuse" — and a probe killed by the timeout exits with `status === null`, which satisfies
+that. So under load the meta-test guarding the whole test suite's isolation could **pass for the
+wrong reason**, while the third assertion failed and made the gate look flaky. It now captures the
+signal and fails every case explicitly when the probe was killed, and the timeout is generous enough
+for a loaded machine.
+
 - Quote the api test glob so Node, not the shell, expands it. One character; 1254 → 1286.
 - Add a test asserting the runner's discovered-file count equals a `find` over `src`, so an
   unreachable test file fails loudly instead of vanishing. This is the mechanism fix for the bug
