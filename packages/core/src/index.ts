@@ -2,6 +2,12 @@ import { z } from "zod";
 
 import { INSTANCE_KINDS, type InstanceKind } from "./engine-descriptor.js";
 import {
+  EndpointProbeSchema,
+  LlamaProbeSchema,
+  LlamaSourceSettingsSchema,
+  LlamaSourceStatusSchema,
+} from "./llama.js";
+import {
   InstanceMemoryDrawSchema,
   MemoryAssessmentSummarySchema,
 } from "./memory-assessment.js";
@@ -22,6 +28,7 @@ export * from "./proxy/pipeline-graph.js";
 export * from "./proxy/text-replacement.js";
 export * from "./proxy/token-scale.js";
 export * from "./resources.js";
+export * from "./llama.js";
 
 export const InstanceArgValueSchema = z.union([
   z.string(),
@@ -327,94 +334,6 @@ export const ProcessPreflightResultSchema = z.object({
   ok: z.boolean(),
   issues: z.array(ProcessPreflightIssueSchema),
   checkedAt: z.string(),
-});
-
-export const EndpointProbeSchema = z.object({
-  ok: z.boolean(),
-  url: z.string(),
-  status: z.number().int().nullable(),
-  latencyMs: z.number(),
-  body: z.unknown().optional(),
-  error: z.string().optional(),
-});
-
-export const LlamaModelDiagnosticsSchema = z.object({
-  id: z.string(),
-  props: EndpointProbeSchema,
-  slots: EndpointProbeSchema,
-  metrics: EndpointProbeSchema,
-  loraAdapters: EndpointProbeSchema,
-});
-
-export const LlamaProbeSchema = z.object({
-  baseUrl: z.string(),
-  health: EndpointProbeSchema,
-  props: EndpointProbeSchema,
-  slots: EndpointProbeSchema,
-  models: EndpointProbeSchema,
-  modelDiagnostics: z.record(z.string(), LlamaModelDiagnosticsSchema),
-});
-
-export const LlamaCapabilityStatusSchema = z.enum([
-  "available",
-  "unsupported",
-  "error",
-]);
-
-export const LlamaCapabilityCategorySchema = z.enum([
-  "runtime",
-  "models",
-  "generation",
-  "tokens",
-  "embeddings",
-]);
-
-export const LlamaCapabilitySchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  category: LlamaCapabilityCategorySchema,
-  method: z.enum(["GET", "POST"]),
-  endpoint: z.string(),
-  status: LlamaCapabilityStatusSchema,
-  httpStatus: z.number().int().nullable(),
-  latencyMs: z.number().int(),
-  reason: z.string().nullable(),
-  model: z.string().nullable(),
-});
-
-export const LlamaCapabilitiesResultSchema = z.object({
-  baseUrl: z.string(),
-  checkedAt: z.string(),
-  model: z.string().nullable(),
-  capabilities: z.array(LlamaCapabilitySchema),
-});
-
-export const LlamaModelActionNameSchema = z.enum(["load", "unload", "reload"]);
-
-export const LlamaModelActionRequestSchema = z.object({
-  model: z.string().min(1),
-});
-
-export const LlamaModelActionResultSchema = z.object({
-  action: LlamaModelActionNameSchema,
-  model: z.string().nullable(),
-  response: EndpointProbeSchema,
-  fallback: z.string().nullable().default(null),
-});
-
-export const LlamaSlotActionNameSchema = z.enum(["save", "restore", "erase"]);
-
-export const LlamaSlotActionRequestSchema = z.object({
-  model: z.string().trim().min(1).max(500).optional(),
-  filename: z.string().trim().min(1).max(255).optional(),
-});
-
-export const LlamaSlotActionResultSchema = z.object({
-  action: LlamaSlotActionNameSchema,
-  slotId: z.number().int().min(0),
-  model: z.string().nullable(),
-  filename: z.string().nullable(),
-  response: EndpointProbeSchema,
 });
 
 export const ApiLabProbeProfileSchema = z.enum([
@@ -1973,39 +1892,6 @@ export const SourceRepositoryOperationJobSchema = z.object({
   output: z.string().nullable(),
   error: z.string().nullable(),
   logLines: z.array(z.string()),
-});
-
-export const LlamaSourceSettingsSchema = z.object({
-  repoPath: z.string().min(1),
-});
-
-export const LlamaSourceSettingsUpdateSchema = z.object({
-  repoPath: z.string().min(1),
-});
-
-export const LlamaSourceCheckoutSchema = z.object({
-  ref: z.string().trim().min(1),
-});
-
-export const LlamaSourceStatusSchema = z.object({
-  settings: LlamaSourceSettingsSchema,
-  exists: z.boolean(),
-  isGitRepo: z.boolean(),
-  currentCommit: z.string().nullable(),
-  latestTag: z.string().nullable().default(null),
-  branch: z.string().nullable(),
-  remoteUrl: z.string().nullable(),
-  dirty: z.boolean().nullable(),
-  checkedAt: z.string(),
-  error: z.string().nullable(),
-});
-
-export const LlamaSourceRefsSchema = z.object({
-  branches: z.array(z.string()),
-  branchesWithUpstream: z.array(z.string()),
-  tags: z.array(z.string()),
-  currentBranch: z.string().nullable(),
-  dirty: z.boolean().nullable(),
 });
 
 export const BuildSettingsSchema = z.object({
@@ -3573,29 +3459,6 @@ export type ProcessPreflightIssue = z.infer<typeof ProcessPreflightIssueSchema>;
 export type ProcessPreflightResult = z.infer<
   typeof ProcessPreflightResultSchema
 >;
-export type EndpointProbe = z.infer<typeof EndpointProbeSchema>;
-export type LlamaModelDiagnostics = z.infer<typeof LlamaModelDiagnosticsSchema>;
-export type LlamaProbe = z.infer<typeof LlamaProbeSchema>;
-export type LlamaCapabilityStatus = z.infer<typeof LlamaCapabilityStatusSchema>;
-export type LlamaCapabilityCategory = z.infer<
-  typeof LlamaCapabilityCategorySchema
->;
-export type LlamaCapability = z.infer<typeof LlamaCapabilitySchema>;
-export type LlamaCapabilitiesResult = z.infer<
-  typeof LlamaCapabilitiesResultSchema
->;
-export type LlamaModelActionName = z.infer<typeof LlamaModelActionNameSchema>;
-export type LlamaModelActionRequest = z.infer<
-  typeof LlamaModelActionRequestSchema
->;
-export type LlamaModelActionResult = z.infer<
-  typeof LlamaModelActionResultSchema
->;
-export type LlamaSlotActionName = z.infer<typeof LlamaSlotActionNameSchema>;
-export type LlamaSlotActionRequest = z.infer<
-  typeof LlamaSlotActionRequestSchema
->;
-export type LlamaSlotActionResult = z.infer<typeof LlamaSlotActionResultSchema>;
 export type ApiLabProbeProfile = z.infer<typeof ApiLabProbeProfileSchema>;
 export type ApiEndpointKind = z.infer<typeof ApiEndpointKindSchema>;
 export type ApiEndpointModelFilter = z.infer<
@@ -3847,13 +3710,6 @@ export type SourceRepositoryOperationPhase = z.infer<
 export type SourceRepositoryOperationJob = z.infer<
   typeof SourceRepositoryOperationJobSchema
 >;
-export type LlamaSourceSettings = z.infer<typeof LlamaSourceSettingsSchema>;
-export type LlamaSourceSettingsUpdate = z.infer<
-  typeof LlamaSourceSettingsUpdateSchema
->;
-export type LlamaSourceStatus = z.infer<typeof LlamaSourceStatusSchema>;
-export type LlamaSourceRefs = z.infer<typeof LlamaSourceRefsSchema>;
-export type LlamaSourceCheckout = z.infer<typeof LlamaSourceCheckoutSchema>;
 export type LlamaArgumentHelpSourceSnapshot = z.infer<
   typeof LlamaArgumentHelpSourceSnapshotSchema
 >;
