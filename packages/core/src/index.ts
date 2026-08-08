@@ -3,7 +3,6 @@ import { z } from "zod";
 import { BuildSettingsSchema } from "./build.js";
 import { EnvironmentRepositorySettingsSchema } from "./environments.js";
 import { LlamaSourceSettingsSchema } from "./llama.js";
-import { ApiProxyPublicModelStatusSchema } from "./proxy/api-proxy.js";
 import { SourceRepositorySpecSchema } from "./sources.js";
 
 export * from "./engine-descriptor.js";
@@ -35,41 +34,13 @@ export * from "./arguments.js";
 export * from "./system.js";
 export * from "./prerequisites.js";
 export * from "./fleet.js";
+export * from "./public-status.js";
 
 export const PresetNameSchema = z
   .string()
   .min(1)
   .max(80)
   .regex(/^[A-Za-z0-9._-]+$/);
-
-export const AuthStateSchema = z.object({
-  enabled: z.boolean(),
-  authenticated: z.boolean(),
-});
-
-export const AdminLoginSchema = z.object({
-  password: z.string().min(1),
-});
-
-export const PublicProxyModelSchema = z.object({
-  modelId: z.string(),
-  status: ApiProxyPublicModelStatusSchema,
-});
-
-export const PublicStatusSchema = z.object({
-  service: z.object({
-    ok: z.boolean(),
-    authRequired: z.boolean(),
-    checkedAt: z.string(),
-  }),
-  models: z.object({
-    total: z.number().int().nonnegative(),
-    loaded: z.number().int().nonnegative(),
-    activeRequests: z.number().int().nonnegative(),
-    queuedRequests: z.number().int().nonnegative(),
-    items: z.array(PublicProxyModelSchema),
-  }),
-});
 
 export const GgufBaseModelSchema = z.object({
   name: z.string().nullable(),
@@ -252,10 +223,6 @@ export const ModelPresetCreateSchema = z.object({
   name: PresetNameSchema,
 });
 
-export type AuthState = z.infer<typeof AuthStateSchema>;
-export type AdminLogin = z.infer<typeof AdminLoginSchema>;
-export type PublicProxyModel = z.infer<typeof PublicProxyModelSchema>;
-export type PublicStatus = z.infer<typeof PublicStatusSchema>;
 export type GgufBaseModel = z.infer<typeof GgufBaseModelSchema>;
 export type GgufMetadata = z.infer<typeof GgufMetadataSchema>;
 export type GgufModel = z.infer<typeof GgufModelSchema>;
