@@ -247,7 +247,16 @@ as 0; no health verdict claims `ready` on an unobserved probe.
 
 **Not in scope:** rewriting all 87 sites. The seam plus the checker makes them a tractable backlog.
 
-## Stage 4 — Persist the evidence that is already computed
+## Stage 4 — Persist the evidence that is already computed — **done**
+
+Landed as `a8bc03d` (trace evidence) and `517a324` (run history). Traces store the full scheduler
+actions — legacy string rows parse through a normalizing union arm removable after 2026-09-07 — and
+every structured diagnostic stamps `errorCode` through two choke points in `protocol-trace.ts`.
+`process_runs` keeps the last 20 closed runs per instance with a `stop_reason`
+(`operator | eviction | idle | shutdown | delete | stale | crash`) persisted at stop-request time so
+it survives manager death mid-stop; idle maintenance and health-status transitions log their
+reasons. The acceptance questions are now answerable from stored data: eviction choice and idle
+unloads from `trace.schedulerActions`/the log, stop cause and crash loops from run history.
 
 The cheapest explainability wins in the repository: the evidence is manufactured and then dropped at
 the persistence boundary.
