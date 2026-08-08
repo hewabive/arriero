@@ -721,6 +721,21 @@ Add `sglang-help` with invocation:
 <venv>/bin/python -m sglang.launch_server --help
 ```
 
+### Why help comes from the module, not the umbrella CLI
+
+The invocation deliberately bypasses `sglang serve --help`. The umbrella CLI
+builds both the language-server and the diffusion-server help, and sglang-kt
+wheels that omit diffusion-only dependencies make it print the complete
+language-server help and *then* exit non-zero — a non-zero exit the catalog
+importer cannot distinguish from a real failure. `-m sglang.launch_server
+--help` is the same language-server argparse surface without the unrelated
+diffusion import, so it exits cleanly.
+
+`arguments/catalog.ts:sglangLanguageServerHelpInvocation` resolves the venv
+`python` next to the launcher binary and returns that module invocation; when
+the interpreter is not there it returns `null` and the caller falls back to the
+umbrella CLI entry in `HELP_INVOCATIONS`.
+
 Factor the existing vLLM argparse normalization into a reusable parser rather
 than copying it. Requirements:
 

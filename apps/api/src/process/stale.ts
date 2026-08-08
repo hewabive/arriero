@@ -65,9 +65,7 @@ export async function stopStaleProcess(
   if (!(await waitForExit(pid, timeoutMs))) {
     try {
       process.kill(pid, "SIGKILL");
-    } catch {
-      // The process may have exited between the liveness check and SIGKILL.
-    }
+    } catch {}
     if (!(await waitForExit(pid, 1_000))) {
       updateProcessRun(run.id, { status: "stale" });
       throw new Error(`unable to stop stale process pid=${pid}`);

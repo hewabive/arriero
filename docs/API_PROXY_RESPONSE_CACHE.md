@@ -251,6 +251,14 @@ Streaming requests now participate in the cache node (they were skipped in PR2).
   subscribes (`source:"coalesced"`, `kind:"response"` with a `ReadableStream`
   body = replay buffer + live tail). The route-chain `response` body is now
   `string | ReadableStream<Uint8Array>`.
+  Fan-out is **best-effort per subscriber**: a subscriber whose client already
+  went away has a closed controller, so `enqueue`/`close`/`error` throw. One
+  dead follower must never abort delivery to the others, so every loop
+  swallows that throw — `pushApiProxyBroadcast` and `abortApiProxyBroadcast`
+  drop the subscriber from the set, and `finishApiProxyBroadcast` ignores it
+  outright because it clears the whole set on the next line. The throw carries
+  no information the manager can act on: the controller is already closed and
+  the entry is already removed from `broadcasts`.
 - **Two serve paths, two fan-out modes** (chosen: full live fan-out, owner
   outlives client):
   - Live `respond()` path (non-preemptible managed, external, translated):
@@ -264,6 +272,13 @@ Streaming requests now participate in the cache node (they were skipped in PR2).
     the pump still finishes → subscribers + cache are complete. The remote
     fleet-node delegation path uses the same helper, so delegated targets get
     identical owner-disconnect decoupling. ✅ option A fully honored here.
+    The pump (`protocol-endpoint.ts:drainApiProxyStream`) exists only to keep
+    the upstream flowing, so it **swallows a read failure**: an upstream error
+    on the drained branch is already observed by the response plan, whose
+    finalize/record path records the trace and flushes the cache effects
+    (aborting the broadcast). Re-reporting it from the pump would double-count
+    the failure, and letting it escape would reject a floating promise. The
+    pump's only obligation is the `finally` that releases the reader lock.
   - Buffered resumable path (preemptible managed chat): the response is built
     all-at-once, so it does **completed fan-out** — on success it stores the
     final SSE, pushes it to the broadcast as one chunk, and finishes; subscribers

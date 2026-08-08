@@ -118,6 +118,20 @@ function fixture() {
   return { root, instance };
 }
 
+function populateArgumentCatalogBeforeHangingProbe(instance: Instance) {
+  assert.equal(
+    validateInstancePreflight(instance, preflightOptions()).ok,
+    true,
+    "a passing preflight must cache the argument catalog while the real Python launcher is still in place",
+  );
+}
+
+function installHangingRuntimeProbe(pythonPath: string) {
+  writeFileSync(pythonPath, "#!/bin/sh\nwhile :; do :; done\n", {
+    mode: 0o755,
+  });
+}
+
 test("KTransformers preflight accepts a matched supported runtime", () => {
   const { root, instance } = fixture();
   try {
@@ -410,13 +424,8 @@ test("KTransformers runtime probe timeout is configurable and diagnostic", () =>
   const { root, instance } = fixture();
   const python = join(root, "bin", "python");
   try {
-    // Populate the argument catalog before replacing the shared Python
-    // launcher with a deliberately hanging runtime probe.
-    assert.equal(
-      validateInstancePreflight(instance, preflightOptions()).ok,
-      true,
-    );
-    writeFileSync(python, "#!/bin/sh\nwhile :; do :; done\n", { mode: 0o755 });
+    populateArgumentCatalogBeforeHangingProbe(instance);
+    installHangingRuntimeProbe(python);
     const result = validateInstancePreflight(instance, {
       ...preflightOptions(),
       runtimeProbeTimeoutMs: 10,

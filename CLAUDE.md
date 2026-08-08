@@ -21,6 +21,7 @@ pnpm serve          # build, then run api alone (pnpm start) serving the built w
 pnpm check          # THE gate: events, format, build core, tsc --noEmit, arg-doc quality, all tests
 pnpm check:events   # run scripts/check-react-event-captures.mjs only
 pnpm check:sources  # checks needing a llama.cpp checkout / sibling repos — not part of `check`
+pnpm check:silent-catch  # advisory inventory of catches that swallow without a trace
 pnpm format         # prettier --write .   (format:check reports instead of writing)
 pnpm knip           # unused exports/deps
 ```
@@ -311,7 +312,10 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
   functions, and types. If something genuinely needs explanation (non-obvious rationale, design
   constraints, gotchas), put it in a dedicated document under `docs/` and reference that doc from the
   relevant code path's surrounding documentation — never inline. This overrides any default tendency
-  to add explanatory comments.
+  to add explanatory comments. Enforced by `scripts/check-no-comments.mjs` (in `pnpm check`), which
+  reads comment trivia through the TypeScript parser — so `//` inside a string or template literal is
+  not a comment — and allows only machine-readable pragmas (`@ts-expect-error`, `@ts-ignore`,
+  `@ts-nocheck`, `eslint-disable`, `prettier-ignore`, `@deprecated`, `#!`).
 - **A swallowed error must leave a trace.** A `catch` that neither rethrows nor returns a typed
   failure has to log via the shared `logger` (`apps/api/src/logger.ts` — the one place `pino` is
   constructed; background loops still prefer an injected `onError`). Unknown is an acceptable

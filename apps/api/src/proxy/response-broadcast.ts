@@ -47,9 +47,7 @@ export function finishApiProxyBroadcast(key: string): void {
   for (const subscriber of entry.subscribers) {
     try {
       subscriber.close();
-    } catch {
-      /* already closed */
-    }
+    } catch {}
   }
   entry.subscribers.clear();
 }

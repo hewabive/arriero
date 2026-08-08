@@ -185,7 +185,6 @@ async function drainApiProxyStream(
       }
     }
   } catch {
-    /* upstream error — finalize/record already records the trace and flushes */
   } finally {
     reader.releaseLock();
   }

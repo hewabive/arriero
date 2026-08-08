@@ -147,11 +147,13 @@ independent strings, no shared table). Worth doing later; too large for this sta
 
 Landed: the seam itself (`efb52e1` — `apps/api/src/logger.ts`, tests default `LOG_LEVEL=silent`,
 the rule recorded in CLAUDE.md), the gpu-capacity fix and the status-layer trade record (`d5cfdd3`),
-and the fingerprint fix below. Still open: `check-silent-catch.mjs`, `check-no-comments.mjs` with
-the nine existing comments resolved, and `hasClassifierHead`, which is left at `false` when the
-tensor-table read fails and so reads downstream as a definite "not an embedding model" — the
-consumer surface is small (`ggufModelRole` plus a scanner fallback), and making it nullable does not
-change any current branch, only makes the unknown representable.
+the fingerprint fix below, and `hasClassifierHead`, now `boolean | null` — a failed tensor-table read
+yields `null` (and a `logger.warn`) instead of a manufactured `false`, and the scanner's
+`emptyMetadata()` fallback follows. No branch changed: `ggufModelRole` treats `null` and `false`
+alike, so the fix only makes the unknown representable. Cached rows keep their old `false` until
+rescan — `GGUF_PARSER_VERSION` was deliberately not bumped, since a full re-parse buys nothing while
+no consumer branches on the tri-state; bump it when one does. Still open: `check-silent-catch.mjs`
+and `check-no-comments.mjs` with the nine existing comments resolved.
 
 87 sites in `apps/api` swallow an error without a trace, and this is structural rather than
 careless: `pino` is created at `index.ts:50` and never exported, and there are 6 `console.*` calls
@@ -164,12 +166,40 @@ catches.
 - Record the rule in CLAUDE.md: a `catch` that neither rethrows nor returns a typed failure must
   log.
 - `scripts/check-silent-catch.mjs`, AST-based like `check-react-event-captures.mjs`: flag empty
-  catch bodies and `catch { return <literal> }` with no log call. Ship it report-only against a
-  recorded baseline, then enforce once the baseline is empty.
+  catch bodies and `catch { return <literal> }` with no log call. It ships advisory (an `ENFORCING`
+  constant, false for now) because ~87 sites are outstanding, and it is deliberately **not** wired
+  into `pnpm check` while advisory: a gate step that always passes while printing dozens of findings
+  trains everyone to skim past gate output, which costs more than it buys. It gets a script alias so
+  it is discoverable and runnable, and moves into the gate in the same commit that flips `ENFORCING`.
+  No baseline file — that would be a second owner of the rule, and it would only grow.
+
+  Its first run is the useful part. 135 sites in 82 files, by reason: 80 return a bare literal, 47
+  do something else without log/throw/returned failure, 8 are empty. A call that passes the caught
+  binding as an argument counts as a trace — without that rule 28 sites were flagged for propagating
+  correctly through `reject(error)`, a preflight issue, or an operator notification, and a checker
+  that ships ~45% noise never gets its `ENFORCING` flipped.
+
+  Triage of the 80 bare-literal sites, which is what turns this into a work list: **about 60 are
+  semantically correct** — predicates where the throw *is* the answer (`accessSync` → false,
+  `new URL()` inside a Zod refine, `JSON.parse` → `{}`) and optional-file readers where absence
+  genuinely is the answer. The real targets are the ~13 remote or measurement calls where the empty
+  value is indistinguishable from a real empty result — `proxy/endpoint-models.ts:56` returns `[]`
+  when a provider is unreachable, `nodes/remote-instances.ts:21` returns `[]` for an entire remote
+  node — plus three pure substitutions of a plausible value for unknown
+  (`process/preflight-ktransformers.ts:524` returns `0` for SwapTotal, `proxy/request-files.ts:40`
+  returns `0` for a file count, `proxy/request-text.ts:69` returns `""`).
+
+  So the bare-literal criterion is **not** enforceable as written; the empty-catch (8) and
+  broad-class (47) subsets are much closer. Enforce those first, and narrow the bare-literal rule to
+  catches whose `try` performs I/O that can fail for reasons other than the value being absent.
 - `scripts/check-no-comments.mjs` belongs here rather than in stage 1, because it lands on the same
-  four sites. The categorical no-comments rule is honoured to 9 lines in ~130k lines of non-test
-  source, and three of those nine are comment-only `catch` bodies where the comment *is* the reason
-  the swallow is acceptable — exactly what the silent-catch checker must judge. Resolve them once:
+  sites. The audit reported "9 comment lines in ~130k lines of non-test source"; that figure was
+  measured with a grep anchored to the start of a line, so it **missed trailing comments**
+  (`reader.u32(); // version` in `models/gguf.ts`) and everything in test files, while also counting
+  the one allowed `@deprecated` pragma. The AST checker finds eleven real comments, which is still
+  remarkable discipline — but it is the checker, not a grep, that gets to state the number. Three of
+  them are comment-only `catch` bodies where the comment *is* the reason the swallow is acceptable —
+  exactly what the silent-catch checker must judge. Resolve them once:
   relocate the rationale (the five-line SGLang block in `arguments/catalog.ts` belongs in
   `docs/KTRANSFORMERS_SUPPORT.md`), then enforce with no baseline file, since a baseline would be a
   second owner of the rule and would only grow. Scan for comment trivia with the TypeScript scanner,
@@ -192,8 +222,9 @@ catches.
     `docs/STATUS_LAYERS.md` § Intentional cross-layer differences, together with the honest fix
     (an `unknown` member on `InstanceHealthSummaryStatus`) and why it is deferred. A known unknown
     is acceptable under U; a hidden one is not.
-  - `models/gguf.ts:512-518` leaves `hasClassifierHead` at its initialised `false` on a read
-    failure, which downstream reads as "not an embedding model".
+  - `models/gguf.ts` left `hasClassifierHead` at its initialised `false` on a tensor-table read
+    failure, which downstream read as "not an embedding model". Fixed: the field is nullable, the
+    failure logs, and the unknown is now distinguishable from a confirmed negative.
   - `memory-assessment/fingerprint.ts:49-58` returned/continued past unreadable directory entries,
     so a partial file set still produced a stable digest and a staleness check could pass that
     should have failed. Fixed by counting what could not be read and folding that count into the

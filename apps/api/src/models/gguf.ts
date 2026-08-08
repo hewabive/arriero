@@ -312,11 +312,15 @@ function readQuantization(metadata: Map<string, GgufValue>) {
 
 export const GGUF_PARSER_VERSION = 10;
 
+function skipFormatVersion(reader: FileReader) {
+  reader.u32();
+}
+
 function readHeader(reader: FileReader) {
   if (reader.read(4).toString("utf8") !== "GGUF") {
     throw new Error("not a GGUF file");
   }
-  reader.u32(); // version
+  skipFormatVersion(reader);
   const tensorCount = reader.u64Number();
   const kvCount = reader.u64Number();
   return { tensorCount, kvCount };

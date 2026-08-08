@@ -44,6 +44,17 @@ that is a different concept (see "intentional differences"). `exited` is a
 clean requested stop, `error` an unexpected death; no consumer distinguishes
 `exited` from `stopped`, it only carries run-history intent.
 
+Stopping a `stale` run (`process/stale.ts:stopStaleProcess`) signals a pid this
+manager does not own: SIGTERM → wait → SIGKILL. Both waits and the pid liveness
+test are polls, so the pid can exit in the window between "still alive" and the
+signal, and `process.kill` then throws `ESRCH` for a process that is already
+gone — exactly the outcome being asked for. The SIGKILL throw is therefore
+ignored rather than surfaced; correctness does not rest on it, it rests on the
+re-verification immediately after, which returns the run to `stale` and throws
+`unable to stop stale process` if the pid is *still* alive. The initial SIGTERM
+is not treated this way: a failure there means the stop never began, so it is
+rethrown.
+
 ### L2 — instance health
 
 `stopped · invalid · starting · stopping · loading · ready · degraded · stale · error`
