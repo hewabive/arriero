@@ -18,17 +18,25 @@ protects). Remove that doc and this line together when its stages are done.
 pnpm dev            # build core, then run api (tsx watch) + web (vite) in parallel
 pnpm build          # build all workspaces (pnpm -r build)
 pnpm serve          # build, then run api alone (pnpm start) serving the built web UI — single process, one port
-pnpm check          # check:events, build core, then tsc --noEmit in every workspace
+pnpm check          # THE gate: events, format, build core, tsc --noEmit, arg-doc quality, all tests
 pnpm check:events   # run scripts/check-react-event-captures.mjs only
-pnpm format         # prettier --write .
+pnpm check:sources  # checks needing a llama.cpp checkout / sibling repos — not part of `check`
+pnpm format         # prettier --write .   (format:check reports instead of writing)
+pnpm knip           # unused exports/deps
 ```
 
 - API: `http://127.0.0.1:8787`, Web UI: `http://127.0.0.1:5173`.
 - `pnpm dev` always builds `@arriero/core` first — api and web import the built output, so after
   changing `packages/core` rebuild it (`pnpm --filter @arriero/core build`) before downstream
   typechecks see the change.
-- Tests live next to sources as `*.test.ts` in `apps/api` and use the Node test runner. All:
-  `pnpm --filter @arriero/api test`. One file:
+- **`pnpm check` is the gate — run it before every commit.** It is the only command that has to
+  pass; `check:sources` is separate because it needs machine state (a llama.cpp checkout, sibling
+  update-kit repos) that a fresh clone does not have, and each of its checks exits non-zero when
+  that input is missing rather than reporting a silent pass.
+- Tests live next to sources as `*.test.ts` in `apps/api` and use the Node test runner. They run as
+  part of `pnpm check`; on their own: `pnpm --filter @arriero/api test`. The glob is quoted so Node,
+  not the shell, expands it — `src/test/test-discovery.test.ts` fails if any test file stops being
+  reachable. One file:
   `pnpm --filter @arriero/api exec tsx --import ./src/test/setup-env.ts --test src/proxy/scheduler.test.ts`.
   Filter by name: add `--test-name-pattern "<regex>"`. `src/test/setup-env.ts` points the DB and
   runtime dirs at temp locations.

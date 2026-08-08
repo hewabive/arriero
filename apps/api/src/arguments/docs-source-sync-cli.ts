@@ -1,4 +1,3 @@
-import { migrate } from "../db/index.js";
 import {
   generatedHelpDiff,
   getLlamaArgumentHelpSourceSync,
@@ -8,8 +7,6 @@ import {
 function hasFlag(name: string) {
   return process.argv.includes(name);
 }
-
-migrate();
 
 try {
   if (hasFlag("--write")) {

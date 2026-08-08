@@ -1,11 +1,14 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const siblingNames = ["llm-arena", "rag-manager"];
+const jobsKernelDir = "apps/api/src/jobs";
 
-const kitFiles = [
+const repoSpecificFiles = ["apps/api/src/update/adapter.ts"];
+
+const sharedUpdateFiles = [
   "apps/api/src/update/version.ts",
   "apps/api/src/update/runner.ts",
   "apps/api/src/update/repository.ts",
@@ -13,24 +16,29 @@ const kitFiles = [
   "apps/api/src/update/version.test.ts",
   "apps/api/src/update/runner.test.ts",
   "apps/api/src/utils/log-tail.ts",
-  "apps/api/src/jobs/store.ts",
-  "apps/api/src/jobs/steps.ts",
-  "apps/api/src/jobs/exec.ts",
-  "apps/api/src/jobs/registry.ts",
-  "apps/api/src/jobs/log-tail.ts",
-  "apps/api/src/jobs/store.test.ts",
-  "apps/api/src/jobs/steps.test.ts",
-  "apps/api/src/jobs/exec.test.ts",
-  "apps/api/src/jobs/registry.test.ts",
 ];
 
+function jobsKernelFiles() {
+  return readdirSync(resolve(repoRoot, jobsKernelDir))
+    .filter((name) => name.endsWith(".ts"))
+    .sort()
+    .map((name) => `${jobsKernelDir}/${name}`);
+}
+
+const kitFiles = [...sharedUpdateFiles, ...jobsKernelFiles()].filter(
+  (file) => !repoSpecificFiles.includes(file),
+);
+
 let failures = 0;
+let comparedSiblings = 0;
 
 for (const sibling of siblingNames) {
   const siblingRoot = resolve(repoRoot, "..", sibling);
   if (!existsSync(siblingRoot)) {
+    console.error(`sibling checkout not found, cannot compare: ${siblingRoot}`);
     continue;
   }
+  comparedSiblings += 1;
   for (const file of kitFiles) {
     const ours = resolve(repoRoot, file);
     const theirs = resolve(siblingRoot, file);
@@ -46,7 +54,18 @@ for (const sibling of siblingNames) {
   }
 }
 
+if (comparedSiblings === 0) {
+  console.error(
+    `update kit unverified: none of [${siblingNames.join(", ")}] is checked out beside ${repoRoot}`,
+  );
+  process.exit(2);
+}
+
 if (failures > 0) {
   console.error(`update kit drift: ${failures} file(s) out of sync`);
   process.exit(1);
 }
+
+console.log(
+  `update kit matches ${comparedSiblings} sibling checkout(s) across ${kitFiles.length} files.`,
+);
