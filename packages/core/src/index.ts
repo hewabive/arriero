@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { BackgroundJobStatusSchema } from "./jobs.js";
 import { LlamaSourceSettingsSchema, LlamaSourceStatusSchema } from "./llama.js";
 import { ApiProxyPublicModelStatusSchema } from "./proxy/api-proxy.js";
 import { MemoryPoolViewSchema, ResourceLedgerSchema } from "./resources.js";
@@ -23,6 +24,7 @@ export * from "./proxy/pipeline-nodes.js";
 export * from "./proxy/api-proxy.js";
 export * from "./instance-health.js";
 export * from "./filesystem.js";
+export * from "./jobs.js";
 
 export const PresetNameSchema = z
   .string()
@@ -84,13 +86,6 @@ export const SourceRepositoryIdSchema = z
   .regex(/^[A-Za-z0-9._-]+$/);
 
 export const LLAMA_CPP_SOURCE_ID = "llama-cpp";
-
-export const BackgroundJobStatusSchema = z.enum([
-  "running",
-  "succeeded",
-  "failed",
-  "canceled",
-]);
 
 export const SourceRepositoryLocationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("managed") }),
@@ -1706,7 +1701,6 @@ export type SourceRepositoryOperationResult = z.infer<
 export type SourceRepositoryOperationKind = z.infer<
   typeof SourceRepositoryOperationKindSchema
 >;
-export type BackgroundJobStatus = z.infer<typeof BackgroundJobStatusSchema>;
 export type SourceRepositoryOperationStatus = z.infer<
   typeof SourceRepositoryOperationStatusSchema
 >;
