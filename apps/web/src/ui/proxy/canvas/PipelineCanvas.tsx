@@ -1,4 +1,5 @@
 import {
+  assertNever,
   collectApiProxyRouteHoles,
   isApiProxySingleNextNodeType,
   type ApiProxyRouteTraceStep,
@@ -103,6 +104,8 @@ function portPatch(
         ),
       };
     }
+    default:
+      return assertNever(node.type);
   }
 }
 

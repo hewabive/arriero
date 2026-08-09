@@ -1,4 +1,8 @@
 import {
+  pipelineNodeDescriptor,
+  type ApiProxyPipelineNodeType,
+} from "@arriero/core";
+import {
   Handle,
   NodeToolbar,
   Position,
@@ -9,47 +13,37 @@ import {
 import { CanvasDeleteButton } from "./CanvasDeleteButton";
 import type { FlowNode, FlowNodeKind } from "./canvas-model";
 
-const kindLabels: Record<FlowNodeKind, string> = {
-  "replace-text": "REPLACE",
-  "capture-request": "CAPTURE",
-  "edit-request": "EDIT",
-  reasoning: "REASONING",
-  "output-limit": "LIMIT",
-  "context-limit": "CONTEXT",
-  "token-scale": "TOKENS",
-  "strip-attribution": "STRIP",
-  cache: "CACHE",
-  "loop-guard": "LOOP",
-  condition: "CONDITION",
-  call: "PIPELINE",
-  exit: "EXIT",
-  fusion: "FUSION",
+type RefFlowNodeKind = Exclude<FlowNodeKind, ApiProxyPipelineNodeType>;
+
+const refKindLabels: Record<RefFlowNodeKind, string> = {
   entry: "ENTRY",
   "ref-target": "TARGET",
   "ref-pipeline": "PIPELINE",
   "ref-model": "MODEL",
 };
 
-const kindColors: Record<FlowNodeKind, string> = {
-  "replace-text": "var(--mantine-color-blue-5)",
-  "capture-request": "var(--mantine-color-gray-5)",
-  "edit-request": "var(--mantine-color-violet-5)",
-  reasoning: "var(--mantine-color-cyan-6)",
-  "output-limit": "var(--mantine-color-red-5)",
-  "context-limit": "var(--mantine-color-pink-6)",
-  "token-scale": "var(--mantine-color-orange-6)",
-  "strip-attribution": "var(--mantine-color-lime-6)",
-  cache: "var(--mantine-color-teal-6)",
-  "loop-guard": "var(--mantine-color-red-7)",
-  condition: "var(--mantine-color-yellow-6)",
-  call: "var(--mantine-color-indigo-5)",
-  exit: "var(--mantine-color-orange-5)",
-  fusion: "var(--mantine-color-grape-5)",
+const refKindColors: Record<RefFlowNodeKind, string> = {
   entry: "var(--mantine-color-green-6)",
   "ref-target": "var(--mantine-color-teal-5)",
   "ref-pipeline": "var(--mantine-color-indigo-5)",
   "ref-model": "var(--mantine-color-pink-5)",
 };
+
+function isRefKind(kind: FlowNodeKind): kind is RefFlowNodeKind {
+  return kind === "entry" || kind.startsWith("ref-");
+}
+
+function kindLabel(kind: FlowNodeKind): string {
+  return isRefKind(kind)
+    ? refKindLabels[kind]
+    : pipelineNodeDescriptor(kind).badge;
+}
+
+function kindColor(kind: FlowNodeKind): string {
+  return isRefKind(kind)
+    ? refKindColors[kind]
+    : pipelineNodeDescriptor(kind).color;
+}
 
 const portHitSize = 20;
 const portDotSize = 10;
@@ -73,7 +67,7 @@ function PortHitArea() {
 export function FlowNodeCard(props: NodeProps<FlowNode>) {
   const { data, selected } = props;
   const { deleteElements } = useReactFlow();
-  const accent = kindColors[data.kind];
+  const accent = kindColor(data.kind);
   const compact = data.kind === "entry" || data.kind.startsWith("ref-");
   const edgeColor = selected
     ? "var(--mantine-color-blue-5)"
@@ -138,7 +132,7 @@ export function FlowNodeCard(props: NodeProps<FlowNode>) {
             letterSpacing: 0.6,
           }}
         >
-          {kindLabels[data.kind]}
+          {kindLabel(data.kind)}
         </div>
         <div style={{ fontWeight: 600, wordBreak: "break-word" }}>
           {data.title}

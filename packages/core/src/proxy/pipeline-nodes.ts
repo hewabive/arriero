@@ -387,6 +387,7 @@ true satisfies TypeSetEquality<
 export type PipelineNodeDescriptor = {
   id: ApiProxyPipelineNodeType;
   label: string;
+  badge: string;
   color: string;
   singleNext: boolean;
   pickerVisible: boolean;
@@ -396,6 +397,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "replace-text": {
     id: "replace-text",
     label: "Replace text",
+    badge: "REPLACE",
     color: "var(--mantine-color-blue-5)",
     singleNext: true,
     pickerVisible: true,
@@ -403,6 +405,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "capture-request": {
     id: "capture-request",
     label: "Save request / response",
+    badge: "CAPTURE",
     color: "var(--mantine-color-gray-5)",
     singleNext: true,
     pickerVisible: true,
@@ -410,6 +413,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "edit-request": {
     id: "edit-request",
     label: "Edit request",
+    badge: "EDIT",
     color: "var(--mantine-color-violet-5)",
     singleNext: true,
     pickerVisible: true,
@@ -417,6 +421,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   reasoning: {
     id: "reasoning",
     label: "Reasoning",
+    badge: "REASONING",
     color: "var(--mantine-color-cyan-6)",
     singleNext: true,
     pickerVisible: true,
@@ -424,6 +429,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "output-limit": {
     id: "output-limit",
     label: "Limit output",
+    badge: "LIMIT",
     color: "var(--mantine-color-red-5)",
     singleNext: true,
     pickerVisible: true,
@@ -431,6 +437,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "context-limit": {
     id: "context-limit",
     label: "Context limit",
+    badge: "CONTEXT",
     color: "var(--mantine-color-pink-6)",
     singleNext: true,
     pickerVisible: true,
@@ -438,6 +445,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "token-scale": {
     id: "token-scale",
     label: "Token scale",
+    badge: "TOKENS",
     color: "var(--mantine-color-orange-6)",
     singleNext: true,
     pickerVisible: true,
@@ -445,6 +453,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "strip-attribution": {
     id: "strip-attribution",
     label: "Strip CC attribution",
+    badge: "STRIP",
     color: "var(--mantine-color-lime-6)",
     singleNext: true,
     pickerVisible: true,
@@ -452,6 +461,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   cache: {
     id: "cache",
     label: "Cache response",
+    badge: "CACHE",
     color: "var(--mantine-color-teal-6)",
     singleNext: true,
     pickerVisible: true,
@@ -459,6 +469,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   "loop-guard": {
     id: "loop-guard",
     label: "Loop guard",
+    badge: "LOOP",
     color: "var(--mantine-color-red-7)",
     singleNext: true,
     pickerVisible: true,
@@ -466,6 +477,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   condition: {
     id: "condition",
     label: "Condition",
+    badge: "CONDITION",
     color: "var(--mantine-color-yellow-6)",
     singleNext: false,
     pickerVisible: true,
@@ -473,6 +485,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   call: {
     id: "call",
     label: "Pipeline",
+    badge: "PIPELINE",
     color: "var(--mantine-color-indigo-5)",
     singleNext: false,
     pickerVisible: false,
@@ -480,6 +493,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   exit: {
     id: "exit",
     label: "Exit",
+    badge: "EXIT",
     color: "var(--mantine-color-orange-5)",
     singleNext: false,
     pickerVisible: true,
@@ -487,6 +501,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
   fusion: {
     id: "fusion",
     label: "Fusion",
+    badge: "FUSION",
     color: "var(--mantine-color-grape-5)",
     singleNext: false,
     pickerVisible: true,

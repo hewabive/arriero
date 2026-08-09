@@ -2,6 +2,7 @@ import {
   activeApiProxyTextReplacementRules,
   apiProxyPipelineNodePorts,
   apiProxyReasoningEffortBudgets,
+  assertNever,
   isApiProxySingleNextNodeType,
   type ApiProxyModelRecord,
   type ApiProxyPipelineRecord,
@@ -195,6 +196,8 @@ function draftNodePorts(
         })),
         { port: "synthesizer", value: node.fusionSynthesizer },
       ];
+    default:
+      return assertNever(node.type);
   }
 }
 
@@ -278,6 +281,8 @@ function nodeSummary(
       const wired = node.fusionPanel.filter((value) => value !== null).length;
       return `fusion: ${wired} panel → synthesizer`;
     }
+    default:
+      return assertNever(node.type);
   }
 }
 

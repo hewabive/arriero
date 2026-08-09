@@ -1,9 +1,11 @@
-import type {
-  ApiProxyModelRecord,
-  ApiProxyPipelineNode,
-  ApiProxyPipelineRecord,
-  ApiProxySourceRecord,
-  ApiProxyTargetRecord,
+import {
+  PIPELINE_NODE_TYPES,
+  pipelineNodeDescriptor,
+  type ApiProxyModelRecord,
+  type ApiProxyPipelineNodeType,
+  type ApiProxyPipelineRecord,
+  type ApiProxySourceRecord,
+  type ApiProxyTargetRecord,
 } from "@arriero/core";
 
 import type { PipelineDraft, PipelineNodeDraft } from "../forms";
@@ -18,44 +20,12 @@ export type PipelineEditorContext = {
   updateNode: (nodeId: string, patch: Partial<PipelineNodeDraft>) => void;
 };
 
-const nodeTypeLabels: Record<ApiProxyPipelineNode["type"], string> = {
-  "replace-text": "Replace text",
-  "capture-request": "Save request / response",
-  "edit-request": "Edit request",
-  reasoning: "Reasoning",
-  "output-limit": "Limit output",
-  "context-limit": "Context limit",
-  "token-scale": "Token scale",
-  "strip-attribution": "Strip CC attribution",
-  cache: "Cache response",
-  "loop-guard": "Loop guard",
-  condition: "Condition",
-  call: "Pipeline",
-  exit: "Exit",
-  fusion: "Fusion",
-};
-
 export const pipelineNodeTypeOptions: Array<{
-  value: ApiProxyPipelineNode["type"];
+  value: ApiProxyPipelineNodeType;
   label: string;
-}> = [
-  { value: "replace-text", label: nodeTypeLabels["replace-text"] },
-  { value: "capture-request", label: nodeTypeLabels["capture-request"] },
-  { value: "edit-request", label: nodeTypeLabels["edit-request"] },
-  { value: "reasoning", label: nodeTypeLabels.reasoning },
-  { value: "output-limit", label: nodeTypeLabels["output-limit"] },
-  { value: "context-limit", label: nodeTypeLabels["context-limit"] },
-  { value: "token-scale", label: nodeTypeLabels["token-scale"] },
-  {
-    value: "strip-attribution",
-    label: nodeTypeLabels["strip-attribution"],
-  },
-  { value: "cache", label: nodeTypeLabels.cache },
-  { value: "loop-guard", label: nodeTypeLabels["loop-guard"] },
-  { value: "condition", label: nodeTypeLabels.condition },
-  { value: "fusion", label: nodeTypeLabels.fusion },
-  { value: "exit", label: nodeTypeLabels.exit },
-];
+}> = PIPELINE_NODE_TYPES.filter(
+  (type) => pipelineNodeDescriptor(type).pickerVisible,
+).map((type) => ({ value: type, label: pipelineNodeDescriptor(type).label }));
 
 export const reasoningEffortOptions = [
   { value: "off", label: "Off" },
@@ -86,6 +56,6 @@ export const predicateTypeOptions = [
 
 export const anonymousSourceValue = "__anonymous__";
 
-export function pipelineNodeTypeLabel(type: ApiProxyPipelineNode["type"]) {
-  return nodeTypeLabels[type] ?? type;
+export function pipelineNodeTypeLabel(type: ApiProxyPipelineNodeType) {
+  return pipelineNodeDescriptor(type).label;
 }
