@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ApiProxyEditRequestOperationSchema,
+  ApiProxyPipelineNodeSchema,
   ApiProxyPipelineRecordSchema,
   apiProxyOutputLimitEditOperations,
   apiProxyReasoningEditOperations,
@@ -1808,5 +1809,123 @@ test("context-limit rejects at its estimated prompt threshold", async () => {
     assert.equal(result.routeTrace[1]?.kind, "context-limit");
     assert.equal(result.routeTrace[1]?.port, null);
     assert.match(result.routeTrace[1]?.detail ?? "", / · rejected$/);
+  }
+});
+
+test("loop-guard pushes its response effect and traces its channels", async () => {
+  const guard = ApiProxyPipelineNodeSchema.parse({
+    id: "guard",
+    name: "Loop watch",
+    type: "loop-guard",
+    config: { action: "finish", toolArguments: true, noveltyThreshold: 0.2 },
+    ports: { next: { type: "target", id: "target-a" } },
+  });
+  const pipelines = [
+    pipelineRecord({
+      id: "pipeline-a",
+      entry: { type: "node", id: "guard" },
+      nodes: [guard],
+    }),
+  ];
+
+  const result = await resolveApiProxyRouteChain({
+    request: request(),
+    getPipeline: getPipelineFrom(pipelines),
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok && result.kind === "target") {
+    assert.equal(result.targetId, "target-a");
+    assert.equal(result.responseEffects.length, 1);
+    const effect = result.responseEffects[0];
+    assert.equal(effect?.type, "loop-guard");
+    if (effect?.type === "loop-guard") {
+      assert.equal(effect.nodeName, "Loop watch");
+      assert.equal(effect.config.action, "finish");
+      assert.equal(effect.config.noveltyThreshold, 0.2);
+      assert.equal(effect.config.answer, true);
+      assert.equal(effect.config.reasoning, true);
+      assert.equal(effect.config.toolArguments, true);
+      assert.equal(effect.config.minSpanChars, 1024);
+    }
+    assert.deepEqual(
+      result.routeTrace.map((step) => step.kind),
+      ["enter-pipeline", "loop-guard"],
+    );
+    assert.equal(result.routeTrace[1]?.port, "next");
+    assert.equal(
+      result.routeTrace[1]?.detail,
+      "finish · answer + reasoning + tools",
+    );
+  }
+});
+
+test("fusion node terminates the chain carrying panel and synthesizer refs", async () => {
+  const fusion = ApiProxyPipelineNodeSchema.parse({
+    id: "fuse",
+    name: "Ensemble",
+    type: "fusion",
+    config: { minQuorum: 2 },
+    ports: {
+      panel: [
+        { type: "target", id: "panel-a" },
+        { type: "target", id: "panel-b" },
+      ],
+      synthesizer: { type: "target", id: "synth" },
+    },
+  });
+  const pipelines = [
+    pipelineRecord({
+      id: "pipeline-a",
+      entry: { type: "node", id: "replace" },
+      nodes: [
+        {
+          id: "replace",
+          name: "",
+          type: "replace-text",
+          config: {
+            rules: [{ enabled: true, find: "bad text", replace: "good text" }],
+            request: true,
+            response: false,
+            responseReasoning: false,
+            responseToolArguments: false,
+          },
+          ports: { next: { type: "node", id: "fuse" } },
+        },
+        fusion,
+      ],
+    }),
+  ];
+
+  const result = await resolveApiProxyRouteChain({
+    request: request(),
+    getPipeline: getPipelineFrom(pipelines),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.kind, "fusion");
+  if (result.ok && result.kind === "fusion") {
+    assert.equal(result.node.id, "fuse");
+    assert.equal(result.node.config.minQuorum, 2);
+    assert.deepEqual(result.node.ports.panel, [
+      { type: "target", id: "panel-a" },
+      { type: "target", id: "panel-b" },
+    ]);
+    assert.deepEqual(result.node.ports.synthesizer, {
+      type: "target",
+      id: "synth",
+    });
+    assert.equal(result.pipeline.id, "pipeline-a");
+    assert.equal(result.textReplacementCount, 1);
+    assert.deepEqual(result.request.body, {
+      model: "public-model",
+      messages: [{ role: "user", content: "hello good text" }],
+    });
+    assert.deepEqual(
+      result.routeTrace.map((step) => step.kind),
+      ["enter-pipeline", "replace-text", "fusion"],
+    );
+    assert.equal(result.routeTrace.at(-1)?.port, null);
+    assert.equal(result.routeTrace.at(-1)?.detail, "fusion (2 panel)");
   }
 });
