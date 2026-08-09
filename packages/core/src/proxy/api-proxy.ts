@@ -12,6 +12,7 @@ import {
   ApiProxyNodePortSchema,
   ApiProxyPipelineNodeSchema,
   ApiProxyPortRefSchema,
+  PIPELINE_NODE_TYPES,
 } from "./pipeline-nodes.js";
 
 export const ApiProxyTargetKindSchema = z.enum([
@@ -283,24 +284,7 @@ export const ApiProxyTraceUsageSchema = z.object({
 });
 
 export const ApiProxyRouteTraceStepSchema = z.object({
-  kind: z.enum([
-    "enter-pipeline",
-    "replace-text",
-    "capture-request",
-    "edit-request",
-    "reasoning",
-    "output-limit",
-    "context-limit",
-    "token-scale",
-    "strip-attribution",
-    "cache",
-    "loop-guard",
-    "condition",
-    "call",
-    "exit",
-    "fusion",
-    "fusion-branch",
-  ]),
+  kind: z.enum([...PIPELINE_NODE_TYPES, "enter-pipeline", "fusion-branch"]),
   pipelineId: z.string().nullable().default(null),
   pipelineName: z.string().nullable().default(null),
   nodeId: z.string().nullable().default(null),

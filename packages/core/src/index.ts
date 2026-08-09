@@ -1,4 +1,5 @@
 export * from "./engine-descriptor.js";
+export * from "./exhaustive.js";
 export * from "./ggml.js";
 export * from "./instance-resources.js";
 export * from "./memory-assessment.js";

@@ -1,8 +1,14 @@
 import type { z } from "zod";
+import { assertNever } from "../exhaustive.js";
 import type {
   ApiProxyPipelineNodeSchema,
   ApiProxyPortRefSchema,
 } from "../index.js";
+import {
+  PIPELINE_NODE_DESCRIPTORS,
+  PIPELINE_NODE_TYPES,
+  type ApiProxyPipelineNodeType,
+} from "./pipeline-nodes.js";
 
 function legacyPipelinePortRef(
   routeTo: unknown,
@@ -74,21 +80,17 @@ export type ApiProxyPipelineGraphShape = {
   nodes: Array<z.infer<typeof ApiProxyPipelineNodeSchema>>;
 };
 
-export const apiProxySingleNextNodeTypes = [
-  "replace-text",
-  "capture-request",
-  "edit-request",
-  "reasoning",
-  "output-limit",
-  "context-limit",
-  "token-scale",
-  "strip-attribution",
-  "cache",
-  "loop-guard",
-] as const;
+export type ApiProxySingleNextNodeType = {
+  [K in ApiProxyPipelineNodeType]: (typeof PIPELINE_NODE_DESCRIPTORS)[K]["singleNext"] extends true
+    ? K
+    : never;
+}[ApiProxyPipelineNodeType];
 
-export type ApiProxySingleNextNodeType =
-  (typeof apiProxySingleNextNodeTypes)[number];
+export const apiProxySingleNextNodeTypes: readonly ApiProxySingleNextNodeType[] =
+  PIPELINE_NODE_TYPES.filter(
+    (type): type is ApiProxySingleNextNodeType =>
+      PIPELINE_NODE_DESCRIPTORS[type].singleNext,
+  );
 
 const singleNextNodeTypeSet: ReadonlySet<string> = new Set(
   apiProxySingleNextNodeTypes,
@@ -146,6 +148,8 @@ export function apiProxyPipelineNodePorts(
       }
       return refs;
     }
+    default:
+      return assertNever(node);
   }
 }
 
@@ -298,6 +302,8 @@ export function collectApiProxyRouteHoles(
       }
       case "fusion":
         return;
+      default:
+        return assertNever(node);
     }
   };
 

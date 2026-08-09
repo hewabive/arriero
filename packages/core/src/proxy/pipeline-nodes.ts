@@ -353,3 +353,148 @@ export type ApiProxyConditionPredicate = z.infer<
 >;
 export type ApiProxyPipelineNode = z.infer<typeof ApiProxyPipelineNodeSchema>;
 export type ApiProxyNodeLayout = z.infer<typeof ApiProxyNodeLayoutSchema>;
+
+export const PIPELINE_NODE_TYPES = [
+  "replace-text",
+  "capture-request",
+  "edit-request",
+  "reasoning",
+  "output-limit",
+  "context-limit",
+  "token-scale",
+  "strip-attribution",
+  "cache",
+  "loop-guard",
+  "condition",
+  "call",
+  "exit",
+  "fusion",
+] as const;
+
+export type ApiProxyPipelineNodeType = (typeof PIPELINE_NODE_TYPES)[number];
+
+type TypeSetEquality<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : false
+  : false;
+
+true satisfies TypeSetEquality<
+  ApiProxyPipelineNodeType,
+  ApiProxyPipelineNode["type"]
+>;
+
+export type PipelineNodeDescriptor = {
+  id: ApiProxyPipelineNodeType;
+  label: string;
+  color: string;
+  singleNext: boolean;
+  pickerVisible: boolean;
+};
+
+export const PIPELINE_NODE_DESCRIPTORS = {
+  "replace-text": {
+    id: "replace-text",
+    label: "Replace text",
+    color: "var(--mantine-color-blue-5)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  "capture-request": {
+    id: "capture-request",
+    label: "Save request / response",
+    color: "var(--mantine-color-gray-5)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  "edit-request": {
+    id: "edit-request",
+    label: "Edit request",
+    color: "var(--mantine-color-violet-5)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  reasoning: {
+    id: "reasoning",
+    label: "Reasoning",
+    color: "var(--mantine-color-cyan-6)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  "output-limit": {
+    id: "output-limit",
+    label: "Limit output",
+    color: "var(--mantine-color-red-5)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  "context-limit": {
+    id: "context-limit",
+    label: "Context limit",
+    color: "var(--mantine-color-pink-6)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  "token-scale": {
+    id: "token-scale",
+    label: "Token scale",
+    color: "var(--mantine-color-orange-6)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  "strip-attribution": {
+    id: "strip-attribution",
+    label: "Strip CC attribution",
+    color: "var(--mantine-color-lime-6)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  cache: {
+    id: "cache",
+    label: "Cache response",
+    color: "var(--mantine-color-teal-6)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  "loop-guard": {
+    id: "loop-guard",
+    label: "Loop guard",
+    color: "var(--mantine-color-red-7)",
+    singleNext: true,
+    pickerVisible: true,
+  },
+  condition: {
+    id: "condition",
+    label: "Condition",
+    color: "var(--mantine-color-yellow-6)",
+    singleNext: false,
+    pickerVisible: true,
+  },
+  call: {
+    id: "call",
+    label: "Pipeline",
+    color: "var(--mantine-color-indigo-5)",
+    singleNext: false,
+    pickerVisible: false,
+  },
+  exit: {
+    id: "exit",
+    label: "Exit",
+    color: "var(--mantine-color-orange-5)",
+    singleNext: false,
+    pickerVisible: true,
+  },
+  fusion: {
+    id: "fusion",
+    label: "Fusion",
+    color: "var(--mantine-color-grape-5)",
+    singleNext: false,
+    pickerVisible: true,
+  },
+} as const satisfies Record<ApiProxyPipelineNodeType, PipelineNodeDescriptor>;
+
+export function pipelineNodeDescriptor(
+  type: ApiProxyPipelineNodeType,
+): PipelineNodeDescriptor {
+  return PIPELINE_NODE_DESCRIPTORS[type];
+}
