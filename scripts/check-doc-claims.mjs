@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const workingDocuments = new Set(["docs/IMMUNE_REFACTOR.md"]);
+const workingDocuments = new Set([]);
 
 const runtimePrefixes = ["config/", "data/", "runtime/", "tools/", "content/"];
 const sourceExtensions = new Set([".ts", ".tsx", ".mjs", ".sh", ".service"]);
