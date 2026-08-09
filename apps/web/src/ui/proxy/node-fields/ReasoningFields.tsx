@@ -4,12 +4,12 @@ import {
 } from "@arriero/core";
 import { NumberInput, SegmentedControl, Stack, Text } from "@mantine/core";
 
-import type { PipelineNodeDraft } from "../forms";
+import type { PipelineNodeDraftOf, PipelineNodeDraftPatch } from "../forms";
 import { reasoningEffortOptions } from "./context";
 
 export function ReasoningFields(props: {
-  node: PipelineNodeDraft;
-  update: (patch: Partial<PipelineNodeDraft>) => void;
+  node: PipelineNodeDraftOf<"reasoning">;
+  update: (patch: PipelineNodeDraftPatch<"reasoning">) => void;
 }) {
   const { node, update } = props;
   const resolved = resolveApiProxyReasoning({

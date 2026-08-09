@@ -8,7 +8,7 @@ import {
   type ApiProxyTargetRecord,
 } from "@arriero/core";
 
-import type { PipelineDraft, PipelineNodeDraft } from "../forms";
+import type { PipelineDraft, PipelineNodeDraftPatch } from "../forms";
 
 export type PipelineEditorContext = {
   draft: PipelineDraft;
@@ -17,7 +17,7 @@ export type PipelineEditorContext = {
   pipelines: ApiProxyPipelineRecord[];
   sources: ApiProxySourceRecord[];
   models: ApiProxyModelRecord[];
-  updateNode: (nodeId: string, patch: Partial<PipelineNodeDraft>) => void;
+  updateNode: (nodeId: string, patch: PipelineNodeDraftPatch) => void;
 };
 
 export const pipelineNodeTypeOptions: Array<{

@@ -1,7 +1,9 @@
 import {
   ApiProxyLoopGuardConfigSchema,
+  assertNever,
   defaultFusionAnswersTemplate,
   defaultFusionSynthesizerPrompt,
+  isApiProxySingleNextNodeType,
   parseApiProxyBodyFieldPath,
 } from "@arriero/core";
 import type {
@@ -14,6 +16,7 @@ import type {
   ApiProxyModelRecord,
   ApiProxyPipelineCreate,
   ApiProxyPipelineNode,
+  ApiProxyPipelineNodeType,
   ApiProxyPipelineRecord,
   ApiProxyOutputLimitConfig,
   ApiProxyOutputLimitMode,
@@ -22,6 +25,7 @@ import type {
   ApiProxyReasoningConfig,
   ApiProxyReasoningEffort,
   ApiProxyRouteTo,
+  ApiProxySingleNextNodeType,
   ApiProxyTargetCreate,
   ApiProxyTargetRecord,
 } from "@arriero/core";
@@ -78,59 +82,131 @@ export type EditOperationDraft = {
   enabled: boolean;
 };
 
-export type PipelineNodeDraft = {
+type PipelineNodeDraftBase = {
   id: string;
   name: string;
-  type: ApiProxyPipelineNode["type"];
-  captureRequest: boolean;
-  captureResponse: boolean;
-  replaceRequest: boolean;
-  replaceResponse: boolean;
-  replaceResponseReasoning: boolean;
-  replaceResponseToolArguments: boolean;
-  replacements: ReplacementRuleDraft[];
-  editOperations: EditOperationDraft[];
-  reasoningEffort: ApiProxyReasoningEffort;
-  reasoningCustomBudget: number | "";
-  outputLimitMax: number | "";
-  outputLimitMode: ApiProxyOutputLimitMode;
-  contextLimitThreshold: number | "";
-  tokenScaleFactor: number | "";
-  cacheTtlSeconds: number | "";
-  cacheNamespace: string;
-  loopGuardAction: ApiProxyLoopGuardAction;
-  loopGuardAnswer: boolean;
-  loopGuardReasoning: boolean;
-  loopGuardToolArguments: boolean;
-  loopGuardMinSpanChars: number | "";
-  loopGuardNoveltyThreshold: number | "";
-  loopGuardCompressionThreshold: number | "";
-  loopGuardEntropyThreshold: number | "";
-  loopGuardPeriodMinRepeats: number | "";
-  loopGuardNearMissRatio: number | "";
-  loopGuardCaptureTrigger: boolean;
-  loopGuardCaptureNearMiss: boolean;
-  loopGuardMarkerText: string;
-  predicateType: ApiProxyConditionPredicate["type"];
-  scope: ApiProxyConditionScope;
-  pattern: string;
-  regex: boolean;
-  caseSensitive: boolean;
-  minTokens: number | "";
-  sourceId: string;
-  callPipelineId: string | null;
-  callPorts: Record<string, PortValue>;
-  exitName: string;
-  fusionPanel: PortValue[];
-  fusionSynthesizer: PortValue;
-  fusionSynthesizerPrompt: string;
-  fusionAnswersTemplate: string;
-  fusionMinQuorum: number | "";
-  portNext: PortValue;
-  portTrue: PortValue;
-  portFalse: PortValue;
   layout: { x: number; y: number } | null;
 };
+
+export type PipelineNodeDraft =
+  | (PipelineNodeDraftBase & {
+      type: "replace-text";
+      replacements: ReplacementRuleDraft[];
+      replaceRequest: boolean;
+      replaceResponse: boolean;
+      replaceResponseReasoning: boolean;
+      replaceResponseToolArguments: boolean;
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "capture-request";
+      captureRequest: boolean;
+      captureResponse: boolean;
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "edit-request";
+      editOperations: EditOperationDraft[];
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "reasoning";
+      reasoningEffort: ApiProxyReasoningEffort;
+      reasoningCustomBudget: number | "";
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "output-limit";
+      outputLimitMax: number | "";
+      outputLimitMode: ApiProxyOutputLimitMode;
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "context-limit";
+      contextLimitThreshold: number | "";
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "token-scale";
+      tokenScaleFactor: number | "";
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "strip-attribution";
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "cache";
+      cacheTtlSeconds: number | "";
+      cacheNamespace: string;
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "loop-guard";
+      loopGuardAction: ApiProxyLoopGuardAction;
+      loopGuardAnswer: boolean;
+      loopGuardReasoning: boolean;
+      loopGuardToolArguments: boolean;
+      loopGuardMinSpanChars: number | "";
+      loopGuardNoveltyThreshold: number | "";
+      loopGuardCompressionThreshold: number | "";
+      loopGuardEntropyThreshold: number | "";
+      loopGuardPeriodMinRepeats: number | "";
+      loopGuardNearMissRatio: number | "";
+      loopGuardCaptureTrigger: boolean;
+      loopGuardCaptureNearMiss: boolean;
+      loopGuardMarkerText: string;
+      portNext: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "condition";
+      predicateType: ApiProxyConditionPredicate["type"];
+      scope: ApiProxyConditionScope;
+      pattern: string;
+      regex: boolean;
+      caseSensitive: boolean;
+      minTokens: number | "";
+      sourceId: string;
+      portTrue: PortValue;
+      portFalse: PortValue;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "call";
+      callPipelineId: string | null;
+      callPorts: Record<string, PortValue>;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "exit";
+      exitName: string;
+    })
+  | (PipelineNodeDraftBase & {
+      type: "fusion";
+      fusionPanel: PortValue[];
+      fusionSynthesizer: PortValue;
+      fusionSynthesizerPrompt: string;
+      fusionAnswersTemplate: string;
+      fusionMinQuorum: number | "";
+    });
+
+export type PipelineNodeDraftOf<K extends ApiProxyPipelineNodeType> = Extract<
+  PipelineNodeDraft,
+  { type: K }
+>;
+
+export type PipelineNodeDraftPatch<
+  K extends ApiProxyPipelineNodeType = ApiProxyPipelineNodeType,
+> = K extends ApiProxyPipelineNodeType
+  ? Partial<Omit<PipelineNodeDraftOf<K>, "id" | "type">>
+  : never;
+
+export type SingleNextPipelineNodeDraft =
+  PipelineNodeDraftOf<ApiProxySingleNextNodeType>;
+
+export function isSingleNextPipelineNodeDraft(
+  node: PipelineNodeDraft,
+): node is SingleNextPipelineNodeDraft {
+  return isApiProxySingleNextNodeType(node.type);
+}
 
 export type PipelineDraft = {
   name: string;
@@ -184,30 +260,75 @@ export const emptyPipelineDraft: PipelineDraft = {
 
 const loopGuardDefaults = ApiProxyLoopGuardConfigSchema.parse({});
 
-function emptyPipelineNodeDraft(
-  id: string,
-  type: ApiProxyPipelineNode["type"],
-): PipelineNodeDraft {
-  return {
-    id,
-    name: "",
-    type,
-    captureRequest: true,
-    captureResponse: false,
+const pipelineNodeDraftFactories: {
+  [K in ApiProxyPipelineNodeType]: (
+    base: PipelineNodeDraftBase,
+  ) => PipelineNodeDraftOf<K>;
+} = {
+  "replace-text": (base) => ({
+    ...base,
+    type: "replace-text",
+    replacements: [],
     replaceRequest: true,
     replaceResponse: false,
     replaceResponseReasoning: false,
     replaceResponseToolArguments: false,
-    replacements: [],
+    portNext: null,
+  }),
+  "capture-request": (base) => ({
+    ...base,
+    type: "capture-request",
+    captureRequest: true,
+    captureResponse: false,
+    portNext: null,
+  }),
+  "edit-request": (base) => ({
+    ...base,
+    type: "edit-request",
     editOperations: [],
+    portNext: null,
+  }),
+  reasoning: (base) => ({
+    ...base,
+    type: "reasoning",
     reasoningEffort: "medium",
     reasoningCustomBudget: 2048,
+    portNext: null,
+  }),
+  "output-limit": (base) => ({
+    ...base,
+    type: "output-limit",
     outputLimitMax: 4096,
     outputLimitMode: "cap",
+    portNext: null,
+  }),
+  "context-limit": (base) => ({
+    ...base,
+    type: "context-limit",
     contextLimitThreshold: 160_000,
+    portNext: null,
+  }),
+  "token-scale": (base) => ({
+    ...base,
+    type: "token-scale",
     tokenScaleFactor: 1,
+    portNext: null,
+  }),
+  "strip-attribution": (base) => ({
+    ...base,
+    type: "strip-attribution",
+    portNext: null,
+  }),
+  cache: (base) => ({
+    ...base,
+    type: "cache",
     cacheTtlSeconds: 3600,
     cacheNamespace: "",
+    portNext: null,
+  }),
+  "loop-guard": (base) => ({
+    ...base,
+    type: "loop-guard",
     loopGuardAction: loopGuardDefaults.action,
     loopGuardAnswer: loopGuardDefaults.answer,
     loopGuardReasoning: loopGuardDefaults.reasoning,
@@ -221,6 +342,11 @@ function emptyPipelineNodeDraft(
     loopGuardCaptureTrigger: loopGuardDefaults.captureTrigger,
     loopGuardCaptureNearMiss: loopGuardDefaults.captureNearMiss,
     loopGuardMarkerText: loopGuardDefaults.markerText,
+    portNext: null,
+  }),
+  condition: (base) => ({
+    ...base,
+    type: "condition",
     predicateType: "text-match",
     scope: "any-message",
     pattern: "",
@@ -228,19 +354,36 @@ function emptyPipelineNodeDraft(
     caseSensitive: false,
     minTokens: "",
     sourceId: "",
+    portTrue: null,
+    portFalse: null,
+  }),
+  call: (base) => ({
+    ...base,
+    type: "call",
     callPipelineId: null,
     callPorts: {},
+  }),
+  exit: (base) => ({
+    ...base,
+    type: "exit",
     exitName: "done",
+  }),
+  fusion: (base) => ({
+    ...base,
+    type: "fusion",
     fusionPanel: [null, null],
     fusionSynthesizer: null,
     fusionSynthesizerPrompt: defaultFusionSynthesizerPrompt,
     fusionAnswersTemplate: defaultFusionAnswersTemplate,
     fusionMinQuorum: 2,
-    portNext: null,
-    portTrue: null,
-    portFalse: null,
-    layout: null,
-  };
+  }),
+};
+
+function emptyPipelineNodeDraft(
+  id: string,
+  type: ApiProxyPipelineNodeType,
+): PipelineNodeDraft {
+  return pipelineNodeDraftFactories[type]({ id, name: "", layout: null });
 }
 
 function nextPipelineNodeId(nodes: PipelineNodeDraft[]): string {
@@ -253,13 +396,15 @@ function nextPipelineNodeId(nodes: PipelineNodeDraft[]): string {
 
 export function addNodeToDraft(
   draft: PipelineDraft,
-  type: ApiProxyPipelineNode["type"],
+  type: ApiProxyPipelineNodeType,
 ): PipelineDraft {
   const id = nextPipelineNodeId(draft.nodes);
-  const node = emptyPipelineNodeDraft(id, type);
-  node.layout = {
-    x: 80 + (draft.nodes.length % 3) * 80,
-    y: 80 + draft.nodes.length * 60,
+  const node = {
+    ...emptyPipelineNodeDraft(id, type),
+    layout: {
+      x: 80 + (draft.nodes.length % 3) * 80,
+      y: 80 + draft.nodes.length * 60,
+    },
   };
   return {
     ...draft,
@@ -280,9 +425,50 @@ export function addPipelineNodeToDraft(
   return {
     ...next,
     nodes: next.nodes.map((node) =>
-      node.id === addedId ? { ...node, callPipelineId: pipelineId } : node,
+      node.id === addedId && node.type === "call"
+        ? { ...node, callPipelineId: pipelineId }
+        : node,
     ),
   };
+}
+
+function clearPipelineNodeDraftPorts(
+  node: PipelineNodeDraft,
+  removedValue: string,
+): PipelineNodeDraft {
+  const clearPort = (value: PortValue) =>
+    value === removedValue ? null : value;
+  if (isSingleNextPipelineNodeDraft(node)) {
+    return { ...node, portNext: clearPort(node.portNext) };
+  }
+  switch (node.type) {
+    case "condition":
+      return {
+        ...node,
+        portTrue: clearPort(node.portTrue),
+        portFalse: clearPort(node.portFalse),
+      };
+    case "call":
+      return {
+        ...node,
+        callPorts: Object.fromEntries(
+          Object.entries(node.callPorts).map(([port, value]) => [
+            port,
+            clearPort(value),
+          ]),
+        ),
+      };
+    case "exit":
+      return node;
+    case "fusion":
+      return {
+        ...node,
+        fusionPanel: node.fusionPanel.map(clearPort),
+        fusionSynthesizer: clearPort(node.fusionSynthesizer),
+      };
+    default:
+      return assertNever(node);
+  }
 }
 
 export function removeNodeFromDraft(
@@ -290,27 +476,12 @@ export function removeNodeFromDraft(
   nodeId: string,
 ): PipelineDraft {
   const removedValue = `node:${nodeId}`;
-  const clearPort = (value: PortValue) =>
-    value === removedValue ? null : value;
   return {
     ...draft,
-    entryValue: clearPort(draft.entryValue),
+    entryValue: draft.entryValue === removedValue ? null : draft.entryValue,
     nodes: draft.nodes
       .filter((node) => node.id !== nodeId)
-      .map((node) => ({
-        ...node,
-        portNext: clearPort(node.portNext),
-        portTrue: clearPort(node.portTrue),
-        portFalse: clearPort(node.portFalse),
-        fusionPanel: node.fusionPanel.map(clearPort),
-        fusionSynthesizer: clearPort(node.fusionSynthesizer),
-        callPorts: Object.fromEntries(
-          Object.entries(node.callPorts).map(([port, value]) => [
-            port,
-            clearPort(value),
-          ]),
-        ),
-      })),
+      .map((node) => clearPipelineNodeDraftPorts(node, removedValue)),
   };
 }
 
@@ -407,120 +578,160 @@ export function modelDraftFromRecord(model: ApiProxyModelRecord): ModelDraft {
 }
 
 function nodeDraftFromRecord(node: ApiProxyPipelineNode): PipelineNodeDraft {
-  const draft = emptyPipelineNodeDraft(node.id, node.type);
-  draft.name = node.name;
-  draft.layout = node.layout ?? null;
+  const base = { id: node.id, name: node.name, layout: node.layout ?? null };
   switch (node.type) {
     case "replace-text":
-      draft.replacements = node.config.rules.map((rule) => ({
-        find: rule.find,
-        replace: rule.replace,
-        enabled: rule.enabled,
-      }));
-      draft.replaceRequest = node.config.request;
-      draft.replaceResponse = node.config.response;
-      draft.replaceResponseReasoning = node.config.responseReasoning;
-      draft.replaceResponseToolArguments = node.config.responseToolArguments;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "replace-text",
+        replacements: node.config.rules.map((rule) => ({
+          find: rule.find,
+          replace: rule.replace,
+          enabled: rule.enabled,
+        })),
+        replaceRequest: node.config.request,
+        replaceResponse: node.config.response,
+        replaceResponseReasoning: node.config.responseReasoning,
+        replaceResponseToolArguments: node.config.responseToolArguments,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "capture-request":
-      draft.captureRequest = node.config.request;
-      draft.captureResponse = node.config.response;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "capture-request",
+        captureRequest: node.config.request,
+        captureResponse: node.config.response,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "edit-request":
-      draft.editOperations = node.config.operations.map((operation) => ({
-        kind: operation.kind,
-        toolName: "toolName" in operation ? operation.toolName : "",
-        path: "path" in operation ? operation.path : "",
-        valueText:
-          "value" in operation ? JSON.stringify(operation.value, null, 2) : "",
-        enabled: operation.enabled,
-      }));
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "edit-request",
+        editOperations: node.config.operations.map((operation) => ({
+          kind: operation.kind,
+          toolName: "toolName" in operation ? operation.toolName : "",
+          path: "path" in operation ? operation.path : "",
+          valueText:
+            "value" in operation
+              ? JSON.stringify(operation.value, null, 2)
+              : "",
+          enabled: operation.enabled,
+        })),
+        portNext: portRefToValue(node.ports.next),
+      };
     case "reasoning":
-      draft.reasoningEffort = node.config.effort;
-      draft.reasoningCustomBudget = node.config.customBudgetTokens;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "reasoning",
+        reasoningEffort: node.config.effort,
+        reasoningCustomBudget: node.config.customBudgetTokens,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "output-limit":
-      draft.outputLimitMax = node.config.maxTokens;
-      draft.outputLimitMode = node.config.mode;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "output-limit",
+        outputLimitMax: node.config.maxTokens,
+        outputLimitMode: node.config.mode,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "context-limit":
-      draft.contextLimitThreshold = node.config.thresholdTokens;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "context-limit",
+        contextLimitThreshold: node.config.thresholdTokens,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "token-scale":
-      draft.tokenScaleFactor = node.config.factor;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "token-scale",
+        tokenScaleFactor: node.config.factor,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "strip-attribution":
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "strip-attribution",
+        portNext: portRefToValue(node.ports.next),
+      };
     case "cache":
-      draft.cacheTtlSeconds = node.config.ttlSeconds;
-      draft.cacheNamespace = node.config.namespace;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "cache",
+        cacheTtlSeconds: node.config.ttlSeconds,
+        cacheNamespace: node.config.namespace,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "loop-guard":
-      draft.loopGuardAction = node.config.action;
-      draft.loopGuardAnswer = node.config.answer;
-      draft.loopGuardReasoning = node.config.reasoning;
-      draft.loopGuardToolArguments = node.config.toolArguments;
-      draft.loopGuardMinSpanChars = node.config.minSpanChars;
-      draft.loopGuardNoveltyThreshold = node.config.noveltyThreshold;
-      draft.loopGuardCompressionThreshold = node.config.compressionThreshold;
-      draft.loopGuardEntropyThreshold = node.config.entropyThreshold;
-      draft.loopGuardPeriodMinRepeats = node.config.periodMinRepeats;
-      draft.loopGuardNearMissRatio = node.config.nearMissRatio;
-      draft.loopGuardCaptureTrigger = node.config.captureTrigger;
-      draft.loopGuardCaptureNearMiss = node.config.captureNearMiss;
-      draft.loopGuardMarkerText = node.config.markerText;
-      draft.portNext = portRefToValue(node.ports.next);
-      break;
+      return {
+        ...base,
+        type: "loop-guard",
+        loopGuardAction: node.config.action,
+        loopGuardAnswer: node.config.answer,
+        loopGuardReasoning: node.config.reasoning,
+        loopGuardToolArguments: node.config.toolArguments,
+        loopGuardMinSpanChars: node.config.minSpanChars,
+        loopGuardNoveltyThreshold: node.config.noveltyThreshold,
+        loopGuardCompressionThreshold: node.config.compressionThreshold,
+        loopGuardEntropyThreshold: node.config.entropyThreshold,
+        loopGuardPeriodMinRepeats: node.config.periodMinRepeats,
+        loopGuardNearMissRatio: node.config.nearMissRatio,
+        loopGuardCaptureTrigger: node.config.captureTrigger,
+        loopGuardCaptureNearMiss: node.config.captureNearMiss,
+        loopGuardMarkerText: node.config.markerText,
+        portNext: portRefToValue(node.ports.next),
+      };
     case "condition": {
       const predicate = node.config.predicate;
-      draft.predicateType = predicate.type;
-      if (predicate.type === "text-match") {
-        draft.scope = predicate.scope;
-        draft.pattern = predicate.pattern;
-        draft.regex = predicate.regex;
-        draft.caseSensitive = predicate.caseSensitive;
-      }
-      if (predicate.type === "token-estimate") {
-        draft.minTokens = predicate.minTokens;
-      }
-      if (predicate.type === "source") {
-        draft.sourceId = predicate.sourceId ?? "";
-      }
-      draft.portTrue = portRefToValue(node.ports.true);
-      draft.portFalse = portRefToValue(node.ports.false);
-      break;
+      return {
+        ...base,
+        type: "condition",
+        predicateType: predicate.type,
+        scope:
+          predicate.type === "text-match" ? predicate.scope : "any-message",
+        pattern: predicate.type === "text-match" ? predicate.pattern : "",
+        regex: predicate.type === "text-match" ? predicate.regex : false,
+        caseSensitive:
+          predicate.type === "text-match" ? predicate.caseSensitive : false,
+        minTokens:
+          predicate.type === "token-estimate" ? predicate.minTokens : "",
+        sourceId: predicate.type === "source" ? (predicate.sourceId ?? "") : "",
+        portTrue: portRefToValue(node.ports.true),
+        portFalse: portRefToValue(node.ports.false),
+      };
     }
     case "call":
-      draft.callPipelineId = node.config.pipelineId;
-      draft.callPorts = Object.fromEntries(
-        Object.entries(node.ports).map(([port, ref]) => [
-          port,
-          portRefToValue(ref),
-        ]),
-      );
-      break;
+      return {
+        ...base,
+        type: "call",
+        callPipelineId: node.config.pipelineId,
+        callPorts: Object.fromEntries(
+          Object.entries(node.ports).map(([port, ref]) => [
+            port,
+            portRefToValue(ref),
+          ]),
+        ),
+      };
     case "exit":
-      draft.exitName = node.config.exitName;
-      break;
+      return {
+        ...base,
+        type: "exit",
+        exitName: node.config.exitName,
+      };
     case "fusion":
-      draft.fusionPanel = node.ports.panel.map((ref) => portRefToValue(ref));
-      draft.fusionSynthesizer = portRefToValue(node.ports.synthesizer);
-      draft.fusionSynthesizerPrompt = node.config.synthesizerPrompt;
-      draft.fusionAnswersTemplate = node.config.answersTemplate;
-      draft.fusionMinQuorum = node.config.minQuorum;
-      break;
+      return {
+        ...base,
+        type: "fusion",
+        fusionPanel: node.ports.panel.map((ref) => portRefToValue(ref)),
+        fusionSynthesizer: portRefToValue(node.ports.synthesizer),
+        fusionSynthesizerPrompt: node.config.synthesizerPrompt,
+        fusionAnswersTemplate: node.config.answersTemplate,
+        fusionMinQuorum: node.config.minQuorum,
+      };
+    default:
+      return assertNever(node);
   }
-  return draft;
 }
 
 export function pipelineDraftFromRecord(
@@ -672,7 +883,7 @@ function editOperationsFromDrafts(
 }
 
 function reasoningConfigFromDraft(
-  draft: PipelineNodeDraft,
+  draft: PipelineNodeDraftOf<"reasoning">,
 ): ApiProxyReasoningConfig {
   return {
     effort: draft.reasoningEffort,
@@ -682,7 +893,7 @@ function reasoningConfigFromDraft(
 }
 
 function outputLimitConfigFromDraft(
-  draft: PipelineNodeDraft,
+  draft: PipelineNodeDraftOf<"output-limit">,
 ): ApiProxyOutputLimitConfig {
   return {
     maxTokens: draft.outputLimitMax === "" ? 4096 : draft.outputLimitMax,
@@ -691,7 +902,7 @@ function outputLimitConfigFromDraft(
 }
 
 function predicateFromDraft(
-  draft: PipelineNodeDraft,
+  draft: PipelineNodeDraftOf<"condition">,
 ): ApiProxyConditionPredicate {
   if (draft.predicateType === "token-estimate") {
     return {
@@ -894,6 +1105,8 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         },
       };
     }
+    default:
+      return assertNever(draft);
   }
 }
 

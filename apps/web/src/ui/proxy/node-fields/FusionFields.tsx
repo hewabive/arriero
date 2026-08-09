@@ -9,14 +9,18 @@ import {
 } from "@mantine/core";
 import { Plus, Trash2 } from "lucide-react";
 
-import type { PipelineNodeDraft, PortValue } from "../forms";
+import type {
+  PipelineNodeDraftOf,
+  PipelineNodeDraftPatch,
+  PortValue,
+} from "../forms";
 import type { PipelineEditorContext } from "./context";
 import { PortSelect } from "./PortSelect";
 
 export function FusionFields(props: {
-  node: PipelineNodeDraft;
+  node: PipelineNodeDraftOf<"fusion">;
   ctx: PipelineEditorContext;
-  update: (patch: Partial<PipelineNodeDraft>) => void;
+  update: (patch: PipelineNodeDraftPatch<"fusion">) => void;
 }) {
   const { node, ctx, update } = props;
   const setPanel = (index: number, value: PortValue) =>

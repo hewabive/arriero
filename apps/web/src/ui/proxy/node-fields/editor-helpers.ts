@@ -1,6 +1,6 @@
 import { collectApiProxyPipelineExitNames } from "@arriero/core";
 
-import type { PipelineNodeDraft } from "../forms";
+import type { PipelineNodeDraftOf } from "../forms";
 import { unboundTargetValue } from "../forms";
 import type { PipelineEditorContext } from "./context";
 
@@ -36,7 +36,7 @@ export function editorPortOptions(
 
 export function editorCallExitNames(
   ctx: PipelineEditorContext,
-  node: PipelineNodeDraft,
+  node: PipelineNodeDraftOf<"call">,
 ): string[] {
   if (!node.callPipelineId) {
     return [];

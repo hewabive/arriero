@@ -1,6 +1,6 @@
 import { Group, NumberInput, Select, Switch, TextInput } from "@mantine/core";
 
-import type { PipelineNodeDraft } from "../forms";
+import type { PipelineNodeDraftOf, PipelineNodeDraftPatch } from "../forms";
 import {
   anonymousSourceValue,
   conditionScopeOptions,
@@ -9,10 +9,12 @@ import {
 } from "./context";
 import { PortSelect } from "./PortSelect";
 
+type ConditionNodeDraft = PipelineNodeDraftOf<"condition">;
+
 export function ConditionFields(props: {
-  node: PipelineNodeDraft;
+  node: ConditionNodeDraft;
   ctx: PipelineEditorContext;
-  update: (patch: Partial<PipelineNodeDraft>) => void;
+  update: (patch: PipelineNodeDraftPatch<"condition">) => void;
 }) {
   const { node, ctx, update } = props;
   return (
@@ -24,7 +26,7 @@ export function ConditionFields(props: {
         onChange={(value) =>
           update({
             predicateType: (value ??
-              "text-match") as PipelineNodeDraft["predicateType"],
+              "text-match") as ConditionNodeDraft["predicateType"],
           })
         }
       />
@@ -36,7 +38,7 @@ export function ConditionFields(props: {
             value={node.scope}
             onChange={(value) =>
               update({
-                scope: (value ?? "any-message") as PipelineNodeDraft["scope"],
+                scope: (value ?? "any-message") as ConditionNodeDraft["scope"],
               })
             }
           />

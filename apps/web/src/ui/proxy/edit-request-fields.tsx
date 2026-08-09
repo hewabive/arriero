@@ -23,7 +23,11 @@ import {
 import { Blocks, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { EditOperationDraft, PipelineNodeDraft } from "./forms";
+import type {
+  EditOperationDraft,
+  PipelineNodeDraftOf,
+  PipelineNodeDraftPatch,
+} from "./forms";
 import { editOperationFromDraft } from "./forms";
 import { useNarrowScreen } from "../hooks/use-narrow-screen";
 
@@ -237,8 +241,11 @@ function OperationCard(props: {
 }
 
 export function EditRequestFields(props: {
-  node: PipelineNodeDraft;
-  updateNode: (nodeId: string, patch: Partial<PipelineNodeDraft>) => void;
+  node: PipelineNodeDraftOf<"edit-request">;
+  updateNode: (
+    nodeId: string,
+    patch: PipelineNodeDraftPatch<"edit-request">,
+  ) => void;
 }) {
   const { node } = props;
   const isNarrow = useNarrowScreen();

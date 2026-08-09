@@ -1,7 +1,6 @@
 import {
   assertNever,
   collectApiProxyRouteHoles,
-  isApiProxySingleNextNodeType,
   type ApiProxyRouteTraceStep,
 } from "@arriero/core";
 import {
@@ -47,9 +46,16 @@ import {
 } from "./canvas-model";
 import { FlowEdge } from "./FlowEdge";
 import { FlowNodeCard } from "./FlowNodeCard";
-import type { PipelineDraft, PipelineNodeDraft, PortValue } from "../forms";
+import type {
+  PipelineDraft,
+  PipelineNodeDraft,
+  PipelineNodeDraftOf,
+  PipelineNodeDraftPatch,
+  PortValue,
+} from "../forms";
 import {
   addPipelineNodeToDraft,
+  isSingleNextPipelineNodeDraft,
   pipelinePayload,
   removeNodeFromDraft,
 } from "../forms";
@@ -72,8 +78,8 @@ function portPatch(
   node: PipelineNodeDraft,
   port: string,
   value: PortValue,
-): Partial<PipelineNodeDraft> | null {
-  if (isApiProxySingleNextNodeType(node.type)) {
+): PipelineNodeDraftPatch | null {
+  if (isSingleNextPipelineNodeDraft(node)) {
     return port === "next" ? { portNext: value } : null;
   }
   switch (node.type) {
@@ -105,7 +111,7 @@ function portPatch(
       };
     }
     default:
-      return assertNever(node.type);
+      return assertNever(node);
   }
 }
 
@@ -151,7 +157,9 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
     () =>
       new Map(
         draft.nodes
-          .filter((node) => node.type === "call")
+          .filter(
+            (node): node is PipelineNodeDraftOf<"call"> => node.type === "call",
+          )
           .map(
             (node) => [node.id, editorCallExitNames(props.ctx, node)] as const,
           ),

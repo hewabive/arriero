@@ -3,7 +3,6 @@ import {
   apiProxyPipelineNodePorts,
   apiProxyReasoningEffortBudgets,
   assertNever,
-  isApiProxySingleNextNodeType,
   type ApiProxyModelRecord,
   type ApiProxyPipelineRecord,
   type ApiProxyRouteTraceStep,
@@ -12,7 +11,13 @@ import {
 } from "@arriero/core";
 import type { Edge, Node } from "@xyflow/react";
 
-import type { PipelineDraft, PipelineNodeDraft, PortValue } from "../forms";
+import type {
+  PipelineDraft,
+  PipelineNodeDraft,
+  PipelineNodeDraftOf,
+  PortValue,
+} from "../forms";
+import { isSingleNextPipelineNodeDraft } from "../forms";
 import { countLabel } from "../../utils/plural";
 
 export type FlowNodeKind =
@@ -172,7 +177,7 @@ function draftNodePorts(
   node: PipelineNodeDraft,
   exitNames: string[],
 ): Array<{ port: string; value: PortValue }> {
-  if (isApiProxySingleNextNodeType(node.type)) {
+  if (isSingleNextPipelineNodeDraft(node)) {
     return [{ port: "next", value: node.portNext }];
   }
   switch (node.type) {
@@ -197,7 +202,7 @@ function draftNodePorts(
         { port: "synthesizer", value: node.fusionSynthesizer },
       ];
     default:
-      return assertNever(node.type);
+      return assertNever(node);
   }
 }
 
@@ -282,11 +287,11 @@ function nodeSummary(
       return `fusion: ${wired} panel → synthesizer`;
     }
     default:
-      return assertNever(node.type);
+      return assertNever(node);
   }
 }
 
-function reasoningSummary(node: PipelineNodeDraft): string {
+function reasoningSummary(node: PipelineNodeDraftOf<"reasoning">): string {
   if (node.reasoningEffort === "off") {
     return "thinking off";
   }

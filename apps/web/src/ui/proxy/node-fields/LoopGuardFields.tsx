@@ -9,7 +9,7 @@ import {
   TextInput,
 } from "@mantine/core";
 
-import type { PipelineNodeDraft } from "../forms";
+import type { PipelineNodeDraftOf, PipelineNodeDraftPatch } from "../forms";
 
 const actionOptions: Array<{ value: ApiProxyLoopGuardAction; label: string }> =
   [
@@ -18,8 +18,8 @@ const actionOptions: Array<{ value: ApiProxyLoopGuardAction; label: string }> =
   ];
 
 export function LoopGuardFields(props: {
-  node: PipelineNodeDraft;
-  update: (patch: Partial<PipelineNodeDraft>) => void;
+  node: PipelineNodeDraftOf<"loop-guard">;
+  update: (patch: PipelineNodeDraftPatch<"loop-guard">) => void;
 }) {
   const { node, update } = props;
   const numberField = (

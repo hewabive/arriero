@@ -6,7 +6,7 @@ import {
 import { Checkbox, NumberInput, Text, TextInput } from "@mantine/core";
 
 import { EditRequestFields } from "../edit-request-fields";
-import type { PipelineNodeDraft } from "../forms";
+import type { PipelineNodeDraft, PipelineNodeDraftPatch } from "../forms";
 import { TouchSelect } from "../../components/TouchCombobox";
 import { ConditionFields } from "./ConditionFields";
 import type { PipelineEditorContext } from "./context";
@@ -23,7 +23,7 @@ export function PipelineNodeFields(props: {
   ctx: PipelineEditorContext;
 }) {
   const { node, ctx } = props;
-  const update = (patch: Partial<PipelineNodeDraft>) =>
+  const update = (patch: PipelineNodeDraftPatch) =>
     ctx.updateNode(node.id, patch);
 
   switch (node.type) {
@@ -280,6 +280,6 @@ export function PipelineNodeFields(props: {
         />
       );
     default:
-      return assertNever(node.type);
+      return assertNever(node);
   }
 }

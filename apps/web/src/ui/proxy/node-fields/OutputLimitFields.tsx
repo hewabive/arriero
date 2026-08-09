@@ -1,12 +1,12 @@
 import type { ApiProxyOutputLimitMode } from "@arriero/core";
 import { NumberInput, SegmentedControl, Stack, Text } from "@mantine/core";
 
-import type { PipelineNodeDraft } from "../forms";
+import type { PipelineNodeDraftOf, PipelineNodeDraftPatch } from "../forms";
 import { outputLimitModeOptions } from "./context";
 
 export function OutputLimitFields(props: {
-  node: PipelineNodeDraft;
-  update: (patch: Partial<PipelineNodeDraft>) => void;
+  node: PipelineNodeDraftOf<"output-limit">;
+  update: (patch: PipelineNodeDraftPatch<"output-limit">) => void;
 }) {
   const { node, update } = props;
   const caption =

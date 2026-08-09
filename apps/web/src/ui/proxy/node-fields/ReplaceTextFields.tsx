@@ -13,7 +13,7 @@ import {
 import { Maximize2, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import type { PipelineNodeDraft } from "../forms";
+import type { PipelineNodeDraftOf } from "../forms";
 import { useNarrowScreen } from "../../hooks/use-narrow-screen";
 import type { PipelineEditorContext } from "./context";
 import { PortSelect } from "./PortSelect";
@@ -117,8 +117,10 @@ function RuleTextarea(props: {
   );
 }
 
+type ReplaceTextNodeDraft = PipelineNodeDraftOf<"replace-text">;
+
 export function ReplaceTextFields(props: {
-  node: PipelineNodeDraft;
+  node: ReplaceTextNodeDraft;
   ctx: PipelineEditorContext;
 }) {
   const { node, ctx } = props;
@@ -126,11 +128,11 @@ export function ReplaceTextFields(props: {
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
   const [view, setView] = useState<ReplacementView>("raw");
   const rules = node.replacements;
-  const setRules = (next: PipelineNodeDraft["replacements"]) =>
+  const setRules = (next: ReplaceTextNodeDraft["replacements"]) =>
     ctx.updateNode(node.id, { replacements: next });
   const patchRule = (
     index: number,
-    patch: Partial<PipelineNodeDraft["replacements"][number]>,
+    patch: Partial<ReplaceTextNodeDraft["replacements"][number]>,
   ) =>
     setRules(
       rules.map((item, i) => (i === index ? { ...item, ...patch } : item)),
