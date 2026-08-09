@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { engineDescriptor, type InstanceKind } from "./engine-descriptor.js";
+import {
+  engineDescriptor,
+  type EngineResourceProfileId,
+  type InstanceKind,
+} from "./engine-descriptor.js";
 
 export type LlamaArgValue = string | number | boolean | string[] | null;
 export type LlamaArgRecord = Record<string, LlamaArgValue>;
@@ -356,11 +360,154 @@ function gpuEntries(
   return allGpu.map((pool) => ({ poolId: pool.id, label: pool.name }));
 }
 
-function deriveRpcDeviceArgsProfile(
-  allGpu: InstanceResourceProfilePool[],
-  deviceTokens: string[],
-  baseSignals: Omit<InstanceResourceProfileSignals, "source">,
+type ResourceProfileContext = {
+  input: InstanceResourceProfileInput;
+  allGpu: InstanceResourceProfilePool[];
+  cuda: CudaVisibleDevices;
+  deviceTokens: string[];
+  tensorSplit: number[] | null;
+  gpuRequest: GpuLayersRequest;
+  cpuMoe: "all" | number | null;
+  blockCount: number | null;
+  modelHasMoe: boolean | null;
+  baseSignals: Omit<InstanceResourceProfileSignals, "source">;
+  gpuDraws: InstanceResourceProfileInput["memory"];
+  hostDraw: boolean;
+};
+
+function resourceProfileContext(
+  input: InstanceResourceProfileInput,
+): ResourceProfileContext {
+  const allGpu = input.pools.filter((pool) => pool.kind === "gpu");
+  const cuda = parseCudaVisibleDevices(input.env["CUDA_VISIBLE_DEVICES"]);
+  const deviceTokens = parseDeviceTokens(input.args);
+  const tensorSplit = argString(input.args, ["--tensor-split", "-ts"])
+    ? parseTensorSplit(input.args, Math.max(allGpu.length, 1))
+    : null;
+  const gpuRequest = parseGpuLayersRequest(input.args);
+  const cpuMoe = parseCpuMoe(input.args);
+  const blockCount = input.model?.blockCount ?? null;
+  const expertCount = input.model?.expertCount ?? null;
+  const modelHasMoe = expertCount === null ? null : expertCount > 1;
+
+  const baseSignals: Omit<InstanceResourceProfileSignals, "source"> = {
+    nGpuLayers:
+      gpuRequest.kind === "all"
+        ? "all"
+        : gpuRequest.kind === "count"
+          ? gpuRequest.count
+          : null,
+    nGpuLayersCoversModel: null,
+    cpuMoe,
+    modelHasMoe,
+    cudaVisibleDevices: cuda,
+    deviceTokens,
+    tensorSplit,
+  };
+
+  const gpuDraws = input.memory.filter(
+    (draw) => poolKind(input.pools, draw.poolId) === "gpu" && draw.bytes > 0,
+  );
+  const hostDraw = input.memory.some(
+    (draw) => poolKind(input.pools, draw.poolId) === "host" && draw.bytes > 0,
+  );
+
+  return {
+    input,
+    allGpu,
+    cuda,
+    deviceTokens,
+    tensorSplit,
+    gpuRequest,
+    cpuMoe,
+    blockCount,
+    modelHasMoe,
+    baseSignals,
+    gpuDraws,
+    hostDraw,
+  };
+}
+
+function declaredDrawsProfile(
+  context: ResourceProfileContext,
+): InstanceResourceProfile | null {
+  const { input, baseSignals, gpuDraws, hostDraw } = context;
+  if (gpuDraws.length > 0) {
+    return {
+      placement: hostDraw ? "hybrid" : "gpu",
+      gpuPools: gpuDraws.map((draw) => ({
+        poolId: draw.poolId,
+        label: poolLabel(input.pools, draw.poolId),
+      })),
+      usesHost: hostDraw,
+      cpuReason: hostDraw ? "Host memory draw declared" : null,
+      confidence: "declared",
+      signals: { ...baseSignals, source: "declared-draws" },
+    };
+  }
+  if (hostDraw) {
+    return {
+      placement: "cpu",
+      gpuPools: [],
+      usesHost: true,
+      cpuReason: "Host-only memory draw declared",
+      confidence: "declared",
+      signals: { ...baseSignals, source: "declared-draws" },
+    };
+  }
+  return null;
+}
+
+function deriveKtransformersHybridProfile(
+  context: ResourceProfileContext,
 ): InstanceResourceProfile {
+  const { input, allGpu, cuda, deviceTokens, baseSignals, gpuDraws, hostDraw } =
+    context;
+  const tensorParallel = Math.max(
+    1,
+    Math.floor(argNumber(input.args, ["--tensor-parallel-size", "--tp"]) ?? 1),
+  );
+  const visible =
+    cuda.mode === "list"
+      ? cuda.ids.flatMap((id) => {
+          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+          return pool ? [pool] : [];
+        })
+      : allGpu;
+  const selected = gpuEntries(
+    visible.slice(0, tensorParallel),
+    cuda,
+    deviceTokens,
+    allGpu,
+  ).slice(0, tensorParallel);
+  return {
+    placement: "hybrid",
+    gpuPools:
+      gpuDraws.length > 0
+        ? gpuDraws.map((draw) => ({
+            poolId: draw.poolId,
+            label: poolLabel(input.pools, draw.poolId),
+          }))
+        : selected,
+    usesHost: true,
+    cpuReason: "KTransformers keeps expert weights and CPU workers on host",
+    confidence: gpuDraws.length > 0 && hostDraw ? "declared" : "args",
+    signals: {
+      ...baseSignals,
+      source:
+        gpuDraws.length > 0 || hostDraw
+          ? "declared-draws"
+          : cuda.mode === "list"
+            ? "cuda-visible-devices"
+            : "device-arg",
+    },
+  };
+}
+
+function deriveRpcDeviceArgsProfile(
+  context: ResourceProfileContext,
+): InstanceResourceProfile {
+  const { allGpu, deviceTokens, baseSignals } = context;
   const cudaIndices = cudaTokenIndices(deviceTokens);
   if (cudaIndices.length > 0) {
     const visible = allGpu.filter(
@@ -400,163 +547,94 @@ function deriveRpcDeviceArgsProfile(
   };
 }
 
-export function deriveInstanceResourceProfile(
-  input: InstanceResourceProfileInput,
+function deriveVllmArgsProfile(
+  context: ResourceProfileContext,
 ): InstanceResourceProfile {
-  const allGpu = input.pools.filter((pool) => pool.kind === "gpu");
-  const cuda = parseCudaVisibleDevices(input.env["CUDA_VISIBLE_DEVICES"]);
-  const deviceTokens = parseDeviceTokens(input.args);
-  const tensorSplit = argString(input.args, ["--tensor-split", "-ts"])
-    ? parseTensorSplit(input.args, Math.max(allGpu.length, 1))
-    : null;
-  const gpuRequest = parseGpuLayersRequest(input.args);
-  const cpuMoe = parseCpuMoe(input.args);
-  const blockCount = input.model?.blockCount ?? null;
-  const expertCount = input.model?.expertCount ?? null;
-  const modelHasMoe = expertCount === null ? null : expertCount > 1;
-
-  const baseSignals: Omit<InstanceResourceProfileSignals, "source"> = {
-    nGpuLayers:
-      gpuRequest.kind === "all"
-        ? "all"
-        : gpuRequest.kind === "count"
-          ? gpuRequest.count
-          : null,
-    nGpuLayersCoversModel: null,
-    cpuMoe,
-    modelHasMoe,
-    cudaVisibleDevices: cuda,
-    deviceTokens,
-    tensorSplit,
-  };
-
-  const gpuDraws = input.memory.filter(
-    (draw) => poolKind(input.pools, draw.poolId) === "gpu" && draw.bytes > 0,
-  );
-  const hostDraw = input.memory.some(
-    (draw) => poolKind(input.pools, draw.poolId) === "host" && draw.bytes > 0,
-  );
-
-  if (engineDescriptor(input.kind).resourceProfile === "ktransformers-hybrid") {
-    const tensorParallel = Math.max(
-      1,
-      Math.floor(
-        argNumber(input.args, ["--tensor-parallel-size", "--tp"]) ?? 1,
-      ),
-    );
-    const visible =
-      cuda.mode === "list"
-        ? cuda.ids.flatMap((id) => {
-            const pool = allGpu.find((candidate) => candidate.deviceRef === id);
-            return pool ? [pool] : [];
-          })
-        : allGpu;
-    const selected = gpuEntries(
-      visible.slice(0, tensorParallel),
-      cuda,
-      deviceTokens,
-      allGpu,
-    ).slice(0, tensorParallel);
-    return {
-      placement: "hybrid",
-      gpuPools:
-        gpuDraws.length > 0
-          ? gpuDraws.map((draw) => ({
-              poolId: draw.poolId,
-              label: poolLabel(input.pools, draw.poolId),
-            }))
-          : selected,
-      usesHost: true,
-      cpuReason: "KTransformers keeps expert weights and CPU workers on host",
-      confidence: gpuDraws.length > 0 && hostDraw ? "declared" : "args",
-      signals: {
-        ...baseSignals,
-        source:
-          gpuDraws.length > 0 || hostDraw
-            ? "declared-draws"
-            : cuda.mode === "list"
-              ? "cuda-visible-devices"
-              : "device-arg",
-      },
-    };
-  }
-
-  if (gpuDraws.length > 0) {
-    return {
-      placement: hostDraw ? "hybrid" : "gpu",
-      gpuPools: gpuDraws.map((draw) => ({
-        poolId: draw.poolId,
-        label: poolLabel(input.pools, draw.poolId),
-      })),
-      usesHost: hostDraw,
-      cpuReason: hostDraw ? "Host memory draw declared" : null,
-      confidence: "declared",
-      signals: { ...baseSignals, source: "declared-draws" },
-    };
-  }
-  if (hostDraw) {
+  const { input, allGpu, cuda, deviceTokens, baseSignals } = context;
+  const cpu =
+    cuda.mode === "none" ||
+    deviceTokens.some((token) => token.toLowerCase() === "cpu");
+  if (cpu) {
     return {
       placement: "cpu",
       gpuPools: [],
       usesHost: true,
-      cpuReason: "Host-only memory draw declared",
-      confidence: "declared",
-      signals: { ...baseSignals, source: "declared-draws" },
-    };
-  }
-
-  if (engineDescriptor(input.kind).resourceProfile === "rpc-device-args") {
-    return deriveRpcDeviceArgsProfile(allGpu, deviceTokens, baseSignals);
-  }
-
-  if (engineDescriptor(input.kind).resourceProfile === "vllm-args") {
-    const cpu =
-      cuda.mode === "none" ||
-      deviceTokens.some((token) => token.toLowerCase() === "cpu");
-    if (cpu) {
-      return {
-        placement: "cpu",
-        gpuPools: [],
-        usesHost: true,
-        cpuReason:
-          cuda.mode === "none"
-            ? "GPU disabled (CUDA_VISIBLE_DEVICES)"
-            : "vLLM CPU device selected",
-        confidence: "args",
-        signals: {
-          ...baseSignals,
-          source: cuda.mode === "none" ? "cuda-visible-devices" : "device-arg",
-        },
-      };
-    }
-    const visible =
-      cuda.mode === "list"
-        ? cuda.ids.flatMap((id) => {
-            const pool = allGpu.find((candidate) => candidate.deviceRef === id);
-            return pool ? [pool] : [];
-          })
-        : allGpu;
-    const tensorParallel = Math.max(
-      1,
-      Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
-    );
-    return {
-      placement: "gpu",
-      gpuPools: gpuEntries(
-        visible.slice(0, tensorParallel),
-        cuda,
-        deviceTokens,
-        allGpu,
-      ).slice(0, tensorParallel),
-      usesHost: false,
-      cpuReason: null,
+      cpuReason:
+        cuda.mode === "none"
+          ? "GPU disabled (CUDA_VISIBLE_DEVICES)"
+          : "vLLM CPU device selected",
       confidence: "args",
       signals: {
         ...baseSignals,
-        source: cuda.mode === "list" ? "cuda-visible-devices" : "device-arg",
+        source: cuda.mode === "none" ? "cuda-visible-devices" : "device-arg",
       },
     };
   }
+  const visible =
+    cuda.mode === "list"
+      ? cuda.ids.flatMap((id) => {
+          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+          return pool ? [pool] : [];
+        })
+      : allGpu;
+  const tensorParallel = Math.max(
+    1,
+    Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
+  );
+  return {
+    placement: "gpu",
+    gpuPools: gpuEntries(
+      visible.slice(0, tensorParallel),
+      cuda,
+      deviceTokens,
+      allGpu,
+    ).slice(0, tensorParallel),
+    usesHost: false,
+    cpuReason: null,
+    confidence: "args",
+    signals: {
+      ...baseSignals,
+      source: cuda.mode === "list" ? "cuda-visible-devices" : "device-arg",
+    },
+  };
+}
+
+const RESOURCE_PROFILE_DERIVERS: Record<
+  EngineResourceProfileId,
+  (context: ResourceProfileContext) => InstanceResourceProfile
+> = {
+  "llama-args": (context) =>
+    declaredDrawsProfile(context) ?? deriveLlamaArgsProfile(context),
+  "rpc-device-args": (context) =>
+    declaredDrawsProfile(context) ?? deriveRpcDeviceArgsProfile(context),
+  "vllm-args": (context) =>
+    declaredDrawsProfile(context) ?? deriveVllmArgsProfile(context),
+  "ktransformers-hybrid": deriveKtransformersHybridProfile,
+};
+
+export function deriveInstanceResourceProfile(
+  input: InstanceResourceProfileInput,
+): InstanceResourceProfile {
+  const deriver =
+    RESOURCE_PROFILE_DERIVERS[engineDescriptor(input.kind).resourceProfile];
+  return deriver(resourceProfileContext(input));
+}
+
+function deriveLlamaArgsProfile(
+  context: ResourceProfileContext,
+): InstanceResourceProfile {
+  const {
+    input,
+    allGpu,
+    cuda,
+    deviceTokens,
+    tensorSplit,
+    gpuRequest,
+    cpuMoe,
+    blockCount,
+    modelHasMoe,
+    baseSignals,
+  } = context;
 
   if (cuda.mode === "none") {
     return {

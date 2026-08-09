@@ -247,6 +247,19 @@ test("vllm estimator refuses a version-dependent implicit utilization", () => {
   }
 });
 
+test("estimateMemory is not applicable to engines without an estimator", () => {
+  for (const kind of ["rpc-worker", "ktransformers"] as const) {
+    const result = estimateMemory({ kind });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(
+        result.reason,
+        `memory estimate is not applicable to ${kind} instances`,
+      );
+    }
+  }
+});
+
 test("estimateMemory produces a breakdown for a local model", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-estsvc-"));
   const path = join(dir, "model.gguf");

@@ -13,6 +13,7 @@ import {
   splitCsvItems,
   MemoryEstimateSchema,
   type CudaVisibleDevices,
+  type EngineEstimatorId,
   type Instance,
   type InstanceArgs,
   type InstanceEngineConfig,
@@ -424,6 +425,33 @@ function hparamsFromGguf(modelPath: string) {
   return memoryEstimateHparams(readGgufMetadata(modelPath));
 }
 
+function estimateVllmModelMemory(
+  context: MemoryEstimateContext,
+  args: MemoryEstimateArgs,
+): MemoryEstimateResolution {
+  const model = context.positionalArgs.find((item) => item.trim())?.trim();
+  if (!model) {
+    return { ok: false, reason: "No vLLM model positional is configured." };
+  }
+  const result = estimateVllmGpuUtil({ args, env: context.env, model });
+  return result.ok ? { ...result, context } : result;
+}
+
+const ENGINE_ESTIMATORS: Record<
+  EngineEstimatorId,
+  (
+    context: MemoryEstimateContext,
+    args: MemoryEstimateArgs,
+  ) => MemoryEstimateResolution
+> = {
+  gguf: estimateGgufMemory,
+  "vllm-gpu-util": estimateVllmModelMemory,
+  none: (context) => ({
+    ok: false,
+    reason: `memory estimate is not applicable to ${context.kind} instances`,
+  }),
+};
+
 export function estimateMemory(
   request: MemoryEstimateRequest,
 ): MemoryEstimateResolution {
@@ -431,7 +459,7 @@ export function estimateMemory(
   if ("error" in context) {
     return { ok: false, reason: context.error };
   }
-  const { kind, env, positionalArgs, rpcWorkers } = context;
+  const { kind, env } = context;
   const invalidRawBoolean =
     kind === "llama-server"
       ? invalidFlagStyleBooleanArgument(context.args)
@@ -446,21 +474,14 @@ export function estimateMemory(
     kind === "llama-server"
       ? resolveLlamaArgumentEnvironment(context.args, env)
       : context.args;
+  return ENGINE_ESTIMATORS[engineDescriptor(kind).estimator](context, args);
+}
 
-  const estimator = engineDescriptor(kind).estimator;
-  if (estimator === "vllm-gpu-util") {
-    const model = positionalArgs.find((item) => item.trim())?.trim();
-    if (!model)
-      return { ok: false, reason: "No vLLM model positional is configured." };
-    const result = estimateVllmGpuUtil({ args, env, model });
-    return result.ok ? { ...result, context } : result;
-  }
-  if (estimator !== "gguf") {
-    return {
-      ok: false,
-      reason: `memory estimate is not applicable to ${kind} instances`,
-    };
-  }
+function estimateGgufMemory(
+  context: MemoryEstimateContext,
+  args: MemoryEstimateArgs,
+): MemoryEstimateResolution {
+  const { env, rpcWorkers } = context;
 
   const removedArgument = REMOVED_LLAMA_ARGUMENT_GROUPS.map((keys) =>
     configuredKey(args, keys),
