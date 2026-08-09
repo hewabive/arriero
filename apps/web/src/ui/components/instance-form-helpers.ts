@@ -1,5 +1,6 @@
 import {
   InstanceEnvSchema,
+  stripGgufSuffix,
   type Instance,
   type ArgumentOption,
 } from "@arriero/core";
@@ -144,7 +145,7 @@ export function launchModeFromArgs(args: Instance["args"]): LaunchMode {
 
 export const RPC_WORKER_DEFAULT_PORT = 50052;
 
-function instancePort(instance: Instance) {
+export function instancePort(instance: Instance) {
   const port = Number(instance.args["--port"] ?? 8080);
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
 }
@@ -203,5 +204,5 @@ export function duplicateInstanceName(
 
 export function instanceNameFromHfRepo(repo: string) {
   const base = repo.split(":")[0] ?? repo;
-  return (base.split("/").filter(Boolean).pop() ?? "").replace(/\.gguf$/i, "");
+  return base ? stripGgufSuffix(pathBaseName(base)) : "";
 }

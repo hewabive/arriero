@@ -1,5 +1,6 @@
 import {
   engineDescriptor,
+  isActiveProcessStatus,
   type Instance,
   type InstanceKind,
   type ProcessEvent,
@@ -26,6 +27,7 @@ import {
   resolveNumaLaunch,
 } from "../numa/index.js";
 import { filterManagedLlamaLogChunk } from "./log-filter.js";
+import { instanceLogPaths } from "./log-paths.js";
 import {
   buildLaunchSnapshot,
   managedSlotSavePath,
@@ -145,10 +147,7 @@ export class ProcessSupervisor extends EventEmitter {
 
   start(instance: Instance, rpcArgs: string[] = []): ProcessState {
     const current = this.processes.get(instance.name);
-    if (
-      current &&
-      ["starting", "running", "stopping"].includes(current.status)
-    ) {
+    if (current && isActiveProcessStatus(current.status)) {
       return this.getState(instance.name)!;
     }
 
@@ -170,9 +169,7 @@ export class ProcessSupervisor extends EventEmitter {
     ]);
 
     const startedAt = nowIso();
-    const logName = `${instance.name}-${Date.now()}`;
-    const logPath = resolve(config.logsDir, `${logName}.log`);
-    const rawLogPath = resolve(config.logsDir, `${logName}.raw.log`);
+    const { logPath, rawLogPath } = instanceLogPaths(instance.name, Date.now());
     const filteredStream = createWriteStream(logPath, { flags: "a" });
     filteredStream.on("error", () => undefined);
     filteredStream.write(

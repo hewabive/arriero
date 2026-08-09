@@ -1,4 +1,4 @@
-import type { GgufModel } from "@arriero/core";
+import { stripGgufSuffix, type GgufModel } from "@arriero/core";
 
 export function formatBytes(bytes: number) {
   const units = ["B", "KiB", "MiB", "GiB", "TiB"];
@@ -12,7 +12,7 @@ export function formatBytes(bytes: number) {
 }
 
 function displayNameFromFileName(name: string) {
-  return name.replace(/-\d+-of-\d+\.gguf$/i, "").replace(/\.gguf$/i, "");
+  return stripGgufSuffix(name.replace(/-\d+-of-\d+\.gguf$/i, ""));
 }
 
 export function modelTitle(model: GgufModel) {
@@ -86,8 +86,7 @@ export function pathBaseName(path: string) {
 
 export function instanceNameFromModelPath(path: string) {
   return (
-    pathBaseName(path)
-      .replace(/\.gguf$/i, "")
+    stripGgufSuffix(pathBaseName(path))
       .replace(/[^\w.-]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 80) || "local-server"

@@ -22,7 +22,11 @@ function firstStringArg(
   if (Array.isArray(value)) {
     return value.find((item) => item.trim())?.trim() ?? null;
   }
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  return stringArg(source, key);
+}
+
+export function stripGgufSuffix(value: string): string {
+  return value.replace(/\.gguf$/i, "");
 }
 
 export function isRouterInstance(source: InstanceModelSource): boolean {

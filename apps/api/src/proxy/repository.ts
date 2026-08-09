@@ -88,15 +88,12 @@ export function rewriteApiProxyCollections(
 export function renameApiProxyInstanceEndpointRefs(
   fromInstanceName: string,
   toInstanceName: string,
-): { targets: number; models: number } {
+): void {
   const fromId = instanceEndpointId(fromInstanceName);
   const toId = instanceEndpointId(toInstanceName);
 
   const targets = readTargets();
-  const targetCount = targets.filter(
-    (target) => target.endpointId === fromId,
-  ).length;
-  if (targetCount > 0) {
+  if (targets.some((target) => target.endpointId === fromId)) {
     persistTargets(
       targets.map((target) =>
         target.endpointId === fromId ? { ...target, endpointId: toId } : target,
@@ -105,11 +102,13 @@ export function renameApiProxyInstanceEndpointRefs(
   }
 
   const models = readModels();
-  const modelCount = models.filter(
-    (model) =>
-      model.routeTo?.type === "endpoint" && model.routeTo.endpointId === fromId,
-  ).length;
-  if (modelCount > 0) {
+  if (
+    models.some(
+      (model) =>
+        model.routeTo?.type === "endpoint" &&
+        model.routeTo.endpointId === fromId,
+    )
+  ) {
     persistModels(
       models.map((model) =>
         model.routeTo?.type === "endpoint" &&
@@ -119,8 +118,6 @@ export function renameApiProxyInstanceEndpointRefs(
       ),
     );
   }
-
-  return { targets: targetCount, models: modelCount };
 }
 
 export function listApiProxyTargets(): ApiProxyTargetRecord[] {

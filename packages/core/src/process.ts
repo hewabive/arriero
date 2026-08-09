@@ -9,6 +9,16 @@ export const ProcessEventSchema = z.object({
   message: z.string(),
 });
 
+export const ACTIVE_PROCESS_STATUSES = [
+  "starting",
+  "running",
+  "stopping",
+] as const;
+
+export function isActiveProcessStatus(status: string): boolean {
+  return (ACTIVE_PROCESS_STATUSES as readonly string[]).includes(status);
+}
+
 export const ProcessStopReasonSchema = z.enum([
   "operator",
   "eviction",

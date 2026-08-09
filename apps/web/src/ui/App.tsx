@@ -66,9 +66,10 @@ export function App() {
   const [mobileNavOpened, { toggle: toggleNav, close: closeNav }] =
     useDisclosure(false);
   const [createOpened, setCreateOpened] = useState(false);
-  const [editingInstance, setEditingInstance] = useState<Instance | null>(null);
-  const [duplicatingInstance, setDuplicatingInstance] =
-    useState<Instance | null>(null);
+  const [formSeed, setFormSeed] = useState<{
+    mode: "edit" | "duplicate";
+    instance: Instance;
+  } | null>(null);
   const [initialModelPath, setInitialModelPath] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [launchMonitor, setLaunchMonitor] = useState<LaunchMonitor | null>(
@@ -345,8 +346,10 @@ export function App() {
               healthByInstanceId={healthByInstanceId}
               onSelect={(instance) => setSelectedId(instance.name)}
               onCreate={() => setCreateOpened(true)}
-              onEdit={setEditingInstance}
-              onDuplicate={setDuplicatingInstance}
+              onEdit={(instance) => setFormSeed({ mode: "edit", instance })}
+              onDuplicate={(instance) =>
+                setFormSeed({ mode: "duplicate", instance })
+              }
               onOpenDiagnostics={(instance) => {
                 setSelectedId(instance.name);
                 setRoute("diagnostics");
@@ -426,20 +429,15 @@ export function App() {
         }}
       />
       <InstanceFormModal
-        opened={canUseAdmin && Boolean(editingInstance)}
+        opened={canUseAdmin && Boolean(formSeed)}
         instances={instances}
-        instance={editingInstance}
+        instance={formSeed?.mode === "edit" ? formSeed.instance : null}
+        duplicateFrom={
+          formSeed?.mode === "duplicate" ? formSeed.instance : null
+        }
         onSaved={(instance) => setSelectedId(instance.name)}
         onLaunchStarted={startLaunchMonitor}
-        onClose={() => setEditingInstance(null)}
-      />
-      <InstanceFormModal
-        opened={canUseAdmin && Boolean(duplicatingInstance)}
-        instances={instances}
-        duplicateFrom={duplicatingInstance}
-        onSaved={(instance) => setSelectedId(instance.name)}
-        onLaunchStarted={startLaunchMonitor}
-        onClose={() => setDuplicatingInstance(null)}
+        onClose={() => setFormSeed(null)}
       />
     </AppShell>
   );

@@ -1,6 +1,7 @@
-import { Alert, Checkbox, Stack, Text } from "@mantine/core";
+import { Alert, Stack, Text } from "@mantine/core";
 
 import { countLabel } from "../utils/plural";
+import { SkipCheckbox } from "./SkipCheckbox";
 import type { InstanceFormController } from "./use-instance-form";
 
 export function InstanceFormRenameSection({
@@ -9,7 +10,7 @@ export function InstanceFormRenameSection({
   fm: InstanceFormController;
 }) {
   const cascade = fm.renameCascade;
-  if (!fm.isEdit || !cascade) {
+  if (!cascade) {
     return null;
   }
   const live =
@@ -34,28 +35,20 @@ export function InstanceFormRenameSection({
           </Text>
         )}
         {cascade.targetRenames.map((item) => (
-          <Checkbox
+          <SkipCheckbox
             key={`target:${item.id}`}
-            size="xs"
             label={`Rename proxy target "${item.from}" to "${item.to}"`}
-            checked={!fm.renameSkips[`target:${item.id}`]}
-            onChange={(event) => {
-              const skip = !event.currentTarget.checked;
-              fm.setRenameSkip(`target:${item.id}`, skip);
-            }}
+            skipped={Boolean(fm.renameSkips[`target:${item.id}`])}
+            onSkipChange={(skip) => fm.setRenameSkip(`target:${item.id}`, skip)}
           />
         ))}
         {cascade.modelRenames.map((item) => (
-          <Checkbox
+          <SkipCheckbox
             key={`model:${item.id}`}
-            size="xs"
             label={`Rename public model id "${item.from}" to "${item.to}"`}
             description="Clients configured with the old model id will stop resolving it"
-            checked={!fm.renameSkips[`model:${item.id}`]}
-            onChange={(event) => {
-              const skip = !event.currentTarget.checked;
-              fm.setRenameSkip(`model:${item.id}`, skip);
-            }}
+            skipped={Boolean(fm.renameSkips[`model:${item.id}`])}
+            onSkipChange={(skip) => fm.setRenameSkip(`model:${item.id}`, skip)}
           />
         ))}
       </Stack>

@@ -1,4 +1,4 @@
-import type { ApiProxyTargetModelGroup } from "@arriero/core";
+import { stripGgufSuffix, type ApiProxyTargetModelGroup } from "@arriero/core";
 import {
   Button,
   Group,
@@ -32,10 +32,10 @@ function suggestName(
 ): string {
   const trimmed = model.trim();
   if (trimmed) {
-    return trimmed.replace(/\.gguf$/i, "");
+    return stripGgufSuffix(trimmed);
   }
   if (group?.impliedModel) {
-    return group.impliedModel.replace(/\.gguf$/i, "");
+    return stripGgufSuffix(group.impliedModel);
   }
   return group?.endpointName ?? "";
 }

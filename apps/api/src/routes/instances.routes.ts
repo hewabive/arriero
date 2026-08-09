@@ -354,10 +354,10 @@ export function registerInstanceRoutes(app: Hono) {
       }
       return c.json({ data: instance });
     } catch (error) {
-      if (error instanceof InstanceNameConflictError) {
-        return c.json({ error: error.message }, 409);
-      }
-      if (error instanceof InstanceRenameBlockedError) {
+      if (
+        error instanceof InstanceNameConflictError ||
+        error instanceof InstanceRenameBlockedError
+      ) {
         return c.json({ error: error.message }, 409);
       }
       if (error instanceof InstanceConfigValidationError) {

@@ -8,6 +8,8 @@ import {
   engineDescriptor,
   type FleetNode,
   type Instance,
+  instanceEndpointId,
+  instanceIdFromEndpointId,
 } from "@arriero/core";
 import { z } from "zod";
 import { newId } from "../utils/id.js";
@@ -43,12 +45,9 @@ export const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
 type StoredEndpoint = z.infer<typeof StoredEndpointSchema>;
 
 const managerProxyEndpointId = "manager-proxy";
-const INSTANCE_ENDPOINT_PREFIX = "instance:";
 const REMOTE_ENDPOINT_PREFIX = "remote:";
 
-export function instanceEndpointId(instanceId: string) {
-  return `${INSTANCE_ENDPOINT_PREFIX}${instanceId}`;
-}
+export { instanceEndpointId };
 
 export function remoteEndpointId(nodeId: string, instanceId: string) {
   return `${REMOTE_ENDPOINT_PREFIX}${nodeId}:${instanceId}`;
@@ -235,9 +234,9 @@ export function getApiEndpointById(
   if (id === managerProxyEndpointId) {
     return managerProxyEndpoint();
   }
-  if (id.startsWith(INSTANCE_ENDPOINT_PREFIX)) {
-    const name = id.slice(INSTANCE_ENDPOINT_PREFIX.length);
-    const instance = instances.find((item) => item.name === name);
+  const instanceName = instanceIdFromEndpointId(id);
+  if (instanceName !== null) {
+    const instance = instances.find((item) => item.name === instanceName);
     return instance ? instanceEndpoint(instance) : null;
   }
   const remote = parseRemoteEndpointId(id);

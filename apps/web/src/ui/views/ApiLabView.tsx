@@ -1,7 +1,9 @@
-import type {
-  ApiLabProbeProfile,
-  Instance,
-  InstanceHealthSummary,
+import {
+  instanceEndpointId,
+  instanceIdFromEndpointId,
+  type ApiLabProbeProfile,
+  type Instance,
+  type InstanceHealthSummary,
 } from "@arriero/core";
 import { Alert, Group, Select, Stack } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,8 +55,6 @@ const protocolLabels: Record<ApiLabProbeProfile, string> = {
   anthropic: "Anthropic",
   "llama-native": "llama.cpp native",
 };
-
-const INSTANCE_ENDPOINT_PREFIX = "instance:";
 
 export function ApiLabView(props: {
   instances: Instance[];
@@ -123,7 +123,7 @@ export function ApiLabView(props: {
       return;
     }
     if (props.selectedInstance) {
-      const candidate = `${INSTANCE_ENDPOINT_PREFIX}${props.selectedInstance.name}`;
+      const candidate = instanceEndpointId(props.selectedInstance.name);
       if (groups.some((group) => group.endpointId === candidate)) {
         setEndpointId(candidate);
       }
@@ -157,8 +157,9 @@ export function ApiLabView(props: {
 
   const selectEndpoint = (value: string | null) => {
     setEndpointId(value);
-    if (value?.startsWith(INSTANCE_ENDPOINT_PREFIX)) {
-      props.onSelect(value.slice(INSTANCE_ENDPOINT_PREFIX.length));
+    const instanceName = value ? instanceIdFromEndpointId(value) : null;
+    if (instanceName !== null) {
+      props.onSelect(instanceName);
     }
   };
 

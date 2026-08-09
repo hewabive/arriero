@@ -1,14 +1,16 @@
-import type {
-  ApiProxyModelRecord,
-  ApiProxyPipelineRecord,
-  ApiProxyPortRef,
-  ApiProxyTargetRecord,
+import {
+  instanceEndpointId,
+  type ApiProxyModelRecord,
+  type ApiProxyPipelineRecord,
+  type ApiProxyPortRef,
+  type ApiProxyTargetRecord,
 } from "@arriero/core";
 
 import { modelDirectTargetId } from "./forms";
 import {
   computeProxyUsage,
   pipelineOutgoingRefs,
+  type ProxyUsageIndex,
   type ProxyUsageRef,
 } from "./usage";
 
@@ -18,9 +20,12 @@ export type InstanceProxyConfig = {
   pipelines: ApiProxyPipelineRecord[];
 };
 
-export type InstanceProxyRefs = {
+export type InstanceProxyBindings = {
   referencingTargets: ApiProxyTargetRecord[];
   boundModels: ApiProxyModelRecord[];
+};
+
+export type InstanceProxyRefs = InstanceProxyBindings & {
   deletableTargets: ApiProxyTargetRecord[];
   deletableModels: ApiProxyModelRecord[];
   deletablePipelines: ApiProxyPipelineRecord[];
@@ -63,11 +68,11 @@ function deadPipelineIdsFor(
 }
 
 function boundModelsFor(
-  instanceEndpointId: string,
+  endpointId: string,
   config: InstanceProxyConfig,
   referencingTargetIds: Set<string>,
+  usage: ProxyUsageIndex,
 ): ApiProxyModelRecord[] {
-  const usage = computeProxyUsage(config.models, config.pipelines);
   const boundModelIds = new Set<string>();
   const pipelineQueue: string[] = [];
   const seenPipelines = new Set<string>();
@@ -91,7 +96,39 @@ function boundModelsFor(
     (model) =>
       boundModelIds.has(model.id) ||
       (model.routeTo?.type === "endpoint" &&
-        model.routeTo.endpointId === instanceEndpointId),
+        model.routeTo.endpointId === endpointId),
+  );
+}
+
+function bindingsFromUsage(
+  instanceName: string,
+  config: InstanceProxyConfig,
+  usage: ProxyUsageIndex,
+): InstanceProxyBindings {
+  const endpointId = instanceEndpointId(instanceName);
+  const referencingTargets = config.targets.filter(
+    (target) => target.endpointId === endpointId,
+  );
+  const referencingTargetIds = new Set(
+    referencingTargets.map((target) => target.id),
+  );
+  const boundModels = boundModelsFor(
+    endpointId,
+    config,
+    referencingTargetIds,
+    usage,
+  );
+  return { referencingTargets, boundModels };
+}
+
+export function computeInstanceProxyBindings(
+  instanceName: string,
+  config: InstanceProxyConfig,
+): InstanceProxyBindings {
+  return bindingsFromUsage(
+    instanceName,
+    config,
+    computeProxyUsage(config.models, config.pipelines),
   );
 }
 
@@ -131,17 +168,29 @@ export function computeInstanceProxyRefs(
   instanceName: string,
   config: InstanceProxyConfig,
 ): InstanceProxyRefs {
-  const endpointId = `instance:${instanceName}`;
-  const referencingTargets = config.targets.filter(
-    (target) => target.endpointId === endpointId,
-  );
-  const deadTargetIds = new Set(referencingTargets.map((target) => target.id));
-  const boundModels = boundModelsFor(endpointId, config, deadTargetIds);
-
-  const outgoing = new Map(
+  const endpointId = instanceEndpointId(instanceName);
+  const outgoingWithVia = new Map(
     config.pipelines.map((pipeline) => [
       pipeline.id,
-      pipelineOutgoingRefs(pipeline).map((item) => item.ref),
+      pipelineOutgoingRefs(pipeline),
+    ]),
+  );
+  const usage = computeProxyUsage(
+    config.models,
+    config.pipelines,
+    outgoingWithVia,
+  );
+  const { referencingTargets, boundModels } = bindingsFromUsage(
+    instanceName,
+    config,
+    usage,
+  );
+  const deadTargetIds = new Set(referencingTargets.map((target) => target.id));
+
+  const outgoing = new Map(
+    [...outgoingWithVia].map(([id, items]) => [
+      id,
+      items.map((item) => item.ref),
     ]),
   );
   const deadPipelineIds = deadPipelineIdsFor(
@@ -221,4 +270,28 @@ export function computeInstanceProxyRefs(
     keptPipelines,
     brokenPipelines,
   };
+}
+
+export type ProxyCascadeStep = {
+  key: string;
+  label: string;
+  run: () => Promise<unknown>;
+};
+
+export async function runProxyCascade(
+  steps: ProxyCascadeStep[],
+  skips: Record<string, boolean>,
+): Promise<string[]> {
+  const failures: string[] = [];
+  for (const step of steps) {
+    if (skips[step.key]) {
+      continue;
+    }
+    try {
+      await step.run();
+    } catch (error) {
+      failures.push(`${step.label}: ${(error as Error).message}`);
+    }
+  }
+  return failures;
 }

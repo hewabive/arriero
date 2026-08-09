@@ -1,6 +1,7 @@
 import {
   classifyConfigGitPath,
   configGitSensitivePathPattern,
+  isActiveProcessStatus,
   isPlainRelativeConfigGitPath,
   isRestorableConfigGitPath,
   type ConfigGitCheckoutCommit,
@@ -62,12 +63,10 @@ type MutationWork = {
   validation?: ConfigGitValidation;
 };
 
-const activeStatuses = new Set(["starting", "running", "stopping"]);
-
 function assertConfigContentCanChange() {
   const activeInstances = supervisor
     .listStates()
-    .filter((state) => activeStatuses.has(state.status));
+    .filter((state) => isActiveProcessStatus(state.status));
   if (activeInstances.length > 0) {
     throw new Error(
       `stop managed processes before changing configuration: ${activeInstances.map((item) => item.instanceId).join(", ")}`,

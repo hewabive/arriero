@@ -4,44 +4,20 @@ import { resolve } from "node:path";
 import { beforeEach, test } from "node:test";
 
 import { config } from "../config.js";
-import { createPathCatalogEntry } from "../path-catalog/repository.js";
 import {
   createProcessRun,
   updateProcessRun,
 } from "../process/runs-repository.js";
 import { resetInstancesCache } from "./config-files.js";
 import { createInstance, deleteInstance, getInstance } from "./repository.js";
+import { instanceTestFixture } from "./test-fixtures.js";
 
-let binaryRefId: string;
-let counter = 0;
-
-function uniqueName(prefix: string) {
-  counter += 1;
-  return `${prefix}-delete-${counter}`;
-}
-
-function seedInstance(
-  name: string,
-  kind: "llama-server" | "rpc-worker" = "llama-server",
-) {
-  return createInstance({
-    name,
-    kind,
-    rpcWorkers: [],
-    binaryPathRefId: binaryRefId,
-    args: {},
-    env: {},
-    memory: [],
-  });
-}
+const { uniqueName, seedBinaryRef, seedInstance, binaryRefId } =
+  instanceTestFixture("delete");
 
 beforeEach(() => {
   resetInstancesCache();
-  binaryRefId = createPathCatalogEntry({
-    kind: "binary",
-    name: uniqueName("bin"),
-    path: `/opt/llama/llama-server-delete-${counter}`,
-  }).id;
+  seedBinaryRef();
 });
 
 test("delete removes local rpc worker references but keeps remote ones", () => {
@@ -55,7 +31,7 @@ test("delete removes local rpc worker references but keeps remote ones", () => {
       { nodeId: null, instanceName: workerName },
       { nodeId: "node-1", instanceName: workerName },
     ],
-    binaryPathRefId: binaryRefId,
+    binaryPathRefId: binaryRefId(),
     args: {},
     env: {},
     memory: [],

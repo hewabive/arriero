@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 import { beforeEach, test } from "node:test";
 
 import { config } from "../config.js";
-import { createPathCatalogEntry } from "../path-catalog/repository.js";
 import {
   createProcessRun,
   latestProcessRun,
@@ -20,40 +19,17 @@ import {
 import { resetInstancesCache } from "./config-files.js";
 import { InstanceRenameBlockedError } from "./rename.js";
 import { createInstance, getInstance, updateInstance } from "./repository.js";
+import { instanceTestFixture } from "./test-fixtures.js";
 
-let binaryRefId: string;
-let counter = 0;
-
-function uniqueName(prefix: string) {
-  counter += 1;
-  return `${prefix}-rename-${counter}`;
-}
-
-function seedInstance(
-  name: string,
-  kind: "llama-server" | "rpc-worker" = "llama-server",
-) {
-  return createInstance({
-    name,
-    kind,
-    rpcWorkers: [],
-    binaryPathRefId: binaryRefId,
-    args: {},
-    env: {},
-    memory: [],
-  });
-}
+const { uniqueName, seedBinaryRef, seedInstance, binaryRefId } =
+  instanceTestFixture("rename");
 
 beforeEach(() => {
   resetInstancesCache();
   rmSync(config.proxyConfigDir, { recursive: true, force: true });
   mkdirSync(config.proxyConfigDir, { recursive: true });
   resetConfigFilesCache();
-  binaryRefId = createPathCatalogEntry({
-    kind: "binary",
-    name: uniqueName("bin"),
-    path: `/opt/llama/llama-server-rename-${counter}`,
-  }).id;
+  seedBinaryRef();
 });
 
 test("rename rewrites proxy target endpointId and model endpoint routes", () => {
@@ -123,7 +99,7 @@ test("rename rewrites local rpc worker references but not remote ones", () => {
       { nodeId: null, instanceName: workerName },
       { nodeId: "node-1", instanceName: workerName },
     ],
-    binaryPathRefId: binaryRefId,
+    binaryPathRefId: binaryRefId(),
     args: {},
     env: {},
     memory: [],

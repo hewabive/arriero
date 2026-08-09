@@ -6,7 +6,6 @@ import type {
 import {
   ActionIcon,
   Button,
-  Checkbox,
   Code,
   Group,
   Modal,
@@ -38,7 +37,11 @@ import {
   instanceAction,
   startInstance,
 } from "../../api/client";
-import { computeInstanceProxyRefs } from "../proxy/instance-refs";
+import {
+  computeInstanceProxyRefs,
+  runProxyCascade,
+} from "../proxy/instance-refs";
+import { SkipCheckbox } from "./SkipCheckbox";
 import {
   canOpenLlamaWebUi,
   llamaServerWebUrl,
@@ -101,6 +104,8 @@ export function InstanceActions(props: {
   const health = props.health;
   const [deleteConfirmOpened, setDeleteConfirmOpened] = useState(false);
   const [deleteSkips, setDeleteSkips] = useState<Record<string, boolean>>({});
+  const setDeleteSkip = (key: string, skip: boolean) =>
+    setDeleteSkips((current) => ({ ...current, [key]: skip }));
   const proxyConfigQuery = useQuery({
     queryKey: ["api-proxy-config"],
     queryFn: getApiProxyConfig,
@@ -200,44 +205,29 @@ export function InstanceActions(props: {
   const deleteMutation = useMutation({
     mutationFn: async () => {
       await deleteInstance(props.instance.name);
-      const failures: string[] = [];
-      if (deleteRefs) {
-        for (const model of deleteRefs.deletableModels) {
-          if (deleteSkips[`model:${model.id}`]) {
-            continue;
-          }
-          try {
-            await deleteApiProxyModel(model.id);
-          } catch (error) {
-            failures.push(
-              `model ${model.modelId}: ${(error as Error).message}`,
-            );
-          }
-        }
-        for (const pipeline of deleteRefs.deletablePipelines) {
-          if (deleteSkips[`pipeline:${pipeline.id}`]) {
-            continue;
-          }
-          try {
-            await deleteApiProxyPipeline(pipeline.id);
-          } catch (error) {
-            failures.push(
-              `pipeline ${pipeline.name}: ${(error as Error).message}`,
-            );
-          }
-        }
-        for (const target of deleteRefs.deletableTargets) {
-          if (deleteSkips[`target:${target.id}`]) {
-            continue;
-          }
-          try {
-            await deleteApiProxyTarget(target.id);
-          } catch (error) {
-            failures.push(`target ${target.name}: ${(error as Error).message}`);
-          }
-        }
+      if (!deleteRefs) {
+        return [];
       }
-      return failures;
+      return runProxyCascade(
+        [
+          ...deleteRefs.deletableModels.map((model) => ({
+            key: `model:${model.id}`,
+            label: `model ${model.modelId}`,
+            run: () => deleteApiProxyModel(model.id),
+          })),
+          ...deleteRefs.deletablePipelines.map((pipeline) => ({
+            key: `pipeline:${pipeline.id}`,
+            label: `pipeline ${pipeline.name}`,
+            run: () => deleteApiProxyPipeline(pipeline.id),
+          })),
+          ...deleteRefs.deletableTargets.map((target) => ({
+            key: `target:${target.id}`,
+            label: `target ${target.name}`,
+            run: () => deleteApiProxyTarget(target.id),
+          })),
+        ],
+        deleteSkips,
+      );
     },
     onSuccess: async (failures) => {
       setDeleteConfirmOpened(false);
@@ -403,7 +393,7 @@ export function InstanceActions(props: {
             are removed with it.
           </Text>
           <Code className="code-wrap">{props.instance.name}</Code>
-          {deleteConfirmOpened && proxyConfigQuery.isLoading && (
+          {proxyConfigQuery.isLoading && (
             <Text size="xs" c="dimmed">
               Checking proxy references...
             </Text>
@@ -420,50 +410,35 @@ export function InstanceActions(props: {
                   it:
                 </Text>
                 {deleteRefs.deletableTargets.map((target) => (
-                  <Checkbox
+                  <SkipCheckbox
                     key={`target:${target.id}`}
-                    size="xs"
                     label={`Delete proxy target "${target.name}"`}
-                    checked={!deleteSkips[`target:${target.id}`]}
-                    onChange={(event) => {
-                      const skip = !event.currentTarget.checked;
-                      setDeleteSkips((current) => ({
-                        ...current,
-                        [`target:${target.id}`]: skip,
-                      }));
-                    }}
+                    skipped={Boolean(deleteSkips[`target:${target.id}`])}
+                    onSkipChange={(skip) =>
+                      setDeleteSkip(`target:${target.id}`, skip)
+                    }
                   />
                 ))}
                 {deleteRefs.deletableModels.map((model) => (
-                  <Checkbox
+                  <SkipCheckbox
                     key={`model:${model.id}`}
-                    size="xs"
                     label={`Delete model "${model.modelId}"`}
                     description="Drops the public model id from /v1/models"
-                    checked={!deleteSkips[`model:${model.id}`]}
-                    onChange={(event) => {
-                      const skip = !event.currentTarget.checked;
-                      setDeleteSkips((current) => ({
-                        ...current,
-                        [`model:${model.id}`]: skip,
-                      }));
-                    }}
+                    skipped={Boolean(deleteSkips[`model:${model.id}`])}
+                    onSkipChange={(skip) =>
+                      setDeleteSkip(`model:${model.id}`, skip)
+                    }
                   />
                 ))}
                 {deleteRefs.deletablePipelines.map((pipeline) => (
-                  <Checkbox
+                  <SkipCheckbox
                     key={`pipeline:${pipeline.id}`}
-                    size="xs"
                     label={`Delete pipeline "${pipeline.name}" (${countLabel(pipeline.nodes.length, "node")})`}
                     description="No other live target is reachable from it"
-                    checked={!deleteSkips[`pipeline:${pipeline.id}`]}
-                    onChange={(event) => {
-                      const skip = !event.currentTarget.checked;
-                      setDeleteSkips((current) => ({
-                        ...current,
-                        [`pipeline:${pipeline.id}`]: skip,
-                      }));
-                    }}
+                    skipped={Boolean(deleteSkips[`pipeline:${pipeline.id}`])}
+                    onSkipChange={(skip) =>
+                      setDeleteSkip(`pipeline:${pipeline.id}`, skip)
+                    }
                   />
                 ))}
                 {deleteRefs.keptTargets.map(({ target, keptBy }) => (

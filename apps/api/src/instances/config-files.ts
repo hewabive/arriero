@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   InstanceConfigRecordSchema,
   type InstanceConfigRecord,
+  type RpcWorkerRef,
 } from "@arriero/core";
 
 import { config } from "../config.js";
@@ -99,6 +100,29 @@ export function writeInstanceRecord(
     map.delete(previousName);
   }
   map.set(validated.name, validated);
+}
+
+export function rewriteLocalRpcWorkerRefs(
+  instanceName: string,
+  rewrite: (ref: RpcWorkerRef) => RpcWorkerRef | null,
+): void {
+  const referencesInstance = (ref: RpcWorkerRef) =>
+    !ref.nodeId && ref.instanceName === instanceName;
+  for (const record of listInstanceRecords()) {
+    if (!record.rpcWorkers.some(referencesInstance)) {
+      continue;
+    }
+    writeInstanceRecord({
+      ...record,
+      rpcWorkers: record.rpcWorkers.flatMap((ref) => {
+        if (!referencesInstance(ref)) {
+          return [ref];
+        }
+        const next = rewrite(ref);
+        return next ? [next] : [];
+      }),
+    });
+  }
 }
 
 export function removeInstanceRecord(name: string): boolean {

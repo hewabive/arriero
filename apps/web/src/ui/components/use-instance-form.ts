@@ -6,6 +6,7 @@ import {
   ggufModelRole,
   ggufPoolingTypeLabel,
   impliedInstanceModelId,
+  stripGgufSuffix,
   pathCatalogBinaryEngineKind,
   type Instance,
   type InstanceCreate,
@@ -46,7 +47,10 @@ import {
   updateInstance,
 } from "../../api/client";
 import { useScannedModels } from "../hooks/use-scanned-models";
-import { computeInstanceProxyRefs } from "../proxy/instance-refs";
+import {
+  computeInstanceProxyBindings,
+  runProxyCascade,
+} from "../proxy/instance-refs";
 import { createUiId } from "../utils/id";
 import { formatMemoryPoolName } from "../utils/pools";
 import {
@@ -83,6 +87,7 @@ import {
   isSelectableInstanceArgument,
   launchModeFromArgs,
   MANAGED_ENV_KEYS,
+  instancePort,
   nextAvailablePort,
   parseEnvJson,
   RPC_WORKER_DEFAULT_PORT,
@@ -637,11 +642,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     if (!isDuplicate || portRaw === "") {
       return rows;
     }
-    const sourcePort = Number(portRaw);
-    const startPort =
-      Number.isInteger(sourcePort) && sourcePort > 0 && sourcePort <= 65535
-        ? sourcePort
-        : undefined;
+    const startPort = instancePort(seed) ?? undefined;
     return upsertArgRow(
       rows,
       "--port",
@@ -1002,6 +1003,15 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     enabled: props.opened && isEdit,
   });
 
+  const proxyBindings = useMemo(() => {
+    const instance = props.instance;
+    const proxyConfig = proxyConfigQuery.data?.data;
+    if (!instance || !proxyConfig) {
+      return null;
+    }
+    return computeInstanceProxyBindings(instance.name, proxyConfig);
+  }, [props.instance, proxyConfigQuery.data?.data]);
+
   const renameCascade = useMemo(() => {
     const instance = props.instance;
     if (!instance) {
@@ -1009,51 +1019,46 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     }
     const nextName = form.values.name.trim();
     const nameChanged = Boolean(nextName) && nextName !== instance.name;
-    const oldImpliedDefault = (
-      impliedInstanceModelId(instance) ?? instance.name
-    ).replace(/\.gguf$/i, "");
+    const oldImpliedDefault = stripGgufSuffix(
+      impliedInstanceModelId(instance) ?? instance.name,
+    );
     const oldDefaults = new Set([oldImpliedDefault, instance.name]);
     const newImplied = draftPreview.input
       ? impliedInstanceModelId(draftPreview.input)
       : null;
-    const newDefault = (newImplied ?? nextName).replace(/\.gguf$/i, "");
+    const newDefault = stripGgufSuffix(newImplied ?? nextName);
     const renameTo = (current: string) =>
       current === oldImpliedDefault ? newDefault : nextName;
-    const proxyConfig = proxyConfigQuery.data?.data;
-    const refs = computeInstanceProxyRefs(instance.name, {
-      targets: proxyConfig?.targets ?? [],
-      models: proxyConfig?.models ?? [],
-      pipelines: proxyConfig?.pipelines ?? [],
-    });
-    const referencingTargets = refs.referencingTargets;
-    const referencingModels = refs.boundModels;
     const suggestRename = Boolean(nextName) && Boolean(newDefault);
-    const targetRenames = suggestRename
-      ? referencingTargets
-          .filter(
-            (target) =>
-              oldDefaults.has(target.name) &&
-              target.name !== renameTo(target.name),
-          )
-          .map((target) => ({
-            id: target.id,
-            from: target.name,
-            to: renameTo(target.name),
-          }))
-      : [];
-    const modelRenames = suggestRename
-      ? referencingModels
-          .filter(
-            (model) =>
-              oldDefaults.has(model.modelId) &&
-              model.modelId !== renameTo(model.modelId),
-          )
-          .map((model) => ({
-            id: model.id,
-            from: model.modelId,
-            to: renameTo(model.modelId),
-          }))
-      : [];
+    const renamesFor = <T>(
+      items: T[],
+      id: (item: T) => string,
+      current: (item: T) => string,
+    ) =>
+      suggestRename
+        ? items
+            .filter(
+              (item) =>
+                oldDefaults.has(current(item)) &&
+                current(item) !== renameTo(current(item)),
+            )
+            .map((item) => ({
+              id: id(item),
+              from: current(item),
+              to: renameTo(current(item)),
+            }))
+        : [];
+    const referencingTargets = proxyBindings?.referencingTargets ?? [];
+    const targetRenames = renamesFor(
+      referencingTargets,
+      (target) => target.id,
+      (target) => target.name,
+    );
+    const modelRenames = renamesFor(
+      proxyBindings?.boundModels ?? [],
+      (model) => model.id,
+      (model) => model.modelId,
+    );
     if (
       !nameChanged &&
       targetRenames.length === 0 &&
@@ -1068,12 +1073,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       targetRenames,
       modelRenames,
     };
-  }, [
-    props.instance,
-    form.values.name,
-    draftPreview.input,
-    proxyConfigQuery.data?.data,
-  ]);
+  }, [props.instance, form.values.name, draftPreview.input, proxyBindings]);
 
   function setRenameSkip(key: string, skip: boolean) {
     setRenameSkips((current) => ({ ...current, [key]: skip }));
@@ -1581,32 +1581,23 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     onSuccess: async (result) => {
       const created = result.data;
       props.onSaved?.(created);
-      const proxyRenameFailures: string[] = [];
-      if (isEdit && renameCascade) {
-        for (const item of renameCascade.targetRenames) {
-          if (renameSkips[`target:${item.id}`]) {
-            continue;
-          }
-          try {
-            await updateApiProxyTarget(item.id, { name: item.to });
-          } catch (error) {
-            proxyRenameFailures.push(
-              `target ${item.from}: ${(error as Error).message}`,
-            );
-          }
-        }
-        for (const item of renameCascade.modelRenames) {
-          if (renameSkips[`model:${item.id}`]) {
-            continue;
-          }
-          try {
-            await updateApiProxyModel(item.id, { modelId: item.to });
-          } catch (error) {
-            proxyRenameFailures.push(
-              `model ${item.from}: ${(error as Error).message}`,
-            );
-          }
-        }
+      let proxyRenameFailures: string[] = [];
+      if (renameCascade) {
+        proxyRenameFailures = await runProxyCascade(
+          [
+            ...renameCascade.targetRenames.map((item) => ({
+              key: `target:${item.id}`,
+              label: `target ${item.from}`,
+              run: () => updateApiProxyTarget(item.id, { name: item.to }),
+            })),
+            ...renameCascade.modelRenames.map((item) => ({
+              key: `model:${item.id}`,
+              label: `model ${item.from}`,
+              run: () => updateApiProxyModel(item.id, { modelId: item.to }),
+            })),
+          ],
+          renameSkips,
+        );
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["api-proxy-config"] }),
           queryClient.invalidateQueries({

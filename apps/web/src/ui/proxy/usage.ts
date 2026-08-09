@@ -75,6 +75,10 @@ export function pipelineOutgoingRefs(
 export function computeProxyUsage(
   models: ApiProxyModelRecord[],
   pipelines: ApiProxyPipelineRecord[],
+  outgoingByPipeline?: Map<
+    string,
+    Array<{ ref: ApiProxyPortRef; via: string }>
+  >,
 ): ProxyUsageIndex {
   const byTargetId = new Map<string, ProxyUsageRef[]>();
   const byPipelineId = new Map<string, ProxyUsageRef[]>();
@@ -101,7 +105,9 @@ export function computeProxyUsage(
       label: pipeline.name,
       enabled: pipeline.enabled,
     };
-    for (const outgoing of pipelineOutgoingRefs(pipeline)) {
+    const outgoingRefs =
+      outgoingByPipeline?.get(pipeline.id) ?? pipelineOutgoingRefs(pipeline);
+    for (const outgoing of outgoingRefs) {
       if (outgoing.ref.id === pipeline.id) {
         continue;
       }

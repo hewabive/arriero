@@ -3,23 +3,8 @@ import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { listInstanceRecords, writeInstanceRecord } from "./config-files.js";
-
-function removeRpcWorkerRefs(name: string): void {
-  const referencesInstance = (ref: {
-    nodeId: string | null;
-    instanceName: string;
-  }) => !ref.nodeId && ref.instanceName === name;
-  for (const record of listInstanceRecords()) {
-    if (!record.rpcWorkers.some(referencesInstance)) {
-      continue;
-    }
-    writeInstanceRecord({
-      ...record,
-      rpcWorkers: record.rpcWorkers.filter((ref) => !referencesInstance(ref)),
-    });
-  }
-}
+import { instanceLogFilePattern } from "../process/log-paths.js";
+import { rewriteLocalRpcWorkerRefs } from "./config-files.js";
 
 function removeSlotsDir(name: string): void {
   const dir = resolve(config.slotsDir, name);
@@ -33,15 +18,9 @@ function removeSlotsDir(name: string): void {
   }
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function removeLogFiles(name: string, recordedPaths: string[]): void {
   const paths = new Set(recordedPaths);
-  const filePattern = new RegExp(
-    `^${escapeRegExp(name)}-\\d+\\.(?:raw\\.)?log$`,
-  );
+  const filePattern = instanceLogFilePattern(name);
   if (existsSync(config.logsDir)) {
     for (const entry of readdirSync(config.logsDir)) {
       if (filePattern.test(entry)) {
@@ -62,7 +41,7 @@ export function cleanupDeletedInstance(
   name: string,
   recordedLogPaths: string[],
 ): void {
-  removeRpcWorkerRefs(name);
+  rewriteLocalRpcWorkerRefs(name, () => null);
   removeSlotsDir(name);
   removeLogFiles(name, recordedLogPaths);
 }

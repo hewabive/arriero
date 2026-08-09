@@ -82,6 +82,18 @@ export const ApiEndpointKindSchema = z.enum([
   "external-api",
 ]);
 
+const INSTANCE_ENDPOINT_PREFIX = "instance:";
+
+export function instanceEndpointId(instanceId: string): string {
+  return `${INSTANCE_ENDPOINT_PREFIX}${instanceId}`;
+}
+
+export function instanceIdFromEndpointId(endpointId: string): string | null {
+  return endpointId.startsWith(INSTANCE_ENDPOINT_PREFIX)
+    ? endpointId.slice(INSTANCE_ENDPOINT_PREFIX.length)
+    : null;
+}
+
 export const ApiEndpointConfigSchema = z.object({
   id: ApiEndpointIdSchema,
   name: ApiEndpointNameSchema,
