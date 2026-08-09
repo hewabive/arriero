@@ -136,8 +136,6 @@ export const SourceSyncReportSchema = z.object({
   sections: z.array(SourceSyncSectionSchema),
 });
 
-export const LlamaSourceSyncDivergenceSchema = SourceSyncDivergenceSchema;
-export const LlamaSourceSyncSectionSchema = SourceSyncSectionSchema;
 export const LlamaSourceSyncReportSchema = SourceSyncReportSchema.extend({
   llamaCppCommit: z.string().nullable(),
 });
@@ -176,10 +174,4 @@ export type SourceSyncReportStatus = z.infer<
   typeof SourceSyncReportStatusSchema
 >;
 export type SourceSyncReport = z.infer<typeof SourceSyncReportSchema>;
-export type LlamaSourceSyncDivergence = z.infer<
-  typeof LlamaSourceSyncDivergenceSchema
->;
-export type LlamaSourceSyncSection = z.infer<
-  typeof LlamaSourceSyncSectionSchema
->;
 export type LlamaSourceSyncReport = z.infer<typeof LlamaSourceSyncReportSchema>;

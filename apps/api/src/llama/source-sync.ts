@@ -2,9 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type {
-  LlamaSourceSyncDivergence,
   LlamaSourceSyncReport,
-  LlamaSourceSyncSection,
+  SourceSyncDivergence,
+  SourceSyncSection,
 } from "@arriero/core";
 import { RPC_SERVER_SUPPORTED_FLAGS } from "@arriero/core";
 
@@ -89,10 +89,8 @@ function methodsByPath(routes: SourceRoute[]): Map<string, Set<string>> {
   return map;
 }
 
-function reconcileCapabilityEndpoints(
-  repoPath: string,
-): LlamaSourceSyncSection {
-  const base: Omit<LlamaSourceSyncSection, "status" | "summary" | "error"> & {
+function reconcileCapabilityEndpoints(repoPath: string): SourceSyncSection {
+  const base: Omit<SourceSyncSection, "status" | "summary" | "error"> & {
     sourcePath: string;
   } = {
     id: "capability-endpoints",
@@ -146,7 +144,7 @@ function reconcileCapabilityEndpoints(
   const sourcePaths = new Set(routes.map((route) => route.path));
   const pathMethods = methodsByPath(routes);
 
-  const divergences: LlamaSourceSyncDivergence[] = [];
+  const divergences: SourceSyncDivergence[] = [];
 
   for (const [path, methods] of [...pathMethods.entries()].sort(([a], [b]) =>
     a.localeCompare(b),
@@ -242,7 +240,7 @@ export function parseRpcServerUsageFlags(source: string): RpcServerUsageFlag[] {
 
 export function rpcServerFlagDivergences(
   sourceFlags: RpcServerUsageFlag[],
-): LlamaSourceSyncDivergence[] {
+): SourceSyncDivergence[] {
   const supportedByLong = new Map(
     RPC_SERVER_SUPPORTED_FLAGS.map((flag) => [flag.long, flag]),
   );
@@ -252,7 +250,7 @@ export function rpcServerFlagDivergences(
       .filter((long): long is string => long !== null),
   );
 
-  const divergences: LlamaSourceSyncDivergence[] = [];
+  const divergences: SourceSyncDivergence[] = [];
 
   for (const flag of [...sourceFlags].sort((a, b) =>
     (a.long ?? a.short ?? "").localeCompare(b.long ?? b.short ?? ""),
@@ -283,14 +281,14 @@ export function rpcServerFlagDivergences(
   return divergences;
 }
 
-function reconcileRpcServerFlags(repoPath: string): LlamaSourceSyncSection {
+function reconcileRpcServerFlags(repoPath: string): SourceSyncSection {
   const base = {
     id: "rpc-server-flags",
     title: "RPC server flags",
     description:
       "rpc-server CLI flags vs the rpc-worker settings form's known flags.",
     sourcePath: rpcServerSourceCandidates[0]!,
-    divergences: [] as LlamaSourceSyncDivergence[],
+    divergences: [] as SourceSyncDivergence[],
   };
 
   const sourceFile = rpcServerSourcePath(repoPath);
@@ -343,14 +341,14 @@ function reconcileRpcServerFlags(repoPath: string): LlamaSourceSyncSection {
   };
 }
 
-function reconcileArgumentHelp(): LlamaSourceSyncSection {
+function reconcileArgumentHelp(): SourceSyncSection {
   const base = {
     id: "argument-help",
     title: "llama-server argument help",
     description:
       "Stored argument help snapshot vs the llama.cpp tools/server/README.md HELP block.",
     sourcePath: "tools/server/README.md",
-    divergences: [] as LlamaSourceSyncDivergence[],
+    divergences: [] as SourceSyncDivergence[],
   };
 
   const help = getLlamaArgumentHelpSourceSync();

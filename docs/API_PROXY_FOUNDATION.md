@@ -25,9 +25,9 @@ The second expected case is API adaptation: accepting one API shape and forwardi
 
 - Core proxy contracts in `packages/core`:
   - `ApiEndpointConfig`
-  - `ApiProxyTargetConfig`
+  - `ApiProxyTargetRecord`
   - `ApiProxyRouteConfig`
-  - `ApiProxyModelConfig`
+  - `ApiProxyModelRecord`
   - `ApiProxyTargetRuntime`
   - `ApiProxySchedulerPlanRequest`
   - `ApiProxySchedulerPlan`

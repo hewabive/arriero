@@ -1,6 +1,5 @@
 import {
   ApiProxyConfigSchema,
-  ApiProxyModelConfigSchema,
   ApiProxyModelCreateSchema,
   ApiProxyModelRecordSchema,
   ApiProxyModelUpdateSchema,
@@ -9,7 +8,6 @@ import {
   ApiProxyPipelineRecordSchema,
   ApiProxyPipelineUpdateSchema,
   ApiProxyQuickRouteCreateSchema,
-  ApiProxyTargetConfigSchema,
   ApiProxyTargetCreateSchema,
   ApiProxyTargetRecordSchema,
   ApiProxyTargetUpdateSchema,
@@ -187,7 +185,7 @@ export function updateApiProxyTarget(
     return null;
   }
   const parsed = ApiProxyTargetUpdateSchema.parse(input);
-  const merged = ApiProxyTargetConfigSchema.parse({
+  const merged = ApiProxyTargetRecordSchema.parse({
     ...current,
     ...parsed,
     id: current.id,
@@ -271,7 +269,7 @@ export function updateApiProxyModel(
     return null;
   }
   const parsed = ApiProxyModelUpdateSchema.parse(input);
-  const merged = ApiProxyModelConfigSchema.parse({
+  const merged = ApiProxyModelRecordSchema.parse({
     ...current,
     ...parsed,
     id: current.id,

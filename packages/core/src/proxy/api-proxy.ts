@@ -62,7 +62,7 @@ export const ApiProxyRouteToSchema = z.discriminatedUnion("type", [
 
 const ApiProxyPipelineNameSchema = z.string().min(1).max(80);
 
-export const ApiProxyTargetConfigSchema = z.object({
+export const ApiProxyTargetRecordSchema = z.object({
   id: ApiProxyIdSchema,
   name: ApiProxyTargetNameSchema,
   endpointId: ApiEndpointIdSchema,
@@ -75,7 +75,7 @@ export const ApiProxyTargetConfigSchema = z.object({
   idleUnloadMs: ApiProxyTargetIdleMsSchema.default(null),
 });
 
-export const ApiProxyModelConfigSchema = z.object({
+export const ApiProxyModelRecordSchema = z.object({
   id: ApiProxyIdSchema,
   modelId: ApiProxyModelIdSchema,
   visible: z.boolean().default(false),
@@ -111,7 +111,7 @@ const ApiProxyPipelineConfigBaseSchema = z.object({
 
 export const ApiProxyPipelineConfigSchema = ApiProxyPipelineConfigBaseSchema;
 
-export const ApiProxyTargetCreateSchema = ApiProxyTargetConfigSchema.omit({
+export const ApiProxyTargetCreateSchema = ApiProxyTargetRecordSchema.omit({
   id: true,
 });
 
@@ -127,7 +127,7 @@ export const ApiProxyTargetUpdateSchema = z.object({
   idleUnloadMs: ApiProxyTargetIdleMsSchema.optional(),
 });
 
-export const ApiProxyModelCreateSchema = ApiProxyModelConfigSchema.omit({
+export const ApiProxyModelCreateSchema = ApiProxyModelRecordSchema.omit({
   id: true,
 });
 
@@ -153,8 +153,6 @@ export const ApiProxyPipelineUpdateSchema = z.object({
   nodes: z.array(ApiProxyPipelineNodeSchema).max(200).optional(),
 });
 
-export const ApiProxyTargetRecordSchema = ApiProxyTargetConfigSchema;
-
 export const ApiProxyServeProtocolSchema = z.enum(["openai", "anthropic"]);
 
 export const ApiProxyServeRequestSchema = z.object({
@@ -170,8 +168,6 @@ export const ApiProxyServeRequestSchema = z.object({
   slotIds: ApiProxyTargetSlotIdsSchema.default([]),
   body: z.unknown(),
 });
-
-export const ApiProxyModelRecordSchema = ApiProxyModelConfigSchema;
 
 export const ApiProxyPipelineRecordSchema = ApiProxyPipelineConfigBaseSchema;
 
@@ -600,7 +596,7 @@ export const ApiProxyTargetPlanCapabilitiesSchema = z
   })
   .default({ modelLoadUnload: true, slotSave: true });
 
-export const ApiProxyTargetPlanInputSchema = ApiProxyTargetConfigSchema.extend({
+export const ApiProxyTargetPlanInputSchema = ApiProxyTargetRecordSchema.extend({
   instanceId: z.string().min(1).nullable().default(null),
   runtime: ApiProxyTargetRuntimeSchema.optional(),
   draws: z.array(InstanceMemoryDrawSchema).default([]),
@@ -667,7 +663,6 @@ export type ApiProxyRouteExplainRequest = z.infer<
 export type ApiProxyRouteExplainResult = z.infer<
   typeof ApiProxyRouteExplainResultSchema
 >;
-export type ApiProxyTargetConfig = z.infer<typeof ApiProxyTargetConfigSchema>;
 export type ApiProxyTargetCreate = z.infer<typeof ApiProxyTargetCreateSchema>;
 export type ApiProxyTargetUpdate = z.infer<typeof ApiProxyTargetUpdateSchema>;
 export type ApiProxyPipelineConfig = z.infer<
@@ -679,7 +674,6 @@ export type ApiProxyPipelineCreate = z.infer<
 export type ApiProxyPipelineUpdate = z.infer<
   typeof ApiProxyPipelineUpdateSchema
 >;
-export type ApiProxyModelConfig = z.infer<typeof ApiProxyModelConfigSchema>;
 export type ApiProxyModelCreate = z.infer<typeof ApiProxyModelCreateSchema>;
 export type ApiProxyModelUpdate = z.infer<typeof ApiProxyModelUpdateSchema>;
 export type ApiProxyTargetRecord = z.infer<typeof ApiProxyTargetRecordSchema>;

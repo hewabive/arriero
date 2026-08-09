@@ -53,7 +53,7 @@ pnpm workspace, Node 24+, ESM throughout. **Relative imports use `.js` extension
 resolution) even though sources are `.ts`.
 
 - `packages/core` — the contract layer. All request/response shapes and shared types are Zod schemas
-  exported from `src/index.ts` (e.g. `InstanceCreateSchema`, `ApiProxyTargetConfig`, `RuntimeState`).
+  exported from `src/index.ts` (e.g. `InstanceCreateSchema`, `ApiProxyTargetRecord`, `RuntimeState`).
   Both api and web import from `@arriero/core`; treat it as the single source of truth and add new
   shapes here first. Per-`InstanceKind` engine specifics (probe/log-parser/preflight/estimator/
   arg-catalog-parser/argv-builder ids, `nativeApi` gating the web llama panels, proxy capability
