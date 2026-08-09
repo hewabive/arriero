@@ -58,6 +58,32 @@ export function createProcessRun(input: {
   return id;
 }
 
+export function renameProcessRunsInstance(from: string, to: string): void {
+  if (from === to) {
+    return;
+  }
+  db.update(processRuns)
+    .set({ instanceId: to })
+    .where(eq(processRuns.instanceId, from))
+    .run();
+}
+
+export function openProcessRunForInstance(
+  instanceId: string,
+): ProcessRun | null {
+  return (
+    db
+      .select()
+      .from(processRuns)
+      .where(
+        sql`${processRuns.instanceId} = ${instanceId} AND ${openRunPredicate}`,
+      )
+      .orderBy(desc(processRuns.startedAt))
+      .limit(1)
+      .get() ?? null
+  );
+}
+
 export function deleteProcessRunsForInstance(instanceId: string): {
   deleted: number;
 } {

@@ -6,10 +6,7 @@ import type {
 } from "@arriero/core";
 import { engineDescriptor, InstanceConfigRecordSchema } from "@arriero/core";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
-import {
-  deleteMemoryAssessmentForInstance,
-  renameMemoryAssessmentInstance,
-} from "../memory-assessment/repository.js";
+import { deleteMemoryAssessmentForInstance } from "../memory-assessment/repository.js";
 import {
   deleteProcessRunsForInstance,
   latestProcessRun,
@@ -22,6 +19,10 @@ import {
   removeInstanceRecord,
   writeInstanceRecord,
 } from "./config-files.js";
+import {
+  assertInstanceRenameAllowed,
+  cascadeInstanceRename,
+} from "./rename.js";
 
 export class InstanceNameConflictError extends Error {
   constructor(name: string) {
@@ -159,8 +160,11 @@ export function updateInstance(
   }
 
   const nextName = input.name ?? current.name;
-  if (nextName !== current.name && findInstanceRecordByName(nextName)) {
-    throw new InstanceNameConflictError(nextName);
+  if (nextName !== current.name) {
+    if (findInstanceRecordByName(nextName)) {
+      throw new InstanceNameConflictError(nextName);
+    }
+    assertInstanceRenameAllowed(current.name);
   }
 
   const nextRefId = input.binaryPathRefId ?? current.binaryPathRefId;
@@ -194,7 +198,7 @@ export function updateInstance(
 
   const validated = validateRecord(record);
   writeInstanceRecord(validated, current.name);
-  renameMemoryAssessmentInstance(current.name, validated.name);
+  cascadeInstanceRename(current.name, validated.name);
   return toInstance(validated);
 }
 

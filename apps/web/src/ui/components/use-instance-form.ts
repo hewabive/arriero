@@ -5,6 +5,7 @@ import {
   engineDescriptor,
   ggufModelRole,
   ggufPoolingTypeLabel,
+  impliedInstanceModelId,
   pathCatalogBinaryEngineKind,
   type Instance,
   type InstanceCreate,
@@ -28,6 +29,7 @@ import {
   bindInstanceMemoryAssessment,
   createInstance,
   estimateInstanceMemory,
+  getApiProxyConfig,
   getDefaultLlamaServerBinary,
   getLlamaArgumentDefaults,
   getLlamaArguments,
@@ -39,9 +41,12 @@ import {
   previewInstancePreflight,
   startInstance,
   startRpcWorker,
+  updateApiProxyModel,
+  updateApiProxyTarget,
   updateInstance,
 } from "../../api/client";
 import { useScannedModels } from "../hooks/use-scanned-models";
+import { computeProxyUsage, type ProxyUsageRef } from "../proxy/usage";
 import { createUiId } from "../utils/id";
 import { formatMemoryPoolName } from "../utils/pools";
 import {
@@ -73,6 +78,7 @@ import {
   hasSpecConfig,
   isManagedArgRow,
   duplicateInstanceName,
+  instanceNameFromHfRepo,
   isSecretEnvKey,
   isSelectableInstanceArgument,
   launchModeFromArgs,
@@ -178,6 +184,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   );
   const [numaBindNode, setNumaBindNode] = useState<number | null>(null);
   const [numaInterleaveNodes, setNumaInterleaveNodes] = useState<number[]>([]);
+  const [renameSkips, setRenameSkips] = useState<Record<string, boolean>>({});
   const form = useForm({
     initialValues: {
       name: "local-router",
@@ -658,6 +665,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     }
     initializedFormKeyRef.current = formKey;
     setInitializedFormKey(formKey);
+    setRenameSkips({});
 
     if (seedInstance) {
       const modelPath = argString(seedInstance.args, "--model") || null;
@@ -970,6 +978,107 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     retry: false,
   });
 
+  const proxyConfigQuery = useQuery({
+    queryKey: ["api-proxy-config"],
+    queryFn: getApiProxyConfig,
+    enabled: props.opened && isEdit,
+  });
+
+  const renameCascade = useMemo(() => {
+    const instance = props.instance;
+    if (!instance) {
+      return null;
+    }
+    const nextName = form.values.name.trim();
+    const nameChanged = Boolean(nextName) && nextName !== instance.name;
+    const oldDefault = (
+      impliedInstanceModelId(instance) ?? instance.name
+    ).replace(/\.gguf$/i, "");
+    const newImplied = draftPreview.input
+      ? impliedInstanceModelId(draftPreview.input)
+      : null;
+    const newDefault = (newImplied ?? nextName).replace(/\.gguf$/i, "");
+    const proxyConfig = proxyConfigQuery.data?.data;
+    const oldEndpointId = `instance:${instance.name}`;
+    const referencingTargets = (proxyConfig?.targets ?? []).filter(
+      (target) => target.endpointId === oldEndpointId,
+    );
+    const referencingTargetIds = new Set(
+      referencingTargets.map((target) => target.id),
+    );
+    const usage = computeProxyUsage(
+      proxyConfig?.models ?? [],
+      proxyConfig?.pipelines ?? [],
+    );
+    const referencingModelIds = new Set<string>();
+    const pipelineQueue: string[] = [];
+    const seenPipelines = new Set<string>();
+    const enqueueRefs = (refs: ProxyUsageRef[] | undefined) => {
+      for (const ref of refs ?? []) {
+        if (ref.kind === "model") {
+          referencingModelIds.add(ref.id);
+        } else if (!seenPipelines.has(ref.id)) {
+          seenPipelines.add(ref.id);
+          pipelineQueue.push(ref.id);
+        }
+      }
+    };
+    for (const targetId of referencingTargetIds) {
+      enqueueRefs(usage.byTargetId.get(targetId));
+    }
+    while (pipelineQueue.length > 0) {
+      enqueueRefs(usage.byPipelineId.get(pipelineQueue.pop()!));
+    }
+    const referencingModels = (proxyConfig?.models ?? []).filter(
+      (model) =>
+        referencingModelIds.has(model.id) ||
+        (model.routeTo?.type === "endpoint" &&
+          model.routeTo.endpointId === oldEndpointId),
+    );
+    const suggestRename = Boolean(nextName) && newDefault !== oldDefault;
+    const targetRenames = suggestRename
+      ? referencingTargets
+          .filter((target) => target.name === oldDefault)
+          .map((target) => ({
+            id: target.id,
+            from: target.name,
+            to: newDefault,
+          }))
+      : [];
+    const modelRenames = suggestRename
+      ? referencingModels
+          .filter((model) => model.modelId === oldDefault)
+          .map((model) => ({
+            id: model.id,
+            from: model.modelId,
+            to: newDefault,
+          }))
+      : [];
+    if (
+      !nameChanged &&
+      targetRenames.length === 0 &&
+      modelRenames.length === 0
+    ) {
+      return null;
+    }
+    return {
+      nameChanged,
+      instanceStatus: instance.status,
+      referencingTargetCount: referencingTargets.length,
+      targetRenames,
+      modelRenames,
+    };
+  }, [
+    props.instance,
+    form.values.name,
+    draftPreview.input,
+    proxyConfigQuery.data?.data,
+  ]);
+
+  function setRenameSkip(key: string, skip: boolean) {
+    setRenameSkips((current) => ({ ...current, [key]: skip }));
+  }
+
   const estimateArgs = draftPreview.input?.args ?? null;
   const estimateArgsKey = draftPreview.input
     ? JSON.stringify({
@@ -1261,6 +1370,20 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     }
   }
 
+  function nameFollowsModelSource(current: string): boolean {
+    if (!current || current === "local-server" || current === "local-router") {
+      return true;
+    }
+    if (
+      selectedModelPath &&
+      current === instanceNameFromModelPath(selectedModelPath)
+    ) {
+      return true;
+    }
+    const hfName = hfRepoValue ? instanceNameFromHfRepo(hfRepoValue) : "";
+    return Boolean(hfName) && current === hfName;
+  }
+
   function applyModelSelection(modelPath: string | null) {
     const modelChanged = modelPath !== selectedModelPath;
     setLaunchMode("model");
@@ -1283,13 +1406,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       ]);
       return next;
     });
-    if (
-      !isEdit &&
-      modelPath &&
-      (!form.values.name ||
-        form.values.name === "local-server" ||
-        form.values.name === "local-router")
-    ) {
+    if (modelPath && nameFollowsModelSource(form.values.name)) {
       form.setFieldValue("name", instanceNameFromModelPath(modelPath));
     }
   }
@@ -1309,18 +1426,8 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         ? upsertArgRow(rows, "--hf-repo", trimmed, "string")
         : removeArgRow(rows, "--hf-repo"),
     );
-    const base = trimmed.split(":")[0] ?? trimmed;
-    const name = (base.split("/").filter(Boolean).pop() ?? "").replace(
-      /\.gguf$/i,
-      "",
-    );
-    if (
-      !isEdit &&
-      name &&
-      (!form.values.name ||
-        form.values.name === "local-server" ||
-        form.values.name === "local-router")
-    ) {
+    const name = instanceNameFromHfRepo(trimmed);
+    if (name && nameFollowsModelSource(form.values.name)) {
       form.setFieldValue("name", name);
     }
   }
@@ -1466,6 +1573,39 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     onSuccess: async (result) => {
       const created = result.data;
       props.onSaved?.(created);
+      const proxyRenameFailures: string[] = [];
+      if (isEdit && renameCascade) {
+        for (const item of renameCascade.targetRenames) {
+          if (renameSkips[`target:${item.id}`]) {
+            continue;
+          }
+          try {
+            await updateApiProxyTarget(item.id, { name: item.to });
+          } catch (error) {
+            proxyRenameFailures.push(
+              `target ${item.from}: ${(error as Error).message}`,
+            );
+          }
+        }
+        for (const item of renameCascade.modelRenames) {
+          if (renameSkips[`model:${item.id}`]) {
+            continue;
+          }
+          try {
+            await updateApiProxyModel(item.id, { modelId: item.to });
+          } catch (error) {
+            proxyRenameFailures.push(
+              `model ${item.from}: ${(error as Error).message}`,
+            );
+          }
+        }
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["api-proxy-config"] }),
+          queryClient.invalidateQueries({
+            queryKey: ["api-proxy-target-models"],
+          }),
+        ]);
+      }
       let assessmentWarning: string | null = null;
       if (memoryEstimate?.assessmentId) {
         try {
@@ -1526,6 +1666,14 @@ export function useInstanceForm(props: InstanceFormModalProps) {
           ...notification,
           color: "yellow",
           message: `${notification.message}. Memory assessment was not attached: ${assessmentWarning}`,
+        };
+      }
+
+      if (proxyRenameFailures.length > 0 && notification.color !== "red") {
+        notification = {
+          ...notification,
+          color: "yellow",
+          message: `${notification.message}. Proxy renames failed: ${proxyRenameFailures.join("; ")}`,
         };
       }
 
@@ -1841,6 +1989,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       ? ((memoryEstimateMutation.error as Error)?.message ??
         "Failed to estimate memory")
       : null,
+    renameCascade,
+    renameSkips,
+    setRenameSkip,
     submit,
   };
 }

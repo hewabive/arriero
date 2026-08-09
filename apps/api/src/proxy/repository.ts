@@ -27,6 +27,7 @@ import {
 import { newId } from "../utils/id.js";
 import { sortedByKey } from "../utils/sort.js";
 import { readCollection, writeCollection } from "./config-files.js";
+import { instanceEndpointId } from "./endpoints.js";
 import { deleteApiProxyRuntimeMetadata } from "./runtime-metadata-store.js";
 
 export {
@@ -82,6 +83,44 @@ export function rewriteApiProxyCollections(
   if (files.includes(TARGETS_FILE)) persistTargets(readTargets());
   if (files.includes(MODELS_FILE)) persistModels(readModels());
   if (files.includes(PIPELINES_FILE)) persistPipelines(readPipelines());
+}
+
+export function renameApiProxyInstanceEndpointRefs(
+  fromInstanceName: string,
+  toInstanceName: string,
+): { targets: number; models: number } {
+  const fromId = instanceEndpointId(fromInstanceName);
+  const toId = instanceEndpointId(toInstanceName);
+
+  const targets = readTargets();
+  const targetCount = targets.filter(
+    (target) => target.endpointId === fromId,
+  ).length;
+  if (targetCount > 0) {
+    persistTargets(
+      targets.map((target) =>
+        target.endpointId === fromId ? { ...target, endpointId: toId } : target,
+      ),
+    );
+  }
+
+  const models = readModels();
+  const modelCount = models.filter(
+    (model) =>
+      model.routeTo?.type === "endpoint" && model.routeTo.endpointId === fromId,
+  ).length;
+  if (modelCount > 0) {
+    persistModels(
+      models.map((model) =>
+        model.routeTo?.type === "endpoint" &&
+        model.routeTo.endpointId === fromId
+          ? { ...model, routeTo: { ...model.routeTo, endpointId: toId } }
+          : model,
+      ),
+    );
+  }
+
+  return { targets: targetCount, models: modelCount };
 }
 
 export function listApiProxyTargets(): ApiProxyTargetRecord[] {

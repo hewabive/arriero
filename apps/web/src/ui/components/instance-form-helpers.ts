@@ -200,3 +200,8 @@ export function duplicateInstanceName(
   }
   return candidate;
 }
+
+export function instanceNameFromHfRepo(repo: string) {
+  const base = repo.split(":")[0] ?? repo;
+  return (base.split("/").filter(Boolean).pop() ?? "").replace(/\.gguf$/i, "");
+}

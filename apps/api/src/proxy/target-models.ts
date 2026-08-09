@@ -1,69 +1,18 @@
-import { basename } from "node:path";
-
 import {
   ApiProxyTargetModelCatalogSchema,
   type ApiEndpointRecord,
   type ApiProxyTargetModelCatalog,
   type ApiProxyTargetModelGroup,
   engineDescriptor,
+  impliedInstanceModelId,
   type Instance,
 } from "@arriero/core";
 
 import { listRemoteInstancesByNode } from "../nodes/remote-instances.js";
 import { listApiEndpointCatalog, remoteEndpointId } from "./endpoints.js";
 
-function stringArg(instance: Instance, key: string): string | null {
-  const value = instance.args[key];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function firstStringArg(instance: Instance, key: string): string | null {
-  const value = instance.args[key];
-  if (Array.isArray(value)) {
-    return value.find((item) => item.trim())?.trim() ?? null;
-  }
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-export function isRouterInstance(instance: Instance): boolean {
-  return (
-    Boolean(stringArg(instance, "--models-preset")) &&
-    !stringArg(instance, "--model")
-  );
-}
-
 function instanceOnline(instance: Instance): boolean {
   return instance.status === "running" || instance.status === "stale";
-}
-
-function singleModelId(instance: Instance): string | null {
-  if (instance.engineConfig?.type === "ktransformers") {
-    const model = instance.engineConfig.model;
-    const localPath =
-      model.startsWith("/") ||
-      model.startsWith("./") ||
-      model.startsWith("../");
-    return (
-      instance.engineConfig.servedModelName ??
-      (localPath ? basename(model) : model)
-    );
-  }
-  if (instance.kind === "vllm") {
-    return (
-      firstStringArg(instance, "--served-model-name") ??
-      instance.positionalArgs?.find((item) => item.trim())?.trim() ??
-      null
-    );
-  }
-  if (isRouterInstance(instance)) {
-    return null;
-  }
-  const alias = stringArg(instance, "--alias");
-  if (alias) {
-    return alias;
-  }
-  const model = stringArg(instance, "--model");
-  return model ? basename(model) : null;
 }
 
 function managedGroup(
@@ -72,7 +21,7 @@ function managedGroup(
   endpointId: string,
   endpointName: string,
 ): ApiProxyTargetModelGroup {
-  const implied = singleModelId(instance);
+  const implied = impliedInstanceModelId(instance);
   return {
     endpointId,
     endpointName,

@@ -237,8 +237,14 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   store + in-memory cache; `instances/repository.ts` CRUD). Identity = `name` (filename, charset
   `^[A-Za-z0-9._-]+$`); there is no separate `id` — `name` is the runtime key everywhere
   (`process_runs.instanceId`, supervisor map, proxy endpoint `instance:<name>` / `target.instanceId`,
-  `/api/instances/:id` param). Renaming = changing identity: the file moves but proxy targets
-  referencing the old `instance:<name>` are **not** rewritten (fix them manually). Body = `Instance`
+  `/api/instances/:id` param). Renaming cascades (`instances/rename.ts`): proxy `instance:<name>`
+  refs (target `endpointId`, model `routeTo.endpoint`), local `rpcWorkers[].instanceName`,
+  `process_runs`, memory assessments and `runtime/slots/<name>` follow the new name; a live
+  instance (open process run) refuses rename with 409, and remote `remote:<nodeId>:<name>` refs on
+  other nodes stay stale. The edit form auto-suggests the new name on model change and offers
+  checkbox renames of the referencing target name / public `modelId` — only when the old value
+  still equals its derived default (`impliedInstanceModelId` in core, shared by
+  `proxy/target-models.ts` and the form). Body = `Instance`
   minus runtime `status`/`pid` (derived on read). `binaryPath` is stored inline;
   `binaryPathRefId` (optional) re-resolves against the path catalog on read.
 - `config/settings.json` — `modelScan` / `sourceRepositories` / `build` sections

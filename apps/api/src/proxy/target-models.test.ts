@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { Instance } from "@arriero/core";
+import { isRouterInstance, type Instance } from "@arriero/core";
 
-import {
-  buildApiProxyTargetModelCatalog,
-  isRouterInstance,
-} from "./target-models.js";
+import { buildApiProxyTargetModelCatalog } from "./target-models.js";
 
 function instance(name: string, args: Instance["args"]): Instance {
   return {

@@ -28,6 +28,7 @@ import {
   listInstances,
   updateInstance,
 } from "../instances/repository.js";
+import { InstanceRenameBlockedError } from "../instances/rename.js";
 import { instanceResourceProfiles } from "../instances/resource-profile.js";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { getInstanceHealthSummary } from "../process/health-summary.js";
@@ -354,6 +355,9 @@ export function registerInstanceRoutes(app: Hono) {
       return c.json({ data: instance });
     } catch (error) {
       if (error instanceof InstanceNameConflictError) {
+        return c.json({ error: error.message }, 409);
+      }
+      if (error instanceof InstanceRenameBlockedError) {
         return c.json({ error: error.message }, 409);
       }
       if (error instanceof InstanceConfigValidationError) {

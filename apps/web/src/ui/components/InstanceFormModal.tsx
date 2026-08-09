@@ -22,6 +22,7 @@ import { InstanceFormMemorySection } from "./InstanceFormMemorySection";
 import { InstanceFormModelSection } from "./InstanceFormModelSection";
 import { InstanceFormNumaSection } from "./InstanceFormNumaSection";
 import { InstanceFormPreflightSection } from "./InstanceFormPreflightSection";
+import { InstanceFormRenameSection } from "./InstanceFormRenameSection";
 import { InstanceFormRpcWorkersSection } from "./InstanceFormRpcWorkersSection";
 import { InstanceFormSpecSection } from "./InstanceFormSpecSection";
 import { InstanceFormWorkerEndpointSection } from "./InstanceFormWorkerEndpointSection";
@@ -78,6 +79,7 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
             description="Used as the config file name: letters, digits, dot, underscore, hyphen"
             {...fm.form.getInputProps("name")}
           />
+          <InstanceFormRenameSection fm={fm} />
           <TouchSelect
             label="Binary"
             required
