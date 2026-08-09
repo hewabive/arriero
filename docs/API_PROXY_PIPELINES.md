@@ -66,6 +66,18 @@ target is a pure alias). `null` anywhere means "unwired" and produces a
 
 ## Node types
 
+The node-type universe has one owner:
+`packages/core/src/proxy/pipeline-nodes.ts` declares `PIPELINE_NODE_TYPES` (a
+const tuple compile-time-checked against the `ApiProxyPipelineNodeSchema`
+union) and `PIPELINE_NODE_DESCRIPTORS` — per-type facts (label, color,
+single-next-ness, picker visibility) behind the `pipelineNodeDescriptor`
+accessor — the same one-owner pattern as `engine-descriptor.ts`. The
+route-trace `kind` enum and `apiProxySingleNextNodeTypes` derive from it, and
+the core graph walkers plus the resolver switch in
+`apps/api/src/proxy/pipeline.ts` are `never`-checked, so a node type missing
+from the tuple or descriptors fails compilation instead of falling through
+silently.
+
 Each entry is **`type`** — `config` (output `ports`). Richer configs are detailed
 in the sub-sections below.
 

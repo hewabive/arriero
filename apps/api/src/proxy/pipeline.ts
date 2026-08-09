@@ -4,6 +4,7 @@ import {
   apiProxyTokenScaleEditOperations,
   applyApiProxyTextReplacements,
   applyApiProxyRequestEdits,
+  assertNever,
   resolveApiProxyReasoning,
   type ApiProxyLoopGuardConfig,
   type ApiProxyPipelineNode,
@@ -981,6 +982,8 @@ export async function resolveApiProxyRouteChain(input: {
           routeTrace: state.routeTrace,
         };
       }
+      default:
+        return assertNever(node);
     }
   }
 }
