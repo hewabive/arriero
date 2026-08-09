@@ -49,7 +49,7 @@ function nodeVia(node: ApiProxyPipelineNode, port: string | null): string {
   return port && port !== "next" ? `${name} → ${port}` : name;
 }
 
-function pipelineOutgoingRefs(
+export function pipelineOutgoingRefs(
   pipeline: ApiProxyPipelineRecord,
 ): Array<{ ref: ApiProxyPortRef; via: string }> {
   const refs: Array<{ ref: ApiProxyPortRef; via: string }> = [];

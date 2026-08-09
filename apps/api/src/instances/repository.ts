@@ -10,6 +10,7 @@ import { deleteMemoryAssessmentForInstance } from "../memory-assessment/reposito
 import {
   deleteProcessRunsForInstance,
   latestProcessRun,
+  listProcessRunLogPaths,
 } from "../process/runs-repository.js";
 import { supervisor } from "../process/supervisor.js";
 import {
@@ -19,6 +20,7 @@ import {
   removeInstanceRecord,
   writeInstanceRecord,
 } from "./config-files.js";
+import { cleanupDeletedInstance } from "./delete-cleanup.js";
 import {
   assertInstanceRenameAllowed,
   cascadeInstanceRename,
@@ -203,10 +205,12 @@ export function updateInstance(
 }
 
 export function deleteInstance(name: string): boolean {
+  const recordedLogPaths = listProcessRunLogPaths(name);
   const removed = removeInstanceRecord(name);
   if (removed) {
     deleteProcessRunsForInstance(name);
     deleteMemoryAssessmentForInstance(name);
+    cleanupDeletedInstance(name, recordedLogPaths);
   }
   return removed;
 }

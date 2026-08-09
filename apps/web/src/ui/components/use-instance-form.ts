@@ -46,7 +46,7 @@ import {
   updateInstance,
 } from "../../api/client";
 import { useScannedModels } from "../hooks/use-scanned-models";
-import { computeProxyUsage, type ProxyUsageRef } from "../proxy/usage";
+import { computeInstanceProxyRefs } from "../proxy/instance-refs";
 import { createUiId } from "../utils/id";
 import { formatMemoryPoolName } from "../utils/pools";
 import {
@@ -1020,42 +1020,13 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     const renameTo = (current: string) =>
       current === oldImpliedDefault ? newDefault : nextName;
     const proxyConfig = proxyConfigQuery.data?.data;
-    const oldEndpointId = `instance:${instance.name}`;
-    const referencingTargets = (proxyConfig?.targets ?? []).filter(
-      (target) => target.endpointId === oldEndpointId,
-    );
-    const referencingTargetIds = new Set(
-      referencingTargets.map((target) => target.id),
-    );
-    const usage = computeProxyUsage(
-      proxyConfig?.models ?? [],
-      proxyConfig?.pipelines ?? [],
-    );
-    const referencingModelIds = new Set<string>();
-    const pipelineQueue: string[] = [];
-    const seenPipelines = new Set<string>();
-    const enqueueRefs = (refs: ProxyUsageRef[] | undefined) => {
-      for (const ref of refs ?? []) {
-        if (ref.kind === "model") {
-          referencingModelIds.add(ref.id);
-        } else if (!seenPipelines.has(ref.id)) {
-          seenPipelines.add(ref.id);
-          pipelineQueue.push(ref.id);
-        }
-      }
-    };
-    for (const targetId of referencingTargetIds) {
-      enqueueRefs(usage.byTargetId.get(targetId));
-    }
-    while (pipelineQueue.length > 0) {
-      enqueueRefs(usage.byPipelineId.get(pipelineQueue.pop()!));
-    }
-    const referencingModels = (proxyConfig?.models ?? []).filter(
-      (model) =>
-        referencingModelIds.has(model.id) ||
-        (model.routeTo?.type === "endpoint" &&
-          model.routeTo.endpointId === oldEndpointId),
-    );
+    const refs = computeInstanceProxyRefs(instance.name, {
+      targets: proxyConfig?.targets ?? [],
+      models: proxyConfig?.models ?? [],
+      pipelines: proxyConfig?.pipelines ?? [],
+    });
+    const referencingTargets = refs.referencingTargets;
+    const referencingModels = refs.boundModels;
     const suggestRename = Boolean(nextName) && Boolean(newDefault);
     const targetRenames = suggestRename
       ? referencingTargets

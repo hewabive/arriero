@@ -244,7 +244,11 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   other nodes stay stale. The edit form auto-suggests the new name on model change and offers
   checkbox renames of the referencing target name / public `modelId` — only when the old value
   still equals its derived default (`impliedInstanceModelId` in core, shared by
-  `proxy/target-models.ts` and the form). Body = `Instance`
+  `proxy/target-models.ts` and the form). Deletion cleans up server-side
+  (`instances/delete-cleanup.ts`: local `rpcWorkers` refs, slots dir, log files) and the web delete
+  dialog offers checkbox deletion of proxy records serving only this instance — the dead closure
+  over targets/pipelines/models from `web/src/ui/proxy/instance-refs.ts` (shared with the rename
+  panel); pipelines with other live targets survive and are surfaced as warnings. Body = `Instance`
   minus runtime `status`/`pid` (derived on read). `binaryPath` is stored inline;
   `binaryPathRefId` (optional) re-resolves against the path catalog on read.
 - `config/settings.json` — `modelScan` / `sourceRepositories` / `build` sections

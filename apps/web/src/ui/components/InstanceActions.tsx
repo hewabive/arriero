@@ -6,6 +6,7 @@ import type {
 import {
   ActionIcon,
   Button,
+  Checkbox,
   Code,
   Group,
   Modal,
@@ -14,7 +15,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   Copy,
@@ -25,14 +26,19 @@ import {
   Trash2,
   Triangle,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   ApiError,
+  deleteApiProxyModel,
+  deleteApiProxyPipeline,
+  deleteApiProxyTarget,
   deleteInstance,
+  getApiProxyConfig,
   instanceAction,
   startInstance,
 } from "../../api/client";
+import { computeInstanceProxyRefs } from "../proxy/instance-refs";
 import {
   canOpenLlamaWebUi,
   llamaServerWebUrl,
@@ -40,6 +46,7 @@ import {
   openUrlInNewTab,
 } from "../utils/instance-url";
 import { formatBytes } from "../utils/models";
+import { countLabel } from "../utils/plural";
 
 type InstanceActionName = "start" | "stop" | "restart";
 
@@ -93,6 +100,23 @@ export function InstanceActions(props: {
   const queryClient = useQueryClient();
   const health = props.health;
   const [deleteConfirmOpened, setDeleteConfirmOpened] = useState(false);
+  const [deleteSkips, setDeleteSkips] = useState<Record<string, boolean>>({});
+  const proxyConfigQuery = useQuery({
+    queryKey: ["api-proxy-config"],
+    queryFn: getApiProxyConfig,
+    enabled: deleteConfirmOpened,
+  });
+  const deleteRefs = useMemo(() => {
+    const config = proxyConfigQuery.data?.data;
+    if (!deleteConfirmOpened || !config) {
+      return null;
+    }
+    return computeInstanceProxyRefs(props.instance.name, {
+      targets: config.targets,
+      models: config.models,
+      pipelines: config.pipelines,
+    });
+  }, [deleteConfirmOpened, proxyConfigQuery.data?.data, props.instance.name]);
   const [startConfirm, setStartConfirm] = useState<ResourceAdmission | null>(
     null,
   );
@@ -174,8 +198,48 @@ export function InstanceActions(props: {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteInstance(props.instance.name),
-    onSuccess: async () => {
+    mutationFn: async () => {
+      await deleteInstance(props.instance.name);
+      const failures: string[] = [];
+      if (deleteRefs) {
+        for (const model of deleteRefs.deletableModels) {
+          if (deleteSkips[`model:${model.id}`]) {
+            continue;
+          }
+          try {
+            await deleteApiProxyModel(model.id);
+          } catch (error) {
+            failures.push(
+              `model ${model.modelId}: ${(error as Error).message}`,
+            );
+          }
+        }
+        for (const pipeline of deleteRefs.deletablePipelines) {
+          if (deleteSkips[`pipeline:${pipeline.id}`]) {
+            continue;
+          }
+          try {
+            await deleteApiProxyPipeline(pipeline.id);
+          } catch (error) {
+            failures.push(
+              `pipeline ${pipeline.name}: ${(error as Error).message}`,
+            );
+          }
+        }
+        for (const target of deleteRefs.deletableTargets) {
+          if (deleteSkips[`target:${target.id}`]) {
+            continue;
+          }
+          try {
+            await deleteApiProxyTarget(target.id);
+          } catch (error) {
+            failures.push(`target ${target.name}: ${(error as Error).message}`);
+          }
+        }
+      }
+      return failures;
+    },
+    onSuccess: async (failures) => {
       setDeleteConfirmOpened(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["instances"] }),
@@ -188,7 +252,18 @@ export function InstanceActions(props: {
         queryClient.invalidateQueries({
           queryKey: ["instance-health-summary", props.instance.name],
         }),
+        queryClient.invalidateQueries({ queryKey: ["api-proxy-config"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["api-proxy-target-models"],
+        }),
       ]);
+      if (failures.length > 0) {
+        notifications.show({
+          color: "yellow",
+          title: "Instance deleted, some proxy records remain",
+          message: failures.join("; "),
+        });
+      }
     },
     onError: (error) => {
       notifications.show({
@@ -304,7 +379,10 @@ export function InstanceActions(props: {
             aria-label="Delete instance"
             variant="subtle"
             color="red"
-            onClick={() => setDeleteConfirmOpened(true)}
+            onClick={() => {
+              setDeleteSkips({});
+              setDeleteConfirmOpened(true);
+            }}
             loading={deleteMutation.isPending}
           >
             <Trash2 size={16} />
@@ -321,9 +399,97 @@ export function InstanceActions(props: {
         <Stack gap="sm">
           <Text size="sm">
             This will remove the instance configuration and stop its managed
-            process if one is running.
+            process if one is running. Run history, saved slots and log files
+            are removed with it.
           </Text>
           <Code className="code-wrap">{props.instance.name}</Code>
+          {deleteConfirmOpened && proxyConfigQuery.isLoading && (
+            <Text size="xs" c="dimmed">
+              Checking proxy references...
+            </Text>
+          )}
+          {deleteRefs &&
+            (deleteRefs.deletableTargets.length > 0 ||
+              deleteRefs.deletableModels.length > 0 ||
+              deleteRefs.deletablePipelines.length > 0 ||
+              deleteRefs.keptTargets.length > 0 ||
+              deleteRefs.brokenPipelines.length > 0) && (
+              <Stack gap="xs">
+                <Text size="xs" c="dimmed">
+                  Proxy records serving only this instance can be deleted with
+                  it:
+                </Text>
+                {deleteRefs.deletableTargets.map((target) => (
+                  <Checkbox
+                    key={`target:${target.id}`}
+                    size="xs"
+                    label={`Delete proxy target "${target.name}"`}
+                    checked={!deleteSkips[`target:${target.id}`]}
+                    onChange={(event) => {
+                      const skip = !event.currentTarget.checked;
+                      setDeleteSkips((current) => ({
+                        ...current,
+                        [`target:${target.id}`]: skip,
+                      }));
+                    }}
+                  />
+                ))}
+                {deleteRefs.deletableModels.map((model) => (
+                  <Checkbox
+                    key={`model:${model.id}`}
+                    size="xs"
+                    label={`Delete model "${model.modelId}"`}
+                    description="Drops the public model id from /v1/models"
+                    checked={!deleteSkips[`model:${model.id}`]}
+                    onChange={(event) => {
+                      const skip = !event.currentTarget.checked;
+                      setDeleteSkips((current) => ({
+                        ...current,
+                        [`model:${model.id}`]: skip,
+                      }));
+                    }}
+                  />
+                ))}
+                {deleteRefs.deletablePipelines.map((pipeline) => (
+                  <Checkbox
+                    key={`pipeline:${pipeline.id}`}
+                    size="xs"
+                    label={`Delete pipeline "${pipeline.name}" (${countLabel(pipeline.nodes.length, "node")})`}
+                    description="No other live target is reachable from it"
+                    checked={!deleteSkips[`pipeline:${pipeline.id}`]}
+                    onChange={(event) => {
+                      const skip = !event.currentTarget.checked;
+                      setDeleteSkips((current) => ({
+                        ...current,
+                        [`pipeline:${pipeline.id}`]: skip,
+                      }));
+                    }}
+                  />
+                ))}
+                {deleteRefs.keptTargets.map(({ target, keptBy }) => (
+                  <Text key={`kept-target:${target.id}`} size="xs" c="yellow">
+                    Target "{target.name}" is kept: pipeline {keptBy.join(", ")}{" "}
+                    still routes to it.
+                  </Text>
+                ))}
+                {deleteRefs.keptPipelines.map(({ pipeline, keptBy }) => (
+                  <Text
+                    key={`kept-pipeline:${pipeline.id}`}
+                    size="xs"
+                    c="yellow"
+                  >
+                    Pipeline "{pipeline.name}" is kept: pipeline{" "}
+                    {keptBy.join(", ")} still references it.
+                  </Text>
+                ))}
+                {deleteRefs.brokenPipelines.map((pipeline) => (
+                  <Text key={`broken:${pipeline.id}`} size="xs" c="yellow">
+                    Pipeline "{pipeline.name}" also routes elsewhere; it stays,
+                    but its branch into this instance breaks.
+                  </Text>
+                ))}
+              </Stack>
+            )}
           <Group justify="flex-end" gap="xs">
             <Button
               variant="default"

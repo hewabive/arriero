@@ -84,6 +84,22 @@ export function openProcessRunForInstance(
   );
 }
 
+export function listProcessRunLogPaths(instanceId: string): string[] {
+  const rows = db
+    .select({
+      logPath: processRuns.logPath,
+      rawLogPath: processRuns.rawLogPath,
+    })
+    .from(processRuns)
+    .where(eq(processRuns.instanceId, instanceId))
+    .all();
+  return rows.flatMap((row) =>
+    [row.logPath, row.rawLogPath].filter((path): path is string =>
+      Boolean(path),
+    ),
+  );
+}
+
 export function deleteProcessRunsForInstance(instanceId: string): {
   deleted: number;
 } {
