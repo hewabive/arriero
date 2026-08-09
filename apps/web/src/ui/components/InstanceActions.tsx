@@ -17,6 +17,7 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  Copy,
   ExternalLink,
   Pencil,
   RotateCcw,
@@ -84,6 +85,7 @@ export function InstanceActions(props: {
   instance: Instance;
   health: InstanceHealthSummary | undefined;
   onEdit: () => void;
+  onDuplicate: () => void;
   onOpenDiagnostics?: () => void;
   onLaunchStarted: (instance: Instance, source: "start" | "restart") => void;
   onLaunchStopped: (instance: Instance) => void;
@@ -233,6 +235,15 @@ export function InstanceActions(props: {
             onClick={props.onEdit}
           >
             <Pencil size={16} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Duplicate">
+          <ActionIcon
+            aria-label="Duplicate instance"
+            variant="subtle"
+            onClick={props.onDuplicate}
+          >
+            <Copy size={16} />
           </ActionIcon>
         </Tooltip>
         {props.onOpenDiagnostics && (

@@ -72,6 +72,7 @@ import {
   hasOwnKey,
   hasSpecConfig,
   isManagedArgRow,
+  duplicateInstanceName,
   isSecretEnvKey,
   isSelectableInstanceArgument,
   launchModeFromArgs,
@@ -108,6 +109,7 @@ export type InstanceFormModalProps = {
   onSaved?: (instance: Instance) => void;
   onLaunchStarted?: (instance: Instance, source: "create") => void;
   instance?: Instance | null;
+  duplicateFrom?: Instance | null;
   initialModelPath?: string | null;
 };
 
@@ -189,6 +191,15 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     },
   });
   const isEdit = Boolean(props.instance);
+  const isDuplicate = !props.instance && Boolean(props.duplicateFrom);
+  const seedInstance = props.instance ?? props.duplicateFrom ?? null;
+  const formKey = `${
+    props.instance
+      ? `edit:${props.instance.name}`
+      : props.duplicateFrom
+        ? `duplicate:${props.duplicateFrom.name}`
+        : "new"
+  }:${props.initialModelPath ?? ""}`;
   const resourcesQuery = useQuery({
     queryKey: ["resources"],
     queryFn: getResources,
@@ -612,6 +623,25 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       ? cudaAccelerators.map((accelerator) => accelerator.id)
       : selectedCudaDevices;
 
+  function seedArgRows(seed: Instance) {
+    const rows = argsToRows(seed.args, knownArgByName);
+    const portRaw = rowValue(rows, "--port");
+    if (!isDuplicate || portRaw === "") {
+      return rows;
+    }
+    const sourcePort = Number(portRaw);
+    const startPort =
+      Number.isInteger(sourcePort) && sourcePort > 0 && sourcePort <= 65535
+        ? sourcePort
+        : undefined;
+    return upsertArgRow(
+      rows,
+      "--port",
+      String(nextAvailablePort(props.instances, undefined, startPort)),
+      "number",
+    );
+  }
+
   useEffect(() => {
     if (!props.opened) {
       initializedFormKeyRef.current = null;
@@ -620,80 +650,79 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       return;
     }
 
-    const formKey = `${props.instance?.name ?? "new"}:${props.initialModelPath ?? ""}`;
     if (initializedFormKeyRef.current === formKey) {
       return;
     }
-    if (!props.instance && argumentDefaultsQuery.isLoading) {
+    if (!seedInstance && argumentDefaultsQuery.isLoading) {
       return;
     }
     initializedFormKeyRef.current = formKey;
     setInitializedFormKey(formKey);
 
-    if (props.instance) {
-      const modelPath = argString(props.instance.args, "--model") || null;
+    if (seedInstance) {
+      const modelPath = argString(seedInstance.args, "--model") || null;
       const presetPathValue =
-        argString(props.instance.args, "--models-preset") || null;
+        argString(seedInstance.args, "--models-preset") || null;
       const presetName = presetPathValue
         ? presetNameFromPath(presetPathValue)
         : null;
       form.setValues({
-        name: props.instance.name,
-        envJson: JSON.stringify(props.instance.env, null, 2),
+        name: isDuplicate
+          ? duplicateInstanceName(seedInstance.name, props.instances)
+          : seedInstance.name,
+        envJson: JSON.stringify(seedInstance.env, null, 2),
       });
-      setCustomEnvRows(buildEnvRows(props.instance.env));
+      setCustomEnvRows(buildEnvRows(seedInstance.env));
       setShowEnvRawJson(false);
-      setKind(props.instance.kind);
+      setKind(seedInstance.kind);
       setModelReference(
-        props.instance.engineConfig?.type === "ktransformers"
-          ? props.instance.engineConfig.model
-          : (props.instance.positionalArgs?.[0] ?? ""),
+        seedInstance.engineConfig?.type === "ktransformers"
+          ? seedInstance.engineConfig.model
+          : (seedInstance.positionalArgs?.[0] ?? ""),
       );
       setKTransformersCpuWeights(
-        props.instance.engineConfig?.type === "ktransformers"
-          ? props.instance.engineConfig.cpuWeights
+        seedInstance.engineConfig?.type === "ktransformers"
+          ? seedInstance.engineConfig.cpuWeights
           : "",
       );
       setKTransformersMethod(
-        props.instance.engineConfig?.type === "ktransformers"
-          ? props.instance.engineConfig.method
+        seedInstance.engineConfig?.type === "ktransformers"
+          ? seedInstance.engineConfig.method
           : "FP8",
       );
       setKTransformersServedModelName(
-        props.instance.engineConfig?.type === "ktransformers"
-          ? (props.instance.engineConfig.servedModelName ?? "")
+        seedInstance.engineConfig?.type === "ktransformers"
+          ? (seedInstance.engineConfig.servedModelName ?? "")
           : "",
       );
       setEvictionPolicy(
-        props.instance.scheduling?.evictionPolicy ??
-          engineDescriptor(props.instance.kind).defaultEvictionPolicy,
+        seedInstance.scheduling?.evictionPolicy ??
+          engineDescriptor(seedInstance.kind).defaultEvictionPolicy,
       );
-      setRpcWorkers(props.instance.rpcWorkers);
-      setSelectedBinaryPathRefId(props.instance.binaryPathRefId);
+      setRpcWorkers(seedInstance.rpcWorkers);
+      setSelectedBinaryPathRefId(seedInstance.binaryPathRefId);
       setSelectedModelPath(modelPath);
       setSelectedPresetName(presetName);
-      const mode = launchModeFromArgs(props.instance.args);
+      const mode = launchModeFromArgs(seedInstance.args);
       setLaunchMode(mode);
       if (mode === "remote") {
         setRemoteSource(
-          hasConfiguredArg(props.instance.args, "--model-url") ? "url" : "hf",
+          hasConfiguredArg(seedInstance.args, "--model-url") ? "url" : "hf",
         );
       }
-      setSpecEnabled(hasSpecConfig(props.instance.args));
+      setSpecEnabled(hasSpecConfig(seedInstance.args));
       setSpecSource(
-        hasConfiguredArg(props.instance.args, SPEC_DRAFT_HF_KEY)
-          ? "hf"
-          : "local",
+        hasConfiguredArg(seedInstance.args, SPEC_DRAFT_HF_KEY) ? "hf" : "local",
       );
       setSpecAdvancedOpen(
         SPEC_ADVANCED_KEYS.some((key) =>
-          hasConfiguredArg(props.instance!.args, key),
+          hasConfiguredArg(seedInstance.args, key),
         ),
       );
       setStartAfterCreate(false);
-      setArgRows(argsToRows(props.instance.args, knownArgByName));
-      setMemoryRows(memoryRowsFromDraws(props.instance.memory));
-      const numa = props.instance.numa;
+      setArgRows(seedArgRows(seedInstance));
+      setMemoryRows(memoryRowsFromDraws(seedInstance.memory));
+      const numa = seedInstance.numa;
       setNumaMode(numa?.mode ?? "none");
       setNumaBindNode(numa?.mode === "bind" ? numa.node : null);
       setNumaInterleaveNodes(numa?.mode === "interleave" ? numa.nodes : []);
@@ -728,18 +757,12 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setNumaBindNode(null);
       setNumaInterleaveNodes([]);
     }
-  }, [
-    argumentDefaultsQuery.isLoading,
-    props.opened,
-    props.instance?.name,
-    props.initialModelPath,
-  ]);
+  }, [argumentDefaultsQuery.isLoading, props.opened, formKey]);
 
   useEffect(() => {
-    if (!props.opened || !props.instance || knownArgByName.size === 0) {
+    if (!props.opened || !seedInstance || knownArgByName.size === 0) {
       return;
     }
-    const formKey = `${props.instance.name}:${props.initialModelPath ?? ""}`;
     if (
       initializedFormKeyRef.current !== formKey ||
       catalogNormalizedFormKeyRef.current === formKey
@@ -747,13 +770,13 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       return;
     }
     catalogNormalizedFormKeyRef.current = formKey;
-    setArgRows(argsToRows(props.instance.args, knownArgByName));
-  }, [props.opened, props.instance, props.initialModelPath, knownArgByName]);
+    setArgRows(seedArgRows(seedInstance));
+  }, [props.opened, seedInstance, formKey, knownArgByName]);
 
   useEffect(() => {
     if (
       !props.opened ||
-      props.instance ||
+      seedInstance ||
       selectedBinaryPathRefId ||
       binaryCatalogEntries.length === 0 ||
       defaultBinaryQuery.isLoading
@@ -769,7 +792,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     }
   }, [
     props.opened,
-    props.instance,
+    seedInstance,
     selectedBinaryPathRefId,
     binaryCatalogEntries,
     defaultBinaryQuery.data?.data.refId,
@@ -1669,10 +1692,10 @@ export function useInstanceForm(props: InstanceFormModalProps) {
 
   const waitingForInitialDefaults =
     props.opened &&
-    !props.instance &&
+    !seedInstance &&
     initializedFormKey === null &&
     argumentDefaultsQuery.isLoading;
-  const modalTitle = `${isEdit ? "Edit" : "New"} ${kind} instance`;
+  const modalTitle = `${isEdit ? "Edit" : isDuplicate ? "Duplicate" : "New"} ${kind} instance`;
 
   return {
     form,

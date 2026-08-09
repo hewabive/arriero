@@ -67,6 +67,8 @@ export function App() {
     useDisclosure(false);
   const [createOpened, setCreateOpened] = useState(false);
   const [editingInstance, setEditingInstance] = useState<Instance | null>(null);
+  const [duplicatingInstance, setDuplicatingInstance] =
+    useState<Instance | null>(null);
   const [initialModelPath, setInitialModelPath] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [launchMonitor, setLaunchMonitor] = useState<LaunchMonitor | null>(
@@ -344,6 +346,7 @@ export function App() {
               onSelect={(instance) => setSelectedId(instance.name)}
               onCreate={() => setCreateOpened(true)}
               onEdit={setEditingInstance}
+              onDuplicate={setDuplicatingInstance}
               onOpenDiagnostics={(instance) => {
                 setSelectedId(instance.name);
                 setRoute("diagnostics");
@@ -429,6 +432,14 @@ export function App() {
         onSaved={(instance) => setSelectedId(instance.name)}
         onLaunchStarted={startLaunchMonitor}
         onClose={() => setEditingInstance(null)}
+      />
+      <InstanceFormModal
+        opened={canUseAdmin && Boolean(duplicatingInstance)}
+        instances={instances}
+        duplicateFrom={duplicatingInstance}
+        onSaved={(instance) => setSelectedId(instance.name)}
+        onLaunchStarted={startLaunchMonitor}
+        onClose={() => setDuplicatingInstance(null)}
       />
     </AppShell>
   );

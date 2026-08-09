@@ -359,6 +359,7 @@ export function InstancesView(props: {
   onSelect: (instance: Instance) => void;
   onCreate: () => void;
   onEdit: (instance: Instance) => void;
+  onDuplicate: (instance: Instance) => void;
   onOpenDiagnostics: (instance: Instance) => void;
   onLaunchStarted: (
     instance: Instance,
@@ -422,6 +423,7 @@ export function InstancesView(props: {
                   instance={instance}
                   health={props.healthByInstanceId.get(instance.name)}
                   onEdit={() => props.onEdit(instance)}
+                  onDuplicate={() => props.onDuplicate(instance)}
                   onOpenDiagnostics={() => props.onOpenDiagnostics(instance)}
                   onLaunchStarted={props.onLaunchStarted}
                   onLaunchStopped={props.onLaunchStopped}
@@ -524,6 +526,7 @@ export function InstancesView(props: {
                     instance={instance}
                     health={props.healthByInstanceId.get(instance.name)}
                     onEdit={() => props.onEdit(instance)}
+                    onDuplicate={() => props.onDuplicate(instance)}
                     onOpenDiagnostics={() => props.onOpenDiagnostics(instance)}
                     onLaunchStarted={props.onLaunchStarted}
                     onLaunchStopped={props.onLaunchStopped}

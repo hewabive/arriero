@@ -188,3 +188,15 @@ export function isManagedArgRow(row: ArgRow) {
 export function presetNameFromPath(path: string) {
   return pathBaseName(path).replace(/\.ini$/i, "");
 }
+
+export function duplicateInstanceName(
+  sourceName: string,
+  instances: Instance[],
+) {
+  const taken = new Set(instances.map((instance) => instance.name));
+  let candidate = `${sourceName}-copy`;
+  for (let index = 2; taken.has(candidate); index += 1) {
+    candidate = `${sourceName}-copy-${index}`;
+  }
+  return candidate;
+}
