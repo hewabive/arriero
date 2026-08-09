@@ -185,6 +185,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   const [numaBindNode, setNumaBindNode] = useState<number | null>(null);
   const [numaInterleaveNodes, setNumaInterleaveNodes] = useState<number[]>([]);
   const [renameSkips, setRenameSkips] = useState<Record<string, boolean>>({});
+  const derivedNamesRef = useRef<Set<string>>(new Set());
   const form = useForm({
     initialValues: {
       name: "local-router",
@@ -674,10 +675,24 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       const presetName = presetPathValue
         ? presetNameFromPath(presetPathValue)
         : null;
+      const seededName = isDuplicate
+        ? duplicateInstanceName(seedInstance.name, props.instances)
+        : seedInstance.name;
+      const derivedNames = new Set<string>();
+      if (modelPath) {
+        derivedNames.add(instanceNameFromModelPath(modelPath));
+      }
+      const hfRepo = argString(seedInstance.args, "--hf-repo") || null;
+      const hfName = hfRepo ? instanceNameFromHfRepo(hfRepo) : "";
+      if (hfName) {
+        derivedNames.add(hfName);
+      }
+      if (isDuplicate) {
+        derivedNames.add(seededName);
+      }
+      derivedNamesRef.current = derivedNames;
       form.setValues({
-        name: isDuplicate
-          ? duplicateInstanceName(seedInstance.name, props.instances)
-          : seedInstance.name,
+        name: seededName,
         envJson: JSON.stringify(seedInstance.env, null, 2),
       });
       setCustomEnvRows(buildEnvRows(seedInstance.env));
@@ -737,6 +752,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     } else {
       const modelPath = props.initialModelPath ?? null;
       const port = nextAvailablePort(props.instances);
+      derivedNamesRef.current = new Set(
+        modelPath ? [instanceNameFromModelPath(modelPath)] : [],
+      );
       form.setValues({
         name: modelPath ? instanceNameFromModelPath(modelPath) : "local-server",
         envJson: JSON.stringify({}, null, 2),
@@ -991,13 +1009,16 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     }
     const nextName = form.values.name.trim();
     const nameChanged = Boolean(nextName) && nextName !== instance.name;
-    const oldDefault = (
+    const oldImpliedDefault = (
       impliedInstanceModelId(instance) ?? instance.name
     ).replace(/\.gguf$/i, "");
+    const oldDefaults = new Set([oldImpliedDefault, instance.name]);
     const newImplied = draftPreview.input
       ? impliedInstanceModelId(draftPreview.input)
       : null;
     const newDefault = (newImplied ?? nextName).replace(/\.gguf$/i, "");
+    const renameTo = (current: string) =>
+      current === oldImpliedDefault ? newDefault : nextName;
     const proxyConfig = proxyConfigQuery.data?.data;
     const oldEndpointId = `instance:${instance.name}`;
     const referencingTargets = (proxyConfig?.targets ?? []).filter(
@@ -1035,23 +1056,31 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         (model.routeTo?.type === "endpoint" &&
           model.routeTo.endpointId === oldEndpointId),
     );
-    const suggestRename = Boolean(nextName) && newDefault !== oldDefault;
+    const suggestRename = Boolean(nextName) && Boolean(newDefault);
     const targetRenames = suggestRename
       ? referencingTargets
-          .filter((target) => target.name === oldDefault)
+          .filter(
+            (target) =>
+              oldDefaults.has(target.name) &&
+              target.name !== renameTo(target.name),
+          )
           .map((target) => ({
             id: target.id,
             from: target.name,
-            to: newDefault,
+            to: renameTo(target.name),
           }))
       : [];
     const modelRenames = suggestRename
       ? referencingModels
-          .filter((model) => model.modelId === oldDefault)
+          .filter(
+            (model) =>
+              oldDefaults.has(model.modelId) &&
+              model.modelId !== renameTo(model.modelId),
+          )
           .map((model) => ({
             id: model.id,
             from: model.modelId,
-            to: newDefault,
+            to: renameTo(model.modelId),
           }))
       : [];
     if (
@@ -1374,6 +1403,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     if (!current || current === "local-server" || current === "local-router") {
       return true;
     }
+    if (derivedNamesRef.current.has(current)) {
+      return true;
+    }
     if (
       selectedModelPath &&
       current === instanceNameFromModelPath(selectedModelPath)
@@ -1382,6 +1414,11 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     }
     const hfName = hfRepoValue ? instanceNameFromHfRepo(hfRepoValue) : "";
     return Boolean(hfName) && current === hfName;
+  }
+
+  function followName(next: string) {
+    derivedNamesRef.current.add(next);
+    form.setFieldValue("name", next);
   }
 
   function applyModelSelection(modelPath: string | null) {
@@ -1407,7 +1444,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       return next;
     });
     if (modelPath && nameFollowsModelSource(form.values.name)) {
-      form.setFieldValue("name", instanceNameFromModelPath(modelPath));
+      followName(instanceNameFromModelPath(modelPath));
     }
   }
 
@@ -1428,7 +1465,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     );
     const name = instanceNameFromHfRepo(trimmed);
     if (name && nameFollowsModelSource(form.values.name)) {
-      form.setFieldValue("name", name);
+      followName(name);
     }
   }
 
