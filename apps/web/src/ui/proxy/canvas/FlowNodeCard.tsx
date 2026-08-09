@@ -68,7 +68,7 @@ export function FlowNodeCard(props: NodeProps<FlowNode>) {
   const { data, selected } = props;
   const { deleteElements } = useReactFlow();
   const accent = kindColor(data.kind);
-  const compact = data.kind === "entry" || data.kind.startsWith("ref-");
+  const compact = isRefKind(data.kind);
   const edgeColor = selected
     ? "var(--mantine-color-blue-5)"
     : data.invalid

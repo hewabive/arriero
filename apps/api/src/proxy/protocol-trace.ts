@@ -1,7 +1,8 @@
-import type {
-  ApiProxyRouteTraceStep,
-  ApiProxySchedulerAction,
-  ApiProxyTraceFile,
+import {
+  apiProxyClientAbortErrorCode,
+  type ApiProxyRouteTraceStep,
+  type ApiProxySchedulerAction,
+  type ApiProxyTraceFile,
 } from "@arriero/core";
 import type { Context } from "hono";
 
@@ -101,10 +102,18 @@ export function createProxyTrace(
 
 export function applyTraceDiagnostic(
   trace: ProxyTraceAccumulator,
-  diagnostic: ApiProxyProtocolDiagnostic,
+  diagnostic: { code: string; message: string },
 ): void {
   trace.errorCode = diagnostic.code;
   trace.errorMessage = diagnostic.message;
+}
+
+export function markTraceClientAbort(
+  trace: ProxyTraceAccumulator,
+  message: string,
+): void {
+  trace.errorCode = apiProxyClientAbortErrorCode;
+  trace.errorMessage = message;
 }
 
 export function traceDiagnosticResponse(input: {
@@ -141,6 +150,10 @@ export function errorBodyMessage(body: unknown): string | null {
     }
   }
   return null;
+}
+
+export function upstreamErrorText(text: string): string {
+  return errorBodyMessage(safeJsonParse(text)) ?? text.slice(0, 500);
 }
 
 const SERVER_TIMING_WAIT_MS = 1500;

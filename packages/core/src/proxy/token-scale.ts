@@ -1,4 +1,4 @@
-import type { ApiProxyEditRequestOperation } from "../index.js";
+import type { ApiProxyEditRequestOperation } from "./pipeline-nodes.js";
 
 const requestLimitKeys = [
   "max_tokens",

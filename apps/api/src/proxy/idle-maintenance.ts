@@ -1,6 +1,7 @@
 import {
   ApiProxyPlanPreviewSchema,
   type ApiProxyPlanPreview,
+  type ApiProxySchedulerAction,
   type ApiProxySchedulerPlanRequest,
   type ApiProxyTargetRecord,
 } from "@arriero/core";
@@ -134,14 +135,7 @@ export async function getApiProxyPlanPreview(input: {
   return (await buildApiProxyPlanContext(input)).preview;
 }
 
-function logExecutedIdleAction(action: {
-  type: string;
-  targetId: string;
-  instanceId: string | null;
-  model: string | null;
-  slotId: number | null;
-  reason: string;
-}) {
+function logExecutedIdleAction(action: ApiProxySchedulerAction) {
   logger.info(
     {
       action: action.type,

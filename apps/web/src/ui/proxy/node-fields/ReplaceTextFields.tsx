@@ -16,7 +16,6 @@ import { useEffect, useState } from "react";
 import type { PipelineNodeDraftOf } from "../forms";
 import { useNarrowScreen } from "../../hooks/use-narrow-screen";
 import type { PipelineEditorContext } from "./context";
-import { PortSelect } from "./PortSelect";
 
 const replacementInputStyles = {
   input: { fontFamily: "monospace" },
@@ -278,13 +277,6 @@ export function ReplaceTextFields(props: {
           }
         </Text>
       </Stack>
-      <PortSelect
-        label="Next"
-        ctx={ctx}
-        excludeNodeId={node.id}
-        value={node.portNext}
-        onChange={(portNext) => ctx.updateNode(node.id, { portNext })}
-      />
       <Modal
         opened={detailRule !== null}
         onClose={() => setDetailIndex(null)}

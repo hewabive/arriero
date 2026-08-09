@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { trackedFiles } from "./lib/source-files.mjs";
 
 const root = process.cwd();
 const exampleFile = ".env.example";
@@ -22,25 +22,7 @@ const helperPattern =
   /\b(?:managerEnv|managedPath|envPath)\(\s*"([A-Z0-9_]+)"/g;
 
 function sourceFiles() {
-  return execFileSync(
-    "git",
-    [
-      "ls-files",
-      "--cached",
-      "--others",
-      "--exclude-standard",
-      "*.ts",
-      "*.tsx",
-      "*.mjs",
-    ],
-    {
-      cwd: root,
-      encoding: "utf8",
-      maxBuffer: 32 * 1024 * 1024,
-    },
-  )
-    .split("\n")
-    .filter((line) => line.length > 0);
+  return trackedFiles(root, ["*.ts", "*.tsx", "*.mjs"]);
 }
 
 function variablesReadByCode() {

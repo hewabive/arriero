@@ -1,13 +1,11 @@
 import type { z } from "zod";
 import { assertNever } from "../exhaustive.js";
-import type {
-  ApiProxyPipelineNodeSchema,
-  ApiProxyPortRefSchema,
-} from "../index.js";
 import {
   PIPELINE_NODE_DESCRIPTORS,
   PIPELINE_NODE_TYPES,
+  type ApiProxyPipelineNodeSchema,
   type ApiProxyPipelineNodeType,
+  type ApiProxyPortRefSchema,
 } from "./pipeline-nodes.js";
 
 function legacyPipelinePortRef(
@@ -86,7 +84,7 @@ export type ApiProxySingleNextNodeType = {
     : never;
 }[ApiProxyPipelineNodeType];
 
-export const apiProxySingleNextNodeTypes: readonly ApiProxySingleNextNodeType[] =
+const apiProxySingleNextNodeTypes: readonly ApiProxySingleNextNodeType[] =
   PIPELINE_NODE_TYPES.filter(
     (type): type is ApiProxySingleNextNodeType =>
       PIPELINE_NODE_DESCRIPTORS[type].singleNext,

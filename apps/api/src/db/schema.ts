@@ -1,18 +1,10 @@
+import type { ProcessStopReason } from "@arriero/core";
 import {
   integer,
   primaryKey,
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
-
-export type ProcessStopReason =
-  | "operator"
-  | "eviction"
-  | "idle"
-  | "shutdown"
-  | "delete"
-  | "stale"
-  | "crash";
 
 export const processRuns = sqliteTable("process_runs", {
   id: text("id").primaryKey(),

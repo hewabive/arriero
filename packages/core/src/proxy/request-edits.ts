@@ -4,7 +4,7 @@ import type {
   ApiProxyOutputLimitConfig,
   ApiProxyReasoningConfig,
   ApiProxyReasoningEffort,
-} from "../index.js";
+} from "./pipeline-nodes.js";
 
 export const apiProxyReasoningEffortBudgets: Record<
   Exclude<ApiProxyReasoningEffort, "off" | "custom">,

@@ -1,20 +1,28 @@
+import type { ProcessStopReason } from "@arriero/core";
 import { desc, eq, sql } from "drizzle-orm";
 import { newId } from "../utils/id.js";
 
 import { db } from "../db/index.js";
-import { processRuns, type ProcessStopReason } from "../db/schema.js";
+import { processRuns } from "../db/schema.js";
 
 export type ProcessRun = typeof processRuns.$inferSelect;
-export type { ProcessStopReason } from "../db/schema.js";
+export type { ProcessStopReason } from "@arriero/core";
 
 const RETAINED_CLOSED_RUNS_PER_INSTANCE = 20;
 
-const openRunPredicate = sql`${processRuns.stoppedAt} IS NULL AND ${processRuns.status} IN ('starting', 'running', 'stopping', 'stale')`;
+const OPEN_RUN_STATUSES = ["starting", "running", "stopping", "stale"];
+
+const openRunStatusList = sql.join(
+  OPEN_RUN_STATUSES.map((status) => sql`${status}`),
+  sql`, `,
+);
+
+const openRunPredicate = sql`${processRuns.stoppedAt} IS NULL AND ${processRuns.status} IN (${openRunStatusList})`;
 
 const prunableClosedRunPredicate = sql`NOT (${openRunPredicate}) AND ${processRuns.id} NOT IN (
   SELECT id FROM ${processRuns} AS retained
   WHERE retained.instance_id = ${processRuns.instanceId}
-    AND NOT (retained.stopped_at IS NULL AND retained.status IN ('starting', 'running', 'stopping', 'stale'))
+    AND NOT (retained.stopped_at IS NULL AND retained.status IN (${openRunStatusList}))
   ORDER BY retained.started_at DESC
   LIMIT ${RETAINED_CLOSED_RUNS_PER_INSTANCE}
 )`;
@@ -114,9 +122,7 @@ export function listOpenProcessRuns(): ProcessRun[] {
   return db
     .select()
     .from(processRuns)
-    .where(
-      sql`${processRuns.stoppedAt} IS NULL AND ${processRuns.status} IN ('starting', 'running', 'stopping', 'stale')`,
-    )
+    .where(openRunPredicate)
     .orderBy(desc(processRuns.startedAt))
     .all();
 }

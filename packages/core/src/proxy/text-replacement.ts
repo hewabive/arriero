@@ -1,4 +1,4 @@
-import type { ApiProxyTextReplacementRule } from "../index.js";
+import type { ApiProxyTextReplacementRule } from "./pipeline-nodes.js";
 
 export type ApiProxyTextReplacementResult = {
   text: string;

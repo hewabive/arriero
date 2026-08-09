@@ -6,6 +6,7 @@ import {
 import { Checkbox, NumberInput, Text, TextInput } from "@mantine/core";
 
 import { EditRequestFields } from "../edit-request-fields";
+import { isSingleNextPipelineNodeDraft } from "../forms";
 import type { PipelineNodeDraft, PipelineNodeDraftPatch } from "../forms";
 import { TouchSelect } from "../../components/TouchCombobox";
 import { ConditionFields } from "./ConditionFields";
@@ -19,6 +20,27 @@ import { ReasoningFields } from "./ReasoningFields";
 import { ReplaceTextFields } from "./ReplaceTextFields";
 
 export function PipelineNodeFields(props: {
+  node: PipelineNodeDraft;
+  ctx: PipelineEditorContext;
+}) {
+  const { node, ctx } = props;
+  return (
+    <>
+      <PipelineNodeConfigFields node={node} ctx={ctx} />
+      {isSingleNextPipelineNodeDraft(node) && (
+        <PortSelect
+          label={node.type === "cache" ? "Next (on miss)" : "Next"}
+          ctx={ctx}
+          excludeNodeId={node.id}
+          value={node.portNext}
+          onChange={(portNext) => ctx.updateNode(node.id, { portNext })}
+        />
+      )}
+    </>
+  );
+}
+
+function PipelineNodeConfigFields(props: {
   node: PipelineNodeDraft;
   ctx: PipelineEditorContext;
 }) {
@@ -48,54 +70,14 @@ export function PipelineNodeFields(props: {
               update({ captureResponse: event.currentTarget.checked })
             }
           />
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
         </>
       );
     case "edit-request":
-      return (
-        <>
-          <EditRequestFields node={node} updateNode={ctx.updateNode} />
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
-        </>
-      );
+      return <EditRequestFields node={node} updateNode={ctx.updateNode} />;
     case "reasoning":
-      return (
-        <>
-          <ReasoningFields node={node} update={update} />
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
-        </>
-      );
+      return <ReasoningFields node={node} update={update} />;
     case "output-limit":
-      return (
-        <>
-          <OutputLimitFields node={node} update={update} />
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
-        </>
-      );
+      return <OutputLimitFields node={node} update={update} />;
     case "context-limit":
       return (
         <>
@@ -116,13 +98,6 @@ export function PipelineNodeFields(props: {
             fast approximation, so keep a safety margin for tokenizer
             differences and output tokens.
           </Text>
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
         </>
       );
     case "token-scale": {
@@ -147,32 +122,16 @@ export function PipelineNodeFields(props: {
               ? "Factor 1 leaves limits and usage unchanged."
               : `Example: max_tokens 40000 → ${scaleApiProxyRequestTokenCount(40_000, factor)}; usage 10000 → ${scaleApiProxyResponseTokenCount(10_000, factor)}.`}
           </Text>
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
         </>
       );
     }
     case "strip-attribution":
       return (
-        <>
-          <Text c="dimmed" size="sm">
-            Removes Claude Code&apos;s per-request billing/attribution block and
-            pins volatile cch hashes, keeping the upstream KV-cache prefix and
-            any downstream cache key stable. No configuration.
-          </Text>
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
-        </>
+        <Text c="dimmed" size="sm">
+          Removes Claude Code&apos;s per-request billing/attribution block and
+          pins volatile cch hashes, keeping the upstream KV-cache prefix and any
+          downstream cache key stable. No configuration.
+        </Text>
       );
     case "cache":
       return (
@@ -205,28 +164,10 @@ export function PipelineNodeFields(props: {
               update({ cacheNamespace });
             }}
           />
-          <PortSelect
-            label="Next (on miss)"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
         </>
       );
     case "loop-guard":
-      return (
-        <>
-          <LoopGuardFields node={node} update={update} />
-          <PortSelect
-            label="Next"
-            ctx={ctx}
-            excludeNodeId={node.id}
-            value={node.portNext}
-            onChange={(portNext) => update({ portNext })}
-          />
-        </>
-      );
+      return <LoopGuardFields node={node} update={update} />;
     case "condition":
       return <ConditionFields node={node} ctx={ctx} update={update} />;
     case "call":

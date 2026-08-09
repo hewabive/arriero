@@ -2,16 +2,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { listFiles, tsScanRoots } from "./lib/source-files.mjs";
 
 const ENFORCING = false;
 
 const root = process.cwd();
-const scanRoots = [
-  "apps/api/src",
-  "apps/web/src",
-  "packages/core/src",
-  "packages/anthropic-openai-bridge/src",
-];
+const scanRoots = tsScanRoots;
 const extensions = new Set([".ts", ".tsx"]);
 const testFilePattern = /\.test\.tsx?$/u;
 const logMarkers = [
@@ -22,29 +18,6 @@ const logMarkers = [
   ".error(",
   "emitWarning",
 ];
-
-function listFiles(dir) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  const files = [];
-
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(fullPath));
-      continue;
-    }
-
-    if (
-      entry.isFile() &&
-      extensions.has(path.extname(entry.name)) &&
-      !testFilePattern.test(entry.name)
-    ) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
 
 function isFunctionLike(node) {
   return (
@@ -303,7 +276,10 @@ function checkFile(filePath) {
 
 const filesByScanRoot = scanRoots.map((scanRoot) => ({
   scanRoot,
-  files: listFiles(path.join(root, scanRoot)),
+  files: listFiles(path.join(root, scanRoot), {
+    extensions,
+    exclude: testFilePattern,
+  }),
 }));
 const files = filesByScanRoot.flatMap((entry) => entry.files);
 const findings = files.flatMap(checkFile);

@@ -254,57 +254,27 @@ const ApiProxyPipelineNodeBaseSchema = z.object({
   layout: ApiProxyNodeLayoutSchema.optional(),
 });
 
+const singleNextNode = <T extends string, C extends z.ZodType>(
+  type: T,
+  config: C,
+) =>
+  ApiProxyPipelineNodeBaseSchema.extend({
+    type: z.literal(type),
+    config,
+    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
+  });
+
 export const ApiProxyPipelineNodeSchema = z.discriminatedUnion("type", [
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("replace-text"),
-    config: ApiProxyReplaceTextConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("capture-request"),
-    config: ApiProxyCaptureRequestConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("edit-request"),
-    config: ApiProxyEditRequestConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("reasoning"),
-    config: ApiProxyReasoningConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("output-limit"),
-    config: ApiProxyOutputLimitConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("context-limit"),
-    config: ApiProxyContextLimitConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("token-scale"),
-    config: ApiProxyTokenScaleConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("strip-attribution"),
-    config: ApiProxyStripAttributionConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("cache"),
-    config: ApiProxyCacheConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
-  ApiProxyPipelineNodeBaseSchema.extend({
-    type: z.literal("loop-guard"),
-    config: ApiProxyLoopGuardConfigSchema,
-    ports: z.object({ next: ApiProxyNodePortSchema }).default({ next: null }),
-  }),
+  singleNextNode("replace-text", ApiProxyReplaceTextConfigSchema),
+  singleNextNode("capture-request", ApiProxyCaptureRequestConfigSchema),
+  singleNextNode("edit-request", ApiProxyEditRequestConfigSchema),
+  singleNextNode("reasoning", ApiProxyReasoningConfigSchema),
+  singleNextNode("output-limit", ApiProxyOutputLimitConfigSchema),
+  singleNextNode("context-limit", ApiProxyContextLimitConfigSchema),
+  singleNextNode("token-scale", ApiProxyTokenScaleConfigSchema),
+  singleNextNode("strip-attribution", ApiProxyStripAttributionConfigSchema),
+  singleNextNode("cache", ApiProxyCacheConfigSchema),
+  singleNextNode("loop-guard", ApiProxyLoopGuardConfigSchema),
   ApiProxyPipelineNodeBaseSchema.extend({
     type: z.literal("condition"),
     config: z.object({ predicate: ApiProxyConditionPredicateSchema }),
@@ -385,7 +355,6 @@ true satisfies TypeSetEquality<
 >;
 
 export type PipelineNodeDescriptor = {
-  id: ApiProxyPipelineNodeType;
   label: string;
   badge: string;
   color: string;
@@ -395,7 +364,6 @@ export type PipelineNodeDescriptor = {
 
 export const PIPELINE_NODE_DESCRIPTORS = {
   "replace-text": {
-    id: "replace-text",
     label: "Replace text",
     badge: "REPLACE",
     color: "var(--mantine-color-blue-5)",
@@ -403,7 +371,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   "capture-request": {
-    id: "capture-request",
     label: "Save request / response",
     badge: "CAPTURE",
     color: "var(--mantine-color-gray-5)",
@@ -411,7 +378,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   "edit-request": {
-    id: "edit-request",
     label: "Edit request",
     badge: "EDIT",
     color: "var(--mantine-color-violet-5)",
@@ -419,7 +385,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   reasoning: {
-    id: "reasoning",
     label: "Reasoning",
     badge: "REASONING",
     color: "var(--mantine-color-cyan-6)",
@@ -427,7 +392,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   "output-limit": {
-    id: "output-limit",
     label: "Limit output",
     badge: "LIMIT",
     color: "var(--mantine-color-red-5)",
@@ -435,7 +399,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   "context-limit": {
-    id: "context-limit",
     label: "Context limit",
     badge: "CONTEXT",
     color: "var(--mantine-color-pink-6)",
@@ -443,7 +406,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   "token-scale": {
-    id: "token-scale",
     label: "Token scale",
     badge: "TOKENS",
     color: "var(--mantine-color-orange-6)",
@@ -451,7 +413,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   "strip-attribution": {
-    id: "strip-attribution",
     label: "Strip CC attribution",
     badge: "STRIP",
     color: "var(--mantine-color-lime-6)",
@@ -459,7 +420,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   cache: {
-    id: "cache",
     label: "Cache response",
     badge: "CACHE",
     color: "var(--mantine-color-teal-6)",
@@ -467,7 +427,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   "loop-guard": {
-    id: "loop-guard",
     label: "Loop guard",
     badge: "LOOP",
     color: "var(--mantine-color-red-7)",
@@ -475,7 +434,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   condition: {
-    id: "condition",
     label: "Condition",
     badge: "CONDITION",
     color: "var(--mantine-color-yellow-6)",
@@ -483,7 +441,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   call: {
-    id: "call",
     label: "Pipeline",
     badge: "PIPELINE",
     color: "var(--mantine-color-indigo-5)",
@@ -491,7 +448,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: false,
   },
   exit: {
-    id: "exit",
     label: "Exit",
     badge: "EXIT",
     color: "var(--mantine-color-orange-5)",
@@ -499,7 +455,6 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     pickerVisible: true,
   },
   fusion: {
-    id: "fusion",
     label: "Fusion",
     badge: "FUSION",
     color: "var(--mantine-color-grape-5)",

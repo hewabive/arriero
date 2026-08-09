@@ -9,6 +9,16 @@ export const ProcessEventSchema = z.object({
   message: z.string(),
 });
 
+export const ProcessStopReasonSchema = z.enum([
+  "operator",
+  "eviction",
+  "idle",
+  "shutdown",
+  "delete",
+  "stale",
+  "crash",
+]);
+
 export const RuntimeStateSchema = z.object({
   instanceId: z.string(),
   pid: z.number().int().positive().nullable(),
@@ -19,6 +29,7 @@ export const RuntimeStateSchema = z.object({
   logPath: z.string().nullable(),
   rawLogPath: z.string().nullable(),
   adopted: z.boolean().optional(),
+  stopReason: ProcessStopReasonSchema.nullable().optional(),
 });
 
 export const ProcessPreflightIssueSchema = z.object({
@@ -69,6 +80,7 @@ export const ExternalProcessKillResultSchema = z.object({
 });
 
 export type ProcessEvent = z.infer<typeof ProcessEventSchema>;
+export type ProcessStopReason = z.infer<typeof ProcessStopReasonSchema>;
 export type RuntimeState = z.infer<typeof RuntimeStateSchema>;
 export type ProcessPreflightIssue = z.infer<typeof ProcessPreflightIssueSchema>;
 export type ProcessPreflightResult = z.infer<

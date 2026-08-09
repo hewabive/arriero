@@ -1,5 +1,10 @@
 import {
+  ApiProxyCacheConfigSchema,
+  ApiProxyContextLimitConfigSchema,
   ApiProxyLoopGuardConfigSchema,
+  ApiProxyOutputLimitConfigSchema,
+  ApiProxyReasoningConfigSchema,
+  ApiProxyTokenScaleConfigSchema,
   assertNever,
   defaultFusionAnswersTemplate,
   defaultFusionSynthesizerPrompt,
@@ -259,6 +264,11 @@ export const emptyPipelineDraft: PipelineDraft = {
 };
 
 const loopGuardDefaults = ApiProxyLoopGuardConfigSchema.parse({});
+const reasoningDefaults = ApiProxyReasoningConfigSchema.parse({});
+const outputLimitDefaults = ApiProxyOutputLimitConfigSchema.parse({});
+const contextLimitDefaults = ApiProxyContextLimitConfigSchema.parse({});
+const tokenScaleDefaults = ApiProxyTokenScaleConfigSchema.parse({});
+const cacheDefaults = ApiProxyCacheConfigSchema.parse({});
 
 const pipelineNodeDraftFactories: {
   [K in ApiProxyPipelineNodeType]: (
@@ -291,27 +301,27 @@ const pipelineNodeDraftFactories: {
   reasoning: (base) => ({
     ...base,
     type: "reasoning",
-    reasoningEffort: "medium",
-    reasoningCustomBudget: 2048,
+    reasoningEffort: reasoningDefaults.effort,
+    reasoningCustomBudget: reasoningDefaults.customBudgetTokens,
     portNext: null,
   }),
   "output-limit": (base) => ({
     ...base,
     type: "output-limit",
-    outputLimitMax: 4096,
-    outputLimitMode: "cap",
+    outputLimitMax: outputLimitDefaults.maxTokens,
+    outputLimitMode: outputLimitDefaults.mode,
     portNext: null,
   }),
   "context-limit": (base) => ({
     ...base,
     type: "context-limit",
-    contextLimitThreshold: 160_000,
+    contextLimitThreshold: contextLimitDefaults.thresholdTokens,
     portNext: null,
   }),
   "token-scale": (base) => ({
     ...base,
     type: "token-scale",
-    tokenScaleFactor: 1,
+    tokenScaleFactor: tokenScaleDefaults.factor,
     portNext: null,
   }),
   "strip-attribution": (base) => ({
@@ -322,8 +332,8 @@ const pipelineNodeDraftFactories: {
   cache: (base) => ({
     ...base,
     type: "cache",
-    cacheTtlSeconds: 3600,
-    cacheNamespace: "",
+    cacheTtlSeconds: cacheDefaults.ttlSeconds,
+    cacheNamespace: cacheDefaults.namespace,
     portNext: null,
   }),
   "loop-guard": (base) => ({
@@ -896,7 +906,10 @@ function outputLimitConfigFromDraft(
   draft: PipelineNodeDraftOf<"output-limit">,
 ): ApiProxyOutputLimitConfig {
   return {
-    maxTokens: draft.outputLimitMax === "" ? 4096 : draft.outputLimitMax,
+    maxTokens:
+      draft.outputLimitMax === ""
+        ? outputLimitDefaults.maxTokens
+        : draft.outputLimitMax,
     mode: draft.outputLimitMode,
   };
 }
@@ -986,7 +999,7 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         config: {
           thresholdTokens:
             draft.contextLimitThreshold === ""
-              ? 160_000
+              ? contextLimitDefaults.thresholdTokens
               : draft.contextLimitThreshold,
         },
         ports: { next: portRefFromValue(draft.portNext) },
@@ -996,7 +1009,10 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         ...base,
         type: "token-scale",
         config: {
-          factor: draft.tokenScaleFactor === "" ? 1 : draft.tokenScaleFactor,
+          factor:
+            draft.tokenScaleFactor === ""
+              ? tokenScaleDefaults.factor
+              : draft.tokenScaleFactor,
         },
         ports: { next: portRefFromValue(draft.portNext) },
       };

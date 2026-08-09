@@ -6,8 +6,6 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const siblingNames = ["llm-arena", "rag-manager"];
 const jobsKernelDir = "apps/api/src/jobs";
 
-const repoSpecificFiles = ["apps/api/src/update/adapter.ts"];
-
 const sharedUpdateFiles = [
   "apps/api/src/update/version.ts",
   "apps/api/src/update/runner.ts",
@@ -25,9 +23,7 @@ function jobsKernelFiles() {
     .map((name) => `${jobsKernelDir}/${name}`);
 }
 
-const kitFiles = [...sharedUpdateFiles, ...jobsKernelFiles()].filter(
-  (file) => !repoSpecificFiles.includes(file),
-);
+const kitFiles = [...sharedUpdateFiles, ...jobsKernelFiles()];
 
 let failures = 0;
 let comparedSiblings = 0;

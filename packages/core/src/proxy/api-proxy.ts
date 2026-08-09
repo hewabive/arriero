@@ -355,6 +355,8 @@ const LegacyApiProxySchedulerActionSchema =
     reason: null,
   }));
 
+export const apiProxyClientAbortErrorCode = "client-abort";
+
 export const ApiProxyRequestTraceSchema = z.object({
   id: z.string(),
   at: z.string(),

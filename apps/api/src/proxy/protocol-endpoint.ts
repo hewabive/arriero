@@ -59,10 +59,11 @@ import {
   applyTraceDiagnostic,
   createProxyTrace,
   errorBodyMessage,
+  markTraceClientAbort,
   recordTraceWithDeferredTiming,
   resumableTraceUsage,
-  safeJsonParse,
   traceDiagnosticResponse,
+  upstreamErrorText,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
@@ -280,8 +281,7 @@ export async function proxyProtocolEndpoint(
       trace.sourceName = resolution.name;
     }
     if (rejection) {
-      trace.errorCode = rejection.code;
-      trace.errorMessage = rejection.message;
+      applyTraceDiagnostic(trace, rejection);
       const response = adapter.authError(rejection);
       return c.json(response.body, response.status);
     }
@@ -719,8 +719,7 @@ async function delegateRemoteTarget(input: {
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => "");
       if (text) {
-        trace.errorMessage =
-          errorBodyMessage(safeJsonParse(text)) ?? text.slice(0, 500);
+        trace.errorMessage = upstreamErrorText(text);
       }
       return new Response(text, { status: upstream.status, headers });
     }
@@ -815,8 +814,10 @@ async function delegateRemoteTarget(input: {
     return metered;
   } catch (error) {
     if (c.req.raw.signal.aborted) {
-      trace.errorCode = "client-abort";
-      trace.errorMessage = `Client closed the request before node ${node.name} responded`;
+      markTraceClientAbort(
+        trace,
+        `Client closed the request before node ${node.name} responded`,
+      );
       return new Response(null, { status: CLIENT_ABORT_STATUS });
     }
     return traceDiagnosticResponse({
@@ -1105,10 +1106,11 @@ export async function serveResolvedTarget(input: {
     return { ok: true, context: resolved.context };
   };
 
-  const markClientAbort = () => {
-    trace.errorCode = "client-abort";
-    trace.errorMessage = `Client closed the request before target ${decision.target.name} finished responding`;
-  };
+  const markClientAbort = () =>
+    markTraceClientAbort(
+      trace,
+      `Client closed the request before target ${decision.target.name} finished responding`,
+    );
 
   const respond = async (): Promise<Response> => {
     const stopSignal = AbortSignal.any([
@@ -1250,8 +1252,7 @@ export async function serveResolvedTarget(input: {
       if (!upstream.ok || !upstream.body) {
         const text = await upstream.text().catch(() => "");
         if (text) {
-          trace.errorMessage =
-            errorBodyMessage(safeJsonParse(text)) ?? text.slice(0, 500);
+          trace.errorMessage = upstreamErrorText(text);
         }
         if (translateAnthropic) {
           return new Response(translateOpenAiErrorText(upstream.status, text), {

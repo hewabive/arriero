@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { trackedFiles as listTrackedFiles } from "./lib/source-files.mjs";
 
 const root = process.cwd();
 const workingDocuments = new Set([]);
@@ -13,17 +13,7 @@ const pathClaimPattern = /`([A-Za-z0-9_@./-]+)`/g;
 const symbolClaimPattern =
   /`([A-Za-z0-9_/.-]+\.tsx?):([A-Za-z_][A-Za-z0-9_]*)`/g;
 
-const trackedFiles = execFileSync(
-  "git",
-  ["ls-files", "--cached", "--others", "--exclude-standard"],
-  {
-    cwd: root,
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-  },
-)
-  .split("\n")
-  .filter((line) => line.length > 0);
+const trackedFiles = listTrackedFiles(root);
 
 function documents() {
   return trackedFiles

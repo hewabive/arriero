@@ -95,6 +95,25 @@ function floorToGib(bytes: number): number {
   return Math.floor(bytes / GIB) * GIB;
 }
 
+function gpuPoolFromAccelerator(
+  accelerator: SystemResources["accelerators"][number],
+  id: string,
+): MemoryPool | null {
+  if (accelerator.totalMemoryBytes === null) {
+    logUnknownAcceleratorCapacity(accelerator);
+    return null;
+  }
+  return {
+    id,
+    name: accelerator.name,
+    kind: "gpu",
+    capacityBytes: accelerator.totalMemoryBytes,
+    reservedBytes: 0,
+    deviceRef: accelerator.id,
+    autoCapacity: true,
+  };
+}
+
 function defaultPoolsFromHardware(
   detected: SystemResources = getSystemResources(),
 ): MemoryPool[] {
@@ -103,19 +122,10 @@ function defaultPoolsFromHardware(
     if (accelerator.kind !== "gpu") {
       continue;
     }
-    if (accelerator.totalMemoryBytes === null) {
-      logUnknownAcceleratorCapacity(accelerator);
-      continue;
+    const pool = gpuPoolFromAccelerator(accelerator, `gpu${accelerator.id}`);
+    if (pool) {
+      pools.push(pool);
     }
-    pools.push({
-      id: `gpu${accelerator.id}`,
-      name: accelerator.name,
-      kind: "gpu",
-      capacityBytes: accelerator.totalMemoryBytes,
-      reservedBytes: 0,
-      deviceRef: accelerator.id,
-      autoCapacity: true,
-    });
   }
   pools.push({
     id: "host",
@@ -174,10 +184,6 @@ export function refreshAutoCapacities(
     if (accelerator.kind !== "gpu" || knownDeviceRefs.has(accelerator.id)) {
       continue;
     }
-    if (accelerator.totalMemoryBytes === null) {
-      logUnknownAcceleratorCapacity(accelerator);
-      continue;
-    }
     const baseId = `gpu${accelerator.id}`;
     let id = baseId;
     let suffix = 2;
@@ -185,15 +191,11 @@ export function refreshAutoCapacities(
       id = `${baseId}-${suffix}`;
       suffix += 1;
     }
-    next.push({
-      id,
-      name: accelerator.name,
-      kind: "gpu",
-      capacityBytes: accelerator.totalMemoryBytes,
-      reservedBytes: 0,
-      deviceRef: accelerator.id,
-      autoCapacity: true,
-    });
+    const pool = gpuPoolFromAccelerator(accelerator, id);
+    if (!pool) {
+      continue;
+    }
+    next.push(pool);
     knownDeviceRefs.add(accelerator.id);
     knownIds.add(id);
     changed = true;

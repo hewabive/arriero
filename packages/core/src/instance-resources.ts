@@ -428,17 +428,35 @@ function resourceProfileContext(
   };
 }
 
+function visibleGpuPools(
+  allGpu: InstanceResourceProfilePool[],
+  cuda: CudaVisibleDevices,
+): InstanceResourceProfilePool[] {
+  return cuda.mode === "list"
+    ? cuda.ids.flatMap((id) => {
+        const pool = allGpu.find((candidate) => candidate.deviceRef === id);
+        return pool ? [pool] : [];
+      })
+    : allGpu;
+}
+
+function declaredGpuPools(
+  context: ResourceProfileContext,
+): InstanceResourceGpuPool[] {
+  return context.gpuDraws.map((draw) => ({
+    poolId: draw.poolId,
+    label: poolLabel(context.input.pools, draw.poolId),
+  }));
+}
+
 function declaredDrawsProfile(
   context: ResourceProfileContext,
 ): InstanceResourceProfile | null {
-  const { input, baseSignals, gpuDraws, hostDraw } = context;
+  const { baseSignals, gpuDraws, hostDraw } = context;
   if (gpuDraws.length > 0) {
     return {
       placement: hostDraw ? "hybrid" : "gpu",
-      gpuPools: gpuDraws.map((draw) => ({
-        poolId: draw.poolId,
-        label: poolLabel(input.pools, draw.poolId),
-      })),
+      gpuPools: declaredGpuPools(context),
       usesHost: hostDraw,
       cpuReason: hostDraw ? "Host memory draw declared" : null,
       confidence: "declared",
@@ -467,13 +485,7 @@ function deriveKtransformersHybridProfile(
     1,
     Math.floor(argNumber(input.args, ["--tensor-parallel-size", "--tp"]) ?? 1),
   );
-  const visible =
-    cuda.mode === "list"
-      ? cuda.ids.flatMap((id) => {
-          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
-          return pool ? [pool] : [];
-        })
-      : allGpu;
+  const visible = visibleGpuPools(allGpu, cuda);
   const selected = gpuEntries(
     visible.slice(0, tensorParallel),
     cuda,
@@ -482,13 +494,7 @@ function deriveKtransformersHybridProfile(
   ).slice(0, tensorParallel);
   return {
     placement: "hybrid",
-    gpuPools:
-      gpuDraws.length > 0
-        ? gpuDraws.map((draw) => ({
-            poolId: draw.poolId,
-            label: poolLabel(input.pools, draw.poolId),
-          }))
-        : selected,
+    gpuPools: gpuDraws.length > 0 ? declaredGpuPools(context) : selected,
     usesHost: true,
     cpuReason: "KTransformers keeps expert weights and CPU workers on host",
     confidence: gpuDraws.length > 0 && hostDraw ? "declared" : "args",
@@ -570,13 +576,7 @@ function deriveVllmArgsProfile(
       },
     };
   }
-  const visible =
-    cuda.mode === "list"
-      ? cuda.ids.flatMap((id) => {
-          const pool = allGpu.find((candidate) => candidate.deviceRef === id);
-          return pool ? [pool] : [];
-        })
-      : allGpu;
+  const visible = visibleGpuPools(allGpu, cuda);
   const tensorParallel = Math.max(
     1,
     Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
@@ -599,16 +599,18 @@ function deriveVllmArgsProfile(
   };
 }
 
+const withDeclaredDraws =
+  (derive: (context: ResourceProfileContext) => InstanceResourceProfile) =>
+  (context: ResourceProfileContext): InstanceResourceProfile =>
+    declaredDrawsProfile(context) ?? derive(context);
+
 const RESOURCE_PROFILE_DERIVERS: Record<
   EngineResourceProfileId,
   (context: ResourceProfileContext) => InstanceResourceProfile
 > = {
-  "llama-args": (context) =>
-    declaredDrawsProfile(context) ?? deriveLlamaArgsProfile(context),
-  "rpc-device-args": (context) =>
-    declaredDrawsProfile(context) ?? deriveRpcDeviceArgsProfile(context),
-  "vllm-args": (context) =>
-    declaredDrawsProfile(context) ?? deriveVllmArgsProfile(context),
+  "llama-args": withDeclaredDraws(deriveLlamaArgsProfile),
+  "rpc-device-args": withDeclaredDraws(deriveRpcDeviceArgsProfile),
+  "vllm-args": withDeclaredDraws(deriveVllmArgsProfile),
   "ktransformers-hybrid": deriveKtransformersHybridProfile,
 };
 

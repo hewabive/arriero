@@ -2,30 +2,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { listFiles } from "./lib/source-files.mjs";
 
 const root = process.cwd();
 const scanRoots = ["apps/web/src"];
 const eventProperties = new Set(["currentTarget", "target"]);
 const extensions = new Set([".ts", ".tsx"]);
-
-function listFiles(dir) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  const files = [];
-
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(fullPath));
-      continue;
-    }
-
-    if (entry.isFile() && extensions.has(path.extname(entry.name))) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
 
 function functionParams(node) {
   const params = new Set();
@@ -117,7 +99,7 @@ function checkFile(filePath) {
 }
 
 const files = scanRoots.flatMap((scanRoot) =>
-  listFiles(path.join(root, scanRoot)),
+  listFiles(path.join(root, scanRoot), { extensions }),
 );
 const findings = files.flatMap(checkFile);
 

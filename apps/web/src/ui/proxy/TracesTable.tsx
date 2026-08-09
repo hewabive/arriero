@@ -1,7 +1,8 @@
-import type {
-  ApiProxyRequestTrace,
-  ApiProxyTraceFile,
-  ApiProxyTraceUsage,
+import {
+  apiProxyClientAbortErrorCode,
+  type ApiProxyRequestTrace,
+  type ApiProxyTraceFile,
+  type ApiProxyTraceUsage,
 } from "@arriero/core";
 import {
   ActionIcon,
@@ -54,7 +55,7 @@ function traceStatusColor(trace: ApiProxyRequestTrace): string {
   if (trace.ok) {
     return "green";
   }
-  return trace.errorCode === "client-abort" ? "yellow" : "red";
+  return trace.errorCode === apiProxyClientAbortErrorCode ? "yellow" : "red";
 }
 
 const CACHE_ORIGIN_COLORS: Record<
