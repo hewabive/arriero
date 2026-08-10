@@ -29,7 +29,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Server, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Server, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -311,6 +311,17 @@ export function NodesView() {
     [queryClient],
   );
 
+  const dismissJob = useCallback((nodeId: string) => {
+    setVisibleJobs((prev) => {
+      if (!(nodeId in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[nodeId];
+      return next;
+    });
+  }, []);
+
   const startNode = useCallback(
     (node: UpdateFleetNode) => {
       setActionError(null);
@@ -415,6 +426,7 @@ export function NodesView() {
             jobId={visibleJobs[selfNode.nodeId] ?? null}
             onStart={startNode}
             onSettled={onJobSettled}
+            onDismiss={dismissJob}
             onEdit={null}
             onDelete={null}
             deletePending={false}
@@ -432,6 +444,7 @@ export function NodesView() {
             jobId={visibleJobs[node.id] ?? null}
             onStart={startNode}
             onSettled={onJobSettled}
+            onDismiss={dismissJob}
             onEdit={openEdit}
             onDelete={(id) => deleteMutation.mutate(id)}
             deletePending={
@@ -528,6 +541,7 @@ function NodeCard({
   jobId,
   onStart,
   onSettled,
+  onDismiss,
   onEdit,
   onDelete,
   deletePending,
@@ -537,11 +551,14 @@ function NodeCard({
   jobId: string | null;
   onStart: (node: UpdateFleetNode) => void;
   onSettled: (nodeId: string) => void;
+  onDismiss: (nodeId: string) => void;
   onEdit: ((node: FleetNodeView) => void) | null;
   onDelete: ((id: string) => void) | null;
   deletePending: boolean;
 }) {
   const [logsOpen, logs] = useDisclosure(false);
+  const [detailsOpened, setDetailsOpened] = useState(true);
+  const previousJobIdRef = useRef<string | null>(null);
   const nodeId = fleetNode?.nodeId ?? registryNode?.id ?? "self";
   const isSelf = Boolean(fleetNode?.self);
   const version = fleetNode?.version ?? null;
@@ -575,6 +592,18 @@ function NodeCard({
       (job.status === "succeeded" && !job.willRestart) ||
       job.status === "failed" ||
       job.status === "canceled");
+
+  useEffect(() => {
+    if (!job) return;
+    if (previousJobIdRef.current !== job.id) {
+      previousJobIdRef.current = job.id;
+      setDetailsOpened(job.status !== "succeeded" && !applied);
+      return;
+    }
+    if (job.status === "succeeded" || applied) {
+      setDetailsOpened(false);
+    }
+  }, [job?.id, job?.status, applied]);
 
   useEffect(() => {
     if (jobId && settled) {
@@ -749,65 +778,121 @@ function NodeCard({
 
       {jobId && job && (
         <Stack gap={6} mt="sm">
-          {applied && (
-            <Text size="sm" c="teal">
-              {isSelf
-                ? `updated to ${version?.shortCommit} — reloading UI…`
-                : `updated to ${version?.shortCommit}`}
-            </Text>
-          )}
-          {job.status === "succeeded" && !job.willRestart && (
-            <Text size="sm" c="teal">
-              built; restart the node to apply
-            </Text>
-          )}
-          {job.error && (
-            <Text size="sm" c="red">
-              {job.error}
-            </Text>
-          )}
-          <Group gap={6}>
-            {job.steps.map((step) => (
-              <Badge
-                key={step.name}
-                size="sm"
-                variant="outline"
-                color={stepColor(step.status)}
-              >
-                {step.name}
+          <Group justify="space-between" align="center" wrap="nowrap">
+            <Group gap="xs" wrap="wrap">
+              <Text fw={600} size="sm">
+                Update job
+              </Text>
+              <Badge color={jobColor(job.status)} variant="light">
+                {job.status}
               </Badge>
-            ))}
-            <Button size="compact-xs" variant="subtle" onClick={logs.toggle}>
-              {logsOpen ? "hide log" : "log"}
-            </Button>
-            {job.status === "running" && !isRestarting && (
-              <Button
-                size="compact-xs"
-                variant="subtle"
-                color="red"
-                loading={cancelMutation.isPending}
-                onClick={() => cancelMutation.mutate()}
+            </Group>
+            <Group gap={4} wrap="nowrap">
+              <Tooltip
+                label={detailsOpened ? "Collapse details" : "Expand details"}
               >
-                cancel
-              </Button>
-            )}
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setDetailsOpened((opened) => !opened)}
+                  aria-label={
+                    detailsOpened
+                      ? "Collapse update job details"
+                      : "Expand update job details"
+                  }
+                >
+                  <ChevronDown
+                    size={16}
+                    style={{
+                      transform: detailsOpened ? "rotate(180deg)" : undefined,
+                      transition: "transform 150ms ease",
+                    }}
+                  />
+                </ActionIcon>
+              </Tooltip>
+              {settled && (
+                <Tooltip label="Dismiss">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => onDismiss(nodeId)}
+                    aria-label="Dismiss update job result"
+                  >
+                    <X size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
           </Group>
-          <Collapse in={logsOpen}>
-            <ScrollArea h={220} type="auto" offsetScrollbars>
-              <Stack gap={2}>
-                {logsQuery.data?.data.lines.map((line, index) => (
-                  <Code key={`${nodeId}-${index}`} block>
-                    {line}
-                  </Code>
+          <Collapse in={detailsOpened}>
+            <Stack gap={6}>
+              {applied && (
+                <Text size="sm" c="teal">
+                  {isSelf
+                    ? `updated to ${version?.shortCommit} — reloading UI…`
+                    : `updated to ${version?.shortCommit}`}
+                </Text>
+              )}
+              {job.status === "succeeded" && !job.willRestart && (
+                <Text size="sm" c="teal">
+                  built; restart the node to apply
+                </Text>
+              )}
+              {job.error && (
+                <Text size="sm" c="red">
+                  {job.error}
+                </Text>
+              )}
+              <Group gap={6}>
+                {job.steps.map((step) => (
+                  <Badge
+                    key={step.name}
+                    size="sm"
+                    variant="outline"
+                    color={stepColor(step.status)}
+                  >
+                    {step.name}
+                  </Badge>
                 ))}
-                {(!logsQuery.data ||
-                  logsQuery.data.data.lines.length === 0) && (
-                  <Text c="dimmed" size="sm" ta="center" py="md">
-                    no log output yet
-                  </Text>
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  onClick={logs.toggle}
+                >
+                  {logsOpen ? "hide log" : "log"}
+                </Button>
+                {job.status === "running" && !isRestarting && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="red"
+                    loading={cancelMutation.isPending}
+                    onClick={() => cancelMutation.mutate()}
+                  >
+                    cancel
+                  </Button>
                 )}
-              </Stack>
-            </ScrollArea>
+              </Group>
+              <Collapse in={logsOpen}>
+                <ScrollArea h={220} type="auto" offsetScrollbars>
+                  <Stack gap={2}>
+                    {logsQuery.data?.data.lines.map((line, index) => (
+                      <Code key={`${nodeId}-${index}`} block>
+                        {line}
+                      </Code>
+                    ))}
+                    {(!logsQuery.data ||
+                      logsQuery.data.data.lines.length === 0) && (
+                      <Text c="dimmed" size="sm" ta="center" py="md">
+                        no log output yet
+                      </Text>
+                    )}
+                  </Stack>
+                </ScrollArea>
+              </Collapse>
+            </Stack>
           </Collapse>
         </Stack>
       )}
