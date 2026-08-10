@@ -26,6 +26,7 @@ import {
   getApiProxyTarget,
   listApiProxyPipelines,
 } from "./proxy/repository.js";
+import { startMemoryAssessmentAutoLoop } from "./memory-assessment/auto-assess.js";
 import { pruneMissingCachedModels } from "./models/cache-repository.js";
 import { listInstances } from "./instances/repository.js";
 import { reconcileProcessRuns } from "./process/reconcile.js";
@@ -152,6 +153,11 @@ const stopSystemMetricsRetention = startSystemMetricsRetentionLoop({
     logger.error({ error }, "system metrics retention prune failed"),
 });
 
+const stopMemoryAssessmentAuto = startMemoryAssessmentAutoLoop({
+  onError: (error) =>
+    logger.error({ error }, "memory assessment auto pass failed"),
+});
+
 type ForceClosableServer = typeof server & {
   closeAllConnections?: () => void;
   closeIdleConnections?: () => void;
@@ -217,6 +223,7 @@ async function shutdown(signal: NodeJS.Signals) {
     stopApiProxyRuntimeReconcile();
     stopApiProxyTraceRetention();
     stopSystemMetricsRetention();
+    stopMemoryAssessmentAuto();
     systemMetricsRecorder.stop();
     await closeServer();
     logger.info("http server closed");

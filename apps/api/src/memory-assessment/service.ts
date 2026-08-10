@@ -13,6 +13,7 @@ import {
   contextFromInstance,
   type MemoryEstimateResolution,
 } from "../memory-estimate/service.js";
+import { getMemoryAssessmentAutoNote } from "./auto-note.js";
 import { assessmentEngine, type AssessmentEngine } from "./engines.js";
 import { measuredComparisonDeltas } from "./measured.js";
 import {
@@ -358,6 +359,26 @@ function measuredSummary(
   };
 }
 
+function withAutoAssessmentNote(
+  instanceId: string,
+  summary: MemoryAssessmentSummary,
+): MemoryAssessmentSummary {
+  if (
+    summary.status !== "not-assessed" &&
+    summary.status !== "update-required"
+  ) {
+    return summary;
+  }
+  const note = getMemoryAssessmentAutoNote(instanceId);
+  if (!note) return summary;
+  const line =
+    note.action === "estimate"
+      ? `Automatic analytical estimate failed: ${note.reason}`
+      : `Automatic measured baseline capture failed: ${note.reason}`;
+  if (summary.reasons.includes(line)) return summary;
+  return { ...summary, reasons: [...summary.reasons, line] };
+}
+
 export function evaluateInstanceMemoryAssessment(
   instance: Instance,
   input: EvaluationInput = {},
@@ -365,10 +386,12 @@ export function evaluateInstanceMemoryAssessment(
   const engine = assessmentEngine(instance.kind);
   if (!engine) return undefined;
   const stored = getMemoryAssessmentForInstance(instance.name);
-  if (!stored) return notAssessedSummary(engine);
+  if (!stored) {
+    return withAutoAssessmentNote(instance.name, notAssessedSummary(engine));
+  }
   const receipt = parseStoredReceipt(stored.receipt);
   if (!receipt) {
-    return {
+    return withAutoAssessmentNote(instance.name, {
       ...notAssessedSummary(engine),
       status: "update-required",
       reason:
@@ -376,7 +399,7 @@ export function evaluateInstanceMemoryAssessment(
       reasons: ["The local assessment receipt is invalid or obsolete."],
       recommendation: engine.updateRecommendation,
       reportAvailable: true,
-    };
+    });
   }
   const current = engine.buildFingerprint(contextFromInstance(instance));
   const reasons = engine.driftReasons(receipt.fingerprint, current);
@@ -397,9 +420,12 @@ export function evaluateInstanceMemoryAssessment(
     layout: input.layout,
     runId: input.runId ?? null,
   };
-  return receipt.evidence === "analytical"
-    ? analyticalSummary({ ...context, receipt })
-    : measuredSummary({ ...context, receipt });
+  return withAutoAssessmentNote(
+    instance.name,
+    receipt.evidence === "analytical"
+      ? analyticalSummary({ ...context, receipt })
+      : measuredSummary({ ...context, receipt }),
+  );
 }
 
 function redactRecord<T>(record: Record<string, T>) {

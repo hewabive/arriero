@@ -97,7 +97,9 @@ copy-identical across the update-kit repos, `docs/BACKGROUND_JOBS.md`) ·
 `models` (gguf/scanner/cache) · `presets` · `llama` (probe + source repo) ·
 `path-catalog` · `resources` (memory pools + capacity ledger) · `memory-estimate` (a-priori per-pool
 footprint from GGUF + args) + `memory-assessment` (per-engine analytical/measured evidence receipts +
-fingerprint drift, `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
+fingerprint drift + background auto-assess loop that auto-binds analytical / auto-captures measured
+evidence for unassessed or stale instances — never touches `mismatch`, never applies draws,
+`docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
 1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `filesystem` ·
 `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`) · `update` (manager
 version/run-mode + UI self-update runner, `docs/SELF_UPDATE.md`) · `prerequisites` (host-tooling

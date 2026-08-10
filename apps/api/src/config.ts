@@ -131,6 +131,9 @@ export const config = {
       managerEnv("PROXY_RESUME_CLAIM_WINDOW_MS") ?? 180_000,
     ),
   },
+  memoryAssessment: {
+    autoIntervalMs: Number(managerEnv("MEMORY_ASSESS_INTERVAL_MS") ?? 60_000),
+  },
   update: {
     drainTimeoutMs: Number(managerEnv("UPDATE_DRAIN_TIMEOUT_MS") ?? 10_000),
   },

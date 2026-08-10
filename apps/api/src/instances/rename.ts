@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { renameMemoryAssessmentAutoNote } from "../memory-assessment/auto-note.js";
 import { renameMemoryAssessmentInstance } from "../memory-assessment/repository.js";
 import {
   openProcessRunForInstance,
@@ -59,6 +60,7 @@ export function cascadeInstanceRename(from: string, to: string): void {
     return;
   }
   renameMemoryAssessmentInstance(from, to);
+  renameMemoryAssessmentAutoNote(from, to);
   renameProcessRunsInstance(from, to);
   renameApiProxyInstanceEndpointRefs(from, to);
   rewriteLocalRpcWorkerRefs(from, (ref) => ({ ...ref, instanceName: to }));

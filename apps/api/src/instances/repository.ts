@@ -6,6 +6,7 @@ import type {
 } from "@arriero/core";
 import { engineDescriptor, InstanceConfigRecordSchema } from "@arriero/core";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
+import { clearMemoryAssessmentAutoNote } from "../memory-assessment/auto-note.js";
 import { deleteMemoryAssessmentForInstance } from "../memory-assessment/repository.js";
 import {
   deleteProcessRunsForInstance,
@@ -210,6 +211,7 @@ export function deleteInstance(name: string): boolean {
   if (removed) {
     deleteProcessRunsForInstance(name);
     deleteMemoryAssessmentForInstance(name);
+    clearMemoryAssessmentAutoNote(name);
     cleanupDeletedInstance(name, recordedLogPaths);
   }
   return removed;

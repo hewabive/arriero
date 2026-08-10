@@ -389,6 +389,35 @@ the parsed argument registry for ~5 s — config changes take effect immediately
 (they change the key); pure file-mtime or hardware changes appear within the
 TTL.
 
+### Automatic assessment
+
+A background pass (`memory-assessment/auto-assess.ts`, every
+`ARRIERO_MEMORY_ASSESS_INTERVAL_MS` ms, default 60 000, `<=0` disables) removes
+the operator from evidence *gathering* while leaving evidence *policy* manual:
+
+- An instance with no receipt (or an unreadable one) gets the analytical
+  estimate computed and bound automatically. When the analytical path is
+  unavailable — no estimator for the kind (KTransformers), or the estimate
+  fails (remote `--hf-repo`/`--model-url` selectors, missing files, vLLM
+  without an explicit `--gpu-memory-utilization`) — and the kind supports a
+  measured baseline, the pass instead captures a baseline from the running,
+  ready, drift-free process. Auto-capture never replaces a bound analytical
+  receipt with measured evidence or vice versa.
+- `update-required` self-heals within the same evidence type: an analytical
+  receipt is re-estimated and re-bound; a measured baseline is re-captured on
+  the next ready run (previous-baseline deltas survive re-baselining, so
+  "actual memory changed" remains visible).
+- `mismatch` is operator signal and is never auto-replaced. Draws are never
+  auto-applied either — an auto-bound receipt reports `reservationStatus:
+  not-applied` until the operator applies it, because draws feed scheduler
+  admission/eviction.
+- A configuration whose fresh fingerprint would immediately be stale (the
+  selected binary is not Arriero's current one) is skipped instead of looping.
+  Attempts are memoized per fingerprint digest (measured: also per run id), so
+  a failing configuration is retried only after something relevant changes.
+  The last automatic failure reason is appended to the health summary's
+  `memoryAssessment.reasons` for `not-assessed`/`update-required` instances.
+
 ### Validation
 
 - **llama-server analytical**: when a bound instance reaches `running` + ready
