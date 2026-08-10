@@ -80,3 +80,6 @@ Do not add `docStatus`, `reviewedLlamaCppCommit`, or `reviewedHelpHash` to docs.
 - Docs for removed arguments are deleted, not kept with a legacy status.
 - `args:docs:source-sync` reports `"inSync": true`.
 - `args:docs:quality` passes.
+- Commit gate: a sync commit normally touches only `content/` and `*.md`, so the docs-only fast
+  gate from CLAUDE.md applies (`pnpm check:docs && pnpm format:check && pnpm --filter @arriero/api
+  args:docs:quality`); any other file in the diff means full `pnpm check`.

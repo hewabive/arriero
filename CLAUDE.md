@@ -30,7 +30,11 @@ pnpm knip           # unused exports/deps
 - **`pnpm check` is the gate — run it before every commit.** It is the only command that has to
   pass; `check:sources` is separate because it needs machine state (a llama.cpp checkout, sibling
   update-kit repos) that a fresh clone does not have, and each of its checks exits non-zero when
-  that input is missing rather than reporting a silent pass.
+  that input is missing rather than reporting a silent pass. Docs-only exception: when the diff
+  touches nothing but `*.md` and `content/`, the gate narrows to
+  `pnpm check:docs && pnpm format:check && pnpm --filter @arriero/api args:docs:quality` — the rest
+  of `check` provably never reads those files (prettier ignores `*.md`, no test reads `content/`);
+  any other file in the diff ⇒ full `pnpm check`.
 - Tests live next to sources as `*.test.ts` in `apps/api` and use the Node test runner. They run as
   part of `pnpm check`; on their own: `pnpm --filter @arriero/api test`. The glob is quoted so Node,
   not the shell, expands it — `src/test/test-discovery.test.ts` fails if any test file stops being
