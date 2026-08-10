@@ -13,6 +13,7 @@ import {
   packageManagerForOsRelease,
   readOsRelease,
 } from "../system/os-release.js";
+import { cmakeGeneratorFromCommand } from "./plan.js";
 
 const INTERNAL_COMMANDS = new Set(["clean-build-dir"]);
 
@@ -21,8 +22,6 @@ const COMMAND_PREREQUISITES: Record<string, string[]> = {
   npm: ["node", "npm"],
   cmake: ["cmake"],
 };
-
-const CONFIGURE_PREREQUISITES = ["cxx-toolchain", "make", "pkg-config"];
 
 export function buildPrerequisiteIds(
   steps: BuildJobStep[],
@@ -45,7 +44,9 @@ export function buildPrerequisiteIds(
       }
     }
     if (step.name === "configure") {
-      for (const id of CONFIGURE_PREREQUISITES) {
+      const generator = cmakeGeneratorFromCommand(step.command);
+      const buildTool = generator?.includes("Ninja") ? "ninja" : "make";
+      for (const id of ["cxx-toolchain", buildTool, "pkg-config"]) {
         add(id);
       }
       if (options.cuda) {

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  cmakeCacheGeneratorState,
   describeRelocatedCmakeCache,
   readCmakeCacheEntry,
   relocatedCmakeCacheReason,
@@ -65,6 +66,47 @@ test("treats a missing cache file as reusable", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-cmake-cache-"));
   try {
     assert.equal(relocatedCmakeCacheReason(dir, "/src/llama.cpp"), null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("reports generator state for a build directory without a cache", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-cmake-cache-"));
+  try {
+    assert.deepEqual(cmakeCacheGeneratorState(dir), {
+      exists: false,
+      generator: null,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("reads the generator recorded in the cache", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-cmake-cache-"));
+  try {
+    writeFileSync(
+      join(dir, "CMakeCache.txt"),
+      "CMAKE_GENERATOR:INTERNAL=Ninja\n",
+    );
+    assert.deepEqual(cmakeCacheGeneratorState(dir), {
+      exists: true,
+      generator: "Ninja",
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("reports an unknown generator when the cache lacks the entry", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-cmake-cache-"));
+  try {
+    writeFileSync(join(dir, "CMakeCache.txt"), cache(dir, "/src/llama.cpp"));
+    assert.deepEqual(cmakeCacheGeneratorState(dir), {
+      exists: true,
+      generator: null,
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

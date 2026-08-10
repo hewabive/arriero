@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 const CACHE_FILE_NAME = "CMakeCache.txt";
 const CACHED_BUILD_DIR_KEY = "CMAKE_CACHEFILE_DIR";
 const CACHED_SOURCE_DIR_KEY = "CMAKE_HOME_DIRECTORY";
+const CACHED_GENERATOR_KEY = "CMAKE_GENERATOR";
 
 export function readCmakeCacheEntry(contents: string, key: string) {
   for (const line of contents.split("\n")) {
@@ -58,6 +59,25 @@ export function describeRelocatedCmakeCache(
   }
 
   return `${CACHE_FILE_NAME} in ${resolve(expected.buildDir)} was generated for ${relocations.join(" and ")}`;
+}
+
+export function cmakeCacheGeneratorState(buildDir: string): {
+  exists: boolean;
+  generator: string | null;
+} {
+  const cachePath = resolve(buildDir, CACHE_FILE_NAME);
+  if (!existsSync(cachePath)) {
+    return { exists: false, generator: null };
+  }
+  try {
+    const contents = readFileSync(cachePath, "utf8");
+    return {
+      exists: true,
+      generator: readCmakeCacheEntry(contents, CACHED_GENERATOR_KEY),
+    };
+  } catch {
+    return { exists: true, generator: null };
+  }
 }
 
 export function relocatedCmakeCacheReason(

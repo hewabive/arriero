@@ -32,6 +32,25 @@ The Build UI ref selector also switches the working tree **immediately** via
 the selection without a build. That checkout is refused on a dirty tree (the selector is disabled)
 and while a build runs (409). The build itself is **not** blocked on a dirty tree.
 
+## Generator and parallelism
+
+The configure step auto-selects Ninja (`-G Ninja`) when `ninja` is on PATH
+(`autoNinjaGeneratorArguments` in `build/plan.ts`, probing through `system/tool-probe.ts`) — but only
+for a build tree that does not exist yet, is being cleaned this run, or was already generated with
+Ninja. An existing tree keeps whatever generator its `CMakeCache.txt` records
+(`cmakeCacheGeneratorState` in `build/cmake-cache.ts`), because CMake hard-fails on a generator
+mismatch. An explicit generator always wins and suppresses the auto-selection: `-G` /
+`-DCMAKE_GENERATOR` in extra CMake args, or a `CMAKE_GENERATOR` variable in the build environment.
+The chosen generator is echoed into the job-log header, and the preflight swaps the `make`
+prerequisite for `ninja` when the planned configure command targets Ninja.
+
+Every `cmake --build` invocation gets an explicit `-j`: the configured `parallelJobs`, or
+`availableParallelism()` when unset. Without it a Make-generated tree builds single-threaded —
+`cmake --build` passes no parallelism flag to the native tool by default.
+
+ccache needs nothing from arriero: llama.cpp's own CMake (`GGML_CCACHE`, default ON) picks it up
+from PATH at configure time and caches compilations for any generator.
+
 ## CUDA
 
 The default `cuda` flag in `defaultSettings()` is auto-detected via `isCudaToolkitAvailable()`

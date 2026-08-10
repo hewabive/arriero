@@ -57,6 +57,22 @@ test("a configure step does not refuse a build over missing OpenSSL", () => {
   assert.ok(!ids.includes("openssl-dev"));
 });
 
+test("a Ninja-configured tree requires ninja instead of make", () => {
+  const twoArgForm = buildPrerequisiteIds(
+    [step("configure", ["cmake", "-S", "/src", "-B", "/build", "-G", "Ninja"])],
+    { cuda: false },
+  );
+  assert.ok(twoArgForm.includes("ninja"));
+  assert.ok(!twoArgForm.includes("make"));
+
+  const fusedForm = buildPrerequisiteIds(
+    [step("configure", ["cmake", "-S", "/src", "-B", "/build", "-GNinja"])],
+    { cuda: false },
+  );
+  assert.ok(fusedForm.includes("ninja"));
+  assert.ok(!fusedForm.includes("make"));
+});
+
 test("skips the internal clean-build-dir pseudo command", () => {
   const ids = buildPrerequisiteIds(
     [step("clean-build-dir", ["clean-build-dir", "/build"])],

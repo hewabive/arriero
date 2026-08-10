@@ -168,6 +168,8 @@ export function BuildSettingsForm({ fm }: { fm: BuildViewController }) {
         />
         <NumberInput
           label="Parallel jobs"
+          placeholder="all cores"
+          description="Compiler processes to run at once; empty means every CPU core."
           min={1}
           max={256}
           value={fm.parallelJobs}

@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import test from "node:test";
 
@@ -209,6 +209,170 @@ test("buildSteps does not duplicate the companion when target is llama-fit-param
     steps.filter((item) => item.name === "build-fit-params").length,
     0,
   );
+});
+
+function withNinjaOnPath(
+  run: (context: { binDir: string; buildDir: string; root: string }) => void,
+) {
+  const root = mkdtempSync(join(tmpdir(), "arriero-ninja-"));
+  try {
+    const binDir = join(root, "bin");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, "ninja"), "");
+    run({ binDir, buildDir: join(root, "build"), root });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function generatorOf(command: string[] | undefined): string | null {
+  const index = command?.indexOf("-G") ?? -1;
+  if (index === -1) {
+    return null;
+  }
+  return command?.[index + 1] ?? null;
+}
+
+test("buildSteps auto-selects Ninja for a fresh build tree when ninja is installed", () => {
+  withNinjaOnPath(({ binDir, buildDir }) => {
+    const [configure] = buildSteps(
+      { ...settings({}), cuda: false, buildDir },
+      jobStart({ configure: true }),
+      { PATH: binDir },
+    );
+
+    assert.equal(generatorOf(configure?.command), "Ninja");
+  });
+});
+
+test("buildSteps keeps the generator of an existing non-Ninja build tree", () => {
+  withNinjaOnPath(({ binDir, buildDir }) => {
+    mkdirSync(buildDir, { recursive: true });
+    writeFileSync(
+      join(buildDir, "CMakeCache.txt"),
+      "CMAKE_GENERATOR:INTERNAL=Unix Makefiles\n",
+    );
+
+    const [configure] = buildSteps(
+      { ...settings({}), cuda: false, buildDir },
+      jobStart({ configure: true }),
+      { PATH: binDir },
+    );
+
+    assert.equal(generatorOf(configure?.command), null);
+  });
+});
+
+test("buildSteps re-selects Ninja for a tree already configured with Ninja", () => {
+  withNinjaOnPath(({ binDir, buildDir }) => {
+    mkdirSync(buildDir, { recursive: true });
+    writeFileSync(
+      join(buildDir, "CMakeCache.txt"),
+      "CMAKE_GENERATOR:INTERNAL=Ninja\n",
+    );
+
+    const [configure] = buildSteps(
+      { ...settings({}), cuda: false, buildDir },
+      jobStart({ configure: true }),
+      { PATH: binDir },
+    );
+
+    assert.equal(generatorOf(configure?.command), "Ninja");
+  });
+});
+
+test("buildSteps selects Ninja over an existing Make tree when the build dir is cleaned", () => {
+  withNinjaOnPath(({ binDir, buildDir }) => {
+    mkdirSync(buildDir, { recursive: true });
+    writeFileSync(
+      join(buildDir, "CMakeCache.txt"),
+      "CMAKE_GENERATOR:INTERNAL=Unix Makefiles\n",
+    );
+
+    const steps = buildSteps(
+      { ...settings({}), cuda: false, buildDir },
+      jobStart({ configure: true, cleanBuildDir: true }),
+      { PATH: binDir },
+    );
+    const configure = steps.find((item) => item.name === "configure");
+
+    assert.equal(generatorOf(configure?.command), "Ninja");
+  });
+});
+
+test("buildSteps leaves the generator alone when extra CMake args pick one", () => {
+  withNinjaOnPath(({ binDir, buildDir }) => {
+    const [configure] = buildSteps(
+      {
+        ...settings({}),
+        cuda: false,
+        buildDir,
+        extraCmakeArgs: ["-G", "Unix Makefiles"],
+      },
+      jobStart({ configure: true }),
+      { PATH: binDir },
+    );
+
+    assert.equal(generatorOf(configure?.command), "Unix Makefiles");
+    assert.equal(configure?.command.filter((item) => item === "-G").length, 1);
+  });
+});
+
+test("buildSteps respects a CMAKE_GENERATOR environment override", () => {
+  withNinjaOnPath(({ binDir, buildDir }) => {
+    const [configure] = buildSteps(
+      { ...settings({}), cuda: false, buildDir },
+      jobStart({ configure: true }),
+      { PATH: binDir, CMAKE_GENERATOR: "Unix Makefiles" },
+    );
+
+    assert.equal(generatorOf(configure?.command), null);
+  });
+});
+
+test("buildSteps skips the Ninja generator when ninja is not on PATH", () => {
+  const root = mkdtempSync(join(tmpdir(), "arriero-no-ninja-"));
+  try {
+    const emptyBin = join(root, "bin");
+    mkdirSync(emptyBin, { recursive: true });
+    const [configure] = buildSteps(
+      { ...settings({}), cuda: false, buildDir: join(root, "build") },
+      jobStart({ configure: true }),
+      { PATH: emptyBin },
+    );
+
+    assert.equal(generatorOf(configure?.command), null);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("buildSteps defaults -j to the host core count when parallelJobs is unset", () => {
+  const steps = buildSteps(
+    { ...settings({}), parallelJobs: null },
+    jobStart({ build: true }),
+    {},
+  );
+
+  for (const item of steps) {
+    const jIndex = item.command.indexOf("-j");
+    assert.ok(jIndex >= 0);
+    assert.equal(item.command[jIndex + 1], String(availableParallelism()));
+  }
+});
+
+test("buildSteps passes the configured parallelJobs to every build command", () => {
+  const steps = buildSteps(
+    { ...settings({}), parallelJobs: 7, rpc: true },
+    jobStart({ build: true }),
+    {},
+  );
+
+  for (const item of steps) {
+    const jIndex = item.command.indexOf("-j");
+    assert.ok(jIndex >= 0);
+    assert.equal(item.command[jIndex + 1], "7");
+  }
 });
 
 test("buildSteps omits the companion build when build is disabled", () => {

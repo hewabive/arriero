@@ -583,7 +583,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     severity: "recommended",
     blocks: [],
     impact:
-      "An alternative generator that parallelises the build better than Make; select it with -G Ninja in extra CMake arguments.",
+      "A generator that parallelises the build better than Make; picked automatically for fresh build trees when installed (an existing Make tree keeps its generator until a clean build, and an explicit -G in extra CMake arguments always wins).",
     packages: {
       apt: ["ninja-build"],
       dnf: ["ninja-build"],

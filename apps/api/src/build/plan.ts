@@ -7,7 +7,7 @@ import type {
 } from "@arriero/core";
 import { existsSync, mkdirSync, rmSync, type WriteStream } from "node:fs";
 import { delimiter, dirname, parse, resolve } from "node:path";
-import { homedir } from "node:os";
+import { availableParallelism, homedir } from "node:os";
 
 import { config } from "../config.js";
 import { isPathWithin } from "../path-utils.js";
@@ -15,7 +15,11 @@ import {
   getLlamaSourceCurrentCommit,
   listLlamaSourceRefs,
 } from "../llama/source-repository.js";
-import { relocatedCmakeCacheReason } from "./cmake-cache.js";
+import { findExecutableInPath } from "../system/tool-probe.js";
+import {
+  cmakeCacheGeneratorState,
+  relocatedCmakeCacheReason,
+} from "./cmake-cache.js";
 import { findNvcc } from "./cuda.js";
 
 const FIT_PARAMS_TARGET = "llama-fit-params";
@@ -95,6 +99,50 @@ function cmakeBooleanModeDefinition(
   return cmakeDefinitionIfMissing(args, name, mode === "on" ? "ON" : "OFF");
 }
 
+export function cmakeGeneratorFromCommand(command: string[]): string | null {
+  for (const [index, argument] of command.entries()) {
+    if (argument === "-G") {
+      return command[index + 1] ?? "";
+    }
+    if (argument.startsWith("-G")) {
+      return argument.slice(2);
+    }
+  }
+  return null;
+}
+
+function hasExplicitGenerator(args: string[], env: NodeJS.ProcessEnv) {
+  return (
+    cmakeGeneratorFromCommand(args) !== null ||
+    hasCmakeDefinition(args, "CMAKE_GENERATOR") ||
+    Boolean(env.CMAKE_GENERATOR)
+  );
+}
+
+function autoNinjaGeneratorArguments(
+  settings: BuildSettings,
+  input: BuildJobStart,
+  env: NodeJS.ProcessEnv,
+): string[] {
+  if (hasExplicitGenerator(settings.extraCmakeArgs, env)) {
+    return [];
+  }
+  if (!findExecutableInPath("ninja", env.PATH)) {
+    return [];
+  }
+  if (!input.cleanBuildDir) {
+    const cache = cmakeCacheGeneratorState(settings.buildDir);
+    if (cache.exists && cache.generator !== "Ninja") {
+      return [];
+    }
+  }
+  return ["-G", "Ninja"];
+}
+
+function parallelJobsArguments(settings: BuildSettings) {
+  return ["-j", String(settings.parallelJobs ?? availableParallelism())];
+}
+
 function serverBuildProfileDefinitions(args: string[]) {
   return [
     ...cmakeDefinitionIfMissing(args, "LLAMA_BUILD_COMMON", "ON"),
@@ -167,6 +215,7 @@ export function buildSteps(
         settings.repoPath,
         "-B",
         settings.buildDir,
+        ...autoNinjaGeneratorArguments(settings, input, env),
         `-DCMAKE_BUILD_TYPE=${settings.buildType}`,
         `-DGGML_CUDA=${settings.cuda ? "ON" : "OFF"}`,
         `-DGGML_RPC=${settings.rpc ? "ON" : "OFF"}`,
@@ -238,41 +287,37 @@ export function buildSteps(
     if (target) {
       command.push("--target", target);
     }
-    if (settings.parallelJobs) {
-      command.push("-j", String(settings.parallelJobs));
-    }
+    command.push(...parallelJobsArguments(settings));
     steps.push(step("build", command));
 
     if (target !== FIT_PARAMS_TARGET) {
-      const companion = [
-        "cmake",
-        "--build",
-        settings.buildDir,
-        "--config",
-        settings.buildType,
-        "--target",
-        FIT_PARAMS_TARGET,
-      ];
-      if (settings.parallelJobs) {
-        companion.push("-j", String(settings.parallelJobs));
-      }
-      steps.push(step("build-fit-params", companion));
+      steps.push(
+        step("build-fit-params", [
+          "cmake",
+          "--build",
+          settings.buildDir,
+          "--config",
+          settings.buildType,
+          "--target",
+          FIT_PARAMS_TARGET,
+          ...parallelJobsArguments(settings),
+        ]),
+      );
     }
 
     if (settings.rpc && target !== RPC_SERVER_TARGET) {
-      const rpcCompanion = [
-        "cmake",
-        "--build",
-        settings.buildDir,
-        "--config",
-        settings.buildType,
-        "--target",
-        RPC_SERVER_TARGET,
-      ];
-      if (settings.parallelJobs) {
-        rpcCompanion.push("-j", String(settings.parallelJobs));
-      }
-      steps.push(step("build-rpc-server", rpcCompanion));
+      steps.push(
+        step("build-rpc-server", [
+          "cmake",
+          "--build",
+          settings.buildDir,
+          "--config",
+          settings.buildType,
+          "--target",
+          RPC_SERVER_TARGET,
+          ...parallelJobsArguments(settings),
+        ]),
+      );
     }
   }
 
@@ -424,6 +469,13 @@ export function writeHeader(
   stream.write(`# build ${job.settings.buildDir}\n`);
   if (job.settings.cuda) {
     stream.write(`# CUDA compiler ${env.CUDACXX ?? "not detected"}\n`);
+  }
+  const configureStep = job.steps.find((item) => item.name === "configure");
+  const generator = configureStep
+    ? cmakeGeneratorFromCommand(configureStep.command)
+    : null;
+  if (generator) {
+    stream.write(`# CMake generator ${generator}\n`);
   }
   if (job.settings.rpc) {
     stream.write(
