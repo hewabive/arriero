@@ -76,6 +76,10 @@ const sourcesDir = managedPath("SOURCES_DIR", resolve(runtimeDir, "sources"));
 const envsDir = managedPath("ENVS_DIR", resolve(runtimeDir, "envs"));
 const pythonDir = managedPath("PYTHON_DIR", resolve(runtimeDir, "python"));
 const uvCacheDir = managedPath("UV_CACHE_DIR", resolve(runtimeDir, "uv-cache"));
+const vllmCacheDir = managedPath(
+  "VLLM_CACHE_DIR",
+  resolve(runtimeDir, "cache/vllm"),
+);
 const modelsDir = managedPath("MODELS_DIR", resolve(runtimeDir, "models"));
 const slotsDir = managedPath("SLOTS_DIR", resolve(runtimeDir, "slots"));
 
@@ -114,6 +118,7 @@ export const config = {
   envsDir,
   pythonDir,
   uvCacheDir,
+  vllmCacheDir,
   modelsDir,
   slotsDir,
   logs: {
@@ -162,4 +167,5 @@ mkdirSync(config.sourcesDir, { recursive: true });
 mkdirSync(config.envsDir, { recursive: true });
 mkdirSync(config.pythonDir, { recursive: true });
 mkdirSync(config.uvCacheDir, { recursive: true });
+mkdirSync(config.vllmCacheDir, { recursive: true });
 mkdirSync(config.modelsDir, { recursive: true });

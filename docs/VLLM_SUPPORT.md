@@ -116,6 +116,9 @@ Modeled on the build domain: a job runner with streamed step logs, producing a r
   register/reconcile the path-catalog entry. Relocatable mode keeps console-script
   shebangs valid after the staging directory is renamed.
 - Layout: `runtime/envs/`, overridable via `ARRIERO_ENVS_DIR`. Envs are immutable: a new version = a new venv; no in-place upgrades.
+- vLLM's compile cache defaults to `runtime/cache/vllm`, overridable via
+  `ARRIERO_VLLM_CACHE_DIR`. An explicit `VLLM_CACHE_ROOT` in the manager or
+  instance environment takes precedence.
 - Delete = remove venv dir + catalog entry; refused while any instance references the entry via `binaryPathRefId`.
 - API supports list/create/rebuild/delete, one active install job, cancel, and polled log tail. Delete is guarded by instance references and active jobs.
 

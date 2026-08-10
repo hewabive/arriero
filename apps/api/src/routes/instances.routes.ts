@@ -93,6 +93,19 @@ function validateInstanceRpcWorkers(input: {
   return null;
 }
 
+function validateInstanceRefs(input: {
+  binaryPathRefId?: string | null | undefined;
+  kind?: InstanceKind | undefined;
+  memory?: InstanceMemoryDraw[] | undefined;
+  rpcWorkers?: RpcWorkerRef[] | undefined;
+}) {
+  return (
+    validateInstancePathRefs(input) ??
+    validateInstanceMemoryRefs(input) ??
+    validateInstanceRpcWorkers(input)
+  );
+}
+
 export function registerInstanceRoutes(app: Hono) {
   app.get("/api/instances", (c) => {
     return c.json({ data: listInstances() });
@@ -118,10 +131,7 @@ export function registerInstanceRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    const refError =
-      validateInstancePathRefs(parsed.data) ??
-      validateInstanceMemoryRefs(parsed.data) ??
-      validateInstanceRpcWorkers(parsed.data);
+    const refError = validateInstanceRefs(parsed.data);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
@@ -143,27 +153,16 @@ export function registerInstanceRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    const refError = validateInstancePathRefs(parsed.data);
+    const refError = validateInstanceRefs(parsed.data);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
 
     const preview = parsed.data;
     const instance = resolveInstancePathRefs({
+      ...preview,
       name: preview.name ?? "preview",
-      kind: preview.kind,
       binaryPath: "",
-      binaryPathRefId: preview.binaryPathRefId,
-      cwd: preview.cwd,
-      args: preview.args,
-      env: preview.env,
-      memory: preview.memory,
-      rpcWorkers: preview.rpcWorkers,
-      ...(preview.numa !== undefined ? { numa: preview.numa } : {}),
-      ...(preview.engineConfig !== undefined
-        ? { engineConfig: preview.engineConfig }
-        : {}),
-      scheduling: preview.scheduling,
       status: "stopped",
       pid: null,
     });
@@ -341,9 +340,10 @@ export function registerInstanceRoutes(app: Hono) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
     const current = getInstance(c.req.param("id"));
-    const refError =
-      validateInstancePathRefs({ ...parsed.data, kind: current?.kind }) ??
-      validateInstanceMemoryRefs(parsed.data);
+    const refError = validateInstanceRefs({
+      ...parsed.data,
+      kind: current?.kind,
+    });
     if (refError) {
       return c.json({ error: refError }, 400);
     }

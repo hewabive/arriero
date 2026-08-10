@@ -7,9 +7,24 @@ import {
   type MemoryEstimate,
 } from "@arriero/core";
 import assert from "node:assert/strict";
+import { rmSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { contextFromInstance } from "../memory-estimate/service.js";
+import {
+  createInstance,
+  deleteInstance,
+  getInstance,
+  updateInstance,
+} from "../instances/repository.js";
+import {
+  contextFromInstance,
+  estimateMemory,
+} from "../memory-estimate/service.js";
+import { createPathCatalogEntry } from "../path-catalog/repository.js";
+import {
+  RESOURCES_FILE,
+  resetResourcePoolsCache,
+} from "../resources/repository.js";
 import { assessmentEngine } from "./engines.js";
 import { measuredComparisonDeltas } from "./measured.js";
 import {
@@ -23,8 +38,14 @@ import {
   bindMemoryAssessment,
   createMemoryAssessmentDraft,
   deleteMemoryAssessmentForInstance,
+  getMemoryAssessmentForInstance,
+  updateMemoryAssessmentReceipt,
 } from "./repository.js";
-import { evaluateInstanceMemoryAssessment } from "./service.js";
+import {
+  bindMemoryAssessmentToInstance,
+  createMemoryAssessment,
+  evaluateInstanceMemoryAssessment,
+} from "./service.js";
 
 const MiB = 1024 * 1024;
 
@@ -132,6 +153,12 @@ function layout(
   };
 }
 
+function storedInstance(name: string): Instance {
+  const instance = getInstance(name);
+  assert.ok(instance);
+  return instance;
+}
+
 const llama = assessmentEngine("llama-server");
 const vllm = assessmentEngine("vllm");
 
@@ -217,6 +244,124 @@ test("vLLM reservation validation is scoped to an identified run", () => {
   );
 
   assert.equal(result, null);
+});
+
+test("vLLM analytical reservation owns GPU draws but allows manual host RAM", () => {
+  writeFileSync(
+    RESOURCES_FILE,
+    `${JSON.stringify([
+      {
+        id: "gpu0",
+        name: "GPU 0",
+        kind: "gpu",
+        capacityBytes: 10_000,
+        reservedBytes: 0,
+        deviceRef: "0",
+        autoCapacity: false,
+      },
+      {
+        id: "gpu1",
+        name: "GPU 1",
+        kind: "gpu",
+        capacityBytes: 20_000,
+        reservedBytes: 0,
+        deviceRef: "1",
+        autoCapacity: false,
+      },
+      {
+        id: "host",
+        name: "Host RAM",
+        kind: "host",
+        capacityBytes: 100_000,
+        reservedBytes: 0,
+        deviceRef: null,
+        autoCapacity: false,
+      },
+    ])}\n`,
+  );
+  resetResourcePoolsCache();
+  const binary = createPathCatalogEntry({
+    kind: "binary",
+    name: `vllm-assessment-${Date.now()}`,
+    path: process.execPath,
+    engineKind: "vllm",
+  });
+  const name = `vllm-reservation-${Date.now()}`;
+
+  try {
+    const input = {
+      kind: "vllm" as const,
+      binaryPathRefId: binary.id,
+      args: { "--gpu-memory-utilization": 0.5 },
+      positionalArgs: ["Qwen/Qwen3-0.6B"],
+      env: { CUDA_VISIBLE_DEVICES: "0" },
+    };
+    const result = estimateMemory(input);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const assessmentId = createMemoryAssessment(result);
+    assert.ok(assessmentId);
+    createInstance({
+      name,
+      ...input,
+      memory: [...result.estimate.draws, { poolId: "host", bytes: 4_000 }],
+      rpcWorkers: [],
+    });
+
+    const bound = bindMemoryAssessmentToInstance(assessmentId, name);
+    assert.equal(bound.reservationStatus, "applied");
+
+    const stored = getMemoryAssessmentForInstance(name);
+    assert.ok(stored);
+    const legacyReceipt = parseStoredReceipt(stored.receipt);
+    assert.equal(legacyReceipt?.evidence, "analytical");
+    if (legacyReceipt?.evidence === "analytical") {
+      updateMemoryAssessmentReceipt(stored.id, {
+        ...legacyReceipt,
+        appliedDrawsDigest: null,
+      });
+    }
+    assert.equal(
+      evaluateInstanceMemoryAssessment(storedInstance(name))?.reservationStatus,
+      "applied",
+    );
+    bindMemoryAssessmentToInstance(assessmentId, name);
+
+    updateInstance(name, {
+      memory: [...result.estimate.draws, { poolId: "host", bytes: 8_000 }],
+    });
+    assert.equal(
+      evaluateInstanceMemoryAssessment(storedInstance(name))?.reservationStatus,
+      "applied",
+    );
+
+    updateInstance(name, {
+      memory: [
+        { poolId: "gpu0", bytes: result.estimate.draws[0]!.bytes + 1 },
+        { poolId: "host", bytes: 8_000 },
+      ],
+    });
+    assert.equal(
+      evaluateInstanceMemoryAssessment(storedInstance(name))?.reservationStatus,
+      "modified",
+    );
+
+    updateInstance(name, {
+      memory: [
+        ...result.estimate.draws,
+        { poolId: "gpu1", bytes: 1 },
+        { poolId: "host", bytes: 8_000 },
+      ],
+    });
+    assert.equal(
+      evaluateInstanceMemoryAssessment(storedInstance(name))?.reservationStatus,
+      "modified",
+    );
+  } finally {
+    deleteInstance(name);
+    rmSync(RESOURCES_FILE, { force: true });
+    resetResourcePoolsCache();
+  }
 });
 
 test("measured comparison stays within telemetry tolerance", () => {

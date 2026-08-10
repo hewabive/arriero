@@ -95,6 +95,17 @@ export function managedSignalPid(
     : pid;
 }
 
+export function managedProcessEnvironment(
+  instance: Instance,
+  parent: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env = { ...parent, ...instance.env };
+  if (instance.kind === "vllm" && env.VLLM_CACHE_ROOT === undefined) {
+    env.VLLM_CACHE_ROOT = config.vllmCacheDir;
+  }
+  return env;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -195,7 +206,7 @@ export class ProcessSupervisor extends EventEmitter {
     const childLogFd = openSync(rawLogPath, "a");
     const child = spawn(launch.binary, launch.args, {
       cwd,
-      env: { ...process.env, ...instance.env },
+      env: managedProcessEnvironment(instance),
       stdio: ["ignore", childLogFd, childLogFd],
       detached: true,
     });

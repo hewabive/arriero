@@ -7,6 +7,7 @@ import {
 } from "@arriero/core";
 
 import { getInstance } from "../instances/repository.js";
+import { getMemoryPool } from "../resources/repository.js";
 import { getAppVersion } from "../update/version.js";
 import { canonicalJsonDigest as digest } from "../utils/canonical-json.js";
 import {
@@ -40,6 +41,27 @@ type EvaluationInput = {
 
 const NOT_ASSESSED_REASON =
   "Memory has not been assessed for this instance configuration.";
+
+function analyticalDrawsDigest(
+  receipt: AnalyticalReceipt,
+  draws: Instance["memory"],
+): string {
+  if (receipt.estimatorId !== "vllm-gpu-util") {
+    return drawsDigest(draws);
+  }
+  const estimatedGpuPoolIds = new Set(
+    receipt.estimate.pools
+      .filter((pool) => pool.kind === "gpu")
+      .map((pool) => pool.poolId),
+  );
+  return drawsDigest(
+    draws.filter(
+      (draw) =>
+        estimatedGpuPoolIds.has(draw.poolId) ||
+        getMemoryPool(draw.poolId)?.kind === "gpu",
+    ),
+  );
+}
 
 function notAssessedSummary(engine: AssessmentEngine): MemoryAssessmentSummary {
   return {
@@ -113,8 +135,11 @@ export function bindMemoryAssessmentToInstance(
       "instance, binary, model files, or hardware changed after the estimate; run it again",
     );
   }
-  const currentDrawsDigest = drawsDigest(instance.memory);
-  const estimateDrawsDigest = drawsDigest(receipt.estimate.draws);
+  const currentDrawsDigest = analyticalDrawsDigest(receipt, instance.memory);
+  const estimateDrawsDigest = analyticalDrawsDigest(
+    receipt,
+    receipt.estimate.draws,
+  );
   const bound: AnalyticalReceipt = {
     ...receipt,
     appliedDrawsDigest:
@@ -130,8 +155,14 @@ function analyticalReservationStatus(
   instance: Instance,
   receipt: AnalyticalReceipt,
 ): MemoryAssessmentSummary["reservationStatus"] {
-  if (!receipt.appliedDrawsDigest) return "not-applied";
-  return drawsDigest(instance.memory) === receipt.appliedDrawsDigest
+  const currentDrawsDigest = analyticalDrawsDigest(receipt, instance.memory);
+  if (!receipt.appliedDrawsDigest) {
+    return currentDrawsDigest ===
+      analyticalDrawsDigest(receipt, receipt.estimate.draws)
+      ? "applied"
+      : "not-applied";
+  }
+  return currentDrawsDigest === receipt.appliedDrawsDigest
     ? "applied"
     : "modified";
 }
