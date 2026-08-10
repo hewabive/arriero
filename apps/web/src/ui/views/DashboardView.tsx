@@ -47,13 +47,11 @@ function InstanceCard(props: {
       onClick={props.onOpenDiagnostics}
     >
       <Stack gap={6}>
-        <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <Text fw={700} style={{ wordBreak: "break-word" }}>
-            {instance.name}
-          </Text>
-          <Group gap={4} style={{ flexShrink: 0 }}>
-            <InstanceHealthBadge instance={instance} health={health} />
-          </Group>
+        <Text fw={700} style={{ wordBreak: "break-word" }}>
+          {instance.name}
+        </Text>
+        <Group gap={4}>
+          <InstanceHealthBadge instance={instance} health={health} />
         </Group>
         <Stack gap={2}>
           <Text c="dimmed" size="xs">
