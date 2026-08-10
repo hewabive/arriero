@@ -94,7 +94,7 @@ dry-allowed-length = 2
 
 - DRY не влияет: проверьте, что `dry_multiplier` больше `0`, в `--samplers` есть `dry`, а `--mirostat` выключен.
 - Модель ломает списки или JSON: уменьшите `--dry-multiplier`, увеличьте `--dry-allowed-length` или настройте sequence breakers.
-- Overhead sampling вырос: проверьте `--dry-penalty-last-n`, особенно если используется `-1`.
+- Overhead sampling вырос: проверьте `--dry-penalty-last-n`, особенно если задано большое явное окно.
 
 В trace/debug логах строка `sampler params` печатает `dry_multiplier`, `dry_base`, `dry_allowed_length` и `dry_penalty_last_n`.
 
