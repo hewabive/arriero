@@ -32,7 +32,10 @@ They are **not** seeded from repo-root `config/*.json` because capacities are
 machine-specific (same rule as `path-catalog`). On first run
 `ensureResourcePoolsScaffold()` generates defaults from `system/resources.ts`
 (NVIDIA NVML + `/proc/meminfo`); `refreshAutoCapacities()` re-syncs capacity for
-pools with `autoCapacity` on every startup and shows drift otherwise.
+pools with `autoCapacity` on every startup and shows drift otherwise. A GPU
+detected after the initial scaffold is added to `resources.json` immediately,
+so instances can reference it without leaving portable configuration dangling;
+capacity-only refreshes remain in memory to avoid routine Git churn.
 
 A gpu pool whose `deviceRef` no longer matches a detected device keeps its
 last-known capacity and is surfaced with a derived `orphaned` flag
