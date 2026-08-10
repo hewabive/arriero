@@ -19,6 +19,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { getPrerequisiteReport } from "../../api/client";
 import { formatLocalDateTime } from "../utils/time";
@@ -237,6 +238,10 @@ export function PrerequisitesView() {
   });
   const report = reportQuery.data?.data;
   const install = usePrerequisiteInstall(report?.installRunner);
+  const [dismissedInstallRunId, setDismissedInstallRunId] = useState<
+    string | null
+  >(null);
+  const installRun = install.run;
   const requiredSetupIncomplete = (report?.summary.unresolvedRequired ?? 0) > 0;
 
   return (
@@ -327,14 +332,21 @@ export function PrerequisitesView() {
           )}
 
           {report &&
-            !requiredSetupIncomplete &&
             !report.install.requiredCommand &&
             report.install.allCommand && (
-              <Alert color="yellow" title="Recommended tooling is missing">
+              <Alert
+                color="yellow"
+                title={
+                  requiredSetupIncomplete
+                    ? "Recommended tooling is also missing"
+                    : "Recommended tooling is missing"
+                }
+              >
                 <Stack gap="xs">
                   <Text size="sm">
-                    Nothing is blocked, but the recommended tooling below is
-                    absent.
+                    {requiredSetupIncomplete
+                      ? "The remaining required gaps need separate actions. The recommended tooling below can be installed independently."
+                      : "Nothing is blocked, but the recommended tooling below is absent."}
                     {report.installRunner.available &&
                       " The manager can install it from here — it elevates without a password."}
                   </Text>
@@ -353,7 +365,13 @@ export function PrerequisitesView() {
             </Alert>
           )}
 
-          {install.run && <InstallRunPanel run={install.run} />}
+          {installRun && installRun.id !== dismissedInstallRunId && (
+            <InstallRunPanel
+              key={installRun.id}
+              run={installRun}
+              onDismiss={() => setDismissedInstallRunId(installRun.id)}
+            />
+          )}
 
           {report && <HostFacts host={report.host} />}
         </Stack>
