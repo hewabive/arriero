@@ -26,6 +26,7 @@ import {
   logoutAdmin,
 } from "../api/client";
 import { AppLogo } from "./components/AppLogo";
+import { ConfigGitDirtyBadge } from "./components/ConfigGitDirtyBadge";
 import { InstanceFormModal } from "./components/InstanceFormModal";
 import { NodeSwitcher } from "./components/NodeSwitcher";
 import {
@@ -224,6 +225,7 @@ export function App() {
             </Title>
           </Group>
           <Group className="app-header__actions" gap="xs">
+            {canUseAdmin && <ConfigGitDirtyBadge />}
             {canUseAdmin && <NodeSwitcher />}
             <Tooltip
               label={
