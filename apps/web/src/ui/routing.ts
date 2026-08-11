@@ -158,8 +158,8 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    id: "source",
-    label: "Source & Build",
+    id: "sources",
+    label: "Sources & files",
     items: [
       {
         route: "models",
@@ -168,29 +168,10 @@ export const navSections: NavSection[] = [
         description: "Scan GGUF files and reuse them in instances or presets",
       },
       {
-        route: "presets",
-        label: "Presets",
-        title: "Presets",
-        description: "Edit the llama-server --models-preset INI file directly",
-      },
-      {
         route: "paths",
         label: "Paths",
         title: "Path catalog",
         description: "Shared binary paths and model directories for instances",
-      },
-      {
-        route: "args",
-        label: "Arguments",
-        title: "Arguments",
-        description:
-          "Every llama-server argument with engineering help and defaults",
-      },
-      {
-        route: "build",
-        label: "Build",
-        title: "Build",
-        description: "Update llama.cpp and build llama-server with CMake",
       },
       {
         route: "environments",
@@ -204,6 +185,31 @@ export const navSections: NavSection[] = [
         title: "Source sync",
         description:
           "Clone inference sources, manage origins, and inspect integration drift",
+      },
+    ],
+  },
+  {
+    id: "llama",
+    label: "llama.cpp",
+    items: [
+      {
+        route: "presets",
+        label: "Presets",
+        title: "Presets",
+        description: "Edit the llama-server --models-preset INI file directly",
+      },
+      {
+        route: "args",
+        label: "Arguments",
+        title: "Arguments",
+        description:
+          "Every llama-server argument with engineering help and defaults",
+      },
+      {
+        route: "build",
+        label: "Build",
+        title: "Build",
+        description: "Update llama.cpp and build llama-server with CMake",
       },
     ],
   },
