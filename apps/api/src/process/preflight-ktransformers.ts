@@ -6,7 +6,10 @@ import type {
   ProcessPreflightIssue,
   SystemAccelerator,
 } from "@arriero/core";
-import { parseCudaVisibleDevices } from "@arriero/core";
+import {
+  parseCudaVisibleDevices,
+  SGLANG_TENSOR_PARALLEL_KEYS,
+} from "@arriero/core";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { availableParallelism } from "node:os";
@@ -272,11 +275,7 @@ function validateCuda(
   }
   const visibleCount =
     visible.mode === "list" ? visible.ids.length : detected.length;
-  const tensorParallel = argNumber(
-    instance,
-    ["--tensor-parallel-size", "--tp"],
-    1,
-  );
+  const tensorParallel = argNumber(instance, SGLANG_TENSOR_PARALLEL_KEYS, 1);
   if (!Number.isInteger(tensorParallel) || tensorParallel < 1) {
     issue(
       issues,
@@ -298,11 +297,7 @@ function selectedGpuDeviceRefs(
   instance: Instance,
   options: PreflightOptions,
 ): string[] {
-  const tensorParallel = argNumber(
-    instance,
-    ["--tensor-parallel-size", "--tp"],
-    1,
-  );
+  const tensorParallel = argNumber(instance, SGLANG_TENSOR_PARALLEL_KEYS, 1);
   if (!Number.isInteger(tensorParallel) || tensorParallel < 1) return [];
   const visible = parseCudaVisibleDevices(instance.env.CUDA_VISIBLE_DEVICES);
   const candidates =

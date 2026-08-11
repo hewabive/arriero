@@ -74,8 +74,9 @@ sglang_kt-0.6.4-py3-none-any.whl
    Set the main model, CPU weights, method, optional served model name, CUDA
    visibility, and advanced SGLang/KT arguments.
 4. Declare positive memory draws for host RAM and every GPU selected by
-   `CUDA_VISIBLE_DEVICES` and `--tensor-parallel-size`. Strict KTransformers
-   admission cannot be force-overridden.
+   `CUDA_VISIBLE_DEVICES` and the tensor-parallel argument — SGLang spells it
+   `--tp-size`, and `--tensor-parallel-size` / `--tp` are read as the same
+   value. Strict KTransformers admission cannot be force-overridden.
 5. For multiple KT CPU pools, set `--kt-threadpool-count` and the same number of
    distinct `--kt-numa-nodes`. Do not use manager interleave. An optional outer
    bind must agree with every internal KT node.

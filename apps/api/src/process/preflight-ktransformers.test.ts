@@ -185,6 +185,23 @@ test("KTransformers preflight enforces loopback auth and tensor parallel limits"
   }
 });
 
+test("KTransformers preflight reads the SGLang --tp-size spelling", () => {
+  const { root, instance } = fixture();
+  try {
+    instance.args = { "--tp-size": 2 };
+    const result = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+    });
+    assert.ok(
+      result.issues.some(
+        (issue) => issue.field === "args.--tensor-parallel-size",
+      ),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("KTransformers preflight requires host and every selected GPU reservation", () => {
   const { root, instance } = fixture();
   try {

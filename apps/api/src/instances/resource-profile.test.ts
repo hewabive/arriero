@@ -135,6 +135,18 @@ test("KTransformers is always hybrid and follows CUDA tensor-parallel order", ()
   assert.match(result.cpuReason ?? "", /CPU workers/);
 });
 
+test("KTransformers honours the SGLang --tp-size spelling when picking GPUs", () => {
+  const result = profile({
+    kind: "ktransformers",
+    args: { "--tp-size": 2 },
+    env: { CUDA_VISIBLE_DEVICES: "1,0" },
+  });
+  assert.deepEqual(
+    result.gpuPools.map((pool) => pool.poolId),
+    ["gpu1", "gpu0"],
+  );
+});
+
 test("KTransformers reports exact declared hybrid pools", () => {
   const result = profile({
     kind: "ktransformers",

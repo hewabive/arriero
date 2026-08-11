@@ -24,6 +24,12 @@ export function argRaw(
   return undefined;
 }
 
+export const SGLANG_TENSOR_PARALLEL_KEYS = [
+  "--tp-size",
+  "--tensor-parallel-size",
+  "--tp",
+];
+
 export function argNumber(args: LlamaArgRecord, keys: string[]): number | null {
   const value = argRaw(args, keys);
   if (typeof value === "number") {
@@ -483,7 +489,7 @@ function deriveKtransformersHybridProfile(
     context;
   const tensorParallel = Math.max(
     1,
-    Math.floor(argNumber(input.args, ["--tensor-parallel-size", "--tp"]) ?? 1),
+    Math.floor(argNumber(input.args, SGLANG_TENSOR_PARALLEL_KEYS) ?? 1),
   );
   const visible = visibleGpuPools(allGpu, cuda);
   const selected = gpuEntries(
