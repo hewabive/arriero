@@ -142,7 +142,7 @@ export const navSections: NavSection[] = [
       {
         route: "proxy",
         subpath: "sources",
-        label: "Sources",
+        label: "API keys",
         title: "Request sources",
         description:
           "Map API keys to source labels, block sources and control anonymous access",
