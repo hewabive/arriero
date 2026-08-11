@@ -68,7 +68,7 @@ note: for security reasons, this will limit --cors-origins to localhost by defau
 
 ## Когда использовать
 
-Включайте только локально или в жестко изолированной среде, где доверяете пользователям и модели/agent workflow. `exec_shell_command`, `write_file` и `edit_file` дают возможность выполнять команды или менять файловую систему от имени процесса `llama-server`; `--tools-runtime` позволяет вынести их выполнение в Docker-изолят вместо хоста.
+Включайте только локально или в жестко изолированной среде, где доверяете пользователям и модели/agent workflow. `exec_shell_command`, `write_file` и `edit_file` дают возможность выполнять команды или менять файловую систему от имени процесса `llama-server`; `--tools-runtime` позволяет вынести их выполнение в контейнер Docker/Podman или на удалённый хост по SSH вместо хоста с сервером.
 
 ## Влияние на производительность и память
 
@@ -76,7 +76,7 @@ note: for security reasons, this will limit --cors-origins to localhost by defau
 
 ## Взаимодействие с другими аргументами
 
-- `--tools-runtime`: направляет I/O tools в Docker-контейнер вместо файловой системы и shell хоста.
+- `--tools-runtime`: направляет I/O tools в контейнер Docker/Podman или на удалённый хост по SSH вместо файловой системы и shell хоста.
 - `--api-key` практически обязателен при включении `/tools`.
 - `--host 127.0.0.1` предпочтителен; не публикуйте tools на `0.0.0.0` без reverse proxy и policy.
 - Если `--cors-origins` не задан явно, непустой список tools автоматически ограничивает CORS специальным origin `localhost`.

@@ -52,6 +52,15 @@ The forward-looking part stays true: once the checkout pulls past the upstream
 removal, the rows disappear from the generated help and the docs are deleted
 then, through the ordinary removed-argument step of the workflow — not before.
 
+That is what happened at checkout `5d16e81d`. The removal commit `0713275`
+(PR #26254) had in fact been an ancestor for a while, but the README help block
+was stale and still carried the four rows; the doc-regeneration in `4ae84dea`
+(PR #26774) dropped them. With the flags absent from `common/arg.cpp` and from
+the built `llama-server --help`, the four docs were deleted in the ordinary
+sync. The lesson holds in both directions: the generated help block can run
+ahead of the source *and* lag behind it, so the arbiter is the checkout's own
+`common/arg.cpp` plus the built binary — never the README alone.
+
 Memory coverage: `llama-server` parses these options (and `--hf-repo-v` can
 even download the file at startup) but never loads a vocoder — only the
 separate `llama-tts` tool consumes it (`tools/tts/tts.cpp`; `tools/server/`

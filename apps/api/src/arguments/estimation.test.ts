@@ -24,10 +24,6 @@ test("estimation classes cover the known non-estimable llama-server arguments", 
   assert.equal(estimationOf("--hf-repo-draft"), "remote-draft");
   assert.equal(estimationOf("--models-preset"), "router");
   assert.equal(estimationOf("--models-dir"), "router");
-  assert.equal(estimationOf("--model-vocoder"), "normal");
-  assert.equal(estimationOf("-hfv"), "normal");
-  assert.equal(estimationOf("--hf-file-v"), "normal");
-  assert.equal(estimationOf("--tts-use-guide-tokens"), "normal");
   assert.equal(estimationOf("--ctx-size"), "normal");
   assert.equal(estimationOf("--model"), "normal");
 });

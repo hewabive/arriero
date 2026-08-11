@@ -41,12 +41,14 @@ DEPRECATED in favor of `--load-mode`: whether to memory-map model. (if mmap disa
 - Замены: `--load-mode mmap`, `--load-mode none`
 - Переменная окружения: `LLAMA_ARG_MMAP`
 - Поля: `common_params::load_mode`, `llama_model_params::load_mode`
-- Общий default режима загрузки: `mmap`
+- Общий default режима загрузки: `auto`
 
 ## Что меняет в llama-server
 
 - `--mmap` записывает `LLAMA_LOAD_MODE_MMAP`.
 - `--no-mmap` записывает `LLAMA_LOAD_MODE_NONE`.
+
+С #26081 default стал `auto`, поэтому `--mmap` больше не совпадает с поведением по умолчанию: он принудительно включает mmap, минуя проверку `mmap_support` у выбранных устройств. На хосте без iGPU разницы нет, на iGPU `--mmap` возвращает mmap, от которого `auto` отказался.
 
 В режиме `mmap` loader memory-map-ит GGUF и использует page cache ОС. В режиме `none` данные читаются в buffers обычным путём; загрузка обычно медленнее, но при некоторых memory-pressure сценариях уменьшаются pageouts.
 
