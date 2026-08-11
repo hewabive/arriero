@@ -71,6 +71,40 @@ Steps:
 
 Do not add `docStatus`, `reviewedLlamaCppCommit`, or `reviewedHelpHash` to docs. The stored source snapshot hash is the only synchronization signal.
 
+## Engine Argument Docs
+
+The Python engines keep the same file-per-argument shape at `content/engine-args/<engine>/args/<slug>.md`, but their reference is the declaration extract (`docs/ARGUMENT_SOURCE_EXTRACTION.md`), not a help block. `args:docs:quality` lints both trees; the engine rules live in `apps/api/src/arguments/docs-quality-lint.ts`.
+
+Frontmatter is fixed — no other keys:
+
+```yaml
+---
+schema: 1
+engine: vllm
+primaryName: "--max-model-len"
+title: "--max-model-len"
+summary: Russian, one or two practical sentences.
+group: ModelConfig
+related:
+  - --max-num-seqs
+---
+```
+
+Errors:
+
+- a required field missing or empty: `schema`, `engine`, `primaryName`, `title`, `summary`, `related` (an empty list is allowed);
+- an `estimation`, `valueType`, `aliases`, `allowedValues` or `env` key — that data lives in the extract and is never copied into a doc;
+- an `engine` other than the directory the file sits in;
+- a `primaryName` that is not the first flag of an extract entry, i.e. a doc for an argument that no longer exists;
+- a file name other than the `argumentDocSlug` of `primaryName` plus `.md` (`apps/api/src/arguments/docs.ts`);
+- a `group` other than the extract's; absent or `null` exactly when the extract declares none;
+- a `related` flag absent from the same engine's extract (matched against every flag of an entry, not only the first), or pointing at the documented argument itself;
+- the same stale template text llama docs are checked for (`TODO`, "нужно проверить", "создан автоматически", …).
+
+Warning: the first sentence of the extract's `help` appears nowhere in the file — the doc was written without reading the declaration.
+
+Coverage is reported per engine in the `engines` field of the report (`documented` of `total` arguments). An absent or empty `args/` directory is a clean pass: most arguments have no doc yet.
+
 ## Hygiene Rules
 
 - Do not commit generated work-order text.

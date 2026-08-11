@@ -8,17 +8,64 @@ import {
   Switch,
   TextInput,
 } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
+import { listEngineArgumentReferences } from "../../api/client";
 import { TouchSelect } from "../components/TouchCombobox";
+import { useHashSubpath } from "../routing";
+import { countLabel } from "../utils/plural";
+import { formatLocalDateTime } from "../utils/time";
 import { ArgumentDetailPanel } from "./ArgumentDetailPanel";
 import { ArgumentReferenceList } from "./ArgumentReferenceList";
 import { SourceSyncPanel } from "./ArgumentSourceSyncPanel";
 import { allFilterValue } from "./arguments-view-helpers";
 import { useArgumentsView } from "./use-arguments-view";
 
+function EngineReferenceSummary({ engineId }: { engineId: string }) {
+  const summariesQuery = useQuery({
+    queryKey: ["engine-args-references"],
+    queryFn: listEngineArgumentReferences,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const summary = summariesQuery.data?.data.find(
+    (item) => item.engineId === engineId,
+  );
+
+  if (!summary) {
+    return null;
+  }
+
+  return (
+    <Group gap="xs" wrap="wrap">
+      {summary.entrypoint && (
+        <Badge variant="outline">{summary.entrypoint}</Badge>
+      )}
+      {summary.total !== null && (
+        <Badge variant="light">{countLabel(summary.total, "argument")}</Badge>
+      )}
+      <Badge color={summary.documented > 0 ? "teal" : "gray"} variant="light">
+        {summary.documented} documented
+      </Badge>
+      {summary.commit && (
+        <Badge color="gray" variant="outline">
+          {summary.commit.slice(0, 12)}
+        </Badge>
+      )}
+      {summary.updatedAt && (
+        <Badge color="gray" variant="outline">
+          reviewed {formatLocalDateTime(summary.updatedAt)}
+        </Badge>
+      )}
+    </Group>
+  );
+}
+
 export function ArgumentsView() {
-  const fm = useArgumentsView();
+  const [subpath] = useHashSubpath("args");
+  const engineId = subpath.split("/")[0] || undefined;
+  const fm = useArgumentsView(engineId);
 
   return (
     <Stack gap="md" className="args-view">
@@ -28,7 +75,7 @@ export function ArgumentsView() {
         </Alert>
       )}
 
-      {fm.argsCatalog && (
+      {fm.argsCatalog && fm.supportsInstanceDefaults && (
         <SourceSyncPanel
           report={fm.docsSyncQuery.data?.data}
           error={
@@ -36,6 +83,8 @@ export function ArgumentsView() {
           }
         />
       )}
+
+      {engineId && <EngineReferenceSummary engineId={engineId} />}
 
       <Paper withBorder p="md" radius="sm">
         <Group justify="space-between" align="flex-end" wrap="wrap">

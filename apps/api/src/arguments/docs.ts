@@ -36,8 +36,8 @@ export function argumentDocSlug(primaryName: string) {
   );
 }
 
-function argumentDocPath(primaryName: string) {
-  return resolve(argumentDocsDirectory, `${argumentDocSlug(primaryName)}.md`);
+function argumentDocPath(primaryName: string, directory: string) {
+  return resolve(directory, `${argumentDocSlug(primaryName)}.md`);
 }
 
 function readFilePrefix(path: string, maxBytes = 128 * 1024) {
@@ -148,8 +148,11 @@ function firstMarkdownParagraph(markdown: string) {
   return paragraph?.replace(/\s+/g, " ").slice(0, 240) ?? null;
 }
 
-function getArgumentDocIndex(option: ArgumentOption): LlamaArgumentDocIndex {
-  const path = argumentDocPath(option.primaryName);
+function getArgumentDocIndex(
+  option: ArgumentOption,
+  directory: string,
+): LlamaArgumentDocIndex {
+  const path = argumentDocPath(option.primaryName, directory);
   if (!existsSync(path)) {
     return {
       exists: false,
@@ -170,18 +173,25 @@ function getArgumentDocIndex(option: ArgumentOption): LlamaArgumentDocIndex {
   };
 }
 
-export function withArgumentDocIndex(options: ArgumentOption[]) {
+export function withArgumentDocIndex(
+  options: ArgumentOption[],
+  directory = argumentDocsDirectory,
+) {
   return options.map((option) => ({
     ...option,
-    doc: getArgumentDocIndex(option),
+    doc: getArgumentDocIndex(option, directory),
   }));
 }
 
 export function readArgumentEngineeringDoc(input: {
   primaryName: string;
   option?: ArgumentOption | null;
+  directory?: string;
 }): LlamaArgumentEngineeringDoc {
-  const path = argumentDocPath(input.primaryName);
+  const path = argumentDocPath(
+    input.primaryName,
+    input.directory ?? argumentDocsDirectory,
+  );
   if (!existsSync(path)) {
     return {
       primaryName: input.primaryName,

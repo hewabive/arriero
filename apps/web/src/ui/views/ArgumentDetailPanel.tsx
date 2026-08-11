@@ -193,7 +193,7 @@ export function ArgumentDetailPanel({ fm }: { fm: ArgumentsViewController }) {
 
           <ArgumentBadges option={selectedOption} />
 
-          <InstanceDefaultsCard fm={fm} />
+          {fm.supportsInstanceDefaults && <InstanceDefaultsCard fm={fm} />}
 
           {selectedOption.env.length > 0 && (
             <Stack gap={4}>

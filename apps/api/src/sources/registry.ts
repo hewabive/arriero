@@ -52,6 +52,18 @@ const definitions: SourceRepositoryDefinition[] = [
       "SGLang",
     ),
   },
+  {
+    id: "ktransformers",
+    adapter: "ktransformers",
+    displayName: "KTransformers",
+    directoryName: "ktransformers",
+    defaultOriginUrl: "https://github.com/kvcache-ai/ktransformers.git",
+    driftSupported: false,
+    validateCheckout: markerCheckout(
+      "kt-kernel/CMakeLists.txt",
+      "KTransformers",
+    ),
+  },
 ];
 
 const byId = new Map(

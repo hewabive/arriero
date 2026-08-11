@@ -11,6 +11,80 @@ from pathlib import Path
 
 OPTIONAL_WRAPPERS = {"Optional", "Union"}
 
+DECLARED_TYPES = ("bool", "dict", "enum", "float", "int", "json", "list", "path", "str")
+
+TYPE_PRECEDENCE = (
+    "json",
+    "bool",
+    "enum",
+    "list",
+    "dict",
+    "int",
+    "float",
+    "path",
+    "str",
+)
+
+TYPE_BY_ANNOTATION_HEAD = {
+    "bool": "bool",
+    "int": "int",
+    "float": "float",
+    "str": "str",
+    "Path": "path",
+    "PurePath": "path",
+    "PosixPath": "path",
+    "PathLike": "path",
+    "Literal": "enum",
+    "list": "list",
+    "List": "list",
+    "tuple": "list",
+    "Tuple": "list",
+    "set": "list",
+    "Set": "list",
+    "frozenset": "list",
+    "FrozenSet": "list",
+    "Sequence": "list",
+    "Iterable": "list",
+    "Collection": "list",
+    "dict": "dict",
+    "Dict": "dict",
+    "Mapping": "dict",
+    "MutableMapping": "dict",
+    "OrderedDict": "dict",
+    "defaultdict": "dict",
+}
+
+TYPE_BY_PARSER = {
+    "bool": "bool",
+    "int": "int",
+    "float": "float",
+    "str": "str",
+    "Path": "path",
+    "pathlib.Path": "path",
+    "json.loads": "json",
+    "orjson.loads": "json",
+    "json_list_type": "json",
+    "union_dict_and_str": "dict",
+    "human_readable_int": "int",
+    "human_readable_int_or_auto": "int",
+    "nullable_str": "str",
+}
+
+TRANSPARENT_TYPE_WRAPPERS = {
+    "A",
+    "Annotated",
+    "ClassVar",
+    "Final",
+    "InitVar",
+    "NotRequired",
+    "Required",
+    "SkipValidation",
+}
+
+TYPE_PARSER_WRAPPERS = {"optional_type", "parse_type"}
+
+BOOLEAN_ACTIONS = ("store_true", "store_false", "BooleanOptionalAction")
+
 
 def parse_file(path):
     return ast.parse(Path(path).read_text(encoding="utf8"), filename=str(path))
@@ -218,6 +292,87 @@ def annotation_names(node):
         elif isinstance(child, ast.Attribute):
             names.add(child.attr)
     return names
+
+
+def type_head(node):
+    if isinstance(node, ast.Subscript):
+        return type_head(node.value)
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Constant):
+        if node.value is None:
+            return "None"
+        return node.value if isinstance(node.value, str) else None
+    return None
+
+
+def type_leaves(node, aliases=None, seen=None):
+    if node is None:
+        return []
+    seen = seen or set()
+
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return type_leaves(node.left, aliases, seen) + type_leaves(
+            node.right, aliases, seen
+        )
+
+    head = type_head(node)
+
+    if isinstance(node, ast.Subscript):
+        elements = subscript_elements(node)
+        if head in TRANSPARENT_TYPE_WRAPPERS and elements:
+            return type_leaves(elements[0], aliases, seen)
+        if head in OPTIONAL_WRAPPERS:
+            leaves = []
+            for element in elements:
+                leaves.extend(type_leaves(element, aliases, seen))
+            return leaves
+        return [head]
+
+    if (
+        aliases
+        and head in aliases
+        and head not in seen
+        and head not in TYPE_BY_ANNOTATION_HEAD
+    ):
+        return type_leaves(aliases[head], aliases, seen | {head})
+
+    return [head]
+
+
+def declared_type(annotation, aliases=None):
+    leaves = type_leaves(annotation, aliases)
+    resolved = []
+    for head in leaves:
+        mapped = TYPE_BY_ANNOTATION_HEAD.get(head)
+        if mapped and mapped not in resolved:
+            resolved.append(mapped)
+    if not resolved:
+        return None
+    if "None" in leaves and "bool" in resolved and "str" in resolved:
+        return "str"
+    return next(
+        (candidate for candidate in TYPE_PRECEDENCE if candidate in resolved), None
+    )
+
+
+def parser_type(node):
+    if node is None:
+        return None
+    if isinstance(node, ast.Call):
+        wrapper = node.func.id if isinstance(node.func, ast.Name) else None
+        if wrapper in TYPE_PARSER_WRAPPERS and node.args:
+            return parser_type(node.args[0])
+        return None
+    return TYPE_BY_PARSER.get(unparse(node))
+
+
+def boolean_action_type(action):
+    if not action:
+        return None
+    return "bool" if any(name in action for name in BOOLEAN_ACTIONS) else None
 
 
 def default_field(node, doc_resolver=None):

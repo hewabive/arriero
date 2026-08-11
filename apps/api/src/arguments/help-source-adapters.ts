@@ -12,12 +12,12 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 
-import { config } from "../config.js";
 import { repositoryHeadCommit, tryGit } from "../git/process.js";
 import { getSourceRepositoryDefinition } from "../sources/registry.js";
 import { sourceRepositoryPath } from "../sources/repository.js";
+import { engineArgumentContentPaths } from "./engine-content.js";
 import {
   generatedHelpDiff,
   getLlamaArgumentHelpSourceSync,
@@ -39,6 +39,7 @@ import {
 export type EngineHelpSourceAdapter = {
   id: string;
   displayName: string;
+  kind: EngineHelpSourceSync["kind"];
   sourceId: string;
   sourcePaths: string[];
   coveredByDriftReport: boolean;
@@ -141,6 +142,7 @@ function llamaAdapter(): EngineHelpSourceAdapter {
   const identity = {
     id: LLAMA_CPP_SOURCE_ID,
     displayName: "llama-server",
+    kind: "help-block" as const,
     sourceId: LLAMA_CPP_SOURCE_ID,
     sourcePaths: ["tools/server/README.md"],
   };
@@ -186,20 +188,6 @@ type ExtractAdapterInput = {
   sourcePaths: string[];
   runner?: ExtractorRunner;
 };
-
-function extractSnapshotPaths(id: string) {
-  const directory = resolve(
-    config.rootDir,
-    "content",
-    "engine-args",
-    id,
-    "source",
-  );
-  return {
-    snapshotPath: resolve(directory, "extract.json"),
-    metadataPath: resolve(directory, "help-source.json"),
-  };
-}
 
 function readExtractMetadata(path: string): StoredExtractMetadata | null {
   if (!existsSync(path)) {
@@ -286,10 +274,11 @@ export function createExtractHelpSourceAdapter(
   const identity = {
     id: input.id,
     displayName: input.displayName,
+    kind: "declaration-extract" as const,
     sourceId: input.sourceId,
     sourcePaths: input.sourcePaths,
   };
-  const { snapshotPath, metadataPath } = extractSnapshotPaths(input.id);
+  const { snapshotPath, metadataPath } = engineArgumentContentPaths(input.id);
   const runner = input.runner ?? runArgumentExtractor;
   type CurrentExtract = {
     run: Awaited<ReturnType<ExtractorRunner>>;

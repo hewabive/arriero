@@ -49,6 +49,7 @@ require only python3 (stdlib).
       "group": "ModelConfig",
       "help": "Model context length (prompt and output)...",
       "choices": null,
+      "type": "int",
       "optional": true,
       "default": { "kind": "literal", "value": null },
       "action": null,
@@ -65,6 +66,10 @@ require only python3 (stdlib).
   `{"kind":"expression","text":"…"}` when it is computed. Never a guessed value.
 - `choices` — `null` when the list cannot be resolved statically (see gaps). Declaration order is
   preserved; vLLM sorts choices when it renders help, so compare as sets.
+- `type` — the declared value type normalized to `int`/`float`/`bool`/`str`/`path`/`json`/`list`/
+  `dict`/`enum`, `null` when the annotation does not determine one. It drives the form control in the
+  reference page (`arguments/engine-reference.ts`), so a wrong guess is worse than `null`: unresolved
+  on 3% of vLLM and 2% of SGLang arguments as measured below.
 - `optional` — the declared type admits `None`. vLLM renders this as an extra `None` choice.
 - `hidden` — declared with `argparse.SUPPRESS` as help text.
 - `origin` — where a doc author should read the real behaviour.

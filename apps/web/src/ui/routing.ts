@@ -214,6 +214,28 @@ export const navSections: NavSection[] = [
     ],
   },
   {
+    id: "engines",
+    label: "Engines",
+    items: [
+      {
+        route: "args",
+        subpath: "vllm",
+        label: "vLLM arguments",
+        title: "vLLM arguments",
+        description:
+          "Every vLLM serve argument declared in the tracked source, with engineering help",
+      },
+      {
+        route: "args",
+        subpath: "sglang",
+        label: "SGLang arguments",
+        title: "SGLang arguments",
+        description:
+          "Every SGLang launch_server argument declared in the tracked source, with engineering help",
+      },
+    ],
+  },
+  {
     id: "tools",
     label: "Tools",
     items: [

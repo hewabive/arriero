@@ -5,11 +5,24 @@ export const EngineArgumentDefaultSchema = z.union([
   z.object({ kind: z.literal("expression"), text: z.string().nullable() }),
 ]);
 
+export const EngineArgumentValueTypeSchema = z.enum([
+  "bool",
+  "dict",
+  "enum",
+  "float",
+  "int",
+  "json",
+  "list",
+  "path",
+  "str",
+]);
+
 export const EngineArgumentDeclarationSchema = z.object({
   flags: z.array(z.string()).min(1),
   group: z.string().nullable(),
   help: z.string(),
   choices: z.array(z.union([z.string(), z.number(), z.boolean()])).nullable(),
+  type: EngineArgumentValueTypeSchema.nullable(),
   optional: z.boolean().optional(),
   default: EngineArgumentDefaultSchema.nullable(),
   action: z.string().nullable(),
@@ -61,6 +74,9 @@ export const EngineHelpSourceSyncSchema = z.object({
 });
 
 export type EngineArgumentDefault = z.infer<typeof EngineArgumentDefaultSchema>;
+export type EngineArgumentValueType = z.infer<
+  typeof EngineArgumentValueTypeSchema
+>;
 export type EngineArgumentDeclaration = z.infer<
   typeof EngineArgumentDeclarationSchema
 >;

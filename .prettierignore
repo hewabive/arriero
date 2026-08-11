@@ -1,3 +1,6 @@
 # Markdown is hand-formatted (prettier pads tables to unreadable widths).
 *.md
 pnpm-lock.yaml
+# Written only by `args:docs:source-sync -- --engine <id> --write`; reformatting
+# them would make every regeneration look like a diff.
+content/engine-args/*/source/

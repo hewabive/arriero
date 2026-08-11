@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  getEngineArgumentDoc,
+  getEngineArgumentReference,
   getLlamaArgumentDefaults,
   getLlamaArgumentDoc,
   getLlamaArgumentDocsSyncReport,
@@ -27,7 +29,7 @@ import {
   validateArgumentDefault,
 } from "./arguments-view-helpers";
 
-export function useArgumentsView() {
+export function useArgumentsView(engineId?: string) {
   const queryClient = useQueryClient();
   const isMobileList = useMediaQuery("(max-width: 48em)");
   const [routeParams, setRouteParams] = useState(() =>
@@ -44,8 +46,13 @@ export function useArgumentsView() {
   const [docsSyncEnabled, setDocsSyncEnabled] = useState(false);
 
   const argsCatalogQuery = useQuery({
-    queryKey: ["llama-args-reference"],
-    queryFn: getLlamaArgumentReference,
+    queryKey: engineId
+      ? ["engine-args-reference", engineId]
+      : ["llama-args-reference"],
+    queryFn: () =>
+      engineId
+        ? getEngineArgumentReference(engineId)
+        : getLlamaArgumentReference(),
     retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -56,7 +63,7 @@ export function useArgumentsView() {
   const docsSyncQuery = useQuery({
     queryKey: ["llama-arg-docs-sync"],
     queryFn: () => getLlamaArgumentDocsSyncReport(),
-    enabled: docsSyncEnabled,
+    enabled: docsSyncEnabled && !engineId,
     retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -109,8 +116,15 @@ export function useArgumentsView() {
   const selectedOption =
     options.find((option) => option.primaryName === selectedName) ?? null;
   const selectedDocQuery = useQuery({
-    queryKey: ["llama-arg-doc", selectedOption?.primaryName],
-    queryFn: () => getLlamaArgumentDoc(selectedOption!.primaryName),
+    queryKey: [
+      "argument-doc",
+      engineId ?? "llama-server",
+      selectedOption?.primaryName,
+    ],
+    queryFn: () =>
+      engineId
+        ? getEngineArgumentDoc(engineId, selectedOption!.primaryName)
+        : getLlamaArgumentDoc(selectedOption!.primaryName),
     enabled: Boolean(selectedOption),
     retry: false,
     staleTime: Infinity,
@@ -121,6 +135,7 @@ export function useArgumentsView() {
   const argumentDefaultsQuery = useQuery({
     queryKey: ["llama-arg-defaults"],
     queryFn: getLlamaArgumentDefaults,
+    enabled: !engineId,
     staleTime: 60_000,
   });
   const argumentDefaults =
@@ -295,6 +310,8 @@ export function useArgumentsView() {
       : "";
 
   return {
+    engineId: engineId ?? null,
+    supportsInstanceDefaults: !engineId,
     isMobileList,
     search,
     setSearch,

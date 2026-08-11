@@ -38,6 +38,7 @@ function surfaceOf(option: EngineArgumentDeclaration) {
     group: option.group,
     help: option.help,
     choices: option.choices,
+    type: option.type,
     optional: option.optional ?? false,
     default: option.default,
     action: option.action,

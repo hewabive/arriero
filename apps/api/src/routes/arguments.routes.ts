@@ -16,6 +16,11 @@ import {
 import { generatedHelpChangedLines } from "../arguments/docs-source.js";
 import { getLlamaArgumentDocsSyncReport } from "../arguments/docs-sync.js";
 import {
+  engineArgumentReferenceSummaries,
+  getEngineArgumentReferenceCatalog,
+  readEngineArgumentDoc,
+} from "../arguments/engine-reference.js";
+import {
   getEngineHelpSourceAdapter,
   listEngineHelpSourceAdapters,
 } from "../arguments/help-source-adapters.js";
@@ -125,6 +130,33 @@ export function registerArgumentRoutes(app: Hono) {
     try {
       const adapter = getEngineHelpSourceAdapter(c.req.param("engineId"));
       return c.json({ data: { diff: await adapter.diff() } });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400);
+    }
+  });
+
+  app.get("/api/engine-args/references", (c) => {
+    return c.json({ data: engineArgumentReferenceSummaries() });
+  });
+
+  app.get("/api/engine-args/:engineId/reference", (c) => {
+    try {
+      return c.json({
+        data: getEngineArgumentReferenceCatalog(c.req.param("engineId")),
+      });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400);
+    }
+  });
+
+  app.get("/api/engine-args/:engineId/docs/:primaryName", (c) => {
+    try {
+      return c.json({
+        data: readEngineArgumentDoc(
+          c.req.param("engineId"),
+          decodeURIComponent(c.req.param("primaryName")),
+        ),
+      });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }

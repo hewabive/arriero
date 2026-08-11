@@ -63,7 +63,7 @@ import { useUiVersionGuard } from "./use-ui-version-guard";
 export function App() {
   useUiVersionGuard();
   const [route, setRoute] = useHashRoute();
-  const [proxySubpath] = useHashSubpath("proxy");
+  const [routeSubpath] = useHashSubpath(route);
   const [mobileNavOpened, { toggle: toggleNav, close: closeNav }] =
     useDisclosure(false);
   const [createOpened, setCreateOpened] = useState(false);
@@ -127,7 +127,7 @@ export function App() {
     : null;
   const selectedLaunchMonitor =
     selectedInstance?.name === launchMonitor?.instanceId ? launchMonitor : null;
-  const currentRoute = activeLeaf(route, proxySubpath);
+  const currentRoute = activeLeaf(route, routeSubpath);
 
   useEffect(() => {
     document.title = `${currentRoute.title} · Arriero`;
@@ -286,7 +286,7 @@ export function App() {
               <NavLink
                 key={`${leaf.route}:${leaf.subpath ?? ""}`}
                 label={leaf.label}
-                active={isLeafActive(leaf, route, proxySubpath)}
+                active={isLeafActive(leaf, route, routeSubpath)}
                 onClick={() => goToLeaf(leaf)}
               />
             ));

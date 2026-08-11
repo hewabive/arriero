@@ -25,6 +25,7 @@ function extract(
       group: null,
       help: "",
       choices: null,
+      type: null,
       default: null,
       action: null,
       hidden: false,

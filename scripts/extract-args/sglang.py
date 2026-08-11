@@ -18,8 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pyast import (  # noqa: E402
     action_flags,
     annotation_names,
+    boolean_action_type,
     choices_of,
     constant_values,
+    declared_type,
     default_field,
     flag_of_field,
     is_named_subscript,
@@ -30,6 +32,7 @@ from pyast import (  # noqa: E402
     module_docstrings,
     module_path,
     parse_file,
+    parser_type,
     run_extractor,
     sort_options,
     string_value,
@@ -109,6 +112,7 @@ def arg_metadata(parts, resolve_doc):
         "noCli": False,
         "hidden": False,
         "namespace": None,
+        "typeParser": None,
     }
     for meta in parts[1:]:
         text = string_value(meta, resolve_doc)
@@ -140,6 +144,8 @@ def arg_metadata(parts, resolve_doc):
                 metadata["choices"] = value
             elif keyword.arg == "action":
                 metadata["action"] = unparse(value)
+            elif keyword.arg == "type_parser":
+                metadata["typeParser"] = value
             elif keyword.arg == "no_cli":
                 metadata["noCli"] = isinstance(value, ast.Constant) and value.value
     return metadata
@@ -175,6 +181,12 @@ def dataclass_options(server_args, context, diagnostics):
         ):
             diagnostics["unresolvedChoices"].append(field)
 
+        value_type = (
+            parser_type(metadata["typeParser"])
+            or declared_type(parts[0], aliases)
+            or boolean_action_type(metadata["action"])
+        )
+
         options.append(
             {
                 "flags": action_flags(
@@ -185,6 +197,7 @@ def dataclass_options(server_args, context, diagnostics):
                 "group": metadata["namespace"],
                 "help": metadata["help"],
                 "choices": choices,
+                "type": value_type,
                 "optional": is_optional(parts[0]),
                 "default": default_field(node.value, resolve_doc),
                 "action": metadata["action"],
@@ -244,6 +257,7 @@ def explicit_options(server_args, context, diagnostics):
                 "group": None,
                 "help": help_text or "",
                 "choices": choices,
+                "type": parser_type(keywords.get("type")) or boolean_action_type(action),
                 "optional": False,
                 "default": default_field(keywords.get("default"), resolve_doc),
                 "action": action,
@@ -276,6 +290,7 @@ def extract(repo):
         "unresolvedChoices": [],
         "unresolvedHelp": [],
         "duplicateFlags": [],
+        "optionsWithoutType": [],
     }
 
     options = dataclass_options(server_args, context, diagnostics)
@@ -286,6 +301,10 @@ def extract(repo):
             continue
         declared.add(option["flags"][0])
         options.append(option)
+
+    diagnostics["optionsWithoutType"].extend(
+        option["flags"][0] for option in options if option["type"] is None
+    )
 
     return {
         "schema": 1,

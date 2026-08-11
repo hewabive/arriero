@@ -19,7 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pyast import (  # noqa: E402
     action_flags,
     annotation_names,
+    boolean_action_type,
     choices_of,
+    declared_type,
     default_field,
     flag_of_field,
     is_optional,
@@ -28,6 +30,7 @@ from pyast import (  # noqa: E402
     merge_module_symbols,
     module_path,
     parse_file,
+    parser_type,
     run_extractor,
     sort_options,
     string_value,
@@ -200,7 +203,7 @@ def collect_bindings(function_node, diagnostics):
         target = node.targets[0]
         if isinstance(target, ast.Subscript):
             adjusted_key = string_value(target.slice)
-            if adjusted_key in {"help", "choices", "metavar"}:
+            if adjusted_key in {"help", "choices", "metavar", "type"}:
                 diagnostics["runtimeAdjustedKwargs"].append(unparse(target))
             continue
         if not isinstance(target, ast.Name):
@@ -297,11 +300,18 @@ def build_option(input):
         action = "argparse.BooleanOptionalAction"
     flags = action_flags(flags, action)
 
+    value_type = parser_type(explicit.get("type"))
+    if value_type is None and is_dataclass_typed(annotation, classes):
+        value_type = "json"
+    if value_type is None:
+        value_type = declared_type(annotation, aliases) or boolean_action_type(action)
+
     return {
         "flags": flags,
         "group": input["group"],
         "help": help_text or "",
         "choices": choices,
+        "type": value_type,
         "optional": is_optional(annotation),
         "default": default,
         "action": action,
@@ -419,6 +429,7 @@ def extract(repo):
         "runtimeAdjustedKwargs": [],
         "duplicateFlags": [],
         "optionsWithoutHelp": [],
+        "optionsWithoutType": [],
     }
     context = {"classes": classes, "aliases": aliases, "constants": constants}
 
@@ -451,6 +462,8 @@ def extract(repo):
         unique[primary] = option
         if not option["help"] and not option["hidden"]:
             diagnostics["optionsWithoutHelp"].append(primary)
+        if option["type"] is None:
+            diagnostics["optionsWithoutType"].append(primary)
 
     return {
         "schema": 1,

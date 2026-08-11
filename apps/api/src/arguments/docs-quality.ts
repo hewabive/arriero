@@ -1,59 +1,52 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 
 import { flagValue, hasFlag } from "./cli-flags.js";
-import { argumentDocsDirectory, parseArgumentDocFile } from "./docs.js";
-import { LlamaArgumentEstimationSchema } from "./estimation.js";
+import { argumentDocsDirectory } from "./docs.js";
+import {
+  argumentDocFiles,
+  engineDocContext,
+  lintEngineArgumentDoc,
+  lintEngineArgumentDocs,
+  lintLlamaArgumentDoc,
+  type DocQualityIssue,
+  type EngineDocCoverage,
+} from "./docs-quality-lint.js";
+import { engineArgumentContentPaths } from "./engine-content.js";
+import { listEngineArgumentReferences } from "./engine-reference.js";
+import {
+  parseEngineArgumentExtract,
+  type ParsedExtract,
+} from "./help-source.js";
 
-const stalePatterns = [
-  /Этот файл создан автоматически/i,
-  /Для точного описания механики нужно проверить/i,
-  /Что проверить агенту перед завершением/i,
-  /Автоматически связанные аргументы/i,
-  /\bTODO\b/i,
-];
-
-const requiredFrontmatter = [
-  "schema",
-  "primaryName",
-  "title",
-  "summary",
-  "category",
-  "valueType",
-  "estimation",
-  "aliases",
-  "related",
-];
-
-const obsoleteFrontmatter = [
-  "docStatus",
-  "reviewedHelpHash",
-  "reviewedLlamaCppCommit",
-];
-
-const validPresetSupport = new Set([
-  "supported",
-  "unsupported",
-  "preset-only",
-  "model-managed",
-  "router-managed",
-]);
-
-type Issue = {
-  path: string;
-  severity: "error" | "warning";
-  message: string;
+type EngineDocs = {
+  engineId: string;
+  docsDirectory: string;
+  snapshotPath: string;
 };
 
-function docFilesInDirectory() {
-  return readdirSync(argumentDocsDirectory, { withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => name.endsWith(".md"))
-    .filter((name) => !name.startsWith("_") && name !== "README.md")
-    .map((name) => resolve(argumentDocsDirectory, name))
-    .sort((left, right) => left.localeCompare(right));
+const engineDocs: EngineDocs[] = listEngineArgumentReferences().map(
+  ({ engineId }) => {
+    const { docsDirectory, snapshotPath } =
+      engineArgumentContentPaths(engineId);
+    return { engineId, docsDirectory, snapshotPath };
+  },
+);
+
+function engineOfPath(path: string) {
+  return (
+    engineDocs.find((engine) =>
+      path.startsWith(`${engine.docsDirectory}${sep}`),
+    ) ?? null
+  );
+}
+
+function readStoredExtract(engine: EngineDocs): ParsedExtract {
+  if (!existsSync(engine.snapshotPath)) {
+    return { extract: null, error: "stored argument extract not found" };
+  }
+  return parseEngineArgumentExtract(readFileSync(engine.snapshotPath, "utf8"));
 }
 
 function changedDocFiles() {
@@ -67,6 +60,7 @@ function changedDocFiles() {
       "HEAD",
       "--",
       "content/llama-args/llama-server",
+      "content/engine-args",
     ],
     {
       cwd: root,
@@ -82,10 +76,15 @@ function changedDocFiles() {
     .filter((path) => !path.includes("/_") && !path.endsWith("/README.md"))
     .map((path) => resolve(root, path))
     .filter((path) => existsSync(path))
+    .filter(
+      (path) =>
+        path.startsWith(`${argumentDocsDirectory}${sep}`) ||
+        engineOfPath(path) !== null,
+    )
     .sort((left, right) => left.localeCompare(right));
 }
 
-function inputFiles() {
+function selectedFiles() {
   const explicit = flagValue("--file");
   if (explicit) {
     return [resolve(explicit)];
@@ -93,88 +92,60 @@ function inputFiles() {
   if (hasFlag("--changed")) {
     return changedDocFiles();
   }
-  return docFilesInDirectory();
+  return null;
 }
 
-function stringValue(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+const selected = selectedFiles();
+const issues: DocQualityIssue[] = [];
+const coverage: EngineDocCoverage[] = [];
+
+const llamaFiles =
+  selected === null
+    ? argumentDocFiles(argumentDocsDirectory)
+    : selected.filter((path) => engineOfPath(path) === null);
+let checked = llamaFiles.length;
+issues.push(...llamaFiles.flatMap(lintLlamaArgumentDoc));
+
+for (const engine of engineDocs) {
+  const targeted =
+    selected?.filter(
+      (path) => engineOfPath(path)?.engineId === engine.engineId,
+    ) ?? null;
+  if (targeted && targeted.length === 0) {
+    continue;
+  }
+
+  const stored = readStoredExtract(engine);
+  if (!stored.extract) {
+    if ((targeted ?? argumentDocFiles(engine.docsDirectory)).length > 0) {
+      issues.push({
+        path: engine.snapshotPath,
+        severity: "error",
+        message: `stored argument extract for ${engine.engineId}: ${stored.error}`,
+      });
+    }
+    continue;
+  }
+
+  if (targeted) {
+    const context = engineDocContext(engine.engineId, stored.extract);
+    checked += targeted.length;
+    issues.push(
+      ...targeted.flatMap((file) => lintEngineArgumentDoc(file, context)),
+    );
+    continue;
+  }
+
+  const linted = lintEngineArgumentDocs({
+    engineId: engine.engineId,
+    docsDirectory: engine.docsDirectory,
+    extract: stored.extract,
+  });
+  checked += linted.files.length;
+  issues.push(...linted.issues);
+  coverage.push(linted.coverage);
 }
 
-function lintFile(path: string) {
-  const issues: Issue[] = [];
-  const raw = readFileSync(path, "utf8");
-  const parsed = parseArgumentDocFile(raw);
-
-  for (const key of requiredFrontmatter) {
-    if (!(key in parsed.frontmatter)) {
-      issues.push({
-        path,
-        severity: "error",
-        message: `missing frontmatter field: ${key}`,
-      });
-    }
-  }
-
-  const summary = stringValue(parsed.frontmatter.summary);
-  const presetSupport = stringValue(parsed.frontmatter.presetSupport);
-
-  for (const key of obsoleteFrontmatter) {
-    if (key in parsed.frontmatter) {
-      issues.push({
-        path,
-        severity: "error",
-        message: `obsolete frontmatter field: ${key}`,
-      });
-    }
-  }
-
-  if (presetSupport && !validPresetSupport.has(presetSupport)) {
-    issues.push({
-      path,
-      severity: "error",
-      message: `invalid presetSupport: ${presetSupport}`,
-    });
-  }
-
-  const estimation = stringValue(parsed.frontmatter.estimation);
-  if (
-    estimation &&
-    !LlamaArgumentEstimationSchema.safeParse(estimation).success
-  ) {
-    issues.push({
-      path,
-      severity: "error",
-      message: `invalid estimation: ${estimation}`,
-    });
-  }
-
-  if (
-    !summary ||
-    /чернов(ая|ой|ое)\s+инженерн/i.test(summary) ||
-    /создан[а-я\s]+автоматически/i.test(summary)
-  ) {
-    issues.push({
-      path,
-      severity: "warning",
-      message: "summary is empty or still reads like a draft",
-    });
-  }
-
-  for (const pattern of stalePatterns) {
-    if (pattern.test(raw)) {
-      issues.push({
-        path,
-        severity: "error",
-        message: `stale generated text matched ${pattern}`,
-      });
-    }
-  }
-
-  return issues;
-}
-
-const files = inputFiles();
-const issues = files.flatMap(lintFile);
 const errorCount = issues.filter((issue) => issue.severity === "error").length;
 const warningCount = issues.filter(
   (issue) => issue.severity === "warning",
@@ -183,9 +154,10 @@ const warningCount = issues.filter(
 console.log(
   JSON.stringify(
     {
-      checked: files.length,
+      checked,
       errors: errorCount,
       warnings: warningCount,
+      engines: coverage,
       issues,
     },
     null,

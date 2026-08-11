@@ -320,6 +320,15 @@ import, no GPU. One `help-source` adapter per engine (`arguments/help-source-ada
 excluded), and an unavailable extractor degrades to a git commit-range signal instead of a fake
 in-sync. Contract and measured coverage: `docs/ARGUMENT_SOURCE_EXTRACTION.md`.
 
+The committed extract is also the **reference catalog** for those engines: `arguments/engine-reference.ts`
+maps it to `ArgumentOption[]` (`GET /api/engine-args/:engineId/reference`), attaches the Russian help
+from `content/engine-args/<engine>/args/<slug>.md` and serves it at `#/args/<engine>` — the llama
+Arguments page reused with instance-defaults and the llama sync panel switched off. Unlike llama,
+where the doc files *are* the registry (`arguments/registry.ts`), engine docs add prose only: the
+extract owns flags/group/choices/default, so their frontmatter carries just
+`schema`/`engine`/`primaryName`/`title`/`summary`/`group`/`related`. Per-engine authoring contract:
+`content/engine-args/<engine>/_agent-prompt.md`.
+
 ## Conventions
 
 - **Reply to the user in Russian** (code, identifiers, commit messages, and docs stay in English).
