@@ -16,10 +16,11 @@ function extractorScriptPath(script: string) {
   return resolve(config.rootDir, "scripts", "extract-args", script);
 }
 
+const EXTRACTOR_TIMEOUT_MS = 60_000;
+
 export type ExtractorRunner = (input: {
   script: string;
   repoPath: string;
-  timeoutMs?: number;
 }) => Promise<ExtractorRun>;
 
 export const runArgumentExtractor: ExtractorRunner = async (input) => {
@@ -49,7 +50,7 @@ export const runArgumentExtractor: ExtractorRunner = async (input) => {
       [scriptPath, "--repo", input.repoPath, "--out", "-"],
       {
         encoding: "utf8",
-        timeout: input.timeoutMs ?? 60_000,
+        timeout: EXTRACTOR_TIMEOUT_MS,
         maxBuffer: 32 * 1024 * 1024,
       },
     );

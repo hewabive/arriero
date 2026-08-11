@@ -10,6 +10,7 @@ import {
 } from "@arriero/core";
 import {
   isExactGitRepositorySync,
+  repositoryHeadCommitSync,
   runGitSync,
   tryGitSync,
 } from "../git/process.js";
@@ -44,11 +45,7 @@ export function saveLlamaSourceSettings(
 }
 
 export function getLlamaSourceCurrentCommit(): string | null {
-  const repoPath = getLlamaSourceSettings().repoPath;
-  if (!isExactGitRepositorySync(repoPath)) {
-    return null;
-  }
-  return tryGitSync(repoPath, ["rev-parse", "HEAD"]);
+  return repositoryHeadCommitSync(getLlamaSourceSettings().repoPath);
 }
 
 const commitReachabilityCache = new Map<string, boolean>();

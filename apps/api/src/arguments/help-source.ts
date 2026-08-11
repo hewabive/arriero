@@ -3,7 +3,8 @@ import {
   type EngineArgumentDeclaration,
   type EngineArgumentExtract,
 } from "@arriero/core";
-import { createHash } from "node:crypto";
+
+import { canonicalJsonDigest } from "../utils/canonical-json.js";
 
 export type ParsedExtract =
   | { extract: EngineArgumentExtract; error: null }
@@ -45,19 +46,19 @@ function surfaceOf(option: EngineArgumentDeclaration) {
 }
 
 export function engineArgumentSurfaceHash(extract: EngineArgumentExtract) {
-  return createHash("sha256")
-    .update(
-      JSON.stringify({
-        engine: extract.engine,
-        entrypoint: extract.entrypoint,
-        options: extract.options.map(surfaceOf),
-      }),
-    )
-    .digest("hex");
+  return canonicalJsonDigest({
+    engine: extract.engine,
+    entrypoint: extract.entrypoint,
+    options: extract.options.map(surfaceOf),
+  });
 }
 
 export function normalizeHelpPayload(payload: string) {
   return `${payload.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trimEnd()}\n`;
+}
+
+export function nowIso() {
+  return new Date().toISOString();
 }
 
 function byPrimaryFlag(extract: EngineArgumentExtract) {
@@ -124,17 +125,6 @@ function changedTextFragments(leftValue: string, rightValue: string) {
   return { left: fragment(left), right: fragment(right) };
 }
 
-function changedFields(
-  stored: EngineArgumentDeclaration,
-  current: EngineArgumentDeclaration,
-) {
-  const left = surfaceOf(stored) as Record<string, unknown>;
-  const right = surfaceOf(current) as Record<string, unknown>;
-  return Object.keys(right).filter(
-    (key) => JSON.stringify(left[key]) !== JSON.stringify(right[key]),
-  );
-}
-
 export function diffEngineArgumentExtracts(
   stored: EngineArgumentExtract | null,
   current: EngineArgumentExtract,
@@ -158,22 +148,25 @@ export function diffEngineArgumentExtracts(
       }
       continue;
     }
-    const fields = changedFields(previous, option);
+    const leftSurface = surfaceOf(previous) as Record<string, unknown>;
+    const rightSurface = surfaceOf(option) as Record<string, unknown>;
+    const fields = Object.keys(rightSurface).filter(
+      (key) =>
+        JSON.stringify(leftSurface[key]) !== JSON.stringify(rightSurface[key]),
+    );
     if (fields.length === 0) {
       continue;
     }
     lines.push(`~ ${flag}`);
     for (const field of fields) {
-      const left =
-        surfaceOf(previous)[field as keyof ReturnType<typeof surfaceOf>];
-      const right =
-        surfaceOf(option)[field as keyof ReturnType<typeof surfaceOf>];
+      const left = leftSurface[field];
+      const right = rightSurface[field];
       const bothLong =
         typeof left === "string" &&
         typeof right === "string" &&
         Math.max(left.length, right.length) > 160;
       if (bothLong) {
-        const fragments = changedTextFragments(left as string, right as string);
+        const fragments = changedTextFragments(left, right);
         lines.push(`    ${field}: ${fragments.left} -> ${fragments.right}`);
         continue;
       }

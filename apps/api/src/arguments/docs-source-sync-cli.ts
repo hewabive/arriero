@@ -1,18 +1,10 @@
+import { flagValue, hasFlag } from "./cli-flags.js";
 import {
   generatedHelpDiff,
   getLlamaArgumentHelpSourceSync,
   updateStoredGeneratedHelpSnapshot,
 } from "./docs-source.js";
 import { getEngineHelpSourceAdapter } from "./help-source-adapters.js";
-
-function hasFlag(name: string) {
-  return process.argv.includes(name);
-}
-
-function flagValue(name: string) {
-  const index = process.argv.indexOf(name);
-  return index === -1 ? null : (process.argv[index + 1] ?? null);
-}
 
 async function runEngine(engineId: string) {
   const adapter = getEngineHelpSourceAdapter(engineId);

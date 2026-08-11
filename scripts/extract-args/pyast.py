@@ -3,8 +3,10 @@
 Contract, invariants and known gaps: docs/ARGUMENT_SOURCE_EXTRACTION.md
 """
 
+import argparse
 import ast
 import json
+import sys
 from pathlib import Path
 
 OPTIONAL_WRAPPERS = {"Optional", "Union"}
@@ -21,12 +23,8 @@ def unparse(node):
         return None
 
 
-def subscript_slice(node):
-    return node.slice
-
-
 def subscript_elements(node):
-    sliced = subscript_slice(node)
+    sliced = node.slice
     return list(sliced.elts) if isinstance(sliced, ast.Tuple) else [sliced]
 
 
@@ -84,22 +82,24 @@ def module_level_statements(tree):
             yield from node.orelse
 
 
-def literal_aliases(tree):
-    aliases = {}
+def named_assignments(tree):
     for node in module_level_statements(tree):
-        target = None
-        value = None
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-            value = node.value
+            target, value = node.targets[0], node.value
         elif isinstance(node, ast.AnnAssign):
-            target = node.target
-            value = node.value
-        if not isinstance(target, ast.Name) or value is None:
+            target, value = node.target, node.value
+        else:
             continue
-        if is_named_subscript(value, {"Literal"}):
-            aliases[target.id] = value
-    return aliases
+        if isinstance(target, ast.Name) and value is not None:
+            yield target.id, value
+
+
+def literal_aliases(tree):
+    return {
+        name: value
+        for name, value in named_assignments(tree)
+        if is_named_subscript(value, {"Literal"})
+    }
 
 
 def constant_values(node):
@@ -115,21 +115,26 @@ def constant_values(node):
 
 def constant_sequences(tree):
     sequences = {}
-    for node in module_level_statements(tree):
-        target = None
-        value = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-            value = node.value
-        elif isinstance(node, ast.AnnAssign):
-            target = node.target
-            value = node.value
-        if not isinstance(target, ast.Name) or value is None:
-            continue
+    for name, value in named_assignments(tree):
         values = constant_values(value)
         if values is not None:
-            sequences[target.id] = values
+            sequences[name] = values
     return sequences
+
+
+def merge_module_symbols(tree, aliases, constants):
+    for name, node in literal_aliases(tree).items():
+        aliases.setdefault(name, node)
+    for name, values in constant_sequences(tree).items():
+        constants.setdefault(name, values)
+
+
+def module_path(repo, module, package_root=""):
+    base = Path(repo).joinpath(package_root, *module.split("."))
+    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def choices_of(node, aliases, constants):
@@ -231,6 +236,33 @@ def flag_of_field(name):
     return "--" + name.replace("_", "-")
 
 
+def is_suppress(node):
+    return (isinstance(node, ast.Attribute) and node.attr == "SUPPRESS") or (
+        isinstance(node, ast.Name) and node.id == "SUPPRESS"
+    )
+
+
+def is_optional(annotation):
+    if annotation is None:
+        return False
+    return bool(annotation_names(annotation) & {"None", "Optional"})
+
+
+def boolean_optional_flags(flags):
+    expanded = []
+    for flag in flags:
+        expanded.append(flag)
+        if flag.startswith("--") and not flag.startswith("--no-"):
+            expanded.append("--no-" + flag[2:])
+    return expanded
+
+
+def action_flags(flags, action):
+    if action and "BooleanOptionalAction" in action:
+        return boolean_optional_flags(flags)
+    return flags
+
+
 def sort_options(options):
     return sorted(options, key=lambda option: (option["flags"][0], option["flags"]))
 
@@ -241,3 +273,19 @@ def write_extract(path, extract):
         print(payload)
         return
     Path(path).write_text(payload + "\n", encoding="utf8")
+
+
+def run_extractor(description, extract):
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--repo", required=True)
+    parser.add_argument("--out", default="-")
+    arguments = parser.parse_args()
+
+    extracted, diagnostics = extract(arguments.repo)
+    write_extract(arguments.out, extracted)
+    summary = {
+        "options": len(extracted["options"]),
+        **{key: len(value) for key, value in diagnostics.items()},
+        "details": diagnostics,
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=1), file=sys.stderr)

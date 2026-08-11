@@ -102,7 +102,9 @@ export function registerArgumentRoutes(app: Hono) {
     try {
       return c.json({
         data: await Promise.all(
-          listEngineHelpSourceAdapters().map((adapter) => adapter.sync()),
+          listEngineHelpSourceAdapters()
+            .filter((adapter) => !adapter.coveredByDriftReport)
+            .map((adapter) => adapter.sync()),
         ),
       });
     } catch (error) {

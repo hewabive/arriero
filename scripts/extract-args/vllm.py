@@ -9,28 +9,29 @@ Usage:
 Contract, invariants and known gaps: docs/ARGUMENT_SOURCE_EXTRACTION.md
 """
 
-import argparse
 import ast
 import inspect
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from pyast import (  # noqa: E402
+    action_flags,
     annotation_names,
     choices_of,
-    constant_sequences,
     default_field,
     flag_of_field,
-    literal_aliases,
+    is_optional,
+    is_suppress,
     literal_choices,
+    merge_module_symbols,
+    module_path,
     parse_file,
+    run_extractor,
     sort_options,
     string_value,
     unparse,
-    write_extract,
 )
 
 ARG_UTILS_RELATIVE_PATH = "vllm/engine/arg_utils.py"
@@ -77,14 +78,6 @@ def class_fields(class_node):
     return fields
 
 
-def module_path(repo, module):
-    base = Path(repo) / Path(*module.split("."))
-    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
-        if candidate.exists():
-            return candidate
-    return None
-
-
 def imported_modules(tree, relative_path):
     package = Path(relative_path).parent.parts
     modules = set()
@@ -115,10 +108,7 @@ def imported_literal_aliases(repo, trees, aliases, constants):
                 imported = parse_file(path)
             except (SyntaxError, UnicodeDecodeError):
                 continue
-            for name, node in literal_aliases(imported).items():
-                aliases.setdefault(name, node)
-            for name, values in constant_sequences(imported).items():
-                constants.setdefault(name, values)
+            merge_module_symbols(imported, aliases, constants)
     return aliases, constants
 
 
@@ -131,10 +121,7 @@ def index_sources(repo):
         tree = parse_file(path)
         relative = str(path.relative_to(Path(repo)))
         trees[relative] = tree
-        for name, node in literal_aliases(tree).items():
-            aliases.setdefault(name, node)
-        for name, values in constant_sequences(tree).items():
-            constants.setdefault(name, values)
+        merge_module_symbols(tree, aliases, constants)
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -188,10 +175,6 @@ def inherited_fields(classes, class_name, seen=None):
     return list(dict.fromkeys(names))
 
 
-def is_suppress(node):
-    return isinstance(node, ast.Attribute) and node.attr == "SUPPRESS"
-
-
 def is_dataclass_typed(annotation, classes):
     return bool(annotation_names(annotation) & set(classes)) if annotation else False
 
@@ -205,19 +188,6 @@ def wants_boolean_optional(annotation, classes):
     if names & {"bool"} and names & {"str"} and names & {"None"}:
         return False
     return "bool" in names
-
-
-def boolean_optional_flags(flags):
-    expanded = []
-    for flag in flags:
-        expanded.append(flag)
-        if flag.startswith("--") and not flag.startswith("--no-"):
-            expanded.append("--no-" + flag[2:])
-    return expanded
-
-
-def is_optional(annotation):
-    return bool(annotation_names(annotation) & {"None", "Optional"}) if annotation else False
 
 
 def collect_bindings(function_node, diagnostics):
@@ -325,8 +295,7 @@ def build_option(input):
     action = unparse(explicit["action"]) if "action" in explicit else None
     if action is None and wants_boolean_optional(annotation, classes):
         action = "argparse.BooleanOptionalAction"
-    if action and "BooleanOptionalAction" in action:
-        flags = boolean_optional_flags(flags)
+    flags = action_flags(flags, action)
 
     return {
         "flags": flags,
@@ -492,21 +461,5 @@ def extract(repo):
     }, diagnostics
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Extract vLLM argument declarations")
-    parser.add_argument("--repo", required=True)
-    parser.add_argument("--out", default="-")
-    arguments = parser.parse_args()
-
-    extracted, diagnostics = extract(arguments.repo)
-    write_extract(arguments.out, extracted)
-    summary = {
-        "options": len(extracted["options"]),
-        **{key: len(value) for key, value in diagnostics.items()},
-        "details": diagnostics,
-    }
-    print(json.dumps(summary, ensure_ascii=False, indent=1), file=sys.stderr)
-
-
 if __name__ == "__main__":
-    main()
+    run_extractor("Extract vLLM argument declarations", extract)

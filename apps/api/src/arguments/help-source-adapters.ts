@@ -1,9 +1,9 @@
 import {
-  EngineHelpSourceSyncSchema,
   LLAMA_CPP_SOURCE_ID,
   type EngineArgumentExtract,
   type EngineHelpSourceSnapshot,
   type EngineHelpSourceSync,
+  type LlamaArgumentHelpSourceSnapshot,
 } from "@arriero/core";
 import {
   existsSync,
@@ -15,7 +15,8 @@ import {
 import { dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
-import { isExactGitRepositorySync, tryGitSync } from "../git/process.js";
+import { repositoryHeadCommit, tryGit } from "../git/process.js";
+import { getSourceRepositoryDefinition } from "../sources/registry.js";
 import { sourceRepositoryPath } from "../sources/repository.js";
 import {
   generatedHelpDiff,
@@ -26,7 +27,9 @@ import {
   diffEngineArgumentExtracts,
   engineArgumentSurfaceHash,
   normalizeHelpPayload,
+  nowIso,
   parseEngineArgumentExtract,
+  type ParsedExtract,
 } from "./help-source.js";
 import {
   runArgumentExtractor,
@@ -38,6 +41,7 @@ export type EngineHelpSourceAdapter = {
   displayName: string;
   sourceId: string;
   sourcePaths: string[];
+  coveredByDriftReport: boolean;
   sync(): Promise<EngineHelpSourceSync>;
   write(): Promise<EngineHelpSourceSync>;
   diff(): Promise<string>;
@@ -53,32 +57,26 @@ type ExtractMetadata = {
   updatedAt: string;
 };
 
-const CURRENT_EXTRACT_TTL_MS = 60_000;
+type StoredExtractMetadata = Pick<
+  ExtractMetadata,
+  "hash" | "commit" | "updatedAt"
+>;
 
-function nowIso() {
-  return new Date().toISOString();
-}
+const CURRENT_EXTRACT_TTL_MS = 600_000;
 
-function repositoryHead(repoPath: string) {
-  if (!isExactGitRepositorySync(repoPath)) {
-    return null;
-  }
-  return tryGitSync(repoPath, ["rev-parse", "HEAD"]);
-}
-
-function declarationCommits(input: {
+async function declarationCommits(input: {
   repoPath: string;
   storedCommit: string | null;
   head: string | null;
   paths: string[];
-}) {
-  if (!input.storedCommit || !input.head || input.storedCommit === input.head) {
-    return input.storedCommit && input.storedCommit === input.head ? [] : null;
-  }
-  if (!isExactGitRepositorySync(input.repoPath)) {
+}): Promise<string[] | null> {
+  if (!input.storedCommit || !input.head) {
     return null;
   }
-  const output = tryGitSync(input.repoPath, [
+  if (input.storedCommit === input.head) {
+    return [];
+  }
+  const output = await tryGit(input.repoPath, [
     "log",
     "--oneline",
     "--no-decorate",
@@ -112,7 +110,7 @@ function syncOf(input: {
     !input.current.error;
   const inSync = comparable ? input.stored.hash === input.current.hash : null;
 
-  return EngineHelpSourceSyncSchema.parse({
+  return {
     engineId: input.adapter.id,
     displayName: input.adapter.displayName,
     kind: input.kind,
@@ -129,7 +127,14 @@ function syncOf(input: {
         ? "commit-range"
         : "none",
     pendingCommits: input.pendingCommits,
-  });
+  };
+}
+
+function engineSnapshot({
+  llamaCppCommit,
+  ...rest
+}: LlamaArgumentHelpSourceSnapshot): EngineHelpSourceSnapshot {
+  return { ...rest, commit: llamaCppCommit };
 }
 
 function llamaAdapter(): EngineHelpSourceAdapter {
@@ -140,33 +145,18 @@ function llamaAdapter(): EngineHelpSourceAdapter {
     sourcePaths: ["tools/server/README.md"],
   };
 
-  const toSync = () => {
+  const toSync = async () => {
     const llama = getLlamaArgumentHelpSourceSync();
-    const repoPath = sourceRepositoryPath(identity.sourceId);
-    const stored = {
-      path: llama.stored.path,
-      exists: llama.stored.exists,
-      hash: llama.stored.hash,
-      commit: llama.stored.llamaCppCommit,
-      updatedAt: llama.stored.updatedAt,
-      error: llama.stored.error,
-    };
+    const stored = engineSnapshot(llama.stored);
     return syncOf({
       adapter: identity,
       kind: "help-block",
       snapshotPath: llama.snapshotPath,
       metadataPath: llama.metadataPath,
       stored,
-      current: {
-        path: llama.current.path,
-        exists: llama.current.exists,
-        hash: llama.current.hash,
-        commit: llama.current.llamaCppCommit,
-        updatedAt: llama.current.updatedAt,
-        error: llama.current.error,
-      },
-      pendingCommits: declarationCommits({
-        repoPath,
+      current: engineSnapshot(llama.current),
+      pendingCommits: await declarationCommits({
+        repoPath: sourceRepositoryPath(identity.sourceId),
         storedCommit: stored.commit,
         head: llama.current.llamaCppCommit,
         paths: identity.sourcePaths,
@@ -176,9 +166,8 @@ function llamaAdapter(): EngineHelpSourceAdapter {
 
   return {
     ...identity,
-    async sync() {
-      return toSync();
-    },
+    coveredByDriftReport: true,
+    sync: toSync,
     async write() {
       updateStoredGeneratedHelpSnapshot();
       return toSync();
@@ -212,7 +201,7 @@ function extractSnapshotPaths(id: string) {
   };
 }
 
-function readExtractMetadata(path: string): ExtractMetadata | null {
+function readExtractMetadata(path: string): StoredExtractMetadata | null {
   if (!existsSync(path)) {
     return null;
   }
@@ -224,11 +213,6 @@ function readExtractMetadata(path: string): ExtractMetadata | null {
       return null;
     }
     return {
-      schema: 1,
-      engine: typeof parsed.engine === "string" ? parsed.engine : "",
-      entrypoint:
-        typeof parsed.entrypoint === "string" ? parsed.entrypoint : "",
-      sourcePaths: Array.isArray(parsed.sourcePaths) ? parsed.sourcePaths : [],
       hash: parsed.hash,
       commit: typeof parsed.commit === "string" ? parsed.commit : null,
       updatedAt:
@@ -296,7 +280,9 @@ function storedExtractSnapshot(input: {
   };
 }
 
-function extractAdapter(input: ExtractAdapterInput): EngineHelpSourceAdapter {
+export function createExtractHelpSourceAdapter(
+  input: ExtractAdapterInput,
+): EngineHelpSourceAdapter {
   const identity = {
     id: input.id,
     displayName: input.displayName,
@@ -305,34 +291,47 @@ function extractAdapter(input: ExtractAdapterInput): EngineHelpSourceAdapter {
   };
   const { snapshotPath, metadataPath } = extractSnapshotPaths(input.id);
   const runner = input.runner ?? runArgumentExtractor;
+  type CurrentExtract = {
+    run: Awaited<ReturnType<ExtractorRunner>>;
+    parsed: ParsedExtract | null;
+    hash: string | null;
+  };
   let cached: {
     key: string;
     expiresAt: number;
-    run: Awaited<ReturnType<ExtractorRunner>>;
+    value: CurrentExtract;
   } | null = null;
 
-  async function currentExtract(repoPath: string, head: string | null) {
+  async function currentExtract(
+    repoPath: string,
+    head: string | null,
+  ): Promise<CurrentExtract> {
     const key = `${repoPath}|${head ?? "none"}`;
     const now = Date.now();
     if (cached && cached.key === key && cached.expiresAt > now) {
-      return cached.run;
+      return cached.value;
     }
     const run = await runner({ script: input.script, repoPath });
-    cached = { key, expiresAt: now + CURRENT_EXTRACT_TTL_MS, run };
-    return run;
+    const parsed = run.payload ? parseEngineArgumentExtract(run.payload) : null;
+    const value = {
+      run,
+      parsed,
+      hash: parsed?.extract ? engineArgumentSurfaceHash(parsed.extract) : null,
+    };
+    cached = { key, expiresAt: now + CURRENT_EXTRACT_TTL_MS, value };
+    return value;
   }
 
   async function readSides() {
     const repoPath = sourceRepositoryPath(identity.sourceId);
-    const head = repositoryHead(repoPath);
+    const head = await repositoryHeadCommit(repoPath);
     const stored = storedExtractSnapshot({ snapshotPath, metadataPath });
-    const run = await currentExtract(repoPath, head);
-    const parsed = run.payload ? parseEngineArgumentExtract(run.payload) : null;
+    const { run, parsed, hash } = await currentExtract(repoPath, head);
 
     const current: EngineHelpSourceSnapshot = {
       path: repoPath,
       exists: existsSync(repoPath),
-      hash: parsed?.extract ? engineArgumentSurfaceHash(parsed.extract) : null,
+      hash,
       commit: head,
       updatedAt: parsed?.extract ? nowIso() : null,
       error: run.error ?? parsed?.error ?? null,
@@ -357,7 +356,7 @@ function extractAdapter(input: ExtractAdapterInput): EngineHelpSourceAdapter {
       metadataPath,
       stored: sides.stored.snapshot,
       current: sides.current,
-      pendingCommits: declarationCommits({
+      pendingCommits: await declarationCommits({
         repoPath: sides.repoPath,
         storedCommit: sides.stored.snapshot.commit,
         head: sides.head,
@@ -368,6 +367,7 @@ function extractAdapter(input: ExtractAdapterInput): EngineHelpSourceAdapter {
 
   return {
     ...identity,
+    coveredByDriftReport: false,
     sync: toSync,
     async write() {
       const sides = await readSides();
@@ -393,7 +393,6 @@ function extractAdapter(input: ExtractAdapterInput): EngineHelpSourceAdapter {
         `${JSON.stringify(metadata, null, 2)}\n`,
         "utf8",
       );
-      cached = null;
       return toSync();
     },
     async diff() {
@@ -415,9 +414,9 @@ function extractAdapter(input: ExtractAdapterInput): EngineHelpSourceAdapter {
 const adapters = new Map<string, EngineHelpSourceAdapter>(
   [
     llamaAdapter(),
-    extractAdapter({
+    createExtractHelpSourceAdapter({
       id: "vllm",
-      displayName: "vLLM",
+      displayName: getSourceRepositoryDefinition("vllm").displayName,
       sourceId: "vllm",
       script: "vllm.py",
       sourcePaths: [
@@ -426,9 +425,9 @@ const adapters = new Map<string, EngineHelpSourceAdapter>(
         "vllm/entrypoints/openai/cli_args.py",
       ],
     }),
-    extractAdapter({
+    createExtractHelpSourceAdapter({
       id: "sglang",
-      displayName: "SGLang",
+      displayName: getSourceRepositoryDefinition("sglang").displayName,
       sourceId: "sglang",
       script: "sglang.py",
       sourcePaths: ["python/sglang/srt/server_args.py"],
@@ -446,8 +445,4 @@ export function getEngineHelpSourceAdapter(engineId: string) {
     throw new Error(`unknown engine help source: ${engineId}`);
   }
   return adapter;
-}
-
-export function createExtractHelpSourceAdapter(input: ExtractAdapterInput) {
-  return extractAdapter(input);
 }

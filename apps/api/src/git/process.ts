@@ -309,3 +309,19 @@ export function isExactGitRepositorySync(path: string): boolean {
     return false;
   }
 }
+
+export async function repositoryHeadCommit(
+  repoPath: string,
+): Promise<string | null> {
+  if (!(await isExactGitRepository(repoPath))) {
+    return null;
+  }
+  return tryGit(repoPath, ["rev-parse", "HEAD"]);
+}
+
+export function repositoryHeadCommitSync(repoPath: string): string | null {
+  if (!isExactGitRepositorySync(repoPath)) {
+    return null;
+  }
+  return tryGitSync(repoPath, ["rev-parse", "HEAD"]);
+}

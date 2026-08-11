@@ -16,6 +16,7 @@ import {
   getLlamaSourceSettings,
   llamaSourceCommitIsReachable,
 } from "../llama/source-repository.js";
+import { normalizeHelpPayload, nowIso } from "./help-source.js";
 
 const helpStartMarker = "<!-- HELP_START -->";
 const helpEndMarker = "<!-- HELP_END -->";
@@ -46,16 +47,8 @@ type HelpSourceMetadata = {
   updatedAt: string;
 };
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 function hashHelpBlock(block: string) {
   return createHash("sha256").update(block).digest("hex");
-}
-
-function normalizeHelpBlock(block: string) {
-  return `${block.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trimEnd()}\n`;
 }
 
 export function extractGeneratedHelpBlock(readme: string) {
@@ -72,7 +65,7 @@ export function extractGeneratedHelpBlock(readme: string) {
     );
   }
 
-  return normalizeHelpBlock(
+  return normalizeHelpPayload(
     normalized.slice(start, endStart + helpEndMarker.length),
   );
 }
@@ -171,7 +164,7 @@ function readStoredGeneratedHelpBlock() {
   if (!existsSync(argumentHelpSourceSnapshotPath)) {
     return null;
   }
-  return normalizeHelpBlock(
+  return normalizeHelpPayload(
     readFileSync(argumentHelpSourceSnapshotPath, "utf8"),
   );
 }

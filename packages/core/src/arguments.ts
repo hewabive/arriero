@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { EngineHelpSourceSnapshotSchema } from "./engine-args.js";
 import { LlamaSourceStatusSchema } from "./llama.js";
 
 export const ArgumentValueTypeSchema = z.enum([
@@ -148,14 +149,10 @@ export const LlamaArgumentEngineeringDocSchema = z.object({
   markdown: z.string(),
 });
 
-export const LlamaArgumentHelpSourceSnapshotSchema = z.object({
-  path: z.string(),
-  exists: z.boolean(),
-  hash: z.string().nullable(),
-  llamaCppCommit: z.string().nullable(),
-  updatedAt: z.string().nullable(),
-  error: z.string().nullable(),
-});
+export const LlamaArgumentHelpSourceSnapshotSchema =
+  EngineHelpSourceSnapshotSchema.omit({ commit: true }).extend({
+    llamaCppCommit: z.string().nullable(),
+  });
 
 export const LlamaArgumentHelpSourceSyncSchema = z.object({
   sourcePath: z.string(),

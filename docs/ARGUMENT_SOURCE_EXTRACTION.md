@@ -166,11 +166,12 @@ Signals, in the order the adapter prefers them:
   commits touching the declaration paths since the stored commit;
 - `none` — neither signal is available.
 
-The current-side extract is cached for 60 seconds per checkout HEAD, so an uncommitted edit in the
-checkout can take up to a minute to show up.
+The current-side extract is cached per checkout HEAD: a new commit invalidates it immediately, an
+uncommitted edit in the checkout can take up to 10 minutes to show up.
 
 The Source sync page (`#/source-sync`) renders one help-source row per adapter inside its
 repository's panel (`web/src/ui/views/EngineHelpSourcePanel.tsx`): status badge, snapshot vs checkout
-commit, signal, pending commits and an on-demand diff. llama.cpp is excluded there because its drift
-report already carries the `argument-help` section. Writing a snapshot stays a CLI action — the page
+commit, signal, pending commits and an on-demand diff. Adapters whose drift report already carries
+the argument-help section (`coveredByDriftReport`, today llama.cpp) are excluded from the list
+endpoint — `…/:engineId` still serves them. Writing a snapshot stays a CLI action — the page
 is read-only and prints the `--write` command for engines that have no snapshot yet.

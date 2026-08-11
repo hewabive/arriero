@@ -2,7 +2,6 @@ import type { EngineHelpSourceSync } from "@arriero/core";
 import {
   Alert,
   Badge,
-  Button,
   Code,
   Group,
   Paper,
@@ -10,12 +9,11 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, FileClock, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
 
 import { getEngineHelpSourceDiff } from "../../api/client";
+import { LazyDiff } from "../components/LazyDiff";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
 
@@ -37,10 +35,7 @@ function statusAppearance(sync: EngineHelpSourceSync) {
   if (sync.inSync === false) {
     return { color: "yellow", label: "drift" };
   }
-  if (sync.current.error) {
-    return { color: "red", label: "unavailable" };
-  }
-  if (!sync.stored.exists) {
+  if (!sync.current.error && !sync.stored.exists) {
     return { color: "gray", label: "no snapshot" };
   }
   return { color: "red", label: "unavailable" };
@@ -57,43 +52,6 @@ function Field(props: { label: string; children: ReactNode }) {
         {props.label}
       </Text>
       {props.children}
-    </Stack>
-  );
-}
-
-function HelpSourceDiff(props: { engineId: string }) {
-  const [open, setOpen] = useState(false);
-  const diffQuery = useQuery({
-    queryKey: ["engine-help-source-diff", props.engineId],
-    queryFn: () => getEngineHelpSourceDiff(props.engineId),
-    enabled: open,
-    retry: false,
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  return (
-    <Stack gap="xs">
-      <Button
-        size="xs"
-        variant="subtle"
-        w="fit-content"
-        loading={diffQuery.isFetching}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {open ? "Hide diff" : "Show diff"}
-      </Button>
-      {open && diffQuery.data?.data.diff && (
-        <ScrollArea.Autosize mah={420}>
-          <Code block>{diffQuery.data.data.diff}</Code>
-        </ScrollArea.Autosize>
-      )}
-      {open && diffQuery.isError && (
-        <Text c="red" size="sm">
-          Could not compute the diff: {(diffQuery.error as Error).message}
-        </Text>
-      )}
     </Stack>
   );
 }
@@ -230,7 +188,12 @@ export function EngineHelpSourcePanel({
           </Alert>
         )}
 
-        {!sync.current.error && <HelpSourceDiff engineId={sync.engineId} />}
+        {!sync.current.error && (
+          <LazyDiff
+            queryKey={["engine-help-source-diff", sync.engineId]}
+            queryFn={() => getEngineHelpSourceDiff(sync.engineId)}
+          />
+        )}
       </Stack>
     </Paper>
   );

@@ -9,44 +9,37 @@ Usage:
 Contract, invariants and known gaps: docs/ARGUMENT_SOURCE_EXTRACTION.md
 """
 
-import argparse
 import ast
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from pyast import (  # noqa: E402
+    action_flags,
     annotation_names,
     choices_of,
-    constant_sequences,
+    constant_values,
     default_field,
     flag_of_field,
     is_named_subscript,
-    literal_aliases,
+    is_optional,
+    is_suppress,
     literal_choices,
+    merge_module_symbols,
     module_docstrings,
+    module_path,
     parse_file,
+    run_extractor,
     sort_options,
     string_value,
     subscript_elements,
     unparse,
-    write_extract,
 )
 
 SERVER_ARGS_RELATIVE_PATH = "python/sglang/srt/server_args.py"
 PACKAGE_ROOT = "python"
 ENTRYPOINT = "python -m sglang.launch_server"
-
-
-def module_path(repo, module):
-    parts = module.split(".")
-    base = Path(repo) / PACKAGE_ROOT / Path(*parts)
-    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def imported_modules(tree):
@@ -60,21 +53,19 @@ def imported_modules(tree):
 
 
 def index_referenced_modules(repo, tree):
-    aliases = dict(literal_aliases(tree))
-    constants = dict(constant_sequences(tree))
+    aliases = {}
+    constants = {}
     docs = dict(module_docstrings(tree))
+    merge_module_symbols(tree, aliases, constants)
     for module in imported_modules(tree):
-        path = module_path(repo, module)
+        path = module_path(repo, module, PACKAGE_ROOT)
         if path is None:
             continue
         try:
             imported = parse_file(path)
         except SyntaxError:
             continue
-        for name, node in literal_aliases(imported).items():
-            aliases.setdefault(name, node)
-        for name, values in constant_sequences(imported).items():
-            constants.setdefault(name, values)
+        merge_module_symbols(imported, aliases, constants)
         for name, doc in module_docstrings(imported).items():
             docs.setdefault(name, doc)
     return aliases, constants, docs
@@ -105,25 +96,6 @@ def annotated_parts(annotation):
         return None
     parts = subscript_elements(annotation)
     return parts if len(parts) >= 2 else None
-
-
-def is_suppress(node):
-    return (
-        isinstance(node, ast.Attribute)
-        and node.attr == "SUPPRESS"
-        or isinstance(node, ast.Name)
-        and node.id == "SUPPRESS"
-    )
-
-
-def boolean_optional_flags(flags, action):
-    if not action or "BooleanOptionalAction" not in action:
-        return flags
-    expanded = list(flags)
-    for flag in flags:
-        if flag.startswith("--") and not flag.startswith("--no-"):
-            expanded.append("--no-" + flag[2:])
-    return expanded
 
 
 def arg_metadata(parts, resolve_doc):
@@ -161,7 +133,7 @@ def arg_metadata(parts, resolve_doc):
                 else:
                     metadata["help"] = string_value(value, resolve_doc)
             elif keyword.arg == "aliases":
-                metadata["aliases"] = constant_list(value) or []
+                metadata["aliases"] = constant_values(value) or []
             elif keyword.arg == "cli_name":
                 metadata["cliName"] = string_value(value)
             elif keyword.arg == "choices":
@@ -171,21 +143,6 @@ def arg_metadata(parts, resolve_doc):
             elif keyword.arg == "no_cli":
                 metadata["noCli"] = isinstance(value, ast.Constant) and value.value
     return metadata
-
-
-def is_optional(annotation):
-    return bool(annotation_names(annotation) & {"None", "Optional"})
-
-
-def constant_list(node):
-    if not isinstance(node, (ast.List, ast.Tuple)):
-        return None
-    values = []
-    for element in node.elts:
-        if not isinstance(element, ast.Constant):
-            return None
-        values.append(element.value)
-    return values
 
 
 def dataclass_options(server_args, context, diagnostics):
@@ -220,7 +177,7 @@ def dataclass_options(server_args, context, diagnostics):
 
         options.append(
             {
-                "flags": boolean_optional_flags(
+                "flags": action_flags(
                     [metadata["cliName"] or flag_of_field(field)]
                     + list(metadata["aliases"]),
                     metadata["action"],
@@ -283,7 +240,7 @@ def explicit_options(server_args, context, diagnostics):
         action = unparse(keywords["action"]) if "action" in keywords else None
         options.append(
             {
-                "flags": boolean_optional_flags(flags, action),
+                "flags": action_flags(flags, action),
                 "group": None,
                 "help": help_text or "",
                 "choices": choices,
@@ -339,21 +296,5 @@ def extract(repo):
     }, diagnostics
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Extract SGLang argument declarations")
-    parser.add_argument("--repo", required=True)
-    parser.add_argument("--out", default="-")
-    arguments = parser.parse_args()
-
-    extracted, diagnostics = extract(arguments.repo)
-    write_extract(arguments.out, extracted)
-    summary = {
-        "options": len(extracted["options"]),
-        **{key: len(value) for key, value in diagnostics.items()},
-        "details": diagnostics,
-    }
-    print(json.dumps(summary, ensure_ascii=False, indent=1), file=sys.stderr)
-
-
 if __name__ == "__main__":
-    main()
+    run_extractor("Extract SGLang argument declarations", extract)

@@ -14,7 +14,6 @@ import {
   Group,
   Loader,
   Paper,
-  ScrollArea,
   Stack,
   Text,
   TextInput,
@@ -41,6 +40,7 @@ import {
   pullSourceRepository,
   updateSourceRepositorySettings,
 } from "../../api/client";
+import { LazyDiff } from "../components/LazyDiff";
 import { formatLocalDateTime } from "../utils/time";
 import { countLabel } from "../utils/plural";
 import { EngineHelpSourcePanel } from "./EngineHelpSourcePanel";
@@ -76,45 +76,6 @@ function repositoryStateLabel(status: SourceRepositoryStatus) {
   }
   if (status.state === "missing") return "not cloned";
   return status.state;
-}
-
-function ArgumentHelpDiff(props: { drift: boolean }) {
-  const [open, setOpen] = useState(false);
-  const diffQuery = useQuery({
-    queryKey: ["llama-arg-help-diff"],
-    queryFn: getLlamaArgumentHelpDiff,
-    enabled: props.drift && open,
-    retry: false,
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  if (!props.drift) return null;
-
-  return (
-    <Stack gap="xs" mt="sm">
-      <Button
-        size="xs"
-        variant="subtle"
-        w="fit-content"
-        loading={diffQuery.isFetching}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {open ? "Скрыть diff" : "Показать diff"}
-      </Button>
-      {open && diffQuery.data?.data.diff && (
-        <ScrollArea.Autosize mah={420}>
-          <Code block>{diffQuery.data.data.diff}</Code>
-        </ScrollArea.Autosize>
-      )}
-      {open && diffQuery.isError && (
-        <Text c="red" size="sm">
-          Не удалось получить diff: {(diffQuery.error as Error).message}
-        </Text>
-      )}
-    </Stack>
-  );
 }
 
 function SectionCard(props: { section: SourceSyncSection; extra?: ReactNode }) {
@@ -242,24 +203,20 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
           section={section}
           extra={
             report.sourceId === LLAMA_CPP_SOURCE_ID &&
-            section.id === "argument-help" ? (
-              <ArgumentHelpDiff drift={section.status === "drift"} />
+            section.id === "argument-help" &&
+            section.status === "drift" ? (
+              <Box mt="sm">
+                <LazyDiff
+                  queryKey={["llama-arg-help-diff"]}
+                  queryFn={getLlamaArgumentHelpDiff}
+                />
+              </Box>
             ) : null
           }
         />
       ))}
     </Stack>
   );
-}
-
-function helpSourcesNotCoveredByDriftReport(
-  repository: SourceRepositoryStatus,
-  rows: EngineHelpSourceSync[],
-) {
-  if (repository.driftSupported) {
-    return [];
-  }
-  return rows.filter((row) => row.sourceId === repository.spec.id);
 }
 
 function SourceRepositoryPanel({
@@ -621,9 +578,8 @@ export function SourceSyncView() {
         <SourceRepositoryPanel
           key={repository.spec.id}
           repository={repository}
-          helpSources={helpSourcesNotCoveredByDriftReport(
-            repository,
-            helpSourcesQuery.data?.data ?? [],
+          helpSources={(helpSourcesQuery.data?.data ?? []).filter(
+            (row) => row.sourceId === repository.spec.id,
           )}
         />
       ))}

@@ -14,6 +14,13 @@ export type SourceRepositoryDefinition = {
   validateCheckout(repoPath: string): string | null;
 };
 
+function markerCheckout(markerRelativePath: string, name: string) {
+  return (repoPath: string) =>
+    existsSync(resolve(repoPath, ...markerRelativePath.split("/")))
+      ? null
+      : `${markerRelativePath} not found in ${repoPath}; the checkout does not look like ${name}`;
+}
+
 const definitions: SourceRepositoryDefinition[] = [
   {
     id: LLAMA_CPP_SOURCE_ID,
@@ -22,12 +29,7 @@ const definitions: SourceRepositoryDefinition[] = [
     directoryName: "llama.cpp",
     defaultOriginUrl: "https://github.com/ggml-org/llama.cpp.git",
     driftSupported: true,
-    validateCheckout(repoPath) {
-      if (!existsSync(resolve(repoPath, "CMakeLists.txt"))) {
-        return `CMakeLists.txt not found in ${repoPath}; the checkout does not look like llama.cpp`;
-      }
-      return null;
-    },
+    validateCheckout: markerCheckout("CMakeLists.txt", "llama.cpp"),
   },
   {
     id: "vllm",
@@ -36,12 +38,7 @@ const definitions: SourceRepositoryDefinition[] = [
     directoryName: "vllm",
     defaultOriginUrl: "https://github.com/vllm-project/vllm.git",
     driftSupported: false,
-    validateCheckout(repoPath) {
-      if (!existsSync(resolve(repoPath, "vllm", "engine", "arg_utils.py"))) {
-        return `vllm/engine/arg_utils.py not found in ${repoPath}; the checkout does not look like vLLM`;
-      }
-      return null;
-    },
+    validateCheckout: markerCheckout("vllm/engine/arg_utils.py", "vLLM"),
   },
   {
     id: "sglang",
@@ -50,16 +47,10 @@ const definitions: SourceRepositoryDefinition[] = [
     directoryName: "sglang",
     defaultOriginUrl: "https://github.com/sgl-project/sglang.git",
     driftSupported: false,
-    validateCheckout(repoPath) {
-      if (
-        !existsSync(
-          resolve(repoPath, "python", "sglang", "srt", "server_args.py"),
-        )
-      ) {
-        return `python/sglang/srt/server_args.py not found in ${repoPath}; the checkout does not look like SGLang`;
-      }
-      return null;
-    },
+    validateCheckout: markerCheckout(
+      "python/sglang/srt/server_args.py",
+      "SGLang",
+    ),
   },
 ];
 

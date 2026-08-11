@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { flagValue, hasFlag } from "./cli-flags.js";
 import { argumentDocsDirectory, parseArgumentDocFile } from "./docs.js";
 import { LlamaArgumentEstimationSchema } from "./estimation.js";
 
@@ -45,15 +46,6 @@ type Issue = {
   message: string;
 };
 
-function hasFlag(name: string) {
-  return process.argv.includes(name);
-}
-
-function argValue(name: string) {
-  const index = process.argv.indexOf(name);
-  return index === -1 ? null : (process.argv[index + 1] ?? null);
-}
-
 function docFilesInDirectory() {
   return readdirSync(argumentDocsDirectory, { withFileTypes: true })
     .filter((entry) => entry.isFile())
@@ -94,7 +86,7 @@ function changedDocFiles() {
 }
 
 function inputFiles() {
-  const explicit = argValue("--file");
+  const explicit = flagValue("--file");
   if (explicit) {
     return [resolve(explicit)];
   }
