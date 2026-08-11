@@ -8,6 +8,7 @@ import {
   type ConfigGitCommitDetail,
   type ConfigGitCommitFileChange,
   type ConfigGitDiff,
+  type ConfigGitDirtySummary,
   type ConfigGitFileStatus,
   type ConfigGitStatus,
 } from "@arriero/core";
@@ -217,6 +218,20 @@ export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
   } catch (error) {
     return emptyStatus((error as Error).message);
   }
+}
+
+export async function getConfigGitDirtySummary(): Promise<ConfigGitDirtySummary> {
+  const path = config.configDir;
+  if (!(await isExactGitRepository(path))) {
+    return { isGitRepo: false, dirty: false, fileCount: 0 };
+  }
+  const statusResult = await runGit(path, [
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all",
+  ]);
+  const fileCount = parseFileStatuses(statusResult.stdout).length;
+  return { isGitRepo: true, dirty: fileCount > 0, fileCount };
 }
 
 function limitDiff(value: string): { text: string; truncated: boolean } {

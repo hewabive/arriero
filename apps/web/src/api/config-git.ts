@@ -6,6 +6,7 @@ import type {
   ConfigGitCommitInput,
   ConfigGitCreateBranch,
   ConfigGitDiff,
+  ConfigGitDirtySummary,
   ConfigGitInit,
   ConfigGitMutationResult,
   ConfigGitRemote,
@@ -20,6 +21,10 @@ import { buildQuery, nodeRequest } from "./http.js";
 
 export function getConfigGitStatus() {
   return nodeRequest<{ data: ConfigGitStatus }>("/api/config-git/status");
+}
+
+export function getConfigGitDirty() {
+  return nodeRequest<{ data: ConfigGitDirtySummary }>("/api/config-git/dirty");
 }
 
 export function getConfigGitValidation() {

@@ -15,7 +15,11 @@ import {
   type MemoryEstimateResolution,
 } from "../memory-estimate/service.js";
 import { getMemoryAssessmentAutoNote } from "./auto-note.js";
-import { assessmentEngine, type AssessmentEngine } from "./engines.js";
+import {
+  analyticalDrawScope,
+  assessmentEngine,
+  type AssessmentEngine,
+} from "./engines.js";
 import { measuredComparisonDeltas } from "./measured.js";
 import {
   drawsDigest,
@@ -46,7 +50,7 @@ function analyticalDrawsDigest(
   receipt: AnalyticalReceipt,
   draws: Instance["memory"],
 ): string {
-  if (receipt.estimatorId !== "vllm-gpu-util") {
+  if (analyticalDrawScope(receipt.estimatorId) === "all-pools") {
     return drawsDigest(draws);
   }
   const estimatedGpuPoolIds = new Set(
@@ -416,13 +420,24 @@ export function evaluateInstanceMemoryAssessment(
 ): MemoryAssessmentSummary | undefined {
   const engine = assessmentEngine(instance.kind);
   if (!engine) return undefined;
+  return withAutoAssessmentNote(
+    instance.name,
+    summarizeInstanceMemoryAssessment(engine, instance, input),
+  );
+}
+
+function summarizeInstanceMemoryAssessment(
+  engine: AssessmentEngine,
+  instance: Instance,
+  input: EvaluationInput,
+): MemoryAssessmentSummary {
   const stored = getMemoryAssessmentForInstance(instance.name);
   if (!stored) {
-    return withAutoAssessmentNote(instance.name, notAssessedSummary(engine));
+    return notAssessedSummary(engine);
   }
   const receipt = parseStoredReceipt(stored.receipt);
   if (!receipt) {
-    return withAutoAssessmentNote(instance.name, {
+    return {
       ...notAssessedSummary(engine),
       status: "update-required",
       reason:
@@ -430,7 +445,7 @@ export function evaluateInstanceMemoryAssessment(
       reasons: ["The local assessment receipt is invalid or obsolete."],
       recommendation: engine.updateRecommendation,
       reportAvailable: true,
-    });
+    };
   }
   const current = engine.buildFingerprint(contextFromInstance(instance));
   const reasons = engine.driftReasons(receipt.fingerprint, current);
@@ -451,12 +466,9 @@ export function evaluateInstanceMemoryAssessment(
     layout: input.layout,
     runId: input.runId ?? null,
   };
-  return withAutoAssessmentNote(
-    instance.name,
-    receipt.evidence === "analytical"
-      ? analyticalSummary({ ...context, receipt })
-      : measuredSummary({ ...context, receipt }),
-  );
+  return receipt.evidence === "analytical"
+    ? analyticalSummary({ ...context, receipt })
+    : measuredSummary({ ...context, receipt });
 }
 
 function redactRecord<T>(record: Record<string, T>) {

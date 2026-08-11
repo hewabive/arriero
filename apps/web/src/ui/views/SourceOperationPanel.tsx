@@ -1,6 +1,5 @@
 import type { SourceRepositoryOperationJob } from "@arriero/core";
 import {
-  ActionIcon,
   Badge,
   Button,
   Code,
@@ -11,10 +10,14 @@ import {
   ScrollArea,
   Stack,
   Text,
-  Tooltip,
 } from "@mantine/core";
-import { ChevronDown, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { useState } from "react";
+
+import {
+  JobPanelControls,
+  useJobPanelCollapse,
+} from "../components/JobPanelControls";
 
 function statusColor(status: SourceRepositoryOperationJob["status"]) {
   if (status === "succeeded") return "green";
@@ -45,20 +48,10 @@ export function SourceOperationPanel(props: {
 }) {
   const { job } = props;
   const [dismissedJobId, setDismissedJobId] = useState<string | null>(null);
-  const [detailsOpened, setDetailsOpened] = useState(true);
-  const previousJobIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!job) return;
-    if (previousJobIdRef.current !== job.id) {
-      previousJobIdRef.current = job.id;
-      setDetailsOpened(job.status !== "succeeded");
-      return;
-    }
-    if (job.status === "succeeded") {
-      setDetailsOpened(false);
-    }
-  }, [job?.id, job?.status]);
+  const [detailsOpened, toggleDetails] = useJobPanelCollapse(
+    job?.id ?? null,
+    job?.status === "succeeded",
+  );
 
   if (!job) return null;
   if (job.id === dismissedJobId) return null;
@@ -104,40 +97,16 @@ export function SourceOperationPanel(props: {
                 {job.cancelRequested ? "Canceling" : "Cancel"}
               </Button>
             )}
-            <Tooltip
-              label={detailsOpened ? "Collapse details" : "Expand details"}
-            >
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={() => setDetailsOpened((opened) => !opened)}
-                aria-label={
-                  detailsOpened
-                    ? "Collapse source operation details"
-                    : "Expand source operation details"
-                }
-              >
-                <ChevronDown
-                  size={16}
-                  style={{
-                    transform: detailsOpened ? "rotate(180deg)" : undefined,
-                    transition: "transform 150ms ease",
-                  }}
-                />
-              </ActionIcon>
-            </Tooltip>
-            {job.status !== "running" && (
-              <Tooltip label="Dismiss">
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  onClick={() => setDismissedJobId(job.id)}
-                  aria-label="Dismiss source operation result"
-                >
-                  <X size={16} />
-                </ActionIcon>
-              </Tooltip>
-            )}
+            <JobPanelControls
+              subject="source operation"
+              opened={detailsOpened}
+              onToggle={toggleDetails}
+              onDismiss={
+                job.status !== "running"
+                  ? () => setDismissedJobId(job.id)
+                  : undefined
+              }
+            />
           </Group>
         </Group>
 

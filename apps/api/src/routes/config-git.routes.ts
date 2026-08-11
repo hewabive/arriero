@@ -28,6 +28,7 @@ import {
 import {
   getConfigGitCommit,
   getConfigGitDiff,
+  getConfigGitDirtySummary,
   getConfigGitLog,
   getConfigGitStatus,
 } from "../config-git/repository.js";
@@ -53,6 +54,10 @@ function failure(c: Context, error: unknown) {
 export function registerConfigGitRoutes(app: Hono) {
   app.get("/api/config-git/status", async (c) => {
     return c.json({ data: await getConfigGitStatus() });
+  });
+
+  app.get("/api/config-git/dirty", async (c) => {
+    return c.json({ data: await getConfigGitDirtySummary() });
   });
 
   app.get("/api/config-git/validation", (c) => {

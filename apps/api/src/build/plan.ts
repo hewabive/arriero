@@ -111,6 +111,46 @@ export function cmakeGeneratorFromCommand(command: string[]): string | null {
   return null;
 }
 
+function cmakeDefinitionValue(args: string[], name: string): string | null {
+  for (const argument of args) {
+    if (
+      argument.startsWith(`-D${name}=`) ||
+      argument.startsWith(`-D${name}:`)
+    ) {
+      const separator = argument.indexOf("=");
+      if (separator !== -1) {
+        return argument.slice(separator + 1);
+      }
+    }
+  }
+  return null;
+}
+
+export function effectiveCmakeGenerator(
+  steps: BuildJobStep[],
+  buildDir: string,
+  env: NodeJS.ProcessEnv,
+): string | null {
+  const configureStep = steps.find((item) => item.name === "configure");
+  if (!configureStep) {
+    return null;
+  }
+  const explicit =
+    cmakeGeneratorFromCommand(configureStep.command) ??
+    cmakeDefinitionValue(configureStep.command, "CMAKE_GENERATOR") ??
+    env.CMAKE_GENERATOR;
+  if (explicit) {
+    return explicit;
+  }
+  if (!steps.some((item) => item.name === "clean-build-dir")) {
+    const cache = cmakeCacheGeneratorState(buildDir);
+    if (cache.generator) {
+      return cache.generator;
+    }
+  }
+  return null;
+}
+
 function hasExplicitGenerator(args: string[], env: NodeJS.ProcessEnv) {
   return (
     cmakeGeneratorFromCommand(args) !== null ||
@@ -470,10 +510,11 @@ export function writeHeader(
   if (job.settings.cuda) {
     stream.write(`# CUDA compiler ${env.CUDACXX ?? "not detected"}\n`);
   }
-  const configureStep = job.steps.find((item) => item.name === "configure");
-  const generator = configureStep
-    ? cmakeGeneratorFromCommand(configureStep.command)
-    : null;
+  const generator = effectiveCmakeGenerator(
+    job.steps,
+    job.settings.buildDir,
+    env,
+  );
   if (generator) {
     stream.write(`# CMake generator ${generator}\n`);
   }

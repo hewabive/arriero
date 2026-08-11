@@ -28,6 +28,7 @@ import {
   commandCwd,
   detectBinaryPath,
   detectRpcServerBinaryPath,
+  effectiveCmakeGenerator,
   fitParamsSourceDir,
   resolveBuildRef,
   rpcSourceDir,
@@ -128,7 +129,10 @@ class LlamaBuildRunner {
     }
 
     validateSettings(settings, steps);
-    await assertBuildPrerequisites(steps, { cuda: settings.cuda });
+    await assertBuildPrerequisites(steps, {
+      cuda: settings.cuda,
+      generator: effectiveCmakeGenerator(steps, settings.buildDir, env),
+    });
 
     const job = createBuildJob({
       status: "running",

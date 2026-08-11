@@ -16,6 +16,7 @@ import {
   requestLlamaSlotAction,
 } from "../llama/probe.js";
 import { supervisor } from "../process/supervisor.js";
+import { startAsyncIntervalLoop } from "../utils/interval-loop.js";
 import { computeDomainCoordinator } from "./domain-coordinator.js";
 import {
   proxyEngineGates,
@@ -216,26 +217,8 @@ export function startApiProxyIdleMaintenanceLoop(options?: {
   intervalMs?: number | undefined;
   onError?: ((error: unknown) => void) | undefined;
 }): () => void {
-  const intervalMs =
-    options?.intervalMs ?? config.proxy.idleMaintenanceIntervalMs;
-  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
-    return () => undefined;
-  }
-
-  let running = false;
-  const tick = () => {
-    if (running) {
-      return;
-    }
-    running = true;
-    void runApiProxyIdleMaintenancePass()
-      .catch((error) => options?.onError?.(error))
-      .finally(() => {
-        running = false;
-      });
-  };
-
-  const timer = setInterval(tick, intervalMs);
-  timer.unref?.();
-  return () => clearInterval(timer);
+  return startAsyncIntervalLoop(runApiProxyIdleMaintenancePass, {
+    intervalMs: options?.intervalMs ?? config.proxy.idleMaintenanceIntervalMs,
+    onError: options?.onError,
+  });
 }

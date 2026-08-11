@@ -2,6 +2,7 @@ import type { ApiEndpointRecord, ApiProxyTargetRecord } from "@arriero/core";
 
 import { getInstanceHealthSummary } from "../process/health-summary.js";
 import { listInstances } from "../instances/repository.js";
+import { startAsyncIntervalLoop } from "../utils/interval-loop.js";
 import { computeDomainCoordinator } from "./domain-coordinator.js";
 import { apiProxyInflight } from "./inflight.js";
 import { getApiEndpointById } from "./endpoints.js";
@@ -142,26 +143,9 @@ export function startApiProxyRuntimeReconcileLoop(options?: {
   intervalMs?: number | undefined;
   onError?: ((error: unknown) => void) | undefined;
 }): () => void {
-  const intervalMs = options?.intervalMs ?? RUNTIME_RECONCILE_INTERVAL_MS;
-  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
-    return () => undefined;
-  }
-
-  let running = false;
-  const tick = () => {
-    if (running) {
-      return;
-    }
-    running = true;
-    void reconcileRuntimeState()
-      .catch((error) => options?.onError?.(error))
-      .finally(() => {
-        running = false;
-      });
-  };
-
-  tick();
-  const timer = setInterval(tick, intervalMs);
-  timer.unref?.();
-  return () => clearInterval(timer);
+  return startAsyncIntervalLoop(reconcileRuntimeState, {
+    intervalMs: options?.intervalMs ?? RUNTIME_RECONCILE_INTERVAL_MS,
+    immediate: true,
+    onError: options?.onError,
+  });
 }

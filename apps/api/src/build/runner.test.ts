@@ -6,6 +6,7 @@ import test from "node:test";
 
 import type { BuildJobStart, BuildSettings } from "@arriero/core";
 
+import { cmakeGeneratorFromCommand, effectiveCmakeGenerator } from "./plan.js";
 import {
   buildSteps,
   buildProcessEnv,
@@ -226,11 +227,7 @@ function withNinjaOnPath(
 }
 
 function generatorOf(command: string[] | undefined): string | null {
-  const index = command?.indexOf("-G") ?? -1;
-  if (index === -1) {
-    return null;
-  }
-  return command?.[index + 1] ?? null;
+  return command ? cmakeGeneratorFromCommand(command) : null;
 }
 
 test("buildSteps auto-selects Ninja for a fresh build tree when ninja is installed", () => {
@@ -342,6 +339,45 @@ test("buildSteps skips the Ninja generator when ninja is not on PATH", () => {
     );
 
     assert.equal(generatorOf(configure?.command), null);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("effectiveCmakeGenerator sees a CMAKE_GENERATOR env override the command omits", () => {
+  withNinjaOnPath(({ binDir, buildDir }) => {
+    const env = { PATH: binDir, CMAKE_GENERATOR: "Ninja" };
+    const steps = buildSteps(
+      { ...settings({}), cuda: false, buildDir },
+      jobStart({ configure: true }),
+      env,
+    );
+
+    assert.equal(generatorOf(steps[0]?.command), null);
+    assert.equal(effectiveCmakeGenerator(steps, buildDir, env), "Ninja");
+  });
+});
+
+test("effectiveCmakeGenerator falls back to the CMakeCache.txt generator", () => {
+  const root = mkdtempSync(join(tmpdir(), "arriero-cache-gen-"));
+  try {
+    const emptyBin = join(root, "bin");
+    mkdirSync(emptyBin, { recursive: true });
+    const buildDir = join(root, "build");
+    mkdirSync(buildDir, { recursive: true });
+    writeFileSync(
+      join(buildDir, "CMakeCache.txt"),
+      "CMAKE_GENERATOR:INTERNAL=Ninja\n",
+    );
+    const env = { PATH: emptyBin };
+    const steps = buildSteps(
+      { ...settings({}), cuda: false, buildDir },
+      jobStart({ configure: true }),
+      env,
+    );
+
+    assert.equal(generatorOf(steps[0]?.command), null);
+    assert.equal(effectiveCmakeGenerator(steps, buildDir, env), "Ninja");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -95,13 +95,24 @@ export function managedSignalPid(
     : pid;
 }
 
+const ENGINE_CACHE_ENV: Record<
+  InstanceKind,
+  { name: string; dir: string } | null
+> = {
+  "llama-server": null,
+  "rpc-worker": null,
+  vllm: { name: "VLLM_CACHE_ROOT", dir: config.vllmCacheDir },
+  ktransformers: null,
+};
+
 export function managedProcessEnvironment(
   instance: Instance,
   parent: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   const env = { ...parent, ...instance.env };
-  if (instance.kind === "vllm" && env.VLLM_CACHE_ROOT === undefined) {
-    env.VLLM_CACHE_ROOT = config.vllmCacheDir;
+  const cacheEnv = ENGINE_CACHE_ENV[instance.kind];
+  if (cacheEnv && env[cacheEnv.name] === undefined) {
+    env[cacheEnv.name] = cacheEnv.dir;
   }
   return env;
 }

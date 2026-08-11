@@ -4,8 +4,7 @@ import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { renameMemoryAssessmentAutoNote } from "../memory-assessment/auto-note.js";
-import { renameMemoryAssessmentInstance } from "../memory-assessment/repository.js";
+import { renameMemoryAssessmentState } from "../memory-assessment/instance-cascade.js";
 import {
   openProcessRunForInstance,
   renameProcessRunsInstance,
@@ -59,8 +58,7 @@ export function cascadeInstanceRename(from: string, to: string): void {
   if (from === to) {
     return;
   }
-  renameMemoryAssessmentInstance(from, to);
-  renameMemoryAssessmentAutoNote(from, to);
+  renameMemoryAssessmentState(from, to);
   renameProcessRunsInstance(from, to);
   renameApiProxyInstanceEndpointRefs(from, to);
   rewriteLocalRpcWorkerRefs(from, (ref) => ({ ...ref, instanceName: to }));

@@ -13,7 +13,6 @@ import {
   packageManagerForOsRelease,
   readOsRelease,
 } from "../system/os-release.js";
-import { cmakeGeneratorFromCommand } from "./plan.js";
 
 const INTERNAL_COMMANDS = new Set(["clean-build-dir"]);
 
@@ -25,7 +24,7 @@ const COMMAND_PREREQUISITES: Record<string, string[]> = {
 
 export function buildPrerequisiteIds(
   steps: BuildJobStep[],
-  options: { cuda: boolean },
+  options: { cuda: boolean; generator: string | null },
 ): string[] {
   const ids: string[] = [];
   const add = (id: string) => {
@@ -44,8 +43,7 @@ export function buildPrerequisiteIds(
       }
     }
     if (step.name === "configure") {
-      const generator = cmakeGeneratorFromCommand(step.command);
-      const buildTool = generator?.includes("Ninja") ? "ninja" : "make";
+      const buildTool = options.generator?.includes("Ninja") ? "ninja" : "make";
       for (const id of ["cxx-toolchain", buildTool, "pkg-config"]) {
         add(id);
       }
@@ -89,7 +87,7 @@ async function checkBuildPrerequisites(
 
 export async function assertBuildPrerequisites(
   steps: BuildJobStep[],
-  options: { cuda: boolean },
+  options: { cuda: boolean; generator: string | null },
 ): Promise<void> {
   const blocking = await checkBuildPrerequisites(
     buildPrerequisiteIds(steps, options),

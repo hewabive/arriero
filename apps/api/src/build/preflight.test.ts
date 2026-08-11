@@ -27,7 +27,7 @@ test("derives prerequisites from the planned step commands", () => {
       step("configure", ["cmake", "-S", "/src", "-B", "/build"]),
       step("build", ["cmake", "--build", "/build"]),
     ],
-    { cuda: false },
+    { cuda: false, generator: null },
   );
 
   assert.deepEqual(ids, [
@@ -44,7 +44,7 @@ test("derives prerequisites from the planned step commands", () => {
 test("a configure step no longer demands the libcurl headers", () => {
   const ids = buildPrerequisiteIds(
     [step("configure", ["cmake", "-S", "/src", "-B", "/build"])],
-    { cuda: false },
+    { cuda: false, generator: null },
   );
   assert.ok(!ids.includes("libcurl-dev"));
 });
@@ -52,31 +52,24 @@ test("a configure step no longer demands the libcurl headers", () => {
 test("a configure step does not refuse a build over missing OpenSSL", () => {
   const ids = buildPrerequisiteIds(
     [step("configure", ["cmake", "-S", "/src", "-B", "/build"])],
-    { cuda: false },
+    { cuda: false, generator: null },
   );
   assert.ok(!ids.includes("openssl-dev"));
 });
 
-test("a Ninja-configured tree requires ninja instead of make", () => {
-  const twoArgForm = buildPrerequisiteIds(
-    [step("configure", ["cmake", "-S", "/src", "-B", "/build", "-G", "Ninja"])],
-    { cuda: false },
+test("a Ninja generator requires ninja instead of make", () => {
+  const ids = buildPrerequisiteIds(
+    [step("configure", ["cmake", "-S", "/src", "-B", "/build"])],
+    { cuda: false, generator: "Ninja" },
   );
-  assert.ok(twoArgForm.includes("ninja"));
-  assert.ok(!twoArgForm.includes("make"));
-
-  const fusedForm = buildPrerequisiteIds(
-    [step("configure", ["cmake", "-S", "/src", "-B", "/build", "-GNinja"])],
-    { cuda: false },
-  );
-  assert.ok(fusedForm.includes("ninja"));
-  assert.ok(!fusedForm.includes("make"));
+  assert.ok(ids.includes("ninja"));
+  assert.ok(!ids.includes("make"));
 });
 
 test("skips the internal clean-build-dir pseudo command", () => {
   const ids = buildPrerequisiteIds(
     [step("clean-build-dir", ["clean-build-dir", "/build"])],
-    { cuda: false },
+    { cuda: false, generator: null },
   );
   assert.deepEqual(ids, []);
 });
@@ -84,7 +77,7 @@ test("skips the internal clean-build-dir pseudo command", () => {
 test("a build without a configure step needs no compiler toolchain", () => {
   const ids = buildPrerequisiteIds(
     [step("build", ["cmake", "--build", "/build"])],
-    { cuda: false },
+    { cuda: false, generator: null },
   );
   assert.deepEqual(ids, ["cmake"]);
 });
@@ -92,7 +85,7 @@ test("a build without a configure step needs no compiler toolchain", () => {
 test("cuda builds additionally require nvcc", () => {
   const ids = buildPrerequisiteIds(
     [step("configure", ["cmake", "-S", "/src"])],
-    { cuda: true },
+    { cuda: true, generator: null },
   );
   assert.ok(ids.includes("nvcc"));
 });

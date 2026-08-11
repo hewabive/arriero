@@ -2,14 +2,15 @@ import { Badge, Tooltip } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { GitBranch } from "lucide-react";
 
-import { getConfigGitStatus } from "../../api/client";
+import { getConfigGitDirty } from "../../api/client";
 import { countLabel } from "../utils/plural";
 
 export function ConfigGitDirtyBadge() {
   const statusQuery = useQuery({
-    queryKey: ["config-git-status"],
-    queryFn: getConfigGitStatus,
-    refetchInterval: 30_000,
+    queryKey: ["config-git-status", "dirty"],
+    queryFn: getConfigGitDirty,
+    refetchInterval: (query) =>
+      query.state.data?.data.isGitRepo === false ? false : 30_000,
     retry: false,
   });
   const status = statusQuery.data?.data;
@@ -28,7 +29,7 @@ export function ConfigGitDirtyBadge() {
           window.location.hash = "/config-git";
         }}
       >
-        {countLabel(status.files.length, "uncommitted change")}
+        {countLabel(status.fileCount, "uncommitted change")}
       </Badge>
     </Tooltip>
   );

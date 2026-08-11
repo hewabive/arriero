@@ -157,7 +157,6 @@ export function refreshAutoCapacities(
     detected.accelerators.map((accelerator) => [accelerator.id, accelerator]),
   );
   let changed = false;
-  let poolsAdded = false;
   const next = pools.map((pool) => {
     if (!pool.autoCapacity) {
       return pool;
@@ -200,9 +199,8 @@ export function refreshAutoCapacities(
     knownDeviceRefs.add(accelerator.id);
     knownIds.add(id);
     changed = true;
-    poolsAdded = true;
   }
-  if (poolsAdded) {
+  if (next.length > pools.length) {
     persist(sortPools(next));
   } else if (changed) {
     cache = next;

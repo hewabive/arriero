@@ -22,11 +22,12 @@ function progress(lines: string[]) {
   if (lines.some((line) => READY.test(line))) {
     return loadProgress("ready", 100, "vLLM API server is ready.", false);
   }
-  const error = [...lines].reverse().find((line) => ERROR.test(line));
+  const reversed = [...lines].reverse();
+  const error = reversed.find((line) => ERROR.test(line));
   if (error) {
     return loadProgress("error", null, error.trim(), false);
   }
-  for (const line of [...lines].reverse()) {
+  for (const line of reversed) {
     if (
       /captur(?:e|ing|ed).*cuda graphs?|cuda graphs?.*captur|graph capturing/i.test(
         line,
@@ -92,16 +93,44 @@ function contextSize(line: string) {
   return parsed && parsed > 0 ? parsed : null;
 }
 
+function listeningUrl(line: string) {
+  return /(https?:\/\/[^\s]+)/i.exec(line)?.[1] ?? null;
+}
+
+function latestValues(lines: string[]) {
+  const found: {
+    listeningUrl: string | null;
+    modelPath: string | null;
+    modelAlias: string | null;
+    contextSize: number | null;
+  } = {
+    listeningUrl: null,
+    modelPath: null,
+    modelAlias: null,
+    contextSize: null,
+  };
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    if (line === undefined) continue;
+    found.listeningUrl ??= listeningUrl(line);
+    found.modelPath ??= modelPath(line);
+    found.modelAlias ??= modelAlias(line);
+    found.contextSize ??= contextSize(line);
+    if (
+      found.listeningUrl !== null &&
+      found.modelPath !== null &&
+      found.modelAlias !== null &&
+      found.contextSize !== null
+    ) {
+      break;
+    }
+  }
+  return found;
+}
+
 export const vllmLogParser: EngineLogParser = {
   parse: ({ lines }) => ({
-    listeningUrl:
-      [...lines]
-        .reverse()
-        .map((line) => /(https?:\/\/[^\s]+)/i.exec(line)?.[1] ?? null)
-        .find(Boolean) ?? null,
-    modelPath: [...lines].reverse().map(modelPath).find(Boolean) ?? null,
-    modelAlias: [...lines].reverse().map(modelAlias).find(Boolean) ?? null,
-    contextSize: [...lines].reverse().map(contextSize).find(Boolean) ?? null,
+    ...latestValues(lines),
     gpuLayers: null,
     slots: null,
     ready: lines.some((line) => READY.test(line)),

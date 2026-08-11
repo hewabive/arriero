@@ -54,8 +54,11 @@ type AssessmentWording = {
   inconclusive: string;
 };
 
+export type AnalyticalDrawScope = "all-pools" | "gpu-pools";
+
 type AssessmentAnalytical = {
   estimatorId: string;
+  drawScope: AnalyticalDrawScope;
   wording: AssessmentWording;
   validate(
     receipt: AnalyticalReceipt,
@@ -432,6 +435,7 @@ const ASSESSMENT_ENGINES: Record<InstanceKind, AssessmentEngine | null> = {
   "llama-server": composedEngine("llama-server", {
     analytical: {
       estimatorId: "llama.cpp-gguf",
+      drawScope: "all-pools",
       wording: {
         verified:
           "The estimate matches llama.cpp's reported buffer allocation.",
@@ -452,6 +456,7 @@ const ASSESSMENT_ENGINES: Record<InstanceKind, AssessmentEngine | null> = {
   vllm: composedEngine("vllm", {
     analytical: {
       estimatorId: "vllm-gpu-util",
+      drawScope: "gpu-pools",
       wording: {
         verified:
           "Observed GPU memory matches the reserved utilization fraction.",
@@ -479,4 +484,16 @@ const ASSESSMENT_ENGINES: Record<InstanceKind, AssessmentEngine | null> = {
 
 export function assessmentEngine(kind: InstanceKind): AssessmentEngine | null {
   return ASSESSMENT_ENGINES[kind];
+}
+
+const ANALYTICAL_DRAW_SCOPES = new Map(
+  Object.values(ASSESSMENT_ENGINES).flatMap((engine) =>
+    engine?.analytical
+      ? [[engine.analytical.estimatorId, engine.analytical.drawScope] as const]
+      : [],
+  ),
+);
+
+export function analyticalDrawScope(estimatorId: string): AnalyticalDrawScope {
+  return ANALYTICAL_DRAW_SCOPES.get(estimatorId) ?? "all-pools";
 }

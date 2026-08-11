@@ -29,7 +29,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Pencil, Plus, Server, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Server, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -44,6 +44,10 @@ import {
   startNodeUpdate,
   updateNode,
 } from "../../api/client";
+import {
+  JobPanelControls,
+  useJobPanelCollapse,
+} from "../components/JobPanelControls";
 import { SecretInput } from "../components/SecretInput";
 import { forceReloadUi } from "../utils/reload";
 import { formatLocalDateTime } from "../utils/time";
@@ -121,6 +125,18 @@ function reachability(
     return { color: "green", label: "reachable", tooltip: null };
   }
   return { color: "red", label: "unreachable", tooltip: fleetNode.error };
+}
+
+function withoutKey<T>(
+  record: Record<string, T>,
+  key: string,
+): Record<string, T> {
+  if (!(key in record)) {
+    return record;
+  }
+  const next = { ...record };
+  delete next[key];
+  return next;
 }
 
 function disabledReason(node: UpdateFleetNode): string | null {
@@ -298,28 +314,14 @@ export function NodesView() {
 
   const onJobSettled = useCallback(
     (nodeId: string) => {
-      setRunningJobs((prev) => {
-        if (!(nodeId in prev)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[nodeId];
-        return next;
-      });
+      setRunningJobs((prev) => withoutKey(prev, nodeId));
       void queryClient.invalidateQueries({ queryKey: ["update-fleet"] });
     },
     [queryClient],
   );
 
   const dismissJob = useCallback((nodeId: string) => {
-    setVisibleJobs((prev) => {
-      if (!(nodeId in prev)) {
-        return prev;
-      }
-      const next = { ...prev };
-      delete next[nodeId];
-      return next;
-    });
+    setVisibleJobs((prev) => withoutKey(prev, nodeId));
   }, []);
 
   const startNode = useCallback(
@@ -557,8 +559,6 @@ function NodeCard({
   deletePending: boolean;
 }) {
   const [logsOpen, logs] = useDisclosure(false);
-  const [detailsOpened, setDetailsOpened] = useState(true);
-  const previousJobIdRef = useRef<string | null>(null);
   const nodeId = fleetNode?.nodeId ?? registryNode?.id ?? "self";
   const isSelf = Boolean(fleetNode?.self);
   const version = fleetNode?.version ?? null;
@@ -593,17 +593,10 @@ function NodeCard({
       job.status === "failed" ||
       job.status === "canceled");
 
-  useEffect(() => {
-    if (!job) return;
-    if (previousJobIdRef.current !== job.id) {
-      previousJobIdRef.current = job.id;
-      setDetailsOpened(job.status !== "succeeded" && !applied);
-      return;
-    }
-    if (job.status === "succeeded" || applied) {
-      setDetailsOpened(false);
-    }
-  }, [job?.id, job?.status, applied]);
+  const [detailsOpened, toggleDetails] = useJobPanelCollapse(
+    job?.id ?? null,
+    Boolean(job && (job.status === "succeeded" || applied)),
+  );
 
   useEffect(() => {
     if (jobId && settled) {
@@ -788,42 +781,13 @@ function NodeCard({
               </Badge>
             </Group>
             <Group gap={4} wrap="nowrap">
-              <Tooltip
-                label={detailsOpened ? "Collapse details" : "Expand details"}
-              >
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="gray"
-                  onClick={() => setDetailsOpened((opened) => !opened)}
-                  aria-label={
-                    detailsOpened
-                      ? "Collapse update job details"
-                      : "Expand update job details"
-                  }
-                >
-                  <ChevronDown
-                    size={16}
-                    style={{
-                      transform: detailsOpened ? "rotate(180deg)" : undefined,
-                      transition: "transform 150ms ease",
-                    }}
-                  />
-                </ActionIcon>
-              </Tooltip>
-              {settled && (
-                <Tooltip label="Dismiss">
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="gray"
-                    onClick={() => onDismiss(nodeId)}
-                    aria-label="Dismiss update job result"
-                  >
-                    <X size={16} />
-                  </ActionIcon>
-                </Tooltip>
-              )}
+              <JobPanelControls
+                size="sm"
+                subject="update job"
+                opened={detailsOpened}
+                onToggle={toggleDetails}
+                onDismiss={settled ? () => onDismiss(nodeId) : undefined}
+              />
             </Group>
           </Group>
           <Collapse in={detailsOpened}>

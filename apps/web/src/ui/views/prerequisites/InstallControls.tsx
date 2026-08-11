@@ -17,13 +17,17 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Copy, Play, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Check, Copy, Play } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import {
   getPrerequisiteInstallRun,
   startPrerequisiteInstall,
 } from "../../../api/client";
+import {
+  JobPanelControls,
+  useJobPanelCollapse,
+} from "../../components/JobPanelControls";
 import { formatLocalDateTime } from "../../utils/time";
 
 export type PrerequisiteInstallControls = {
@@ -141,15 +145,10 @@ export function InstallRunPanel(props: {
   onDismiss: () => void;
 }) {
   const { run, onDismiss } = props;
-  const [detailsOpened, setDetailsOpened] = useState(
-    run.status !== "succeeded",
+  const [detailsOpened, toggleDetails] = useJobPanelCollapse(
+    run.id,
+    run.status === "succeeded",
   );
-
-  useEffect(() => {
-    if (run.status === "succeeded") {
-      setDetailsOpened(false);
-    }
-  }, [run.status]);
 
   return (
     <Paper withBorder p="sm" radius="sm">
@@ -169,40 +168,12 @@ export function InstallRunPanel(props: {
             </Text>
           </Group>
           <Group gap={4} wrap="nowrap">
-            <Tooltip
-              label={detailsOpened ? "Collapse details" : "Expand details"}
-            >
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={() => setDetailsOpened((opened) => !opened)}
-                aria-label={
-                  detailsOpened
-                    ? "Collapse install details"
-                    : "Expand install details"
-                }
-              >
-                <ChevronDown
-                  size={16}
-                  style={{
-                    transform: detailsOpened ? "rotate(180deg)" : undefined,
-                    transition: "transform 150ms ease",
-                  }}
-                />
-              </ActionIcon>
-            </Tooltip>
-            {run.status !== "running" && (
-              <Tooltip label="Dismiss">
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  onClick={onDismiss}
-                  aria-label="Dismiss install result"
-                >
-                  <X size={16} />
-                </ActionIcon>
-              </Tooltip>
-            )}
+            <JobPanelControls
+              subject="install"
+              opened={detailsOpened}
+              onToggle={toggleDetails}
+              onDismiss={run.status !== "running" ? onDismiss : undefined}
+            />
           </Group>
         </Group>
         <Collapse in={detailsOpened}>

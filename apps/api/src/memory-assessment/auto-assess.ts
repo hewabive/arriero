@@ -13,6 +13,14 @@ import {
 } from "../memory-estimate/service.js";
 import { getInstanceHealthSummary } from "../process/health-summary.js";
 import { latestProcessRun } from "../process/runs-repository.js";
+import { startAsyncIntervalLoop } from "../utils/interval-loop.js";
+import {
+  getAutoEstimateAttempt,
+  getAutoMeasureAttempt,
+  setAutoEstimateAttempt,
+  setAutoMeasureAttempt,
+  type AutoEstimateOutcome,
+} from "./auto-attempts.js";
 import {
   clearMemoryAssessmentAutoNote,
   setMemoryAssessmentAutoNote,
@@ -26,21 +34,7 @@ import {
   evaluateInstanceMemoryAssessment,
 } from "./service.js";
 
-export type MemoryAssessmentAutoAction = "none" | "estimate" | "measure";
-
-type MemoryAssessmentAutoPassResult = {
-  estimated: number;
-  measured: number;
-  failed: number;
-};
-
-type EstimateOutcome = "bound" | "failed" | "stale";
-
-const estimateAttempts = new Map<
-  string,
-  { digest: string; outcome: EstimateOutcome }
->();
-const measureAttempts = new Map<string, { digest: string; runId: string }>();
+type MemoryAssessmentAutoAction = "none" | "estimate" | "measure";
 
 function isUnassessed(summary: MemoryAssessmentSummary | undefined): boolean {
   return (
@@ -71,43 +65,32 @@ function runAnalyticalAttempt(
   instance: Instance,
   fingerprint: MemoryAssessmentFingerprint,
   engine: AssessmentEngine,
-  pass: MemoryAssessmentAutoPassResult,
-): EstimateOutcome {
+): AutoEstimateOutcome {
+  const fail = (
+    reason: string,
+    outcome: AutoEstimateOutcome = "failed",
+  ): AutoEstimateOutcome => {
+    setMemoryAssessmentAutoNote(instance.name, "estimate", reason);
+    return outcome;
+  };
   const staleReason = engine.driftReasons(fingerprint, fingerprint)[0];
   if (staleReason) {
-    pass.failed += 1;
-    setMemoryAssessmentAutoNote(instance.name, "estimate", staleReason);
-    return "stale";
+    return fail(staleReason, "stale");
   }
   const estimated = estimateMemory({ instanceId: instance.name });
   if (!estimated.ok) {
-    pass.failed += 1;
-    setMemoryAssessmentAutoNote(instance.name, "estimate", estimated.reason);
-    return "failed";
+    return fail(estimated.reason);
   }
   const assessmentId = createMemoryAssessment(estimated);
   if (!assessmentId) {
-    pass.failed += 1;
-    setMemoryAssessmentAutoNote(
-      instance.name,
-      "estimate",
-      `${instance.kind} has no analytical estimator`,
-    );
-    return "failed";
+    return fail(`${instance.kind} has no analytical estimator`);
   }
   try {
     bindMemoryAssessmentToInstance(assessmentId, instance.name);
   } catch (error) {
-    pass.failed += 1;
-    setMemoryAssessmentAutoNote(
-      instance.name,
-      "estimate",
-      (error as Error).message,
-    );
-    return "failed";
+    return fail((error as Error).message);
   }
   clearMemoryAssessmentAutoNote(instance.name);
-  pass.estimated += 1;
   logger.info(
     { instance: instance.name },
     "memory assessment: analytical estimate auto-bound",
@@ -118,15 +101,14 @@ function runAnalyticalAttempt(
 function attemptAnalytical(
   instance: Instance,
   engine: AssessmentEngine,
-  pass: MemoryAssessmentAutoPassResult,
-): EstimateOutcome {
+): AutoEstimateOutcome {
   const fingerprint = engine.buildFingerprint(contextFromInstance(instance));
-  const memo = estimateAttempts.get(instance.name);
+  const memo = getAutoEstimateAttempt(instance.name);
   if (memo && memo.digest === fingerprint.digest) {
     return memo.outcome;
   }
-  const outcome = runAnalyticalAttempt(instance, fingerprint, engine, pass);
-  estimateAttempts.set(instance.name, {
+  const outcome = runAnalyticalAttempt(instance, fingerprint, engine);
+  setAutoEstimateAttempt(instance.name, {
     digest: fingerprint.digest,
     outcome,
   });
@@ -137,23 +119,21 @@ async function attemptMeasured(
   instance: Instance,
   peers: Instance[],
   engine: AssessmentEngine,
-  pass: MemoryAssessmentAutoPassResult,
 ): Promise<void> {
   if (instance.status !== "running") return;
   const runId = latestProcessRun(instance.name)?.id;
   if (!runId) return;
   const fingerprint = engine.buildFingerprint(contextFromInstance(instance));
-  const memo = measureAttempts.get(instance.name);
+  const memo = getAutoMeasureAttempt(instance.name);
   if (memo && memo.runId === runId && memo.digest === fingerprint.digest) {
     return;
   }
   const staleReason = engine.driftReasons(fingerprint, fingerprint)[0];
   if (staleReason) {
-    measureAttempts.set(instance.name, {
+    setAutoMeasureAttempt(instance.name, {
       digest: fingerprint.digest,
       runId,
     });
-    pass.failed += 1;
     setMemoryAssessmentAutoNote(instance.name, "measure", staleReason);
     return;
   }
@@ -165,15 +145,16 @@ async function attemptMeasured(
   ) {
     return;
   }
-  measureAttempts.set(instance.name, { digest: fingerprint.digest, runId });
+  setAutoMeasureAttempt(instance.name, {
+    digest: fingerprint.digest,
+    runId,
+  });
   const captured = await captureMeasuredBaseline({ instance, health });
   if (!captured.ok) {
-    pass.failed += 1;
     setMemoryAssessmentAutoNote(instance.name, "measure", captured.reason);
     return;
   }
   clearMemoryAssessmentAutoNote(instance.name);
-  pass.measured += 1;
   logger.info(
     { instance: instance.name },
     "memory assessment: measured baseline auto-captured",
@@ -183,7 +164,6 @@ async function attemptMeasured(
 async function autoAssessInstance(
   instance: Instance,
   peers: Instance[],
-  pass: MemoryAssessmentAutoPassResult,
 ): Promise<void> {
   const engine = assessmentEngine(instance.kind);
   if (!engine) return;
@@ -196,64 +176,38 @@ async function autoAssessInstance(
   });
   if (action === "none") return;
   if (action === "estimate") {
-    const outcome = attemptAnalytical(instance, engine, pass);
+    const outcome = attemptAnalytical(instance, engine);
     if (
       outcome === "failed" &&
       isUnassessed(summary) &&
       descriptor.assessment.measuredBaseline
     ) {
-      await attemptMeasured(instance, peers, engine, pass);
+      await attemptMeasured(instance, peers, engine);
     }
     return;
   }
-  await attemptMeasured(instance, peers, engine, pass);
+  await attemptMeasured(instance, peers, engine);
 }
 
-async function runMemoryAssessmentAutoPass(): Promise<MemoryAssessmentAutoPassResult> {
-  const pass: MemoryAssessmentAutoPassResult = {
-    estimated: 0,
-    measured: 0,
-    failed: 0,
-  };
+async function runMemoryAssessmentAutoPass(): Promise<void> {
   const instances = listInstances();
   for (const instance of instances) {
     try {
-      await autoAssessInstance(instance, instances, pass);
+      await autoAssessInstance(instance, instances);
     } catch (error) {
-      pass.failed += 1;
       logger.error(
         { error, instance: instance.name },
         "memory assessment auto pass failed for an instance",
       );
     }
   }
-  return pass;
 }
 
 export function startMemoryAssessmentAutoLoop(options?: {
-  intervalMs?: number | undefined;
   onError?: ((error: unknown) => void) | undefined;
 }): () => void {
-  const intervalMs =
-    options?.intervalMs ?? config.memoryAssessment.autoIntervalMs;
-  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
-    return () => undefined;
-  }
-
-  let running = false;
-  const tick = () => {
-    if (running) {
-      return;
-    }
-    running = true;
-    void runMemoryAssessmentAutoPass()
-      .catch((error) => options?.onError?.(error))
-      .finally(() => {
-        running = false;
-      });
-  };
-
-  const timer = setInterval(tick, intervalMs);
-  timer.unref?.();
-  return () => clearInterval(timer);
+  return startAsyncIntervalLoop(runMemoryAssessmentAutoPass, {
+    intervalMs: config.memoryAssessment.autoIntervalMs,
+    onError: options?.onError,
+  });
 }
