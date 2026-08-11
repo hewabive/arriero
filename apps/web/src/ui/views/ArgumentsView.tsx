@@ -8,8 +8,9 @@ import {
   Switch,
   TextInput,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
+import { useEffect } from "react";
 
 import { listEngineArgumentReferences } from "../../api/client";
 import { TouchSelect } from "../components/TouchCombobox";
@@ -23,15 +24,26 @@ import { allFilterValue } from "./arguments-view-helpers";
 import { useArgumentsView } from "./use-arguments-view";
 
 function EngineReferenceSummary({ engineId }: { engineId: string }) {
+  const queryClient = useQueryClient();
   const summariesQuery = useQuery({
     queryKey: ["engine-args-references"],
     queryFn: listEngineArgumentReferences,
     retry: false,
-    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
   const summary = summariesQuery.data?.data.find(
     (item) => item.engineId === engineId,
   );
+  const documented = summary?.documented ?? null;
+
+  useEffect(() => {
+    if (documented === null) {
+      return;
+    }
+    queryClient.invalidateQueries({
+      queryKey: ["engine-args-reference", engineId],
+    });
+  }, [documented, engineId, queryClient]);
 
   if (!summary) {
     return null;
