@@ -7,6 +7,7 @@ export * from "./resources.js";
 export * from "./nodes.js";
 export * from "./proxy.js";
 export * from "./llama-args.js";
+export * from "./engine-args.js";
 export * from "./build.js";
 export * from "./environments.js";
 export * from "./update.js";

@@ -1,4 +1,5 @@
 import type {
+  EngineHelpSourceSync,
   SourceRepositoryStatus,
   SourceSyncReport,
   SourceSyncSection,
@@ -10,7 +11,6 @@ import {
   Box,
   Button,
   Code,
-  Collapse,
   Group,
   Loader,
   Paper,
@@ -36,12 +36,14 @@ import {
   cloneSourceRepository,
   getLlamaArgumentHelpDiff,
   getSourceRepositoryDrift,
+  listEngineHelpSources,
   listSourceRepositories,
   pullSourceRepository,
   updateSourceRepositorySettings,
 } from "../../api/client";
 import { formatLocalDateTime } from "../utils/time";
 import { countLabel } from "../utils/plural";
+import { EngineHelpSourcePanel } from "./EngineHelpSourcePanel";
 import { SourceOperationPanel } from "./SourceOperationPanel";
 import {
   invalidateSourceQueries,
@@ -101,18 +103,16 @@ function ArgumentHelpDiff(props: { drift: boolean }) {
       >
         {open ? "Скрыть diff" : "Показать diff"}
       </Button>
-      <Collapse in={open}>
-        {diffQuery.data?.data.diff && (
-          <ScrollArea.Autosize mah={420}>
-            <Code block>{diffQuery.data.data.diff}</Code>
-          </ScrollArea.Autosize>
-        )}
-        {diffQuery.isError && (
-          <Text c="red" size="sm">
-            Не удалось получить diff: {(diffQuery.error as Error).message}
-          </Text>
-        )}
-      </Collapse>
+      {open && diffQuery.data?.data.diff && (
+        <ScrollArea.Autosize mah={420}>
+          <Code block>{diffQuery.data.data.diff}</Code>
+        </ScrollArea.Autosize>
+      )}
+      {open && diffQuery.isError && (
+        <Text c="red" size="sm">
+          Не удалось получить diff: {(diffQuery.error as Error).message}
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -252,10 +252,22 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
   );
 }
 
+function helpSourcesNotCoveredByDriftReport(
+  repository: SourceRepositoryStatus,
+  rows: EngineHelpSourceSync[],
+) {
+  if (repository.driftSupported) {
+    return [];
+  }
+  return rows.filter((row) => row.sourceId === repository.spec.id);
+}
+
 function SourceRepositoryPanel({
   repository,
+  helpSources,
 }: {
   repository: SourceRepositoryStatus;
+  helpSources: EngineHelpSourceSync[];
 }) {
   const queryClient = useQueryClient();
   const [originUrl, setOriginUrl] = useState(repository.spec.originUrl);
@@ -508,6 +520,12 @@ function SourceRepositoryPanel({
           onCancel={() => sourceOperation.cancelMutation.mutate()}
         />
 
+        {repository.valid &&
+          repository.state !== "busy" &&
+          helpSources.map((row) => (
+            <EngineHelpSourcePanel key={row.engineId} sync={row} />
+          ))}
+
         {repository.driftSupported &&
           repository.valid &&
           repository.state !== "busy" && (
@@ -543,11 +561,22 @@ export function SourceSyncView() {
     refetchInterval: 30_000,
   });
 
+  const helpSourcesQuery = useQuery({
+    queryKey: ["engine-help-sources"],
+    queryFn: listEngineHelpSources,
+    retry: false,
+    refetchInterval: 120_000,
+  });
+
   const refresh = async () => {
     await Promise.all([
       repositoriesQuery.refetch(),
+      helpSourcesQuery.refetch(),
       queryClient.invalidateQueries({
         queryKey: ["source-repository-drift"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["engine-help-source-diff"],
       }),
     ]);
   };
@@ -559,7 +588,7 @@ export function SourceSyncView() {
           size="xs"
           variant="light"
           leftSection={<RefreshCw size={14} />}
-          loading={repositoriesQuery.isFetching}
+          loading={repositoriesQuery.isFetching || helpSourcesQuery.isFetching}
           onClick={() => void refresh()}
         >
           Refresh
@@ -581,10 +610,21 @@ export function SourceSyncView() {
         </Alert>
       )}
 
+      {helpSourcesQuery.isError && (
+        <Alert color="red" variant="light" icon={<XCircle size={16} />}>
+          Could not read the argument help sources:{" "}
+          {(helpSourcesQuery.error as Error).message}
+        </Alert>
+      )}
+
       {repositoriesQuery.data?.data.map((repository) => (
         <SourceRepositoryPanel
           key={repository.spec.id}
           repository={repository}
+          helpSources={helpSourcesNotCoveredByDriftReport(
+            repository,
+            helpSourcesQuery.data?.data ?? [],
+          )}
         />
       ))}
     </Stack>
