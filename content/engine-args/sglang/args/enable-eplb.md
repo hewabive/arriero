@@ -106,12 +106,14 @@ Enable EPLB algorithm
 
 ## Примеры
 
+При `--moe-a2a-backend deepep` режим обязателен: `_SinglePassGatherer.init_new` (`sglang/python/sglang/srt/eplb/expert_distribution.py`) знает только `normal` и `low_latency`, а дефолтный `auto` приводит к `NotImplementedError` на старте.
+
 ```bash
-python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --enable-eplb --ep-num-redundant-experts 32
+python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-eplb --ep-num-redundant-experts 32
 ```
 
 ```bash
-python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --enable-eplb --eplb-rebalance-num-iterations 2000 --eplb-rebalance-layers-per-chunk 8
+python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-eplb --eplb-rebalance-num-iterations 2000 --eplb-rebalance-layers-per-chunk 8
 ```
 
 ## Источники
