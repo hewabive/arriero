@@ -131,9 +131,40 @@ The 27 "richer" vLLM entries are base-class `BaseFrontendArgs` fields: upstream'
 attribute docs of the leaf class only, so its published reference shows those arguments without help
 text while the extract recovers it.
 
-## Not wired yet
+## Help-source adapters
 
-Nothing in `apps/api` consumes these extracts. The next step is the per-engine help-source adapter
-(snapshot + hash + commit, mirroring `apps/api/src/arguments/docs-source.ts`), with a pure-git
-fallback signal — the commit range touching the declaration paths — for hosts without python3 or
-when an extractor's structural assertion fails.
+`apps/api/src/arguments/help-source-adapters.ts` registers one adapter per engine behind a single
+shape (`sync` / `write` / `diff`): `llama-cpp` delegates to the README help block
+(`docs/ARGUMENT_HELP_WORKFLOW.md`), `vllm` and `sglang` run the extractors above against the
+checkout registered in the `sources` domain (`runtime/sources/vllm`, `runtime/sources/sglang`).
+
+```bash
+pnpm --filter @arriero/api args:docs:source-sync -- --engine vllm
+pnpm --filter @arriero/api args:docs:source-sync -- --engine vllm --diff
+pnpm --filter @arriero/api args:docs:source-sync -- --engine vllm --write
+```
+
+Without `--engine` the CLI keeps its llama-only behaviour. Read-only HTTP mirrors:
+`GET /api/engine-args/help-sources`, `…/:engineId`, `…/:engineId/diff`.
+
+Snapshots live in `content/engine-args/<engine>/source/` as `extract.json` plus a `help-source.json`
+metadata file (hash, checkout commit, timestamp), written only by `--write` — the same rule the
+llama.cpp workflow follows, so a stored snapshot always means "the docs were reviewed at this
+commit". An engine with no snapshot reports `stored.error` rather than a synthetic in-sync state.
+
+The stored hash covers the **argument surface**, not the file: `engineArgumentSurfaceHash` projects
+each option to flags/group/help/choices/optional/default/action/hidden and drops `origin`, so moving
+a declaration between files is not drift while adding a choice is. `--diff` compares the two
+extracts structurally (`+ flag`, `- flag`, `~ flag` with the changed fields); for long help texts it
+prints only the differing fragment with surrounding context.
+
+Signals, in the order the adapter prefers them:
+
+- `content-hash` — both sides parsed, `inSync` is a real boolean;
+- `commit-range` — the current side is unavailable (no python3, no checkout, extractor failure) or
+  the stored side is corrupt, so `inSync` stays `null` and `pendingCommits` lists up to 50 upstream
+  commits touching the declaration paths since the stored commit;
+- `none` — neither signal is available.
+
+The current-side extract is cached for 60 seconds per checkout HEAD, so an uncommitted edit in the
+checkout can take up to a minute to show up.

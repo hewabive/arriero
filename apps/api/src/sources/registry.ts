@@ -29,6 +29,38 @@ const definitions: SourceRepositoryDefinition[] = [
       return null;
     },
   },
+  {
+    id: "vllm",
+    adapter: "vllm",
+    displayName: "vLLM",
+    directoryName: "vllm",
+    defaultOriginUrl: "https://github.com/vllm-project/vllm.git",
+    driftSupported: false,
+    validateCheckout(repoPath) {
+      if (!existsSync(resolve(repoPath, "vllm", "engine", "arg_utils.py"))) {
+        return `vllm/engine/arg_utils.py not found in ${repoPath}; the checkout does not look like vLLM`;
+      }
+      return null;
+    },
+  },
+  {
+    id: "sglang",
+    adapter: "sglang",
+    displayName: "SGLang",
+    directoryName: "sglang",
+    defaultOriginUrl: "https://github.com/sgl-project/sglang.git",
+    driftSupported: false,
+    validateCheckout(repoPath) {
+      if (
+        !existsSync(
+          resolve(repoPath, "python", "sglang", "srt", "server_args.py"),
+        )
+      ) {
+        return `python/sglang/srt/server_args.py not found in ${repoPath}; the checkout does not look like SGLang`;
+      }
+      return null;
+    },
+  },
 ];
 
 const byId = new Map(

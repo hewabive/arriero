@@ -34,6 +34,12 @@ default origins, managed directory names, checkout validation, and whether a
 source has drift checks. Adding another inference source does not require
 adding another build implementation.
 
+`vllm` and `sglang` are registered alongside `llama-cpp`. arriero never builds
+them: their checkouts exist so the argument-declaration extractors can read the
+upstream sources (`docs/ARGUMENT_SOURCE_EXTRACTION.md`), so both declare
+`driftSupported: false` and validate on their argument-declaration file
+(`vllm/engine/arg_utils.py`, `python/sglang/srt/server_args.py`).
+
 ## Clone and origin behavior
 
 The Source Sync page can:

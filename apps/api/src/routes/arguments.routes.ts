@@ -15,6 +15,10 @@ import {
 } from "../arguments/defaults-repository.js";
 import { generatedHelpChangedLines } from "../arguments/docs-source.js";
 import { getLlamaArgumentDocsSyncReport } from "../arguments/docs-sync.js";
+import {
+  getEngineHelpSourceAdapter,
+  listEngineHelpSourceAdapters,
+} from "../arguments/help-source-adapters.js";
 import { readArgumentEngineeringDoc } from "../arguments/docs.js";
 
 export function registerArgumentRoutes(app: Hono) {
@@ -89,6 +93,36 @@ export function registerArgumentRoutes(app: Hono) {
   app.get("/api/llama-args/docs-sync/diff", (c) => {
     try {
       return c.json({ data: { diff: generatedHelpChangedLines() } });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400);
+    }
+  });
+
+  app.get("/api/engine-args/help-sources", async (c) => {
+    try {
+      return c.json({
+        data: await Promise.all(
+          listEngineHelpSourceAdapters().map((adapter) => adapter.sync()),
+        ),
+      });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400);
+    }
+  });
+
+  app.get("/api/engine-args/help-sources/:engineId", async (c) => {
+    try {
+      const adapter = getEngineHelpSourceAdapter(c.req.param("engineId"));
+      return c.json({ data: await adapter.sync() });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400);
+    }
+  });
+
+  app.get("/api/engine-args/help-sources/:engineId/diff", async (c) => {
+    try {
+      const adapter = getEngineHelpSourceAdapter(c.req.param("engineId"));
+      return c.json({ data: { diff: await adapter.diff() } });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }

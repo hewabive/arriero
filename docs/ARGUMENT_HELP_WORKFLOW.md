@@ -2,6 +2,11 @@
 
 Engineering help for `llama-server` arguments lives in `content/llama-args/llama-server/*.md`.
 
+This document covers llama.cpp, whose upstream publishes a generated help block. The Python engines
+(vLLM, SGLang/KTransformers) have no such block; their source of truth is a declaration extract read
+from the checkout — same snapshot/hash/diff workflow, different reader, described in
+`docs/ARGUMENT_SOURCE_EXTRACTION.md` (`args:docs:source-sync -- --engine <id>`).
+
 ## Source Of Truth
 
 The synchronization source is the generated help block in the configured `llama.cpp` checkout:

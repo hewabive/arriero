@@ -312,6 +312,14 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/lla
 (Claude) and `.codex/skills/llama-arg-help-sync` (Codex) are thin wrappers over
 `docs/ARGUMENT_HELP_WORKFLOW.md`, the single source of truth for the update procedure.
 
+The Python engines publish no help block, so their sync source is a **declaration extract** read from
+the checkout by stdlib-`ast` scripts (`scripts/extract-args/{vllm,sglang}.py`) — no venv, no engine
+import, no GPU. One `help-source` adapter per engine (`arguments/help-source-adapters.ts`, CLI
+`args:docs:source-sync -- --engine <id>`, `GET /api/engine-args/help-sources`) snapshots it under
+`content/engine-args/<engine>/source/`; the stored hash covers the argument surface only (`origin`
+excluded), and an unavailable extractor degrades to a git commit-range signal instead of a fake
+in-sync. Contract and measured coverage: `docs/ARGUMENT_SOURCE_EXTRACTION.md`.
+
 ## Conventions
 
 - **Reply to the user in Russian** (code, identifiers, commit messages, and docs stay in English).
