@@ -287,6 +287,8 @@ code {
 }
 
 .argument-doc-list {
+  font-size: var(--mantine-font-size-sm);
+  line-height: var(--mantine-line-height-sm);
   margin: 0;
   overflow-wrap: anywhere;
   padding-left: 22px;
@@ -294,6 +296,11 @@ code {
 
 .argument-doc-list li + li {
   margin-top: 4px;
+}
+
+.argument-doc-list .argument-doc-list {
+  margin-top: 4px;
+  padding-left: 18px;
 }
 
 .argument-doc-code {

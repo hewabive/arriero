@@ -7,10 +7,21 @@ const hiddenEngineeringDocSections = new Set([
   "паспорт аргумента",
 ]);
 
+type EngineeringMarkdownListItem = {
+  text: string;
+  children: EngineeringMarkdownList | null;
+};
+
+type EngineeringMarkdownList = {
+  ordered: boolean;
+  start: number;
+  items: EngineeringMarkdownListItem[];
+};
+
 type EngineeringMarkdownBlock =
   | { type: "heading"; level: number; text: string }
   | { type: "paragraph"; text: string }
-  | { type: "list"; ordered: boolean; items: string[] }
+  | { type: "list"; list: EngineeringMarkdownList }
   | { type: "code"; language: string | null; text: string }
   | { type: "table"; rows: string[][] };
 
@@ -83,27 +94,85 @@ function isTableSeparator(row: string[]) {
   return row.length > 0 && row.every((cell) => /^:?-{3,}:?$/.test(cell));
 }
 
-function isMarkdownBlockStart(
-  lines: string[],
-  index: number,
-  currentListOrdered?: boolean,
-) {
+function matchListItem(line: string) {
+  const match = line.match(/^(\s*)(?:[-*]|(\d+)\.)\s+(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    indent: match[1]!.length,
+    ordered: match[2] !== undefined,
+    start: match[2] ? Number.parseInt(match[2], 10) : 1,
+    text: match[3]!.trim(),
+  };
+}
+
+function isMarkdownBlockStart(lines: string[], index: number) {
   const line = lines[index] ?? "";
   const trimmed = line.trim();
   if (!trimmed) return true;
   if (trimmed.startsWith("```")) return true;
   if (/^#{1,6}\s+/.test(trimmed)) return true;
-
-  const unordered = /^\s*[-*]\s+/.test(line);
-  const ordered = /^\s*\d+\.\s+/.test(line);
-  if (typeof currentListOrdered === "boolean") {
-    return currentListOrdered ? unordered : ordered;
-  }
-  if (unordered || ordered) return true;
+  if (matchListItem(line)) return true;
 
   const row = parseTableRow(line);
   const nextRow = parseTableRow(lines[index + 1] ?? "");
   return Boolean(row && nextRow && isTableSeparator(nextRow));
+}
+
+function parseListLines(lines: string[], startIndex: number) {
+  const first = matchListItem(lines[startIndex] ?? "")!;
+  const root: EngineeringMarkdownList = {
+    ordered: first.ordered,
+    start: first.start,
+    items: [],
+  };
+  const stack = [{ indent: first.indent, list: root }];
+  let lastItem: EngineeringMarkdownListItem | null = null;
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    if (!line.trim() || line.trim().startsWith("```")) {
+      break;
+    }
+
+    const item = matchListItem(line);
+    if (!item) {
+      if (lastItem && /^\s{2,}\S/.test(line)) {
+        lastItem.text = `${lastItem.text} ${line.trim()}`;
+        index += 1;
+        continue;
+      }
+      break;
+    }
+
+    while (stack.length > 1 && item.indent < stack[stack.length - 1]!.indent) {
+      stack.pop();
+    }
+    let top = stack[stack.length - 1]!;
+    const parent = top.list.items[top.list.items.length - 1];
+    if (parent && item.indent >= top.indent + 2) {
+      const child: EngineeringMarkdownList = {
+        ordered: item.ordered,
+        start: item.start,
+        items: [],
+      };
+      parent.children = child;
+      stack.push({ indent: item.indent, list: child });
+      top = stack[stack.length - 1]!;
+    }
+
+    const entry: EngineeringMarkdownListItem = {
+      text: item.text,
+      children: null,
+    };
+    top.list.items.push(entry);
+    lastItem = entry;
+    index += 1;
+  }
+
+  return { list: root, nextIndex: index };
 }
 
 function parseEngineeringMarkdown(
@@ -164,30 +233,15 @@ function parseEngineeringMarkdown(
       continue;
     }
 
-    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-    const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-    if (unordered || ordered) {
-      const orderedList = Boolean(ordered);
-      const items: string[] = [];
-      while (index < lines.length) {
-        const item = orderedList
-          ? lines[index]!.match(/^\s*\d+\.\s+(.+)$/)
-          : lines[index]!.match(/^\s*[-*]\s+(.+)$/);
-        if (!item) {
-          break;
-        }
-        items.push(item[1]!.trim());
-        index += 1;
-      }
-      blocks.push({ type: "list", ordered: orderedList, items });
+    if (matchListItem(line)) {
+      const parsed = parseListLines(lines, index);
+      blocks.push({ type: "list", list: parsed.list });
+      index = parsed.nextIndex;
       continue;
     }
 
     const paragraph: string[] = [];
-    while (
-      index < lines.length &&
-      !isMarkdownBlockStart(lines, index, undefined)
-    ) {
+    while (index < lines.length && !isMarkdownBlockStart(lines, index)) {
       paragraph.push(lines[index]!.trim());
       index += 1;
     }
@@ -202,7 +256,7 @@ function parseEngineeringMarkdown(
 
 function renderInlineMarkdown(text: string): ReactNode[] {
   const pattern =
-    /(`[^`]+`|\[[^\]]+\]\([^)]+\)|<https?:\/\/[^>]+>|https?:\/\/[^\s)>]+)/g;
+    /(`[^`]+`|\[[^\]]+\]\([^)]+\)|<https?:\/\/[^>]+>|https?:\/\/[^\s)>]+|\*\*(?:[^*]|\*(?!\*))+?\*\*|(?<![\p{L}\p{N}*])\*(?!\s)[^*]*[^*\s]\*(?![\p{L}\p{N}*]))/gu;
   const nodes: ReactNode[] = [];
   let offset = 0;
   let match: RegExpExecArray | null;
@@ -214,7 +268,13 @@ function renderInlineMarkdown(text: string): ReactNode[] {
 
     const token = match[0];
     const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (token.startsWith("`") && token.endsWith("`")) {
+    if (token.startsWith("**") && token.endsWith("**")) {
+      nodes.push(
+        <strong key={`strong-${match.index}`}>
+          {renderInlineMarkdown(token.slice(2, -2))}
+        </strong>,
+      );
+    } else if (token.startsWith("`") && token.endsWith("`")) {
       nodes.push(
         <Code key={`code-${match.index}`} component="span">
           {token.slice(1, -1)}
@@ -230,6 +290,12 @@ function renderInlineMarkdown(text: string): ReactNode[] {
         >
           {link[1]}
         </Anchor>,
+      );
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      nodes.push(
+        <em key={`em-${match.index}`}>
+          {renderInlineMarkdown(token.slice(1, -1))}
+        </em>,
       );
     } else {
       const href =
@@ -257,6 +323,32 @@ function renderInlineMarkdown(text: string): ReactNode[] {
   return nodes;
 }
 
+function renderMarkdownList(
+  list: EngineeringMarkdownList,
+  key: string,
+): ReactNode {
+  const items = list.items.map((item, index) => (
+    <li key={index}>
+      {renderInlineMarkdown(item.text)}
+      {item.children
+        ? renderMarkdownList(item.children, `${key}-${index}`)
+        : null}
+    </li>
+  ));
+  if (list.ordered) {
+    return (
+      <ol key={key} className="argument-doc-list" start={list.start}>
+        {items}
+      </ol>
+    );
+  }
+  return (
+    <ul key={key} className="argument-doc-list">
+      {items}
+    </ul>
+  );
+}
+
 export function EngineeringMarkdown(props: { markdown: string }) {
   const blocks = useMemo(
     () => parseEngineeringMarkdown(props.markdown),
@@ -274,7 +366,7 @@ export function EngineeringMarkdown(props: { markdown: string }) {
               mt={index === 0 ? 0 : "sm"}
               size={block.level <= 2 ? "sm" : "xs"}
             >
-              {block.text}
+              {renderInlineMarkdown(block.text)}
             </Text>
           );
         }
@@ -290,17 +382,7 @@ export function EngineeringMarkdown(props: { markdown: string }) {
           );
         }
         if (block.type === "list") {
-          const ListTag = block.ordered ? "ol" : "ul";
-          return (
-            <ListTag
-              key={`${block.type}-${index}`}
-              className="argument-doc-list"
-            >
-              {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
-              ))}
-            </ListTag>
-          );
+          return renderMarkdownList(block.list, `${block.type}-${index}`);
         }
         if (block.type === "table") {
           const [head, ...body] = block.rows;
