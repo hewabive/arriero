@@ -103,6 +103,34 @@ test("vllm parser does not treat periodic KV metrics as startup notices", () => 
   assert.deepEqual(result.notices, [startup]);
 });
 
+test("vllm parser never classifies request text inside INFO records", () => {
+  const result = vllmLogParser.parse({
+    lines: [
+      "(APIServer pid=1) INFO 08-12 10:41:01 [serving_chat.py:203] Received request chatcmpl-abc: prompt: 'Explain this Traceback (most recent call last): ValueError: ERROR WARNING Exception out of memory', params: SamplingParams(...)",
+      'INFO:     127.0.0.1:59454 - "GET /health HTTP/1.1" 200 OK',
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.warnings, []);
+  assert.notEqual(result.loadProgress.stage, "error");
+});
+
+test("vllm parser classifies dated level records", () => {
+  const result = vllmLogParser.parse({
+    lines: [
+      "ERROR 08-12 10:41:01 [core.py:710] EngineCore encountered a fatal error.",
+      "(Worker_TP0 pid=4025) WARNING 08-12 10:41:02 [topk_topp_sampler.py:66] FlashInfer is not available.",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.equal(result.errors.length, 1);
+  assert.equal(result.warnings.length, 1);
+  assert.equal(result.loadProgress.stage, "error");
+});
+
 test("vllm parser keeps real error levels", () => {
   const line = "(EngineCore pid=2) ERROR EngineCore failed to start.";
   const result = vllmLogParser.parse({

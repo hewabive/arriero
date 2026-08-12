@@ -2,12 +2,12 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 
 import {
-  filterManagedLlamaLogChunk,
+  filterRoutineProbeLogChunk,
   isRoutineManagerProbeSideEffectLogLine,
   isRoutineManagerProbeRequestLogLine,
 } from "./log-filter.js";
 
-const localAddresses = new Set(["127.0.0.1", "82.38.68.56"]);
+const localAddresses = new Set(["127.0.0.1", "::1", "82.38.68.56"]);
 
 test("detects routine local arriero probe request log lines", () => {
   assert.equal(
@@ -50,6 +50,68 @@ test("keeps non-local and non-routine request log lines", () => {
   );
 });
 
+test("detects routine uvicorn access log lines from local probes", () => {
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      'INFO:     127.0.0.1:52999 - "GET /health HTTP/1.1" 200 OK',
+      localAddresses,
+    ),
+    true,
+  );
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      'INFO:     127.0.0.1:53000 - "GET /health HTTP/1.1" 503 Service Unavailable',
+      localAddresses,
+    ),
+    true,
+  );
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      '(APIServer pid=41) INFO:     127.0.0.1:59454 - "GET /v1/models HTTP/1.1" 200 OK',
+      localAddresses,
+    ),
+    true,
+  );
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      'INFO:     ::1:52999 - "GET /health HTTP/1.1" 200 OK',
+      localAddresses,
+    ),
+    true,
+  );
+});
+
+test("keeps non-routine uvicorn access log lines", () => {
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      'INFO:     127.0.0.1:52999 - "POST /v1/chat/completions HTTP/1.1" 200 OK',
+      localAddresses,
+    ),
+    false,
+  );
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      'INFO:     203.0.113.10:52999 - "GET /health HTTP/1.1" 200 OK',
+      localAddresses,
+    ),
+    false,
+  );
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      'INFO:     127.0.0.1:52999 - "GET /health HTTP/1.1" 500 Internal Server Error',
+      localAddresses,
+    ),
+    false,
+  );
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      "INFO:     Application startup complete.",
+      localAddresses,
+    ),
+    false,
+  );
+});
+
 test("filters only complete routine request lines from chunks", () => {
   const chunk = [
     "main: loading model",
@@ -61,11 +123,29 @@ test("filters only complete routine request lines from chunks", () => {
   ].join("\n");
 
   assert.equal(
-    filterManagedLlamaLogChunk(`${chunk}\n`, localAddresses),
+    filterRoutineProbeLogChunk(`${chunk}\n`, localAddresses),
     [
       "main: loading model",
       "srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200",
       "load_tensors: loading model tensors",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("filters routine uvicorn access lines from python engine chunks", () => {
+  const chunk = [
+    "[2026-08-12 10:41:01] Uvicorn running on http://127.0.0.1:30000 (Press CTRL+C to quit)",
+    'INFO:     127.0.0.1:52999 - "GET /health HTTP/1.1" 200 OK',
+    '(APIServer pid=41) INFO:     127.0.0.1:59454 - "GET /v1/models HTTP/1.1" 200 OK',
+    'INFO:     127.0.0.1:53001 - "POST /v1/chat/completions HTTP/1.1" 200 OK',
+  ].join("\n");
+
+  assert.equal(
+    filterRoutineProbeLogChunk(`${chunk}\n`, localAddresses),
+    [
+      "[2026-08-12 10:41:01] Uvicorn running on http://127.0.0.1:30000 (Press CTRL+C to quit)",
+      'INFO:     127.0.0.1:53001 - "POST /v1/chat/completions HTTP/1.1" 200 OK',
       "",
     ].join("\n"),
   );
@@ -95,5 +175,5 @@ test("detects routine router probe side-effect log lines", () => {
 test("does not drop partial request lines without a newline", () => {
   const chunk = "srv  log_server_r: done request: GET /slots 127.0.0.1 200";
 
-  assert.equal(filterManagedLlamaLogChunk(chunk, localAddresses), chunk);
+  assert.equal(filterRoutineProbeLogChunk(chunk, localAddresses), chunk);
 });

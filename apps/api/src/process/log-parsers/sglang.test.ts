@@ -65,6 +65,63 @@ test("SGLang parser treats optional DeepSeek-V4 imports as notices", () => {
   assert.equal(parsed.ready, true);
 });
 
+test("SGLang parser never classifies request payload text", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "[2026-08-12 10:41:01] Receive: obj=GenerateReqInput(text='Explain this Traceback (most recent call last): RuntimeError: error warning failed out of memory', sampling_params={...})",
+      "[2026-08-12 10:41:02] Receive OpenAI: obj=ChatCompletionRequest(messages=[{'content': 'why did my exception handler fail with a fatal OOM?'}])",
+      "[2026-08-12 10:41:05] Finish: obj=GenerateReqInput(...), out={'text': ' ERROR: the failure is a warning sign', 'meta_info': {...}}",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.deepEqual(parsed.errors, []);
+  assert.deepEqual(parsed.warnings, []);
+  assert.notEqual(parsed.loadProgress.stage, "error");
+});
+
+test("SGLang parser keeps benign error-shaped notices out of errors", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "[2026-08-12 10:40:59 TP0] The following error message 'operation scheduled before its operands' can be ignored.",
+      'INFO:     127.0.0.1:52999 - "GET /health HTTP/1.1" 200 OK',
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.deepEqual(parsed.errors, []);
+  assert.deepEqual(parsed.warnings, []);
+});
+
+test("SGLang parser reports scheduler exceptions and prefixed tracebacks", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "[2026-08-12 10:41:07 TP0] Scheduler hit an exception: Traceback (most recent call last):",
+      '  File "/env/lib/python3.12/site-packages/sglang/srt/managers/scheduler.py", line 5045, in run_scheduler_process',
+      "torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.50 GiB",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.equal(parsed.errors.length, 2);
+  assert.equal(parsed.loadProgress.stage, "error");
+  assert.match(parsed.loadProgress.message, /OutOfMemoryError/);
+});
+
+test("SGLang parser reports anchored warning shapes only", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "[2026-08-12 10:40:58] Warning: The model does not declare a chat template.",
+      "/env/lib/python3.12/site-packages/torch/cuda/__init__.py:123: UserWarning: CUDA initialization skipped",
+      "[2026-08-12 10:40:59] Set the warning threshold for decode batches.",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.equal(parsed.warnings.length, 2);
+  assert.deepEqual(parsed.errors, []);
+});
+
 test("SGLang parser still reports non-optional import failures", () => {
   const parsed = sglangLogParser.parse({
     lines: [

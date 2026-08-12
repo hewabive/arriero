@@ -26,7 +26,7 @@ import {
   removeNumaCgroup,
   resolveNumaLaunch,
 } from "../numa/index.js";
-import { filterManagedLlamaLogChunk } from "./log-filter.js";
+import { filterRoutineProbeLogChunk } from "./log-filter.js";
 import { instanceLogPaths } from "./log-paths.js";
 import {
   buildLaunchSnapshot,
@@ -459,7 +459,7 @@ export class ProcessSupervisor extends EventEmitter {
       startOffset,
       onLines: (chunk) => {
         const filtered = config.logs.filterRoutineProbeRequests
-          ? filterManagedLlamaLogChunk(chunk)
+          ? filterRoutineProbeLogChunk(chunk)
           : chunk;
         if (filtered) {
           this.writeFiltered(runtime, filtered);

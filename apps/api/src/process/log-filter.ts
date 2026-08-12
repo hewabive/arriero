@@ -10,8 +10,18 @@ const ROUTINE_MANAGER_PROBE_ENDPOINT_SUFFIXES = [
   "/v1/models",
 ];
 
-const REQUEST_LOG_PATTERN =
+const LLAMA_REQUEST_LOG_PATTERN =
   /\bdone request:\s+([A-Z]+)\s+(\S+)\s+(\S+)\s+(\d{3})\b/;
+
+const UVICORN_REQUEST_LOG_PATTERN =
+  /^(?:\([^)]*\bpid=\d+\)\s+)?INFO:\s+(\S+) - "([A-Z]+) (\S+) HTTP\/[\d.]+" (\d{3})(?: [A-Za-z][A-Za-z' -]*)?\s*$/;
+
+type ProbeRequestLogLine = {
+  method: string;
+  path: string;
+  remoteAddress: string;
+  status: number;
+};
 
 let cachedLocalProbeAddresses: Set<string> | null = null;
 
@@ -61,26 +71,48 @@ function isRoutineStatus(status: number) {
   return (status >= 200 && status < 400) || status === 503;
 }
 
+function llamaProbeRequestLogLine(line: string): ProbeRequestLogLine | null {
+  const match = LLAMA_REQUEST_LOG_PATTERN.exec(line);
+  if (!match) {
+    return null;
+  }
+  return {
+    method: match[1]!,
+    path: match[2]!,
+    remoteAddress: match[3]!,
+    status: Number(match[4]),
+  };
+}
+
+function uvicornProbeRequestLogLine(line: string): ProbeRequestLogLine | null {
+  const match = UVICORN_REQUEST_LOG_PATTERN.exec(line.trim());
+  if (!match) {
+    return null;
+  }
+  return {
+    method: match[2]!,
+    path: match[3]!,
+    remoteAddress: match[1]!.replace(/:\d+$/, ""),
+    status: Number(match[4]),
+  };
+}
+
 export function isRoutineManagerProbeRequestLogLine(
   line: string,
   localAddresses = localProbeAddresses(),
 ) {
-  const match = REQUEST_LOG_PATTERN.exec(line);
-  if (!match) {
+  const request =
+    llamaProbeRequestLogLine(line) ?? uvicornProbeRequestLogLine(line);
+  if (!request) {
     return false;
   }
 
-  const method = match[1]!;
-  const path = match[2]!;
-  const remoteAddress = normalizeAddress(match[3]!);
-  const status = Number(match[4]);
-
   return (
-    (method === "GET" || method === "HEAD") &&
-    isRoutineManagerProbePath(path) &&
-    Number.isFinite(status) &&
-    isRoutineStatus(status) &&
-    localAddresses.has(remoteAddress)
+    (request.method === "GET" || request.method === "HEAD") &&
+    isRoutineManagerProbePath(request.path) &&
+    Number.isFinite(request.status) &&
+    isRoutineStatus(request.status) &&
+    localAddresses.has(normalizeAddress(request.remoteAddress))
   );
 }
 
@@ -111,7 +143,7 @@ function isRoutineManagerProbeLogLine(
   );
 }
 
-export function filterManagedLlamaLogChunk(
+export function filterRoutineProbeLogChunk(
   chunk: string,
   localAddresses = localProbeAddresses(),
 ) {

@@ -40,7 +40,7 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 | Id enum | Registry | Implementations |
 | --- | --- | --- |
 | `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http`, `tcp-accept`, `openai-http`; vLLM uses real health/models probes and explicit not-applicable llama-native fields |
-| `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm`, `sglang` |
+| `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm`, `sglang`. The Python parsers classify errors/warnings only at record start: vLLM records open with an optional `(name pid=N)` prefix plus a level token, SGLang's `[timestamp TPn]` prefix carries no level at all, so only anchored message shapes count (tracebacks, `X hit an exception`, `ExceptionName:` finals, `Warning`/`file.py:N: SomeWarning` starts). Request text logged inside INFO records (`Received request … prompt: '…'`, `Receive: obj=…`, `Finish: … out=…`) is repr-escaped onto one line, so anchoring is sufficient to keep prompt/response wording from flipping health to `degraded` |
 | `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts`; `ktransformers` → strict platform, runtime, model, CUDA, CPU-method, auth-boundary, TP, and argument checks; `none` → skip |
 | `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`, `sglang-help`; SGLang help uses sibling `bin/python -m sglang.launch_server --help` to avoid unrelated umbrella-CLI imports. Route generation is async; cache rows/sidecars carry `parserId` |
 | `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` joins arrays as CSV; `argparse-flags` emits each array item as a separate token. Both put positionals first and sort flags deterministically |
@@ -84,7 +84,7 @@ Not everything generalizes; these stay llama-specific implementations behind opt
 - The offline probe payload for a stopped rpc-worker keeps the llama HTTP shape (port-8080 `/health` URLs) — it is an API payload consumers already see.
 - Two `deriveStatus` strings ("…llama-server health is OK." on stale, "…waiting for llama-server readiness." on starting) are reachable by rpc-workers and stay literal; templating them would change today's output for rpc-workers.
 - `probe.httpHealth: false` currently selects the rpc-worker readiness *policy* too — an unanswered probe still reports `ready` ("may be busy serving the orchestrator"). A future engine with a non-llama health surface must not blindly set `httpHealth: false`; the policy needs splitting out (e.g. `probe.authoritative`) before that engine lands.
-- `filterManagedLlamaLogChunk` (probe-noise log filtering) applies to both kinds.
+- `filterRoutineProbeLogChunk` (probe-noise log filtering) applies to every kind; it recognizes the llama `done request:` format and the uvicorn access-line format (`INFO:     addr:port - "GET /health HTTP/1.1" 200 OK`, optionally behind a vLLM `(APIServer pid=N)` prefix) for local GET/HEAD probes of the routine endpoints.
 - Cross-node delegation injects `return_progress` before the sending node knows the remote engine (harmless today).
 
 ## New-engine checklist

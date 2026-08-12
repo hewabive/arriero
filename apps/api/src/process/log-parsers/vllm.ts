@@ -5,11 +5,41 @@ import {
 } from "./types.js";
 
 const READY = /Application startup complete\.|Started server process \[\d+\]/i;
-const ERROR =
-  /\b(?:ERROR|FATAL|Exception|Traceback)\b|(?:^|\)\s)(?:[\w.]+(?:Error|Exception)):\s+\S/;
-const WARNING = /\b(?:WARN|WARNING)\b/;
+const PROCESS_PREFIX = /^\([^)]*\bpid=\d+\)\s+/;
+const ERROR_RECORD_STARTS = [
+  /^(?:ERROR|CRITICAL|FATAL)\b/,
+  /^Traceback \(most recent call last\):/,
+  /^[\w.]+(?:Error|Exception)(?::\s|$)/,
+];
+const WARNING_RECORD_START = /^WARNING\b/;
 const CAPABILITY_NOTICE =
   /Model Runner V2 does not yet support the thinking_token_budget request parameter\./;
+
+function recordOf(line: string) {
+  return line.replace(PROCESS_PREFIX, "");
+}
+
+function classify(line: string): "error" | "warning" | null {
+  const record = recordOf(line);
+  if (ERROR_RECORD_STARTS.some((pattern) => pattern.test(record))) {
+    return "error";
+  }
+  if (WARNING_RECORD_START.test(record) && !CAPABILITY_NOTICE.test(record)) {
+    return "warning";
+  }
+  return null;
+}
+
+function classifiedTail(
+  lines: string[],
+  level: "error" | "warning",
+  limit: number,
+) {
+  return lines
+    .filter((line) => classify(line) === level)
+    .map((line) => line.trim())
+    .slice(-limit);
+}
 
 function tailMatches(lines: string[], pattern: RegExp, limit: number) {
   return lines
@@ -18,16 +48,15 @@ function tailMatches(lines: string[], pattern: RegExp, limit: number) {
     .slice(-limit);
 }
 
-function progress(lines: string[]) {
+function progress(lines: string[], errors: string[]) {
   if (lines.some((line) => READY.test(line))) {
     return loadProgress("ready", 100, "vLLM API server is ready.", false);
   }
-  const reversed = [...lines].reverse();
-  const error = reversed.find((line) => ERROR.test(line));
-  if (error) {
-    return loadProgress("error", null, error.trim(), false);
+  const error = errors[errors.length - 1];
+  if (error !== undefined) {
+    return loadProgress("error", null, error, false);
   }
-  for (const line of reversed) {
+  for (const line of [...lines].reverse()) {
     if (
       /captur(?:e|ing|ed).*cuda graphs?|cuda graphs?.*captur|graph capturing/i.test(
         line,
@@ -129,23 +158,22 @@ function latestValues(lines: string[]) {
 }
 
 export const vllmLogParser: EngineLogParser = {
-  parse: ({ lines }) => ({
-    ...latestValues(lines),
-    gpuLayers: null,
-    slots: null,
-    ready: lines.some((line) => READY.test(line)),
-    warnings: tailMatches(
-      lines.filter((line) => !CAPABILITY_NOTICE.test(line)),
-      WARNING,
-      8,
-    ),
-    errors: tailMatches(lines, ERROR, 8),
-    notices: tailMatches(
-      lines,
-      /Application startup complete|Started server process|loading model weights|EngineCore|torch\.compile|Available KV cache memory|GPU KV cache size|CUDA graphs?|Model Runner V2 does not yet support the thinking_token_budget/i,
-      10,
-    ),
-    loadProgress: progress(lines),
-    memoryLayout: emptyMemoryLayout(),
-  }),
+  parse: ({ lines }) => {
+    const errors = classifiedTail(lines, "error", 8);
+    return {
+      ...latestValues(lines),
+      gpuLayers: null,
+      slots: null,
+      ready: lines.some((line) => READY.test(line)),
+      warnings: classifiedTail(lines, "warning", 8),
+      errors,
+      notices: tailMatches(
+        lines,
+        /Application startup complete|Started server process|loading model weights|EngineCore|torch\.compile|Available KV cache memory|GPU KV cache size|CUDA graphs?|Model Runner V2 does not yet support the thinking_token_budget/i,
+        10,
+      ),
+      loadProgress: progress(lines, errors),
+      memoryLayout: emptyMemoryLayout(),
+    };
+  },
 };

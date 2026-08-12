@@ -5,24 +5,50 @@ import {
 } from "./types.js";
 
 const READY = /Uvicorn running on|Application startup complete/i;
-const ERROR = /\b(error|fatal|failed|exception|traceback|out of memory|oom)\b/i;
-const WARNING = /\b(warn|warning)\b/i;
-const OPTIONAL_MODEL_IMPORT =
-  /(?:DSV4 side-effect import failed:|In import_model_classes: Ignore import error when loading sglang\.srt\.models\.deepseek_v4(?:_nextn)?\b)/i;
+const RECORD_PREFIX =
+  /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{3})?[^\]]*\]\s?/;
+const ERROR_MESSAGE_STARTS = [
+  /^Traceback \(most recent call last\):/,
+  /^[\w.]+(?:Error|Exception)(?::\s|$)/,
+  /^\w+ hit an exception/,
+  /^In import_model_classes:(?!.*\bIgnore import error\b).*import error/i,
+];
+const WARNING_MESSAGE_STARTS = [/^warning\b/i, /^\S+\.py:\d+:\s*\w*Warning\b/];
 
-function tailMatches(
+function messageOf(line: string) {
+  return line.replace(RECORD_PREFIX, "");
+}
+
+function classify(line: string): "error" | "warning" | null {
+  const message = messageOf(line);
+  if (ERROR_MESSAGE_STARTS.some((pattern) => pattern.test(message))) {
+    return "error";
+  }
+  if (WARNING_MESSAGE_STARTS.some((pattern) => pattern.test(message))) {
+    return "warning";
+  }
+  return null;
+}
+
+function classifiedTail(
   lines: string[],
-  pattern: RegExp,
+  level: "error" | "warning",
   limit: number,
-  exclude?: RegExp,
 ) {
   return lines
-    .filter((line) => pattern.test(line) && !exclude?.test(line))
+    .filter((line) => classify(line) === level)
     .map((line) => line.trim())
     .slice(-limit);
 }
 
-function progress(lines: string[]) {
+function tailMatches(lines: string[], pattern: RegExp, limit: number) {
+  return lines
+    .filter((line) => pattern.test(line))
+    .map((line) => line.trim())
+    .slice(-limit);
+}
+
+function progress(lines: string[], errors: string[]) {
   if (lines.some((line) => READY.test(line))) {
     return loadProgress(
       "ready",
@@ -31,8 +57,8 @@ function progress(lines: string[]) {
       false,
     );
   }
-  const error = [...lines].reverse().find((line) => ERROR.test(line));
-  if (error) return loadProgress("error", null, error.trim(), false);
+  const error = errors[errors.length - 1];
+  if (error !== undefined) return loadProgress("error", null, error, false);
 
   const shard = [...lines]
     .reverse()
@@ -94,34 +120,40 @@ function lastMatch(lines: string[], pattern: RegExp) {
 }
 
 export const sglangLogParser: EngineLogParser = {
-  parse: ({ lines }) => ({
-    listeningUrl: lastMatch(lines, /Uvicorn running on\s+(https?:\/\/[^\s]+)/i),
-    modelPath: lastMatch(
-      lines,
-      /(?:model(?:_path)?|model path)\s*[:=]\s*["']?([^\s,"']+)/i,
-    ),
-    modelAlias: lastMatch(
-      lines,
-      /served(?:_model_name| model name)\s*[:=]\s*["']?([^\s,"']+)/i,
-    ),
-    contextSize: (() => {
-      const raw = lastMatch(
+  parse: ({ lines }) => {
+    const errors = classifiedTail(lines, "error", 8);
+    return {
+      listeningUrl: lastMatch(
         lines,
-        /(?:context_length|max_total_num_tokens)\s*[:=]\s*(\d+)/i,
-      );
-      return raw ? Number(raw) : null;
-    })(),
-    gpuLayers: null,
-    slots: null,
-    ready: lines.some((line) => READY.test(line)),
-    warnings: tailMatches(lines, WARNING, 8),
-    errors: tailMatches(lines, ERROR, 8, OPTIONAL_MODEL_IMPORT),
-    notices: tailMatches(
-      lines,
-      /Uvicorn running|Application startup complete|KTransformers|kt[-_ ]kernel|checkpoint shards?|cuda graph|warmup|scheduler|DSV4 side-effect import failed:|Ignore import error when loading sglang\.srt\.models\.deepseek_v4/i,
-      12,
-    ),
-    loadProgress: progress(lines),
-    memoryLayout: emptyMemoryLayout(),
-  }),
+        /Uvicorn running on\s+(https?:\/\/[^\s]+)/i,
+      ),
+      modelPath: lastMatch(
+        lines,
+        /(?:model(?:_path)?|model path)\s*[:=]\s*["']?([^\s,"']+)/i,
+      ),
+      modelAlias: lastMatch(
+        lines,
+        /served(?:_model_name| model name)\s*[:=]\s*["']?([^\s,"']+)/i,
+      ),
+      contextSize: (() => {
+        const raw = lastMatch(
+          lines,
+          /(?:context_length|max_total_num_tokens)\s*[:=]\s*(\d+)/i,
+        );
+        return raw ? Number(raw) : null;
+      })(),
+      gpuLayers: null,
+      slots: null,
+      ready: lines.some((line) => READY.test(line)),
+      warnings: classifiedTail(lines, "warning", 8),
+      errors,
+      notices: tailMatches(
+        lines,
+        /Uvicorn running|Application startup complete|KTransformers|kt[-_ ]kernel|checkpoint shards?|cuda graph|warmup|scheduler|DSV4 side-effect import failed:|Ignore import error when loading sglang\.srt\.models\.deepseek_v4/i,
+        12,
+      ),
+      loadProgress: progress(lines, errors),
+      memoryLayout: emptyMemoryLayout(),
+    };
+  },
 };
