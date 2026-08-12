@@ -1,22 +1,22 @@
-import { ENVIRONMENT_UV_MIN_VERSION } from "@arriero/core";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
-import { isSupportedUvVersionOutput } from "./uv.js";
+import { probeUv } from "./uv.js";
 
-test("environment uv compatibility accepts the tested baseline and newer versions", () => {
-  assert.equal(
-    isSupportedUvVersionOutput(`uv ${ENVIRONMENT_UV_MIN_VERSION}`),
-    true,
-  );
-  assert.equal(
-    isSupportedUvVersionOutput(
-      `uv ${ENVIRONMENT_UV_MIN_VERSION} (build metadata)`,
-    ),
-    true,
-  );
-  assert.equal(isSupportedUvVersionOutput("uv 0.12.1"), true);
-  assert.equal(isSupportedUvVersionOutput("uv 1.0.0"), true);
-  assert.equal(isSupportedUvVersionOutput("uv 0.11.15"), false);
-  assert.equal(isSupportedUvVersionOutput(""), false);
+test("environment uv compatibility does not enforce a minimum version", () => {
+  const directory = mkdtempSync(join(tmpdir(), "arriero-uv-version-"));
+  const uv = join(directory, "uv");
+  try {
+    writeFileSync(uv, '#!/bin/sh\necho "uv 0.1.0"\n', { mode: 0o755 });
+    assert.deepEqual(probeUv(directory), {
+      path: uv,
+      version: "uv 0.1.0",
+      error: null,
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

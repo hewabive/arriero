@@ -312,8 +312,6 @@ export const EnvironmentLogTailSchema = z.object({
   truncated: z.boolean(),
 });
 
-export const ENVIRONMENT_UV_MIN_VERSION = "0.11.16";
-
 export const UvToolStatusSchema = z.object({
   available: z.boolean(),
   path: z.string().nullable(),

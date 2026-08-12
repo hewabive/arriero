@@ -209,14 +209,14 @@ Runner rules (`install-runner.ts`):
   setup is intentionally excluded from the aggregated required/recommended
   command and is runnable only from its own check. Its separate `sudo reboot`
   command and the delegation script stay copy-paste.
-- A missing or older `uv` is bootstrapped at the tested minimum version (`0.11.16`).
-  Newer versions are accepted; the configured Python mirror must include the runtime
-  archives requested by the installed consumer version. An existing `pipx` installs
-  the baseline without elevation; otherwise supported distributions first install
-  their `pipx` package and run `pipx install --force uv==0.11.16` as the manager user.
-  Other hosts use uv's versioned official standalone installer with shell-profile
-  modification disabled. All user-scoped paths land in `~/.local/bin`, which the
-  following report refresh adds to the manager PATH automatically.
+- A missing `uv` is installed with `pipx install uv`; no minimum uv version is
+  enforced. If `pipx` is absent, supported distributions first install their
+  `pipx` package. DNF-based RHEL-family hosts use that path too; `pipx` is provided
+  by EPEL, which must already be enabled. Other hosts use uv's unversioned official
+  standalone installer with shell-profile modification disabled. The configured
+  Python mirror must include the runtime archives requested by the installed uv
+  version. All user-scoped paths land in `~/.local/bin`, which the following report
+  refresh adds to the manager PATH automatically.
 - One run at a time, in memory only (log tail 256 KiB), exposed at
   `GET /api/prerequisites/install/latest` and polled while running.
   `DEBIAN_FRONTEND=noninteractive`; under root the `sudo` prefix is stripped.

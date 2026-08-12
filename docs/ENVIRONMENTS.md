@@ -47,11 +47,10 @@ Only one environment job runs at a time. The runner executes:
 6. run engine imports and exact distribution-version checks from final Python;
 7. reconcile the engine-tagged Path Catalog entry.
 
-The environment engine requires `uv >=0.11.16`, the oldest version covered by its
-current command contract. uv bundles its Python download catalog, so different uv
-releases can request different python-build-standalone builds from the same mirror.
-Diagnostics reports the installed uv version; the configured mirror must cover that
-consumer version.
+The environment engine requires `uv` but does not enforce a minimum version. uv
+bundles its Python download catalog, so different uv releases can request different
+python-build-standalone builds from the same mirror. Diagnostics reports the installed
+uv version; the configured mirror must cover that consumer version.
 
 Every uv invocation uses `--no-config`, so a user-level `uv.toml` cannot alter
 resolution. The enforcing layer is `UV_NO_CONFIG=1` in the runner's child-process

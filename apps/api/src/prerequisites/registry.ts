@@ -1,5 +1,4 @@
 import {
-  ENVIRONMENT_UV_MIN_VERSION,
   type HostPackageManager,
   type PrerequisiteCheckKind,
   type PrerequisiteSeverity,
@@ -7,7 +6,6 @@ import {
 } from "@arriero/core";
 import { existsSync } from "node:fs";
 
-import { isSupportedUvVersionOutput } from "../envs/uv.js";
 import { detectNumaBind } from "../numa/capability.js";
 import type { OsRelease } from "../system/os-release.js";
 import {
@@ -309,8 +307,9 @@ function rocmKfdIsApplicable(context: PrerequisiteProbeContext): boolean {
   return context.amdPci.state === "present" || context.rocmDeviceAvailable;
 }
 
-const UV_PIPX_INSTALL_COMMAND = `pipx install --force uv==${ENVIRONMENT_UV_MIN_VERSION}`;
-const UV_STANDALONE_INSTALL_COMMAND = `curl -LsSf https://astral.sh/uv/${ENVIRONMENT_UV_MIN_VERSION}/install.sh | env UV_NO_MODIFY_PATH=1 sh`;
+const UV_PIPX_INSTALL_COMMAND = "pipx install uv";
+const UV_STANDALONE_INSTALL_COMMAND =
+  "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh";
 
 export function uvInstallCommands(
   release: OsRelease,
@@ -328,7 +327,7 @@ export function uvInstallCommands(
     if (
       packageManager === "apt" ||
       packageManager === "apk" ||
-      release.id === "fedora"
+      packageManager === "dnf"
     ) {
       return [`${prefix} pipx`, UV_PIPX_INSTALL_COMMAND];
     }
@@ -342,16 +341,13 @@ async function uvPrerequisiteProbe(
   context: PrerequisiteProbeContext,
 ): Promise<PrerequisiteProbeOutcome> {
   const outcome = await uvExecutableProbe(context);
-  if (
-    outcome.status === "missing" ||
-    (outcome.version !== null && isSupportedUvVersionOutput(outcome.version))
-  ) {
+  if (outcome.status === "missing" || outcome.version !== null) {
     return outcome;
   }
   return {
     status: "missing",
-    detail: `${outcome.detail}; Python environments require uv >=${ENVIRONMENT_UV_MIN_VERSION}`,
-    version: outcome.version,
+    detail: `${outcome.detail}; could not read uv version`,
+    version: null,
   };
 }
 
@@ -716,7 +712,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
         findExecutableInPath("pipx", context.env.PATH) !== null,
       ),
     docPath: "docs/ENVIRONMENTS.md",
-    note: `Python environments require uv >=${ENVIRONMENT_UV_MIN_VERSION}; the configured Python mirror must cover the installed consumer uv version. User-scoped installers expose uv in ~/.local/bin; Re-check adds that directory to the manager PATH automatically.`,
+    note: "The configured Python mirror must cover the installed consumer uv version. On RHEL-family hosts, the pipx package comes from EPEL. User-scoped installers expose uv in ~/.local/bin; Re-check adds that directory to the manager PATH automatically.",
     probe: uvPrerequisiteProbe,
   },
   {

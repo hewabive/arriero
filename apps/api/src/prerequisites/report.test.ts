@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -99,6 +99,26 @@ test("keeps runnable setup separate from manual follow-up commands", async () =>
   assert.deepEqual(check.remediation.commands, ["sudo reboot"]);
   assert.equal(check.remediation.includeInInstallPlan, false);
   assert.equal(check.remediation.rebootRequired, false);
+});
+
+test("accepts any reported uv version as a prerequisite", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "arriero-prerequisite-uv-"));
+  const uv = join(directory, "uv");
+  try {
+    writeFileSync(uv, '#!/bin/sh\necho "uv 0.1.0"\n', { mode: 0o755 });
+    const definition = findPrerequisiteDefinition("uv");
+    assert.ok(definition);
+
+    const check = await evaluatePrerequisite(
+      definition,
+      context({ env: { PATH: directory } }),
+    );
+
+    assert.equal(check.status, "ok");
+    assert.equal(check.version, "uv 0.1.0");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("hides NVIDIA prerequisites on a CPU-only host", () => {

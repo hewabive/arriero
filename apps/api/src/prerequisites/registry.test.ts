@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ENVIRONMENT_UV_MIN_VERSION } from "@arriero/core";
-
 import type { OsRelease } from "../system/os-release.js";
 import {
   cudaToolkitInstallCommands,
@@ -29,6 +27,13 @@ const rocky9: OsRelease = {
   versionId: "9.8",
 };
 
+const rhel9: OsRelease = {
+  id: "rhel",
+  idLike: ["fedora"],
+  prettyName: "Red Hat Enterprise Linux 9.6 (Plow)",
+  versionId: "9.6",
+};
+
 const nvidiaPci = {
   state: "present" as const,
   devices: [
@@ -51,9 +56,9 @@ test("keeps CUDA out of the aggregated DNF transaction", () => {
   assert.equal(typeof nvcc.installCommands, "function");
 });
 
-const pipxUv = `pipx install --force uv==${ENVIRONMENT_UV_MIN_VERSION}`;
+const pipxUv = "pipx install uv";
 
-test("bootstraps pipx before the pinned uv on Arch and Alpine", () => {
+test("bootstraps pipx before uv on Arch and Alpine", () => {
   assert.deepEqual(
     uvInstallCommands(
       {
@@ -102,12 +107,17 @@ test("bootstraps pipx from supported distro packages before installing uv", () =
     ),
     ["sudo dnf install -y pipx", pipxUv],
   );
+  assert.deepEqual(uvInstallCommands(rocky9, false), [
+    "sudo dnf install -y pipx",
+    pipxUv,
+  ]);
+  assert.deepEqual(uvInstallCommands(rhel9, false), [
+    "sudo dnf install -y pipx",
+    pipxUv,
+  ]);
 });
 
 test("uses the official standalone uv installer on other hosts without pipx", () => {
-  assert.deepEqual(uvInstallCommands(rocky9, false), [
-    `curl -LsSf https://astral.sh/uv/${ENVIRONMENT_UV_MIN_VERSION}/install.sh | env UV_NO_MODIFY_PATH=1 sh`,
-  ]);
   assert.deepEqual(
     uvInstallCommands(
       {
@@ -118,9 +128,7 @@ test("uses the official standalone uv installer on other hosts without pipx", ()
       },
       false,
     ),
-    [
-      `curl -LsSf https://astral.sh/uv/${ENVIRONMENT_UV_MIN_VERSION}/install.sh | env UV_NO_MODIFY_PATH=1 sh`,
-    ],
+    ["curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh"],
   );
 });
 

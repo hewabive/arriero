@@ -5,10 +5,7 @@ import type {
   PackageIndexVersion,
   UvToolStatus,
 } from "@arriero/core";
-import {
-  ENVIRONMENT_UV_MIN_VERSION,
-  packageIndexInstallOptions,
-} from "@arriero/core";
+import { packageIndexInstallOptions } from "@arriero/core";
 import {
   Badge,
   Button,
@@ -286,7 +283,7 @@ export function EnvironmentCreateForm({
         <Badge color={uv?.available ? "green" : "red"} variant="light">
           {uv?.available
             ? (uv.version ?? "uv available")
-            : (uv?.reason ?? `uv >=${ENVIRONMENT_UV_MIN_VERSION} unavailable`)}
+            : (uv?.reason ?? "uv unavailable")}
         </Badge>
       </Group>
 
