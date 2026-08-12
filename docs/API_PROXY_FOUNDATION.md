@@ -42,7 +42,17 @@ The second expected case is API adaptation: accepting one API shape and forwardi
   - `planApiProxyIdleMaintenance`
 - HTTP helper functions in `apps/api/src/proxy/http.ts`:
   - upstream URL joining
-  - request/response header filtering
+  - request/response header filtering: hop-by-hop, `host`/`content-length`, the stream-resume
+    session headers, and the client metrics-labels header `x-custom-labels` are never forwarded.
+    The last one is SGLang's `--tokenizer-metrics-custom-labels-header` channel: it turns
+    client-supplied strings into Prometheus label values with no verification, no length limit
+    and no series cleanup, so through an open facade it is an attribution-spoofing and
+    metrics-cardinality DoS channel. The proxy strips it deliberately — a renamed header on a
+    managed instance is stripped too (`instanceMetricsLabelHeader` in
+    `proxy/upstream-context.ts` → `stripHeaders` on the forwarder), KT preflight warns when the
+    instance enables the whitelist, and per-consumer accounting belongs to request sources +
+    traces instead. Revisit only by *stamping* the header server-side from the resolved request
+    source, never by passing the client value through.
   - event-stream detection
 - Protocol adapter helpers in `apps/api/src/proxy/protocol.ts`:
   - normalized public model request shape

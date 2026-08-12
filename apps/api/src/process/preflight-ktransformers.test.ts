@@ -185,6 +185,30 @@ test("KTransformers preflight enforces loopback auth and tensor parallel limits"
   }
 });
 
+test("KTransformers preflight warns that proxy clients cannot send custom metric labels", () => {
+  const { root, instance } = fixture();
+  try {
+    instance.args = {
+      ...instance.args,
+      "--tokenizer-metrics-allowed-custom-labels": ["team"],
+    };
+    const result = validateInstancePreflight(instance, {
+      ...preflightOptions(),
+    });
+    assert.equal(result.ok, true, JSON.stringify(result.issues));
+    const warning = result.issues.find((issue) =>
+      /proxy strips/.test(issue.message),
+    );
+    assert.equal(warning?.level, "warning");
+    assert.equal(
+      warning?.field,
+      "args.--tokenizer-metrics-allowed-custom-labels",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("KTransformers preflight reads the SGLang --tp-size spelling", () => {
   const { root, instance } = fixture();
   try {

@@ -699,6 +699,14 @@ function validateOperationalWarnings(
       "SGLang-KT will choose GPU static-memory allocation because --mem-fraction-static is not set",
     );
   }
+  if (configuredArg(instance, ["--tokenizer-metrics-allowed-custom-labels"])) {
+    issue(
+      issues,
+      "warning",
+      "args.--tokenizer-metrics-allowed-custom-labels",
+      "The arriero proxy strips the client metrics-labels header, so custom tokenizer metric labels only apply to clients that reach the instance port directly",
+    );
+  }
   const swapTotal = options.swapTotalBytes ?? detectedSwapTotalBytes();
   if (swapTotal > 0) {
     issue(

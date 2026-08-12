@@ -25,6 +25,50 @@ test("apiProxyForwardUrl maps instance API prefix and upstream path", () => {
   );
 });
 
+test("forwardApiProxyRequest strips the configured client headers", async () => {
+  const server = createServer(async (request, response) => {
+    await readRequestBody(request);
+    response.setHeader("content-type", "application/json");
+    response.end(
+      JSON.stringify({
+        tenantLabels: request.headers["x-tenant-labels"] ?? null,
+        customLabels: request.headers["x-custom-labels"] ?? null,
+        requestId: request.headers["x-request-id"] ?? null,
+      }),
+    );
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address() as AddressInfo;
+    const response = await forwardApiProxyRequest({
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      method: "POST",
+      upstreamPath: "/v1/chat/completions",
+      search: "",
+      headers: new Headers({
+        "content-type": "application/json",
+        "x-tenant-labels": '{"team":"platform"}',
+        "x-custom-labels": '{"team":"platform"}',
+        "x-request-id": "abc",
+      }),
+      stripHeaders: ["x-tenant-labels"],
+      body: { model: "qwen", messages: [] },
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      tenantLabels: null,
+      customLabels: null,
+      requestId: "abc",
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
 test("forwardApiProxyRequest forwards JSON request and response", async () => {
   const server = createServer(async (request, response) => {
     const body = await readRequestBody(request);

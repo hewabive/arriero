@@ -12,6 +12,7 @@ export type ApiProxyForwardRequest = {
   upstreamPath: string;
   search: string;
   headers: Headers;
+  stripHeaders?: readonly string[] | undefined;
   body: unknown;
   upstreamHeaders?: Record<string, string> | undefined;
   modelOverride?: string | null | undefined;
@@ -55,6 +56,9 @@ export async function forwardApiProxyRequest(
   );
 
   const headers = proxyRequestHeaders(input.headers);
+  for (const name of input.stripHeaders ?? []) {
+    headers.delete(name);
+  }
   for (const [name, value] of Object.entries(input.upstreamHeaders ?? {})) {
     headers.set(name, value);
   }

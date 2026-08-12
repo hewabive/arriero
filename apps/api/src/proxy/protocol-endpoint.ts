@@ -1139,8 +1139,14 @@ export async function serveResolvedTarget(input: {
     if (!resolved.ok) {
       return resolved.response;
     }
-    const { baseUrl, instanceId, engine, authHeaders, translateAnthropic } =
-      resolved.context;
+    const {
+      baseUrl,
+      instanceId,
+      engine,
+      authHeaders,
+      translateAnthropic,
+      stripClientHeaders,
+    } = resolved.context;
     const exchange = prepareUpstreamExchange({
       translate: translateAnthropic,
       operation,
@@ -1241,6 +1247,7 @@ export async function serveResolvedTarget(input: {
         upstreamPath: exchange.path,
         search: new URL(c.req.url).search,
         headers: exchange.headers,
+        stripHeaders: stripClientHeaders,
         body: forwardBody,
         upstreamHeaders: streamSession
           ? { ...authHeaders, "x-conversation-id": streamSession.convId }

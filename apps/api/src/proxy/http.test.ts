@@ -54,6 +54,16 @@ test("proxyRequestHeaders drops hop-by-hop and request-owned headers", () => {
   assert.equal(headers.has("host"), false);
 });
 
+test("proxyRequestHeaders drops the client metrics-labels header", () => {
+  const headers = proxyRequestHeaders({
+    "X-Custom-Labels": '{"team":"platform"}',
+    "x-request-id": "abc",
+  });
+
+  assert.equal(headers.has("x-custom-labels"), false);
+  assert.equal(headers.get("x-request-id"), "abc");
+});
+
 test("proxyRequestHeaders drops client stream-session headers", () => {
   const headers = proxyRequestHeaders({
     "X-Conversation-Id": "conv-1",

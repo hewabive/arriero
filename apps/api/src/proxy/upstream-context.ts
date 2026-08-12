@@ -1,4 +1,4 @@
-import type { ApiProxyTargetRecord } from "@arriero/core";
+import type { ApiProxyTargetRecord, Instance } from "@arriero/core";
 
 import { listInstances } from "../instances/repository.js";
 import { apiEndpointAuthHeaders, getApiEndpointById } from "./endpoints.js";
@@ -19,7 +19,22 @@ export type ApiProxyUpstreamContext = {
   engine: ProxyEngineGates;
   authHeaders: Record<string, string>;
   translateAnthropic: boolean;
+  stripClientHeaders: string[];
 };
+
+const DEFAULT_METRICS_LABEL_HEADER = "x-custom-labels";
+const METRICS_LABEL_HEADER_ARG = "--tokenizer-metrics-custom-labels-header";
+
+export function instanceMetricsLabelHeader(
+  instance: Instance | null,
+): string | null {
+  const value = instance?.args[METRICS_LABEL_HEADER_ARG];
+  if (typeof value !== "string") {
+    return null;
+  }
+  const name = value.trim().toLowerCase();
+  return name && name !== DEFAULT_METRICS_LABEL_HEADER ? name : null;
+}
 
 export type ApiProxyUpstreamContextResolution =
   | { ok: true; context: ApiProxyUpstreamContext }
@@ -65,6 +80,9 @@ export function resolveApiProxyUpstreamContext(input: {
     input.operation,
     targetResolution.profile,
   );
+  const renamedMetricsLabelHeader = instanceMetricsLabelHeader(
+    targetResolution.instance,
+  );
   return {
     ok: true,
     context: {
@@ -73,6 +91,9 @@ export function resolveApiProxyUpstreamContext(input: {
       engine: proxyEngineGates(targetResolution.instance),
       authHeaders: auth.headers,
       translateAnthropic,
+      stripClientHeaders: renamedMetricsLabelHeader
+        ? [renamedMetricsLabelHeader]
+        : [],
     },
   };
 }
