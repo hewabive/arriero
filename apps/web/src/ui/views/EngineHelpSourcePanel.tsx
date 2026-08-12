@@ -9,7 +9,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { AlertTriangle, CheckCircle2, FileClock, XCircle } from "lucide-react";
+import { AlertTriangle, FileClock, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { getEngineHelpSourceDiff } from "../../api/client";
@@ -142,16 +142,6 @@ export function EngineHelpSourcePanel({
         {sync.stored.error && !snapshotMissing && (
           <Alert color="red" variant="light" icon={<XCircle size={16} />}>
             {sync.stored.error}
-          </Alert>
-        )}
-
-        {sync.inSync === true && (
-          <Alert
-            color="green"
-            variant="light"
-            icon={<CheckCircle2 size={16} />}
-          >
-            The stored snapshot matches the declarations in this checkout.
           </Alert>
         )}
 

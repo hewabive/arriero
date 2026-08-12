@@ -13,7 +13,7 @@ import {
   getSourceRepositoryOperation,
 } from "../../api/client";
 
-function sourceOperationQueryKey(sourceId: string) {
+export function sourceOperationQueryKey(sourceId: string) {
   return ["source-repository-operation", sourceId] as const;
 }
 

@@ -1,11 +1,13 @@
 import type {
   EngineHelpSourceSync,
+  SourceRepositoryOperationJob,
   SourceRepositoryStatus,
   SourceSyncReport,
   SourceSyncSection,
 } from "@arriero/core";
 import { LLAMA_CPP_SOURCE_ID } from "@arriero/core";
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
@@ -17,6 +19,7 @@ import {
   Stack,
   Text,
   TextInput,
+  Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,12 +27,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   DownloadCloud,
+  Pencil,
   RefreshCw,
   Save,
   XCircle,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   cloneSourceRepository,
@@ -47,6 +51,7 @@ import { EngineHelpSourcePanel } from "./EngineHelpSourcePanel";
 import { SourceOperationPanel } from "./SourceOperationPanel";
 import {
   invalidateSourceQueries,
+  sourceOperationQueryKey,
   useSourceRepositoryOperation,
 } from "./use-source-repository-operation";
 
@@ -78,8 +83,34 @@ function repositoryStateLabel(status: SourceRepositoryStatus) {
   return status.state;
 }
 
+function isPullable(repository: SourceRepositoryStatus) {
+  return repository.valid && repository.state !== "busy";
+}
+
 function SectionCard(props: { section: SourceSyncSection; extra?: ReactNode }) {
   const { section } = props;
+
+  if (section.status === "in-sync") {
+    return (
+      <Paper withBorder p="sm" radius="sm">
+        <Group justify="space-between" wrap="nowrap" gap="sm">
+          <Stack gap={2} style={{ minWidth: 0 }}>
+            <Text fw={600} size="sm">
+              {section.title}
+            </Text>
+            <Text c="dimmed" size="xs">
+              {section.summary}
+            </Text>
+          </Stack>
+          <Badge color="green" variant="light">
+            in sync
+          </Badge>
+        </Group>
+        {props.extra}
+      </Paper>
+    );
+  }
+
   return (
     <Paper withBorder p="md" radius="sm">
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb="xs">
@@ -109,10 +140,6 @@ function SectionCard(props: { section: SourceSyncSection; extra?: ReactNode }) {
           title={section.summary}
         >
           {section.error}
-        </Alert>
-      ) : section.status === "in-sync" ? (
-        <Alert color="green" variant="light" icon={<CheckCircle2 size={16} />}>
-          {section.summary}
         </Alert>
       ) : section.divergences.length === 0 ? (
         <Alert
@@ -164,39 +191,42 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
   const errorCount = report.sections.filter(
     (section) => section.status === "error",
   ).length;
-  const appearance =
-    report.status === "in-sync"
-      ? {
-          color: "green",
-          icon: <CheckCircle2 size={16} />,
-          title: "Integration checks are in sync",
-        }
-      : report.status === "drift"
-        ? {
-            color: "yellow",
-            icon: <AlertTriangle size={16} />,
-            title: `${countLabel(driftCheckCount, "integration check")} report drift`,
-          }
-        : {
-            color: "red",
-            icon: <XCircle size={16} />,
-            title:
-              report.status === "unavailable"
-                ? "Source is unavailable"
-                : `${countLabel(errorCount, "source check")} failed`,
-          };
+  const checkedAt = `Checked ${formatLocalDateTime(report.checkedAt)}${
+    report.commit ? ` at ${report.commit.slice(0, 12)}` : ""
+  }`;
 
   return (
-    <Stack gap="md">
-      <Alert
-        color={appearance.color}
-        variant="light"
-        icon={appearance.icon}
-        title={appearance.title}
-      >
-        Checked {formatLocalDateTime(report.checkedAt)}
-        {report.commit ? ` at ${report.commit.slice(0, 12)}` : ""}
-      </Alert>
+    <Stack gap="xs">
+      {report.status === "in-sync" ? (
+        <Group gap="xs" wrap="wrap">
+          <CheckCircle2 size={16} color="var(--mantine-color-green-6)" />
+          <Text size="sm">Integration checks are in sync</Text>
+          <Text c="dimmed" size="xs">
+            {checkedAt}
+          </Text>
+        </Group>
+      ) : (
+        <Alert
+          color={report.status === "drift" ? "yellow" : "red"}
+          variant="light"
+          icon={
+            report.status === "drift" ? (
+              <AlertTriangle size={16} />
+            ) : (
+              <XCircle size={16} />
+            )
+          }
+          title={
+            report.status === "drift"
+              ? `${countLabel(driftCheckCount, "integration check")} report drift`
+              : report.status === "unavailable"
+                ? "Source is unavailable"
+                : `${countLabel(errorCount, "source check")} failed`
+          }
+        >
+          {checkedAt}
+        </Alert>
+      )}
       {report.sections.map((section) => (
         <SectionCard
           key={section.id}
@@ -219,6 +249,95 @@ function DriftReport({ report }: { report: SourceSyncReport }) {
   );
 }
 
+function OriginRow({
+  repository,
+  busy,
+  saving,
+  onSave,
+}: {
+  repository: SourceRepositoryStatus;
+  busy: boolean;
+  saving: boolean;
+  onSave: (originUrl: string, onSaved: () => void) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const cleanDraft = draft.trim();
+  const canSave =
+    cleanDraft.length > 0 &&
+    cleanDraft !== repository.spec.originUrl &&
+    !busy &&
+    !saving;
+  const canEdit = !busy && (repository.state === "missing" || repository.valid);
+
+  if (!editing) {
+    return (
+      <Group gap={6} wrap="wrap">
+        <Text c="dimmed" size="sm">
+          Origin
+        </Text>
+        <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+          {repository.spec.originUrl}
+        </Code>
+        <Tooltip label="Change origin">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="gray"
+            aria-label="Change origin"
+            disabled={!canEdit}
+            onClick={() => {
+              setDraft(repository.spec.originUrl);
+              setEditing(true);
+            }}
+          >
+            <Pencil size={14} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    );
+  }
+
+  return (
+    <Group align="flex-end" gap="xs" wrap="wrap">
+      <TextInput
+        label="Origin"
+        description={
+          repository.exists
+            ? "Saving changes the checkout's origin remote."
+            : "The repository will be cloned from this URL."
+        }
+        value={draft}
+        disabled={busy && !saving}
+        autoFocus
+        style={{ flex: "1 1 24rem", minWidth: 0 }}
+        onChange={(event) => setDraft(event.currentTarget.value)}
+      />
+      <Group gap="xs" wrap="nowrap">
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={<Save size={14} />}
+          loading={saving}
+          disabled={!canSave}
+          onClick={() => onSave(cleanDraft, () => setEditing(false))}
+        >
+          Save origin
+        </Button>
+        <Button
+          size="xs"
+          variant="subtle"
+          color="gray"
+          disabled={saving}
+          onClick={() => setEditing(false)}
+        >
+          Cancel
+        </Button>
+      </Group>
+    </Group>
+  );
+}
+
 function SourceRepositoryPanel({
   repository,
   helpSources,
@@ -227,12 +346,7 @@ function SourceRepositoryPanel({
   helpSources: EngineHelpSourceSync[];
 }) {
   const queryClient = useQueryClient();
-  const [originUrl, setOriginUrl] = useState(repository.spec.originUrl);
   const sourceOperation = useSourceRepositoryOperation(repository.spec.id);
-
-  useEffect(() => {
-    setOriginUrl(repository.spec.originUrl);
-  }, [repository.spec.originUrl]);
 
   const driftQuery = useQuery({
     queryKey: ["source-repository-drift", repository.spec.id],
@@ -246,10 +360,7 @@ function SourceRepositoryPanel({
 
   const cloneMutation = useMutation({
     mutationFn: () =>
-      cloneSourceRepository(repository.spec.id, {
-        originUrl: originUrl.trim(),
-        branch: null,
-      }),
+      cloneSourceRepository(repository.spec.id, { branch: null }),
     onSuccess: (response) => {
       sourceOperation.setJob(response.data);
       notifications.show({
@@ -267,12 +378,10 @@ function SourceRepositoryPanel({
   });
 
   const settingsMutation = useMutation({
-    mutationFn: () =>
-      updateSourceRepositorySettings(repository.spec.id, {
-        originUrl: originUrl.trim(),
-      }),
-    onSuccess: async (response) => {
-      setOriginUrl(response.data.status.spec.originUrl);
+    mutationFn: ({ originUrl }: { originUrl: string; onSaved: () => void }) =>
+      updateSourceRepositorySettings(repository.spec.id, { originUrl }),
+    onSuccess: async (response, variables) => {
+      variables.onSaved();
       await invalidateSourceQueries(queryClient, repository.spec.id);
       notifications.show({
         title: "Origin updated",
@@ -312,20 +421,34 @@ function SourceRepositoryPanel({
     cloneMutation.isPending ||
     settingsMutation.isPending ||
     pullMutation.isPending;
-  const cleanOrigin = originUrl.trim();
-  const originChanged = cleanOrigin !== repository.spec.originUrl;
-  const canSaveOrigin =
-    cleanOrigin.length > 0 &&
-    originChanged &&
-    (repository.state === "missing" || repository.valid) &&
-    !busy;
 
   return (
     <Paper withBorder p="md" radius="sm">
-      <Stack gap="md">
-        <Group justify="space-between" align="flex-start" wrap="wrap">
-          <Stack gap={2} style={{ flex: "1 1 20rem", minWidth: 0 }}>
-            <Text fw={700}>{repository.displayName}</Text>
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+          <Stack gap={4} style={{ flex: "1 1 20rem", minWidth: 0 }}>
+            <Group gap="xs" wrap="wrap">
+              <Text fw={700}>{repository.displayName}</Text>
+              <Badge
+                color={
+                  repository.spec.location.type === "managed" ? "blue" : "gray"
+                }
+                variant="outline"
+              >
+                {repository.spec.location.type}
+              </Badge>
+              <Badge
+                color={repositoryStateColor(repository.state)}
+                variant="light"
+              >
+                {repositoryStateLabel(repository)}
+              </Badge>
+              {repository.dirty && (
+                <Badge color="yellow" variant="outline">
+                  dirty
+                </Badge>
+              )}
+            </Group>
             <Text c="dimmed" size="sm">
               <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
                 {repository.repoPath}
@@ -333,20 +456,29 @@ function SourceRepositoryPanel({
             </Text>
           </Stack>
           <Group gap="xs">
-            <Badge
-              color={
-                repository.spec.location.type === "managed" ? "blue" : "gray"
-              }
-              variant="outline"
-            >
-              {repository.spec.location.type}
-            </Badge>
-            <Badge
-              color={repositoryStateColor(repository.state)}
-              variant="light"
-            >
-              {repositoryStateLabel(repository)}
-            </Badge>
+            {repository.state === "missing" && (
+              <Button
+                size="xs"
+                leftSection={<DownloadCloud size={14} />}
+                loading={cloneMutation.isPending}
+                disabled={busy}
+                onClick={() => cloneMutation.mutate()}
+              >
+                Clone
+              </Button>
+            )}
+            {repository.valid && (
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<DownloadCloud size={14} />}
+                loading={pullMutation.isPending}
+                disabled={busy}
+                onClick={() => pullMutation.mutate()}
+              >
+                Pull
+              </Button>
+            )}
           </Group>
         </Group>
 
@@ -365,45 +497,35 @@ function SourceRepositoryPanel({
                 {repository.latestTag}
               </Badge>
             )}
-            {repository.dirty && (
-              <Badge color="yellow" variant="outline">
-                dirty
-              </Badge>
-            )}
           </Group>
         )}
 
-        <TextInput
-          label="Origin"
-          description={
-            repository.exists
-              ? "Saving changes the checkout's origin remote."
-              : "The repository will be cloned from this URL."
+        <OriginRow
+          repository={repository}
+          busy={busy}
+          saving={settingsMutation.isPending}
+          onSave={(originUrl, onSaved) =>
+            settingsMutation.mutate({ originUrl, onSaved })
           }
-          value={originUrl}
-          disabled={busy}
-          onChange={(event) => setOriginUrl(event.currentTarget.value)}
         />
 
-        {repository.remoteUrl &&
-          repository.originMatches === false &&
-          !originChanged && (
-            <Alert
-              color="yellow"
-              variant="light"
-              icon={<AlertTriangle size={16} />}
-            >
-              Configured origin is{" "}
-              <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
-                {repository.spec.originUrl}
-              </Code>
-              , but the checkout currently uses{" "}
-              <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
-                {repository.remoteUrl}
-              </Code>
-              .
-            </Alert>
-          )}
+        {repository.remoteUrl && repository.originMatches === false && (
+          <Alert
+            color="yellow"
+            variant="light"
+            icon={<AlertTriangle size={16} />}
+          >
+            Configured origin is{" "}
+            <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+              {repository.spec.originUrl}
+            </Code>
+            , but the checkout currently uses{" "}
+            <Code style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+              {repository.remoteUrl}
+            </Code>
+            .
+          </Alert>
+        )}
 
         {repository.error && (
           <Alert
@@ -434,42 +556,6 @@ function SourceRepositoryPanel({
             before running integration drift checks.
           </Alert>
         )}
-
-        <Group justify="flex-end" gap="xs" wrap="wrap">
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<Save size={14} />}
-            loading={settingsMutation.isPending}
-            disabled={!canSaveOrigin}
-            onClick={() => settingsMutation.mutate()}
-          >
-            Save origin
-          </Button>
-          {repository.state === "missing" && (
-            <Button
-              size="xs"
-              leftSection={<DownloadCloud size={14} />}
-              loading={cloneMutation.isPending}
-              disabled={!cleanOrigin || busy}
-              onClick={() => cloneMutation.mutate()}
-            >
-              Clone
-            </Button>
-          )}
-          {repository.valid && (
-            <Button
-              size="xs"
-              variant="default"
-              leftSection={<DownloadCloud size={14} />}
-              loading={pullMutation.isPending}
-              disabled={busy}
-              onClick={() => pullMutation.mutate()}
-            >
-              Pull
-            </Button>
-          )}
-        </Group>
 
         <SourceOperationPanel
           job={sourceOperation.job}
@@ -525,6 +611,59 @@ export function SourceSyncView() {
     refetchInterval: 120_000,
   });
 
+  const repositories = repositoriesQuery.data?.data ?? [];
+  const pullableRepositories = repositories.filter(isPullable);
+
+  const pullAllMutation = useMutation({
+    mutationFn: (targets: SourceRepositoryStatus[]) =>
+      Promise.all(
+        targets.map(
+          async (
+            repository,
+          ): Promise<{
+            repository: SourceRepositoryStatus;
+            job: SourceRepositoryOperationJob | null;
+            error: string | null;
+          }> => {
+            try {
+              const response = await pullSourceRepository(repository.spec.id);
+              return { repository, job: response.data, error: null };
+            } catch (error) {
+              return { repository, job: null, error: (error as Error).message };
+            }
+          },
+        ),
+      ),
+    onSuccess: async (outcomes) => {
+      const started = outcomes.filter((outcome) => outcome.job !== null);
+      for (const outcome of started) {
+        queryClient.setQueryData(
+          sourceOperationQueryKey(outcome.repository.spec.id),
+          { data: outcome.job },
+        );
+      }
+      for (const outcome of outcomes) {
+        if (outcome.error === null) continue;
+        notifications.show({
+          color: "red",
+          title: `${outcome.repository.displayName} pull failed`,
+          message: outcome.error,
+        });
+      }
+      if (started.length > 0) {
+        notifications.show({
+          title: `Pull started for ${countLabel(started.length, "repository", "repositories")}`,
+          message: started
+            .map((outcome) => outcome.repository.displayName)
+            .join(", "),
+        });
+      }
+      await queryClient.invalidateQueries({
+        queryKey: ["source-repositories"],
+      });
+    },
+  });
+
   const refresh = async () => {
     await Promise.all([
       repositoriesQuery.refetch(),
@@ -540,7 +679,16 @@ export function SourceSyncView() {
 
   return (
     <Stack gap="md">
-      <Group justify="flex-end">
+      <Group justify="flex-end" gap="xs">
+        <Button
+          size="xs"
+          leftSection={<DownloadCloud size={14} />}
+          loading={pullAllMutation.isPending}
+          disabled={pullableRepositories.length === 0}
+          onClick={() => pullAllMutation.mutate(pullableRepositories)}
+        >
+          Pull all
+        </Button>
         <Button
           size="xs"
           variant="light"
@@ -574,7 +722,7 @@ export function SourceSyncView() {
         </Alert>
       )}
 
-      {repositoriesQuery.data?.data.map((repository) => (
+      {repositories.map((repository) => (
         <SourceRepositoryPanel
           key={repository.spec.id}
           repository={repository}
