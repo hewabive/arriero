@@ -12,6 +12,7 @@ import {
   parseDeviceTokens,
   splitCsvItems,
   MemoryEstimateSchema,
+  VLLM_TENSOR_PARALLEL_KEYS,
   type CudaVisibleDevices,
   type EngineEstimatorId,
   type Instance,
@@ -281,7 +282,7 @@ function estimateVllmGpuUtil(input: {
   }
   const tensorParallel = Math.max(
     1,
-    Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
+    Math.floor(argNumber(input.args, VLLM_TENSOR_PARALLEL_KEYS) ?? 1),
   );
   const cuda = parseCudaVisibleDevices(input.env.CUDA_VISIBLE_DEVICES);
   if (cuda.mode === "none") {

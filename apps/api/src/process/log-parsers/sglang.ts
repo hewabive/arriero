@@ -1,15 +1,20 @@
 import {
+  classifiedTails,
   emptyMemoryLayout,
   loadProgress,
+  PYTHON_EXCEPTION_START,
+  PYTHON_TRACEBACK_START,
+  tailMatches,
   type EngineLogParser,
+  type LogLineLevel,
 } from "./types.js";
 
 const READY = /Uvicorn running on|Application startup complete/i;
 const RECORD_PREFIX =
   /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{3})?[^\]]*\]\s?/;
 const ERROR_MESSAGE_STARTS = [
-  /^Traceback \(most recent call last\):/,
-  /^[\w.]+(?:Error|Exception)(?::\s|$)/,
+  PYTHON_TRACEBACK_START,
+  PYTHON_EXCEPTION_START,
   /^\w+ hit an exception/,
   /^In import_model_classes:(?!.*\bIgnore import error\b).*import error/i,
 ];
@@ -19,7 +24,7 @@ function messageOf(line: string) {
   return line.replace(RECORD_PREFIX, "");
 }
 
-function classify(line: string): "error" | "warning" | null {
+function classify(line: string): LogLineLevel | null {
   const message = messageOf(line);
   if (ERROR_MESSAGE_STARTS.some((pattern) => pattern.test(message))) {
     return "error";
@@ -28,24 +33,6 @@ function classify(line: string): "error" | "warning" | null {
     return "warning";
   }
   return null;
-}
-
-function classifiedTail(
-  lines: string[],
-  level: "error" | "warning",
-  limit: number,
-) {
-  return lines
-    .filter((line) => classify(line) === level)
-    .map((line) => line.trim())
-    .slice(-limit);
-}
-
-function tailMatches(lines: string[], pattern: RegExp, limit: number) {
-  return lines
-    .filter((line) => pattern.test(line))
-    .map((line) => line.trim())
-    .slice(-limit);
 }
 
 function progress(lines: string[], errors: string[]) {
@@ -121,7 +108,7 @@ function lastMatch(lines: string[], pattern: RegExp) {
 
 export const sglangLogParser: EngineLogParser = {
   parse: ({ lines }) => {
-    const errors = classifiedTail(lines, "error", 8);
+    const { errors, warnings } = classifiedTails(lines, classify, 8);
     return {
       listeningUrl: lastMatch(
         lines,
@@ -145,7 +132,7 @@ export const sglangLogParser: EngineLogParser = {
       gpuLayers: null,
       slots: null,
       ready: lines.some((line) => READY.test(line)),
-      warnings: classifiedTail(lines, "warning", 8),
+      warnings,
       errors,
       notices: tailMatches(
         lines,

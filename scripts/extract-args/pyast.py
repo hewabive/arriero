@@ -11,10 +11,7 @@ from pathlib import Path
 
 OPTIONAL_WRAPPERS = {"Optional", "Union"}
 
-DECLARED_TYPES = ("bool", "dict", "enum", "float", "int", "json", "list", "path", "str")
-
 TYPE_PRECEDENCE = (
-    "json",
     "bool",
     "enum",
     "list",

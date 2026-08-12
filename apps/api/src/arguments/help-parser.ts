@@ -2,6 +2,7 @@ import type { ArgumentOption, ArgumentValueType } from "@arriero/core";
 
 import { defaultArgumentControl } from "./registry.js";
 import { categoryNameRu, helpRuOverlay } from "./help-text-ru.js";
+import { valueTypeFromChoices } from "./value-type.js";
 
 type ParsedHelpOption = {
   category: string;
@@ -158,12 +159,9 @@ function inferValueType(input: {
     return hasNegation || help.includes("whether to ") ? "boolean" : "flag";
   }
 
-  if (input.allowedValues.length > 0) {
-    return input.allowedValues.every((value) =>
-      ["on", "off", "auto", "0", "1", "true", "false"].includes(value),
-    )
-      ? "boolean"
-      : "enum";
+  const fromChoices = valueTypeFromChoices(input.allowedValues);
+  if (fromChoices) {
+    return fromChoices;
   }
 
   if (hint.includes("json")) return "json";

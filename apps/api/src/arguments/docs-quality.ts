@@ -1,37 +1,32 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve, sep } from "node:path";
 
 import { flagValue, hasFlag } from "./cli-flags.js";
-import { argumentDocsDirectory } from "./docs.js";
+import { argumentDocFiles, argumentDocsDirectory } from "./docs.js";
 import {
-  argumentDocFiles,
   engineDocContext,
   lintEngineArgumentDoc,
-  lintEngineArgumentDocs,
   lintLlamaArgumentDoc,
   type DocQualityIssue,
   type EngineDocCoverage,
 } from "./docs-quality-lint.js";
-import { engineArgumentContentPaths } from "./engine-content.js";
-import { listEngineArgumentReferences } from "./engine-reference.js";
 import {
-  parseEngineArgumentExtract,
-  type ParsedExtract,
-} from "./help-source.js";
+  engineArgumentContentPaths,
+  readStoredEngineExtract,
+} from "./engine-content.js";
+import { listEngineArgumentReferences } from "./engine-reference.js";
 
 type EngineDocs = {
   engineId: string;
   docsDirectory: string;
-  snapshotPath: string;
 };
 
 const engineDocs: EngineDocs[] = listEngineArgumentReferences().map(
-  ({ engineId }) => {
-    const { docsDirectory, snapshotPath } =
-      engineArgumentContentPaths(engineId);
-    return { engineId, docsDirectory, snapshotPath };
-  },
+  ({ engineId }) => ({
+    engineId,
+    docsDirectory: engineArgumentContentPaths(engineId).docsDirectory,
+  }),
 );
 
 function engineOfPath(path: string) {
@@ -40,13 +35,6 @@ function engineOfPath(path: string) {
       path.startsWith(`${engine.docsDirectory}${sep}`),
     ) ?? null
   );
-}
-
-function readStoredExtract(engine: EngineDocs): ParsedExtract {
-  if (!existsSync(engine.snapshotPath)) {
-    return { extract: null, error: "stored argument extract not found" };
-  }
-  return parseEngineArgumentExtract(readFileSync(engine.snapshotPath, "utf8"));
 }
 
 function changedDocFiles() {
@@ -115,11 +103,12 @@ for (const engine of engineDocs) {
     continue;
   }
 
-  const stored = readStoredExtract(engine);
+  const files = targeted ?? argumentDocFiles(engine.docsDirectory);
+  const stored = readStoredEngineExtract(engine.engineId);
   if (!stored.extract) {
-    if ((targeted ?? argumentDocFiles(engine.docsDirectory)).length > 0) {
+    if (files.length > 0) {
       issues.push({
-        path: engine.snapshotPath,
+        path: stored.path,
         severity: "error",
         message: `stored argument extract for ${engine.engineId}: ${stored.error}`,
       });
@@ -127,23 +116,16 @@ for (const engine of engineDocs) {
     continue;
   }
 
-  if (targeted) {
-    const context = engineDocContext(engine.engineId, stored.extract);
-    checked += targeted.length;
-    issues.push(
-      ...targeted.flatMap((file) => lintEngineArgumentDoc(file, context)),
-    );
-    continue;
+  const context = engineDocContext(engine.engineId, stored.extract);
+  checked += files.length;
+  issues.push(...files.flatMap((file) => lintEngineArgumentDoc(file, context)));
+  if (!targeted) {
+    coverage.push({
+      engineId: engine.engineId,
+      documented: files.length,
+      total: stored.extract.options.length,
+    });
   }
-
-  const linted = lintEngineArgumentDocs({
-    engineId: engine.engineId,
-    docsDirectory: engine.docsDirectory,
-    extract: stored.extract,
-  });
-  checked += linted.files.length;
-  issues.push(...linted.issues);
-  coverage.push(linted.coverage);
 }
 
 const errorCount = issues.filter((issue) => issue.severity === "error").length;

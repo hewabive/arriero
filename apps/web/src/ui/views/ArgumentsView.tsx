@@ -10,7 +10,7 @@ import {
 } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { listEngineArgumentReferences } from "../../api/client";
 import { TouchSelect } from "../components/TouchCombobox";
@@ -35,9 +35,15 @@ function EngineReferenceSummary({ engineId }: { engineId: string }) {
     (item) => item.engineId === engineId,
   );
   const documented = summary?.documented ?? null;
+  const lastDocumented = useRef<number | null>(null);
 
   useEffect(() => {
     if (documented === null) {
+      return;
+    }
+    const previous = lastDocumented.current;
+    lastDocumented.current = documented;
+    if (previous === null || previous === documented) {
       return;
     }
     queryClient.invalidateQueries({
@@ -96,7 +102,9 @@ export function ArgumentsView() {
         />
       )}
 
-      {engineId && <EngineReferenceSummary engineId={engineId} />}
+      {engineId && (
+        <EngineReferenceSummary key={engineId} engineId={engineId} />
+      )}
 
       <Paper withBorder p="md" radius="sm">
         <Group justify="space-between" align="flex-end" wrap="wrap">

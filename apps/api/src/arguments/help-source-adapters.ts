@@ -5,19 +5,17 @@ import {
   type EngineHelpSourceSync,
   type LlamaArgumentHelpSourceSnapshot,
 } from "@arriero/core";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { repositoryHeadCommit, tryGit } from "../git/process.js";
 import { getSourceRepositoryDefinition } from "../sources/registry.js";
 import { sourceRepositoryPath } from "../sources/repository.js";
-import { engineArgumentContentPaths } from "./engine-content.js";
+import {
+  engineArgumentContentPaths,
+  readEngineExtractMetadata,
+  readStoredEngineExtract,
+} from "./engine-content.js";
 import {
   generatedHelpDiff,
   getLlamaArgumentHelpSourceSync,
@@ -94,10 +92,10 @@ function syncOf(input: {
   adapter: {
     id: string;
     displayName: string;
+    kind: EngineHelpSourceSync["kind"];
     sourceId: string;
     sourcePaths: string[];
   };
-  kind: EngineHelpSourceSync["kind"];
   snapshotPath: string;
   metadataPath: string;
   stored: EngineHelpSourceSnapshot;
@@ -114,7 +112,7 @@ function syncOf(input: {
   return {
     engineId: input.adapter.id,
     displayName: input.adapter.displayName,
-    kind: input.kind,
+    kind: input.adapter.kind,
     sourceId: input.adapter.sourceId,
     sourcePaths: input.adapter.sourcePaths,
     snapshotPath: input.snapshotPath,
@@ -152,7 +150,6 @@ function llamaAdapter(): EngineHelpSourceAdapter {
     const stored = engineSnapshot(llama.stored);
     return syncOf({
       adapter: identity,
-      kind: "help-block",
       snapshotPath: llama.snapshotPath,
       metadataPath: llama.metadataPath,
       stored,
@@ -189,82 +186,53 @@ type ExtractAdapterInput = {
   runner?: ExtractorRunner;
 };
 
-function readExtractMetadata(path: string): StoredExtractMetadata | null {
-  if (!existsSync(path)) {
+function readExtractMetadata(engineId: string): StoredExtractMetadata | null {
+  const parsed = readEngineExtractMetadata(engineId);
+  if (!parsed || parsed.schema !== 1 || typeof parsed.hash !== "string") {
     return null;
   }
-  try {
-    const parsed = JSON.parse(
-      readFileSync(path, "utf8"),
-    ) as Partial<ExtractMetadata>;
-    if (parsed.schema !== 1 || typeof parsed.hash !== "string") {
-      return null;
-    }
-    return {
-      hash: parsed.hash,
-      commit: typeof parsed.commit === "string" ? parsed.commit : null,
-      updatedAt:
-        typeof parsed.updatedAt === "string" ? parsed.updatedAt : nowIso(),
-    };
-  } catch {
-    return null;
-  }
+  return {
+    hash: parsed.hash,
+    commit: typeof parsed.commit === "string" ? parsed.commit : null,
+    updatedAt:
+      typeof parsed.updatedAt === "string" ? parsed.updatedAt : nowIso(),
+  };
 }
 
-function storedExtractSnapshot(input: {
-  snapshotPath: string;
-  metadataPath: string;
-}): {
+function storedExtractSnapshot(engineId: string): {
   snapshot: EngineHelpSourceSnapshot;
   extract: EngineArgumentExtract | null;
 } {
-  const metadata = readExtractMetadata(input.metadataPath);
-  if (!existsSync(input.snapshotPath)) {
+  const metadata = readExtractMetadata(engineId);
+  const stored = readStoredEngineExtract(engineId);
+  if (!stored.extract) {
     return {
       snapshot: {
-        path: input.snapshotPath,
-        exists: false,
+        path: stored.path,
+        exists: stored.exists,
         hash: metadata?.hash ?? null,
         commit: metadata?.commit ?? null,
         updatedAt: metadata?.updatedAt ?? null,
-        error: "stored argument extract not found",
+        error: stored.error,
       },
       extract: null,
     };
   }
 
-  const parsed = parseEngineArgumentExtract(
-    readFileSync(input.snapshotPath, "utf8"),
-  );
-  if (!parsed.extract) {
-    return {
-      snapshot: {
-        path: input.snapshotPath,
-        exists: true,
-        hash: metadata?.hash ?? null,
-        commit: metadata?.commit ?? null,
-        updatedAt: metadata?.updatedAt ?? null,
-        error: parsed.error,
-      },
-      extract: null,
-    };
-  }
-
-  const computed = engineArgumentSurfaceHash(parsed.extract);
+  const computed = engineArgumentSurfaceHash(stored.extract);
   return {
     snapshot: {
-      path: input.snapshotPath,
+      path: stored.path,
       exists: true,
       hash: metadata?.hash ?? computed,
       commit: metadata?.commit ?? null,
-      updatedAt:
-        metadata?.updatedAt ?? statSync(input.snapshotPath).mtime.toISOString(),
+      updatedAt: metadata?.updatedAt ?? stored.updatedAt,
       error:
         metadata && metadata.hash !== computed
           ? `metadata hash ${metadata.hash} does not match snapshot hash ${computed}`
           : null,
     },
-    extract: parsed.extract,
+    extract: stored.extract,
   };
 }
 
@@ -314,7 +282,7 @@ export function createExtractHelpSourceAdapter(
   async function readSides() {
     const repoPath = sourceRepositoryPath(identity.sourceId);
     const head = await repositoryHeadCommit(repoPath);
-    const stored = storedExtractSnapshot({ snapshotPath, metadataPath });
+    const stored = storedExtractSnapshot(input.id);
     const { run, parsed, hash } = await currentExtract(repoPath, head);
 
     const current: EngineHelpSourceSnapshot = {
@@ -340,7 +308,6 @@ export function createExtractHelpSourceAdapter(
     const sides = await readSides();
     return syncOf({
       adapter: identity,
-      kind: "declaration-extract",
       snapshotPath,
       metadataPath,
       stored: sides.stored.snapshot,

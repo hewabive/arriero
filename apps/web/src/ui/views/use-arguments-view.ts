@@ -151,13 +151,13 @@ export function useArgumentsView(engineId?: string) {
   }, []);
 
   useEffect(() => {
-    if (!argsCatalog || docsSyncEnabled) {
+    if (!argsCatalog || docsSyncEnabled || engineId) {
       return;
     }
 
     const timeout = window.setTimeout(() => setDocsSyncEnabled(true), 1_000);
     return () => window.clearTimeout(timeout);
-  }, [argsCatalog, docsSyncEnabled]);
+  }, [argsCatalog, docsSyncEnabled, engineId]);
 
   useEffect(() => {
     const routeArg = routeParams.arg;
@@ -310,7 +310,6 @@ export function useArgumentsView(engineId?: string) {
       : "";
 
   return {
-    engineId: engineId ?? null,
     supportsInstanceDefaults: !engineId,
     isMobileList,
     search,

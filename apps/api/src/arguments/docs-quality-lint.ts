@@ -2,11 +2,16 @@ import type {
   EngineArgumentDeclaration,
   EngineArgumentExtract,
 } from "@arriero/core";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 
-import { argumentDocSlug, parseArgumentDocFile } from "./docs.js";
+import {
+  argumentDocFiles,
+  argumentDocSlug,
+  parseArgumentDocFile,
+} from "./docs.js";
 import { LlamaArgumentEstimationSchema } from "./estimation.js";
+import { shorten } from "./help-source.js";
 
 export type DocQualityIssue = {
   path: string;
@@ -77,19 +82,6 @@ const engineForbiddenFrontmatter = [
   "env",
 ];
 
-export function argumentDocFiles(directory: string) {
-  if (!existsSync(directory)) {
-    return [];
-  }
-  return readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => name.endsWith(".md"))
-    .filter((name) => !name.startsWith("_") && name !== "README.md")
-    .map((name) => resolve(directory, name))
-    .sort((left, right) => left.localeCompare(right));
-}
-
 function stringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -103,10 +95,6 @@ function isBlank(value: unknown) {
 
 function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
-}
-
-function shorten(value: string, limit = 80) {
-  return value.length > limit ? `${value.slice(0, limit)}…` : value;
 }
 
 function firstHelpSentence(help: string) {
@@ -291,31 +279,9 @@ export function lintEngineArgumentDoc(
     issues.push({
       path,
       severity: "warning",
-      message: `upstream help is not quoted in the doc: ${shorten(sentence)}`,
+      message: `upstream help is not quoted in the doc: ${shorten(sentence, 80)}`,
     });
   }
 
   return issues;
-}
-
-export function lintEngineArgumentDocs(input: {
-  engineId: string;
-  docsDirectory: string;
-  extract: EngineArgumentExtract;
-}): {
-  files: string[];
-  issues: DocQualityIssue[];
-  coverage: EngineDocCoverage;
-} {
-  const context = engineDocContext(input.engineId, input.extract);
-  const files = argumentDocFiles(input.docsDirectory);
-  return {
-    files,
-    issues: files.flatMap((file) => lintEngineArgumentDoc(file, context)),
-    coverage: {
-      engineId: input.engineId,
-      documented: files.length,
-      total: input.extract.options.length,
-    },
-  };
 }

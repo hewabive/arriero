@@ -26,7 +26,10 @@ import {
   removeNumaCgroup,
   resolveNumaLaunch,
 } from "../numa/index.js";
-import { filterRoutineProbeLogChunk } from "./log-filter.js";
+import {
+  filterRoutineProbeLogChunk,
+  probeRequestLogGrammar,
+} from "./log-filter.js";
 import { instanceLogPaths } from "./log-paths.js";
 import {
   buildLaunchSnapshot,
@@ -454,12 +457,13 @@ export class ProcessSupervisor extends EventEmitter {
     rawLogPath: string,
     startOffset: number,
   ) {
+    const grammar = probeRequestLogGrammar(runtime.kind);
     const tail = new RawLogTail({
       path: rawLogPath,
       startOffset,
       onLines: (chunk) => {
         const filtered = config.logs.filterRoutineProbeRequests
-          ? filterRoutineProbeLogChunk(chunk)
+          ? filterRoutineProbeLogChunk(chunk, undefined, grammar)
           : chunk;
         if (filtered) {
           this.writeFiltered(runtime, filtered);

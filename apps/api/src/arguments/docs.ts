@@ -7,6 +7,7 @@ import {
   closeSync,
   existsSync,
   openSync,
+  readdirSync,
   readFileSync,
   readSync,
   statSync,
@@ -26,6 +27,19 @@ type ParsedDocFile = {
   frontmatter: Record<string, unknown>;
   markdown: string;
 };
+
+export function argumentDocFiles(directory: string) {
+  if (!existsSync(directory)) {
+    return [];
+  }
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => name.endsWith(".md"))
+    .filter((name) => !name.startsWith("_") && name !== "README.md")
+    .map((name) => resolve(directory, name))
+    .sort((left, right) => left.localeCompare(right));
+}
 
 export function argumentDocSlug(primaryName: string) {
   return (

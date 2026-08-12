@@ -1,4 +1,8 @@
-import type { ApiProxyTargetRecord, Instance } from "@arriero/core";
+import {
+  argString,
+  type ApiProxyTargetRecord,
+  type Instance,
+} from "@arriero/core";
 
 import { listInstances } from "../instances/repository.js";
 import { apiEndpointAuthHeaders, getApiEndpointById } from "./endpoints.js";
@@ -6,6 +10,7 @@ import {
   proxyEngineGates,
   type ProxyEngineGates,
 } from "./engine-capabilities.js";
+import { CLIENT_METRICS_LABEL_HEADER } from "./http.js";
 import type {
   ApiProxyProtocolDiagnostic,
   ApiProxyProtocolOperation,
@@ -22,18 +27,17 @@ export type ApiProxyUpstreamContext = {
   stripClientHeaders: string[];
 };
 
-const DEFAULT_METRICS_LABEL_HEADER = "x-custom-labels";
 const METRICS_LABEL_HEADER_ARG = "--tokenizer-metrics-custom-labels-header";
 
 export function instanceMetricsLabelHeader(
   instance: Instance | null,
 ): string | null {
-  const value = instance?.args[METRICS_LABEL_HEADER_ARG];
-  if (typeof value !== "string") {
+  if (!instance) {
     return null;
   }
-  const name = value.trim().toLowerCase();
-  return name && name !== DEFAULT_METRICS_LABEL_HEADER ? name : null;
+  const name =
+    argString(instance.args, [METRICS_LABEL_HEADER_ARG])?.toLowerCase() ?? null;
+  return name && name !== CLIENT_METRICS_LABEL_HEADER ? name : null;
 }
 
 export type ApiProxyUpstreamContextResolution =

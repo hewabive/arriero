@@ -2,14 +2,14 @@ import type { EngineArgumentExtract } from "@arriero/core";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 
 import {
   engineDocContext,
   lintEngineArgumentDoc,
-  lintEngineArgumentDocs,
 } from "./docs-quality-lint.js";
+import { argumentDocFiles } from "./docs.js";
 
 const extract: EngineArgumentExtract = {
   schema: 1,
@@ -299,35 +299,17 @@ test("stale template text is an error", () => {
   );
 });
 
-test("an empty or missing args directory is a clean pass", () => {
-  const empty = withDocsDirectory((directory) =>
-    lintEngineArgumentDocs({
-      engineId: "vllm",
-      docsDirectory: directory,
-      extract,
-    }),
-  );
-  assert.deepEqual(empty.issues, []);
-  assert.deepEqual(empty.coverage, {
-    engineId: "vllm",
-    documented: 0,
-    total: 3,
-  });
+test("an empty or missing args directory yields no doc files", () => {
+  const empty = withDocsDirectory((directory) => argumentDocFiles(directory));
+  assert.deepEqual(empty, []);
 
-  const absent = lintEngineArgumentDocs({
-    engineId: "vllm",
-    docsDirectory: join(tmpdir(), "arriero-engine-docs-absent", "args"),
-    extract,
-  });
-  assert.deepEqual(absent.issues, []);
-  assert.deepEqual(absent.coverage, {
-    engineId: "vllm",
-    documented: 0,
-    total: 3,
-  });
+  assert.deepEqual(
+    argumentDocFiles(join(tmpdir(), "arriero-engine-docs-absent", "args")),
+    [],
+  );
 });
 
-test("directory linting reports coverage and per-file issues", () => {
+test("directory listing skips helper files and linting reports per-file issues", () => {
   const result = withDocsDirectory((directory) => {
     writeFileSync(join(directory, "max-model-len.md"), docText(), "utf8");
     writeFileSync(
@@ -348,23 +330,22 @@ test("directory linting reports coverage and per-file issues", () => {
       ]),
       "utf8",
     );
-    return lintEngineArgumentDocs({
-      engineId: "vllm",
-      docsDirectory: directory,
-      extract,
-    });
+    const files = argumentDocFiles(directory);
+    return {
+      files: files.map((file) => basename(file)),
+      issues: files.flatMap((file) => lintEngineArgumentDoc(file, context)),
+    };
   });
 
-  assert.equal(result.coverage.documented, 2);
+  assert.deepEqual(result.files, [
+    "max-model-len.md",
+    "tensor-parallel-size.md",
+  ]);
   assert.ok(
     result.issues.some(
       (issue) =>
         issue.message === "engine mismatch: expected vllm, found sglang",
     ),
-    JSON.stringify(result.issues),
-  );
-  assert.ok(
-    result.issues.every((issue) => !issue.path.endsWith("_agent-prompt.md")),
     JSON.stringify(result.issues),
   );
 });

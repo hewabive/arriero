@@ -50,7 +50,9 @@ const requestOnlyHeaders = new Set(["host", "content-length"]);
 
 const streamSessionHeaders = new Set(["x-conversation-id", "x-stream-resume"]);
 
-const clientMetricsLabelHeaders = new Set(["x-custom-labels"]);
+export const CLIENT_METRICS_LABEL_HEADER = "x-custom-labels";
+
+const clientMetricsLabelHeaders = new Set([CLIENT_METRICS_LABEL_HEADER]);
 
 const decodedBodyHeaders = new Set(["content-encoding", "content-length"]);
 

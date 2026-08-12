@@ -8,26 +8,22 @@ import {
   type EngineArgumentValueType,
   type LlamaArgumentEngineeringDoc,
 } from "@arriero/core";
-import { existsSync, readFileSync, statSync } from "node:fs";
 
-import { readArgumentEngineeringDoc, withArgumentDocIndex } from "./docs.js";
-import { argumentDocFiles } from "./docs-quality-lint.js";
-import { engineArgumentContentPaths } from "./engine-content.js";
-import { listEngineHelpSourceAdapters } from "./help-source-adapters.js";
 import {
-  engineArgumentSurfaceHash,
-  parseEngineArgumentExtract,
-} from "./help-source.js";
-
-const booleanChoices = new Set([
-  "on",
-  "off",
-  "auto",
-  "0",
-  "1",
-  "true",
-  "false",
-]);
+  argumentDocFiles,
+  readArgumentEngineeringDoc,
+  withArgumentDocIndex,
+} from "./docs.js";
+import {
+  engineArgumentContentPaths,
+  readEngineExtractMetadata,
+  readStoredEngineExtract,
+  type StoredEngineExtract,
+} from "./engine-content.js";
+import { listEngineHelpSourceAdapters } from "./help-source-adapters.js";
+import { engineArgumentSurfaceHash, nowIso } from "./help-source.js";
+import { defaultArgumentControl } from "./registry.js";
+import { valueTypeFromChoices } from "./value-type.js";
 
 export function listEngineArgumentReferences() {
   return listEngineHelpSourceAdapters()
@@ -48,46 +44,18 @@ function referenceEngine(engineId: string) {
   return engine;
 }
 
-function readSnapshotMetadata(path: string) {
-  if (!existsSync(path)) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<{
-      entrypoint: string;
-      commit: string;
-      updatedAt: string;
-    }>;
-    return {
-      entrypoint: parsed.entrypoint ?? null,
-      commit: parsed.commit ?? null,
-      updatedAt: parsed.updatedAt ?? null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function readStoredExtract(engineId: string): {
-  extract: EngineArgumentExtract;
-  path: string;
-  updatedAt: string;
-} {
-  const { snapshotPath } = engineArgumentContentPaths(engineId);
-  if (!existsSync(snapshotPath)) {
+function requireStoredExtract(
+  engineId: string,
+): StoredEngineExtract & { extract: EngineArgumentExtract } {
+  const stored = readStoredEngineExtract(engineId);
+  if (!stored.extract) {
     throw new Error(
-      `stored argument extract not found for ${engineId}; run args:docs:source-sync -- --engine ${engineId} --write`,
+      stored.exists
+        ? `stored argument extract for ${engineId}: ${stored.error}`
+        : `stored argument extract not found for ${engineId}; run args:docs:source-sync -- --engine ${engineId} --write`,
     );
   }
-  const parsed = parseEngineArgumentExtract(readFileSync(snapshotPath, "utf8"));
-  if (!parsed.extract) {
-    throw new Error(`stored argument extract for ${engineId}: ${parsed.error}`);
-  }
-  return {
-    extract: parsed.extract,
-    path: snapshotPath,
-    updatedAt: statSync(snapshotPath).mtime.toISOString(),
-  };
+  return { ...stored, extract: stored.extract };
 }
 
 function allowedValuesOf(option: EngineArgumentDeclaration) {
@@ -136,10 +104,9 @@ export function engineArgumentValueType(
   if (action === "BooleanOptionalAction") {
     return "boolean";
   }
-  if (allowedValues.length > 0) {
-    return allowedValues.every((value) => booleanChoices.has(value))
-      ? "boolean"
-      : "enum";
+  const fromChoices = valueTypeFromChoices(allowedValues);
+  if (fromChoices) {
+    return fromChoices;
   }
   const declared = declaredValueType(option.type);
   if (declared) {
@@ -168,8 +135,9 @@ function toArgumentOption(
 ): ArgumentOption {
   const allowedValues = allowedValuesOf(option);
   const valueType = engineArgumentValueType(option);
+  const primaryName = option.flags[0]!;
   return {
-    primaryName: option.flags[0]!,
+    primaryName,
     names: option.flags,
     category: option.group ?? "Other",
     valueHint: null,
@@ -177,29 +145,10 @@ function toArgumentOption(
     env: [],
     allowedValues,
     help: option.help,
-    helpRu: `Оригинальная справка ${engineName}: ${option.help || option.flags[0]}`,
+    helpRu: `Оригинальная справка ${engineName}: ${option.help || primaryName}`,
     helpRuSource: "fallback",
     doc: { exists: false, path: null, summary: null, updatedAt: null },
-    control: {
-      kind:
-        valueType === "flag"
-          ? "flag"
-          : valueType === "boolean"
-            ? "toggle"
-            : valueType === "enum"
-              ? "select"
-              : valueType === "number"
-                ? "number"
-                : valueType === "path"
-                  ? "path"
-                  : valueType === "json"
-                    ? "json"
-                    : valueType === "list"
-                      ? "csv-list"
-                      : "text",
-      cliEncoding: valueType === "flag" ? "flag" : "value",
-      presetSupport: "supported",
-    },
+    control: defaultArgumentControl({ primaryName, valueType, allowedValues }),
     compatibility: {
       metadataSource: "registry",
       presentInBinary: false,
@@ -222,11 +171,24 @@ function withDocSummaries(options: ArgumentOption[], docsDirectory: string) {
   );
 }
 
+const CATALOG_CACHE_TTL_MS = 5_000;
+
+const catalogCache = new Map<
+  string,
+  { catalog: ArgumentCatalog; expiresAt: number }
+>();
+
 export function getEngineArgumentReferenceCatalog(
   engineId: string,
 ): ArgumentCatalog {
+  const now = Date.now();
+  const cached = catalogCache.get(engineId);
+  if (cached && cached.expiresAt > now) {
+    return cached.catalog;
+  }
+
   const engine = referenceEngine(engineId);
-  const stored = readStoredExtract(engineId);
+  const stored = requireStoredExtract(engineId);
   const { docsDirectory } = engineArgumentContentPaths(engineId);
   const options = withDocSummaries(
     stored.extract.options.map((option) =>
@@ -234,20 +196,26 @@ export function getEngineArgumentReferenceCatalog(
     ),
     docsDirectory,
   );
+  const generatedAt = stored.updatedAt ?? nowIso();
 
-  return ArgumentCatalogSchema.parse({
+  const catalog = ArgumentCatalogSchema.parse({
     binaryPath: stored.path,
-    generatedAt: stored.updatedAt,
+    generatedAt,
     source: {
       kind: "help",
       command: ["arriero", "engine-argument-extract", engineId],
       hash: engineArgumentSurfaceHash(stored.extract),
       binarySize: 0,
-      binaryModifiedAt: stored.updatedAt,
+      binaryModifiedAt: generatedAt,
     },
     cache: { hit: true, refreshed: false, stale: false },
     options,
   });
+  catalogCache.set(engineId, {
+    catalog,
+    expiresAt: now + CATALOG_CACHE_TTL_MS,
+  });
+  return catalog;
 }
 
 export function readEngineArgumentDoc(
@@ -263,21 +231,19 @@ export function readEngineArgumentDoc(
 
 export function engineArgumentReferenceSummaries() {
   return listEngineArgumentReferences().map((engine) => {
-    const paths = engineArgumentContentPaths(engine.engineId);
-    const metadata = readSnapshotMetadata(paths.metadataPath);
-    let total: number | null = null;
-    try {
-      total = readStoredExtract(engine.engineId).extract.options.length;
-    } catch {
-      total = null;
-    }
+    const metadata = readEngineExtractMetadata(engine.engineId);
+    const stored = readStoredEngineExtract(engine.engineId);
     return {
       ...engine,
-      entrypoint: metadata?.entrypoint ?? null,
-      commit: metadata?.commit ?? null,
-      updatedAt: metadata?.updatedAt ?? null,
-      total,
-      documented: argumentDocFiles(paths.docsDirectory).length,
+      entrypoint:
+        typeof metadata?.entrypoint === "string" ? metadata.entrypoint : null,
+      commit: typeof metadata?.commit === "string" ? metadata.commit : null,
+      updatedAt:
+        typeof metadata?.updatedAt === "string" ? metadata.updatedAt : null,
+      total: stored.extract?.options.length ?? null,
+      documented: argumentDocFiles(
+        engineArgumentContentPaths(engine.engineId).docsDirectory,
+      ).length,
     };
   });
 }

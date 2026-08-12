@@ -1,3 +1,4 @@
+import { engineDescriptor, type InstanceKind } from "@arriero/core";
 import { networkInterfaces } from "node:os";
 
 const ROUTINE_MANAGER_PROBE_ENDPOINT_SUFFIXES = [
@@ -97,12 +98,33 @@ function uvicornProbeRequestLogLine(line: string): ProbeRequestLogLine | null {
   };
 }
 
+export type ProbeRequestLogGrammar = "llama" | "uvicorn";
+
+export function probeRequestLogGrammar(
+  kind: InstanceKind,
+): ProbeRequestLogGrammar {
+  return engineDescriptor(kind).logs.parser === "llama" ? "llama" : "uvicorn";
+}
+
+function probeRequestLogLine(
+  line: string,
+  grammar: ProbeRequestLogGrammar | undefined,
+) {
+  if (grammar === "llama") {
+    return llamaProbeRequestLogLine(line);
+  }
+  if (grammar === "uvicorn") {
+    return uvicornProbeRequestLogLine(line);
+  }
+  return llamaProbeRequestLogLine(line) ?? uvicornProbeRequestLogLine(line);
+}
+
 export function isRoutineManagerProbeRequestLogLine(
   line: string,
   localAddresses = localProbeAddresses(),
+  grammar?: ProbeRequestLogGrammar,
 ) {
-  const request =
-    llamaProbeRequestLogLine(line) ?? uvicornProbeRequestLogLine(line);
+  const request = probeRequestLogLine(line, grammar);
   if (!request) {
     return false;
   }
@@ -135,17 +157,19 @@ export function isRoutineManagerProbeSideEffectLogLine(line: string) {
 
 function isRoutineManagerProbeLogLine(
   line: string,
-  localAddresses = localProbeAddresses(),
+  localAddresses: Set<string>,
+  grammar: ProbeRequestLogGrammar | undefined,
 ) {
   return (
-    isRoutineManagerProbeRequestLogLine(line, localAddresses) ||
-    isRoutineManagerProbeSideEffectLogLine(line)
+    isRoutineManagerProbeRequestLogLine(line, localAddresses, grammar) ||
+    (grammar !== "uvicorn" && isRoutineManagerProbeSideEffectLogLine(line))
   );
 }
 
 export function filterRoutineProbeLogChunk(
   chunk: string,
   localAddresses = localProbeAddresses(),
+  grammar?: ProbeRequestLogGrammar,
 ) {
   return chunk.split(/(\n)/).reduce((filtered, part, index, parts) => {
     if (index % 2 === 1) {
@@ -154,7 +178,10 @@ export function filterRoutineProbeLogChunk(
 
     const newline = parts[index + 1] ?? "";
     const line = part.endsWith("\r") ? part.slice(0, -1) : part;
-    if (newline && isRoutineManagerProbeLogLine(line, localAddresses)) {
+    if (
+      newline &&
+      isRoutineManagerProbeLogLine(line, localAddresses, grammar)
+    ) {
       return filtered;
     }
     return `${filtered}${part}${newline}`;

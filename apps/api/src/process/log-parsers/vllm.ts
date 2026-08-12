@@ -1,15 +1,20 @@
 import {
+  classifiedTails,
   emptyMemoryLayout,
   loadProgress,
+  PYTHON_EXCEPTION_START,
+  PYTHON_TRACEBACK_START,
+  tailMatches,
   type EngineLogParser,
+  type LogLineLevel,
 } from "./types.js";
 
 const READY = /Application startup complete\.|Started server process \[\d+\]/i;
 const PROCESS_PREFIX = /^\([^)]*\bpid=\d+\)\s+/;
 const ERROR_RECORD_STARTS = [
   /^(?:ERROR|CRITICAL|FATAL)\b/,
-  /^Traceback \(most recent call last\):/,
-  /^[\w.]+(?:Error|Exception)(?::\s|$)/,
+  PYTHON_TRACEBACK_START,
+  PYTHON_EXCEPTION_START,
 ];
 const WARNING_RECORD_START = /^WARNING\b/;
 const CAPABILITY_NOTICE =
@@ -19,7 +24,7 @@ function recordOf(line: string) {
   return line.replace(PROCESS_PREFIX, "");
 }
 
-function classify(line: string): "error" | "warning" | null {
+function classify(line: string): LogLineLevel | null {
   const record = recordOf(line);
   if (ERROR_RECORD_STARTS.some((pattern) => pattern.test(record))) {
     return "error";
@@ -28,24 +33,6 @@ function classify(line: string): "error" | "warning" | null {
     return "warning";
   }
   return null;
-}
-
-function classifiedTail(
-  lines: string[],
-  level: "error" | "warning",
-  limit: number,
-) {
-  return lines
-    .filter((line) => classify(line) === level)
-    .map((line) => line.trim())
-    .slice(-limit);
-}
-
-function tailMatches(lines: string[], pattern: RegExp, limit: number) {
-  return lines
-    .filter((line) => pattern.test(line))
-    .map((line) => line.trim())
-    .slice(-limit);
 }
 
 function progress(lines: string[], errors: string[]) {
@@ -159,13 +146,13 @@ function latestValues(lines: string[]) {
 
 export const vllmLogParser: EngineLogParser = {
   parse: ({ lines }) => {
-    const errors = classifiedTail(lines, "error", 8);
+    const { errors, warnings } = classifiedTails(lines, classify, 8);
     return {
       ...latestValues(lines),
       gpuLayers: null,
       slots: null,
       ready: lines.some((line) => READY.test(line)),
-      warnings: classifiedTail(lines, "warning", 8),
+      warnings,
       errors,
       notices: tailMatches(
         lines,

@@ -30,6 +30,8 @@ export const SGLANG_TENSOR_PARALLEL_KEYS = [
   "--tp",
 ];
 
+export const VLLM_TENSOR_PARALLEL_KEYS = ["--tensor-parallel-size", "-tp"];
+
 export function argNumber(args: LlamaArgRecord, keys: string[]): number | null {
   const value = argRaw(args, keys);
   if (typeof value === "number") {
@@ -585,7 +587,7 @@ function deriveVllmArgsProfile(
   const visible = visibleGpuPools(allGpu, cuda);
   const tensorParallel = Math.max(
     1,
-    Math.floor(argNumber(input.args, ["--tensor-parallel-size", "-tp"]) ?? 1),
+    Math.floor(argNumber(input.args, VLLM_TENSOR_PARALLEL_KEYS) ?? 1),
   );
   return {
     placement: "gpu",
