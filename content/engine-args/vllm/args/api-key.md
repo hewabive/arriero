@@ -23,11 +23,21 @@ related:
 
 Главное, что нужно знать до включения: middleware проверяет ключ **только** если путь запроса начинается с `/v1`, `/v2`, `/inference` или `/cohere` (`GUARDED_PREFIX` в `server_utils.py`). Все прочее — `/tokenize`, `/detokenize`, `/score`, `/rerank`, `/pooling`, `/classify`, `/pause`, `/abort_requests`, `/health`, `/metrics`, `/invocations` — доступно без ключа. Апстрим отдельно перечисляет это в `docs/usage/security.md` и прямо пишет: не полагайтесь на `--api-key` как на единственную защиту.
 
+Самая опасная строка этого списка — `/invocations`: это не служебный endpoint, а полноценная точка инференса (SageMaker-совместимая), эквивалентная `/v1` по возможностям и открытая без ключа. Апстрим вынес предупреждение об этом прямо в текст `--help`. Обратите внимание, что перечень префиксов в самой справке неполон: там названы `/v1`, `/v2` и `/inference`, тогда как `GUARDED_PREFIX` в коде содержит еще и `/cohere`.
+
 ## Оригинальная справка
 
 ```text
 If provided, the server will require one of these keys to be presented in
 the header.
+
+Warning: this only authenticates endpoints under the `/v1`, `/v2`, and
+`/inference` path prefixes. Other endpoints on the same server, including
+`/invocations` (which exposes the same inference capabilities as `/v1`),
+remain unauthenticated. Do not rely on `--api-key` alone to secure vLLM;
+see
+https://docs.vllm.ai/en/latest/usage/security.html#api-key-authentication-limitations
+for what it does and does not protect.
 ```
 
 ## Паспорт аргумента

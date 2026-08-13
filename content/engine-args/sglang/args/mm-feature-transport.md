@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--mm-feature-transport"
 title: "--mm-feature-transport"
-summary: Как признаки мультимодальных данных едут из tokenizer-процесса в scheduler: через RAM хоста и `/dev/shm` или через ограниченный пул на GPU (CUDA IPC / CUDA VMM). GPU-транспорты резервируют фиксированный кусок VRAM на базовой карте и при переполнении молча падают обратно в CPU.
+summary: Как признаки мультимодальных данных едут из tokenizer-процесса в scheduler: через RAM хоста и `/dev/shm` или через ограниченный пул на GPU (CUDA IPC / CUDA VMM). GPU-транспорты резервируют фиксированный кусок VRAM на базовой карте, при переполнении молча падают обратно в CPU и на одном узле включаются только явно.
 group: mm
 related:
   - --keep-mm-feature-on-device
@@ -22,12 +22,16 @@ related:
 
 ## Кратко
 
-Мультимодальные признаки (`pixel_values` и родня) рождаются в tokenizer-процессе, а нужны в процессе scheduler'а. `--mm-feature-transport` выбирает, как они туда попадают: `cpu` — копия в RAM хоста и передача через сегмент `/dev/shm`; `cuda_ipc` — тензор остается на GPU в **ограниченном** пуле и передается по CUDA IPC-хендлу; `cuda_vmm` — то же самое поверх CUDA VMM, для многоузловых GB200/GB300 с MNNVL. Не задан — движок решает сам, и на типовом одноузловом CUDA-развертывании выбирает `cuda_ipc`, то есть **по умолчанию отъедает до 1 ГиБ VRAM на базовой карте**.
+Мультимодальные признаки (`pixel_values` и родня) рождаются в tokenizer-процессе, а нужны в процессе scheduler'а. `--mm-feature-transport` выбирает, как они туда попадают: `cpu` — копия в RAM хоста и передача через сегмент `/dev/shm`; `cuda_ipc` — тензор остается на GPU в **ограниченном** пуле и передается по CUDA IPC-хендлу; `cuda_vmm` — то же самое поверх CUDA VMM, для многоузловых GB200/GB300 с MNNVL.
+
+Не задан — почти всегда `cpu`. Единственное исключение авто-выбора: валидированная MNNVL-модель на многоузловом GB200/GB300 со смонтированным IMEX-каналом, там будет `cuda_vmm`. **На одном узле `cuda_ipc` включается только явно.** Апстрим сделал GPU-транспорт opt-in намеренно: пул съедает HBM у KV-кеша даже когда простаивает, а при переполнении все равно деградирует до CPU-пути потензорно.
+
+Если вы читали более раннее описание этого аргумента: до коммита `69bf601e3c` (#34662) авто-выбор на одноузловом CUDA давал `cuda_ipc`, то есть гигабайт VRAM уходил по умолчанию. Теперь наоборот.
 
 ## Оригинальная справка
 
 ```text
-Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a bounded CUDA VMM pool. Unset resolves automatically: multimodal models on single-node CUDA deployments (without disaggregation) use cuda_ipc; validated multi-node GB200/GB300 MNNVL models use cuda_vmm when an IMEX channel is available; all other deployments use cpu. GPU transports reserve SGLANG_MM_FEATURE_CACHE_MB (default 1024 MiB) on the base GPU and fall back to CPU transport when the pool is full.
+Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a bounded CUDA VMM pool. Unset uses cpu except for validated multi-node GB200/GB300 MNNVL models, which use cuda_vmm when an IMEX channel is available. Select cuda_ipc explicitly for single-node GPU transport. GPU transports reserve SGLANG_MM_FEATURE_CACHE_MB (default 1024 MiB) on the base GPU and fall back to CPU transport when the pool is full.
 ```
 
 ## Паспорт аргумента
@@ -53,10 +57,12 @@ Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a 
    - выставлена устаревшая переменная `SGLANG_USE_CUDA_IPC_TRANSPORT` — берется `cuda_ipc`/`cpu` по ней, с предупреждением;
    - `--encoder-only` — `cpu` (выход энкодера едет по `--encoder-transfer-backend`, а не по этому транспорту);
    - модель мультимодальная, платформа CUDA, `--disaggregation-mode null`:
-     - `--nnodes 1` ⇒ `cuda_ipc`;
+     - `--nnodes 1` ⇒ `cpu`, без всякой записи в лог. GPU-транспорт на одном узле остается за явным `--mm-feature-transport cuda_ipc`;
      - многоузловое развертывание на MNNVL-фабрике **и** смонтированный `/dev/nvidia-caps-imex-channels/channel0` ⇒ `cuda_vmm`, если модель явно поддерживает VMM-транспорт (`supports_cuda_vmm_feature_transport`), иначе `cpu`;
      - иначе `cpu` (при обнаруженном GB200/GB300 без IMEX-канала в лог уходит подсказка);
    - всё остальное ⇒ `cpu`.
+
+Комментарий в коде объясняет выбор в пользу `cpu`: полный пул все равно потензорно деградирует в CPU-транспорт, а простаивающий занимает HBM, который иначе достался бы KV-кешу, — поэтому CUDA IPC оставлен opt-in, а авто-выбор `cuda_vmm` ограничен системами GB200/GB300, где MNNVL/IMEX-стек и так поднят рантаймом.
 3. Значение задано явно, но конфликтует с устаревшей переменной окружения — печатается предупреждение, побеждает аргумент.
 4. `--encoder-only` вместе с GPU-транспортом — транспорт принудительно опускается до `cpu` с предупреждением.
 
@@ -86,23 +92,22 @@ MmItemMemoryPool has no free chunk large enough for a X MiB tensor (pool size: Y
 ## Значения и формат
 
 - Ровно одна строка из трех; argparse отвергает остальное как `invalid choice`.
-- Отсутствие аргумента — не то же самое, что `cpu`: авто-разрешение на одноузловом CUDA даст `cuda_ipc`.
+- Отсутствие аргумента на одноузловом развертывании эквивалентно `cpu`. Отличие остается только на многоузловом GB200/GB300 с IMEX: там незаданное значение даст `cuda_vmm`, а явный `cpu` — нет.
 - `cuda_ipc` несовместим с `--nnodes > 1`; `cuda_vmm` — с `--pp-size > 1`.
 - Размер пула этим аргументом не задается — только переменной `SGLANG_MM_FEATURE_CACHE_MB` (в МиБ, на узел, а не на воркер).
 - Кеширование pool-хендлов включено по умолчанию и отключается `SGLANG_USE_IPC_POOL_HANDLE_CACHE=0`; оно переиспользует отображения существующего пула и **не** резервирует второй пул.
 
 ## Когда использовать
 
-- **`cpu` явно** — когда VRAM в дефиците и гигабайт на базовой карте нужен под KV-пул. Это ровно тот случай, ради которого в апстрим-рецепте Kimi-K3 стоит `--mm-feature-transport cpu`.
-- **`cpu` явно** — когда `/dev/shm` большой, а хост-памяти много: копия через shared memory дешевле, чем отъедать HBM у KV-кеша.
-- **`cuda_ipc`** — одноузловое развертывание, VRAM в достатке, признаки крупные (высокое разрешение, видео): исчезают D2H- и H2D-копии на каждый элемент.
+- **Ничего не задавать** — теперь это и есть «безопасный по VRAM» вариант: на одном узле получится `cpu`. Явный `--mm-feature-transport cpu` (как в апстрим-рецепте Kimi-K3) остается корректным способом закрепить поведение в конфиге и защититься от смены дефолта.
+- **`cuda_ipc` явно** — одноузловое развертывание, VRAM в достатке, признаки крупные (высокое разрешение, видео): исчезают D2H- и H2D-копии на каждый элемент. С момента, когда GPU-транспорт стал opt-in, это единственный способ его получить на одном узле.
 - **`cuda_vmm`** — только валидированные MNNVL-модели на GB200/GB300 с смонтированным IMEX-каналом и `--pp-size 1`.
 - **Не задавайте `cuda_ipc` вручную** на многоузловом развертывании — это ошибка старта, а не деградация.
 - **Не рассчитывайте** транспортом изменить размер признаков: их объем задают `--mm-process-config` и `--limit-mm-data-per-request`.
 
 ## Влияние на производительность и память
 
-- **VRAM.** `cuda_ipc`/`cuda_vmm` резервируют `SGLANG_MM_FEATURE_CACHE_MB` (1 ГиБ по умолчанию) на `--base-gpu-id`. Резерв делается до профилирования KV-пула, поэтому он вычитается из `max_total_num_tokens` напрямую. `cpu` не занимает VRAM вообще.
+- **VRAM.** `cuda_ipc`/`cuda_vmm` резервируют `SGLANG_MM_FEATURE_CACHE_MB` (1 ГиБ по умолчанию) на `--base-gpu-id`. Резерв делается до профилирования KV-пула, поэтому он вычитается из `max_total_num_tokens` напрямую. `cpu` не занимает VRAM вообще — и именно поэтому он стал авто-выбором на одном узле.
 - **RAM хоста и `/dev/shm`.** При `cpu` каждый признак в полете живет в сегменте `/dev/shm` (по умолчанию tmpfs = половина RAM). Переполнение tmpfs даст `OSError` при создании сегмента, и транспорт откатится на inline-передачу.
 - **Дополнительный расход RAM у `cuda_vmm`.** Процессный пул препроцессинга (`ProcessPoolExecutor`, `SGLANG_CPU_WORKERS` процессов) при `cuda_vmm` создается со стартовым методом `spawn` вместо `fork`. Каждый процесс заново импортирует Python и torch — это и дольше на старте, и заметно дороже по RAM, чем fork с copy-on-write.
 - **Латентность.** `cuda_ipc` убирает пару копий D2H/H2D на элемент, что заметно на крупных признаках и почти незаметно на мелких.
@@ -117,17 +122,17 @@ MmItemMemoryPool has no free chunk large enough for a X MiB tensor (pool size: Y
 - `--pp-size`: `cuda_vmm` работает только при `pp_size == 1`.
 - `--disaggregation-mode`, `--encoder-only`, `--encoder-transfer-backend`: при disaggregation авто-выбор дает `cpu`; в encoder-only режиме выход энкодера едет по `--encoder-transfer-backend`, а GPU-транспорт принудительно опускается до `cpu`.
 - `--mem-fraction-static`: резерв пула уменьшает то, что достанется KV-кешу. Если вы включаете `cuda_ipc` на тесной карте, KV-пул надо пересчитать.
-- В arriero этот гигабайт входит в фактический VRAM-draw инстанса и должен быть учтен в `config/resources.json` (`docs/RESOURCE_MANAGEMENT.md`); проще всего избежать сюрприза, задав `--mm-feature-transport cpu` явно.
+- В arriero этот гигабайт входит в фактический VRAM-draw инстанса и должен быть учтен в `config/resources.json` (`docs/RESOURCE_MANAGEMENT.md`). Сюрприза по умолчанию больше нет: пул появляется только при явном `cuda_ipc`/`cuda_vmm`, зато при его включении draw надо пересчитать.
 
 ## Типовые проблемы и диагностика
 
 - `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` — многоузловое развертывание.
 - `ValueError: --mm-feature-transport=cuda_vmm does not support pipeline parallelism.` / `... requires NVIDIA CUDA.` / `... is not supported with SGLANG_RUST_SERVER.` — проверки VMM-пути.
 - `ValueError: --keep-mm-feature-on-device conflicts with --mm-feature-transport=cpu.` — заданы оба, и они противоречат друг другу.
-- Неожиданно пропал гигабайт VRAM на карте `--base-gpu-id` при мультимодальной модели — сработал авто-выбор `cuda_ipc`. Подтверждение в логе: `Using CUDA IPC for multimodal features: reserving up to 1024 MiB on base GPU 0 across N tokenizer worker(s). This reduces KV cache headroom; a full pool falls back to CPU transport.`
+- Пропал гигабайт VRAM на карте `--base-gpu-id` — значит `cuda_ipc` задан явно (сам по себе он на одном узле больше не включается). Подтверждение в логе: `Using CUDA IPC for multimodal features: reserving up to 1024 MiB on base GPU 0 across N tokenizer worker(s). This reduces KV cache headroom; a full pool falls back to CPU transport.`
 - `MmItemMemoryPool has no free chunk large enough ...` — пул мал для ваших признаков; либо поднимайте `SGLANG_MM_FEATURE_CACHE_MB`, либо уменьшайте `--mm-process-config`, либо переходите на `cpu`.
 - `OSError` с ENOSPC при создании сегмента — переполнен `/dev/shm`; увеличьте tmpfs или уменьшите число одновременно обрабатываемых элементов.
-- Какой транспорт выбран автоматически, всегда пишется отдельной строкой: `Multimodal feature transport auto-resolved to cuda_ipc (single-node CUDA). Pass --mm-feature-transport=cpu to opt out.` Итоговое значение поля видно и в дампе `server_args=`.
+- Строки `Multimodal feature transport auto-resolved to ...` печатаются не всегда: самый частый случай (одноузловое CUDA ⇒ `cpu`) проходит молча. Лог есть у `cuda_vmm`, у отказа от него («the model has not opted into CUDA VMM transport», «no IMEX channel is mounted») и у encoder-only. Итоговое значение поля всегда видно в дампе `server_args=` — на него и ориентируйтесь.
 
 ## Примеры
 

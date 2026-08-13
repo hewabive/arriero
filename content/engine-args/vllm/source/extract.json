@@ -195,7 +195,7 @@
     "--api-key"
    ],
    "group": "Frontend",
-   "help": "If provided, the server will require one of these keys to be presented in\nthe header.",
+   "help": "If provided, the server will require one of these keys to be presented in\nthe header.\n\nWarning: this only authenticates endpoints under the `/v1`, `/v2`, and\n`/inference` path prefixes. Other endpoints on the same server, including\n`/invocations` (which exposes the same inference capabilities as `/v1`),\nremain unauthenticated. Do not rely on `--api-key` alone to secure vLLM;\nsee\nhttps://docs.vllm.ai/en/latest/usage/security.html#api-key-authentication-limitations\nfor what it does and does not protect.",
    "choices": null,
    "type": "list",
    "optional": true,
@@ -4571,6 +4571,7 @@
     "eagle3",
     "extract_hidden_states",
     "deepseek_mtp",
+    "dots3_note_mtp",
     "mimo_mtp",
     "mimo_v2_mtp",
     "glm4_moe_mtp",

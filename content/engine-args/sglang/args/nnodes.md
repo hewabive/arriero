@@ -37,7 +37,7 @@ The number of nodes.
 - Тип значения: int
 - Допустимые значения: `choices` нет; делители `tp_size * pp_size`
 - Значение по умолчанию: `1`
-- Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Зато оно само переписывает соседей: при `nnodes > 1` отключается `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` (кроме MNNVL-железа), запрещается `--mm-feature-transport cuda_ipc`, а автоматический выбор `cuda_ipc` для мультимодальных моделей заменяется на CPU-транспорт
+- Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Зато оно само переписывает соседей: при `nnodes > 1` отключается `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` (кроме MNNVL-железа) и запрещается `--mm-feature-transport cuda_ipc`; авто-выбор транспорта признаков на нескольких узлах может дать `cuda_vmm` (валидированные MNNVL-модели GB200/GB300 с IMEX-каналом), тогда как на одном узле он всегда `cpu`
 - Где объявлен: `ServerArgs.nnodes`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_multimodal_feature_transport`, `_handle_custom_all_reduce_v2_multinode`, ветки модельных настроек) → `check_server_args` (делимость) → `PortArgs.init_new` → `_calculate_rank_ranges` (какие ранги поднимает этот узел) → `init_distributed_environment`
@@ -72,7 +72,7 @@ HTTP-сервер, tokenizer и detokenizer живут только на узл�
 
 ### Что отключается на нескольких узлах
 
-- `--mm-feature-transport cuda_ipc`: `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` Автоподбор транспорта для мультимодальных моделей выбирает `cuda_ipc` только при `nnodes == 1`; на нескольких узлах — либо MNNVL/IMEX-путь (GB200/GB300 с `/dev/nvidia-caps-imex-channels/channel0`), либо CPU.
+- `--mm-feature-transport cuda_ipc`: `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` То есть на одном узле этот транспорт доступен, но только явным указанием — сам по себе авто-подбор его не выбирает. На нескольких узлах остается либо MNNVL/IMEX-путь (GB200/GB300 с `/dev/nvidia-caps-imex-channels/channel0` ⇒ `cuda_vmm`), либо CPU.
 - `--mm-feature-transport cuda_vmm` продолжает работать, но переключается с POSIX-FD на CUDA FABRIC-хендлы (видно в строке лога `Using CUDA VMM for multimodal features with CUDA FABRIC sharing: …`).
 - `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` принудительно выставляется в `0` с предупреждением `Disabling SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2 because nnodes=N (custom all-reduce v2 is intra-node only).` Исключение — MNNVL-fabric при `tp_size <= 8`, где вместо этого включается `SGLANG_ENABLE_CUSTOM_ALL_REDUCE_V2_MULTINODE`.
 - Aiter AllReduce Fusion для DeepSeekV3/GPT-OSS рассматривается только при `nnodes == 1`.
@@ -98,7 +98,7 @@ HTTP-сервер, tokenizer и detokenizer живут только на узл�
 - **VRAM.** Сам по себе не влияет: делится то, что уже задано `--tp-size`/`--pp-size`.
 - **Коллективы.** Часть all-reduce уходит на межузловой линк. Оптимизированный custom all-reduce v2 при этом отключается — остается общий путь NCCL.
 - **Время старта.** Растет: добавляется ожидание рандеву; при недоступном узле старт висит до `--dist-timeout`.
-- **Мультимодальные модели.** Дешевый `cuda_ipc`-транспорт признаков становится недоступен; CPU-транспорт заметно дороже по TTFT на больших изображениях.
+- **Мультимодальные модели.** Дешевый `cuda_ipc`-транспорт признаков становится недоступен даже явным указанием; на больших изображениях CPU-транспорт заметно дороже по TTFT. На одном узле его хотя бы можно включить руками — здесь нет.
 - **Хост.** На каждом узле поднимается `pp_size_per_node * tp_size_per_node` процессов.
 
 ## Взаимодействие с другими аргументами

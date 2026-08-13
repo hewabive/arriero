@@ -3,131 +3,111 @@ schema: 1
 engine: sglang
 primaryName: "--disable-fast-image-processor"
 title: "--disable-fast-image-processor"
-summary: Заставляет загрузить «медленную» (PIL-овую) версию image-процессора HuggingFace вместо быстрой torchvision-овой и убирает resize/normalize с GPU обратно на CPU. Нужен, когда быстрая версия дает другие пиксели или её нет для вашей модели.
+summary: Устаревший флаг, полностью заменённый на `--image-processor-backend=pil`. Пока принимается и переписывается в новое значение с предупреждением; в новых конфигурациях использовать не нужно.
 group: mm
 related:
+  - --image-processor-backend
   - --mm-process-config
-  - --mm-io-worker-num
   - --mm-processor-worker-num
+  - --mm-io-worker-num
   - --base-gpu-id
-  - --enable-multimodal
+  - --rl-on-policy-target
   - --trust-remote-code
-  - --tokenizer-mode
 ---
 
 # --disable-fast-image-processor
 
 ## Кратко
 
-Флаг делает две вещи сразу. Первая: при конструировании процессора в `AutoProcessor.from_pretrained` передается `use_fast=False`, то есть загружается «медленная» реализация image-процессора (PIL/numpy) вместо быстрой (torchvision, работает с тензорами). Вторая: в вызов процессора перестает добавляться `device=cuda:<base_gpu_id>`, поэтому препроцессинг картинок (resize, rescale, normalize) уходит с GPU на CPU. Значение по умолчанию — быстрая версия на GPU.
+Аргумент устарел. Он выражал булев выбор «быстрый процессор изображений или медленный», а этот выбор стал трёхзначным и переехал в `--image-processor-backend` (`auto` / `torchvision` / `pil`). Старый флаг эквивалентен новому `--image-processor-backend=pil`.
+
+Он еще принимается: `_handle_deprecated_args` печатает предупреждение и выставляет `image_processor_backend = "pil"`. Семантика при этом полностью совпадает с новым флагом — включая то, что на `pil` препроцессинг никогда не уезжает на GPU. Всё содержательное описание поведения живёт в документе `--image-processor-backend`.
 
 ## Оригинальная справка
 
 ```text
-Adopt base image processor instead of fast image processor.
+Deprecated. Use --image-processor-backend=pil instead.
 ```
 
 ## Паспорт аргумента
 
 - Флаги: `--disable-fast-image-processor`
 - Группа: `mm`
-- Тип значения: bool, `action="store_true"`
-- Допустимые значения: значения не принимает — флаг присутствия
-- Значение по умолчанию: `false` (то есть быстрая версия включена)
-- Эффективное значение: не переопределяется в `__post_init__`; но `get_processor` может **сам** вернуться к быстрой версии, если у процессора нет медленной
+- Тип значения: булев флаг (`store_true`, парного `--no-*` нет)
+- Допустимые значения: наличие флага
+- Значение по умолчанию: `False`
+- Эффективное значение: поле `ServerArgs` не переписывается и остаётся `True`, но переписывается **соседнее** — `image_processor_backend` становится `"pil"`. Дальше движок читает только его
 - Где объявлен: `ServerArgs.disable_fast_image_processor`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный
-- Этап применения: конструирование процессора в tokenizer-процессе (и в encode-сервере при EPD) → каждый вызов процессора
+- Статус: **устаревший**, замена — `--image-processor-backend=pil`
+- Этап применения: `__post_init__` → `_handle_deprecated_args()`; собственного пути исполнения у флага больше нет
 
 ## Что меняет в движке
 
-### На этапе загрузки процессора
-
-`get_processor_wrapper` (`sglang/python/sglang/srt/managers/tokenizer_manager.py`) передает `use_fast=not server_args.disable_fast_image_processor` в `get_processor`. Там значение попадает в kwargs `AutoProcessor.from_pretrained` — **кроме** моделей типа `llava` и `clip`, для которых `use_fast` не проставляется вовсе.
-
-Если у модели медленной версии не существует, `AutoProcessor` бросает `ValueError` с текстом «does not have a slow version», и обертка ловит его, печатает `Processor <path> does not have a slow version. Automatically use fast version` и повторяет загрузку с `use_fast=True`. То есть флаг — пожелание, а не гарантия.
-
-Те же `use_fast=not disable_fast_image_processor` стоят на путях EPD (`disaggregation/encode_server.py`, `disaggregation/encode_receiver.py`).
-
-### На этапе вызова процессора
-
-`BaseMultimodalProcessor.process_mm_data` (`sglang/python/sglang/srt/multimodal/processors/base_processor.py`):
+Ничего напрямую. Единственное место, где значение читается по существу, — `_handle_deprecated_args`:
 
 ```python
-if (
-    hasattr(processor, "image_processor")
-    and isinstance(processor.image_processor, BaseImageProcessor)
-    and not self.disable_fast_image_processor
-):
-    device = self._fast_image_processor_device(processor)
-    if device is not None:
-        kwargs["device"] = device
+if self.disable_fast_image_processor:
+    if self.image_processor_backend not in {"auto", "pil"}:
+        raise ValueError(...)
+    logger.warning(
+        "--disable-fast-image-processor is deprecated; use "
+        "--image-processor-backend=pil instead."
+    )
+    self.image_processor_backend = "pil"
 ```
 
-`_fast_image_processor_device` возвращает:
+Плюс страховка на уровень ниже: `resolve_image_processor_backend` (`utils/hf_transformers/processor.py`) и конструктор `BaseMultimodalProcessor` тоже проверяют старое поле и возвращают/выставляют `"pil"` — на случай вызова в обход `__post_init__`. Внутренний признак `BaseMultimodalProcessor.disable_fast_image_processor`, который дальше гейтит `device=` в вызове процессора, теперь выводится не из аргумента, а из backend'а: `image_processor_backend == "pil"`.
 
-- `"cpu"` — если платформа CPU или задан `--rl-on-policy-target`;
-- `"xpu"` — на Intel XPU;
-- `f"cuda:{server_args.base_gpu_id}"` — на CUDA (обычный случай);
-- `"npu"` — на Ascend, попутно применяя патчи препроцессинга для Qwen-VL или GLM-4V.
-
-Тот же блок продублирован в `ernie45_vl.py`.
-
-Так что при выключенном флаге тяжелая часть препроцессинга (интерполяция и нормализация тензора изображения) выполняется **на GPU базового устройства**, в процессе tokenizer'а, а не на CPU.
+Прежняя механика флага исчезла целиком, и это важно, если вы опираетесь на старые описания: `use_fast` больше не передаётся в `AutoProcessor.from_pretrained` из аргументов сервера (параметр `use_fast` остался только у функции `get_processor` и нормализуется в backend), исключения для `llava`/`clip` больше нет, и автоматического отката «does not have a slow version → повторить с быстрой версией» тоже больше нет. Вместо этого пересоздаётся под-процессор изображений с явным `backend=`.
 
 ## Значения и формат
 
-- Флаг без значения; обратной половины `--no-...` нет.
-- Он не отключает мультимодальность и не меняет размер изображений — за размеры отвечает `--mm-process-config`.
-- Для `llava` и `clip` `use_fast` не передается в принципе, поэтому на них действует только вторая половина флага (отказ от `device=`).
+- Флаг без значения. Задан = `--image-processor-backend=pil`.
+- Совмещать с новым флагом можно, только если тот равен `auto` или `pil`. `torchvision` вместе со старым флагом — `ValueError` на старте.
+- Обратной половины `--no-...` нет.
 
 ## Когда использовать
 
-- Быстрая версия процессора дает численно другой результат, и вам нужна точная воспроизводимость относительно референсной реализации: быстрая и медленная версии в transformers дают близкие, но не побитово одинаковые пиксели (разные библиотеки интерполяции).
-- Быстрая версия падает или неверно работает для конкретного чекпойнта или кастомного процессора, подключенного через `--trust-remote-code`.
-- Хочется убрать препроцессинг с GPU: при большом потоке мелких изображений вызовы препроцессинга на `cuda:<base_gpu_id>` конкурируют за ту же карту, на которой идет prefill.
-- **Не включайте по умолчанию**: медленная версия действительно медленнее, и весь препроцессинг ложится на CPU хоста, который у мультимодального развертывания и так самый нагруженный ресурс.
-- **Не используйте** как «фикс OOM»: перенос препроцессинга на CPU освобождает лишь временные тензоры, а не пул.
+- Не использовать. В новых конфигурациях пишите `--image-processor-backend pil`.
+- Единственный оставшийся сценарий — не трогать существующий конфиг, который уже содержит этот флаг и работает: поведение не изменилось, в логе будет одно предупреждение.
+- При правке такого конфига заменяйте флаг сразу: устаревшие аргументы SGLang живут до релиза-другого.
 
 ## Влияние на производительность и память
 
-- CPU хоста: при включенном флаге вся арифметика препроцессинга уходит на CPU-потоки (`--mm-processor-worker-num`) и растет пропорционально числу и размеру изображений.
-- GPU: при выключенном флаге на базовой карте появляются временные тензоры препроцессинга; их пик пропорционален числу одновременно обрабатываемых элементов.
-- TTFT: медленная версия заметно увеличивает время подготовки входа, особенно на изображениях высокого разрешения.
-- Постоянного расхода памяти ни в одном из режимов нет — обе версии процессора занимают сопоставимую RAM.
-- На KV-пул, размер контекста и decode-фазу не влияет никак.
+Собственного влияния нет: флаг только выставляет `image_processor_backend`. Все эффекты (препроцессинг на CPU вместо GPU, рост TTFT на крупных изображениях, нагрузка на CPU-воркеры) описаны в `--image-processor-backend` для значения `pil`.
 
 ## Взаимодействие с другими аргументами
 
-- `--mm-process-config`: набор поддерживаемых `images_kwargs` у быстрой и медленной версий может отличаться; после переключения проверьте, что ваши ключи всё ещё принимаются.
-- `--mm-processor-worker-num`: при включенном флаге нагрузка на эти потоки растет.
-- `--mm-io-worker-num`: отвечает за декодирование до препроцессинга; при GPU-декодировании (nvJPEG) изображение уже приходит тензором на GPU, и быстрая версия продолжает работу на той же карте.
-- `--base-gpu-id`: карта, на которой выполняется быстрый препроцессинг.
-- `--rl-on-policy-target`: принудительно опускает устройство препроцессинга до CPU даже без этого флага.
-- `--trust-remote-code`, `--tokenizer-mode`: влияют на то, какой класс процессора вообще будет загружен.
+- `--image-processor-backend`: замена. Конфликт при значении `torchvision`, совместимость при `auto`/`pil`.
+- `--mm-processor-worker-num`, `--mm-io-worker-num`: несут нагрузку CPU-препроцессинга, которую включает режим `pil`.
+- `--base-gpu-id`: перестаёт участвовать в препроцессинге, потому что `device=` на `pil` не подставляется.
+- `--rl-on-policy-target`: и без этого флага опускает препроцессинг на CPU.
+- `--mm-process-config`, `--trust-remote-code`: влияют на то, какой процессор и с какими параметрами загрузится, но не на выбор backend'а.
 
 ## Типовые проблемы и диагностика
 
-- `Processor <path> does not have a slow version. Automatically use fast version` — флаг задан, но медленной реализации нет; движок молча продолжил с быстрой.
-- `ValueError`/`TypeError` из `AutoProcessor.from_pretrained`, не связанные со «slow version», пробрасываются наружу и валят старт — обычно это несовместимость версии transformers с чекпойнтом.
-- CUDA-ошибка или неожиданный рост памяти на `--base-gpu-id` во время препроцессинга — попробуйте флаг, чтобы вынести эту работу на CPU и подтвердить диагноз.
-- Численные расхождения с референсом на пиксельном уровне — ожидаемое различие быстрой и медленной реализаций; флаг именно для этого случая.
-- Значение видно в дампе `server_args=` при старте; отдельной строки о выбранной реализации процессора движок не печатает, кроме сообщения об автоматическом откате выше.
+- **Симптом:** `--disable-fast-image-processor is deprecated; use --image-processor-backend=pil instead.` **Причина:** ожидаемое предупреждение. **Лечение:** заменить флаг.
+- **Симптом:** `--disable-fast-image-processor conflicts with --image-processor-backend=torchvision.` **Причина:** оба флага заданы с противоположным смыслом. **Лечение:** оставить только `--image-processor-backend`.
+- **Симптом:** в дампе `server_args=` видно `disable_fast_image_processor=True` **и** `image_processor_backend='pil'`. **Причина:** так и должно быть — старое поле не обнуляется, переписывается новое.
+- **Симптом:** ожидался автоматический откат на быструю версию, как раньше, а его нет. **Причина:** ветка «does not have a slow version» удалена вместе со старой механикой. **Лечение:** выбирать backend явно.
 
 ## Примеры
+
+Актуальная форма записи:
+
+```bash
+python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --image-processor-backend pil
+```
+
+Устаревшая форма, которая пока работает и даёт предупреждение:
 
 ```bash
 python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --disable-fast-image-processor
 ```
 
-```bash
-python -m sglang.launch_server --model-path /models/InternVL3-8B --trust-remote-code --disable-fast-image-processor --mm-processor-worker-num 4
-```
-
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/ernie45_vl.py`
