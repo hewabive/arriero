@@ -308,9 +308,10 @@ Russian "Engineering help" for each `llama-server` argument lives in
 `content/llama-args/llama-server/*.md`. The sync source of truth is the `HELP_START`/`HELP_END` block
 in the configured llama.cpp checkout's `tools/server/README.md`, snapshotted into
 `content/llama-args/source/`. Only the stored snapshot hash is an automatic stale signal — individual
-doc files are not marked stale per-commit. Repo-local skills `.claude/skills/llama-arg-help-sync`
-(Claude) and `.codex/skills/llama-arg-help-sync` (Codex) are thin wrappers over
-`docs/ARGUMENT_HELP_WORKFLOW.md`, the single source of truth for the update procedure.
+doc files are not marked stale per-commit. Repo-local skills `.claude/skills/arg-help-sync` (Claude)
+and `.codex/skills/arg-help-sync` (Codex) are thin wrappers over `docs/ARGUMENT_HELP_WORKFLOW.md`,
+the single source of truth for the update procedure of **every** engine — it carries one step list
+for llama.cpp and one for the Python engines (`estimation` and phantom rows are llama-only).
 
 The Python engines publish no help block, so their sync source is a **declaration extract** read from
 the checkout by stdlib-`ast` scripts (`scripts/extract-args/{vllm,sglang}.py`) — no venv, no engine

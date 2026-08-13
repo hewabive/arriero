@@ -36,7 +36,7 @@ pnpm --filter @arriero/api args:docs:quality -- --changed --strict
 
 ## Агентная обработка
 
-Для синхронизации после обновлений llama.cpp используйте repo-local Codex skill `.codex/skills/llama-arg-help-sync/SKILL.md`. Он опирается на diff между сохраненным generated help snapshot и текущим блоком `tools/server/README.md`.
+Для синхронизации после обновлений llama.cpp используйте repo-local skill `.codex/skills/arg-help-sync/SKILL.md` (для Claude Code — `.claude/skills/arg-help-sync/SKILL.md`). Он опирается на diff между сохраненным generated help snapshot и текущим блоком `tools/server/README.md`; полная процедура — в `docs/ARGUMENT_HELP_WORKFLOW.md`, раздел «Agent Workflow — llama.cpp».
 
 Для подробного наполнения документов можно также использовать общий промпт `_agent-prompt.md`. Он фиксирует источники, границы редактирования и критерии качества, чтобы несколько кодинг-агентов могли параллельно обновлять разные группы аргументов без конфликтов.
 
