@@ -510,6 +510,76 @@ test("readGgufMetadata captures provenance, sampling and imatrix", () => {
   }
 });
 
+test("readGgufMetadata overrides a file_type the tensor table contradicts", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-quant-lie-"));
+  const path = join(dir, "mislabeled.gguf");
+  try {
+    writeFileSync(
+      path,
+      metadataFile(
+        [
+          kvString("general.architecture", "qwen35"),
+          kvU32("general.file_type", 14),
+        ],
+        [
+          tensorInfo("blk.0.ffn_down.weight", [256, 64], 22),
+          tensorInfo("blk.0.attn_norm.weight", [64], 0),
+        ],
+      ),
+    );
+
+    const metadata = readGgufMetadata(path);
+    assert.equal(metadata.quantization, "IQ2_S (tensors)");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readGgufMetadata keeps a file_type the tensor table supports", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-quant-ok-"));
+  const path = join(dir, "labeled.gguf");
+  try {
+    writeFileSync(
+      path,
+      metadataFile(
+        [
+          kvString("general.architecture", "qwen35"),
+          kvU32("general.file_type", 15),
+        ],
+        [
+          tensorInfo("blk.0.ffn_down.weight", [256, 8], 12),
+          tensorInfo("blk.0.attn_v.weight", [256, 2], 14),
+          tensorInfo("blk.0.attn_norm.weight", [64], 0),
+        ],
+      ),
+    );
+
+    const metadata = readGgufMetadata(path);
+    assert.equal(metadata.quantization, "Q4_K_M");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readGgufMetadata derives quantization from tensors without file_type", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-quant-derived-"));
+  const path = join(dir, "unlabeled.gguf");
+  try {
+    writeFileSync(
+      path,
+      metadataFile(
+        [kvString("general.architecture", "qwen35")],
+        [tensorInfo("blk.0.ffn_down.weight", [32, 8], 2)],
+      ),
+    );
+
+    const metadata = readGgufMetadata(path);
+    assert.equal(metadata.quantization, "Q4_0 (tensors)");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("ggufPoolingTypeLabel maps llama.cpp pooling enum values", () => {
   assert.equal(ggufPoolingTypeLabel(2), "cls");
   assert.equal(ggufPoolingTypeLabel(1), "mean");

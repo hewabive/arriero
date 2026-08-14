@@ -73,6 +73,47 @@ const GGUF_FILE_TYPES: Record<number, string> = {
 
 const LLAMA_FTYPE_GUESSED = 1024;
 
+const LLAMA_FTYPE_EXPECTED_GGML_TYPES: Record<number, number[]> = {
+  0: [0],
+  1: [1],
+  2: [2],
+  3: [3],
+  7: [8],
+  8: [6],
+  9: [7],
+  10: [10],
+  11: [11],
+  12: [11],
+  13: [11],
+  14: [12],
+  15: [12],
+  16: [13],
+  17: [13],
+  18: [14],
+  19: [16],
+  20: [17],
+  21: [10],
+  22: [18, 21],
+  23: [18],
+  24: [19],
+  25: [20],
+  26: [21],
+  27: [21],
+  28: [17, 22],
+  29: [22],
+  30: [23],
+  31: [29],
+  32: [30],
+  36: [34],
+  37: [35],
+  38: [39],
+  39: [40],
+  40: [41],
+  41: [42],
+};
+
+const FILE_TYPE_TENSOR_SHARE_FLOOR = 0.05;
+
 class FileReader {
   private offset = 0;
 
@@ -302,15 +343,59 @@ export function ggufFileTypeLabel(fileType: number) {
   return guessed ? `${label} (guessed)` : label;
 }
 
-function readQuantization(metadata: Map<string, GgufValue>) {
-  const fileType = numberMetadata(metadata, ["general.file_type"]);
-  if (fileType !== null) {
-    return ggufFileTypeLabel(fileType) ?? `FileType(${fileType})`;
+function dominantTensorTypeLabel(elementsByType: Map<number, number>) {
+  let dominant: { typeId: number; elements: number } | null = null;
+  for (const [typeId, elements] of elementsByType.entries()) {
+    if (!dominant || elements > dominant.elements) {
+      dominant = { typeId, elements };
+    }
   }
-  return null;
+  if (!dominant) {
+    return null;
+  }
+  const name = ggmlTypeName(dominant.typeId);
+  return name ? `${name.toUpperCase()} (tensors)` : null;
 }
 
-export const GGUF_PARSER_VERSION = 10;
+function fileTypeMatchesTensors(
+  fileType: number,
+  elementsByType: Map<number, number>,
+) {
+  const expectedTypes =
+    LLAMA_FTYPE_EXPECTED_GGML_TYPES[fileType & ~LLAMA_FTYPE_GUESSED];
+  if (!expectedTypes) {
+    return true;
+  }
+  let totalElements = 0;
+  for (const elements of elementsByType.values()) {
+    totalElements += elements;
+  }
+  if (totalElements === 0) {
+    return true;
+  }
+  const expectedElements = expectedTypes.reduce(
+    (sum, typeId) => sum + (elementsByType.get(typeId) ?? 0),
+    0,
+  );
+  return expectedElements / totalElements >= FILE_TYPE_TENSOR_SHARE_FLOOR;
+}
+
+function readQuantization(
+  metadata: Map<string, GgufValue>,
+  elementsByType: Map<number, number> | null,
+) {
+  const fileType = numberMetadata(metadata, ["general.file_type"]);
+  if (fileType === null) {
+    return elementsByType ? dominantTensorTypeLabel(elementsByType) : null;
+  }
+  const label = ggufFileTypeLabel(fileType) ?? `FileType(${fileType})`;
+  if (elementsByType && !fileTypeMatchesTensors(fileType, elementsByType)) {
+    return dominantTensorTypeLabel(elementsByType) ?? label;
+  }
+  return label;
+}
+
+export const GGUF_PARSER_VERSION = 11;
 
 function skipFormatVersion(reader: FileReader) {
   reader.u32();
@@ -346,6 +431,7 @@ function readKv(reader: FileReader, kvCount: number) {
 function readTensorTable(reader: FileReader, tensorCount: number) {
   let parameterCount = 0;
   let hasClassifierHead = false;
+  const elementsByType = new Map<number, number>();
   for (let index = 0; index < tensorCount; index += 1) {
     const name = reader.string();
     if (
@@ -360,17 +446,19 @@ function readTensorTable(reader: FileReader, tensorCount: number) {
     for (let dim = 0; dim < dimensions; dim += 1) {
       elements *= reader.u64Number();
     }
-    reader.u32();
+    const typeId = reader.u32();
     reader.u64Number();
     parameterCount += elements;
+    elementsByType.set(typeId, (elementsByType.get(typeId) ?? 0) + elements);
   }
-  return { parameterCount, hasClassifierHead };
+  return { parameterCount, hasClassifierHead, elementsByType };
 }
 
 function extractMetadata(
   metadata: Map<string, GgufValue>,
   parameterCount: number | null,
   hasClassifierHead: boolean | null,
+  tensorElementsByType: Map<number, number> | null,
 ): GgufMetadata {
   const contextLength =
     numberMetadata(metadata, [
@@ -394,7 +482,7 @@ function extractMetadata(
     poolingType: findNumberBySuffix(metadata, ".pooling_type"),
     causalAttention: findBooleanBySuffix(metadata, ".attention.causal"),
     hasClassifierHead,
-    quantization: readQuantization(metadata),
+    quantization: readQuantization(metadata, tensorElementsByType),
     quantizationVersion: numberMetadata(metadata, [
       "general.quantization_version",
     ]),
@@ -514,16 +602,24 @@ export function readGgufMetadata(path: string): GgufMetadata {
     const metadata = readKv(reader, kvCount);
     let parameterCount: number | null = null;
     let hasClassifierHead: boolean | null = null;
+    let tensorElementsByType: Map<number, number> | null = null;
     try {
       const table = readTensorTable(reader, tensorCount);
       parameterCount = table.parameterCount;
       hasClassifierHead = table.hasClassifierHead;
+      tensorElementsByType = table.elementsByType;
     } catch (error) {
       parameterCount = null;
       hasClassifierHead = null;
+      tensorElementsByType = null;
       logger.warn({ err: error, path }, "GGUF tensor table could not be read");
     }
-    return extractMetadata(metadata, parameterCount, hasClassifierHead);
+    return extractMetadata(
+      metadata,
+      parameterCount,
+      hasClassifierHead,
+      tensorElementsByType,
+    );
   } finally {
     closeSync(fd);
   }
