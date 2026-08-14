@@ -9,6 +9,8 @@ import {
   InstanceConfigRecordSchema,
   MemoryPoolSchema,
   classifyConfigGitPath,
+  engineDescriptor,
+  instanceIdFromEndpointId,
   type ConfigGitPortableFileKind,
   type ConfigGitValidation,
   type ConfigGitValidationIssue,
@@ -20,9 +22,16 @@ import { z } from "zod";
 
 import { parseModelPresetIni } from "../presets/ini.js";
 import { presetFileHasErrors } from "../presets/validate.js";
-import { StoredEndpointSchema } from "../proxy/endpoints.js";
-import { validateApiProxyPipelineGraph } from "../proxy/pipeline-validation.js";
+import {
+  StoredEndpointSchema,
+  parseRemoteEndpointId,
+} from "../proxy/endpoints.js";
+import {
+  validateApiProxyModelRouteBinding,
+  validateApiProxyPipelineGraph,
+} from "../proxy/pipeline-validation.js";
 import { StoredSourceSchema } from "../proxy/sources.js";
+import { isManagerProxyBaseUrl } from "../proxy/targets.js";
 import { MACHINE_STATE_FILE_SCHEMAS } from "./machine-state.js";
 
 function issuePath(root: string, path: string): string {
@@ -95,6 +104,40 @@ type PortableJsonKind = Exclude<
   ConfigGitPortableFileKind,
   "instance" | "preset"
 >;
+
+type EndpointRefResolution =
+  | "manager"
+  | "managed-instance"
+  | "remote"
+  | "external"
+  | null;
+
+function createEndpointRefResolver(context: {
+  instances: InstanceConfigRecord[];
+  nodeIds: Set<string>;
+  storedEndpointIds: Set<string>;
+}): (id: string) => EndpointRefResolution {
+  const instanceByName = new Map(
+    context.instances.map((item) => [item.name, item]),
+  );
+  return (id) => {
+    if (id === "manager-proxy") {
+      return "manager";
+    }
+    const instanceName = instanceIdFromEndpointId(id);
+    if (instanceName !== null) {
+      const instance = instanceByName.get(instanceName);
+      return instance && engineDescriptor(instance.kind).proxy.serveEndpoint
+        ? "managed-instance"
+        : null;
+    }
+    const remote = parseRemoteEndpointId(id);
+    if (remote) {
+      return context.nodeIds.has(remote.nodeId) ? "remote" : null;
+    }
+    return context.storedEndpointIds.has(id) ? "external" : null;
+  };
+}
 
 const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
   settings: AppSettingsFileSchema,
@@ -287,6 +330,101 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
       issues.push({
         path: "proxy/pipelines.json",
         message: `pipeline "${pipeline.name}": ${error}`,
+      });
+    }
+  }
+
+  const models =
+    (parsed["proxy-models"] as
+      | z.infer<typeof ApiProxyModelRecordSchema>[]
+      | null) ?? [];
+  const endpoints =
+    (parsed["proxy-endpoints"] as
+      | z.infer<typeof StoredEndpointSchema>[]
+      | null) ?? [];
+  const nodes =
+    (parsed.nodes as z.infer<typeof FleetNodeSchema>[] | null) ?? [];
+  const resolveEndpointRef = createEndpointRefResolver({
+    instances,
+    nodeIds: new Set(nodes.map((item) => item.id)),
+    storedEndpointIds: new Set(endpoints.map((item) => item.id)),
+  });
+
+  for (const instance of instances) {
+    if (instance.kind === "rpc-worker" && instance.rpcWorkers.length > 0) {
+      issues.push({
+        path: `instances/${instance.name}.json`,
+        message: "rpc-worker instances cannot reference other rpc workers",
+      });
+    }
+  }
+
+  for (const target of targets) {
+    const resolution = resolveEndpointRef(target.endpointId);
+    if (resolution === null) {
+      issues.push({
+        path: "proxy/targets.json",
+        message: `target "${target.name}" references missing endpoint "${target.endpointId}"`,
+      });
+    } else if (resolution === "manager") {
+      issues.push({
+        path: "proxy/targets.json",
+        message: `target "${target.name}" cannot point to arriero proxy itself`,
+      });
+    } else if (resolution === "managed-instance" && target.model) {
+      issues.push({
+        path: "proxy/targets.json",
+        message: `target "${target.name}" is a managed instance: leave the model empty (it is implied by the instance)`,
+      });
+    }
+  }
+
+  for (const model of models) {
+    if (model.targetId && !targetIds.has(model.targetId)) {
+      issues.push({
+        path: "proxy/models.json",
+        message: `model "${model.modelId}" references missing target "${model.targetId}"`,
+      });
+    }
+    const routeTo = model.routeTo;
+    if (routeTo?.type === "target" && !targetIds.has(routeTo.id)) {
+      issues.push({
+        path: "proxy/models.json",
+        message: `model "${model.modelId}" routes to missing target "${routeTo.id}"`,
+      });
+    }
+    if (routeTo?.type === "pipeline" && !pipelineById.has(routeTo.id)) {
+      issues.push({
+        path: "proxy/models.json",
+        message: `model "${model.modelId}" routes to missing pipeline "${routeTo.id}"`,
+      });
+    }
+    if (
+      routeTo?.type === "endpoint" &&
+      resolveEndpointRef(routeTo.endpointId) === null
+    ) {
+      issues.push({
+        path: "proxy/models.json",
+        message: `model "${model.modelId}" routes to missing endpoint "${routeTo.endpointId}"`,
+      });
+    }
+    const binding = validateApiProxyModelRouteBinding({
+      routeTo,
+      getPipeline: (id) => pipelineById.get(id) ?? null,
+    });
+    if (binding) {
+      issues.push({
+        path: "proxy/models.json",
+        message: `model "${model.modelId}": ${binding}`,
+      });
+    }
+  }
+
+  for (const endpoint of endpoints) {
+    if (isManagerProxyBaseUrl(endpoint.baseUrl)) {
+      issues.push({
+        path: "proxy/endpoints.json",
+        message: `endpoint "${endpoint.name}" cannot point to arriero proxy itself`,
       });
     }
   }

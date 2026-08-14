@@ -113,6 +113,131 @@ test("validateConfigBlob validates a single file by its path kind", () => {
   );
 });
 
+test("validateConfigRoot rejects broken proxy cross-references", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-proxy-refs-"));
+  mkdirSync(resolve(root, "instances"));
+  mkdirSync(resolve(root, "proxy"));
+  writeJson(resolve(root, "resources.json"), []);
+  writeJson(resolve(root, "nodes.json"), [
+    { id: "node1", name: "peer", baseUrl: "http://peer:8787", enabled: true },
+  ]);
+  writeJson(resolve(root, "instances", "worker.json"), {
+    name: "worker",
+    kind: "llama-server",
+    binaryPath: "/bin/false",
+    args: {},
+    env: {},
+    memory: [],
+    rpcWorkers: [],
+  });
+  const targetShape = {
+    model: null,
+    role: "background",
+    priority: 100,
+    preemptible: true,
+    saveSlotsBeforeUnload: false,
+    slotIds: [],
+    idleUnloadMs: null,
+  };
+  writeJson(resolve(root, "proxy", "targets.json"), [
+    { id: "t1", name: "gone", endpointId: "external:missing", ...targetShape },
+    { id: "t2", name: "self", endpointId: "manager-proxy", ...targetShape },
+    {
+      id: "t3",
+      name: "managed",
+      endpointId: "instance:worker",
+      ...targetShape,
+      model: "explicit-model",
+    },
+    {
+      id: "t4",
+      name: "remote-ok",
+      endpointId: "remote:node1:far-instance",
+      ...targetShape,
+    },
+  ]);
+  writeJson(resolve(root, "proxy", "models.json"), [
+    {
+      id: "m1",
+      modelId: "orphan-target",
+      visible: true,
+      enabled: true,
+      ownedBy: "arriero",
+      targetId: "no-such-target",
+      routeTo: null,
+      description: null,
+    },
+    {
+      id: "m2",
+      modelId: "orphan-endpoint",
+      visible: true,
+      enabled: true,
+      ownedBy: "arriero",
+      targetId: null,
+      routeTo: {
+        type: "endpoint",
+        endpointId: "external:nope",
+        upstreamModel: "up",
+      },
+      description: null,
+    },
+  ]);
+
+  const result = validateConfigRoot(root);
+  assert.equal(result.valid, false);
+  const messages = result.issues.map((issue) => issue.message);
+  assert.ok(
+    messages.some((message) =>
+      message.includes('references missing endpoint "external:missing"'),
+    ),
+  );
+  assert.ok(
+    messages.some((message) =>
+      message.includes("cannot point to arriero proxy itself"),
+    ),
+  );
+  assert.ok(
+    messages.some((message) => message.includes("leave the model empty")),
+  );
+  assert.ok(
+    messages.some((message) =>
+      message.includes('references missing target "no-such-target"'),
+    ),
+  );
+  assert.ok(
+    messages.some((message) =>
+      message.includes('routes to missing endpoint "external:nope"'),
+    ),
+  );
+  assert.equal(
+    messages.some((message) => message.includes("remote-ok")),
+    false,
+  );
+});
+
+test("validateConfigRoot rejects rpc workers that nest rpc workers", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-rpc-"));
+  mkdirSync(resolve(root, "instances"));
+  writeJson(resolve(root, "resources.json"), []);
+  writeJson(resolve(root, "instances", "worker.json"), {
+    name: "worker",
+    kind: "rpc-worker",
+    binaryPath: "/bin/false",
+    args: {},
+    env: {},
+    memory: [],
+    rpcWorkers: [{ instanceName: "other" }],
+  });
+
+  const result = validateConfigRoot(root);
+  assert.equal(result.valid, false);
+  assert.ok(
+    result.issues.some((issue) =>
+      issue.message.includes("cannot reference other rpc workers"),
+    ),
+  );
+});
+
 test("validateConfigRoot rejects symlinks and broken resource references", () => {
   const root = mkdtempSync(resolve(tmpdir(), "llama-config-invalid-"));
   mkdirSync(resolve(root, "instances"));

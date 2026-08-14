@@ -3,6 +3,7 @@ import {
   type ConfigGitCommit,
   type ConfigGitMutationResult,
   type ConfigGitStatus,
+  type ConfigGitValidationIssue,
   type ConfigStoreFileState,
 } from "@arriero/core";
 import {
@@ -28,12 +29,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  ApiError,
   checkoutConfigCommit,
   cloneConfigRepository,
   commitConfigChanges,
   createConfigBranch,
   fetchConfigRepository,
   getConfigState,
+  reloadConfigFromDisk,
   getConfigGitCommit,
   getConfigGitDiff,
   getConfigGitLog,
@@ -150,6 +153,39 @@ export function ConfigGitView() {
   const dirtyStoreFiles = (configStateQuery.data?.data.files ?? []).filter(
     (file) => file.dirtyOnDisk === true,
   );
+  const queryClient = useQueryClient();
+  const reloadMutation = useMutation({
+    mutationFn: reloadConfigFromDisk,
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries();
+      notifications.show({
+        title: "Configuration reloaded",
+        message:
+          result.data.normalizedFiles.length > 0
+            ? `Applied from disk; ${countLabel(result.data.normalizedFiles.length, "file")} normalized.`
+            : "Changes on disk applied to the running manager.",
+      });
+    },
+    onError: async (error) => {
+      await queryClient.invalidateQueries({ queryKey: ["config-state"] });
+      const issues =
+        error instanceof ApiError
+          ? ((error.body as { data?: { issues?: ConfigGitValidationIssue[] } })
+              ?.data?.issues ?? [])
+          : [];
+      notifications.show({
+        color: "red",
+        title: "Configuration not applied",
+        message:
+          issues.length > 0
+            ? issues
+                .slice(0, 5)
+                .map((issue) => `${issue.path}: ${issue.message}`)
+                .join("\n")
+            : (error as Error).message,
+      });
+    },
+  });
   const validationQuery = useQuery({
     queryKey: ["config-git-validation"],
     queryFn: getConfigGitValidation,
@@ -342,6 +378,8 @@ export function ConfigGitView() {
         <DirtyStoreFilesAlert
           files={dirtyStoreFiles}
           configDir={status.configDir}
+          onApply={() => reloadMutation.mutate()}
+          applying={reloadMutation.isPending}
         />
         <Alert color="blue" title="Configuration is not under version control">
           Initialize keeps the current files and starts tracking them locally;
@@ -460,6 +498,8 @@ export function ConfigGitView() {
       <DirtyStoreFilesAlert
         files={dirtyStoreFiles}
         configDir={status.configDir}
+        onApply={() => reloadMutation.mutate()}
+        applying={reloadMutation.isPending}
       />
       {validation && !validation.valid && (
         <Alert color="red" title="Configuration validation failed">
@@ -1080,9 +1120,13 @@ export function ConfigGitView() {
 function DirtyStoreFilesAlert({
   files,
   configDir,
+  onApply,
+  applying,
 }: {
   files: ConfigStoreFileState[];
   configDir: string;
+  onApply: () => void;
+  applying: boolean;
 }) {
   if (files.length === 0) {
     return null;
@@ -1094,11 +1138,23 @@ function DirtyStoreFilesAlert({
       <Stack gap={4}>
         <Text size="sm">
           The running manager still serves the previously loaded configuration.
-          External edits to these files apply on restart.
+          Apply validates the whole tree first and activates it only when every
+          file passes.
         </Text>
         {files.map((file) => (
           <Code key={file.path}>{displayPath(file.path)}</Code>
         ))}
+        <Group justify="flex-end">
+          <Button
+            size="xs"
+            color="yellow"
+            variant="light"
+            loading={applying}
+            onClick={onApply}
+          >
+            Apply changes from disk
+          </Button>
+        </Group>
       </Stack>
     </Alert>
   );
