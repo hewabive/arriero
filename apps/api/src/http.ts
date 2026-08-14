@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { requireAdmin } from "./auth.js";
+import { registerErrorHandler } from "./http-errors.js";
 import {
   registerAnthropicProxyRoutes,
   registerOpenAiProxyRoutes,
@@ -14,6 +15,7 @@ import { registerArgumentRoutes } from "./routes/arguments.routes.js";
 import { registerAuthRoutes } from "./routes/auth.routes.js";
 import { registerBuildRoutes } from "./routes/build.routes.js";
 import { registerConfigGitRoutes } from "./routes/config-git.routes.js";
+import { registerConfigRoutes } from "./routes/config.routes.js";
 import { registerEnvironmentRoutes } from "./routes/environments.routes.js";
 import { registerEndpointRoutes } from "./routes/endpoints.routes.js";
 import { registerInstanceActionRoutes } from "./routes/instance-actions.routes.js";
@@ -38,6 +40,8 @@ export { startApiProxyIdleMaintenanceLoop } from "./proxy/idle-maintenance.js";
 export { startApiProxyRuntimeReconcileLoop } from "./proxy/runtime-snapshot.js";
 
 export const app = new Hono();
+
+registerErrorHandler(app);
 
 app.use(
   "*",
@@ -72,6 +76,7 @@ registerLlamaSourceRoutes(app);
 registerBuildRoutes(app);
 registerEnvironmentRoutes(app);
 registerConfigGitRoutes(app);
+registerConfigRoutes(app);
 registerUpdateRoutes(app);
 registerModelRoutes(app);
 registerPresetRoutes(app);

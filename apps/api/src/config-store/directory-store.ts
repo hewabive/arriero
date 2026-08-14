@@ -2,9 +2,12 @@ import { existsSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
+import type { ConfigStoreFileState } from "@arriero/core";
+
 import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
 import {
+  fileMtimeMs,
   parseConfigJson,
   parseConfigValue,
   serializeConfigJson,
@@ -44,6 +47,7 @@ export function createJsonDirectoryStore<T>(
 ): JsonDirectoryStore<T> {
   const { id, dir, schema, key, portablePaths } = options;
   let cached: Map<string, T> | null = null;
+  let loadedMtimes: Map<string, number> | null = null;
 
   function filePath(name: string): string {
     return resolve(dir, `${name}.json`);
@@ -60,11 +64,17 @@ export function createJsonDirectoryStore<T>(
       return cached;
     }
     const next = new Map<string, T>();
+    const mtimes = new Map<string, number>();
     for (const path of listJsonFiles(dir)) {
       const value = parseFile(path);
       next.set(key(value), value);
+      const mtimeMs = fileMtimeMs(path);
+      if (mtimeMs !== null) {
+        mtimes.set(path, mtimeMs);
+      }
     }
     cached = next;
+    loadedMtimes = mtimes;
     return next;
   }
 
@@ -79,14 +89,20 @@ export function createJsonDirectoryStore<T>(
   function write(value: T, previousKey?: string): void {
     const map = load();
     const name = key(value);
+    const path = filePath(name);
     const serialized = portablePaths ? toPortableConfig(value) : value;
-    atomicWriteFile(filePath(name), serializeConfigJson(serialized));
+    atomicWriteFile(path, serializeConfigJson(serialized));
+    const mtimeMs = fileMtimeMs(path);
+    if (mtimeMs !== null) {
+      loadedMtimes?.set(path, mtimeMs);
+    }
     if (previousKey && previousKey !== name) {
       const previousPath = filePath(previousKey);
       if (existsSync(previousPath)) {
         unlinkSync(previousPath);
       }
       map.delete(previousKey);
+      loadedMtimes?.delete(previousPath);
     }
     map.set(name, value);
   }
@@ -102,13 +118,39 @@ export function createJsonDirectoryStore<T>(
       unlinkSync(path);
     }
     map.delete(name);
+    loadedMtimes?.delete(path);
     return true;
   }
 
   function reset(): void {
     cached = null;
+    loadedMtimes = null;
   }
 
-  registerConfigStore({ id, files: () => listJsonFiles(dir), reset });
+  function status(): ConfigStoreFileState[] {
+    const disk = new Map<string, number>();
+    for (const path of listJsonFiles(dir)) {
+      const mtimeMs = fileMtimeMs(path);
+      if (mtimeMs !== null) {
+        disk.set(path, mtimeMs);
+      }
+    }
+    const paths = new Set([...disk.keys(), ...(loadedMtimes?.keys() ?? [])]);
+    return [...paths].sort().map((path) => {
+      const diskMtimeMs = disk.get(path) ?? null;
+      const loadedMtimeMs = loadedMtimes?.get(path) ?? null;
+      return {
+        storeId: id,
+        path,
+        cacheMode: "process" as const,
+        exists: diskMtimeMs !== null,
+        diskMtimeMs,
+        loadedMtimeMs,
+        dirtyOnDisk: loadedMtimes ? diskMtimeMs !== loadedMtimeMs : null,
+      };
+    });
+  }
+
+  registerConfigStore({ id, files: () => listJsonFiles(dir), reset, status });
   return { id, dir, filePath, list, get, write, remove, reset };
 }

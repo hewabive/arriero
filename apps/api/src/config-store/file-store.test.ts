@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 import { after, test } from "node:test";
 import { z } from "zod";
@@ -9,8 +15,10 @@ import { ConfigFileError } from "./errors.js";
 import {
   createJsonFileStore,
   type ConfigCacheMode,
+  type JsonFileStore,
   type JsonFileStoreOptions,
 } from "./file-store.js";
+import { listConfigStoreStates } from "./registry.js";
 
 const testDir = resolve(config.configDir, "config-store-test");
 const schema = z.object({ path: z.string(), count: z.number().default(0) });
@@ -133,4 +141,45 @@ test("replaceCachedValue is rejected on per-read stores", () => {
     () => store.replaceCachedValue({ path: "/a", count: 1 }),
     /does not cache values/,
   );
+});
+
+function stateFor(store: JsonFileStore<Doc>) {
+  const state = listConfigStoreStates().find(
+    (file) => file.path === store.path,
+  );
+  assert.ok(state);
+  return state;
+}
+
+test("status reports dirty on disk after an external edit", () => {
+  const store = makeStore("process");
+  store.write({ path: "/a", count: 1 });
+  assert.equal(stateFor(store).dirtyOnDisk, false);
+
+  const future = new Date(Date.now() + 5_000);
+  utimesSync(store.path, future, future);
+  const state = stateFor(store);
+  assert.equal(state.dirtyOnDisk, true);
+  assert.equal(state.exists, true);
+  assert.equal(state.cacheMode, "process");
+});
+
+test("status stays unknown before the first load", () => {
+  const store = makeStore("process");
+  writeFileSync(
+    store.path,
+    `${JSON.stringify({ path: "/a", count: 1 })}\n`,
+    "utf8",
+  );
+  assert.equal(stateFor(store).dirtyOnDisk, null);
+  assert.equal(stateFor(store).loadedMtimeMs, null);
+});
+
+test("status reports dirty when a loaded file disappears", () => {
+  const store = makeStore("process");
+  store.write({ path: "/a", count: 1 });
+  rmSync(store.path);
+  const state = stateFor(store);
+  assert.equal(state.exists, false);
+  assert.equal(state.dirtyOnDisk, true);
 });

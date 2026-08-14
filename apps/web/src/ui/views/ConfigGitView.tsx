@@ -3,6 +3,7 @@ import {
   type ConfigGitCommit,
   type ConfigGitMutationResult,
   type ConfigGitStatus,
+  type ConfigStoreFileState,
 } from "@arriero/core";
 import {
   Alert,
@@ -32,6 +33,7 @@ import {
   commitConfigChanges,
   createConfigBranch,
   fetchConfigRepository,
+  getConfigState,
   getConfigGitCommit,
   getConfigGitDiff,
   getConfigGitLog,
@@ -139,6 +141,15 @@ export function ConfigGitView() {
     retry: false,
   });
   const status = statusQuery.data?.data ?? null;
+  const configStateQuery = useQuery({
+    queryKey: ["config-state"],
+    queryFn: getConfigState,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+  const dirtyStoreFiles = (configStateQuery.data?.data.files ?? []).filter(
+    (file) => file.dirtyOnDisk === true,
+  );
   const validationQuery = useQuery({
     queryKey: ["config-git-validation"],
     queryFn: getConfigGitValidation,
@@ -328,6 +339,10 @@ export function ConfigGitView() {
   if (!status.isGitRepo) {
     return (
       <Stack gap="md">
+        <DirtyStoreFilesAlert
+          files={dirtyStoreFiles}
+          configDir={status.configDir}
+        />
         <Alert color="blue" title="Configuration is not under version control">
           Initialize keeps the current files and starts tracking them locally;
           origin can be added later. Clone discards the current files and adopts
@@ -442,6 +457,10 @@ export function ConfigGitView() {
   return (
     <Stack gap="md">
       {status.error && <Alert color="red">{status.error}</Alert>}
+      <DirtyStoreFilesAlert
+        files={dirtyStoreFiles}
+        configDir={status.configDir}
+      />
       {validation && !validation.valid && (
         <Alert color="red" title="Configuration validation failed">
           <Stack gap={2}>
@@ -1055,6 +1074,33 @@ export function ConfigGitView() {
         </Stack>
       </Modal>
     </Stack>
+  );
+}
+
+function DirtyStoreFilesAlert({
+  files,
+  configDir,
+}: {
+  files: ConfigStoreFileState[];
+  configDir: string;
+}) {
+  if (files.length === 0) {
+    return null;
+  }
+  const displayPath = (path: string) =>
+    path.startsWith(`${configDir}/`) ? path.slice(configDir.length + 1) : path;
+  return (
+    <Alert color="yellow" title="Configuration files changed on disk">
+      <Stack gap={4}>
+        <Text size="sm">
+          The running manager still serves the previously loaded configuration.
+          External edits to these files apply on restart.
+        </Text>
+        {files.map((file) => (
+          <Code key={file.path}>{displayPath(file.path)}</Code>
+        ))}
+      </Stack>
+    </Alert>
   );
 }
 

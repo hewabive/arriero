@@ -12,6 +12,7 @@ export * from "./build.js";
 export * from "./environments.js";
 export * from "./update.js";
 export * from "./config-git.js";
+export * from "./config-state.js";
 export * from "./source-repositories.js";
 export * from "./models.js";
 export * from "./presets.js";

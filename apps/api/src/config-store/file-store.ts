@@ -1,5 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { z } from "zod";
+
+import type { ConfigStoreFileState } from "@arriero/core";
 
 import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
@@ -51,18 +53,34 @@ export function parseConfigValue<T>(
   return parsed.data;
 }
 
+export function fileMtimeMs(path: string): number | null {
+  try {
+    return statSync(path).mtimeMs;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export function createJsonFileStore<T>(
   options: JsonFileStoreOptions<T>,
 ): JsonFileStore<T> {
   const { id, path, schema, missing, portablePaths, cache } = options;
   let cached: { value: T } | null = null;
+  let loaded: { mtimeMs: number | null } | null = null;
 
   function load(): T {
-    const raw = existsSync(path)
-      ? parseConfigJson(path, readFileSync(path, "utf8"))
-      : missing();
+    const mtimeMs = fileMtimeMs(path);
+    const raw =
+      mtimeMs !== null
+        ? parseConfigJson(path, readFileSync(path, "utf8"))
+        : missing();
     const input = portablePaths ? fromPortableConfig(raw) : raw;
-    return parseConfigValue(path, schema, input);
+    const value = parseConfigValue(path, schema, input);
+    loaded = { mtimeMs };
+    return value;
   }
 
   function read(): T {
@@ -80,6 +98,7 @@ export function createJsonFileStore<T>(
     const rendered = options.render ? options.render(value) : value;
     const serialized = portablePaths ? toPortableConfig(rendered) : rendered;
     atomicWriteFile(path, serializeConfigJson(serialized));
+    loaded = { mtimeMs: fileMtimeMs(path) };
     if (cache === "process") {
       cached = { value };
     }
@@ -94,8 +113,27 @@ export function createJsonFileStore<T>(
 
   function reset(): void {
     cached = null;
+    loaded = null;
   }
 
-  registerConfigStore({ id, files: () => [path], reset });
+  function status(): ConfigStoreFileState[] {
+    const diskMtimeMs = fileMtimeMs(path);
+    return [
+      {
+        storeId: id,
+        path,
+        cacheMode: cache,
+        exists: diskMtimeMs !== null,
+        diskMtimeMs,
+        loadedMtimeMs: loaded?.mtimeMs ?? null,
+        dirtyOnDisk:
+          cache === "per-read" || !loaded
+            ? null
+            : diskMtimeMs !== loaded.mtimeMs,
+      },
+    ];
+  }
+
+  registerConfigStore({ id, files: () => [path], reset, status });
   return { id, path, read, write, replaceCachedValue, reset };
 }

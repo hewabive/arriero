@@ -7,23 +7,25 @@ import {
   type EnvironmentJobStepName,
   type EnvironmentSpec,
 } from "@arriero/core";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { createJsonFileStore } from "../config-store/file-store.js";
 import { createJobStore } from "../jobs/store.js";
 import { newId } from "../utils/id.js";
 
 export const ENVIRONMENTS_FILE = resolve(config.configDir, "envs.json");
 const ENVIRONMENT_JOB_HISTORY_LIMIT = 20;
-let cache: EnvironmentSpec[] | null = null;
+
+const store = createJsonFileStore<EnvironmentSpec[]>({
+  id: "environments",
+  path: ENVIRONMENTS_FILE,
+  schema: z.array(EnvironmentSpecSchema),
+  missing: () => [],
+  portablePaths: false,
+  cache: "process",
+});
 
 export const environmentJobs = createJobStore<EnvironmentJob>({
   historyLimit: ENVIRONMENT_JOB_HISTORY_LIMIT,
@@ -33,43 +35,15 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
-
 function load() {
-  if (cache) return cache;
-  if (!existsSync(ENVIRONMENTS_FILE)) {
-    cache = [];
-    return cache;
-  }
-  let json: unknown;
-  try {
-    json = JSON.parse(readFileSync(ENVIRONMENTS_FILE, "utf8"));
-  } catch (error) {
-    throw new Error(
-      `Invalid JSON in ${ENVIRONMENTS_FILE}: ${(error as Error).message}`,
-    );
-  }
-  const parsed = z.array(EnvironmentSpecSchema).safeParse(json);
-  if (!parsed.success) {
-    throw new Error(
-      `Invalid config in ${ENVIRONMENTS_FILE}: ${parsed.error.message}`,
-    );
-  }
-  cache = parsed.data;
-  return cache;
+  return store.read();
 }
 
 function persist(specs: EnvironmentSpec[]) {
   const sorted = [...specs].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
   );
-  atomicWrite(ENVIRONMENTS_FILE, `${JSON.stringify(sorted, null, 2)}\n`);
-  cache = sorted;
+  store.write(sorted);
 }
 
 export function listEnvironmentSpecs() {
@@ -155,6 +129,6 @@ export function listEnvironmentJobs(limit = 20) {
 }
 
 export function resetEnvironmentRepository() {
-  cache = null;
+  store.reset();
   environmentJobs.clear();
 }

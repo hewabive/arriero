@@ -7,6 +7,7 @@ import { config } from "../config.js";
 import { CONFIG_GITIGNORE_CONTENT } from "../config-git/machine-state.js";
 import {
   createJsonFileStore,
+  fileMtimeMs,
   parseConfigJson,
   serializeConfigJson,
   type JsonFileStore,
@@ -16,6 +17,7 @@ import { atomicWriteFile } from "../utils/atomic-write.js";
 
 const stores = new Map<string, JsonFileStore<unknown>>();
 let secretsCache: Record<string, string> | null = null;
+let secretsLoaded: { mtimeMs: number | null } | null = null;
 
 function proxyFilePath(fileName: string): string {
   return resolve(config.proxyConfigDir, fileName);
@@ -71,7 +73,8 @@ function loadSecrets(): Record<string, string> {
   if (secretsCache) {
     return secretsCache;
   }
-  if (existsSync(config.secretsFile)) {
+  const mtimeMs = fileMtimeMs(config.secretsFile);
+  if (mtimeMs !== null) {
     const parsed = z
       .record(z.string(), z.string())
       .safeParse(
@@ -84,6 +87,7 @@ function loadSecrets(): Record<string, string> {
   } else {
     secretsCache = {};
   }
+  secretsLoaded = { mtimeMs };
   return secretsCache;
 }
 
@@ -100,6 +104,7 @@ export function setSecret(id: string, key: string | null): void {
   }
   atomicWriteFile(config.secretsFile, serializeConfigJson(next));
   secretsCache = next;
+  secretsLoaded = { mtimeMs: fileMtimeMs(config.secretsFile) };
 }
 
 registerConfigStore({
@@ -107,6 +112,23 @@ registerConfigStore({
   files: () => [config.secretsFile],
   reset: () => {
     secretsCache = null;
+    secretsLoaded = null;
+  },
+  status: () => {
+    const diskMtimeMs = fileMtimeMs(config.secretsFile);
+    return [
+      {
+        storeId: "proxy:secrets",
+        path: config.secretsFile,
+        cacheMode: "process",
+        exists: diskMtimeMs !== null,
+        diskMtimeMs,
+        loadedMtimeMs: secretsLoaded?.mtimeMs ?? null,
+        dirtyOnDisk: secretsLoaded
+          ? diskMtimeMs !== secretsLoaded.mtimeMs
+          : null,
+      },
+    ];
   },
 });
 
@@ -122,4 +144,5 @@ export function resetConfigFilesCache(): void {
     store.reset();
   }
   secretsCache = null;
+  secretsLoaded = null;
 }
