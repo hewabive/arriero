@@ -3,7 +3,13 @@ import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 
 import { instanceApiProbeTarget } from "../llama/probe.js";
+import { asObject } from "../proxy/json.js";
 import { apiLabProbeTargetFromBaseUrl } from "./probe.js";
+import {
+  consumeSseEvents,
+  streamDeltaText,
+  streamFinishReason,
+} from "./sse-parse.js";
 
 export function isStreamingProbeKind(kind: string) {
   return (
@@ -14,75 +20,13 @@ export function isStreamingProbeKind(kind: string) {
   );
 }
 
-function recordValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function firstRecord(value: unknown): Record<string, unknown> | null {
-  return Array.isArray(value) ? recordValue(value[0]) : null;
-}
-
-function streamDeltaText(value: unknown) {
-  const record = recordValue(value);
-  if (!record) return "";
-
-  if (typeof record.delta === "string") return record.delta;
-  if (typeof record.text === "string") return record.text;
-  if (typeof record.content === "string") return record.content;
-  if (typeof record.output_text === "string") return record.output_text;
-
-  const choice = firstRecord(record.choices);
-  const delta = recordValue(choice?.delta);
-  const message = recordValue(choice?.message);
-  const content =
-    delta?.content ??
-    delta?.reasoning_content ??
-    delta?.text ??
-    message?.content ??
-    choice?.text;
-  if (typeof content === "string") return content;
-
-  if (record.type === "content_block_delta") {
-    const anthropicDelta = recordValue(record.delta);
-    if (typeof anthropicDelta?.text === "string") return anthropicDelta.text;
-  }
-
-  if (typeof record.type === "string" && record.type.endsWith(".delta")) {
-    const deltaText = record.delta ?? record.text;
-    if (typeof deltaText === "string") return deltaText;
-  }
-
-  return "";
-}
-
-function streamFinishReason(value: unknown) {
-  const record = recordValue(value);
-  const choice = firstRecord(record?.choices);
-  const reason = choice?.finish_reason;
-  if (typeof reason === "string") return reason;
-  const anthropicStop =
-    recordValue(record?.delta)?.stop_reason ?? record?.stop_reason;
-  return typeof anthropicStop === "string" ? anthropicStop : null;
-}
-
-function streamEventData(block: string) {
-  return block
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n")
-    .trim();
-}
-
 async function writeUpstreamStreamEvents(props: {
   stream: Parameters<Parameters<typeof streamSSE>[1]>[0];
   response: Response;
   started: number;
 }) {
-  const reader = props.response.body?.getReader();
-  if (!reader) {
+  const body = props.response.body;
+  if (!body) {
     await props.stream.writeSSE({
       event: "error",
       data: JSON.stringify({ message: "upstream returned no stream body" }),
@@ -90,22 +34,18 @@ async function writeUpstreamStreamEvents(props: {
     return null;
   }
 
-  const decoder = new TextDecoder();
-  let buffer = "";
   let finalBody: unknown = null;
   let finishReason: string | null = null;
   let usage: unknown = null;
 
-  const consumeBlock = async (block: string) => {
-    const data = streamEventData(block);
-    if (!data) return false;
+  await consumeSseEvents(body, async (data) => {
     if (data === "[DONE]") return true;
 
     try {
       const parsed = JSON.parse(data) as unknown;
       finalBody = parsed;
       finishReason = streamFinishReason(parsed) ?? finishReason;
-      usage = recordValue(parsed)?.usage ?? usage;
+      usage = asObject(parsed)?.usage ?? usage;
       const delta = streamDeltaText(parsed);
       if (delta) {
         await props.stream.writeSSE({
@@ -121,44 +61,19 @@ async function writeUpstreamStreamEvents(props: {
     }
 
     return false;
-  };
+  });
 
-  try {
-    let done = false;
-    while (!done) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      buffer += decoder.decode(chunk.value, { stream: true });
-
-      let separator = buffer.match(/\r?\n\r?\n/);
-      while (separator && separator.index !== undefined) {
-        const separatorIndex = separator.index;
-        const block = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + separator[0].length);
-        done = await consumeBlock(block);
-        if (done) break;
-        separator = buffer.match(/\r?\n\r?\n/);
-      }
-    }
-
-    if (buffer.trim()) {
-      await consumeBlock(buffer);
-    }
-
-    const finalRecord = recordValue(finalBody);
-    const latencyMs = Math.round(performance.now() - props.started);
-    await props.stream.writeSSE({
-      event: "done",
-      data: JSON.stringify({
-        latencyMs,
-        finishReason,
-        usage: usage ?? finalRecord?.usage ?? null,
-        timings: finalRecord?.timings ?? null,
-      }),
-    });
-  } finally {
-    await reader.cancel().catch(() => {});
-  }
+  const finalRecord = asObject(finalBody);
+  const latencyMs = Math.round(performance.now() - props.started);
+  await props.stream.writeSSE({
+    event: "done",
+    data: JSON.stringify({
+      latencyMs,
+      finishReason,
+      usage: usage ?? finalRecord?.usage ?? null,
+      timings: finalRecord?.timings ?? null,
+    }),
+  });
 }
 
 export function streamApiProbeTarget(
@@ -216,8 +131,7 @@ export function streamApiProbeTarget(
             status: response.status,
             body,
             message:
-              recordValue(recordValue(body)?.error)?.message ??
-              response.statusText,
+              asObject(asObject(body)?.error)?.message ?? response.statusText,
           }),
         });
         return;
