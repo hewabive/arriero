@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { config } from "../config.js";
 import { CONFIG_GITIGNORE_CONTENT } from "../config-git/machine-state.js";
+import { ConfigFileError } from "../config-store/errors.js";
 import {
   createJsonFileStore,
   fileMtimeMs,
@@ -18,6 +19,7 @@ import { atomicWriteFile } from "../utils/atomic-write.js";
 const stores = new Map<string, JsonFileStore<unknown>>();
 let secretsCache: Record<string, string> | null = null;
 let secretsLoaded: { mtimeMs: number | null } | null = null;
+let secretsQuarantine: ConfigFileError | null = null;
 
 function proxyFilePath(fileName: string): string {
   return resolve(config.proxyConfigDir, fileName);
@@ -70,19 +72,27 @@ export function writeObjectFile<T>(fileName: string, value: T): void {
 }
 
 function loadSecrets(): Record<string, string> {
+  if (secretsQuarantine) {
+    throw secretsQuarantine;
+  }
   if (secretsCache) {
     return secretsCache;
   }
   const mtimeMs = fileMtimeMs(config.secretsFile);
   if (mtimeMs !== null) {
-    const parsed = z
-      .record(z.string(), z.string())
-      .safeParse(
-        parseConfigJson(
-          config.secretsFile,
-          readFileSync(config.secretsFile, "utf8"),
-        ),
+    let json: unknown;
+    try {
+      json = parseConfigJson(
+        config.secretsFile,
+        readFileSync(config.secretsFile, "utf8"),
       );
+    } catch (error) {
+      if (error instanceof ConfigFileError) {
+        secretsQuarantine = error;
+      }
+      throw error;
+    }
+    const parsed = z.record(z.string(), z.string()).safeParse(json);
     secretsCache = parsed.success ? parsed.data : {};
   } else {
     secretsCache = {};
@@ -105,14 +115,19 @@ export function setSecret(id: string, key: string | null): void {
   atomicWriteFile(config.secretsFile, serializeConfigJson(next));
   secretsCache = next;
   secretsLoaded = { mtimeMs: fileMtimeMs(config.secretsFile) };
+  secretsQuarantine = null;
 }
 
 registerConfigStore({
   id: "proxy:secrets",
   files: () => [config.secretsFile],
+  init: () => {
+    loadSecrets();
+  },
   reset: () => {
     secretsCache = null;
     secretsLoaded = null;
+    secretsQuarantine = null;
   },
   status: () => {
     const diskMtimeMs = fileMtimeMs(config.secretsFile);
@@ -127,6 +142,7 @@ registerConfigStore({
         dirtyOnDisk: secretsLoaded
           ? diskMtimeMs !== secretsLoaded.mtimeMs
           : null,
+        error: secretsQuarantine?.message ?? null,
       },
     ];
   },
@@ -145,4 +161,5 @@ export function resetConfigFilesCache(): void {
   }
   secretsCache = null;
   secretsLoaded = null;
+  secretsQuarantine = null;
 }

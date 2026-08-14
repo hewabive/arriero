@@ -1,3 +1,5 @@
+import { basename } from "node:path";
+
 import {
   InstanceConfigRecordSchema,
   type InstanceConfigRecord,
@@ -78,6 +80,10 @@ export function rewriteLocalRpcWorkerRefs(
 
 export function removeInstanceRecord(name: string): boolean {
   return store.remove(name);
+}
+
+export function listQuarantinedInstanceNames(): string[] {
+  return store.listInvalidFiles().map((error) => basename(error.path, ".json"));
 }
 
 export function resetInstancesCache(): void {

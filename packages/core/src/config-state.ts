@@ -13,6 +13,7 @@ export const ConfigStoreFileStateSchema = z.object({
   diskMtimeMs: z.number().nullable(),
   loadedMtimeMs: z.number().nullable(),
   dirtyOnDisk: z.boolean().nullable(),
+  error: z.string().nullable(),
 });
 export type ConfigStoreFileState = z.infer<typeof ConfigStoreFileStateSchema>;
 

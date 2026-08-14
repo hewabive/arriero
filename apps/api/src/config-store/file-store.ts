@@ -18,6 +18,7 @@ export type JsonFileStoreOptions<T> = {
   portablePaths: boolean;
   cache: ConfigCacheMode;
   render?: (value: T) => unknown;
+  ensure?: () => void;
 };
 
 export type JsonFileStore<T> = {
@@ -70,8 +71,10 @@ export function createJsonFileStore<T>(
   const { id, path, schema, missing, portablePaths, cache } = options;
   let cached: { value: T } | null = null;
   let loaded: { mtimeMs: number | null } | null = null;
+  let quarantine: ConfigFileError | null = null;
 
   function load(): T {
+    options.ensure?.();
     const mtimeMs = fileMtimeMs(path);
     const raw =
       mtimeMs !== null
@@ -80,18 +83,29 @@ export function createJsonFileStore<T>(
     const input = portablePaths ? fromPortableConfig(raw) : raw;
     const value = parseConfigValue(path, schema, input);
     loaded = { mtimeMs };
+    quarantine = null;
     return value;
   }
 
   function read(): T {
+    if (quarantine) {
+      throw quarantine;
+    }
     if (cache === "process" && cached) {
       return cached.value;
     }
-    const value = load();
-    if (cache === "process") {
-      cached = { value };
+    try {
+      const value = load();
+      if (cache === "process") {
+        cached = { value };
+      }
+      return value;
+    } catch (error) {
+      if (error instanceof ConfigFileError) {
+        quarantine = error;
+      }
+      throw error;
     }
-    return value;
   }
 
   function write(value: T): void {
@@ -102,6 +116,7 @@ export function createJsonFileStore<T>(
     const serialized = portablePaths ? toPortableConfig(rendered) : rendered;
     atomicWriteFile(path, serializeConfigJson(serialized));
     loaded = { mtimeMs: fileMtimeMs(path) };
+    quarantine = null;
     if (cache === "process") {
       cached = { value };
     }
@@ -117,6 +132,7 @@ export function createJsonFileStore<T>(
   function reset(): void {
     cached = null;
     loaded = null;
+    quarantine = null;
   }
 
   function status(): ConfigStoreFileState[] {
@@ -133,10 +149,19 @@ export function createJsonFileStore<T>(
           cache === "per-read" || !loaded
             ? null
             : diskMtimeMs !== loaded.mtimeMs,
+        error: quarantine?.message ?? null,
       },
     ];
   }
 
-  registerConfigStore({ id, files: () => [path], reset, status });
+  registerConfigStore({
+    id,
+    files: () => [path],
+    init: () => {
+      read();
+    },
+    reset,
+    status,
+  });
   return { id, path, read, write, replaceCachedValue, reset };
 }

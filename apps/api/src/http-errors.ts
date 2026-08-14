@@ -19,7 +19,7 @@ export function registerErrorHandler(app: Hono) {
       );
       return c.json(
         { error: { message: error.message, configFile: error.path } },
-        500,
+        503,
       );
     }
     if (error instanceof ConfigWriteConflictError) {

@@ -150,8 +150,10 @@ export function ConfigGitView() {
     refetchInterval: 10_000,
     retry: false,
   });
-  const dirtyStoreFiles = (configStateQuery.data?.data.files ?? []).filter(
-    (file) => file.dirtyOnDisk === true,
+  const storeFiles = configStateQuery.data?.data.files ?? [];
+  const erroredStoreFiles = storeFiles.filter((file) => file.error !== null);
+  const dirtyStoreFiles = storeFiles.filter(
+    (file) => file.dirtyOnDisk === true && file.error === null,
   );
   const queryClient = useQueryClient();
   const reloadMutation = useMutation({
@@ -375,6 +377,12 @@ export function ConfigGitView() {
   if (!status.isGitRepo) {
     return (
       <Stack gap="md">
+        <QuarantinedStoreFilesAlert
+          files={erroredStoreFiles}
+          configDir={status.configDir}
+          onApply={() => reloadMutation.mutate()}
+          applying={reloadMutation.isPending}
+        />
         <DirtyStoreFilesAlert
           files={dirtyStoreFiles}
           configDir={status.configDir}
@@ -495,6 +503,12 @@ export function ConfigGitView() {
   return (
     <Stack gap="md">
       {status.error && <Alert color="red">{status.error}</Alert>}
+      <QuarantinedStoreFilesAlert
+        files={erroredStoreFiles}
+        configDir={status.configDir}
+        onApply={() => reloadMutation.mutate()}
+        applying={reloadMutation.isPending}
+      />
       <DirtyStoreFilesAlert
         files={dirtyStoreFiles}
         configDir={status.configDir}
@@ -1114,6 +1128,51 @@ export function ConfigGitView() {
         </Stack>
       </Modal>
     </Stack>
+  );
+}
+
+function QuarantinedStoreFilesAlert({
+  files,
+  configDir,
+  onApply,
+  applying,
+}: {
+  files: ConfigStoreFileState[];
+  configDir: string;
+  onApply: () => void;
+  applying: boolean;
+}) {
+  if (files.length === 0) {
+    return null;
+  }
+  const displayPath = (path: string) =>
+    path.startsWith(`${configDir}/`) ? path.slice(configDir.length + 1) : path;
+  return (
+    <Alert color="red" title="Configuration files failed to load">
+      <Stack gap={4}>
+        <Text size="sm">
+          These files are quarantined: the running manager keeps serving the
+          last valid state and dependent requests fail until they are fixed.
+          Repair the files, then apply.
+        </Text>
+        {files.map((file) => (
+          <Text key={file.path} size="sm">
+            <Code>{displayPath(file.path)}</Code> {file.error}
+          </Text>
+        ))}
+        <Group justify="flex-end">
+          <Button
+            size="xs"
+            color="red"
+            variant="light"
+            loading={applying}
+            onClick={onApply}
+          >
+            Validate and apply
+          </Button>
+        </Group>
+      </Stack>
+    </Alert>
   );
 }
 

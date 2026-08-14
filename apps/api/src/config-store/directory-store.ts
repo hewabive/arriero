@@ -6,7 +6,7 @@ import type { ConfigStoreFileState } from "@arriero/core";
 
 import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
-import { ConfigWriteConflictError } from "./errors.js";
+import { ConfigFileError, ConfigWriteConflictError } from "./errors.js";
 import {
   fileMtimeMs,
   parseConfigJson,
@@ -29,6 +29,7 @@ export type JsonDirectoryStore<T> = {
   filePath: (key: string) => string;
   list: () => T[];
   get: (key: string) => T | null;
+  listInvalidFiles: () => ConfigFileError[];
   write: (value: T, previousKey?: string) => void;
   remove: (key: string) => boolean;
   reset: () => void;
@@ -49,6 +50,7 @@ export function createJsonDirectoryStore<T>(
   const { id, dir, schema, key, portablePaths } = options;
   let cached: Map<string, T> | null = null;
   let loadedMtimes: Map<string, number> | null = null;
+  let invalid: Map<string, ConfigFileError> | null = null;
 
   function filePath(name: string): string {
     return resolve(dir, `${name}.json`);
@@ -66,8 +68,18 @@ export function createJsonDirectoryStore<T>(
     }
     const next = new Map<string, T>();
     const mtimes = new Map<string, number>();
+    const broken = new Map<string, ConfigFileError>();
     for (const path of listJsonFiles(dir)) {
-      const value = parseFile(path);
+      let value: T;
+      try {
+        value = parseFile(path);
+      } catch (error) {
+        if (error instanceof ConfigFileError) {
+          broken.set(path, error);
+          continue;
+        }
+        throw error;
+      }
       next.set(key(value), value);
       const mtimeMs = fileMtimeMs(path);
       if (mtimeMs !== null) {
@@ -76,6 +88,7 @@ export function createJsonDirectoryStore<T>(
     }
     cached = next;
     loadedMtimes = mtimes;
+    invalid = broken;
     return next;
   }
 
@@ -85,6 +98,11 @@ export function createJsonDirectoryStore<T>(
 
   function get(name: string): T | null {
     return load().get(name) ?? null;
+  }
+
+  function listInvalidFiles(): ConfigFileError[] {
+    load();
+    return [...(invalid?.values() ?? [])];
   }
 
   function write(value: T, previousKey?: string): void {
@@ -132,6 +150,7 @@ export function createJsonDirectoryStore<T>(
   function reset(): void {
     cached = null;
     loadedMtimes = null;
+    invalid = null;
   }
 
   function status(): ConfigStoreFileState[] {
@@ -154,10 +173,29 @@ export function createJsonDirectoryStore<T>(
         diskMtimeMs,
         loadedMtimeMs,
         dirtyOnDisk: loadedMtimes ? diskMtimeMs !== loadedMtimeMs : null,
+        error: invalid?.get(path)?.message ?? null,
       };
     });
   }
 
-  registerConfigStore({ id, files: () => listJsonFiles(dir), reset, status });
-  return { id, dir, filePath, list, get, write, remove, reset };
+  registerConfigStore({
+    id,
+    files: () => listJsonFiles(dir),
+    init: () => {
+      load();
+    },
+    reset,
+    status,
+  });
+  return {
+    id,
+    dir,
+    filePath,
+    list,
+    get,
+    listInvalidFiles,
+    write,
+    remove,
+    reset,
+  };
 }

@@ -1,8 +1,8 @@
 import { serve } from "@hono/node-server";
 
-import { initArgumentDefaults } from "./arguments/defaults-repository.js";
 import { pruneMissingArgumentCatalogs } from "./arguments/repository.js";
 import { config } from "./config.js";
+import { initConfigStores } from "./config-store/registry.js";
 import { untrackMachineStateFiles } from "./config-git/machine-state.js";
 import { normalizeConfigFiles } from "./config-normalize.js";
 import { migrate } from "./db/index.js";
@@ -28,6 +28,7 @@ import {
 } from "./proxy/repository.js";
 import { startMemoryAssessmentAutoLoop } from "./memory-assessment/auto-assess.js";
 import { pruneMissingCachedModels } from "./models/cache-repository.js";
+import { listQuarantinedInstanceNames } from "./instances/config-files.js";
 import { listInstances } from "./instances/repository.js";
 import { reconcileProcessRuns } from "./process/reconcile.js";
 import { pruneProcessRunHistory } from "./process/runs-repository.js";
@@ -35,7 +36,6 @@ import {
   ensureResourcePoolsScaffold,
   refreshAutoCapacities,
 } from "./resources/repository.js";
-import { initAppSettings } from "./settings/store.js";
 import { augmentProcessPath } from "./system/path-repair.js";
 import { sweepSourceCloneStaging } from "./sources/operations.js";
 import { shutdownActiveJobs } from "./jobs/registry.js";
@@ -48,6 +48,15 @@ import {
   startSystemMetricsRetentionLoop,
 } from "./system/metrics-repository.js";
 
+function bootStep<T>(name: string, run: () => T): T | null {
+  try {
+    return run();
+  } catch (error) {
+    logger.error({ error }, `boot step failed: ${name}`);
+    return null;
+  }
+}
+
 const repairedPathDirectories = augmentProcessPath();
 if (repairedPathDirectories.length > 0) {
   logger.info(
@@ -58,11 +67,18 @@ if (repairedPathDirectories.length > 0) {
 
 migrate();
 ensureConfigScaffold();
+const quarantinedConfigStores = initConfigStores();
+if (quarantinedConfigStores.length > 0) {
+  logger.error(
+    { failures: quarantinedConfigStores },
+    "configuration files quarantined at boot; fix them and POST /api/config/reload to recover without a restart",
+  );
+}
 const appliedMigrations = runMigrations();
-const normalizedConfigFiles = normalizeConfigFiles();
+const normalizedConfigFiles = bootStep("normalize config files", () =>
+  normalizeConfigFiles(),
+);
 const untrackedMachineState = await untrackMachineStateFiles();
-initAppSettings();
-initArgumentDefaults();
 const systemMetricsPersistence = initSystemMetricsPersistence(
   systemMetricsRecorder,
   {
@@ -71,18 +87,34 @@ const systemMetricsPersistence = initSystemMetricsPersistence(
   },
 );
 systemMetricsRecorder.start();
-const seededResourcePools = ensureResourcePoolsScaffold();
-const refreshedResourcePools = refreshAutoCapacities();
-const environments = initializeEnvironments();
-const sweptSourceCloneStaging = sweepSourceCloneStaging();
+const seededResourcePools = bootStep("scaffold resource pools", () =>
+  ensureResourcePoolsScaffold(),
+);
+const refreshedResourcePools = bootStep("refresh pool auto capacities", () =>
+  refreshAutoCapacities(),
+);
+const environments = bootStep("initialize environments", () =>
+  initializeEnvironments(),
+);
+const sweptSourceCloneStaging = bootStep("sweep source clone staging", () =>
+  sweepSourceCloneStaging(),
+);
 const prunedArgumentCatalogs = pruneMissingArgumentCatalogs();
-const prunedModelCache = pruneMissingCachedModels();
-const reconciliation = reconcileProcessRuns(listInstances());
+const prunedModelCache = bootStep("prune missing cached models", () =>
+  pruneMissingCachedModels(),
+);
+const reconciliation = bootStep("reconcile process runs", () =>
+  reconcileProcessRuns(listInstances(), {
+    quarantinedInstanceNames: new Set(listQuarantinedInstanceNames()),
+  }),
+);
 const prunedProcessRuns = pruneProcessRunHistory();
 const prunedTraceHistory = pruneApiProxyTraceHistory();
 const seededStatsTraces = apiProxyStats.seedFromHistory();
-const pendingResume = apiProxyPendingResume.adopt();
-if (pendingResume.adopted > 0) {
+const pendingResume = bootStep("adopt pending stream sessions", () =>
+  apiProxyPendingResume.adopt(),
+);
+if (pendingResume && pendingResume.adopted > 0) {
   logger.info(
     { adopted: pendingResume.adopted },
     "pending stream sessions adopted for resume",
@@ -95,12 +127,14 @@ if (pendingResume.adopted > 0) {
   });
 }
 
-for (const warning of collectApiProxyPipelineGraphWarnings({
-  pipelines: listApiProxyPipelines(),
-  hasTarget: (id) => Boolean(getApiProxyTarget(id)),
-})) {
-  logger.warn(warning, "api proxy pipeline graph is invalid");
-}
+bootStep("check proxy pipeline graphs", () => {
+  for (const warning of collectApiProxyPipelineGraphWarnings({
+    pipelines: listApiProxyPipelines(),
+    hasTarget: (id) => Boolean(getApiProxyTarget(id)),
+  })) {
+    logger.warn(warning, "api proxy pipeline graph is invalid");
+  }
+});
 
 const server = serve(
   {
@@ -114,6 +148,7 @@ const server = serve(
         address: info.address,
         port: info.port,
         appliedMigrations,
+        quarantinedConfigStores,
         normalizedConfigFiles,
         untrackedMachineState,
         reconciliation,

@@ -3,17 +3,29 @@ import {
   type ArgumentDefault,
   type ArgumentDefaults,
 } from "@arriero/core";
-import { copyFileSync, existsSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, writeFileSync } from "node:fs";
 
 import { config } from "../config.js";
 import {
   createJsonFileStore,
+  fileMtimeMs,
   serializeConfigJson,
 } from "../config-store/file-store.js";
 import { sortedByKey } from "../utils/sort.js";
 
 const filePath = config.argumentDefaultsFile;
 const seedPath = config.argumentDefaultsSeedFile;
+
+function ensureFile() {
+  if (existsSync(filePath)) {
+    return;
+  }
+  if (existsSync(seedPath)) {
+    copyFileSync(seedPath, filePath);
+    return;
+  }
+  writeFileSync(filePath, serializeConfigJson({ instance: [] }), "utf8");
+}
 
 const store = createJsonFileStore<ArgumentDefaults>({
   id: "argument-defaults",
@@ -23,6 +35,7 @@ const store = createJsonFileStore<ArgumentDefaults>({
   portablePaths: true,
   cache: "process",
   render: (value) => ({ instance: value.instance }),
+  ensure: ensureFile,
 });
 
 function normalizeDefaults(defaults: ArgumentDefault[]) {
@@ -43,28 +56,12 @@ function normalizeDefaults(defaults: ArgumentDefault[]) {
   return sortedByKey(cleaned, (item) => item.key);
 }
 
-function ensureFile() {
-  if (existsSync(filePath)) {
-    return;
-  }
-  if (existsSync(seedPath)) {
-    copyFileSync(seedPath, filePath);
-    return;
-  }
-  writeFileSync(filePath, serializeConfigJson({ instance: [] }), "utf8");
-}
-
-export function initArgumentDefaults() {
-  ensureFile();
-  store.read();
-}
-
 export function getArgumentDefaults(): ArgumentDefaults {
-  ensureFile();
   const parsed = store.read();
+  const mtimeMs = fileMtimeMs(filePath);
   return ArgumentDefaultsSchema.parse({
     instance: parsed.instance,
-    updatedAt: statSync(filePath).mtime.toISOString(),
+    updatedAt: mtimeMs !== null ? new Date(mtimeMs).toISOString() : null,
   });
 }
 

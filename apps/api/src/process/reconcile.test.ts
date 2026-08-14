@@ -139,6 +139,55 @@ test("reconcile marks a live process with mismatched cmdline as stale", async ()
   }
 });
 
+test("reconcile leaves a matching run of a quarantined instance open", async () => {
+  const pid = await spawnSleep();
+  try {
+    seedOpenRun({
+      instanceId: "quarantined-open",
+      pid,
+      snapshotBinaryPath: "/bin/sleep",
+    });
+
+    const summary = reconcileProcessRuns([], {
+      quarantinedInstanceNames: new Set(["quarantined-open"]),
+    });
+
+    assert.equal(summary.deferred, 1);
+    assert.equal(latestProcessRun("quarantined-open")?.status, "running");
+    assert.equal(supervisor.getState("quarantined-open"), undefined);
+  } finally {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      void 0;
+    }
+  }
+});
+
+test("reconcile still marks a quarantined run stale on cmdline mismatch", async () => {
+  const pid = await spawnSleep();
+  try {
+    seedOpenRun({
+      instanceId: "quarantined-mismatch",
+      pid,
+      snapshotBinaryPath: "/opt/llama/llama-server",
+    });
+
+    const summary = reconcileProcessRuns([], {
+      quarantinedInstanceNames: new Set(["quarantined-mismatch"]),
+    });
+
+    assert.equal(summary.deferred, 0);
+    assert.equal(latestProcessRun("quarantined-mismatch")?.status, "stale");
+  } finally {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      void 0;
+    }
+  }
+});
+
 test("reconcile closes runs whose pid is gone", async () => {
   const child = spawn("/bin/sleep", ["0"]);
   const pid = child.pid!;

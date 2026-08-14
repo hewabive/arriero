@@ -22,13 +22,17 @@ function processCommandMatchesBinary(pid: number, binaryPath: string) {
   }
 }
 
-export function reconcileProcessRuns(instances: Instance[]) {
+export function reconcileProcessRuns(
+  instances: Instance[],
+  options: { quarantinedInstanceNames?: Set<string> } = {},
+) {
   const runs = listOpenProcessRuns();
   const summary = {
     checked: runs.length,
     adopted: 0,
     stale: 0,
     exited: 0,
+    deferred: 0,
   };
 
   for (const run of runs) {
@@ -47,6 +51,14 @@ export function reconcileProcessRuns(instances: Instance[]) {
 
     const instance = instances.find((entry) => entry.name === run.instanceId);
     const snapshot = parseLaunchSnapshot(run.launchSnapshot);
+    if (
+      options.quarantinedInstanceNames?.has(run.instanceId) &&
+      snapshot?.binaryPath &&
+      processCommandMatchesBinary(pid, snapshot.binaryPath)
+    ) {
+      summary.deferred += 1;
+      continue;
+    }
     const expectedBinary = snapshot?.binaryPath ?? instance?.binaryPath ?? null;
     if (
       instance &&

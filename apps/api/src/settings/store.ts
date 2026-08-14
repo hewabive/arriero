@@ -10,15 +10,6 @@ import {
 const filePath = config.settingsFile;
 const seedPath = config.settingsSeedFile;
 
-const store = createJsonFileStore<AppSettingsFile>({
-  id: "settings",
-  path: filePath,
-  schema: AppSettingsFileSchema,
-  missing: () => ({}),
-  portablePaths: true,
-  cache: "process",
-});
-
 function ensureFile() {
   if (existsSync(filePath)) {
     return;
@@ -30,8 +21,17 @@ function ensureFile() {
   writeFileSync(filePath, serializeConfigJson({}), "utf8");
 }
 
+const store = createJsonFileStore<AppSettingsFile>({
+  id: "settings",
+  path: filePath,
+  schema: AppSettingsFileSchema,
+  missing: () => ({}),
+  portablePaths: true,
+  cache: "process",
+  ensure: ensureFile,
+});
+
 export function readSettings(): AppSettingsFile {
-  ensureFile();
   return store.read();
 }
 
@@ -39,11 +39,6 @@ export function writeSettings(next: AppSettingsFile): AppSettingsFile {
   const parsed = AppSettingsFileSchema.parse(next);
   store.write(parsed);
   return parsed;
-}
-
-export function initAppSettings() {
-  ensureFile();
-  readSettings();
 }
 
 export function resetSettingsCache() {

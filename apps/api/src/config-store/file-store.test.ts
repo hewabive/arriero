@@ -18,7 +18,7 @@ import {
   type JsonFileStore,
   type JsonFileStoreOptions,
 } from "./file-store.js";
-import { listConfigStoreStates } from "./registry.js";
+import { initConfigStores, listConfigStoreStates } from "./registry.js";
 
 const testDir = resolve(config.configDir, "config-store-test");
 const schema = z.object({ path: z.string(), count: z.number().default(0) });
@@ -216,4 +216,35 @@ test("status reports dirty when a loaded file disappears", () => {
   const state = stateFor(store);
   assert.equal(state.exists, false);
   assert.equal(state.dirtyOnDisk, true);
+});
+
+test("a failed load quarantines the store until reset", () => {
+  const store = makeStore("process");
+  writeFileSync(store.path, "{ nope", "utf8");
+  assert.throws(store.read, ConfigFileError);
+
+  writeFileSync(
+    store.path,
+    `${JSON.stringify({ path: "/fixed", count: 2 })}\n`,
+    "utf8",
+  );
+  assert.throws(store.read, ConfigFileError);
+  assert.match(stateFor(store).error ?? "", /Invalid JSON in/);
+
+  store.reset();
+  assert.equal(store.read().count, 2);
+  assert.equal(stateFor(store).error, null);
+});
+
+test("initConfigStores reports quarantined stores and leaves others serving", () => {
+  const broken = makeStore("process");
+  writeFileSync(broken.path, "{ nope", "utf8");
+  const healthy = makeStore("process");
+  healthy.write({ path: "/a", count: 1 });
+
+  const failures = initConfigStores();
+  const failure = failures.find((entry) => entry.storeId === broken.id);
+  assert.ok(failure);
+  assert.equal(failure.path, broken.path);
+  assert.equal(healthy.read().count, 1);
 });

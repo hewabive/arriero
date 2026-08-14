@@ -33,7 +33,7 @@ test("write conflicts map to 409", async () => {
 
 test("config file errors surface the failing file", async () => {
   const response = await makeApp().request("/config-error");
-  assert.equal(response.status, 500);
+  assert.equal(response.status, 503);
   const body = (await response.json()) as {
     error: { message: string; configFile: string };
   };

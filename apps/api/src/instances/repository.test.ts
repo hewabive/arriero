@@ -9,7 +9,10 @@ import {
   createProcessRun,
   latestProcessRun,
 } from "../process/runs-repository.js";
-import { resetInstancesCache } from "./config-files.js";
+import {
+  listQuarantinedInstanceNames,
+  resetInstancesCache,
+} from "./config-files.js";
 import {
   InstanceConfigValidationError,
   InstanceNameConflictError,
@@ -268,14 +271,19 @@ test("a legacy instance file without kind reads back as llama-server", () => {
   assert.equal(getInstance(name)?.kind, "llama-server");
 });
 
-test("reading a malformed instance file fails loud", () => {
+test("a malformed instance file is quarantined while others keep serving", () => {
   const name = uniqueName("bad");
   const path = resolve(config.instancesDir, `${name}.json`);
   writeFileSync(path, "{ not json", "utf8");
   resetInstancesCache();
-  assert.throws(() => listInstances(), /Invalid JSON/);
+  assert.equal(
+    listInstances().some((instance) => instance.name === name),
+    false,
+  );
+  assert.deepEqual(listQuarantinedInstanceNames(), [name]);
   unlinkSync(path);
   resetInstancesCache();
+  assert.deepEqual(listQuarantinedInstanceNames(), []);
 });
 
 test("createInstance persists the descriptor scheduling default", () => {

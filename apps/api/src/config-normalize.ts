@@ -7,6 +7,7 @@ import {
 } from "./arguments/defaults-repository.js";
 import { config } from "./config.js";
 import { hasPortablePathCandidate } from "./config-paths.js";
+import { logger } from "./logger.js";
 import {
   getInstanceRecord,
   writeInstanceRecord,
@@ -92,6 +93,16 @@ export function normalizeConfigFiles(): string[] {
   const track = (path: string) => {
     rewritten.push(relative(config.configDir, path));
   };
+  const guard = (path: string, rewrite: () => void) => {
+    try {
+      rewrite();
+    } catch (error) {
+      logger.error(
+        { error, path: relative(config.configDir, path) },
+        "config file normalization skipped",
+      );
+    }
+  };
 
   if (
     fileIsStale(config.settingsFile, {
@@ -99,16 +110,22 @@ export function normalizeConfigFiles(): string[] {
       extraStale: settingsHasTimestampKeys,
     })
   ) {
-    writeSettings(readSettings());
-    track(config.settingsFile);
+    guard(config.settingsFile, () => {
+      writeSettings(readSettings());
+      track(config.settingsFile);
+    });
   }
   if (fileIsStale(config.argumentDefaultsFile, { portable: true })) {
-    saveArgumentDefaults(getArgumentDefaults());
-    track(config.argumentDefaultsFile);
+    guard(config.argumentDefaultsFile, () => {
+      saveArgumentDefaults(getArgumentDefaults());
+      track(config.argumentDefaultsFile);
+    });
   }
   if (fileIsStale(PATH_CATALOG_FILE, { portable: true })) {
-    seedPathCatalog(listPathCatalogEntries());
-    track(PATH_CATALOG_FILE);
+    guard(PATH_CATALOG_FILE, () => {
+      seedPathCatalog(listPathCatalogEntries());
+      track(PATH_CATALOG_FILE);
+    });
   }
   if (existsSync(config.instancesDir)) {
     for (const entry of readdirSync(config.instancesDir, {
@@ -123,11 +140,13 @@ export function normalizeConfigFiles(): string[] {
       ) {
         continue;
       }
-      const record = getInstanceRecord(entry.name.slice(0, -".json".length));
-      if (record) {
-        writeInstanceRecord(record);
-        track(path);
-      }
+      guard(path, () => {
+        const record = getInstanceRecord(entry.name.slice(0, -".json".length));
+        if (record) {
+          writeInstanceRecord(record);
+          track(path);
+        }
+      });
     }
   }
 
@@ -142,10 +161,12 @@ export function normalizeConfigFiles(): string[] {
     }),
   );
   if (staleProxyCollections.length > 0) {
-    rewriteApiProxyCollections(staleProxyCollections);
-    for (const name of staleProxyCollections) {
-      track(resolve(config.proxyConfigDir, name));
-    }
+    guard(resolve(config.proxyConfigDir, TARGETS_FILE), () => {
+      rewriteApiProxyCollections(staleProxyCollections);
+      for (const name of staleProxyCollections) {
+        track(resolve(config.proxyConfigDir, name));
+      }
+    });
   }
   const endpointsPath = resolve(config.proxyConfigDir, ENDPOINTS_FILE);
   if (
@@ -154,8 +175,10 @@ export function normalizeConfigFiles(): string[] {
       extraStale: collectionHasTimestampKeys,
     })
   ) {
-    rewriteStoredEndpoints();
-    track(endpointsPath);
+    guard(endpointsPath, () => {
+      rewriteStoredEndpoints();
+      track(endpointsPath);
+    });
   }
   const sourcesPath = resolve(config.proxyConfigDir, SOURCES_FILE);
   if (
@@ -164,8 +187,10 @@ export function normalizeConfigFiles(): string[] {
       extraStale: collectionHasTimestampKeys,
     })
   ) {
-    rewriteStoredSources();
-    track(sourcesPath);
+    guard(sourcesPath, () => {
+      rewriteStoredSources();
+      track(sourcesPath);
+    });
   }
   if (
     fileIsStale(NODES_FILE, {
@@ -173,8 +198,10 @@ export function normalizeConfigFiles(): string[] {
       extraStale: collectionHasTimestampKeys,
     })
   ) {
-    rewriteNodesFile();
-    track(NODES_FILE);
+    guard(NODES_FILE, () => {
+      rewriteNodesFile();
+      track(NODES_FILE);
+    });
   }
   if (
     fileIsStale(RESOURCES_FILE, {
@@ -182,8 +209,10 @@ export function normalizeConfigFiles(): string[] {
       extraStale: collectionHasTimestampKeys,
     })
   ) {
-    rewriteResourcePoolsFile();
-    track(RESOURCES_FILE);
+    guard(RESOURCES_FILE, () => {
+      rewriteResourcePoolsFile();
+      track(RESOURCES_FILE);
+    });
   }
 
   return rewritten;

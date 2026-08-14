@@ -106,14 +106,24 @@ test("write refuses to overwrite a file that appeared on disk unseen", () => {
   );
 });
 
-test("an invalid file aborts the directory load", () => {
+test("an invalid file is quarantined while valid records keep serving", () => {
   const store = makeStore();
   store.write({ name: "ok", value: "1" });
   writeFileSync(store.filePath("broken"), "{ nope", "utf8");
   store.reset();
-  assert.throws(store.list, (error: unknown) => {
-    assert.ok(error instanceof ConfigFileError);
-    assert.equal(error.path, store.filePath("broken"));
-    return true;
-  });
+  assert.deepEqual(
+    store.list().map((record) => record.name),
+    ["ok"],
+  );
+  const invalid = store.listInvalidFiles();
+  assert.equal(invalid.length, 1);
+  assert.ok(invalid[0] instanceof ConfigFileError);
+  assert.equal(invalid[0]?.path, store.filePath("broken"));
+  assert.throws(
+    () => store.write({ name: "broken", value: "mine" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ConfigWriteConflictError);
+      return true;
+    },
+  );
 });
