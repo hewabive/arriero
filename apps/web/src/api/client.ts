@@ -19,3 +19,4 @@ export * from "./presets.js";
 export * from "./instances.js";
 export * from "./llama-runtime.js";
 export * from "./logs.js";
+export * from "./benchmark.js";

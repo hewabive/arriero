@@ -18,6 +18,7 @@ export type AppRoute =
   | "source-sync"
   | "system"
   | "prerequisites"
+  | "benchmark"
   | "api-lab";
 
 export type NavLeaf = {
@@ -252,6 +253,13 @@ export const navSections: NavSection[] = [
         title: "Environment prerequisites",
         description:
           "Host tooling this node needs, what each missing piece blocks, and how to install it",
+      },
+      {
+        route: "benchmark",
+        label: "Benchmark",
+        title: "Inference benchmark",
+        description:
+          "Measure decode speed under mixed parallel load with prefill/decode phase attribution",
       },
       {
         route: "api-lab",

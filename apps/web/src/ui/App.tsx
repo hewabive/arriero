@@ -41,6 +41,7 @@ import {
 import { type LaunchMonitor, isLaunchTerminalStatus } from "./utils/launch";
 import { ApiLabView } from "./views/ApiLabView";
 import { ArgumentsView } from "./views/ArgumentsView";
+import { BenchmarkView } from "./views/BenchmarkView";
 import { BuildView } from "./views/BuildView";
 import { ConfigGitView } from "./views/ConfigGitView";
 import { DashboardView } from "./views/DashboardView";
@@ -382,6 +383,8 @@ export function App() {
           )}
 
           {canUseAdmin && route === "args" && <ArgumentsView />}
+
+          {canUseAdmin && route === "benchmark" && <BenchmarkView />}
 
           {canUseAdmin && route === "paths" && <PathCatalogView />}
 
