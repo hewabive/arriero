@@ -200,5 +200,24 @@ export function migrate() {
     sql`CREATE UNIQUE INDEX IF NOT EXISTS memory_assessments_instance ON memory_assessments (instance_id) WHERE instance_id IS NOT NULL`,
   );
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS benchmark_runs (
+      id TEXT PRIMARY KEY NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      finished_at TEXT,
+      instance_id TEXT NOT NULL,
+      label TEXT,
+      scenario_json TEXT NOT NULL,
+      snapshot_json TEXT,
+      warnings_json TEXT NOT NULL,
+      summary_json TEXT,
+      error TEXT
+    )
+  `);
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS benchmark_runs_created ON benchmark_runs (created_at)`,
+  );
+
   db.run(sql`DROP TABLE IF EXISTS llama_argument_help_overrides`);
 }

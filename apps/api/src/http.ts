@@ -13,6 +13,7 @@ import {
 } from "./proxy/protocol-routes.js";
 import { registerArgumentRoutes } from "./routes/arguments.routes.js";
 import { registerAuthRoutes } from "./routes/auth.routes.js";
+import { registerBenchmarkRoutes } from "./routes/benchmark.routes.js";
 import { registerBuildRoutes } from "./routes/build.routes.js";
 import { registerConfigGitRoutes } from "./routes/config-git.routes.js";
 import { registerConfigRoutes } from "./routes/config.routes.js";
@@ -83,6 +84,7 @@ registerPresetRoutes(app);
 registerInstanceRoutes(app);
 registerInstanceLlamaRoutes(app);
 registerInstanceActionRoutes(app);
+registerBenchmarkRoutes(app);
 
 const webDistDir = resolve(
   dirname(fileURLToPath(import.meta.url)),

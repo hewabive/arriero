@@ -101,3 +101,17 @@ export const memoryAssessments = sqliteTable("memory_assessments", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const benchmarkRuns = sqliteTable("benchmark_runs", {
+  id: text("id").primaryKey(),
+  status: text("status").notNull(),
+  createdAt: text("created_at").notNull(),
+  finishedAt: text("finished_at"),
+  instanceId: text("instance_id").notNull(),
+  label: text("label"),
+  scenarioJson: text("scenario_json").notNull(),
+  snapshotJson: text("snapshot_json"),
+  warningsJson: text("warnings_json").notNull(),
+  summaryJson: text("summary_json"),
+  error: text("error"),
+});

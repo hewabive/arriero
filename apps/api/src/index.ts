@@ -30,6 +30,7 @@ import { startMemoryAssessmentAutoLoop } from "./memory-assessment/auto-assess.j
 import { pruneMissingCachedModels } from "./models/cache-repository.js";
 import { listQuarantinedInstanceNames } from "./instances/config-files.js";
 import { listInstances } from "./instances/repository.js";
+import { failInterruptedBenchmarkRuns } from "./benchmark/repository.js";
 import { reconcileProcessRuns } from "./process/reconcile.js";
 import { pruneProcessRunHistory } from "./process/runs-repository.js";
 import {
@@ -110,6 +111,9 @@ const reconciliation = bootStep("reconcile process runs", () =>
   ),
 );
 const prunedProcessRuns = pruneProcessRunHistory();
+const failedBenchmarkRuns = bootStep("fail interrupted benchmark runs", () =>
+  failInterruptedBenchmarkRuns(),
+);
 const prunedTraceHistory = pruneApiProxyTraceHistory();
 const seededStatsTraces = apiProxyStats.seedFromHistory();
 const pendingResume = bootStep("adopt pending stream sessions", () =>
@@ -154,6 +158,7 @@ const server = serve(
         untrackedMachineState,
         reconciliation,
         prunedProcessRuns,
+        failedBenchmarkRuns,
         prunedTraceHistory,
         seededStatsTraces,
         systemMetricsPersistence,
