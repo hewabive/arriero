@@ -115,6 +115,7 @@ export function modelMatchesSearch(model: GgufModel, query: string) {
     model.metadata.quantization,
     model.metadata.sizeLabel,
     model.metadata.basename,
+    model.metadata.nextnPredictLayers ? "mtp" : null,
   ]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(normalized));

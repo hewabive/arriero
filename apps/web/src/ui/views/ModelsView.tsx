@@ -118,6 +118,7 @@ function metaSections(model: GgufModel): DetailSection[] {
     arch.push("Shared experts", m.expertSharedCount);
     arch.push("Expert FFN", m.expertFeedForwardLength);
   }
+  arch.push("MTP layers", m.nextnPredictLayers || null);
   arch.push("FFN length", m.feedForwardLength);
   arch.push("Embedding length", m.embeddingLength);
   arch.push("Pooling", ggufPoolingTypeLabel(m.poolingType));
@@ -233,6 +234,22 @@ function TypeBadge(props: { model: GgufModel }) {
     >
       <Badge color="grape" variant="light">
         MoE
+      </Badge>
+    </Tooltip>
+  );
+}
+
+function MtpBadge(props: { model: GgufModel }) {
+  const mtpLayers = props.model.metadata.nextnPredictLayers;
+  if (!mtpLayers) {
+    return null;
+  }
+  return (
+    <Tooltip
+      label={`${countLabel(mtpLayers, "built-in speculative-decoding layer")} (NextN/MTP)`}
+    >
+      <Badge color="cyan" variant="light" size="sm" style={{ flexShrink: 0 }}>
+        MTP
       </Badge>
     </Tooltip>
   );
@@ -663,6 +680,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
                       {model.metadata.architecture ?? "unknown arch"}
                     </Badge>
                     <TypeBadge model={model} />
+                    <MtpBadge model={model} />
                     <RoleBadge model={model} />
                     <Badge variant="outline">{paramsLabel(model)}</Badge>
                     <Badge variant="outline">
@@ -767,7 +785,10 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
                         </Group>
                       </Table.Td>
                       <Table.Td>
-                        <TypeBadge model={model} />
+                        <Group gap={6} wrap="nowrap">
+                          <TypeBadge model={model} />
+                          <MtpBadge model={model} />
+                        </Group>
                       </Table.Td>
                       <Table.Td>{paramsLabel(model)}</Table.Td>
                       <Table.Td>
