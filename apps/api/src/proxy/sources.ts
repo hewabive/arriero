@@ -42,6 +42,7 @@ function readStoredSources(): StoredSource[] {
 function persistSources(records: StoredSource[]) {
   writeCollection(
     SOURCES_FILE,
+    StoredSourceSchema,
     sortedByKey(records, (item) => item.name),
   );
 }

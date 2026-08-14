@@ -14,7 +14,6 @@ import {
 } from "../process/runs-repository.js";
 import { supervisor } from "../process/supervisor.js";
 import {
-  findInstanceRecordByName,
   getInstanceRecord,
   listInstanceRecords,
   removeInstanceRecord,
@@ -119,7 +118,7 @@ export function getInstance(name: string): Instance | null {
 }
 
 export function createInstance(input: InstanceCreate): Instance {
-  if (findInstanceRecordByName(input.name)) {
+  if (getInstanceRecord(input.name)) {
     throw new InstanceNameConflictError(input.name);
   }
 
@@ -163,7 +162,7 @@ export function updateInstance(
 
   const nextName = input.name ?? current.name;
   if (nextName !== current.name) {
-    if (findInstanceRecordByName(nextName)) {
+    if (getInstanceRecord(nextName)) {
       throw new InstanceNameConflictError(nextName);
     }
     assertInstanceRenameAllowed(current.name);

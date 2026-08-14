@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Hono } from "hono";
 
+import { ConfigBusyError } from "./config-git/busy.js";
 import {
   ConfigFileError,
   ConfigWriteConflictError,
@@ -21,8 +22,20 @@ function makeApp() {
   app.put("/conflict", () => {
     throw new ConfigWriteConflictError("/data/config/resources.json");
   });
+  app.post("/busy", () => {
+    throw new ConfigBusyError(
+      "cannot reload configuration while a build is running",
+    );
+  });
   return app;
 }
+
+test("busy configuration errors map to 409", async () => {
+  const response = await makeApp().request("/busy", { method: "POST" });
+  assert.equal(response.status, 409);
+  const body = (await response.json()) as { error: string };
+  assert.match(body.error, /while a build is running/);
+});
 
 test("write conflicts map to 409", async () => {
   const response = await makeApp().request("/conflict", { method: "PUT" });

@@ -22,8 +22,10 @@ import { z } from "zod";
 
 import { parseModelPresetIni } from "../presets/ini.js";
 import { presetFileHasErrors } from "../presets/validate.js";
+import { validateInstanceRpcWorkers } from "../instances/validation.js";
 import {
   StoredEndpointSchema,
+  managerProxyEndpointId,
   parseRemoteEndpointId,
 } from "../proxy/endpoints.js";
 import {
@@ -121,7 +123,7 @@ function createEndpointRefResolver(context: {
     context.instances.map((item) => [item.name, item]),
   );
   return (id) => {
-    if (id === "manager-proxy") {
+    if (id === managerProxyEndpointId) {
       return "manager";
     }
     const instanceName = instanceIdFromEndpointId(id);
@@ -351,10 +353,11 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
   });
 
   for (const instance of instances) {
-    if (instance.kind === "rpc-worker" && instance.rpcWorkers.length > 0) {
+    const rpcWorkersIssue = validateInstanceRpcWorkers(instance);
+    if (rpcWorkersIssue) {
       issues.push({
         path: `instances/${instance.name}.json`,
-        message: "rpc-worker instances cannot reference other rpc workers",
+        message: rpcWorkersIssue,
       });
     }
   }

@@ -15,21 +15,13 @@ export function registerConfigRoutes(app: Hono) {
   });
 
   app.post("/api/config/reload", (c) => {
-    try {
-      const result = applyConfigFromDisk();
-      if (!result.applied) {
-        return c.json(
-          { error: "configuration on disk is invalid", data: result },
-          400,
-        );
-      }
-      return c.json({ data: result });
-    } catch (error) {
-      const message = (error as Error).message;
-      if (/while a build|while an environment|while a source/.test(message)) {
-        return c.json({ error: message }, 409);
-      }
-      throw error;
+    const result = applyConfigFromDisk();
+    if (!result.applied) {
+      return c.json(
+        { error: "configuration on disk is invalid", data: result },
+        400,
+      );
     }
+    return c.json({ data: result });
   });
 }

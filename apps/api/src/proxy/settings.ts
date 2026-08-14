@@ -21,6 +21,6 @@ export function updateApiProxySettings(
   const next: ApiProxySettings = {
     allowAnonymous: parsed.allowAnonymous ?? current.allowAnonymous,
   };
-  writeObjectFile(SETTINGS_FILE, next);
+  writeObjectFile(SETTINGS_FILE, ApiProxySettingsSchema, next);
   return next;
 }

@@ -44,7 +44,7 @@ export const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
 
 type StoredEndpoint = z.infer<typeof StoredEndpointSchema>;
 
-const managerProxyEndpointId = "manager-proxy";
+export const managerProxyEndpointId = "manager-proxy";
 const REMOTE_ENDPOINT_PREFIX = "remote:";
 
 export { instanceEndpointId };
@@ -77,6 +77,7 @@ function readStoredEndpoints(): StoredEndpoint[] {
 function persistEndpoints(records: StoredEndpoint[]) {
   writeCollection(
     ENDPOINTS_FILE,
+    StoredEndpointSchema,
     sortedByKey(records, (item) => item.name),
   );
 }

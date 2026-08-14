@@ -24,7 +24,7 @@ function processCommandMatchesBinary(pid: number, binaryPath: string) {
 
 export function reconcileProcessRuns(
   instances: Instance[],
-  options: { quarantinedInstanceNames?: Set<string> } = {},
+  quarantinedInstanceNames?: Set<string>,
 ) {
   const runs = listOpenProcessRuns();
   const summary = {
@@ -52,7 +52,7 @@ export function reconcileProcessRuns(
     const instance = instances.find((entry) => entry.name === run.instanceId);
     const snapshot = parseLaunchSnapshot(run.launchSnapshot);
     if (
-      options.quarantinedInstanceNames?.has(run.instanceId) &&
+      quarantinedInstanceNames?.has(run.instanceId) &&
       snapshot?.binaryPath &&
       processCommandMatchesBinary(pid, snapshot.binaryPath)
     ) {

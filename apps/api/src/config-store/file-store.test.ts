@@ -111,19 +111,6 @@ test("per-read store picks up external edits immediately", () => {
   assert.equal(store.read().count, 2);
 });
 
-test("render shapes the serialized document", () => {
-  const store = makeStore("per-read", {
-    render: (value) => ({ path: value.path }),
-  });
-  store.write({ path: "/a", count: 7 });
-  const raw = JSON.parse(readFileSync(store.path, "utf8")) as Record<
-    string,
-    unknown
-  >;
-  assert.deepEqual(raw, { path: "/a" });
-  assert.equal(store.read().count, 0);
-});
-
 test("replaceCachedValue swaps memory without touching disk", () => {
   const store = makeStore("process");
   store.write({ path: "/a", count: 1 });

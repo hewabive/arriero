@@ -17,7 +17,6 @@ export type JsonFileStoreOptions<T> = {
   missing: () => unknown;
   portablePaths: boolean;
   cache: ConfigCacheMode;
-  render?: (value: T) => unknown;
   ensure?: () => void;
 };
 
@@ -112,8 +111,7 @@ export function createJsonFileStore<T>(
     if (loaded && fileMtimeMs(path) !== loaded.mtimeMs) {
       throw new ConfigWriteConflictError(path);
     }
-    const rendered = options.render ? options.render(value) : value;
-    const serialized = portablePaths ? toPortableConfig(rendered) : rendered;
+    const serialized = portablePaths ? toPortableConfig(value) : value;
     atomicWriteFile(path, serializeConfigJson(serialized));
     loaded = { mtimeMs: fileMtimeMs(path) };
     quarantine = null;
@@ -156,7 +154,6 @@ export function createJsonFileStore<T>(
 
   registerConfigStore({
     id,
-    files: () => [path],
     init: () => {
       read();
     },

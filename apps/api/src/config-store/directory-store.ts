@@ -48,9 +48,12 @@ export function createJsonDirectoryStore<T>(
   options: JsonDirectoryStoreOptions<T>,
 ): JsonDirectoryStore<T> {
   const { id, dir, schema, key, portablePaths } = options;
-  let cached: Map<string, T> | null = null;
-  let loadedMtimes: Map<string, number> | null = null;
-  let invalid: Map<string, ConfigFileError> | null = null;
+  type LoadedState = {
+    values: Map<string, T>;
+    mtimes: Map<string, number>;
+    invalid: Map<string, ConfigFileError>;
+  };
+  let state: LoadedState | null = null;
 
   function filePath(name: string): string {
     return resolve(dir, `${name}.json`);
@@ -62,79 +65,73 @@ export function createJsonDirectoryStore<T>(
     return parseConfigValue(path, schema, input);
   }
 
-  function load(): Map<string, T> {
-    if (cached) {
-      return cached;
+  function load(): LoadedState {
+    if (state) {
+      return state;
     }
-    const next = new Map<string, T>();
+    const values = new Map<string, T>();
     const mtimes = new Map<string, number>();
-    const broken = new Map<string, ConfigFileError>();
+    const invalid = new Map<string, ConfigFileError>();
     for (const path of listJsonFiles(dir)) {
       let value: T;
       try {
         value = parseFile(path);
       } catch (error) {
         if (error instanceof ConfigFileError) {
-          broken.set(path, error);
+          invalid.set(path, error);
           continue;
         }
         throw error;
       }
-      next.set(key(value), value);
+      values.set(key(value), value);
       const mtimeMs = fileMtimeMs(path);
       if (mtimeMs !== null) {
         mtimes.set(path, mtimeMs);
       }
     }
-    cached = next;
-    loadedMtimes = mtimes;
-    invalid = broken;
-    return next;
+    state = { values, mtimes, invalid };
+    return state;
   }
 
   function list(): T[] {
-    return [...load().values()];
+    return [...load().values.values()];
   }
 
   function get(name: string): T | null {
-    return load().get(name) ?? null;
+    return load().values.get(name) ?? null;
   }
 
   function listInvalidFiles(): ConfigFileError[] {
-    load();
-    return [...(invalid?.values() ?? [])];
+    return [...load().invalid.values()];
   }
 
   function write(value: T, previousKey?: string): void {
-    const map = load();
+    const loaded = load();
     const name = key(value);
     const path = filePath(name);
-    if (
-      loadedMtimes &&
-      fileMtimeMs(path) !== (loadedMtimes.get(path) ?? null)
-    ) {
+    if (fileMtimeMs(path) !== (loaded.mtimes.get(path) ?? null)) {
       throw new ConfigWriteConflictError(path);
     }
     const serialized = portablePaths ? toPortableConfig(value) : value;
     atomicWriteFile(path, serializeConfigJson(serialized));
     const mtimeMs = fileMtimeMs(path);
     if (mtimeMs !== null) {
-      loadedMtimes?.set(path, mtimeMs);
+      loaded.mtimes.set(path, mtimeMs);
     }
     if (previousKey && previousKey !== name) {
       const previousPath = filePath(previousKey);
       if (existsSync(previousPath)) {
         unlinkSync(previousPath);
       }
-      map.delete(previousKey);
-      loadedMtimes?.delete(previousPath);
+      loaded.values.delete(previousKey);
+      loaded.mtimes.delete(previousPath);
     }
-    map.set(name, value);
+    loaded.values.set(name, value);
   }
 
   function remove(name: string): boolean {
-    const map = load();
-    const value = map.get(name);
+    const loaded = load();
+    const value = loaded.values.get(name);
     if (!value) {
       return false;
     }
@@ -142,15 +139,13 @@ export function createJsonDirectoryStore<T>(
     if (existsSync(path)) {
       unlinkSync(path);
     }
-    map.delete(name);
-    loadedMtimes?.delete(path);
+    loaded.values.delete(name);
+    loaded.mtimes.delete(path);
     return true;
   }
 
   function reset(): void {
-    cached = null;
-    loadedMtimes = null;
-    invalid = null;
+    state = null;
   }
 
   function status(): ConfigStoreFileState[] {
@@ -161,10 +156,11 @@ export function createJsonDirectoryStore<T>(
         disk.set(path, mtimeMs);
       }
     }
-    const paths = new Set([...disk.keys(), ...(loadedMtimes?.keys() ?? [])]);
+    const loaded = state;
+    const paths = new Set([...disk.keys(), ...(loaded?.mtimes.keys() ?? [])]);
     return [...paths].sort().map((path) => {
       const diskMtimeMs = disk.get(path) ?? null;
-      const loadedMtimeMs = loadedMtimes?.get(path) ?? null;
+      const loadedMtimeMs = loaded?.mtimes.get(path) ?? null;
       return {
         storeId: id,
         path,
@@ -172,15 +168,14 @@ export function createJsonDirectoryStore<T>(
         exists: diskMtimeMs !== null,
         diskMtimeMs,
         loadedMtimeMs,
-        dirtyOnDisk: loadedMtimes ? diskMtimeMs !== loadedMtimeMs : null,
-        error: invalid?.get(path)?.message ?? null,
+        dirtyOnDisk: loaded ? diskMtimeMs !== loadedMtimeMs : null,
+        error: loaded?.invalid.get(path)?.message ?? null,
       };
     });
   }
 
   registerConfigStore({
     id,
-    files: () => listJsonFiles(dir),
     init: () => {
       load();
     },

@@ -36,12 +36,6 @@ export function getInstanceRecord(name: string): InstanceConfigRecord | null {
   return store.get(name);
 }
 
-export function findInstanceRecordByName(
-  name: string,
-): InstanceConfigRecord | null {
-  return store.get(name);
-}
-
 export function writeInstanceRecord(
   record: InstanceConfigRecord,
   previousName?: string,

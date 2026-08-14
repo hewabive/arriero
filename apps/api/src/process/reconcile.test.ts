@@ -148,9 +148,7 @@ test("reconcile leaves a matching run of a quarantined instance open", async () 
       snapshotBinaryPath: "/bin/sleep",
     });
 
-    const summary = reconcileProcessRuns([], {
-      quarantinedInstanceNames: new Set(["quarantined-open"]),
-    });
+    const summary = reconcileProcessRuns([], new Set(["quarantined-open"]));
 
     assert.equal(summary.deferred, 1);
     assert.equal(latestProcessRun("quarantined-open")?.status, "running");
@@ -173,9 +171,7 @@ test("reconcile still marks a quarantined run stale on cmdline mismatch", async 
       snapshotBinaryPath: "/opt/llama/llama-server",
     });
 
-    const summary = reconcileProcessRuns([], {
-      quarantinedInstanceNames: new Set(["quarantined-mismatch"]),
-    });
+    const summary = reconcileProcessRuns([], new Set(["quarantined-mismatch"]));
 
     assert.equal(summary.deferred, 0);
     assert.equal(latestProcessRun("quarantined-mismatch")?.status, "stale");

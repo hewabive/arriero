@@ -59,6 +59,7 @@ function readPipelines(): ApiProxyPipelineRecord[] {
 function persistTargets(records: ApiProxyTargetRecord[]) {
   writeCollection(
     TARGETS_FILE,
+    ApiProxyTargetRecordSchema,
     sortedByKey(records, (item) => item.name),
   );
 }
@@ -66,6 +67,7 @@ function persistTargets(records: ApiProxyTargetRecord[]) {
 function persistModels(records: ApiProxyModelRecord[]) {
   writeCollection(
     MODELS_FILE,
+    ApiProxyModelRecordSchema,
     sortedByKey(records, (item) => item.modelId),
   );
 }
@@ -73,6 +75,7 @@ function persistModels(records: ApiProxyModelRecord[]) {
 function persistPipelines(records: ApiProxyPipelineRecord[]) {
   writeCollection(
     PIPELINES_FILE,
+    ApiProxyPipelineRecordSchema,
     sortedByKey(records, (item) => item.name),
   );
 }

@@ -31,10 +31,9 @@ import { dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
 import { normalizeConfigFiles } from "../config-normalize.js";
-import { getActiveJob } from "../jobs/registry.js";
 import { supervisor } from "../process/supervisor.js";
-import { anySourceRepositoryOperationActive } from "../sources/state.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
+import { ConfigBusyError, assertNoBlockingBackgroundWork } from "./busy.js";
 import {
   CONFIG_GITIGNORE_CONTENT,
   MACHINE_STATE_CONFIG_FILES,
@@ -68,23 +67,11 @@ function assertConfigContentCanChange() {
     .listStates()
     .filter((state) => isActiveProcessStatus(state.status));
   if (activeInstances.length > 0) {
-    throw new Error(
+    throw new ConfigBusyError(
       `stop managed processes before changing configuration: ${activeInstances.map((item) => item.instanceId).join(", ")}`,
     );
   }
-  if (getActiveJob("build")) {
-    throw new Error("cannot change configuration while a build is running");
-  }
-  if (getActiveJob("envs")) {
-    throw new Error(
-      "cannot change configuration while an environment install is running",
-    );
-  }
-  if (anySourceRepositoryOperationActive()) {
-    throw new Error(
-      "cannot change configuration while a source repository operation is running",
-    );
-  }
+  assertNoBlockingBackgroundWork("change");
 }
 
 async function assertClean() {

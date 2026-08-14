@@ -11,6 +11,7 @@ import {
 } from "@arriero/core";
 import type { Context, Hono } from "hono";
 
+import { ConfigBusyError } from "../config-git/busy.js";
 import {
   checkoutConfigCommit,
   cloneConfigRepository,
@@ -40,15 +41,10 @@ async function input(c: Context) {
 }
 
 function failure(c: Context, error: unknown) {
-  const message = (error as Error).message;
-  if (
-    /already running|while a build|while an environment|while a source|stop managed/.test(
-      message,
-    )
-  ) {
-    return c.json({ error: message }, 409);
+  if (error instanceof ConfigBusyError) {
+    throw error;
   }
-  return c.json({ error: message }, 400);
+  return c.json({ error: (error as Error).message }, 400);
 }
 
 export function registerConfigGitRoutes(app: Hono) {

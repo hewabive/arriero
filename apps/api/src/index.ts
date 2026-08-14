@@ -104,9 +104,10 @@ const prunedModelCache = bootStep("prune missing cached models", () =>
   pruneMissingCachedModels(),
 );
 const reconciliation = bootStep("reconcile process runs", () =>
-  reconcileProcessRuns(listInstances(), {
-    quarantinedInstanceNames: new Set(listQuarantinedInstanceNames()),
-  }),
+  reconcileProcessRuns(
+    listInstances(),
+    new Set(listQuarantinedInstanceNames()),
+  ),
 );
 const prunedProcessRuns = pruneProcessRunHistory();
 const prunedTraceHistory = pruneApiProxyTraceHistory();

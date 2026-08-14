@@ -7,6 +7,7 @@ import {
 } from "@arriero/core";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import type { z } from "zod";
 
 import { config } from "../config.js";
 import { sqlite } from "../db/index.js";
@@ -61,15 +62,19 @@ function nullableNumber(value: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function exportIfAbsent(fileName: string, build: () => unknown[]) {
+function exportIfAbsent<T>(
+  fileName: string,
+  schema: z.ZodType<T>,
+  build: () => T[],
+) {
   if (existsSync(resolve(config.proxyConfigDir, fileName))) {
     return;
   }
-  writeCollection(fileName, build());
+  writeCollection(fileName, schema, build());
 }
 
 function exportTargets() {
-  exportIfAbsent(TARGETS_FILE, () =>
+  exportIfAbsent(TARGETS_FILE, ApiProxyTargetRecordSchema, () =>
     (sqlite.prepare("SELECT * FROM api_proxy_targets").all() as any[]).map(
       (row) =>
         ApiProxyTargetRecordSchema.parse({
@@ -91,7 +96,7 @@ function exportTargets() {
 }
 
 function exportModels() {
-  exportIfAbsent(MODELS_FILE, () =>
+  exportIfAbsent(MODELS_FILE, ApiProxyModelRecordSchema, () =>
     (sqlite.prepare("SELECT * FROM api_proxy_models").all() as any[]).map(
       (row) =>
         ApiProxyModelRecordSchema.parse({
@@ -111,7 +116,7 @@ function exportModels() {
 }
 
 function exportPipelines() {
-  exportIfAbsent(PIPELINES_FILE, () =>
+  exportIfAbsent(PIPELINES_FILE, ApiProxyPipelineRecordSchema, () =>
     (sqlite.prepare("SELECT * FROM api_proxy_pipelines").all() as any[]).map(
       (row) =>
         ApiProxyPipelineRecordSchema.parse(
@@ -147,7 +152,7 @@ function migrateLegacyAuth(row: any): {
 
 function exportEndpoints() {
   const rows = sqlite.prepare("SELECT * FROM api_endpoints").all() as any[];
-  exportIfAbsent(ENDPOINTS_FILE, () =>
+  exportIfAbsent(ENDPOINTS_FILE, StoredEndpointSchema, () =>
     rows.map((row) =>
       StoredEndpointSchema.parse({
         id: row.id,

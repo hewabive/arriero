@@ -378,10 +378,9 @@ function SourceRepositoryPanel({
   });
 
   const settingsMutation = useMutation({
-    mutationFn: ({ originUrl }: { originUrl: string; onSaved: () => void }) =>
+    mutationFn: (originUrl: string) =>
       updateSourceRepositorySettings(repository.spec.id, { originUrl }),
-    onSuccess: async (response, variables) => {
-      variables.onSaved();
+    onSuccess: async (response) => {
       await invalidateSourceQueries(queryClient, repository.spec.id);
       notifications.show({
         title: "Origin updated",
@@ -505,7 +504,7 @@ function SourceRepositoryPanel({
           busy={busy}
           saving={settingsMutation.isPending}
           onSave={(originUrl, onSaved) =>
-            settingsMutation.mutate({ originUrl, onSaved })
+            settingsMutation.mutate(originUrl, { onSuccess: onSaved })
           }
         />
 

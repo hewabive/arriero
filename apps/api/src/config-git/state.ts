@@ -1,3 +1,5 @@
+import { ConfigBusyError } from "./busy.js";
+
 let activeOperation: string | null = null;
 
 export function getActiveConfigGitOperation(): string | null {
@@ -9,7 +11,9 @@ export async function withConfigGitOperation<T>(
   run: () => Promise<T>,
 ): Promise<T> {
   if (activeOperation) {
-    throw new Error(`config git operation already running: ${activeOperation}`);
+    throw new ConfigBusyError(
+      `config git operation already running: ${activeOperation}`,
+    );
   }
   activeOperation = operation;
   try {

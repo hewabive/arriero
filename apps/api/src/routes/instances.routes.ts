@@ -30,6 +30,7 @@ import {
 } from "../instances/repository.js";
 import { InstanceRenameBlockedError } from "../instances/rename.js";
 import { instanceResourceProfiles } from "../instances/resource-profile.js";
+import { validateInstanceRpcWorkers } from "../instances/validation.js";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { getInstanceHealthSummary } from "../process/health-summary.js";
 import {
@@ -75,20 +76,6 @@ function validateInstanceMemoryRefs(input: {
     if (!getMemoryPool(draw.poolId)) {
       return `memory pool not found: ${draw.poolId}`;
     }
-  }
-  return null;
-}
-
-function validateInstanceRpcWorkers(input: {
-  kind?: InstanceKind | undefined;
-  rpcWorkers?: RpcWorkerRef[] | undefined;
-}) {
-  if (
-    input.kind === "rpc-worker" &&
-    input.rpcWorkers &&
-    input.rpcWorkers.length > 0
-  ) {
-    return "rpc-worker instances cannot reference other rpc workers";
   }
   return null;
 }

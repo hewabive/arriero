@@ -4,6 +4,7 @@ import {
   type ArgumentDefaults,
 } from "@arriero/core";
 import { copyFileSync, existsSync, writeFileSync } from "node:fs";
+import type { z } from "zod";
 
 import { config } from "../config.js";
 import {
@@ -27,16 +28,21 @@ function ensureFile() {
   writeFileSync(filePath, serializeConfigJson({ instance: [] }), "utf8");
 }
 
-const store = createJsonFileStore<ArgumentDefaults>({
-  id: "argument-defaults",
-  path: filePath,
-  schema: ArgumentDefaultsSchema,
-  missing: () => ({ instance: [] }),
-  portablePaths: true,
-  cache: "process",
-  render: (value) => ({ instance: value.instance }),
-  ensure: ensureFile,
+const StoredArgumentDefaultsSchema = ArgumentDefaultsSchema.pick({
+  instance: true,
 });
+
+const store = createJsonFileStore<z.infer<typeof StoredArgumentDefaultsSchema>>(
+  {
+    id: "argument-defaults",
+    path: filePath,
+    schema: StoredArgumentDefaultsSchema,
+    missing: () => ({ instance: [] }),
+    portablePaths: true,
+    cache: "process",
+    ensure: ensureFile,
+  },
+);
 
 function normalizeDefaults(defaults: ArgumentDefault[]) {
   const seen = new Set<string>();
@@ -57,12 +63,12 @@ function normalizeDefaults(defaults: ArgumentDefault[]) {
 }
 
 export function getArgumentDefaults(): ArgumentDefaults {
-  const parsed = store.read();
+  const stored = store.read();
   const mtimeMs = fileMtimeMs(filePath);
-  return ArgumentDefaultsSchema.parse({
-    instance: parsed.instance,
+  return {
+    instance: stored.instance,
     updatedAt: mtimeMs !== null ? new Date(mtimeMs).toISOString() : null,
-  });
+  };
 }
 
 export function resetArgumentDefaultsCache() {
@@ -73,9 +79,6 @@ export function saveArgumentDefaults(
   input: ArgumentDefaults,
 ): ArgumentDefaults {
   const parsed = ArgumentDefaultsSchema.parse(input);
-  store.write({
-    instance: normalizeDefaults(parsed.instance),
-    updatedAt: null,
-  });
+  store.write({ instance: normalizeDefaults(parsed.instance) });
   return getArgumentDefaults();
 }

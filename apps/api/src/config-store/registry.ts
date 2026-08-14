@@ -4,7 +4,6 @@ import { ConfigFileError } from "./errors.js";
 
 export type ConfigStoreRegistration = {
   id: string;
-  files: () => string[];
   init: () => void;
   reset: () => void;
   status: () => ConfigStoreFileState[];

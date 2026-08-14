@@ -374,21 +374,36 @@ export function ConfigGitView() {
     return <Text c="dimmed">Loading configuration repository…</Text>;
   }
 
+  const storeFilesAlerts = (
+    <>
+      <StoreFilesAlert
+        files={erroredStoreFiles}
+        configDir={status.configDir}
+        onApply={() => reloadMutation.mutate()}
+        applying={reloadMutation.isPending}
+        color="red"
+        title="Configuration files failed to load"
+        lead="These files are quarantined: the running manager keeps serving the last valid state and dependent requests fail until they are fixed. Repair the files, then apply."
+        buttonLabel="Validate and apply"
+        showErrors
+      />
+      <StoreFilesAlert
+        files={dirtyStoreFiles}
+        configDir={status.configDir}
+        onApply={() => reloadMutation.mutate()}
+        applying={reloadMutation.isPending}
+        color="yellow"
+        title="Configuration files changed on disk"
+        lead="The running manager still serves the previously loaded configuration. Apply validates the whole tree first and activates it only when every file passes."
+        buttonLabel="Apply changes from disk"
+      />
+    </>
+  );
+
   if (!status.isGitRepo) {
     return (
       <Stack gap="md">
-        <QuarantinedStoreFilesAlert
-          files={erroredStoreFiles}
-          configDir={status.configDir}
-          onApply={() => reloadMutation.mutate()}
-          applying={reloadMutation.isPending}
-        />
-        <DirtyStoreFilesAlert
-          files={dirtyStoreFiles}
-          configDir={status.configDir}
-          onApply={() => reloadMutation.mutate()}
-          applying={reloadMutation.isPending}
-        />
+        {storeFilesAlerts}
         <Alert color="blue" title="Configuration is not under version control">
           Initialize keeps the current files and starts tracking them locally;
           origin can be added later. Clone discards the current files and adopts
@@ -503,18 +518,7 @@ export function ConfigGitView() {
   return (
     <Stack gap="md">
       {status.error && <Alert color="red">{status.error}</Alert>}
-      <QuarantinedStoreFilesAlert
-        files={erroredStoreFiles}
-        configDir={status.configDir}
-        onApply={() => reloadMutation.mutate()}
-        applying={reloadMutation.isPending}
-      />
-      <DirtyStoreFilesAlert
-        files={dirtyStoreFiles}
-        configDir={status.configDir}
-        onApply={() => reloadMutation.mutate()}
-        applying={reloadMutation.isPending}
-      />
+      {storeFilesAlerts}
       {validation && !validation.valid && (
         <Alert color="red" title="Configuration validation failed">
           <Stack gap={2}>
@@ -1131,87 +1135,61 @@ export function ConfigGitView() {
   );
 }
 
-function QuarantinedStoreFilesAlert({
-  files,
-  configDir,
-  onApply,
-  applying,
-}: {
-  files: ConfigStoreFileState[];
-  configDir: string;
-  onApply: () => void;
-  applying: boolean;
-}) {
-  if (files.length === 0) {
-    return null;
-  }
-  const displayPath = (path: string) =>
-    path.startsWith(`${configDir}/`) ? path.slice(configDir.length + 1) : path;
-  return (
-    <Alert color="red" title="Configuration files failed to load">
-      <Stack gap={4}>
-        <Text size="sm">
-          These files are quarantined: the running manager keeps serving the
-          last valid state and dependent requests fail until they are fixed.
-          Repair the files, then apply.
-        </Text>
-        {files.map((file) => (
-          <Text key={file.path} size="sm">
-            <Code>{displayPath(file.path)}</Code> {file.error}
-          </Text>
-        ))}
-        <Group justify="flex-end">
-          <Button
-            size="xs"
-            color="red"
-            variant="light"
-            loading={applying}
-            onClick={onApply}
-          >
-            Validate and apply
-          </Button>
-        </Group>
-      </Stack>
-    </Alert>
-  );
+function storeFileDisplayPath(path: string, configDir: string) {
+  return path.startsWith(`${configDir}/`)
+    ? path.slice(configDir.length + 1)
+    : path;
 }
 
-function DirtyStoreFilesAlert({
+function StoreFilesAlert({
   files,
   configDir,
   onApply,
   applying,
+  color,
+  title,
+  lead,
+  buttonLabel,
+  showErrors,
 }: {
   files: ConfigStoreFileState[];
   configDir: string;
   onApply: () => void;
   applying: boolean;
+  color: string;
+  title: string;
+  lead: string;
+  buttonLabel: string;
+  showErrors?: boolean;
 }) {
   if (files.length === 0) {
     return null;
   }
-  const displayPath = (path: string) =>
-    path.startsWith(`${configDir}/`) ? path.slice(configDir.length + 1) : path;
   return (
-    <Alert color="yellow" title="Configuration files changed on disk">
+    <Alert color={color} title={title}>
       <Stack gap={4}>
-        <Text size="sm">
-          The running manager still serves the previously loaded configuration.
-          Apply validates the whole tree first and activates it only when every
-          file passes.
-        </Text>
-        {files.map((file) => (
-          <Code key={file.path}>{displayPath(file.path)}</Code>
-        ))}
+        <Text size="sm">{lead}</Text>
+        {files.map((file) =>
+          showErrors ? (
+            <Text key={file.path} size="sm">
+              <Code>{storeFileDisplayPath(file.path, configDir)}</Code>{" "}
+              {file.error}
+            </Text>
+          ) : (
+            <Code key={file.path}>
+              {storeFileDisplayPath(file.path, configDir)}
+            </Code>
+          ),
+        )}
         <Group justify="flex-end">
           <Button
             size="xs"
-            color="yellow"
+            color={color}
             variant="light"
             loading={applying}
             onClick={onApply}
           >
-            Apply changes from disk
+            {buttonLabel}
           </Button>
         </Group>
       </Stack>

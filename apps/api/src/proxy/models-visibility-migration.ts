@@ -44,5 +44,5 @@ export function migrateModelVisibility(): void {
         : record,
     ),
   );
-  writeCollection(MODELS_FILE, upgraded);
+  writeCollection(MODELS_FILE, ApiProxyModelRecordSchema, upgraded);
 }

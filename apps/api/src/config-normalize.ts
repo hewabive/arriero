@@ -88,6 +88,11 @@ function fileIsStale(path: string, check: StaleCheck): boolean {
   return check.extraStale?.(json) ?? false;
 }
 
+const collectionCheck: StaleCheck = {
+  portable: false,
+  extraStale: collectionHasTimestampKeys,
+};
+
 export function normalizeConfigFiles(): string[] {
   const rewritten: string[] = [];
   const track = (path: string) => {
@@ -103,30 +108,49 @@ export function normalizeConfigFiles(): string[] {
       );
     }
   };
+  const normalize = (path: string, check: StaleCheck, rewrite: () => void) => {
+    if (!fileIsStale(path, check)) {
+      return;
+    }
+    guard(path, () => {
+      rewrite();
+      track(path);
+    });
+  };
 
-  if (
-    fileIsStale(config.settingsFile, {
-      portable: true,
-      extraStale: settingsHasTimestampKeys,
-    })
-  ) {
-    guard(config.settingsFile, () => {
-      writeSettings(readSettings());
-      track(config.settingsFile);
-    });
+  const singleFileRewrites: [string, StaleCheck, () => void][] = [
+    [
+      config.settingsFile,
+      { portable: true, extraStale: settingsHasTimestampKeys },
+      () => writeSettings(readSettings()),
+    ],
+    [
+      config.argumentDefaultsFile,
+      { portable: true },
+      () => saveArgumentDefaults(getArgumentDefaults()),
+    ],
+    [
+      PATH_CATALOG_FILE,
+      { portable: true },
+      () => seedPathCatalog(listPathCatalogEntries()),
+    ],
+    [
+      resolve(config.proxyConfigDir, ENDPOINTS_FILE),
+      collectionCheck,
+      rewriteStoredEndpoints,
+    ],
+    [
+      resolve(config.proxyConfigDir, SOURCES_FILE),
+      collectionCheck,
+      rewriteStoredSources,
+    ],
+    [NODES_FILE, collectionCheck, rewriteNodesFile],
+    [RESOURCES_FILE, collectionCheck, rewriteResourcePoolsFile],
+  ];
+  for (const [path, check, rewrite] of singleFileRewrites) {
+    normalize(path, check, rewrite);
   }
-  if (fileIsStale(config.argumentDefaultsFile, { portable: true })) {
-    guard(config.argumentDefaultsFile, () => {
-      saveArgumentDefaults(getArgumentDefaults());
-      track(config.argumentDefaultsFile);
-    });
-  }
-  if (fileIsStale(PATH_CATALOG_FILE, { portable: true })) {
-    guard(PATH_CATALOG_FILE, () => {
-      seedPathCatalog(listPathCatalogEntries());
-      track(PATH_CATALOG_FILE);
-    });
-  }
+
   if (existsSync(config.instancesDir)) {
     for (const entry of readdirSync(config.instancesDir, {
       withFileTypes: true,
@@ -155,10 +179,7 @@ export function normalizeConfigFiles(): string[] {
     MODELS_FILE,
     PIPELINES_FILE,
   ].filter((name) =>
-    fileIsStale(resolve(config.proxyConfigDir, name), {
-      portable: false,
-      extraStale: collectionHasTimestampKeys,
-    }),
+    fileIsStale(resolve(config.proxyConfigDir, name), collectionCheck),
   );
   if (staleProxyCollections.length > 0) {
     guard(resolve(config.proxyConfigDir, TARGETS_FILE), () => {
@@ -166,52 +187,6 @@ export function normalizeConfigFiles(): string[] {
       for (const name of staleProxyCollections) {
         track(resolve(config.proxyConfigDir, name));
       }
-    });
-  }
-  const endpointsPath = resolve(config.proxyConfigDir, ENDPOINTS_FILE);
-  if (
-    fileIsStale(endpointsPath, {
-      portable: false,
-      extraStale: collectionHasTimestampKeys,
-    })
-  ) {
-    guard(endpointsPath, () => {
-      rewriteStoredEndpoints();
-      track(endpointsPath);
-    });
-  }
-  const sourcesPath = resolve(config.proxyConfigDir, SOURCES_FILE);
-  if (
-    fileIsStale(sourcesPath, {
-      portable: false,
-      extraStale: collectionHasTimestampKeys,
-    })
-  ) {
-    guard(sourcesPath, () => {
-      rewriteStoredSources();
-      track(sourcesPath);
-    });
-  }
-  if (
-    fileIsStale(NODES_FILE, {
-      portable: false,
-      extraStale: collectionHasTimestampKeys,
-    })
-  ) {
-    guard(NODES_FILE, () => {
-      rewriteNodesFile();
-      track(NODES_FILE);
-    });
-  }
-  if (
-    fileIsStale(RESOURCES_FILE, {
-      portable: false,
-      extraStale: collectionHasTimestampKeys,
-    })
-  ) {
-    guard(RESOURCES_FILE, () => {
-      rewriteResourcePoolsFile();
-      track(RESOURCES_FILE);
     });
   }
 

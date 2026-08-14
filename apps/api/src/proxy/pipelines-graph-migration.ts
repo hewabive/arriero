@@ -45,5 +45,5 @@ export function migratePipelinesToGraphFormat(): void {
   const upgraded = raw.map((record) =>
     ApiProxyPipelineRecordSchema.parse(upgradeLegacyApiProxyPipeline(record)),
   );
-  writeCollection(PIPELINES_FILE, upgraded);
+  writeCollection(PIPELINES_FILE, ApiProxyPipelineRecordSchema, upgraded);
 }

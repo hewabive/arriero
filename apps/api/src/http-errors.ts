@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
+import { ConfigBusyError } from "./config-git/busy.js";
 import {
   ConfigFileError,
   ConfigWriteConflictError,
@@ -22,7 +23,10 @@ export function registerErrorHandler(app: Hono) {
         503,
       );
     }
-    if (error instanceof ConfigWriteConflictError) {
+    if (
+      error instanceof ConfigWriteConflictError ||
+      error instanceof ConfigBusyError
+    ) {
       return c.json({ error: error.message }, 409);
     }
     if (error instanceof SyntaxError) {
