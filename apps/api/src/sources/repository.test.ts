@@ -12,6 +12,7 @@ import { pathToFileURL } from "node:url";
 import { beforeEach, test } from "node:test";
 
 import { config } from "../config.js";
+import { resetSettingsCache } from "../settings/store.js";
 import {
   createLlamaOriginRepository,
   runFixtureGit,
@@ -40,6 +41,7 @@ function resetSettings(value: unknown = {}) {
     `${JSON.stringify(value, null, 2)}\n`,
     "utf8",
   );
+  resetSettingsCache();
 }
 
 function managedSettings() {

@@ -3,7 +3,10 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { getArgumentDefaults } from "./arguments/defaults-repository.js";
+import {
+  getArgumentDefaults,
+  resetArgumentDefaultsCache,
+} from "./arguments/defaults-repository.js";
 import { config } from "./config.js";
 import { normalizeConfigFiles } from "./config-normalize.js";
 import {
@@ -16,7 +19,7 @@ import {
   resetPathCatalogCache,
 } from "./path-catalog/repository.js";
 import { resetConfigFilesCache } from "./proxy/config-files.js";
-import { readSettings } from "./settings/store.js";
+import { readSettings, resetSettingsCache } from "./settings/store.js";
 
 const binaryPath = resolve(config.buildsDir, "master/bin/llama-server");
 const modelPath = resolve(config.modelsDir, "demo/model.gguf");
@@ -64,6 +67,8 @@ function seedAbsolutePathConfig() {
   });
   resetInstancesCache();
   resetPathCatalogCache();
+  resetSettingsCache();
+  resetArgumentDefaultsCache();
 }
 
 function cleanup() {
@@ -75,6 +80,8 @@ function cleanup() {
   resetInstancesCache();
   resetPathCatalogCache();
   resetConfigFilesCache();
+  resetSettingsCache();
+  resetArgumentDefaultsCache();
 }
 
 test("rewrites stored absolute paths as placeholders and keeps reads absolute", (t) => {
@@ -223,6 +230,7 @@ test("survives an application directory rename", (t) => {
   config.modelsDir = resolve(movedRuntimeDir, "models");
   resetInstancesCache();
   resetPathCatalogCache();
+  resetSettingsCache();
 
   const record = listInstanceRecords().find((item) => item.name === "demo");
   assert.equal(

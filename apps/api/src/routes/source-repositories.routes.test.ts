@@ -5,6 +5,7 @@ import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
 
 import { config } from "../config.js";
+import { resetSettingsCache } from "../settings/store.js";
 import { createLlamaOriginRepository } from "../test/llama-origin.js";
 import { resetSourceRepositoryOperationJobsForTests } from "../sources/jobs.js";
 import { registerLlamaSourceRoutes } from "./llama-source.routes.js";
@@ -40,6 +41,7 @@ beforeEach(() => {
     )}\n`,
     "utf8",
   );
+  resetSettingsCache();
 });
 
 function createLlamaOrigin() {

@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { config } from "../config.js";
+import { resetSettingsCache } from "../settings/store.js";
 import {
   getLlamaSourceSyncReport,
   parseRpcServerUsageFlags,
@@ -112,6 +113,7 @@ test("missing checkout is unavailable rather than in sync", async () => {
       2,
     )}\n`,
   );
+  resetSettingsCache();
   const report = await getLlamaSourceSyncReport();
   assert.equal(report.status, "unavailable");
   assert.equal(report.repository.state, "missing");

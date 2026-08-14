@@ -5,7 +5,7 @@ import type { ConfigStoreFileState } from "@arriero/core";
 
 import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
-import { ConfigFileError } from "./errors.js";
+import { ConfigFileError, ConfigWriteConflictError } from "./errors.js";
 import { registerConfigStore } from "./registry.js";
 
 export type ConfigCacheMode = "process" | "per-read";
@@ -95,6 +95,9 @@ export function createJsonFileStore<T>(
   }
 
   function write(value: T): void {
+    if (loaded && fileMtimeMs(path) !== loaded.mtimeMs) {
+      throw new ConfigWriteConflictError(path);
+    }
     const rendered = options.render ? options.render(value) : value;
     const serialized = portablePaths ? toPortableConfig(rendered) : rendered;
     atomicWriteFile(path, serializeConfigJson(serialized));

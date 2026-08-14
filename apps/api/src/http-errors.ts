@@ -1,7 +1,10 @@
 import type { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
-import { ConfigFileError } from "./config-store/errors.js";
+import {
+  ConfigFileError,
+  ConfigWriteConflictError,
+} from "./config-store/errors.js";
 import { logger } from "./logger.js";
 
 export function registerErrorHandler(app: Hono) {
@@ -18,6 +21,9 @@ export function registerErrorHandler(app: Hono) {
         { error: { message: error.message, configFile: error.path } },
         500,
       );
+    }
+    if (error instanceof ConfigWriteConflictError) {
+      return c.json({ error: error.message }, 409);
     }
     if (error instanceof SyntaxError) {
       return c.json({ error: "invalid JSON body" }, 400);

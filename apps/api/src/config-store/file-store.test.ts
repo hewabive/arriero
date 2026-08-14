@@ -11,7 +11,7 @@ import { after, test } from "node:test";
 import { z } from "zod";
 
 import { config } from "../config.js";
-import { ConfigFileError } from "./errors.js";
+import { ConfigFileError, ConfigWriteConflictError } from "./errors.js";
 import {
   createJsonFileStore,
   type ConfigCacheMode,
@@ -173,6 +173,40 @@ test("status stays unknown before the first load", () => {
   );
   assert.equal(stateFor(store).dirtyOnDisk, null);
   assert.equal(stateFor(store).loadedMtimeMs, null);
+});
+
+test("write refuses to clobber a file edited on disk since load", () => {
+  const store = makeStore("process");
+  store.write({ path: "/a", count: 1 });
+  const future = new Date(Date.now() + 5_000);
+  utimesSync(store.path, future, future);
+  assert.throws(
+    () => store.write({ path: "/a", count: 2 }),
+    (error: unknown) => {
+      assert.ok(error instanceof ConfigWriteConflictError);
+      assert.equal(error.path, store.path);
+      return true;
+    },
+  );
+  assert.equal(
+    (JSON.parse(readFileSync(store.path, "utf8")) as { count: number }).count,
+    1,
+  );
+  store.reset();
+  store.read();
+  store.write({ path: "/a", count: 2 });
+  assert.equal(store.read().count, 2);
+});
+
+test("write without a prior load stays a blind replace", () => {
+  const store = makeStore("process");
+  writeFileSync(
+    store.path,
+    `${JSON.stringify({ path: "/pre", count: 9 })}\n`,
+    "utf8",
+  );
+  store.write({ path: "/a", count: 1 });
+  assert.equal(store.read().count, 1);
 });
 
 test("status reports dirty when a loaded file disappears", () => {

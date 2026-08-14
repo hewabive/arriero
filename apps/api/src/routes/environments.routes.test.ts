@@ -4,6 +4,7 @@ import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
 
 import { config } from "../config.js";
+import { resetSettingsCache } from "../settings/store.js";
 import { resetEnvironmentRepository } from "../envs/repository.js";
 import { registerEnvironmentRoutes } from "./environments.routes.js";
 
@@ -26,6 +27,7 @@ beforeEach(() => {
     )}\n`,
     "utf8",
   );
+  resetSettingsCache();
 });
 
 test("environment repository settings default to uv sources", async () => {

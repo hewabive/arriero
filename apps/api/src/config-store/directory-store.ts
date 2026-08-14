@@ -6,6 +6,7 @@ import type { ConfigStoreFileState } from "@arriero/core";
 
 import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
+import { ConfigWriteConflictError } from "./errors.js";
 import {
   fileMtimeMs,
   parseConfigJson,
@@ -90,6 +91,12 @@ export function createJsonDirectoryStore<T>(
     const map = load();
     const name = key(value);
     const path = filePath(name);
+    if (
+      loadedMtimes &&
+      fileMtimeMs(path) !== (loadedMtimes.get(path) ?? null)
+    ) {
+      throw new ConfigWriteConflictError(path);
+    }
     const serialized = portablePaths ? toPortableConfig(value) : value;
     atomicWriteFile(path, serializeConfigJson(serialized));
     const mtimeMs = fileMtimeMs(path);

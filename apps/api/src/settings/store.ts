@@ -16,7 +16,7 @@ const store = createJsonFileStore<AppSettingsFile>({
   schema: AppSettingsFileSchema,
   missing: () => ({}),
   portablePaths: true,
-  cache: "per-read",
+  cache: "process",
 });
 
 function ensureFile() {
@@ -44,4 +44,8 @@ export function writeSettings(next: AppSettingsFile): AppSettingsFile {
 export function initAppSettings() {
   ensureFile();
   readSettings();
+}
+
+export function resetSettingsCache() {
+  store.reset();
 }

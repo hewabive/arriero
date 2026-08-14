@@ -21,7 +21,7 @@ const store = createJsonFileStore<ArgumentDefaults>({
   schema: ArgumentDefaultsSchema,
   missing: () => ({ instance: [] }),
   portablePaths: true,
-  cache: "per-read",
+  cache: "process",
   render: (value) => ({ instance: value.instance }),
 });
 
@@ -66,6 +66,10 @@ export function getArgumentDefaults(): ArgumentDefaults {
     instance: parsed.instance,
     updatedAt: statSync(filePath).mtime.toISOString(),
   });
+}
+
+export function resetArgumentDefaultsCache() {
+  store.reset();
 }
 
 export function saveArgumentDefaults(

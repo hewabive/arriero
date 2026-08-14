@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Hono } from "hono";
 
-import { ConfigFileError } from "./config-store/errors.js";
+import {
+  ConfigFileError,
+  ConfigWriteConflictError,
+} from "./config-store/errors.js";
 import { registerErrorHandler } from "./http-errors.js";
 
 function makeApp() {
@@ -15,8 +18,18 @@ function makeApp() {
   app.get("/boom", () => {
     throw new Error("nope");
   });
+  app.put("/conflict", () => {
+    throw new ConfigWriteConflictError("/data/config/resources.json");
+  });
   return app;
 }
+
+test("write conflicts map to 409", async () => {
+  const response = await makeApp().request("/conflict", { method: "PUT" });
+  assert.equal(response.status, 409);
+  const body = (await response.json()) as { error: string };
+  assert.match(body.error, /changed on disk since it was loaded/);
+});
 
 test("config file errors surface the failing file", async () => {
   const response = await makeApp().request("/config-error");
