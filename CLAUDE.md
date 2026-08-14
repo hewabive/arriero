@@ -105,7 +105,9 @@ footprint from GGUF + args) + `memory-assessment` (per-engine analytical/measure
 fingerprint drift + background auto-assess loop that auto-binds analytical / auto-captures measured
 evidence for unassessed or stale instances — never touches `mismatch`, never applies draws,
 `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
-1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `filesystem` ·
+1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `benchmark` (inference-speed benchmark: engine-agnostic SSE-timed requests against an
+instance endpoint, prefill/decode phase segmentation, per-topic speculative-acceptance metrics,
+built-in + custom prompt library, `docs/BENCHMARK.md`) · `filesystem` ·
 `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`) · `update` (manager
 version/run-mode + UI self-update runner, `docs/SELF_UPDATE.md`) · `prerequisites` (host-tooling
 registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITES.md`) ·
@@ -396,6 +398,8 @@ extract owns flags/group/choices/default, so their frontmatter carries just
   preemption restore). In-memory map + atomic write-through (`proxy/runtime-metadata-store.ts`);
   rebuildable, not git-tracked. `lastRequestAt` is memory-only.
 - `data/config/` (= `ARRIERO_CONFIG_DIR`): file-backed portable config — see above.
+- `data/benchmarks/<runId>/`: benchmark-run artifacts (`events.jsonl`, `result.json`), deleted with
+  the run; the run record itself is the `benchmark_runs` table.
 - `data/proxy-requests/`: per-request artifact files (opt-in via pipeline nodes like
   `capture-request`), one dir per request `<model>/<timestamp>-<traceId>/<NN>-<kind>.json` (inbound
   proxy model id, sanitized); metadata lands in `trace.files`, content served by
