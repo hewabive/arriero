@@ -71,15 +71,20 @@ function settingsHasTimestampKeys(json: unknown): boolean {
   return hasTimestampKeys(settings.llamaSource);
 }
 
-function fileIsStale(
-  path: string,
-  extraStale?: (json: unknown) => boolean,
-): boolean {
+type StaleCheck = {
+  portable: boolean;
+  extraStale?: (json: unknown) => boolean;
+};
+
+function fileIsStale(path: string, check: StaleCheck): boolean {
   const json = readJsonFile(path);
-  return (
-    json !== undefined &&
-    (hasPortablePathCandidate(json) || (extraStale?.(json) ?? false))
-  );
+  if (json === undefined) {
+    return false;
+  }
+  if (check.portable && hasPortablePathCandidate(json)) {
+    return true;
+  }
+  return check.extraStale?.(json) ?? false;
 }
 
 export function normalizeConfigFiles(): string[] {
@@ -88,15 +93,20 @@ export function normalizeConfigFiles(): string[] {
     rewritten.push(relative(config.configDir, path));
   };
 
-  if (fileIsStale(config.settingsFile, settingsHasTimestampKeys)) {
+  if (
+    fileIsStale(config.settingsFile, {
+      portable: true,
+      extraStale: settingsHasTimestampKeys,
+    })
+  ) {
     writeSettings(readSettings());
     track(config.settingsFile);
   }
-  if (fileIsStale(config.argumentDefaultsFile)) {
+  if (fileIsStale(config.argumentDefaultsFile, { portable: true })) {
     saveArgumentDefaults(getArgumentDefaults());
     track(config.argumentDefaultsFile);
   }
-  if (fileIsStale(PATH_CATALOG_FILE)) {
+  if (fileIsStale(PATH_CATALOG_FILE, { portable: true })) {
     seedPathCatalog(listPathCatalogEntries());
     track(PATH_CATALOG_FILE);
   }
@@ -108,7 +118,9 @@ export function normalizeConfigFiles(): string[] {
         continue;
       }
       const path = resolve(config.instancesDir, entry.name);
-      if (!fileIsStale(path, hasTimestampKeys)) {
+      if (
+        !fileIsStale(path, { portable: true, extraStale: hasTimestampKeys })
+      ) {
         continue;
       }
       const record = getInstanceRecord(entry.name.slice(0, -".json".length));
@@ -124,10 +136,10 @@ export function normalizeConfigFiles(): string[] {
     MODELS_FILE,
     PIPELINES_FILE,
   ].filter((name) =>
-    fileIsStale(
-      resolve(config.proxyConfigDir, name),
-      collectionHasTimestampKeys,
-    ),
+    fileIsStale(resolve(config.proxyConfigDir, name), {
+      portable: false,
+      extraStale: collectionHasTimestampKeys,
+    }),
   );
   if (staleProxyCollections.length > 0) {
     rewriteApiProxyCollections(staleProxyCollections);
@@ -136,20 +148,40 @@ export function normalizeConfigFiles(): string[] {
     }
   }
   const endpointsPath = resolve(config.proxyConfigDir, ENDPOINTS_FILE);
-  if (fileIsStale(endpointsPath, collectionHasTimestampKeys)) {
+  if (
+    fileIsStale(endpointsPath, {
+      portable: false,
+      extraStale: collectionHasTimestampKeys,
+    })
+  ) {
     rewriteStoredEndpoints();
     track(endpointsPath);
   }
   const sourcesPath = resolve(config.proxyConfigDir, SOURCES_FILE);
-  if (fileIsStale(sourcesPath, collectionHasTimestampKeys)) {
+  if (
+    fileIsStale(sourcesPath, {
+      portable: false,
+      extraStale: collectionHasTimestampKeys,
+    })
+  ) {
     rewriteStoredSources();
     track(sourcesPath);
   }
-  if (fileIsStale(NODES_FILE, collectionHasTimestampKeys)) {
+  if (
+    fileIsStale(NODES_FILE, {
+      portable: false,
+      extraStale: collectionHasTimestampKeys,
+    })
+  ) {
     rewriteNodesFile();
     track(NODES_FILE);
   }
-  if (fileIsStale(RESOURCES_FILE, collectionHasTimestampKeys)) {
+  if (
+    fileIsStale(RESOURCES_FILE, {
+      portable: false,
+      extraStale: collectionHasTimestampKeys,
+    })
+  ) {
     rewriteResourcePoolsFile();
     track(RESOURCES_FILE);
   }

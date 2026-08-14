@@ -181,6 +181,28 @@ test("strips legacy createdAt/updatedAt from tracked config files", (t) => {
   assert.match(readFileSync(PATH_CATALOG_FILE, "utf8"), /"createdAt"/);
 });
 
+test("leaves absolute paths in non-portable files untouched", (t) => {
+  t.after(cleanup);
+  writeJson(targetsFile, [
+    {
+      id: "t1",
+      name: binaryPath,
+      endpointId: "external:test",
+      model: null,
+      role: "background",
+      priority: 100,
+      preemptible: true,
+      saveSlotsBeforeUnload: false,
+      slotIds: [],
+      idleUnloadMs: null,
+    },
+  ]);
+  resetConfigFilesCache();
+
+  assert.deepEqual(normalizeConfigFiles(), []);
+  assert.ok(readFileSync(targetsFile, "utf8").includes(binaryPath));
+});
+
 test("survives an application directory rename", (t) => {
   t.after(() => {
     cleanup();

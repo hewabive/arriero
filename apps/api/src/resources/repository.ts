@@ -5,19 +5,13 @@ import {
   type MemoryPoolView,
   type SystemResources,
 } from "@arriero/core";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-
-import { logger } from "../logger.js";
-import { dirname, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { z } from "zod";
 
+import { logger } from "../logger.js";
 import { config } from "../config.js";
+import { createJsonFileStore } from "../config-store/file-store.js";
 import {
   getKnownGpuInventory,
   getSystemResources,
@@ -29,40 +23,17 @@ export const RESOURCES_FILE = resolve(config.configDir, "resources.json");
 const GIB = 1024 ** 3;
 const HOST_RESERVE_RATIO = 0.15;
 
-let cache: MemoryPool[] | null = null;
-
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
+const store = createJsonFileStore<MemoryPool[]>({
+  id: "resources",
+  path: RESOURCES_FILE,
+  schema: z.array(MemoryPoolSchema),
+  missing: () => [],
+  portablePaths: false,
+  cache: "process",
+});
 
 function load(): MemoryPool[] {
-  if (cache) {
-    return cache;
-  }
-  let pools: MemoryPool[] = [];
-  if (existsSync(RESOURCES_FILE)) {
-    const raw = readFileSync(RESOURCES_FILE, "utf8");
-    let json: unknown;
-    try {
-      json = JSON.parse(raw) as unknown;
-    } catch (error) {
-      throw new Error(
-        `Invalid JSON in ${RESOURCES_FILE}: ${(error as Error).message}`,
-      );
-    }
-    const parsed = z.array(MemoryPoolSchema).safeParse(json);
-    if (!parsed.success) {
-      throw new Error(
-        `Invalid config in ${RESOURCES_FILE}: ${parsed.error.message}`,
-      );
-    }
-    pools = parsed.data;
-  }
-  cache = pools;
-  return pools;
+  return store.read();
 }
 
 export function rewriteResourcePoolsFile(): void {
@@ -70,8 +41,7 @@ export function rewriteResourcePoolsFile(): void {
 }
 
 function persist(pools: MemoryPool[]) {
-  atomicWrite(RESOURCES_FILE, `${JSON.stringify(pools, null, 2)}\n`);
-  cache = pools;
+  store.write(pools);
 }
 
 function sortPools(pools: MemoryPool[]): MemoryPool[] {
@@ -203,7 +173,7 @@ export function refreshAutoCapacities(
   if (next.length > pools.length) {
     persist(sortPools(next));
   } else if (changed) {
-    cache = next;
+    store.replaceCachedValue(next);
   }
   return changed;
 }
@@ -274,5 +244,5 @@ export function deleteMemoryPool(id: string): boolean {
 }
 
 export function resetResourcePoolsCache(): void {
-  cache = null;
+  store.reset();
 }

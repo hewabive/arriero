@@ -1,6 +1,3 @@
-import { existsSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
-import { resolve } from "node:path";
-
 import {
   InstanceConfigRecordSchema,
   type InstanceConfigRecord,
@@ -8,17 +5,18 @@ import {
 } from "@arriero/core";
 
 import { config } from "../config.js";
-import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
-import { atomicWriteFile } from "../utils/atomic-write.js";
+import { createJsonDirectoryStore } from "../config-store/directory-store.js";
 import { compareStrings } from "../utils/sort.js";
 
 const instancesDir = config.instancesDir;
 
-let cache: Map<string, InstanceConfigRecord> | null = null;
-
-function recordPath(name: string): string {
-  return resolve(instancesDir, `${name}.json`);
-}
+const store = createJsonDirectoryStore<InstanceConfigRecord>({
+  id: "instances",
+  dir: instancesDir,
+  schema: InstanceConfigRecordSchema,
+  key: (record) => record.name,
+  portablePaths: true,
+});
 
 function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
   return Object.fromEntries(
@@ -28,53 +26,18 @@ function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
   );
 }
 
-function parseJsonFile(path: string): unknown {
-  const raw = readFileSync(path, "utf8");
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch (error) {
-    throw new Error(`Invalid JSON in ${path}: ${(error as Error).message}`);
-  }
-}
-
-function load(): Map<string, InstanceConfigRecord> {
-  if (cache) {
-    return cache;
-  }
-  const next = new Map<string, InstanceConfigRecord>();
-  if (existsSync(instancesDir)) {
-    for (const entry of readdirSync(instancesDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) {
-        continue;
-      }
-      const path = resolve(instancesDir, entry.name);
-      const parsed = InstanceConfigRecordSchema.safeParse(
-        fromPortableConfig(parseJsonFile(path)),
-      );
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid instance config in ${path}: ${parsed.error.message}`,
-        );
-      }
-      next.set(parsed.data.name, parsed.data);
-    }
-  }
-  cache = next;
-  return next;
-}
-
 export function listInstanceRecords(): InstanceConfigRecord[] {
-  return [...load().values()];
+  return store.list();
 }
 
 export function getInstanceRecord(name: string): InstanceConfigRecord | null {
-  return load().get(name) ?? null;
+  return store.get(name);
 }
 
 export function findInstanceRecordByName(
   name: string,
 ): InstanceConfigRecord | null {
-  return load().get(name) ?? null;
+  return store.get(name);
 }
 
 export function writeInstanceRecord(
@@ -87,19 +50,7 @@ export function writeInstanceRecord(
     args: sortedRecord(parsed.args),
     env: sortedRecord(parsed.env),
   };
-  const map = load();
-  atomicWriteFile(
-    recordPath(validated.name),
-    `${JSON.stringify(toPortableConfig(validated), null, 2)}\n`,
-  );
-  if (previousName && previousName !== validated.name) {
-    const previousPath = recordPath(previousName);
-    if (existsSync(previousPath)) {
-      unlinkSync(previousPath);
-    }
-    map.delete(previousName);
-  }
-  map.set(validated.name, validated);
+  store.write(validated, previousName);
 }
 
 export function rewriteLocalRpcWorkerRefs(
@@ -126,19 +77,9 @@ export function rewriteLocalRpcWorkerRefs(
 }
 
 export function removeInstanceRecord(name: string): boolean {
-  const map = load();
-  const record = map.get(name);
-  if (!record) {
-    return false;
-  }
-  const path = recordPath(record.name);
-  if (existsSync(path)) {
-    unlinkSync(path);
-  }
-  map.delete(name);
-  return true;
+  return store.remove(name);
 }
 
 export function resetInstancesCache(): void {
-  cache = null;
+  store.reset();
 }

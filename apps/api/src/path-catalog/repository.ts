@@ -5,70 +5,34 @@ import {
   type PathCatalogKind,
   type PathCatalogUpdate,
 } from "@arriero/core";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
-import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
+import { createJsonFileStore } from "../config-store/file-store.js";
 import { newId } from "../utils/id.js";
 
 export const PATH_CATALOG_FILE = resolve(config.configDir, "path-catalog.json");
 
-let cache: PathCatalogEntry[] | null = null;
+const store = createJsonFileStore<PathCatalogEntry[]>({
+  id: "path-catalog",
+  path: PATH_CATALOG_FILE,
+  schema: z.array(PathCatalogEntrySchema),
+  missing: () => [],
+  portablePaths: true,
+  cache: "process",
+});
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
-
 function load(): PathCatalogEntry[] {
-  if (cache) {
-    return cache;
-  }
-  let entries: PathCatalogEntry[] = [];
-  if (existsSync(PATH_CATALOG_FILE)) {
-    const raw = readFileSync(PATH_CATALOG_FILE, "utf8");
-    let json: unknown;
-    try {
-      json = JSON.parse(raw) as unknown;
-    } catch (error) {
-      throw new Error(
-        `Invalid JSON in ${PATH_CATALOG_FILE}: ${(error as Error).message}`,
-      );
-    }
-    const parsed = z
-      .array(PathCatalogEntrySchema)
-      .safeParse(fromPortableConfig(json));
-    if (!parsed.success) {
-      throw new Error(
-        `Invalid config in ${PATH_CATALOG_FILE}: ${parsed.error.message}`,
-      );
-    }
-    entries = parsed.data;
-  }
-  cache = entries;
-  return entries;
+  return store.read();
 }
 
 function persist(entries: PathCatalogEntry[]) {
-  atomicWrite(
-    PATH_CATALOG_FILE,
-    `${JSON.stringify(toPortableConfig(entries), null, 2)}\n`,
-  );
-  cache = entries;
+  store.write(entries);
 }
 
 function sortEntries(entries: PathCatalogEntry[]): PathCatalogEntry[] {
@@ -191,5 +155,5 @@ export function deletePathCatalogEntry(id: string): boolean {
 }
 
 export function resetPathCatalogCache(): void {
-  cache = null;
+  store.reset();
 }

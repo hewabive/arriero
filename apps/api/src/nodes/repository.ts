@@ -4,61 +4,32 @@ import {
   type FleetNodeCreate,
   type FleetNodeUpdate,
 } from "@arriero/core";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { createJsonFileStore } from "../config-store/file-store.js";
 import { readSecret, setSecret } from "../proxy/config-files.js";
 import { newId } from "../utils/id.js";
 
 export const NODES_FILE = resolve(config.configDir, "nodes.json");
 const SECRET_PREFIX = "node:";
 
-let cache: FleetNode[] | null = null;
-
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
+const store = createJsonFileStore<FleetNode[]>({
+  id: "nodes",
+  path: NODES_FILE,
+  schema: z.array(FleetNodeSchema),
+  missing: () => [],
+  portablePaths: false,
+  cache: "process",
+});
 
 function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, "");
 }
 
 function load(): FleetNode[] {
-  if (cache) {
-    return cache;
-  }
-  let nodes: FleetNode[] = [];
-  if (existsSync(NODES_FILE)) {
-    const raw = readFileSync(NODES_FILE, "utf8");
-    let json: unknown;
-    try {
-      json = JSON.parse(raw) as unknown;
-    } catch (error) {
-      throw new Error(
-        `Invalid JSON in ${NODES_FILE}: ${(error as Error).message}`,
-      );
-    }
-    const parsed = z.array(FleetNodeSchema).safeParse(json);
-    if (!parsed.success) {
-      throw new Error(
-        `Invalid config in ${NODES_FILE}: ${parsed.error.message}`,
-      );
-    }
-    nodes = parsed.data;
-  }
-  cache = nodes;
-  return nodes;
+  return store.read();
 }
 
 export function rewriteNodesFile(): void {
@@ -66,8 +37,7 @@ export function rewriteNodesFile(): void {
 }
 
 function persist(nodes: FleetNode[]) {
-  atomicWrite(NODES_FILE, `${JSON.stringify(nodes, null, 2)}\n`);
-  cache = nodes;
+  store.write(nodes);
 }
 
 function secretKey(id: string): string {
@@ -143,5 +113,5 @@ export function deleteNode(id: string): boolean {
 }
 
 export function resetNodesCache(): void {
-  cache = null;
+  store.reset();
 }

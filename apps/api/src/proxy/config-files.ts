@@ -1,79 +1,70 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { z } from "zod";
 
 import { config } from "../config.js";
 import { CONFIG_GITIGNORE_CONTENT } from "../config-git/machine-state.js";
+import {
+  createJsonFileStore,
+  parseConfigJson,
+  serializeConfigJson,
+  type JsonFileStore,
+} from "../config-store/file-store.js";
+import { registerConfigStore } from "../config-store/registry.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
 
-const fileCache = new Map<string, unknown>();
+const stores = new Map<string, JsonFileStore<unknown>>();
 let secretsCache: Record<string, string> | null = null;
 
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
+function proxyFilePath(fileName: string): string {
+  return resolve(config.proxyConfigDir, fileName);
 }
 
-function parseJsonFile(path: string): unknown {
-  const raw = readFileSync(path, "utf8");
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch (error) {
-    throw new Error(`Invalid JSON in ${path}: ${(error as Error).message}`);
-  }
-}
-
-function readFile<T>(
+function storeFor<T>(
   fileName: string,
   schema: z.ZodType<T>,
   missing: unknown,
-): T {
-  if (fileCache.has(fileName)) {
-    return fileCache.get(fileName) as T;
+): JsonFileStore<T> {
+  const existing = stores.get(fileName);
+  if (existing) {
+    return existing as JsonFileStore<T>;
   }
-
-  const path = resolve(config.proxyConfigDir, fileName);
-  const parsed = schema.safeParse(
-    existsSync(path) ? parseJsonFile(path) : missing,
-  );
-  if (!parsed.success) {
-    throw new Error(`Invalid config in ${path}: ${parsed.error.message}`);
-  }
-
-  fileCache.set(fileName, parsed.data);
-  return parsed.data;
+  const created = createJsonFileStore<T>({
+    id: `proxy:${fileName}`,
+    path: proxyFilePath(fileName),
+    schema,
+    missing: () => missing,
+    portablePaths: false,
+    cache: "process",
+  });
+  stores.set(fileName, created as JsonFileStore<unknown>);
+  return created;
 }
 
-function writeFile<T>(fileName: string, value: T): void {
-  atomicWrite(
-    resolve(config.proxyConfigDir, fileName),
-    `${JSON.stringify(value, null, 2)}\n`,
-  );
-  fileCache.set(fileName, value);
+function writeValue(fileName: string, value: unknown): void {
+  const store = stores.get(fileName);
+  if (store) {
+    store.write(value);
+    return;
+  }
+  atomicWriteFile(proxyFilePath(fileName), serializeConfigJson(value));
 }
 
 export function readCollection<T>(fileName: string, schema: z.ZodType<T>): T[] {
-  return readFile(fileName, z.array(schema), []);
+  return storeFor<T[]>(fileName, z.array(schema), []).read();
 }
 
 export function writeCollection<T>(fileName: string, records: T[]): void {
-  writeFile(fileName, records);
+  writeValue(fileName, records);
 }
 
 export function readObjectFile<T>(fileName: string, schema: z.ZodType<T>): T {
-  return readFile(fileName, schema, {});
+  return storeFor<T>(fileName, schema, {}).read();
 }
 
 export function writeObjectFile<T>(fileName: string, value: T): void {
-  writeFile(fileName, value);
+  writeValue(fileName, value);
 }
 
 function loadSecrets(): Record<string, string> {
@@ -83,7 +74,12 @@ function loadSecrets(): Record<string, string> {
   if (existsSync(config.secretsFile)) {
     const parsed = z
       .record(z.string(), z.string())
-      .safeParse(parseJsonFile(config.secretsFile));
+      .safeParse(
+        parseConfigJson(
+          config.secretsFile,
+          readFileSync(config.secretsFile, "utf8"),
+        ),
+      );
     secretsCache = parsed.success ? parsed.data : {};
   } else {
     secretsCache = {};
@@ -102,9 +98,17 @@ export function setSecret(id: string, key: string | null): void {
   } else {
     delete next[id];
   }
-  atomicWrite(config.secretsFile, `${JSON.stringify(next, null, 2)}\n`);
+  atomicWriteFile(config.secretsFile, serializeConfigJson(next));
   secretsCache = next;
 }
+
+registerConfigStore({
+  id: "proxy:secrets",
+  files: () => [config.secretsFile],
+  reset: () => {
+    secretsCache = null;
+  },
+});
 
 export function ensureConfigScaffold(): void {
   mkdirSync(config.proxyConfigDir, { recursive: true });
@@ -114,6 +118,8 @@ export function ensureConfigScaffold(): void {
 }
 
 export function resetConfigFilesCache(): void {
-  fileCache.clear();
+  for (const store of stores.values()) {
+    store.reset();
+  }
   secretsCache = null;
 }

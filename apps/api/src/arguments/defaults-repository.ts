@@ -3,21 +3,27 @@ import {
   type ArgumentDefault,
   type ArgumentDefaults,
 } from "@arriero/core";
-import {
-  copyFileSync,
-  existsSync,
-  readFileSync,
-  renameSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, existsSync, statSync, writeFileSync } from "node:fs";
 
 import { config } from "../config.js";
-import { fromPortableConfig, toPortableConfig } from "../config-paths.js";
+import {
+  createJsonFileStore,
+  serializeConfigJson,
+} from "../config-store/file-store.js";
 import { sortedByKey } from "../utils/sort.js";
 
 const filePath = config.argumentDefaultsFile;
 const seedPath = config.argumentDefaultsSeedFile;
+
+const store = createJsonFileStore<ArgumentDefaults>({
+  id: "argument-defaults",
+  path: filePath,
+  schema: ArgumentDefaultsSchema,
+  missing: () => ({ instance: [] }),
+  portablePaths: true,
+  cache: "per-read",
+  render: (value) => ({ instance: value.instance }),
+});
 
 function normalizeDefaults(defaults: ArgumentDefault[]) {
   const seen = new Set<string>();
@@ -45,42 +51,17 @@ function ensureFile() {
     copyFileSync(seedPath, filePath);
     return;
   }
-  writeFileSync(
-    filePath,
-    `${JSON.stringify({ instance: [] }, null, 2)}\n`,
-    "utf8",
-  );
-}
-
-function readDefaults(): ArgumentDefaults {
-  const raw = readFileSync(filePath, "utf8");
-  let json: unknown;
-  try {
-    json = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`Invalid JSON in ${filePath}: ${(error as Error).message}`);
-  }
-  return ArgumentDefaultsSchema.parse(fromPortableConfig(json));
-}
-
-function writeDefaults(input: { instance: ArgumentDefault[] }) {
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(
-    tmp,
-    `${JSON.stringify(toPortableConfig(input), null, 2)}\n`,
-    "utf8",
-  );
-  renameSync(tmp, filePath);
+  writeFileSync(filePath, serializeConfigJson({ instance: [] }), "utf8");
 }
 
 export function initArgumentDefaults() {
   ensureFile();
-  readDefaults();
+  store.read();
 }
 
 export function getArgumentDefaults(): ArgumentDefaults {
   ensureFile();
-  const parsed = readDefaults();
+  const parsed = store.read();
   return ArgumentDefaultsSchema.parse({
     instance: parsed.instance,
     updatedAt: statSync(filePath).mtime.toISOString(),
@@ -91,8 +72,9 @@ export function saveArgumentDefaults(
   input: ArgumentDefaults,
 ): ArgumentDefaults {
   const parsed = ArgumentDefaultsSchema.parse(input);
-  writeDefaults({
+  store.write({
     instance: normalizeDefaults(parsed.instance),
+    updatedAt: null,
   });
   return getArgumentDefaults();
 }
