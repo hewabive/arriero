@@ -1,0 +1,18 @@
+{
+  "id": "code-en-rate-limiter",
+  "title": "Sliding-window rate limiter in TypeScript",
+  "topic": "code",
+  "language": "en",
+  "prefillClass": "short",
+  "maxTokens": 1024,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a principal TypeScript engineer. You write complete, production-quality, self-contained modules. Rules: use only the language and standard built-in APIs, with no external dependencies; never use placeholders, ellipses, TODOs, or phrases like \"implementation omitted\" - every function body must be fully written; do not ask clarifying questions - where the spec leaves a detail open, pick a sensible behavior and encode it in the types; output exactly one TypeScript module in a single fenced code block and nothing else."
+    },
+    {
+      "role": "user",
+      "content": "Implement a complete sliding-window rate limiter in TypeScript as a single module named rate-limiter.ts. Requirements:\n\n1. Export a class SlidingWindowRateLimiter whose constructor takes LimiterOptions: limit (allowed units per window), windowMs, burst (extra units allowed above limit during short spikes, default 0), maxKeys (default 10000), an injectable now function returning epoch milliseconds (defaults to Date.now), and optional metrics hooks (requirement 7).\n2. Algorithm: sliding-window counter over two adjacent fixed windows with weighted interpolation of the previous window's count - O(1) time and memory per key; do not keep per-request timestamp logs.\n3. Per-key isolation: consume(key, cost = 1) maintains an independent bucket per key, created lazily on first use.\n4. consume returns a RateLimitDecision object with: allowed (boolean), remaining, limit, usedBurst, retryAfterMs (0 when allowed), and resetAtMs (epoch milliseconds when the current fixed window rolls over).\n5. Burst allowance: up to burst extra units may be consumed above the base limit; burst capacity is restored only once the weighted count falls back below the base limit, and the decision must report how much burst is currently consumed.\n6. retryAfterMs must be computed from the weighted-count formula - the earliest moment a request of that cost could pass - never a constant and never simply the full window length.\n7. Metrics hooks interface MetricsHooks: onAllowed(key, decision), onThrottled(key, decision), onKeyEvicted(key, reason: \"lru\" | \"idle\"), onSweep(stats: { scanned, evicted, elapsedMs }). All are optional, and a throwing hook must never break the limiter - catch the error, count it in a hookErrors counter exposed on the limiter, and continue.\n8. Memory hygiene: enforce maxKeys with least-recently-used eviction; a sweep() method removes buckets idle for two full windows; the constructor must not start any timers - expose startSweeping(intervalMs) and stopSweeping() instead.\n9. Introspection: peek(key) returns the decision a request of cost 1 would receive without consuming anything; snapshot() returns per-key stats (weighted count, burst in use, last access time) capped at the 100 most recently used keys.\n10. reset(key) clears one bucket; resetAll() clears every bucket and the hookErrors counter.\n11. Strict TypeScript: no any, exact optional-property handling, all public types exported; behavior must be fully deterministic under an injected now.\n12. End with a demo() driven by a fake clock: a steady stream that stays allowed, a spike absorbed by burst, a throttled request reporting a correct retryAfterMs, and an LRU eviction - logging each decision.\n\nUse only standard built-in APIs. Write the entire module now with no omissions and no commentary outside the code."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "poetry-en-city-cycle",
+  "title": "A city through the seasons",
+  "topic": "poetry",
+  "language": "en",
+  "prefillClass": "short",
+  "maxTokens": 768,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Compose a cycle of five short titled poems about one invented harbour city, Veleth, moving through the year, followed by an envoi. Structure: I. \"Veleth in Thaw\" (late winter turning to spring, set in the tram depot), II. \"Green Ministry\" (late spring, the botanical archive), III. \"Salt Summer\" (high summer, the fish market), IV. \"Inventory of Fog\" (autumn, the lighthouse stairs), V. \"The Still Harbour\" (deep winter, the drained canal). Each poem must run 10 to 14 lines of free verse and contain: at least one internal rhyme; one enjambment that changes the meaning of the line it breaks; at least one distinct smell and one distinct sound, and no smell or sound may repeat between poems; and one appearance of the same blue enamel kettle, doing something different in every poem. Forbidden words anywhere in the cycle: beautiful, soul, heart, dream, magic. After the five poems add a six-line envoi addressed directly to Veleth, in which five of the lines each reuse the closing line of one of the five poems altered by exactly one word, followed by one entirely new closing line. Output only the numbered titles and the poems - no notes, no commentary, no explanation of your choices."
+    }
+  ]
+}

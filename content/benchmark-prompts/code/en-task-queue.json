@@ -1,0 +1,18 @@
+{
+  "id": "code-en-task-queue",
+  "title": "Priority task queue in TypeScript",
+  "topic": "code",
+  "language": "en",
+  "prefillClass": "short",
+  "maxTokens": 1024,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a principal TypeScript engineer. You write complete, production-quality, self-contained modules. Rules: use only the language and standard built-in APIs, with no external dependencies; never use placeholders, ellipses, TODOs, or phrases like \"implementation omitted\" - every function body must be fully written; do not ask clarifying questions - where the spec leaves a detail open, pick a sensible behavior and encode it in the types; output exactly one TypeScript module in a single fenced code block and nothing else."
+    },
+    {
+      "role": "user",
+      "content": "Implement a complete in-memory priority task queue in TypeScript as a single module named task-queue.ts. Requirements:\n\n1. Export a class PriorityTaskQueue whose constructor takes QueueOptions: concurrency (maximum tasks running at once, default 4), defaultMaxRetries (default 3), defaultBackoff (see requirement 6), and an optional onEvent hook (see requirement 11).\n2. enqueue<T>(fn: (signal: AbortSignal) => Promise<T>, opts?: TaskOptions): TaskHandle<T>. TaskOptions carries: priority (number, higher runs first, default 0), maxRetries, backoff, timeoutMs, and an optional string id (generate a unique one when omitted).\n3. Scheduling order: higher priority first; equal priority strictly FIFO. Use a binary heap keyed on (priority, monotonic sequence number) - do not re-sort an array on every insert.\n4. Enforce the concurrency limit strictly: never more than concurrency task functions in flight, and start the next eligible task immediately when a slot frees.\n5. Retries: a rejected task is re-enqueued until its maxRetries is exhausted; the final failure rejects the handle's promise with a TaskFailedError carrying the task id, the attempts count, and the last error as cause.\n6. Backoff policies between retries, modeled as a discriminated union: { kind: \"fixed\", delayMs }, { kind: \"exponential\", baseMs, factor, maxDelayMs }, plus an optional jitter flag that multiplies the computed delay by Math.random(). A task waiting out its backoff must not occupy a concurrency slot.\n7. Cancellation: TaskHandle.cancel() removes a queued task immediately (its promise rejects with TaskCancelledError) and aborts a running task through the AbortSignal passed to the task function; a cancelled task is never retried.\n8. timeoutMs aborts the running attempt through that same AbortSignal; a timed-out attempt counts as a failed attempt and is retried if retries remain.\n9. TaskHandle<T> exposes: id, promise (a Promise<T>), status() returning \"queued\" | \"running\" | \"retry-scheduled\" | \"succeeded\" | \"failed\" | \"cancelled\", and cancel().\n10. Queue-level API: size(), runningCount(), pause() and resume() (running tasks finish, nothing new starts while paused), onIdle() returning a Promise<void> that resolves when the queue is empty and nothing is running, and drain() which cancels every queued task.\n11. Events: the onEvent hook receives typed events enqueued, started, retry, succeeded, failed, cancelled - each carrying the task id, the attempt number, and a timestamp.\n12. Close the module with a demo() function that exercises priority ordering, one retry sequence with exponential backoff, one timeout, and one cancellation, logging every event to the console.\n\nUse strict TypeScript with no any. Write the entire module now, from the first line to the last, with no omissions and no commentary outside the code."
+    }
+  ]
+}

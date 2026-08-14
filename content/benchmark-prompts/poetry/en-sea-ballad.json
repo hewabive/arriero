@@ -1,0 +1,18 @@
+{
+  "id": "poetry-en-sea-ballad",
+  "title": "Ballad of the lighthouse keeper",
+  "topic": "poetry",
+  "language": "en",
+  "prefillClass": "short",
+  "maxTokens": 768,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a poet who works in strict traditional English forms and never breaks metre or rhyme for convenience."
+    },
+    {
+      "role": "user",
+      "content": "Write a narrative ballad titled \"The Keeper of Aldergate Light\" about a lighthouse keeper on a cold northern coast. Formal requirements: at least eight four-line stanzas; strict ABAB end rhyme in every stanza - verify each rhyme pair as you write and never settle for slant rhyme; ballad metre throughout, alternating iambic tetrameter and iambic trimeter. Narrative arc: open with the keeper's nightly routine in calm weather, build through one great storm in which a coal brig nearly founders on the shoals and is saved by the light, and close decades later on the night the lamp is automated and the keeper climbs the stairs for the last time. Craft constraints: every stanza must contain at least one concrete maritime object - brasswork, wick trimmers, whale oil, herring gulls, shale, kelp, hemp rope, the fog bell - and no stanza may reuse an object a previous stanza has already used; do not use the abstract words hope, fate, destiny, soul, or eternity - render feeling only through weather, objects, and the keeper's hands; give the spiral stairs and the lamp recurring roles whose meaning changes between the opening, the storm, and the ending; include exactly one stanza of direct speech spoken by the rescued brig's mate. Output only the title and the stanzas, with a blank line between stanzas - no preamble, no commentary, no explanation of the form."
+    }
+  ]
+}

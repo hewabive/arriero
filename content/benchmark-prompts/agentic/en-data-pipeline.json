@@ -1,0 +1,38 @@
+{
+  "id": "agentic-en-data-pipeline",
+  "title": "Stalled ETL run diagnosis",
+  "topic": "agentic",
+  "language": "en",
+  "prefillClass": "short",
+  "maxTokens": 512,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are PipelineMedic, an autonomous data-platform agent for the Ostrander analytics team. You diagnose pipeline incidents step by step by calling tools. Tools available to you: [{\"name\":\"get_run\",\"description\":\"Fetch a pipeline run with per-task states and timings\",\"parameters\":{\"type\":\"object\",\"properties\":{\"pipeline\":{\"type\":\"string\"},\"run_id\":{\"type\":\"string\"}},\"required\":[\"pipeline\",\"run_id\"]}},{\"name\":\"get_task_logs\",\"description\":\"Return the last N log lines of one task in a run\",\"parameters\":{\"type\":\"object\",\"properties\":{\"run_id\":{\"type\":\"string\"},\"task_id\":{\"type\":\"string\"},\"tail_lines\":{\"type\":\"integer\"}},\"required\":[\"run_id\",\"task_id\",\"tail_lines\"]}},{\"name\":\"query_warehouse\",\"description\":\"Run a read-only SQL query against the warehouse metadata views (locks, running queries, quotas)\",\"parameters\":{\"type\":\"object\",\"properties\":{\"sql\":{\"type\":\"string\"}},\"required\":[\"sql\"]}}]. Respond ONLY with a single JSON object and nothing else - no prose, no markdown, no code fences. To call a tool respond {\"tool\": \"<name>\", \"arguments\": {...}}. To finish respond {\"final\": \"<your conclusion and recommended remediation>\"}. Call exactly one tool per turn and verify every reported lead before finishing."
+    },
+    {
+      "role": "user",
+      "content": "The nightly orders_daily pipeline run or-20260814 started at 00:10 and normally finishes in about 70 minutes. It has now been running for more than five hours and the downstream marts are stale. Find out why it is stalled."
+    },
+    {
+      "role": "assistant",
+      "content": "{\"tool\":\"get_run\",\"arguments\":{\"pipeline\":\"orders_daily\",\"run_id\":\"or-20260814\"}}"
+    },
+    {
+      "role": "user",
+      "content": "{\"tool_result\":{\"run_id\":\"or-20260814\",\"state\":\"running\",\"tasks\":[{\"task_id\":\"extract_orders\",\"state\":\"success\",\"finished_at\":\"00:24\"},{\"task_id\":\"clean_orders\",\"state\":\"success\",\"finished_at\":\"00:31\"},{\"task_id\":\"load_fact_orders\",\"state\":\"running\",\"started_at\":\"00:32\"},{\"task_id\":\"rebuild_marts\",\"state\":\"queued\"},{\"task_id\":\"publish_metrics\",\"state\":\"queued\"}]}}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"tool\":\"get_task_logs\",\"arguments\":{\"run_id\":\"or-20260814\",\"task_id\":\"load_fact_orders\",\"tail_lines\":40}}"
+    },
+    {
+      "role": "user",
+      "content": "{\"tool_result\":{\"lines\":[\"00:34 INFO inserting batch 18/210 into fact_orders\",\"00:41 INFO inserting batch 44/210 into fact_orders\",\"00:52 WARN lock wait on fact_orders exceeded 60 s, retrying (attempt 2)\",\"01:07 WARN lock wait on fact_orders exceeded 60 s, retrying (attempt 6)\",\"01:12 WARN lock wait on fact_orders exceeded 60 s, retrying (attempt 7)\"],\"note\":\"no lines written after 01:12\"}}"
+    },
+    {
+      "role": "user",
+      "content": "New details from the warehouse team: an ad-hoc backfill started by the analytics team at 00:40 also writes to fact_orders, the ETL virtual warehouse hit its credit quota around 01:15, and a schema migration yesterday added a NOT NULL column to fact_orders. Verify each lead with tools before concluding: query the warehouse lock and running-queries views for sessions blocking fact_orders, check whether the backfill query is still executing, check the warehouse quota and queued-statement state, and re-check the run's task states. Continue step by step, one tool call per turn, and only produce a final answer after every lead is checked."
+    }
+  ]
+}

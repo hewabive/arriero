@@ -1,0 +1,38 @@
+{
+  "id": "agentic-en-deploy-incident",
+  "title": "Failed deployment investigation",
+  "topic": "agentic",
+  "language": "en",
+  "prefillClass": "short",
+  "maxTokens": 512,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are DeployOps, an autonomous incident-response agent for the Nortavia platform team. You investigate production incidents step by step by calling tools. Tools available to you: [{\"name\":\"get_deployment\",\"description\":\"Fetch metadata, rollout status and the change list for a deployment\",\"parameters\":{\"type\":\"object\",\"properties\":{\"deployment_id\":{\"type\":\"string\"}},\"required\":[\"deployment_id\"]}},{\"name\":\"search_logs\",\"description\":\"Search recent log lines of a service for a substring\",\"parameters\":{\"type\":\"object\",\"properties\":{\"service\":{\"type\":\"string\"},\"query\":{\"type\":\"string\"},\"minutes\":{\"type\":\"integer\",\"description\":\"look-back window in minutes\"}},\"required\":[\"service\",\"query\",\"minutes\"]}},{\"name\":\"get_metrics\",\"description\":\"Fetch a metric time series for a service\",\"parameters\":{\"type\":\"object\",\"properties\":{\"service\":{\"type\":\"string\"},\"metric\":{\"type\":\"string\",\"enum\":[\"error_rate\",\"latency_p99\",\"pod_restarts\",\"db_pool_in_use\"]},\"minutes\":{\"type\":\"integer\"}},\"required\":[\"service\",\"metric\",\"minutes\"]}}]. Respond ONLY with a single JSON object and nothing else - no prose, no markdown, no code fences. To call a tool respond {\"tool\": \"<name>\", \"arguments\": {...}}. To finish respond {\"final\": \"<your conclusion and recommended remediation>\"}. Call exactly one tool per turn, prefer gathering evidence over guessing, and never produce a final answer while any reported lead remains unverified."
+    },
+    {
+      "role": "user",
+      "content": "Deployment 8412 of checkout-api finished about 20 minutes ago, and now the error-rate alarm for checkout-api is firing at 12% against a 2% threshold. Customers are reporting failed checkouts. Investigate and find the root cause."
+    },
+    {
+      "role": "assistant",
+      "content": "{\"tool\":\"get_deployment\",\"arguments\":{\"deployment_id\":\"8412\"}}"
+    },
+    {
+      "role": "user",
+      "content": "{\"tool_result\":{\"deployment_id\":\"8412\",\"service\":\"checkout-api\",\"version\":\"2026.08.14-r3\",\"status\":\"succeeded\",\"pods_updated\":\"12/12\",\"finished_at\":\"2026-08-14T09:41:12Z\",\"changes\":[\"bump payments-client 4.2.0 -> 5.0.1\",\"route payment calls through shared pgbouncer\",\"remove legacy retry wrapper\"]}}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"tool\":\"search_logs\",\"arguments\":{\"service\":\"checkout-api\",\"query\":\"ERROR\",\"minutes\":25}}"
+    },
+    {
+      "role": "user",
+      "content": "{\"tool_result\":{\"matches\":214,\"sample\":[\"09:44:02 ERROR PaymentsClient: connection pool exhausted (max=20) acquiring connection to payments-db\",\"09:44:07 ERROR checkout failed: upstream timeout after 5000 ms calling payments-svc\",\"09:45:31 ERROR PaymentsClient: connection pool exhausted (max=20)\",\"09:47:12 ERROR readiness probe failed: /ready returned 503\"]}}"
+    },
+    {
+      "role": "user",
+      "content": "New information from the on-call channel: payments-svc has also been degraded since 09:40, a config change CFG-2291 lowering pgbouncer max_client_conn from 400 to 100 was merged at 09:35, and checkout-api pods have restarted several times in the last ten minutes. Verify each of these leads with tools before any final answer: check checkout-api pod_restarts and db_pool_in_use metrics, check payments-svc error_rate, search payments-svc logs for pgbouncer or connection errors, and establish whether CFG-2291 or deployment 8412 is the actual trigger. Continue the investigation one tool call at a time."
+    }
+  ]
+}
