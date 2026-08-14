@@ -53,10 +53,10 @@ export const navSections: NavSection[] = [
       },
       {
         route: "config-git",
-        label: "Configuration Git",
-        title: "Configuration repository",
+        label: "Configuration",
+        title: "Configuration",
         description:
-          "Clone, review, version and synchronize this node's portable configuration",
+          "Version this node's portable configuration, review file state and apply edits from disk",
       },
     ],
   },

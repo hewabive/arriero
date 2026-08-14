@@ -224,7 +224,13 @@ portable config is file-backed (below). One-shot data migrations are inventoried
 ### File-backed config
 
 Portable/hand-editable config lives in files, not the DB, under one configurable root `data/config/`
-(`ARRIERO_CONFIG_DIR`). The root can be managed as a standalone git repo through the `config-git/`
+(`ARRIERO_CONFIG_DIR`). **Every JSON config store rides one primitive (`config-store/`): disk is
+staging, memory is the applied state.** External edits are detected (mtime) and surfaced at
+`GET /api/config/state`, activated only by `POST /api/config/reload` (full-tree validation, then one
+atomic cache swap; invalid ⇒ 400 with per-file issues, applied state untouched); API writes 409
+instead of clobbering a file edited since load; invalid files at boot **quarantine** (server starts,
+reads 503, instances per-file, reconcile defers their live runs) and recover via reload — contract in
+`docs/CONFIG_EDITING.md`. The root can be managed as a standalone git repo through the `config-git/`
 domain and Configuration Git UI — in-place `init` (the only tree op allowed while processes run) or
 `clone` as a **full replacement** that keeps the old root as `<configDir>.backup-<ts>`. Tree-changing
 operations validate a detached worktree first, refuse while managed/build/environment jobs run, then
@@ -289,8 +295,8 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   (`docs/API_PROXY_FOUNDATION.md` § Request sources). Default `allowAnonymous:true` keeps
   labeling-only passthrough. Source keys live in `.secrets.json` keyed `source:<id>`.
 
-JSON files seed from git-tracked repo-root `config/*.json` (not `data/config/`) and fail loud on
-malformed JSON; runtime-computed defaults fill absent sections.
+JSON files seed from git-tracked repo-root `config/*.json` (not `data/config/`); a malformed file
+is loudly quarantined (never silently defaulted); runtime-computed defaults fill absent sections.
 
 Paths under a managed root are **persisted as `${ARRIERO_HOME}` / `${ARRIERO_*_DIR}` placeholders**
 (`config-paths.ts`) in `instances/*.json`, `path-catalog.json`, `settings.json` and

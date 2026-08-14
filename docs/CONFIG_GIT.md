@@ -172,9 +172,21 @@ separate **also delete untracked files** option additionally performs
 place. The target commit is validated before reset and the resulting working
 tree is validated again afterward.
 
+## Reload without git
+
+Hand edits to the tree do not need a git operation (or a restart) to activate:
+`GET /api/config-git/validation` checks the working tree fresh from disk, and
+`POST /api/config/reload` applies it — full-tree validation first, then one
+atomic swap of every store cache, then portable-path normalization. Git tree
+operations keep their stricter guards (clean tree, quiescent jobs, no running
+managed processes for tree replacement); reload only refuses while a
+build / environment / source operation runs. The whole editing contract lives
+in `CONFIG_EDITING.md`.
+
 ## API
 
 - `GET /api/config-git/status`, `/diff?path=`, `/log`, `/validation`
+- `GET /api/config/state`, `POST /api/config/reload` (`routes/config.routes.ts`)
 - `GET /api/config-git/commits/:commit`
 - `POST /api/config-git/init`, `/remote`, `/clone`
 - `POST /api/config-git/fetch`, `/pull`, `/switch`, `/checkout`

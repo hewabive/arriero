@@ -1,8 +1,13 @@
 # Config store unification plan
 
-Status: planned (2026-08-14). Tracks the staged refactor of every file-backed config store onto one
-primitive with uniform validate-then-apply editing rules. Companion docs: `CONFIG_GIT.md`,
-`PORTABLE_PATHS.md`.
+Status: implemented (2026-08-14, stages 1–6). The resulting contract is documented in
+`CONFIG_EDITING.md`; this file remains as the design record. Deviations taken during
+implementation: quarantined instance files surface through `GET /api/config/state` and the
+Configuration page banners rather than stub rows in the instances list; the reload endpoint's
+invalid-tree response is 400 with both an `error` string and the structured result under `data`;
+`normalizeConfigFiles()` keeps its `string[]` return and logs per-file failures instead of
+returning them; stores written blind (no prior read, e.g. the argument-defaults full replace) stay
+unguarded by design. Companion docs: `CONFIG_GIT.md`, `PORTABLE_PATHS.md`.
 
 ## Motivation
 

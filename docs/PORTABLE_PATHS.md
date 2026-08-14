@@ -76,6 +76,9 @@ a managed root — and every tracked config file for legacy
 store (Zod-validated) and writes it back through the same store. Files without
 a stale marker are not touched, so the config Git tree stays clean. The
 rewritten file names land in the startup log as `normalizedConfigFiles`.
+The same pass also runs after every successful `POST /api/config/reload`
+(`docs/CONFIG_EDITING.md`), so hand-written absolute paths are placeholder-ized
+at apply time, not only at the next boot.
 
 This is deliberately **not** a registry migration (`docs/MIGRATIONS.md`).
 Migrations are one-shot and removable — their legacy marker never comes back
