@@ -329,7 +329,7 @@ export async function getInstanceHealthSummary(
     ? await validateInstanceStartPreflight(instance, {
         peers: options.peers,
       })
-    : validateInstancePreflight(instance, {
+    : await validateInstancePreflight(instance, {
         peers: options.peers,
       });
   const descriptor = engineDescriptor(instance.kind);

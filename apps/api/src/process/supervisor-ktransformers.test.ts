@@ -49,7 +49,9 @@ test("KTransformers supervisor stops the complete detached worker tree", async (
     ].join("\n"),
     { mode: 0o755 },
   );
-  const validPreflight = (instance: Instance): ProcessPreflightResult => ({
+  const validPreflight = async (
+    instance: Instance,
+  ): Promise<ProcessPreflightResult> => ({
     instanceId: instance.name,
     ok: true,
     issues: [],
@@ -78,7 +80,7 @@ test("KTransformers supervisor stops the complete detached worker tree", async (
   };
 
   try {
-    manager.start(instance);
+    await manager.start(instance);
     assert.equal(
       await waitFor(
         () =>

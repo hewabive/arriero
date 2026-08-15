@@ -46,14 +46,14 @@ function writeHelpBinary(binaryPath: string, helpOutput: string) {
   chmodSync(binaryPath, 0o755);
 }
 
-test("validateInstancePreflight does not require a model for rpc-worker", () => {
+test("validateInstancePreflight does not require a model for rpc-worker", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-rpc-"));
   const binaryPath = join(dir, "rpc-server");
   try {
     writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
     chmodSync(binaryPath, 0o755);
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         kind: "rpc-worker",
         binaryPath,
@@ -76,7 +76,7 @@ test("validateInstancePreflight does not require a model for rpc-worker", () => 
   }
 });
 
-test("rpc-worker ports resolve per engine in conflict checks", () => {
+test("rpc-worker ports resolve per engine in conflict checks", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-ports-"));
   const binaryPath = join(dir, "llama-server");
   try {
@@ -94,7 +94,7 @@ test("rpc-worker ports resolve per engine in conflict checks", () => {
       }),
       name: "worker",
     };
-    const noConflict = validateInstancePreflight(
+    const noConflict = await validateInstancePreflight(
       instance({ binaryPath, cwd: dir, args: { "--port": 8080 } }),
       { peers: [worker], accelerators: [] },
     );
@@ -113,7 +113,7 @@ test("rpc-worker ports resolve per engine in conflict checks", () => {
       }),
       name: "worker-default",
     };
-    const clash = validateInstancePreflight(
+    const clash = await validateInstancePreflight(
       instance({ binaryPath, cwd: dir, args: { "--port": 50052 } }),
       { peers: [defaultWorker], accelerators: [] },
     );
@@ -124,7 +124,7 @@ test("rpc-worker ports resolve per engine in conflict checks", () => {
       true,
     );
 
-    const invalid = validateInstancePreflight(
+    const invalid = await validateInstancePreflight(
       instance({
         kind: "rpc-worker",
         binaryPath,
@@ -142,14 +142,14 @@ test("rpc-worker ports resolve per engine in conflict checks", () => {
   }
 });
 
-test("validateInstancePreflight blocks configs without a model source", () => {
+test("validateInstancePreflight blocks configs without a model source", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   try {
     writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
     chmodSync(binaryPath, 0o755);
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,
@@ -175,7 +175,7 @@ test("validateInstancePreflight blocks configs without a model source", () => {
   }
 });
 
-test("validateInstancePreflight blocks registry args missing from selected binary help", () => {
+test("validateInstancePreflight blocks registry args missing from selected binary help", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
@@ -190,7 +190,7 @@ common params:
     );
     writeFileSync(modelPath, "");
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,
@@ -216,7 +216,7 @@ common params:
   }
 });
 
-test("validateInstancePreflight blocks canonical spellings missing from selected binary help", () => {
+test("validateInstancePreflight blocks canonical spellings missing from selected binary help", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
@@ -231,7 +231,7 @@ common params:
     );
     writeFileSync(modelPath, "");
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,
@@ -258,7 +258,7 @@ common params:
   }
 });
 
-test("validateInstancePreflight blocks preset-only keys in instance CLI args", () => {
+test("validateInstancePreflight blocks preset-only keys in instance CLI args", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
@@ -273,7 +273,7 @@ test("validateInstancePreflight blocks preset-only keys in instance CLI args", (
     );
     writeFileSync(modelPath, "");
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,
@@ -299,7 +299,7 @@ test("validateInstancePreflight blocks preset-only keys in instance CLI args", (
   }
 });
 
-test("validateInstancePreflight blocks empty values for value arguments", () => {
+test("validateInstancePreflight blocks empty values for value arguments", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
@@ -314,7 +314,7 @@ common params:
     );
     writeFileSync(modelPath, "");
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,
@@ -441,7 +441,7 @@ test("validateInstanceStartPreflight blocks occupied host ports", async () => {
   }
 });
 
-test("validateInstancePreflight warns when direct GPU layers are requested without CUDA devices", () => {
+test("validateInstancePreflight warns when direct GPU layers are requested without CUDA devices", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
@@ -450,7 +450,7 @@ test("validateInstancePreflight warns when direct GPU layers are requested witho
     chmodSync(binaryPath, 0o755);
     writeFileSync(modelPath, "");
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,
@@ -477,7 +477,7 @@ test("validateInstancePreflight warns when direct GPU layers are requested witho
   }
 });
 
-test("validateInstancePreflight warns when models preset requests GPU layers without CUDA devices", () => {
+test("validateInstancePreflight warns when models preset requests GPU layers without CUDA devices", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const presetPath = join(dir, "models.ini");
@@ -497,7 +497,7 @@ test("validateInstancePreflight warns when models preset requests GPU layers wit
       ].join("\n"),
     );
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,
@@ -523,7 +523,7 @@ test("validateInstancePreflight warns when models preset requests GPU layers wit
   }
 });
 
-test("validateInstancePreflight accepts GPU layers when an NVIDIA device is visible", () => {
+test("validateInstancePreflight accepts GPU layers when an NVIDIA device is visible", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-preflight-"));
   const binaryPath = join(dir, "llama-server");
   const modelPath = join(dir, "model.gguf");
@@ -532,7 +532,7 @@ test("validateInstancePreflight accepts GPU layers when an NVIDIA device is visi
     chmodSync(binaryPath, 0o755);
     writeFileSync(modelPath, "");
 
-    const result = validateInstancePreflight(
+    const result = await validateInstancePreflight(
       instance({
         binaryPath,
         cwd: dir,

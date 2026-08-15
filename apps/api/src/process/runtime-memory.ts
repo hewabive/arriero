@@ -8,7 +8,8 @@ import type {
 } from "@arriero/core";
 import { engineDescriptor } from "@arriero/core";
 import { execFile } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { computeNumaPlacement, parseNumaMaps } from "../numa/placement.js";
@@ -190,13 +191,13 @@ export function parseProcStatusSwap(contents: string): number | null {
   return match ? kibToBytes(match[1] ?? "") : null;
 }
 
-function readProcSwap(pid: number): number | null {
+async function readProcSwap(pid: number): Promise<number | null> {
   if (process.platform !== "linux") {
     return null;
   }
 
   try {
-    return parseProcStatusSwap(readFileSync(`/proc/${pid}/status`, "utf8"));
+    return parseProcStatusSwap(await readFile(`/proc/${pid}/status`, "utf8"));
   } catch {
     return null;
   }
@@ -208,8 +209,7 @@ export async function getInstanceSwapBytes(
 ): Promise<number | null> {
   const pids = await candidatePids({ runtime, lines: [], kind });
   let total: number | null = null;
-  for (const pid of pids) {
-    const swapBytes = readProcSwap(pid);
+  for (const swapBytes of await Promise.all(pids.map(readProcSwap))) {
     if (swapBytes !== null) {
       total = (total ?? 0) + swapBytes;
     }
@@ -217,12 +217,12 @@ export async function getInstanceSwapBytes(
   return total;
 }
 
-function readProcNumaMaps(pid: number): string | null {
+async function readProcNumaMaps(pid: number): Promise<string | null> {
   if (process.platform !== "linux") {
     return null;
   }
   try {
-    return readFileSync(`/proc/${pid}/numa_maps`, "utf8");
+    return await readFile(`/proc/${pid}/numa_maps`, "utf8");
   } catch {
     return null;
   }
@@ -283,7 +283,7 @@ export async function getInstanceNumaPlacement(input: {
   const perNodeBytes = new Map<number, number>();
   let measured = false;
   for (const pid of pids) {
-    const content = readProcNumaMaps(pid);
+    const content = await readProcNumaMaps(pid);
     if (content === null) {
       continue;
     }
@@ -303,14 +303,14 @@ export async function getInstanceNumaPlacement(input: {
   return placement;
 }
 
-function readProcMemory(pid: number): ProcMemoryUsage | null {
+async function readProcMemory(pid: number): Promise<ProcMemoryUsage | null> {
   if (process.platform !== "linux") {
     return null;
   }
 
   try {
     const usage = parseProcStatusRss(
-      readFileSync(`/proc/${pid}/status`, "utf8"),
+      await readFile(`/proc/${pid}/status`, "utf8"),
     );
     return usage ? { pid, ...usage } : null;
   } catch {
@@ -457,9 +457,9 @@ async function sampleRuntimeMemory(input: {
   const gpuProcesses = nvidiaTelemetry
     .computeProcesses()
     .filter((app) => pidSet.has(app.pid));
-  const processMemory = pids
-    .map(readProcMemory)
-    .filter((usage): usage is ProcMemoryUsage => usage !== null);
+  const processMemory = (await Promise.all(pids.map(readProcMemory))).filter(
+    (usage): usage is ProcMemoryUsage => usage !== null,
+  );
   return { processIds: pids, gpuProcesses, processMemory };
 }
 

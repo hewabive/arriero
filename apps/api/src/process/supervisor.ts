@@ -170,15 +170,25 @@ export class ProcessSupervisor extends EventEmitter {
     }
   }
 
-  start(instance: Instance, rpcArgs: string[] = []): ProcessState {
+  async start(
+    instance: Instance,
+    rpcArgs: string[] = [],
+  ): Promise<ProcessState> {
     const current = this.processes.get(instance.name);
     if (current && isActiveProcessStatus(current.status)) {
       return this.getState(instance.name)!;
     }
 
-    const preflight = this.preflightValidator(instance);
+    const preflight = await this.preflightValidator(instance);
     if (!preflight.ok) {
       throw new ProcessPreflightError(preflight);
+    }
+    const activeAfterPreflight = this.processes.get(instance.name);
+    if (
+      activeAfterPreflight &&
+      isActiveProcessStatus(activeAfterPreflight.status)
+    ) {
+      return this.getState(instance.name)!;
     }
     this.assertRpcWorkersRunning(instance);
 

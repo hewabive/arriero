@@ -24,8 +24,8 @@ function instance(model?: string): Instance {
   };
 }
 
-test("vLLM preflight requires a model argument", () => {
-  const result = validateInstancePreflight(instance());
+test("vLLM preflight requires a model argument", async () => {
+  const result = await validateInstancePreflight(instance());
 
   assert.equal(result.ok, false);
   assert.match(
@@ -35,20 +35,22 @@ test("vLLM preflight requires a model argument", () => {
   );
 });
 
-test("vLLM preflight accepts a Hugging Face model id", () => {
-  const result = validateInstancePreflight(instance("Qwen/Qwen3-4B"));
+test("vLLM preflight accepts a Hugging Face model id", async () => {
+  const result = await validateInstancePreflight(instance("Qwen/Qwen3-4B"));
 
   assert.equal(result.ok, true);
 });
 
-test("vLLM preflight validates an explicit local model path", () => {
+test("vLLM preflight validates an explicit local model path", async () => {
   const root = mkdtempSync(join(tmpdir(), "arriero-vllm-preflight-"));
   try {
     const model = join(root, "model");
     mkdirSync(model);
-    assert.equal(validateInstancePreflight(instance(model)).ok, true);
+    assert.equal((await validateInstancePreflight(instance(model))).ok, true);
 
-    const missing = validateInstancePreflight(instance(join(root, "missing")));
+    const missing = await validateInstancePreflight(
+      instance(join(root, "missing")),
+    );
     assert.equal(missing.ok, false);
     assert.match(
       missing.issues.find((issue) => issue.field === "positionalArgs.0")
@@ -60,14 +62,14 @@ test("vLLM preflight validates an explicit local model path", () => {
   }
 });
 
-test("vLLM preflight resolves explicit relative local paths from cwd", () => {
+test("vLLM preflight resolves explicit relative local paths from cwd", async () => {
   const root = mkdtempSync(join(tmpdir(), "arriero-vllm-preflight-"));
   try {
     mkdirSync(join(root, "model"));
     const configured = { ...instance("./model"), cwd: root };
-    assert.equal(validateInstancePreflight(configured).ok, true);
+    assert.equal((await validateInstancePreflight(configured)).ok, true);
 
-    const missing = validateInstancePreflight({
+    const missing = await validateInstancePreflight({
       ...configured,
       positionalArgs: ["./missing"],
     });

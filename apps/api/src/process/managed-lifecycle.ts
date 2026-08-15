@@ -183,7 +183,7 @@ export async function restartManagedInstance(
   options: { force?: boolean } = {},
 ): Promise<RuntimeState> {
   assertWorkerNotReferenced(instance, options.force ?? false);
-  const preflight = validateInstancePreflight(instance, {
+  const preflight = await validateInstancePreflight(instance, {
     peers: listInstances(),
     capacityAdmission: admitInstanceDraw(instance.memory, {
       excludeInstanceId: instance.name,

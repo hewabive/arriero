@@ -118,9 +118,9 @@ function fixture() {
   return { root, instance };
 }
 
-function populateArgumentCatalogBeforeHangingProbe(instance: Instance) {
+async function populateArgumentCatalogBeforeHangingProbe(instance: Instance) {
   assert.equal(
-    validateInstancePreflight(instance, preflightOptions()).ok,
+    (await validateInstancePreflight(instance, preflightOptions())).ok,
     true,
     "a passing preflight must cache the argument catalog while the real Python launcher is still in place",
   );
@@ -132,10 +132,10 @@ function installHangingRuntimeProbe(pythonPath: string) {
   });
 }
 
-test("KTransformers preflight accepts a matched supported runtime", () => {
+test("KTransformers preflight accepts a matched supported runtime", async () => {
   const { root, instance } = fixture();
   try {
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions(),
     });
     assert.equal(result.ok, true, JSON.stringify(result.issues));
@@ -144,11 +144,14 @@ test("KTransformers preflight accepts a matched supported runtime", () => {
   }
 });
 
-test("KTransformers preflight blocks missing weights and CUDA", () => {
+test("KTransformers preflight blocks missing weights and CUDA", async () => {
   const { root, instance } = fixture();
   try {
     instance.engineConfig!.cpuWeights = join(root, "missing");
-    const result = validateInstancePreflight(instance, preflightOptions([]));
+    const result = await validateInstancePreflight(
+      instance,
+      preflightOptions([]),
+    );
     assert.equal(result.ok, false);
     assert.ok(
       result.issues.some((issue) => issue.field === "engineConfig.cpuWeights"),
@@ -161,7 +164,7 @@ test("KTransformers preflight blocks missing weights and CUDA", () => {
   }
 });
 
-test("KTransformers preflight enforces loopback auth and tensor parallel limits", () => {
+test("KTransformers preflight enforces loopback auth and tensor parallel limits", async () => {
   const { root, instance } = fixture();
   try {
     instance.args = {
@@ -169,7 +172,7 @@ test("KTransformers preflight enforces loopback auth and tensor parallel limits"
       "--host": "0.0.0.0",
       "--tensor-parallel-size": 2,
     };
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions(),
     });
     assert.equal(result.ok, false);
@@ -185,14 +188,14 @@ test("KTransformers preflight enforces loopback auth and tensor parallel limits"
   }
 });
 
-test("KTransformers preflight warns that proxy clients cannot send custom metric labels", () => {
+test("KTransformers preflight warns that proxy clients cannot send custom metric labels", async () => {
   const { root, instance } = fixture();
   try {
     instance.args = {
       ...instance.args,
       "--tokenizer-metrics-allowed-custom-labels": ["team"],
     };
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions(),
     });
     assert.equal(result.ok, true, JSON.stringify(result.issues));
@@ -209,11 +212,11 @@ test("KTransformers preflight warns that proxy clients cannot send custom metric
   }
 });
 
-test("KTransformers preflight reads the SGLang --tp-size spelling", () => {
+test("KTransformers preflight reads the SGLang --tp-size spelling", async () => {
   const { root, instance } = fixture();
   try {
     instance.args = { "--tp-size": 2 };
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions(),
     });
     assert.ok(
@@ -226,14 +229,14 @@ test("KTransformers preflight reads the SGLang --tp-size spelling", () => {
   }
 });
 
-test("KTransformers preflight requires host and every selected GPU reservation", () => {
+test("KTransformers preflight requires host and every selected GPU reservation", async () => {
   const { root, instance } = fixture();
   try {
     instance.env.CUDA_VISIBLE_DEVICES = "1,0";
     instance.args["--tensor-parallel-size"] = 2;
     instance.memory = [{ poolId: "gpu0", bytes: 8_000 }];
     const second = { ...nvidia, id: "1", name: "NVIDIA Test 1" };
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions([nvidia, second]),
     });
     assert.equal(result.ok, false);
@@ -244,7 +247,7 @@ test("KTransformers preflight requires host and every selected GPU reservation",
   }
 });
 
-test("KTransformers preflight rejects GPU draws outside CUDA and TP order", () => {
+test("KTransformers preflight rejects GPU draws outside CUDA and TP order", async () => {
   const { root, instance } = fixture();
   try {
     instance.env.CUDA_VISIBLE_DEVICES = "1,0";
@@ -253,7 +256,7 @@ test("KTransformers preflight rejects GPU draws outside CUDA and TP order", () =
       { poolId: "host", bytes: 32_000 },
     ];
     const second = { ...nvidia, id: "1", name: "NVIDIA Test 1" };
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions([nvidia, second]),
     });
     assert.equal(result.ok, false);
@@ -266,23 +269,29 @@ test("KTransformers preflight rejects GPU draws outside CUDA and TP order", () =
   }
 });
 
-test("KTransformers preflight validates internal and manager NUMA placement", () => {
+test("KTransformers preflight validates internal and manager NUMA placement", async () => {
   const { root, instance } = fixture();
   try {
     instance.args["--kt-threadpool-count"] = 2;
     instance.args["--kt-numa-nodes"] = ["0", "1"];
     instance.numa = { mode: "bind", node: 0 };
-    const result = validateInstancePreflight(instance, preflightOptions());
+    const result = await validateInstancePreflight(
+      instance,
+      preflightOptions(),
+    );
     assert.equal(result.ok, false);
     assert.ok(result.issues.some((entry) => entry.field === "numa.node"));
 
     instance.numa = { mode: "interleave", nodes: [0, 1] };
-    const interleave = validateInstancePreflight(instance, preflightOptions());
+    const interleave = await validateInstancePreflight(
+      instance,
+      preflightOptions(),
+    );
     assert.equal(interleave.ok, false);
     assert.ok(interleave.issues.some((entry) => entry.field === "numa.mode"));
 
     delete instance.numa;
-    const noCpu = validateInstancePreflight(instance, {
+    const noCpu = await validateInstancePreflight(instance, {
       ...preflightOptions(),
       numaNodes: numaNodes.map((node) =>
         node.id === 1 ? { ...node, cpuCount: 0, cpus: "" } : node,
@@ -297,27 +306,27 @@ test("KTransformers preflight validates internal and manager NUMA placement", ()
   }
 });
 
-test("KTransformers preflight ignores manager NUMA placement on a single-node host", () => {
+test("KTransformers preflight ignores manager NUMA placement on a single-node host", async () => {
   const { root, instance } = fixture();
   try {
     const options = { ...preflightOptions(), numaNodes: [numaNodes[0]!] };
     instance.numa = { mode: "interleave", nodes: [0, 1] };
-    const interleave = validateInstancePreflight(instance, options);
+    const interleave = await validateInstancePreflight(instance, options);
     assert.ok(!interleave.issues.some((entry) => entry.field === "numa.mode"));
 
     instance.numa = { mode: "bind", node: 1 };
     instance.args["--kt-numa-nodes"] = ["0"];
-    const bind = validateInstancePreflight(instance, options);
+    const bind = await validateInstancePreflight(instance, options);
     assert.ok(!bind.issues.some((entry) => entry.field === "numa.node"));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("KTransformers memory shortfalls are blocking", () => {
+test("KTransformers memory shortfalls are blocking", async () => {
   const { root, instance } = fixture();
   try {
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions(),
       capacityAdmission: {
         ok: false,
@@ -340,10 +349,10 @@ test("KTransformers memory shortfalls are blocking", () => {
   }
 });
 
-test("KTransformers preflight enforces the CPU method support matrix", () => {
+test("KTransformers preflight enforces the CPU method support matrix", async () => {
   const { root, instance } = fixture();
   try {
-    const fp8 = validateInstancePreflight(instance, {
+    const fp8 = await validateInstancePreflight(instance, {
       ...preflightOptions(),
       cpuFlags: ["avx2"],
     });
@@ -357,7 +366,7 @@ test("KTransformers preflight enforces the CPU method support matrix", () => {
     );
 
     instance.engineConfig!.method = "BF16";
-    const bf16 = validateInstancePreflight(instance, {
+    const bf16 = await validateInstancePreflight(instance, {
       ...preflightOptions(),
       cpuFlags: ["avx2", "avx512f"],
     });
@@ -371,7 +380,7 @@ test("KTransformers preflight enforces the CPU method support matrix", () => {
     );
 
     instance.engineConfig!.method = "LLAMAFILE";
-    const llamafile = validateInstancePreflight(instance, {
+    const llamafile = await validateInstancePreflight(instance, {
       ...preflightOptions(),
       cpuFlags: ["avx2"],
     });
@@ -381,12 +390,15 @@ test("KTransformers preflight enforces the CPU method support matrix", () => {
   }
 });
 
-test("KTransformers preflight validates CPU threads and GPU expert placement", () => {
+test("KTransformers preflight validates CPU threads and GPU expert placement", async () => {
   const { root, instance } = fixture();
   try {
     instance.args["--kt-cpuinfer"] = 17;
     delete instance.args["--kt-num-gpu-experts"];
-    const result = validateInstancePreflight(instance, preflightOptions());
+    const result = await validateInstancePreflight(
+      instance,
+      preflightOptions(),
+    );
     assert.equal(result.ok, false);
     assert.ok(
       result.issues.some(
@@ -405,7 +417,7 @@ test("KTransformers preflight validates CPU threads and GPU expert placement", (
 
     instance.args["--kt-cpuinfer"] = 16;
     instance.args["--kt-gpu-experts-ratio"] = 1.5;
-    const ratio = validateInstancePreflight(instance, preflightOptions());
+    const ratio = await validateInstancePreflight(instance, preflightOptions());
     assert.equal(ratio.ok, false);
     assert.ok(
       ratio.issues.some(
@@ -419,7 +431,7 @@ test("KTransformers preflight validates CPU threads and GPU expert placement", (
   }
 });
 
-test("KTransformers preflight requires matching roots and versions RAWINT4 ISA", () => {
+test("KTransformers preflight requires matching roots and versions RAWINT4 ISA", async () => {
   const { root, instance } = fixture();
   const python = join(root, "bin", "python");
   try {
@@ -428,7 +440,10 @@ test("KTransformers preflight requires matching roots and versions RAWINT4 ISA",
       '#!/bin/sh\nprintf \'ARRIERO_KT_RUNTIME=["3.12","0.6.3.post1","0.6.4"]\\n\'\n',
       { mode: 0o755 },
     );
-    const mismatch = validateInstancePreflight(instance, preflightOptions());
+    const mismatch = await validateInstancePreflight(
+      instance,
+      preflightOptions(),
+    );
     assert.equal(mismatch.ok, false);
     assert.ok(
       mismatch.issues.some(
@@ -444,7 +459,7 @@ test("KTransformers preflight requires matching roots and versions RAWINT4 ISA",
       { mode: 0o755 },
     );
     instance.engineConfig!.method = "RAWINT4";
-    const oldRawInt4 = validateInstancePreflight(instance, {
+    const oldRawInt4 = await validateInstancePreflight(instance, {
       ...preflightOptions(),
       cpuFlags: ["avx2"],
     });
@@ -461,13 +476,13 @@ test("KTransformers preflight requires matching roots and versions RAWINT4 ISA",
   }
 });
 
-test("KTransformers runtime probe timeout is configurable and diagnostic", () => {
+test("KTransformers runtime probe timeout is configurable and diagnostic", async () => {
   const { root, instance } = fixture();
   const python = join(root, "bin", "python");
   try {
-    populateArgumentCatalogBeforeHangingProbe(instance);
+    await populateArgumentCatalogBeforeHangingProbe(instance);
     installHangingRuntimeProbe(python);
-    const result = validateInstancePreflight(instance, {
+    const result = await validateInstancePreflight(instance, {
       ...preflightOptions(),
       runtimeProbeTimeoutMs: 10,
     });
@@ -484,16 +499,19 @@ test("KTransformers runtime probe timeout is configurable and diagnostic", () =>
   }
 });
 
-test("KTransformers preflight blocks a failing CPU-kernel smoke test", () => {
+test("KTransformers preflight blocks a failing CPU-kernel smoke test", async () => {
   const { root, instance } = fixture();
   const python = join(root, "bin", "python");
   try {
     assert.equal(
-      validateInstancePreflight(instance, preflightOptions()).ok,
+      (await validateInstancePreflight(instance, preflightOptions())).ok,
       true,
     );
     writeFileSync(python, "#!/bin/sh\nexit 132\n", { mode: 0o755 });
-    const result = validateInstancePreflight(instance, preflightOptions());
+    const result = await validateInstancePreflight(
+      instance,
+      preflightOptions(),
+    );
     assert.equal(result.ok, false);
     assert.ok(
       result.issues.some(

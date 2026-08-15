@@ -10,13 +10,14 @@ import {
   parseCudaVisibleDevices,
   SGLANG_TENSOR_PARALLEL_KEYS,
 } from "@arriero/core";
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { promisify } from "node:util";
 
 import { getSystemResources } from "../system/resources.js";
-import { getArgumentCatalog } from "../arguments/catalog.js";
+import { getArgumentCatalogAsync } from "../arguments/catalog.js";
 import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { listMemoryPools } from "../resources/repository.js";
 import type { PreflightOptions } from "./preflight.js";
@@ -119,11 +120,161 @@ type KTransformersRuntime = {
   sglangKtVersion: string;
 };
 
-function validateRuntime(
+type RuntimeProbeOutcome = {
+  runtime: KTransformersRuntime | null;
+  issues: ProcessPreflightIssue[];
+  transient: boolean;
+};
+
+const execFileAsync = promisify(execFile);
+const RUNTIME_PROBE_FAILURE_TTL_MS = 30_000;
+const runtimeProbeCache = new Map<
+  string,
+  { outcome: RuntimeProbeOutcome; expiresAt: number | null }
+>();
+const runtimeProbesInFlight = new Map<string, Promise<RuntimeProbeOutcome>>();
+
+function runtimeProbeCacheKey(python: string): string | null {
+  try {
+    return `${python}:${statSync(python).mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+
+async function probeRuntime(
+  python: string,
+  timeoutMs: number,
+): Promise<RuntimeProbeOutcome> {
+  const probeIssues: ProcessPreflightIssue[] = [];
+  let stdout: string;
+  try {
+    const result = await execFileAsync(
+      python,
+      [
+        "-c",
+        [
+          "import importlib.metadata as metadata",
+          "import json",
+          "import sys",
+          "import kt_kernel",
+          "import sglang",
+          "from kt_kernel import kt_kernel_ext",
+          "cpu_infer = kt_kernel_ext.CPUInfer(1)",
+          "del cpu_infer",
+          "print('ARRIERO_KT_RUNTIME=' + json.dumps([f'{sys.version_info.major}.{sys.version_info.minor}', metadata.version('kt-kernel'), metadata.version('sglang-kt')]))",
+        ].join("; "),
+      ],
+      { encoding: "utf8", timeout: timeoutMs },
+    );
+    stdout = result.stdout;
+  } catch (error) {
+    const failure = error as NodeJS.ErrnoException & {
+      killed?: boolean;
+      signal?: NodeJS.Signals | null;
+    };
+    const timedOut = failure.killed === true || failure.code === "ETIMEDOUT";
+    issue(
+      probeIssues,
+      "error",
+      "binaryPathRefId",
+      timedOut
+        ? `KTransformers runtime import probe timed out after ${timeoutMs} ms`
+        : "KTransformers runtime import or CPU-kernel smoke test failed in the selected environment",
+    );
+    return { runtime: null, issues: probeIssues, transient: true };
+  }
+  const prefix = "ARRIERO_KT_RUNTIME=";
+  const runtimeLine = stdout
+    .split(/\r?\n/)
+    .find((line) => line.startsWith(prefix));
+  let runtimeValues: unknown = null;
+  try {
+    runtimeValues = runtimeLine
+      ? (JSON.parse(runtimeLine.slice(prefix.length)) as unknown)
+      : null;
+  } catch {
+    runtimeValues = null;
+  }
+  if (
+    !Array.isArray(runtimeValues) ||
+    runtimeValues.length !== 3 ||
+    runtimeValues.some((value) => typeof value !== "string")
+  ) {
+    issue(
+      probeIssues,
+      "error",
+      "binaryPathRefId",
+      "KTransformers runtime did not report Python and root package versions",
+    );
+    return { runtime: null, issues: probeIssues, transient: false };
+  }
+  const [pythonMinor, ktKernelVersion, sglangKtVersion] = runtimeValues as [
+    string,
+    string,
+    string,
+  ];
+  if (pythonMinor !== "3.11" && pythonMinor !== "3.12") {
+    issue(
+      probeIssues,
+      "error",
+      "binaryPathRefId",
+      `KTransformers requires Python 3.11 or 3.12; selected environment reports ${pythonMinor || "unknown"}`,
+    );
+  }
+  if (ktKernelVersion !== sglangKtVersion) {
+    issue(
+      probeIssues,
+      "error",
+      "binaryPathRefId",
+      `KTransformers root package versions do not match: kt-kernel=${ktKernelVersion}, sglang-kt=${sglangKtVersion}`,
+    );
+  }
+  return {
+    runtime: { pythonMinor, ktKernelVersion, sglangKtVersion },
+    issues: probeIssues,
+    transient: false,
+  };
+}
+
+async function probeRuntimeCached(
+  python: string,
+  timeoutMs: number,
+): Promise<RuntimeProbeOutcome> {
+  const key = runtimeProbeCacheKey(python);
+  if (!key) {
+    return probeRuntime(python, timeoutMs);
+  }
+  const cached = runtimeProbeCache.get(key);
+  if (cached && (cached.expiresAt === null || cached.expiresAt > Date.now())) {
+    return cached.outcome;
+  }
+  const inFlight = runtimeProbesInFlight.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+  const probe = probeRuntime(python, timeoutMs)
+    .then((outcome) => {
+      runtimeProbeCache.set(key, {
+        outcome,
+        expiresAt: outcome.transient
+          ? Date.now() + RUNTIME_PROBE_FAILURE_TTL_MS
+          : null,
+      });
+      return outcome;
+    })
+    .finally(() => {
+      runtimeProbesInFlight.delete(key);
+    });
+  runtimeProbesInFlight.set(key, probe);
+  return probe;
+}
+
+async function validateRuntime(
   instance: Instance,
   issues: ProcessPreflightIssue[],
   options: PreflightOptions,
-): KTransformersRuntime | null {
+): Promise<KTransformersRuntime | null> {
   if (basename(instance.binaryPath) !== "sglang") {
     issue(
       issues,
@@ -143,84 +294,9 @@ function validateRuntime(
     return null;
   }
   const timeoutMs = options.runtimeProbeTimeoutMs ?? 30_000;
-  const result = spawnSync(
-    python,
-    [
-      "-c",
-      [
-        "import importlib.metadata as metadata",
-        "import json",
-        "import sys",
-        "import kt_kernel",
-        "import sglang",
-        "from kt_kernel import kt_kernel_ext",
-        "cpu_infer = kt_kernel_ext.CPUInfer(1)",
-        "del cpu_infer",
-        "print('ARRIERO_KT_RUNTIME=' + json.dumps([f'{sys.version_info.major}.{sys.version_info.minor}', metadata.version('kt-kernel'), metadata.version('sglang-kt')]))",
-      ].join("; "),
-    ],
-    { encoding: "utf8", timeout: timeoutMs },
-  );
-  if (result.error || result.status !== 0) {
-    const timedOut =
-      (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
-    issue(
-      issues,
-      "error",
-      "binaryPathRefId",
-      timedOut
-        ? `KTransformers runtime import probe timed out after ${timeoutMs} ms`
-        : "KTransformers runtime import or CPU-kernel smoke test failed in the selected environment",
-    );
-    return null;
-  }
-  const prefix = "ARRIERO_KT_RUNTIME=";
-  const runtimeLine = result.stdout
-    .split(/\r?\n/)
-    .find((line) => line.startsWith(prefix));
-  let runtimeValues: unknown = null;
-  try {
-    runtimeValues = runtimeLine
-      ? (JSON.parse(runtimeLine.slice(prefix.length)) as unknown)
-      : null;
-  } catch {
-    runtimeValues = null;
-  }
-  if (
-    !Array.isArray(runtimeValues) ||
-    runtimeValues.length !== 3 ||
-    runtimeValues.some((value) => typeof value !== "string")
-  ) {
-    issue(
-      issues,
-      "error",
-      "binaryPathRefId",
-      "KTransformers runtime did not report Python and root package versions",
-    );
-    return null;
-  }
-  const [pythonMinor, ktKernelVersion, sglangKtVersion] = runtimeValues as [
-    string,
-    string,
-    string,
-  ];
-  if (pythonMinor !== "3.11" && pythonMinor !== "3.12") {
-    issue(
-      issues,
-      "error",
-      "binaryPathRefId",
-      `KTransformers requires Python 3.11 or 3.12; selected environment reports ${pythonMinor || "unknown"}`,
-    );
-  }
-  if (ktKernelVersion !== sglangKtVersion) {
-    issue(
-      issues,
-      "error",
-      "binaryPathRefId",
-      `KTransformers root package versions do not match: kt-kernel=${ktKernelVersion}, sglang-kt=${sglangKtVersion}`,
-    );
-  }
-  return { pythonMinor, ktKernelVersion, sglangKtVersion };
+  const outcome = await probeRuntimeCached(python, timeoutMs);
+  issues.push(...outcome.issues);
+  return outcome.runtime;
 }
 
 function argNumber(instance: Instance, keys: string[], fallback: number) {
@@ -768,13 +844,13 @@ function validateManagedBoundary(
   }
 }
 
-function validateArgumentCompatibility(
+async function validateArgumentCompatibility(
   instance: Instance,
   issues: ProcessPreflightIssue[],
 ) {
-  let catalog: ReturnType<typeof getArgumentCatalog>;
+  let catalog: Awaited<ReturnType<typeof getArgumentCatalogAsync>>;
   try {
-    catalog = getArgumentCatalog(instance.binaryPath, {
+    catalog = await getArgumentCatalogAsync(instance.binaryPath, {
       parserId: "sglang-help",
     });
   } catch (error) {
@@ -819,7 +895,7 @@ function validateArgumentCompatibility(
   }
 }
 
-export function validateKTransformersPreflight(
+export async function validateKTransformersPreflight(
   instance: Instance,
   issues: ProcessPreflightIssue[],
   options: PreflightOptions,
@@ -844,8 +920,8 @@ export function validateKTransformersPreflight(
 
   validateModel(instance.engineConfig.model, issues);
   validateCpuWeights(instance.engineConfig.cpuWeights, issues);
-  const runtime = validateRuntime(instance, issues, options);
-  validateArgumentCompatibility(instance, issues);
+  const runtime = await validateRuntime(instance, issues, options);
+  await validateArgumentCompatibility(instance, issues);
   validateCuda(instance, issues, options);
   validateMemoryReservations(instance, issues, options);
   validateNuma(instance, issues, options);

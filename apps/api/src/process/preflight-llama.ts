@@ -5,7 +5,7 @@ import type {
 } from "@arriero/core";
 import { existsSync, readFileSync, statSync } from "node:fs";
 
-import { getArgumentCatalog } from "../arguments/catalog.js";
+import { getArgumentCatalogAsync } from "../arguments/catalog.js";
 import { getSystemResources } from "../system/resources.js";
 import type { PreflightOptions } from "./preflight.js";
 
@@ -273,13 +273,13 @@ function validateGpuLayerRequests(
   }
 }
 
-function validateArgumentCompatibility(
+async function validateArgumentCompatibility(
   instance: Instance,
   issues: ProcessPreflightIssue[],
 ) {
-  let catalog: ReturnType<typeof getArgumentCatalog>;
+  let catalog: Awaited<ReturnType<typeof getArgumentCatalogAsync>>;
   try {
-    catalog = getArgumentCatalog(instance.binaryPath);
+    catalog = await getArgumentCatalogAsync(instance.binaryPath);
   } catch (error) {
     issues.push({
       level: "warning",
@@ -372,12 +372,12 @@ function validateArgumentCompatibility(
   }
 }
 
-export function validateLlamaServerPreflight(
+export async function validateLlamaServerPreflight(
   instance: Instance,
   issues: ProcessPreflightIssue[],
   options: PreflightOptions,
 ) {
   validateKnownPathArgs(instance, issues);
-  validateArgumentCompatibility(instance, issues);
+  await validateArgumentCompatibility(instance, issues);
   validateGpuLayerRequests(instance, issues, options);
 }

@@ -35,7 +35,7 @@ type EnginePreflightCheck = (
   instance: Instance,
   issues: ProcessPreflightIssue[],
   options: PreflightOptions,
-) => void;
+) => void | Promise<void>;
 
 const ENGINE_PREFLIGHT_CHECKS: Record<
   EnginePreflightId,
@@ -347,10 +347,10 @@ function validateMemoryCapacity(
   }
 }
 
-export function validateInstancePreflight(
+export async function validateInstancePreflight(
   instance: Instance,
   options: PreflightOptions = {},
-): ProcessPreflightResult {
+): Promise<ProcessPreflightResult> {
   const issues: ProcessPreflightIssue[] = [];
 
   try {
@@ -380,7 +380,7 @@ export function validateInstancePreflight(
       engineDescriptor(instance.kind).preflight.engineChecks
     ];
   if (engineChecks) {
-    engineChecks(instance, issues, options);
+    await engineChecks(instance, issues, options);
   }
   validateMemoryCapacity(instance, issues, options);
 
@@ -396,7 +396,7 @@ export async function validateInstanceStartPreflight(
   instance: Instance,
   options: StartPreflightOptions = {},
 ): Promise<ProcessPreflightResult> {
-  const result = validateInstancePreflight(instance, options);
+  const result = await validateInstancePreflight(instance, options);
   if (options.checkPortAvailability === false) {
     return result;
   }
