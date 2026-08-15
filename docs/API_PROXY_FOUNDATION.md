@@ -1,6 +1,8 @@
 # API Proxy Foundation
 
-This document captures the intended shape of the future `arriero` API proxy. The current implementation adds shared contracts, durable disabled-by-default configuration, runtime diagnostics, pure planning logic, simple public OpenAI-compatible execution and HTTP forwarding helpers. It also introduces a protocol-adapter boundary for OpenAI-compatible and Anthropic-compatible public facades. Proxy targets now point at entries in a shared API endpoint catalog. Managed instances and the arriero proxy are generated read-only catalog entries; external APIs are editable catalog entries with optional auth settings. Public OpenAI-compatible requests can start or load a managed target before forwarding when the scheduler plan only requires MVP-supported readiness actions. External API targets are forwarded without instance-management actions.
+This document is the map of the `arriero` API proxy: the shared contracts, the pure planning layer, the protocol-adapter boundary in front of the OpenAI-compatible and Anthropic-compatible public facades, and the durable configuration behind them. Proxy targets point at entries in a shared API endpoint catalog — managed instances and the arriero proxy itself are generated read-only entries, external APIs are editable entries with optional auth. Public requests start, load, preempt or evict a managed target as the scheduler plan demands before forwarding; external API targets forward without instance-management actions.
+
+Companion documents: `docs/API_PROXY_PREEMPTION.md` (the context-switching scheduler and mid-request resume), `docs/API_PROXY_PIPELINES.md` (node-graph routing), `docs/API_PROXY_RESPONSE_CACHE.md` (the `cache` node), `docs/RESOURCE_MANAGEMENT.md` (memory residency vs compute contention), `docs/STATUS_LAYERS.md` (state vocabularies), `docs/ENGINE_ADAPTERS.md` (per-engine capabilities).
 
 ## Problem Shape
 
@@ -13,15 +15,15 @@ The primary case is a single scarce accelerator shared by multiple `llama-server
 
 The second expected case is API adaptation: accepting one API shape and forwarding a compatible or transformed request to a specific `llama-server` endpoint.
 
-## Existing Building Blocks
+## Manager primitives the proxy drives
 
 - `requestLlamaModelAction`: model `load`, `unload` and `reload`.
 - `requestLlamaSlotAction`: slot `save`, `restore` and `erase`.
 - `probeLlamaServer` and health summaries: current endpoint, model and slot diagnostics.
 - `ProcessSupervisor`: process start, stop and restart.
-- Probe streaming: existing server-side streaming from llama-server to the UI.
+- Probe streaming: server-side streaming from llama-server to the UI.
 
-## New Foundation
+## Components
 
 - Core proxy contracts in `packages/core`:
   - `ApiEndpointConfig`
@@ -35,8 +37,8 @@ The second expected case is API adaptation: accepting one API shape and forwardi
   - resolves target endpoint IDs through the shared API endpoint catalog
   - derives managed target state from instance health summaries, `/v1/models` and slots
   - treats external API endpoints as ready for forwarding without process management
-  - tracks idle time in process memory
-  - merges persistent saved slot ids and last request time from SQLite
+  - tracks idle time and last request time in process memory
+  - merges persisted saved-slot ids from `data/proxy-runtime-metadata.json` (`proxy/runtime-metadata-store.ts`)
 - Pure scheduler in `apps/api/src/proxy/scheduler.ts`:
   - `planApiProxyRequest`
   - `planApiProxyIdleMaintenance`
@@ -63,7 +65,7 @@ The second expected case is API adaptation: accepting one API shape and forwardi
   - verifies that a published model is bound to a proxy target
   - builds a scheduler request plan for the bound target
   - returns protocol-specific diagnostics when the target is missing, blocked or not ready
-  - allows forwarding only when no scheduler action is needed except `route-request`
+  - forwards readiness actions to the executor when the caller sets `allowReadinessActions` (the live path does); without it, any action beyond `route-request` is a `target_not_ready` diagnostic — that mode is what `route-explain` and the admin previews use
 - Forwarder in `apps/api/src/proxy/forwarder.ts`:
   - forwards ready OpenAI-compatible requests to the resolved target Base URL
   - applies endpoint auth headers for external APIs
@@ -77,19 +79,12 @@ The second expected case is API adaptation: accepting one API shape and forwardi
   and the request proceeds with a cold cache.
 - Durable configuration in files under `data/config/proxy/` (`proxy/config-files.ts` store; `proxy/repository.ts` + `proxy/endpoints.ts` CRUD):
   - `endpoints.json` (external-API definitions; API keys in `data/config/.secrets.json`, gitignored)
-  - `api_proxy_models` → `models.json`
-  - `api_proxy_targets` → `targets.json`
-  - pipelines → `pipelines.json`
-- Runtime state stays in SQLite:
-  - `api_proxy_runtime_metadata` (saved slots, last-request; no longer FK-bound to a targets table)
-- One-time upgrade: `proxy/legacy-migration.ts` exports the former `api_endpoints` / `api_proxy_{targets,models,pipelines}` tables to the JSON files, then drops them.
-- Admin UI pages:
-  - separate API endpoint catalog page
-  - external proxy models
-  - endpoint-based proxy targets
-  - runtime state preview
-  - scheduler plan preview
-  - external API listener with guarded ready-target forwarding
+  - `models.json`, `targets.json`, `pipelines.json`, `sources.json`, `settings.json`
+- Runtime state outside the config tree:
+  - `data/proxy-runtime-metadata.json` — per-target saved-slot ids, an in-memory map with atomic write-through (`proxy/runtime-metadata-store.ts`); rebuildable, not git-tracked. `lastRequestAt` is memory-only.
+  - SQLite `proxy_request_traces` (history, `proxy/traces-repository.ts`) and `proxy_response_cache` (rebuildable cache).
+- One-time upgrades (`docs/MIGRATIONS.md`): `proxy/legacy-migration.ts` exported the former `api_endpoints` / `api_proxy_{targets,models,pipelines}` tables to the JSON files, and `0003-proxy-runtime-metadata-to-file` moved `api_proxy_runtime_metadata` out of SQLite.
+- Admin UI, one section per config layer (`web/src/ui/routing.ts`): Dashboard (`#/proxy` — topology, runtime snapshot, scheduler-plan preview, stats), Requests (`#/proxy/traces`), API models, Pipelines (canvas), Targets, Endpoints, API keys (request sources), Resources.
 
 ## External Protocol Facades
 
@@ -100,7 +95,7 @@ The external protocol surfaces are public and intentionally separate from admin 
 - The same POST endpoints are also available under `/v1/*`.
 - `POST /proxy/anthropic/v1/messages` and `POST /v1/messages` validate the `model` field and return Anthropic-shaped errors.
 
-At this stage, OpenAI-compatible generation endpoints can start/load/wait for managed targets, then forward. External API targets skip management and forward directly:
+Generation endpoints run the full readiness plan for managed targets — start, load, wait, and where the plan calls for it evict or preempt a competitor — then forward. External API targets skip management and forward directly:
 
 - `/v1/chat/completions`
 - `/v1/completions`
@@ -109,7 +104,7 @@ At this stage, OpenAI-compatible generation endpoints can start/load/wait for ma
 
 Unknown models return the protocol-specific `not_found` error; a model whose serving is **disabled** (`enabled:false`) returns a `503` `model_disabled` before any routing or autostart (it stays callable by name even when hidden, so it can be tested before exposure). OpenAI Responses (`/v1/responses`) forwards natively (llama-server implements it). Anthropic Messages (`/v1/messages`) is translated to OpenAI Chat Completions for non-anthropic upstreams via `packages/anthropic-openai-bridge` — see `docs/ANTHROPIC_OPENAI_BRIDGE.md`.
 
-If a known enabled model is not bound to a proxy target, or if the scheduler would need to unload a competing target, save a slot, restore a slot or stop an instance, the public endpoint returns a protocol-specific `503` diagnostic. This means public requests are now connected to the same scheduling model as the admin preview, but the MVP intentionally supports only simple autostart, autoload and forward.
+A known enabled model that is not bound to a proxy target returns a protocol-specific `503`. Contention does **not**: a request whose plan needs a competitor unloaded, a slot saved or an instance stopped executes that plan, and a request that cannot be satisfied yet queues on the compute-domain lease rather than erroring (`docs/RESOURCE_MANAGEMENT.md` § Contention hardening). `503` is reserved for a genuinely blocked plan — see `gateway.ts:arriero_proxy_plan_blocked` and the executor's `plan_blocked` timeout.
 
 ### Request sources and anonymous access
 
@@ -145,7 +140,7 @@ This `value` is the public **L4** layer — a frozen, llama.cpp-router-derived e
 
 ## Admin Diagnostics
 
-The admin API exposes diagnostics for the next implementation step:
+The admin API exposes the proxy's internal state read-only:
 
 - `GET /api/proxy/runtime` returns a runtime snapshot for configured proxy targets.
 - `POST /api/proxy/plan` returns the scheduler plan for either an incoming request or an idle-maintenance pass.
@@ -171,7 +166,7 @@ The `cache`-node response store is managed out of band via `GET` / `DELETE /api/
 
 ## Scheduler Model
 
-The scheduler is deliberately side-effect free. It receives a snapshot of targets and returns an ordered action list. A later executor should translate actions into existing operations:
+The scheduler is deliberately side-effect free. It receives a snapshot of targets and returns an ordered action list; `proxy/public-executor.ts` is the only place that turns those actions into real operations:
 
 - `start-instance` -> `ProcessSupervisor.start`
 - `wait-instance-ready` -> health polling
@@ -208,9 +203,3 @@ See `proxy-latency` commit series and `docs/STATUS_LAYERS.md` (L2/L3) for the st
 ## External providers
 
 Connecting an external provider does not use the `target` layer. An endpoint is the upstream connection (base URL + profile + one optional key); a model routes straight to it via `routeTo: {type: "endpoint", endpointId, upstreamModel}`, and a `passthrough: true` endpoint exposes its whole catalog by name with no per-model record. Both resolve to a synthetic, non-persisted target (`proxy/external-target.ts`) so the gateway/lease/forwarder path is unchanged. Endpoint auth is a single key (stored `apiKey` XOR `apiKeyEnvVar`) with profile-derived placement and an `extraHeaders` record — no auth-type enum. Full details, including the `modelFilter` glob semantics and the `/models` catalog merge into `GET /v1/models`, are in `docs/EXTERNAL_PROVIDERS.md`.
-
-## Next Implementation Step
-
-The next safe step is to expand execution and add targeted file-based diagnostics when real failures require them:
-
-- add guarded unload/preemption after the simple autostart path is stable.

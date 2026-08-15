@@ -1,8 +1,8 @@
 # NUMA pinning
 
 Manual, per-instance binding of a managed `llama-server` to one NUMA node on
-multi-socket hosts (e.g. dual-socket Xeon/EPYC). Phase 1 surfaces the topology;
-phase 2 enforces a binding. Memory budgeting per node is **not** implemented —
+multi-socket hosts (e.g. dual-socket Xeon/EPYC). The topology is surfaced and
+the binding is enforced. Memory budgeting per node is **not** implemented —
 fitting a node's RAM is the operator's responsibility (see "Scope" below).
 
 ## Two states, no soft tier

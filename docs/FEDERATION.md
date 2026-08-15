@@ -170,21 +170,24 @@ live stats until the depth parity is built. Tracked so it is not forgotten.
 
 ## Phases
 
-- **F0 — Node registry + read aggregation.** `config/nodes.json` + core
-  `NodeSchema`; reverse-proxy `/api/nodes/<id>/*`; bearer auth from `.secrets.json`;
-  fleet read endpoints that fan out + namespace (`system`, `resources`, instance
-  list). Powers the aggregated Resources view and the eventual pickers. No remote
-  control yet.
-- **F1 — Remote control.** Start / stop / edit / logs of remote instances via the
-  owning node's API, routed by the global switcher. "Manage remote instances as if
-  local."
-- **F2 — Federated proxy.** Targets may be remote instances; the gateway picks
-  node+target and delegates the request to the owning node's proxy. Resources view
-  fully machine-scoped.
-- **F3 — RPC on top.** An `rpc-server` worker = a remote instance (`kind` =
-  `rpc-worker`); the orchestrator instance references remote worker endpoints;
-  machine-scoped pools already account the workers' VRAM. The shipped `GGML_RPC`
-  build support is consumed here.
+- **F0 — Node registry + read aggregation (done).** `config/nodes.json` + core
+  `NodeSchema`; reverse-proxy `/api/nodes/<id>/*` (`nodes/remote.ts:forwardToNode`);
+  bearer auth from `.secrets.json`; fleet read endpoints that fan out + namespace
+  (`system`, `resources`, instance list). Powers the aggregated Resources view and
+  the pickers.
+- **F1 — Remote control (done).** Start / stop / edit / logs of remote instances
+  via the owning node's API, routed by the global switcher
+  (`web/src/ui/components/NodeSwitcher.tsx`).
+- **F2 — Federated proxy (done).** Targets may be remote instances; the gateway
+  picks node+target and delegates the request to the owning node's proxy
+  (`proxy/delegate.ts`, `proxy/remote-health.ts`). Resources view fully
+  machine-scoped.
+- **F3 — RPC on top (partial).** An `rpc-server` worker is a remote instance
+  (`kind` = `rpc-worker`) and `nodes/rpc-worker-catalog.ts` already offers remote
+  workers as candidates for an orchestrator instance, endpoint-labelled by the
+  peer's host. Still open: machine-scoped pool accounting of a remote worker's
+  VRAM against the orchestrator's draw, and the cross-node lease atomicity that
+  only a request spanning machines needs.
 
 ## Risks & things that change
 
@@ -195,8 +198,6 @@ live stats until the depth parity is built. Tracked so it is not forgotten.
 - **Partial failure.** An offline peer must degrade gracefully: its instances /
   pools show unreachable; the fleet proxy skips its targets rather than erroring.
 - **API version skew** between nodes — a minimal version handshake on registration.
-- **Product framing.** This shifts the top-line description from "local single-user"
-  to "single-operator, multi-host". Update `CLAUDE.md` once F0/F1 land.
 
 ## Deferred backlog (intentionally not in the base)
 

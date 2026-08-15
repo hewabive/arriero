@@ -87,7 +87,7 @@ The path of the model weights. This can be a local folder or a Hugging Face repo
 - `--delete-ckpt-after-loading`: удаляет **этот** каталог после старта. Комбинация с локальным путем к единственной копии модели необратима.
 - `--kt-weight-path`: отдельный путь к CPU-весам KTransformers; `--model-path` при KT-профиле по-прежнему указывает на основную модель.
 
-В arriero для инстансов kind `ktransformers` ключи `--model-path` и `--model` **запрещены в сыром `args`**: схема инстанса отклоняет их с сообщением «managed by KTransformers engine config», а флаг собирается из типизированной конфигурации движка (`docs/KTRANSFORMERS_SUPPORT.md`). Это сделано, чтобы UI-значение и сырые аргументы не расходились молча.
+В arriero для инстансов kind `ktransformers` ключи `--model-path` и `--model` **запрещены в сыром `args`**: схема инстанса отклоняет их с сообщением «managed by KTransformers engine config», а флаг собирается из типизированной конфигурации движка (`docs/ENGINE_ADAPTERS.md`). Это сделано, чтобы UI-значение и сырые аргументы не расходились молча.
 
 ## Типовые проблемы и диагностика
 
@@ -117,4 +117,4 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-30B-A3B --revision main -
 - `sglang/python/sglang/srt/utils/runai_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
-- arriero: `docs/KTRANSFORMERS_SUPPORT.md`
+- arriero: `docs/ENGINE_ADAPTERS.md`

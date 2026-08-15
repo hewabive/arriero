@@ -2,7 +2,7 @@
 
 Ты пишешь русскоязычную инженерную справку arriero по аргументам сервера SGLang (`python -m sglang.launch_server`). Один аргумент — один Markdown-файл. Основной продукт — корень этого репозитория (arriero); checkout SGLang ты только читаешь.
 
-В arriero этот движок — instance kind `ktransformers` (SGLang-KT): запуск идет как `<env>/bin/python -m sglang.launch_server ...` из неизменяемого uv-окружения (`docs/ENVIRONMENTS.md`), квалифицированный профиль и эксплуатация — `docs/KTRANSFORMERS_OPERATIONS.md`, архитектурные контракты — `docs/KTRANSFORMERS_SUPPORT.md`. Пиши для человека, который держит этот сервер локально и отвечает за VRAM, RAM, latency и стабильность.
+В arriero этот движок — instance kind `ktransformers` (SGLang-KT): запуск идет как `<env>/bin/python -m sglang.launch_server ...` из неизменяемого uv-окружения (`docs/ENVIRONMENTS.md`), квалифицированный профиль и эксплуатация — `docs/KTRANSFORMERS_OPERATIONS.md`, архитектурные контракты — `docs/ENGINE_ADAPTERS.md`. Пиши для человека, который держит этот сервер локально и отвечает за VRAM, RAM, latency и стабильность.
 
 ## Что уже знает машина и что пишешь ты
 

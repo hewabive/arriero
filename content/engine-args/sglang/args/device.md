@@ -129,4 +129,4 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --device cpu --tens
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
-- arriero: `docs/KTRANSFORMERS_SUPPORT.md`, `docs/RESOURCE_MANAGEMENT.md`
+- arriero: `docs/KTRANSFORMERS_OPERATIONS.md`, `docs/RESOURCE_MANAGEMENT.md`

@@ -144,4 +144,4 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --mem-fraction
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/docs/docs/advanced_features/hyperparameter_tuning.mdx`
-- arriero: `docs/RESOURCE_MANAGEMENT.md`, `docs/KTRANSFORMERS_SUPPORT.md`
+- arriero: `docs/RESOURCE_MANAGEMENT.md`, `docs/KTRANSFORMERS_OPERATIONS.md`

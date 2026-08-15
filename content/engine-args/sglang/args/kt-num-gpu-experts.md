@@ -110,4 +110,4 @@ python -m sglang.launch_server --model-path /models/DeepSeek-R1 --kt-weight-path
 - `ktransformers/kt-kernel/README.md`
 - `ktransformers/doc/en/kt-kernel/experts-sched-Tutorial.md`
 - `ktransformers/doc/en/kt-kernel/MiniMax-M3-Tutorial.md`
-- arriero: `docs/KTRANSFORMERS_SUPPORT.md`, `docs/RESOURCE_MANAGEMENT.md`
+- arriero: `docs/KTRANSFORMERS_OPERATIONS.md`, `docs/RESOURCE_MANAGEMENT.md`

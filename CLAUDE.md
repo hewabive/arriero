@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-`arriero` is a local single-user control plane for `llama.cpp` / `llama-server`: it manages instance
-definitions, supervises child processes, scans GGUF models, builds llama.cpp from source, documents
-`llama-server` arguments, and exposes an OpenAI/Anthropic-compatible API proxy in front of managed
-and external endpoints.
+`arriero` is a single-operator control plane for `llama.cpp` / `llama-server`, vLLM and
+KTransformers: it manages instance definitions, supervises child processes, scans GGUF models,
+builds llama.cpp from source, documents engine arguments, and exposes an OpenAI/Anthropic-compatible
+API proxy in front of managed and external endpoints. One host is the default; the `nodes` domain
+extends the same UI over a fleet of peers (`docs/FEDERATION.md`).
 
 ## Commands
 

@@ -113,4 +113,4 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --served-mod
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
-- arriero: `packages/core/src/instance.ts`, `packages/core/src/instance-model.ts`, `docs/KTRANSFORMERS_SUPPORT.md`, `docs/API_PROXY_FOUNDATION.md`
+- arriero: `packages/core/src/instance.ts`, `packages/core/src/instance-model.ts`, `docs/KTRANSFORMERS_OPERATIONS.md`, `docs/API_PROXY_FOUNDATION.md`

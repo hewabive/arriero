@@ -1,8 +1,7 @@
 # Config editing contract
 
 How file-backed configuration is read, changed and applied — for humans and for AI agents. The
-mechanism lives in `apps/api/src/config-store/` (built by the staged refactor tracked in
-`CONFIG_STORE_UNIFICATION_PLAN.md`); the git layer on top is `CONFIG_GIT.md`.
+mechanism lives in `apps/api/src/config-store/`; the git layer on top is `CONFIG_GIT.md`.
 
 ## The model: disk is staging, memory is the applied state
 

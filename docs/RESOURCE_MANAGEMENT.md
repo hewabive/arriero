@@ -193,44 +193,42 @@ admission plan, so it reflects the *planned* displacement.
   but a starved swap waiter still can't evict a wanted resident (layer 1 protects it),
   so genuine over-subscription does not round-robin yet.
 
-## Phasing
+## How it was built (and what the seams are)
 
-- **Phase 0 (done):** core schemas (`MemoryPool`, `InstanceMemoryDraw`), pure ledger,
-  `resources` domain + `config/resources.json` scaffold/refresh, `GET /api/resources`
-  and `PUT /api/resources/pools/:id`, `instance.memory` threaded through the
-  repository with poolId ref validation. No scheduler/coordinator change.
-- **Phase 1 (done):** manual-start admission — `POST /api/instances/:id/start`
-  takes `{ force }` and runs the ledger; over-budget returns a confirmable `409`
-  with the `ResourceAdmission` shortfall, and the UI shows a Start-anyway/Cancel
-  dialog (`force: true` overrides). Proxy autostart bypasses the gate (planned by
-  the scheduler in Phase 2). A capacity `warning` surfaces in the preflight
-  endpoints (form preview). Bulk start is not gated yet.
-- **Phase 2:** proxy memory axis (scheduler only, coordinator untouched).
-  - **2.0/2.1 (done):** scheduler snapshot carries per-target `draws` and per-pool
-    `{budgetBytes, usedByOthersBytes}` (`resources/ledger.ts:computeSchedulerPoolInputs`,
-    `proxy/resource-domains.ts`); `usedByOthers` = residents the proxy does not manage
-    (immovable), so the proxy reasons only over what it controls.
-  - **2.2 (done):** quantitative fit + greedy **idle** eviction in `planApiProxyRequest`
-    (`planMemoryEvictions`). Additive to the legacy group exclusivity, inert until
-    draws are declared. Busy-resident preemption for memory and robust serialization
-    of concurrent ungrouped evictions are **not** here — they need the Phase 3
-    coordinator.
-- **Phase 3 (done):** coordinator redesign + compute QoS.
-  - **3.0/3.1:** `requestComputeDomains` derives the per-request gpu-domain lease
-    keys; `ComputeDomainCoordinator` (`proxy/domain-coordinator.ts`) is a
-    multi-holder, multi-domain, individually-preemptible gate whose admission
-    policy is an injected `decide()` (admit | preempt[leaseIds] | wait).
-  - **3.2/3.3a:** the scheduler proposes busy-resident eviction
-    (`preemptTargetIds`, gated by `allowBusyEviction`), and
-    `buildDomainAdmissionDecider` (`proxy/domain-admission.ts`) is the
-    scheduler-backed `decide`: compute-QoS hold behind a strictly higher-priority
-    running holder, then a live holder overlay (running ⇒ busy, suspended ⇒ freed)
-    + a pure re-plan to decide fit and which busy holders to preempt.
-  - **3.3b:** the live path (`protocol-endpoint`, `fusion`, idle maintenance,
-    runtime snapshot) runs through the domain coordinator. No gpu draws ⇒ no
-    domain ⇒ no lease, preserving today's unmanaged concurrency.
-  - **3.4:** dropped the vestigial target `resourceGroupId` and the legacy
-    `ResourceGroupCoordinator` (Zod strips the field from stored configs on read).
+Every phase below has landed; the sequence is recorded because the seams it
+created are the ones a change has to respect.
+
+- **Core schemas + pure ledger.** `MemoryPool`, `InstanceMemoryDraw`,
+  `buildResourceLedger`/`checkDrawAdmission` in `@arriero/core`, the `resources`
+  domain and the `config/resources.json` scaffold/refresh. `instance.memory` is
+  threaded through the repository with poolId reference validation.
+- **Manual-start admission.** `POST /api/instances/:id/start` takes `{ force }`
+  and runs the ledger; over-budget returns a confirmable `409` carrying the
+  `ResourceAdmission` shortfall, and the UI offers Start-anyway/Cancel. Proxy
+  autostart bypasses this gate — it is planned by the scheduler instead. A
+  capacity `warning` surfaces in the preflight endpoints (form preview). Bulk
+  start is still ungated.
+- **Scheduler memory axis.** The scheduler snapshot carries per-target `draws`
+  and per-pool `{budgetBytes, usedByOthersBytes}`
+  (`resources/ledger.ts:computeSchedulerPoolInputs`,
+  `proxy/resource-domains.ts`), where `usedByOthers` is exactly the residents the
+  proxy does not manage. `planMemoryEvictions` does quantitative fit plus greedy
+  idle eviction, inert until draws are declared.
+- **Coordinator redesign + compute QoS.** `requestComputeDomains` derives the
+  per-request lease keys; `ComputeDomainCoordinator`
+  (`proxy/domain-coordinator.ts`) is a multi-holder, multi-domain,
+  individually-preemptible gate whose admission policy is an injected `decide()`
+  (admit | preempt[leaseIds] | wait). The scheduler proposes busy-resident
+  eviction (`preemptTargetIds`, gated by `allowBusyEviction`) and
+  `buildDomainAdmissionDecider` (`proxy/domain-admission.ts`) is the
+  scheduler-backed `decide`: a compute-QoS hold behind a strictly
+  higher-priority running holder, then a live holder overlay (running ⇒ busy,
+  suspended ⇒ freed) plus a pure re-plan to decide fit and which busy holders to
+  preempt. The live path — `protocol-endpoint`, `fusion`, idle maintenance, the
+  runtime snapshot — runs through the coordinator; no gpu draws ⇒ no domain ⇒ no
+  lease, preserving unmanaged concurrency.
+- **Dropped along the way:** the target `resourceGroupId` and the legacy
+  `ResourceGroupCoordinator`. Zod strips the field from stored configs on read.
 
 ## Future axes
 

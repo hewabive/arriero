@@ -39,11 +39,11 @@ The full four-layer writeup — demand-aware eviction and the queue-not-503 wait
 
 The lease must be held until the upstream response is fully streamed, not just until headers return. `attachLeaseRelease` wraps the response body and releases on stream completion, error, or cancellation.
 
-## Activation across steps
+## Two kinds of preemption
 
-The coordinator is built and unit-tested in full, including preemption, in the queue step. The live endpoint initially wires only `acquire`/`release` for serialization and priority ordering; because the request handler does not yet watch `preemptSignal`, a higher-priority arrival waits for the current holder to finish (the barrier degrading gracefully).
+**Request-boundary preemption** needs no `preemptSignal` at all: each request is its own `acquire`/`release` cycle, so when a holder's request finishes the coordinator admits the higher-priority waiter, whose executor plan then unloads the now-idle competitor and loads the wanted target (executor `unload-model`/`stop-instance` handlers). It works well when the preemptible target's work is a stream of bounded requests — the worst-case wait for the interactive target is one background request.
 
-There are two distinct kinds of preemption. Request-boundary preemption needs no `preemptSignal` at all: each request is its own `acquire`/`release` cycle, so when a holder's request finishes the coordinator admits the higher-priority waiter, whose executor plan then unloads the now-idle competitor and loads the wanted target. This is delivered by the preemption step (executor `unload-model`/`stop-instance` handlers) and works well when the preemptible target's work is a stream of bounded requests — the worst-case wait for the interactive target is one background request. Mid-request preemption — interrupting a single long generation in flight — is delivered by the resume step (below); it watches `preemptSignal`, `yield()`s, and continues, because a clean interrupt is incoherent without a way to resume without error.
+**Mid-request preemption** interrupts a single long generation in flight: the handler watches `preemptSignal`, `yield()`s, and continues (below). It needs the resume machinery, because a clean interrupt is incoherent without a way to resume without error. A handler that does not watch the signal degrades to the request-boundary case rather than breaking — the barrier simply never fires early.
 
 A background idle-maintenance loop periodically executes the idle plan's `save-slot`/`unload-model`/`stop-instance` actions for targets that have exceeded their `idleUnloadMs`, so VRAM is freed when nothing is requesting. It runs under coordinator exclusivity (`tryAcquireMaintenance`, which acquires only a fully idle group) so it cannot race a live request. It only frees VRAM — never reloads.
 
@@ -58,7 +58,7 @@ The manager does not rely on the operator to set that flag. `buildLaunchSnapshot
 - The injection happens inside `buildLaunchSnapshot`, which is the single source for both the spawn argv and config-drift comparison, so an injected flag never shows up as false drift.
 - The value is never persisted into the instance JSON and never shown in the New-instance form, so file-backed config stays machine-independent. The supervisor `mkdir`s the directory before spawn.
 
-Saved slots are tracked in the `api_proxy_runtime_metadata` table, which is the source of truth read back into every runtime snapshot. A successful save adds the slot id to the target's `savedSlotIds`; a successful restore removes it. That set is exactly what drives `restore-slot` emission on the next load, so the cycle is self-consistent across process restarts: save before unload persists the id, the next load restores and clears it, and the file is overwritten on the following save. Pin preemptible targets to a single slot (`--parallel 1`) so the slot to save is deterministic.
+Saved slots are tracked in `data/proxy-runtime-metadata.json` (`proxy/runtime-metadata-store.ts`, an in-memory map with atomic write-through), which is the source of truth read back into every runtime snapshot. A successful save adds the slot id to the target's `savedSlotIds`; a successful restore removes it. That set is exactly what drives `restore-slot` emission on the next load, so the cycle is self-consistent across process restarts: save before unload persists the id, the next load restores and clears it, and the file is overwritten on the following save. Pin preemptible targets to a single slot (`--parallel 1`) so the slot to save is deterministic.
 
 ## Mid-request resume
 

@@ -10,12 +10,11 @@ Managed vLLM has a qualified Linux x86-64/NVIDIA single-GPU profile. See
 Managed KTransformers support uses a strict Linux x86-64/NVIDIA profile,
 matched immutable Python packages, explicit hybrid memory reservations, and an
 idle-only scheduling default. See
-[KTransformers operations](docs/KTRANSFORMERS_OPERATIONS.md) and the
-[implementation record](docs/KTRANSFORMERS_SUPPORT.md). Codex continuation and
-GPU-machine handoff state is recorded in
-[docs/KTRANSFORMERS_HANDOFF.md](docs/KTRANSFORMERS_HANDOFF.md). The first
-real-host LLAMAFILE qualification, including exact artifact hashes and hardware
-restrictions, is
+[KTransformers operations](docs/KTRANSFORMERS_OPERATIONS.md) for the profile,
+release gate and design decisions, and
+[engine adapters](docs/ENGINE_ADAPTERS.md) for the descriptor contract. The
+first real-host LLAMAFILE qualification, including exact artifact hashes and
+hardware restrictions, is
 [docs/qualification/ktransformers/0.6.4-2026-07-30.md](docs/qualification/ktransformers/0.6.4-2026-07-30.md).
 
 ## Development
@@ -110,11 +109,11 @@ Set `ARRIERO_FILTER_PROBE_LOGS=false` to disable filtering of the working log.
 
 ## Shutdown
 
-Pressing `Ctrl+C` in the `pnpm dev` terminal sends `SIGINT` to the API. The API closes its HTTP server and then gracefully stops supervised `llama-server` processes. If a child process does not exit before the shutdown timeout, it is force-killed.
+Pressing `Ctrl+C` in the `pnpm dev` terminal sends `SIGINT` to the API. The API closes its HTTP server and exits; **managed processes survive by default** and are re-adopted on the next start, so models stay in VRAM across manager restarts. A live PID whose `/proc/<pid>/cmdline` no longer matches its launch snapshot is reported as `stale` instead of being adopted.
 
 Relevant environment variables:
 
-- `ARRIERO_STOP_MANAGED_ON_EXIT=false`: leave supervised `llama-server` processes running when the API exits; they will be reconciled as stale on the next API start.
+- `ARRIERO_STOP_MANAGED_ON_EXIT=true`: stop supervised processes when the API exits instead of leaving them running. A child that does not exit before the shutdown timeout is force-killed.
 - `ARRIERO_SHUTDOWN_TIMEOUT_MS`: graceful stop timeout for managed processes, default `10000`.
 
 ## NUMA placement (multi-socket hosts)

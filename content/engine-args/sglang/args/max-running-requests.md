@@ -72,7 +72,7 @@ else:
 - `pp_max_micro_batch_size` по умолчанию = `max_running_requests // pp_size`, а `get_num_allocatable_reqs(running_bs) = pp_max_micro_batch_size − running_bs`, ограниченный сверху свободными слотами `req_to_token_pool`. Это и есть точка, где planner перестает добавлять запросы и ставит `batch_is_full`.
 - `SWAChunkCapPoolConfigurator` включается только когда `max_running_requests` задан **явно** вместе с `--disable-radix-cache` и `--chunked-prefill-size` на hybrid-SWA модели: тогда SWA-пул считается по худшему случаю на запрос, а высвобожденная память уходит в full-пул.
 - В `--disaggregation-mode decode` значение участвует в оценке активаций при автоподборе `--mem-fraction-static`.
-- В arriero положительное значение читает `parseInstanceConcurrencyLimit` (`sglang-max-running-requests`) и превращает его в предел числа одновременных lease-держателей на этот target; отсутствие значения означает «менеджер не ограничивает, решает SGLang» (`docs/KTRANSFORMERS_SUPPORT.md`).
+- В arriero положительное значение читает `parseInstanceConcurrencyLimit` (`sglang-max-running-requests`) и превращает его в предел числа одновременных lease-держателей на этот target; отсутствие значения означает «менеджер не ограничивает, решает SGLang» (`docs/ENGINE_ADAPTERS.md`).
 
 ## Значения и формат
 
@@ -139,4 +139,4 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --max-running-
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/docs/docs/advanced_features/hyperparameter_tuning.mdx`
-- arriero: `docs/KTRANSFORMERS_SUPPORT.md`, `docs/KTRANSFORMERS_OPERATIONS.md`
+- arriero: `docs/ENGINE_ADAPTERS.md`, `docs/KTRANSFORMERS_OPERATIONS.md`

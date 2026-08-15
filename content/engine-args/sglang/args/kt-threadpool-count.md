@@ -80,7 +80,7 @@ related:
 - `--kt-method`: определяет вид ограничения на делимость (`QK_K` у `LLAMAFILE`) и то, шардированы ли веса физически (AMX) или нарезаются смещением (native).
 - `--kt-weight-path`: у AMX должен содержать ровно столько NUMA-шардов, сколько пулов.
 - `--numa-node` — это про NUMA-привязку подпроцессов SGLang, а не про пулы kt-kernel; аргументы независимы.
-- В arriero: preflight требует положительного значения, а при значении больше `1` — обязательного списка узлов (аргумент `--kt-numa-nodes`, он есть в форке `sglang-kt`, но **отсутствует** в апстрим-декларации, из которой снят этот extract). Количество узлов должно совпадать с числом пулов, значения — быть уникальными и онлайн. Режим `interleave` для KTransformers запрещен, а внешний `bind` обязан совпадать со всеми внутренними узлами (`docs/NUMA_PINNING.md`, `docs/KTRANSFORMERS_SUPPORT.md`).
+- В arriero: preflight требует положительного значения, а при значении больше `1` — обязательного списка узлов (аргумент `--kt-numa-nodes`, он есть в форке `sglang-kt`, но **отсутствует** в апстрим-декларации, из которой снят этот extract). Количество узлов должно совпадать с числом пулов, значения — быть уникальными и онлайн. Режим `interleave` для KTransformers запрещен, а внешний `bind` обязан совпадать со всеми внутренними узлами (`docs/NUMA_PINNING.md`, `docs/KTRANSFORMERS_OPERATIONS.md`).
 
 ## Типовые проблемы и диагностика
 
@@ -114,4 +114,4 @@ python -m sglang.launch_server --model-path /models/DeepSeek-R1 --kt-weight-path
 - `ktransformers/kt-kernel/operators/amx/moe.hpp`
 - `ktransformers/kt-kernel/scripts/convert_cpu_weights.py`
 - `ktransformers/kt-kernel/README.md`
-- arriero: `docs/NUMA_PINNING.md`, `docs/KTRANSFORMERS_SUPPORT.md`, `docs/KTRANSFORMERS_OPERATIONS.md`
+- arriero: `docs/NUMA_PINNING.md`, `docs/KTRANSFORMERS_OPERATIONS.md`

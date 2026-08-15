@@ -109,6 +109,41 @@ Commit sanitized timelines, logs, process trees, package freeze, and measured
 memory/NUMA results with the qualified package pair. A fake-server pass is not
 a substitute for this gate.
 
+## Design decisions behind the profile
+
+Rationale that is not derivable from the code or from `docs/ENGINE_ADAPTERS.md`:
+
+- **The argument catalog reads the module, not the umbrella CLI.**
+  `sglang serve --help` builds both the language-server and the diffusion-server
+  help; a `sglang-kt` wheel without the diffusion-only dependencies prints the
+  complete language-server help and *then* exits non-zero, which the catalog
+  importer cannot distinguish from a real failure. `bin/python -m
+  sglang.launch_server --help` is the same argparse surface without the
+  unrelated import, so it exits cleanly
+  (`arguments/catalog.ts:sglangLanguageServerHelpInvocation`; the umbrella entry
+  in `HELP_INVOCATIONS` remains the fallback when the sibling interpreter is
+  absent).
+- **`--api-key` is blocked, not merely discouraged.** The supported topology is
+  `client → authenticated arriero → loopback unauthenticated SGLang-KT`. Managed
+  probes and endpoint-catalog rows carry no managed-upstream secret, so
+  accepting the flag would produce an instance the manager cannot probe.
+  Supporting it later needs a secret reference, auth headers on probes and
+  forwarding, redaction, and federation rules. A non-loopback `--host` is
+  warned about for the same reason.
+- **Stopped-instance model identity** resolves as typed `servedModelName` →
+  typed `model` verbatim (`org/model` is never basenamed) → no implied model. A
+  running instance's `/v1/models` may enrich the catalog, but a mismatch with
+  the configured served name is a diagnostic warning: it never silently renames
+  a public proxy model.
+- **`idle-only` eviction is a floor, not a preference.** A KTransformers target
+  is evictable only when its runtime state is ready, `activeRequests` is zero,
+  no lease holder is running, and drain has reached its safe stop point. A
+  higher-priority competitor does not override it — cold start here is
+  expensive and there is no KV/stream restore to soften an interrupt.
+- **One instance owns one model bundle.** No weight-update endpoint and no
+  multi-model router participate in the lifecycle; changing a model means
+  editing configuration and restarting.
+
 ## Troubleshooting
 
 - **Environment installed but unavailable:** confirm Linux x86-64,
