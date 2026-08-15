@@ -6,6 +6,8 @@ import {
 import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { traceBlockingSection } from "../system/event-loop.js";
+
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 
@@ -268,7 +270,9 @@ export function runGitSync(
     maxBuffer: options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
   };
   try {
-    return execFileSync("git", gitArguments(args), execOptions).trim();
+    return traceBlockingSection(`git:${args[0] ?? "unknown"}`, () =>
+      execFileSync("git", gitArguments(args), execOptions).trim(),
+    );
   } catch (error) {
     const result = syncErrorText(error);
     throw new GitCommandError(

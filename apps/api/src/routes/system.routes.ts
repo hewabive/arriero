@@ -6,6 +6,7 @@ import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
 import { listFilesystemDirectory } from "../filesystem/browser.js";
+import { eventLoopMonitor } from "../system/event-loop.js";
 import { systemMetricsRecorder } from "../system/metrics-history.js";
 import {
   killExternalLlamaProcess,
@@ -42,6 +43,10 @@ export function registerSystemRoutes(app: Hono) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
     return c.json({ data: systemMetricsRecorder.history(parsed.data) });
+  });
+
+  app.get("/api/system/event-loop", (c) => {
+    return c.json({ data: eventLoopMonitor.report() });
   });
 
   app.get("/api/system/metrics/stream", (c) => {

@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+import { traceBlockingSection } from "../system/event-loop.js";
+
 export function parseSelfCgroupV2Path(contents: string): string | null {
   for (const line of contents.split("\n")) {
     if (line.startsWith("0::")) {
@@ -62,7 +64,12 @@ export function resetNumaInterleaveCache() {
 export function detectNumaInterleave(): boolean {
   if (interleaveCache === null) {
     try {
-      execFileSync("numactl", ["--show"], { stdio: "ignore", timeout: 1_000 });
+      traceBlockingSection("numactl:probe", () =>
+        execFileSync("numactl", ["--show"], {
+          stdio: "ignore",
+          timeout: 1_000,
+        }),
+      );
       interleaveCache = true;
     } catch {
       interleaveCache = false;

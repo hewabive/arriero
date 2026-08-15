@@ -16,6 +16,7 @@ import {
 } from "@arriero/core";
 
 import { nvidiaTelemetry } from "../nvidia/telemetry.js";
+import { eventLoopMonitor } from "./event-loop.js";
 import {
   computeCpuActivity,
   type CpuCounters,
@@ -77,6 +78,14 @@ function averageNullable(values: (number | null)[]): number | null {
     return null;
   }
   return present.reduce((sum, value) => sum + value, 0) / present.length;
+}
+
+function maxNullable(values: (number | null)[]): number | null {
+  const present = values.filter((value): value is number => value !== null);
+  if (present.length === 0) {
+    return null;
+  }
+  return Math.max(...present);
 }
 
 function averageBy<T, R>(
@@ -177,6 +186,9 @@ export function averageSamples(
       }),
     ),
     rdma: averageRdma(samples),
+    eventLoopMaxLagMs: maxNullable(
+      samples.map((sample) => sample.eventLoopMaxLagMs),
+    ),
   };
 }
 
@@ -199,6 +211,7 @@ type SystemMetricsCoarseListener = (entry: SystemMetricsCoarseSample) => void;
 
 type SystemMetricsHistoryOptions = {
   now?: () => number;
+  sampleEventLoopMaxLagMs?: (at: number) => number | null;
 };
 
 function gpuSamples(): SystemMetricsGpuSample[] {
@@ -234,6 +247,9 @@ function networkSamples(
 
 export class SystemMetricsRecorder {
   private readonly now: () => number;
+  private readonly sampleEventLoopMaxLagMs:
+    | ((at: number) => number | null)
+    | null;
   private readonly buffers = new Map<
     SystemMetricsWindow,
     RingBuffer<SystemMetricsSample>
@@ -259,6 +275,7 @@ export class SystemMetricsRecorder {
 
   constructor(options: SystemMetricsHistoryOptions = {}) {
     this.now = options.now ?? Date.now;
+    this.sampleEventLoopMaxLagMs = options.sampleEventLoopMaxLagMs ?? null;
     for (const [window, tier] of Object.entries(SYSTEM_METRICS_TIERS)) {
       this.buffers.set(
         window as SystemMetricsWindow,
@@ -408,6 +425,7 @@ export class SystemMetricsRecorder {
             transmitBytesPerSec: rdma.transmitBytesPerSec,
           }
         : null,
+      eventLoopMaxLagMs: this.sampleEventLoopMaxLagMs?.(at) ?? null,
     };
 
     this.buffers.get("live")?.push(sample);
@@ -465,4 +483,6 @@ export class SystemMetricsRecorder {
   }
 }
 
-export const systemMetricsRecorder = new SystemMetricsRecorder();
+export const systemMetricsRecorder = new SystemMetricsRecorder({
+  sampleEventLoopMaxLagMs: (at) => eventLoopMonitor.sample(at),
+});

@@ -1,6 +1,7 @@
 import type { UvToolStatus } from "@arriero/core";
 import { execFileSync } from "node:child_process";
 
+import { traceBlockingSection } from "../system/event-loop.js";
 import { findExecutableInPath } from "../system/tool-probe.js";
 
 export type UvProbe =
@@ -9,11 +10,13 @@ export type UvProbe =
 
 function readUvVersion(path: string): string | null {
   try {
-    return (
-      execFileSync(path, ["--version"], {
-        encoding: "utf8",
-        timeout: 2_000,
-      }).trim() || null
+    return traceBlockingSection(
+      "uv:version",
+      () =>
+        execFileSync(path, ["--version"], {
+          encoding: "utf8",
+          timeout: 2_000,
+        }).trim() || null,
     );
   } catch {
     return null;

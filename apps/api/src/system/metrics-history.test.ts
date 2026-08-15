@@ -17,6 +17,22 @@ test("averageSamples averages scalars and keeps the newest timestamp", () => {
   assert.equal(averaged.memoryUsedBytes, 200);
 });
 
+test("averageSamples keeps the worst event-loop lag instead of averaging it", () => {
+  const folded = averageSamples([
+    sample({ at: 1_000, eventLoopMaxLagMs: 12 }),
+    sample({ at: 2_000, eventLoopMaxLagMs: 900 }),
+    sample({ at: 3_000, eventLoopMaxLagMs: null }),
+  ]);
+  assert.ok(folded);
+  assert.equal(folded.eventLoopMaxLagMs, 900);
+
+  const unmeasured = averageSamples([
+    sample({ at: 1_000, eventLoopMaxLagMs: null }),
+  ]);
+  assert.ok(unmeasured);
+  assert.equal(unmeasured.eventLoopMaxLagMs, null);
+});
+
 test("averageSamples merges devices by identity across the window", () => {
   const averaged = averageSamples([
     sample({

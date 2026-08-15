@@ -1,9 +1,10 @@
 import { existsSync, statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { execFile, spawnSync } from "node:child_process";
 import { promisify } from "node:util";
 
 import { config } from "../config.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import { getBuildSettings, listBuildJobs } from "../build/repository.js";
 import { listPathCatalogEntries } from "../path-catalog/repository.js";
 
@@ -69,12 +70,14 @@ export function runHelp(
     throw new Error(`llama-server binary not found: ${binaryPath}`);
   }
 
-  const result = spawnSync(binaryPath, args, {
-    env: helpEnvironment(binaryPath),
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
-    timeout: timeoutMs,
-  });
+  const result = traceBlockingSection(`help:${basename(binaryPath)}`, () =>
+    spawnSync(binaryPath, args, {
+      env: helpEnvironment(binaryPath),
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: timeoutMs,
+    }),
+  );
 
   if (result.error) {
     throw result.error;

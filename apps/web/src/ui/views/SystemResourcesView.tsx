@@ -2,7 +2,7 @@ import type { SystemMetricsWindow } from "@arriero/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { getSystemResources } from "../../api/client";
+import { getEventLoopReport, getSystemResources } from "../../api/client";
 import { SystemResourcesPanel } from "../components/SystemResourcesPanel";
 import { useSystemMetrics } from "../components/use-system-metrics";
 
@@ -13,11 +13,17 @@ export function SystemResourcesView() {
     queryFn: getSystemResources,
     refetchInterval: 2_000,
   });
+  const eventLoopQuery = useQuery({
+    queryKey: ["system-event-loop"],
+    queryFn: getEventLoopReport,
+    refetchInterval: 10_000,
+  });
   const metrics = useSystemMetrics(window);
 
   return (
     <SystemResourcesPanel
       resources={resourcesQuery.data?.data}
+      eventLoop={eventLoopQuery.data?.data}
       samples={metrics.samples}
       windowMs={metrics.windowMs}
       intervalMs={metrics.intervalMs}

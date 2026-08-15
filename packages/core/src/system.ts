@@ -191,6 +191,26 @@ export const SystemMetricsSampleSchema = z.object({
   disks: z.array(SystemMetricsDiskSampleSchema),
   network: z.array(SystemMetricsNetworkSampleSchema),
   rdma: SystemMetricsRdmaSampleSchema.nullable().default(null),
+  eventLoopMaxLagMs: z.number().nonnegative().nullable().default(null),
+});
+
+export const EventLoopBlockingSectionSchema = z.object({
+  label: z.string(),
+  durationMs: z.number().nonnegative(),
+  endedAt: z.number().int().nonnegative(),
+});
+
+export const EventLoopStallSchema = z.object({
+  detectedAt: z.number().int().nonnegative(),
+  durationMs: z.number().nonnegative(),
+  culprits: z.array(EventLoopBlockingSectionSchema),
+});
+
+export const EventLoopReportSchema = z.object({
+  stallThresholdMs: z.number().positive(),
+  sectionThresholdMs: z.number().positive(),
+  stalls: z.array(EventLoopStallSchema),
+  slowSections: z.array(EventLoopBlockingSectionSchema),
 });
 
 export const SystemMetricsWindowSchema = z.enum([
@@ -255,6 +275,11 @@ export type SystemMetricsRdmaSample = z.infer<
   typeof SystemMetricsRdmaSampleSchema
 >;
 export type SystemMetricsSample = z.infer<typeof SystemMetricsSampleSchema>;
+export type EventLoopBlockingSection = z.infer<
+  typeof EventLoopBlockingSectionSchema
+>;
+export type EventLoopStall = z.infer<typeof EventLoopStallSchema>;
+export type EventLoopReport = z.infer<typeof EventLoopReportSchema>;
 export type SystemMetricsWindow = z.infer<typeof SystemMetricsWindowSchema>;
 export type SystemMetricsCoarseWindow = z.infer<
   typeof SystemMetricsCoarseWindowSchema

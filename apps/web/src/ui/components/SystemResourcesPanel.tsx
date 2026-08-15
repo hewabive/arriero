@@ -1,5 +1,7 @@
 import {
   SystemMetricsWindowSchema,
+  type EventLoopReport,
+  type EventLoopStall,
   type SystemDiskDevice,
   type SystemMetricsSample,
   type SystemMetricsWindow,
@@ -62,6 +64,24 @@ function formatRate(value: number | null | undefined) {
     return "-";
   }
   return `${formatBytes(value)}/s`;
+}
+
+function formatMs(value: number | null | undefined) {
+  if (value === undefined || value === null) {
+    return "-";
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)} s`;
+  }
+  return `${Math.round(value)} ms`;
+}
+
+function stallSummary(stall: EventLoopStall) {
+  const at = new Date(stall.detectedAt).toLocaleTimeString();
+  const culprits = stall.culprits
+    .map((culprit) => `${culprit.label} (${formatMs(culprit.durationMs)})`)
+    .join(", ");
+  return `${at} · ${formatMs(stall.durationMs)}${culprits ? ` · ${culprits}` : ""}`;
 }
 
 function diskTypeLabel(type: SystemDiskDevice["type"]) {
@@ -144,6 +164,7 @@ function seriesFrom(
 
 export function SystemResourcesPanel(props: {
   resources: SystemResources | undefined;
+  eventLoop?: EventLoopReport | undefined;
   samples: SystemMetricsSample[];
   windowMs: number;
   intervalMs: number;
@@ -272,6 +293,60 @@ export function SystemResourcesPanel(props: {
               />
             </MetricCard>
           </SimpleGrid>
+
+          <MetricCard
+            title="API event loop"
+            meta={
+              props.eventLoop && (
+                <Badge
+                  variant="light"
+                  color={props.eventLoop.stalls.length ? "orange" : "gray"}
+                >
+                  {props.eventLoop.stalls.length
+                    ? countLabel(props.eventLoop.stalls.length, "stall")
+                    : "no stalls"}
+                </Badge>
+              )
+            }
+            footer={
+              props.eventLoop && props.eventLoop.stalls.length > 0 ? (
+                <Stack gap={2}>
+                  {props.eventLoop.stalls.slice(0, 3).map((stall) => (
+                    <Text key={stall.detectedAt} c="dimmed" size="xs">
+                      {stallSummary(stall)}
+                    </Text>
+                  ))}
+                </Stack>
+              ) : (
+                <Text c="dimmed" size="xs">
+                  Longest single blockage of the manager event loop per sample
+                  {props.eventLoop
+                    ? `; stalls above ${formatMs(props.eventLoop.stallThresholdMs)} are reported with the blocking operations caught in the act.`
+                    : "."}
+                </Text>
+              )
+            }
+          >
+            <MetricChart
+              title="Longest blockage"
+              headline={formatMs(latest?.eventLoopMaxLagMs)}
+              axis={axis}
+              domain={{ kind: "auto", minimumMax: 100 }}
+              formatValue={formatMs}
+              height={DEVICE_CHART_HEIGHT}
+              series={[
+                {
+                  id: "event-loop-lag",
+                  label: "Max lag",
+                  tone: "outbound",
+                  values: seriesFrom(
+                    samples,
+                    (sample) => sample.eventLoopMaxLagMs,
+                  ),
+                },
+              ]}
+            />
+          </MetricCard>
 
           {cpu && cpu.cores.length > 0 && (
             <MetricCard

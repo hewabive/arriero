@@ -1,4 +1,5 @@
 import type {
+  EventLoopReport,
   FileSystemListResult,
   NetworkInterfacesResult,
   PathCatalogCreate,
@@ -25,6 +26,10 @@ export async function getSystemMetrics(window: SystemMetricsWindow) {
   return request<{ data: SystemMetricsHistory }>(
     `/api/system/metrics${buildQuery({ window })}`,
   );
+}
+
+export async function getEventLoopReport() {
+  return request<{ data: EventLoopReport }>("/api/system/event-loop");
 }
 
 export function systemMetricsStreamUrl() {

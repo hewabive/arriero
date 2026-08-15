@@ -12,6 +12,7 @@ export function metricsSampleFixture(
     disks: [],
     network: [],
     rdma: null,
+    eventLoopMaxLagMs: null,
     ...input,
   };
 }

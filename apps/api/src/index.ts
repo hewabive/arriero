@@ -43,6 +43,7 @@ import { shutdownActiveJobs } from "./jobs/registry.js";
 import { supervisor } from "./process/supervisor.js";
 import { initializeEnvironments } from "./envs/service.js";
 import { nvidiaTelemetry } from "./nvidia/telemetry.js";
+import { eventLoopMonitor } from "./system/event-loop.js";
 import { systemMetricsRecorder } from "./system/metrics-history.js";
 import {
   initSystemMetricsPersistence,
@@ -86,6 +87,18 @@ const systemMetricsPersistence = initSystemMetricsPersistence(
     onError: (error) =>
       logger.error({ error }, "system metrics history write failed"),
   },
+);
+eventLoopMonitor.enable();
+eventLoopMonitor.onStall((stall) =>
+  logger.warn(
+    {
+      durationMs: Math.round(stall.durationMs),
+      culprits: stall.culprits.map(
+        (culprit) => `${culprit.label} ${Math.round(culprit.durationMs)}ms`,
+      ),
+    },
+    "event loop stall detected",
+  ),
 );
 systemMetricsRecorder.start();
 const seededResourcePools = bootStep("scaffold resource pools", () =>
