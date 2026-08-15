@@ -64,6 +64,12 @@ deliberately to measure the warm-cache regime.
 concurrency — exceeding it queues requests and distorts TTFT; unknown slot capacity; unverifiable
 capacity on non-llama engines.
 
+**In-stream errors fail their request.** An engine can accept a stream and then abort it mid-flight
+(llama.cpp `send_error`, e.g. `Context size has been exceeded.` when concurrent prompts overflow the
+shared KV cache). Those frames carry an `error` object rather than a delta, so `measure-client.ts`
+matches them explicitly and records the request as failed with the upstream message; without that
+the whole wave measured as a silent zero and the run still reported `succeeded`.
+
 ## Prompt library
 
 Built-in prompts live in `content/benchmark-prompts/<topic>/<lang>-<slug>.json`, validated against

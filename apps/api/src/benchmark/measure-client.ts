@@ -30,6 +30,19 @@ export type MeasuredRequestInput = {
 
 const ERROR_BODY_LIMIT = 300;
 
+function streamErrorMessage(value: unknown): string | null {
+  const record = asObject(value);
+  if (!record) return null;
+  if (typeof record.error === "string") {
+    return record.error.slice(0, ERROR_BODY_LIMIT);
+  }
+  const error = asObject(record.error);
+  if (!error) return null;
+  const message =
+    typeof error.message === "string" ? error.message : JSON.stringify(error);
+  return message.slice(0, ERROR_BODY_LIMIT);
+}
+
 function serverTimingsFrom(value: unknown): BenchmarkServerTimings | null {
   const record = asObject(value);
   if (!record) return null;
@@ -80,6 +93,11 @@ export async function runMeasuredRequest(
         } catch {
           malformedFrames += 1;
           return false;
+        }
+        const streamError = streamErrorMessage(parsed);
+        if (streamError !== null) {
+          error = `upstream stream error: ${streamError}`;
+          return true;
         }
         if (streamDeltaText(parsed)) {
           chunkTimesMs.push(now());

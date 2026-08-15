@@ -107,6 +107,25 @@ test("falls back to llama timings when usage is absent", async () => {
   assert.equal(outcome.serverTimings?.draftN, null);
 });
 
+test("reports an in-stream error frame and keeps the partial measurement", async () => {
+  const frames = [
+    'data: {"choices":[{"delta":{"content":"par"}}]}\n\n',
+    'data: {"error":{"code":500,"message":"Context size has been exceeded.","type":"server_error"}}\n\n',
+  ];
+  const outcome = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: {},
+    fetchImpl: async () => sseResponse(frames),
+    now: tickingClock(10),
+  });
+
+  assert.equal(
+    outcome.error,
+    "upstream stream error: Context size has been exceeded.",
+  );
+  assert.deepEqual(outcome.chunkTimesMs, [20]);
+});
+
 test("flags malformed stream frames while keeping measured chunks", async () => {
   const frames = [
     'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
