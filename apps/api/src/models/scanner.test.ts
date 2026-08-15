@@ -11,7 +11,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { eq } from "drizzle-orm";
+
+import { db } from "../db/index.js";
+import { modelCache } from "../db/schema.js";
+import { GGUF_PARSER_VERSION } from "./gguf.js";
 import { scanModels, scanModelsFromCache } from "./scanner.js";
+
+function u32(value: number) {
+  const buffer = Buffer.alloc(4);
+  buffer.writeUInt32LE(value, 0);
+  return buffer;
+}
+
+function u64(value: number) {
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUInt64LE(BigInt(value), 0);
+  return buffer;
+}
+
+function ggufString(value: string) {
+  const bytes = Buffer.from(value, "utf8");
+  return Buffer.concat([u64(bytes.length), bytes]);
+}
 
 function root(path: string): ModelScanRoot {
   return {
@@ -89,7 +111,6 @@ test("scanModelsFromCache returns cached models scoped by roots and depth", asyn
     await scanModels({ roots: [root(dir)], maxDepth: 4, refresh: true });
 
     const full = scanModelsFromCache({ roots: [root(dir)], maxDepth: 4 });
-    assert.equal(full.fromCache, true);
     assert.deepEqual(full.models.map((model) => model.name).sort(), [
       "deep.gguf",
       "top.gguf",
@@ -100,6 +121,44 @@ test("scanModelsFromCache returns cached models scoped by roots and depth", asyn
       shallow.models.map((model) => model.name),
       ["top.gguf"],
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a scan after a parser bump rebuilds metadata from cached facts without re-reading files", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-scan-derive-"));
+  const path = join(dir, "model.gguf");
+
+  try {
+    writeFileSync(
+      path,
+      Buffer.concat([
+        Buffer.from("GGUF", "utf8"),
+        u32(3),
+        u64(0),
+        u64(1),
+        ggufString("general.architecture"),
+        u32(8),
+        ggufString("qwen35"),
+      ]),
+    );
+
+    const first = await scanModels({ roots: [root(dir)], refresh: true });
+    assert.equal(first.cache.misses, 1);
+    assert.equal(first.models[0]?.metadata.architecture, "qwen35");
+
+    db.update(modelCache)
+      .set({ parserVersion: GGUF_PARSER_VERSION - 1, metadataJson: "{}" })
+      .where(eq(modelCache.path, path))
+      .run();
+
+    const second = await scanModels({ roots: [root(dir)] });
+    assert.deepEqual(second.cache, { hits: 1, misses: 0 });
+    assert.equal(second.models[0]?.metadata.architecture, "qwen35");
+
+    const third = await scanModels({ roots: [root(dir)] });
+    assert.deepEqual(third.cache, { hits: 1, misses: 0 });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

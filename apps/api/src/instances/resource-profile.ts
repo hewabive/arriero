@@ -4,7 +4,7 @@ import {
   type InstanceResourceProfile,
 } from "@arriero/core";
 
-import { getCachedModel } from "../models/cache-repository.js";
+import { getCachedModelEntry } from "../models/cache-repository.js";
 import { listMemoryPools } from "../resources/repository.js";
 
 function modelMetadata(
@@ -14,7 +14,7 @@ function modelMetadata(
   if (typeof raw !== "string" || raw.trim() === "") {
     return null;
   }
-  const cached = getCachedModel(raw.trim());
+  const cached = getCachedModelEntry(raw.trim())?.model;
   if (!cached) {
     return null;
   }

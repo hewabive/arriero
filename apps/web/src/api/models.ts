@@ -1,16 +1,21 @@
-import type { ModelScanSettings, ModelScanResult } from "@arriero/core";
+import type {
+  ModelScanRequest,
+  ModelScanResult,
+  ModelScanSettings,
+  ModelScanState,
+} from "@arriero/core";
 
-import { buildQuery, nodeRequest as request } from "./http.js";
+import { nodeRequest as request } from "./http.js";
 
-export async function scanModels(input?: {
-  refresh?: boolean;
-  cached?: boolean;
-}) {
-  const query = buildQuery({
-    refresh: input?.refresh ? "true" : undefined,
-    cached: input?.cached ? "true" : undefined,
+export async function scanModels() {
+  return request<{ data: ModelScanResult }>("/api/models");
+}
+
+export async function startModelScan(input?: ModelScanRequest) {
+  return request<{ data: ModelScanState }>("/api/models/scan", {
+    method: "POST",
+    body: JSON.stringify(input ?? {}),
   });
-  return request<{ data: ModelScanResult }>(`/api/models${query}`);
 }
 
 export async function getModelScanSettings() {

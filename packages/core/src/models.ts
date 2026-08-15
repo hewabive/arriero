@@ -97,6 +97,17 @@ export const ModelScanRootSchema = z.object({
   exists: z.boolean(),
 });
 
+export const ModelScanStatusSchema = z.enum(["idle", "scanning"]);
+
+export const ModelScanStateSchema = z.object({
+  status: ModelScanStatusSchema,
+  done: z.number(),
+  total: z.number(),
+  startedAt: z.string().nullable(),
+  finishedAt: z.string().nullable(),
+  error: z.string().nullable(),
+});
+
 export const ModelScanResultSchema = z.object({
   roots: z.array(ModelScanRootSchema),
   models: z.array(GgufModelSchema),
@@ -105,7 +116,11 @@ export const ModelScanResultSchema = z.object({
     hits: z.number(),
     misses: z.number(),
   }),
-  fromCache: z.boolean().optional(),
+  scan: ModelScanStateSchema,
+});
+
+export const ModelScanRequestSchema = z.object({
+  refresh: z.boolean().optional(),
 });
 
 export const ModelScanSettingsSchema = z.object({
@@ -156,5 +171,8 @@ export function ggufModelRole(
 }
 export type ModelScanRootSource = z.infer<typeof ModelScanRootSourceSchema>;
 export type ModelScanRoot = z.infer<typeof ModelScanRootSchema>;
+export type ModelScanStatus = z.infer<typeof ModelScanStatusSchema>;
+export type ModelScanState = z.infer<typeof ModelScanStateSchema>;
 export type ModelScanResult = z.infer<typeof ModelScanResultSchema>;
+export type ModelScanRequest = z.infer<typeof ModelScanRequestSchema>;
 export type ModelScanSettings = z.infer<typeof ModelScanSettingsSchema>;

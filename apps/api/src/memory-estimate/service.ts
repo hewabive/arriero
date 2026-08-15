@@ -33,11 +33,7 @@ import {
   REMOVED_LLAMA_ARGUMENT_GROUPS,
   type LlamaArgumentEstimation,
 } from "../arguments/estimation.js";
-import {
-  memoryEstimateHparams,
-  readGgufMetadata,
-  readGgufModelTensorTable,
-} from "../models/gguf.js";
+import { loadGgufHparams, loadGgufTensorTable } from "../models/gguf-cache.js";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { listMemoryPools } from "../resources/repository.js";
 
@@ -422,10 +418,6 @@ function invalidFlagStyleBooleanArgument(
   return null;
 }
 
-function hparamsFromGguf(modelPath: string) {
-  return memoryEstimateHparams(readGgufMetadata(modelPath));
-}
-
 function estimateVllmModelMemory(
   context: MemoryEstimateContext,
   args: MemoryEstimateArgs,
@@ -443,7 +435,7 @@ const ENGINE_ESTIMATORS: Record<
   (
     context: MemoryEstimateContext,
     args: MemoryEstimateArgs,
-  ) => MemoryEstimateResolution
+  ) => MemoryEstimateResolution | Promise<MemoryEstimateResolution>
 > = {
   gguf: estimateGgufMemory,
   "vllm-gpu-util": estimateVllmModelMemory,
@@ -453,9 +445,9 @@ const ENGINE_ESTIMATORS: Record<
   }),
 };
 
-export function estimateMemory(
+export async function estimateMemory(
   request: MemoryEstimateRequest,
-): MemoryEstimateResolution {
+): Promise<MemoryEstimateResolution> {
   const context = resolveMemoryEstimateContext(request);
   if ("error" in context) {
     return { ok: false, reason: context.error };
@@ -478,10 +470,10 @@ export function estimateMemory(
   return ENGINE_ESTIMATORS[engineDescriptor(kind).estimator](context, args);
 }
 
-function estimateGgufMemory(
+async function estimateGgufMemory(
   context: MemoryEstimateContext,
   args: MemoryEstimateArgs,
-): MemoryEstimateResolution {
+): Promise<MemoryEstimateResolution> {
   const { env, rpcWorkers } = context;
 
   const removedArgument = REMOVED_LLAMA_ARGUMENT_GROUPS.map((keys) =>
@@ -702,26 +694,28 @@ function estimateGgufMemory(
   let estimate: MemoryEstimate;
   try {
     estimate = estimateInstanceMemory({
-      tensors: readGgufModelTensorTable(modelPath),
-      hparams: hparamsFromGguf(modelPath),
+      tensors: await loadGgufTensorTable(modelPath),
+      hparams: await loadGgufHparams(modelPath),
       args,
       pools: estimatePools,
       ...(mmprojPath
-        ? { mmproj: { tensors: readGgufModelTensorTable(mmprojPath) } }
+        ? { mmproj: { tensors: await loadGgufTensorTable(mmprojPath) } }
         : {}),
       ...(draftPath
         ? {
             draft: {
-              tensors: readGgufModelTensorTable(draftPath),
-              hparams: hparamsFromGguf(draftPath),
+              tensors: await loadGgufTensorTable(draftPath),
+              hparams: await loadGgufHparams(draftPath),
             },
           }
         : {}),
       ...(auxiliaryPaths.loraPaths.length > 0
         ? {
-            loras: auxiliaryPaths.loraPaths.map((path) => ({
-              tensors: readGgufModelTensorTable(path),
-            })),
+            loras: await Promise.all(
+              auxiliaryPaths.loraPaths.map(async (path) => ({
+                tensors: await loadGgufTensorTable(path),
+              })),
+            ),
           }
         : {}),
       controlVector: auxiliaryPaths.controlVectorPaths.length > 0,

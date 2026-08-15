@@ -13,7 +13,9 @@ import {
 } from "@arriero/core";
 
 import {
+  deriveGgufMetadata,
   ggufFileTypeLabel,
+  readGgufFacts,
   readGgufMetadata,
   readGgufModelTensorTable,
   readGgufTensorTable,
@@ -587,4 +589,62 @@ test("ggufPoolingTypeLabel maps llama.cpp pooling enum values", () => {
   assert.equal(ggufPoolingTypeLabel(-1), "unspecified");
   assert.equal(ggufPoolingTypeLabel(9), "type 9");
   assert.equal(ggufPoolingTypeLabel(null), null);
+});
+
+test("GGUF parsing spans read-chunk boundaries and oversized values", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-chunks-"));
+  const path = join(dir, "chunked.gguf");
+  try {
+    const padding = "p".repeat(2 * 1024 * 1024 + 7);
+    const tokens = Array.from({ length: 200 }, (_, index) => `tok${index}`);
+    writeFileSync(
+      path,
+      metadataFile(
+        [
+          kvString("general.padding", padding),
+          kvStringArray("tokenizer.ggml.tokens", tokens),
+          kvString("general.architecture", "qwen3"),
+          kvU32("qwen3.block_count", 7),
+        ],
+        [tensorInfo("blk.0.ffn_down.weight", [32, 8], 2)],
+      ),
+    );
+
+    const metadata = readGgufMetadata(path);
+    assert.equal(metadata.architecture, "qwen3");
+    assert.equal(metadata.blockCount, 7);
+    assert.equal(metadata.vocabularySize, 200);
+    assert.equal(metadata.parameterCount, 256);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("deriveGgufMetadata rebuilds metadata from raw facts alone", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-gguf-facts-"));
+  const path = join(dir, "facts.gguf");
+  try {
+    writeFileSync(
+      path,
+      metadataFile(
+        [
+          kvString("general.architecture", "qwen35"),
+          kvU32("general.file_type", 15),
+          kvU32("qwen35.context_length", 4096),
+          kvStringArray(
+            "tokenizer.ggml.tokens",
+            Array.from({ length: 128 }, (_, index) => `tok${index}`),
+          ),
+        ],
+        [tensorInfo("blk.0.ffn_down.weight", [32, 8], 12)],
+      ),
+    );
+
+    assert.deepEqual(
+      deriveGgufMetadata(readGgufFacts(path)),
+      readGgufMetadata(path),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

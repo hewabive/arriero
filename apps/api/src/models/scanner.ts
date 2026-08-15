@@ -1,18 +1,19 @@
-import type {
-  GgufMetadata,
-  GgufModel,
-  ModelScanResult,
-  ModelScanRoot,
-} from "@arriero/core";
+import type { GgufMetadata, GgufModel, ModelScanRoot } from "@arriero/core";
 import { opendir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 
+import { logger } from "../logger.js";
+
 import {
-  getCachedModel,
+  getCachedModelEntry,
   listAllCachedModels,
   saveCachedModel,
 } from "./cache-repository.js";
-import { readGgufMetadata, readGgufParameterCount } from "./gguf.js";
+import {
+  readGgufFactsOffThread,
+  readGgufParameterCountOffThread,
+} from "./gguf-worker-client.js";
+import { deriveGgufMetadata, type GgufRawFacts } from "./gguf.js";
 import { parseSplitInfo, splitShardName, type SplitInfo } from "./split.js";
 
 const IGNORED_DIRS = new Set([
@@ -41,6 +42,12 @@ type FoundFile = {
 type ModelFile = FoundFile & {
   shardPaths: string[];
   missingShardNames: string[];
+};
+
+export type ModelScanPass = {
+  roots: ModelScanRoot[];
+  models: GgufModel[];
+  cache: { hits: number; misses: number };
 };
 
 async function walk(
@@ -240,11 +247,53 @@ function readDirectoryErrorMessage(directory: string, error: unknown) {
   return `Cannot read model directory ${directory}: ${(error as Error).message}`;
 }
 
+async function readModelFacts(
+  file: ModelFile,
+): Promise<{ facts: GgufRawFacts | null; error?: string }> {
+  let facts: GgufRawFacts;
+  try {
+    facts = await readGgufFactsOffThread(file.path);
+  } catch (error) {
+    return { facts: null, error: (error as Error).message };
+  }
+
+  const tensors = facts.tensors;
+  if (
+    !tensors ||
+    tensors.parameterCount === null ||
+    file.shardPaths.length <= 1
+  ) {
+    return { facts };
+  }
+
+  let total = tensors.parameterCount;
+  let shardsFailed = false;
+  try {
+    for (const shardPath of file.shardPaths.slice(1)) {
+      total += await readGgufParameterCountOffThread(shardPath);
+    }
+  } catch (error) {
+    logger.warn(
+      { err: error, path: file.path },
+      "GGUF shard parameter count could not be read",
+    );
+    shardsFailed = true;
+  }
+
+  return {
+    facts: {
+      ...facts,
+      tensors: { ...tensors, parameterCount: shardsFailed ? null : total },
+    },
+  };
+}
+
 export async function scanModels(input: {
   roots: ModelScanRoot[];
   maxDepth?: number;
   refresh?: boolean;
-}): Promise<ModelScanResult> {
+  onProgress?: (progress: { done: number; total: number }) => void;
+}): Promise<ModelScanPass> {
   const maxDepth = Math.max(
     0,
     Math.min(input.maxDepth ?? DEFAULT_MAX_DEPTH, 16),
@@ -278,6 +327,7 @@ export async function scanModels(input: {
   const models: GgufModel[] = [];
   let cacheHits = 0;
   let cacheMisses = 0;
+  let done = 0;
   for (const file of files) {
     const shardStats = await Promise.all(
       file.shardPaths.map((path) => stat(path)),
@@ -288,48 +338,40 @@ export async function scanModels(input: {
     ).toISOString();
     const isMmproj = file.name.toLowerCase().includes("mmproj");
     const mmprojPaths = isMmproj ? [] : (mmprojByDir.get(file.directory) ?? []);
-    const cached = input.refresh ? null : getCachedModel(file.path);
-    if (
-      cached &&
+    const cached = input.refresh ? null : getCachedModelEntry(file.path);
+    const unchanged =
+      cached !== null &&
       cached.sizeBytes === sizeBytes &&
-      cached.modifiedAt === modifiedAt
-    ) {
+      cached.modifiedAt === modifiedAt;
+
+    done += 1;
+    if (unchanged && cached.model && cached.derivedCurrent) {
       cacheHits += 1;
-      models.push({
-        ...cached,
-        mmprojPaths,
-      });
+      models.push({ ...cached.model, mmprojPaths });
+      input.onProgress?.({ done, total: files.length });
       continue;
     }
 
-    cacheMisses += 1;
-    let metadata = emptyMetadata();
-    let error: string | undefined;
-
-    try {
-      metadata = readGgufMetadata(file.path);
-      if (metadata.parameterCount !== null && file.shardPaths.length > 1) {
-        try {
-          let total = metadata.parameterCount;
-          for (const shardPath of file.shardPaths.slice(1)) {
-            total += readGgufParameterCount(shardPath);
-          }
-          metadata = { ...metadata, parameterCount: total };
-        } catch {
-          metadata = { ...metadata, parameterCount: null };
-        }
-      }
-    } catch (caught) {
-      error = (caught as Error).message;
+    const reused: GgufRawFacts | null = unchanged ? cached.facts : null;
+    if (reused) {
+      cacheHits += 1;
+    } else {
+      cacheMisses += 1;
     }
-    if (file.missingShardNames.length > 0) {
-      error = [
-        error,
-        `missing GGUF split shards: ${file.missingShardNames.join(", ")}`,
-      ]
-        .filter(Boolean)
-        .join("; ");
-    }
+    const read: { facts: GgufRawFacts | null; error?: string } = reused
+      ? { facts: reused }
+      : await readModelFacts(file);
+    const metadata = read.facts
+      ? deriveGgufMetadata(read.facts)
+      : emptyMetadata();
+    const error = [
+      read.error,
+      file.missingShardNames.length > 0
+        ? `missing GGUF split shards: ${file.missingShardNames.join(", ")}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("; ");
 
     const model: GgufModel = {
       name: basename(file.path),
@@ -342,14 +384,14 @@ export async function scanModels(input: {
       metadata,
       ...(error ? { error } : {}),
     };
-    saveCachedModel(model);
+    saveCachedModel(model, read.facts);
     models.push(model);
+    input.onProgress?.({ done, total: files.length });
   }
 
   return {
     roots: input.roots,
     models: models.sort(compareModelNames),
-    scannedAt: new Date().toISOString(),
     cache: {
       hits: cacheHits,
       misses: cacheMisses,
@@ -369,7 +411,7 @@ function isUnderDirectory(path: string, directory: string, maxDepth: number) {
 export function scanModelsFromCache(input: {
   roots: ModelScanRoot[];
   maxDepth?: number;
-}): ModelScanResult {
+}): ModelScanPass {
   const maxDepth = Math.max(
     0,
     Math.min(input.maxDepth ?? DEFAULT_MAX_DEPTH, 16),
@@ -401,8 +443,6 @@ export function scanModelsFromCache(input: {
   return {
     roots: input.roots,
     models,
-    scannedAt: "",
     cache: { hits: scoped.length, misses: 0 },
-    fromCache: true,
   };
 }

@@ -22,16 +22,22 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   createPathCatalogEntry,
   deletePathCatalogEntry,
   getModelScanSettings,
-  scanModels,
   updateModelScanSettings,
 } from "../../api/client";
 import { PathPickerInput } from "../components/PathPickerInput";
+import { useCompactLayout } from "../hooks/use-compact-layout";
 import { useScannedModels } from "../hooks/use-scanned-models";
 import {
   bitsPerWeight,
@@ -377,28 +383,15 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
     queryKey: ["model-scan-settings"],
     queryFn: getModelScanSettings,
   });
+  const compact = useCompactLayout();
   const scanned = useScannedModels();
-  const refreshModelsMutation = useMutation({
-    mutationFn: () => scanModels({ refresh: true }),
-    onSuccess: (result) => {
-      queryClient.setQueryData(["models"], result);
-      queryClient.setQueryData(["models", "cache"], result);
-    },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Metadata refresh failed",
-        message: (error as Error).message,
-      });
-    },
-  });
   const settingsMutation = useMutation({
     mutationFn: updateModelScanSettings,
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: ["model-scan-settings"],
       });
-      await queryClient.invalidateQueries({ queryKey: ["models"] });
+      scanned.rescan();
       notifications.show({
         title: "Scanner settings saved",
         message: directory,
@@ -423,7 +416,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
       setAddDirOpen(false);
       setDirDraft({ name: "", path: "" });
       await queryClient.invalidateQueries({ queryKey: ["path-catalog"] });
-      await queryClient.invalidateQueries({ queryKey: ["models"] });
+      scanned.rescan();
       notifications.show({
         title: "Model directory added",
         message: result.data.name,
@@ -441,7 +434,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
     mutationFn: deletePathCatalogEntry,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["path-catalog"] });
-      await queryClient.invalidateQueries({ queryKey: ["models"] });
+      scanned.rescan();
     },
     onError: (error) => {
       notifications.show({
@@ -466,7 +459,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
       settingsMutation.mutate({ directory, maxDepth });
       return;
     }
-    scanned.refetch();
+    scanned.rescan();
   }
 
   function toggleExpanded(path: string) {
@@ -485,18 +478,36 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
     () => [...scanned.models].sort(compareModelTitles),
     [scanned.models],
   );
-  const filteredModels = models.filter((model) => {
-    if (hideVocab && isVocabModel(model)) {
-      return false;
-    }
-    if (hideMmproj && model.isMmproj) {
-      return false;
-    }
-    return modelMatchesSearch(model, search);
-  });
+  const deferredSearch = useDeferredValue(search);
+  const filteredModels = useMemo(
+    () =>
+      models.filter((model) => {
+        if (hideVocab && isVocabModel(model)) {
+          return false;
+        }
+        if (hideMmproj && model.isMmproj) {
+          return false;
+        }
+        return modelMatchesSearch(model, deferredSearch);
+      }),
+    [models, hideVocab, hideMmproj, deferredSearch],
+  );
 
+  const modelsByRoot = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const model of scanned.models) {
+      for (const root of scanned.roots) {
+        if (model.path.startsWith(`${root.path}/`)) {
+          counts.set(root.path, (counts.get(root.path) ?? 0) + 1);
+        }
+      }
+    }
+    return counts;
+  }, [scanned.models, scanned.roots]);
+
+  const scanning = scanned.scan.status === "scanning";
   const emptyMessage =
-    scanned.coldLoading || settingsQuery.isFetching
+    scanned.coldLoading || scanning || settingsQuery.isFetching
       ? "Scanning models..."
       : scanned.fetched
         ? "No matching GGUF files found"
@@ -541,12 +552,23 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
           <Button
             aria-label="Refresh model metadata"
             variant="subtle"
-            onClick={() => refreshModelsMutation.mutate()}
-            loading={scanned.reconciling || refreshModelsMutation.isPending}
+            onClick={() => scanned.refreshMetadata()}
+            loading={scanned.reconciling}
           >
             Refresh metadata
           </Button>
+          {scanning && scanned.scan.total > 0 && (
+            <Badge variant="light" color="blue">
+              {`scanning ${scanned.scan.done}/${scanned.scan.total}`}
+            </Badge>
+          )}
         </Group>
+
+        {scanned.scan.error && (
+          <Text c="red" size="sm">
+            {scanned.scan.error}
+          </Text>
+        )}
 
         {scanned.isError && scanned.error && (
           <Text c="red" size="sm">
@@ -570,9 +592,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
               </Button>
             </Group>
             {scanned.roots.map((root) => {
-              const count = scanned.models.filter((model) =>
-                model.path.startsWith(`${root.path}/`),
-              ).length;
+              const count = modelsByRoot.get(root.path) ?? 0;
               return (
                 <Group key={root.path} gap="xs" wrap="nowrap">
                   <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
@@ -656,187 +676,195 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
           </Group>
         </Group>
 
-        <Stack className="models-mobile-list" gap="xs">
-          {filteredModels.map((model) => {
-            const isOpen = expanded.has(model.path);
-            return (
-              <Paper key={model.path} withBorder p="sm" radius="sm">
-                <Stack gap="xs">
-                  <div>
-                    <Text fw={600} size="sm">
-                      {modelTitle(model)}
-                    </Text>
-                    <Text c="dimmed" size="xs" className="text-wrap">
-                      {model.path}
-                    </Text>
-                    {model.error && (
-                      <Text c="red" size="xs">
-                        {model.error}
+        {compact && (
+          <Stack className="models-mobile-list" gap="xs">
+            {filteredModels.map((model) => {
+              const isOpen = expanded.has(model.path);
+              return (
+                <Paper key={model.path} withBorder p="sm" radius="sm">
+                  <Stack gap="xs">
+                    <div>
+                      <Text fw={600} size="sm">
+                        {modelTitle(model)}
                       </Text>
-                    )}
-                  </div>
-                  <Group gap="xs">
-                    <Badge variant="light">
-                      {model.metadata.architecture ?? "unknown arch"}
-                    </Badge>
-                    <TypeBadge model={model} />
-                    <MtpBadge model={model} />
-                    <RoleBadge model={model} />
-                    <Badge variant="outline">{paramsLabel(model)}</Badge>
-                    <Badge variant="outline">
-                      {model.metadata.quantization ?? "unknown quant"}
-                    </Badge>
-                    <Badge variant="outline">
-                      {formatBytes(model.sizeBytes)}
-                    </Badge>
-                    <Badge variant="outline">
-                      ctx {model.metadata.contextLength ?? "-"}
-                    </Badge>
-                  </Group>
-                  <Collapse in={isOpen}>
-                    <ModelDetailPanel model={model} />
-                  </Collapse>
-                  <Group gap="xs">
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      onClick={() => toggleExpanded(model.path)}
-                    >
-                      {isOpen ? "Hide details" : "Details"}
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      disabled={model.isMmproj}
-                      onClick={() => props.onUseModel(model)}
-                    >
-                      Use in new
-                    </Button>
-                  </Group>
-                </Stack>
+                      <Text c="dimmed" size="xs" className="text-wrap">
+                        {model.path}
+                      </Text>
+                      {model.error && (
+                        <Text c="red" size="xs">
+                          {model.error}
+                        </Text>
+                      )}
+                    </div>
+                    <Group gap="xs">
+                      <Badge variant="light">
+                        {model.metadata.architecture ?? "unknown arch"}
+                      </Badge>
+                      <TypeBadge model={model} />
+                      <MtpBadge model={model} />
+                      <RoleBadge model={model} />
+                      <Badge variant="outline">{paramsLabel(model)}</Badge>
+                      <Badge variant="outline">
+                        {model.metadata.quantization ?? "unknown quant"}
+                      </Badge>
+                      <Badge variant="outline">
+                        {formatBytes(model.sizeBytes)}
+                      </Badge>
+                      <Badge variant="outline">
+                        ctx {model.metadata.contextLength ?? "-"}
+                      </Badge>
+                    </Group>
+                    <Collapse in={isOpen}>
+                      {isOpen && <ModelDetailPanel model={model} />}
+                    </Collapse>
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => toggleExpanded(model.path)}
+                      >
+                        {isOpen ? "Hide details" : "Details"}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        disabled={model.isMmproj}
+                        onClick={() => props.onUseModel(model)}
+                      >
+                        Use in new
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Paper>
+              );
+            })}
+            {filteredModels.length === 0 && (
+              <Paper withBorder p="md" radius="sm">
+                <Text c="dimmed" ta="center">
+                  {emptyMessage}
+                </Text>
               </Paper>
-            );
-          })}
-          {filteredModels.length === 0 && (
-            <Paper withBorder p="md" radius="sm">
-              <Text c="dimmed" ta="center">
-                {emptyMessage}
-              </Text>
-            </Paper>
-          )}
-        </Stack>
+            )}
+          </Stack>
+        )}
 
-        <Table.ScrollContainer className="models-table" minWidth={1120}>
-          <Table striped highlightOnHover verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th w={36} />
-                <Table.Th>Model</Table.Th>
-                <Table.Th>Arch</Table.Th>
-                <Table.Th>Type</Table.Th>
-                <Table.Th>Params</Table.Th>
-                <Table.Th>Layers</Table.Th>
-                <Table.Th>Ctx</Table.Th>
-                <Table.Th>Quant</Table.Th>
-                <Table.Th>Size</Table.Th>
-                <Table.Th>mmproj</Table.Th>
-                <Table.Th ta="right">Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {filteredModels.map((model) => {
-                const isOpen = expanded.has(model.path);
-                return (
-                  <Fragment key={model.path}>
-                    <Table.Tr>
-                      <Table.Td>
-                        <ActionIcon
-                          aria-label={isOpen ? "Collapse" : "Expand"}
-                          variant="subtle"
-                          color="gray"
-                          onClick={() => toggleExpanded(model.path)}
-                        >
-                          {isOpen ? (
-                            <ChevronDown size={16} />
-                          ) : (
-                            <ChevronRight size={16} />
-                          )}
-                        </ActionIcon>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text fw={600} size="sm" lineClamp={1}>
-                          {modelTitle(model)}
-                        </Text>
-                        <Text c="dimmed" size="xs" lineClamp={1}>
-                          {model.path}
-                        </Text>
-                        {model.error && (
-                          <Text c="red" size="xs" lineClamp={1}>
-                            {model.error}
-                          </Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap={6} wrap="nowrap">
-                          <Text size="sm">
-                            {model.metadata.architecture ?? "-"}
-                          </Text>
-                          <RoleBadge model={model} />
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap={6} wrap="nowrap">
-                          <TypeBadge model={model} />
-                          <MtpBadge model={model} />
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>{paramsLabel(model)}</Table.Td>
-                      <Table.Td>
-                        <LayersCell model={model} />
-                      </Table.Td>
-                      <Table.Td>{model.metadata.contextLength ?? "-"}</Table.Td>
-                      <Table.Td>{model.metadata.quantization ?? "-"}</Table.Td>
-                      <Table.Td>{formatBytes(model.sizeBytes)}</Table.Td>
-                      <Table.Td>
-                        {model.isMmproj
-                          ? "projector"
-                          : model.mmprojPaths.length || "-"}
-                      </Table.Td>
-                      <Table.Td>
-                        <Group justify="flex-end" gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            disabled={model.isMmproj}
-                            onClick={() => props.onUseModel(model)}
-                          >
-                            Use in new
-                          </Button>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                    {isOpen && (
+        {!compact && (
+          <Table.ScrollContainer className="models-table" minWidth={1120}>
+            <Table striped highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w={36} />
+                  <Table.Th>Model</Table.Th>
+                  <Table.Th>Arch</Table.Th>
+                  <Table.Th>Type</Table.Th>
+                  <Table.Th>Params</Table.Th>
+                  <Table.Th>Layers</Table.Th>
+                  <Table.Th>Ctx</Table.Th>
+                  <Table.Th>Quant</Table.Th>
+                  <Table.Th>Size</Table.Th>
+                  <Table.Th>mmproj</Table.Th>
+                  <Table.Th ta="right">Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filteredModels.map((model) => {
+                  const isOpen = expanded.has(model.path);
+                  return (
+                    <Fragment key={model.path}>
                       <Table.Tr>
-                        <Table.Td colSpan={11}>
-                          <ModelDetailPanel model={model} />
+                        <Table.Td>
+                          <ActionIcon
+                            aria-label={isOpen ? "Collapse" : "Expand"}
+                            variant="subtle"
+                            color="gray"
+                            onClick={() => toggleExpanded(model.path)}
+                          >
+                            {isOpen ? (
+                              <ChevronDown size={16} />
+                            ) : (
+                              <ChevronRight size={16} />
+                            )}
+                          </ActionIcon>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fw={600} size="sm" lineClamp={1}>
+                            {modelTitle(model)}
+                          </Text>
+                          <Text c="dimmed" size="xs" lineClamp={1}>
+                            {model.path}
+                          </Text>
+                          {model.error && (
+                            <Text c="red" size="xs" lineClamp={1}>
+                              {model.error}
+                            </Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap={6} wrap="nowrap">
+                            <Text size="sm">
+                              {model.metadata.architecture ?? "-"}
+                            </Text>
+                            <RoleBadge model={model} />
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap={6} wrap="nowrap">
+                            <TypeBadge model={model} />
+                            <MtpBadge model={model} />
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>{paramsLabel(model)}</Table.Td>
+                        <Table.Td>
+                          <LayersCell model={model} />
+                        </Table.Td>
+                        <Table.Td>
+                          {model.metadata.contextLength ?? "-"}
+                        </Table.Td>
+                        <Table.Td>
+                          {model.metadata.quantization ?? "-"}
+                        </Table.Td>
+                        <Table.Td>{formatBytes(model.sizeBytes)}</Table.Td>
+                        <Table.Td>
+                          {model.isMmproj
+                            ? "projector"
+                            : model.mmprojPaths.length || "-"}
+                        </Table.Td>
+                        <Table.Td>
+                          <Group justify="flex-end" gap="xs">
+                            <Button
+                              size="xs"
+                              variant="light"
+                              disabled={model.isMmproj}
+                              onClick={() => props.onUseModel(model)}
+                            >
+                              Use in new
+                            </Button>
+                          </Group>
                         </Table.Td>
                       </Table.Tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-              {filteredModels.length === 0 && (
-                <Table.Tr>
-                  <Table.Td colSpan={11}>
-                    <Text c="dimmed" ta="center" py="lg">
-                      {emptyMessage}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+                      {isOpen && (
+                        <Table.Tr>
+                          <Table.Td colSpan={11}>
+                            <ModelDetailPanel model={model} />
+                          </Table.Td>
+                        </Table.Tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+                {filteredModels.length === 0 && (
+                  <Table.Tr>
+                    <Table.Td colSpan={11}>
+                      <Text c="dimmed" ta="center" py="lg">
+                        {emptyMessage}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                )}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
       </Stack>
 
       <Modal

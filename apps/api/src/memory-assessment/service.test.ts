@@ -246,7 +246,7 @@ test("vLLM reservation validation is scoped to an identified run", () => {
   assert.equal(result, null);
 });
 
-test("vLLM analytical reservation owns GPU draws but allows manual host RAM", () => {
+test("vLLM analytical reservation owns GPU draws but allows manual host RAM", async () => {
   writeFileSync(
     RESOURCES_FILE,
     `${JSON.stringify([
@@ -296,7 +296,7 @@ test("vLLM analytical reservation owns GPU draws but allows manual host RAM", ()
       positionalArgs: ["Qwen/Qwen3-0.6B"],
       env: { CUDA_VISIBLE_DEVICES: "0" },
     };
-    const result = estimateMemory(input);
+    const result = await estimateMemory(input);
     assert.equal(result.ok, true);
     if (!result.ok) return;
     const assessmentId = createMemoryAssessment(result);

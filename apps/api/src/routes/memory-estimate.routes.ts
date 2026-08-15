@@ -10,7 +10,7 @@ export function registerMemoryEstimateRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    const result = estimateMemory(parsed.data);
+    const result = await estimateMemory(parsed.data);
     if (!result.ok) {
       return c.json({ error: result.reason }, 422);
     }

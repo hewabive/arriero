@@ -9,12 +9,16 @@ import type { GgufModel } from "@arriero/core";
 import { db } from "../db/index.js";
 import { modelCache } from "../db/schema.js";
 import {
-  getCachedModel,
+  getCachedModelEntry,
   listAllCachedModels,
   pruneMissingCachedModels,
   saveCachedModel,
 } from "./cache-repository.js";
-import { GGUF_PARSER_VERSION } from "./gguf.js";
+import {
+  GGUF_PARSER_VERSION,
+  GGUF_RAW_VERSION,
+  type GgufRawFacts,
+} from "./gguf.js";
 
 function model(path: string): GgufModel {
   return {
@@ -99,14 +103,14 @@ test("pruneMissingCachedModels removes cache rows for missing model files", () =
 
   try {
     writeFileSync(existingModel, "");
-    saveCachedModel(model(existingModel));
-    saveCachedModel(model(missingModel));
+    saveCachedModel(model(existingModel), null);
+    saveCachedModel(model(missingModel), null);
 
     const deleted = pruneMissingCachedModels();
 
     assert.ok(deleted >= 1);
-    assert.ok(getCachedModel(existingModel));
-    assert.equal(getCachedModel(missingModel), null);
+    assert.ok(getCachedModelEntry(existingModel)?.model);
+    assert.equal(getCachedModelEntry(missingModel), null);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -133,12 +137,59 @@ test("saveCachedModel refreshes parserVersion on conflict so the cache hits agai
         scannedAt: saved.modifiedAt,
       })
       .run();
-    assert.equal(getCachedModel(path), null);
+    assert.equal(getCachedModelEntry(path)?.model, null);
 
-    saveCachedModel(saved);
+    saveCachedModel(saved, null);
 
-    assert.ok(getCachedModel(path));
+    assert.ok(getCachedModelEntry(path)?.model);
     assert.ok(listAllCachedModels().some((m) => m.path === path));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a stale derived layer is rebuilt from cached raw facts without reading the file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-cache-"));
+  const path = join(dir, "raw.gguf");
+
+  try {
+    const saved = model(path);
+    const facts: GgufRawFacts = {
+      kv: [
+        ["general.architecture", "qwen3"],
+        ["qwen3.context_length", 4096],
+        ["general.file_type", 15],
+      ],
+      tensors: {
+        parameterCount: 1234,
+        hasClassifierHead: false,
+        elementsByType: [[12, 1234]],
+      },
+    };
+    db.insert(modelCache)
+      .values({
+        path,
+        name: saved.name,
+        directory: saved.directory,
+        sizeBytes: String(saved.sizeBytes),
+        modifiedAt: saved.modifiedAt,
+        isMmproj: "false",
+        mmprojPathsJson: "[]",
+        metadataJson: "{}",
+        parserVersion: GGUF_PARSER_VERSION - 1,
+        rawJson: JSON.stringify(facts),
+        rawVersion: GGUF_RAW_VERSION,
+        error: null,
+        scannedAt: saved.modifiedAt,
+      })
+      .run();
+
+    const entry = getCachedModelEntry(path);
+
+    assert.equal(entry?.model?.metadata.architecture, "qwen3");
+    assert.equal(entry?.model?.metadata.contextLength, 4096);
+    assert.equal(entry?.model?.metadata.parameterCount, 1234);
+    assert.equal(entry?.model?.metadata.quantization, "Q4_K_M");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1,16 +1,24 @@
-import type { GgufModel, ModelScanResult, ModelScanRoot } from "@arriero/core";
-import {
-  keepPreviousData,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import type {
+  GgufModel,
+  ModelScanRequest,
+  ModelScanResult,
+  ModelScanRoot,
+  ModelScanState,
+} from "@arriero/core";
+import { notifications } from "@mantine/notifications";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef } from "react";
 
-import { scanModels } from "../../api/client";
+import { scanModels, startModelScan } from "../../api/client";
+
+const SCAN_POLL_MS = 1000;
+const ERROR_POLL_MS = 5000;
 
 export type ScannedModels = {
   models: GgufModel[];
   roots: ModelScanRoot[];
   scannedAt: string;
+  scan: ModelScanState;
   ready: boolean;
   reconciling: boolean;
   coldLoading: boolean;
@@ -18,7 +26,17 @@ export type ScannedModels = {
   cache: ModelScanResult["cache"] | undefined;
   isError: boolean;
   error: Error | null;
-  refetch: () => void;
+  rescan: () => void;
+  refreshMetadata: () => void;
+};
+
+const idleScan: ModelScanState = {
+  status: "idle",
+  done: 0,
+  total: 0,
+  startedAt: null,
+  finishedAt: null,
+  error: null,
 };
 
 export function useScannedModels(options?: {
@@ -26,45 +44,71 @@ export function useScannedModels(options?: {
 }): ScannedModels {
   const queryClient = useQueryClient();
   const enabled = options?.enabled ?? true;
+  const requestedRef = useRef(false);
 
-  const cachedQuery = useQuery({
-    queryKey: ["models", "cache"],
-    queryFn: () => scanModels({ cached: true }),
-    enabled,
-    retry: false,
-    staleTime: Infinity,
-  });
-
-  const liveQuery = useQuery({
+  const modelsQuery = useQuery({
     queryKey: ["models"],
-    queryFn: async () => {
-      const result = await scanModels();
-      queryClient.setQueryData(["models", "cache"], result);
-      return result;
-    },
+    queryFn: scanModels,
     enabled,
     retry: false,
-    staleTime: 60_000,
-    placeholderData: keepPreviousData,
+    refetchInterval: (query) => {
+      if (query.state.status === "error") {
+        return ERROR_POLL_MS;
+      }
+      return query.state.data?.data.scan.status === "scanning"
+        ? SCAN_POLL_MS
+        : false;
+    },
   });
 
-  const live: ModelScanResult | undefined = liveQuery.data?.data;
-  const cached: ModelScanResult | undefined = cachedQuery.data?.data;
-  const effective = live ?? cached;
+  const startScan = useCallback(
+    (input?: ModelScanRequest) => {
+      void startModelScan(input)
+        .then((response) => {
+          queryClient.setQueryData<{ data: ModelScanResult }>(
+            ["models"],
+            (current) =>
+              current
+                ? { data: { ...current.data, scan: response.data } }
+                : current,
+          );
+          void queryClient.invalidateQueries({ queryKey: ["models"] });
+        })
+        .catch((error: unknown) => {
+          notifications.show({
+            color: "red",
+            title: "Model scan failed",
+            message: (error as Error).message,
+          });
+        });
+    },
+    [queryClient],
+  );
+
+  useEffect(() => {
+    if (!enabled || requestedRef.current) {
+      return;
+    }
+    requestedRef.current = true;
+    startScan();
+  }, [enabled, startScan]);
+
+  const result = modelsQuery.data?.data;
+  const scan = result?.scan ?? idleScan;
 
   return {
-    models: effective?.models ?? [],
-    roots: effective?.roots ?? [],
-    scannedAt: effective?.scannedAt ?? "",
-    ready: Boolean(effective),
-    reconciling: liveQuery.isFetching,
-    coldLoading: !cached && liveQuery.isLoading,
-    fetched: liveQuery.isFetched,
-    cache: live?.cache,
-    isError: liveQuery.isError,
-    error: (liveQuery.error as Error | null) ?? null,
-    refetch: () => {
-      void liveQuery.refetch();
-    },
+    models: result?.models ?? [],
+    roots: result?.roots ?? [],
+    scannedAt: result?.scannedAt ?? "",
+    scan,
+    ready: Boolean(result),
+    reconciling: scan.status === "scanning" || modelsQuery.isFetching,
+    coldLoading: modelsQuery.isLoading,
+    fetched: modelsQuery.isFetched,
+    cache: result?.cache,
+    isError: modelsQuery.isError,
+    error: (modelsQuery.error as Error | null) ?? null,
+    rescan: () => startScan(),
+    refreshMetadata: () => startScan({ refresh: true }),
   };
 }

@@ -27,6 +27,7 @@ import {
   getInstanceResourceProfiles,
   listPathCatalog,
 } from "../../api/client";
+import { useCompactLayout } from "../hooks/use-compact-layout";
 import { InstanceActions } from "../components/InstanceActions";
 import { InstanceHealthBadge } from "../components/InstanceHealthBadge";
 import { argString } from "../components/instance-form-helpers";
@@ -367,6 +368,7 @@ export function InstancesView(props: {
   ) => void;
   onLaunchStopped: (instance: Instance) => void;
 }) {
+  const compact = useCompactLayout();
   const catalogQuery = useQuery({
     queryKey: ["path-catalog"],
     queryFn: () => listPathCatalog(),
@@ -400,128 +402,26 @@ export function InstancesView(props: {
         healthByInstanceId={props.healthByInstanceId}
       />
 
-      <Stack className="instances-mobile-list" gap="xs">
-        {props.instances.map((instance) => (
-          <Paper
-            key={instance.name}
-            withBorder
-            p="sm"
-            radius="sm"
-            className={
-              props.selectedInstance?.name === instance.name
-                ? "instance-card instance-card--selected"
-                : "instance-card"
-            }
-            onClick={() => props.onSelect(instance)}
-          >
-            <Stack gap="xs">
-              <Group justify="space-between" align="flex-start" wrap="nowrap">
-                <div className="instance-card__title">
-                  <Text fw={600}>{instance.name}</Text>
-                </div>
-                <InstanceActions
-                  instance={instance}
-                  health={props.healthByInstanceId.get(instance.name)}
-                  onEdit={() => props.onEdit(instance)}
-                  onDuplicate={() => props.onDuplicate(instance)}
-                  onOpenDiagnostics={() => props.onOpenDiagnostics(instance)}
-                  onLaunchStarted={props.onLaunchStarted}
-                  onLaunchStopped={props.onLaunchStopped}
-                />
-              </Group>
-              <Group justify="space-between" gap="xs" align="flex-start">
-                <Group gap={4}>
-                  <InstanceHealthBadge
-                    instance={instance}
-                    health={props.healthByInstanceId.get(instance.name)}
-                  />
-                </Group>
-                <Text c="dimmed" size="sm">
-                  PID {instance.pid ?? "-"}
-                </Text>
-              </Group>
-              <InstanceTypeCell
-                instance={instance}
-                profile={profilesById[instance.name]}
-              />
-              <div>
-                <Text c="dimmed" size="xs">
-                  Binary
-                </Text>
-                <InstanceBinaryCell
-                  instance={instance}
-                  nameByRefId={binaryNameByRefId}
-                />
-              </div>
-              <div>
-                <Text c="dimmed" size="xs">
-                  Args
-                </Text>
-                <InstanceArgsList args={instance.args} />
-              </div>
-            </Stack>
-          </Paper>
-        ))}
-        {props.instances.length === 0 && (
-          <Paper withBorder p="md" radius="sm">
-            <Text c="dimmed" ta="center">
-              No instances yet
-            </Text>
-          </Paper>
-        )}
-      </Stack>
-
-      <Table.ScrollContainer className="instances-table" minWidth={1040}>
-        <Table striped highlightOnHover verticalSpacing="sm">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>PID</Table.Th>
-              <Table.Th>Binary</Table.Th>
-              <Table.Th>Args</Table.Th>
-              <Table.Th ta="right">Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {props.instances.map((instance) => (
-              <Table.Tr
-                key={instance.name}
-                onClick={() => props.onSelect(instance)}
-                {...(props.selectedInstance?.name === instance.name
-                  ? { className: "selected-row" }
-                  : {})}
-                style={{ cursor: "pointer" }}
-              >
-                <Table.Td>
-                  <Text fw={600}>{instance.name}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <InstanceTypeCell
-                    instance={instance}
-                    profile={profilesById[instance.name]}
-                  />
-                </Table.Td>
-                <Table.Td className="instances-status-cell">
-                  <Group gap={4}>
-                    <InstanceHealthBadge
-                      instance={instance}
-                      health={props.healthByInstanceId.get(instance.name)}
-                    />
-                  </Group>
-                </Table.Td>
-                <Table.Td>{instance.pid ?? "-"}</Table.Td>
-                <Table.Td>
-                  <InstanceBinaryCell
-                    instance={instance}
-                    nameByRefId={binaryNameByRefId}
-                  />
-                </Table.Td>
-                <Table.Td>
-                  <InstanceArgsList args={instance.args} />
-                </Table.Td>
-                <Table.Td>
+      {compact && (
+        <Stack className="instances-mobile-list" gap="xs">
+          {props.instances.map((instance) => (
+            <Paper
+              key={instance.name}
+              withBorder
+              p="sm"
+              radius="sm"
+              className={
+                props.selectedInstance?.name === instance.name
+                  ? "instance-card instance-card--selected"
+                  : "instance-card"
+              }
+              onClick={() => props.onSelect(instance)}
+            >
+              <Stack gap="xs">
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <div className="instance-card__title">
+                    <Text fw={600}>{instance.name}</Text>
+                  </div>
                   <InstanceActions
                     instance={instance}
                     health={props.healthByInstanceId.get(instance.name)}
@@ -531,21 +431,129 @@ export function InstancesView(props: {
                     onLaunchStarted={props.onLaunchStarted}
                     onLaunchStopped={props.onLaunchStopped}
                   />
-                </Table.Td>
-              </Table.Tr>
-            ))}
-            {props.instances.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={7}>
-                  <Text c="dimmed" ta="center" py="lg">
-                    No instances yet
+                </Group>
+                <Group justify="space-between" gap="xs" align="flex-start">
+                  <Group gap={4}>
+                    <InstanceHealthBadge
+                      instance={instance}
+                      health={props.healthByInstanceId.get(instance.name)}
+                    />
+                  </Group>
+                  <Text c="dimmed" size="sm">
+                    PID {instance.pid ?? "-"}
                   </Text>
-                </Table.Td>
+                </Group>
+                <InstanceTypeCell
+                  instance={instance}
+                  profile={profilesById[instance.name]}
+                />
+                <div>
+                  <Text c="dimmed" size="xs">
+                    Binary
+                  </Text>
+                  <InstanceBinaryCell
+                    instance={instance}
+                    nameByRefId={binaryNameByRefId}
+                  />
+                </div>
+                <div>
+                  <Text c="dimmed" size="xs">
+                    Args
+                  </Text>
+                  <InstanceArgsList args={instance.args} />
+                </div>
+              </Stack>
+            </Paper>
+          ))}
+          {props.instances.length === 0 && (
+            <Paper withBorder p="md" radius="sm">
+              <Text c="dimmed" ta="center">
+                No instances yet
+              </Text>
+            </Paper>
+          )}
+        </Stack>
+      )}
+
+      {!compact && (
+        <Table.ScrollContainer className="instances-table" minWidth={1040}>
+          <Table striped highlightOnHover verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Name</Table.Th>
+                <Table.Th>Type</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>PID</Table.Th>
+                <Table.Th>Binary</Table.Th>
+                <Table.Th>Args</Table.Th>
+                <Table.Th ta="right">Actions</Table.Th>
               </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
+            </Table.Thead>
+            <Table.Tbody>
+              {props.instances.map((instance) => (
+                <Table.Tr
+                  key={instance.name}
+                  onClick={() => props.onSelect(instance)}
+                  {...(props.selectedInstance?.name === instance.name
+                    ? { className: "selected-row" }
+                    : {})}
+                  style={{ cursor: "pointer" }}
+                >
+                  <Table.Td>
+                    <Text fw={600}>{instance.name}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <InstanceTypeCell
+                      instance={instance}
+                      profile={profilesById[instance.name]}
+                    />
+                  </Table.Td>
+                  <Table.Td className="instances-status-cell">
+                    <Group gap={4}>
+                      <InstanceHealthBadge
+                        instance={instance}
+                        health={props.healthByInstanceId.get(instance.name)}
+                      />
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>{instance.pid ?? "-"}</Table.Td>
+                  <Table.Td>
+                    <InstanceBinaryCell
+                      instance={instance}
+                      nameByRefId={binaryNameByRefId}
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <InstanceArgsList args={instance.args} />
+                  </Table.Td>
+                  <Table.Td>
+                    <InstanceActions
+                      instance={instance}
+                      health={props.healthByInstanceId.get(instance.name)}
+                      onEdit={() => props.onEdit(instance)}
+                      onDuplicate={() => props.onDuplicate(instance)}
+                      onOpenDiagnostics={() =>
+                        props.onOpenDiagnostics(instance)
+                      }
+                      onLaunchStarted={props.onLaunchStarted}
+                      onLaunchStopped={props.onLaunchStopped}
+                    />
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+              {props.instances.length === 0 && (
+                <Table.Tr>
+                  <Table.Td colSpan={7}>
+                    <Text c="dimmed" ta="center" py="lg">
+                      No instances yet
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
     </>
   );
 }

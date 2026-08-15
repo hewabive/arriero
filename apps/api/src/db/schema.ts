@@ -31,6 +31,8 @@ export const modelCache = sqliteTable("model_cache", {
   mmprojPathsJson: text("mmproj_paths_json").notNull(),
   metadataJson: text("metadata_json").notNull(),
   parserVersion: integer("parser_version").notNull().default(0),
+  rawJson: text("raw_json"),
+  rawVersion: integer("raw_version").notNull().default(0),
   error: text("error"),
   scannedAt: text("scanned_at").notNull(),
 });

@@ -98,8 +98,12 @@ logic/test files:
 `docs/ENVIRONMENTS.md`) · `jobs` (background-job kernel: stores, step transitions, pgid-killing
 exec, active-job registry + single shutdown path, log tail — used by build/envs/update/sources and
 copy-identical across the update-kit repos, `docs/BACKGROUND_JOBS.md`) ·
-`models` (gguf/scanner/cache; quantization label cross-checks `general.file_type` against the
-tensor table, `docs/GGUF_QUANTIZATION_LABEL.md`) · `presets` · `llama` (probe + source repo) ·
+`models` (gguf/scanner/cache; parsing runs in a single lazy worker thread and is never on a request
+path, `model_cache` keeps raw facts + derived metadata under separate versions so a parser bump
+re-derives instead of re-reading, `GET /api/models` serves the cache while
+`POST /api/models/scan` drives the single-flight runner — `docs/GGUF_PARSING.md`; quantization label
+cross-checks `general.file_type` against the tensor table, `docs/GGUF_QUANTIZATION_LABEL.md`) ·
+`presets` · `llama` (probe + source repo) ·
 `path-catalog` · `resources` (memory pools + capacity ledger) · `memory-estimate` (a-priori per-pool
 footprint from GGUF + args) + `memory-assessment` (per-engine analytical/measured evidence receipts +
 fingerprint drift + background auto-assess loop that auto-binds analytical / auto-captures measured

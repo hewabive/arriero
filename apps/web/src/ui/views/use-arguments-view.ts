@@ -1,5 +1,4 @@
 import type { ArgumentDefault, ArgumentOption } from "@arriero/core";
-import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -31,7 +30,6 @@ import {
 
 export function useArgumentsView(engineId?: string) {
   const queryClient = useQueryClient();
-  const isMobileList = useMediaQuery("(max-width: 48em)");
   const [routeParams, setRouteParams] = useState(() =>
     readArgumentHelpRouteParams(),
   );
@@ -311,7 +309,6 @@ export function useArgumentsView(engineId?: string) {
 
   return {
     supportsInstanceDefaults: !engineId,
-    isMobileList,
     search,
     setSearch,
     category,

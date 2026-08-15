@@ -15,6 +15,15 @@ import { parseSplitInfo, splitShardName } from "./split.js";
 type GgufScalar = string | number | boolean | null;
 type GgufValue = GgufScalar | GgufScalar[];
 
+export type GgufRawFacts = {
+  kv: Array<[string, GgufValue]>;
+  tensors: {
+    parameterCount: number | null;
+    hasClassifierHead: boolean;
+    elementsByType: Array<[number, number]>;
+  } | null;
+};
+
 const STRING_ARRAY_CAPTURE_LIMIT = 64;
 const METADATA_ARRAY_CAPTURE_LIMIT = 4096;
 
@@ -114,23 +123,73 @@ const LLAMA_FTYPE_EXPECTED_GGML_TYPES: Record<number, number[]> = {
 
 const FILE_TYPE_TENSOR_SHARE_FLOOR = 0.05;
 
+const READ_CHUNK_BYTES = 1 << 20;
+
 class FileReader {
   private offset = 0;
+  private chunk = Buffer.allocUnsafe(READ_CHUNK_BYTES);
+  private chunkOffset = 0;
+  private chunkLength = 0;
 
   constructor(private readonly fd: number) {}
 
   read(length: number) {
-    const buffer = Buffer.alloc(length);
-    const bytesRead = readSync(this.fd, buffer, 0, length, this.offset);
-    if (bytesRead !== length) {
-      throw new Error("unexpected end of GGUF file");
+    const start = this.offset - this.chunkOffset;
+    if (start >= 0 && start + length <= this.chunkLength) {
+      this.offset += length;
+      return this.chunk.subarray(start, start + length);
     }
+    if (length > this.chunk.length) {
+      const buffer = Buffer.alloc(length);
+      this.readExact(buffer, length, this.offset);
+      this.offset += length;
+      return buffer;
+    }
+    this.fillChunk(length);
     this.offset += length;
-    return buffer;
+    return this.chunk.subarray(0, length);
   }
 
   skip(length: number) {
     this.offset += length;
+  }
+
+  private fillChunk(minLength: number) {
+    this.chunkOffset = this.offset;
+    this.chunkLength = 0;
+    while (this.chunkLength < this.chunk.length) {
+      const bytesRead = readSync(
+        this.fd,
+        this.chunk,
+        this.chunkLength,
+        this.chunk.length - this.chunkLength,
+        this.chunkOffset + this.chunkLength,
+      );
+      if (bytesRead === 0) {
+        break;
+      }
+      this.chunkLength += bytesRead;
+    }
+    if (this.chunkLength < minLength) {
+      throw new Error("unexpected end of GGUF file");
+    }
+  }
+
+  private readExact(buffer: Buffer, length: number, position: number) {
+    let filled = 0;
+    while (filled < length) {
+      const bytesRead = readSync(
+        this.fd,
+        buffer,
+        filled,
+        length - filled,
+        position + filled,
+      );
+      if (bytesRead === 0) {
+        throw new Error("unexpected end of GGUF file");
+      }
+      filled += bytesRead;
+    }
   }
 
   string() {
@@ -395,6 +454,8 @@ function readQuantization(
   return label;
 }
 
+export const GGUF_RAW_VERSION = 1;
+
 export const GGUF_PARSER_VERSION = 11;
 
 function skipFormatVersion(reader: FileReader) {
@@ -594,35 +655,40 @@ export function memoryEstimateHparams(
   };
 }
 
-export function readGgufMetadata(path: string): GgufMetadata {
+export function readGgufFacts(path: string): GgufRawFacts {
   const fd = openSync(path, "r");
   try {
     const reader = new FileReader(fd);
     const { tensorCount, kvCount } = readHeader(reader);
     const metadata = readKv(reader, kvCount);
-    let parameterCount: number | null = null;
-    let hasClassifierHead: boolean | null = null;
-    let tensorElementsByType: Map<number, number> | null = null;
+    let tensors: GgufRawFacts["tensors"] = null;
     try {
       const table = readTensorTable(reader, tensorCount);
-      parameterCount = table.parameterCount;
-      hasClassifierHead = table.hasClassifierHead;
-      tensorElementsByType = table.elementsByType;
+      tensors = {
+        parameterCount: table.parameterCount,
+        hasClassifierHead: table.hasClassifierHead,
+        elementsByType: [...table.elementsByType.entries()],
+      };
     } catch (error) {
-      parameterCount = null;
-      hasClassifierHead = null;
-      tensorElementsByType = null;
       logger.warn({ err: error, path }, "GGUF tensor table could not be read");
     }
-    return extractMetadata(
-      metadata,
-      parameterCount,
-      hasClassifierHead,
-      tensorElementsByType,
-    );
+    return { kv: [...metadata.entries()], tensors };
   } finally {
     closeSync(fd);
   }
+}
+
+export function deriveGgufMetadata(facts: GgufRawFacts): GgufMetadata {
+  return extractMetadata(
+    new Map(facts.kv),
+    facts.tensors?.parameterCount ?? null,
+    facts.tensors?.hasClassifierHead ?? null,
+    facts.tensors ? new Map(facts.tensors.elementsByType) : null,
+  );
+}
+
+export function readGgufMetadata(path: string): GgufMetadata {
+  return deriveGgufMetadata(readGgufFacts(path));
 }
 
 export function readGgufParameterCount(path: string): number {

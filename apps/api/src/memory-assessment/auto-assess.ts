@@ -61,11 +61,11 @@ export function decideAutoAssessment(input: {
   return input.supportsMeasuredBaseline ? "measure" : "none";
 }
 
-function runAnalyticalAttempt(
+async function runAnalyticalAttempt(
   instance: Instance,
   fingerprint: MemoryAssessmentFingerprint,
   engine: AssessmentEngine,
-): AutoEstimateOutcome {
+): Promise<AutoEstimateOutcome> {
   const fail = (
     reason: string,
     outcome: AutoEstimateOutcome = "failed",
@@ -77,7 +77,7 @@ function runAnalyticalAttempt(
   if (staleReason) {
     return fail(staleReason, "stale");
   }
-  const estimated = estimateMemory({ instanceId: instance.name });
+  const estimated = await estimateMemory({ instanceId: instance.name });
   if (!estimated.ok) {
     return fail(estimated.reason);
   }
@@ -98,16 +98,16 @@ function runAnalyticalAttempt(
   return "bound";
 }
 
-function attemptAnalytical(
+async function attemptAnalytical(
   instance: Instance,
   engine: AssessmentEngine,
-): AutoEstimateOutcome {
+): Promise<AutoEstimateOutcome> {
   const fingerprint = engine.buildFingerprint(contextFromInstance(instance));
   const memo = getAutoEstimateAttempt(instance.name);
   if (memo && memo.digest === fingerprint.digest) {
     return memo.outcome;
   }
-  const outcome = runAnalyticalAttempt(instance, fingerprint, engine);
+  const outcome = await runAnalyticalAttempt(instance, fingerprint, engine);
   setAutoEstimateAttempt(instance.name, {
     digest: fingerprint.digest,
     outcome,
@@ -176,7 +176,7 @@ async function autoAssessInstance(
   });
   if (action === "none") return;
   if (action === "estimate") {
-    const outcome = attemptAnalytical(instance, engine);
+    const outcome = await attemptAnalytical(instance, engine);
     if (
       outcome === "failed" &&
       isUnassessed(summary) &&

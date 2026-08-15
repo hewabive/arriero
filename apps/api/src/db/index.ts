@@ -71,11 +71,15 @@ export function migrate() {
       mmproj_paths_json TEXT NOT NULL,
       metadata_json TEXT NOT NULL,
       parser_version INTEGER NOT NULL DEFAULT 0,
+      raw_json TEXT,
+      raw_version INTEGER NOT NULL DEFAULT 0,
       error TEXT,
       scanned_at TEXT NOT NULL
     )
   `);
   ensureColumn("model_cache", "parser_version", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("model_cache", "raw_json", "TEXT");
+  ensureColumn("model_cache", "raw_version", "INTEGER NOT NULL DEFAULT 0");
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS llama_argument_catalogs (
