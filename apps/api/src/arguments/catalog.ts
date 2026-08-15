@@ -22,7 +22,6 @@ import {
 import {
   binaryStat,
   defaultBinaryPath,
-  runHelp,
   runHelpAsync,
 } from "./binary-discovery.js";
 import {
@@ -335,45 +334,6 @@ function fallbackCatalog(parserId: ArgumentCatalogHelpParserId) {
   return null;
 }
 
-function generateCatalog(
-  binaryPath: string,
-  stat: ReturnType<typeof binaryStat>,
-  parserId: ArgumentCatalogHelpParserId,
-) {
-  const invocation = helpInvocation(binaryPath, parserId);
-  let helpHash: string;
-  let options: ArgumentOption[];
-  try {
-    const helpOutput = runHelp(
-      invocation.binaryPath,
-      invocation.args,
-      invocation.timeoutMs,
-    );
-    helpHash = createHash("sha256").update(helpOutput).digest("hex");
-    options = HELP_PARSERS[parserId](helpOutput);
-    if (options.length === 0)
-      throw new Error("engine help contained no argument options");
-  } catch (error) {
-    const fallback = fallbackCatalog(parserId);
-    if (!fallback) throw error;
-    helpHash = fallback.helpHash;
-    options = fallback.options;
-  }
-
-  const saved = saveArgumentCatalog({
-    binaryPath,
-    binarySize: stat.binarySize,
-    binaryMtimeMs: stat.binaryMtimeMs,
-    binaryModifiedAt: stat.binaryModifiedAt,
-    helpHash,
-    options,
-    generatedAt: nowIso(),
-    parserId,
-  });
-  writeArgumentCatalogSidecar(saved);
-  return saved;
-}
-
 async function generateCatalogAsync(
   binaryPath: string,
   stat: ReturnType<typeof binaryStat>,
@@ -412,62 +372,41 @@ async function generateCatalogAsync(
   return saved;
 }
 
-export function getArgumentCatalog(
-  binaryPathInput?: string,
-  input?: { refresh?: boolean; parserId?: ArgumentCatalogHelpParserId },
-): ArgumentCatalog {
-  const binaryPath = resolve(binaryPathInput || defaultBinaryPath());
-  if (!existsSync(binaryPath)) {
-    throw new Error(`llama-server binary not found: ${binaryPath}`);
-  }
+const catalogsInFlight = new Map<string, Promise<ArgumentCatalog>>();
 
-  const parserId = input?.parserId ?? "llama-help";
-  const stat = binaryStat(binaryPath);
-  const cached = getCachedArgumentCatalog(binaryPath);
-  const stale = cached ? !isCacheCurrent(cached, stat, parserId) : false;
-
-  if (cached && !stale && !input?.refresh) {
-    return toCatalog({
-      binaryPath,
-      cached,
-      cache: { hit: true, refreshed: false, stale: false },
-      parserId,
-    });
-  }
-
-  if (!input?.refresh) {
-    const fromSidecar = readArgumentCatalogSidecar(binaryPath, stat);
-    if (fromSidecar && isCacheCurrent(fromSidecar, stat, parserId)) {
-      return toCatalog({
-        binaryPath,
-        cached: saveArgumentCatalog(fromSidecar),
-        cache: { hit: true, refreshed: false, stale: false },
-        parserId,
-      });
-    }
-  }
-
-  return toCatalog({
-    binaryPath,
-    cached: generateCatalog(binaryPath, stat, parserId),
-    cache: { hit: false, refreshed: true, stale },
-    parserId,
-  });
-}
-
-export async function getArgumentCatalogAsync(
+export function getArgumentCatalogAsync(
   binaryPathInput?: string,
   input?: { refresh?: boolean; parserId?: ArgumentCatalogHelpParserId },
 ): Promise<ArgumentCatalog> {
   const binaryPath = resolve(binaryPathInput || defaultBinaryPath());
+  const parserId = input?.parserId ?? "llama-help";
+  const refresh = input?.refresh ?? false;
+  const key = `${binaryPath}|${parserId}|${refresh ? "refresh" : "cached"}`;
+  const inFlight = catalogsInFlight.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+  const loading = loadArgumentCatalog(binaryPath, parserId, refresh).finally(
+    () => {
+      catalogsInFlight.delete(key);
+    },
+  );
+  catalogsInFlight.set(key, loading);
+  return loading;
+}
+
+async function loadArgumentCatalog(
+  binaryPath: string,
+  parserId: ArgumentCatalogHelpParserId,
+  refresh: boolean,
+): Promise<ArgumentCatalog> {
   if (!existsSync(binaryPath)) {
     throw new Error(`engine binary not found: ${binaryPath}`);
   }
-  const parserId = input?.parserId ?? "llama-help";
   const stat = binaryStat(binaryPath);
   const cached = getCachedArgumentCatalog(binaryPath);
   const stale = cached ? !isCacheCurrent(cached, stat, parserId) : false;
-  if (cached && !stale && !input?.refresh) {
+  if (cached && !stale && !refresh) {
     return toCatalog({
       binaryPath,
       cached,
@@ -475,7 +414,7 @@ export async function getArgumentCatalogAsync(
       parserId,
     });
   }
-  if (!input?.refresh) {
+  if (!refresh) {
     const fromSidecar = readArgumentCatalogSidecar(binaryPath, stat);
     if (fromSidecar && isCacheCurrent(fromSidecar, stat, parserId)) {
       return toCatalog({

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { binaryStat } from "./binary-discovery.js";
-import { getArgumentCatalog } from "./catalog.js";
+import { getArgumentCatalogAsync } from "./catalog.js";
 import { parseLlamaArgumentOptions } from "./help-parser.js";
 import {
   getCachedArgumentCatalog,
@@ -138,7 +138,7 @@ test("argument catalog sidecar path is hidden and per-binary", () => {
   );
 });
 
-test("getArgumentCatalog regenerates a cache row with a mismatching parser id", () => {
+test("getArgumentCatalogAsync regenerates a cache row with a mismatching parser id", async () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-args-parser-miss-"));
   try {
     const binaryPath = join(dir, "llama-server");
@@ -165,7 +165,7 @@ test("getArgumentCatalog regenerates a cache row with a mismatching parser id", 
       parserId: "legacy",
     });
 
-    const catalog = getArgumentCatalog(binaryPath);
+    const catalog = await getArgumentCatalogAsync(binaryPath);
     assert.equal(catalog.cache.hit, false);
     assert.equal(catalog.cache.refreshed, true);
     assert.equal(catalog.cache.stale, true);
@@ -178,7 +178,7 @@ test("getArgumentCatalog regenerates a cache row with a mismatching parser id", 
   }
 });
 
-test("getArgumentCatalog hydrates the DB from the sidecar without running the binary", () => {
+test("getArgumentCatalogAsync hydrates the DB from the sidecar without running the binary", async () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-args-hydrate-"));
   try {
     const binaryPath = join(dir, "llama-server");
@@ -200,7 +200,7 @@ test("getArgumentCatalog hydrates the DB from the sidecar without running the bi
 
     assert.equal(getCachedArgumentCatalog(binaryPath), null);
 
-    const catalog = getArgumentCatalog(binaryPath);
+    const catalog = await getArgumentCatalogAsync(binaryPath);
     assert.equal(catalog.cache.hit, true);
     assert.equal(catalog.cache.refreshed, false);
     assert.equal(catalog.source.hash, "abc123");
@@ -213,7 +213,7 @@ test("getArgumentCatalog hydrates the DB from the sidecar without running the bi
   }
 });
 
-test("getArgumentCatalog regenerates duplicate primary names from cache and sidecar", () => {
+test("getArgumentCatalogAsync regenerates duplicate primary names from cache and sidecar", async () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-args-duplicates-"));
   try {
     const binaryPath = join(dir, "vllm");
@@ -249,7 +249,7 @@ test("getArgumentCatalog regenerates duplicate primary names from cache and side
     saveArgumentCatalog(stale);
     writeArgumentCatalogSidecar(stale);
 
-    const catalog = getArgumentCatalog(binaryPath, {
+    const catalog = await getArgumentCatalogAsync(binaryPath, {
       parserId: "vllm-help",
     });
     const primaryNames = catalog.options.map((option) => option.primaryName);
@@ -263,7 +263,7 @@ test("getArgumentCatalog regenerates duplicate primary names from cache and side
   }
 });
 
-test("vLLM catalog falls back when runtime help cannot initialize", () => {
+test("vLLM catalog falls back when runtime help cannot initialize", async () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-vllm-fallback-"));
   try {
     const binaryPath = join(dir, "vllm");
@@ -274,7 +274,7 @@ test("vLLM catalog falls back when runtime help cannot initialize", () => {
     );
     chmodSync(binaryPath, 0o755);
 
-    const catalog = getArgumentCatalog(binaryPath, {
+    const catalog = await getArgumentCatalogAsync(binaryPath, {
       parserId: "vllm-help",
       refresh: true,
     });
@@ -297,7 +297,7 @@ test("vLLM catalog falls back when runtime help cannot initialize", () => {
   }
 });
 
-test("SGLang catalog falls back when runtime help cannot initialize", () => {
+test("SGLang catalog falls back when runtime help cannot initialize", async () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-sglang-fallback-"));
   try {
     const binaryPath = join(dir, "sglang");
@@ -308,7 +308,7 @@ test("SGLang catalog falls back when runtime help cannot initialize", () => {
     );
     chmodSync(binaryPath, 0o755);
 
-    const catalog = getArgumentCatalog(binaryPath, {
+    const catalog = await getArgumentCatalogAsync(binaryPath, {
       parserId: "sglang-help",
       refresh: true,
     });
@@ -333,7 +333,7 @@ test("SGLang catalog falls back when runtime help cannot initialize", () => {
   }
 });
 
-test("SGLang catalog reads language-server help through the environment Python", () => {
+test("SGLang catalog reads language-server help through the environment Python", async () => {
   const dir = mkdtempSync(join(tmpdir(), "llm-sglang-live-help-"));
   try {
     const binaryPath = join(dir, "sglang");
@@ -355,7 +355,7 @@ printf '%s\\n' 'usage: launch_server.py [options]' \
     chmodSync(binaryPath, 0o755);
     chmodSync(pythonPath, 0o755);
 
-    const catalog = getArgumentCatalog(binaryPath, {
+    const catalog = await getArgumentCatalogAsync(binaryPath, {
       parserId: "sglang-help",
       refresh: true,
     });

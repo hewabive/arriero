@@ -13,7 +13,11 @@ import {
   readGgufFactsOffThread,
   readGgufParameterCountOffThread,
 } from "./gguf-worker-client.js";
-import { deriveGgufMetadata, type GgufRawFacts } from "./gguf.js";
+import {
+  deriveGgufMetadata,
+  ggufFileIdentityFromStats,
+  type GgufRawFacts,
+} from "./gguf.js";
 import { parseSplitInfo, splitShardName, type SplitInfo } from "./split.js";
 
 const IGNORED_DIRS = new Set([
@@ -332,10 +336,7 @@ export async function scanModels(input: {
     const shardStats = await Promise.all(
       file.shardPaths.map((path) => stat(path)),
     );
-    const sizeBytes = shardStats.reduce((sum, item) => sum + item.size, 0);
-    const modifiedAt = new Date(
-      Math.max(...shardStats.map((item) => item.mtime.getTime())),
-    ).toISOString();
+    const { sizeBytes, modifiedAt } = ggufFileIdentityFromStats(shardStats);
     const isMmproj = file.name.toLowerCase().includes("mmproj");
     const mmprojPaths = isMmproj ? [] : (mmprojByDir.get(file.directory) ?? []);
     const cached = input.refresh ? null : getCachedModelEntry(file.path);

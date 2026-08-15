@@ -2,6 +2,7 @@ import type { GgufTensorTable } from "@arriero/core";
 import { Worker } from "node:worker_threads";
 
 import { logger } from "../logger.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import type {
   GgufWorkerOp,
   GgufWorkerRequest,
@@ -121,13 +122,14 @@ async function runOffThread<T>(
   path: string,
   inProcess: () => T,
 ): Promise<T> {
+  const runInProcess = () => traceBlockingSection(`gguf:${op}`, inProcess);
   if (workerUnavailable) {
-    return inProcess();
+    return runInProcess();
   }
   const target = worker ?? startWorker();
   if (!target) {
     workerUnavailable = true;
-    return inProcess();
+    return runInProcess();
   }
   worker = target;
   try {
@@ -139,7 +141,7 @@ async function runOffThread<T>(
         { err: error, path },
         "gguf worker unavailable; falling back to in-process parsing",
       );
-      return inProcess();
+      return runInProcess();
     }
     throw error;
   }

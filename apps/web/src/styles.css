@@ -91,14 +91,6 @@ code {
   min-width: 0;
 }
 
-.instances-mobile-list,
-.args-mobile-list,
-.models-mobile-list,
-.build-jobs-mobile-list,
-.processes-mobile-list {
-  display: none;
-}
-
 .instance-card,
 .mobile-card {
   cursor: pointer;
@@ -434,22 +426,6 @@ code {
   .app-header__actions .mantine-Button-root {
     padding-left: 10px;
     padding-right: 10px;
-  }
-
-  .instances-mobile-list,
-  .args-mobile-list,
-  .models-mobile-list,
-  .build-jobs-mobile-list,
-  .processes-mobile-list {
-    display: flex;
-  }
-
-  .instances-table,
-  .args-table,
-  .models-table,
-  .build-jobs-table,
-  .processes-table {
-    display: none;
   }
 
   .model-directory-input {

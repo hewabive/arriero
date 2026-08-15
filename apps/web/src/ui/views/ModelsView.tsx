@@ -37,7 +37,7 @@ import {
   updateModelScanSettings,
 } from "../../api/client";
 import { PathPickerInput } from "../components/PathPickerInput";
-import { useCompactLayout } from "../hooks/use-compact-layout";
+import { useNarrowScreen } from "../hooks/use-narrow-screen";
 import { useScannedModels } from "../hooks/use-scanned-models";
 import {
   bitsPerWeight,
@@ -383,7 +383,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
     queryKey: ["model-scan-settings"],
     queryFn: getModelScanSettings,
   });
-  const compact = useCompactLayout();
+  const compact = useNarrowScreen();
   const scanned = useScannedModels();
   const settingsMutation = useMutation({
     mutationFn: updateModelScanSettings,
@@ -677,7 +677,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
         </Group>
 
         {compact && (
-          <Stack className="models-mobile-list" gap="xs">
+          <Stack gap="xs">
             {filteredModels.map((model) => {
               const isOpen = expanded.has(model.path);
               return (
@@ -749,7 +749,7 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
         )}
 
         {!compact && (
-          <Table.ScrollContainer className="models-table" minWidth={1120}>
+          <Table.ScrollContainer minWidth={1120}>
             <Table striped highlightOnHover verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>

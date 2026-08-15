@@ -17,6 +17,7 @@ import {
 
 import { nvidiaTelemetry } from "../nvidia/telemetry.js";
 import { eventLoopMonitor } from "./event-loop.js";
+import { RingBuffer } from "./ring-buffer.js";
 import {
   computeCpuActivity,
   type CpuCounters,
@@ -50,27 +51,6 @@ const COARSE_TIER_SOURCES: Record<
   day: "live",
   month: "day",
 };
-
-class RingBuffer<T> {
-  private readonly items: T[] = [];
-
-  constructor(private readonly capacity: number) {}
-
-  push(item: T) {
-    this.items.push(item);
-    if (this.items.length > this.capacity) {
-      this.items.splice(0, this.items.length - this.capacity);
-    }
-  }
-
-  toArray(): T[] {
-    return [...this.items];
-  }
-
-  clear() {
-    this.items.length = 0;
-  }
-}
 
 function averageNullable(values: (number | null)[]): number | null {
   const present = values.filter((value): value is number => value !== null);

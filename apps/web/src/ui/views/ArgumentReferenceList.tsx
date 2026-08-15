@@ -2,7 +2,7 @@ import type { ArgumentDefaults, ArgumentOption } from "@arriero/core";
 import { Code, Group, Paper, Stack, Table, Text, Tooltip } from "@mantine/core";
 import { Star } from "lucide-react";
 
-import { useCompactLayout } from "../hooks/use-compact-layout";
+import { useNarrowScreen } from "../hooks/use-narrow-screen";
 import { defaultScopeLabel } from "./arguments-view-helpers";
 import { type ArgumentsViewController } from "./use-arguments-view";
 
@@ -25,12 +25,12 @@ function ArgumentDefaultMarker(props: {
 }
 
 export function ArgumentReferenceList({ fm }: { fm: ArgumentsViewController }) {
-  const compact = useCompactLayout();
+  const compact = useNarrowScreen();
   return (
     <Paper withBorder p="sm" radius="sm" className="args-reference-list">
       <Stack gap="sm">
         {compact ? (
-          <Stack className="args-mobile-list" gap="xs">
+          <Stack gap="xs">
             {fm.filteredOptions.map((option) => (
               <Paper
                 key={option.primaryName}
@@ -66,7 +66,7 @@ export function ArgumentReferenceList({ fm }: { fm: ArgumentsViewController }) {
             )}
           </Stack>
         ) : (
-          <Table.ScrollContainer className="args-table" minWidth={220}>
+          <Table.ScrollContainer minWidth={220}>
             <Table striped highlightOnHover verticalSpacing="xs">
               <Table.Thead>
                 <Table.Tr>

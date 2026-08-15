@@ -17,9 +17,7 @@ const ERROR_POLL_MS = 5000;
 export type ScannedModels = {
   models: GgufModel[];
   roots: ModelScanRoot[];
-  scannedAt: string;
   scan: ModelScanState;
-  ready: boolean;
   reconciling: boolean;
   coldLoading: boolean;
   fetched: boolean;
@@ -99,9 +97,7 @@ export function useScannedModels(options?: {
   return {
     models: result?.models ?? [],
     roots: result?.roots ?? [],
-    scannedAt: result?.scannedAt ?? "",
     scan,
-    ready: Boolean(result),
     reconciling: scan.status === "scanning" || modelsQuery.isFetching,
     coldLoading: modelsQuery.isLoading,
     fetched: modelsQuery.isFetched,

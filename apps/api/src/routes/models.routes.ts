@@ -13,16 +13,9 @@ export function registerModelRoutes(app: Hono) {
   });
 
   app.post("/api/models/scan", async (c) => {
-    const body = await c.req.text();
-    let payload: unknown = {};
-    if (body.trim()) {
-      try {
-        payload = JSON.parse(body);
-      } catch (error) {
-        return c.json({ error: (error as Error).message }, 400);
-      }
-    }
-    const parsed = ModelScanRequestSchema.safeParse(payload);
+    const parsed = ModelScanRequestSchema.safeParse(
+      await c.req.json().catch(() => ({})),
+    );
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }

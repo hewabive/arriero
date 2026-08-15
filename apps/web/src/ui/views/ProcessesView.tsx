@@ -23,7 +23,7 @@ import {
   killExternalLlamaProcess,
   listExternalLlamaProcesses,
 } from "../../api/client";
-import { useCompactLayout } from "../hooks/use-compact-layout";
+import { useNarrowScreen } from "../hooks/use-narrow-screen";
 
 type KillIntent = {
   process: ExternalLlamaProcess;
@@ -95,7 +95,7 @@ function ProcessActions(props: {
 }
 
 export function ProcessesView() {
-  const compact = useCompactLayout();
+  const compact = useNarrowScreen();
   const queryClient = useQueryClient();
   const [killIntent, setKillIntent] = useState<KillIntent | null>(null);
   const processesQuery = useQuery({
@@ -160,7 +160,7 @@ export function ProcessesView() {
           )}
 
           {compact && (
-            <Stack className="processes-mobile-list" gap="xs">
+            <Stack gap="xs">
               {processes.map((processInfo) => (
                 <Paper key={processInfo.pid} withBorder p="sm" radius="sm">
                   <Stack gap="xs">
@@ -193,7 +193,7 @@ export function ProcessesView() {
           )}
 
           {!compact && (
-            <Table.ScrollContainer className="processes-table" minWidth={960}>
+            <Table.ScrollContainer minWidth={960}>
               <Table striped highlightOnHover verticalSpacing="sm">
                 <Table.Thead>
                   <Table.Tr>

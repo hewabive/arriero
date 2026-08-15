@@ -325,11 +325,11 @@ export async function getInstanceHealthSummary(
   const shouldCheckStartAvailability =
     (options.checkStartAvailability ?? true) &&
     ["stopped", "exited", "error"].includes(runtime.status);
-  const preflight = shouldCheckStartAvailability
-    ? await validateInstanceStartPreflight(instance, {
+  const preflightPromise = shouldCheckStartAvailability
+    ? validateInstanceStartPreflight(instance, {
         peers: options.peers,
       })
-    : await validateInstancePreflight(instance, {
+    : validateInstancePreflight(instance, {
         peers: options.peers,
       });
   const descriptor = engineDescriptor(instance.kind);
@@ -338,7 +338,8 @@ export async function getInstanceHealthSummary(
   const probe = !shouldProbe
     ? Promise.resolve(probeRunner.offline(instance, "Instance is not running."))
     : probeRunner.probe(instance);
-  const [llama, logSummary, swapBytes] = await Promise.all([
+  const [preflight, llama, logSummary, swapBytes] = await Promise.all([
+    preflightPromise,
     probe,
     summarizeInstanceLog({
       instanceId: instance.name,

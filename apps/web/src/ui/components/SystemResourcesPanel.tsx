@@ -23,6 +23,8 @@ import {
 import { useMemo, type ReactNode } from "react";
 
 import { formatAcceleratorName } from "../utils/pools";
+import { formatLocalClock } from "../utils/time";
+import { formatDurationMs } from "../views/benchmark-format";
 import { MetricCard } from "./MetricCard";
 import {
   MetricChart,
@@ -67,17 +69,11 @@ function formatRate(value: number | null | undefined) {
 }
 
 function formatMs(value: number | null | undefined) {
-  if (value === undefined || value === null) {
-    return "-";
-  }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)} s`;
-  }
-  return `${Math.round(value)} ms`;
+  return formatDurationMs(value ?? null);
 }
 
 function stallSummary(stall: EventLoopStall) {
-  const at = new Date(stall.detectedAt).toLocaleTimeString();
+  const at = formatLocalClock(stall.detectedAt);
   const culprits = stall.culprits
     .map((culprit) => `${culprit.label} (${formatMs(culprit.durationMs)})`)
     .join(", ");

@@ -47,7 +47,7 @@ function factsFromRow(row: ModelCacheRow): GgufRawFacts | null {
 
 function metadataFromRow(
   row: ModelCacheRow,
-  facts: GgufRawFacts | null,
+  facts: () => GgufRawFacts | null,
 ): { metadata: GgufMetadata | null; derivedCurrent: boolean } {
   if (row.parserVersion === GGUF_PARSER_VERSION) {
     const stored = parseJson<GgufMetadata>(
@@ -59,8 +59,9 @@ function metadataFromRow(
       return { metadata: stored, derivedCurrent: true };
     }
   }
+  const loaded = facts();
   return {
-    metadata: facts ? deriveGgufMetadata(facts) : null,
+    metadata: loaded ? deriveGgufMetadata(loaded) : null,
     derivedCurrent: false,
   };
 }
@@ -91,13 +92,21 @@ function modelFromRow(
 }
 
 function entryFromRow(row: ModelCacheRow): CachedModelEntry {
-  const facts = factsFromRow(row);
+  let factsMemo: GgufRawFacts | null | undefined;
+  const facts = () => {
+    if (factsMemo === undefined) {
+      factsMemo = factsFromRow(row);
+    }
+    return factsMemo;
+  };
   const { metadata, derivedCurrent } = metadataFromRow(row, facts);
   return {
     sizeBytes: Number(row.sizeBytes),
     modifiedAt: row.modifiedAt,
     model: metadata ? modelFromRow(row, metadata) : null,
-    facts,
+    get facts() {
+      return facts();
+    },
     derivedCurrent,
   };
 }

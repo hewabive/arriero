@@ -1,5 +1,4 @@
 import type { GgufTensorTable, MemoryEstimateHparams } from "@arriero/core";
-import { stat } from "node:fs/promises";
 
 import { getCachedModelEntry } from "./cache-repository.js";
 import {
@@ -8,29 +7,23 @@ import {
 } from "./gguf-worker-client.js";
 import {
   deriveGgufMetadata,
+  ggufFileIdentity,
   memoryEstimateHparams,
-  resolveGgufShardPaths,
+  type GgufFileIdentity,
 } from "./gguf.js";
 
 const TENSOR_TABLE_CACHE_LIMIT = 8;
 
 const tensorTables = new Map<string, GgufTensorTable>();
 
-async function fileIdentity(path: string) {
-  const stats = await Promise.all(
-    resolveGgufShardPaths(path).map((shard) => stat(shard)),
-  );
-  const sizeBytes = stats.reduce((sum, item) => sum + item.size, 0);
-  const modifiedAt = new Date(
-    Math.max(...stats.map((item) => item.mtime.getTime())),
-  ).toISOString();
-  return { key: `${path}|${sizeBytes}|${modifiedAt}`, sizeBytes, modifiedAt };
+function identityKey(path: string, identity: GgufFileIdentity) {
+  return `${path}|${identity.sizeBytes}|${identity.modifiedAt}`;
 }
 
 export async function loadGgufTensorTable(
   path: string,
 ): Promise<GgufTensorTable> {
-  const { key } = await fileIdentity(path);
+  const key = identityKey(path, await ggufFileIdentity(path));
   const cached = tensorTables.get(key);
   if (cached) {
     tensorTables.delete(key);
@@ -53,13 +46,16 @@ export async function loadGgufTensorTable(
 export async function loadGgufHparams(
   path: string,
 ): Promise<MemoryEstimateHparams> {
-  const identity = await fileIdentity(path);
+  const identity = await ggufFileIdentity(path);
   const entry = getCachedModelEntry(path);
-  const facts =
-    entry?.facts &&
+  const fresh =
+    entry !== null &&
     entry.sizeBytes === identity.sizeBytes &&
-    entry.modifiedAt === identity.modifiedAt
-      ? entry.facts
-      : await readGgufFactsOffThread(path);
+    entry.modifiedAt === identity.modifiedAt;
+  if (fresh && entry.model && entry.derivedCurrent) {
+    return memoryEstimateHparams(entry.model.metadata);
+  }
+  const facts =
+    fresh && entry.facts ? entry.facts : await readGgufFactsOffThread(path);
   return memoryEstimateHparams(deriveGgufMetadata(facts));
 }

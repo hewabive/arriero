@@ -126,6 +126,7 @@ function nowIso() {
 
 export class ProcessSupervisor extends EventEmitter {
   private readonly processes = new Map<string, RuntimeProcess>();
+  private readonly startingInstances = new Map<string, Promise<ProcessState>>();
 
   constructor(private readonly preflightValidator = validateInstancePreflight) {
     super();
@@ -178,17 +179,24 @@ export class ProcessSupervisor extends EventEmitter {
     if (current && isActiveProcessStatus(current.status)) {
       return this.getState(instance.name)!;
     }
+    const inFlight = this.startingInstances.get(instance.name);
+    if (inFlight) {
+      return inFlight;
+    }
+    const starting = this.launch(instance, rpcArgs).finally(() => {
+      this.startingInstances.delete(instance.name);
+    });
+    this.startingInstances.set(instance.name, starting);
+    return starting;
+  }
 
+  private async launch(
+    instance: Instance,
+    rpcArgs: string[],
+  ): Promise<ProcessState> {
     const preflight = await this.preflightValidator(instance);
     if (!preflight.ok) {
       throw new ProcessPreflightError(preflight);
-    }
-    const activeAfterPreflight = this.processes.get(instance.name);
-    if (
-      activeAfterPreflight &&
-      isActiveProcessStatus(activeAfterPreflight.status)
-    ) {
-      return this.getState(instance.name)!;
     }
     this.assertRpcWorkersRunning(instance);
 

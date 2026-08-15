@@ -1,10 +1,9 @@
 import { existsSync, statSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
-import { execFile, spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { config } from "../config.js";
-import { traceBlockingSection } from "../system/event-loop.js";
 import { getBuildSettings, listBuildJobs } from "../build/repository.js";
 import { listPathCatalogEntries } from "../path-catalog/repository.js";
 
@@ -59,40 +58,6 @@ function helpEnvironment(binaryPath: string) {
     .filter(Boolean)
     .join(process.platform === "win32" ? ";" : ":");
   return { ...process.env, [libraryPathName]: libraryPath };
-}
-
-export function runHelp(
-  binaryPath: string,
-  args: string[] = ["--help"],
-  timeoutMs = 10_000,
-) {
-  if (!existsSync(binaryPath)) {
-    throw new Error(`llama-server binary not found: ${binaryPath}`);
-  }
-
-  const result = traceBlockingSection(`help:${basename(binaryPath)}`, () =>
-    spawnSync(binaryPath, args, {
-      env: helpEnvironment(binaryPath),
-      encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: timeoutMs,
-    }),
-  );
-
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(
-      (
-        result.stderr ||
-        result.stdout ||
-        `${binaryPath} ${args.join(" ")} exited with code ${result.status}`
-      ).trim(),
-    );
-  }
-
-  return result.stdout;
 }
 
 export async function runHelpAsync(

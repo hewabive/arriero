@@ -27,7 +27,7 @@ import {
   getInstanceResourceProfiles,
   listPathCatalog,
 } from "../../api/client";
-import { useCompactLayout } from "../hooks/use-compact-layout";
+import { useNarrowScreen } from "../hooks/use-narrow-screen";
 import { InstanceActions } from "../components/InstanceActions";
 import { InstanceHealthBadge } from "../components/InstanceHealthBadge";
 import { argString } from "../components/instance-form-helpers";
@@ -368,7 +368,7 @@ export function InstancesView(props: {
   ) => void;
   onLaunchStopped: (instance: Instance) => void;
 }) {
-  const compact = useCompactLayout();
+  const compact = useNarrowScreen();
   const catalogQuery = useQuery({
     queryKey: ["path-catalog"],
     queryFn: () => listPathCatalog(),
@@ -403,7 +403,7 @@ export function InstancesView(props: {
       />
 
       {compact && (
-        <Stack className="instances-mobile-list" gap="xs">
+        <Stack gap="xs">
           {props.instances.map((instance) => (
             <Paper
               key={instance.name}
@@ -476,7 +476,7 @@ export function InstancesView(props: {
       )}
 
       {!compact && (
-        <Table.ScrollContainer className="instances-table" minWidth={1040}>
+        <Table.ScrollContainer minWidth={1040}>
           <Table striped highlightOnHover verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>

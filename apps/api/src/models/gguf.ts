@@ -7,6 +7,7 @@ import type {
 } from "@arriero/core";
 import { ggmlTensorBytes, ggmlTypeName } from "@arriero/core";
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { logger } from "../logger.js";
@@ -755,6 +756,28 @@ export function readGgufTensorTable(path: string): GgufTensorTable {
   } finally {
     closeSync(fd);
   }
+}
+
+export type GgufFileIdentity = { sizeBytes: number; modifiedAt: string };
+
+export function ggufFileIdentityFromStats(
+  stats: Array<{ size: number; mtime: Date }>,
+): GgufFileIdentity {
+  return {
+    sizeBytes: stats.reduce((sum, item) => sum + item.size, 0),
+    modifiedAt: new Date(
+      Math.max(...stats.map((item) => item.mtime.getTime())),
+    ).toISOString(),
+  };
+}
+
+export async function ggufFileIdentity(
+  modelPath: string,
+): Promise<GgufFileIdentity> {
+  const stats = await Promise.all(
+    resolveGgufShardPaths(modelPath).map((shard) => stat(shard)),
+  );
+  return ggufFileIdentityFromStats(stats);
 }
 
 export function resolveGgufShardPaths(modelPath: string): string[] {

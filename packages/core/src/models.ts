@@ -111,7 +111,6 @@ export const ModelScanStateSchema = z.object({
 export const ModelScanResultSchema = z.object({
   roots: z.array(ModelScanRootSchema),
   models: z.array(GgufModelSchema),
-  scannedAt: z.string(),
   cache: z.object({
     hits: z.number(),
     misses: z.number(),

@@ -23,7 +23,6 @@ let state: ModelScanState = idleState();
 let running: Promise<void> | null = null;
 let pendingRefresh = false;
 let lastCache = { hits: 0, misses: 0 };
-let lastScannedAt = "";
 
 async function runScanPass(refresh: boolean): Promise<void> {
   state = {
@@ -46,8 +45,7 @@ async function runScanPass(refresh: boolean): Promise<void> {
     });
     pruneMissingCachedModels();
     lastCache = pass.cache;
-    lastScannedAt = new Date().toISOString();
-    state = { ...state, status: "idle", finishedAt: lastScannedAt };
+    state = { ...state, status: "idle", finishedAt: new Date().toISOString() };
   } catch (error) {
     logger.error({ err: error }, "model scan failed");
     state = {
@@ -97,7 +95,6 @@ export function getModelScanView(): ModelScanResult {
   return {
     roots: pass.roots,
     models: pass.models,
-    scannedAt: lastScannedAt,
     cache: lastCache,
     scan: state,
   };

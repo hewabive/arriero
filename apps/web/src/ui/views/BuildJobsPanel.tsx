@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 
-import { useCompactLayout } from "../hooks/use-compact-layout";
+import { useNarrowScreen } from "../hooks/use-narrow-screen";
 import { formatLocalDateTime } from "../utils/time";
 import {
   buildJobHasWarnings,
@@ -23,7 +23,7 @@ import {
 import { type BuildViewController } from "./use-build-view";
 
 export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
-  const compact = useCompactLayout();
+  const compact = useNarrowScreen();
   const { jobs, selectedJob, logsQuery } = fm;
   return (
     <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
@@ -35,7 +35,7 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
           <Badge variant="light">{jobs.length}</Badge>
         </Group>
         {compact && (
-          <Stack className="build-jobs-mobile-list" gap="xs">
+          <Stack gap="xs">
             {jobs.map((job) => (
               <Paper key={job.id} withBorder p="sm" radius="sm">
                 <Stack gap="xs">
@@ -90,7 +90,7 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
         )}
 
         {!compact && (
-          <Table.ScrollContainer className="build-jobs-table" minWidth={720}>
+          <Table.ScrollContainer minWidth={720}>
             <Table striped highlightOnHover verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>

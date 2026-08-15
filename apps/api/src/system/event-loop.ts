@@ -5,6 +5,8 @@ import type {
 } from "@arriero/core";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 
+import { RingBuffer } from "./ring-buffer.js";
+
 const STALL_THRESHOLD_MS = 250;
 const SECTION_THRESHOLD_MS = 50;
 const STALL_CAPACITY = 100;
@@ -41,8 +43,10 @@ type EventLoopStallListener = (stall: EventLoopStall) => void;
 export class EventLoopMonitor {
   private readonly stallThresholdMs: number;
   private readonly sectionThresholdMs: number;
-  private readonly sections: EventLoopBlockingSection[] = [];
-  private readonly stalls: EventLoopStall[] = [];
+  private readonly sections = new RingBuffer<EventLoopBlockingSection>(
+    SECTION_CAPACITY,
+  );
+  private readonly stalls = new RingBuffer<EventLoopStall>(STALL_CAPACITY);
   private readonly listeners = new Set<EventLoopStallListener>();
 
   constructor(
@@ -70,9 +74,6 @@ export class EventLoopMonitor {
       return;
     }
     this.sections.push(section);
-    if (this.sections.length > SECTION_CAPACITY) {
-      this.sections.splice(0, this.sections.length - SECTION_CAPACITY);
-    }
   }
 
   sample(at: number): number | null {
@@ -86,9 +87,6 @@ export class EventLoopMonitor {
       culprits: this.culpritsFor(at, maxLagMs),
     };
     this.stalls.push(stall);
-    if (this.stalls.length > STALL_CAPACITY) {
-      this.stalls.splice(0, this.stalls.length - STALL_CAPACITY);
-    }
     for (const listener of this.listeners) {
       listener(stall);
     }
@@ -101,6 +99,7 @@ export class EventLoopMonitor {
   ): EventLoopBlockingSection[] {
     const windowStart = at - durationMs - CULPRIT_WINDOW_SLACK_MS;
     return this.sections
+      .toArray()
       .filter((section) => section.endedAt >= windowStart)
       .sort((left, right) => right.durationMs - left.durationMs)
       .slice(0, CULPRITS_PER_STALL);
@@ -110,8 +109,8 @@ export class EventLoopMonitor {
     return {
       stallThresholdMs: this.stallThresholdMs,
       sectionThresholdMs: this.sectionThresholdMs,
-      stalls: [...this.stalls].reverse(),
-      slowSections: [...this.sections].reverse(),
+      stalls: this.stalls.toArray().reverse(),
+      slowSections: this.sections.toArray().reverse(),
     };
   }
 }
