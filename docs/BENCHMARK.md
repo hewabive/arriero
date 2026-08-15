@@ -11,8 +11,9 @@ so a single aggregate tok/s number hides exactly the effects worth measuring.
 
 MVP measures **directly against the instance endpoint** (`/v1/chat/completions`, streaming), not
 through the proxy: the numbers describe the engine, with no gateway/lease/pipeline overhead. The
-scenario `target` is a discriminated union with the single `{kind:"instance"}` variant today;
-routing a run through a proxy model is a planned second variant.
+scenario `target` carries a `kind` discriminator with the single `"instance"` value today;
+routing a run through a proxy model is a planned second kind (the schema becomes a discriminated
+union when it lands).
 
 The measurement base is **engine-agnostic**: everything is derived from client-observed SSE chunk
 arrival times, which works for every `InstanceKind`. llama.cpp responses additionally carry a

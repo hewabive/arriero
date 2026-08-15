@@ -87,15 +87,26 @@ function phasesOf(request: MeasuredRequest): RequestPhases | null {
   };
 }
 
-function chunkInSegment(
-  chunkMs: number,
+function countChunksThrough(
+  phase: RequestPhases,
+  cursors: Map<RequestPhases, number>,
   startMs: number,
   endMs: number,
-  doneMs: number,
-): boolean {
-  if (chunkMs < startMs) return false;
-  if (chunkMs < endMs) return true;
-  return chunkMs === endMs && endMs === doneMs;
+): number {
+  const times = phase.decodeChunkTimes;
+  let cursor = cursors.get(phase) ?? 0;
+  let chunks = 0;
+  while (cursor < times.length) {
+    const chunkMs = times[cursor];
+    if (chunkMs === undefined) break;
+    const within =
+      chunkMs < endMs || (chunkMs === endMs && endMs === phase.doneMs);
+    if (!within) break;
+    if (chunkMs >= startMs) chunks += 1;
+    cursor += 1;
+  }
+  cursors.set(phase, cursor);
+  return chunks;
 }
 
 function buildRepetitionSegments(
@@ -110,6 +121,7 @@ function buildRepetitionSegments(
     boundaries.add(phase.doneMs);
   }
   const sorted = [...boundaries].sort((a, b) => a - b);
+  const cursors = new Map<RequestPhases, number>();
   const segments: BenchmarkSegment[] = [];
   for (let index = 0; index + 1 < sorted.length; index += 1) {
     const startMs = sorted[index];
@@ -125,12 +137,7 @@ function buildRepetitionSegments(
     const contended = prefilling.length > 0 || decoding.length > 1;
     let decodeTokens = 0;
     for (const phase of decoding) {
-      let chunks = 0;
-      for (const chunkMs of phase.decodeChunkTimes) {
-        if (chunkInSegment(chunkMs, startMs, endMs, phase.doneMs)) {
-          chunks += 1;
-        }
-      }
+      const chunks = countChunksThrough(phase, cursors, startMs, endMs);
       const tokens = chunks * phase.tokensPerChunk;
       decodeTokens += tokens;
       const accumulator = contention.get(phase.requestId) ?? {
@@ -282,8 +289,10 @@ function buildTopicSummaries(
     });
 }
 
-function buildRequestResult(request: MeasuredRequest): BenchmarkRequestResult {
-  const phases = phasesOf(request);
+function buildRequestResult(
+  request: MeasuredRequest,
+  phases: RequestPhases | null,
+): BenchmarkRequestResult {
   const decodeTokens = phases
     ? phases.decodeChunkTimes.length * phases.tokensPerChunk
     : 0;
@@ -310,13 +319,20 @@ function buildRequestResult(request: MeasuredRequest): BenchmarkRequestResult {
   };
 }
 
-export function buildBenchmarkRunResult(
+export type BenchmarkRunAnalysis = {
+  result: BenchmarkRunResult;
+  summary: BenchmarkRunSummary;
+};
+
+export function analyzeBenchmarkRun(
   requests: readonly MeasuredRequest[],
-): BenchmarkRunResult {
+): BenchmarkRunAnalysis {
   const contention = new Map<string, ContentionAccumulator>();
+  const phasesByRequest = new Map<MeasuredRequest, RequestPhases | null>();
   const repetitions = new Map<number, RequestPhases[]>();
   for (const request of requests) {
     const phases = phasesOf(request);
+    phasesByRequest.set(request, phases);
     if (!phases) continue;
     const group = repetitions.get(request.repetition) ?? [];
     group.push(phases);
@@ -328,13 +344,19 @@ export function buildBenchmarkRunResult(
   )) {
     segments.push(...buildRepetitionSegments(group, repetition, contention));
   }
-  return {
+  const segmentClasses = aggregateSegmentClasses(segments);
+  const topics = buildTopicSummaries(requests, contention);
+  const result: BenchmarkRunResult = {
     requests: [...requests]
       .sort((a, b) => a.submitMs - b.submitMs)
-      .map(buildRequestResult),
+      .map((request) =>
+        buildRequestResult(request, phasesByRequest.get(request) ?? null),
+      ),
     segments,
-    segmentClasses: aggregateSegmentClasses(segments),
-    topics: buildTopicSummaries(requests, contention),
+  };
+  return {
+    result,
+    summary: summarizeRequests(requests, segments, segmentClasses, topics),
   };
 }
 
@@ -356,12 +378,13 @@ function percentile(
 
 function buildHeadline(
   requests: readonly MeasuredRequest[],
-  result: BenchmarkRunResult,
+  segments: readonly BenchmarkSegment[],
+  segmentClasses: readonly BenchmarkSegmentClass[],
 ): BenchmarkHeadline {
   let decodeTokens = 0;
   let decodeWallMs = 0;
   let perRequestTokens = 0;
-  for (const entry of result.segmentClasses) {
+  for (const entry of segmentClasses) {
     if (entry.decodeCount === 0) continue;
     decodeTokens += entry.decodeTokens;
     decodeWallMs += entry.wallMs;
@@ -389,21 +412,23 @@ function buildHeadline(
       perRequestTokens,
       decodeWallMs,
     ),
-    soloDecodeTokensPerSecond: soloDecodeBaseline(result.segmentClasses),
+    soloDecodeTokensPerSecond: soloDecodeBaseline(segmentClasses),
     prefillTokensPerSecond: ratePerSecond(prefillTokens, prefillMs),
     totalPromptTokens,
     timeToFirstTokenP50Ms: percentile(firstTokenSpans, 0.5),
     timeToFirstTokenP95Ms: percentile(firstTokenSpans, 0.95),
-    peakConcurrentDecode: result.segments.reduce(
+    peakConcurrentDecode: segments.reduce(
       (peak, segment) => Math.max(peak, segment.decodeCount),
       0,
     ),
   };
 }
 
-export function summarizeBenchmarkRunResult(
+function summarizeRequests(
   requests: readonly MeasuredRequest[],
-  result: BenchmarkRunResult,
+  segments: readonly BenchmarkSegment[],
+  segmentClasses: BenchmarkSegmentClass[],
+  topics: BenchmarkTopicSummary[],
 ): BenchmarkRunSummary {
   const spans = new Map<number, { minSubmitMs: number; maxDoneMs: number }>();
   let totalCompletionTokens = 0;
@@ -436,8 +461,8 @@ export function summarizeBenchmarkRunResult(
     totalCompletionTokens,
     wallMs,
     acceptanceRate: weightedAcceptance(requests),
-    headline: buildHeadline(requests, result),
-    topics: result.topics,
-    segmentClasses: result.segmentClasses,
+    headline: buildHeadline(requests, segments, segmentClasses),
+    topics,
+    segmentClasses,
   };
 }

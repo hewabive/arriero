@@ -9,6 +9,10 @@ import type { Hono } from "hono";
 import { z } from "zod";
 
 import {
+  BenchmarkConflictError,
+  BenchmarkNotFoundError,
+} from "../benchmark/errors.js";
+import {
   createBenchmarkPrompt,
   deleteBenchmarkPrompt,
   listBenchmarkPromptMetas,
@@ -39,12 +43,9 @@ const RunGetQuerySchema = z.object({
   waitMs: z.coerce.number().int().min(1).max(60000).optional(),
 });
 
-const CONFLICT_MESSAGE = /already active|already exists|builtin/;
-const NOT_FOUND_MESSAGE = /not found/;
-
-function errorStatus(message: string): 400 | 404 | 409 {
-  if (CONFLICT_MESSAGE.test(message)) return 409;
-  if (NOT_FOUND_MESSAGE.test(message)) return 404;
+function errorStatus(error: unknown): 400 | 404 | 409 {
+  if (error instanceof BenchmarkConflictError) return 409;
+  if (error instanceof BenchmarkNotFoundError) return 404;
   return 400;
 }
 
@@ -70,8 +71,7 @@ export function registerBenchmarkRoutes(app: Hono) {
     try {
       return c.json({ data: createBenchmarkPrompt(parsed.data) }, 201);
     } catch (error) {
-      const message = (error as Error).message;
-      return c.json({ error: message }, errorStatus(message));
+      return c.json({ error: (error as Error).message }, errorStatus(error));
     }
   });
 
@@ -87,8 +87,7 @@ export function registerBenchmarkRoutes(app: Hono) {
       }
       return c.json({ data: updated });
     } catch (error) {
-      const message = (error as Error).message;
-      return c.json({ error: message }, errorStatus(message));
+      return c.json({ error: (error as Error).message }, errorStatus(error));
     }
   });
 
@@ -99,8 +98,7 @@ export function registerBenchmarkRoutes(app: Hono) {
       }
       return c.json({ data: { deleted: true } });
     } catch (error) {
-      const message = (error as Error).message;
-      return c.json({ error: message }, errorStatus(message));
+      return c.json({ error: (error as Error).message }, errorStatus(error));
     }
   });
 
@@ -126,8 +124,7 @@ export function registerBenchmarkRoutes(app: Hono) {
     try {
       return c.json({ data: startBenchmarkRun(parsed.data) }, 201);
     } catch (error) {
-      const message = (error as Error).message;
-      return c.json({ error: message }, errorStatus(message));
+      return c.json({ error: (error as Error).message }, errorStatus(error));
     }
   });
 

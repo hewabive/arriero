@@ -18,6 +18,15 @@ import {
   startBenchmarkRun,
 } from "../../api/client";
 
+function notifyError(title: string) {
+  return (error: unknown) =>
+    notifications.show({
+      color: "red",
+      title,
+      message: (error as Error).message,
+    });
+}
+
 export function useBenchmarkView() {
   const queryClient = useQueryClient();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -69,23 +78,13 @@ export function useBenchmarkView() {
         message: result.data.id,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Benchmark start failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Benchmark start failed"),
   });
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => cancelBenchmarkRun(id),
     onSuccess: () => invalidateRuns(),
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Cancel failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Cancel failed"),
   });
 
   const deleteRunMutation = useMutation({
@@ -96,12 +95,7 @@ export function useBenchmarkView() {
       }
       await invalidateRuns();
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Delete failed"),
   });
 
   const createPromptMutation = useMutation({
@@ -114,23 +108,13 @@ export function useBenchmarkView() {
         message: result.data.title,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Prompt save failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Prompt save failed"),
   });
 
   const deletePromptMutation = useMutation({
     mutationFn: (id: string) => deleteBenchmarkPrompt(id),
     onSuccess: () => invalidatePrompts(),
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Prompt delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Prompt delete failed"),
   });
 
   return {

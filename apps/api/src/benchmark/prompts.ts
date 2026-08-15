@@ -2,7 +2,6 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
-  BenchmarkPromptMetaSchema,
   BenchmarkPromptSchema,
   type BenchmarkPrompt,
   type BenchmarkPromptCreate,
@@ -14,6 +13,7 @@ import {
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { newId } from "../utils/id.js";
+import { BenchmarkConflictError } from "./errors.js";
 import {
   createCustomBenchmarkPrompt,
   deleteCustomBenchmarkPrompt,
@@ -97,9 +97,7 @@ export function listBenchmarkPrompts(): BenchmarkPromptWithSource[] {
 }
 
 export function listBenchmarkPromptMetas(): BenchmarkPromptMeta[] {
-  return listBenchmarkPrompts().map((prompt) =>
-    BenchmarkPromptMetaSchema.parse(prompt),
-  );
+  return listBenchmarkPrompts().map(({ messages: _messages, ...meta }) => meta);
 }
 
 export function getBenchmarkPrompt(
@@ -113,7 +111,7 @@ export function createBenchmarkPrompt(
 ): BenchmarkPrompt {
   const id = input.id ?? newId();
   if (getBenchmarkPrompt(id)) {
-    throw new Error(`benchmark prompt ${id} already exists`);
+    throw new BenchmarkConflictError(`benchmark prompt ${id} already exists`);
   }
   return createCustomBenchmarkPrompt({ ...input, id });
 }
@@ -123,14 +121,18 @@ export function updateBenchmarkPrompt(
   update: BenchmarkPromptUpdate,
 ): BenchmarkPrompt | null {
   if (listBuiltinBenchmarkPrompts().some((prompt) => prompt.id === id)) {
-    throw new Error(`benchmark prompt ${id} is builtin and cannot be edited`);
+    throw new BenchmarkConflictError(
+      `benchmark prompt ${id} is builtin and cannot be edited`,
+    );
   }
   return updateCustomBenchmarkPrompt(id, update);
 }
 
 export function deleteBenchmarkPrompt(id: string): boolean {
   if (listBuiltinBenchmarkPrompts().some((prompt) => prompt.id === id)) {
-    throw new Error(`benchmark prompt ${id} is builtin and cannot be deleted`);
+    throw new BenchmarkConflictError(
+      `benchmark prompt ${id} is builtin and cannot be deleted`,
+    );
   }
   return deleteCustomBenchmarkPrompt(id);
 }

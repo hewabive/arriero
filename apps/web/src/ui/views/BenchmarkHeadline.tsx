@@ -2,22 +2,12 @@ import type { BenchmarkRunSummary } from "@arriero/core";
 import { Paper, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 
-function formatRate(value: number | null): string {
-  return value === null ? "—" : value.toFixed(1);
-}
-
-function formatDuration(value: number | null): string {
-  if (value === null) return "—";
-  return value >= 1000
-    ? `${(value / 1000).toFixed(1)} s`
-    : `${Math.round(value)} ms`;
-}
-
-function formatTokens(value: number): string {
-  return value >= 10_000
-    ? `${(value / 1000).toFixed(1)}k`
-    : Math.round(value).toLocaleString();
-}
+import {
+  formatDurationMs,
+  formatPercent,
+  formatRate,
+  formatTokens,
+} from "./benchmark-format";
 
 function Stat(props: {
   label: string;
@@ -93,8 +83,8 @@ export function BenchmarkHeadline({
       />
       <Stat
         label="TTFT p50"
-        value={formatDuration(headline.timeToFirstTokenP50Ms)}
-        hint={`p95 ${formatDuration(headline.timeToFirstTokenP95Ms)}`}
+        value={formatDurationMs(headline.timeToFirstTokenP50Ms)}
+        hint={`p95 ${formatDurationMs(headline.timeToFirstTokenP95Ms)}`}
       />
       <Stat
         label="Prefill"
@@ -104,11 +94,7 @@ export function BenchmarkHeadline({
       />
       <Stat
         label="Draft acceptance"
-        value={
-          summary.acceptanceRate === null
-            ? "—"
-            : `${(summary.acceptanceRate * 100).toFixed(0)}%`
-        }
+        value={formatPercent(summary.acceptanceRate)}
         hint={
           summary.acceptanceRate === null
             ? "no speculative decoding"

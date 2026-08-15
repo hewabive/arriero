@@ -20,21 +20,14 @@ import { useState } from "react";
 
 import { countLabel } from "../utils/plural";
 
+import {
+  formatDurationMs,
+  formatPercent,
+  formatRate,
+} from "./benchmark-format";
 import { BenchmarkHeadline } from "./BenchmarkHeadline";
 import { BenchmarkTimeline } from "./BenchmarkTimeline";
 import type { BenchmarkViewController } from "./use-benchmark-view";
-
-function fmtRate(value: number | null): string {
-  return value === null ? "—" : value.toFixed(1);
-}
-
-function fmtPercent(value: number | null): string {
-  return value === null ? "—" : `${(value * 100).toFixed(0)}%`;
-}
-
-function fmtMs(value: number | null): string {
-  return value === null ? "—" : `${value.toFixed(0)} ms`;
-}
 
 function numaLabel(numa: NonNullable<BenchmarkTargetSnapshot["numa"]>): string {
   return numa.mode === "bind"
@@ -192,7 +185,7 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
                   </Badge>
                   {summary.acceptanceRate !== null && (
                     <Badge variant="light" color="grape">
-                      draft acceptance {fmtPercent(summary.acceptanceRate)}
+                      draft acceptance {formatPercent(summary.acceptanceRate)}
                     </Badge>
                   )}
                 </>
@@ -233,7 +226,12 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
           </Alert>
         )}
 
-        {fm.result && <BenchmarkTimeline result={fm.result} />}
+        {fm.result && (
+          <BenchmarkTimeline
+            result={fm.result}
+            baseline={summary?.headline?.soloDecodeTokensPerSecond ?? null}
+          />
+        )}
         {run.status !== "running" && !fm.result && !fm.resultLoading && (
           <Text c="dimmed" size="sm">
             No timeline available for this run.
@@ -262,18 +260,18 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
                       <Table.Tr key={index}>
                         <Table.Td>{entry.prefillCount}</Table.Td>
                         <Table.Td>{entry.decodeCount}</Table.Td>
-                        <Table.Td>{fmtPercent(entry.wallShare)}</Table.Td>
+                        <Table.Td>{formatPercent(entry.wallShare)}</Table.Td>
                         <Table.Td>
                           {(entry.wallMs / 1000).toFixed(2)} s
                         </Table.Td>
                         <Table.Td>
                           {supported
-                            ? fmtRate(entry.decodeTokensPerSecond)
+                            ? formatRate(entry.decodeTokensPerSecond)
                             : "—"}
                         </Table.Td>
                         <Table.Td>
                           {supported
-                            ? fmtRate(entry.perRequestDecodeTokensPerSecond)
+                            ? formatRate(entry.perRequestDecodeTokensPerSecond)
                             : "—"}
                         </Table.Td>
                       </Table.Tr>
@@ -310,14 +308,14 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
                       <Table.Td>{`${topic.topic}/${topic.language}`}</Table.Td>
                       <Table.Td>{topic.requestCount}</Table.Td>
                       <Table.Td>
-                        {fmtRate(topic.soloDecodeTokensPerSecond)}
+                        {formatRate(topic.soloDecodeTokensPerSecond)}
                       </Table.Td>
                       <Table.Td>
-                        {fmtRate(topic.contendedDecodeTokensPerSecond)}
+                        {formatRate(topic.contendedDecodeTokensPerSecond)}
                       </Table.Td>
-                      <Table.Td>{fmtPercent(topic.acceptanceRate)}</Table.Td>
+                      <Table.Td>{formatPercent(topic.acceptanceRate)}</Table.Td>
                       <Table.Td>
-                        {fmtMs(topic.averageTimeToFirstTokenMs)}
+                        {formatDurationMs(topic.averageTimeToFirstTokenMs)}
                       </Table.Td>
                     </Table.Tr>
                   ))}

@@ -1,11 +1,13 @@
-import type {
-  BenchmarkPromptWithSource,
-  BenchmarkRun,
-  BenchmarkRunProgress,
-  BenchmarkScenario,
-  BenchmarkStreamEvent,
-  BenchmarkTargetSnapshot,
-  Instance,
+import {
+  engineDescriptor,
+  type BenchmarkPromptWithSource,
+  type BenchmarkRun,
+  type BenchmarkRunProgress,
+  type BenchmarkRunSummary,
+  type BenchmarkScenario,
+  type BenchmarkStreamEvent,
+  type BenchmarkTargetSnapshot,
+  type Instance,
 } from "@arriero/core";
 
 import { instanceBaseUrl } from "../instances/endpoint.js";
@@ -23,6 +25,7 @@ import {
 } from "../process/runtime-endpoint.js";
 import { asObject, numberOrNull } from "../proxy/json.js";
 import { newId } from "../utils/id.js";
+import { BenchmarkConflictError, BenchmarkNotFoundError } from "./errors.js";
 import {
   CANCELED_REQUEST_ERROR,
   runMeasuredRequest,
@@ -35,11 +38,7 @@ import {
   writeBenchmarkRunArtifacts,
   writeBenchmarkRunRecord,
 } from "./repository.js";
-import {
-  buildBenchmarkRunResult,
-  summarizeBenchmarkRunResult,
-  type MeasuredRequest,
-} from "./segmenter.js";
+import { analyzeBenchmarkRun, type MeasuredRequest } from "./segmenter.js";
 
 export const BENCHMARK_JOB_DOMAIN = "benchmark";
 
@@ -65,6 +64,7 @@ type PlannedRequest = {
 type ExecutionContext = {
   runId: string;
   scenario: BenchmarkScenario;
+  wave: PlannedRequest[];
   instance: Instance;
   runtimeArgs: Instance["args"];
   launchSnapshot: LaunchSnapshot | null;
@@ -82,7 +82,9 @@ function planWave(scenario: BenchmarkScenario): PlannedRequest[] {
   for (const entry of scenario.composition) {
     const prompt = getBenchmarkPrompt(entry.promptId);
     if (!prompt) {
-      throw new Error(`benchmark prompt ${entry.promptId} not found`);
+      throw new BenchmarkNotFoundError(
+        `benchmark prompt ${entry.promptId} not found`,
+      );
     }
     for (let copy = 0; copy < entry.count; copy += 1) {
       wave.push({ index: wave.length, prompt });
@@ -188,6 +190,45 @@ function persistRunRecord(runId: string): void {
   writeBenchmarkRunRecord(run);
 }
 
+function benchmarkStreamEvents(
+  measured: readonly MeasuredRequest[],
+): BenchmarkStreamEvent[] {
+  const events: BenchmarkStreamEvent[] = [];
+  for (const request of measured) {
+    events.push({
+      requestId: request.requestId,
+      tMs: request.submitMs,
+      kind: "submit",
+    });
+    if (request.firstTokenMs !== null) {
+      events.push({
+        requestId: request.requestId,
+        tMs: request.firstTokenMs,
+        kind: "first-token",
+      });
+    }
+    for (const chunkMs of request.chunkTimesMs) {
+      events.push({
+        requestId: request.requestId,
+        tMs: chunkMs,
+        kind: "chunk",
+      });
+    }
+    const endMs = request.doneMs ?? request.submitMs;
+    events.push(
+      request.error !== null
+        ? {
+            requestId: request.requestId,
+            tMs: endMs,
+            kind: "error",
+            message: request.error,
+          }
+        : { requestId: request.requestId, tMs: endMs, kind: "done" },
+    );
+  }
+  return events;
+}
+
 function describeRequestFailures(
   measured: readonly MeasuredRequest[],
 ): { count: number; message: string } | null {
@@ -211,7 +252,6 @@ async function measurePlannedRequest(input: {
   model: string | null;
   now: () => number;
   measured: MeasuredRequest[];
-  events: BenchmarkStreamEvent[];
 }): Promise<void> {
   const { context, planned } = input;
   const requestId = `${input.repetition}:${planned.index}:${planned.prompt.id}`;
@@ -243,39 +283,14 @@ async function measurePlannedRequest(input: {
     finishReason: outcome.finishReason,
     error: outcome.error,
   });
-  input.events.push({ requestId, tMs: outcome.submitMs, kind: "submit" });
-  if (outcome.firstTokenMs !== null) {
-    input.events.push({
-      requestId,
-      tMs: outcome.firstTokenMs,
-      kind: "first-token",
-    });
-  }
-  for (const chunkMs of outcome.chunkTimesMs) {
-    input.events.push({ requestId, tMs: chunkMs, kind: "chunk" });
-  }
-  if (outcome.error !== null) {
-    input.events.push({
-      requestId,
-      tMs: outcome.doneMs ?? outcome.submitMs,
-      kind: "error",
-      message: outcome.error,
-    });
-  } else {
-    input.events.push({
-      requestId,
-      tMs: outcome.doneMs ?? outcome.submitMs,
-      kind: "done",
-    });
-  }
 }
 
 async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
-  const { runId, scenario } = context;
+  const { runId, scenario, wave } = context;
+  const nativeLlamaApi =
+    engineDescriptor(context.instance.kind).nativeApi === "llama";
   const warnings: string[] = [];
   const measured: MeasuredRequest[] = [];
-  const events: BenchmarkStreamEvent[] = [];
-  const wave = planWave(scenario);
   const totalRequests = wave.length * scenario.repetitions;
   let completedRequests = 0;
   let activeRequests = 0;
@@ -288,10 +303,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       repetition: 0,
     });
     const model = await resolveEndpointModel(context);
-    const props =
-      context.instance.kind === "llama-server"
-        ? await fetchServerProps(context)
-        : null;
+    const props = nativeLlamaApi ? await fetchServerProps(context) : null;
     const launch = context.launchSnapshot;
     const snapshot: BenchmarkTargetSnapshot = {
       instanceName: context.instance.name,
@@ -314,7 +326,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
     }
 
     const concurrency = scenario.mode === "parallel" ? wave.length : 1;
-    if (context.instance.kind === "llama-server") {
+    if (nativeLlamaApi) {
       const totalSlots = props?.totalSlots ?? null;
       if (totalSlots === null) {
         warnings.push("slot capacity unknown (GET /props failed)");
@@ -378,7 +390,6 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
             model,
             now,
             measured,
-            events,
           });
         } finally {
           activeRequests -= 1;
@@ -409,14 +420,13 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       activeRequests,
       repetition: scenario.repetitions - 1,
     });
-    const result = buildBenchmarkRunResult(measured);
-    const summary = summarizeBenchmarkRunResult(measured, result);
+    const { result, summary } = analyzeBenchmarkRun(measured);
     const failures = describeRequestFailures(measured);
     if (failures) {
       warnings.push(failures.message);
     }
     const allFailed = failures !== null && failures.count === measured.length;
-    writeBenchmarkRunArtifacts(runId, events, result);
+    writeBenchmarkRunArtifacts(runId, benchmarkStreamEvents(measured), result);
     patchBenchmarkRun(runId, {
       status: context.signal.aborted
         ? "canceled"
@@ -432,21 +442,24 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
   } catch (error) {
     const message = (error as Error).message;
     logger.warn({ runId, error: message }, "benchmark run failed");
-    const hasMeasurements = measured.length > 0;
-    if (hasMeasurements) {
-      const result = buildBenchmarkRunResult(measured);
-      writeBenchmarkRunArtifacts(runId, events, result);
-      patchBenchmarkRun(runId, {
-        summary: summarizeBenchmarkRunResult(measured, result),
-      });
+    let summary: BenchmarkRunSummary | null = null;
+    if (measured.length > 0) {
+      const analysis = analyzeBenchmarkRun(measured);
+      writeBenchmarkRunArtifacts(
+        runId,
+        benchmarkStreamEvents(measured),
+        analysis.result,
+      );
+      summary = analysis.summary;
     }
     patchBenchmarkRun(runId, {
+      ...(summary ? { summary } : {}),
       status: context.signal.aborted ? "canceled" : "failed",
       finishedAt: nowIso(),
       warnings,
       error: message,
     });
-    if (hasMeasurements) {
+    if (summary) {
       persistRunRecord(runId);
     }
   } finally {
@@ -460,12 +473,16 @@ export function startBenchmarkRun(
 ): BenchmarkRun {
   const active = getActiveJob(BENCHMARK_JOB_DOMAIN);
   if (active) {
-    throw new Error(`a benchmark run is already active: ${active.jobId}`);
+    throw new BenchmarkConflictError(
+      `a benchmark run is already active: ${active.jobId}`,
+    );
   }
-  planWave(scenario);
+  const wave = planWave(scenario);
   const instance = getInstance(scenario.target.instanceName);
   if (!instance) {
-    throw new Error(`instance ${scenario.target.instanceName} not found`);
+    throw new BenchmarkNotFoundError(
+      `instance ${scenario.target.instanceName} not found`,
+    );
   }
   const latestRun = latestProcessRun(instance.name);
   const runtime = runtimeEndpointInstance(instance, latestRun);
@@ -480,6 +497,7 @@ export function startBenchmarkRun(
   const completion = executeBenchmarkRun({
     runId: run.id,
     scenario,
+    wave,
     instance,
     runtimeArgs: runtime.args,
     launchSnapshot: activeLaunchSnapshot(instance.name, latestRun),

@@ -33,7 +33,7 @@ function scenario(overrides: Record<string, unknown> = {}) {
 }
 
 function emptyResult(): BenchmarkRunResult {
-  return { requests: [], segments: [], segmentClasses: [], topics: [] };
+  return { requests: [], segments: [] };
 }
 
 test("benchmark run lifecycle roundtrip", () => {

@@ -46,12 +46,10 @@ export const BenchmarkPromptUpdateSchema = BenchmarkPromptSchema.omit({
   id: true,
 }).partial();
 
-export const BenchmarkTargetSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("instance"),
-    instanceName: z.string().min(1),
-  }),
-]);
+export const BenchmarkTargetSchema = z.object({
+  kind: z.literal("instance"),
+  instanceName: z.string().min(1),
+});
 
 export const BenchmarkModeSchema = z.enum(["sequential", "parallel"]);
 
@@ -179,8 +177,6 @@ export const BenchmarkRunSummarySchema = z.object({
 export const BenchmarkRunResultSchema = z.object({
   requests: z.array(BenchmarkRequestResultSchema),
   segments: z.array(BenchmarkSegmentSchema),
-  segmentClasses: z.array(BenchmarkSegmentClassSchema),
-  topics: z.array(BenchmarkTopicSummarySchema),
 });
 
 export const BenchmarkRunPhaseSchema = z.enum([
@@ -224,7 +220,6 @@ export const BenchmarkStreamEventSchema = z.object({
   requestId: z.string(),
   tMs: z.number(),
   kind: BenchmarkStreamEventKindSchema,
-  chars: z.number().int().optional(),
   message: z.string().optional(),
 });
 

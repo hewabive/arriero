@@ -1,4 +1,5 @@
 import { asObject } from "../proxy/json.js";
+import { errorBodyMessage } from "../proxy/protocol-trace.js";
 
 function firstRecord(value: unknown): Record<string, unknown> | null {
   return Array.isArray(value) ? asObject(value[0]) : null;
@@ -47,50 +48,11 @@ export function streamFinishReason(value: unknown): string | null {
   return typeof anthropicStop === "string" ? anthropicStop : null;
 }
 
-function streamEventData(block: string): string {
-  return block
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n")
-    .trim();
-}
-
-export async function consumeSseEvents(
-  stream: ReadableStream<Uint8Array>,
-  onEvent: (data: string) => Promise<boolean> | boolean,
-): Promise<void> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  try {
-    let done = false;
-    while (!done) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      buffer += decoder.decode(chunk.value, { stream: true });
-
-      let separator = buffer.match(/\r?\n\r?\n/);
-      while (separator && separator.index !== undefined) {
-        const separatorIndex = separator.index;
-        const block = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + separator[0].length);
-        const data = streamEventData(block);
-        if (data) {
-          done = await onEvent(data);
-          if (done) break;
-        }
-        separator = buffer.match(/\r?\n\r?\n/);
-      }
-    }
-
-    if (!done) {
-      const data = streamEventData(buffer);
-      if (data) {
-        await onEvent(data);
-      }
-    }
-  } finally {
-    await reader.cancel().catch(() => {});
-  }
+export function streamErrorMessage(value: unknown): string | null {
+  const record = asObject(value);
+  if (!record) return null;
+  if (typeof record.error === "string") return record.error;
+  const error = asObject(record.error);
+  if (!error) return null;
+  return errorBodyMessage(record) ?? JSON.stringify(error);
 }

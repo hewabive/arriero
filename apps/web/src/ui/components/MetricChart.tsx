@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { niceCeiling } from "../utils/nice-scale";
 import { formatLocalClock, formatLocalDateTime } from "../utils/time";
 import { metricToneColor, type MetricTone } from "./metric-palette";
 
@@ -71,18 +72,6 @@ function useMetricHover(): MetricHoverState {
   const [time, setTime] = useState<number | null>(null);
   const isolated = useMemo(() => ({ time, setTime }), [time]);
   return shared ?? isolated;
-}
-
-function niceCeiling(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) {
-    return 1;
-  }
-  const exponent = Math.floor(Math.log10(value));
-  const base = 10 ** exponent;
-  const normalized = value / base;
-  const step =
-    normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
-  return step * base;
 }
 
 function resolveMax(domain: MetricDomain, series: MetricSeries[]): number {

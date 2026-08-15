@@ -26,11 +26,7 @@ export function listCustomBenchmarkPrompts(): BenchmarkPrompt[] {
 export function createCustomBenchmarkPrompt(
   prompt: BenchmarkPrompt,
 ): BenchmarkPrompt {
-  const prompts = store.read();
-  if (prompts.some((entry) => entry.id === prompt.id)) {
-    throw new Error(`benchmark prompt ${prompt.id} already exists`);
-  }
-  store.write([...prompts, prompt]);
+  store.write([...store.read(), prompt]);
   return prompt;
 }
 

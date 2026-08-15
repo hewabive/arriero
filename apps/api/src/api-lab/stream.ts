@@ -4,12 +4,10 @@ import { streamSSE } from "hono/streaming";
 
 import { instanceApiProbeTarget } from "../llama/probe.js";
 import { asObject } from "../proxy/json.js";
+import { errorBodyMessage } from "../proxy/protocol-trace.js";
+import { consumeSseEvents } from "../proxy/sse.js";
 import { apiLabProbeTargetFromBaseUrl } from "./probe.js";
-import {
-  consumeSseEvents,
-  streamDeltaText,
-  streamFinishReason,
-} from "./sse-parse.js";
+import { streamDeltaText, streamFinishReason } from "./sse-parse.js";
 
 export function isStreamingProbeKind(kind: string) {
   return (
@@ -130,8 +128,7 @@ export function streamApiProbeTarget(
           data: JSON.stringify({
             status: response.status,
             body,
-            message:
-              asObject(asObject(body)?.error)?.message ?? response.statusText,
+            message: errorBodyMessage(body) ?? response.statusText,
           }),
         });
         return;

@@ -70,10 +70,7 @@ export function runtimeEndpointInstance<T extends RuntimeEndpointInstance>(
   instance: T,
   run: RuntimeEndpointRun | null = latestProcessRun(instance.name),
 ): T {
-  if (!run || !activeEndpointStatuses.has(run.status)) {
-    return instance;
-  }
-  const snapshot = parseLaunchSnapshot(run.launchSnapshot);
+  const snapshot = activeLaunchSnapshot(instance.name, run);
   return snapshot ? instanceWithLaunchEndpoint(instance, snapshot) : instance;
 }
 

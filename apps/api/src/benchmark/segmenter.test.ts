@@ -2,11 +2,7 @@ import type { BenchmarkServerTimings } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  buildBenchmarkRunResult,
-  summarizeBenchmarkRunResult,
-  type MeasuredRequest,
-} from "./segmenter.js";
+import { analyzeBenchmarkRun, type MeasuredRequest } from "./segmenter.js";
 
 function measured(
   input: Partial<MeasuredRequest> & { requestId: string },
@@ -44,7 +40,7 @@ function timings(
 }
 
 test("single request splits prefill and decode segments", () => {
-  const result = buildBenchmarkRunResult([
+  const { result, summary } = analyzeBenchmarkRun([
     measured({
       requestId: "a",
       submitMs: 0,
@@ -82,14 +78,14 @@ test("single request splits prefill and decode segments", () => {
   assert.equal(request?.clientDecodeTokensPerSecond, 10);
   assert.equal(request?.chunkCount, 6);
 
-  const topic = result.topics[0];
+  const topic = summary.topics[0];
   assert.equal(topic?.soloDecodeTokensPerSecond, 10);
   assert.equal(topic?.contendedDecodeTokensPerSecond, null);
   assert.equal(topic?.averageTimeToFirstTokenMs, 100);
 });
 
 test("overlapping requests classify mixed and pure-decode segments", () => {
-  const result = buildBenchmarkRunResult([
+  const { result, summary } = analyzeBenchmarkRun([
     measured({
       requestId: "a",
       topic: "code",
@@ -152,14 +148,14 @@ test("overlapping requests classify mixed and pure-decode segments", () => {
     ],
   );
 
-  const mixed = result.segmentClasses.find(
+  const mixed = summary.segmentClasses.find(
     (entry) => entry.prefillCount === 1 && entry.decodeCount === 1,
   );
   assert.equal(mixed?.wallMs, 400);
   assert.equal(mixed?.decodeTokensPerSecond, 10);
   assert.equal(mixed?.perRequestDecodeTokensPerSecond, 10);
 
-  const pureDecode = result.segmentClasses.find(
+  const pureDecode = summary.segmentClasses.find(
     (entry) => entry.prefillCount === 0 && entry.decodeCount === 2,
   );
   assert.equal(pureDecode?.wallMs, 400);
@@ -167,17 +163,17 @@ test("overlapping requests classify mixed and pure-decode segments", () => {
   assert.equal(pureDecode?.perRequestDecodeTokensPerSecond, 16.25);
   assert.equal(pureDecode?.wallShare, 400 / 1100);
 
-  const codeTopic = result.topics.find((entry) => entry.topic === "code");
+  const codeTopic = summary.topics.find((entry) => entry.topic === "code");
   assert.equal(codeTopic?.soloDecodeTokensPerSecond, 5);
   assert.equal(codeTopic?.contendedDecodeTokensPerSecond, 11.25);
 
-  const ragTopic = result.topics.find((entry) => entry.topic === "rag");
+  const ragTopic = summary.topics.find((entry) => entry.topic === "rag");
   assert.equal(ragTopic?.soloDecodeTokensPerSecond, null);
   assert.equal(ragTopic?.contendedDecodeTokensPerSecond, 20);
 });
 
 test("known prompt duration separates queue wait from prefill", () => {
-  const result = buildBenchmarkRunResult([
+  const { result } = analyzeBenchmarkRun([
     measured({
       requestId: "a",
       submitMs: 0,
@@ -196,7 +192,7 @@ test("known prompt duration separates queue wait from prefill", () => {
 });
 
 test("unknown prompt duration merges queue into prefill from submit", () => {
-  const result = buildBenchmarkRunResult([
+  const { result } = analyzeBenchmarkRun([
     measured({
       requestId: "a",
       submitMs: 100,
@@ -214,7 +210,7 @@ test("unknown prompt duration merges queue into prefill from submit", () => {
 });
 
 test("chunk calibration distributes usage tokens over chunks", () => {
-  const result = buildBenchmarkRunResult([
+  const { result } = analyzeBenchmarkRun([
     measured({
       requestId: "a",
       submitMs: 0,
@@ -253,7 +249,7 @@ test("repetitions segment independently and sum wall time", () => {
       serverTimings: timings({ promptMs: 100 }),
     }),
   ];
-  const result = buildBenchmarkRunResult(requests);
+  const { result, summary } = analyzeBenchmarkRun(requests);
 
   assert.equal(result.segments.length, 4);
   assert.deepEqual(
@@ -265,7 +261,6 @@ test("repetitions segment independently and sum wall time", () => {
     true,
   );
 
-  const summary = summarizeBenchmarkRunResult(requests, result);
   assert.equal(summary.wallMs, 1200);
   assert.equal(summary.totalCompletionTokens, 12);
 });
@@ -287,7 +282,7 @@ test("failed request is excluded from segments but counted in summary", () => {
       error: "upstream refused",
     }),
   ];
-  const result = buildBenchmarkRunResult(requests);
+  const { result, summary } = analyzeBenchmarkRun(requests);
 
   assert.equal(result.segments.length, 2);
   assert.equal(result.requests.length, 2);
@@ -296,7 +291,6 @@ test("failed request is excluded from segments but counted in summary", () => {
     "upstream refused",
   );
 
-  const summary = summarizeBenchmarkRunResult(requests, result);
   assert.equal(summary.requestCount, 2);
   assert.equal(summary.failedRequestCount, 1);
 });
@@ -330,14 +324,13 @@ test("acceptance rate aggregates weighted by drafted tokens", () => {
       }),
     }),
   ];
-  const result = buildBenchmarkRunResult(requests);
+  const { result, summary } = analyzeBenchmarkRun(requests);
 
   assert.equal(
     result.requests.find((request) => request.requestId === "a")
       ?.acceptanceRate,
     0.8,
   );
-  const summary = summarizeBenchmarkRunResult(requests, result);
   assert.equal(summary.acceptanceRate, 0.575);
 });
 
@@ -363,16 +356,15 @@ test("boundary slivers do not become topic rates or a solo baseline", () => {
       serverTimings: timings({ promptMs: 100 }),
     }),
   ];
-  const result = buildBenchmarkRunResult(requests);
-  const summary = summarizeBenchmarkRunResult(requests, result);
+  const { summary } = analyzeBenchmarkRun(requests);
 
-  const sliver = result.segmentClasses.find(
+  const sliver = summary.segmentClasses.find(
     (entry) => entry.prefillCount === 0 && entry.decodeCount === 1,
   );
   assert.equal(sliver?.wallMs, 5);
   assert.equal(summary.headline?.soloDecodeTokensPerSecond, null);
   assert.equal(
-    result.topics.find((entry) => entry.topic === "code")
+    summary.topics.find((entry) => entry.topic === "code")
       ?.soloDecodeTokensPerSecond,
     null,
   );
@@ -391,10 +383,7 @@ test("headline metrics derive rates, prefill throughput and prompt tokens", () =
       serverTimings: timings({ promptMs: 100, promptN: 200 }),
     }),
   ];
-  const summary = summarizeBenchmarkRunResult(
-    requests,
-    buildBenchmarkRunResult(requests),
-  );
+  const { summary } = analyzeBenchmarkRun(requests);
 
   assert.equal(summary.headline?.decodeTokensPerSecond, 10);
   assert.equal(summary.headline?.perRequestDecodeTokensPerSecond, 10);
@@ -426,10 +415,7 @@ test("headline percentiles interpolate and peak concurrency counts overlap", () 
       serverTimings: timings({ promptMs: 100 }),
     }),
   ];
-  const summary = summarizeBenchmarkRunResult(
-    requests,
-    buildBenchmarkRunResult(requests),
-  );
+  const { summary } = analyzeBenchmarkRun(requests);
 
   assert.equal(summary.headline?.timeToFirstTokenP50Ms, 350);
   assert.equal(summary.headline?.timeToFirstTokenP95Ms, 575);
@@ -438,7 +424,7 @@ test("headline percentiles interpolate and peak concurrency counts overlap", () 
 });
 
 test("speculative burst at first-token timestamp is attributed to decode", () => {
-  const result = buildBenchmarkRunResult([
+  const { result } = analyzeBenchmarkRun([
     measured({
       requestId: "a",
       submitMs: 0,

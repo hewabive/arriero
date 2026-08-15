@@ -1,4 +1,4 @@
-import type { BackgroundJobStatus, BenchmarkRun } from "@arriero/core";
+import type { BenchmarkRun } from "@arriero/core";
 import {
   ActionIcon,
   Badge,
@@ -14,21 +14,16 @@ import {
 import { Square, Trash2 } from "lucide-react";
 
 import { countLabel } from "../utils/plural";
+import { formatLocalDateTime } from "../utils/time";
+import { buildStatusColor } from "./build-view-helpers";
 import type { BenchmarkViewController } from "./use-benchmark-view";
-
-function statusColor(status: BackgroundJobStatus): string {
-  if (status === "running") return "blue";
-  if (status === "succeeded") return "teal";
-  if (status === "failed") return "red";
-  return "gray";
-}
 
 function runTitle(run: BenchmarkRun): string {
   return run.label ?? run.id.slice(0, 8);
 }
 
 function runMeta(run: BenchmarkRun): string {
-  const created = new Date(run.createdAt).toLocaleString();
+  const created = formatLocalDateTime(run.createdAt);
   const parts = [run.scenario.target.instanceName, created];
   if (run.summary) {
     parts.push(countLabel(run.summary.requestCount, "request"));
@@ -73,7 +68,7 @@ export function BenchmarkRunsPanel({ fm }: { fm: BenchmarkViewController }) {
                 >
                   <Group gap="xs" wrap="nowrap">
                     <Badge
-                      color={statusColor(run.status)}
+                      color={buildStatusColor(run.status)}
                       variant="light"
                       style={{ flex: "0 0 auto" }}
                     >

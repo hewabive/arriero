@@ -1,11 +1,13 @@
 import type { BenchmarkServerTimings } from "@arriero/core";
 
 import {
-  consumeSseEvents,
   streamDeltaText,
+  streamErrorMessage,
   streamFinishReason,
 } from "../api-lab/sse-parse.js";
 import { asObject, numberOrNull } from "../proxy/json.js";
+import { upstreamErrorText } from "../proxy/protocol-trace.js";
+import { consumeSseEvents } from "../proxy/sse.js";
 
 export type MeasuredStreamOutcome = {
   submitMs: number;
@@ -31,19 +33,6 @@ export type MeasuredRequestInput = {
 const ERROR_BODY_LIMIT = 300;
 
 export const CANCELED_REQUEST_ERROR = "canceled";
-
-function streamErrorMessage(value: unknown): string | null {
-  const record = asObject(value);
-  if (!record) return null;
-  if (typeof record.error === "string") {
-    return record.error.slice(0, ERROR_BODY_LIMIT);
-  }
-  const error = asObject(record.error);
-  if (!error) return null;
-  const message =
-    typeof error.message === "string" ? error.message : JSON.stringify(error);
-  return message.slice(0, ERROR_BODY_LIMIT);
-}
 
 function serverTimingsFrom(value: unknown): BenchmarkServerTimings | null {
   const record = asObject(value);
@@ -82,7 +71,9 @@ export async function runMeasuredRequest(
 
     if (!response.ok) {
       const rawBody = await response.text().catch(() => "");
-      const suffix = rawBody ? `: ${rawBody.slice(0, ERROR_BODY_LIMIT)}` : "";
+      const suffix = rawBody
+        ? `: ${upstreamErrorText(rawBody).slice(0, ERROR_BODY_LIMIT)}`
+        : "";
       error = `upstream ${response.status}${suffix}`;
     } else if (!response.body) {
       error = "upstream returned no stream body";
@@ -98,7 +89,7 @@ export async function runMeasuredRequest(
         }
         const streamError = streamErrorMessage(parsed);
         if (streamError !== null) {
-          error = `upstream stream error: ${streamError}`;
+          error = `upstream stream error: ${streamError.slice(0, ERROR_BODY_LIMIT)}`;
           return true;
         }
         if (streamDeltaText(parsed)) {

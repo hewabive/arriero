@@ -34,14 +34,16 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function parseJsonColumn(
+function parseColumn<T>(
   runId: string,
   column: string,
+  schema: z.ZodType<T>,
   value: string | null,
-): unknown {
+): T | null {
   if (value === null) return null;
+  let parsed: unknown;
   try {
-    return JSON.parse(value) as unknown;
+    parsed = JSON.parse(value) as unknown;
   } catch (error) {
     logger.warn(
       { runId, column, error: (error as Error).message },
@@ -49,16 +51,6 @@ function parseJsonColumn(
     );
     return null;
   }
-}
-
-function parseColumn<T>(
-  runId: string,
-  column: string,
-  schema: z.ZodType<T>,
-  value: string | null,
-): T | null {
-  const parsed = parseJsonColumn(runId, column, value);
-  if (parsed === null) return null;
   const result = schema.safeParse(parsed);
   if (result.success) {
     return result.data;
@@ -118,26 +110,10 @@ export function createBenchmarkRun(input: {
   id: string;
   scenario: BenchmarkScenario;
 }): BenchmarkRun {
-  const createdAt = nowIso();
-  db.insert(benchmarkRuns)
-    .values({
-      id: input.id,
-      status: "running",
-      createdAt,
-      finishedAt: null,
-      instanceId: input.scenario.target.instanceName,
-      label: input.scenario.label ?? null,
-      scenarioJson: JSON.stringify(input.scenario),
-      snapshotJson: null,
-      warningsJson: JSON.stringify([]),
-      summaryJson: null,
-      error: null,
-    })
-    .run();
-  return {
+  const run: BenchmarkRun = {
     id: input.id,
     status: "running",
-    createdAt,
+    createdAt: nowIso(),
     finishedAt: null,
     label: input.scenario.label ?? null,
     scenario: input.scenario,
@@ -147,6 +123,22 @@ export function createBenchmarkRun(input: {
     error: null,
     progress: null,
   };
+  db.insert(benchmarkRuns)
+    .values({
+      id: run.id,
+      status: run.status,
+      createdAt: run.createdAt,
+      finishedAt: run.finishedAt,
+      instanceId: run.scenario.target.instanceName,
+      label: run.label,
+      scenarioJson: JSON.stringify(run.scenario),
+      snapshotJson: null,
+      warningsJson: JSON.stringify(run.warnings),
+      summaryJson: null,
+      error: run.error,
+    })
+    .run();
+  return run;
 }
 
 export type BenchmarkRunPatch = {
@@ -271,82 +263,57 @@ export function writeBenchmarkRunRecord(run: BenchmarkRun): void {
   );
 }
 
-export function readBenchmarkRunRecord(id: string): BenchmarkRun | null {
+function readRunArtifact<T>(
+  id: string,
+  filename: string,
+  schema: z.ZodType<T>,
+  decode: (raw: string) => unknown,
+): T | null {
   const dir = benchmarkRunArtifactsDir(id);
   if (!dir) return null;
-  const path = resolve(dir, "run.json");
+  const path = resolve(dir, filename);
   if (!existsSync(path)) return null;
   try {
-    const parsed = BenchmarkRunSchema.safeParse(
-      JSON.parse(readFileSync(path, "utf8")),
-    );
+    const parsed = schema.safeParse(decode(readFileSync(path, "utf8")));
     if (parsed.success) {
       return parsed.data;
     }
     logger.warn(
-      { runId: id, issues: parsed.error.issues },
-      "invalid benchmark run record artifact",
+      { runId: id, filename, issues: parsed.error.issues },
+      "invalid benchmark run artifact",
     );
   } catch (error) {
     logger.warn(
-      { runId: id, error: (error as Error).message },
-      "unreadable benchmark run record artifact",
+      { runId: id, filename, error: (error as Error).message },
+      "unreadable benchmark run artifact",
     );
   }
   return null;
+}
+
+export function readBenchmarkRunRecord(id: string): BenchmarkRun | null {
+  return readRunArtifact(id, "run.json", BenchmarkRunSchema, (raw) =>
+    JSON.parse(raw),
+  );
 }
 
 export function readBenchmarkRunEvents(
   id: string,
 ): BenchmarkStreamEvent[] | null {
-  const dir = benchmarkRunArtifactsDir(id);
-  if (!dir) return null;
-  const path = resolve(dir, "events.jsonl");
-  if (!existsSync(path)) return null;
-  try {
-    const lines = readFileSync(path, "utf8")
-      .split("\n")
-      .filter((line) => line.length > 0);
-    const parsed = z
-      .array(BenchmarkStreamEventSchema)
-      .safeParse(lines.map((line) => JSON.parse(line) as unknown));
-    if (parsed.success) {
-      return parsed.data;
-    }
-    logger.warn(
-      { runId: id, issues: parsed.error.issues },
-      "invalid benchmark run events artifact",
-    );
-  } catch (error) {
-    logger.warn(
-      { runId: id, error: (error as Error).message },
-      "unreadable benchmark run events artifact",
-    );
-  }
-  return null;
+  return readRunArtifact(
+    id,
+    "events.jsonl",
+    z.array(BenchmarkStreamEventSchema),
+    (raw) =>
+      raw
+        .split("\n")
+        .filter((line) => line.length > 0)
+        .map((line) => JSON.parse(line) as unknown),
+  );
 }
 
 export function readBenchmarkRunResult(id: string): BenchmarkRunResult | null {
-  const dir = benchmarkRunArtifactsDir(id);
-  if (!dir) return null;
-  const path = resolve(dir, "result.json");
-  if (!existsSync(path)) return null;
-  try {
-    const parsed = BenchmarkRunResultSchema.safeParse(
-      JSON.parse(readFileSync(path, "utf8")),
-    );
-    if (parsed.success) {
-      return parsed.data;
-    }
-    logger.warn(
-      { runId: id, issues: parsed.error.issues },
-      "invalid benchmark run result artifact",
-    );
-  } catch (error) {
-    logger.warn(
-      { runId: id, error: (error as Error).message },
-      "unreadable benchmark run result artifact",
-    );
-  }
-  return null;
+  return readRunArtifact(id, "result.json", BenchmarkRunResultSchema, (raw) =>
+    JSON.parse(raw),
+  );
 }
