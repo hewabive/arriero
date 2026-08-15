@@ -67,7 +67,7 @@ old rows keep loading.
 `runner.ts` registers one in-process job (`jobs/registry.ts`, domain `benchmark`, single active run)
 whose `cancel` aborts every in-flight fetch; graceful shutdown rides `shutdownActiveJobs`. Phases:
 `prepare` (resolve endpoint via `runtimeEndpointInstance` so live launch-snapshot host/port win,
-snapshot engine/model/args into the run, model id from `GET /v1/models`) → `warmup` (one short
+snapshot the full launch configuration into the run, model id from `GET /v1/models`) → `warmup` (one short
 request, excluded from stats) → `measure` (repetitions × wave; `parallel` fires the whole wave at
 once, `sequential` runs it one by one for per-topic baselines) → `finalize` (segment, summarize,
 persist). Cancellation persists partial results with status `canceled`.
@@ -76,9 +76,20 @@ persist). Cancellation persists partial results with status `canceled`.
 its first message, so the llama.cpp prefix cache cannot make repeated runs incomparable. Disable it
 deliberately to measure the warm-cache regime.
 
+**Target snapshot is the launched configuration, not the config file.** Beyond engine/model/args,
+the snapshot records `env`, `numa`, `rpcWorkers`, the actual launch argv (`launchCliArgs`) and the
+llama.cpp `build_info` from `/props` (`null` on other engines) — all performance-relevant, none
+visible in `args` alone. When the target has a live process run, `env`/`numa`/`rpcWorkers`/
+`launchCliArgs` come from its launch snapshot (`activeLaunchSnapshot`) — the truth of the running
+process — falling back to the instance config otherwise; `binaryPath` alone does not identify a
+build (rebuild-in-place keeps the path), which is what `buildInfo` is for. All snapshot additions
+are defaulted in the schema so pre-existing run rows keep loading.
+
 **Validity warnings** recorded on the run: llama slot capacity (`/props` `total_slots`) vs wave
 concurrency — exceeding it queues requests and distorts TTFT; unknown slot capacity; unverifiable
-capacity on non-llama engines.
+capacity on non-llama engines; instance config drifted from the running process
+(`hasLaunchSnapshotDrift` — the snapshot records the launched configuration, so the drifted config
+file cannot poison run comparison).
 
 **In-stream errors fail their request — and escalate to the run.** An engine can accept a stream
 and then abort it mid-flight (llama.cpp `send_error`, e.g. `Context size has been exceeded.` when
@@ -143,8 +154,8 @@ regime. Custom prompts are portable config in `config/benchmark/prompts.json` (c
 ## Storage
 
 `benchmark_runs` (SQLite) holds the run record: status, scenario, target snapshot (engine, model,
-launch args — machine-local evidence, like `memory_assessments`), warnings and the compact summary
-used by lists and future run comparison. Bulky data — the raw event stream and the full result
+launch args/env/numa/rpc workers, actual argv, llama build info — machine-local evidence, like
+`memory_assessments`), warnings and the compact summary used by lists and future run comparison. Bulky data — the raw event stream and the full result
 (per-request metrics + segments) — are artifacts in `data/benchmarks/<runId>/`
 (`events.jsonl`, `result.json`), deleted with the run; there is no automatic retention. Runs left
 `running` by a crash are failed at boot (`failInterruptedBenchmarkRuns`).

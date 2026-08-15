@@ -1,5 +1,6 @@
 import {
   BenchmarkScenarioSchema,
+  BenchmarkTargetSnapshotSchema,
   type BenchmarkRunResult,
 } from "@arriero/core";
 import assert from "node:assert/strict";
@@ -120,6 +121,22 @@ test("artifacts roundtrip and cleanup on delete", () => {
   assert.equal(existsSync(dir), false);
   assert.equal(readBenchmarkRunResult(id), null);
   assert.equal(readBenchmarkRunRecord(id), null);
+});
+
+test("legacy snapshot rows parse with defaulted launch fields", () => {
+  const parsed = BenchmarkTargetSnapshotSchema.parse({
+    instanceName: "legacy",
+    engineKind: "llama-server",
+    baseUrl: "http://127.0.0.1:8080",
+    model: null,
+    binaryPath: null,
+    args: {},
+  });
+  assert.deepEqual(parsed.env, {});
+  assert.equal(parsed.numa, null);
+  assert.deepEqual(parsed.rpcWorkers, []);
+  assert.equal(parsed.launchCliArgs, null);
+  assert.equal(parsed.buildInfo, null);
 });
 
 test("interrupted running runs are failed at boot", () => {

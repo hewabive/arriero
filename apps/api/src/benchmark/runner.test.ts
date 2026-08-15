@@ -5,6 +5,10 @@ import test from "node:test";
 import { createInstance } from "../instances/repository.js";
 import { getActiveJob } from "../jobs/registry.js";
 import { createPathCatalogEntry } from "../path-catalog/repository.js";
+import {
+  createProcessRun,
+  deleteProcessRunsForInstance,
+} from "../process/runs-repository.js";
 import { createBenchmarkPrompt } from "./prompts.js";
 import {
   deleteBenchmarkRun,
@@ -94,7 +98,7 @@ function okFetchImpl(
       return Response.json({ data: [{ id: "test-model" }] });
     }
     if (url.endsWith("/props")) {
-      return Response.json({ total_slots: 4 });
+      return Response.json({ total_slots: 4, build_info: "b6100-test" });
     }
     if (url.endsWith("/v1/chat/completions")) {
       chatCalls += 1;
@@ -126,7 +130,7 @@ test("benchmark run measures a full parallel wave", async () => {
       return Response.json({ data: [{ id: "test-model" }] });
     }
     if (url.endsWith("/props")) {
-      return Response.json({ total_slots: 4 });
+      return Response.json({ total_slots: 4, build_info: "b6100-test" });
     }
     if (url.endsWith("/v1/chat/completions")) {
       chatBodies.push(
@@ -145,6 +149,11 @@ test("benchmark run measures a full parallel wave", async () => {
   assert.equal(finished?.status, "succeeded");
   assert.equal(finished?.snapshot?.model, "test-model");
   assert.equal(finished?.snapshot?.engineKind, "llama-server");
+  assert.equal(finished?.snapshot?.buildInfo, "b6100-test");
+  assert.deepEqual(finished?.snapshot?.env, {});
+  assert.equal(finished?.snapshot?.numa, null);
+  assert.deepEqual(finished?.snapshot?.rpcWorkers, []);
+  assert.equal(finished?.snapshot?.launchCliArgs, null);
   assert.equal(finished?.summary?.requestCount, 2);
   assert.equal(finished?.summary?.failedRequestCount, 0);
   assert.deepEqual(finished?.warnings, []);
@@ -253,6 +262,45 @@ test("partial request failures keep the run succeeded with a warning", async () 
       /1 of 2 requests failed: upstream stream error: Context size has been exceeded\./.test(
         warning,
       ),
+    ),
+  );
+  deleteBenchmarkRun(run.id);
+});
+
+test("a live launch snapshot wins over instance config and drift is warned", async () => {
+  prepareFixtures();
+  const launchSnapshot = {
+    binaryPath: "/usr/bin/true",
+    cliArgs: ["--host", "127.0.0.1", "--port", "18099", "--ctx-size", "2048"],
+    env: { CUDA_VISIBLE_DEVICES: "0" },
+    cwd: "/usr/bin",
+    numa: null,
+    rpcWorkers: [],
+  };
+  createProcessRun({
+    instanceId: INSTANCE_NAME,
+    pid: 99999,
+    status: "running",
+    startedAt: new Date().toISOString(),
+    logPath: "/nonexistent/bench-drift-test.log",
+    rawLogPath: null,
+    launchSnapshot: JSON.stringify(launchSnapshot),
+  });
+
+  const run = startBenchmarkRun(scenario({ warmup: false }), {
+    fetchImpl: okFetchImpl(),
+  });
+  await awaitCompletion();
+  deleteProcessRunsForInstance(INSTANCE_NAME);
+
+  const finished = getBenchmarkRun(run.id);
+  assert.equal(finished?.status, "succeeded");
+  assert.deepEqual(finished?.snapshot?.launchCliArgs, launchSnapshot.cliArgs);
+  assert.deepEqual(finished?.snapshot?.env, { CUDA_VISIBLE_DEVICES: "0" });
+  assert.equal(finished?.snapshot?.numa, null);
+  assert.ok(
+    finished?.warnings.some((warning) =>
+      warning.includes("instance config drifted from the running process"),
     ),
   );
   deleteBenchmarkRun(run.id);

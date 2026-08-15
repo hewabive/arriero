@@ -12,7 +12,15 @@ import { instanceBaseUrl } from "../instances/endpoint.js";
 import { getInstance } from "../instances/repository.js";
 import { getActiveJob, registerActiveJob } from "../jobs/registry.js";
 import { logger } from "../logger.js";
-import { runtimeEndpointInstance } from "../process/runtime-endpoint.js";
+import {
+  hasLaunchSnapshotDrift,
+  type LaunchSnapshot,
+} from "../process/launch-snapshot.js";
+import { latestProcessRun } from "../process/runs-repository.js";
+import {
+  activeLaunchSnapshot,
+  runtimeEndpointInstance,
+} from "../process/runtime-endpoint.js";
 import { asObject, numberOrNull } from "../proxy/json.js";
 import { newId } from "../utils/id.js";
 import {
@@ -59,6 +67,7 @@ type ExecutionContext = {
   scenario: BenchmarkScenario;
   instance: Instance;
   runtimeArgs: Instance["args"];
+  launchSnapshot: LaunchSnapshot | null;
   baseUrl: string;
   signal: AbortSignal;
   fetchImpl: typeof fetch;
@@ -135,20 +144,28 @@ async function resolveEndpointModel(
   return typeof first?.id === "string" ? first.id : null;
 }
 
-async function fetchTotalSlots(
+type ServerProps = {
+  totalSlots: number | null;
+  buildInfo: string | null;
+};
+
+async function fetchServerProps(
   context: ExecutionContext,
-): Promise<number | null> {
+): Promise<ServerProps | null> {
   try {
     const response = await context.fetchImpl(`${context.baseUrl}/props`, {
       signal: context.signal,
     });
     if (!response.ok) return null;
     const body = asObject(await response.json());
-    return numberOrNull(body?.total_slots);
+    return {
+      totalSlots: numberOrNull(body?.total_slots),
+      buildInfo: typeof body?.build_info === "string" ? body.build_info : null,
+    };
   } catch (error) {
     logger.debug(
       { baseUrl: context.baseUrl, error: (error as Error).message },
-      "benchmark slot probe failed",
+      "benchmark props probe failed",
     );
     return null;
   }
@@ -271,6 +288,11 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       repetition: 0,
     });
     const model = await resolveEndpointModel(context);
+    const props =
+      context.instance.kind === "llama-server"
+        ? await fetchServerProps(context)
+        : null;
+    const launch = context.launchSnapshot;
     const snapshot: BenchmarkTargetSnapshot = {
       instanceName: context.instance.name,
       engineKind: context.instance.kind,
@@ -278,12 +300,22 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       model,
       binaryPath: context.instance.binaryPath || null,
       args: context.runtimeArgs,
+      env: launch ? launch.env : context.instance.env,
+      numa: launch ? launch.numa : (context.instance.numa ?? null),
+      rpcWorkers: launch ? launch.rpcWorkers : context.instance.rpcWorkers,
+      launchCliArgs: launch ? launch.cliArgs : null,
+      buildInfo: props?.buildInfo ?? null,
     };
     patchBenchmarkRun(runId, { snapshot });
+    if (launch && hasLaunchSnapshotDrift(context.instance, launch)) {
+      warnings.push(
+        "instance config drifted from the running process; the snapshot records the launched configuration",
+      );
+    }
 
     const concurrency = scenario.mode === "parallel" ? wave.length : 1;
     if (context.instance.kind === "llama-server") {
-      const totalSlots = await fetchTotalSlots(context);
+      const totalSlots = props?.totalSlots ?? null;
       if (totalSlots === null) {
         warnings.push("slot capacity unknown (GET /props failed)");
       } else if (concurrency > totalSlots) {
@@ -435,7 +467,8 @@ export function startBenchmarkRun(
   if (!instance) {
     throw new Error(`instance ${scenario.target.instanceName} not found`);
   }
-  const runtime = runtimeEndpointInstance(instance);
+  const latestRun = latestProcessRun(instance.name);
+  const runtime = runtimeEndpointInstance(instance, latestRun);
   const baseUrl = instanceBaseUrl(runtime);
   if (!baseUrl) {
     throw new Error(
@@ -449,6 +482,7 @@ export function startBenchmarkRun(
     scenario,
     instance,
     runtimeArgs: runtime.args,
+    launchSnapshot: activeLaunchSnapshot(instance.name, latestRun),
     baseUrl,
     signal: controller.signal,
     fetchImpl: options.fetchImpl ?? fetch,

@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-import { InstanceArgsSchema, InstanceKindSchema } from "./instance.js";
+import {
+  InstanceArgsSchema,
+  InstanceEnvSchema,
+  InstanceKindSchema,
+  InstanceNumaSchema,
+  RpcWorkerRefSchema,
+} from "./instance.js";
 import { BackgroundJobStatusSchema } from "./jobs.js";
 
 export const BenchmarkMessageSchema = z.object({
@@ -78,6 +84,11 @@ export const BenchmarkTargetSnapshotSchema = z.object({
   model: z.string().nullable(),
   binaryPath: z.string().nullable(),
   args: InstanceArgsSchema,
+  env: InstanceEnvSchema.default({}),
+  numa: InstanceNumaSchema.nullable().default(null),
+  rpcWorkers: z.array(RpcWorkerRefSchema).default([]),
+  launchCliArgs: z.array(z.string()).nullable().default(null),
+  buildInfo: z.string().nullable().default(null),
 });
 
 export const BenchmarkServerTimingsSchema = z.object({

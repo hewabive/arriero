@@ -77,6 +77,16 @@ export function runtimeEndpointInstance<T extends RuntimeEndpointInstance>(
   return snapshot ? instanceWithLaunchEndpoint(instance, snapshot) : instance;
 }
 
+export function activeLaunchSnapshot(
+  instanceName: string,
+  run: RuntimeEndpointRun | null = latestProcessRun(instanceName),
+): LaunchSnapshot | null {
+  if (!run || !activeEndpointStatuses.has(run.status)) {
+    return null;
+  }
+  return parseLaunchSnapshot(run.launchSnapshot);
+}
+
 export function runtimeInstanceBaseUrl(
   instance: RuntimeEndpointInstance,
   run?: RuntimeEndpointRun | null,
