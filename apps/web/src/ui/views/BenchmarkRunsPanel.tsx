@@ -33,6 +33,10 @@ function runMeta(run: BenchmarkRun): string {
   if (run.summary) {
     parts.push(countLabel(run.summary.requestCount, "request"));
     parts.push(`${(run.summary.wallMs / 1000).toFixed(1)} s`);
+    const rate = run.summary.headline?.decodeTokensPerSecond ?? null;
+    if (rate !== null) {
+      parts.push(`${rate.toFixed(1)} tok/s`);
+    }
   }
   return parts.join(" · ");
 }
@@ -68,7 +72,11 @@ export function BenchmarkRunsPanel({ fm }: { fm: BenchmarkViewController }) {
                   onClick={() => fm.selectRun(run.id)}
                 >
                   <Group gap="xs" wrap="nowrap">
-                    <Badge color={statusColor(run.status)} variant="light">
+                    <Badge
+                      color={statusColor(run.status)}
+                      variant="light"
+                      style={{ flex: "0 0 auto" }}
+                    >
                       {run.status}
                     </Badge>
                     <Stack gap={0} style={{ minWidth: 0 }}>

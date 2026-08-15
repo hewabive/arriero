@@ -1,4 +1,6 @@
+import { BENCHMARK_CLASS_MIN_WALL_MS, soloDecodeBaseline } from "@arriero/core";
 import type {
+  BenchmarkHeadline,
   BenchmarkRequestResult,
   BenchmarkRunResult,
   BenchmarkRunSummary,
@@ -45,6 +47,12 @@ type ContentionAccumulator = {
 
 function ratePerSecond(tokens: number, durationMs: number): number | null {
   return durationMs > 0 ? (tokens / durationMs) * 1000 : null;
+}
+
+function supportedRate(tokens: number, durationMs: number): number | null {
+  return durationMs >= BENCHMARK_CLASS_MIN_WALL_MS
+    ? ratePerSecond(tokens, durationMs)
+    : null;
 }
 
 function tokensPerChunkOf(request: MeasuredRequest): number {
@@ -259,8 +267,8 @@ function buildTopicSummaries(
         topic: first?.topic ?? "",
         language: first?.language ?? "",
         requestCount: group.length,
-        soloDecodeTokensPerSecond: ratePerSecond(soloTokens, soloMs),
-        contendedDecodeTokensPerSecond: ratePerSecond(
+        soloDecodeTokensPerSecond: supportedRate(soloTokens, soloMs),
+        contendedDecodeTokensPerSecond: supportedRate(
           contendedTokens,
           contendedMs,
         ),
@@ -330,6 +338,69 @@ export function buildBenchmarkRunResult(
   };
 }
 
+function percentile(
+  sorted: readonly number[],
+  quantile: number,
+): number | null {
+  if (sorted.length === 0) {
+    return null;
+  }
+  const rank = (sorted.length - 1) * quantile;
+  const lower = sorted[Math.floor(rank)];
+  const upper = sorted[Math.ceil(rank)];
+  if (lower === undefined || upper === undefined) {
+    return null;
+  }
+  return lower + (upper - lower) * (rank - Math.floor(rank));
+}
+
+function buildHeadline(
+  requests: readonly MeasuredRequest[],
+  result: BenchmarkRunResult,
+): BenchmarkHeadline {
+  let decodeTokens = 0;
+  let decodeWallMs = 0;
+  let perRequestTokens = 0;
+  for (const entry of result.segmentClasses) {
+    if (entry.decodeCount === 0) continue;
+    decodeTokens += entry.decodeTokens;
+    decodeWallMs += entry.wallMs;
+    perRequestTokens += entry.decodeTokens / entry.decodeCount;
+  }
+  let totalPromptTokens = 0;
+  let prefillTokens = 0;
+  let prefillMs = 0;
+  const firstTokenSpans: number[] = [];
+  for (const request of requests) {
+    totalPromptTokens += request.promptTokens ?? 0;
+    if (request.firstTokenMs === null) continue;
+    firstTokenSpans.push(request.firstTokenMs - request.submitMs);
+    const prefillStartMs = prefillStartOf(request);
+    if (prefillStartMs !== null && request.promptTokens !== null) {
+      prefillTokens += request.promptTokens;
+      prefillMs += request.firstTokenMs - prefillStartMs;
+    }
+  }
+  firstTokenSpans.sort((a, b) => a - b);
+
+  return {
+    decodeTokensPerSecond: ratePerSecond(decodeTokens, decodeWallMs),
+    perRequestDecodeTokensPerSecond: ratePerSecond(
+      perRequestTokens,
+      decodeWallMs,
+    ),
+    soloDecodeTokensPerSecond: soloDecodeBaseline(result.segmentClasses),
+    prefillTokensPerSecond: ratePerSecond(prefillTokens, prefillMs),
+    totalPromptTokens,
+    timeToFirstTokenP50Ms: percentile(firstTokenSpans, 0.5),
+    timeToFirstTokenP95Ms: percentile(firstTokenSpans, 0.95),
+    peakConcurrentDecode: result.segments.reduce(
+      (peak, segment) => Math.max(peak, segment.decodeCount),
+      0,
+    ),
+  };
+}
+
 export function summarizeBenchmarkRunResult(
   requests: readonly MeasuredRequest[],
   result: BenchmarkRunResult,
@@ -365,6 +436,7 @@ export function summarizeBenchmarkRunResult(
     totalCompletionTokens,
     wallMs,
     acceptanceRate: weightedAcceptance(requests),
+    headline: buildHeadline(requests, result),
     topics: result.topics,
     segmentClasses: result.segmentClasses,
   };

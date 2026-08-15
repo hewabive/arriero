@@ -53,6 +53,7 @@ test("benchmark run lifecycle roundtrip", () => {
       totalCompletionTokens: 100,
       wallMs: 2000,
       acceptanceRate: null,
+      headline: null,
       topics: [],
       segmentClasses: [],
     },

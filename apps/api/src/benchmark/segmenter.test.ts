@@ -341,6 +341,102 @@ test("acceptance rate aggregates weighted by drafted tokens", () => {
   assert.equal(summary.acceptanceRate, 0.575);
 });
 
+test("boundary slivers do not become topic rates or a solo baseline", () => {
+  const requests = [
+    measured({
+      requestId: "a",
+      submitMs: 0,
+      firstTokenMs: 100,
+      doneMs: 1100,
+      chunkTimesMs: [100, 600, 1100],
+      completionTokens: 3,
+      serverTimings: timings({ promptMs: 100 }),
+    }),
+    measured({
+      requestId: "b",
+      topic: "poetry",
+      submitMs: 105,
+      firstTokenMs: 205,
+      doneMs: 1100,
+      chunkTimesMs: [205, 600, 1100],
+      completionTokens: 3,
+      serverTimings: timings({ promptMs: 100 }),
+    }),
+  ];
+  const result = buildBenchmarkRunResult(requests);
+  const summary = summarizeBenchmarkRunResult(requests, result);
+
+  const sliver = result.segmentClasses.find(
+    (entry) => entry.prefillCount === 0 && entry.decodeCount === 1,
+  );
+  assert.equal(sliver?.wallMs, 5);
+  assert.equal(summary.headline?.soloDecodeTokensPerSecond, null);
+  assert.equal(
+    result.topics.find((entry) => entry.topic === "code")
+      ?.soloDecodeTokensPerSecond,
+    null,
+  );
+});
+
+test("headline metrics derive rates, prefill throughput and prompt tokens", () => {
+  const requests = [
+    measured({
+      requestId: "a",
+      submitMs: 0,
+      firstTokenMs: 100,
+      doneMs: 1100,
+      chunkTimesMs: [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100],
+      promptTokens: 200,
+      completionTokens: 11,
+      serverTimings: timings({ promptMs: 100, promptN: 200 }),
+    }),
+  ];
+  const summary = summarizeBenchmarkRunResult(
+    requests,
+    buildBenchmarkRunResult(requests),
+  );
+
+  assert.equal(summary.headline?.decodeTokensPerSecond, 10);
+  assert.equal(summary.headline?.perRequestDecodeTokensPerSecond, 10);
+  assert.equal(summary.headline?.soloDecodeTokensPerSecond, 10);
+  assert.equal(summary.headline?.prefillTokensPerSecond, 2000);
+  assert.equal(summary.headline?.totalPromptTokens, 200);
+  assert.equal(summary.headline?.timeToFirstTokenP50Ms, 100);
+  assert.equal(summary.headline?.peakConcurrentDecode, 1);
+});
+
+test("headline percentiles interpolate and peak concurrency counts overlap", () => {
+  const requests = [
+    measured({
+      requestId: "a",
+      submitMs: 0,
+      firstTokenMs: 100,
+      doneMs: 1100,
+      chunkTimesMs: [100, 400, 700, 1100],
+      completionTokens: 4,
+      serverTimings: timings({ promptMs: 100 }),
+    }),
+    measured({
+      requestId: "b",
+      submitMs: 400,
+      firstTokenMs: 1000,
+      doneMs: 1400,
+      chunkTimesMs: [1000, 1200, 1400],
+      completionTokens: 3,
+      serverTimings: timings({ promptMs: 100 }),
+    }),
+  ];
+  const summary = summarizeBenchmarkRunResult(
+    requests,
+    buildBenchmarkRunResult(requests),
+  );
+
+  assert.equal(summary.headline?.timeToFirstTokenP50Ms, 350);
+  assert.equal(summary.headline?.timeToFirstTokenP95Ms, 575);
+  assert.equal(summary.headline?.peakConcurrentDecode, 2);
+  assert.equal(summary.headline?.prefillTokensPerSecond, null);
+});
+
 test("speculative burst at first-token timestamp is attributed to decode", () => {
   const result = buildBenchmarkRunResult([
     measured({

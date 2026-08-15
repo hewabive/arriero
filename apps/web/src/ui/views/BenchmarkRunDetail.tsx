@@ -1,3 +1,4 @@
+import { isBenchmarkClassSupported } from "@arriero/core";
 import {
   Alert,
   Badge,
@@ -10,6 +11,9 @@ import {
 } from "@mantine/core";
 import { CircleAlert } from "lucide-react";
 
+import { countLabel } from "../utils/plural";
+
+import { BenchmarkHeadline } from "./BenchmarkHeadline";
 import { BenchmarkTimeline } from "./BenchmarkTimeline";
 import type { BenchmarkViewController } from "./use-benchmark-view";
 
@@ -51,15 +55,22 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
           {summary && (
             <Group gap="xs" wrap="wrap">
               <Badge variant="light">
-                {summary.totalCompletionTokens.toFixed(0)} tokens
+                {countLabel(summary.requestCount, "request")}
               </Badge>
-              <Badge variant="light">
-                {(summary.wallMs / 1000).toFixed(1)} s wall
-              </Badge>
-              {summary.acceptanceRate !== null && (
-                <Badge variant="light" color="grape">
-                  draft acceptance {fmtPercent(summary.acceptanceRate)}
-                </Badge>
+              {summary.headline === null && (
+                <>
+                  <Badge variant="light">
+                    {summary.totalCompletionTokens.toFixed(0)} tokens
+                  </Badge>
+                  <Badge variant="light">
+                    {(summary.wallMs / 1000).toFixed(1)} s wall
+                  </Badge>
+                  {summary.acceptanceRate !== null && (
+                    <Badge variant="light" color="grape">
+                      draft acceptance {fmtPercent(summary.acceptanceRate)}
+                    </Badge>
+                  )}
+                </>
               )}
               {summary.failedRequestCount > 0 && (
                 <Badge variant="light" color="red">
@@ -69,6 +80,8 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
             </Group>
           )}
         </Group>
+
+        {summary && <BenchmarkHeadline summary={summary} />}
 
         {run.error && (
           <Alert
@@ -118,23 +131,36 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {summary.segmentClasses.map((entry, index) => (
-                    <Table.Tr key={index}>
-                      <Table.Td>{entry.prefillCount}</Table.Td>
-                      <Table.Td>{entry.decodeCount}</Table.Td>
-                      <Table.Td>{fmtPercent(entry.wallShare)}</Table.Td>
-                      <Table.Td>{(entry.wallMs / 1000).toFixed(2)} s</Table.Td>
-                      <Table.Td>
-                        {fmtRate(entry.decodeTokensPerSecond)}
-                      </Table.Td>
-                      <Table.Td>
-                        {fmtRate(entry.perRequestDecodeTokensPerSecond)}
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
+                  {summary.segmentClasses.map((entry, index) => {
+                    const supported = isBenchmarkClassSupported(entry);
+                    return (
+                      <Table.Tr key={index}>
+                        <Table.Td>{entry.prefillCount}</Table.Td>
+                        <Table.Td>{entry.decodeCount}</Table.Td>
+                        <Table.Td>{fmtPercent(entry.wallShare)}</Table.Td>
+                        <Table.Td>
+                          {(entry.wallMs / 1000).toFixed(2)} s
+                        </Table.Td>
+                        <Table.Td>
+                          {supported
+                            ? fmtRate(entry.decodeTokensPerSecond)
+                            : "—"}
+                        </Table.Td>
+                        <Table.Td>
+                          {supported
+                            ? fmtRate(entry.perRequestDecodeTokensPerSecond)
+                            : "—"}
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
                 </Table.Tbody>
               </Table>
             </Table.ScrollContainer>
+            <Text size="xs" c="dimmed">
+              Rates are reported only for classes that held long enough to
+              measure — boundary slivers show as —.
+            </Text>
           </Stack>
         )}
 

@@ -135,12 +135,28 @@ export const BenchmarkTopicSummarySchema = z.object({
   averageTimeToFirstTokenMs: z.number().nullable(),
 });
 
+export const BENCHMARK_CLASS_MIN_WALL_MS = 200;
+export const BENCHMARK_BASELINE_MIN_WALL_MS = 500;
+export const BENCHMARK_BASELINE_MIN_TOKENS = 8;
+
+export const BenchmarkHeadlineSchema = z.object({
+  decodeTokensPerSecond: z.number().nullable(),
+  perRequestDecodeTokensPerSecond: z.number().nullable(),
+  soloDecodeTokensPerSecond: z.number().nullable(),
+  prefillTokensPerSecond: z.number().nullable(),
+  totalPromptTokens: z.number(),
+  timeToFirstTokenP50Ms: z.number().nullable(),
+  timeToFirstTokenP95Ms: z.number().nullable(),
+  peakConcurrentDecode: z.number().int(),
+});
+
 export const BenchmarkRunSummarySchema = z.object({
   requestCount: z.number().int(),
   failedRequestCount: z.number().int(),
   totalCompletionTokens: z.number(),
   wallMs: z.number(),
   acceptanceRate: z.number().nullable(),
+  headline: BenchmarkHeadlineSchema.nullable().default(null),
   topics: z.array(BenchmarkTopicSummarySchema),
   segmentClasses: z.array(BenchmarkSegmentClassSchema),
 });
@@ -226,6 +242,7 @@ export type BenchmarkRequestResult = z.infer<
 export type BenchmarkSegment = z.infer<typeof BenchmarkSegmentSchema>;
 export type BenchmarkSegmentClass = z.infer<typeof BenchmarkSegmentClassSchema>;
 export type BenchmarkTopicSummary = z.infer<typeof BenchmarkTopicSummarySchema>;
+export type BenchmarkHeadline = z.infer<typeof BenchmarkHeadlineSchema>;
 export type BenchmarkRunSummary = z.infer<typeof BenchmarkRunSummarySchema>;
 export type BenchmarkRunResult = z.infer<typeof BenchmarkRunResultSchema>;
 export type BenchmarkRunPhase = z.infer<typeof BenchmarkRunPhaseSchema>;
@@ -235,3 +252,22 @@ export type BenchmarkStreamEventKind = z.infer<
   typeof BenchmarkStreamEventKindSchema
 >;
 export type BenchmarkStreamEvent = z.infer<typeof BenchmarkStreamEventSchema>;
+
+export function isBenchmarkClassSupported(
+  entry: BenchmarkSegmentClass,
+): boolean {
+  return entry.decodeCount > 0 && entry.wallMs >= BENCHMARK_CLASS_MIN_WALL_MS;
+}
+
+export function soloDecodeBaseline(
+  classes: readonly BenchmarkSegmentClass[],
+): number | null {
+  const solo = classes.find(
+    (entry) =>
+      entry.prefillCount === 0 &&
+      entry.decodeCount === 1 &&
+      entry.wallMs >= BENCHMARK_BASELINE_MIN_WALL_MS &&
+      entry.decodeTokens >= BENCHMARK_BASELINE_MIN_TOKENS,
+  );
+  return solo?.perRequestDecodeTokensPerSecond ?? null;
+}

@@ -46,6 +46,22 @@ summaries split each request's decode time into **solo** (sole decoder, no prefi
 **contended** segments, giving isolated vs under-load rates per topic, plus draft acceptance
 weighted by drafted tokens. Repetitions (waves) segment independently; segments never span waves.
 
+**Class support and the solo baseline** (`isBenchmarkClassSupported` / `soloDecodeBaseline`, core):
+a phase-transition instant that nearly coincides with another produces a sliver segment whose rate
+is arithmetic noise (one chunk over 1 ms reads as 1000 tok/s). A class rate is therefore reported
+only above `BENCHMARK_CLASS_MIN_WALL_MS`; the threshold is wall time alone, because a long class
+with very few tokens (decode nearly frozen behind a competing prefill) is a real measurement, not
+noise. The `(0,1)` class doubles as the **solo baseline** every contention number is compared
+against, so promoting it additionally requires `BENCHMARK_BASELINE_MIN_WALL_MS` and
+`BENCHMARK_BASELINE_MIN_TOKENS` — an understated baseline would invert every comparison. A run
+without a qualifying solo stretch reports no baseline rather than a plausible substitute.
+
+**Headline metrics** (`BenchmarkRunSummary.headline`) are the run's answer in one row: aggregate and
+per-request decode tok/s over decode-active time, the solo baseline, prefill tok/s (prompt tokens
+over prefill duration, llama-timings only), total prompt tokens, TTFT p50/p95 and peak concurrent
+decode. `null` on runs recorded before the field existed — the field defaults to `null` on parse so
+old rows keep loading.
+
 ## Run lifecycle
 
 `runner.ts` registers one in-process job (`jobs/registry.ts`, domain `benchmark`, single active run)
@@ -94,8 +110,18 @@ used by lists and future run comparison. Bulky data — the raw event stream and
   measured cost of concurrent prefill.
 - **Topics table**: solo vs contended tok/s per topic; with a draft model configured, acceptance
   explains why code decodes faster than poetry on the same instance.
-- **Timeline**: shaded bands mark intervals where a prefill competes for batch capacity; the bottom
-  lane is total decode tok/s per segment.
+- **Timeline** (`BenchmarkTimeline.tsx`): one Gantt row per request (queue · prefill · decode) with
+  TTFT and tok/s in a right-hand column. Each decode bar is cut into its segments and **each slice's
+  opacity encodes that segment's per-request rate against the solo baseline** — the batching cost is
+  visible inside the bar, at the instant it happens, instead of only in the phase-mix table. Shaded
+  bands (plus a marker strip above the rows) mark intervals where a prefill competes for batch
+  capacity, their tint scaling with the number of concurrent prefills. The bottom lane plots two
+  step lines — total and per-request decode tok/s — against a dashed solo-baseline rule; it is
+  hidden when the wave has fewer than two decode-active segments, where it would carry no
+  information. Hovering anywhere gives a crosshair and one tooltip carrying the segment under the
+  cursor (its class and both rates) and, over a row, that request's phase breakdown. Requests that
+  never produced a token still get a row with an error marker. With no qualifying solo baseline the
+  opacity encoding and the dashed rule are dropped rather than computed against a guess.
 - Caveats: client timestamps include localhost network jitter (negligible at ms scale); sampling
   temperature affects draft acceptance, so pin `sampling` when comparing runs; compare runs only
   with matching snapshots (the snapshot records launch args precisely for this).
