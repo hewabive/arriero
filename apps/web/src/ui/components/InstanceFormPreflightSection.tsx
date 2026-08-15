@@ -40,17 +40,18 @@ export function InstanceFormPreflightSection({
             {fm.draftPreview.error}
           </Text>
         )}
-        {(fm.preflightPreviewQuery.data?.data.issues ?? []).map(
-          (issue, index) => (
-            <Text
-              key={`${issue.field}-${index}`}
-              c={issue.level === "error" ? "red" : "yellow"}
-              size="xs"
-            >
-              {issue.field}: {issue.message}
-            </Text>
-          ),
-        )}
+        {!fm.draftPreview.error &&
+          (fm.preflightPreviewQuery.data?.data.issues ?? []).map(
+            (issue, index) => (
+              <Text
+                key={`${issue.field}-${index}`}
+                c={issue.level === "error" ? "red" : "yellow"}
+                size="xs"
+              >
+                {issue.field}: {issue.message}
+              </Text>
+            ),
+          )}
         {!fm.draftPreview.error &&
           fm.preflightPreviewQuery.data?.data.issues.length === 0 && (
             <Text c="dimmed" size="xs">
