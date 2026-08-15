@@ -88,7 +88,20 @@ entry node only.
 - `POST /api/update/check` — `git fetch` then report commits behind upstream. **Only the entry node fetches.**
 - `GET  /api/update/fleet` — aggregate: cached `upstream` + every node's `/api/version`, with per-node `outdated`/`behindCount` computed on the entry node.
 - `POST /api/update` — start an update job (`{ restart }`).
+- `POST /api/update/restart` — restart without updating: the same drain +
+  self-`SIGTERM` the update job ends with, but with no pipeline in front (env
+  changes in `.env` are re-read on boot). Refused with 409 when the process is
+  not `supervised` (nothing would bring it back) or while an update job runs
+  (that job restarts on its own). Responds `202 { restarting, startedAt }`
+  before the drain begins; the logic lives in `update/restart.ts`, deliberately
+  outside the byte-identical update kit.
 - `GET  /api/update/latest`, `GET /api/update/jobs/:id`, `…/logs`, `POST …/cancel`.
+
+`GET /api/version` also reports `startedAt` — the ISO time this process booted
+(stamped at route level by `update/restart.ts:withStartedAt`, so the kit's
+`getAppVersion()` stays untouched; peers on older builds default to `null`).
+The Nodes page uses it as the restart confirmation signal: after
+`POST …/restart` it polls the node's `/api/version` until `startedAt` changes.
 
 ## Fleet view
 
@@ -107,6 +120,11 @@ the top.
 - A card shows its commit + date only when the node is **behind**; an up-to-date
   node shows just a marker. Per-card **Update** is enabled only when the node is
   `outdated && canUpdate && !dirty`.
+- Per-card **Restart** (supervised, reachable nodes only) hits
+  `POST /api/update/restart` and shows "restarting…" until the node's
+  `/api/version` comes back with a new `startedAt` (2-minute confirmation
+  timeout). It exists for changes an update cannot deliver — edited `.env`,
+  a wedged manager — and drains the proxy exactly like the update restart.
 - **Update all** updates every eligible node **peers first, entry node last**
   (restarting the entry node severs the UI and the reverse proxy to peers); the
   fleet view then polls until each node returns on the new commit. Dev / dirty /

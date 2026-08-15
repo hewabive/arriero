@@ -19,6 +19,12 @@ export const AppVersionSchema = z.object({
   upstreamCommit: z.string().nullable(),
   updateAvailable: z.boolean(),
   lastCheckedAt: z.string().nullable(),
+  startedAt: z.string().nullable().default(null),
+});
+
+export const AppRestartResultSchema = z.object({
+  restarting: z.boolean(),
+  startedAt: z.string().nullable(),
 });
 
 export const UpdateJobStatusSchema = BackgroundJobStatusSchema;
@@ -97,6 +103,7 @@ export const UpdateFleetSchema = z.object({
 
 export type AppRunMode = z.infer<typeof AppRunModeSchema>;
 export type AppVersion = z.infer<typeof AppVersionSchema>;
+export type AppRestartResult = z.infer<typeof AppRestartResultSchema>;
 export type UpdateJobStatus = z.infer<typeof UpdateJobStatusSchema>;
 export type UpdateJobStepName = z.infer<typeof UpdateJobStepNameSchema>;
 export type UpdateJobStepStatus = z.infer<typeof UpdateJobStepStatusSchema>;

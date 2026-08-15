@@ -29,7 +29,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Server, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCw, Server, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -39,8 +39,10 @@ import {
   deleteNode,
   getNodeUpdateJob,
   getNodeUpdateJobLogs,
+  getNodeVersion,
   getUpdateFleet,
   listNodes,
+  restartNode,
   startNodeUpdate,
   updateNode,
 } from "../../api/client";
@@ -54,6 +56,8 @@ import { formatLocalDateTime } from "../utils/time";
 
 const SELF_RELOAD_DELAY_MS = 1500;
 const AUTO_CHECK_STALE_MS = 15 * 60_000;
+const RESTART_POLL_MS = 1500;
+const RESTART_CONFIRM_TIMEOUT_MS = 120_000;
 
 type Draft = {
   name: string;
@@ -627,6 +631,69 @@ function NodeCard({
     mutationFn: () => cancelNodeUpdateJob(nodeId, jobId!),
   });
 
+  const queryClient = useQueryClient();
+  const nodeLabel = registryNode?.name ?? fleetNode?.nodeName ?? nodeId;
+  const [restartMark, setRestartMark] = useState<string | null>(null);
+  const restarting = restartMark !== null;
+
+  const restartMutation = useMutation({
+    mutationFn: () => restartNode(nodeId),
+    onSuccess: (result) => setRestartMark(result.data.startedAt ?? ""),
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: `Restart of ${nodeLabel} failed`,
+        message: (error as Error).message,
+      }),
+  });
+
+  const restartPoll = useQuery({
+    queryKey: ["node-restart-poll", nodeId],
+    queryFn: () => getNodeVersion(nodeId),
+    enabled: restarting,
+    retry: false,
+    refetchInterval: RESTART_POLL_MS,
+  });
+  const polledStartedAt = restartPoll.data?.data.startedAt ?? null;
+
+  useEffect(() => {
+    if (
+      restartMark === null ||
+      !polledStartedAt ||
+      polledStartedAt === restartMark
+    ) {
+      return;
+    }
+    setRestartMark(null);
+    notifications.show({
+      color: "teal",
+      title: "Node restarted",
+      message: nodeLabel,
+    });
+    void queryClient.invalidateQueries();
+  }, [restartMark, polledStartedAt, nodeLabel, queryClient]);
+
+  useEffect(() => {
+    if (restartMark === null) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setRestartMark(null);
+      notifications.show({
+        color: "yellow",
+        title: "Restart not confirmed",
+        message: `${nodeLabel} did not report a new start time; check it manually`,
+      });
+    }, RESTART_CONFIRM_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [restartMark, nodeLabel]);
+
+  const restartBlocked = !fleetNode?.ok
+    ? (fleetNode?.error ?? "unreachable")
+    : !supervised
+      ? "no supervisor; the process would not come back after exiting"
+      : null;
+
   const reason = fleetNode ? disabledReason(fleetNode) : null;
   const updating = Boolean(jobId) && !settled;
   const state = registryNode ? reachability(registryNode, fleetNode) : null;
@@ -722,6 +789,7 @@ function NodeCard({
             ))}
 
           {fleetNode &&
+            !restarting &&
             (updating ? (
               <Badge color={jobColor(job?.status ?? "running")} variant="light">
                 {isRestarting
@@ -742,6 +810,34 @@ function NodeCard({
                   onClick={() => onStart(fleetNode)}
                 >
                   {supervised ? "Update & restart" : "Update"}
+                </Button>
+              </Tooltip>
+            ))}
+
+          {fleetNode &&
+            !updating &&
+            (restarting ? (
+              <Badge color="blue" variant="light">
+                restarting…
+              </Badge>
+            ) : (
+              <Tooltip
+                label={
+                  restartBlocked ??
+                  "Stop the process and let the supervisor bring it back (re-reads .env)"
+                }
+                multiline
+                maw={320}
+              >
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<RotateCw size={14} />}
+                  disabled={restartBlocked !== null}
+                  loading={restartMutation.isPending}
+                  onClick={() => restartMutation.mutate()}
+                >
+                  Restart
                 </Button>
               </Tooltip>
             ))}

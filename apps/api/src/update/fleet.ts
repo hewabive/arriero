@@ -11,7 +11,7 @@ import { hostname } from "node:os";
 import { listNodes } from "../nodes/repository.js";
 import { fetchNodeJson } from "../nodes/remote.js";
 import { updateAdapter } from "./adapter.js";
-import { getAppVersion } from "./version.js";
+import { appVersionWithStartedAt } from "./restart.js";
 
 function tryGit(args: string[]): string | null {
   try {
@@ -78,7 +78,7 @@ function nodeEntry(
 }
 
 export async function updateFleet(): Promise<UpdateFleet> {
-  const selfVersion = getAppVersion();
+  const selfVersion = appVersionWithStartedAt();
   const upstream = currentUpstream(selfVersion);
   const upstreamCommit = upstream?.commit ?? null;
 

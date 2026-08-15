@@ -4,12 +4,18 @@ import type { Hono } from "hono";
 import { updateFleet } from "../update/fleet.js";
 import { tailUpdateLog } from "../update/logs.js";
 import { getUpdateJob, latestUpdateJob } from "../update/repository.js";
+import {
+  appVersionWithStartedAt,
+  restartBlockedReason,
+  scheduleAppRestart,
+  withStartedAt,
+} from "../update/restart.js";
 import { updateRunner } from "../update/runner.js";
-import { checkForUpdate, getAppVersion } from "../update/version.js";
+import { checkForUpdate } from "../update/version.js";
 
 export function registerUpdateRoutes(app: Hono) {
   app.get("/api/version", (c) => {
-    return c.json({ data: getAppVersion() });
+    return c.json({ data: appVersionWithStartedAt() });
   });
 
   app.get("/api/update/fleet", async (c) => {
@@ -18,7 +24,21 @@ export function registerUpdateRoutes(app: Hono) {
 
   app.post("/api/update/check", async (c) => {
     const { version, fetchError } = await checkForUpdate();
-    return c.json({ data: version, fetchError });
+    return c.json({ data: withStartedAt(version), fetchError });
+  });
+
+  app.post("/api/update/restart", (c) => {
+    const blocked = restartBlockedReason(appVersionWithStartedAt());
+    if (blocked) {
+      return c.json({ error: blocked }, 409);
+    }
+    if (updateRunner.isRunning()) {
+      return c.json(
+        { error: "an update job is running; it restarts the process itself" },
+        409,
+      );
+    }
+    return c.json({ data: scheduleAppRestart() }, 202);
   });
 
   app.get("/api/update/latest", (c) => {

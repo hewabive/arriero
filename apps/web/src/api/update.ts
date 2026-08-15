@@ -1,4 +1,5 @@
 import type {
+  AppRestartResult,
   AppVersion,
   UpdateFleet,
   UpdateJob,
@@ -19,6 +20,17 @@ export async function getUpdateFleet() {
 export async function checkForUpdate() {
   return request<{ data: AppVersion; fetchError: string | null }>(
     "/api/update/check",
+    { method: "POST" },
+  );
+}
+
+export async function getNodeVersion(nodeId: string) {
+  return request<{ data: AppVersion }>(nodeScopedPath(nodeId, "/api/version"));
+}
+
+export async function restartNode(nodeId: string) {
+  return request<{ data: AppRestartResult }>(
+    nodeScopedPath(nodeId, "/api/update/restart"),
     { method: "POST" },
   );
 }
