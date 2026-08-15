@@ -12,6 +12,8 @@ const internalVariables = new Set([
   "ARRIERO_ENV_TEST_BOTH",
   "ARRIERO_ENV_TEST_EMPTY",
   "ARRIERO_ENV_TEST_LEGACY",
+  "ARRIERO_ENV_TEST_NONEMPTY_EMPTY",
+  "ARRIERO_ENV_TEST_NONEMPTY_SET",
   "ARRIERO_ENV_TEST_UNSET",
 ]);
 
@@ -19,7 +21,7 @@ const nonEnvironmentNames = new Set(["ARRIERO_HELP", "ARRIERO_KT_RUNTIME"]);
 
 const literalPattern = /\bARRIERO_[A-Z0-9_]+\b/g;
 const helperPattern =
-  /\b(?:managerEnv|managedPath|envPath)\(\s*"([A-Z0-9_]+)"/g;
+  /\b(?:managerEnvNonEmpty|managerEnv|managedPath|envPath)\(\s*"([A-Z0-9_]+)"/g;
 
 function sourceFiles() {
   return trackedFiles(root, ["*.ts", "*.tsx", "*.mjs"]);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { managerEnv } from "./manager-env.js";
+import { managerEnv, managerEnvNonEmpty } from "./manager-env.js";
 
 test("prefers the ARRIERO_ name when both are set", () => {
   process.env.ARRIERO_ENV_TEST_BOTH = "current";
@@ -22,4 +22,14 @@ test("returns an empty ARRIERO_ value without falling back", () => {
 
 test("returns undefined when neither name is set", () => {
   assert.equal(managerEnv("ENV_TEST_UNSET"), undefined);
+});
+
+test("managerEnvNonEmpty treats an empty value as unset", () => {
+  process.env.ARRIERO_ENV_TEST_NONEMPTY_EMPTY = "";
+  assert.equal(managerEnvNonEmpty("ENV_TEST_NONEMPTY_EMPTY"), undefined);
+});
+
+test("managerEnvNonEmpty passes a non-empty value through", () => {
+  process.env.ARRIERO_ENV_TEST_NONEMPTY_SET = "value";
+  assert.equal(managerEnvNonEmpty("ENV_TEST_NONEMPTY_SET"), "value");
 });

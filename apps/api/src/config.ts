@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, resolve } from "node:path";
 
 import { applyLegacyEnvFileMigration } from "./env-file-migration.js";
-import { managerEnv } from "./manager-env.js";
+import { managerEnv, managerEnvNonEmpty } from "./manager-env.js";
 import { isPathWithin } from "./path-utils.js";
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -143,16 +143,16 @@ export const config = {
     drainTimeoutMs: Number(managerEnv("UPDATE_DRAIN_TIMEOUT_MS") ?? 10_000),
   },
   auth: {
-    password: managerEnv("ADMIN_PASSWORD") ?? null,
-    passwordHash: managerEnv("ADMIN_PASSWORD_HASH") ?? null,
+    password: managerEnvNonEmpty("ADMIN_PASSWORD") ?? null,
+    passwordHash: managerEnvNonEmpty("ADMIN_PASSWORD_HASH") ?? null,
     secret:
-      managerEnv("AUTH_SECRET") ??
-      managerEnv("ADMIN_PASSWORD_HASH") ??
-      managerEnv("ADMIN_PASSWORD") ??
+      managerEnvNonEmpty("AUTH_SECRET") ??
+      managerEnvNonEmpty("ADMIN_PASSWORD_HASH") ??
+      managerEnvNonEmpty("ADMIN_PASSWORD") ??
       null,
     secureCookie: managerEnv("SECURE_COOKIE") === "true",
     sessionTtlSeconds: Number(
-      managerEnv("SESSION_TTL_SECONDS") ?? 12 * 60 * 60,
+      managerEnvNonEmpty("SESSION_TTL_SECONDS") ?? 12 * 60 * 60,
     ),
   },
 };

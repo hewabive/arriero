@@ -19,3 +19,8 @@ export function managerEnv(suffix: string): string | undefined {
   }
   return legacy;
 }
+
+export function managerEnvNonEmpty(suffix: string): string | undefined {
+  const value = managerEnv(suffix);
+  return value === "" ? undefined : value;
+}
