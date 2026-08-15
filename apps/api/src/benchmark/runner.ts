@@ -22,8 +22,10 @@ import {
 import { getBenchmarkPrompt } from "./prompts.js";
 import {
   createBenchmarkRun,
+  getBenchmarkRun,
   patchBenchmarkRun,
   writeBenchmarkRunArtifacts,
+  writeBenchmarkRunRecord,
 } from "./repository.js";
 import {
   buildBenchmarkRunResult,
@@ -158,6 +160,15 @@ function setProgress(
 ): BenchmarkRunProgress {
   activeProgress.set(runId, progress);
   return progress;
+}
+
+function persistRunRecord(runId: string): void {
+  const run = getBenchmarkRun(runId);
+  if (!run) {
+    logger.warn({ runId }, "benchmark run record missing after finalize");
+    return;
+  }
+  writeBenchmarkRunRecord(run);
 }
 
 function describeRequestFailures(
@@ -385,10 +396,12 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       summary,
       error: allFailed && !context.signal.aborted ? failures.message : null,
     });
+    persistRunRecord(runId);
   } catch (error) {
     const message = (error as Error).message;
     logger.warn({ runId, error: message }, "benchmark run failed");
-    if (measured.length > 0) {
+    const hasMeasurements = measured.length > 0;
+    if (hasMeasurements) {
       const result = buildBenchmarkRunResult(measured);
       writeBenchmarkRunArtifacts(runId, events, result);
       patchBenchmarkRun(runId, {
@@ -401,6 +414,9 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       warnings,
       error: message,
     });
+    if (hasMeasurements) {
+      persistRunRecord(runId);
+    }
   } finally {
     activeProgress.delete(runId);
   }

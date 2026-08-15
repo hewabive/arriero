@@ -5,6 +5,7 @@ import { resolve, sep } from "node:path";
 import {
   BackgroundJobStatusSchema,
   BenchmarkRunResultSchema,
+  BenchmarkRunSchema,
   BenchmarkScenarioSchema,
   BenchmarkRunSummarySchema,
   BenchmarkStreamEventSchema,
@@ -257,6 +258,42 @@ export function writeBenchmarkRunArtifacts(
     resolve(dir, "result.json"),
     `${JSON.stringify(result, null, 2)}\n`,
   );
+}
+
+export function writeBenchmarkRunRecord(run: BenchmarkRun): void {
+  const dir = benchmarkRunArtifactsDir(run.id);
+  if (!dir) {
+    throw new Error(`invalid benchmark run id: ${run.id}`);
+  }
+  atomicWriteFile(
+    resolve(dir, "run.json"),
+    `${JSON.stringify({ ...run, progress: null }, null, 2)}\n`,
+  );
+}
+
+export function readBenchmarkRunRecord(id: string): BenchmarkRun | null {
+  const dir = benchmarkRunArtifactsDir(id);
+  if (!dir) return null;
+  const path = resolve(dir, "run.json");
+  if (!existsSync(path)) return null;
+  try {
+    const parsed = BenchmarkRunSchema.safeParse(
+      JSON.parse(readFileSync(path, "utf8")),
+    );
+    if (parsed.success) {
+      return parsed.data;
+    }
+    logger.warn(
+      { runId: id, issues: parsed.error.issues },
+      "invalid benchmark run record artifact",
+    );
+  } catch (error) {
+    logger.warn(
+      { runId: id, error: (error as Error).message },
+      "unreadable benchmark run record artifact",
+    );
+  }
+  return null;
 }
 
 export function readBenchmarkRunEvents(

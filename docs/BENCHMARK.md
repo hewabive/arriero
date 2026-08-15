@@ -149,6 +149,16 @@ used by lists and future run comparison. Bulky data — the raw event stream and
 (`events.jsonl`, `result.json`), deleted with the run; there is no automatic retention. Runs left
 `running` by a crash are failed at boot (`failInterruptedBenchmarkRuns`).
 
+The finalized run record is additionally mirrored into the artifacts dir as `run.json`
+(`writeBenchmarkRunRecord`), making the dir self-contained evidence: the DB is recreatable by
+design, and a `result.json` without its snapshot (model, launch args) or headline is
+uninterpretable — the mirror keeps an archived or orphaned run dir meaningful and leaves the door
+open for re-import. The DB stays the serving source (`run.json` is written, never read, on the
+request path). A run that fails before producing any measurement writes no artifacts at all — its
+DB record is the only trace, and there is nothing measured to preserve. A crash inside the
+finalize window can leave a dir without `run.json`; boot then fails the interrupted DB row as
+usual and the incomplete dir is detectable by the missing file.
+
 ## Interpreting results
 
 - **Phase mix table**: the per-request tok/s drop between `(0, k)` and `(p, k)` classes is the

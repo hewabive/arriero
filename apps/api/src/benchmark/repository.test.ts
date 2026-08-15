@@ -16,8 +16,10 @@ import {
   getBenchmarkRun,
   listBenchmarkRuns,
   patchBenchmarkRun,
+  readBenchmarkRunRecord,
   readBenchmarkRunResult,
   writeBenchmarkRunArtifacts,
+  writeBenchmarkRunRecord,
 } from "./repository.js";
 
 function scenario(overrides: Record<string, unknown> = {}) {
@@ -103,18 +105,21 @@ test("run list filters by status and exact label", () => {
 
 test("artifacts roundtrip and cleanup on delete", () => {
   const id = newId();
-  createBenchmarkRun({ id, scenario: scenario() });
+  const created = createBenchmarkRun({ id, scenario: scenario() });
   writeBenchmarkRunArtifacts(
     id,
     [{ requestId: "r1", tMs: 5, kind: "submit" }],
     emptyResult(),
   );
+  writeBenchmarkRunRecord(created);
   assert.deepEqual(readBenchmarkRunResult(id), emptyResult());
+  assert.deepEqual(readBenchmarkRunRecord(id), created);
   const dir = resolve(benchmarkArtifactsRoot, id);
   assert.ok(existsSync(dir));
   assert.equal(deleteBenchmarkRun(id), true);
   assert.equal(existsSync(dir), false);
   assert.equal(readBenchmarkRunResult(id), null);
+  assert.equal(readBenchmarkRunRecord(id), null);
 });
 
 test("interrupted running runs are failed at boot", () => {

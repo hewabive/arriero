@@ -398,8 +398,9 @@ extract owns flags/group/choices/default, so their frontmatter carries just
   preemption restore). In-memory map + atomic write-through (`proxy/runtime-metadata-store.ts`);
   rebuildable, not git-tracked. `lastRequestAt` is memory-only.
 - `data/config/` (= `ARRIERO_CONFIG_DIR`): file-backed portable config — see above.
-- `data/benchmarks/<runId>/`: benchmark-run artifacts (`events.jsonl`, `result.json`), deleted with
-  the run; the run record itself is the `benchmark_runs` table.
+- `data/benchmarks/<runId>/`: benchmark-run artifacts (`events.jsonl`, `result.json`, plus
+  `run.json` mirroring the finalized run record so the dir is self-contained), deleted with the
+  run; the serving source stays the `benchmark_runs` table.
 - `data/proxy-requests/`: per-request artifact files (opt-in via pipeline nodes like
   `capture-request`), one dir per request `<model>/<timestamp>-<traceId>/<NN>-<kind>.json` (inbound
   proxy model id, sanitized); metadata lands in `trace.files`, content served by

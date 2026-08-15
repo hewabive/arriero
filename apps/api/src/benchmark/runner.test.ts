@@ -10,6 +10,7 @@ import {
   deleteBenchmarkRun,
   getBenchmarkRun,
   readBenchmarkRunEvents,
+  readBenchmarkRunRecord,
   readBenchmarkRunResult,
 } from "./repository.js";
 import {
@@ -156,6 +157,7 @@ test("benchmark run measures a full parallel wave", async () => {
   const streamEvents = readBenchmarkRunEvents(run.id);
   assert.ok(streamEvents && streamEvents.length > 0);
   assert.ok(streamEvents.some((event) => event.kind === "done"));
+  assert.deepEqual(readBenchmarkRunRecord(run.id), finished);
 
   assert.equal(chatBodies.length, 3);
   const warmupBody = chatBodies[0];
@@ -227,6 +229,9 @@ test("benchmark run fails when every request fails", async () => {
   assert.match(finished?.error ?? "", /Context size has been exceeded/);
   assert.equal(finished?.summary?.failedRequestCount, 2);
   assert.deepEqual(finished?.warnings, [finished?.error]);
+  const record = readBenchmarkRunRecord(run.id);
+  assert.equal(record?.status, "failed");
+  assert.equal(record?.error, finished?.error);
   deleteBenchmarkRun(run.id);
 });
 
