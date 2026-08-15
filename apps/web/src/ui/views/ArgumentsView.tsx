@@ -3,6 +3,7 @@ import {
   Badge,
   Group,
   Paper,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -80,13 +81,50 @@ function EngineReferenceSummary({ engineId }: { engineId: string }) {
   );
 }
 
+function EngineSwitcher(props: {
+  engineId: string | undefined;
+  onChange: (engineId: string) => void;
+}) {
+  const referencesQuery = useQuery({
+    queryKey: ["engine-args-references"],
+    queryFn: listEngineArgumentReferences,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+  const engines = [
+    { value: "", label: "llama.cpp" },
+    ...(referencesQuery.data?.data ?? []).map((summary) => ({
+      value: summary.engineId,
+      label: summary.displayName,
+    })),
+  ];
+  if (props.engineId && !engines.some((it) => it.value === props.engineId)) {
+    engines.push({ value: props.engineId, label: props.engineId });
+  }
+  if (engines.length < 2) {
+    return null;
+  }
+
+  return (
+    <SegmentedControl
+      aria-label="Engine"
+      className="args-engine-switcher"
+      data={engines}
+      value={props.engineId ?? ""}
+      onChange={props.onChange}
+      w="fit-content"
+    />
+  );
+}
+
 export function ArgumentsView() {
-  const [subpath] = useHashSubpath("args");
+  const [subpath, setSubpath] = useHashSubpath("args");
   const engineId = subpath.split("/")[0] || undefined;
   const fm = useArgumentsView(engineId);
 
   return (
     <Stack gap="md" className="args-view">
+      <EngineSwitcher engineId={engineId} onChange={setSubpath} />
       {fm.argsCatalogQuery.isError && (
         <Alert color="red" icon={<AlertTriangle size={18} />} variant="light">
           {(fm.argsCatalogQuery.error as Error).message}

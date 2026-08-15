@@ -180,8 +180,12 @@ code {
 }
 
 .args-view {
-  height: calc(100vh - 144px);
+  height: calc(100vh - 200px);
   min-height: 480px;
+}
+
+.args-engine-switcher {
+  flex-shrink: 0;
 }
 
 .args-reference-layout {

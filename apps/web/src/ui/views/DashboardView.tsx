@@ -2,21 +2,8 @@ import type { Instance, InstanceHealthSummary } from "@arriero/core";
 import { Group, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 
 import { InstanceHealthBadge } from "../components/InstanceHealthBadge";
+import { countInstanceStatuses } from "../utils/instance-status";
 import { formatLocalDateTime } from "../utils/time";
-
-const RUNNING_STATUSES = new Set<InstanceHealthSummary["status"]>([
-  "ready",
-  "loading",
-  "degraded",
-  "starting",
-]);
-
-function effectiveStatus(
-  instance: Instance,
-  health: InstanceHealthSummary | undefined,
-): InstanceHealthSummary["status"] | Instance["status"] {
-  return health?.status ?? instance.status;
-}
 
 function StatCard(props: { label: string; value: number }) {
   return (
@@ -73,22 +60,10 @@ export function DashboardView(props: {
   healthByInstanceId: Map<string, InstanceHealthSummary>;
   onOpenDiagnostics: (instance: Instance) => void;
 }) {
-  const statuses = props.instances.map((instance) =>
-    effectiveStatus(instance, props.healthByInstanceId.get(instance.name)),
+  const counts = countInstanceStatuses(
+    props.instances,
+    props.healthByInstanceId,
   );
-  const counts = {
-    total: props.instances.length,
-    running: statuses.filter(
-      (status) =>
-        RUNNING_STATUSES.has(status as InstanceHealthSummary["status"]) ||
-        status === "running",
-    ).length,
-    stale: statuses.filter((status) => status === "stale").length,
-    error: statuses.filter(
-      (status) => status === "error" || status === "invalid",
-    ).length,
-    stopped: statuses.filter((status) => status === "stopped").length,
-  };
 
   return (
     <Stack gap="md">

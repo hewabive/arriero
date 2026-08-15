@@ -84,7 +84,7 @@ The second expected case is API adaptation: accepting one API shape and forwardi
   - `data/proxy-runtime-metadata.json` — per-target saved-slot ids, an in-memory map with atomic write-through (`proxy/runtime-metadata-store.ts`); rebuildable, not git-tracked. `lastRequestAt` is memory-only.
   - SQLite `proxy_request_traces` (history, `proxy/traces-repository.ts`) and `proxy_response_cache` (rebuildable cache).
 - One-time upgrades (`docs/MIGRATIONS.md`): `proxy/legacy-migration.ts` exported the former `api_endpoints` / `api_proxy_{targets,models,pipelines}` tables to the JSON files, and `0003-proxy-runtime-metadata-to-file` moved `api_proxy_runtime_metadata` out of SQLite.
-- Admin UI, one section per config layer (`web/src/ui/routing.ts`): Dashboard (`#/proxy` — topology, runtime snapshot, scheduler-plan preview, stats), Requests (`#/proxy/traces`), API models, Pipelines (canvas), Targets, Endpoints, API keys (request sources), Resources.
+- Admin UI, one tab per config layer inside the Proxy section (`web/src/ui/routing.ts`): Overview (`#/proxy` — topology, runtime snapshot, scheduler-plan preview, stats), Requests (`#/proxy/traces`), Models, Pipelines (canvas), Targets, Endpoints, Keys (request sources), Memory pools.
 
 ## External Protocol Facades
 

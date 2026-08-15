@@ -377,6 +377,18 @@ extract owns flags/group/choices/default, so their frontmatter carries just
 - Mantine component-wide defaults go in the `createTheme` in `web/src/main.tsx` (e.g. `Tooltip` opens
   on hover/focus/touch so tooltips work on mobile; the heading scale lives there too) — don't set
   per-usage props for behavior every usage should share.
+- Web navigation is two-level and fully owned by `navSections` in `web/src/ui/routing.ts`: the sidebar
+  renders one row per **section** (`AppNav`, `manager` pinned to the bottom via `footer`), and the
+  section's leaves render as page tabs (`SectionTabs`) under the header — a new page is a leaf in an
+  existing section, never a new sidebar row. Hash routes are unaffected by grouping (a section may
+  span several routes); `activeLeaf` resolves the current leaf, falling back to the route-only leaf so
+  `#/args/vllm` stays on the Arguments tab. `Ctrl+K` opens `CommandPalette`, built from the same
+  `navSections` — new leaves get search coverage for free via `keywords`.
+- The sidebar is audience-split by `sidebarSections(canUseAdmin)`: signed out it is exactly
+  **Public status + Sign in** (so a gated page always has a way back), signed in it is the admin
+  sections **without** Public status — which stays reachable at `#/status` and through the palette.
+  `#/login` renders `LoginView`; hitting a gated route while signed out still renders it inline so the
+  deep link survives the sign-in.
 - Web page chrome: the page title + one-line description are owned by the route entry in
   `web/src/ui/routing.ts` and rendered by `App.tsx` — a view never repeats them. Titles and labels are
   sentence case (acronyms kept: "API endpoints", "GGUF files"). Card headers are `Title order={4}`,
@@ -433,7 +445,8 @@ extract owns flags/group/choices/default, so their frontmatter carries just
 - Admin auth is **off by default** (admin routes open for local dev). Enable with
   `ARRIERO_ADMIN_PASSWORD` or `..._ADMIN_PASSWORD_HASH` (`scrypt$...`; generate via
   `pnpm auth:hash <pw>`); related: `..._AUTH_SECRET`, `..._SECURE_COOKIE` (leave false without TLS),
-  `..._SESSION_TTL_SECONDS`. The default `/#/status` route is a public, redacted diagnostics page.
+  `..._SESSION_TTL_SECONDS`. `/#/status` is a public, redacted diagnostics page and the landing route
+  while signed out; an authenticated session opening the bare root is sent to `/#/dashboard`.
 - All env vars seed from a gitignored repo-root `.env` (loaded in `config.ts` before any var is read;
   the real launch env wins). `.env.example` is the tracked template. Legacy `LLAMA_MANAGER_*` keys
   are renamed in place (`env-file-migration.ts`) and keep a read-time fallback (`manager-env.ts`).

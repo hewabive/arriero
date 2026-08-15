@@ -3,8 +3,8 @@ import {
   ActionIcon,
   AppShell,
   Burger,
+  Divider,
   Group,
-  NavLink,
   ScrollArea,
   Stack,
   Text,
@@ -16,28 +16,34 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, Moon, RefreshCw, Sun } from "lucide-react";
+import { LogOut, Moon, RefreshCw, Search, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  getApiProxyStats,
   getAuthState,
   listInstanceHealthSummaries,
   listInstances,
   logoutAdmin,
 } from "../api/client";
 import { AppLogo } from "./components/AppLogo";
+import { AppNav, type NavSectionBadge } from "./components/AppNav";
+import { CommandPalette } from "./components/CommandPalette";
 import { ConfigGitDirtyBadge } from "./components/ConfigGitDirtyBadge";
 import { InstanceFormModal } from "./components/InstanceFormModal";
 import { NodeSwitcher } from "./components/NodeSwitcher";
+import { SectionTabs } from "./components/SectionTabs";
 import {
   activeLeaf,
-  isLeafActive,
-  navSections,
+  activeSection,
   navigateToLeaf,
+  sidebarSections,
   useHashRoute,
   useHashSubpath,
   type NavLeaf,
 } from "./routing";
+import { countInstanceStatuses } from "./utils/instance-status";
+import { countLabel } from "./utils/plural";
 import { type LaunchMonitor, isLaunchTerminalStatus } from "./utils/launch";
 import { ApiLabView } from "./views/ApiLabView";
 import { ArgumentsView } from "./views/ArgumentsView";
@@ -79,6 +85,7 @@ export function App() {
   );
   const [monitorNowMs, setMonitorNowMs] = useState(Date.now());
   const [apiLabVisited, setApiLabVisited] = useState(false);
+  const [paletteOpened, setPaletteOpened] = useState(false);
   const { setColorScheme } = useMantineColorScheme();
   const colorScheme = useComputedColorScheme("dark");
   const queryClient = useQueryClient();
@@ -107,6 +114,12 @@ export function App() {
     refetchInterval: 3_000,
     enabled: canUseAdmin,
   });
+  const proxyStatsQuery = useQuery({
+    queryKey: ["nav-proxy-stats"],
+    queryFn: () => getApiProxyStats(1),
+    refetchInterval: 20_000,
+    enabled: canUseAdmin,
+  });
 
   const instances = instancesQuery.data?.data ?? [];
   const healthByInstanceId = useMemo(
@@ -129,10 +142,58 @@ export function App() {
   const selectedLaunchMonitor =
     selectedInstance?.name === launchMonitor?.instanceId ? launchMonitor : null;
   const currentRoute = activeLeaf(route, routeSubpath);
+  const currentSection = activeSection(route, routeSubpath);
+  const visibleSections = sidebarSections(canUseAdmin);
+  const mainSections = visibleSections.filter((section) => !section.footer);
+  const footerSections = visibleSections.filter((section) => section.footer);
+
+  const instanceCounts = useMemo(
+    () => countInstanceStatuses(instances, healthByInstanceId),
+    [instances, healthByInstanceId],
+  );
+  const proxyErrors = proxyStatsQuery.data?.data.totals.errors ?? 0;
+  const faultedInstances = instanceCounts.error + instanceCounts.stale;
+  const navBadges: Record<string, NavSectionBadge | undefined> = {
+    instances: {
+      count: instanceCounts.running,
+      dot:
+        faultedInstances > 0
+          ? {
+              tone: "error",
+              label: `${countLabel(faultedInstances, "instance")} in error or stale`,
+            }
+          : instanceCounts.degraded > 0
+            ? {
+                tone: "warn",
+                label: `${countLabel(instanceCounts.degraded, "instance")} degraded`,
+              }
+            : null,
+    },
+    proxy:
+      proxyErrors > 0
+        ? {
+            count: null,
+            dot: {
+              tone: "error",
+              label: `${countLabel(proxyErrors, "failed request")} in the last hour`,
+            },
+          }
+        : undefined,
+  };
 
   useEffect(() => {
     document.title = `${currentRoute.title} · Arriero`;
   }, [currentRoute.title]);
+
+  useEffect(() => {
+    if (!canUseAdmin) {
+      return;
+    }
+    const path = window.location.hash.replace(/^#\/?/, "").split("?")[0] ?? "";
+    if (!path || path === "login") {
+      setRoute("dashboard");
+    }
+  }, [canUseAdmin, route]);
 
   function goToLeaf(leaf: NavLeaf) {
     navigateToLeaf(leaf);
@@ -190,6 +251,7 @@ export function App() {
       queryClient.removeQueries({ queryKey: ["instances-health-summary"] });
       setSelectedId(null);
       setLaunchMonitor(null);
+      setRoute("status");
     },
     onError: (error) => {
       notifications.show({
@@ -226,6 +288,17 @@ export function App() {
             </Title>
           </Group>
           <Group className="app-header__actions" gap="xs">
+            {canUseAdmin && (
+              <Tooltip label="Search pages (Ctrl+K)">
+                <ActionIcon
+                  aria-label="Search pages"
+                  variant="subtle"
+                  onClick={() => setPaletteOpened(true)}
+                >
+                  <Search size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
             {canUseAdmin && <ConfigGitDirtyBadge />}
             {canUseAdmin && <NodeSwitcher />}
             <Tooltip
@@ -282,30 +355,26 @@ export function App() {
 
       <AppShell.Navbar p="xs">
         <AppShell.Section grow component={ScrollArea}>
-          {navSections.map((section) => {
-            const leaves = section.items.map((leaf) => (
-              <NavLink
-                key={`${leaf.route}:${leaf.subpath ?? ""}`}
-                label={leaf.label}
-                active={isLeafActive(leaf, route, routeSubpath)}
-                onClick={() => goToLeaf(leaf)}
-              />
-            ));
-            if (!section.label) {
-              return <div key={section.id}>{leaves}</div>;
-            }
-            return (
-              <NavLink
-                key={section.id}
-                label={section.label}
-                defaultOpened
-                childrenOffset={12}
-              >
-                {leaves}
-              </NavLink>
-            );
-          })}
+          <AppNav
+            sections={mainSections}
+            route={route}
+            subpath={routeSubpath}
+            badges={navBadges}
+            onNavigate={goToLeaf}
+          />
         </AppShell.Section>
+        {footerSections.length > 0 && (
+          <AppShell.Section>
+            <Divider my="xs" />
+            <AppNav
+              sections={footerSections}
+              route={route}
+              subpath={routeSubpath}
+              badges={{}}
+              onNavigate={goToLeaf}
+            />
+          </AppShell.Section>
+        )}
       </AppShell.Navbar>
 
       <AppShell.Main>
@@ -318,6 +387,15 @@ export function App() {
               </Text>
             )}
           </div>
+
+          {canUseAdmin && (
+            <SectionTabs
+              section={currentSection}
+              route={route}
+              subpath={routeSubpath}
+              onNavigate={goToLeaf}
+            />
+          )}
 
           {isPublicRoute && <PublicStatusView />}
 
@@ -421,6 +499,14 @@ export function App() {
           {canUseAdmin && route === "prerequisites" && <PrerequisitesView />}
         </Stack>
       </AppShell.Main>
+
+      {canUseAdmin && (
+        <CommandPalette
+          opened={paletteOpened}
+          onOpenedChange={setPaletteOpened}
+          onNavigate={goToLeaf}
+        />
+      )}
 
       <InstanceFormModal
         opened={canUseAdmin && createOpened}

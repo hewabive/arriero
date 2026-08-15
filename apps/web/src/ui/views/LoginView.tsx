@@ -5,8 +5,6 @@ import {
   PasswordInput,
   Paper,
   Stack,
-  Text,
-  Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -45,15 +43,9 @@ export function LoginView() {
     <Paper withBorder p="md" radius="sm">
       <form onSubmit={form.onSubmit((values) => loginMutation.mutate(values))}>
         <Stack gap="md">
-          <div>
-            <Title order={4}>Admin login</Title>
-            <Text c="dimmed" size="sm">
-              Admin access is required for process control, logs, build and
-              configuration.
-            </Text>
-          </div>
           <Alert icon={<LockKeyhole size={16} />} color="blue">
-            Public status remains available without signing in.
+            Sign in to control processes and read logs, builds and
+            configuration. Public status stays available without signing in.
           </Alert>
           <PasswordInput
             label="Password"
