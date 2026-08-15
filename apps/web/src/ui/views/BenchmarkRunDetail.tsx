@@ -1,7 +1,13 @@
-import { isBenchmarkClassSupported } from "@arriero/core";
+import {
+  isBenchmarkClassSupported,
+  type BenchmarkTargetSnapshot,
+} from "@arriero/core";
 import {
   Alert,
   Badge,
+  Button,
+  Code,
+  Collapse,
   Group,
   Paper,
   Stack,
@@ -10,6 +16,7 @@ import {
   Title,
 } from "@mantine/core";
 import { CircleAlert } from "lucide-react";
+import { useState } from "react";
 
 import { countLabel } from "../utils/plural";
 
@@ -29,6 +36,123 @@ function fmtMs(value: number | null): string {
   return value === null ? "—" : `${value.toFixed(0)} ms`;
 }
 
+function numaLabel(numa: NonNullable<BenchmarkTargetSnapshot["numa"]>): string {
+  return numa.mode === "bind"
+    ? `bind · node ${numa.node}`
+    : `interleave · nodes ${numa.nodes.join(", ")}`;
+}
+
+function KeyValueTable({ entries }: { entries: Array<[string, string]> }) {
+  return (
+    <Table.ScrollContainer minWidth={320}>
+      <Table striped withTableBorder>
+        <Table.Tbody>
+          {entries.map(([key, value]) => (
+            <Table.Tr key={key}>
+              <Table.Td>
+                <Code>{key}</Code>
+              </Table.Td>
+              <Table.Td style={{ wordBreak: "break-all" }}>{value}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  );
+}
+
+function BenchmarkLaunchConfig({
+  snapshot,
+}: {
+  snapshot: BenchmarkTargetSnapshot;
+}) {
+  const [open, setOpen] = useState(false);
+  const argEntries = Object.entries(snapshot.args).map(
+    ([key, value]): [string, string] => [key, String(value)],
+  );
+  const envEntries = Object.entries(snapshot.env);
+  const hasContent =
+    argEntries.length > 0 ||
+    envEntries.length > 0 ||
+    snapshot.numa !== null ||
+    snapshot.rpcWorkers.length > 0 ||
+    snapshot.launchCliArgs !== null ||
+    snapshot.binaryPath !== null;
+  if (!hasContent) {
+    return null;
+  }
+  return (
+    <Stack gap={4}>
+      <Group gap="xs">
+        <Title order={4}>Launch configuration</Title>
+        <Button size="xs" variant="subtle" onClick={() => setOpen(!open)}>
+          {open ? "Hide" : "Show"}
+        </Button>
+      </Group>
+      <Collapse in={open}>
+        <Stack gap="sm">
+          {(snapshot.binaryPath !== null || snapshot.numa !== null) && (
+            <Group gap="xs" wrap="wrap">
+              {snapshot.numa !== null && (
+                <Badge variant="light" color="teal">
+                  numa {numaLabel(snapshot.numa)}
+                </Badge>
+              )}
+              {snapshot.binaryPath !== null && (
+                <Code style={{ wordBreak: "break-all" }}>
+                  {snapshot.binaryPath}
+                </Code>
+              )}
+            </Group>
+          )}
+          {argEntries.length > 0 && (
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>
+                Arguments
+              </Text>
+              <KeyValueTable entries={argEntries} />
+            </Stack>
+          )}
+          {envEntries.length > 0 && (
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>
+                Environment
+              </Text>
+              <KeyValueTable entries={envEntries} />
+            </Stack>
+          )}
+          {snapshot.rpcWorkers.length > 0 && (
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>
+                RPC workers
+              </Text>
+              <Group gap="xs" wrap="wrap">
+                {snapshot.rpcWorkers.map((worker, index) => (
+                  <Badge key={index} variant="light">
+                    {worker.nodeId
+                      ? `${worker.nodeId}:${worker.instanceName}`
+                      : worker.instanceName}
+                  </Badge>
+                ))}
+              </Group>
+            </Stack>
+          )}
+          {snapshot.launchCliArgs !== null && (
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>
+                Launch argv
+              </Text>
+              <Code block style={{ wordBreak: "break-all" }}>
+                {snapshot.launchCliArgs.join(" ")}
+              </Code>
+            </Stack>
+          )}
+        </Stack>
+      </Collapse>
+    </Stack>
+  );
+}
+
 export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
   const run = fm.selectedRun;
   if (!run) {
@@ -46,6 +170,7 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
               {run.snapshot
                 ? ` · ${run.snapshot.engineKind} · ${run.snapshot.model ?? "unknown model"}`
                 : ""}
+              {run.snapshot?.buildInfo ? ` · ${run.snapshot.buildInfo}` : ""}
               {` · ${run.scenario.mode}`}
               {run.scenario.repetitions > 1
                 ? ` · ${run.scenario.repetitions} waves`
@@ -201,6 +326,8 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
             </Table.ScrollContainer>
           </Stack>
         )}
+
+        {run.snapshot && <BenchmarkLaunchConfig snapshot={run.snapshot} />}
       </Stack>
     </Paper>
   );
