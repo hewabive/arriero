@@ -15,7 +15,10 @@ import { logger } from "../logger.js";
 import { runtimeEndpointInstance } from "../process/runtime-endpoint.js";
 import { asObject, numberOrNull } from "../proxy/json.js";
 import { newId } from "../utils/id.js";
-import { runMeasuredRequest } from "./measure-client.js";
+import {
+  CANCELED_REQUEST_ERROR,
+  runMeasuredRequest,
+} from "./measure-client.js";
 import { getBenchmarkPrompt } from "./prompts.js";
 import {
   createBenchmarkRun,
@@ -155,6 +158,22 @@ function setProgress(
 ): BenchmarkRunProgress {
   activeProgress.set(runId, progress);
   return progress;
+}
+
+function describeRequestFailures(
+  measured: readonly MeasuredRequest[],
+): { count: number; message: string } | null {
+  const failedMessages = measured.flatMap((request) =>
+    request.error !== null && request.error !== CANCELED_REQUEST_ERROR
+      ? [request.error]
+      : [],
+  );
+  if (failedMessages.length === 0) return null;
+  const distinct = [...new Set(failedMessages)];
+  return {
+    count: failedMessages.length,
+    message: `${failedMessages.length} of ${measured.length} requests failed: ${distinct.join("; ")}`,
+  };
 }
 
 async function measurePlannedRequest(input: {
@@ -349,13 +368,22 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
     });
     const result = buildBenchmarkRunResult(measured);
     const summary = summarizeBenchmarkRunResult(measured, result);
+    const failures = describeRequestFailures(measured);
+    if (failures) {
+      warnings.push(failures.message);
+    }
+    const allFailed = failures !== null && failures.count === measured.length;
     writeBenchmarkRunArtifacts(runId, events, result);
     patchBenchmarkRun(runId, {
-      status: context.signal.aborted ? "canceled" : "succeeded",
+      status: context.signal.aborted
+        ? "canceled"
+        : allFailed
+          ? "failed"
+          : "succeeded",
       finishedAt: nowIso(),
       warnings,
       summary,
-      error: null,
+      error: allFailed && !context.signal.aborted ? failures.message : null,
     });
   } catch (error) {
     const message = (error as Error).message;
@@ -425,4 +453,21 @@ export function cancelBenchmarkRun(id: string): boolean {
   }
   active.cancel();
   return true;
+}
+
+export async function waitForBenchmarkRun(
+  id: string,
+  timeoutMs: number,
+): Promise<void> {
+  const active = getActiveJob(BENCHMARK_JOB_DOMAIN);
+  if (!active || active.jobId !== id) return;
+  await new Promise<void>((resolveWait) => {
+    const timer = setTimeout(resolveWait, timeoutMs);
+    void active.completion
+      .catch(() => undefined)
+      .finally(() => {
+        clearTimeout(timer);
+        resolveWait();
+      });
+  });
 }

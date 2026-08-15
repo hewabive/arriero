@@ -2,9 +2,11 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  BenchmarkPromptMetaSchema,
   BenchmarkPromptSchema,
   type BenchmarkPrompt,
   type BenchmarkPromptCreate,
+  type BenchmarkPromptMeta,
   type BenchmarkPromptUpdate,
   type BenchmarkPromptWithSource,
 } from "@arriero/core";
@@ -92,6 +94,12 @@ export function listBenchmarkPrompts(): BenchmarkPromptWithSource[] {
     .filter((prompt) => !builtinIds.has(prompt.id))
     .map((prompt) => ({ ...prompt, source: "custom" as const }));
   return [...builtin, ...custom];
+}
+
+export function listBenchmarkPromptMetas(): BenchmarkPromptMeta[] {
+  return listBenchmarkPrompts().map((prompt) =>
+    BenchmarkPromptMetaSchema.parse(prompt),
+  );
 }
 
 export function getBenchmarkPrompt(

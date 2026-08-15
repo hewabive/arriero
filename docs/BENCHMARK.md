@@ -80,11 +80,56 @@ deliberately to measure the warm-cache regime.
 concurrency — exceeding it queues requests and distorts TTFT; unknown slot capacity; unverifiable
 capacity on non-llama engines.
 
-**In-stream errors fail their request.** An engine can accept a stream and then abort it mid-flight
-(llama.cpp `send_error`, e.g. `Context size has been exceeded.` when concurrent prompts overflow the
-shared KV cache). Those frames carry an `error` object rather than a delta, so `measure-client.ts`
-matches them explicitly and records the request as failed with the upstream message; without that
-the whole wave measured as a silent zero and the run still reported `succeeded`.
+**In-stream errors fail their request — and escalate to the run.** An engine can accept a stream
+and then abort it mid-flight (llama.cpp `send_error`, e.g. `Context size has been exceeded.` when
+concurrent prompts overflow the shared KV cache). Those frames carry an `error` object rather than
+a delta, so `measure-client.ts` matches them explicitly and records the request as failed with the
+upstream message; without that the whole wave measured as a silent zero and the run still reported
+`succeeded`. Request failures then surface on the run record: any non-canceled failed request adds
+a warning (`N of M requests failed: <deduplicated messages>`), and when **every** request failed
+the run finishes `failed` with that message as its `error` — so `status:"succeeded"` always means
+at least one measured request. Partial failures stay `succeeded` (the surviving requests are a
+valid measurement) with the loss visible in `summary.failedRequestCount` and the warning.
+
+## HTTP API
+
+Admin-gated under `/api/benchmark/*` (open by default in local dev). Responses are `{ data }` /
+`{ error }`; every shape is a core Zod schema in `packages/core/src/benchmark.ts`.
+
+- `GET /api/benchmark/prompts` — full prompt library, builtin + custom, message bodies included
+  (~100 KB with the builtin RAG prompts). `?meta=true` drops `messages` and returns
+  id/title/topic/language/prefillClass/maxTokens/source — enough to build a composition without
+  paying for prompt bodies.
+- `POST /api/benchmark/prompts`, `PUT`/`DELETE /api/benchmark/prompts/:id` — custom prompt CRUD;
+  builtin ids refuse create-duplicate/edit/delete with 409.
+- `POST /api/benchmark/runs` — start a run from a `BenchmarkScenario`. Validation is synchronous:
+  an unknown prompt or instance, an instance without an HTTP endpoint, or an already active run
+  fails the POST (400/404/409) instead of surfacing later as a failed run. Returns the created run
+  with `status:"running"`.
+- `GET /api/benchmark/runs?limit=&status=&label=` — newest-first list; `status` filters by job
+  status, `label` is an exact match (A/B groups by label).
+- `GET /api/benchmark/runs/:id` — the run record; while running it carries `progress`
+  (phase, completed/total/active requests, repetition). `?waitMs=<1..60000>` long-polls: the
+  response returns as soon as the run finishes (or at the deadline, still `running` with live
+  progress), so a client waits without a tight poll loop.
+- `GET /api/benchmark/runs/:id/result` — full per-request metrics + segments (`result.json`).
+- `GET /api/benchmark/runs/:id/events` — the raw stream-event artifact (`events.jsonl`) as JSON.
+- `POST /api/benchmark/runs/:id/cancel` (409 unless running), `DELETE /api/benchmark/runs/:id`
+  (409 while running; removes artifacts).
+
+Minimal client loop:
+
+```bash
+curl -s localhost:8787/api/benchmark/runs -X POST -H 'content-type: application/json' -d '{
+  "target": { "kind": "instance", "instanceName": "my-instance" },
+  "mode": "parallel",
+  "composition": [{ "promptId": "code-en-task-queue", "count": 2 }]
+}'
+curl -s "localhost:8787/api/benchmark/runs/<id>?waitMs=60000"
+```
+
+The answer is `summary.headline`; per-topic and phase-mix breakdowns are `summary.topics` /
+`summary.segmentClasses`, and run-level failure semantics are described under Run lifecycle.
 
 ## Prompt library
 

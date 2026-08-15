@@ -1,4 +1,5 @@
 import {
+  BackgroundJobStatusSchema,
   BenchmarkPromptCreateSchema,
   BenchmarkPromptUpdateSchema,
   BenchmarkScenarioSchema,
@@ -10,6 +11,7 @@ import { z } from "zod";
 import {
   createBenchmarkPrompt,
   deleteBenchmarkPrompt,
+  listBenchmarkPromptMetas,
   listBenchmarkPrompts,
   updateBenchmarkPrompt,
 } from "../benchmark/prompts.js";
@@ -17,16 +19,24 @@ import {
   deleteBenchmarkRun,
   getBenchmarkRun,
   listBenchmarkRuns,
+  readBenchmarkRunEvents,
   readBenchmarkRunResult,
 } from "../benchmark/repository.js";
 import {
   cancelBenchmarkRun,
   getBenchmarkRunProgress,
   startBenchmarkRun,
+  waitForBenchmarkRun,
 } from "../benchmark/runner.js";
 
 const RunListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
+  status: BackgroundJobStatusSchema.optional(),
+  label: z.string().min(1).max(120).optional(),
+});
+
+const RunGetQuerySchema = z.object({
+  waitMs: z.coerce.number().int().min(1).max(60000).optional(),
 });
 
 const CONFLICT_MESSAGE = /already active|already exists|builtin/;
@@ -46,6 +56,9 @@ function withProgress(run: BenchmarkRun): BenchmarkRun {
 
 export function registerBenchmarkRoutes(app: Hono) {
   app.get("/api/benchmark/prompts", (c) => {
+    if (c.req.query("meta") === "true") {
+      return c.json({ data: listBenchmarkPromptMetas() });
+    }
     return c.json({ data: listBenchmarkPrompts() });
   });
 
@@ -92,16 +105,16 @@ export function registerBenchmarkRoutes(app: Hono) {
   });
 
   app.get("/api/benchmark/runs", (c) => {
-    const parsed = RunListQuerySchema.safeParse({
-      ...(c.req.query("limit") !== undefined
-        ? { limit: c.req.query("limit") }
-        : {}),
-    });
+    const parsed = RunListQuerySchema.safeParse(c.req.query());
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
+    const { limit, status, label } = parsed.data;
     return c.json({
-      data: listBenchmarkRuns(parsed.data.limit).map(withProgress),
+      data: listBenchmarkRuns(limit, {
+        ...(status !== undefined ? { status } : {}),
+        ...(label !== undefined ? { label } : {}),
+      }).map(withProgress),
     });
   });
 
@@ -118,12 +131,33 @@ export function registerBenchmarkRoutes(app: Hono) {
     }
   });
 
-  app.get("/api/benchmark/runs/:id", (c) => {
-    const run = getBenchmarkRun(c.req.param("id"));
+  app.get("/api/benchmark/runs/:id", async (c) => {
+    const parsed = RunGetQuerySchema.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    const id = c.req.param("id");
+    let run = getBenchmarkRun(id);
     if (!run) {
       return c.json({ error: "benchmark run not found" }, 404);
     }
+    if (parsed.data.waitMs !== undefined && run.status === "running") {
+      await waitForBenchmarkRun(id, parsed.data.waitMs);
+      run = getBenchmarkRun(id) ?? run;
+    }
     return c.json({ data: withProgress(run) });
+  });
+
+  app.get("/api/benchmark/runs/:id/events", (c) => {
+    const id = c.req.param("id");
+    if (!getBenchmarkRun(id)) {
+      return c.json({ error: "benchmark run not found" }, 404);
+    }
+    const events = readBenchmarkRunEvents(id);
+    if (!events) {
+      return c.json({ error: "benchmark run events are not available" }, 404);
+    }
+    return c.json({ data: events });
   });
 
   app.get("/api/benchmark/runs/:id/result", (c) => {

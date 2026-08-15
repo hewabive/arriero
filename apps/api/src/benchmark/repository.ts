@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve, sep } from "node:path";
 
@@ -7,6 +7,7 @@ import {
   BenchmarkRunResultSchema,
   BenchmarkScenarioSchema,
   BenchmarkRunSummarySchema,
+  BenchmarkStreamEventSchema,
   BenchmarkTargetSnapshotSchema,
   type BackgroundJobStatus,
   type BenchmarkRun,
@@ -183,10 +184,28 @@ export function getBenchmarkRun(id: string): BenchmarkRun | null {
   return row ? fromRow(row) : null;
 }
 
-export function listBenchmarkRuns(limit: number): BenchmarkRun[] {
+export type BenchmarkRunListFilter = {
+  status?: BackgroundJobStatus;
+  label?: string;
+};
+
+export function listBenchmarkRuns(
+  limit: number,
+  filter: BenchmarkRunListFilter = {},
+): BenchmarkRun[] {
   const rows = db
     .select()
     .from(benchmarkRuns)
+    .where(
+      and(
+        ...(filter.status !== undefined
+          ? [eq(benchmarkRuns.status, filter.status)]
+          : []),
+        ...(filter.label !== undefined
+          ? [eq(benchmarkRuns.label, filter.label)]
+          : []),
+      ),
+    )
     .orderBy(desc(benchmarkRuns.createdAt))
     .limit(limit)
     .all();
@@ -238,6 +257,36 @@ export function writeBenchmarkRunArtifacts(
     resolve(dir, "result.json"),
     `${JSON.stringify(result, null, 2)}\n`,
   );
+}
+
+export function readBenchmarkRunEvents(
+  id: string,
+): BenchmarkStreamEvent[] | null {
+  const dir = benchmarkRunArtifactsDir(id);
+  if (!dir) return null;
+  const path = resolve(dir, "events.jsonl");
+  if (!existsSync(path)) return null;
+  try {
+    const lines = readFileSync(path, "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0);
+    const parsed = z
+      .array(BenchmarkStreamEventSchema)
+      .safeParse(lines.map((line) => JSON.parse(line) as unknown));
+    if (parsed.success) {
+      return parsed.data;
+    }
+    logger.warn(
+      { runId: id, issues: parsed.error.issues },
+      "invalid benchmark run events artifact",
+    );
+  } catch (error) {
+    logger.warn(
+      { runId: id, error: (error as Error).message },
+      "unreadable benchmark run events artifact",
+    );
+  }
+  return null;
 }
 
 export function readBenchmarkRunResult(id: string): BenchmarkRunResult | null {

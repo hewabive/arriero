@@ -48,6 +48,19 @@ test("prompt CRUD over http", async () => {
   );
   assert.equal(entry?.source, "custom");
 
+  const meta = await app.request("/api/benchmark/prompts?meta=true");
+  assert.equal(meta.status, 200);
+  const metaBody = (await meta.json()) as {
+    data: Array<Record<string, unknown>>;
+  };
+  const metaEntry = metaBody.data.find(
+    (prompt) => prompt.id === createdBody.data.id,
+  );
+  assert.ok(metaEntry);
+  assert.equal("messages" in metaEntry, false);
+  assert.equal(metaEntry.topic, "code");
+  assert.equal(metaEntry.maxTokens, 64);
+
   const updated = await app.request(
     `/api/benchmark/prompts/${createdBody.data.id}`,
     jsonRequest("PUT", { title: "Renamed route prompt" }),
@@ -114,10 +127,26 @@ test("run endpoints validate input and report missing entities", async () => {
 
   const list = await app.request("/api/benchmark/runs");
   assert.equal(list.status, 200);
+  assert.equal(
+    (await app.request("/api/benchmark/runs?status=succeeded&label=x")).status,
+    200,
+  );
+  assert.equal(
+    (await app.request("/api/benchmark/runs?status=bogus")).status,
+    400,
+  );
 
   assert.equal((await app.request("/api/benchmark/runs/unknown")).status, 404);
   assert.equal(
+    (await app.request("/api/benchmark/runs/unknown?waitMs=nope")).status,
+    400,
+  );
+  assert.equal(
     (await app.request("/api/benchmark/runs/unknown/result")).status,
+    404,
+  );
+  assert.equal(
+    (await app.request("/api/benchmark/runs/unknown/events")).status,
     404,
   );
   assert.equal(

@@ -20,11 +20,12 @@ import {
   writeBenchmarkRunArtifacts,
 } from "./repository.js";
 
-function scenario() {
+function scenario(overrides: Record<string, unknown> = {}) {
   return BenchmarkScenarioSchema.parse({
     target: { kind: "instance", instanceName: "bench-target" },
     mode: "parallel",
     composition: [{ promptId: "code-en-task-queue", count: 2 }],
+    ...overrides,
   });
 }
 
@@ -67,6 +68,37 @@ test("benchmark run lifecycle roundtrip", () => {
   assert.equal(deleteBenchmarkRun(id), true);
   assert.equal(getBenchmarkRun(id), null);
   assert.equal(deleteBenchmarkRun(id), false);
+});
+
+test("run list filters by status and exact label", () => {
+  const doneId = newId();
+  const runningId = newId();
+  createBenchmarkRun({
+    id: doneId,
+    scenario: scenario({ label: "filter-done" }),
+  });
+  createBenchmarkRun({
+    id: runningId,
+    scenario: scenario({ label: "filter-running" }),
+  });
+  patchBenchmarkRun(doneId, {
+    status: "succeeded",
+    finishedAt: new Date().toISOString(),
+  });
+
+  const succeeded = listBenchmarkRuns(50, { status: "succeeded" });
+  assert.ok(succeeded.some((run) => run.id === doneId));
+  assert.ok(!succeeded.some((run) => run.id === runningId));
+
+  const byLabel = listBenchmarkRuns(50, { label: "filter-running" });
+  assert.deepEqual(
+    byLabel.map((run) => run.id),
+    [runningId],
+  );
+  assert.equal(listBenchmarkRuns(50, { label: "filter-run" }).length, 0);
+
+  deleteBenchmarkRun(doneId);
+  deleteBenchmarkRun(runningId);
 });
 
 test("artifacts roundtrip and cleanup on delete", () => {

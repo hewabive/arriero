@@ -30,6 +30,8 @@ export type MeasuredRequestInput = {
 
 const ERROR_BODY_LIMIT = 300;
 
+export const CANCELED_REQUEST_ERROR = "canceled";
+
 function streamErrorMessage(value: unknown): string | null {
   const record = asObject(value);
   if (!record) return null;
@@ -118,7 +120,9 @@ export async function runMeasuredRequest(
       });
     }
   } catch (cause) {
-    error = input.signal?.aborted ? "canceled" : (cause as Error).message;
+    error = input.signal?.aborted
+      ? CANCELED_REQUEST_ERROR
+      : (cause as Error).message;
   }
 
   if (error === null && malformedFrames > 0) {

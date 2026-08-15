@@ -28,6 +28,10 @@ export const BenchmarkPromptWithSourceSchema = BenchmarkPromptSchema.extend({
   source: BenchmarkPromptSourceSchema,
 });
 
+export const BenchmarkPromptMetaSchema = BenchmarkPromptWithSourceSchema.omit({
+  messages: true,
+});
+
 export const BenchmarkPromptCreateSchema = BenchmarkPromptSchema.partial({
   id: true,
 });
@@ -220,6 +224,7 @@ export type BenchmarkPromptSource = z.infer<typeof BenchmarkPromptSourceSchema>;
 export type BenchmarkPromptWithSource = z.infer<
   typeof BenchmarkPromptWithSourceSchema
 >;
+export type BenchmarkPromptMeta = z.infer<typeof BenchmarkPromptMetaSchema>;
 export type BenchmarkPromptCreate = z.infer<typeof BenchmarkPromptCreateSchema>;
 export type BenchmarkPromptUpdate = z.infer<typeof BenchmarkPromptUpdateSchema>;
 export type BenchmarkTarget = z.infer<typeof BenchmarkTargetSchema>;

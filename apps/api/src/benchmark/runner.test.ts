@@ -9,12 +9,14 @@ import { createBenchmarkPrompt } from "./prompts.js";
 import {
   deleteBenchmarkRun,
   getBenchmarkRun,
+  readBenchmarkRunEvents,
   readBenchmarkRunResult,
 } from "./repository.js";
 import {
   BENCHMARK_JOB_DOMAIN,
   cancelBenchmarkRun,
   startBenchmarkRun,
+  waitForBenchmarkRun,
 } from "./runner.js";
 
 const INSTANCE_NAME = "bench-runner-test";
@@ -73,6 +75,34 @@ function completionFrames(): string[] {
   ];
 }
 
+function errorFrames(): string[] {
+  return [
+    'data: {"error":{"message":"Context size has been exceeded."}}\n\n',
+    "data: [DONE]\n\n",
+  ];
+}
+
+function okFetchImpl(
+  chatResponse: (call: number) => Response = () =>
+    sseResponse(completionFrames()),
+): typeof fetch {
+  let chatCalls = 0;
+  return async (input) => {
+    const url = String(input);
+    if (url.endsWith("/v1/models")) {
+      return Response.json({ data: [{ id: "test-model" }] });
+    }
+    if (url.endsWith("/props")) {
+      return Response.json({ total_slots: 4 });
+    }
+    if (url.endsWith("/v1/chat/completions")) {
+      chatCalls += 1;
+      return chatResponse(chatCalls);
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+}
+
 function scenario(overrides: Record<string, unknown> = {}) {
   return BenchmarkScenarioSchema.parse({
     target: { kind: "instance", instanceName: INSTANCE_NAME },
@@ -123,6 +153,9 @@ test("benchmark run measures a full parallel wave", async () => {
   assert.ok(
     result?.requests.every((request) => request.serverTimings?.promptMs === 10),
   );
+  const streamEvents = readBenchmarkRunEvents(run.id);
+  assert.ok(streamEvents && streamEvents.length > 0);
+  assert.ok(streamEvents.some((event) => event.kind === "done"));
 
   assert.equal(chatBodies.length, 3);
   const warmupBody = chatBodies[0];
@@ -174,9 +207,60 @@ test("benchmark run cancels in-flight requests", async () => {
 
   const finished = getBenchmarkRun(run.id);
   assert.equal(finished?.status, "canceled");
+  assert.deepEqual(finished?.warnings, []);
   const result = readBenchmarkRunResult(run.id);
   assert.equal(result?.requests.length, 2);
   assert.ok(result?.requests.every((request) => request.error === "canceled"));
+  deleteBenchmarkRun(run.id);
+});
+
+test("benchmark run fails when every request fails", async () => {
+  prepareFixtures();
+  const fetchImpl = okFetchImpl(() => sseResponse(errorFrames()));
+
+  const run = startBenchmarkRun(scenario({ warmup: false }), { fetchImpl });
+  await awaitCompletion();
+
+  const finished = getBenchmarkRun(run.id);
+  assert.equal(finished?.status, "failed");
+  assert.match(finished?.error ?? "", /2 of 2 requests failed/);
+  assert.match(finished?.error ?? "", /Context size has been exceeded/);
+  assert.equal(finished?.summary?.failedRequestCount, 2);
+  assert.deepEqual(finished?.warnings, [finished?.error]);
+  deleteBenchmarkRun(run.id);
+});
+
+test("partial request failures keep the run succeeded with a warning", async () => {
+  prepareFixtures();
+  const fetchImpl = okFetchImpl((call) =>
+    sseResponse(call === 1 ? errorFrames() : completionFrames()),
+  );
+
+  const run = startBenchmarkRun(scenario({ warmup: false }), { fetchImpl });
+  await awaitCompletion();
+
+  const finished = getBenchmarkRun(run.id);
+  assert.equal(finished?.status, "succeeded");
+  assert.equal(finished?.error, null);
+  assert.equal(finished?.summary?.failedRequestCount, 1);
+  assert.ok(
+    finished?.warnings.some((warning) =>
+      /1 of 2 requests failed: upstream stream error: Context size has been exceeded\./.test(
+        warning,
+      ),
+    ),
+  );
+  deleteBenchmarkRun(run.id);
+});
+
+test("waitForBenchmarkRun resolves when the run completes", async () => {
+  prepareFixtures();
+  const run = startBenchmarkRun(scenario({ warmup: false }), {
+    fetchImpl: okFetchImpl(),
+  });
+  await waitForBenchmarkRun(run.id, 10_000);
+  assert.notEqual(getBenchmarkRun(run.id)?.status, "running");
+  await awaitCompletion();
   deleteBenchmarkRun(run.id);
 });
 
