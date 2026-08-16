@@ -5,6 +5,7 @@ import { ProxyDashboardView } from "./ProxyView";
 import { ProxyModelsView } from "./ProxyModelsView";
 import { ProxyPipelinesView } from "./ProxyPipelinesView";
 import { ProxyTargetsView } from "./ProxyTargetsView";
+import { ProxyTopologyView } from "./ProxyTopologyView";
 import { ProxyTracesView } from "./ProxyTracesView";
 import { ResourcesView } from "./ResourcesView";
 
@@ -19,6 +20,10 @@ export function ProxySection() {
 
   if (head === "traces") {
     return <ProxyTracesView />;
+  }
+
+  if (head === "topology") {
+    return <ProxyTopologyView />;
   }
 
   if (head === "models") {

@@ -88,8 +88,8 @@ const navSections: NavSection[] = [
         route: "proxy",
         label: "Overview",
         title: "API proxy",
-        description: "Live proxy health: topology, scheduler plans, stats",
-        keywords: ["scheduler", "topology", "stats"],
+        description: "Live proxy health: loaded targets and request stats",
+        keywords: ["stats", "load", "runtime", "activity"],
       },
       {
         route: "proxy",
@@ -99,6 +99,15 @@ const navSections: NavSection[] = [
         description:
           "Browse, filter and inspect the persisted proxy request history",
         keywords: ["traces", "history", "errors"],
+      },
+      {
+        route: "proxy",
+        subpath: "topology",
+        label: "Topology",
+        title: "Routing topology",
+        description:
+          "What each published model reaches and a dry-run of the scheduler plan",
+        keywords: ["topology", "scheduler", "plan", "routes", "plan check"],
       },
       {
         route: "proxy",
