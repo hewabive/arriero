@@ -3,7 +3,7 @@ schema: 1
 engine: vllm
 primaryName: "--enable-log-outputs"
 title: "--enable-log-outputs"
-summary: Пишет сгенерированный моделью текст в лог на уровне INFO. Требует --enable-log-requests и является самым прямым способом положить содержимое ответов на диск.
+summary: Пишет сгенерированный моделью текст и finish reason в лог на уровне INFO (идентификаторы токенов — отдельной строкой на DEBUG). Требует --enable-log-requests и является самым прямым способом положить содержимое ответов на диск.
 group: Frontend
 related:
   - --enable-log-requests
@@ -16,7 +16,7 @@ related:
 
 ## Кратко
 
-Флаг включает вызовы `RequestLogger.log_outputs(...)` в обслуживающих классах: в лог уходит текст генерации, идентификаторы токенов и причина завершения. Пишется это на уровне **INFO**, то есть без каких-либо дополнительных настроек логирования.
+Флаг включает вызовы `RequestLogger.log_outputs(...)` в обслуживающих классах. Текст генерации и причина завершения пишутся на уровне **INFO**, то есть без каких-либо дополнительных настроек логирования; идентификаторы сгенерированных токенов пишутся отдельной строкой уровня **DEBUG** и без `VLLM_LOGGING_LEVEL=DEBUG` в лог не попадают.
 
 Аргумент нельзя задать в одиночку: `validate_parsed_serve_args` завершает старт с `TypeError: Error: --enable-log-outputs requires --enable-log-requests`.
 
@@ -25,9 +25,9 @@ related:
 ## Оригинальная справка
 
 ```text
-If set to True, log model outputs (generations).
-Requires `--enable-log-requests`. As with `--enable-log-requests`,
-information is only logged at INFO level at maximum.
+If set to True, log model outputs (generations). Requires
+`--enable-log-requests`. Output text and finish reasons are logged at INFO,
+while output token IDs are logged at DEBUG.
 ```
 
 ## Паспорт аргумента
@@ -49,7 +49,7 @@ information is only logged at INFO level at maximum.
 2. **Потоковые дельты** — строка на каждую дельту, дополнительно управляется `--enable-log-deltas`. В строку попадает не только контент, но и содержимое рассуждений (`[reasoning: ...]`) и аргументы вызовов инструментов (`[tool_calls: ...]`).
 3. **Итог потокового ответа** — собранный полный текст с `finish_reason: streaming_complete`; печатается независимо от `--enable-log-deltas`.
 
-Формат строки: `Generated response <request_id>[ (streaming delta)]: output: <repr>, output_token_ids: [...], finish_reason: ...`.
+Каждая точка дает до двух строк лога. Основная, на INFO: `Generated response <request_id>[ (streaming delta)| (streaming complete)]: output: <repr>, finish_reason: ...`. Дополнительная, только при включенном DEBUG: `Generated response <request_id>... details: output_token_ids: [...]` — идентификаторы токенов из основной строки убраны, `--max-log-len` обрезает и текст, и этот список.
 
 Отдельно стоит различать этот флаг и переменную окружения `VLLM_DEBUG_LOG_API_SERVER_RESPONSE`: она включает middleware `log_response`, которое пишет тело HTTP-ответа целиком, и при старте сама предупреждает `CAUTION: Enabling log response in the API Server. This can include sensitive information and should be avoided in production.`
 
@@ -83,6 +83,7 @@ information is only logged at INFO level at maximum.
 - **Симптом:** файл лога растет на сотни мегабайт за час. **Причина:** потоковые дельты. **Лечение:** `--no-enable-log-deltas` и `--max-log-len`.
 - **Симптом (arriero):** инстанс здоров, но интерфейс показывает состояние `degraded` и «ошибки в логе». **Причина:** разбор лога vLLM в arriero считает ошибкой любую строку со словами `ERROR`, `FATAL`, `Exception` или `Traceback`, а при включенном логировании ответов такие слова легко приходят из самого текста генерации (типичный случай — модель пишет код или разбирает трассировку). **Лечение:** выключить `--enable-log-outputs` на управляемом инстансе.
 - **Симптом:** ответы в логе есть, промптов нет. **Причина:** так и задумано, `log_inputs` пишет на DEBUG. **Лечение:** `VLLM_LOGGING_LEVEL=DEBUG`, если промпты действительно нужны.
+- **Симптом:** в строках `Generated response ...` нет `output_token_ids`, хотя раньше были. **Причина:** идентификаторы токенов перенесены в отдельную DEBUG-строку. **Лечение:** `VLLM_LOGGING_LEVEL=DEBUG`, если они нужны.
 
 ## Примеры
 
@@ -102,4 +103,5 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --enable-log-requests --enable-log-
 - `vllm/vllm/entrypoints/openai/responses/serving.py`
 - `vllm/vllm/entrypoints/serve/utils/request_logger.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
+- коммит checkout'а `152c913a63` «[Frontend] Log output token IDs at DEBUG level (#52098)» — вынес идентификаторы токенов из INFO-строки в отдельную DEBUG-строку
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

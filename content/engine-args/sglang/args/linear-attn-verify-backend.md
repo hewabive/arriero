@@ -33,7 +33,7 @@ Override the kernel backend for linear attention speculative target-verify. If n
 - Флаги: `--linear-attn-verify-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `nv_cutedsl` — это общий список linear-attn backend'ов **плюс** `nv_cutedsl`, который допустим только здесь. Фактически KDA-диспетчер принимает `triton`, `nv_cutedsl` и `flashinfer`
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `nv_cutedsl` — это общий список linear-attn backend'ов **плюс** `nv_cutedsl`, который допустим только здесь. Фактически KDA-диспетчер принимает `triton`, `nv_cutedsl` и `flashinfer`; `helion`, попавший в список вместе с остальными фазами, verify-ядра не имеет и отвергается
 - Значение по умолчанию: `null` — следует за decode: `flashinfer`, если decode `flashinfer`, иначе `triton`
 - Эффективное значение: подстановка выполняется в `initialize_linear_attn_config`; `_handle_linear_attn_backend` дополнительно проверяет разрешенное значение на совместимость с типом состояния
 - Где объявлен: `ServerArgs.linear_attn_verify_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -70,7 +70,7 @@ Override the kernel backend for linear attention speculative target-verify. If n
 
 - Значение вне списка отвергает argparse. Список здесь на один элемент длиннее, чем у остальных linear-attn флагов.
 - Не задан — следование за decode; это осмысленный дефолт, менять его стоит только осознанно.
-- `flashkda`, `nvidia_kda`, `ptx_kda`, `cutedsl` формально принимаются argparse, но KDA-диспетчер их отвергает: у них нет verify-ядра.
+- `flashkda`, `nvidia_kda`, `ptx_kda`, `cutedsl`, `helion` формально принимаются argparse, но KDA-диспетчер их отвергает: у них нет verify-ядра. Для Helion это осознанно: при `--linear-attn-decode-backend helion` сверка по умолчанию уходит на эталонное Triton-ядро (резолюция «decode не flashinfer → verify triton»).
 - Без спекулятивного декодирования значение не используется ни в одной семье.
 
 ## Когда использовать
@@ -101,7 +101,7 @@ Override the kernel backend for linear attention speculative target-verify. If n
 
 ## Типовые проблемы и диагностика
 
-- `ValueError: Unsupported KDA verify backend: LinearAttnKernelBackend.CUTEDSL. KDA verify supports 'triton', 'nv_cutedsl', or 'flashinfer'.`
+- `ValueError: Unsupported KDA verify backend: LinearAttnKernelBackend.CUTEDSL. KDA verify supports 'triton', 'nv_cutedsl', or 'flashinfer'.` — та же ошибка встречает и `helion`: verify-роли у него нет, несмотря на присутствие в списке argparse.
 - `ValueError: --linear-attn-verify-backend flashinfer on SM100+ requires --mamba-ssm-dtype bfloat16, got 'float32'` — в том числе когда `flashinfer` унаследован от decode.
 - `NotImplementedError: --linear-attn-verify-backend custom: no custom KDA verify kernel is registered yet.` — значение добавлено внешним пакетом, но ядра под него нет.
 - `ValueError: --enable-linear-replayssm-spec with SGLANG_RAGGED_VERIFY_MODE=… requires the KDA fold-every-commit family (DSPARK/DFLASH) and a ring-writing verify kernel (--linear-attn-verify-backend triton or nv_cutedsl) …`
@@ -125,3 +125,4 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`
 - `sglang/python/sglang/srt/speculative/ragged_verify.py`
+- upstream PR: sgl-project/sglang#32593 ([Kernel] Enable Helion backend for Kimi Delta-Attention)

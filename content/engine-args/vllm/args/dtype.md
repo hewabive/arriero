@@ -11,7 +11,6 @@ related:
   - --max-model-len
   - --gpu-memory-utilization
   - --hf-overrides
-  - --override-attention-dtype
 ---
 
 # --dtype
@@ -99,7 +98,6 @@ Data type for model weights and activations:
 - `--gpu-memory-utilization`: бюджет фиксирован, а `--dtype` меняет, сколько от него съедят веса и активации; всё остальное уходит в KV-cache.
 - `--max-model-len`, `--max-num-seqs`: спрос на KV-cache, чья цена за токен зависит от типа.
 - `--hf-overrides`: единственный способ управлять `head_dtype`.
-- `--override-attention-dtype`: отдельный ROCm-специфичный переопределитель; на не-ROCm платформе выдаёт предупреждение «override-attention-dtype is set but not using ROCm platform».
 
 ## Типовые проблемы и диагностика
 

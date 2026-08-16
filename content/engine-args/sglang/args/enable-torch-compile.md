@@ -17,7 +17,6 @@ related:
   - --cuda-graph-tc-compiler
   - --device
   - --speculative-algorithm
-  - --torchao-config
 ---
 
 # --enable-torch-compile
@@ -116,7 +115,6 @@ torch.compile(
 - `--cuda-graph-bs-decode` / `--cuda-graph-max-bs-decode`: определяют исходный список форм, из которого выбирается `compile_bs`.
 - `--cuda-graph-backend-prefill` / `--cuda-graph-tc-compiler`: путь `tc_piecewise` отключается этим флагом, если backend prefill не задан явно.
 - `--speculative-algorithm`: EAGLE-draft-runner явно обнуляет свой `compile_bs`, то есть компилируется target-модель, а не draft.
-- `--torchao-config`: другой экспериментальный путь оптимизации; сочетание с `torch.compile` не проверяется движком.
 - `--device cpu`: флаг обязателен для CPU-графа.
 
 ## Типовые проблемы и диагностика

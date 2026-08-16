@@ -13,7 +13,6 @@ related:
   - --disable-cascade-attn
   - --disable-hybrid-kv-cache-manager
   - --block-size
-  - --override-attention-dtype
 ---
 
 # --attention-config
@@ -94,7 +93,6 @@ Attention configuration.
 - `--disable-cascade-attn`, `--disable-hybrid-kv-cache-manager`: соседние переключатели того же тракта, живут вне этого конфига.
 - `--compilation-config`: захват CUDA graphs зависит от того, какие операции backend помечает несовместимыми с графами.
 - `--kernel-config`: выбор MoE/linear-ядер; на attention не влияет, но вместе они определяют, какие fusion-проходы включатся.
-- `--override-attention-dtype`: отдельный флаг, меняющий dtype вычислений внимания.
 
 ## Типовые проблемы и диагностика
 

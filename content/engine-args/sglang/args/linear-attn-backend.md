@@ -29,7 +29,7 @@ related:
 ## Оригинальная справка
 
 ```text
-The default kernel backend for linear attention (GDN/KDA). Can be overridden per-mode by --linear-attn-decode-backend and --linear-attn-prefill-backend.
+The default kernel backend for linear attention (GDN/KDA). Can be overridden per-mode by --linear-attn-decode-backend and --linear-attn-prefill-backend. The Helion backend is KDA-only.
 ```
 
 ## Паспорт аргумента
@@ -37,9 +37,9 @@ The default kernel backend for linear attention (GDN/KDA). Can be overridden per
 - Флаги: `--linear-attn-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda` (константа `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`; out-of-tree пакеты могут расширить список через `add_linear_attn_kernel_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки). Не всякое значение применимо к обеим семьям ядер — см. ниже
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion` (константа `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`; out-of-tree пакеты могут расширить список через `add_linear_attn_kernel_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки). Не всякое значение применимо к обеим семьям ядер — см. ниже
 - Значение по умолчанию: `triton`
-- Эффективное значение: само значение не переписывается, но производные могут: `--linear-attn-decode-backend` автоматически становится `flashinfer` на SM100+ при явном `--mamba-ssm-dtype bfloat16`, а унаследованный из базы `flashkda` в decode заменяется на `triton` с записью в лог
+- Эффективное значение: само значение не переписывается, но производные могут: `--linear-attn-decode-backend` автоматически становится `flashinfer` на SM100+ при явном `--mamba-ssm-dtype bfloat16` (кроме базы `helion` — она автоподстановку отключает), а унаследованный из базы `flashkda` в decode заменяется на `triton` с записью в лог
 - Где объявлен: `ServerArgs.linear_attn_backend`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend`) → создание backend'а внимания (`attention_registry.py`, `initialize_linear_attn_config`) → каждый forward линейных слоев
@@ -56,8 +56,8 @@ verify  = linear_attn_verify_backend  or (decode if decode == "flashinfer" else 
 
 Дальше конкретный диспетчер собирает ядра. Наборы допустимых значений у двух семей разные:
 
-- **GDN** (`GDNKernelDispatcher`): decode — `triton`, `cutedsl`, `flashinfer`; prefill — `triton`, `cutedsl`, `flashinfer`. Все остальное дает `ValueError: Unsupported GDN decode backend: …` / `Unsupported GDN prefill backend: …`. Verify-ядро GDN **не** читает `--linear-attn-verify-backend`: оно берется как FlashInfer-ядро, если оно уже создано для decode или prefill и умеет target-verify, иначе Triton.
-- **KDA** (`KDAKernelDispatcher`): decode — `triton`, `cutedsl`, `flashinfer`; prefill — `triton`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`; verify — `triton`, `nv_cutedsl`, `flashinfer`.
+- **GDN** (`GDNKernelDispatcher`): decode — `triton`, `cutedsl`, `flashinfer`; prefill — `triton`, `cutedsl`, `flashinfer`. `helion` отвергается именной ошибкой `The Helion linear-attention backend supports KDA only, not GDN.`, все остальное дает `ValueError: Unsupported GDN decode backend: …` / `Unsupported GDN prefill backend: …`. Verify-ядро GDN **не** читает `--linear-attn-verify-backend`: оно берется как FlashInfer-ядро, если оно уже создано для decode или prefill и умеет target-verify, иначе Triton.
+- **KDA** (`KDAKernelDispatcher`): decode — `triton`, `helion`, `cutedsl`, `flashinfer`; prefill — `triton`, `helion`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`; verify — `triton`, `nv_cutedsl`, `flashinfer` (не `helion`: при verify-роли `helion` диспетчер падает с `Unsupported KDA verify backend`). Helion-ядро требует CUDA и пакет `helion` (`pip install helion==1.4.0`, иначе `ImportError` при создании backend'а); его generic-decode путь делегирует Triton, собственные у него packed decode, ReplaySSM-decode и prefill.
 
 Несколько backend'ов деградируют к Triton с записью в лог, а не падают: `cutedsl` prefill вне SM100, `nvidia_kda` вне SM100, `ptx_kda` вне SM103 (GB300).
 
@@ -66,10 +66,11 @@ verify  = linear_attn_verify_backend  or (decode if decode == "flashinfer" else 
 ## Значения и формат
 
 - Значение вне списка отвергает argparse.
-- `triton` — единственное значение, работающее на любой карте и в обеих семьях; оно же требуется для стратегии `extra_buffer` и для `--enable-linear-replayssm`.
+- `triton` — единственное значение, работающее на любой карте и в обеих семьях; оно же требуется для стратегии `extra_buffer`, а `--enable-linear-replayssm` принимает в decode `triton` либо `helion` (KDA).
 - `flashinfer` в роли decode на SM100+ требует `--mamba-ssm-dtype bfloat16`, в роли prefill на SM100+ — CUDA 13+.
 - `flashkda` — prefill-only ядро KDA. Заданное как база, оно применится к prefill, а decode тихо (с info-строкой) откатится на `triton`.
 - `nvidia_kda` и `ptx_kda` — только prefill KDA, и только на SM100/SM103 соответственно; иначе Triton.
+- `helion` — только KDA (Kimi Linear, Kimi K3): работает в decode и prefill, для verify недопустим; требует CUDA и установленный пакет `helion`. База `helion` дополнительно отключает автоподстановку FlashInfer-decode на SM100+.
 - `nv_cutedsl` в этом списке нет — он допустим только для `--linear-attn-verify-backend`.
 - На модели без линейного внимания значение принимается и не используется.
 
@@ -78,7 +79,7 @@ verify  = linear_attn_verify_backend  or (decode if decode == "flashinfer" else 
 - Оставить `triton`, если вы не разбирались с деталями: это единственная комбинация, гарантированно совместимая с `extra_buffer`, overlap-планировщиком и ReplaySSM.
 - Задавать явно, когда вы воспроизводите чужой бенчмарк или подбираете ядро под конкретную карту, и при этом контролируете все три фазы отдельными флагами.
 - Не менять базу «одним движением», если вас интересует только decode: используйте `--linear-attn-decode-backend`, иначе смена базы утянет за собой и prefill, и стратегию кеша.
-- Не задавать `flashkda`/`nvidia_kda`/`ptx_kda` базой на GDN-модели: диспетчер GDN отвергает эти значения жесткой ошибкой.
+- Не задавать `flashkda`/`nvidia_kda`/`ptx_kda`/`helion` базой на GDN-модели: диспетчер GDN отвергает эти значения жесткой ошибкой.
 
 ## Влияние на производительность и память
 
@@ -94,14 +95,15 @@ verify  = linear_attn_verify_backend  or (decode if decode == "flashinfer" else 
 - `--mamba-radix-cache-strategy`: `extra_buffer` требует базу `triton`; иначе `auto` выбирает `no_buffer` и выключает overlap.
 - `--disable-overlap-schedule`: следствие предыдущего пункта.
 - `--mamba-ssm-dtype`: `bfloat16` обязателен для FlashInfer decode/verify на SM100+, `float32` — тип по умолчанию.
-- `--enable-linear-replayssm`: требует Triton именно в decode.
-- `--enable-page-major-kv-layout`: сужает допустимые backend'ы до `triton`/`flashinfer` в decode и `triton`/`flashkda` в prefill (плюс `cutedsl` для MLA-гибридов вроде Kimi K3).
+- `--enable-linear-replayssm`: требует в decode `triton` либо `helion` (последний — только KDA).
+- `--enable-page-major-kv-layout`: сужает допустимые backend'ы до `triton`/`flashinfer` в decode и `triton`/`flashkda` в prefill (плюс `cutedsl` и `helion` для MLA-гибридов вроде Kimi K3).
 - `--attention-backend`: полноконтекстные слои той же гибридной модели; на Blackwell для GDN-моделей допустимы только `triton`, `trtllm_mha` и `fa4`/`flashinfer` — проверяется ассертом при создании backend'а.
 - `--mamba-backend`: аналог этого аргумента для mamba2-семейства, области не пересекаются.
 
 ## Типовые проблемы и диагностика
 
-- `ValueError: Unsupported GDN decode backend: LinearAttnKernelBackend.FLASHKDA` — KDA-ядро задано на GDN-модели.
+- `ValueError: Unsupported GDN decode backend: LinearAttnKernelBackend.FLASHKDA` — KDA-ядро задано на GDN-модели; для `helion` то же нарушение печатает `The Helion linear-attention backend supports KDA only, not GDN.`
+- `ImportError: The Helion package is required when a KDA backend is set to Helion. Install it with: pip install helion==1.4.0` — база `helion` без установленного пакета.
 - `ValueError: --linear-attn-decode-backend flashinfer on SM100+ requires --mamba-ssm-dtype bfloat16, got None` — база `flashinfer` унаследовалась в decode.
 - `ValueError: --linear-attn-prefill-backend flashinfer on SM100+ requires CUDA 13+, got CUDA 12.8`
 - `AssertionError: Only {'triton', 'trtllm_mha', 'fa4'} backends are supported on Blackwell GPUs for hybrid GDN models.` — это уже про `--attention-backend`, но всплывает в том же месте инициализации.
@@ -124,5 +126,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 - `sglang/python/sglang/srt/layers/attention/linear/utils.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`
+- `sglang/python/sglang/srt/layers/attention/linear/kernels/kda_helion.py`
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- upstream PR: sgl-project/sglang#32593 ([Kernel] Enable Helion backend for Kimi Delta-Attention)

@@ -59,6 +59,23 @@
   },
   {
    "flags": [
+    "--allowed-media-domains"
+   ],
+   "group": "mm",
+   "help": "Restrict client-supplied HTTP(S) image, video, and audio URLs to these exact hostnames. Redirect destinations are checked against the same allowlist. When unset, remote media from any domain is allowed.",
+   "choices": null,
+   "type": "list",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "dataclasses.field(default_factory=list)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.allowed_media_domains"
+  },
+  {
+   "flags": [
     "--api-key"
    ],
    "group": "serving",
@@ -2544,7 +2561,7 @@
     "--enable-linear-replayssm"
    ],
    "group": "exec.mamba",
-   "help": "Enable the ReplaySSM buffered output-only linear-attn decode kernel. Primarily a GDN (scalar-gate) decode-bandwidth optimization (~1.2-1.5x at batch >= 64). The unified kernel also supports KDA (per-K gate) and is numerically correct, but KDA decode is SLOWER than the packed baseline (the per-K g_cache is K x larger and the reconstruction refolds the per-K decay every step), so it is not recommended for KDA models. Requires the Triton linear-attn decode backend and --mamba-radix-cache-strategy no_buffer (the default).",
+   "help": "Enable the ReplaySSM buffered output-only linear-attn decode kernel. Primarily a GDN (scalar-gate) decode-bandwidth optimization (~1.2-1.5x at batch >= 64). KDA uses its selected Triton or Helion implementation, but its per-K gate ring is larger and ReplaySSM is typically slower than packed KDA decode; benchmark before enabling it. Requires the Triton linear-attn decode backend, or Helion for KDA, and --mamba-radix-cache-strategy no_buffer (the default).",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -4363,6 +4380,23 @@
   },
   {
    "flags": [
+    "--http2-max-concurrent-streams"
+   ],
+   "group": "serving",
+   "help": "Maximum number of concurrent streams advertised on each HTTP/2 connection (1 to 2^32 - 1). Only applies with --enable-http2.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 200
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.http2_max_concurrent_streams"
+  },
+  {
+   "flags": [
     "--image-processor-backend"
    ],
    "group": "mm",
@@ -4741,14 +4775,15 @@
     "--linear-attn-backend"
    ],
    "group": "exec.mamba",
-   "help": "The default kernel backend for linear attention (GDN/KDA). Can be overridden per-mode by --linear-attn-decode-backend and --linear-attn-prefill-backend.",
+   "help": "The default kernel backend for linear attention (GDN/KDA). Can be overridden per-mode by --linear-attn-decode-backend and --linear-attn-prefill-backend. The Helion backend is KDA-only.",
    "choices": [
     "triton",
     "cutedsl",
     "flashinfer",
     "flashkda",
     "nvidia_kda",
-    "ptx_kda"
+    "ptx_kda",
+    "helion"
    ],
    "type": "str",
    "optional": false,
@@ -4772,7 +4807,8 @@
     "flashinfer",
     "flashkda",
     "nvidia_kda",
-    "ptx_kda"
+    "ptx_kda",
+    "helion"
    ],
    "type": "str",
    "optional": true,
@@ -4796,7 +4832,8 @@
     "flashinfer",
     "flashkda",
     "nvidia_kda",
-    "ptx_kda"
+    "ptx_kda",
+    "helion"
    ],
    "type": "str",
    "optional": true,
@@ -4821,6 +4858,7 @@
     "flashkda",
     "nvidia_kda",
     "ptx_kda",
+    "helion",
     "nv_cutedsl"
    ],
    "type": "str",
@@ -5505,6 +5543,23 @@
   },
   {
    "flags": [
+    "--media-url-max-file-size-mb"
+   ],
+   "group": "mm",
+   "help": "Maximum size in MiB for one client-supplied remote media download. The limit is enforced while streaming; set to 0 to disable it.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 64
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.media_url_max_file_size_mb"
+  },
+  {
+   "flags": [
     "--mem-fraction-static"
    ],
    "group": "schedule",
@@ -5654,6 +5709,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.mm_io_worker_num"
+  },
+  {
+   "flags": [
+    "--mm-preprocess-cache-size-mb"
+   ],
+   "group": "mm",
+   "help": "CPU memory budget for content-addressed multimodal preprocessing artifacts. Unset selects a model-specific default (256 MiB for Kimi-K3); 0 disables the cache. The budget is divided across tokenizer workers and does not reserve GPU memory.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.mm_preprocess_cache_size_mb"
   },
   {
    "flags": [
@@ -8109,6 +8181,26 @@
   },
   {
    "flags": [
+    "--startup-weight-load-mode"
+   ],
+   "group": "model",
+   "help": "Control startup weight loading relative to CUDA graph capture. 'serial' preserves the existing startup order; 'overlap' stages checkpoint files while CUDA graphs are captured and commits the real weights afterward.",
+   "choices": [
+    "serial",
+    "overlap"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "serial"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.startup_weight_load_mode"
+  },
+  {
+   "flags": [
     "--stream-interval"
    ],
    "group": "serving",
@@ -8367,23 +8459,6 @@
   },
   {
    "flags": [
-    "--torchao-config"
-   ],
-   "group": "exec.graph",
-   "help": "Optimize the model with torchao. Experimental feature. Current choices are: int8dq, int8wo, int4wo-<group_size>, fp8wo, fp8dq-per_tensor, fp8dq-per_row",
-   "choices": null,
-   "type": "str",
-   "optional": false,
-   "default": {
-    "kind": "literal",
-    "value": ""
-   },
-   "action": null,
-   "hidden": false,
-   "origin": "ServerArgs.torchao_config"
-  },
-  {
-   "flags": [
     "--tp-size",
     "--tensor-parallel-size"
    ],
@@ -8467,6 +8542,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.triton_attention_split_tile_size"
+  },
+  {
+   "flags": [
+    "--trust-mm-content-hashes"
+   ],
+   "group": "mm",
+   "help": "Trust caller-provided multimodal SHA-256 content hashes. This can skip reading media on a hot metadata-cache hit; only enable it when the caller guarantees that hashes identify immutable media bytes.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.trust_mm_content_hashes"
   },
   {
    "flags": [

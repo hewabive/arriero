@@ -7,7 +7,7 @@
     "vllm/entrypoints/openai/cli_args.py",
     "vllm/config"
   ],
-  "hash": "f65d9853f837a139258bc2f95ed849ec43d58e8caefacb48044a083a0cf50bda",
-  "commit": "63344913a66c76a13b4b7f20735c6b2963cfb997",
-  "updatedAt": "2026-08-13T05:46:38.426Z"
+  "hash": "3102bcc78f216da85ce545d32c6a2cb6a22a855da863277416077a0ed73705ec",
+  "commit": "4d2a68d64d9e05921ed5c4099146e768a92d71d5",
+  "updatedAt": "2026-08-16T12:07:25.772Z"
 }

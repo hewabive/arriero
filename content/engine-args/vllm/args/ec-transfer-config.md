@@ -7,6 +7,7 @@ summary: JSON-объект `ECTransferConfig` для разнесенного э
 group: VllmConfig
 related:
   - --kv-transfer-config
+  - --ec-manager-config
   - --mm-encoder-only
   - --mm-encoder-tp-mode
   - --limit-mm-per-prompt
@@ -86,7 +87,8 @@ The configurations for distributed EC cache transfer.
 
 - `--kv-transfer-config`: независимый механизм для KV, а не для эмбеддингов; в схеме E→P→D обычно используются оба.
 - `--mm-encoder-only`: отдельный режим «только энкодер» на уровне мультимодального конфига; с ролью `ec_producer` их назначения пересекаются, но это разные механизмы.
-- `--limit-mm-per-prompt`, `--disable-chunked-mm-input`, `--mm-encoder-tp-mode`: настройки самого мультимодального тракта; действуют независимо. Локальный менеджер encoder cache (`VllmConfig.ec_manager_config`) собственного CLI-флага не имеет.
+- `--limit-mm-per-prompt`, `--disable-chunked-mm-input`, `--mm-encoder-tp-mode`: настройки самого мультимодального тракта; действуют независимо.
+- `--ec-manager-config`: подмена локального менеджера encoder cache на стороне планировщика; ортогонален передаче между инстансами.
 - `--headless`: encoder-инстансу HTTP-фасад обычно не нужен.
 - `--max-num-batched-tokens`: из него выводится размер локального encoder cache — это отдельная от передачи величина.
 

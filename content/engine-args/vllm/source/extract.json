@@ -1230,6 +1230,23 @@
   },
   {
    "flags": [
+    "--ec-manager-config"
+   ],
+   "group": "VllmConfig",
+   "help": "The configurations for custom encoder cache manager.",
+   "choices": null,
+   "type": "json",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default_factory=EncoderCacheManagerConfig)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/vllm.py:VllmConfig.ec_manager_config"
+  },
+  {
+   "flags": [
     "--ec-transfer-config"
    ],
    "group": "VllmConfig",
@@ -1522,7 +1539,7 @@
     "--no-enable-log-outputs"
    ],
    "group": "Frontend",
-   "help": "If set to True, log model outputs (generations).\nRequires `--enable-log-requests`. As with `--enable-log-requests`,\ninformation is only logged at INFO level at maximum.",
+   "help": "If set to True, log model outputs (generations). Requires\n`--enable-log-requests`. Output text and finish reasons are logged at INFO,\nwhile output token IDs are logged at DEBUG.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -2625,7 +2642,7 @@
     "--linear-backend"
    ],
    "group": "KernelConfig",
-   "help": "Backend for quantized linear layer GEMM kernels. Available options:\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"cutlass\": Use CUTLASS-based kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuTe-DSL kernels (NVFP4, MXFP8)\n- \"flashinfer_trtllm\": Use FlashInfer with TensorRT-LLM kernels\n- \"flashinfer_cudnn\": Use FlashInfer with cuDNN kernels\n- \"flashinfer_b12x\": Use FlashInfer b12x CuteDSL NVFP4 GEMM (SM120+)\n- \"marlin\": Use Marlin kernels\n- \"triton\": Use Triton-based kernels\n- \"deep_gemm\": Use DeepGEMM kernels\n- \"torch\": Use PyTorch native scaled_mm kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"machete\": Use Machete kernels (mixed-precision)\n- \"fbgemm\": Use FBGEMM kernels\n- \"conch\": Use Conch mixed-precision kernels\n- \"exllama\": Use Exllama mixed-precision kernels\n- \"emulation\": Use slow dequant-to-BF16 emulation (for testing only)\n- \"xpu\": Use XPU kernels\n- \"xpu_woq\": Use XPU kernels for weight-only quantization (e.g. W8A16)",
+   "help": "Backend for quantized linear layer GEMM kernels. Available options:\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"cutlass\": Use CUTLASS-based kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuTe-DSL kernels (NVFP4, MXFP8)\n- \"flashinfer_trtllm\": Use FlashInfer with TensorRT-LLM kernels\n- \"flashinfer_cudnn\": Use FlashInfer with cuDNN kernels\n- \"flashinfer_b12x\": Use FlashInfer b12x CuteDSL NVFP4 GEMM (SM120+)\n- \"b12x\": Use native B12X FP8 and FP4 linear kernels on SM12x\n- \"marlin\": Use Marlin kernels\n- \"triton\": Use Triton-based kernels\n- \"deep_gemm\": Use DeepGEMM kernels\n- \"torch\": Use PyTorch native scaled_mm kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"machete\": Use Machete kernels (mixed-precision)\n- \"fbgemm\": Use FBGEMM kernels\n- \"conch\": Use Conch mixed-precision kernels\n- \"exllama\": Use Exllama mixed-precision kernels\n- \"emulation\": Use slow dequant-to-BF16 emulation (for testing only)\n- \"xpu\": Use XPU kernels\n- \"xpu_woq\": Use XPU kernels for weight-only quantization (e.g. W8A16)",
    "choices": [
     "auto",
     "cutlass",
@@ -2634,6 +2651,7 @@
     "flashinfer_trtllm",
     "flashinfer_cudnn",
     "flashinfer_b12x",
+    "b12x",
     "marlin",
     "humming",
     "triton",
@@ -3866,23 +3884,6 @@
   },
   {
    "flags": [
-    "--override-attention-dtype"
-   ],
-   "group": "ModelConfig",
-   "help": "Override dtype for attention",
-   "choices": null,
-   "type": "str",
-   "optional": true,
-   "default": {
-    "kind": "literal",
-    "value": null
-   },
-   "action": null,
-   "hidden": false,
-   "origin": "vllm/config/model.py:ModelConfig.override_attention_dtype"
-  },
-  {
-   "flags": [
     "--override-generation-config"
    ],
    "group": "ModelConfig",
@@ -4264,6 +4265,24 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.response_role"
+  },
+  {
+   "flags": [
+    "--return-sampling-mask",
+    "--no-return-sampling-mask"
+   ],
+   "group": "ModelConfig",
+   "help": "Whether to return the post-processing token support for each sample.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/model.py:ModelConfig.return_sampling_mask"
   },
   {
    "flags": [

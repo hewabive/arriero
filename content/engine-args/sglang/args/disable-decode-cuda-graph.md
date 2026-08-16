@@ -14,7 +14,6 @@ related:
   - --cuda-graph-bs-decode
   - --mem-fraction-static
   - --max-running-requests
-  - --torchao-config
 ---
 
 # --disable-decode-cuda-graph
@@ -59,7 +58,6 @@ Disable the decode-phase CUDA graph. Convenience for --cuda-graph-backend-decode
 
 - Захват падает с `torch.OutOfMemoryError` в строках `Capturing batches (bs=…)`, а уменьшать `--cuda-graph-max-bs-decode` уже некуда.
 - Диагностика: нужно понять, воспроизводится ли ошибка вычислений без графов. Eager-путь исполняет тот же код, но без записи и реплея.
-- `--torchao-config int8dq`: апстрим-документация по квантизации прямо рекомендует отключать CUDA graph для этого метода из-за известных проблем с захватом.
 - Быстрая проверка конфигурации инстанса, когда важен только факт «поднялось и отвечает», а не latency.
 - Не оставляйте флаг в продовом профиле ради экономии памяти: `decode.max_bs * 2` МиБ — это единицы-сотни мегабайт, а потеря скорости декодирования измеряется десятками процентов и больше на маленьких батчах.
 

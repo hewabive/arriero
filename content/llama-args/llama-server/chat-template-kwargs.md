@@ -17,6 +17,7 @@ related:
   - "--chat-template-file"
   - "--jinja"
   - "--reasoning"
+  - "--reasoning-effort"
 ---
 
 # --chat-template-kwargs
@@ -60,7 +61,7 @@ sets additional params for the json template parser, must be a valid json object
 
 ## Когда использовать
 
-- Template ожидает нестандартную переменную, например `reasoning_effort`.
+- Template ожидает нестандартную переменную. Для `reasoning_effort` есть выделенный сахар `--reasoning-effort` — оба пишут в один map, при обоих в argv выигрывает последний.
 - Нужно задать default для всех клиентов, но оставить возможность переопределить его в body запроса.
 - Вы поддерживаете кастомный Jinja template и хотите избежать fork исходников.
 
