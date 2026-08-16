@@ -433,6 +433,31 @@ export const ApiProxyStatsSnapshotSchema = z.object({
   buckets: z.array(ApiProxyStatsBucketSchema).default([]),
 });
 
+export const ApiProxyActivitySourceSchema = z.object({
+  sourceId: ApiProxyIdSchema.nullable().default(null),
+  sourceName: z.string().nullable().default(null),
+  requests: z.number().int().min(0).default(0),
+  errors: z.number().int().min(0).default(0),
+  activeRequests: z.number().int().min(0).default(0),
+  lastRequestAt: z.string().nullable().default(null),
+});
+
+export const ApiProxyActivityModelSchema = z.object({
+  modelId: z.string(),
+  requests: z.number().int().min(0).default(0),
+  errors: z.number().int().min(0).default(0),
+  activeRequests: z.number().int().min(0).default(0),
+  queuedRequests: z.number().int().min(0).default(0),
+  lastRequestAt: z.string().nullable().default(null),
+  sources: z.array(ApiProxyActivitySourceSchema).default([]),
+});
+
+export const ApiProxyActivitySnapshotSchema = z.object({
+  generatedAt: z.string(),
+  windowMinutes: z.number().int().min(1),
+  models: z.array(ApiProxyActivityModelSchema).default([]),
+});
+
 export const ApiProxyTraceFacetSchema = z.object({
   value: z.string(),
   name: z.string().nullable().default(null),
@@ -517,6 +542,8 @@ export const ApiProxyInflightToolCallSchema = z.object({
 export const ApiProxyInflightRequestSchema = z.object({
   id: z.string(),
   modelId: z.string(),
+  sourceId: ApiProxyIdSchema.nullable().default(null),
+  sourceName: z.string().nullable().default(null),
   protocol: z.enum(["openai", "anthropic"]),
   stream: z.boolean(),
   phase: ApiProxyInflightPhaseSchema,
@@ -710,6 +737,13 @@ export type ApiProxyStatsModelEntry = z.infer<
 export type ApiProxyStatsTotals = z.infer<typeof ApiProxyStatsTotalsSchema>;
 export type ApiProxyStatsBucket = z.infer<typeof ApiProxyStatsBucketSchema>;
 export type ApiProxyStatsSnapshot = z.infer<typeof ApiProxyStatsSnapshotSchema>;
+export type ApiProxyActivitySource = z.infer<
+  typeof ApiProxyActivitySourceSchema
+>;
+export type ApiProxyActivityModel = z.infer<typeof ApiProxyActivityModelSchema>;
+export type ApiProxyActivitySnapshot = z.infer<
+  typeof ApiProxyActivitySnapshotSchema
+>;
 export type ApiProxyTraceFacet = z.infer<typeof ApiProxyTraceFacetSchema>;
 export type ApiProxyTraceFacets = z.infer<typeof ApiProxyTraceFacetsSchema>;
 export type ApiProxyTraceCacheFilter = z.infer<

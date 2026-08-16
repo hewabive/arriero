@@ -12,6 +12,8 @@ type InflightEntry = {
   id: string;
   targetId: string | null;
   modelId: string;
+  sourceId: string | null;
+  sourceName: string | null;
   protocol: "openai" | "anthropic";
   stream: boolean;
   phase: ApiProxyInflightPhase;
@@ -64,6 +66,7 @@ type ApiProxyInflightRegistryOptions = {
 export type ApiProxyInflightHandle = {
   readonly id: string;
   setModel(modelId: string): void;
+  setSource(sourceId: string, sourceName: string): void;
   setTarget(targetId: string | null): void;
   setStream(stream: boolean): void;
   dispatched(): void;
@@ -116,6 +119,8 @@ function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
   return {
     id: entry.id,
     modelId: entry.modelId,
+    sourceId: entry.sourceId,
+    sourceName: entry.sourceName,
     protocol: entry.protocol,
     stream: entry.stream,
     phase: entry.phase,
@@ -159,6 +164,8 @@ export class ApiProxyInflightRegistry {
       id: newId(),
       targetId: input.targetId ?? null,
       modelId: input.modelId,
+      sourceId: null,
+      sourceName: null,
       protocol: input.protocol,
       stream: input.stream ?? false,
       phase: "queued",
@@ -191,6 +198,10 @@ export class ApiProxyInflightRegistry {
       id: entry.id,
       setModel: (modelId) => {
         entry.modelId = modelId;
+      },
+      setSource: (sourceId, sourceName) => {
+        entry.sourceId = sourceId;
+        entry.sourceName = sourceName;
       },
       setTarget: (targetId) => {
         entry.targetId = targetId;

@@ -15,6 +15,7 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -243,6 +244,46 @@ export function getApiProxyTraceFacets(): ApiProxyTraceFacets {
     errorCodes: columnFacets(proxyRequestTraces.errorCode, { skipNull: true }),
     fileKinds: fileKindFacets(),
   };
+}
+
+export type ApiProxyTraceActivityRow = {
+  modelId: string;
+  sourceId: string | null;
+  sourceName: string | null;
+  requests: number;
+  errors: number;
+  lastRequestAt: string;
+};
+
+export function aggregateApiProxyTraceActivity(
+  fromIso: string,
+): ApiProxyTraceActivityRow[] {
+  const rows = db
+    .select({
+      modelId: proxyRequestTraces.modelId,
+      sourceId: proxyRequestTraces.sourceId,
+      sourceName: sql<string | null>`max(${proxyRequestTraces.sourceName})`,
+      requests: sql<number>`count(*)`,
+      errors: sql<number>`sum(CASE WHEN ${proxyRequestTraces.ok} = 0 THEN 1 ELSE 0 END)`,
+      lastRequestAt: sql<string>`max(${proxyRequestTraces.at})`,
+    })
+    .from(proxyRequestTraces)
+    .where(
+      and(
+        gte(proxyRequestTraces.at, fromIso),
+        ne(proxyRequestTraces.modelId, ""),
+      ),
+    )
+    .groupBy(proxyRequestTraces.modelId, proxyRequestTraces.sourceId)
+    .all();
+  return rows.map((row) => ({
+    modelId: row.modelId,
+    sourceId: row.sourceId,
+    sourceName: row.sourceName,
+    requests: Number(row.requests),
+    errors: Number(row.errors ?? 0),
+    lastRequestAt: row.lastRequestAt,
+  }));
 }
 
 export function listApiProxyTracesSince(

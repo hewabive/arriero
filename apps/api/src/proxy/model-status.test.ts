@@ -62,6 +62,8 @@ function inflight(
   return {
     id: "request",
     modelId: "public",
+    sourceId: null,
+    sourceName: null,
     protocol: "openai",
     stream: true,
     phase,

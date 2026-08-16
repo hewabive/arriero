@@ -47,8 +47,9 @@ const navSections: NavSection[] = [
         route: "dashboard",
         label: "Overview",
         title: "Overview",
-        description: "At-a-glance health of every configured instance",
-        keywords: ["home", "dashboard", "health"],
+        description:
+          "Attention signals, instance issues and API activity over the last hour",
+        keywords: ["home", "dashboard", "health", "attention", "activity"],
       },
     ],
   },

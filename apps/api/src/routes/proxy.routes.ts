@@ -10,6 +10,7 @@ import {
 import type { Hono } from "hono";
 
 import { listInstances } from "../instances/repository.js";
+import { getApiProxyActivity } from "../proxy/activity.js";
 import {
   listApiEndpointCatalog,
   listRemoteInstanceEndpoints,
@@ -98,6 +99,10 @@ export function registerProxyRoutes(app: Hono) {
     return c.json({
       data: apiProxyStats.snapshot(Number.isFinite(hours) ? hours : 24),
     });
+  });
+
+  app.get("/api/proxy/activity", (c) => {
+    return c.json({ data: getApiProxyActivity() });
   });
 
   app.get("/api/proxy/traces", (c) => {

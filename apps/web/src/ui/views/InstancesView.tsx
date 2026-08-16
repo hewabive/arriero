@@ -32,6 +32,10 @@ import { InstanceActions } from "../components/InstanceActions";
 import { InstanceHealthBadge } from "../components/InstanceHealthBadge";
 import { argString } from "../components/instance-form-helpers";
 import { InstanceTypeCell } from "../components/InstanceTypeCell";
+import {
+  countInstanceStatuses,
+  type InstanceStatusCounts,
+} from "../utils/instance-status";
 import type { LaunchMonitor } from "../utils/launch";
 import { pathBaseName } from "../utils/models";
 import { countLabel } from "../utils/plural";
@@ -173,17 +177,33 @@ function bulkResultMessage(result: InstanceBulkActionResult) {
     : details;
 }
 
+function statusSummaryText(counts: InstanceStatusCounts) {
+  const parts: string[] = [];
+  if (counts.running > 0) parts.push(`${counts.running} running`);
+  if (counts.degraded > 0) parts.push(`${counts.degraded} degraded`);
+  if (counts.stale > 0) parts.push(`${counts.stale} stale`);
+  if (counts.error > 0) parts.push(`${counts.error} in error`);
+  if (counts.stopped > 0) parts.push(`${counts.stopped} stopped`);
+  return parts.join(" · ");
+}
+
 function InstancesHeader(props: {
-  instancesCount: number;
+  counts: InstanceStatusCounts;
   onCreate: () => void;
 }) {
+  const summary = statusSummaryText(props.counts);
   return (
     <Paper withBorder p="md" radius="sm">
       <Group justify="space-between" align="center" wrap="wrap">
         <Group gap="xs" wrap="wrap">
           <Badge variant="light">
-            {countLabel(props.instancesCount, "instance")}
+            {countLabel(props.counts.total, "instance")}
           </Badge>
+          {summary && (
+            <Text c="dimmed" size="sm">
+              {summary}
+            </Text>
+          )}
         </Group>
         <Button
           variant="light"
@@ -393,7 +413,10 @@ export function InstancesView(props: {
   return (
     <>
       <InstancesHeader
-        instancesCount={props.instances.length}
+        counts={countInstanceStatuses(
+          props.instances,
+          props.healthByInstanceId,
+        )}
         onCreate={props.onCreate}
       />
 

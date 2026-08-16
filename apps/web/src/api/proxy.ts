@@ -2,6 +2,7 @@ import type {
   ApiEndpointCreate,
   ApiEndpointRecord,
   ApiEndpointUpdate,
+  ApiProxyActivitySnapshot,
   ApiProxyConfig,
   ApiProxyModelCreate,
   ApiProxyModelRecord,
@@ -148,6 +149,10 @@ export async function getApiProxyStats(hours = 24) {
   return request<{ data: ApiProxyStatsSnapshot }>(
     `/api/proxy/stats?${params.toString()}`,
   );
+}
+
+export async function getApiProxyActivity() {
+  return request<{ data: ApiProxyActivitySnapshot }>("/api/proxy/activity");
 }
 
 export async function listApiProxyTraceHistory(query: ApiProxyTraceListQuery) {

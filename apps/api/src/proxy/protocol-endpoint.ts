@@ -279,6 +279,7 @@ export async function proxyProtocolEndpoint(
     if (resolution.kind === "source") {
       trace.sourceId = resolution.id;
       trace.sourceName = resolution.name;
+      inflight.setSource(resolution.id, resolution.name);
     }
     if (rejection) {
       applyTraceDiagnostic(trace, rejection);

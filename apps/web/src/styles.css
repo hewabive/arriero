@@ -96,6 +96,17 @@ code {
   cursor: pointer;
 }
 
+.dashboard-attention-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.dashboard-attention-item:hover {
+  background: var(--mantine-color-default-hover);
+}
+
 :root[data-mantine-color-scheme="dark"] .instance-card--selected {
   background: var(--mantine-color-dark-5);
 }
