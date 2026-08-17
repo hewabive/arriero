@@ -1,0 +1,209 @@
+import { z } from "zod";
+
+import { BackgroundJobStatusSchema } from "./jobs.js";
+
+const HF_REPO_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/;
+
+export const HfRepoIdSchema = z.string().regex(HF_REPO_ID_PATTERN);
+
+export const HfLfsInfoSchema = z.object({
+  oid: z.string().min(1),
+  size: z.number().int().nonnegative(),
+});
+
+export const HfTreeFileSchema = z.object({
+  path: z.string().min(1),
+  size: z.number().int().nonnegative(),
+  oid: z.string().min(1),
+  lfs: HfLfsInfoSchema.nullable(),
+});
+
+export const HfGgufVariantKindSchema = z.enum(["model", "mmproj", "other"]);
+
+export const HfGgufVariantSchema = z.object({
+  label: z.string().nullable(),
+  kind: HfGgufVariantKindSchema,
+  paths: z.array(z.string().min(1)).min(1),
+  totalBytes: z.number().int().nonnegative(),
+  splitCount: z.number().int().nullable(),
+  complete: z.boolean(),
+});
+
+export const HfRepoBrowseSchema = z.object({
+  repoId: HfRepoIdSchema,
+  requestedRevision: z.string().min(1),
+  commitSha: z.string().min(1),
+  gated: z.boolean(),
+  private: z.boolean(),
+  files: z.array(HfTreeFileSchema),
+  ggufVariants: z.array(HfGgufVariantSchema).nullable(),
+  truncated: z.boolean(),
+});
+
+export const HfTokenStatusSchema = z.object({
+  tokenConfigured: z.boolean(),
+});
+
+export const HfTokenUpdateSchema = z.object({
+  token: z.string().min(1).max(4_000).nullable(),
+});
+
+export const HfDownloadStartSchema = z.object({
+  repoId: HfRepoIdSchema,
+  revision: z.string().min(1).optional(),
+  paths: z.array(z.string().min(1)).min(1).max(2_000),
+  destDir: z.string().min(1).optional(),
+});
+
+export const HfDownloadFileStatusSchema = z.enum([
+  "pending",
+  "downloading",
+  "succeeded",
+  "skipped",
+  "failed",
+  "canceled",
+]);
+
+export const HfDownloadFileSchema = z.object({
+  path: z.string().min(1),
+  size: z.number().int().nonnegative(),
+  status: HfDownloadFileStatusSchema,
+  downloadedBytes: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+});
+
+export const HfDownloadJobSchema = z.object({
+  id: z.string().min(1),
+  repoId: HfRepoIdSchema,
+  revision: z.string().min(1),
+  destDir: z.string().min(1),
+  status: BackgroundJobStatusSchema,
+  message: z.string().nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+  cancelRequested: z.boolean(),
+  error: z.string().nullable(),
+  totalBytes: z.number().int().nonnegative(),
+  downloadedBytes: z.number().int().nonnegative(),
+  currentPath: z.string().nullable(),
+  files: z.array(HfDownloadFileSchema),
+});
+
+export const HfUpdateFileStatusSchema = z.enum([
+  "current",
+  "updated",
+  "deleted",
+]);
+
+export const HfUpdateCheckStatusSchema = z.enum([
+  "unchecked",
+  "in-sync",
+  "drift",
+  "error",
+]);
+
+export const HfUpdateCheckFileSchema = z.object({
+  path: z.string().min(1),
+  status: HfUpdateFileStatusSchema,
+});
+
+export const HfUpdateCheckSchema = z.object({
+  status: HfUpdateCheckStatusSchema,
+  checkedAt: z.string().nullable(),
+  revisionSha: z.string().nullable(),
+  error: z.string().nullable(),
+  files: z.array(HfUpdateCheckFileSchema),
+});
+
+export const HfDownloadedRepoSchema = z.object({
+  dir: z.string().min(1),
+  repoId: HfRepoIdSchema,
+  revision: z.string().min(1),
+  downloadedAt: z.string(),
+  fileCount: z.number().int().nonnegative(),
+  totalBytes: z.number().int().nonnegative(),
+  missingFiles: z.number().int().nonnegative(),
+  update: HfUpdateCheckSchema,
+});
+
+export const HfUpdateCheckRequestSchema = z.object({
+  dirs: z.array(z.string().min(1)).min(1).max(50),
+});
+
+export const HfDownloadDeleteSchema = z.object({
+  dir: z.string().min(1),
+});
+
+export const HfDestCheckSchema = z.object({
+  dir: z.string().min(1),
+  insideScanRoots: z.boolean(),
+  freeBytes: z.number().int().nonnegative().nullable(),
+});
+
+const HF_HOST_PATTERN = /^(?:www\.)?(?:huggingface\.co|hf\.co)\//i;
+
+export function parseHfRepoInput(
+  input: string,
+): { repoId: string; revision: string | null } | null {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const hasProtocol = /^https?:\/\//i.test(trimmed);
+  const withoutProtocol = trimmed.replace(/^https?:\/\//i, "");
+  const hostMatch = HF_HOST_PATTERN.test(withoutProtocol);
+  if (hasProtocol && !hostMatch) {
+    return null;
+  }
+  const path = hostMatch
+    ? withoutProtocol.replace(HF_HOST_PATTERN, "")
+    : withoutProtocol;
+  const cleaned = path.split(/[?#]/, 1)[0] ?? "";
+  const segments = cleaned.split("/").filter(Boolean);
+  const owner = segments[0];
+  const repo = segments[1];
+  if (!owner || !repo) {
+    return null;
+  }
+  if (owner === "datasets" || owner === "spaces") {
+    return null;
+  }
+  const repoId = `${owner}/${repo}`;
+  if (!HF_REPO_ID_PATTERN.test(repoId)) {
+    return null;
+  }
+  const marker = segments[2];
+  const revisionSegment =
+    marker === "tree" || marker === "blob" || marker === "resolve"
+      ? segments[3]
+      : undefined;
+  let revision: string | null = null;
+  if (revisionSegment) {
+    try {
+      revision = decodeURIComponent(revisionSegment);
+    } catch {
+      revision = revisionSegment;
+    }
+  }
+  return { repoId, revision };
+}
+
+export type HfLfsInfo = z.infer<typeof HfLfsInfoSchema>;
+export type HfTreeFile = z.infer<typeof HfTreeFileSchema>;
+export type HfGgufVariantKind = z.infer<typeof HfGgufVariantKindSchema>;
+export type HfGgufVariant = z.infer<typeof HfGgufVariantSchema>;
+export type HfRepoBrowse = z.infer<typeof HfRepoBrowseSchema>;
+export type HfTokenStatus = z.infer<typeof HfTokenStatusSchema>;
+export type HfTokenUpdate = z.infer<typeof HfTokenUpdateSchema>;
+export type HfDownloadStart = z.infer<typeof HfDownloadStartSchema>;
+export type HfDownloadFileStatus = z.infer<typeof HfDownloadFileStatusSchema>;
+export type HfDownloadFile = z.infer<typeof HfDownloadFileSchema>;
+export type HfDownloadJob = z.infer<typeof HfDownloadJobSchema>;
+export type HfUpdateFileStatus = z.infer<typeof HfUpdateFileStatusSchema>;
+export type HfUpdateCheckStatus = z.infer<typeof HfUpdateCheckStatusSchema>;
+export type HfUpdateCheckFile = z.infer<typeof HfUpdateCheckFileSchema>;
+export type HfUpdateCheck = z.infer<typeof HfUpdateCheckSchema>;
+export type HfDownloadedRepo = z.infer<typeof HfDownloadedRepoSchema>;
+export type HfUpdateCheckRequest = z.infer<typeof HfUpdateCheckRequestSchema>;
+export type HfDownloadDelete = z.infer<typeof HfDownloadDeleteSchema>;
+export type HfDestCheck = z.infer<typeof HfDestCheckSchema>;

@@ -20,3 +20,4 @@ export * from "./instances.js";
 export * from "./llama-runtime.js";
 export * from "./logs.js";
 export * from "./benchmark.js";
+export * from "./hf.js";

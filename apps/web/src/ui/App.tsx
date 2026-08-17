@@ -55,6 +55,7 @@ import { DiagnosticsView } from "./views/DiagnosticsView";
 import { EnvironmentsView } from "./views/EnvironmentsView";
 import { InstancesView } from "./views/InstancesView";
 import { LoginView } from "./views/LoginView";
+import { HfDownloadsView } from "./views/HfDownloadsView";
 import { ModelsView } from "./views/ModelsView";
 import { NodesView } from "./views/NodesView";
 import { PathCatalogView } from "./views/PathCatalogView";
@@ -487,6 +488,8 @@ export function App() {
               }}
             />
           )}
+
+          {canUseAdmin && route === "downloads" && <HfDownloadsView />}
 
           {canUseAdmin && route === "presets" && <PresetsView />}
 

@@ -11,6 +11,7 @@ export type AppRoute =
   | "processes"
   | "proxy"
   | "models"
+  | "downloads"
   | "presets"
   | "paths"
   | "args"
@@ -174,6 +175,21 @@ const navSections: NavSection[] = [
         title: "GGUF files",
         description: "Scan GGUF files and reuse them in instances or presets",
         keywords: ["scan", "quantization", "metadata"],
+      },
+      {
+        route: "downloads",
+        label: "Downloads",
+        title: "HuggingFace downloads",
+        description:
+          "Browse HuggingFace repos, download model files and track upstream updates",
+        keywords: [
+          "huggingface",
+          "hf",
+          "download",
+          "gguf",
+          "safetensors",
+          "quant",
+        ],
       },
       {
         route: "paths",

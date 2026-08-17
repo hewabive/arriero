@@ -36,3 +36,4 @@ export * from "./models.js";
 export * from "./presets.js";
 export * from "./settings.js";
 export * from "./benchmark.js";
+export * from "./hf.js";

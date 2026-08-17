@@ -105,6 +105,9 @@ re-derives instead of re-reading, `GET /api/models` serves the cache while
 `POST /api/models/scan` drives the single-flight runner — `docs/GGUF_PARSING.md`; quantization label
 cross-checks `general.file_type` against the tensor table, `docs/GGUF_QUANTIZATION_LABEL.md`) ·
 `presets` · `llama` (probe + source repo) ·
+`hf` (HuggingFace Hub browser + download jobs with GGUF variant/split grouping, resume + hash
+verification, per-repo `.arriero-hf.json` sidecar manifest discovered across scan roots, manual
+upstream update checks, write-only `hf:token` secret — `docs/HF_DOWNLOADS.md`) ·
 `path-catalog` · `resources` (memory pools + capacity ledger) · `memory-estimate` (a-priori per-pool
 footprint from GGUF + args) + `memory-assessment` (per-engine analytical/measured evidence receipts +
 fingerprint drift + background auto-assess loop that auto-binds analytical / auto-captures measured
@@ -431,7 +434,9 @@ extract owns flags/group/choices/default, so their frontmatter carries just
   has no `modelScan.directory`), overridable via `ARRIERO_MODELS_DIR`. The scan (`GET /api/models`,
   no `dir` param) merges all roots from `models/roots.ts` — settings directory + path-catalog
   `models-dir` entries + the llama.cpp download cache (`$LLAMA_CACHE`, else `~/.cache/llama.cpp`) —
-  deduped; missing roots are skipped, not errors.
+  deduped; missing roots are skipped, not errors. HF downloads land in
+  `<models dir>/<owner>/<repo>/` with a `.arriero-hf.json` sidecar manifest
+  (`docs/HF_DOWNLOADS.md`).
 - `runtime/sources/`: managed inference source checkouts (`config.sourcesDir`,
   `ARRIERO_SOURCES_DIR`); `llama-cpp` defaults to `runtime/sources/llama.cpp`. Every Git operation
   requires the checkout's exact `--show-toplevel`, so an internal plain directory can never adopt the
