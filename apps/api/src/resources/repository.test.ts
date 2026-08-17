@@ -76,6 +76,7 @@ test("refreshAutoCapacities persists a GPU detected after the scaffold was creat
     utilizationPercent: 0,
     temperatureC: null,
     numaNode: 0,
+    computeCapability: null,
     source: "nvml" as const,
   };
   assert.equal(
@@ -131,6 +132,7 @@ function scaffoldWithGpu(deviceRef: string) {
         utilizationPercent: 0,
         temperatureC: null,
         numaNode: 0,
+        computeCapability: null,
         source: "nvml" as const,
       },
     ],

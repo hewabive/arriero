@@ -1,6 +1,7 @@
 import {
   createKoffiNvmlBinding,
   type NvmlBinding,
+  type NvmlComputeCapability,
   type NvmlDeviceHandle,
   NvmlError,
   NVML_ERROR_DRIVER_NOT_LOADED,
@@ -36,6 +37,7 @@ export type NvidiaDeviceSnapshot = {
   name: string;
   uuid: string;
   pciBusId: string;
+  computeCapability: NvmlComputeCapability | null;
   totalMemoryBytes: number;
   freeMemoryBytes: number;
   usedMemoryBytes: number;
@@ -56,6 +58,7 @@ type InventoryDevice = {
   name: string;
   uuid: string;
   pciBusId: string;
+  computeCapability: NvmlComputeCapability | null;
 };
 
 type TimedCache<T> = {
@@ -178,6 +181,7 @@ export class NvidiaTelemetry {
           name: this.binding.deviceName(handle),
           uuid: this.binding.deviceUuid(handle),
           pciBusId: this.binding.devicePciBusId(handle),
+          computeCapability: this.binding.deviceCudaComputeCapability(handle),
         });
       }
       this.inventory = inventory;
@@ -217,6 +221,7 @@ export class NvidiaTelemetry {
           name: device.name,
           uuid: device.uuid,
           pciBusId: device.pciBusId,
+          computeCapability: device.computeCapability,
           totalMemoryBytes: memory.totalBytes,
           freeMemoryBytes: memory.freeBytes,
           usedMemoryBytes: memory.usedBytes,

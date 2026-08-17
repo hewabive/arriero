@@ -23,6 +23,11 @@ export const SystemMemorySchema = z.object({
   source: z.enum(["proc-meminfo", "node-os"]),
 });
 
+export const ComputeCapabilitySchema = z.object({
+  major: z.number().int().nonnegative(),
+  minor: z.number().int().nonnegative(),
+});
+
 export const SystemAcceleratorSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -34,8 +39,57 @@ export const SystemAcceleratorSchema = z.object({
   utilizationPercent: z.number().min(0).max(100).nullable(),
   temperatureC: z.number().nullable(),
   numaNode: z.number().int().min(0).nullable(),
+  computeCapability: ComputeCapabilitySchema.nullable().default(null),
   source: z.string(),
 });
+
+export function formatComputeCapability(value: ComputeCapability): string {
+  return `${value.major}.${value.minor}`;
+}
+
+export function meetsComputeCapability(
+  value: ComputeCapability,
+  minimum: ComputeCapability,
+): boolean {
+  return (
+    value.major > minimum.major ||
+    (value.major === minimum.major && value.minor >= minimum.minor)
+  );
+}
+
+export function cudaComputeCapabilityShortfall(
+  accelerators: SystemAccelerator[],
+  minimum: ComputeCapability,
+  engineLabel: string,
+): string | null {
+  const nvidia = accelerators.filter(
+    (accelerator) =>
+      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
+  );
+  if (nvidia.length === 0) {
+    return null;
+  }
+  const known = nvidia.flatMap((accelerator) =>
+    accelerator.computeCapability
+      ? [{ name: accelerator.name, capability: accelerator.computeCapability }]
+      : [],
+  );
+  if (known.length < nvidia.length) {
+    return null;
+  }
+  if (
+    known.some((entry) => meetsComputeCapability(entry.capability, minimum))
+  ) {
+    return null;
+  }
+  const report = known
+    .map(
+      (entry) =>
+        `${entry.name} reports ${formatComputeCapability(entry.capability)}`,
+    )
+    .join(", ");
+  return `${engineLabel} requires CUDA compute capability ${formatComputeCapability(minimum)} or newer; ${report}`;
+}
 
 export const NumaNodeSchema = z.object({
   id: z.number().int().min(0),
@@ -247,6 +301,7 @@ export type NetworkInterfacesResult = z.infer<
   typeof NetworkInterfacesResultSchema
 >;
 export type SystemMemory = z.infer<typeof SystemMemorySchema>;
+export type ComputeCapability = z.infer<typeof ComputeCapabilitySchema>;
 export type SystemAccelerator = z.infer<typeof SystemAcceleratorSchema>;
 export type SystemDiskDevice = z.infer<typeof SystemDiskDeviceSchema>;
 export type SystemIoPressure = z.infer<typeof SystemIoPressureSchema>;

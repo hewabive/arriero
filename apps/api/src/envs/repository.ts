@@ -7,13 +7,14 @@ import {
   type EnvironmentJobStepName,
   type EnvironmentSpec,
 } from "@arriero/core";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
 import { createJsonFileStore } from "../config-store/file-store.js";
 import { createJobStore } from "../jobs/store.js";
 import { newId } from "../utils/id.js";
+import { environmentDirectory } from "./paths.js";
 
 export const ENVIRONMENTS_FILE = resolve(config.configDir, "envs.json");
 const ENVIRONMENT_JOB_HISTORY_LIMIT = 20;
@@ -52,6 +53,18 @@ export function listEnvironmentSpecs() {
 
 export function getEnvironmentSpec(id: string) {
   return load().find((spec) => spec.id === id) ?? null;
+}
+
+export function environmentSpecForBinaryPath(binaryPath: string) {
+  const resolved = resolve(binaryPath);
+  return (
+    load().find((spec) => {
+      const directory = environmentDirectory(spec);
+      return (
+        resolved === directory || resolved.startsWith(`${directory}${sep}`)
+      );
+    }) ?? null
+  );
 }
 
 export function createEnvironmentSpec(input: EnvironmentCreate) {

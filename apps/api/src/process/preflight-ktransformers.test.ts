@@ -23,6 +23,7 @@ const nvidia: SystemAccelerator = {
   utilizationPercent: 0,
   temperatureC: null,
   numaNode: 0,
+  computeCapability: { major: 8, minor: 9 },
   source: "nvml",
 };
 
@@ -158,6 +159,32 @@ test("KTransformers preflight blocks missing weights and CUDA", async () => {
     );
     assert.ok(
       result.issues.some((issue) => issue.field === "env.CUDA_VISIBLE_DEVICES"),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("KTransformers preflight rejects GPUs below the compute-capability floor", async () => {
+  const { root, instance } = fixture();
+  try {
+    const pascal: SystemAccelerator = {
+      ...nvidia,
+      name: "NVIDIA GeForce GTX 1080 Ti",
+      computeCapability: { major: 6, minor: 1 },
+    };
+    const result = await validateInstancePreflight(
+      instance,
+      preflightOptions([pascal]),
+    );
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.issues.some(
+        (issue) =>
+          issue.field === "gpu" &&
+          /compute capability 7\.5/.test(issue.message) &&
+          /GTX 1080 Ti reports 6\.1/.test(issue.message),
+      ),
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

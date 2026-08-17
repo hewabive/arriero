@@ -32,6 +32,39 @@ requires `/dev/kfd`. KTransformers is usable only on Linux x86-64 with Python 3.
 3.12 and a visible NVIDIA GPU. An ABI-valid environment without its accelerator remains
 `installed` but is reported as `unavailable` with a reason.
 
+Hardware checks run before the installed check, so a spec on an incompatible host is
+reported `unavailable` (with the reason) instead of `not-installed` — the warning is
+visible before anything is downloaded. Install itself is not blocked.
+
+### CUDA compute-capability floor
+
+Current vLLM and KTransformers wheels ship PyTorch/kernels compiled for CUDA compute
+capability 7.5 (Turing) and newer — vLLM's bundled torch lists its supported CC range at
+startup, and KTransformers runs through `sglang-kt`, whose FlashInfer/sgl-kernel stack
+is likewise sm75+. The floor lives in core as
+`ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY`, a constant for current engine versions
+(supporting older engine releases is explicitly not a goal). The per-device capability
+comes from NVML (`nvmlDeviceGetCudaComputeCapability`), captured once per device into
+`SystemAccelerator.computeCapability`; a device whose capability NVML cannot report is
+treated as possibly-capable, never failed (`null`, not a substituted value).
+
+The floor gates two places:
+
+- **Environment availability** (`envs/availability.ts`,
+  `cudaComputeCapabilityShortfall` in core): a CUDA-variant environment on a host where
+  every NVIDIA GPU reports a capability below the floor is `unavailable`, naming the
+  GPUs and their capabilities.
+- **Instance-start preflight** (`process/preflight-vllm.ts`,
+  `process/preflight-ktransformers.ts`, shared `process/preflight-cuda.ts`): a vLLM
+  instance whose binary resolves into a CUDA-variant managed environment
+  (`environmentSpecForBinaryPath`) errors when no NVIDIA GPU is present, when
+  `CUDA_VISIBLE_DEVICES` disables CUDA, or when no visible GPU meets the floor — the
+  issue blames `env.CUDA_VISIBLE_DEVICES` when the narrowing hides a capable GPU and
+  `gpu` when the hardware itself is below the floor. CPU/ROCm-variant environments skip
+  the CUDA checks; a vLLM binary outside any managed environment downgrades the
+  capability error to a warning (its build flavor is unknown). KTransformers preflight
+  applies the same floor unconditionally (its environments are always CUDA).
+
 ## Transactional install
 
 Only one environment job runs at a time. The runner executes:

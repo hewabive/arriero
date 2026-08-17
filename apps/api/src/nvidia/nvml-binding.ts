@@ -53,6 +53,11 @@ export type NvmlProcessInfo = {
   usedMemoryBytes: number;
 };
 
+export type NvmlComputeCapability = {
+  major: number;
+  minor: number;
+};
+
 export interface NvmlBinding {
   initialize(): void;
   shutdown(): void;
@@ -62,6 +67,9 @@ export interface NvmlBinding {
   deviceName(device: NvmlDeviceHandle): string;
   deviceUuid(device: NvmlDeviceHandle): string;
   devicePciBusId(device: NvmlDeviceHandle): string;
+  deviceCudaComputeCapability(
+    device: NvmlDeviceHandle,
+  ): NvmlComputeCapability | null;
   deviceMemory(device: NvmlDeviceHandle): NvmlMemoryInfo;
   deviceUtilization(device: NvmlDeviceHandle): number | null;
   deviceTemperature(device: NvmlDeviceHandle): number | null;
@@ -207,6 +215,15 @@ class KoffiNvmlBinding implements NvmlBinding {
     "int",
     [NvmlDevicePointer, koffi.out(koffi.pointer(NvmlPciInfo))],
   );
+  private readonly getCudaComputeCapability = this.library.func(
+    "nvmlDeviceGetCudaComputeCapability",
+    "int",
+    [
+      NvmlDevicePointer,
+      koffi.out(koffi.pointer("int")),
+      koffi.out(koffi.pointer("int")),
+    ],
+  );
   private readonly getDeviceMemory = this.library.func(
     "nvmlDeviceGetMemoryInfo",
     "int",
@@ -309,6 +326,31 @@ class KoffiNvmlBinding implements NvmlBinding {
     const pci: NativePciInfo = {};
     this.check("nvmlDeviceGetPciInfo_v3", this.getDevicePciInfo(device, pci));
     return decodeCharArray(pci.busId) || decodeCharArray(pci.busIdLegacy);
+  }
+
+  deviceCudaComputeCapability(
+    device: NvmlDeviceHandle,
+  ): NvmlComputeCapability | null {
+    const major = [0];
+    const minor = [0];
+    const code = this.getCudaComputeCapability(device, major, minor);
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    this.check("nvmlDeviceGetCudaComputeCapability", code);
+    const majorValue = major[0];
+    const minorValue = minor[0];
+    if (
+      majorValue === undefined ||
+      minorValue === undefined ||
+      !Number.isInteger(majorValue) ||
+      majorValue < 0 ||
+      !Number.isInteger(minorValue) ||
+      minorValue < 0
+    ) {
+      return null;
+    }
+    return { major: majorValue, minor: minorValue };
   }
 
   deviceMemory(device: NvmlDeviceHandle): NvmlMemoryInfo {

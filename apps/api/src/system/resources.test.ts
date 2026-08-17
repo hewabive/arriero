@@ -33,6 +33,7 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
       name: "NVIDIA RTX 4090",
       uuid: "GPU-0",
       pciBusId: "",
+      computeCapability: { major: 8, minor: 9 },
       totalMemoryBytes: 24_564 * 1024 * 1024,
       freeMemoryBytes: (24_564 - 1_024) * 1024 * 1024,
       usedMemoryBytes: 1_024 * 1024 * 1024,
@@ -53,6 +54,7 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
     utilizationPercent: 12,
     temperatureC: 55,
     numaNode: null,
+    computeCapability: { major: 8, minor: 9 },
     source: "nvml",
   });
 });
@@ -65,6 +67,7 @@ test("nvidiaDevicesToAccelerators maps pci bus ids to NUMA nodes", () => {
         name: "NVIDIA RTX 4090",
         uuid: "GPU-0",
         pciBusId: "00000000:01:00.0",
+        computeCapability: { major: 8, minor: 9 },
         totalMemoryBytes: 24,
         freeMemoryBytes: 20,
         usedMemoryBytes: 4,
@@ -76,6 +79,7 @@ test("nvidiaDevicesToAccelerators maps pci bus ids to NUMA nodes", () => {
         name: "NVIDIA RTX A6000",
         uuid: "GPU-1",
         pciBusId: "00000000:81:00.0",
+        computeCapability: { major: 8, minor: 6 },
         totalMemoryBytes: 48,
         freeMemoryBytes: 40,
         usedMemoryBytes: 8,

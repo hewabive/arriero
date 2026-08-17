@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   type NvmlBinding,
+  type NvmlComputeCapability,
   type NvmlDeviceHandle,
   type NvmlMemoryInfo,
   type NvmlProcessInfo,
@@ -19,6 +20,7 @@ type FakeDevice = {
   memory: NvmlMemoryInfo;
   name: string;
   pciBusId: string;
+  computeCapability: NvmlComputeCapability | null;
   processes: NvmlProcessInfo[];
   temperatureC: number | null;
   utilizationPercent: number | null;
@@ -78,6 +80,12 @@ class FakeNvmlBinding implements NvmlBinding {
     return this.device(handle).pciBusId;
   }
 
+  deviceCudaComputeCapability(
+    handle: NvmlDeviceHandle,
+  ): NvmlComputeCapability | null {
+    return this.device(handle).computeCapability;
+  }
+
   deviceMemory(handle: NvmlDeviceHandle): NvmlMemoryInfo {
     this.memoryCalls += 1;
     if (this.memoryError) throw this.memoryError;
@@ -117,6 +125,7 @@ function fakeDevice(
     },
     name: `NVIDIA GPU ${index}`,
     pciBusId: `00000000:0${index + 1}:00.0`,
+    computeCapability: { major: 8, minor: 9 },
     processes: [],
     temperatureC: 42,
     utilizationPercent: 12,
@@ -146,6 +155,7 @@ test("initializes NVML once and caches accelerator samples", () => {
       name: "NVIDIA GPU 0",
       uuid: "GPU-0",
       pciBusId: "00000000:01:00.0",
+      computeCapability: { major: 8, minor: 9 },
       totalMemoryBytes: 24 * 1024 ** 3,
       freeMemoryBytes: 20 * 1024 ** 3,
       usedMemoryBytes: 4 * 1024 ** 3,

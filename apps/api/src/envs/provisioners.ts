@@ -1,7 +1,9 @@
-import type {
-  EnvironmentEngine,
-  EnvironmentSpec,
-  SystemAccelerator,
+import {
+  cudaComputeCapabilityShortfall,
+  ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
+  type EnvironmentEngine,
+  type EnvironmentSpec,
+  type SystemAccelerator,
 } from "@arriero/core";
 import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -165,6 +167,10 @@ const VLLM_PROVISIONER: EnvironmentProvisioner = {
       installed: context.installed,
       rocmDeviceAvailable: context.rocmDeviceAvailable,
       variant: spec.variant,
+      cuda: {
+        engineLabel: this.displayName,
+        minimumComputeCapability: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.vllm,
+      },
     });
   },
   catalogName(spec) {
@@ -225,9 +231,6 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
     }
-    if (!context.installed) {
-      return { availability: "not-installed", availabilityReason: null };
-    }
     const platform = context.platform ?? process.platform;
     const arch = context.arch ?? process.arch;
     if (platform !== "linux" || arch !== "x64") {
@@ -245,13 +248,25 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
     const hasNvidia = context.accelerators.some(
       (accelerator) => accelerator.vendor === "NVIDIA",
     );
-    return hasNvidia
-      ? { availability: "usable", availabilityReason: null }
-      : {
-          availability: "unavailable",
-          availabilityReason:
-            "KTransformers requires an NVIDIA GPU available through NVML",
-        };
+    if (!hasNvidia) {
+      return {
+        availability: "unavailable",
+        availabilityReason:
+          "KTransformers requires an NVIDIA GPU available through NVML",
+      };
+    }
+    const shortfall = cudaComputeCapabilityShortfall(
+      context.accelerators,
+      ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.ktransformers,
+      this.displayName,
+    );
+    if (shortfall) {
+      return { availability: "unavailable", availabilityReason: shortfall };
+    }
+    if (!context.installed) {
+      return { availability: "not-installed", availabilityReason: null };
+    }
+    return { availability: "usable", availabilityReason: null };
   },
   catalogName(spec) {
     return `KTransformers ${spec.version} [${spec.id.slice(0, 8)}]`.slice(

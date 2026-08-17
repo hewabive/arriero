@@ -554,6 +554,7 @@ test("validateInstancePreflight accepts GPU layers when an NVIDIA device is visi
             utilizationPercent: null,
             temperatureC: null,
             numaNode: null,
+            computeCapability: null,
             source: "nvml",
           },
         ],

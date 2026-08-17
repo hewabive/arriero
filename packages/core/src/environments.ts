@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BuildJobStepStatusSchema } from "./build.js";
 import { BackgroundJobStatusSchema } from "./jobs.js";
 import { credentialFreeUrlSchema } from "./registries.js";
+import type { ComputeCapability } from "./system.js";
 
 const EnvironmentVersionSchema = z
   .string()
@@ -124,6 +125,14 @@ export const EnvironmentInstallSourceSchema = z.union([
 ]);
 
 export const EnvironmentEngineSchema = z.enum(["vllm", "ktransformers"]);
+
+export const ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY: Record<
+  z.infer<typeof EnvironmentEngineSchema>,
+  ComputeCapability
+> = {
+  vllm: { major: 7, minor: 5 },
+  ktransformers: { major: 7, minor: 5 },
+};
 
 const EnvironmentCommonShape = {
   version: EnvironmentVersionSchema,

@@ -1,7 +1,15 @@
-import type { Instance, ProcessPreflightIssue } from "@arriero/core";
+import {
+  ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
+  parseCudaVisibleDevices,
+  type Instance,
+  type ProcessPreflightIssue,
+} from "@arriero/core";
 import { accessSync, constants, existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 
+import { environmentSpecForBinaryPath } from "../envs/repository.js";
+import { getSystemAccelerators } from "../system/resources.js";
+import { pushCudaComputeCapabilityIssues } from "./preflight-cuda.js";
 import type { PreflightOptions } from "./preflight.js";
 
 function localModelPath(instance: Instance, model: string) {
@@ -19,11 +27,7 @@ function localModelPath(instance: Instance, model: string) {
   return null;
 }
 
-export function validateVllmPreflight(
-  instance: Instance,
-  issues: ProcessPreflightIssue[],
-  _options: PreflightOptions,
-) {
+function validateModel(instance: Instance, issues: ProcessPreflightIssue[]) {
   const models = (instance.positionalArgs ?? []).filter(
     (value) => value.trim().length > 0,
   );
@@ -58,4 +62,64 @@ export function validateVllmPreflight(
       message: `Local vLLM model path is not readable: ${path}`,
     });
   }
+}
+
+function vllmEnvironmentVariant(instance: Instance) {
+  const spec = environmentSpecForBinaryPath(instance.binaryPath);
+  return spec?.engine === "vllm" ? spec.variant : null;
+}
+
+function validateGpu(
+  instance: Instance,
+  issues: ProcessPreflightIssue[],
+  options: PreflightOptions,
+) {
+  const variant = vllmEnvironmentVariant(instance);
+  if (variant === "cpu" || variant === "rocm") {
+    return;
+  }
+  const detected = (options.accelerators ?? getSystemAccelerators()).filter(
+    (accelerator) =>
+      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
+  );
+  if (detected.length === 0) {
+    if (variant === "cuda") {
+      issues.push({
+        level: "error",
+        field: "gpu",
+        message:
+          "This vLLM CUDA environment requires an NVIDIA GPU available through NVML",
+      });
+    }
+    return;
+  }
+  const visible = parseCudaVisibleDevices(instance.env.CUDA_VISIBLE_DEVICES);
+  if (visible.mode === "none") {
+    if (variant === "cuda") {
+      issues.push({
+        level: "error",
+        field: "env.CUDA_VISIBLE_DEVICES",
+        message:
+          "This vLLM CUDA environment cannot start with CUDA devices disabled",
+      });
+    }
+    return;
+  }
+  pushCudaComputeCapabilityIssues({
+    issues,
+    detected,
+    visible,
+    minimum: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.vllm,
+    engineLabel: "vLLM",
+    level: variant === "cuda" ? "error" : "warning",
+  });
+}
+
+export function validateVllmPreflight(
+  instance: Instance,
+  issues: ProcessPreflightIssue[],
+  options: PreflightOptions,
+) {
+  validateModel(instance, issues);
+  validateGpu(instance, issues, options);
 }

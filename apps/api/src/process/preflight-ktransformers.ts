@@ -7,6 +7,7 @@ import type {
   SystemAccelerator,
 } from "@arriero/core";
 import {
+  ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
   parseCudaVisibleDevices,
   SGLANG_TENSOR_PARALLEL_KEYS,
 } from "@arriero/core";
@@ -20,6 +21,7 @@ import { getSystemResources } from "../system/resources.js";
 import { getArgumentCatalogAsync } from "../arguments/catalog.js";
 import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { listMemoryPools } from "../resources/repository.js";
+import { pushCudaComputeCapabilityIssues } from "./preflight-cuda.js";
 import type { PreflightOptions } from "./preflight.js";
 
 const HF_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -367,6 +369,14 @@ function validateCuda(
       `Tensor parallel size ${tensorParallel} exceeds ${visibleCount} visible NVIDIA GPU(s)`,
     );
   }
+  pushCudaComputeCapabilityIssues({
+    issues,
+    detected,
+    visible,
+    minimum: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.ktransformers,
+    engineLabel: "KTransformers",
+    level: "error",
+  });
 }
 
 function selectedGpuDeviceRefs(
