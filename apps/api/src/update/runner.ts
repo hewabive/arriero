@@ -55,6 +55,19 @@ export function updateStepEnvironment(
   return { ...baseEnvironment, CI: "true" };
 }
 
+export function scheduleProcessRestart(): void {
+  const fire = () => {
+    try {
+      process.kill(process.pid, "SIGTERM");
+    } catch {
+      process.exit(0);
+    }
+  };
+  void updateAdapter.beforeRestart().finally(() => {
+    setTimeout(fire, RESTART_DELAY_MS).unref?.();
+  });
+}
+
 function plannedSteps(willRestart: boolean): UpdateJobStep[] {
   const names: UpdateJobStepName[] = ["snapshot", ...PIPELINE_STEPS];
   if (willRestart) {
@@ -219,7 +232,7 @@ class UpdateRunner {
           "\n# build complete; restarting to apply (systemd will bring the process back up)\n",
         );
         logStream.end();
-        this.scheduleRestart();
+        scheduleProcessRestart();
         return;
       }
 
@@ -236,19 +249,6 @@ class UpdateRunner {
       logStream.end();
       this.clearRunning(jobId);
     }
-  }
-
-  private scheduleRestart() {
-    const fire = () => {
-      try {
-        process.kill(process.pid, "SIGTERM");
-      } catch {
-        process.exit(0);
-      }
-    };
-    void updateAdapter.beforeRestart().finally(() => {
-      setTimeout(fire, RESTART_DELAY_MS).unref?.();
-    });
   }
 
   private async rollback(fromCommit: string | null, logStream: WriteStream) {

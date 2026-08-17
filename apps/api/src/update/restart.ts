@@ -1,9 +1,7 @@
 import type { AppRestartResult, AppVersion } from "@arriero/core";
 
-import { updateAdapter } from "./adapter.js";
+import { scheduleProcessRestart } from "./runner.js";
 import { getAppVersion } from "./version.js";
-
-const RESTART_DELAY_MS = 800;
 
 const appStartedAt = new Date().toISOString();
 
@@ -33,15 +31,6 @@ export function scheduleAppRestart(): AppRestartResult {
     return result;
   }
   restartScheduled = true;
-  const fire = () => {
-    try {
-      process.kill(process.pid, "SIGTERM");
-    } catch {
-      process.exit(0);
-    }
-  };
-  void updateAdapter.beforeRestart().finally(() => {
-    setTimeout(fire, RESTART_DELAY_MS).unref?.();
-  });
+  scheduleProcessRestart();
   return result;
 }
