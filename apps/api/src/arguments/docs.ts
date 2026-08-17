@@ -162,11 +162,14 @@ function firstMarkdownParagraph(markdown: string) {
   return paragraph?.replace(/\s+/g, " ").slice(0, 240) ?? null;
 }
 
-function getArgumentDocIndex(
-  option: ArgumentOption,
-  directory: string,
-): LlamaArgumentDocIndex {
-  const path = argumentDocPath(option.primaryName, directory);
+const DOC_INDEX_CACHE_TTL_MS = 5_000;
+
+const docIndexCache = new Map<
+  string,
+  { value: LlamaArgumentDocIndex; expiresAt: number }
+>();
+
+function readArgumentDocIndex(path: string): LlamaArgumentDocIndex {
   if (!existsSync(path)) {
     return {
       exists: false,
@@ -185,6 +188,25 @@ function getArgumentDocIndex(
       firstMarkdownParagraph(parsed.markdown),
     updatedAt: statSync(path).mtime.toISOString(),
   };
+}
+
+function getArgumentDocIndex(
+  option: ArgumentOption,
+  directory: string,
+): LlamaArgumentDocIndex {
+  const path = argumentDocPath(option.primaryName, directory);
+  const now = Date.now();
+  const cached = docIndexCache.get(path);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+  const value = readArgumentDocIndex(path);
+  docIndexCache.set(path, { value, expiresAt: now + DOC_INDEX_CACHE_TTL_MS });
+  return value;
+}
+
+export function resetArgumentDocIndexCache(): void {
+  docIndexCache.clear();
 }
 
 export function withArgumentDocIndex(

@@ -284,17 +284,24 @@ export function getLlamaArgumentReferenceCatalog(): ArgumentCatalog {
   });
 }
 
+function llamaCatalogOptions(
+  cachedOptions: ArgumentOption[],
+  docs: boolean,
+): ArgumentOption[] {
+  const merged = applyArgumentHelp(mergeWithArgumentRegistry(cachedOptions));
+  return docs ? withArgumentDocsAndCompatibility(merged) : merged;
+}
+
 function toCatalog(input: {
   binaryPath: string;
   cached: CachedArgumentCatalog;
   cache: ArgumentCatalog["cache"];
   parserId: ArgumentCatalogHelpParserId;
+  docs: boolean;
 }): ArgumentCatalog {
   const options =
     input.parserId === "llama-help"
-      ? withArgumentDocsAndCompatibility(
-          applyArgumentHelp(mergeWithArgumentRegistry(input.cached.options)),
-        )
+      ? llamaCatalogOptions(input.cached.options, input.docs)
       : input.cached.options;
   return {
     binaryPath: input.binaryPath,
@@ -376,21 +383,29 @@ const catalogsInFlight = new Map<string, Promise<ArgumentCatalog>>();
 
 export function getArgumentCatalogAsync(
   binaryPathInput?: string,
-  input?: { refresh?: boolean; parserId?: ArgumentCatalogHelpParserId },
+  input?: {
+    refresh?: boolean;
+    parserId?: ArgumentCatalogHelpParserId;
+    docs?: boolean;
+  },
 ): Promise<ArgumentCatalog> {
   const binaryPath = resolve(binaryPathInput || defaultBinaryPath());
   const parserId = input?.parserId ?? "llama-help";
   const refresh = input?.refresh ?? false;
-  const key = `${binaryPath}|${parserId}|${refresh ? "refresh" : "cached"}`;
+  const docs = input?.docs ?? true;
+  const key = `${binaryPath}|${parserId}|${refresh ? "refresh" : "cached"}|${docs ? "docs" : "no-docs"}`;
   const inFlight = catalogsInFlight.get(key);
   if (inFlight) {
     return inFlight;
   }
-  const loading = loadArgumentCatalog(binaryPath, parserId, refresh).finally(
-    () => {
-      catalogsInFlight.delete(key);
-    },
-  );
+  const loading = loadArgumentCatalog(
+    binaryPath,
+    parserId,
+    refresh,
+    docs,
+  ).finally(() => {
+    catalogsInFlight.delete(key);
+  });
   catalogsInFlight.set(key, loading);
   return loading;
 }
@@ -399,6 +414,7 @@ async function loadArgumentCatalog(
   binaryPath: string,
   parserId: ArgumentCatalogHelpParserId,
   refresh: boolean,
+  docs: boolean,
 ): Promise<ArgumentCatalog> {
   if (!existsSync(binaryPath)) {
     throw new Error(`engine binary not found: ${binaryPath}`);
@@ -412,6 +428,7 @@ async function loadArgumentCatalog(
       cached,
       cache: { hit: true, refreshed: false, stale: false },
       parserId,
+      docs,
     });
   }
   if (!refresh) {
@@ -422,6 +439,7 @@ async function loadArgumentCatalog(
         cached: saveArgumentCatalog(fromSidecar),
         cache: { hit: true, refreshed: false, stale: false },
         parserId,
+        docs,
       });
     }
   }
@@ -430,5 +448,6 @@ async function loadArgumentCatalog(
     cached: await generateCatalogAsync(binaryPath, stat, parserId),
     cache: { hit: false, refreshed: true, stale },
     parserId,
+    docs,
   });
 }

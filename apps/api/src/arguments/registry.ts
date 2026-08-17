@@ -12,7 +12,7 @@ import {
   LlamaArgumentPresetSupportSchema,
   ArgumentValueTypeSchema,
 } from "@arriero/core";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -204,6 +204,41 @@ let registryCache: {
   expiresAt: number;
 } | null = null;
 
+const registryFileCache = new Map<
+  string,
+  { mtimeMs: number; size: number; entry: ArgumentRegistryEntry | null }
+>();
+
+function registryEntryFor(
+  path: string,
+  slug: string,
+): ArgumentRegistryEntry | null {
+  const stat = statSync(path);
+  const cached = registryFileCache.get(path);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.entry;
+  }
+  const parsed = parseArgumentDocFile(readFileSync(path, "utf8"));
+  const option = optionFromArgumentDocFrontmatter(parsed.frontmatter);
+  const entry: ArgumentRegistryEntry | null = option
+    ? {
+        option,
+        slug,
+        estimation: enumField(
+          stringField(parsed.frontmatter, "estimation"),
+          (value) => LlamaArgumentEstimationSchema.safeParse(value),
+          "normal",
+        ),
+      }
+    : null;
+  registryFileCache.set(path, {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    entry,
+  });
+  return entry;
+}
+
 export function loadArgumentRegistry() {
   const now = Date.now();
   if (registryCache && registryCache.expiresAt > now) {
@@ -211,6 +246,7 @@ export function loadArgumentRegistry() {
   }
 
   const entries: ArgumentRegistryEntry[] = [];
+  const seenPaths = new Set<string>();
   if (existsSync(argumentDocsDirectory)) {
     for (const item of readdirSync(argumentDocsDirectory, {
       withFileTypes: true,
@@ -224,21 +260,16 @@ export function loadArgumentRegistry() {
       }
 
       const path = join(argumentDocsDirectory, item.name);
-      const parsed = parseArgumentDocFile(readFileSync(path, "utf8"));
-      const option = optionFromArgumentDocFrontmatter(parsed.frontmatter);
-      if (!option) {
-        continue;
+      seenPaths.add(path);
+      const entry = registryEntryFor(path, item.name.replace(/\.md$/, ""));
+      if (entry) {
+        entries.push(entry);
       }
-
-      entries.push({
-        option,
-        slug: item.name.replace(/\.md$/, ""),
-        estimation: enumField(
-          stringField(parsed.frontmatter, "estimation"),
-          (value) => LlamaArgumentEstimationSchema.safeParse(value),
-          "normal",
-        ),
-      });
+    }
+  }
+  for (const path of [...registryFileCache.keys()]) {
+    if (!seenPaths.has(path)) {
+      registryFileCache.delete(path);
     }
   }
 

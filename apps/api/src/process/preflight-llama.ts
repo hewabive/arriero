@@ -279,7 +279,9 @@ async function validateArgumentCompatibility(
 ) {
   let catalog: Awaited<ReturnType<typeof getArgumentCatalogAsync>>;
   try {
-    catalog = await getArgumentCatalogAsync(instance.binaryPath);
+    catalog = await getArgumentCatalogAsync(instance.binaryPath, {
+      docs: false,
+    });
   } catch (error) {
     issues.push({
       level: "warning",

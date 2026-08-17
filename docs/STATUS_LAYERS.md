@@ -74,6 +74,17 @@ and full; the proxy request hot path reads a cheaper scheduling-mode variant
 (no network start-preflight) from a background-reconciled cache. See
 `docs/API_PROXY_FOUNDATION.md` → "Request hot path: scheduling vs diagnostics".
 
+That background reconcile recomputes every instance's summary — preflight
+included — at 1 Hz, so everything on the preflight path must be cheap and
+allocation-light. This is why llama preflight requests the argument catalog
+with `docs: false` (`getArgumentCatalogAsync`): compatibility checks need only
+option names, and attaching the per-argument Russian doc index used to re-read
+and re-parse all `content/llama-args/llama-server/*.md` files every second,
+blocking the event loop ~30–60 ms per tick. The doc index itself is also
+TTL-cached (5 s, like the registry cache) for the UI routes that do want it,
+and the registry reload re-parses only files whose stat changed (per-file
+mtime+size memo) so the 5 s TTL expiry costs stats, not 253 file reads.
+
 ### L3 — proxy target state
 
 `unknown · stopped · unloaded · loading · ready · error`

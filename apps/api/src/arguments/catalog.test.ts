@@ -1,7 +1,15 @@
+import { ArgumentOptionSchema } from "@arriero/core";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
-import { parseLlamaArgumentOptions } from "./catalog.js";
+import {
+  getArgumentCatalogAsync,
+  parseLlamaArgumentOptions,
+} from "./catalog.js";
+import { saveArgumentCatalog } from "./repository.js";
 
 function optionMap(help: string) {
   return new Map(
@@ -55,4 +63,57 @@ test("parseLlamaArgumentOptions detects comma-separated list options", () => {
   assert.equal(options.get("--tools")?.valueType, "list");
   assert.equal(options.get("--lora")?.valueType, "list");
   assert.equal(options.get("--model")?.valueType, "path");
+});
+
+test("the docs-free catalog variant keeps compatibility and skips doc attachment", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "arriero-catalog-"));
+  const binaryPath = join(directory, "llama-server");
+  writeFileSync(binaryPath, "fake-llama-server");
+  const stat = statSync(binaryPath);
+  const option = ArgumentOptionSchema.parse({
+    primaryName: "--ctx-size",
+    names: ["--ctx-size", "-c"],
+    category: "common",
+    valueHint: "N",
+    valueType: "number",
+    env: [],
+    allowedValues: [],
+    help: "size of the prompt context (default: 4096)",
+    helpRu: "",
+    helpRuSource: "fallback",
+    deprecated: false,
+  });
+  saveArgumentCatalog({
+    binaryPath,
+    binarySize: stat.size,
+    binaryMtimeMs: String(stat.mtimeMs),
+    binaryModifiedAt: stat.mtime.toISOString(),
+    helpHash: "test-help-hash",
+    options: [option],
+    generatedAt: new Date().toISOString(),
+    parserId: "llama-help",
+  });
+  try {
+    const withoutDocs = await getArgumentCatalogAsync(binaryPath, {
+      docs: false,
+    });
+    assert.equal(withoutDocs.cache.hit, true);
+    assert.equal(
+      withoutDocs.options.some((entry) => entry.doc.exists),
+      false,
+    );
+    const ctx = withoutDocs.options.find(
+      (entry) => entry.primaryName === "--ctx-size",
+    );
+    assert.equal(ctx?.compatibility.presentInBinary, true);
+    assert.deepEqual(ctx?.compatibility.binaryNames, ["--ctx-size", "-c"]);
+    const withDocs = await getArgumentCatalogAsync(binaryPath);
+    assert.equal(withDocs.cache.hit, true);
+    assert.equal(
+      withDocs.options.some((entry) => entry.doc.exists),
+      true,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
