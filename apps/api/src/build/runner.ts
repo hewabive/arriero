@@ -20,6 +20,7 @@ import { markJobStep } from "../jobs/steps.js";
 import { listLlamaSourceRefs } from "../llama/source-repository.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getActiveSourceRepositoryOperation } from "../sources/state.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import { relocatedCmakeCacheReason } from "./cmake-cache.js";
 import { getPackageRegistriesSettings } from "../settings/registries.js";
 import {
@@ -411,7 +412,9 @@ class LlamaBuildRunner {
     const distDir = resolve(uiDir, "dist");
     if (existsSync(distDir)) {
       logStream.write(`# removing stale UI source dist ${distDir}\n`);
-      rmSync(distDir, { recursive: true, force: true });
+      traceBlockingSection("build:rm-ui-dist", () =>
+        rmSync(distDir, { recursive: true, force: true }),
+      );
     }
 
     const uiEnv = { ...env, LLAMA_UI_OUT_DIR: distDir };

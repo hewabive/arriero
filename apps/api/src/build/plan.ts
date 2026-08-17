@@ -12,6 +12,7 @@ import { availableParallelism, homedir } from "node:os";
 
 import { config } from "../config.js";
 import { isPathWithin } from "../path-utils.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import {
   getLlamaSourceCurrentCommit,
   listLlamaSourceRefs,
@@ -437,7 +438,9 @@ export function cleanBuildDirectory(
   const buildDir = validateBuildDirectoryCleanTarget(settings);
   if (existsSync(buildDir)) {
     logStream.write(`# removing build directory ${buildDir}\n`);
-    rmSync(buildDir, { recursive: true, force: true });
+    traceBlockingSection("build:rm-build-dir", () =>
+      rmSync(buildDir, { recursive: true, force: true }),
+    );
   } else {
     logStream.write(`# build directory does not exist: ${buildDir}\n`);
   }

@@ -12,7 +12,6 @@ import {
   createWriteStream,
   existsSync,
   renameSync,
-  rmSync,
   writeFileSync,
   type WriteStream,
 } from "node:fs";
@@ -24,6 +23,7 @@ import { runLoggedCommand } from "../jobs/exec.js";
 import { registerActiveJob } from "../jobs/registry.js";
 import { markJobStep } from "../jobs/steps.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
+import { discardEnvironmentDirectory } from "./discard.js";
 import {
   environmentDirectory,
   environmentEntrypoint,
@@ -281,7 +281,7 @@ class EnvironmentRunner {
   private async run(spec: EnvironmentSpec, jobId: string) {
     const staging = environmentStagingDirectory(spec);
     const finalDir = environmentDirectory(spec);
-    rmSync(staging, { recursive: true, force: true });
+    discardEnvironmentDirectory(staging);
     const log = createWriteStream(getEnvironmentJob(jobId)!.logPath, {
       flags: "a",
     });
@@ -351,8 +351,8 @@ class EnvironmentRunner {
       if (runningStep) {
         this.mark(jobId, runningStep.name, "failed", activeExitCode);
       }
-      rmSync(staging, { recursive: true, force: true });
-      if (finalized) rmSync(finalDir, { recursive: true, force: true });
+      discardEnvironmentDirectory(staging);
+      if (finalized) discardEnvironmentDirectory(finalDir);
       log.write(`\n# error: ${(error as Error).message}\n`);
       updateEnvironmentJob(jobId, {
         status: canceled ? "canceled" : "failed",

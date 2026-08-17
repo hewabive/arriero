@@ -21,10 +21,12 @@ export function environmentDirectory(
   );
 }
 
+export const ENVIRONMENT_STAGING_SUFFIX = ".staging";
+
 export function environmentStagingDirectory(
   spec: Pick<EnvironmentSpec, "id" | "engine" | "version">,
 ) {
-  return `${environmentDirectory(spec)}.staging`;
+  return `${environmentDirectory(spec)}${ENVIRONMENT_STAGING_SUFFIX}`;
 }
 
 export function environmentEntrypoint(

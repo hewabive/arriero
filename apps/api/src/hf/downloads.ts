@@ -10,6 +10,7 @@ import { listModelScanRoots } from "../models/roots.js";
 import { IGNORED_DIRS } from "../models/scanner.js";
 import { isPathWithin } from "../path-utils.js";
 import { startModelScan } from "../models/scan-runner.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import { groupHfGgufFiles } from "./grouping.js";
 import {
   HF_MANIFEST_FILENAME,
@@ -154,7 +155,9 @@ export function deleteHfDownload(dir: string): void {
       `a download for ${manifest.repoId} is running; cancel it first`,
     );
   }
-  rmSync(resolved, { recursive: true, force: true });
+  traceBlockingSection("hf:rm-download", () =>
+    rmSync(resolved, { recursive: true, force: true }),
+  );
   const parent = dirname(resolved);
   const strictlyInsideRoot = listModelScanRoots().some(
     (root) => parent !== root.path && isPathWithin(root.path, parent),

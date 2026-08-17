@@ -182,6 +182,15 @@ generated binary entry is tagged with the spec engine; reconciliation repairs a 
 or edited entry. Delete is refused while its catalog entry is referenced by an instance
 or its install job is active.
 
+Environment trees are never removed synchronously on the event loop: deletion and job
+cleanup rename the directory to a sibling `*.trash` name (atomic, O(1) — the canonical
+path is free immediately, so status reads and rebuilds see no partial state) and the
+renamed tree is removed in the background, with failures logged. The boot sweep
+(`initializeEnvironments`) discards abandoned `.staging` directories the same way and
+also removes `*.trash` leftovers from a previous process that exited before its
+background removal finished. Measured motivation: synchronously removing an installed
+vLLM venv blocked the API event loop for ~0.9 s.
+
 The Environments API exposes create/rebuild/delete, repository settings, current uv
 availability, the active job, cancellation, and a polling log tail. Once ready, a
 generated binary is available only to an instance of the matching tagged engine kind.

@@ -4,12 +4,15 @@ import { resolve } from "node:path";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { instanceLogFilePattern } from "../process/log-paths.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import { rewriteLocalRpcWorkerRefs } from "./config-files.js";
 
 function removeSlotsDir(name: string): void {
   const dir = resolve(config.slotsDir, name);
   try {
-    rmSync(dir, { recursive: true, force: true });
+    traceBlockingSection("instances:rm-slots", () =>
+      rmSync(dir, { recursive: true, force: true }),
+    );
   } catch (error) {
     logger.warn(
       { err: error, dir },

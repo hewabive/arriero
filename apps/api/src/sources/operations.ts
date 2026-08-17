@@ -21,6 +21,7 @@ import { dirname, resolve } from "node:path";
 import { buildRunner } from "../build/runner.js";
 import { config } from "../config.js";
 import { getActiveConfigGitOperation } from "../config-git/state.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import {
   assertGitRemoteUrl,
   gitOutput,
@@ -75,7 +76,9 @@ export function sweepSourceCloneStaging(): number {
     }
     for (const name of names) {
       if (!name.startsWith(CLONE_STAGING_PREFIX)) continue;
-      rmSync(resolve(parent, name), { recursive: true, force: true });
+      traceBlockingSection("sources:rm-clone-staging", () =>
+        rmSync(resolve(parent, name), { recursive: true, force: true }),
+      );
       removed += 1;
     }
   }
@@ -181,7 +184,9 @@ export async function cloneSourceRepository(
         saveSourceRepositoryOrigin(sourceId, originUrl);
         return gitOutput(cloned) || `Cloned ${originUrl}.`;
       } finally {
-        rmSync(temporary, { recursive: true, force: true });
+        traceBlockingSection("sources:rm-clone-staging", () =>
+          rmSync(temporary, { recursive: true, force: true }),
+        );
       }
     },
   );

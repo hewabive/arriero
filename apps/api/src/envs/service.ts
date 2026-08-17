@@ -5,13 +5,15 @@ import {
   type EnvironmentRecord,
   type EnvironmentSpec,
 } from "@arriero/core";
-import { existsSync, readdirSync, rmSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
 
-import { config } from "../config.js";
 import { listInstances } from "../instances/repository.js";
 import { deletePathCatalogEntry } from "../path-catalog/repository.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
+import {
+  discardEnvironmentDirectory,
+  sweepEnvironmentLeftovers,
+} from "./discard.js";
 import {
   assertEnvironmentPath,
   environmentDirectory,
@@ -131,28 +133,18 @@ export function deleteEnvironment(id: string) {
   ) {
     throw new Error("environment is used by an instance");
   }
-  rmSync(assertEnvironmentPath(environmentDirectory(spec)), {
-    recursive: true,
-    force: true,
-  });
-  rmSync(assertEnvironmentPath(environmentStagingDirectory(spec)), {
-    recursive: true,
-    force: true,
-  });
+  discardEnvironmentDirectory(
+    assertEnvironmentPath(environmentDirectory(spec)),
+  );
+  discardEnvironmentDirectory(
+    assertEnvironmentPath(environmentStagingDirectory(spec)),
+  );
   if (spec.pathCatalogEntryId) deletePathCatalogEntry(spec.pathCatalogEntryId);
   return deleteEnvironmentSpec(id);
 }
 
 export function initializeEnvironments() {
-  let swept = 0;
-  for (const entry of readdirSync(config.envsDir, { withFileTypes: true })) {
-    if (!entry.name.endsWith(".staging")) continue;
-    rmSync(assertEnvironmentPath(resolve(config.envsDir, entry.name)), {
-      recursive: true,
-      force: true,
-    });
-    swept += 1;
-  }
+  const swept = sweepEnvironmentLeftovers();
   const records = listEnvironments();
   const installed = records.filter(
     (item) => item.status === "installed",
