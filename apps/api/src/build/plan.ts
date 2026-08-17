@@ -49,15 +49,16 @@ export function uiDirectory(settings: BuildSettings) {
   return resolve(settings.repoPath, "tools", "ui");
 }
 
-function uiInstallCommands(npmRegistryUrl: string | null): string[][] {
+function uiInstallCommand(npmRegistryUrl: string | null): string[] {
   return [
-    [
-      "npm",
-      "ci",
-      "--include=dev",
-      ...npmRegistryInstallOptions(npmRegistryUrl),
-    ],
-    ["npm", "run", "build"],
+    "npm",
+    "ci",
+    "--include=dev",
+    ...npmRegistryInstallOptions(npmRegistryUrl),
+    "&&",
+    "npm",
+    "run",
+    "build",
   ];
 }
 
@@ -262,14 +263,7 @@ export function buildSteps(
   }
 
   if (input.installUiDeps) {
-    steps.push(
-      step(
-        "ui-install",
-        uiInstallCommands(npmRegistryUrl).flatMap((command, index) =>
-          index === 0 ? command : ["&&", ...command],
-        ),
-      ),
-    );
+    steps.push(step("ui-install", uiInstallCommand(npmRegistryUrl)));
   }
 
   if (input.cleanBuildDir) {

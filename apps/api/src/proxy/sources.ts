@@ -222,6 +222,7 @@ export function apiProxyRequestSourceRejection(
     return {
       status: 423,
       code: "arriero_proxy_source_disabled",
+      errorClass: "permission",
       message:
         resolution.blockedMessage ||
         `Source ${resolution.name} is disabled by the administrator.`,
@@ -234,12 +235,14 @@ export function apiProxyRequestSourceRejection(
     ? {
         status: 401,
         code: "arriero_proxy_source_required",
+        errorClass: "authentication",
         message:
           "Anonymous requests are disabled. Provide a source API key via Authorization: Bearer or x-api-key.",
       }
     : {
         status: 401,
         code: "invalid_api_key",
+        errorClass: "authentication",
         message: "Unknown API key. Requests must use a configured source key.",
       };
 }

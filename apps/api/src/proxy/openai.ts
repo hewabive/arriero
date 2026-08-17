@@ -344,15 +344,11 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
     status: diagnostic.status,
     body: openAiError({
       message: diagnostic.message,
-      type:
-        diagnostic.code === "arriero_proxy_context_overflow" ||
-        diagnostic.code === "arriero_proxy_model_disabled"
-          ? "invalid_request_error"
-          : "server_error",
+      type: diagnostic.errorClass ? "invalid_request_error" : "server_error",
       code: diagnostic.code,
       param: diagnostic.param,
     }),
-    ...(diagnostic.code === "arriero_proxy_model_disabled"
+    ...(diagnostic.retryable === false
       ? { headers: { "x-should-retry": "false" } }
       : {}),
   }),
@@ -361,7 +357,7 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
     body: openAiError({
       message: diagnostic.message,
       type:
-        diagnostic.code === "arriero_proxy_source_disabled"
+        diagnostic.errorClass === "permission"
           ? "permission_error"
           : "authentication_error",
       code: diagnostic.code,

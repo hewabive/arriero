@@ -568,14 +568,13 @@ export async function resolveApiProxyRouteChain(input: {
           }),
         );
         if (rejected) {
-          return fail(
-            routeDiagnostic(
-              400,
-              "arriero_proxy_context_overflow",
-              contextOverflowMessage,
-              null,
-            ),
-          );
+          return fail({
+            status: 400,
+            code: "arriero_proxy_context_overflow",
+            param: null,
+            errorClass: "invalid-request",
+            message: contextOverflowMessage,
+          });
         }
         ref = node.ports.next;
         break;

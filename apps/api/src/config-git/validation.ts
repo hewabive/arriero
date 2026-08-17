@@ -9,6 +9,7 @@ import {
   InstanceConfigRecordSchema,
   MemoryPoolSchema,
   classifyConfigGitPath,
+  configGitInstanceName,
   engineDescriptor,
   instanceIdFromEndpointId,
   type ConfigGitPortableFileKind,
@@ -179,8 +180,8 @@ export function validateConfigBlob(
       InstanceConfigRecordSchema,
       issues,
     ) as InstanceConfigRecord | null;
-    if (record) {
-      const fileName = path.slice("instances/".length, -".json".length);
+    const fileName = configGitInstanceName(path);
+    if (record && fileName !== null) {
       const nameIssue = instanceNameIssue(path, fileName, record);
       if (nameIssue) issues.push(nameIssue);
     }

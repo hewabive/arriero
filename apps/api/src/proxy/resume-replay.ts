@@ -31,14 +31,13 @@ import {
   createResumableBufferState,
   finalFromState,
 } from "./resumable-forward.js";
-import { applyApiProxyReasoningMapping } from "./reasoning-request.js";
+import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import {
   apiProxyStreamResumeKey,
   apiProxyStreamSessionUrl,
 } from "./stream-session.js";
 import {
   createAnthropicTranslationStream,
-  prepareUpstreamExchange,
   translatedAnthropicResumableCodec,
 } from "./translation.js";
 import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
@@ -95,25 +94,21 @@ export function claimApiProxyResumedSession(input: {
   if (!resolved.ok || resolved.context.instanceId === null) {
     return null;
   }
-  const exchange = prepareUpstreamExchange({
+  const forward = prepareApiProxyUpstreamRequest({
     translate: resolved.context.translateAnthropic,
     operation: input.operation,
     path: upstreamPath,
     body: input.request.body,
     headers: input.headers,
-  });
-  const reasoning = applyApiProxyReasoningMapping({
-    body: exchange.body,
-    protocol: exchange.protocol,
     model: input.request.model,
     instanceId: resolved.context.instanceId,
   });
   const entry = store.claim(
     apiProxyStreamResumeKey({
       instanceId: resolved.context.instanceId,
-      path: exchange.path,
+      path: forward.path,
       modelId: input.target.model ?? input.request.modelId,
-      body: reasoning.body,
+      body: forward.body,
     }),
   );
   if (!entry) {
@@ -124,7 +119,7 @@ export function claimApiProxyResumedSession(input: {
     baseUrl: resolved.context.baseUrl,
     authHeaders: resolved.context.authHeaders,
     translateAnthropic: resolved.context.translateAnthropic,
-    exchangeBody: reasoning.body,
+    exchangeBody: forward.body,
     codec,
   };
 }

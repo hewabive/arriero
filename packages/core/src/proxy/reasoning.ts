@@ -5,6 +5,7 @@ import type {
   ApiProxyJsonValue,
   ApiProxyReasoningConfig,
 } from "./pipeline-nodes.js";
+import { namedRecord } from "./request-edits.js";
 
 export const API_PROXY_REASONING_LEVELS = [
   "minimal",
@@ -180,7 +181,9 @@ export function normalizeApiProxyReasoningLevel(
   return levelSynonyms[value.trim().toLowerCase()] ?? null;
 }
 
-function levelRank(level: ApiProxyReasoningLevel): number {
+export function apiProxyReasoningLevelRank(
+  level: ApiProxyReasoningLevel,
+): number {
   return API_PROXY_REASONING_LEVELS.indexOf(level);
 }
 
@@ -192,27 +195,22 @@ export function projectApiProxyReasoningLevel(
   if (profile.levels.length === 0 || profile.levels.includes(aliased)) {
     return aliased;
   }
-  const target = levelRank(aliased);
+  const target = apiProxyReasoningLevelRank(aliased);
   let best = profile.levels[0] as ApiProxyReasoningLevel;
-  let bestDistance = Math.abs(levelRank(best) - target);
+  let bestDistance = Math.abs(apiProxyReasoningLevelRank(best) - target);
   for (const candidate of profile.levels) {
-    const distance = Math.abs(levelRank(candidate) - target);
+    const distance = Math.abs(apiProxyReasoningLevelRank(candidate) - target);
     if (
       distance < bestDistance ||
-      (distance === bestDistance && levelRank(candidate) > levelRank(best))
+      (distance === bestDistance &&
+        apiProxyReasoningLevelRank(candidate) >
+          apiProxyReasoningLevelRank(best))
     ) {
       best = candidate;
       bestDistance = distance;
     }
   }
   return best;
-}
-
-function objectField(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  return value as Record<string, unknown>;
 }
 
 export type ApiProxyReasoningExtraction = {
@@ -255,9 +253,9 @@ function extractOpenAi(
       raw === 0 ? { kind: "off" } : { kind: "budget", tokens: Math.trunc(raw) };
   };
 
-  const kwargs = objectField(record.chat_template_kwargs);
+  const kwargs = namedRecord(record.chat_template_kwargs);
   consumeEffort(record.reasoning_effort, "reasoning_effort");
-  const reasoning = objectField(record.reasoning);
+  const reasoning = namedRecord(record.reasoning);
   if (reasoning) {
     consumeEffort(reasoning.effort, "reasoning.effort");
   }
@@ -282,7 +280,7 @@ function extractAnthropic(
   record: Record<string, unknown>,
 ): ApiProxyReasoningExtraction {
   const fields: string[] = [];
-  const thinking = objectField(record.thinking);
+  const thinking = namedRecord(record.thinking);
   const thinkingType =
     thinking && typeof thinking.type === "string" ? thinking.type : null;
   if (thinkingType) {
@@ -297,7 +295,7 @@ function extractAnthropic(
   if (budgetTokens !== null) {
     fields.push(`thinking.budget_tokens=${budgetTokens}`);
   }
-  const outputConfig = objectField(record.output_config);
+  const outputConfig = namedRecord(record.output_config);
   const effortRaw =
     outputConfig && typeof outputConfig.effort === "string"
       ? outputConfig.effort
@@ -335,7 +333,7 @@ export function extractApiProxyReasoningDirective(
   protocol: "openai" | "anthropic",
   body: unknown,
 ): ApiProxyReasoningExtraction {
-  const record = objectField(body);
+  const record = namedRecord(body);
   if (!record) {
     return { directive: null, fields: [] };
   }
@@ -345,12 +343,11 @@ export function extractApiProxyReasoningDirective(
 }
 
 function withoutKeys(
-  record: Record<string, unknown>,
   parentKey: string,
   keys: string[],
   next: Record<string, unknown>,
 ): void {
-  const child = objectField(next[parentKey]);
+  const child = namedRecord(next[parentKey]);
   if (!child || !keys.some((key) => key in child)) {
     return;
   }
@@ -369,12 +366,12 @@ export function stripApiProxyReasoningFields(
   protocol: "openai" | "anthropic",
   body: unknown,
 ): unknown {
-  const record = objectField(body);
+  const record = namedRecord(body);
   if (!record) {
     return body;
   }
   if (protocol === "anthropic") {
-    const outputConfig = objectField(record.output_config);
+    const outputConfig = namedRecord(record.output_config);
     if (
       !("thinking" in record) &&
       !(outputConfig && "effort" in outputConfig)
@@ -383,11 +380,11 @@ export function stripApiProxyReasoningFields(
     }
     const next = { ...record };
     delete next.thinking;
-    withoutKeys(record, "output_config", ["effort"], next);
+    withoutKeys("output_config", ["effort"], next);
     return next;
   }
-  const kwargs = objectField(record.chat_template_kwargs);
-  const reasoning = objectField(record.reasoning);
+  const kwargs = namedRecord(record.chat_template_kwargs);
+  const reasoning = namedRecord(record.reasoning);
   const present =
     "reasoning_effort" in record ||
     "thinking_budget_tokens" in record ||
@@ -402,9 +399,8 @@ export function stripApiProxyReasoningFields(
   delete next.reasoning_effort;
   delete next.thinking_budget_tokens;
   delete next.reasoning_budget_tokens;
-  withoutKeys(record, "reasoning", ["effort"], next);
+  withoutKeys("reasoning", ["effort"], next);
   withoutKeys(
-    record,
     "chat_template_kwargs",
     ["enable_thinking", "reasoning_effort"],
     next,
@@ -422,36 +418,27 @@ export function apiProxyReasoningDirectiveFromConfig(
       return { kind: "off" };
     case "custom":
       return { kind: "budget", tokens: config.customBudgetTokens };
-    case "max":
-      return { kind: "level", level: "max" };
     default:
       return { kind: "level", level: config.effort };
   }
 }
 
-type ResolvedReasoningIntent =
-  | { mode: "off" }
-  | { mode: "auto" }
-  | { mode: "level"; level: ApiProxyReasoningLevel }
-  | { mode: "budget"; tokens: number };
-
 function resolveIntent(
   directive: ApiProxyReasoningDirective | null,
   profile: ApiProxyReasoningProfile,
-): ResolvedReasoningIntent {
+): ApiProxyReasoningDirective {
   const effective = directive ?? { kind: "auto" as const };
-  if (effective.kind === "off") {
-    return { mode: "off" };
+  if (effective.kind === "auto" && profile.defaultLevel) {
+    return { kind: "level", level: profile.defaultLevel };
   }
-  if (effective.kind === "auto") {
-    return profile.defaultLevel
-      ? { mode: "level", level: profile.defaultLevel }
-      : { mode: "auto" };
+  return effective;
+}
+
+function originLabel(intent: ApiProxyReasoningDirective): string {
+  if (intent.kind === "level") {
+    return `level ${intent.level}`;
   }
-  if (effective.kind === "level") {
-    return { mode: "level", level: effective.level };
-  }
-  return { mode: "budget", tokens: effective.tokens };
+  return intent.kind === "budget" ? `budget ${intent.tokens}` : intent.kind;
 }
 
 function levelBudget(
@@ -492,7 +479,7 @@ const openAiFamily = [
 ];
 
 function materializeOpenAi(
-  intent: ResolvedReasoningIntent,
+  intent: ApiProxyReasoningDirective,
   profile: ApiProxyReasoningProfile,
 ): ApiProxyReasoningMaterialization {
   const done = (writes: FieldWrite[], detail: string) => ({
@@ -501,27 +488,24 @@ function materializeOpenAi(
   });
 
   if (profile.interface === "template-effort") {
-    if (intent.mode === "off") {
+    if (intent.kind === "off") {
       return done(
         [{ path: "reasoning_effort", value: "none" }],
         'off → reasoning_effort "none"',
       );
     }
-    if (intent.mode === "auto") {
+    if (intent.kind === "auto") {
       return done(
         [{ path: "chat_template_kwargs.enable_thinking", value: true }],
         "auto → thinking on, template default effort",
       );
     }
     const level =
-      intent.mode === "level"
+      intent.kind === "level"
         ? intent.level
         : apiProxyReasoningLevelFromBudget(intent.tokens);
     const native = projectApiProxyReasoningLevel(level, profile);
-    const origin =
-      intent.mode === "level"
-        ? `level ${intent.level}`
-        : `budget ${intent.tokens}`;
+    const origin = originLabel(intent);
     return done(
       [{ path: "reasoning_effort", value: native }],
       `${origin} → reasoning_effort "${native}"`,
@@ -529,16 +513,16 @@ function materializeOpenAi(
   }
 
   if (profile.interface === "passthrough") {
-    if (intent.mode === "off") {
+    if (intent.kind === "off") {
       return done(
         [{ path: "reasoning_effort", value: "none" }],
         'off → reasoning_effort "none"',
       );
     }
-    if (intent.mode === "auto") {
+    if (intent.kind === "auto") {
       return done([], "auto → upstream default");
     }
-    if (intent.mode === "level") {
+    if (intent.kind === "level") {
       return done(
         [{ path: "reasoning_effort", value: intent.level }],
         `level ${intent.level} → reasoning_effort "${intent.level}"`,
@@ -550,7 +534,7 @@ function materializeOpenAi(
     );
   }
 
-  if (intent.mode === "off") {
+  if (intent.kind === "off") {
     return done(
       [{ path: "chat_template_kwargs.enable_thinking", value: false }],
       "off → enable_thinking false",
@@ -561,27 +545,23 @@ function materializeOpenAi(
     value: true,
   };
   if (profile.interface === "enable-flag") {
-    if (intent.mode === "budget" && intent.tokens >= 0) {
+    if (intent.kind === "budget" && intent.tokens >= 0) {
       return done(
         [enable, { path: "thinking_budget_tokens", value: intent.tokens }],
         `budget ${intent.tokens} → thinking on, ${intent.tokens} token budget`,
       );
     }
-    const origin =
-      intent.mode === "level" ? `level ${intent.level}` : intent.mode;
+    const origin = originLabel(intent);
     return done([enable], `${origin} → thinking on`);
   }
-  if (intent.mode === "auto") {
+  if (intent.kind === "auto") {
     return done([enable], "auto → thinking on, engine default budget");
   }
   const tokens =
-    intent.mode === "level"
+    intent.kind === "level"
       ? levelBudget(intent.level, profile)
       : intent.tokens;
-  const origin =
-    intent.mode === "level"
-      ? `level ${intent.level}`
-      : `budget ${intent.tokens}`;
+  const origin = originLabel(intent);
   if (tokens < 0) {
     return done([enable], `${origin} → thinking on, unlimited budget`);
   }
@@ -594,7 +574,7 @@ function materializeOpenAi(
 const anthropicFamily = ["thinking", "output_config.effort"];
 
 function materializeAnthropic(
-  intent: ResolvedReasoningIntent,
+  intent: ApiProxyReasoningDirective,
   profile: ApiProxyReasoningProfile,
 ): ApiProxyReasoningMaterialization {
   const done = (writes: FieldWrite[], detail: string) => ({
@@ -610,7 +590,7 @@ function materializeAnthropic(
     value: { type: "adaptive" },
   };
 
-  if (intent.mode === "off") {
+  if (intent.kind === "off") {
     return done([disabled], "off → thinking disabled");
   }
 
@@ -618,10 +598,10 @@ function materializeAnthropic(
     profile.interface === "template-effort" ||
     profile.interface === "passthrough"
   ) {
-    if (intent.mode === "auto") {
+    if (intent.kind === "auto") {
       return done([adaptive], "auto → adaptive thinking");
     }
-    if (intent.mode === "budget" && profile.interface === "passthrough") {
+    if (intent.kind === "budget" && profile.interface === "passthrough") {
       return done(
         [
           {
@@ -636,17 +616,14 @@ function materializeAnthropic(
       );
     }
     const level =
-      intent.mode === "level"
+      intent.kind === "level"
         ? intent.level
         : apiProxyReasoningLevelFromBudget(intent.tokens);
     const native =
       profile.interface === "template-effort"
         ? projectApiProxyReasoningLevel(level, profile)
         : level;
-    const origin =
-      intent.mode === "level"
-        ? `level ${intent.level}`
-        : `budget ${intent.tokens}`;
+    const origin = originLabel(intent);
     return done(
       [adaptive, { path: "output_config.effort", value: native }],
       `${origin} → output_config.effort "${native}"`,
@@ -654,7 +631,7 @@ function materializeAnthropic(
   }
 
   if (profile.interface === "enable-flag") {
-    if (intent.mode === "budget" && intent.tokens >= 0) {
+    if (intent.kind === "budget" && intent.tokens >= 0) {
       return done(
         [
           {
@@ -665,22 +642,18 @@ function materializeAnthropic(
         `budget ${intent.tokens} → thinking enabled`,
       );
     }
-    const origin =
-      intent.mode === "level" ? `level ${intent.level}` : intent.mode;
+    const origin = originLabel(intent);
     return done([adaptive], `${origin} → adaptive thinking`);
   }
 
-  if (intent.mode === "auto") {
+  if (intent.kind === "auto") {
     return done([adaptive], "auto → adaptive thinking");
   }
   const tokens =
-    intent.mode === "level"
+    intent.kind === "level"
       ? levelBudget(intent.level, profile)
       : intent.tokens;
-  const origin =
-    intent.mode === "level"
-      ? `level ${intent.level}`
-      : `budget ${intent.tokens}`;
+  const origin = originLabel(intent);
   if (tokens < 0) {
     return done([adaptive], `${origin} → adaptive thinking`);
   }

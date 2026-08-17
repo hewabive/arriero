@@ -72,7 +72,7 @@ import {
   getApiProxyPipeline,
   getApiProxyTarget,
 } from "./repository.js";
-import { applyApiProxyReasoningMapping } from "./reasoning-request.js";
+import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import { saveApiProxyRequestFile } from "./request-files.js";
 import {
   getApiProxyCachedResponse,
@@ -121,7 +121,6 @@ import {
 } from "./stream-session.js";
 import {
   createAnthropicTranslationStream,
-  prepareUpstreamExchange,
   translateOpenAiErrorText,
   translateOpenAiResponseText,
   translatedAnthropicResumableCodec,
@@ -338,6 +337,8 @@ async function proxyProtocolEndpointInner(
         status: 409,
         code: "arriero_proxy_model_disabled",
         param: "model",
+        errorClass: "conflict",
+        retryable: false,
         message:
           resolution.request.model.blockedMessage ||
           `Model ${resolution.request.modelId} is disabled by the administrator.`,
@@ -1151,26 +1152,17 @@ export async function serveResolvedTarget(input: {
       translateAnthropic,
       stripClientHeaders,
     } = resolved.context;
-    const exchange = prepareUpstreamExchange({
+    const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
       operation,
       path: upstreamPath,
       body: route.request.body,
       headers: c.req.raw.headers,
-    });
-    if (exchange.warnings.length > 0) {
-      trace.translationWarnings = exchange.warnings;
-    }
-    const reasoning = applyApiProxyReasoningMapping({
-      body: exchange.body,
-      protocol: exchange.protocol,
       model: route.request.model,
       instanceId,
+      trace,
     });
-    if (reasoning.traceStep) {
-      trace.routeTrace = [...trace.routeTrace, reasoning.traceStep];
-    }
-    const upstreamRequestBody = reasoning.body;
+    const upstreamRequestBody = forward.body;
 
     const streamMeter: StreamUsageMeter | null =
       route.request.stream && !translateAnthropic
@@ -1242,7 +1234,7 @@ export async function serveResolvedTarget(input: {
             stream: route.request.stream,
             resumeKey: apiProxyStreamResumeKey({
               instanceId,
-              path: exchange.path,
+              path: forward.path,
               modelId: decision.target.model ?? route.request.modelId,
               body: upstreamRequestBody,
             }),
@@ -1261,9 +1253,9 @@ export async function serveResolvedTarget(input: {
       const upstream = await forwardApiProxyRequest({
         baseUrl,
         method: c.req.method,
-        upstreamPath: exchange.path,
+        upstreamPath: forward.path,
         search: new URL(c.req.url).search,
-        headers: exchange.headers,
+        headers: forward.headers,
         stripHeaders: stripClientHeaders,
         body: forwardBody,
         upstreamHeaders: streamSession
@@ -1353,7 +1345,7 @@ export async function serveResolvedTarget(input: {
           });
         }
         const text = await upstream.text();
-        const usage = usageFromNonStreamBody(exchange.protocol, text);
+        const usage = usageFromNonStreamBody(forward.protocol, text);
         if (usage) {
           trace.usage = {
             promptTokens: usage.promptTokens,
@@ -1537,32 +1529,23 @@ export async function serveResolvedTarget(input: {
     }
     const { baseUrl, instanceId, engine, authHeaders, translateAnthropic } =
       resolved.context;
-    const exchange = prepareUpstreamExchange({
+    const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
       operation,
       path: upstreamPath,
       body: route.request.body,
       headers: c.req.raw.headers,
-    });
-    if (exchange.warnings.length > 0) {
-      trace.translationWarnings = exchange.warnings;
-    }
-    const reasoning = applyApiProxyReasoningMapping({
-      body: exchange.body,
-      protocol: exchange.protocol,
       model: route.request.model,
       instanceId,
+      trace,
     });
-    if (reasoning.traceStep) {
-      trace.routeTrace = [...trace.routeTrace, reasoning.traceStep];
-    }
-    const upstreamRequestBody = reasoning.body;
+    const upstreamRequestBody = forward.body;
     const effectiveCodec = translateAnthropic
       ? translatedAnthropicResumableCodec(upstreamRequestBody)
       : codec;
     const url = apiProxyForwardUrl(
       baseUrl,
-      exchange.path,
+      forward.path,
       new URL(c.req.url).search,
     );
     const slotSeq =

@@ -2,6 +2,8 @@ import type { HfGgufVariant, HfTreeFile } from "@arriero/core";
 
 import { parseSplitInfo } from "../models/split.js";
 
+type HfGroupableFile = Pick<HfTreeFile, "path" | "size">;
+
 const QUANT_LABEL_PATTERN =
   /(?:^|[-_.])((?:UD-)?(?:IQ\d|Q\d|TQ\d|MXFP\d)(?:_[A-Z0-9]{1,4}){0,2}|BF16|F16|F32)(?=$|[-_.])/g;
 
@@ -30,13 +32,13 @@ function splitPath(path: string): { directory: string; name: string } {
 type VariantDraft = {
   label: string | null;
   kind: HfGgufVariant["kind"];
-  files: HfTreeFile[];
+  files: HfGroupableFile[];
   splitCount: number | null;
   indices: Set<number>;
 };
 
 export function groupHfGgufFiles(
-  files: readonly HfTreeFile[],
+  files: readonly HfGroupableFile[],
 ): HfGgufVariant[] | null {
   const drafts = new Map<string, VariantDraft>();
   let sawGguf = false;

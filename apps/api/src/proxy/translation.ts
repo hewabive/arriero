@@ -49,8 +49,7 @@ export function translateAnthropicForwardBody(body: unknown): {
   body: unknown;
   warnings: string[];
 } {
-  const translated = translateAnthropicRequest(body, llamaServerRequestOptions);
-  return { body: translated.body, warnings: translated.warnings };
+  return translateAnthropicRequest(body, llamaServerRequestOptions);
 }
 
 export type UpstreamExchange = {

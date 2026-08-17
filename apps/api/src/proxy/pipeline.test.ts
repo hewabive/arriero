@@ -1748,6 +1748,7 @@ test("context-limit rejects at its estimated prompt threshold", async () => {
       code: "arriero_proxy_context_overflow",
       message: "Prompt is too long",
       param: null,
+      errorClass: "invalid-request",
     });
     assert.equal(result.routeTrace[1]?.kind, "context-limit");
     assert.equal(result.routeTrace[1]?.port, null);

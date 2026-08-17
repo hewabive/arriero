@@ -36,8 +36,11 @@ synonyms normalize (`x-high`/`ultra` → `xhigh`, `maximum` → `max`).
 
 ## Profile resolution at the forward boundary
 
-`applyApiProxyReasoningMapping` runs right after `prepareUpstreamExchange` —
-in `respond()` / `respondResumable()` (`protocol-endpoint.ts`), per fusion
+`prepareApiProxyUpstreamRequest` (`reasoning-request.ts`) is the one
+composition of that boundary: it runs `prepareUpstreamExchange` then
+`applyApiProxyReasoningMapping`, records translation warnings and the
+reasoning trace step when handed a trace accumulator, and is called from
+`respond()` / `respondResumable()` (`protocol-endpoint.ts`), per fusion
 branch (`fusion.ts`), and in the resume-claim key derivation
 (`resume-replay.ts`, so a retried stream still matches its persisted
 session). At that point the body is post-translation (openai-shaped for every
@@ -63,6 +66,12 @@ managed upstream), the instance is known, and
    canonical fields pass through as sent (the bridge already translates
    Anthropic `output_config.effort`/`thinking {adaptive}` to
    `reasoning_effort`/`enable_thinking`).
+
+The instance-derived branch (2–3) reads the instance record and the model
+cache row, so it is memoized per instance with a 2 s TTL (the same staleness
+budget as `getCachedApiProxyRuntimeSnapshot`) — a hot request path never
+re-reads `model_cache` per request, and an instance-args or template change
+is picked up within 2 s.
 
 With a profile, the mapping extracts the directive, strips every native
 effort field and re-materializes: levels project onto the ladder (aliases

@@ -3,8 +3,13 @@ import { test } from "node:test";
 
 import { resetProcessRequirement } from "./reset-guard.js";
 
-function file(index: string, worktree: string, path: string) {
-  return { index, worktree, path };
+function file(
+  index: string,
+  worktree: string,
+  path: string,
+  origPath: string | null = null,
+) {
+  return { index, worktree, path, origPath };
 }
 
 test("reverting tracked non-settings files needs no process stop", () => {
@@ -40,7 +45,7 @@ test("an untracked settings.json matters only with includeUntracked", () => {
 test("a renamed-away settings.json still requires full quiescence", () => {
   assert.deepEqual(
     resetProcessRequirement(
-      [file("R", " ", "settings.json -> settings-backup.json")],
+      [file("R", " ", "settings-backup.json", "settings.json")],
       false,
       [],
     ),
@@ -73,7 +78,7 @@ test("untracked instance files block only with includeUntracked", () => {
 test("a staged instance rename blocks on the disappearing destination", () => {
   assert.deepEqual(
     resetProcessRequirement(
-      [file("R", " ", "instances/old.json -> instances/new.json")],
+      [file("R", " ", "instances/new.json", "instances/old.json")],
       false,
       ["new", "old"],
     ),

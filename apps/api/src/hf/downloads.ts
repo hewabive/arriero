@@ -135,15 +135,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
       totalBytes: files.reduce((sum, file) => sum + file.size, 0),
       missingFiles: files.filter((file) => !file.present).length,
       files,
-      variants: groupHfGgufFiles(
-        manifest.files.map((file) => ({
-          path: file.path,
-          size: file.size,
-          oid: file.oid,
-          lfs:
-            file.lfsOid === null ? null : { oid: file.lfsOid, size: file.size },
-        })),
-      ),
+      variants: groupHfGgufFiles(manifest.files),
       update: getHfUpdateCheck(dir),
     };
   });

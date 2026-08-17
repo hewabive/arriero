@@ -38,7 +38,7 @@ export type ApiProxyRequestEditResult = {
   changed: boolean;
 };
 
-function namedRecord(value: unknown): Record<string, unknown> | null {
+export function namedRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }

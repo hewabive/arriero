@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const ConfigGitFileStatusSchema = z.object({
   path: z.string(),
+  origPath: z.string().nullable().default(null),
   index: z.string().length(1),
   worktree: z.string().length(1),
 });
@@ -181,6 +182,13 @@ export function classifyConfigGitPath(
     return `proxy-${proxy[1]}` as ConfigGitPortableFileKind;
   }
   return null;
+}
+
+export function configGitInstanceName(path: string): string | null {
+  if (classifyConfigGitPath(path) !== "instance") {
+    return null;
+  }
+  return path.slice("instances/".length, -".json".length);
 }
 
 export function isPlainRelativeConfigGitPath(path: string): boolean {

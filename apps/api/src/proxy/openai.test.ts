@@ -130,6 +130,8 @@ test("openAiProtocolAdapter marks a disabled model as non-retryable", () => {
       code: "arriero_proxy_model_disabled",
       message: "Use qwen-next.",
       param: "model",
+      errorClass: "conflict",
+      retryable: false,
     },
   );
 

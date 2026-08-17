@@ -1,4 +1,8 @@
-import { classifyConfigGitPath, type ConfigGitFileStatus } from "@arriero/core";
+import {
+  classifyConfigGitPath,
+  configGitInstanceName,
+  type ConfigGitFileStatus,
+} from "@arriero/core";
 
 export type ResetProcessRequirement =
   | { scope: "all-processes" }
@@ -6,25 +10,13 @@ export type ResetProcessRequirement =
   | { scope: "none" };
 
 const DELETED_ON_RESET_INDEX = new Set(["A", "R", "C", "?"]);
-const RENAME_SEPARATOR = " -> ";
 
 function touchedPaths(file: ConfigGitFileStatus): string[] {
-  const arrow = file.path.indexOf(RENAME_SEPARATOR);
-  if (arrow === -1) return [file.path];
-  return [
-    file.path.slice(0, arrow),
-    file.path.slice(arrow + RENAME_SEPARATOR.length),
-  ];
+  return file.origPath === null ? [file.path] : [file.origPath, file.path];
 }
 
 function deletedPath(file: ConfigGitFileStatus): string | null {
-  if (!DELETED_ON_RESET_INDEX.has(file.index)) return null;
-  return touchedPaths(file).at(-1) ?? null;
-}
-
-function instanceName(path: string): string | null {
-  if (classifyConfigGitPath(path) !== "instance") return null;
-  return path.slice("instances/".length, -".json".length);
+  return DELETED_ON_RESET_INDEX.has(file.index) ? file.path : null;
 }
 
 export function resetProcessRequirement(
@@ -46,7 +38,7 @@ export function resetProcessRequirement(
   const deletedInstances = new Set(
     affected.flatMap((file) => {
       const path = deletedPath(file);
-      const name = path === null ? null : instanceName(path);
+      const name = path === null ? null : configGitInstanceName(path);
       return name === null ? [] : [name];
     }),
   );

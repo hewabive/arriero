@@ -1,13 +1,13 @@
 import {
   apiProxyReasoningDirectiveOperations,
   apiProxyReasoningExtractionDetail,
+  apiProxyReasoningLevelRank,
   applyApiProxyRequestEdits,
   engineDescriptor,
   extractApiProxyReasoningDirective,
   normalizeApiProxyReasoningLevel,
   resolveApiProxyReasoningProfile,
   stripApiProxyReasoningFields,
-  API_PROXY_REASONING_LEVELS,
   type ApiProxyModelRecord,
   type ApiProxyReasoningLevel,
   type ApiProxyReasoningProfile,
@@ -16,9 +16,15 @@ import {
   type MemoryEstimateArgs,
 } from "@arriero/core";
 
-import { getInstance } from "../instances/repository.js";
+import { getInstanceRecord } from "../instances/config-files.js";
 import { resolveModelPath } from "../memory-estimate/service.js";
 import { getCachedModelEntry } from "../models/cache-repository.js";
+import type {
+  ApiProxyProtocolId,
+  ApiProxyProtocolOperation,
+} from "./protocol.js";
+import type { ProxyTraceAccumulator } from "./protocol-trace.js";
+import { prepareUpstreamExchange } from "./translation.js";
 
 const llamaBudgetProfile: ApiProxyReasoningProfile = {
   interface: "budget",
@@ -27,10 +33,6 @@ const llamaBudgetProfile: ApiProxyReasoningProfile = {
   defaultLevel: null,
   levelBudgets: {},
 };
-
-function levelRank(level: ApiProxyReasoningLevel): number {
-  return API_PROXY_REASONING_LEVELS.indexOf(level);
-}
 
 export function reasoningProfileFromTemplate(
   detection: GgufChatTemplateReasoning,
@@ -41,7 +43,10 @@ export function reasoningProfileFromTemplate(
         .map((level) => normalizeApiProxyReasoningLevel(level))
         .filter((level): level is ApiProxyReasoningLevel => level !== null),
     ),
-  ].sort((left, right) => levelRank(left) - levelRank(right));
+  ].sort(
+    (left, right) =>
+      apiProxyReasoningLevelRank(left) - apiProxyReasoningLevelRank(right),
+  );
   const aliases: Partial<
     Record<ApiProxyReasoningLevel, ApiProxyReasoningLevel>
   > = {};
@@ -66,22 +71,21 @@ export type ApiProxyUpstreamReasoningProfile = {
   source: string;
 };
 
-export function resolveApiProxyUpstreamReasoningProfile(input: {
-  model: ApiProxyModelRecord;
-  instanceId: string | null;
-}): ApiProxyUpstreamReasoningProfile | null {
-  const override = resolveApiProxyReasoningProfile(input.model.reasoning);
-  if (override) {
-    return { profile: override, source: "model override" };
-  }
-  if (!input.instanceId) {
+const INSTANCE_PROFILE_TTL_MS = 2000;
+
+const instanceProfileCache = new Map<
+  string,
+  { at: number; value: ApiProxyUpstreamReasoningProfile | null }
+>();
+
+function computeInstanceReasoningProfile(
+  instanceId: string,
+): ApiProxyUpstreamReasoningProfile | null {
+  const record = getInstanceRecord(instanceId);
+  if (!record || engineDescriptor(record.kind).nativeApi !== "llama") {
     return null;
   }
-  const instance = getInstance(input.instanceId);
-  if (!instance || engineDescriptor(instance.kind).nativeApi !== "llama") {
-    return null;
-  }
-  const modelPath = resolveModelPath(instance.args as MemoryEstimateArgs);
+  const modelPath = resolveModelPath(record.args as MemoryEstimateArgs);
   const detection = modelPath
     ? (getCachedModelEntry(modelPath)?.model?.metadata.chatTemplateReasoning ??
       null)
@@ -95,10 +99,83 @@ export function resolveApiProxyUpstreamReasoningProfile(input: {
   return { profile: llamaBudgetProfile, source: "engine default" };
 }
 
+function instanceReasoningProfile(
+  instanceId: string,
+): ApiProxyUpstreamReasoningProfile | null {
+  const cached = instanceProfileCache.get(instanceId);
+  if (cached && Date.now() - cached.at < INSTANCE_PROFILE_TTL_MS) {
+    return cached.value;
+  }
+  const value = computeInstanceReasoningProfile(instanceId);
+  instanceProfileCache.set(instanceId, { at: Date.now(), value });
+  return value;
+}
+
+export function resolveApiProxyUpstreamReasoningProfile(input: {
+  model: ApiProxyModelRecord;
+  instanceId: string | null;
+}): ApiProxyUpstreamReasoningProfile | null {
+  const override = resolveApiProxyReasoningProfile(input.model.reasoning);
+  if (override) {
+    return { profile: override, source: "model override" };
+  }
+  return input.instanceId ? instanceReasoningProfile(input.instanceId) : null;
+}
+
 export type ApiProxyMappedReasoningBody = {
   body: unknown;
   traceStep: ApiProxyRouteTraceStep | null;
 };
+
+export type ApiProxyUpstreamRequest = {
+  protocol: ApiProxyProtocolId;
+  path: string;
+  headers: Headers;
+  body: unknown;
+  warnings: string[];
+  traceStep: ApiProxyRouteTraceStep | null;
+};
+
+export function prepareApiProxyUpstreamRequest(input: {
+  translate: boolean;
+  operation: ApiProxyProtocolOperation;
+  path: string;
+  body: unknown;
+  headers: Headers;
+  model: ApiProxyModelRecord;
+  instanceId: string | null;
+  trace?: ProxyTraceAccumulator;
+}): ApiProxyUpstreamRequest {
+  const exchange = prepareUpstreamExchange({
+    translate: input.translate,
+    operation: input.operation,
+    path: input.path,
+    body: input.body,
+    headers: input.headers,
+  });
+  const reasoning = applyApiProxyReasoningMapping({
+    body: exchange.body,
+    protocol: exchange.protocol,
+    model: input.model,
+    instanceId: input.instanceId,
+  });
+  if (input.trace) {
+    if (exchange.warnings.length > 0) {
+      input.trace.translationWarnings = exchange.warnings;
+    }
+    if (reasoning.traceStep) {
+      input.trace.routeTrace = [...input.trace.routeTrace, reasoning.traceStep];
+    }
+  }
+  return {
+    protocol: exchange.protocol,
+    path: exchange.path,
+    headers: exchange.headers,
+    body: reasoning.body,
+    warnings: exchange.warnings,
+    traceStep: reasoning.traceStep,
+  };
+}
 
 export function applyApiProxyReasoningMapping(input: {
   body: unknown;

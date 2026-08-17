@@ -352,22 +352,22 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
     }),
   }),
   diagnosticError: (_request, diagnostic) => {
-    const contextOverflow =
-      diagnostic.code === "arriero_proxy_context_overflow";
-    const modelDisabled = diagnostic.code === "arriero_proxy_model_disabled";
+    const plainClientError = diagnostic.errorClass === "invalid-request";
     return {
       status: diagnostic.status,
       body: anthropicError({
-        message: contextOverflow
+        message: plainClientError
           ? diagnostic.message
           : `${diagnostic.message} (${diagnostic.code})`,
-        type: contextOverflow
+        type: plainClientError
           ? "invalid_request_error"
-          : modelDisabled
+          : diagnostic.errorClass === "conflict"
             ? "conflict_error"
             : "api_error",
       }),
-      ...(modelDisabled ? { headers: { "x-should-retry": "false" } } : {}),
+      ...(diagnostic.retryable === false
+        ? { headers: { "x-should-retry": "false" } }
+        : {}),
     };
   },
   authError: (diagnostic) => ({
@@ -375,7 +375,7 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
     body: anthropicError({
       message: diagnostic.message,
       type:
-        diagnostic.code === "arriero_proxy_source_disabled"
+        diagnostic.errorClass === "permission"
           ? "permission_error"
           : "authentication_error",
     }),

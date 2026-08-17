@@ -99,7 +99,7 @@ async function walk(
   return out;
 }
 
-function emptyMetadata(): GgufMetadata {
+export function emptyMetadata(): GgufMetadata {
   return {
     name: null,
     architecture: null,

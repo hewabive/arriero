@@ -675,7 +675,9 @@ export function ConfigGitView() {
                           {file.worktree}
                         </Code>
                         <Text size="sm" className="text-wrap">
-                          {file.path}
+                          {file.origPath
+                            ? `${file.origPath} -> ${file.path}`
+                            : file.path}
                         </Text>
                       </Group>
                       <Group gap={4} wrap="nowrap">

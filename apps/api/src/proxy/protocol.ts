@@ -45,6 +45,8 @@ export type ApiProxyProtocolDiagnostic = {
   code: ApiProxyProtocolDiagnosticCode;
   message: string;
   param?: string | null | undefined;
+  errorClass?: "invalid-request" | "conflict" | undefined;
+  retryable?: boolean | undefined;
 };
 
 type ApiProxyAuthDiagnosticCode =
@@ -55,6 +57,7 @@ type ApiProxyAuthDiagnosticCode =
 export type ApiProxyAuthDiagnostic = {
   status: 401 | 423;
   code: ApiProxyAuthDiagnosticCode;
+  errorClass: "permission" | "authentication";
   message: string;
 };
 

@@ -27,15 +27,30 @@ import { getActiveConfigGitOperation } from "./state.js";
 
 const DIFF_LIMIT = 512 * 1024;
 
+const RENAME_STATUS_SEPARATOR = " -> ";
+
 export function parseFileStatuses(output: string): ConfigGitFileStatus[] {
   return output
     .split("\n")
     .filter(Boolean)
-    .map((line) => ({
-      index: line[0] ?? " ",
-      worktree: line[1] ?? " ",
-      path: line.slice(3),
-    }));
+    .map((line) => {
+      const index = line[0] ?? " ";
+      const worktree = line[1] ?? " ";
+      const raw = line.slice(3);
+      const arrow =
+        index === "R" || index === "C"
+          ? raw.indexOf(RENAME_STATUS_SEPARATOR)
+          : -1;
+      if (arrow === -1) {
+        return { index, worktree, path: raw, origPath: null };
+      }
+      return {
+        index,
+        worktree,
+        path: raw.slice(arrow + RENAME_STATUS_SEPARATOR.length),
+        origPath: raw.slice(0, arrow),
+      };
+    });
 }
 
 async function aheadBehind(

@@ -19,6 +19,7 @@ import { config } from "../config.js";
 import { createInstance } from "../instances/repository.js";
 import { instanceTestFixture } from "../instances/test-fixtures.js";
 import { saveCachedModel } from "../models/cache-repository.js";
+import { emptyMetadata } from "../models/scanner.js";
 import {
   applyApiProxyReasoningMapping,
   reasoningProfileFromTemplate,
@@ -75,6 +76,7 @@ function seedLlamaInstance(input: {
           mmprojPaths: [],
           metadata: {
             ...emptyMetadata(),
+            hasChatTemplate: true,
             chatTemplateReasoning: input.cachedReasoning,
           },
         },
@@ -95,74 +97,6 @@ function seedLlamaInstance(input: {
     memory: [],
   });
   return name;
-}
-
-function emptyMetadata(): GgufModel["metadata"] {
-  return {
-    name: null,
-    architecture: null,
-    modelType: null,
-    poolingType: null,
-    causalAttention: null,
-    hasClassifierHead: null,
-    quantization: null,
-    quantizationVersion: null,
-    sizeLabel: null,
-    basename: null,
-    finetune: null,
-    license: null,
-    licenseLink: null,
-    repoUrl: null,
-    version: null,
-    quantizedBy: null,
-    tags: [],
-    baseModels: [],
-    parameterCount: null,
-    contextLength: null,
-    embeddingLength: null,
-    blockCount: null,
-    leadingDenseBlockCount: null,
-    feedForwardLength: null,
-    expertCount: null,
-    expertUsedCount: null,
-    expertSharedCount: null,
-    expertFeedForwardLength: null,
-    headCount: null,
-    headCountKv: null,
-    attentionKeyLength: null,
-    attentionValueLength: null,
-    attentionKeyLengthMla: null,
-    attentionValueLengthMla: null,
-    slidingWindow: null,
-    slidingWindowPattern: null,
-    sharedKvLayers: null,
-    nextnPredictLayers: null,
-    shortConvCacheLength: null,
-    ssmConvKernel: null,
-    ssmGroupCount: null,
-    ssmInnerSize: null,
-    ssmStateSize: null,
-    wkvHeadSize: null,
-    tokenShiftCount: null,
-    kdaHeadDim: null,
-    ropeFreqBase: null,
-    ropeScalingType: null,
-    ropeScalingFactor: null,
-    ropeScalingOrigCtxLen: null,
-    tokenizerModel: null,
-    tokenizerPre: null,
-    addBosToken: null,
-    addEosToken: null,
-    hasChatTemplate: true,
-    chatTemplateReasoning: null,
-    vocabularySize: null,
-    samplingTemp: null,
-    samplingTopK: null,
-    samplingTopP: null,
-    imatrixDataset: null,
-    imatrixEntries: null,
-    imatrixChunks: null,
-  };
 }
 
 test("openai extraction reads reasoning_effort and off spellings", () => {

@@ -175,7 +175,7 @@ test("getConfigGitStatus preserves an unstaged status and complete path", async 
   const status = await getConfigGitStatus();
 
   assert.deepEqual(status.files, [
-    { index: " ", worktree: "M", path: "settings.json" },
+    { index: " ", worktree: "M", path: "settings.json", origPath: null },
   ]);
 });
 

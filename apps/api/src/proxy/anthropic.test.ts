@@ -86,6 +86,7 @@ test("anthropicProtocolAdapter exposes context overflow as an invalid request", 
       code: "arriero_proxy_context_overflow",
       message: "Prompt is too long",
       param: null,
+      errorClass: "invalid-request",
     },
   );
 
@@ -126,6 +127,8 @@ test("anthropicProtocolAdapter exposes a disabled model as a non-retryable confl
       code: "arriero_proxy_model_disabled",
       message: "Use claude-replacement.",
       param: "model",
+      errorClass: "conflict",
+      retryable: false,
     },
   );
 
@@ -147,6 +150,7 @@ test("anthropicProtocolAdapter keeps a disabled source out of the login flow", (
     anthropicProtocolAdapter.authError({
       status: 423,
       code: "arriero_proxy_source_disabled",
+      errorClass: "permission",
       message: "Contact the administrator.",
     }),
     {

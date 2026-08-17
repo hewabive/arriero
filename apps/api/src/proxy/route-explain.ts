@@ -100,6 +100,21 @@ export async function explainApiProxyRoute(
     };
   }
 
+  const mapped = (instanceId: string | null) => {
+    const reasoning = applyApiProxyReasoningMapping({
+      body: route.request.body,
+      protocol: input.protocol,
+      model,
+      instanceId,
+    });
+    return {
+      routeTrace: reasoning.traceStep
+        ? [...route.routeTrace, reasoning.traceStep]
+        : route.routeTrace,
+      transformedBody: reasoning.body,
+    };
+  };
+
   if (route.kind === "fusion") {
     return {
       ...base,
@@ -115,22 +130,13 @@ export async function explainApiProxyRoute(
   if (route.kind === "endpoint") {
     const endpoint = getApiEndpointById(route.endpointId, listInstances());
     const upstream = route.upstreamModel ?? modelId;
-    const reasoning = applyApiProxyReasoningMapping({
-      body: route.request.body,
-      protocol: input.protocol,
-      model,
-      instanceId: null,
-    });
     return {
       ...base,
       ok: true,
       targetId: null,
       targetName: `${endpoint?.name ?? route.endpointId} · ${upstream}`,
-      routeTrace: reasoning.traceStep
-        ? [...route.routeTrace, reasoning.traceStep]
-        : route.routeTrace,
       textReplacementCount: route.textReplacementCount,
-      transformedBody: reasoning.body,
+      ...mapped(null),
     };
   }
 
@@ -149,21 +155,12 @@ export async function explainApiProxyRoute(
   const endpoint = target
     ? getApiEndpointById(target.endpointId, listInstances())
     : null;
-  const reasoning = applyApiProxyReasoningMapping({
-    body: route.request.body,
-    protocol: input.protocol,
-    model,
-    instanceId: endpoint?.instanceId ?? null,
-  });
   return {
     ...base,
     ok: true,
     targetId: route.targetId,
     targetName: target?.name ?? null,
-    routeTrace: reasoning.traceStep
-      ? [...route.routeTrace, reasoning.traceStep]
-      : route.routeTrace,
     textReplacementCount: route.textReplacementCount,
-    transformedBody: reasoning.body,
+    ...mapped(endpoint?.instanceId ?? null),
   };
 }

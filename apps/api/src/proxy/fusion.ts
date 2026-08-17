@@ -38,7 +38,7 @@ import {
   type ApiProxyResumableFinalResponse,
 } from "./protocol.js";
 import { safeJsonParse, type ProxyTraceAccumulator } from "./protocol-trace.js";
-import { applyApiProxyReasoningMapping } from "./reasoning-request.js";
+import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import { getApiProxyPipeline, getApiProxyTarget } from "./repository.js";
 import {
   createApiProxyResponsePlanExecutor,
@@ -52,10 +52,7 @@ import {
   type ResumableBufferState,
 } from "./resumable-forward.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
-import {
-  prepareUpstreamExchange,
-  translatedAnthropicResumableCodec,
-} from "./translation.js";
+import { translatedAnthropicResumableCodec } from "./translation.js";
 import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
 
 const maxFusionDepth = 3;
@@ -171,25 +168,21 @@ export async function executeApiProxyModelSubRequest(input: {
     }
     const { baseUrl, authHeaders, translateAnthropic } = upstream.context;
 
-    const exchange = prepareUpstreamExchange({
+    const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
       operation: input.operation,
       path: upstreamPath,
       body: input.body,
       headers: new Headers(),
-    });
-    const reasoning = applyApiProxyReasoningMapping({
-      body: exchange.body,
-      protocol: exchange.protocol,
       model: input.model,
       instanceId: upstream.context.instanceId,
     });
     const codec = translateAnthropic
-      ? translatedAnthropicResumableCodec(reasoning.body)
+      ? translatedAnthropicResumableCodec(forward.body)
       : adapter.resumable;
-    const url = apiProxyForwardUrl(baseUrl, exchange.path, "");
+    const url = apiProxyForwardUrl(baseUrl, forward.path, "");
     const state = createResumableBufferState();
-    const built = codec.upstreamBody(reasoning.body, null);
+    const built = codec.upstreamBody(forward.body, null);
     const requestBody =
       target.model && built && typeof built === "object"
         ? { ...(built as Record<string, unknown>), model: target.model }
