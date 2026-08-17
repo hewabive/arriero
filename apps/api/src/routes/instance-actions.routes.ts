@@ -21,10 +21,7 @@ import {
   stopManagedInstance,
 } from "../process/managed-lifecycle.js";
 import { supervisor } from "../process/supervisor.js";
-
-function formatGib(bytes: number): string {
-  return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
-}
+import { formatGib } from "../utils/format.js";
 
 function formatAdmissionError(admission: ResourceAdmission): string {
   const parts = admission.shortfalls.map(

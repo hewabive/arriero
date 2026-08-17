@@ -36,6 +36,7 @@ import { SectionTabs } from "./components/SectionTabs";
 import {
   activeLeaf,
   activeSection,
+  currentHashPath,
   navigateToLeaf,
   sidebarSections,
   useHashRoute,
@@ -190,7 +191,7 @@ export function App() {
     if (!canUseAdmin) {
       return;
     }
-    const path = window.location.hash.replace(/^#\/?/, "").split("?")[0] ?? "";
+    const path = currentHashPath();
     if (!path || path === "login") {
       setRoute("dashboard");
     }
@@ -358,8 +359,7 @@ export function App() {
         <AppShell.Section grow component={ScrollArea}>
           <AppNav
             sections={mainSections}
-            route={route}
-            subpath={routeSubpath}
+            activeSectionId={currentSection.id}
             badges={navBadges}
             onNavigate={goToLeaf}
           />
@@ -369,9 +369,7 @@ export function App() {
             <Divider my="xs" />
             <AppNav
               sections={footerSections}
-              route={route}
-              subpath={routeSubpath}
-              badges={{}}
+              activeSectionId={currentSection.id}
               onNavigate={goToLeaf}
             />
           </AppShell.Section>
@@ -392,8 +390,7 @@ export function App() {
           {canUseAdmin && (
             <SectionTabs
               section={currentSection}
-              route={route}
-              subpath={routeSubpath}
+              current={currentRoute}
               onNavigate={goToLeaf}
             />
           )}

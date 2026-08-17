@@ -439,7 +439,6 @@ export const ApiProxyActivitySourceSchema = z.object({
   requests: z.number().int().min(0).default(0),
   errors: z.number().int().min(0).default(0),
   activeRequests: z.number().int().min(0).default(0),
-  lastRequestAt: z.string().nullable().default(null),
 });
 
 export const ApiProxyActivityModelSchema = z.object({
@@ -448,7 +447,6 @@ export const ApiProxyActivityModelSchema = z.object({
   errors: z.number().int().min(0).default(0),
   activeRequests: z.number().int().min(0).default(0),
   queuedRequests: z.number().int().min(0).default(0),
-  lastRequestAt: z.string().nullable().default(null),
   sources: z.array(ApiProxyActivitySourceSchema).default([]),
 });
 

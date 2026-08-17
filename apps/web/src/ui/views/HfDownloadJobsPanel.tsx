@@ -20,14 +20,8 @@ import {
   JobPanelControls,
   useJobPanelCollapse,
 } from "../components/JobPanelControls";
+import { backgroundJobStatusColor } from "../utils/job-status";
 import { formatBytes } from "../utils/models";
-
-function statusColor(status: HfDownloadJob["status"]) {
-  if (status === "succeeded") return "green";
-  if (status === "running") return "blue";
-  if (status === "canceled") return "gray";
-  return "red";
-}
 
 function fileStatusColor(status: HfDownloadFile["status"]) {
   if (status === "succeeded") return "green";
@@ -73,7 +67,10 @@ function HfDownloadJobCard(props: {
               <Text fw={600} size="sm">
                 {job.repoId}
               </Text>
-              <Badge color={statusColor(job.status)} variant="light">
+              <Badge
+                color={backgroundJobStatusColor(job.status)}
+                variant="light"
+              >
                 {job.status}
               </Badge>
               {percent !== null && (
@@ -120,7 +117,7 @@ function HfDownloadJobCard(props: {
             {percent !== null && (
               <Progress
                 value={percent}
-                color={statusColor(job.status)}
+                color={backgroundJobStatusColor(job.status)}
                 animated={job.status === "running"}
                 striped={job.status === "running"}
               />
@@ -168,7 +165,7 @@ export function HfDownloadJobsPanel() {
     queryFn: listHfDownloadJobs,
     refetchInterval: (current) =>
       current.state.data?.data.some((job) => job.status === "running")
-        ? 750
+        ? 1_500
         : 5_000,
   });
   const jobs = jobsQuery.data?.data ?? [];

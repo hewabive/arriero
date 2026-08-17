@@ -1,4 +1,8 @@
-import type { HfLfsInfo, HfTreeFile } from "@arriero/core";
+import {
+  encodeHfPathSegments,
+  type HfLfsInfo,
+  type HfTreeFile,
+} from "@arriero/core";
 import { z } from "zod";
 
 import { getHfToken } from "./token.js";
@@ -72,20 +76,12 @@ export type HfPathInfo = {
   lastCommitDate: string | null;
 };
 
-function encodeRepoId(repoId: string): string {
-  return repoId.split("/").map(encodeURIComponent).join("/");
-}
-
-function encodeRepoPath(path: string): string {
-  return path.split("/").map(encodeURIComponent).join("/");
-}
-
 export function hfResolveUrl(
   repoId: string,
   revision: string,
   path: string,
 ): string {
-  return `${HF_BASE_URL}/${encodeRepoId(repoId)}/resolve/${encodeURIComponent(revision)}/${encodeRepoPath(path)}`;
+  return `${HF_BASE_URL}/${encodeHfPathSegments(repoId)}/resolve/${encodeURIComponent(revision)}/${encodeHfPathSegments(path)}`;
 }
 
 function resolveToken(options?: HfClientOptions): string | null {
@@ -188,7 +184,7 @@ export async function fetchHfRepoInfo(
   revision: string,
   options?: HfClientOptions,
 ): Promise<HfRepoInfo> {
-  const url = `${HF_BASE_URL}/api/models/${encodeRepoId(repoId)}/revision/${encodeURIComponent(revision)}`;
+  const url = `${HF_BASE_URL}/api/models/${encodeHfPathSegments(repoId)}/revision/${encodeURIComponent(revision)}`;
   const raw = await hfApiJson(url, {}, options);
   const parsed = HfRepoInfoResponseSchema.safeParse(raw);
   if (!parsed.success) {
@@ -231,7 +227,7 @@ export async function fetchHfTree(
 ): Promise<{ files: HfTreeFile[]; truncated: boolean }> {
   const files: HfTreeFile[] = [];
   let url: string | null =
-    `${HF_BASE_URL}/api/models/${encodeRepoId(repoId)}/tree/${encodeURIComponent(revision)}?recursive=true&limit=1000`;
+    `${HF_BASE_URL}/api/models/${encodeHfPathSegments(repoId)}/tree/${encodeURIComponent(revision)}?recursive=true&limit=1000`;
   let pages = 0;
   let truncated = false;
   while (url) {
@@ -284,7 +280,7 @@ export async function fetchHfPathsInfo(
   for (let start = 0; start < paths.length; start += PATHS_INFO_CHUNK) {
     const chunk = paths.slice(start, start + PATHS_INFO_CHUNK);
     const raw = await hfApiJson(
-      `${HF_BASE_URL}/api/models/${encodeRepoId(repoId)}/paths-info/${encodeURIComponent(revision)}`,
+      `${HF_BASE_URL}/api/models/${encodeHfPathSegments(repoId)}/paths-info/${encodeURIComponent(revision)}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },

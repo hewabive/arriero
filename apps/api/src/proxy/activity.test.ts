@@ -92,7 +92,6 @@ test("aggregates the rolling hour per model and source", () => {
   assert.equal(model.modelId, "m1");
   assert.equal(model.requests, 3);
   assert.equal(model.errors, 1);
-  assert.equal(model.lastRequestAt, minutesBefore(5));
   assert.deepEqual(
     model.sources.map((source) => ({
       sourceId: source.sourceId,

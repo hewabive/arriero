@@ -94,8 +94,8 @@ if (testRoot !== null) {
 }
 
 export const config = {
-  host: managerEnv("HOST") ?? "127.0.0.1",
-  port: Number(managerEnv("PORT") ?? "8787"),
+  host: managerEnvNonEmpty("HOST") ?? "127.0.0.1",
+  port: Number(managerEnvNonEmpty("PORT") ?? "8787"),
   rootDir,
   dataDir,
   configDir,
@@ -126,21 +126,25 @@ export const config = {
   },
   shutdown: {
     stopManagedOnExit: managerEnv("STOP_MANAGED_ON_EXIT") === "true",
-    timeoutMs: Number(managerEnv("SHUTDOWN_TIMEOUT_MS") ?? 10_000),
+    timeoutMs: Number(managerEnvNonEmpty("SHUTDOWN_TIMEOUT_MS") ?? 10_000),
   },
   proxy: {
     idleMaintenanceIntervalMs: Number(
-      managerEnv("PROXY_IDLE_INTERVAL_MS") ?? 30_000,
+      managerEnvNonEmpty("PROXY_IDLE_INTERVAL_MS") ?? 30_000,
     ),
     resumeClaimWindowMs: Number(
-      managerEnv("PROXY_RESUME_CLAIM_WINDOW_MS") ?? 180_000,
+      managerEnvNonEmpty("PROXY_RESUME_CLAIM_WINDOW_MS") ?? 180_000,
     ),
   },
   memoryAssessment: {
-    autoIntervalMs: Number(managerEnv("MEMORY_ASSESS_INTERVAL_MS") ?? 60_000),
+    autoIntervalMs: Number(
+      managerEnvNonEmpty("MEMORY_ASSESS_INTERVAL_MS") ?? 60_000,
+    ),
   },
   update: {
-    drainTimeoutMs: Number(managerEnv("UPDATE_DRAIN_TIMEOUT_MS") ?? 10_000),
+    drainTimeoutMs: Number(
+      managerEnvNonEmpty("UPDATE_DRAIN_TIMEOUT_MS") ?? 10_000,
+    ),
   },
   auth: {
     password: managerEnvNonEmpty("ADMIN_PASSWORD") ?? null,

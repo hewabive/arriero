@@ -13,7 +13,6 @@ import {
   ChevronRight,
   CircleCheck,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
 
 import {
   checkForUpdate,
@@ -28,8 +27,8 @@ import {
 } from "../../api/client";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import { useAutoUpdateCheck } from "../utils/use-auto-update-check";
 
-const AUTO_CHECK_STALE_MS = 15 * 60_000;
 const STALL_WINDOW_MS = 24 * 60 * 60_000;
 const LOW_DISK_FRACTION = 0.05;
 const LOW_DISK_BYTES = 5 * 1024 ** 3;
@@ -104,26 +103,17 @@ export function AttentionSignalsCard() {
   });
 
   const version = versionQuery.data?.data;
-  const autoCheckedRef = useRef(false);
-  useEffect(() => {
-    if (autoCheckedRef.current || !version?.isGitRepo) {
-      return;
-    }
-    autoCheckedRef.current = true;
-    const checkedAt = version.lastCheckedAt
-      ? Date.parse(version.lastCheckedAt)
-      : Number.NaN;
-    if (
-      !Number.isFinite(checkedAt) ||
-      Date.now() - checkedAt > AUTO_CHECK_STALE_MS
-    ) {
+  useAutoUpdateCheck(
+    Boolean(version?.isGitRepo),
+    version?.lastCheckedAt ?? null,
+    () => {
       void checkForUpdate()
         .then(() =>
           queryClient.invalidateQueries({ queryKey: ["app-version"] }),
         )
         .catch(() => undefined);
-    }
-  }, [version, queryClient]);
+    },
+  );
 
   const items: AttentionItem[] = [];
 

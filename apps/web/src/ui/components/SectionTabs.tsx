@@ -1,11 +1,6 @@
 import { Tabs } from "@mantine/core";
 
-import {
-  activeLeaf,
-  type AppRoute,
-  type NavLeaf,
-  type NavSection,
-} from "../routing";
+import type { NavLeaf, NavSection } from "../routing";
 
 function leafValue(leaf: NavLeaf): string {
   return `${leaf.route}:${leaf.subpath ?? ""}`;
@@ -13,17 +8,15 @@ function leafValue(leaf: NavLeaf): string {
 
 export function SectionTabs(props: {
   section: NavSection;
-  route: AppRoute;
-  subpath: string;
+  current: NavLeaf;
   onNavigate: (leaf: NavLeaf) => void;
 }) {
   if (props.section.items.length < 2) {
     return null;
   }
-  const current = activeLeaf(props.route, props.subpath);
   return (
     <Tabs
-      value={leafValue(current)}
+      value={leafValue(props.current)}
       onChange={(value) => {
         const next = props.section.items.find(
           (leaf) => leafValue(leaf) === value,

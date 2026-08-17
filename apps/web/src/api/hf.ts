@@ -1,18 +1,15 @@
-import type {
-  HfDestCheck,
-  HfDownloadJob,
-  HfDownloadStart,
-  HfDownloadedRepo,
-  HfRepoBrowse,
-  HfTokenStatus,
-  HfUpdateCheck,
+import {
+  encodeHfPathSegments,
+  type HfDestCheck,
+  type HfDownloadJob,
+  type HfDownloadStart,
+  type HfDownloadedRepo,
+  type HfRepoBrowse,
+  type HfTokenStatus,
+  type HfUpdateCheck,
 } from "@arriero/core";
 
 import { buildQuery, nodeRequest as request } from "./http.js";
-
-function repoIdPath(repoId: string): string {
-  return repoId.split("/").map(encodeURIComponent).join("/");
-}
 
 export function getHfTokenStatus() {
   return request<{ data: HfTokenStatus }>("/api/hf/token");
@@ -68,7 +65,7 @@ export function listHfDownloadJobs() {
 
 export function cancelHfDownloadJob(repoId: string) {
   return request<{ data: HfDownloadJob }>(
-    `/api/hf/jobs/${repoIdPath(repoId)}/cancel`,
+    `/api/hf/jobs/${encodeHfPathSegments(repoId)}/cancel`,
     { method: "POST" },
   );
 }

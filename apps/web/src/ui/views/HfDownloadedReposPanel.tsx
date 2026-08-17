@@ -1,4 +1,8 @@
-import type { HfDownloadedRepo, HfUpdateCheckStatus } from "@arriero/core";
+import {
+  HF_UPDATE_CHECK_MAX_DIRS,
+  type HfDownloadedRepo,
+  type HfUpdateCheckStatus,
+} from "@arriero/core";
 import {
   Badge,
   Button,
@@ -142,7 +146,11 @@ export function HfDownloadedReposPanel() {
             loading={checkMutation.isPending}
             disabled={repos.length === 0}
             onClick={() =>
-              checkMutation.mutate(repos.slice(0, 50).map((repo) => repo.dir))
+              checkMutation.mutate(
+                repos
+                  .slice(0, HF_UPDATE_CHECK_MAX_DIRS)
+                  .map((repo) => repo.dir),
+              )
             }
           >
             Check all

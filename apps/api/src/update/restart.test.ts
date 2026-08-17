@@ -35,9 +35,9 @@ test("withStartedAt stamps a stable process start time", () => {
 });
 
 test("restartBlockedReason allows supervised processes", () => {
-  assert.equal(restartBlockedReason(version(true)), null);
+  assert.equal(restartBlockedReason(true), null);
 });
 
 test("restartBlockedReason refuses without a supervisor", () => {
-  assert.match(restartBlockedReason(version(false)) ?? "", /supervisor/);
+  assert.match(restartBlockedReason(false) ?? "", /supervisor/);
 });

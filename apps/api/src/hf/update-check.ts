@@ -8,7 +8,11 @@ import {
   HfHubError,
   type HfClientOptions,
 } from "./client.js";
-import { readHfManifest, type HfManifest } from "./manifest.js";
+import {
+  hfManifestOidMatches,
+  readHfManifest,
+  type HfManifest,
+} from "./manifest.js";
 
 const checks = new Map<string, HfUpdateCheck>();
 
@@ -41,10 +45,7 @@ export function diffHfManifest(
     if (!remote) {
       return { path: file.path, status: "deleted" };
     }
-    const matches =
-      file.lfsOid !== null && remote.lfs !== null
-        ? file.lfsOid === remote.lfs.oid
-        : file.oid === remote.oid;
+    const matches = hfManifestOidMatches(file, remote);
     return { path: file.path, status: matches ? "current" : "updated" };
   });
   return {
@@ -117,16 +118,23 @@ async function runHfUpdateCheck(
   }
 }
 
+const UPDATE_CHECK_CONCURRENCY = 4;
+
 export async function runHfUpdateChecks(
   dirs: readonly string[],
   options?: HfClientOptions,
 ): Promise<Record<string, HfUpdateCheck>> {
   const result: Record<string, HfUpdateCheck> = {};
-  for (const dir of dirs) {
-    const resolved = resolve(dir);
-    const check = await runHfUpdateCheck(resolved, options);
-    checks.set(resolved, check);
-    result[resolved] = check;
-  }
+  const queue = [...dirs];
+  const worker = async () => {
+    for (let dir = queue.shift(); dir !== undefined; dir = queue.shift()) {
+      const resolved = resolve(dir);
+      const check = await runHfUpdateCheck(resolved, options);
+      checks.set(resolved, check);
+      result[resolved] = check;
+    }
+  };
+  const workerCount = Math.min(UPDATE_CHECK_CONCURRENCY, queue.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
   return result;
 }

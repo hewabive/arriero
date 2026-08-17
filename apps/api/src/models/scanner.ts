@@ -20,7 +20,7 @@ import {
 } from "./gguf.js";
 import { parseSplitInfo, splitShardName, type SplitInfo } from "./split.js";
 
-const IGNORED_DIRS = new Set([
+export const IGNORED_DIRS = new Set([
   ".git",
   ".hg",
   ".svn",

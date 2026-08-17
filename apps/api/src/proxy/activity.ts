@@ -15,16 +15,6 @@ type ModelAccumulator = {
   sources: Map<string, ApiProxyActivitySource>;
 };
 
-function laterIso(a: string | null, b: string | null): string | null {
-  if (a === null) {
-    return b;
-  }
-  if (b === null) {
-    return a;
-  }
-  return a >= b ? a : b;
-}
-
 function compareModels(a: ApiProxyActivityModel, b: ApiProxyActivityModel) {
   if (a.requests !== b.requests) {
     return b.requests - a.requests;
@@ -61,7 +51,6 @@ export function getApiProxyActivity(
         errors: 0,
         activeRequests: 0,
         queuedRequests: 0,
-        lastRequestAt: null,
         sources: [],
       },
       sources: new Map(),
@@ -86,7 +75,6 @@ export function getApiProxyActivity(
       requests: 0,
       errors: 0,
       activeRequests: 0,
-      lastRequestAt: null,
     };
     accumulator.sources.set(key, created);
     return created;
@@ -96,14 +84,9 @@ export function getApiProxyActivity(
     const accumulator = modelEntry(row.modelId);
     accumulator.model.requests += row.requests;
     accumulator.model.errors += row.errors;
-    accumulator.model.lastRequestAt = laterIso(
-      accumulator.model.lastRequestAt,
-      row.lastRequestAt,
-    );
     const source = sourceEntry(accumulator, row.sourceId, row.sourceName);
     source.requests += row.requests;
     source.errors += row.errors;
-    source.lastRequestAt = laterIso(source.lastRequestAt, row.lastRequestAt);
   }
 
   for (const [modelId, requests] of registry.snapshotByModel()) {

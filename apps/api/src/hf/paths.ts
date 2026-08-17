@@ -1,11 +1,12 @@
 import type { HfDestCheck } from "@arriero/core";
 import { existsSync } from "node:fs";
 import { statfs } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { logger } from "../logger.js";
 import { getModelScanSettings } from "../models/cache-repository.js";
 import { listModelScanRoots } from "../models/roots.js";
+import { isPathWithin } from "../path-utils.js";
 import { capacityFromStatFs } from "../system/storage-space.js";
 
 export class HfDownloadRequestError extends Error {}
@@ -35,13 +36,13 @@ export function sanitizeRepoRelativePath(path: string): string {
   ) {
     throw new HfDownloadRequestError(`invalid repo file path: ${path}`);
   }
-  return segments.join("/");
+  return path;
 }
 
 export function resolveWithin(baseDir: string, relativePath: string): string {
   const base = resolve(baseDir);
   const target = resolve(base, relativePath);
-  if (target !== base && !target.startsWith(base + sep)) {
+  if (!isPathWithin(base, target)) {
     throw new HfDownloadRequestError(
       `repo file path escapes the destination directory: ${relativePath}`,
     );
@@ -51,9 +52,7 @@ export function resolveWithin(baseDir: string, relativePath: string): string {
 
 export function isInsideScanRoots(dir: string): boolean {
   const resolved = resolve(dir);
-  return listModelScanRoots().some(
-    (root) => resolved === root.path || resolved.startsWith(root.path + sep),
-  );
+  return listModelScanRoots().some((root) => isPathWithin(root.path, resolved));
 }
 
 function nearestExistingDir(dir: string): string {

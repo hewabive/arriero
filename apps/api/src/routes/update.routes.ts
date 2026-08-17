@@ -11,7 +11,7 @@ import {
   withStartedAt,
 } from "../update/restart.js";
 import { updateRunner } from "../update/runner.js";
-import { checkForUpdate } from "../update/version.js";
+import { checkForUpdate, isSupervised } from "../update/version.js";
 
 export function registerUpdateRoutes(app: Hono) {
   app.get("/api/version", (c) => {
@@ -28,7 +28,7 @@ export function registerUpdateRoutes(app: Hono) {
   });
 
   app.post("/api/update/restart", (c) => {
-    const blocked = restartBlockedReason(appVersionWithStartedAt());
+    const blocked = restartBlockedReason(isSupervised());
     if (blocked) {
       return c.json({ error: blocked }, 409);
     }

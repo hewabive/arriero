@@ -1,3 +1,16 @@
+import {
+  Cpu,
+  FlaskConical,
+  Globe,
+  HardDrive,
+  LayoutDashboard,
+  LockKeyhole,
+  Server,
+  Settings,
+  Waypoints,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 export type AppRoute =
@@ -35,6 +48,7 @@ export type NavLeaf = {
 export type NavSection = {
   id: string;
   label: string;
+  icon: LucideIcon;
   items: NavLeaf[];
   footer?: boolean;
 };
@@ -43,6 +57,7 @@ const navSections: NavSection[] = [
   {
     id: "overview",
     label: "Overview",
+    icon: LayoutDashboard,
     items: [
       {
         route: "dashboard",
@@ -57,6 +72,7 @@ const navSections: NavSection[] = [
   {
     id: "instances",
     label: "Instances",
+    icon: Server,
     items: [
       {
         route: "instances",
@@ -84,6 +100,7 @@ const navSections: NavSection[] = [
   {
     id: "proxy",
     label: "Proxy",
+    icon: Waypoints,
     items: [
       {
         route: "proxy",
@@ -168,6 +185,7 @@ const navSections: NavSection[] = [
   {
     id: "files",
     label: "Models & files",
+    icon: HardDrive,
     items: [
       {
         route: "models",
@@ -210,6 +228,7 @@ const navSections: NavSection[] = [
   {
     id: "engines",
     label: "Engines",
+    icon: Wrench,
     items: [
       {
         route: "args",
@@ -246,6 +265,7 @@ const navSections: NavSection[] = [
   {
     id: "host",
     label: "Host",
+    icon: Cpu,
     items: [
       {
         route: "system",
@@ -268,6 +288,7 @@ const navSections: NavSection[] = [
   {
     id: "lab",
     label: "Lab",
+    icon: FlaskConical,
     items: [
       {
         route: "api-lab",
@@ -289,6 +310,7 @@ const navSections: NavSection[] = [
   {
     id: "manager",
     label: "Manager",
+    icon: Settings,
     footer: true,
     items: [
       {
@@ -314,6 +336,7 @@ const navSections: NavSection[] = [
 const publicStatusSection: NavSection = {
   id: "public-status",
   label: "Public status",
+  icon: Globe,
   items: [
     {
       route: "status",
@@ -328,6 +351,7 @@ const publicStatusSection: NavSection = {
 const loginSection: NavSection = {
   id: "login",
   label: "Sign in",
+  icon: LockKeyhole,
   items: [
     {
       route: "login",
@@ -359,9 +383,12 @@ const legacyAlias: Record<string, { route: AppRoute; subpath: string }> = {
   resources: { route: "proxy", subpath: "resources" },
 };
 
+export function currentHashPath(): string {
+  return window.location.hash.replace(/^#\/?/, "").split("?")[0] ?? "";
+}
+
 function parseHash(): { route: AppRoute; subpath: string } {
-  const path = window.location.hash.replace(/^#\/?/, "").split("?")[0] ?? "";
-  const segments = path.split("/").filter(Boolean);
+  const segments = currentHashPath().split("/").filter(Boolean);
   const head = segments[0] ?? "";
   const rest = segments.slice(1).join("/");
   const alias = legacyAlias[head];
@@ -440,14 +467,6 @@ export function activeLeaf(route: AppRoute, subpath: string): NavLeaf {
     return exact;
   }
   return navLeaves.find((leaf) => leaf.route === route) ?? navLeaves[0]!;
-}
-
-export function isLeafActive(
-  leaf: NavLeaf,
-  route: AppRoute,
-  subpath: string,
-): boolean {
-  return activeLeaf(route, subpath) === leaf;
 }
 
 export function activeSection(route: AppRoute, subpath: string): NavSection {

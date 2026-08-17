@@ -1,41 +1,10 @@
 import { Badge, Box, Group, NavLink, Tooltip } from "@mantine/core";
-import {
-  Cpu,
-  FlaskConical,
-  Globe,
-  HardDrive,
-  LayoutDashboard,
-  LockKeyhole,
-  Server,
-  Settings,
-  Waypoints,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
 
-import {
-  isLeafActive,
-  type AppRoute,
-  type NavLeaf,
-  type NavSection,
-} from "../routing";
+import type { NavLeaf, NavSection } from "../routing";
 
 export type NavSectionBadge = {
   count: number | null;
   dot: { tone: "error" | "warn"; label: string } | null;
-};
-
-const sectionIcons: Record<string, LucideIcon> = {
-  overview: LayoutDashboard,
-  instances: Server,
-  proxy: Waypoints,
-  files: HardDrive,
-  engines: Wrench,
-  host: Cpu,
-  lab: FlaskConical,
-  manager: Settings,
-  "public-status": Globe,
-  login: LockKeyhole,
 };
 
 function SectionBadge(props: { badge: NavSectionBadge }) {
@@ -63,25 +32,21 @@ function SectionBadge(props: { badge: NavSectionBadge }) {
 
 export function AppNav(props: {
   sections: NavSection[];
-  route: AppRoute;
-  subpath: string;
-  badges: Record<string, NavSectionBadge | undefined>;
+  activeSectionId: string;
+  badges?: Record<string, NavSectionBadge | undefined>;
   onNavigate: (leaf: NavLeaf) => void;
 }) {
   return (
     <>
       {props.sections.map((section) => {
-        const Icon = sectionIcons[section.id];
-        const badge = props.badges[section.id];
-        const active = section.items.some((leaf) =>
-          isLeafActive(leaf, props.route, props.subpath),
-        );
+        const Icon = section.icon;
+        const badge = props.badges?.[section.id];
         return (
           <NavLink
             key={section.id}
             label={section.label}
-            active={active}
-            leftSection={Icon ? <Icon size={17} /> : null}
+            active={section.id === props.activeSectionId}
+            leftSection={<Icon size={17} />}
             rightSection={badge ? <SectionBadge badge={badge} /> : null}
             onClick={() => props.onNavigate(section.items[0]!)}
           />

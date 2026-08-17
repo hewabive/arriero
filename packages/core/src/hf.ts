@@ -126,8 +126,10 @@ export const HfDownloadedRepoSchema = z.object({
   update: HfUpdateCheckSchema,
 });
 
+export const HF_UPDATE_CHECK_MAX_DIRS = 50;
+
 export const HfUpdateCheckRequestSchema = z.object({
-  dirs: z.array(z.string().min(1)).min(1).max(50),
+  dirs: z.array(z.string().min(1)).min(1).max(HF_UPDATE_CHECK_MAX_DIRS),
 });
 
 export const HfDownloadDeleteSchema = z.object({
@@ -139,6 +141,10 @@ export const HfDestCheckSchema = z.object({
   insideScanRoots: z.boolean(),
   freeBytes: z.number().int().nonnegative().nullable(),
 });
+
+export function encodeHfPathSegments(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
 
 const HF_HOST_PATTERN = /^(?:www\.)?(?:huggingface\.co|hf\.co)\//i;
 

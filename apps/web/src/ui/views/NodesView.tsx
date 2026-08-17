@@ -30,7 +30,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, RotateCw, Server, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   cancelNodeUpdateJob,
@@ -53,9 +53,9 @@ import {
 import { SecretInput } from "../components/SecretInput";
 import { forceReloadUi } from "../utils/reload";
 import { formatLocalDateTime } from "../utils/time";
+import { useAutoUpdateCheck } from "../utils/use-auto-update-check";
 
 const SELF_RELOAD_DELAY_MS = 1500;
-const AUTO_CHECK_STALE_MS = 15 * 60_000;
 const RESTART_POLL_MS = 1500;
 const RESTART_CONFIRM_TIMEOUT_MS = 120_000;
 
@@ -168,7 +168,6 @@ export function NodesView() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkFetchError, setCheckFetchError] = useState<string | null>(null);
-  const autoCheckedRef = useRef(false);
 
   const anyJobRunning = Object.keys(runningJobs).length > 0;
 
@@ -291,21 +290,11 @@ export function NodesView() {
     }
   }, [queryClient]);
 
-  useEffect(() => {
-    if (autoCheckedRef.current || !fleet) {
-      return;
-    }
-    autoCheckedRef.current = true;
-    const checkedAt = fleet.upstream
-      ? Date.parse(fleet.upstream.lastCheckedAt)
-      : Number.NaN;
-    if (
-      !Number.isFinite(checkedAt) ||
-      Date.now() - checkedAt > AUTO_CHECK_STALE_MS
-    ) {
-      void runCheck();
-    }
-  }, [fleet, runCheck]);
+  useAutoUpdateCheck(
+    Boolean(fleet),
+    fleet?.upstream?.lastCheckedAt ?? null,
+    runCheck,
+  );
 
   const startOne = useCallback(async (node: UpdateFleetNode) => {
     const result = await startNodeUpdate(

@@ -17,8 +17,8 @@ export function appVersionWithStartedAt(): AppVersion {
   return withStartedAt(getAppVersion());
 }
 
-export function restartBlockedReason(version: AppVersion): string | null {
-  if (!version.supervised) {
+export function restartBlockedReason(supervised: boolean): string | null {
+  if (!supervised) {
     return "no supervisor detected; a restart would stop the process without bringing it back — restart it from the shell instead";
   }
   return null;

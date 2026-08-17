@@ -18,13 +18,7 @@ import {
   JobPanelControls,
   useJobPanelCollapse,
 } from "../components/JobPanelControls";
-
-function statusColor(status: SourceRepositoryOperationJob["status"]) {
-  if (status === "succeeded") return "green";
-  if (status === "running") return "blue";
-  if (status === "canceled") return "gray";
-  return "red";
-}
+import { backgroundJobStatusColor } from "../utils/job-status";
 
 function phaseLabel(phase: SourceRepositoryOperationJob["phase"]) {
   if (phase === "checking-out") return "checking out";
@@ -66,7 +60,10 @@ export function SourceOperationPanel(props: {
               <Text fw={600} size="sm">
                 Source {job.operation}
               </Text>
-              <Badge color={statusColor(job.status)} variant="light">
+              <Badge
+                color={backgroundJobStatusColor(job.status)}
+                variant="light"
+              >
                 {job.status}
               </Badge>
               <Badge color="gray" variant="outline">
@@ -115,7 +112,7 @@ export function SourceOperationPanel(props: {
             {job.progress !== null && (
               <Progress
                 value={job.progress}
-                color={statusColor(job.status)}
+                color={backgroundJobStatusColor(job.status)}
                 animated={job.status === "running"}
                 striped={job.status === "running"}
               />

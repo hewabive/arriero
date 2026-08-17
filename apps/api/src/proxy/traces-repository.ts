@@ -252,7 +252,6 @@ export type ApiProxyTraceActivityRow = {
   sourceName: string | null;
   requests: number;
   errors: number;
-  lastRequestAt: string;
 };
 
 export function aggregateApiProxyTraceActivity(
@@ -265,7 +264,6 @@ export function aggregateApiProxyTraceActivity(
       sourceName: sql<string | null>`max(${proxyRequestTraces.sourceName})`,
       requests: sql<number>`count(*)`,
       errors: sql<number>`sum(CASE WHEN ${proxyRequestTraces.ok} = 0 THEN 1 ELSE 0 END)`,
-      lastRequestAt: sql<string>`max(${proxyRequestTraces.at})`,
     })
     .from(proxyRequestTraces)
     .where(
@@ -282,7 +280,6 @@ export function aggregateApiProxyTraceActivity(
     sourceName: row.sourceName,
     requests: Number(row.requests),
     errors: Number(row.errors ?? 0),
-    lastRequestAt: row.lastRequestAt,
   }));
 }
 

@@ -16,10 +16,13 @@ import {
 const OLD_SHA = "a".repeat(40);
 const NEW_SHA = "b".repeat(40);
 
-function manifest(files: HfManifest["files"]): HfManifest {
+function manifest(
+  files: HfManifest["files"],
+  repoId = "owner/repo",
+): HfManifest {
   return {
     version: 1,
-    repoId: "owner/repo",
+    repoId,
     revision: OLD_SHA,
     downloadedAt: "2026-08-17T00:00:00.000Z",
     files,
@@ -78,10 +81,10 @@ test("diff reports in-sync when every file matches", () => {
   assert.equal(diff.status, "in-sync");
 });
 
-function tempManifestDir(files: HfManifest["files"]): string {
+function tempManifestDir(files: HfManifest["files"], repoId?: string): string {
   const dir = join(config.runtimeDir, `hf-check-test-${randomUUID()}`);
   mkdirSync(dir, { recursive: true });
-  writeHfManifest(dir, manifest(files));
+  writeHfManifest(dir, manifest(files, repoId));
   return dir;
 }
 
@@ -105,12 +108,10 @@ test("checks short-circuit to in-sync when the head sha is unchanged", async () 
 
 test("a failing repo reports error while others complete", async () => {
   const driftDir = tempManifestDir([manifestFile("a.bin", { oid: "git-old" })]);
-  const errorDir = tempManifestDir([manifestFile("b.bin")]);
-  let call = 0;
+  const errorDir = tempManifestDir([manifestFile("b.bin")], "owner/broken");
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = String(input);
-    call += 1;
-    if (call > 2) {
+    if (url.includes("owner/broken")) {
       throw new Error("network down");
     }
     if (url.includes("/paths-info/")) {

@@ -27,6 +27,7 @@ import {
 import { createLatestJobStore } from "../jobs/store.js";
 import { logger } from "../logger.js";
 import { startModelScan } from "../models/scan-runner.js";
+import { formatGib } from "../utils/format.js";
 import { newId } from "../utils/id.js";
 import {
   fetchHfPathsInfo,
@@ -43,6 +44,7 @@ import {
 } from "./downloads.js";
 import { clearHfUpdateCheck, runHfUpdateChecks } from "./update-check.js";
 import {
+  hfManifestOidMatches,
   readHfManifest,
   upsertHfManifestFile,
   type HfManifestFile,
@@ -84,10 +86,6 @@ const liveProgress = new Map<string, { path: string; bytes: number }>();
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function formatGib(bytes: number): string {
-  return `${(bytes / 2 ** 30).toFixed(1)} GiB`;
 }
 
 function withLiveProgress(job: HfDownloadJob | null): HfDownloadJob | null {
@@ -155,12 +153,11 @@ function manifestEntryMatches(
   entry: HfManifestFile | null,
   file: PlannedFile,
 ): boolean {
-  if (!entry || entry.size !== file.size) {
-    return false;
-  }
-  return entry.lfsOid !== null && file.lfs !== null
-    ? entry.lfsOid === file.lfs.oid
-    : entry.oid === file.oid;
+  return (
+    entry !== null &&
+    entry.size === file.size &&
+    hfManifestOidMatches(entry, file)
+  );
 }
 
 type DownloadFileContext = {
