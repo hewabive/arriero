@@ -198,6 +198,18 @@ test("resetConfigChanges optionally removes untracked files", async () => {
   assert.equal(result.status.dirty, false);
 });
 
+test("resetConfigChanges reverts tracked portable changes", async () => {
+  const modelsPath = resolve(config.configDir, "proxy", "models.json");
+  const committed = readFileSync(modelsPath, "utf8");
+  writeJson(modelsPath, [{ id: "scratch" }]);
+  const result = await resetConfigChanges({
+    includeUntracked: false,
+    confirm: true,
+  });
+  assert.equal(result.status.dirty, false);
+  assert.equal(readFileSync(modelsPath, "utf8"), committed);
+});
+
 test("commitConfigChanges refuses tracked secret files", async () => {
   writeFileSync(resolve(config.configDir, ".env"), "TOKEN=secret\n");
   git(["add", "-f", ".env"]);

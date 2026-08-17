@@ -27,7 +27,7 @@ import { getActiveConfigGitOperation } from "./state.js";
 
 const DIFF_LIMIT = 512 * 1024;
 
-function parseFileStatuses(output: string): ConfigGitFileStatus[] {
+export function parseFileStatuses(output: string): ConfigGitFileStatus[] {
   return output
     .split("\n")
     .filter(Boolean)

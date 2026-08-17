@@ -51,8 +51,10 @@ import { reloadPortableConfigCaches } from "./reload.js";
 import {
   assertConfigGitRepository,
   getConfigGitStatus,
+  parseFileStatuses,
   resolveConfigGitCommit,
 } from "./repository.js";
+import { resetProcessRequirement } from "./reset-guard.js";
 import { withConfigGitOperation } from "./state.js";
 import { validateConfigBlob, validateConfigRoot } from "./validation.js";
 
@@ -62,13 +64,18 @@ type MutationWork = {
   validation?: ConfigGitValidation;
 };
 
-function assertConfigContentCanChange() {
-  const activeInstances = supervisor
+function activeInstanceIds(): string[] {
+  return supervisor
     .listStates()
-    .filter((state) => isActiveProcessStatus(state.status));
+    .filter((state) => isActiveProcessStatus(state.status))
+    .map((state) => state.instanceId);
+}
+
+function assertConfigContentCanChange() {
+  const activeInstances = activeInstanceIds();
   if (activeInstances.length > 0) {
     throw new ConfigBusyError(
-      `stop managed processes before changing configuration: ${activeInstances.map((item) => item.instanceId).join(", ")}`,
+      `stop managed processes before changing configuration: ${activeInstances.join(", ")}`,
     );
   }
   assertNoBlockingBackgroundWork("change");
@@ -516,8 +523,26 @@ export function resetConfigChanges(
   input: ConfigGitReset,
 ): Promise<ConfigGitMutationResult> {
   return mutation("reset", async () => {
-    assertConfigContentCanChange();
     await assertPreparedRepository();
+    const statusResult = await runGit(config.configDir, [
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ]);
+    const requirement = resetProcessRequirement(
+      parseFileStatuses(statusResult.stdout),
+      input.includeUntracked,
+      activeInstanceIds(),
+    );
+    if (requirement.scope === "all-processes") {
+      assertConfigContentCanChange();
+    } else if (requirement.scope === "deleted-instances") {
+      throw new ConfigBusyError(
+        `stop managed processes whose configuration files would be deleted: ${requirement.instanceIds.join(", ")}`,
+      );
+    } else {
+      assertNoBlockingBackgroundWork("change");
+    }
     const validation = await validateCommit("HEAD");
     assertValid(validation);
     const reset = await runGit(config.configDir, ["reset", "--hard", "HEAD"]);

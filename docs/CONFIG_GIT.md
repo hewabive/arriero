@@ -101,7 +101,9 @@ merged automatically. Configuration-changing operations are refused while a
 managed inference process, build, or environment installation is active. On
 success all portable-config caches are invalidated together. Existing managed
 processes must be stopped before changing trees so an instance cannot disappear
-from the active configuration while its process is still running.
+from the active configuration while its process is still running. Reset only
+touches the currently dirty files, so it follows a narrower rule — see Reset
+semantics.
 
 ## Secrets and credentials
 
@@ -171,6 +173,19 @@ separate **also delete untracked files** option additionally performs
 `git clean -fd`. Ignored files are not deleted, so `.secrets.json` remains in
 place. The target commit is validated before reset and the resulting working
 tree is validated again afterward.
+
+Unlike tree replacement, reset only touches the currently dirty files, so it
+follows the per-file restore quiescence rule instead of the blanket one
+(`reset-guard.ts`): managed processes may keep running while local edits are
+reverted, and a running instance whose file changed shows the usual
+`config drift` badge. Two cases still involve processes. A dirty
+`settings.json` — including one renamed away, which reset resurrects — requires
+full quiescence, exactly like restoring it. And the operation refuses when it
+would delete the configuration file of an active instance — a staged addition
+of `instances/<name>.json`, or an untracked one combined with **also delete
+untracked files** — because an instance must not disappear from the active
+configuration while its process runs. Background build / environment / source
+operations block reset as always.
 
 ## Reload without git
 
