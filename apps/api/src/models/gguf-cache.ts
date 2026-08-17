@@ -5,18 +5,18 @@ import {
   readGgufFactsOffThread,
   readGgufModelTensorTableOffThread,
 } from "./gguf-worker-client.js";
+import type { ModelFileIdentity } from "./file-identity.js";
 import {
   deriveGgufMetadata,
   ggufFileIdentity,
   memoryEstimateHparams,
-  type GgufFileIdentity,
 } from "./gguf.js";
 
 const TENSOR_TABLE_CACHE_LIMIT = 8;
 
 const tensorTables = new Map<string, GgufTensorTable>();
 
-function identityKey(path: string, identity: GgufFileIdentity) {
+function identityKey(path: string, identity: ModelFileIdentity) {
   return `${path}|${identity.sizeBytes}|${identity.modifiedAt}`;
 }
 

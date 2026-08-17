@@ -1,5 +1,6 @@
 import { INSTANCE_KINDS, engineDescriptor } from "@arriero/core";
 import {
+  Autocomplete,
   Box,
   Button,
   Group,
@@ -104,15 +105,15 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
             )}
           {fm.modelSource === "free-text" && fm.kind !== "ktransformers" && (
             <>
-              <TextInput
+              <Autocomplete
                 label="Model"
                 required
                 description="Hugging Face repository id or local safetensors directory"
                 placeholder="Qwen/Qwen3-8B"
+                data={fm.safetensorsPathOptions}
+                limit={20}
                 value={fm.modelReference}
-                onChange={(event) =>
-                  fm.setModelReference(event.currentTarget.value)
-                }
+                onChange={fm.setModelReference}
               />
               <InstanceFormHostPort fm={fm} />
             </>

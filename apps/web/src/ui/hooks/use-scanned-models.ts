@@ -4,6 +4,7 @@ import type {
   ModelScanResult,
   ModelScanRoot,
   ModelScanState,
+  SafetensorsModel,
 } from "@arriero/core";
 import { notifications } from "@mantine/notifications";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ const ERROR_POLL_MS = 5000;
 
 export type ScannedModels = {
   models: GgufModel[];
+  safetensors: SafetensorsModel[];
   roots: ModelScanRoot[];
   scan: ModelScanState;
   reconciling: boolean;
@@ -96,6 +98,7 @@ export function useScannedModels(options?: {
 
   return {
     models: result?.models ?? [],
+    safetensors: result?.safetensors ?? [],
     roots: result?.roots ?? [],
     scan,
     reconciling: scan.status === "scanning" || modelsQuery.isFetching,

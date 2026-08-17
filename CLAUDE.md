@@ -102,11 +102,13 @@ logic/test files:
 `docs/ENVIRONMENTS.md`) · `jobs` (background-job kernel: stores, step transitions, pgid-killing
 exec, active-job registry + single shutdown path, log tail — used by build/envs/update/sources and
 copy-identical across the update-kit repos, `docs/BACKGROUND_JOBS.md`) ·
-`models` (gguf/scanner/cache; parsing runs in a single lazy worker thread and is never on a request
-path, `model_cache` keeps raw facts + derived metadata under separate versions so a parser bump
-re-derives instead of re-reading, `GET /api/models` serves the cache while
-`POST /api/models/scan` drives the single-flight runner — `docs/GGUF_PARSING.md`; quantization label
-cross-checks `general.file_type` against the tensor table, `docs/GGUF_QUANTIZATION_LABEL.md`) ·
+`models` (gguf/safetensors/scanner/cache; parsing runs in a single lazy worker thread and is never
+on a request path, `model_cache`/`safetensors_cache` keep raw facts + derived metadata under
+separate versions so a parser bump re-derives instead of re-reading, `GET /api/models` serves the
+cache while `POST /api/models/scan` drives the single-flight runner — `docs/GGUF_PARSING.md`;
+quantization label cross-checks `general.file_type` against the tensor table,
+`docs/GGUF_QUANTIZATION_LABEL.md`; a safetensors model is a whole HF-layout directory keyed by dir
+path — header + config sidecar capture, `docs/SAFETENSORS_PARSING.md`) ·
 `presets` · `llama` (probe + source repo) ·
 `hf` (HuggingFace Hub browser + download jobs with GGUF variant/split grouping, resume + hash
 verification, per-repo `.arriero-hf.json` sidecar manifest discovered across scan roots, manual

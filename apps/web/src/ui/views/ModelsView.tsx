@@ -1,4 +1,4 @@
-import type { GgufModel, ModelScanRoot } from "@arriero/core";
+import type { GgufModel, ModelScanRoot, SafetensorsModel } from "@arriero/core";
 import { ggufModelRole, ggufPoolingTypeLabel } from "@arriero/core";
 import {
   ActionIcon,
@@ -7,7 +7,6 @@ import {
   Button,
   Collapse,
   Divider,
-  Flex,
   Group,
   Modal,
   NumberInput,
@@ -50,6 +49,11 @@ import {
   modelTitle,
 } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import {
+  DetailRows,
+  SafetensorsModelsSection,
+  type DetailRow,
+} from "./SafetensorsModelsSection";
 
 function rootSourceLabel(root: ModelScanRoot) {
   if (root.source === "settings") {
@@ -73,7 +77,6 @@ function formatSampler(value: number) {
   return String(Math.round(value * 1000) / 1000);
 }
 
-type DetailRow = [string, string];
 type DetailSection = { title: string; rows: DetailRow[] };
 
 function metaSections(model: GgufModel): DetailSection[] {
@@ -278,29 +281,6 @@ function LayersCell(props: { model: GgufModel }) {
   );
 }
 
-function DetailRows(props: { rows: DetailRow[] }) {
-  return (
-    <Flex wrap="wrap" rowGap={6} columnGap={24} maw="56rem">
-      {props.rows.map(([label, value]) => (
-        <Group key={label} gap={6} wrap="nowrap" align="baseline" maw="100%">
-          <Text c="dimmed" size="xs" style={{ flexShrink: 0 }}>
-            {label}
-          </Text>
-          <Text
-            size="xs"
-            style={{
-              fontVariantNumeric: "tabular-nums",
-              wordBreak: "break-word",
-            }}
-          >
-            {value}
-          </Text>
-        </Group>
-      ))}
-    </Flex>
-  );
-}
-
 function ModelDetailPanel(props: { model: GgufModel }) {
   const sections = metaSections(props.model);
   const m = props.model.metadata;
@@ -369,7 +349,10 @@ function ModelDetailPanel(props: { model: GgufModel }) {
   );
 }
 
-export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
+export function ModelsView(props: {
+  onUseModel: (model: GgufModel) => void;
+  onUseSafetensorsModel: (model: SafetensorsModel) => void;
+}) {
   const queryClient = useQueryClient();
   const [directory, setDirectory] = useState("");
   const [maxDepth, setMaxDepth] = useState(8);
@@ -495,15 +478,19 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
 
   const modelsByRoot = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const model of scanned.models) {
+    const paths = [
+      ...scanned.models.map((model) => model.path),
+      ...scanned.safetensors.map((model) => model.path),
+    ];
+    for (const path of paths) {
       for (const root of scanned.roots) {
-        if (model.path.startsWith(`${root.path}/`)) {
+        if (path.startsWith(`${root.path}/`)) {
           counts.set(root.path, (counts.get(root.path) ?? 0) + 1);
         }
       }
     }
     return counts;
-  }, [scanned.models, scanned.roots]);
+  }, [scanned.models, scanned.safetensors, scanned.roots]);
 
   const scanning = scanned.scan.status === "scanning";
   const emptyMessage =
@@ -675,6 +662,12 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
             )}
           </Group>
         </Group>
+
+        {scanned.safetensors.length > 0 && (
+          <Text fw={600} size="sm">
+            GGUF files
+          </Text>
+        )}
 
         {compact && (
           <Stack gap="xs">
@@ -865,6 +858,13 @@ export function ModelsView(props: { onUseModel: (model: GgufModel) => void }) {
             </Table>
           </Table.ScrollContainer>
         )}
+
+        <SafetensorsModelsSection
+          models={scanned.safetensors}
+          search={deferredSearch}
+          compact={compact}
+          onUseModel={props.onUseSafetensorsModel}
+        />
       </Stack>
 
       <Modal

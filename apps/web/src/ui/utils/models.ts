@@ -1,4 +1,8 @@
-import { stripGgufSuffix, type GgufModel } from "@arriero/core";
+import {
+  stripGgufSuffix,
+  type GgufModel,
+  type SafetensorsModel,
+} from "@arriero/core";
 
 export function formatBytes(bytes: number) {
   const units = ["B", "KiB", "MiB", "GiB", "TiB"];
@@ -98,6 +102,44 @@ export function isVocabModel(model: GgufModel) {
     `${model.name} ${model.path} ${model.metadata.name ?? ""}`.toLowerCase();
   return (
     haystack.includes("ggml-vocab") || haystack.includes("/models/ggml-vocab")
+  );
+}
+
+export function safetensorsMatchesSearch(
+  model: SafetensorsModel,
+  query: string,
+) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  return [
+    model.name,
+    model.path,
+    model.metadata.architecture,
+    model.metadata.modelType,
+    model.metadata.quantization,
+    model.metadata.dominantDtype,
+    model.metadata.kind,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalized));
+}
+
+export function compareSafetensorsTitles(
+  left: SafetensorsModel,
+  right: SafetensorsModel,
+) {
+  return (
+    left.name.localeCompare(right.name, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }) ||
+    left.path.localeCompare(right.path, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    })
   );
 }
 

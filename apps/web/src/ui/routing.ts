@@ -189,10 +189,11 @@ const navSections: NavSection[] = [
     items: [
       {
         route: "models",
-        label: "GGUF files",
-        title: "GGUF files",
-        description: "Scan GGUF files and reuse them in instances or presets",
-        keywords: ["scan", "quantization", "metadata"],
+        label: "Model files",
+        title: "Model files",
+        description:
+          "Scan GGUF files and safetensors models and reuse them in instances or presets",
+        keywords: ["scan", "quantization", "metadata", "gguf", "safetensors"],
       },
       {
         route: "downloads",

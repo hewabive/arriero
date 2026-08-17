@@ -12,6 +12,10 @@ import { basename, dirname, join } from "node:path";
 
 import { logger } from "../logger.js";
 import { extractChatTemplateReasoning } from "./chat-template-reasoning.js";
+import {
+  fileIdentityFromStats,
+  type ModelFileIdentity,
+} from "./file-identity.js";
 import { parseSplitInfo, splitShardName } from "./split.js";
 
 type GgufScalar = string | number | boolean | null;
@@ -762,26 +766,13 @@ export function readGgufTensorTable(path: string): GgufTensorTable {
   }
 }
 
-export type GgufFileIdentity = { sizeBytes: number; modifiedAt: string };
-
-export function ggufFileIdentityFromStats(
-  stats: Array<{ size: number; mtime: Date }>,
-): GgufFileIdentity {
-  return {
-    sizeBytes: stats.reduce((sum, item) => sum + item.size, 0),
-    modifiedAt: new Date(
-      Math.max(...stats.map((item) => item.mtime.getTime())),
-    ).toISOString(),
-  };
-}
-
 export async function ggufFileIdentity(
   modelPath: string,
-): Promise<GgufFileIdentity> {
+): Promise<ModelFileIdentity> {
   const stats = await Promise.all(
     resolveGgufShardPaths(modelPath).map((shard) => stat(shard)),
   );
-  return ggufFileIdentityFromStats(stats);
+  return fileIdentityFromStats(stats);
 }
 
 export function resolveGgufShardPaths(modelPath: string): string[] {

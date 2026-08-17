@@ -1,4 +1,9 @@
-import type { GgufMetadata, GgufModel, ModelScanRoot } from "@arriero/core";
+import type {
+  GgufMetadata,
+  GgufModel,
+  ModelScanRoot,
+  SafetensorsModel,
+} from "@arriero/core";
 import { opendir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 
@@ -10,14 +15,27 @@ import {
   saveCachedModel,
 } from "./cache-repository.js";
 import {
+  fileIdentityFromStats,
+  type ModelFileIdentity,
+} from "./file-identity.js";
+import {
   readGgufFactsOffThread,
   readGgufParameterCountOffThread,
+  readSafetensorsFactsOffThread,
 } from "./gguf-worker-client.js";
+import { deriveGgufMetadata, type GgufRawFacts } from "./gguf.js";
 import {
-  deriveGgufMetadata,
-  ggufFileIdentityFromStats,
-  type GgufRawFacts,
-} from "./gguf.js";
+  getCachedSafetensorsEntry,
+  listAllCachedSafetensorsModels,
+  saveCachedSafetensorsModel,
+} from "./safetensors-cache-repository.js";
+import {
+  deriveSafetensorsMetadata,
+  emptySafetensorsFacts,
+  safetensorsDirIdentity,
+  safetensorsMissingShardNames,
+  type SafetensorsRawFacts,
+} from "./safetensors.js";
 import { parseSplitInfo, splitShardName, type SplitInfo } from "./split.js";
 
 export const IGNORED_DIRS = new Set([
@@ -51,16 +69,23 @@ type ModelFile = FoundFile & {
 export type ModelScanPass = {
   roots: ModelScanRoot[];
   models: GgufModel[];
+  safetensors: SafetensorsModel[];
   cache: { hits: number; misses: number };
+};
+
+type WalkFiles = {
+  gguf: FoundFile[];
+  safetensors: FoundFile[];
 };
 
 async function walk(
   dir: string,
   maxDepth: number,
   depth = 0,
-  out: FoundFile[] = [],
+  out: WalkFiles = { gguf: [], safetensors: [] },
 ) {
-  if (out.length >= MAX_FILES) {
+  const foundCount = () => out.gguf.length + out.safetensors.length;
+  if (foundCount() >= MAX_FILES) {
     return out;
   }
 
@@ -75,7 +100,7 @@ async function walk(
   }
 
   for await (const entry of handle) {
-    if (out.length >= MAX_FILES) {
+    if (foundCount() >= MAX_FILES) {
       break;
     }
 
@@ -87,13 +112,20 @@ async function walk(
       continue;
     }
 
-    if (entry.isFile() && entry.name.toLowerCase().endsWith(".gguf")) {
-      out.push({
-        path: entryPath,
-        name: entry.name,
-        directory: dir,
-      });
+    if (!entry.isFile()) {
+      continue;
     }
+    const lowerName = entry.name.toLowerCase();
+    const found = lowerName.endsWith(".gguf")
+      ? out.gguf
+      : lowerName.endsWith(".safetensors")
+        ? out.safetensors
+        : null;
+    found?.push({
+      path: entryPath,
+      name: entry.name,
+      directory: dir,
+    });
   }
 
   return out;
@@ -304,22 +336,36 @@ export async function scanModels(input: {
     Math.min(input.maxDepth ?? DEFAULT_MAX_DEPTH, 16),
   );
 
-  const found: FoundFile[] = [];
+  const foundGguf: FoundFile[] = [];
+  const foundSafetensors: FoundFile[] = [];
   const seenPaths = new Set<string>();
-  for (const root of input.roots) {
-    if (!root.exists) {
-      continue;
-    }
-    for (const file of await walk(resolve(root.path), maxDepth)) {
+  const collect = (walked: FoundFile[], into: FoundFile[]) => {
+    for (const file of walked) {
       if (seenPaths.has(file.path)) {
         continue;
       }
       seenPaths.add(file.path);
-      found.push(file);
+      into.push(file);
     }
+  };
+  for (const root of input.roots) {
+    if (!root.exists) {
+      continue;
+    }
+    const walked = await walk(resolve(root.path), maxDepth);
+    collect(walked.gguf, foundGguf);
+    collect(walked.safetensors, foundSafetensors);
   }
 
-  const files = collapseSplitFiles(found);
+  const files = collapseSplitFiles(foundGguf);
+  const safetensorsDirs = new Map<string, FoundFile[]>();
+  for (const file of foundSafetensors) {
+    const list = safetensorsDirs.get(file.directory) ?? [];
+    list.push(file);
+    safetensorsDirs.set(file.directory, list);
+  }
+  const total = files.length + safetensorsDirs.size;
+
   const mmprojByDir = new Map<string, string[]>();
   for (const file of files) {
     if (file.name.toLowerCase().includes("mmproj")) {
@@ -337,7 +383,7 @@ export async function scanModels(input: {
     const shardStats = await Promise.all(
       file.shardPaths.map((path) => stat(path)),
     );
-    const { sizeBytes, modifiedAt } = ggufFileIdentityFromStats(shardStats);
+    const { sizeBytes, modifiedAt } = fileIdentityFromStats(shardStats);
     const isMmproj = file.name.toLowerCase().includes("mmproj");
     const mmprojPaths = isMmproj ? [] : (mmprojByDir.get(file.directory) ?? []);
     const cached = input.refresh ? null : getCachedModelEntry(file.path);
@@ -350,7 +396,7 @@ export async function scanModels(input: {
     if (unchanged && cached.model && cached.derivedCurrent) {
       cacheHits += 1;
       models.push({ ...cached.model, mmprojPaths });
-      input.onProgress?.({ done, total: files.length });
+      input.onProgress?.({ done, total });
       continue;
     }
 
@@ -388,12 +434,91 @@ export async function scanModels(input: {
     };
     saveCachedModel(model, read.facts);
     models.push(model);
-    input.onProgress?.({ done, total: files.length });
+    input.onProgress?.({ done, total });
+  }
+
+  const safetensorsModels: SafetensorsModel[] = [];
+  for (const [directory, dirFiles] of safetensorsDirs) {
+    done += 1;
+    const weightPaths = dirFiles.map((file) => file.path).sort();
+    let identity: ModelFileIdentity;
+    try {
+      identity = await safetensorsDirIdentity(directory, weightPaths);
+    } catch (error) {
+      logger.warn(
+        { err: error, directory },
+        "safetensors directory could not be inspected",
+      );
+      input.onProgress?.({ done, total });
+      continue;
+    }
+
+    const cached = input.refresh ? null : getCachedSafetensorsEntry(directory);
+    const unchanged =
+      cached !== null &&
+      cached.sizeBytes === identity.sizeBytes &&
+      cached.modifiedAt === identity.modifiedAt;
+
+    if (unchanged && cached.model && cached.derivedCurrent) {
+      cacheHits += 1;
+      safetensorsModels.push(cached.model);
+      input.onProgress?.({ done, total });
+      continue;
+    }
+
+    const reused: SafetensorsRawFacts | null = unchanged ? cached.facts : null;
+    if (reused) {
+      cacheHits += 1;
+    } else {
+      cacheMisses += 1;
+    }
+
+    let facts = reused;
+    let readErrors: string[] = [];
+    if (!facts) {
+      try {
+        const read = await readSafetensorsFactsOffThread(directory);
+        facts = read.facts;
+        readErrors = read.errors;
+      } catch (error) {
+        readErrors = [(error as Error).message];
+      }
+    }
+
+    const effectiveFacts = facts ?? emptySafetensorsFacts();
+    const metadata = deriveSafetensorsMetadata(effectiveFacts);
+    const missingShardNames = safetensorsMissingShardNames(effectiveFacts);
+    const error = reused
+      ? (cached?.error ?? "")
+      : [
+          ...readErrors,
+          missingShardNames.length > 0
+            ? `missing safetensors shards: ${missingShardNames.join(", ")}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("; ");
+
+    const model: SafetensorsModel = {
+      name: basename(directory),
+      path: directory,
+      directory: dirname(directory),
+      sizeBytes: identity.sizeBytes,
+      modifiedAt: identity.modifiedAt,
+      weightFiles: effectiveFacts.weightFiles,
+      missingShardNames,
+      metadata,
+      ...(error ? { error } : {}),
+    };
+    saveCachedSafetensorsModel(model, facts);
+    safetensorsModels.push(model);
+    input.onProgress?.({ done, total });
   }
 
   return {
     roots: input.roots,
     models: models.sort(compareModelNames),
+    safetensors: safetensorsModels.sort(compareModelNames),
     cache: {
       hits: cacheHits,
       misses: cacheMisses,
@@ -401,13 +526,17 @@ export async function scanModels(input: {
   };
 }
 
-function isUnderDirectory(path: string, directory: string, maxDepth: number) {
-  const rel = relative(directory, dirname(path));
-  if (rel.startsWith("..") || resolve(directory, rel) !== dirname(path)) {
+function withinRoot(target: string, root: string, maxDepth: number) {
+  const rel = relative(root, target);
+  if (rel.startsWith("..") || resolve(root, rel) !== target) {
     return false;
   }
   const depth = rel === "" ? 0 : rel.split(sep).length;
   return depth <= maxDepth;
+}
+
+function isUnderDirectory(path: string, directory: string, maxDepth: number) {
+  return withinRoot(dirname(path), directory, maxDepth);
 }
 
 export function scanModelsFromCache(input: {
@@ -442,9 +571,18 @@ export function scanModelsFromCache(input: {
     }))
     .sort(compareModelNames);
 
+  const safetensors = listAllCachedSafetensorsModels()
+    .filter((model) =>
+      input.roots.some((root) =>
+        withinRoot(model.path, resolve(root.path), maxDepth),
+      ),
+    )
+    .sort(compareModelNames);
+
   return {
     roots: input.roots,
     models,
-    cache: { hits: scoped.length, misses: 0 },
+    safetensors,
+    cache: { hits: scoped.length + safetensors.length, misses: 0 },
   };
 }

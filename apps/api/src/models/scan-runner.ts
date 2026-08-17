@@ -6,6 +6,7 @@ import {
   pruneMissingCachedModels,
 } from "./cache-repository.js";
 import { listModelScanRoots } from "./roots.js";
+import { pruneMissingCachedSafetensorsModels } from "./safetensors-cache-repository.js";
 import { scanModels, scanModelsFromCache } from "./scanner.js";
 
 function idleState(): ModelScanState {
@@ -44,6 +45,7 @@ async function runScanPass(refresh: boolean): Promise<void> {
       },
     });
     pruneMissingCachedModels();
+    pruneMissingCachedSafetensorsModels();
     lastCache = pass.cache;
     state = { ...state, status: "idle", finishedAt: new Date().toISOString() };
   } catch (error) {
@@ -95,6 +97,7 @@ export function getModelScanView(): ModelScanResult {
   return {
     roots: pass.roots,
     models: pass.models,
+    safetensors: pass.safetensors,
     cache: lastCache,
     scan: state,
   };

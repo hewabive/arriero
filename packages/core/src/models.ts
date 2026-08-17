@@ -95,6 +95,58 @@ export const GgufModelSchema = z.object({
   error: z.string().optional(),
 });
 
+export const SafetensorsKindSchema = z.enum(["model", "adapter", "weights"]);
+
+export const SafetensorsMetadataSchema = z.object({
+  kind: SafetensorsKindSchema,
+  architecture: z.string().nullable(),
+  modelType: z.string().nullable(),
+  baseModel: z.string().nullable(),
+  torchDtype: z.string().nullable(),
+  dominantDtype: z.string().nullable(),
+  elementsByDtype: z.array(z.tuple([z.string(), z.number()])),
+  quantization: z.string().nullable(),
+  quantizationMethod: z.string().nullable(),
+  parameterCount: z.number().nullable(),
+  tensorCount: z.number().nullable(),
+  contextLength: z.number().nullable(),
+  embeddingLength: z.number().nullable(),
+  blockCount: z.number().nullable(),
+  feedForwardLength: z.number().nullable(),
+  headCount: z.number().nullable(),
+  headCountKv: z.number().nullable(),
+  headDim: z.number().nullable(),
+  expertCount: z.number().nullable(),
+  expertUsedCount: z.number().nullable(),
+  expertSharedCount: z.number().nullable(),
+  expertFeedForwardLength: z.number().nullable(),
+  slidingWindow: z.number().nullable(),
+  vocabularySize: z.number().nullable(),
+  tieWordEmbeddings: z.boolean().nullable(),
+  ropeFreqBase: z.number().nullable(),
+  ropeScalingType: z.string().nullable(),
+  ropeScalingFactor: z.number().nullable(),
+  ropeScalingOrigCtxLen: z.number().nullable(),
+  hasChatTemplate: z.boolean(),
+  chatTemplateReasoning: GgufChatTemplateReasoningSchema.nullable(),
+  samplingTemp: z.number().nullable(),
+  samplingTopK: z.number().nullable(),
+  samplingTopP: z.number().nullable(),
+  transformersVersion: z.string().nullable(),
+});
+
+export const SafetensorsModelSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  directory: z.string(),
+  sizeBytes: z.number(),
+  modifiedAt: z.string(),
+  weightFiles: z.array(z.string()),
+  missingShardNames: z.array(z.string()),
+  metadata: SafetensorsMetadataSchema,
+  error: z.string().optional(),
+});
+
 export const ModelScanRootSourceSchema = z.enum([
   "settings",
   "catalog",
@@ -123,6 +175,7 @@ export const ModelScanStateSchema = z.object({
 export const ModelScanResultSchema = z.object({
   roots: z.array(ModelScanRootSchema),
   models: z.array(GgufModelSchema),
+  safetensors: z.array(SafetensorsModelSchema),
   cache: z.object({
     hits: z.number(),
     misses: z.number(),
@@ -142,6 +195,9 @@ export const ModelScanSettingsSchema = z.object({
 export type GgufBaseModel = z.infer<typeof GgufBaseModelSchema>;
 export type GgufMetadata = z.infer<typeof GgufMetadataSchema>;
 export type GgufModel = z.infer<typeof GgufModelSchema>;
+export type SafetensorsKind = z.infer<typeof SafetensorsKindSchema>;
+export type SafetensorsMetadata = z.infer<typeof SafetensorsMetadataSchema>;
+export type SafetensorsModel = z.infer<typeof SafetensorsModelSchema>;
 
 export type GgufModelRole = "generative" | "embedding" | "reranker";
 

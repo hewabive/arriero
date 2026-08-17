@@ -127,6 +127,7 @@ export type InstanceFormModalProps = {
   instance?: Instance | null;
   duplicateFrom?: Instance | null;
   initialModelPath?: string | null;
+  initialSafetensorsPath?: string | null;
 };
 
 const RPC_WORKER_ARG_KEYS = new Set(
@@ -217,7 +218,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       : props.duplicateFrom
         ? `duplicate:${props.duplicateFrom.name}`
         : "new"
-  }:${props.initialModelPath ?? ""}`;
+  }:${props.initialModelPath ?? ""}:${props.initialSafetensorsPath ?? ""}`;
   const resourcesQuery = useQuery({
     queryKey: ["resources"],
     queryFn: getResources,
@@ -477,6 +478,11 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       pooling: ggufPoolingTypeLabel(selectedModel.metadata.poolingType),
     };
   }, [selectedModel, argRows, knownArgByName]);
+  const safetensorsPathOptions = useMemo(
+    () => scanned.safetensors.map((model) => model.path),
+    [scanned.safetensors],
+  );
+
   const modelOptions = useMemo(() => {
     const options = selectableModels.map((model) => ({
       value: model.path,
@@ -756,23 +762,27 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setNumaBindNode(numa?.mode === "bind" ? numa.node : null);
       setNumaInterleaveNodes(numa?.mode === "interleave" ? numa.nodes : []);
     } else {
-      const modelPath = props.initialModelPath ?? null;
-      const port = nextAvailablePort(props.instances);
+      const safetensorsPath = props.initialSafetensorsPath ?? null;
+      const modelPath = safetensorsPath
+        ? null
+        : (props.initialModelPath ?? null);
+      const seedPath = safetensorsPath ?? modelPath;
+      const seedKind = safetensorsPath ? "vllm" : "llama-server";
       derivedNamesRef.current = new Set(
-        modelPath ? [instanceNameFromModelPath(modelPath)] : [],
+        seedPath ? [instanceNameFromModelPath(seedPath)] : [],
       );
       form.setValues({
-        name: modelPath ? instanceNameFromModelPath(modelPath) : "local-server",
+        name: seedPath ? instanceNameFromModelPath(seedPath) : "local-server",
         envJson: JSON.stringify({}, null, 2),
       });
       setCustomEnvRows([]);
       setShowEnvRawJson(false);
-      setKind("llama-server");
-      setModelReference("");
+      setKind(seedKind);
+      setModelReference(safetensorsPath ?? "");
       setKTransformersCpuWeights("");
       setKTransformersMethod("FP8");
       setKTransformersServedModelName("");
-      setEvictionPolicy(engineDescriptor("llama-server").defaultEvictionPolicy);
+      setEvictionPolicy(engineDescriptor(seedKind).defaultEvictionPolicy);
       setRpcWorkers([]);
       setSelectedBinaryPathRefId(null);
       setSelectedModelPath(modelPath);
@@ -783,7 +793,35 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setSpecSource("local");
       setSpecAdvancedOpen(false);
       setStartAfterCreate(false);
-      setArgRows(defaultRows(modelPath ?? undefined, port));
+      if (safetensorsPath) {
+        setArgRows([
+          {
+            id: createUiId(),
+            key: "--host",
+            value: "127.0.0.1",
+            valueType: "string",
+          },
+          {
+            id: createUiId(),
+            key: "--port",
+            value: String(
+              nextAvailablePort(
+                props.instances,
+                undefined,
+                engineDescriptor("vllm").http.defaultPort,
+              ),
+            ),
+            valueType: "number",
+          },
+        ]);
+      } else {
+        setArgRows(
+          defaultRows(
+            modelPath ?? undefined,
+            nextAvailablePort(props.instances),
+          ),
+        );
+      }
       setMemoryRows([]);
       setNumaMode("none");
       setNumaBindNode(null);
@@ -1893,6 +1931,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     embeddingHint,
     applyEmbeddingFlag,
     modelOptions,
+    safetensorsPathOptions,
     mmprojValue,
     applyMmprojSelection,
     remoteSource,

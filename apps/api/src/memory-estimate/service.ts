@@ -25,7 +25,7 @@ import {
   type InstanceKind,
   type RpcWorkerRef,
 } from "@arriero/core";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 
 import { getInstance } from "../instances/repository.js";
 import { loadArgumentRegistry } from "../arguments/registry.js";
@@ -620,6 +620,12 @@ async function estimateGgufMemory(
       };
     }
     return { ok: false, reason: "No --model is configured." };
+  }
+  if (statSync(modelPath, { throwIfNoEntry: false })?.isDirectory()) {
+    return {
+      ok: false,
+      reason: `--model points at a directory (${modelPath}); the llama.cpp estimator needs a GGUF file, and safetensors directories are not estimable here.`,
+    };
   }
 
   const mmprojDisabled = !argPairedFlag(

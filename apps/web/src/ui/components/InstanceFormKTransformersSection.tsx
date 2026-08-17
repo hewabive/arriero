@@ -3,6 +3,7 @@ import type {
   KTransformersMethod,
 } from "@arriero/core";
 import {
+  Autocomplete,
   Paper,
   Select,
   SimpleGrid,
@@ -49,13 +50,15 @@ export function InstanceFormKTransformersSection({
             fields. Advanced SGLang and --kt-* options remain below.
           </Text>
         </div>
-        <TextInput
+        <Autocomplete
           label="Model"
           required
           description="Hugging Face owner/model id or an existing local model directory"
           placeholder="deepseek-ai/DeepSeek-V3"
+          data={fm.safetensorsPathOptions}
+          limit={20}
           value={fm.modelReference}
-          onChange={(event) => fm.setModelReference(event.currentTarget.value)}
+          onChange={fm.setModelReference}
         />
         <TextInput
           label="CPU weights"

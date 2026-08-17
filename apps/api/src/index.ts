@@ -28,6 +28,7 @@ import {
 } from "./proxy/repository.js";
 import { startMemoryAssessmentAutoLoop } from "./memory-assessment/auto-assess.js";
 import { pruneMissingCachedModels } from "./models/cache-repository.js";
+import { pruneMissingCachedSafetensorsModels } from "./models/safetensors-cache-repository.js";
 import { listQuarantinedInstanceNames } from "./instances/config-files.js";
 import { listInstances } from "./instances/repository.js";
 import { failInterruptedBenchmarkRuns } from "./benchmark/repository.js";
@@ -117,6 +118,10 @@ const prunedArgumentCatalogs = pruneMissingArgumentCatalogs();
 const prunedModelCache = bootStep("prune missing cached models", () =>
   pruneMissingCachedModels(),
 );
+const prunedSafetensorsCache = bootStep(
+  "prune missing cached safetensors models",
+  () => pruneMissingCachedSafetensorsModels(),
+);
 const reconciliation = bootStep("reconcile process runs", () =>
   reconcileProcessRuns(
     listInstances(),
@@ -177,6 +182,7 @@ const server = serve(
         systemMetricsPersistence,
         prunedArgumentCatalogs,
         prunedModelCache,
+        prunedSafetensorsCache,
         seededResourcePools,
         refreshedResourcePools,
         environments,

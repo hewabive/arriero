@@ -14,6 +14,10 @@ import {
   readGgufParameterCount,
   type GgufRawFacts,
 } from "./gguf.js";
+import {
+  readSafetensorsFacts,
+  type SafetensorsReadResult,
+} from "./safetensors.js";
 
 const IDLE_SHUTDOWN_MS = 30_000;
 
@@ -122,7 +126,7 @@ async function runOffThread<T>(
   path: string,
   inProcess: () => T,
 ): Promise<T> {
-  const runInProcess = () => traceBlockingSection(`gguf:${op}`, inProcess);
+  const runInProcess = () => traceBlockingSection(`models:${op}`, inProcess);
   if (workerUnavailable) {
     return runInProcess();
   }
@@ -162,6 +166,14 @@ export function readGgufModelTensorTableOffThread(
 ): Promise<GgufTensorTable> {
   return runOffThread("tensor-table", path, () =>
     readGgufModelTensorTable(path),
+  );
+}
+
+export function readSafetensorsFactsOffThread(
+  path: string,
+): Promise<SafetensorsReadResult> {
+  return runOffThread("safetensors-facts", path, () =>
+    readSafetensorsFacts(path),
   );
 }
 

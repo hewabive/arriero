@@ -82,6 +82,9 @@ export function App() {
     instance: Instance;
   } | null>(null);
   const [initialModelPath, setInitialModelPath] = useState<string | null>(null);
+  const [initialSafetensorsPath, setInitialSafetensorsPath] = useState<
+    string | null
+  >(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [launchMonitor, setLaunchMonitor] = useState<LaunchMonitor | null>(
     null,
@@ -494,7 +497,13 @@ export function App() {
           {canUseAdmin && route === "models" && (
             <ModelsView
               onUseModel={(model) => {
+                setInitialSafetensorsPath(null);
                 setInitialModelPath(model.path);
+                setCreateOpened(true);
+              }}
+              onUseSafetensorsModel={(model) => {
+                setInitialModelPath(null);
+                setInitialSafetensorsPath(model.path);
                 setCreateOpened(true);
               }}
             />
@@ -526,11 +535,13 @@ export function App() {
         opened={canUseAdmin && createOpened}
         instances={instances}
         initialModelPath={initialModelPath}
+        initialSafetensorsPath={initialSafetensorsPath}
         onSaved={(instance) => setSelectedId(instance.name)}
         onLaunchStarted={startLaunchMonitor}
         onClose={() => {
           setCreateOpened(false);
           setInitialModelPath(null);
+          setInitialSafetensorsPath(null);
         }}
       />
       <InstanceFormModal

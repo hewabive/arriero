@@ -5,8 +5,13 @@ import {
   readGgufModelTensorTable,
   readGgufParameterCount,
 } from "./gguf.js";
+import { readSafetensorsFacts } from "./safetensors.js";
 
-export type GgufWorkerOp = "facts" | "parameter-count" | "tensor-table";
+export type GgufWorkerOp =
+  | "facts"
+  | "parameter-count"
+  | "tensor-table"
+  | "safetensors-facts";
 
 export type GgufWorkerRequest = {
   id: number;
@@ -26,6 +31,9 @@ function runOp(op: GgufWorkerOp, path: string) {
   }
   if (op === "parameter-count") {
     return readGgufParameterCount(path);
+  }
+  if (op === "safetensors-facts") {
+    return readSafetensorsFacts(path);
   }
   return readGgufModelTensorTable(path);
 }

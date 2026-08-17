@@ -37,6 +37,22 @@ export const modelCache = sqliteTable("model_cache", {
   scannedAt: text("scanned_at").notNull(),
 });
 
+export const safetensorsCache = sqliteTable("safetensors_cache", {
+  path: text("path").primaryKey(),
+  name: text("name").notNull(),
+  directory: text("directory").notNull(),
+  sizeBytes: text("size_bytes").notNull(),
+  modifiedAt: text("modified_at").notNull(),
+  weightFilesJson: text("weight_files_json").notNull(),
+  missingShardsJson: text("missing_shards_json").notNull(),
+  metadataJson: text("metadata_json").notNull(),
+  parserVersion: integer("parser_version").notNull().default(0),
+  rawJson: text("raw_json"),
+  rawVersion: integer("raw_version").notNull().default(0),
+  error: text("error"),
+  scannedAt: text("scanned_at").notNull(),
+});
+
 export const llamaArgumentCatalogs = sqliteTable("llama_argument_catalogs", {
   binaryPath: text("binary_path").primaryKey(),
   binarySize: text("binary_size").notNull(),

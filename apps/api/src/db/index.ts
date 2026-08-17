@@ -82,6 +82,24 @@ export function migrate() {
   ensureColumn("model_cache", "raw_version", "INTEGER NOT NULL DEFAULT 0");
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS safetensors_cache (
+      path TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      directory TEXT NOT NULL,
+      size_bytes TEXT NOT NULL,
+      modified_at TEXT NOT NULL,
+      weight_files_json TEXT NOT NULL,
+      missing_shards_json TEXT NOT NULL,
+      metadata_json TEXT NOT NULL,
+      parser_version INTEGER NOT NULL DEFAULT 0,
+      raw_json TEXT,
+      raw_version INTEGER NOT NULL DEFAULT 0,
+      error TEXT,
+      scanned_at TEXT NOT NULL
+    )
+  `);
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS llama_argument_catalogs (
       binary_path TEXT PRIMARY KEY NOT NULL,
       binary_size TEXT NOT NULL,

@@ -361,7 +361,7 @@ async function runDownloadJob(ctx: DownloadJobContext): Promise<void> {
   let completedBytes = 0;
   let failedCount = 0;
   let fatalError: string | null = null;
-  let downloadedGguf = false;
+  let downloadedModelFile = false;
   try {
     for (const file of planned) {
       if (signal.aborted || fatalError) {
@@ -400,11 +400,12 @@ async function runDownloadJob(ctx: DownloadJobContext): Promise<void> {
             lastCommitDate: file.lastCommitDate,
           },
         );
+        const lowerPath = file.path.toLowerCase();
         if (
           outcome === "succeeded" &&
-          file.path.toLowerCase().endsWith(".gguf")
+          (lowerPath.endsWith(".gguf") || lowerPath.endsWith(".safetensors"))
         ) {
-          downloadedGguf = true;
+          downloadedModelFile = true;
         }
         patchFile(repoId, file.path, {
           status: outcome,
@@ -454,7 +455,7 @@ async function runDownloadJob(ctx: DownloadJobContext): Promise<void> {
         );
       }
     }
-    if (downloadedGguf) {
+    if (downloadedModelFile) {
       startModelScan({ refresh: true });
     }
   }

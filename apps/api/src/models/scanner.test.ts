@@ -14,8 +14,9 @@ import test from "node:test";
 import { eq } from "drizzle-orm";
 
 import { db } from "../db/index.js";
-import { modelCache } from "../db/schema.js";
+import { modelCache, safetensorsCache } from "../db/schema.js";
 import { GGUF_PARSER_VERSION } from "./gguf.js";
+import { SAFETENSORS_PARSER_VERSION } from "./safetensors.js";
 import { scanModels, scanModelsFromCache } from "./scanner.js";
 
 function u32(value: number) {
@@ -121,6 +122,103 @@ test("scanModelsFromCache returns cached models scoped by roots and depth", asyn
       shallow.models.map((model) => model.name),
       ["top.gguf"],
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function safetensorsFixture(tensors: Array<[string, string, number[]]>) {
+  const header: Record<string, unknown> = {};
+  for (const [name, dtype, shape] of tensors) {
+    header[name] = { dtype, shape, data_offsets: [0, 0] };
+  }
+  const json = Buffer.from(JSON.stringify(header), "utf8");
+  const length = Buffer.alloc(8);
+  length.writeBigUInt64LE(BigInt(json.length), 0);
+  return Buffer.concat([length, json]);
+}
+
+test("scanModels lists safetensors dirs alongside GGUF files and serves them from cache", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-safetensors-scan-"));
+
+  try {
+    writeFileSync(join(dir, "plain.gguf"), "gg");
+    const modelDir = join(dir, "qwen3-tiny");
+    mkdirSync(modelDir);
+    writeFileSync(
+      join(modelDir, "model.safetensors"),
+      safetensorsFixture([["a", "BF16", [4, 2]]]),
+    );
+    writeFileSync(
+      join(modelDir, "config.json"),
+      JSON.stringify({
+        architectures: ["Qwen3ForCausalLM"],
+        model_type: "qwen3",
+        num_hidden_layers: 2,
+      }),
+    );
+
+    const first = await scanModels({ roots: [root(dir)], refresh: true });
+    assert.equal(first.safetensors.length, 1);
+    const model = first.safetensors[0];
+    assert.equal(model?.name, "qwen3-tiny");
+    assert.equal(model?.path, modelDir);
+    assert.equal(model?.metadata.architecture, "Qwen3ForCausalLM");
+    assert.equal(model?.metadata.parameterCount, 8);
+    assert.deepEqual(model?.weightFiles, ["model.safetensors"]);
+    assert.deepEqual(
+      first.models.map((item) => item.name),
+      ["plain.gguf"],
+    );
+
+    const second = await scanModels({ roots: [root(dir)] });
+    assert.deepEqual(second.cache, { hits: 2, misses: 0 });
+    assert.equal(second.safetensors[0]?.metadata.modelType, "qwen3");
+
+    const fromCache = scanModelsFromCache({ roots: [root(dir)] });
+    assert.equal(fromCache.safetensors.length, 1);
+    assert.equal(fromCache.safetensors[0]?.path, modelDir);
+
+    const scoped = scanModelsFromCache({ roots: [root(dir)], maxDepth: 0 });
+    assert.equal(scoped.safetensors.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a safetensors parser bump rebuilds metadata from cached facts without re-reading", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-safetensors-derive-"));
+
+  try {
+    const modelDir = join(dir, "model-a");
+    mkdirSync(modelDir);
+    writeFileSync(
+      join(modelDir, "model.safetensors"),
+      safetensorsFixture([["a", "F16", [4]]]),
+    );
+    writeFileSync(
+      join(modelDir, "config.json"),
+      JSON.stringify({ model_type: "llama" }),
+    );
+
+    const first = await scanModels({ roots: [root(dir)], refresh: true });
+    assert.equal(first.cache.misses, 1);
+    assert.equal(first.safetensors[0]?.metadata.modelType, "llama");
+
+    db.update(safetensorsCache)
+      .set({
+        parserVersion: SAFETENSORS_PARSER_VERSION - 1,
+        metadataJson: "{}",
+      })
+      .where(eq(safetensorsCache.path, modelDir))
+      .run();
+
+    const second = await scanModels({ roots: [root(dir)] });
+    assert.deepEqual(second.cache, { hits: 1, misses: 0 });
+    assert.equal(second.safetensors[0]?.metadata.modelType, "llama");
+
+    const third = await scanModels({ roots: [root(dir)] });
+    assert.deepEqual(third.cache, { hits: 1, misses: 0 });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
