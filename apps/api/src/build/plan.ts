@@ -87,11 +87,11 @@ export function slugifyRef(ref: string): string {
   return slug || "build";
 }
 
-export function resolveBuildRef(gitRef: string | null): string {
+export async function resolveBuildRef(gitRef: string | null): Promise<string> {
   if (gitRef) {
     return gitRef;
   }
-  const currentBranch = listLlamaSourceRefs().currentBranch;
+  const currentBranch = (await listLlamaSourceRefs()).currentBranch;
   if (currentBranch) {
     return currentBranch;
   }

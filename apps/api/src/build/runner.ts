@@ -96,7 +96,7 @@ class LlamaBuildRunner {
       ? saveBuildSettings(input.settings)
       : getBuildSettings();
 
-    const refs = listLlamaSourceRefs();
+    const refs = await listLlamaSourceRefs();
     if (
       input.gitRef &&
       !refs.branches.includes(input.gitRef) &&
@@ -121,7 +121,7 @@ class LlamaBuildRunner {
       ...baseSettings,
       buildDir: resolve(
         baseSettings.buildDir,
-        slugifyRef(resolveBuildRef(input.gitRef)),
+        slugifyRef(await resolveBuildRef(input.gitRef)),
       ),
     };
     const env = buildProcessEnv(settings);

@@ -52,8 +52,8 @@ export function registerLlamaSourceRoutes(app: Hono) {
     return c.json({ data: await getLlamaSourceStatus() });
   });
 
-  app.get("/api/llama-source/refs", (c) => {
-    return c.json({ data: listLlamaSourceRefs() });
+  app.get("/api/llama-source/refs", async (c) => {
+    return c.json({ data: await listLlamaSourceRefs() });
   });
 
   app.get("/api/llama-source/sync", async (c) => {

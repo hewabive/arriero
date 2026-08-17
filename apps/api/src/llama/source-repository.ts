@@ -8,12 +8,18 @@ import {
   type LlamaSourceSettingsUpdate,
   type LlamaSourceStatus,
 } from "@arriero/core";
+import { createHash } from "node:crypto";
+
 import {
+  isExactGitRepository,
   isExactGitRepositorySync,
   repositoryHeadCommitSync,
+  runGit,
   runGitSync,
+  tryGit,
   tryGitSync,
 } from "../git/process.js";
+import { logger } from "../logger.js";
 import {
   getSourceRepositoryDefinition,
   LLAMA_CPP_SOURCE_ID,
@@ -105,7 +111,35 @@ export function getLlamaSourceVersionLabel(
 
 const RECENT_TAG_LIMIT = 100;
 
-export function listLlamaSourceRefs(): LlamaSourceRefs {
+const recentTagsCache = new Map<
+  string,
+  { fingerprint: string; tags: string[] }
+>();
+
+async function listRecentTags(repoPath: string): Promise<string[]> {
+  const refs = await runGit(repoPath, [
+    "for-each-ref",
+    "--format=%(objectname) %(refname)",
+    "refs/tags",
+  ]);
+  const fingerprint = createHash("sha256").update(refs.stdout).digest("hex");
+  const cached = recentTagsCache.get(repoPath);
+  if (cached && cached.fingerprint === fingerprint) {
+    return cached.tags;
+  }
+  const sorted = await runGit(repoPath, [
+    "for-each-ref",
+    `--count=${RECENT_TAG_LIMIT}`,
+    "--sort=-creatordate",
+    "--format=%(refname:short)",
+    "refs/tags",
+  ]);
+  const tags = sorted.stdout.split("\n").filter(Boolean);
+  recentTagsCache.set(repoPath, { fingerprint, tags });
+  return tags;
+}
+
+export async function listLlamaSourceRefs(): Promise<LlamaSourceRefs> {
   const repoPath = getLlamaSourceSettings().repoPath;
   const empty = {
     branches: [],
@@ -115,7 +149,7 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
     dirty: null,
   };
   if (
-    !isExactGitRepositorySync(repoPath) ||
+    !(await isExactGitRepository(repoPath)) ||
     getSourceRepositoryDefinition(LLAMA_CPP_SOURCE_ID).validateCheckout(
       repoPath,
     ) !== null
@@ -124,38 +158,33 @@ export function listLlamaSourceRefs(): LlamaSourceRefs {
   }
 
   try {
+    const [headsResult, tags, currentBranch, statusResult] = await Promise.all([
+      runGit(repoPath, [
+        "for-each-ref",
+        "--format=%(refname:short)\t%(upstream)",
+        "refs/heads",
+      ]),
+      listRecentTags(repoPath),
+      tryGit(repoPath, ["branch", "--show-current"]),
+      runGit(repoPath, ["status", "--porcelain"]),
+    ]);
     const branches: string[] = [];
     const branchesWithUpstream: string[] = [];
-    const branchLines = runGitSync(repoPath, [
-      "for-each-ref",
-      "--format=%(refname:short)\t%(upstream)",
-      "refs/heads",
-    ])
-      .split("\n")
-      .filter(Boolean);
-    for (const line of branchLines) {
+    for (const line of headsResult.stdout.split("\n").filter(Boolean)) {
       const [name, upstream] = line.split("\t");
       if (!name) continue;
       branches.push(name);
       if (upstream) branchesWithUpstream.push(name);
     }
-    const tags = runGitSync(repoPath, [
-      "for-each-ref",
-      `--count=${RECENT_TAG_LIMIT}`,
-      "--sort=-creatordate",
-      "--format=%(refname:short)",
-      "refs/tags",
-    ])
-      .split("\n")
-      .filter(Boolean);
     return LlamaSourceRefsSchema.parse({
       branches,
       branchesWithUpstream,
       tags,
-      currentBranch: tryGitSync(repoPath, ["branch", "--show-current"]),
-      dirty: runGitSync(repoPath, ["status", "--porcelain"]).length > 0,
+      currentBranch,
+      dirty: statusResult.stdout.trim().length > 0,
     });
-  } catch {
+  } catch (error) {
+    logger.warn({ err: error, repoPath }, "failed to list llama source refs");
     return LlamaSourceRefsSchema.parse(empty);
   }
 }
@@ -176,7 +205,7 @@ export async function checkoutLlamaSourceRef(
           status.error ?? `Repository path does not exist: ${status.repoPath}`,
         );
       }
-      const refs = listLlamaSourceRefs();
+      const refs = await listLlamaSourceRefs();
       if (!refs.branches.includes(ref) && !refs.tags.includes(ref)) {
         throw new Error(`unknown git ref: ${ref}`);
       }
@@ -185,7 +214,7 @@ export async function checkoutLlamaSourceRef(
           `refusing to checkout ${ref}: the llama.cpp working tree has uncommitted changes — commit or stash them first`,
         );
       }
-      runGitSync(status.repoPath, ["checkout", ref]);
+      await runGit(status.repoPath, ["checkout", ref]);
     },
   );
   return getLlamaSourceStatus();
