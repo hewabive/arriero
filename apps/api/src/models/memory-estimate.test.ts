@@ -885,6 +885,46 @@ test("upstream auto GPU layers use conservative full offload", () => {
   assert.equal(estimate.confidence, "low");
 });
 
+test("catalog gpu-layers default overrides the assumed upstream auto", () => {
+  const pools = [
+    { id: "gpu0", kind: "gpu" as const, deviceIndex: 0 },
+    { id: "host", kind: "host" as const },
+  ];
+  const zeroDefault = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--ctx-size": 1024 },
+    pools,
+    gpuLayersDefault: "0",
+  });
+  assert.equal(zeroDefault.context.nGpuLayers, 0);
+  assert.equal(
+    zeroDefault.pools.find((pool) => pool.poolId === "gpu0")?.weightsBytes ?? 0,
+    0,
+  );
+  assert.ok(
+    !zeroDefault.warnings.some((warning) => /upstream auto/.test(warning)),
+  );
+
+  const countDefault = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--ctx-size": 1024 },
+    pools,
+    gpuLayersDefault: "1",
+  });
+  assert.equal(countDefault.context.nGpuLayers, 1);
+
+  const explicitArg = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { "--ctx-size": 1024, "--n-gpu-layers": 2 },
+    pools,
+    gpuLayersDefault: "0",
+  });
+  assert.equal(explicitArg.context.nGpuLayers, 2);
+});
+
 test("op-offload uses GPU compute even when all weights stay on the host", () => {
   const pools = [
     { id: "gpu0", kind: "gpu" as const, deviceIndex: 0 },

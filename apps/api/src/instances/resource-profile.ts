@@ -5,7 +5,7 @@ import {
   type InstanceResourceProfile,
 } from "@arriero/core";
 
-import { cachedGpuLayersDefault } from "../arguments/binary-defaults.js";
+import { cachedGpuLayersDefaults } from "../arguments/binary-defaults.js";
 import { getCachedModelEntry } from "../models/cache-repository.js";
 import { listMemoryPools } from "../resources/repository.js";
 
@@ -44,7 +44,7 @@ function instanceResourceProfile(
     model: modelMetadata(instance),
     gpuLayersDefault:
       engineDescriptor(instance.kind).resourceProfile === "llama-args"
-        ? cachedGpuLayersDefault(instance.binaryPath)
+        ? cachedGpuLayersDefaults(instance.binaryPath).main
         : null,
   });
 }

@@ -1,21 +1,21 @@
-import { ArgumentOptionSchema } from "@arriero/core";
+import { ArgumentOptionSchema, type ArgumentOption } from "@arriero/core";
 import { strict as assert } from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { cachedGpuLayersDefault } from "./binary-defaults.js";
+import { cachedGpuLayersDefaults } from "./binary-defaults.js";
 import { saveArgumentCatalog } from "./repository.js";
 
-function gpuLayersOption(help: string) {
+function option(names: string[], help: string): ArgumentOption {
   return ArgumentOptionSchema.parse({
-    primaryName: "--gpu-layers",
-    names: ["-ngl", "--gpu-layers", "--n-gpu-layers"],
+    primaryName: names[0],
+    names,
     category: "common",
     valueHint: "N",
     valueType: "number",
-    env: ["LLAMA_ARG_N_GPU_LAYERS"],
+    env: [],
     allowedValues: [],
     help,
     helpRu: "",
@@ -26,7 +26,7 @@ function gpuLayersOption(help: string) {
 
 function saveCatalog(
   binaryPath: string,
-  help: string,
+  options: ArgumentOption[],
   parserId = "llama-help",
 ) {
   saveArgumentCatalog({
@@ -35,44 +35,69 @@ function saveCatalog(
     binaryMtimeMs: "1",
     binaryModifiedAt: "2026-08-17T00:00:00.000Z",
     helpHash: "test",
-    options: [gpuLayersOption(help)],
+    options,
     generatedAt: "2026-08-17T00:00:00.000Z",
     parserId,
   });
 }
 
-test("cachedGpuLayersDefault reads the help default from the catalog cache", () => {
+test("cachedGpuLayersDefaults reads main and draft help defaults from the catalog cache", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-binary-defaults-"));
   try {
     const binaryPath = join(dir, "llama-server");
-    saveCatalog(
-      binaryPath,
-      "max. number of layers to store in VRAM, either an exact number, 'auto', or 'all' (default: auto)",
-    );
-    assert.equal(cachedGpuLayersDefault(binaryPath), "auto");
+    saveCatalog(binaryPath, [
+      option(
+        ["--gpu-layers", "-ngl", "--n-gpu-layers"],
+        "max. number of layers to store in VRAM, either an exact number, 'auto', or 'all' (default: auto)",
+      ),
+      option(
+        ["--spec-draft-ngl", "-ngld"],
+        "max. number of draft model layers to store in VRAM (default: all)",
+      ),
+    ]);
+    assert.deepEqual(cachedGpuLayersDefaults(binaryPath), {
+      main: "auto",
+      draft: "all",
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("cachedGpuLayersDefault is null without a default marker", () => {
+test("cachedGpuLayersDefaults is null without a default marker", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-binary-defaults-"));
   try {
     const binaryPath = join(dir, "llama-server");
-    saveCatalog(binaryPath, "number of layers to store in VRAM");
-    assert.equal(cachedGpuLayersDefault(binaryPath), null);
+    saveCatalog(binaryPath, [
+      option(["--gpu-layers", "-ngl"], "number of layers to store in VRAM"),
+    ]);
+    assert.deepEqual(cachedGpuLayersDefaults(binaryPath), {
+      main: null,
+      draft: null,
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("cachedGpuLayersDefault is null for uncatalogued binaries and non-llama parsers", () => {
+test("cachedGpuLayersDefaults is null for uncatalogued binaries and non-llama parsers", () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-binary-defaults-"));
   try {
-    assert.equal(cachedGpuLayersDefault(join(dir, "missing")), null);
+    assert.deepEqual(cachedGpuLayersDefaults(join(dir, "missing")), {
+      main: null,
+      draft: null,
+    });
+    assert.deepEqual(cachedGpuLayersDefaults(""), { main: null, draft: null });
     const vllmPath = join(dir, "vllm");
-    saveCatalog(vllmPath, "layers (default: auto)", "vllm-help");
-    assert.equal(cachedGpuLayersDefault(vllmPath), null);
+    saveCatalog(
+      vllmPath,
+      [option(["--gpu-layers"], "layers (default: auto)")],
+      "vllm-help",
+    );
+    assert.deepEqual(cachedGpuLayersDefaults(vllmPath), {
+      main: null,
+      draft: null,
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

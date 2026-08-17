@@ -1,4 +1,4 @@
-import { GPU_LAYERS_ARG_KEYS } from "@arriero/core";
+import { DRAFT_GPU_LAYERS_ARG_KEYS, GPU_LAYERS_ARG_KEYS } from "@arriero/core";
 import { resolve } from "node:path";
 
 import { binaryStat } from "./binary-discovery.js";
@@ -11,7 +11,14 @@ import { readArgumentCatalogSidecar } from "./sidecar.js";
 const HELP_DEFAULT_PATTERN = /\(default:\s*([^)]*)\)/g;
 const CACHE_TTL_MS = 30_000;
 
-type CacheEntry = { value: string | null; expiresAt: number };
+export type GpuLayersDefaults = {
+  main: string | null;
+  draft: string | null;
+};
+
+const UNKNOWN_DEFAULTS: GpuLayersDefaults = { main: null, draft: null };
+
+type CacheEntry = { value: GpuLayersDefaults; expiresAt: number };
 
 const gpuLayersDefaultCache = new Map<string, CacheEntry>();
 
@@ -33,19 +40,34 @@ function helpDefault(help: string): string | null {
   return value === "" ? null : value;
 }
 
-function extractGpuLayersDefault(
+function optionDefault(
   catalog: CachedArgumentCatalog,
+  keys: string[],
 ): string | null {
-  if (catalog.parserId !== "llama-help") {
-    return null;
-  }
   const option = catalog.options.find((candidate) =>
-    candidate.names.some((name) => GPU_LAYERS_ARG_KEYS.includes(name)),
+    candidate.names.some((name) => keys.includes(name)),
   );
   return option ? helpDefault(option.help) : null;
 }
 
-export function cachedGpuLayersDefault(binaryPathInput: string): string | null {
+function extractGpuLayersDefaults(
+  catalog: CachedArgumentCatalog,
+): GpuLayersDefaults {
+  if (catalog.parserId !== "llama-help") {
+    return UNKNOWN_DEFAULTS;
+  }
+  return {
+    main: optionDefault(catalog, GPU_LAYERS_ARG_KEYS),
+    draft: optionDefault(catalog, DRAFT_GPU_LAYERS_ARG_KEYS),
+  };
+}
+
+export function cachedGpuLayersDefaults(
+  binaryPathInput: string,
+): GpuLayersDefaults {
+  if (binaryPathInput === "") {
+    return UNKNOWN_DEFAULTS;
+  }
   const binaryPath = resolve(binaryPathInput);
   const now = Date.now();
   const cached = gpuLayersDefaultCache.get(binaryPath);
@@ -53,7 +75,7 @@ export function cachedGpuLayersDefault(binaryPathInput: string): string | null {
     return cached.value;
   }
   const catalog = cachedCatalog(binaryPath);
-  const value = catalog ? extractGpuLayersDefault(catalog) : null;
+  const value = catalog ? extractGpuLayersDefaults(catalog) : UNKNOWN_DEFAULTS;
   gpuLayersDefaultCache.set(binaryPath, {
     value,
     expiresAt: now + CACHE_TTL_MS,

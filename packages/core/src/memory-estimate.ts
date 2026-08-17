@@ -12,14 +12,15 @@ import {
   argPairedFlag,
   argRaw,
   argString,
+  effectiveGpuLayersRaw,
   expertOffloadLayerCount,
   GPU_LAYERS_ARG_KEYS,
   parseTensorSplit,
-  resolveGpuLayers,
+  resolveGpuLayersValue,
   splitCsvItems,
 } from "./instance-resources.js";
 
-export const MEMORY_ESTIMATOR_VERSION = 4;
+export const MEMORY_ESTIMATOR_VERSION = 5;
 
 const F32_BYTES = 4;
 const KV_PAD = 256;
@@ -82,8 +83,13 @@ export type MemoryEstimateInput = {
   hparams: MemoryEstimateHparams;
   args: MemoryEstimateArgs;
   pools: MemoryEstimatePoolInput[];
+  gpuLayersDefault?: string | null;
   mmproj?: { tensors: GgufTensorTable };
-  draft?: { tensors: GgufTensorTable; hparams: MemoryEstimateHparams };
+  draft?: {
+    tensors: GgufTensorTable;
+    hparams: MemoryEstimateHparams;
+    gpuLayersDefault?: string | null;
+  };
   loras?: Array<{ tensors: GgufTensorTable }>;
   controlVector?: boolean;
   rpcWorkerCount?: number;
@@ -160,6 +166,7 @@ export function resolveContextParams(
   args: MemoryEstimateArgs,
   hparams: MemoryEstimateHparams,
   hasGpu = false,
+  gpuLayersDefault: string | null = null,
 ): ResolvedContextParams {
   const nCtxTrain = hparams.contextLength ?? DEFAULT_CTX;
   const requestedCtx = argNumber(args, ["--ctx-size", "-c", "--context-size"]);
@@ -250,10 +257,14 @@ export function resolveContextParams(
     typeK,
     typeV,
     offloadKqv,
-    nGpuLayers:
-      gpuLayersAreAuto(args, GPU_LAYERS_ARG_KEYS) && hasGpu
+    nGpuLayers: gpuLayersAreAuto(args, GPU_LAYERS_ARG_KEYS, gpuLayersDefault)
+      ? hasGpu
         ? (hparams.blockCount ?? 0) + 1
-        : resolveGpuLayers(args, hparams.blockCount),
+        : 0
+      : resolveGpuLayersValue(
+          effectiveGpuLayersRaw(args, GPU_LAYERS_ARG_KEYS, gpuLayersDefault),
+          hparams.blockCount,
+        ),
   };
 }
 
@@ -414,19 +425,20 @@ function hasSpeculativeType(
   );
 }
 
-const DRAFT_GPU_LAYERS_ARG_KEYS = [
+export const DRAFT_GPU_LAYERS_ARG_KEYS = [
   "--spec-draft-ngl",
   "-ngld",
   "--n-gpu-layers-draft",
   "--gpu-layers-draft",
 ];
 
-function gpuLayersAreAuto(args: MemoryEstimateArgs, keys: string[]): boolean {
-  const raw = argRaw(args, keys);
-  return (
-    raw === undefined ||
-    (typeof raw === "string" && raw.trim().toLowerCase() === "auto")
-  );
+function gpuLayersAreAuto(
+  args: MemoryEstimateArgs,
+  keys: string[],
+  binaryDefault: string | null,
+): boolean {
+  const raw = effectiveGpuLayersRaw(args, keys, binaryDefault);
+  return typeof raw === "string" && raw.trim().toLowerCase() === "auto";
 }
 
 function opOffloadEnabled(args: MemoryEstimateArgs): boolean {
@@ -504,14 +516,16 @@ function accumulateModel(
   warnings: string[],
   contextLayerMode: ContextLayerMode = "main",
 ): ModelAccumulation {
+  const gpuLayersDefault = model.gpuLayersDefault ?? null;
   const context = resolveContextParams(
     model.args,
     model.hparams,
     model.pools.some((pool) => pool.kind === "gpu"),
+    gpuLayersDefault,
   );
   if (
     model.pools.some((pool) => pool.kind === "gpu") &&
-    gpuLayersAreAuto(model.args, GPU_LAYERS_ARG_KEYS)
+    gpuLayersAreAuto(model.args, GPU_LAYERS_ARG_KEYS, gpuLayersDefault)
   ) {
     warnings.push(
       "GPU layers are set to upstream auto; the estimate uses full offload as a conservative upper bound. Set --n-gpu-layers explicitly for exact placement.",
@@ -706,7 +720,11 @@ export function estimateInstanceMemory(
   }
 
   const gpuPools = gpuPoolsSorted(input.pools);
-  const gpuLayersAuto = gpuLayersAreAuto(input.args, GPU_LAYERS_ARG_KEYS);
+  const gpuLayersAuto = gpuLayersAreAuto(
+    input.args,
+    GPU_LAYERS_ARG_KEYS,
+    input.gpuLayersDefault ?? null,
+  );
   const fitEnabled = argFlag(input.args, ["--fit", "-fit"]) ?? true;
   const splitModeRaw = argString(input.args, ["--split-mode", "-sm"]);
   const splitMode = splitModeRaw?.toLowerCase() ?? "layer";
@@ -905,15 +923,18 @@ export function estimateInstanceMemory(
   let draftUsesGpu = false;
   if (input.draft) {
     const draftWarnings: string[] = [];
+    const draftGpuLayersDefault = input.draft.gpuLayersDefault ?? null;
     const draftModel: MemoryEstimateInput = {
       tensors: input.draft.tensors,
       hparams: input.draft.hparams,
       args: remapDraftArgs(input.args),
       pools: input.pools,
+      gpuLayersDefault: draftGpuLayersDefault,
     };
     const draftGpuLayersAuto = gpuLayersAreAuto(
       input.args,
       DRAFT_GPU_LAYERS_ARG_KEYS,
+      draftGpuLayersDefault,
     );
     if (gpuPools.length > 0 && draftGpuLayersAuto && fitEnabled) {
       estimateIncomplete = true;

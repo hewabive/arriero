@@ -224,6 +224,16 @@ test("binary default auto offloads fully when -ngl is absent", () => {
   assert.equal(result.signals.gpuLayersDefault, "auto");
 });
 
+test("unknown binary default is assumed auto and offloads", () => {
+  const result = profile({
+    model: { blockCount: 32, expertCount: null },
+  });
+  assert.equal(result.placement, "gpu");
+  assert.equal(result.usesHost, false);
+  assert.equal(result.signals.source, "binary-default");
+  assert.equal(result.signals.gpuLayersDefault, null);
+});
+
 test("explicit -ngl 0 wins over the binary default", () => {
   const result = profile({
     args: { "--n-gpu-layers": "0" },

@@ -28,6 +28,7 @@ import {
 import { existsSync, statSync } from "node:fs";
 
 import { getInstance } from "../instances/repository.js";
+import { cachedGpuLayersDefaults } from "../arguments/binary-defaults.js";
 import { loadArgumentRegistry } from "../arguments/registry.js";
 import {
   REMOVED_LLAMA_ARGUMENT_GROUPS,
@@ -697,6 +698,7 @@ async function estimateGgufMemory(
     };
   }
 
+  const gpuLayersDefaults = cachedGpuLayersDefaults(context.binaryPath);
   let estimate: MemoryEstimate;
   try {
     estimate = estimateInstanceMemory({
@@ -704,6 +706,7 @@ async function estimateGgufMemory(
       hparams: await loadGgufHparams(modelPath),
       args,
       pools: estimatePools,
+      gpuLayersDefault: gpuLayersDefaults.main,
       ...(mmprojPath
         ? { mmproj: { tensors: await loadGgufTensorTable(mmprojPath) } }
         : {}),
@@ -712,6 +715,7 @@ async function estimateGgufMemory(
             draft: {
               tensors: await loadGgufTensorTable(draftPath),
               hparams: await loadGgufHparams(draftPath),
+              gpuLayersDefault: gpuLayersDefaults.draft,
             },
           }
         : {}),

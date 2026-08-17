@@ -117,6 +117,16 @@ export type GpuLayersRequest = {
 
 export const GPU_LAYERS_ARG_KEYS = ["--n-gpu-layers", "-ngl", "--gpu-layers"];
 
+export const ASSUMED_GPU_LAYERS_DEFAULT = "auto";
+
+export function effectiveGpuLayersRaw(
+  args: LlamaArgRecord,
+  keys: string[],
+  binaryDefault: string | null,
+): LlamaArgValue {
+  return argRaw(args, keys) ?? binaryDefault ?? ASSUMED_GPU_LAYERS_DEFAULT;
+}
+
 export function parseGpuLayersRequest(args: LlamaArgRecord): GpuLayersRequest {
   const raw = argRaw(args, GPU_LAYERS_ARG_KEYS);
   if (raw === undefined) {
@@ -142,11 +152,11 @@ function parseGpuLayersValue(raw: LlamaArgValue): GpuLayersRequest {
   return { kind: "count", count: value };
 }
 
-export function resolveGpuLayers(
-  args: LlamaArgRecord,
+export function resolveGpuLayersValue(
+  raw: LlamaArgValue,
   blockCount: number | null,
 ): number {
-  return gpuLayersFromRequest(parseGpuLayersRequest(args), blockCount);
+  return gpuLayersFromRequest(parseGpuLayersValue(raw), blockCount);
 }
 
 function gpuLayersFromRequest(
@@ -408,10 +418,10 @@ function resourceProfileContext(
     : null;
   const configuredGpuRequest = parseGpuLayersRequest(input.args);
   const defaultGpuRequest =
-    configuredGpuRequest.kind === "none" &&
-    allGpu.length > 0 &&
-    input.gpuLayersDefault !== null
-      ? parseGpuLayersValue(input.gpuLayersDefault)
+    configuredGpuRequest.kind === "none" && allGpu.length > 0
+      ? parseGpuLayersValue(
+          input.gpuLayersDefault ?? ASSUMED_GPU_LAYERS_DEFAULT,
+        )
       : null;
   const gpuRequestFromBinaryDefault =
     defaultGpuRequest !== null &&
