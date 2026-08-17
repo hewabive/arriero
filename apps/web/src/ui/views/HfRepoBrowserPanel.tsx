@@ -1,5 +1,6 @@
 import {
   parseHfRepoInput,
+  type HfDownloadedRepo,
   type HfGgufVariant,
   type HfRepoBrowse,
   type HfTreeFile,
@@ -23,24 +24,74 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Download, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   browseHfRepo,
   getHfDestCheck,
+  listHfDownloads,
   startHfDownload,
 } from "../../api/client";
 import { PathPickerInput } from "../components/PathPickerInput";
+import {
+  hfLocalFileState,
+  hfLocalVariantState,
+  hfVariantTitle,
+  type HfLocalFileState,
+  type HfLocalVariantState,
+} from "../utils/hf";
 import { formatBytes, pathBaseName } from "../utils/models";
 import { countLabel } from "../utils/plural";
 
 const DEST_CHECK_DEBOUNCE_MS = 350;
 
-function variantTitle(variant: HfGgufVariant): string {
-  if (variant.label) {
-    return variant.label;
+export type HfBrowseRequest = {
+  repoId: string;
+  destDir: string;
+  nonce: number;
+};
+
+function fileLocalBadge(state: HfLocalFileState) {
+  if (state === "current") {
+    return (
+      <Badge color="green" variant="light">
+        on disk
+      </Badge>
+    );
   }
-  return pathBaseName(variant.paths[0] ?? "");
+  if (state === "changed") {
+    return (
+      <Badge color="yellow" variant="light">
+        changed
+      </Badge>
+    );
+  }
+  return null;
+}
+
+function variantLocalBadge(state: HfLocalVariantState) {
+  if (state === "on-disk") {
+    return (
+      <Badge color="green" variant="light">
+        on disk
+      </Badge>
+    );
+  }
+  if (state === "partial") {
+    return (
+      <Badge color="orange" variant="light">
+        partial
+      </Badge>
+    );
+  }
+  if (state === "changed") {
+    return (
+      <Badge color="yellow" variant="light">
+        changed upstream
+      </Badge>
+    );
+  }
+  return null;
 }
 
 function variantKindBadge(variant: HfGgufVariant) {
@@ -56,7 +107,7 @@ function variantKindBadge(variant: HfGgufVariant) {
 
 type DirGroup = { dir: string; files: HfTreeFile[]; totalBytes: number };
 
-export function HfRepoBrowserPanel() {
+export function HfRepoBrowserPanel(props: { request: HfBrowseRequest | null }) {
   const [repoInput, setRepoInput] = useState("");
   const [revisionInput, setRevisionInput] = useState("");
   const [submitted, setSubmitted] = useState<{
@@ -64,6 +115,17 @@ export function HfRepoBrowserPanel() {
     revision: string;
   } | null>(null);
   const [destDir, setDestDir] = useState("");
+
+  const request = props.request;
+  useEffect(() => {
+    if (!request) {
+      return;
+    }
+    setRepoInput(request.repoId);
+    setRevisionInput("");
+    setDestDir(request.destDir);
+    setSubmitted({ repo: request.repoId, revision: "" });
+  }, [request]);
 
   const browseQuery = useQuery({
     queryKey: ["hf-browse", submitted?.repo ?? "", submitted?.revision ?? ""],
@@ -167,10 +229,10 @@ function BrowseResults(props: {
     DEST_CHECK_DEBOUNCE_MS,
   );
 
-  const sizeByPath = useMemo(() => {
-    const map = new Map<string, number>();
+  const fileByPath = useMemo(() => {
+    const map = new Map<string, HfTreeFile>();
     for (const file of browse.files) {
-      map.set(file.path, file.size);
+      map.set(file.path, file);
     }
     return map;
   }, [browse]);
@@ -201,6 +263,28 @@ function BrowseResults(props: {
       ),
   });
   const destCheck = destQuery.data?.data ?? null;
+
+  const downloadsQuery = useQuery({
+    queryKey: ["hf-downloads"],
+    queryFn: listHfDownloads,
+  });
+  const localCandidates = (downloadsQuery.data?.data ?? []).filter(
+    (repo) => repo.repoId === browse.repoId,
+  );
+  const localRepo: HfDownloadedRepo | null =
+    localCandidates.find((repo) => repo.dir === destCheck?.dir) ??
+    localCandidates[0] ??
+    null;
+  const localFiles = useMemo(
+    () => new Map((localRepo?.files ?? []).map((file) => [file.path, file])),
+    [localRepo],
+  );
+  const localPresentCount = (localRepo?.files ?? []).filter(
+    (file) => file.present,
+  ).length;
+  const localOnlyCount = (localRepo?.files ?? []).filter(
+    (file) => file.present && !fileByPath.has(file.path),
+  ).length;
 
   const startMutation = useMutation({
     mutationFn: () =>
@@ -253,7 +337,7 @@ function BrowseResults(props: {
   }
 
   const selectedBytes = [...selection].reduce(
-    (sum, path) => sum + (sizeByPath.get(path) ?? 0),
+    (sum, path) => sum + (fileByPath.get(path)?.size ?? 0),
     0,
   );
   const freeBytes = destCheck?.freeBytes ?? null;
@@ -286,6 +370,29 @@ function BrowseResults(props: {
         )}
       </Group>
 
+      {localRepo && (
+        <Alert color="blue" variant="light" title="Already downloaded">
+          <Group gap="sm" wrap="wrap">
+            <Text size="sm" style={{ overflowWrap: "anywhere" }}>
+              <Code>{localRepo.dir}</Code> ·{" "}
+              {countLabel(localPresentCount, "file")} on disk
+              {localOnlyCount > 0
+                ? ` · ${countLabel(localOnlyCount, "file")} not in this revision`
+                : ""}
+            </Text>
+            {destCheck && destCheck.dir !== localRepo.dir && (
+              <Button
+                size="xs"
+                variant="default"
+                onClick={() => props.onDestDirChange(localRepo.dir)}
+              >
+                Use this directory
+              </Button>
+            )}
+          </Group>
+        </Alert>
+      )}
+
       {browse.ggufVariants && browse.ggufVariants.length > 0 && (
         <Stack gap={6}>
           <Text fw={600} size="sm">
@@ -299,6 +406,11 @@ function BrowseResults(props: {
                 );
                 const indeterminate =
                   !checked && variant.paths.some((path) => selection.has(path));
+                const localState = hfLocalVariantState(
+                  variant.paths,
+                  fileByPath,
+                  localFiles,
+                );
                 return (
                   <Checkbox
                     key={variant.paths[0]}
@@ -310,9 +422,10 @@ function BrowseResults(props: {
                     label={
                       <Group gap="xs" wrap="wrap">
                         <Text size="sm" fw={500}>
-                          {variantTitle(variant)}
+                          {hfVariantTitle(variant)}
                         </Text>
                         {variantKindBadge(variant)}
+                        {variantLocalBadge(localState)}
                         {variant.splitCount !== null && (
                           <Badge color="gray" variant="outline">
                             {countLabel(variant.paths.length, "shard")}
@@ -440,6 +553,9 @@ function BrowseResults(props: {
                                 <Text size="xs" c="dimmed">
                                   {formatBytes(file.size)}
                                 </Text>
+                                {fileLocalBadge(
+                                  hfLocalFileState(file, localFiles),
+                                )}
                               </Group>
                             }
                           />

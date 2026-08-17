@@ -54,9 +54,18 @@ file, so an interrupted job leaves a valid partial manifest and the next run res
 
 `GET /api/hf/downloads` (`apps/api/src/hf/downloads.ts`) discovers manifests by walking the model
 scan roots (`apps/api/src/models/roots.ts`) with a 30 s cache — there is no DB table; the manifest
-travels with the files and survives DB recreation. A destination outside every scan root still
-downloads but is not listed (the UI warns). `POST /api/hf/downloads/delete` removes a repo
-directory after confirming no job is running for it.
+travels with the files and survives DB recreation. Each entry carries the manifest's per-file
+records (`path`/`size`/`oid`/`lfsOid` plus an on-disk `present` flag) and server-grouped GGUF
+`variants` (the same `grouping.ts` browse uses), so the UI can show exactly what was downloaded:
+the repo card renders variant chips, an expandable file list (with `missing` and per-file
+update-check badges) and an `Add files` action that prefills the repo browser with the repo id and
+the existing directory as destination. The browser panel joins the browse tree with this list
+client-side (`hfManifestOidMatches`, exported from core): variants and files get
+`on disk`/`partial`/`changed upstream` badges, and an already-downloaded repo shows a banner with
+its local directory plus a button to reuse it as the destination — so adding files to a repo
+downloaded into a custom directory does not fork a second copy. A destination outside every scan
+root still downloads but is not listed (the UI warns). `POST /api/hf/downloads/delete` removes a
+repo directory after confirming no job is running for it.
 
 ## Update checks
 

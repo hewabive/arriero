@@ -115,6 +115,14 @@ export const HfUpdateCheckSchema = z.object({
   files: z.array(HfUpdateCheckFileSchema),
 });
 
+export const HfDownloadedRepoFileSchema = z.object({
+  path: z.string().min(1),
+  size: z.number().int().nonnegative(),
+  oid: z.string().min(1),
+  lfsOid: z.string().nullable(),
+  present: z.boolean(),
+});
+
 export const HfDownloadedRepoSchema = z.object({
   dir: z.string().min(1),
   repoId: HfRepoIdSchema,
@@ -123,8 +131,19 @@ export const HfDownloadedRepoSchema = z.object({
   fileCount: z.number().int().nonnegative(),
   totalBytes: z.number().int().nonnegative(),
   missingFiles: z.number().int().nonnegative(),
+  files: z.array(HfDownloadedRepoFileSchema),
+  variants: z.array(HfGgufVariantSchema).nullable(),
   update: HfUpdateCheckSchema,
 });
+
+export function hfManifestOidMatches(
+  entry: { oid: string; lfsOid: string | null },
+  remote: { oid: string; lfs: { oid: string } | null },
+): boolean {
+  return entry.lfsOid !== null && remote.lfs !== null
+    ? entry.lfsOid === remote.lfs.oid
+    : entry.oid === remote.oid;
+}
 
 export const HF_UPDATE_CHECK_MAX_DIRS = 50;
 
@@ -209,6 +228,7 @@ export type HfUpdateFileStatus = z.infer<typeof HfUpdateFileStatusSchema>;
 export type HfUpdateCheckStatus = z.infer<typeof HfUpdateCheckStatusSchema>;
 export type HfUpdateCheckFile = z.infer<typeof HfUpdateCheckFileSchema>;
 export type HfUpdateCheck = z.infer<typeof HfUpdateCheckSchema>;
+export type HfDownloadedRepoFile = z.infer<typeof HfDownloadedRepoFileSchema>;
 export type HfDownloadedRepo = z.infer<typeof HfDownloadedRepoSchema>;
 export type HfUpdateCheckRequest = z.infer<typeof HfUpdateCheckRequestSchema>;
 export type HfDownloadDelete = z.infer<typeof HfDownloadDeleteSchema>;

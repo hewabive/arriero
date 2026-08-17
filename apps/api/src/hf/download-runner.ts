@@ -1,9 +1,10 @@
-import type {
-  HfDownloadFile,
-  HfDownloadFileStatus,
-  HfDownloadJob,
-  HfDownloadStart,
-  HfLfsInfo,
+import {
+  hfManifestOidMatches,
+  type HfDownloadFile,
+  type HfDownloadFileStatus,
+  type HfDownloadJob,
+  type HfDownloadStart,
+  type HfLfsInfo,
 } from "@arriero/core";
 import { createHash, type Hash } from "node:crypto";
 import { once } from "node:events";
@@ -44,7 +45,6 @@ import {
 } from "./downloads.js";
 import { clearHfUpdateCheck, runHfUpdateChecks } from "./update-check.js";
 import {
-  hfManifestOidMatches,
   readHfManifest,
   upsertHfManifestFile,
   type HfManifestFile,

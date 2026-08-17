@@ -1,4 +1,4 @@
-import type { HfDownloadedRepo } from "@arriero/core";
+import type { HfDownloadedRepo, HfDownloadedRepoFile } from "@arriero/core";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { opendir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -10,6 +10,7 @@ import { listModelScanRoots } from "../models/roots.js";
 import { IGNORED_DIRS } from "../models/scanner.js";
 import { isPathWithin } from "../path-utils.js";
 import { startModelScan } from "../models/scan-runner.js";
+import { groupHfGgufFiles } from "./grouping.js";
 import {
   HF_MANIFEST_FILENAME,
   readHfManifest,
@@ -117,18 +118,35 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
   if (!cache || cache.key !== key || Date.now() - cache.at > CACHE_TTL_MS) {
     cache = { key, at: Date.now(), repos: await discoverRepos() };
   }
-  return cache.repos.map(({ dir, manifest }) => ({
-    dir,
-    repoId: manifest.repoId,
-    revision: manifest.revision,
-    downloadedAt: manifest.downloadedAt,
-    fileCount: manifest.files.length,
-    totalBytes: manifest.files.reduce((sum, file) => sum + file.size, 0),
-    missingFiles: manifest.files.filter(
-      (file) => !existsSync(join(dir, file.path)),
-    ).length,
-    update: getHfUpdateCheck(dir),
-  }));
+  return cache.repos.map(({ dir, manifest }) => {
+    const files: HfDownloadedRepoFile[] = manifest.files.map((file) => ({
+      path: file.path,
+      size: file.size,
+      oid: file.oid,
+      lfsOid: file.lfsOid,
+      present: existsSync(join(dir, file.path)),
+    }));
+    return {
+      dir,
+      repoId: manifest.repoId,
+      revision: manifest.revision,
+      downloadedAt: manifest.downloadedAt,
+      fileCount: files.length,
+      totalBytes: files.reduce((sum, file) => sum + file.size, 0),
+      missingFiles: files.filter((file) => !file.present).length,
+      files,
+      variants: groupHfGgufFiles(
+        manifest.files.map((file) => ({
+          path: file.path,
+          size: file.size,
+          oid: file.oid,
+          lfs:
+            file.lfsOid === null ? null : { oid: file.lfsOid, size: file.size },
+        })),
+      ),
+      update: getHfUpdateCheck(dir),
+    };
+  });
 }
 
 export function deleteHfDownload(dir: string): void {

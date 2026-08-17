@@ -1,4 +1,8 @@
-import type { HfUpdateCheck, HfUpdateCheckFile } from "@arriero/core";
+import {
+  hfManifestOidMatches,
+  type HfUpdateCheck,
+  type HfUpdateCheckFile,
+} from "@arriero/core";
 import { resolve } from "node:path";
 
 import { logger } from "../logger.js";
@@ -8,11 +12,7 @@ import {
   HfHubError,
   type HfClientOptions,
 } from "./client.js";
-import {
-  hfManifestOidMatches,
-  readHfManifest,
-  type HfManifest,
-} from "./manifest.js";
+import { readHfManifest, type HfManifest } from "./manifest.js";
 
 const checks = new Map<string, HfUpdateCheck>();
 

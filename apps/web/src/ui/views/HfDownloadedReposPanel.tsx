@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Code,
+  Collapse,
   Group,
   Modal,
   Paper,
@@ -17,7 +18,13 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -27,6 +34,7 @@ import {
   listHfDownloads,
   startHfDownload,
 } from "../../api/client";
+import { hfVariantChipLabel } from "../utils/hf";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
@@ -56,7 +64,9 @@ function updateBadge(repo: HfDownloadedRepo) {
   return badge;
 }
 
-export function HfDownloadedReposPanel() {
+export function HfDownloadedReposPanel(props: {
+  onAddFiles: (repo: HfDownloadedRepo) => void;
+}) {
   const queryClient = useQueryClient();
   const downloadsQuery = useQuery({
     queryKey: ["hf-downloads"],
@@ -75,6 +85,21 @@ export function HfDownloadedReposPanel() {
   const [deleteTarget, setDeleteTarget] = useState<HfDownloadedRepo | null>(
     null,
   );
+  const [expandedFiles, setExpandedFiles] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+
+  function toggleFiles(dir: string) {
+    setExpandedFiles((previous) => {
+      const next = new Set(previous);
+      if (next.has(dir)) {
+        next.delete(dir);
+      } else {
+        next.add(dir);
+      }
+      return next;
+    });
+  }
 
   const invalidateDownloads = () =>
     queryClient.invalidateQueries({ queryKey: ["hf-downloads"] });
@@ -169,6 +194,10 @@ export function HfDownloadedReposPanel() {
             (file) => file.status === "updated",
           ).length;
           const running = runningRepoIds.has(repo.repoId);
+          const filesOpened = expandedFiles.has(repo.dir);
+          const updateStatusByPath = new Map(
+            repo.update.files.map((file) => [file.path, file.status]),
+          );
           return (
             <Paper key={repo.dir} withBorder p="sm" radius="sm">
               <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -187,6 +216,27 @@ export function HfDownloadedReposPanel() {
                       </Badge>
                     )}
                   </Group>
+                  {repo.variants && repo.variants.length > 0 && (
+                    <Group gap={6} wrap="wrap">
+                      {repo.variants.map((variant) => {
+                        const missing = variant.paths.some(
+                          (path) =>
+                            repo.files.find((file) => file.path === path)
+                              ?.present !== true,
+                        );
+                        return (
+                          <Badge
+                            key={variant.paths[0]}
+                            color={missing ? "orange" : "green"}
+                            variant="light"
+                          >
+                            {hfVariantChipLabel(variant)} ·{" "}
+                            {formatBytes(variant.totalBytes)}
+                          </Badge>
+                        );
+                      })}
+                    </Group>
+                  )}
                   <Text
                     size="xs"
                     c="dimmed"
@@ -194,16 +244,78 @@ export function HfDownloadedReposPanel() {
                   >
                     <Code>{repo.dir}</Code>
                   </Text>
-                  <Text size="xs" c="dimmed">
-                    {countLabel(repo.fileCount, "file")} ·{" "}
-                    {formatBytes(repo.totalBytes)} · downloaded{" "}
-                    {formatLocalDateTime(repo.downloadedAt)}
-                    {repo.update.checkedAt
-                      ? ` · checked ${formatLocalDateTime(repo.update.checkedAt)}`
-                      : ""}
-                  </Text>
+                  <Group gap={4} wrap="wrap">
+                    <Button
+                      variant="subtle"
+                      size="compact-xs"
+                      color="gray"
+                      leftSection={
+                        filesOpened ? (
+                          <ChevronDown size={12} />
+                        ) : (
+                          <ChevronRight size={12} />
+                        )
+                      }
+                      onClick={() => toggleFiles(repo.dir)}
+                    >
+                      {countLabel(repo.fileCount, "file")}
+                    </Button>
+                    <Text size="xs" c="dimmed">
+                      {formatBytes(repo.totalBytes)} · downloaded{" "}
+                      {formatLocalDateTime(repo.downloadedAt)}
+                      {repo.update.checkedAt
+                        ? ` · checked ${formatLocalDateTime(repo.update.checkedAt)}`
+                        : ""}
+                    </Text>
+                  </Group>
+                  <Collapse in={filesOpened}>
+                    <Stack gap={2} pl="xs">
+                      {repo.files.map((file) => {
+                        const upstream = updateStatusByPath.get(file.path);
+                        return (
+                          <Group key={file.path} gap="xs" wrap="nowrap">
+                            <Text
+                              size="xs"
+                              style={{
+                                overflowWrap: "anywhere",
+                                flex: "1 1 auto",
+                              }}
+                            >
+                              {file.path}
+                            </Text>
+                            {!file.present && (
+                              <Badge color="orange" variant="light">
+                                missing
+                              </Badge>
+                            )}
+                            {upstream === "updated" && (
+                              <Badge color="yellow" variant="light">
+                                updated upstream
+                              </Badge>
+                            )}
+                            {upstream === "deleted" && (
+                              <Badge color="gray" variant="light">
+                                deleted upstream
+                              </Badge>
+                            )}
+                            <Text size="xs" c="dimmed">
+                              {formatBytes(file.size)}
+                            </Text>
+                          </Group>
+                        );
+                      })}
+                    </Stack>
+                  </Collapse>
                 </Stack>
                 <Group gap="xs" wrap="wrap">
+                  <Button
+                    variant="default"
+                    size="xs"
+                    leftSection={<Plus size={14} />}
+                    onClick={() => props.onAddFiles(repo)}
+                  >
+                    Add files
+                  </Button>
                   <Button
                     variant="default"
                     size="xs"

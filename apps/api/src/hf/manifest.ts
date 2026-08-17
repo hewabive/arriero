@@ -32,15 +32,6 @@ export function hfManifestPath(dir: string): string {
   return join(dir, HF_MANIFEST_FILENAME);
 }
 
-export function hfManifestOidMatches(
-  entry: Pick<HfManifestFile, "oid" | "lfsOid">,
-  remote: { oid: string; lfs: { oid: string } | null },
-): boolean {
-  return entry.lfsOid !== null && remote.lfs !== null
-    ? entry.lfsOid === remote.lfs.oid
-    : entry.oid === remote.oid;
-}
-
 export function readHfManifest(dir: string): HfManifest | null {
   const path = hfManifestPath(dir);
   let raw: string;

@@ -68,6 +68,34 @@ test("discovery finds manifests under the scan roots", async () => {
   assert.equal(repo?.totalBytes, 20);
   assert.equal(repo?.missingFiles, 1);
   assert.equal(repo?.update.status, "unchecked");
+  assert.equal(
+    repo?.files.find((file) => file.path === "model.gguf")?.present,
+    true,
+  );
+  assert.equal(
+    repo?.files.find((file) => file.path === "config.json")?.present,
+    false,
+  );
+});
+
+test("list exposes gguf variants grouped from the manifest", async () => {
+  seedRepo("owner/quants", [
+    { path: "model-Q4_K_S.gguf", present: true },
+    { path: "mmproj-F16.gguf", present: true },
+    { path: "README.md", present: true },
+  ]);
+  const downloads = await listHfDownloads();
+  const repo = downloads[0];
+  assert.equal(repo?.variants?.length, 2);
+  assert.equal(repo?.variants?.[0]?.label, "Q4_K_S");
+  assert.equal(repo?.variants?.[0]?.kind, "model");
+  assert.equal(repo?.variants?.[1]?.kind, "mmproj");
+});
+
+test("list reports null variants for a repo without gguf files", async () => {
+  seedRepo("owner/plain", [{ path: "config.json", present: true }]);
+  const downloads = await listHfDownloads();
+  assert.equal(downloads[0]?.variants, null);
 });
 
 test("delete removes the repo directory and refuses unknown dirs", async () => {
