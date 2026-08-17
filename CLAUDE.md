@@ -306,7 +306,9 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   kinds `gpu`/`host`). `budget = capacityBytes − reservedBytes`; instances declare a per-pool
   `memory` draw. The pure ledger `buildResourceLedger`/`checkDrawAdmission` in core is shared by
   manual-start admission and the proxy eviction planner. Scaffolded from detected hardware on first
-  run; `autoCapacity` pools re-sync in memory at startup without dirtying Git. A gpu pool whose
+  run; `autoCapacity` pools re-sync in memory at startup without dirtying Git, and startup is the
+  only path that adopts (persists) pools for newly detected GPUs — config reload and config-git
+  tree ops use `syncAutoCapacitiesInMemory` and never write. A gpu pool whose
   device disappeared gets a derived (never persisted) `orphaned` flag and is deletable via API/UI
   only while orphaned and unreferenced by instance draws. See `docs/RESOURCE_MANAGEMENT.md`.
 - `config/proxy/{targets,models,pipelines,endpoints,sources,settings}.json` — API-proxy config

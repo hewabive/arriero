@@ -12,6 +12,7 @@ import {
   listMemoryPoolsWithStatus,
   refreshAutoCapacities,
   resetResourcePoolsCache,
+  syncAutoCapacitiesInMemory,
   updateMemoryPool,
 } from "./repository.js";
 
@@ -114,6 +115,34 @@ test("refreshAutoCapacities persists a GPU detected after the scaffold was creat
 
   resetResourcePoolsCache();
   assert.equal(getMemoryPool("gpu7")?.deviceRef, "7");
+});
+
+test("syncAutoCapacitiesInMemory never adopts pools or touches the file", () => {
+  const initial = getSystemResources();
+  ensureResourcePoolsScaffold({ ...initial, accelerators: [] });
+  updateMemoryPool("host", { capacityBytes: 1 });
+  const stored = readFileSync(RESOURCES_FILE, "utf8");
+  const detectedGpu = {
+    id: "7",
+    name: "Late NVIDIA GPU",
+    vendor: "NVIDIA" as const,
+    kind: "gpu" as const,
+    totalMemoryBytes: 24_000,
+    availableMemoryBytes: 23_000,
+    memoryUsedRatio: 1 / 24,
+    utilizationPercent: 0,
+    temperatureC: null,
+    numaNode: 0,
+    computeCapability: null,
+    source: "nvml" as const,
+  };
+  assert.equal(
+    syncAutoCapacitiesInMemory({ ...initial, accelerators: [detectedGpu] }),
+    true,
+  );
+  assert.equal(getMemoryPool("host")?.capacityBytes, initial.memory.totalBytes);
+  assert.equal(getMemoryPool("gpu7"), null);
+  assert.equal(readFileSync(RESOURCES_FILE, "utf8"), stored);
 });
 
 function scaffoldWithGpu(deviceRef: string) {

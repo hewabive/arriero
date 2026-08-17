@@ -33,9 +33,14 @@ machine-specific (same rule as `path-catalog`). On first run
 `ensureResourcePoolsScaffold()` generates defaults from `system/resources.ts`
 (NVIDIA NVML + `/proc/meminfo`); `refreshAutoCapacities()` re-syncs capacity for
 pools with `autoCapacity` on every startup and shows drift otherwise. A GPU
-detected after the initial scaffold is added to `resources.json` immediately,
-so instances can reference it without leaving portable configuration dangling;
-capacity-only refreshes remain in memory to avoid routine Git churn.
+detected after the initial scaffold is added to `resources.json` at startup, so
+instances can reference it without leaving portable configuration dangling;
+capacity-only refreshes remain in memory to avoid routine Git churn. Startup is
+the **only** path that adopts and persists new GPU pools: config reload
+(`POST /api/config/reload`) and every config-git tree operation go through
+`reloadPortableConfigCaches()` → `syncAutoCapacitiesInMemory()`, which re-syncs
+capacities in memory and never writes — a restore/reset/clone must leave the
+tree exactly as git produced it, not dirty it with derived machine state.
 
 A gpu pool whose `deviceRef` no longer matches a detected device keeps its
 last-known capacity and is surfaced with a derived `orphaned` flag

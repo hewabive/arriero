@@ -119,8 +119,9 @@ export function ensureResourcePoolsScaffold(
   return true;
 }
 
-export function refreshAutoCapacities(
-  detected: SystemResources = getSystemResources(),
+function syncAutoCapacities(
+  detected: SystemResources,
+  adoptNewGpuPools: boolean,
 ): boolean {
   const pools = load();
   const acceleratorById = new Map(
@@ -144,38 +145,54 @@ export function refreshAutoCapacities(
     changed = true;
     return { ...pool, capacityBytes };
   });
-  const knownDeviceRefs = new Set(
-    next
-      .filter((pool) => pool.kind === "gpu" && pool.deviceRef)
-      .map((pool) => pool.deviceRef),
-  );
-  const knownIds = new Set(next.map((pool) => pool.id));
-  for (const accelerator of detected.accelerators) {
-    if (accelerator.kind !== "gpu" || knownDeviceRefs.has(accelerator.id)) {
-      continue;
+  if (adoptNewGpuPools) {
+    const knownDeviceRefs = new Set(
+      next
+        .filter((pool) => pool.kind === "gpu" && pool.deviceRef)
+        .map((pool) => pool.deviceRef),
+    );
+    const knownIds = new Set(next.map((pool) => pool.id));
+    for (const accelerator of detected.accelerators) {
+      if (accelerator.kind !== "gpu" || knownDeviceRefs.has(accelerator.id)) {
+        continue;
+      }
+      const baseId = `gpu${accelerator.id}`;
+      let id = baseId;
+      let suffix = 2;
+      while (knownIds.has(id)) {
+        id = `${baseId}-${suffix}`;
+        suffix += 1;
+      }
+      const pool = gpuPoolFromAccelerator(accelerator, id);
+      if (!pool) {
+        continue;
+      }
+      next.push(pool);
+      knownDeviceRefs.add(accelerator.id);
+      knownIds.add(id);
+      changed = true;
     }
-    const baseId = `gpu${accelerator.id}`;
-    let id = baseId;
-    let suffix = 2;
-    while (knownIds.has(id)) {
-      id = `${baseId}-${suffix}`;
-      suffix += 1;
+    if (next.length > pools.length) {
+      persist(sortPools(next));
+      return changed;
     }
-    const pool = gpuPoolFromAccelerator(accelerator, id);
-    if (!pool) {
-      continue;
-    }
-    next.push(pool);
-    knownDeviceRefs.add(accelerator.id);
-    knownIds.add(id);
-    changed = true;
   }
-  if (next.length > pools.length) {
-    persist(sortPools(next));
-  } else if (changed) {
+  if (changed) {
     store.replaceCachedValue(next);
   }
   return changed;
+}
+
+export function refreshAutoCapacities(
+  detected: SystemResources = getSystemResources(),
+): boolean {
+  return syncAutoCapacities(detected, true);
+}
+
+export function syncAutoCapacitiesInMemory(
+  detected: SystemResources = getSystemResources(),
+): boolean {
+  return syncAutoCapacities(detected, false);
 }
 
 export function listMemoryPools(): MemoryPool[] {
