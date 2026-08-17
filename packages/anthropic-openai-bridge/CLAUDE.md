@@ -24,6 +24,6 @@ Sans-IO translation between the Anthropic Messages API and OpenAI Chat Completio
 
 ## Commands
 
-`pnpm --filter @arriero/anthropic-openai-bridge build|check|test` (Node test runner via tsx; tests assert exact event sequences). Consumers import the built `dist` — rebuild before downstream typechecks see changes.
+`pnpm --filter @arriero/anthropic-openai-bridge build|check|test` (Node test runner via tsx; tests assert exact event sequences). Consumers import the built `dist` in prod and tests; in dev the `development` exports condition resolves to `src` directly, no rebuild needed.
 
 Mapping rationale and intentional spec deviations: `docs/ANTHROPIC_OPENAI_BRIDGE.md` at the repo root.

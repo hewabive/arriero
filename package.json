@@ -9,7 +9,7 @@
     "pnpm": ">=11.0.0 <12"
   },
   "scripts": {
-    "dev": "pnpm --filter @arriero/core --filter @arriero/anthropic-openai-bridge build && pnpm --parallel --filter @arriero/api --filter @arriero/web dev",
+    "dev": "pnpm --parallel --filter @arriero/api --filter @arriero/web dev",
     "update:run": "git pull --ff-only && pnpm install && pnpm serve",
     "build": "pnpm -r build",
     "start": "node apps/api/dist/index.js",

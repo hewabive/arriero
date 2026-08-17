@@ -25,9 +25,11 @@ pnpm knip           # unused exports/deps
 ```
 
 - API: `http://127.0.0.1:8787`, Web UI: `http://127.0.0.1:5173`.
-- `pnpm dev` always builds `@arriero/core` first — api and web import the built output, so after
-  changing `packages/core` rebuild it (`pnpm --filter @arriero/core build`) before downstream
-  typechecks see the change.
+- In dev the `development` exports condition resolves `@arriero/core` and
+  `@arriero/anthropic-openai-bridge` straight to `src` (api: `tsx watch --conditions=development`,
+  reaching worker threads too; web: a Vite dev default) — no prebuild, `packages/*` edits apply
+  live with no manual rebuild. `dist` stays the artifact for prod (`serve`/`start`) and api tests;
+  `pnpm check`/`build` still build it.
 - **`pnpm check` is the gate — run it before every commit.** It is the only command that has to
   pass; `check:sources` is separate because it needs machine state (a llama.cpp checkout, sibling
   update-kit repos) that a fresh clone does not have, and each of its checks exits non-zero when
