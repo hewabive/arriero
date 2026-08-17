@@ -21,6 +21,7 @@ function profile(
     memory: [],
     pools: POOLS,
     model: null,
+    gpuLayersDefault: null,
     ...overrides,
   });
 }
@@ -208,6 +209,48 @@ test("unknown model with all-offload is GPU, finite offload is conservative hybr
   const finite = profile({ args: { "--n-gpu-layers": "20" } });
   assert.equal(finite.placement, "hybrid");
   assert.match(finite.cpuReason ?? "", /model layers unknown/);
+});
+
+test("binary default auto offloads fully when -ngl is absent", () => {
+  const result = profile({
+    gpuLayersDefault: "auto",
+    model: { blockCount: 32, expertCount: null },
+  });
+  assert.equal(result.placement, "gpu");
+  assert.equal(result.usesHost, false);
+  assert.equal(result.cpuReason, null);
+  assert.equal(result.signals.source, "binary-default");
+  assert.equal(result.signals.nGpuLayersCoversModel, true);
+  assert.equal(result.signals.gpuLayersDefault, "auto");
+});
+
+test("explicit -ngl 0 wins over the binary default", () => {
+  const result = profile({
+    args: { "--n-gpu-layers": "0" },
+    gpuLayersDefault: "auto",
+    model: { blockCount: 32, expertCount: null },
+  });
+  assert.equal(result.placement, "cpu");
+  assert.equal(result.signals.source, "n-gpu-layers");
+});
+
+test("binary default 0 keeps the no-offload profile", () => {
+  const result = profile({
+    gpuLayersDefault: "0",
+    model: { blockCount: 32, expertCount: null },
+  });
+  assert.equal(result.placement, "cpu");
+  assert.match(result.cpuReason ?? "", /No GPU offload configured/);
+  assert.equal(result.signals.source, "none");
+});
+
+test("binary default auto without GPU pools stays CPU", () => {
+  const result = profile({
+    gpuLayersDefault: "auto",
+    pools: [{ id: "host", kind: "host", deviceRef: null, name: "Host RAM" }],
+    model: { blockCount: 32, expertCount: null },
+  });
+  assert.equal(result.placement, "cpu");
 });
 
 test("rpc-worker derives placement from --device", () => {

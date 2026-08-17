@@ -122,6 +122,10 @@ export function parseGpuLayersRequest(args: LlamaArgRecord): GpuLayersRequest {
   if (raw === undefined) {
     return { kind: "none", count: 0 };
   }
+  return parseGpuLayersValue(raw);
+}
+
+function parseGpuLayersValue(raw: LlamaArgValue): GpuLayersRequest {
   if (typeof raw === "string") {
     const normalized = raw.trim().toLowerCase();
     if (normalized === "all" || normalized === "max" || normalized === "auto") {
@@ -142,7 +146,13 @@ export function resolveGpuLayers(
   args: LlamaArgRecord,
   blockCount: number | null,
 ): number {
-  const request = parseGpuLayersRequest(args);
+  return gpuLayersFromRequest(parseGpuLayersRequest(args), blockCount);
+}
+
+function gpuLayersFromRequest(
+  request: GpuLayersRequest,
+  blockCount: number | null,
+): number {
   const layerAll = (blockCount ?? 0) + 1;
   if (request.kind === "none") {
     return 0;
@@ -284,6 +294,7 @@ export const InstanceResourceProfileSourceSchema = z.enum([
   "cuda-visible-devices",
   "device-arg",
   "n-gpu-layers",
+  "binary-default",
   "tensor-split",
   "none",
 ]);
@@ -297,6 +308,7 @@ export const InstanceResourceProfileSignalsSchema = z.object({
   source: InstanceResourceProfileSourceSchema,
   nGpuLayers: z.union([z.number().int(), z.literal("all")]).nullable(),
   nGpuLayersCoversModel: z.boolean().nullable(),
+  gpuLayersDefault: z.string().nullable(),
   cpuMoe: z.union([z.number().int(), z.literal("all")]).nullable(),
   modelHasMoe: z.boolean().nullable(),
   cudaVisibleDevices: CudaVisibleDevicesSchema,
@@ -333,6 +345,7 @@ export type InstanceResourceProfileInput = {
   memory: Array<{ poolId: string; bytes: number }>;
   pools: InstanceResourceProfilePool[];
   model: { blockCount: number | null; expertCount: number | null } | null;
+  gpuLayersDefault: string | null;
 };
 
 function poolKind(
@@ -375,6 +388,7 @@ type ResourceProfileContext = {
   deviceTokens: string[];
   tensorSplit: number[] | null;
   gpuRequest: GpuLayersRequest;
+  gpuRequestFromBinaryDefault: boolean;
   cpuMoe: "all" | number | null;
   blockCount: number | null;
   modelHasMoe: boolean | null;
@@ -392,7 +406,21 @@ function resourceProfileContext(
   const tensorSplit = argString(input.args, ["--tensor-split", "-ts"])
     ? parseTensorSplit(input.args, Math.max(allGpu.length, 1))
     : null;
-  const gpuRequest = parseGpuLayersRequest(input.args);
+  const configuredGpuRequest = parseGpuLayersRequest(input.args);
+  const defaultGpuRequest =
+    configuredGpuRequest.kind === "none" &&
+    allGpu.length > 0 &&
+    input.gpuLayersDefault !== null
+      ? parseGpuLayersValue(input.gpuLayersDefault)
+      : null;
+  const gpuRequestFromBinaryDefault =
+    defaultGpuRequest !== null &&
+    (defaultGpuRequest.kind === "all" ||
+      (defaultGpuRequest.kind === "count" && defaultGpuRequest.count > 0));
+  const gpuRequest =
+    gpuRequestFromBinaryDefault && defaultGpuRequest !== null
+      ? defaultGpuRequest
+      : configuredGpuRequest;
   const cpuMoe = parseCpuMoe(input.args);
   const blockCount = input.model?.blockCount ?? null;
   const expertCount = input.model?.expertCount ?? null;
@@ -406,6 +434,7 @@ function resourceProfileContext(
           ? gpuRequest.count
           : null,
     nGpuLayersCoversModel: null,
+    gpuLayersDefault: input.gpuLayersDefault,
     cpuMoe,
     modelHasMoe,
     cudaVisibleDevices: cuda,
@@ -427,6 +456,7 @@ function resourceProfileContext(
     deviceTokens,
     tensorSplit,
     gpuRequest,
+    gpuRequestFromBinaryDefault,
     cpuMoe,
     blockCount,
     modelHasMoe,
@@ -640,6 +670,7 @@ function deriveLlamaArgsProfile(
     deviceTokens,
     tensorSplit,
     gpuRequest,
+    gpuRequestFromBinaryDefault,
     cpuMoe,
     blockCount,
     modelHasMoe,
@@ -702,11 +733,13 @@ function deriveLlamaArgsProfile(
   const entries = gpuEntries(visible, cuda, deviceTokens, allGpu);
   const source: InstanceResourceProfileSignals["source"] = tensorSplit
     ? "tensor-split"
-    : "n-gpu-layers";
+    : gpuRequestFromBinaryDefault
+      ? "binary-default"
+      : "n-gpu-layers";
 
   if (blockCount !== null) {
     const layerAll = blockCount + 1;
-    const gpuLayers = resolveGpuLayers(input.args, blockCount);
+    const gpuLayers = gpuLayersFromRequest(gpuRequest, blockCount);
     const fullOffload = gpuLayers >= layerAll;
     const expertHostLayers = expertOffloadLayerCount(input.args, layerAll);
     const moeOnHost = (modelHasMoe ?? false) && expertHostLayers > 0;
