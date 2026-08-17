@@ -131,6 +131,7 @@ export const ApiProxyEditRequestConfigSchema = z.object({
 });
 
 export const ApiProxyReasoningEffortSchema = z.enum([
+  "auto",
   "off",
   "low",
   "medium",

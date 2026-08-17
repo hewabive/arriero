@@ -1,7 +1,6 @@
 import {
   activeApiProxyTextReplacementRules,
   apiProxyPipelineNodePorts,
-  apiProxyReasoningEffortBudgets,
   assertNever,
   type ApiProxyModelRecord,
   type ApiProxyPipelineRecord,
@@ -292,17 +291,20 @@ function nodeSummary(
 }
 
 function reasoningSummary(node: PipelineNodeDraftOf<"reasoning">): string {
+  if (node.reasoningEffort === "auto") {
+    return "client effort";
+  }
   if (node.reasoningEffort === "off") {
     return "thinking off";
   }
-  const budget =
-    node.reasoningEffort === "custom"
-      ? node.reasoningCustomBudget === ""
+  if (node.reasoningEffort === "custom") {
+    const budget =
+      node.reasoningCustomBudget === ""
         ? -1
-        : Number(node.reasoningCustomBudget)
-      : apiProxyReasoningEffortBudgets[node.reasoningEffort];
-  const budgetLabel = budget < 0 ? "unlimited" : `${budget} tok`;
-  return `${node.reasoningEffort} · ${budgetLabel}`;
+        : Number(node.reasoningCustomBudget);
+    return budget < 0 ? "custom · unlimited" : `custom · ${budget} tok`;
+  }
+  return `effort ${node.reasoningEffort}`;
 }
 
 type BuildInput = {

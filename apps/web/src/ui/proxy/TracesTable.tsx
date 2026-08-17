@@ -472,7 +472,16 @@ const TraceRow = memo(function TraceRow(props: {
         <DetailBadge
           color={traceStatusColor(trace)}
           label={trace.status}
-          detail={trace.errorMessage}
+          detail={
+            [
+              trace.errorMessage,
+              ...trace.translationWarnings.map(
+                (warning) => `translation: ${warning}`,
+              ),
+            ]
+              .filter(Boolean)
+              .join("\n") || null
+          }
         />
       </Table.Td>
       <Table.Td>{trace.durationMs}</Table.Td>

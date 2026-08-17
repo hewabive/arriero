@@ -34,6 +34,7 @@ function seedModel(modelId: string, targetId: string | null) {
     routeTo: null,
     description: null,
     blockedMessage: "",
+    reasoning: null,
   });
 }
 

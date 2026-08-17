@@ -1,5 +1,6 @@
 import type {
   ApiProxyFusionConfig,
+  ApiProxyModelRecord,
   ApiProxyPipelineRecord,
   ApiProxyPortRef,
   ApiProxyRouteTraceStep,
@@ -37,6 +38,7 @@ import {
   type ApiProxyResumableFinalResponse,
 } from "./protocol.js";
 import { safeJsonParse, type ProxyTraceAccumulator } from "./protocol-trace.js";
+import { applyApiProxyReasoningMapping } from "./reasoning-request.js";
 import { getApiProxyPipeline, getApiProxyTarget } from "./repository.js";
 import {
   createApiProxyResponsePlanExecutor,
@@ -82,6 +84,7 @@ export async function executeApiProxyModelSubRequest(input: {
   targetId: string;
   operation: ApiProxyProtocolOperation;
   body: unknown;
+  model: ApiProxyModelRecord;
   signal?: AbortSignal | undefined;
   fetchImpl?: typeof fetch | undefined;
 }): Promise<ApiProxyModelSubRequestResult> {
@@ -175,12 +178,18 @@ export async function executeApiProxyModelSubRequest(input: {
       body: input.body,
       headers: new Headers(),
     });
+    const reasoning = applyApiProxyReasoningMapping({
+      body: exchange.body,
+      protocol: exchange.protocol,
+      model: input.model,
+      instanceId: upstream.context.instanceId,
+    });
     const codec = translateAnthropic
-      ? translatedAnthropicResumableCodec(exchange.body)
+      ? translatedAnthropicResumableCodec(reasoning.body)
       : adapter.resumable;
     const url = apiProxyForwardUrl(baseUrl, exchange.path, "");
     const state = createResumableBufferState();
-    const built = codec.upstreamBody(exchange.body, null);
+    const built = codec.upstreamBody(reasoning.body, null);
     const requestBody =
       target.model && built && typeof built === "object"
         ? { ...(built as Record<string, unknown>), model: target.model }
@@ -623,6 +632,7 @@ export async function executeApiProxyFusion(input: {
       targetId: resolved.targetId,
       operation,
       body: resolved.request.body,
+      model: resolved.request.model,
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
     });

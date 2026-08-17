@@ -62,7 +62,7 @@ test("forward body uses llama-server dialect with filtered named tool_choice", (
       { name: "b", input_schema: { type: "object" } },
     ],
     tool_choice: { type: "tool", name: "b" },
-  }) as Record<string, unknown>;
+  }).body as Record<string, unknown>;
   assert.equal(body.tool_choice, "required");
   assert.equal((body.tools as unknown[]).length, 1);
 });
@@ -79,10 +79,25 @@ test("forward body no longer strips attribution (moved to strip-attribution node
       { type: "text", text: "You are X." },
     ],
     messages: [{ role: "user", content: "hi" }],
-  }) as Record<string, unknown>;
+  }).body as Record<string, unknown>;
   const messages = body.messages as Record<string, unknown>[];
   assert.equal(messages[0]?.role, "system");
   assert.match(messages[0]?.content as string, /x-anthropic-billing-header/);
+});
+
+test("forward body maps adaptive thinking and output_config effort to llama fields", () => {
+  const { body, warnings } = translateAnthropicForwardBody({
+    model: "m",
+    max_tokens: 16,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "medium" },
+    messages: [{ role: "user", content: "hi" }],
+  });
+  const record = body as Record<string, unknown>;
+  assert.equal(record.reasoning_effort, "medium");
+  assert.deepEqual(record.chat_template_kwargs, { enable_thinking: true });
+  assert.equal(record.thinking_budget_tokens, undefined);
+  assert.deepEqual(warnings, []);
 });
 
 test("anthropic headers are stripped from forwarded requests", () => {
@@ -390,7 +405,7 @@ test("translated resumable codec builds openai upstream body with prefill tail",
       max_tokens: 32,
       messages: [{ role: "user", content: "hi" }],
       stream: true,
-    }),
+    }).body,
   );
   const resumed = codec.upstreamBody(null, "AB") as Record<string, unknown>;
   const messages = resumed.messages as Array<Record<string, unknown>>;
@@ -406,7 +421,7 @@ test("translated resumable codec maps openai finish reasons in final response", 
       model: "claude-x",
       max_tokens: 32,
       messages: [{ role: "user", content: "hi" }],
-    }),
+    }).body,
   );
   const final = codec.finalResponse({
     text: "Hello",
@@ -431,7 +446,7 @@ test("translated resumable codec replays distinct tool_use blocks per tool call"
       max_tokens: 32,
       messages: [{ role: "user", content: "hi" }],
       stream: true,
-    }),
+    }).body,
   );
   const final = codec.finalResponse({
     text: "",
@@ -461,7 +476,7 @@ test("translated resumable codec survives preemption and resumes openai frames",
       max_tokens: 32,
       messages: [{ role: "user", content: "count" }],
       stream: true,
-    }),
+    }).body,
   );
   const state = createResumableBufferState();
   const preempt = new AbortController();

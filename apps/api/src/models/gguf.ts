@@ -11,6 +11,7 @@ import { stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { logger } from "../logger.js";
+import { extractChatTemplateReasoning } from "./chat-template-reasoning.js";
 import { parseSplitInfo, splitShardName } from "./split.js";
 
 type GgufScalar = string | number | boolean | null;
@@ -457,7 +458,7 @@ function readQuantization(
 
 export const GGUF_RAW_VERSION = 1;
 
-export const GGUF_PARSER_VERSION = 11;
+export const GGUF_PARSER_VERSION = 12;
 
 function skipFormatVersion(reader: FileReader) {
   reader.u32();
@@ -613,6 +614,9 @@ function extractMetadata(
     addBosToken: findBooleanBySuffix(metadata, "tokenizer.ggml.add_bos_token"),
     addEosToken: findBooleanBySuffix(metadata, "tokenizer.ggml.add_eos_token"),
     hasChatTemplate: metadata.has("tokenizer.chat_template"),
+    chatTemplateReasoning: extractChatTemplateReasoning(
+      stringMetadata(metadata, ["tokenizer.chat_template"]),
+    ),
     vocabularySize,
     samplingTemp: numberMetadata(metadata, ["general.sampling.temp"]),
     samplingTopK: numberMetadata(metadata, ["general.sampling.top_k"]),

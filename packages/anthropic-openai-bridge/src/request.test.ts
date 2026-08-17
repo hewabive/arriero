@@ -252,13 +252,41 @@ test("reasoning field is configurable and extra passthrough keys survive", () =>
   assert.equal(body.custom_key, 5);
 });
 
-test("adaptive thinking yields warning instead of budget field", () => {
+test("adaptive thinking maps to enable_thinking:true without a budget field", () => {
+  const { body, warnings } = translateAnthropicRequest(
+    { messages: [], thinking: { type: "adaptive" } },
+    { enableThinkingKwargField: "enable_thinking" },
+  );
+  assert.equal(body.thinking_budget_tokens, undefined);
+  assert.deepEqual(body.chat_template_kwargs, { enable_thinking: true });
+  assert.deepEqual(warnings, []);
+});
+
+test("output_config effort maps to reasoning_effort by default", () => {
   const { body, warnings } = translateAnthropicRequest({
     messages: [],
     thinking: { type: "adaptive" },
+    output_config: { effort: "medium" },
   });
-  assert.equal(body.thinking_budget_tokens, undefined);
-  assert.ok(warnings.some((warning) => warning.includes("adaptive")));
+  assert.equal(body.reasoning_effort, "medium");
+  assert.deepEqual(warnings, []);
+});
+
+test("output_config format is dropped with a warning and effort field can be disabled", () => {
+  const { body, warnings } = translateAnthropicRequest(
+    {
+      messages: [],
+      output_config: { effort: "high", format: { type: "json_schema" } },
+    },
+    { reasoningEffortField: null },
+  );
+  assert.equal(body.reasoning_effort, undefined);
+  assert.ok(
+    warnings.some((warning) => warning.includes("output_config.effort")),
+  );
+  assert.ok(
+    warnings.some((warning) => warning.includes("output_config.format")),
+  );
 });
 
 test("enableThinkingKwargField maps disabled thinking to enable_thinking:false", () => {

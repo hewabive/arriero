@@ -44,6 +44,7 @@ function trace(
     ok: true,
     errorCode: null,
     errorMessage: null,
+    translationWarnings: [],
     durationMs: 5,
     queueMs: null,
     ttftMs: null,

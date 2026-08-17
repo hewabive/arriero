@@ -28,6 +28,7 @@ export const pipelineNodeTypeOptions: Array<{
 ).map((type) => ({ value: type, label: pipelineNodeDescriptor(type).label }));
 
 export const reasoningEffortOptions = [
+  { value: "auto", label: "Auto" },
   { value: "off", label: "Off" },
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },

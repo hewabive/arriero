@@ -6,7 +6,6 @@ import {
   ApiProxyPipelineNodeSchema,
   ApiProxyPipelineRecordSchema,
   apiProxyOutputLimitEditOperations,
-  apiProxyReasoningEditOperations,
   applyApiProxyRequestEdits,
   upgradeLegacyApiProxyPipeline,
   type ApiProxyEditRequestOperation,
@@ -66,6 +65,7 @@ function request(
       routeTo: { type: "pipeline", id: "pipeline-a" },
       description: null,
       blockedMessage: "",
+      reasoning: null,
     },
     stream: false,
     ...update,
@@ -1479,105 +1479,6 @@ test("model without route fails with route_unbound", async () => {
   }
 });
 
-test("apiProxyReasoningEditOperations maps effort to protocol-specific fields", () => {
-  assert.deepEqual(
-    apiProxyReasoningEditOperations(
-      { effort: "high", customBudgetTokens: 2048 },
-      "openai",
-    ),
-    [
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "chat_template_kwargs.enable_thinking",
-        value: true,
-      },
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "thinking_budget_tokens",
-        value: 8192,
-      },
-    ],
-  );
-  assert.deepEqual(
-    apiProxyReasoningEditOperations(
-      { effort: "off", customBudgetTokens: 2048 },
-      "openai",
-    ),
-    [
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "chat_template_kwargs.enable_thinking",
-        value: false,
-      },
-    ],
-  );
-  assert.deepEqual(
-    apiProxyReasoningEditOperations(
-      { effort: "max", customBudgetTokens: 2048 },
-      "openai",
-    ),
-    [
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "chat_template_kwargs.enable_thinking",
-        value: true,
-      },
-    ],
-  );
-  assert.deepEqual(
-    apiProxyReasoningEditOperations(
-      { effort: "low", customBudgetTokens: 2048 },
-      "anthropic",
-    ),
-    [
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "thinking",
-        value: { type: "enabled", budget_tokens: 512 },
-      },
-    ],
-  );
-  assert.deepEqual(
-    apiProxyReasoningEditOperations(
-      { effort: "off", customBudgetTokens: 2048 },
-      "anthropic",
-    ),
-    [
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "thinking",
-        value: { type: "disabled" },
-      },
-    ],
-  );
-  assert.deepEqual(
-    apiProxyReasoningEditOperations(
-      { effort: "custom", customBudgetTokens: 1234 },
-      "openai",
-    ),
-    [
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "chat_template_kwargs.enable_thinking",
-        value: true,
-      },
-      {
-        kind: "set-field",
-        enabled: true,
-        path: "thinking_budget_tokens",
-        value: 1234,
-      },
-    ],
-  );
-});
-
 function reasoningPipeline(): ApiProxyPipelineRecord[] {
   return [
     pipelineRecord({
@@ -1596,11 +1497,12 @@ function reasoningPipeline(): ApiProxyPipelineRecord[] {
   ];
 }
 
-test("reasoning node sets llama.cpp thinking fields for openai requests", async () => {
+test("reasoning node writes the canonical openai effort field", async () => {
   const result = await resolveApiProxyRouteChain({
     request: request({
       body: {
         model: "public-model",
+        thinking_budget_tokens: 2048,
         messages: [{ role: "user", content: "hi" }],
       },
     }),
@@ -1612,15 +1514,17 @@ test("reasoning node sets llama.cpp thinking fields for openai requests", async 
     assert.deepEqual(result.request.body, {
       model: "public-model",
       messages: [{ role: "user", content: "hi" }],
-      chat_template_kwargs: { enable_thinking: true },
-      thinking_budget_tokens: 8192,
+      reasoning_effort: "high",
     });
     assert.equal(result.routeTrace[1]?.kind, "reasoning");
-    assert.equal(result.routeTrace[1]?.detail, "high · 8192 token budget");
+    assert.equal(
+      result.routeTrace[1]?.detail,
+      'level high → reasoning_effort "high"',
+    );
   }
 });
 
-test("reasoning node sets the native thinking block for anthropic requests", async () => {
+test("reasoning node writes the canonical anthropic effort fields", async () => {
   const result = await resolveApiProxyRouteChain({
     request: request({
       operation: {
@@ -1642,8 +1546,46 @@ test("reasoning node sets the native thinking block for anthropic requests", asy
     assert.deepEqual(result.request.body, {
       model: "public-model",
       messages: [{ role: "user", content: "hi" }],
-      thinking: { type: "enabled", budget_tokens: 8192 },
+      thinking: { type: "adaptive" },
+      output_config: { effort: "high" },
     });
+  }
+});
+
+test("reasoning node in auto mode leaves the inbound body untouched", async () => {
+  const result = await resolveApiProxyRouteChain({
+    request: request({
+      body: {
+        model: "public-model",
+        reasoning_effort: "high",
+        messages: [{ role: "user", content: "hi" }],
+      },
+    }),
+    getPipeline: getPipelineFrom([
+      pipelineRecord({
+        id: "pipeline-a",
+        entry: { type: "node", id: "reason" },
+        nodes: [
+          {
+            id: "reason",
+            name: "",
+            type: "reasoning",
+            config: { effort: "auto", customBudgetTokens: 2048 },
+            ports: { next: { type: "target", id: "target-a" } },
+          },
+        ],
+      }),
+    ]),
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok && result.kind === "target") {
+    assert.deepEqual(result.request.body, {
+      model: "public-model",
+      reasoning_effort: "high",
+      messages: [{ role: "user", content: "hi" }],
+    });
+    assert.equal(result.routeTrace[1]?.detail, "inbound effort passthrough");
   }
 });
 

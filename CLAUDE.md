@@ -205,6 +205,15 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
   dry-run via `POST /api/proxy/route-explain`. See `docs/API_PROXY_PIPELINES.md`, and
   `docs/API_PROXY_RESPONSE_CACHE.md` for the `cache` node (short-circuits before gateway/lease,
   single-flight coalescing, streaming fan-out, framing-matched store).
+- Client-requested reasoning effort (`reasoning_effort`, `output_config.effort`, `thinking` incl.
+  `adaptive`) maps onto the resolved upstream's native reasoning interface **at the forward
+  boundary** (`proxy/reasoning-request.ts`, applied in respond/resumable/fusion-branch/resume-claim
+  — so condition/fusion routing and peer delegation map per-instance): profile precedence = model
+  override `ApiProxyModelRecord.reasoning` (presets `qwen3.8`/`gpt-oss`/… + custom ladders) →
+  chat-template autodetect for llama instances (`model_cache` derived `chatTemplateReasoning`,
+  ladder from the `not in (...)` convention; levels clamp instead of 500-ing in the template) →
+  llama engine-default budget → passthrough. The `reasoning` node is a canonical override
+  (`auto` keeps inbound). Traced as a `reasoning` route step; `docs/API_PROXY_REASONING.md`.
 - Inbound Anthropic `messages` to non-anthropic-profile upstreams is **always translated to OpenAI
   chat completions** via the sans-IO workspace package `packages/anthropic-openai-bridge`, wired in
   `proxy/translation.ts`; anthropic-profile endpoints pass through verbatim. Claude Code's

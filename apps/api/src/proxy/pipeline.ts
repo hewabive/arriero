@@ -1,16 +1,17 @@
 import {
   apiProxyOutputLimitEditOperations,
-  apiProxyReasoningEditOperations,
+  apiProxyPassthroughReasoningProfile,
+  apiProxyReasoningDirectiveFromConfig,
+  apiProxyReasoningDirectiveOperations,
   apiProxyTokenScaleEditOperations,
   applyApiProxyTextReplacements,
   applyApiProxyRequestEdits,
   assertNever,
-  resolveApiProxyReasoning,
+  type ApiProxyEditRequestOperation,
   type ApiProxyLoopGuardConfig,
   type ApiProxyPipelineNode,
   type ApiProxyPipelineRecord,
   type ApiProxyPortRef,
-  type ApiProxyReasoningConfig,
   type ApiProxyRouteTo,
   type ApiProxyRouteTraceStep,
   type ApiProxyTextReplacementRule,
@@ -272,17 +273,6 @@ function routeDiagnostic(
   return { status, code, param, message };
 }
 
-function reasoningTraceDetail(config: ApiProxyReasoningConfig): string {
-  const { enableThinking, budget } = resolveApiProxyReasoning(config);
-  if (!enableThinking) {
-    return "thinking off";
-  }
-  if (budget === null || budget < 0) {
-    return `${config.effort} · unlimited budget`;
-  }
-  return `${config.effort} · ${budget} token budget`;
-}
-
 export async function resolveApiProxyRouteChain(input: {
   request: ApiProxyProtocolModelRequest;
   getPipeline: (pipelineId: string) => ApiProxyPipelineRecord | null;
@@ -509,10 +499,21 @@ export async function resolveApiProxyRouteChain(input: {
         break;
       }
       case "reasoning": {
-        const operations = apiProxyReasoningEditOperations(
-          node.config,
-          input.request.operation.protocol,
-        );
+        let operations: ApiProxyEditRequestOperation[];
+        let detail: string;
+        const directive = apiProxyReasoningDirectiveFromConfig(node.config);
+        if (directive === null) {
+          operations = [];
+          detail = "inbound effort passthrough";
+        } else {
+          const materialization = apiProxyReasoningDirectiveOperations(
+            directive,
+            apiProxyPassthroughReasoningProfile,
+            input.request.operation.protocol,
+          );
+          operations = materialization.operations;
+          detail = materialization.detail;
+        }
         const edit = applyApiProxyRequestEdits(state.request.body, operations);
         if (edit.changed) {
           state.request = {
@@ -525,7 +526,7 @@ export async function resolveApiProxyRouteChain(input: {
         state.routeTrace.push(
           nodeStep(pipeline, node, {
             port: "next",
-            detail: reasoningTraceDetail(node.config),
+            detail,
           }),
         );
         ref = node.ports.next;

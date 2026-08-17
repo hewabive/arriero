@@ -152,6 +152,7 @@ function fusionRequest(body: unknown): ApiProxyProtocolModelRequest {
     routeTo: null,
     description: null,
     blockedMessage: "",
+    reasoning: null,
   });
   return {
     operation: chatOperation,
@@ -672,6 +673,7 @@ test("sub-request buffers an openai upstream into normalized text", async () => 
   const target = seedExternalTarget("panel-a");
   const result = await executeApiProxyModelSubRequest({
     targetId: target.id,
+    model: fusionRequest({}).model,
     operation: chatOperation,
     body: { model: "panel-a", messages: [{ role: "user", content: "hi" }] },
     fetchImpl: openAiSseFetch([
@@ -692,6 +694,7 @@ test("sub-request buffers an openai upstream into normalized text", async () => 
 test("sub-request reports a diagnostic on a missing target", async () => {
   const result = await executeApiProxyModelSubRequest({
     targetId: "does-not-exist",
+    model: fusionRequest({}).model,
     operation: chatOperation,
     body: { model: "x", messages: [] },
     fetchImpl: openAiSseFetch([]),
@@ -708,6 +711,7 @@ test("sub-request surfaces an upstream failure as a diagnostic", async () => {
     new Response("boom", { status: 500 })) as unknown as typeof fetch;
   const result = await executeApiProxyModelSubRequest({
     targetId: target.id,
+    model: fusionRequest({}).model,
     operation: chatOperation,
     body: { model: "panel-b", messages: [] },
     fetchImpl: failingFetch,

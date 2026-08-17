@@ -1,62 +1,7 @@
 import type {
   ApiProxyEditRequestOperation,
-  ApiProxyJsonValue,
   ApiProxyOutputLimitConfig,
-  ApiProxyReasoningConfig,
-  ApiProxyReasoningEffort,
 } from "./pipeline-nodes.js";
-
-export const apiProxyReasoningEffortBudgets: Record<
-  Exclude<ApiProxyReasoningEffort, "off" | "custom">,
-  number
-> = { low: 512, medium: 2048, high: 8192, max: -1 };
-
-export function resolveApiProxyReasoning(config: ApiProxyReasoningConfig): {
-  enableThinking: boolean;
-  budget: number | null;
-} {
-  switch (config.effort) {
-    case "off":
-      return { enableThinking: false, budget: null };
-    case "custom":
-      return { enableThinking: true, budget: config.customBudgetTokens };
-    default:
-      return {
-        enableThinking: true,
-        budget: apiProxyReasoningEffortBudgets[config.effort],
-      };
-  }
-}
-
-export function apiProxyReasoningEditOperations(
-  config: ApiProxyReasoningConfig,
-  protocol: "openai" | "anthropic",
-): ApiProxyEditRequestOperation[] {
-  const { enableThinking, budget } = resolveApiProxyReasoning(config);
-  if (protocol === "anthropic") {
-    const value: ApiProxyJsonValue = enableThinking
-      ? { type: "enabled", budget_tokens: budget ?? -1 }
-      : { type: "disabled" };
-    return [{ kind: "set-field", enabled: true, path: "thinking", value }];
-  }
-  const operations: ApiProxyEditRequestOperation[] = [
-    {
-      kind: "set-field",
-      enabled: true,
-      path: "chat_template_kwargs.enable_thinking",
-      value: enableThinking,
-    },
-  ];
-  if (enableThinking && budget !== null && budget >= 0) {
-    operations.push({
-      kind: "set-field",
-      enabled: true,
-      path: "thinking_budget_tokens",
-      value: budget,
-    });
-  }
-  return operations;
-}
 
 export function apiProxyOutputLimitEditOperations(
   config: ApiProxyOutputLimitConfig,

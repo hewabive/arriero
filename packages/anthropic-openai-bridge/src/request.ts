@@ -6,6 +6,7 @@ export type AnthropicToOpenAiRequestOptions = {
   namedToolChoice?: "native" | "filter";
   thinkingBudgetField?: string | null;
   enableThinkingKwargField?: string | null;
+  reasoningEffortField?: string | null;
   passthroughKeys?: string[];
 };
 
@@ -32,6 +33,7 @@ const translatedKeys = new Set([
   "stop_sequences",
   "max_tokens",
   "thinking",
+  "output_config",
   "metadata",
 ]);
 
@@ -333,6 +335,10 @@ export function translateAnthropicRequest(
       ? "thinking_budget_tokens"
       : options.thinkingBudgetField;
   const enableThinkingKwargField = options.enableThinkingKwargField ?? null;
+  const reasoningEffortField =
+    options.reasoningEffortField === undefined
+      ? "reasoning_effort"
+      : options.reasoningEffortField;
 
   const messages: Record<string, unknown>[] = [];
   const system = systemContent(body.system, warnings);
@@ -403,13 +409,33 @@ export function translateAnthropicRequest(
   }
 
   const thinking = asObject(body.thinking);
+  const thinkingType = thinking ? asString(thinking.type) : null;
   if (thinking) {
-    if (thinking.type === "enabled" && thinkingBudgetField) {
+    if (thinkingType === "enabled" && thinkingBudgetField) {
       out[thinkingBudgetField] = numberOrNull(thinking.budget_tokens) ?? 10000;
-    } else if (thinking.type !== "disabled") {
+    } else if (
+      thinkingType !== "enabled" &&
+      thinkingType !== "disabled" &&
+      thinkingType !== "adaptive"
+    ) {
       warnings.push(
         `thinking: ${String(thinking.type)} not supported by upstream`,
       );
+    }
+  }
+
+  const outputConfig = asObject(body.output_config);
+  if (outputConfig) {
+    const effort = asString(outputConfig.effort);
+    if (effort && reasoningEffortField) {
+      out[reasoningEffortField] = effort;
+    } else if (effort) {
+      warnings.push("output_config.effort dropped");
+    }
+    for (const key of Object.keys(outputConfig)) {
+      if (key !== "effort") {
+        warnings.push(`output_config.${key} dropped`);
+      }
     }
   }
 
@@ -426,13 +452,14 @@ export function translateAnthropicRequest(
 
   if (
     enableThinkingKwargField &&
-    thinking &&
-    (thinking.type === "enabled" || thinking.type === "disabled")
+    (thinkingType === "enabled" ||
+      thinkingType === "adaptive" ||
+      thinkingType === "disabled")
   ) {
     const existing = asObject(out.chat_template_kwargs) ?? {};
     out.chat_template_kwargs = {
       ...existing,
-      [enableThinkingKwargField]: thinking.type === "enabled",
+      [enableThinkingKwargField]: thinkingType !== "disabled",
     };
   }
 

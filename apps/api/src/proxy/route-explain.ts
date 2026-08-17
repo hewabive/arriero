@@ -6,6 +6,7 @@ import type {
 import { listInstances } from "../instances/repository.js";
 import { getApiEndpointById } from "./endpoints.js";
 import { resolveApiProxyRouteChain } from "./pipeline.js";
+import { applyApiProxyReasoningMapping } from "./reasoning-request.js";
 import { bodyRequestsStreaming } from "./protocol.js";
 import {
   getApiProxyModelByModelId,
@@ -114,14 +115,22 @@ export async function explainApiProxyRoute(
   if (route.kind === "endpoint") {
     const endpoint = getApiEndpointById(route.endpointId, listInstances());
     const upstream = route.upstreamModel ?? modelId;
+    const reasoning = applyApiProxyReasoningMapping({
+      body: route.request.body,
+      protocol: input.protocol,
+      model,
+      instanceId: null,
+    });
     return {
       ...base,
       ok: true,
       targetId: null,
       targetName: `${endpoint?.name ?? route.endpointId} · ${upstream}`,
-      routeTrace: route.routeTrace,
+      routeTrace: reasoning.traceStep
+        ? [...route.routeTrace, reasoning.traceStep]
+        : route.routeTrace,
       textReplacementCount: route.textReplacementCount,
-      transformedBody: route.request.body,
+      transformedBody: reasoning.body,
     };
   }
 
@@ -137,13 +146,24 @@ export async function explainApiProxyRoute(
   }
 
   const target = getApiProxyTarget(route.targetId);
+  const endpoint = target
+    ? getApiEndpointById(target.endpointId, listInstances())
+    : null;
+  const reasoning = applyApiProxyReasoningMapping({
+    body: route.request.body,
+    protocol: input.protocol,
+    model,
+    instanceId: endpoint?.instanceId ?? null,
+  });
   return {
     ...base,
     ok: true,
     targetId: route.targetId,
     targetName: target?.name ?? null,
-    routeTrace: route.routeTrace,
+    routeTrace: reasoning.traceStep
+      ? [...route.routeTrace, reasoning.traceStep]
+      : route.routeTrace,
     textReplacementCount: route.textReplacementCount,
-    transformedBody: route.request.body,
+    transformedBody: reasoning.body,
   };
 }

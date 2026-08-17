@@ -35,6 +35,7 @@ function model(update: Partial<ApiProxyModelRecord> = {}): ApiProxyModelRecord {
     routeTo: null,
     description: null,
     blockedMessage: "",
+    reasoning: null,
     ...update,
   };
 }

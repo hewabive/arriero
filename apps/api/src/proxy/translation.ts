@@ -45,8 +45,12 @@ export function shouldTranslateAnthropicMessages(
   );
 }
 
-export function translateAnthropicForwardBody(body: unknown): unknown {
-  return translateAnthropicRequest(body, llamaServerRequestOptions).body;
+export function translateAnthropicForwardBody(body: unknown): {
+  body: unknown;
+  warnings: string[];
+} {
+  const translated = translateAnthropicRequest(body, llamaServerRequestOptions);
+  return { body: translated.body, warnings: translated.warnings };
 }
 
 export type UpstreamExchange = {
@@ -54,6 +58,7 @@ export type UpstreamExchange = {
   path: string;
   body: unknown;
   headers: Headers;
+  warnings: string[];
 };
 
 export function prepareUpstreamExchange(input: {
@@ -69,13 +74,16 @@ export function prepareUpstreamExchange(input: {
       path: input.path,
       body: input.body,
       headers: input.headers,
+      warnings: [],
     };
   }
+  const translated = translateAnthropicForwardBody(input.body);
   return {
     protocol: "openai",
     path: translatedUpstreamPath,
-    body: translateAnthropicForwardBody(input.body),
+    body: translated.body,
     headers: anthropicForwardHeaders(input.headers),
+    warnings: translated.warnings,
   };
 }
 

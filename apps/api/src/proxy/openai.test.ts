@@ -21,6 +21,7 @@ test("openAiModelsList exposes only visible proxy models", () => {
       routeTo: null,
       description: null,
       blockedMessage: "",
+      reasoning: null,
     },
     {
       id: "b",
@@ -32,6 +33,7 @@ test("openAiModelsList exposes only visible proxy models", () => {
       routeTo: null,
       description: null,
       blockedMessage: "",
+      reasoning: null,
     },
   ]);
   const after = Math.floor(Date.now() / 1000);
@@ -63,6 +65,7 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
         routeTo: null,
         description: null,
         blockedMessage: "",
+        reasoning: null,
       },
     ],
     new Map([
@@ -118,6 +121,7 @@ test("openAiProtocolAdapter marks a disabled model as non-retryable", () => {
         routeTo: null,
         description: null,
         blockedMessage: "Use qwen-next.",
+        reasoning: null,
       },
       stream: false,
     },

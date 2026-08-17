@@ -91,7 +91,9 @@ server-side sanitizer makes the proxy robust regardless of client settings.
 | `tool_choice` auto / any / none | `"auto"` / `"required"` / `"none"`; `disable_parallel_tool_use` → `parallel_tool_calls: false` |
 | `tool_choice {type:"tool", name}` | `namedToolChoice: "native"` → `{type:"function",function:{name}}`; `"filter"` (used for llama-server, which rejects named choice) → tools narrowed to the named one + `"required"` |
 | `stop_sequences` | `stop` |
-| `thinking {type:"enabled", budget_tokens}` | `thinking_budget_tokens` (llama.cpp dialect; `thinkingBudgetField` option); `adaptive` is dropped with a warning |
+| `thinking {type:"enabled", budget_tokens}` | `thinking_budget_tokens` (llama.cpp dialect; `thinkingBudgetField` option) |
+| `thinking {type:"adaptive"}` | no budget field; `enableThinkingKwargField` (when set) still emits `enable_thinking: true` |
+| `output_config.effort` | `reasoning_effort` (configurable/disable-able: `reasoningEffortField`); other `output_config` keys are dropped with a warning |
 | `metadata.user_id` | `user` |
 
 Passthrough keys: `model`, `temperature`, `top_p`, `top_k`, `stream`, `seed`,
@@ -149,6 +151,6 @@ responses carry the same event shapes as live translated streams.
 `packages/anthropic-openai-bridge` must stay free of arriero imports and
 I/O (no fetch, no streams — strings/objects in, events out) so it remains
 publishable as a standalone package. llama.cpp-specific knobs enter only
-through options (`reasoningField`, `thinkingBudgetField`, `namedToolChoice`,
-`passthroughKeys`); the llama-server preset lives in
-`apps/api/src/proxy/translation.ts`.
+through options (`reasoningField`, `thinkingBudgetField`,
+`reasoningEffortField`, `namedToolChoice`, `passthroughKeys`); the
+llama-server preset lives in `apps/api/src/proxy/translation.ts`.

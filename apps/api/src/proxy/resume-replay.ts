@@ -31,6 +31,7 @@ import {
   createResumableBufferState,
   finalFromState,
 } from "./resumable-forward.js";
+import { applyApiProxyReasoningMapping } from "./reasoning-request.js";
 import {
   apiProxyStreamResumeKey,
   apiProxyStreamSessionUrl,
@@ -101,12 +102,18 @@ export function claimApiProxyResumedSession(input: {
     body: input.request.body,
     headers: input.headers,
   });
+  const reasoning = applyApiProxyReasoningMapping({
+    body: exchange.body,
+    protocol: exchange.protocol,
+    model: input.request.model,
+    instanceId: resolved.context.instanceId,
+  });
   const entry = store.claim(
     apiProxyStreamResumeKey({
       instanceId: resolved.context.instanceId,
       path: exchange.path,
       modelId: input.target.model ?? input.request.modelId,
-      body: exchange.body,
+      body: reasoning.body,
     }),
   );
   if (!entry) {
@@ -117,7 +124,7 @@ export function claimApiProxyResumedSession(input: {
     baseUrl: resolved.context.baseUrl,
     authHeaders: resolved.context.authHeaders,
     translateAnthropic: resolved.context.translateAnthropic,
-    exchangeBody: exchange.body,
+    exchangeBody: reasoning.body,
     codec,
   };
 }

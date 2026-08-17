@@ -183,25 +183,19 @@ operations.
 
 ### Reasoning control
 
-The `reasoning` node sets the request fields that toggle and budget the model's
-thinking/reasoning channel. `effort` mirrors the llama.cpp web UI presets
-(`off` disables thinking; `low`/`medium`/`high` = 512/2048/8192 token budgets;
-`max` = unlimited; `custom` uses `customBudgetTokens`, `-1` = unlimited). The
-node synthesizes `set-field` operations via
-`apiProxyReasoningEditOperations(config, protocol)` (`@arriero/core`,
-shared with the editor's live preview) and runs them through
-`applyApiProxyRequestEdits`, so the written shape follows the **inbound
-protocol**:
-
-- OpenAI → `chat_template_kwargs.enable_thinking` (bool) and, when a finite
-  budget is set, `thinking_budget_tokens` (llama.cpp extensions; `max`/`-1`
-  omit the budget and defer to the server default).
-- Anthropic → the native `thinking: {type: "enabled"|"disabled", budget_tokens}`
-  block. For Anthropic-profile upstreams it passes through verbatim; for
-  non-anthropic upstreams the `anthropic-openai-bridge` translates it — enabled
-  → `thinking_budget_tokens`, and disabled → `chat_template_kwargs.enable_thinking:false`
-  (via the consumer-set `enableThinkingKwargField` option) so "off" reaches
-  llama.cpp.
+The `reasoning` node is a canonical, model-agnostic override of the
+client-requested effort (`docs/API_PROXY_REASONING.md`). `auto` keeps the
+inbound directive untouched; `off`/`low`/`medium`/`high`/`max` replace it with
+a fixed level; `custom` replaces it with a raw `customBudgetTokens` thinking
+budget (`-1` = unlimited). The node synthesizes operations via
+`apiProxyReasoningDirectiveOperations(directive, passthroughProfile, protocol)`
+(`@arriero/core`) and runs them through `applyApiProxyRequestEdits`, writing
+the canonical fields of the **inbound protocol** — OpenAI:
+`reasoning_effort` / `thinking_budget_tokens`; Anthropic:
+`output_config.effort` + `thinking {adaptive|enabled|disabled}` — and
+removing the competing effort fields. The actual clamp/conversion onto the
+resolved upstream's native interface happens later, at the forward boundary,
+via the per-upstream reasoning profile.
 
 The node does not arm llama.cpp's realtime `reasoning_control`/force-answer
 endpoint — that is the separate interrupt-to-force-answer path on proxy

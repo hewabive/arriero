@@ -156,6 +156,7 @@ function emptyMetadata(): GgufMetadata {
     addBosToken: null,
     addEosToken: null,
     hasChatTemplate: false,
+    chatTemplateReasoning: null,
     vocabularySize: null,
     samplingTemp: null,
     samplingTopK: null,

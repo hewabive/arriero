@@ -52,6 +52,7 @@ export type ProxyTraceAccumulator = {
   ok: boolean;
   errorCode: string | null;
   errorMessage: string | null;
+  translationWarnings: string[];
   durationMs: number;
   queueMs: number | null;
   ttftMs: number | null;
@@ -94,6 +95,7 @@ export function createProxyTrace(
     ok: false,
     errorCode: null,
     errorMessage: null,
+    translationWarnings: [],
     durationMs: 0,
     queueMs: null,
     ttftMs: null,

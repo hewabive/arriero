@@ -6,6 +6,17 @@ export const GgufBaseModelSchema = z.object({
   repoUrl: z.string().nullable(),
 });
 
+export const GgufChatTemplateReasoningSchema = z.object({
+  usesReasoningEffort: z.boolean(),
+  usesEnableThinking: z.boolean(),
+  levels: z.array(z.string()).nullable(),
+  aliases: z.record(z.string(), z.string()).nullable(),
+});
+
+export type GgufChatTemplateReasoning = z.infer<
+  typeof GgufChatTemplateReasoningSchema
+>;
+
 export const GgufMetadataSchema = z.object({
   name: z.string().nullable(),
   architecture: z.string().nullable(),
@@ -62,6 +73,7 @@ export const GgufMetadataSchema = z.object({
   addBosToken: z.boolean().nullable(),
   addEosToken: z.boolean().nullable(),
   hasChatTemplate: z.boolean(),
+  chatTemplateReasoning: GgufChatTemplateReasoningSchema.nullable(),
   vocabularySize: z.number().nullable(),
   samplingTemp: z.number().nullable(),
   samplingTopK: z.number().nullable(),

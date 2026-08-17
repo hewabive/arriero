@@ -72,6 +72,7 @@ import {
   getApiProxyPipeline,
   getApiProxyTarget,
 } from "./repository.js";
+import { applyApiProxyReasoningMapping } from "./reasoning-request.js";
 import { saveApiProxyRequestFile } from "./request-files.js";
 import {
   getApiProxyCachedResponse,
@@ -1157,6 +1158,19 @@ export async function serveResolvedTarget(input: {
       body: route.request.body,
       headers: c.req.raw.headers,
     });
+    if (exchange.warnings.length > 0) {
+      trace.translationWarnings = exchange.warnings;
+    }
+    const reasoning = applyApiProxyReasoningMapping({
+      body: exchange.body,
+      protocol: exchange.protocol,
+      model: route.request.model,
+      instanceId,
+    });
+    if (reasoning.traceStep) {
+      trace.routeTrace = [...trace.routeTrace, reasoning.traceStep];
+    }
+    const upstreamRequestBody = reasoning.body;
 
     const streamMeter: StreamUsageMeter | null =
       route.request.stream && !translateAnthropic
@@ -1180,18 +1194,18 @@ export async function serveResolvedTarget(input: {
         ? route.request.stream
         : streamMeter !== null && operation.endpoint === "chat.completions");
     const injectPrefillProgress =
-      wantsPrefillProgress && !returnProgressRequested(exchange.body);
+      wantsPrefillProgress && !returnProgressRequested(upstreamRequestBody);
     let forwardBody: unknown;
     if (bufferCodec) {
-      const built = bufferCodec.upstreamBody(exchange.body, null);
+      const built = bufferCodec.upstreamBody(upstreamRequestBody, null);
       forwardBody =
-        returnProgressRequested(exchange.body) || !engine.sseTimings
+        returnProgressRequested(upstreamRequestBody) || !engine.sseTimings
           ? built
           : withReturnProgress(built);
     } else {
       forwardBody = injectUsage
-        ? withIncludeUsage(exchange.body)
-        : exchange.body;
+        ? withIncludeUsage(upstreamRequestBody)
+        : upstreamRequestBody;
       if (injectPrefillProgress) {
         forwardBody = withReturnProgress(forwardBody);
       }
@@ -1230,7 +1244,7 @@ export async function serveResolvedTarget(input: {
               instanceId,
               path: exchange.path,
               modelId: decision.target.model ?? route.request.modelId,
-              body: exchange.body,
+              body: upstreamRequestBody,
             }),
           })
         : null;
@@ -1530,8 +1544,21 @@ export async function serveResolvedTarget(input: {
       body: route.request.body,
       headers: c.req.raw.headers,
     });
+    if (exchange.warnings.length > 0) {
+      trace.translationWarnings = exchange.warnings;
+    }
+    const reasoning = applyApiProxyReasoningMapping({
+      body: exchange.body,
+      protocol: exchange.protocol,
+      model: route.request.model,
+      instanceId,
+    });
+    if (reasoning.traceStep) {
+      trace.routeTrace = [...trace.routeTrace, reasoning.traceStep];
+    }
+    const upstreamRequestBody = reasoning.body;
     const effectiveCodec = translateAnthropic
-      ? translatedAnthropicResumableCodec(exchange.body)
+      ? translatedAnthropicResumableCodec(upstreamRequestBody)
       : codec;
     const url = apiProxyForwardUrl(
       baseUrl,
@@ -1557,7 +1584,7 @@ export async function serveResolvedTarget(input: {
     const state = createResumableBufferState();
     const buildBody = (tail: string | null) => {
       const built = effectiveCodec.upstreamBody(
-        route.request.body,
+        upstreamRequestBody,
         tail,
       ) as Record<string, unknown>;
       const withModel = decision.target.model

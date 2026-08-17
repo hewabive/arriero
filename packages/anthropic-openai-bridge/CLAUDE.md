@@ -5,7 +5,7 @@ Sans-IO translation between the Anthropic Messages API and OpenAI Chat Completio
 ## Hard boundaries
 
 - **Zero runtime dependencies. No imports from other workspace packages** (including `@arriero/core`) and no I/O: no fetch, no streams, no timers, no randomness — strings and plain objects in, typed events/objects out. If a change needs any of these, it belongs in the consumer (`apps/api/src/proxy/translation.ts`), not here.
-- **Dialect specifics enter only through options** (`reasoningField`, `thinkingBudgetField`, `namedToolChoice`, `toolResultImages`, `passthroughKeys`, `messageIdPrefix`). Never hardcode llama.cpp behavior; the llama-server preset lives in the consumer.
+- **Dialect specifics enter only through options** (`reasoningField`, `thinkingBudgetField`, `reasoningEffortField`, `namedToolChoice`, `toolResultImages`, `passthroughKeys`, `messageIdPrefix`). Never hardcode llama.cpp behavior; the llama-server preset lives in the consumer.
 - **Inputs are untrusted JSON** — parse defensively via `json.ts` guards, never throw on malformed input. Requests degrade with `warnings[]`; the stream emitter skips unparseable frames.
 
 ## Layout

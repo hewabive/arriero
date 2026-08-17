@@ -61,6 +61,7 @@ function seedModel(modelId: string, routeTo: ApiProxyRouteTo) {
     routeTo,
     description: null,
     blockedMessage: "",
+    reasoning: null,
   });
 }
 

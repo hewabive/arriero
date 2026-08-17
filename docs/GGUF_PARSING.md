@@ -56,6 +56,10 @@ Raw facts are model-level, not file-level: for a split GGUF the scanner sums the
 counts into `facts.tensors.parameterCount` before caching, so a rebuild from facts stays equivalent
 to a full re-read.
 
+`chatTemplateReasoning` (parser v12) is one such derived field: reasoning-effort capabilities
+extracted from `tokenizer.chat_template` (`models/chat-template-reasoning.ts`), consumed at request
+time by the API-proxy effort mapping (`docs/API_PROXY_REASONING.md`).
+
 **When adding a metadata field:** if the value comes from a KV entry the capture already keeps, bump
 only `GGUF_PARSER_VERSION`. If it needs something the reader currently skips (or a new tensor-table
 statistic), bump `GGUF_RAW_VERSION` too — that one does force a full re-read.

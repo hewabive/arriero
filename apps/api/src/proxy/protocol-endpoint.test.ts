@@ -33,6 +33,7 @@ function seedModel(modelId: string, enabled: boolean, blockedMessage = "") {
     routeTo: null,
     description: null,
     blockedMessage,
+    reasoning: null,
   });
 }
 
