@@ -17,6 +17,7 @@ export type AnthropicErrorType =
   | "not_found_error"
   | "authentication_error"
   | "permission_error"
+  | "conflict_error"
   | "api_error";
 
 export function anthropicError(input: {
@@ -353,14 +354,20 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
   diagnosticError: (_request, diagnostic) => {
     const contextOverflow =
       diagnostic.code === "arriero_proxy_context_overflow";
+    const modelDisabled = diagnostic.code === "arriero_proxy_model_disabled";
     return {
       status: diagnostic.status,
       body: anthropicError({
         message: contextOverflow
           ? diagnostic.message
           : `${diagnostic.message} (${diagnostic.code})`,
-        type: contextOverflow ? "invalid_request_error" : "api_error",
+        type: contextOverflow
+          ? "invalid_request_error"
+          : modelDisabled
+            ? "conflict_error"
+            : "api_error",
       }),
+      ...(modelDisabled ? { headers: { "x-should-retry": "false" } } : {}),
     };
   },
   authError: (diagnostic) => ({
@@ -368,7 +375,9 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
     body: anthropicError({
       message: diagnostic.message,
       type:
-        diagnostic.status === 403 ? "permission_error" : "authentication_error",
+        diagnostic.code === "arriero_proxy_source_disabled"
+          ? "permission_error"
+          : "authentication_error",
     }),
   }),
   upstreamPath: (operation) => upstreamPaths[operation.endpoint] ?? null,

@@ -81,8 +81,9 @@ resolution) even though sources are `.ts`.
 - `/api/*` routes are gated by `requireAdmin`; the public proxy facades (`/v1/*`, `/proxy/v1/*`,
   `/proxy/anthropic/v1/*`) and `/api/public/status` are not.
 - A proxy model has two independent flags: `visible` (listed in `GET /v1/models`) and `enabled`
-  (serves requests; `enabled:false` ⇒ `503 model_disabled` before routing/autostart, yet still
-  callable by name so hidden models can be tested).
+  (serves requests; `enabled:false` ⇒ non-retryable `409 model_disabled` with its
+  `blockedMessage` before routing/autostart, yet still callable by name so hidden models can be
+  tested).
 - `GET /v1/models` mirrors llama.cpp router mode with a per-model `status` (`proxy/model-status.ts`,
   off a 2s `getCachedApiProxyRuntimeSnapshot`, never autoloads). Its load `value` is a frozen
   llama.cpp-derived external contract — see `docs/API_PROXY_FOUNDATION.md`. The four status layers
@@ -299,7 +300,7 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   on restart. API keys live in `config/.secrets.json` (gitignored), never in `endpoints.json`;
   env-var auth stays preferred. `sources` = request labeling + optional auth gate: an inbound
   `Authorization: Bearer`/`x-api-key` is resolved (`resolveApiProxyRequestSource`) to stamp
-  `trace.sourceId`/`sourceName`; a disabled source's key is always rejected `403` with its
+  `trace.sourceId`/`sourceName`; a disabled source's key is always rejected `423` with its
   `blockedMessage`, and with `allowAnonymous:false` unknown/missing keys get `401` — gate
   (`apiProxyRequestGate`) runs pre-body-read in `protocol-endpoint.ts` and on
   `GET /v1/models`, shaped per facade by adapter `authError`

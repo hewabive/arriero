@@ -44,6 +44,7 @@ test("anthropicProtocolAdapter returns not implemented response", () => {
       targetId: null,
       routeTo: null,
       description: null,
+      blockedMessage: "",
     },
     stream: false,
   });
@@ -74,6 +75,7 @@ test("anthropicProtocolAdapter exposes context overflow as an invalid request", 
         targetId: null,
         routeTo: null,
         description: null,
+        blockedMessage: "",
       },
       stream: false,
     },
@@ -95,6 +97,66 @@ test("anthropicProtocolAdapter exposes context overflow as an invalid request", 
       },
     },
   });
+});
+
+test("anthropicProtocolAdapter exposes a disabled model as a non-retryable conflict", () => {
+  const response = anthropicProtocolAdapter.diagnosticError(
+    {
+      operation,
+      body: { model: "claude-local" },
+      modelId: "claude-local",
+      model: {
+        id: "model-a",
+        modelId: "claude-local",
+        visible: true,
+        enabled: false,
+        ownedBy: "arriero",
+        targetId: null,
+        routeTo: null,
+        description: null,
+        blockedMessage: "Use claude-replacement.",
+      },
+      stream: false,
+    },
+    {
+      status: 409,
+      code: "arriero_proxy_model_disabled",
+      message: "Use claude-replacement.",
+      param: "model",
+    },
+  );
+
+  assert.deepEqual(response, {
+    status: 409,
+    headers: { "x-should-retry": "false" },
+    body: {
+      type: "error",
+      error: {
+        type: "conflict_error",
+        message: "Use claude-replacement. (arriero_proxy_model_disabled)",
+      },
+    },
+  });
+});
+
+test("anthropicProtocolAdapter keeps a disabled source out of the login flow", () => {
+  assert.deepEqual(
+    anthropicProtocolAdapter.authError({
+      status: 423,
+      code: "arriero_proxy_source_disabled",
+      message: "Contact the administrator.",
+    }),
+    {
+      status: 423,
+      body: {
+        type: "error",
+        error: {
+          type: "permission_error",
+          message: "Contact the administrator.",
+        },
+      },
+    },
+  );
 });
 
 test("anthropicResumableCodec.upstreamBody forces stream and appends prefill", () => {

@@ -52,6 +52,7 @@ function model(overrides: Partial<ApiProxyModelRecord>): ApiProxyModelRecord {
     targetId: null,
     routeTo: null,
     description: null,
+    blockedMessage: "",
     ...overrides,
   };
 }

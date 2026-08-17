@@ -23,7 +23,7 @@ beforeEach(() => {
   clearApiProxyTraceHistory();
 });
 
-function seedModel(modelId: string, enabled: boolean) {
+function seedModel(modelId: string, enabled: boolean, blockedMessage = "") {
   return createApiProxyModel({
     modelId,
     visible: true,
@@ -32,6 +32,7 @@ function seedModel(modelId: string, enabled: boolean) {
     targetId: null,
     routeTo: null,
     description: null,
+    blockedMessage,
   });
 }
 
@@ -56,19 +57,45 @@ async function postChatCompletion(
 }
 
 test("a disabled model failure persists its diagnostic code on the trace", async () => {
-  seedModel("disabled-model", false);
+  seedModel(
+    "disabled-model",
+    false,
+    "Maintenance until 18:00 UTC. Use replacement-model.",
+  );
 
   const response = await postChatCompletion(buildApp(), "disabled-model");
-  assert.equal(response.status, 503);
-  const body = (await response.json()) as { error: { code: string } };
+  assert.equal(response.status, 409);
+  assert.equal(response.headers.get("x-should-retry"), "false");
+  const body = (await response.json()) as {
+    error: { code: string; message: string; type: string };
+  };
   assert.equal(body.error.code, "arriero_proxy_model_disabled");
+  assert.equal(body.error.type, "invalid_request_error");
+  assert.equal(
+    body.error.message,
+    "Maintenance until 18:00 UTC. Use replacement-model.",
+  );
 
   const traces = listApiProxyTraces();
   assert.equal(traces.length, 1);
   assert.equal(traces[0]?.errorCode, "arriero_proxy_model_disabled");
-  assert.equal(traces[0]?.errorMessage, "Model disabled-model is disabled");
+  assert.equal(
+    traces[0]?.errorMessage,
+    "Maintenance until 18:00 UTC. Use replacement-model.",
+  );
   assert.equal(traces[0]?.ok, false);
-  assert.equal(traces[0]?.status, 503);
+  assert.equal(traces[0]?.status, 409);
+});
+
+test("a disabled model without a custom message gets the default", async () => {
+  seedModel("disabled-model", false);
+
+  const response = await postChatCompletion(buildApp(), "disabled-model");
+  const body = (await response.json()) as { error: { message: string } };
+  assert.equal(
+    body.error.message,
+    "Model disabled-model is disabled by the administrator.",
+  );
 });
 
 test("an unbound model failure persists its route diagnostic code", async () => {

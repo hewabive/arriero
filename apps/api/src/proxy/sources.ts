@@ -220,7 +220,7 @@ export function apiProxyRequestSourceRejection(
       return null;
     }
     return {
-      status: 403,
+      status: 423,
       code: "arriero_proxy_source_disabled",
       message:
         resolution.blockedMessage ||

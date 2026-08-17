@@ -88,7 +88,7 @@ export function ExternalModelsSection(props: ExternalModelsSectionProps) {
                       </Tooltip>
                     </Table.Td>
                     <Table.Td>
-                      <Tooltip label="Serves requests; off responds model_disabled but stays callable for tests when hidden">
+                      <Tooltip label="Serves requests; off responds model_disabled">
                         <Switch
                           size="sm"
                           checked={model.enabled}

@@ -62,6 +62,7 @@ export type ModelDraft = {
   ownedBy: string;
   routeToValue: string | null;
   description: string;
+  blockedMessage: string;
 };
 
 export type QuickRouteDraft = {
@@ -245,6 +246,7 @@ export const emptyModelDraft: ModelDraft = {
   ownedBy: "arriero",
   routeToValue: null,
   description: "",
+  blockedMessage: "",
 };
 
 export const emptyQuickRouteDraft: QuickRouteDraft = {
@@ -584,6 +586,7 @@ export function modelDraftFromRecord(model: ApiProxyModelRecord): ModelDraft {
         (model.targetId ? { type: "target", id: model.targetId } : null),
     ),
     description: model.description ?? "",
+    blockedMessage: model.blockedMessage,
   };
 }
 
@@ -1150,6 +1153,7 @@ export function modelPayload(draft: ModelDraft): ApiProxyModelCreate {
     targetId: routeTo?.type === "target" ? routeTo.id : null,
     routeTo,
     description: draft.description.trim() || null,
+    blockedMessage: draft.blockedMessage.trim(),
   };
 }
 

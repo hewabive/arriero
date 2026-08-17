@@ -33,6 +33,7 @@ function seedModel(modelId: string, targetId: string | null) {
     targetId,
     routeTo: null,
     description: null,
+    blockedMessage: "",
   });
 }
 

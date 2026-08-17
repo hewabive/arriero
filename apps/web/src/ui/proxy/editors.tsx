@@ -8,6 +8,7 @@ import {
   Stack,
   Switch,
   TextInput,
+  Textarea,
 } from "@mantine/core";
 import { Save } from "lucide-react";
 
@@ -112,11 +113,22 @@ export function ModelEditorModal(props: ModelEditorModalProps) {
         />
         <Switch
           label="Enabled"
-          description="Serves requests; off responds model_disabled but stays callable for tests when hidden"
+          description="Serves requests; off responds model_disabled"
           checked={props.draft.enabled}
           onChange={(event) => {
             const enabled = event.currentTarget.checked;
             props.onDraftChange({ ...props.draft, enabled });
+          }}
+        />
+        <Textarea
+          label="Blocked message"
+          description="Returned to the caller while this model is disabled. Empty uses a default message."
+          autosize
+          minRows={1}
+          value={props.draft.blockedMessage}
+          onChange={(event) => {
+            const blockedMessage = event.currentTarget.value;
+            props.onDraftChange({ ...props.draft, blockedMessage });
           }}
         />
         <Group justify="flex-end">

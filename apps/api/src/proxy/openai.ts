@@ -345,19 +345,25 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
     body: openAiError({
       message: diagnostic.message,
       type:
-        diagnostic.code === "arriero_proxy_context_overflow"
+        diagnostic.code === "arriero_proxy_context_overflow" ||
+        diagnostic.code === "arriero_proxy_model_disabled"
           ? "invalid_request_error"
           : "server_error",
       code: diagnostic.code,
       param: diagnostic.param,
     }),
+    ...(diagnostic.code === "arriero_proxy_model_disabled"
+      ? { headers: { "x-should-retry": "false" } }
+      : {}),
   }),
   authError: (diagnostic) => ({
     status: diagnostic.status,
     body: openAiError({
       message: diagnostic.message,
       type:
-        diagnostic.status === 403 ? "permission_error" : "authentication_error",
+        diagnostic.code === "arriero_proxy_source_disabled"
+          ? "permission_error"
+          : "authentication_error",
       code: diagnostic.code,
     }),
   }),

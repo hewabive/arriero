@@ -50,6 +50,7 @@ const ApiProxyTargetIdleMsSchema = z.number().int().min(0).nullable();
 const ApiProxyModelIdSchema = z.string().trim().min(1).max(500);
 const ApiProxyModelOwnerSchema = z.string().trim().min(1).max(80);
 const ApiProxyModelDescriptionSchema = z.string().trim().max(500).nullable();
+const ApiProxyBlockedMessageSchema = z.string().trim().max(400);
 
 export const ApiProxyRouteToSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("target"), id: ApiProxyIdSchema }),
@@ -85,6 +86,7 @@ export const ApiProxyModelRecordSchema = z.object({
   targetId: ApiProxyIdSchema.nullable().default(null),
   routeTo: ApiProxyRouteToSchema.nullable().default(null),
   description: ApiProxyModelDescriptionSchema.default(null),
+  blockedMessage: ApiProxyBlockedMessageSchema.default(""),
 });
 
 export const ApiProxyPublicModelLoadStateSchema = z.enum([
@@ -145,6 +147,7 @@ export const ApiProxyModelUpdateSchema = z.object({
   targetId: ApiProxyIdSchema.nullable().optional(),
   routeTo: ApiProxyRouteToSchema.nullable().optional(),
   description: ApiProxyModelDescriptionSchema.optional(),
+  blockedMessage: ApiProxyBlockedMessageSchema.optional(),
 });
 
 export const ApiProxyPipelineUpdateSchema = z.object({
@@ -243,7 +246,7 @@ export const ApiProxySourceConfigSchema = z.object({
   name: ApiProxySourceNameSchema,
   enabled: z.boolean().default(true),
   note: z.string().trim().max(400).default(""),
-  blockedMessage: z.string().trim().max(400).default(""),
+  blockedMessage: ApiProxyBlockedMessageSchema.default(""),
 });
 
 export const ApiProxySourceCreateSchema = ApiProxySourceConfigSchema.omit({
@@ -256,7 +259,7 @@ export const ApiProxySourceUpdateSchema = z.object({
   name: ApiProxySourceNameSchema.optional(),
   enabled: z.boolean().optional(),
   note: z.string().trim().max(400).optional(),
-  blockedMessage: z.string().trim().max(400).optional(),
+  blockedMessage: ApiProxyBlockedMessageSchema.optional(),
   apiKey: ApiProxySourceKeySchema,
 });
 

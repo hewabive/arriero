@@ -20,6 +20,7 @@ test("openAiModelsList exposes only visible proxy models", () => {
       targetId: null,
       routeTo: null,
       description: null,
+      blockedMessage: "",
     },
     {
       id: "b",
@@ -30,6 +31,7 @@ test("openAiModelsList exposes only visible proxy models", () => {
       targetId: null,
       routeTo: null,
       description: null,
+      blockedMessage: "",
     },
   ]);
   const after = Math.floor(Date.now() / 1000);
@@ -60,6 +62,7 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
         targetId: null,
         routeTo: null,
         description: null,
+        blockedMessage: "",
       },
     ],
     new Map([
@@ -90,6 +93,52 @@ test("notImplementedResponse returns OpenAI-compatible error shape", () => {
       type: "server_error",
       param: "model",
       code: "arriero_proxy_not_implemented",
+    },
+  });
+});
+
+test("openAiProtocolAdapter marks a disabled model as non-retryable", () => {
+  const response = openAiProtocolAdapter.diagnosticError(
+    {
+      operation: {
+        protocol: "openai",
+        endpoint: "chat.completions",
+        routePath: "/v1/chat/completions",
+        transport: "http-json",
+      },
+      body: { model: "qwen" },
+      modelId: "qwen",
+      model: {
+        id: "a",
+        modelId: "qwen",
+        visible: true,
+        enabled: false,
+        ownedBy: "arriero",
+        targetId: null,
+        routeTo: null,
+        description: null,
+        blockedMessage: "Use qwen-next.",
+      },
+      stream: false,
+    },
+    {
+      status: 409,
+      code: "arriero_proxy_model_disabled",
+      message: "Use qwen-next.",
+      param: "model",
+    },
+  );
+
+  assert.deepEqual(response, {
+    status: 409,
+    headers: { "x-should-retry": "false" },
+    body: {
+      error: {
+        message: "Use qwen-next.",
+        type: "invalid_request_error",
+        param: "model",
+        code: "arriero_proxy_model_disabled",
+      },
     },
   });
 });

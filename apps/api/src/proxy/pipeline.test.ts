@@ -65,6 +65,7 @@ function request(
       targetId: null,
       routeTo: { type: "pipeline", id: "pipeline-a" },
       description: null,
+      blockedMessage: "",
     },
     stream: false,
     ...update,

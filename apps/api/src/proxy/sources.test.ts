@@ -73,7 +73,7 @@ test("a disabled source still resolves, carrying its blocked message", () => {
   });
 });
 
-test("rejection: disabled source gets 403 regardless of anonymous policy", () => {
+test("rejection: disabled source gets 423 regardless of anonymous policy", () => {
   const resolution = {
     kind: "source",
     id: "x",
@@ -86,7 +86,7 @@ test("rejection: disabled source gets 403 regardless of anonymous policy", () =>
       resolution,
       allowAnonymous,
     );
-    assert.equal(rejection?.status, 403);
+    assert.equal(rejection?.status, 423);
     assert.equal(rejection?.code, "arriero_proxy_source_disabled");
     assert.equal(rejection?.message, "Contact the admin.");
   }
@@ -97,7 +97,7 @@ test("rejection: disabled source without a custom message gets the default", () 
     { kind: "source", id: "x", name: "a", enabled: false, blockedMessage: "" },
     true,
   );
-  assert.equal(rejection?.status, 403);
+  assert.equal(rejection?.status, 423);
   assert.match(rejection?.message ?? "", /disabled by the administrator/);
 });
 

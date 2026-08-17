@@ -334,10 +334,12 @@ async function proxyProtocolEndpointInner(
       request: resolution.request,
       trace,
       diagnostic: {
-        status: 503,
+        status: 409,
         code: "arriero_proxy_model_disabled",
         param: "model",
-        message: `Model ${resolution.request.modelId} is disabled`,
+        message:
+          resolution.request.model.blockedMessage ||
+          `Model ${resolution.request.modelId} is disabled by the administrator.`,
       },
     });
   }

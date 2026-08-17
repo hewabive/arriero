@@ -151,6 +151,7 @@ function fusionRequest(body: unknown): ApiProxyProtocolModelRequest {
     targetId: null,
     routeTo: null,
     description: null,
+    blockedMessage: "",
   });
   return {
     operation: chatOperation,

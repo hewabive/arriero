@@ -128,6 +128,9 @@ export function traceDiagnosticResponse(input: {
     input.request,
     input.diagnostic,
   );
+  for (const [name, value] of Object.entries(response.headers ?? {})) {
+    input.c.header(name, value);
+  }
   return input.c.json(response.body, response.status);
 }
 
