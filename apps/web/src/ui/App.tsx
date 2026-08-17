@@ -1,6 +1,7 @@
 import { type Instance } from "@arriero/core";
 import {
   ActionIcon,
+  Alert,
   AppShell,
   Burger,
   Divider,
@@ -16,7 +17,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, Moon, RefreshCw, Search, Sun } from "lucide-react";
+import { LogOut, Moon, RefreshCw, Search, ServerOff, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -94,7 +95,11 @@ export function App() {
   const authQuery = useQuery({
     queryKey: ["auth-state"],
     queryFn: getAuthState,
-    refetchInterval: 30_000,
+    retry: 1,
+    refetchInterval: (query) =>
+      query.state.status === "error" || query.state.fetchFailureCount > 0
+        ? 3_000
+        : 30_000,
   });
   const authState = authQuery.data?.data;
   const canUseAdmin = authState?.authenticated ?? false;
@@ -399,10 +404,19 @@ export function App() {
 
           {!isPublicRoute && !canUseAdmin && (
             <>
-              {authQuery.isLoading ? (
-                <Text c="dimmed">Checking admin session...</Text>
-              ) : (
+              {authState ? (
                 <LoginView />
+              ) : authQuery.isError || authQuery.failureCount > 0 ? (
+                <Alert
+                  icon={<ServerOff size={16} />}
+                  color="red"
+                  title="API server unreachable"
+                >
+                  The manager API is not responding. Retrying automatically —
+                  the page recovers as soon as the server is back.
+                </Alert>
+              ) : (
+                <Text c="dimmed">Checking admin session...</Text>
               )}
             </>
           )}
