@@ -35,6 +35,7 @@ import { registerProxyRoutes } from "./routes/proxy.routes.js";
 import { registerResourceRoutes } from "./routes/resources.routes.js";
 import { registerSourceRepositoryRoutes } from "./routes/source-repositories.routes.js";
 import { registerProxyTargetRoutes } from "./routes/proxy-targets.routes.js";
+import { registerRegistryRoutes } from "./routes/registries.routes.js";
 import { registerSystemRoutes } from "./routes/system.routes.js";
 import { registerUpdateRoutes } from "./routes/update.routes.js";
 
@@ -77,6 +78,7 @@ registerSourceRepositoryRoutes(app);
 registerLlamaSourceRoutes(app);
 registerBuildRoutes(app);
 registerEnvironmentRoutes(app);
+registerRegistryRoutes(app);
 registerConfigGitRoutes(app);
 registerConfigRoutes(app);
 registerUpdateRoutes(app);

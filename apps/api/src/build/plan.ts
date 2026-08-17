@@ -1,9 +1,10 @@
-import type {
-  BuildJob,
-  BuildJobStart,
-  BuildJobStep,
-  BuildJobStepName,
-  BuildSettings,
+import {
+  npmRegistryInstallOptions,
+  type BuildJob,
+  type BuildJobStart,
+  type BuildJobStep,
+  type BuildJobStepName,
+  type BuildSettings,
 } from "@arriero/core";
 import { existsSync, mkdirSync, rmSync, type WriteStream } from "node:fs";
 import { delimiter, dirname, parse, resolve } from "node:path";
@@ -46,6 +47,37 @@ function step(name: BuildJobStepName, command: string[]): BuildJobStep {
 
 export function uiDirectory(settings: BuildSettings) {
   return resolve(settings.repoPath, "tools", "ui");
+}
+
+function uiInstallCommands(npmRegistryUrl: string | null): string[][] {
+  return [
+    [
+      "npm",
+      "ci",
+      "--include=dev",
+      ...npmRegistryInstallOptions(npmRegistryUrl),
+    ],
+    ["npm", "run", "build"],
+  ];
+}
+
+export function splitCommandChain(command: string[]): string[][] {
+  const commands: string[][] = [];
+  let current: string[] = [];
+  for (const token of command) {
+    if (token === "&&") {
+      if (current.length > 0) {
+        commands.push(current);
+      }
+      current = [];
+    } else {
+      current.push(token);
+    }
+  }
+  if (current.length > 0) {
+    commands.push(current);
+  }
+  return commands;
 }
 
 export function slugifyRef(ref: string): string {
@@ -217,6 +249,7 @@ export function buildSteps(
   settings: BuildSettings,
   input: BuildJobStart,
   env: NodeJS.ProcessEnv,
+  npmRegistryUrl: string | null = null,
 ): BuildJobStep[] {
   const steps: BuildJobStep[] = [];
 
@@ -230,15 +263,12 @@ export function buildSteps(
 
   if (input.installUiDeps) {
     steps.push(
-      step("ui-install", [
-        "npm",
-        "ci",
-        "--include=dev",
-        "&&",
-        "npm",
-        "run",
-        "build",
-      ]),
+      step(
+        "ui-install",
+        uiInstallCommands(npmRegistryUrl).flatMap((command, index) =>
+          index === 0 ? command : ["&&", ...command],
+        ),
+      ),
     );
   }
 

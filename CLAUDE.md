@@ -275,8 +275,11 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   panel); pipelines with other live targets survive and are surfaced as warnings. Body = `Instance`
   minus runtime `status`/`pid` (derived on read). `binaryPath` is stored inline;
   `binaryPathRefId` (optional) re-resolves against the path catalog on read.
-- `config/settings.json` — `modelScan` / `sourceRepositories` / `build` sections
-  (`settings/store.ts`). Portable source specs store adapter, origin and location policy; managed
+- `config/settings.json` — `modelScan` / `sourceRepositories` / `build` / `environments` /
+  `registries` sections (`settings/store.ts`; `registries.npmRegistryUrl` is the host-wide npm
+  registry `GET/PUT /api/registries`, applied as `npm ci --registry` in the llama.cpp `ui-install`
+  build step — the npm analog of the environments PyPI index, meant for any future npm-based
+  build). Portable source specs store adapter, origin and location policy; managed
   paths derive from `config.sourcesDir`. `defaultBinaryPath()` (`arguments/catalog.ts`) is exposed at
   `GET /api/build/default-binary` and pre-selects the binary in the New-instance modal.
 - `config/argument-defaults.json` — default instance args (pre-listed in the New-instance form;

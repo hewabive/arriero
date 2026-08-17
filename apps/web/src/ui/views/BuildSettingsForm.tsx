@@ -191,6 +191,14 @@ export function BuildSettingsForm({ fm }: { fm: BuildViewController }) {
             fm.setFormField("extraCmakeArgs", event.currentTarget.value)
           }
         />
+        <TextInput
+          label="npm registry"
+          placeholder="https://registry.npmjs.org/"
+          description="Registry npm ci uses during the UI rebuild; leave blank for npm's default. Shared by every npm-based build."
+          value={fm.npmRegistryUrl}
+          disabled={!fm.settingsReady}
+          onChange={(event) => fm.setNpmRegistryUrl(event.currentTarget.value)}
+        />
       </SimpleGrid>
 
       <JsonInput

@@ -21,6 +21,7 @@ import { listLlamaSourceRefs } from "../llama/source-repository.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getActiveSourceRepositoryOperation } from "../sources/state.js";
 import { relocatedCmakeCacheReason } from "./cmake-cache.js";
+import { getPackageRegistriesSettings } from "../settings/registries.js";
 import {
   buildProcessEnv,
   buildSteps,
@@ -33,6 +34,7 @@ import {
   resolveBuildRef,
   rpcSourceDir,
   slugifyRef,
+  splitCommandChain,
   uiDirectory,
   validateBuildDirectoryCleanTarget,
   validateSettings,
@@ -123,7 +125,12 @@ class LlamaBuildRunner {
       ),
     };
     const env = buildProcessEnv(settings);
-    const steps = buildSteps(settings, effectiveInput, env);
+    const steps = buildSteps(
+      settings,
+      effectiveInput,
+      env,
+      getPackageRegistriesSettings().npmRegistryUrl,
+    );
     if (steps.length === 0) {
       throw new Error("at least one build step must be enabled");
     }
@@ -249,7 +256,12 @@ class LlamaBuildRunner {
           cleanBuildDirectory(job.settings, logStream);
           exitCode = 0;
         } else if (plannedStep.name === "ui-install") {
-          exitCode = await this.rebuildUiAssets(job.settings, logStream, env);
+          exitCode = await this.rebuildUiAssets(
+            job.settings,
+            plannedStep.command,
+            logStream,
+            env,
+          );
         } else {
           logStream.write(`$ ${plannedStep.command.join(" ")}\n`);
           exitCode = await this.runCommand(
@@ -391,6 +403,7 @@ class LlamaBuildRunner {
 
   private async rebuildUiAssets(
     settings: BuildSettings,
+    stepCommand: string[],
     logStream: WriteStream,
     env: NodeJS.ProcessEnv,
   ) {
@@ -402,10 +415,7 @@ class LlamaBuildRunner {
     }
 
     const uiEnv = { ...env, LLAMA_UI_OUT_DIR: distDir };
-    for (const command of [
-      ["npm", "ci", "--include=dev"],
-      ["npm", "run", "build"],
-    ]) {
+    for (const command of splitCommandChain(stepCommand)) {
       logStream.write(`$ ${command.join(" ")}\n`);
       const exitCode = await this.runCommand(command, uiDir, logStream, uiEnv);
       if (exitCode !== 0) {

@@ -51,6 +51,24 @@ Every `cmake --build` invocation gets an explicit `-j`: the configured `parallel
 ccache needs nothing from arriero: llama.cpp's own CMake (`GGML_CCACHE`, default ON) picks it up
 from PATH at configure time and caches compilations for any generator.
 
+## UI rebuild and the npm registry
+
+The optional `ui-install` step rebuilds the embedded web UI: it removes `tools/ui/dist`, then runs
+`npm ci --include=dev && npm run build` in `tools/ui` (`uiInstallCommands` in `build/plan.ts`). When
+the host-wide npm registry is configured, `npm ci` gets an explicit `--registry <url>` — the mirror
+of the uv `--default-index` flag the Python environments use for their PyPI index.
+
+The registry lives in the `registries` section of `settings.json` (`PackageRegistriesSettings` in
+core, `GET`/`PUT /api/registries`, `settings/registries.ts`), deliberately **not** in
+`BuildSettings`: it is a host-level source profile, and future npm-based builds of other
+applications are expected to read the same setting. The Build page edits it next to the build
+settings; the URL must be credential-free HTTP(S) (auth via `.npmrc`/env stays out of arriero
+config, matching the PyPI index rule).
+
+The registry is resolved once at job start and baked into the recorded `ui-install` step command;
+the runner executes exactly that recorded command (`splitCommandChain`), so the job log and step
+display always match what ran, and a settings change never affects a job already in flight.
+
 ## CUDA
 
 The default `cuda` flag in `defaultSettings()` is auto-detected via `isCudaToolkitAvailable()`

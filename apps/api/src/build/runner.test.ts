@@ -6,7 +6,11 @@ import test from "node:test";
 
 import type { BuildJobStart, BuildSettings } from "@arriero/core";
 
-import { cmakeGeneratorFromCommand, effectiveCmakeGenerator } from "./plan.js";
+import {
+  cmakeGeneratorFromCommand,
+  effectiveCmakeGenerator,
+  splitCommandChain,
+} from "./plan.js";
 import {
   buildSteps,
   buildProcessEnv,
@@ -91,6 +95,49 @@ test("validateBuildDirectoryCleanTarget rejects repository directory", () => {
       }),
     /repository directory/,
   );
+});
+
+test("buildSteps runs the UI install against npm's default registry", () => {
+  const [uiInstall] = buildSteps(
+    settings({}),
+    jobStart({ installUiDeps: true }),
+    {},
+  );
+
+  assert.equal(uiInstall?.name, "ui-install");
+  assert.deepEqual(uiInstall.command, [
+    "npm",
+    "ci",
+    "--include=dev",
+    "&&",
+    "npm",
+    "run",
+    "build",
+  ]);
+  assert.deepEqual(splitCommandChain(uiInstall.command), [
+    ["npm", "ci", "--include=dev"],
+    ["npm", "run", "build"],
+  ]);
+});
+
+test("buildSteps points npm ci at the configured registry", () => {
+  const [uiInstall] = buildSteps(
+    settings({}),
+    jobStart({ installUiDeps: true }),
+    {},
+    "https://npm.example/registry",
+  );
+
+  assert.deepEqual(splitCommandChain(uiInstall?.command ?? []), [
+    [
+      "npm",
+      "ci",
+      "--include=dev",
+      "--registry",
+      "https://npm.example/registry",
+    ],
+    ["npm", "run", "build"],
+  ]);
 });
 
 test("buildSteps applies server build profile CMake definitions", () => {

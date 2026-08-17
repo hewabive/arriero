@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { BuildJobStepStatusSchema } from "./build.js";
 import { BackgroundJobStatusSchema } from "./jobs.js";
+import { credentialFreeUrlSchema } from "./registries.js";
 
 const EnvironmentVersionSchema = z
   .string()
@@ -21,33 +22,6 @@ const EnvironmentExtraSchema = z
   .min(1)
   .max(80)
   .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
-
-function credentialFreeUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return !url.username && !url.password;
-  } catch {
-    return false;
-  }
-}
-
-function credentialFreeUrlSchema(
-  label: string,
-  protocols: string[],
-  protocolsLabel: string,
-) {
-  return z
-    .string()
-    .url()
-    .refine((value) => {
-      try {
-        return protocols.includes(new URL(value).protocol);
-      } catch {
-        return false;
-      }
-    }, `${label} must use ${protocolsLabel}`)
-    .refine(credentialFreeUrl, `${label} must not contain credentials`);
-}
 
 const EnvironmentPackageIndexUrlSchema = credentialFreeUrlSchema(
   "package index URL",

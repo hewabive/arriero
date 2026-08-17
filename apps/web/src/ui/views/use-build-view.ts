@@ -11,11 +11,13 @@ import {
   getBuildJobLogs,
   getBuildSettings,
   getLlamaSourceRefs,
+  getPackageRegistriesSettings,
   getSourceRepositoryStatus,
   listBuildJobs,
   pullSourceRepository,
   startBuildJob,
   updateBuildSettings,
+  updatePackageRegistriesSettings,
 } from "../../api/client";
 import {
   type BuildFormState,
@@ -43,6 +45,11 @@ export function useBuildView() {
     queryKey: ["build-settings"],
     queryFn: getBuildSettings,
   });
+  const registriesQuery = useQuery({
+    queryKey: ["package-registries"],
+    queryFn: getPackageRegistriesSettings,
+  });
+  const [npmRegistryUrl, setNpmRegistryUrl] = useState("");
   const jobsQuery = useQuery({
     queryKey: ["build-jobs"],
     queryFn: () => listBuildJobs(8),
@@ -137,6 +144,14 @@ export function useBuildView() {
     setGitRef((current) => current ?? currentBranch);
   }, [refsQuery.data?.data]);
 
+  useEffect(() => {
+    const registries = registriesQuery.data?.data;
+    if (!registries) {
+      return;
+    }
+    setNpmRegistryUrl(registries.npmRegistryUrl ?? "");
+  }, [registriesQuery.data?.data]);
+
   function setFormField<K extends keyof BuildFormState>(
     key: K,
     value: BuildFormState[K],
@@ -169,8 +184,23 @@ export function useBuildView() {
     };
   }
 
+  async function saveNpmRegistryIfChanged() {
+    const trimmed = npmRegistryUrl.trim();
+    const stored = registriesQuery.data?.data.npmRegistryUrl ?? "";
+    if (trimmed === stored) {
+      return;
+    }
+    await updatePackageRegistriesSettings({
+      npmRegistryUrl: trimmed || null,
+    });
+    await queryClient.invalidateQueries({ queryKey: ["package-registries"] });
+  }
+
   const saveMutation = useMutation({
-    mutationFn: () => updateBuildSettings(currentSettings()),
+    mutationFn: async () => {
+      await saveNpmRegistryIfChanged();
+      return updateBuildSettings(currentSettings());
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["build-settings"] });
       await queryClient.invalidateQueries({
@@ -188,8 +218,9 @@ export function useBuildView() {
   });
 
   const startMutation = useMutation({
-    mutationFn: () =>
-      startBuildJob({
+    mutationFn: async () => {
+      await saveNpmRegistryIfChanged();
+      return startBuildJob({
         settings: currentSettings(),
         gitRef,
         pull: runPull,
@@ -197,7 +228,8 @@ export function useBuildView() {
         cleanBuildDir: runCleanBuildDir,
         configure: runConfigure,
         build: runBuild,
-      }),
+      });
+    },
     onSuccess: async (result) => {
       setStartConfirmOpened(false);
       await queryClient.invalidateQueries({ queryKey: ["build-settings"] });
@@ -350,6 +382,8 @@ export function useBuildView() {
     llguidance,
     extraCmakeArgs,
     buildEnvJson,
+    npmRegistryUrl,
+    setNpmRegistryUrl,
     sourceStatus,
     sourceStatusMatchesForm,
     sourceBusy,

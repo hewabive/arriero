@@ -10,6 +10,7 @@ export * from "./llama-args.js";
 export * from "./engine-args.js";
 export * from "./build.js";
 export * from "./environments.js";
+export * from "./registries.js";
 export * from "./update.js";
 export * from "./config-git.js";
 export * from "./config-state.js";
