@@ -19,9 +19,9 @@ import {
   type ModelFileIdentity,
 } from "./file-identity.js";
 
-export const SAFETENSORS_RAW_VERSION = 1;
+export const SAFETENSORS_RAW_VERSION = 2;
 
-export const SAFETENSORS_PARSER_VERSION = 1;
+export const SAFETENSORS_PARSER_VERSION = 2;
 
 const SAFETENSORS_INDEX_FILE = "model.safetensors.index.json";
 
@@ -40,10 +40,22 @@ const CONFIG_VALUE_CAPTURE_LIMIT = 16_384;
 
 type JsonObject = Record<string, unknown>;
 
+type SafetensorsTensorGroup = {
+  suffix: string;
+  dtype: string;
+  tensorCount: number;
+  elements: number;
+};
+
+type SafetensorsPackedShapeFacts = {
+  tensorCount: number;
+  elements: number;
+};
+
 type SafetensorsTensorFacts = {
   tensorCount: number;
-  parameterCount: number;
-  elementsByDtype: Array<[string, number]>;
+  groups: SafetensorsTensorGroup[];
+  packedShape: SafetensorsPackedShapeFacts | null;
 };
 
 export type SafetensorsRawFacts = {
@@ -116,13 +128,95 @@ function readExact(
   }
 }
 
-type SafetensorsHeaderSummary = {
-  tensorCount: number;
-  parameterCount: number;
-  elementsByDtype: Map<string, number>;
-};
+const QUANT_STATE_SEGMENT = ".quant_state.";
+const PACKED_SHAPE_SUFFIX = "weight_shape";
+const MAX_PACKED_SHAPE_DIMS = 8;
 
-export function readSafetensorsHeader(path: string): SafetensorsHeaderSummary {
+function tensorSuffix(name: string): string {
+  if (name.includes(QUANT_STATE_SEGMENT)) {
+    return "quant_state";
+  }
+  const separator = name.lastIndexOf(".");
+  return separator >= 0 ? name.slice(separator + 1) : name;
+}
+
+function groupKey(suffix: string, dtype: string): string {
+  return `${suffix}\0${dtype}`;
+}
+
+function mergeGroup(
+  groups: Map<string, SafetensorsTensorGroup>,
+  suffix: string,
+  dtype: string,
+  tensorCount: number,
+  elements: number,
+) {
+  const key = groupKey(suffix, dtype);
+  const group = groups.get(key) ?? {
+    suffix,
+    dtype,
+    tensorCount: 0,
+    elements: 0,
+  };
+  group.tensorCount += tensorCount;
+  group.elements += elements;
+  groups.set(key, group);
+}
+
+function mergePackedShape(
+  total: SafetensorsPackedShapeFacts | null,
+  addition: SafetensorsPackedShapeFacts | null,
+): SafetensorsPackedShapeFacts | null {
+  if (!addition) {
+    return total;
+  }
+  return {
+    tensorCount: (total?.tensorCount ?? 0) + addition.tensorCount,
+    elements: (total?.elements ?? 0) + addition.elements,
+  };
+}
+
+function readPackedShapeElements(
+  fd: number,
+  dataStart: number,
+  dtype: string,
+  dims: number,
+  offsets: unknown,
+): number | null {
+  if (
+    dtype !== "I64" ||
+    dims < 1 ||
+    dims > MAX_PACKED_SHAPE_DIMS ||
+    !Array.isArray(offsets)
+  ) {
+    return null;
+  }
+  const [start, end] = offsets;
+  if (
+    typeof start !== "number" ||
+    typeof end !== "number" ||
+    end - start !== dims * 8
+  ) {
+    return null;
+  }
+  const buffer = Buffer.alloc(dims * 8);
+  try {
+    readExact(fd, buffer, buffer.length, dataStart + start);
+  } catch {
+    return null;
+  }
+  let elements = 1;
+  for (let index = 0; index < dims; index += 1) {
+    const dim = Number(buffer.readBigInt64LE(index * 8));
+    if (!Number.isSafeInteger(dim) || dim <= 0) {
+      return null;
+    }
+    elements *= dim;
+  }
+  return elements;
+}
+
+export function readSafetensorsHeader(path: string): SafetensorsTensorFacts {
   const fd = openSync(path, "r");
   try {
     const lengthBuffer = Buffer.alloc(8);
@@ -140,9 +234,10 @@ export function readSafetensorsHeader(path: string): SafetensorsHeaderSummary {
       throw new Error("safetensors header is not a JSON object");
     }
 
+    const dataStart = 8 + Number(headerLength);
     let tensorCount = 0;
-    let parameterCount = 0;
-    const elementsByDtype = new Map<string, number>();
+    const groups = new Map<string, SafetensorsTensorGroup>();
+    let packedShape: SafetensorsPackedShapeFacts | null = null;
     for (const [name, info] of Object.entries(header)) {
       if (name === "__metadata__" || !isJsonObject(info)) {
         continue;
@@ -160,10 +255,25 @@ export function readSafetensorsHeader(path: string): SafetensorsHeaderSummary {
         }
       }
       tensorCount += 1;
-      parameterCount += elements;
-      elementsByDtype.set(dtype, (elementsByDtype.get(dtype) ?? 0) + elements);
+      const suffix = tensorSuffix(name);
+      mergeGroup(groups, suffix, dtype, 1, elements);
+      if (suffix === PACKED_SHAPE_SUFFIX) {
+        const unpacked = readPackedShapeElements(
+          fd,
+          dataStart,
+          dtype,
+          elements,
+          info.data_offsets,
+        );
+        if (unpacked !== null) {
+          packedShape = mergePackedShape(packedShape, {
+            tensorCount: 1,
+            elements: unpacked,
+          });
+        }
+      }
     }
-    return { tensorCount, parameterCount, elementsByDtype };
+    return { tensorCount, groups: [...groups.values()], packedShape };
   } finally {
     closeSync(fd);
   }
@@ -207,15 +317,43 @@ function readJsonObjectFile(
   }
 }
 
+const QUANTIZATION_CONFIG_KEY = "quantization_config";
+const QUANTIZATION_CONFIG_BULK_KEYS = new Set([
+  "ignore",
+  "modules_to_not_convert",
+  "llm_int8_skip_modules",
+]);
+
+function trimmedQuantizationConfig(value: JsonObject): JsonObject {
+  const trimmed: JsonObject = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!QUANTIZATION_CONFIG_BULK_KEYS.has(key)) {
+      trimmed[key] = entry;
+    }
+  }
+  return trimmed;
+}
+
 function captureJsonObject(value: JsonObject): JsonObject {
   const captured: JsonObject = {};
   for (const [key, entry] of Object.entries(value)) {
     const serialized = JSON.stringify(entry);
-    if (
-      serialized !== undefined &&
-      serialized.length <= CONFIG_VALUE_CAPTURE_LIMIT
-    ) {
+    if (serialized === undefined) {
+      continue;
+    }
+    if (serialized.length <= CONFIG_VALUE_CAPTURE_LIMIT) {
       captured[key] = entry;
+      continue;
+    }
+    if (key === QUANTIZATION_CONFIG_KEY && isJsonObject(entry)) {
+      const trimmed = trimmedQuantizationConfig(entry);
+      const trimmedSerialized = JSON.stringify(trimmed);
+      if (
+        trimmedSerialized !== undefined &&
+        trimmedSerialized.length <= CONFIG_VALUE_CAPTURE_LIMIT
+      ) {
+        captured[key] = trimmed;
+      }
     }
   }
   return captured;
@@ -304,20 +442,23 @@ export function readSafetensorsFacts(directory: string): SafetensorsReadResult {
     : presentWeights;
 
   let tensorCount = 0;
-  let parameterCount = 0;
-  const elementsByDtype = new Map<string, number>();
+  const groups = new Map<string, SafetensorsTensorGroup>();
+  let packedShape: SafetensorsPackedShapeFacts | null = null;
   let headerFailed = false;
   for (const name of weightFiles) {
     try {
       const summary = readSafetensorsHeader(join(directory, name));
       tensorCount += summary.tensorCount;
-      parameterCount += summary.parameterCount;
-      for (const [dtype, elements] of summary.elementsByDtype) {
-        elementsByDtype.set(
-          dtype,
-          (elementsByDtype.get(dtype) ?? 0) + elements,
+      for (const group of summary.groups) {
+        mergeGroup(
+          groups,
+          group.suffix,
+          group.dtype,
+          group.tensorCount,
+          group.elements,
         );
       }
+      packedShape = mergePackedShape(packedShape, summary.packedShape);
     } catch (error) {
       errors.push(`${name}: ${(error as Error).message}`);
       headerFailed = true;
@@ -352,8 +493,8 @@ export function readSafetensorsFacts(directory: string): SafetensorsReadResult {
           ? null
           : {
               tensorCount,
-              parameterCount,
-              elementsByDtype: [...elementsByDtype.entries()],
+              groups: [...groups.values()],
+              packedShape,
             },
     },
     errors,
@@ -393,14 +534,48 @@ function pickBoolean(
   return null;
 }
 
-function quantizationInfo(config: JsonObject | null): {
+type QuantizationScheme = {
   method: string | null;
+  bits: number | null;
+  floatWeights: boolean;
+  bnb4BitType: string | null;
   label: string | null;
-} {
+};
+
+function compressedTensorsGroupWeights(raw: JsonObject): JsonObject | null {
+  const configGroups = raw.config_groups;
+  if (!isJsonObject(configGroups)) {
+    return null;
+  }
+  let weights: JsonObject | null = null;
+  let bits: number | null = null;
+  for (const group of Object.values(configGroups)) {
+    if (!isJsonObject(group) || !isJsonObject(group.weights)) {
+      continue;
+    }
+    const groupBits = pickNumber(group.weights, ["num_bits"]);
+    if (weights === null) {
+      weights = group.weights;
+      bits = groupBits;
+    } else if (groupBits !== bits) {
+      return null;
+    }
+  }
+  return weights;
+}
+
+function quantizationScheme(config: JsonObject | null): QuantizationScheme {
   const raw = config?.quantization_config;
   if (!isJsonObject(raw)) {
-    return { method: null, label: null };
+    return {
+      method: null,
+      bits: null,
+      floatWeights: false,
+      bnb4BitType: null,
+      label: null,
+    };
   }
+  const groupWeights = compressedTensorsGroupWeights(raw);
   const method =
     pickString(raw, ["quant_method"]) ??
     (raw.load_in_4bit === true || raw.load_in_8bit === true
@@ -408,13 +583,225 @@ function quantizationInfo(config: JsonObject | null): {
       : null);
   const bits =
     pickNumber(raw, ["bits", "w_bit", "weight_bits", "num_bits"]) ??
+    pickNumber(groupWeights, ["num_bits"]) ??
     (raw.load_in_4bit === true ? 4 : raw.load_in_8bit === true ? 8 : null);
+  const floatWeights =
+    pickString(groupWeights, ["type"]) === "float" || method === "mxfp4";
   const label = method
     ? `${method}${bits !== null ? ` ${bits}-bit` : ""}`
     : bits !== null
       ? `${bits}-bit`
       : "quantized";
-  return { method, label };
+  return {
+    method,
+    bits,
+    floatWeights,
+    bnb4BitType: pickString(raw, ["bnb_4bit_quant_type"]),
+    label,
+  };
+}
+
+const QUANTIZATION_OVERHEAD_SUFFIXES = new Set([
+  "scales",
+  "zeros",
+  "qzeros",
+  "g_idx",
+  "quant_state",
+  "absmax",
+  "nested_absmax",
+  "quant_map",
+  "nested_quant_map",
+  "SCB",
+  "weight_format",
+  "weight_scale",
+  "weight_zero_point",
+  "weight_shape",
+  "weight_g_idx",
+  "weight_scale_inv",
+  "weight_global_scale",
+  "input_scale",
+  "input_zero_point",
+  "input_global_scale",
+  "output_scale",
+  "output_zero_point",
+  "k_scale",
+  "v_scale",
+  "q_scale",
+  "prob_scale",
+]);
+
+const PACKED_WEIGHT_SUFFIXES = new Set(["weight_packed", "qweight"]);
+
+const CONTAINER_BITS: Record<string, number> = {
+  I8: 8,
+  U8: 8,
+  I16: 16,
+  U16: 16,
+  I32: 32,
+  U32: 32,
+  I64: 64,
+  U64: 64,
+};
+
+function packFactorFromBits(dtype: string, bits: number | null): number | null {
+  if (bits === null || bits <= 0) {
+    return null;
+  }
+  const container = CONTAINER_BITS[dtype];
+  if (container === undefined || container % bits !== 0) {
+    return null;
+  }
+  return container / bits;
+}
+
+function suffixElements(
+  groups: SafetensorsTensorGroup[],
+  suffix: string,
+): number {
+  let total = 0;
+  for (const group of groups) {
+    if (group.suffix === suffix) {
+      total += group.elements;
+    }
+  }
+  return total;
+}
+
+function inferredPackFactor(
+  dtype: string,
+  scalesElements: number,
+  zerosElements: number,
+): number | null {
+  const container = CONTAINER_BITS[dtype];
+  if (container === undefined || scalesElements <= 0 || zerosElements <= 0) {
+    return null;
+  }
+  const factor = scalesElements / zerosElements;
+  if (!Number.isInteger(factor) || factor < 2 || container % factor !== 0) {
+    return null;
+  }
+  return factor;
+}
+
+function isBnb4BitWeight(
+  group: SafetensorsTensorGroup,
+  scheme: QuantizationScheme,
+): boolean {
+  return (
+    scheme.method === "bitsandbytes" &&
+    scheme.bits === 4 &&
+    group.suffix === "weight" &&
+    group.dtype === "U8"
+  );
+}
+
+type SafetensorsTensorStats = {
+  parameterCount: number | null;
+  elementsByDtype: Array<[string, number]>;
+};
+
+function deriveTensorStats(
+  tensors: SafetensorsTensorFacts | null,
+  scheme: QuantizationScheme,
+): SafetensorsTensorStats {
+  if (!tensors) {
+    return { parameterCount: null, elementsByDtype: [] };
+  }
+  const byLabel = new Map<string, number>();
+  const add = (label: string, elements: number) => {
+    byLabel.set(label, (byLabel.get(label) ?? 0) + elements);
+  };
+  const finish = (unresolved: boolean): SafetensorsTensorStats => {
+    const elementsByDtype = [...byLabel.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+    let total = 0;
+    for (const [, elements] of elementsByDtype) {
+      total += elements;
+    }
+    return { parameterCount: unresolved ? null : total, elementsByDtype };
+  };
+
+  const quantized =
+    scheme.method !== null ||
+    tensors.groups.some((group) => PACKED_WEIGHT_SUFFIXES.has(group.suffix));
+  if (!quantized) {
+    for (const group of tensors.groups) {
+      add(group.dtype, group.elements);
+    }
+    return finish(false);
+  }
+
+  const packedLabel =
+    scheme.bits !== null
+      ? `${scheme.floatWeights ? "fp" : "int"}${scheme.bits}`
+      : "packed";
+  const packedTensorTotal = tensors.groups.reduce(
+    (total, group) =>
+      group.suffix === "weight_packed" ? total + group.tensorCount : total,
+    0,
+  );
+  const packedShapeUsable =
+    tensors.packedShape !== null &&
+    packedTensorTotal > 0 &&
+    tensors.packedShape.tensorCount === packedTensorTotal;
+  const scalesElements = suffixElements(tensors.groups, "scales");
+  const qzerosElements = suffixElements(tensors.groups, "qzeros");
+
+  let unresolved = false;
+  for (const group of tensors.groups) {
+    if (QUANTIZATION_OVERHEAD_SUFFIXES.has(group.suffix)) {
+      continue;
+    }
+    if (scheme.method === "mxfp4" && group.suffix.endsWith("scales")) {
+      continue;
+    }
+    if (scheme.method === "mxfp4" && group.suffix.endsWith("blocks")) {
+      add("fp4", group.elements * 2);
+      continue;
+    }
+    if (group.suffix === "weight_packed") {
+      if (packedShapeUsable) {
+        continue;
+      }
+      const factor = packFactorFromBits(group.dtype, scheme.bits);
+      if (factor === null) {
+        unresolved = true;
+        add(group.dtype, group.elements);
+      } else {
+        add(packedLabel, group.elements * factor);
+      }
+      continue;
+    }
+    if (group.suffix === "qweight") {
+      const factor =
+        packFactorFromBits(group.dtype, scheme.bits) ??
+        inferredPackFactor(group.dtype, scalesElements, qzerosElements);
+      if (factor === null) {
+        unresolved = true;
+        add(group.dtype, group.elements);
+        continue;
+      }
+      const container = CONTAINER_BITS[group.dtype];
+      const label =
+        scheme.bits !== null
+          ? packedLabel
+          : container !== undefined
+            ? `int${container / factor}`
+            : "packed";
+      add(label, group.elements * factor);
+      continue;
+    }
+    if (isBnb4BitWeight(group, scheme)) {
+      add(scheme.bnb4BitType ?? "int4", group.elements * 2);
+      continue;
+    }
+    add(group.dtype, group.elements);
+  }
+  if (packedShapeUsable && tensors.packedShape) {
+    add(packedLabel, tensors.packedShape.elements);
+  }
+  return finish(unresolved);
 }
 
 function dominantDtypeLabel(
@@ -460,8 +847,9 @@ export function deriveSafetensorsMetadata(
       ? "adapter"
       : "weights";
 
-  const quantization = quantizationInfo(config);
-  const elementsByDtype = facts.tensors?.elementsByDtype ?? [];
+  const quantization = quantizationScheme(config);
+  const stats = deriveTensorStats(facts.tensors, quantization);
+  const elementsByDtype = stats.elementsByDtype;
   const dominantDtype = dominantDtypeLabel(elementsByDtype);
 
   const ropeScalingRaw = config?.rope_scaling ?? textConfig?.rope_scaling;
@@ -484,9 +872,7 @@ export function deriveSafetensorsMetadata(
     quantization: quantization.label ?? dominantDtype,
     quantizationMethod: quantization.method,
     parameterCount:
-      facts.tensors && missingShards.length === 0
-        ? facts.tensors.parameterCount
-        : null,
+      facts.tensors && missingShards.length === 0 ? stats.parameterCount : null,
     tensorCount: facts.tensors?.tensorCount ?? null,
     contextLength: num(["max_position_embeddings"]),
     embeddingLength: num(["hidden_size"]),

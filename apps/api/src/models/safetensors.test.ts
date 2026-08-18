@@ -12,7 +12,7 @@ import {
   safetensorsMissingShardNames,
 } from "./safetensors.js";
 
-type TensorSpec = [name: string, dtype: string, shape: number[]];
+type TensorSpec = [name: string, dtype: string, shape: number[], data?: Buffer];
 
 function safetensorsBuffer(
   tensors: TensorSpec[],
@@ -21,20 +21,35 @@ function safetensorsBuffer(
   const header: Record<string, unknown> = metadata
     ? { __metadata__: metadata }
     : {};
-  for (const [name, dtype, shape] of tensors) {
-    header[name] = { dtype, shape, data_offsets: [0, 0] };
+  const payloads: Buffer[] = [];
+  let offset = 0;
+  for (const [name, dtype, shape, data] of tensors) {
+    const payload = data ?? Buffer.alloc(0);
+    header[name] = {
+      dtype,
+      shape,
+      data_offsets: [offset, offset + payload.length],
+    };
+    payloads.push(payload);
+    offset += payload.length;
   }
   const json = Buffer.from(JSON.stringify(header), "utf8");
   const length = Buffer.alloc(8);
   length.writeBigUInt64LE(BigInt(json.length), 0);
-  return Buffer.concat([length, json]);
+  return Buffer.concat([length, json, ...payloads]);
+}
+
+function int64Dims(dims: number[]) {
+  const buffer = Buffer.alloc(dims.length * 8);
+  dims.forEach((dim, index) => buffer.writeBigInt64LE(BigInt(dim), index * 8));
+  return buffer;
 }
 
 function makeDir() {
   return mkdtempSync(join(tmpdir(), "arriero-safetensors-"));
 }
 
-test("readSafetensorsHeader sums tensor elements per dtype", () => {
+test("readSafetensorsHeader groups tensor elements per suffix and dtype", () => {
   const dir = makeDir();
   try {
     const path = join(dir, "model.safetensors");
@@ -42,9 +57,9 @@ test("readSafetensorsHeader sums tensor elements per dtype", () => {
       path,
       safetensorsBuffer(
         [
-          ["a", "BF16", [4, 4]],
-          ["b", "BF16", [4]],
-          ["c", "F32", []],
+          ["model.embed.weight", "BF16", [4, 4]],
+          ["model.norm.weight", "BF16", [4]],
+          ["model.scalar", "F32", []],
         ],
         { format: "pt" },
       ),
@@ -52,9 +67,11 @@ test("readSafetensorsHeader sums tensor elements per dtype", () => {
 
     const summary = readSafetensorsHeader(path);
     assert.equal(summary.tensorCount, 3);
-    assert.equal(summary.parameterCount, 21);
-    assert.equal(summary.elementsByDtype.get("BF16"), 20);
-    assert.equal(summary.elementsByDtype.get("F32"), 1);
+    assert.deepEqual(summary.groups, [
+      { suffix: "weight", dtype: "BF16", tensorCount: 2, elements: 20 },
+      { suffix: "scalar", dtype: "F32", tensorCount: 1, elements: 1 },
+    ]);
+    assert.equal(summary.packedShape, null);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -227,6 +244,323 @@ test("quantization_config produces the quantization label and method", () => {
   }
 });
 
+test("compressed-tensors pack-quantized unpacks via weight_shape and drops overhead", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.embed_tokens.weight", "BF16", [4, 4]],
+        ["model.layers.0.mlp.up_proj.weight_packed", "I32", [4, 1]],
+        [
+          "model.layers.0.mlp.up_proj.weight_shape",
+          "I64",
+          [2],
+          int64Dims([4, 8]),
+        ],
+        ["model.layers.0.mlp.up_proj.weight_scale", "BF16", [4, 1]],
+        ["model.layers.0.mlp.up_proj.weight_zero_point", "I32", [1, 1]],
+      ]),
+    );
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        model_type: "qwen3",
+        quantization_config: {
+          quant_method: "compressed-tensors",
+          format: "pack-quantized",
+          config_groups: {
+            group_0: { weights: { num_bits: 4, type: "int" } },
+          },
+        },
+      }),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 48);
+    assert.deepEqual(metadata.elementsByDtype, [
+      ["int4", 32],
+      ["BF16", 16],
+    ]);
+    assert.equal(metadata.dominantDtype, "int4");
+    assert.equal(metadata.quantization, "compressed-tensors 4-bit");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("pack-quantized without readable weight_shape falls back to the bits pack factor", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.embed_tokens.weight", "BF16", [4, 4]],
+        ["model.layers.0.mlp.up_proj.weight_packed", "I32", [4, 1]],
+        ["model.layers.0.mlp.up_proj.weight_scale", "BF16", [4, 1]],
+      ]),
+    );
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        quantization_config: {
+          quant_method: "compressed-tensors",
+          config_groups: { group_0: { weights: { num_bits: 4 } } },
+        },
+      }),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 48);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("awq gemm qweight expands by the configured bit width", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.embed_tokens.weight", "F16", [4, 4]],
+        ["model.layers.0.self_attn.q_proj.qweight", "I32", [4, 2]],
+        ["model.layers.0.self_attn.q_proj.qzeros", "I32", [1, 2]],
+        ["model.layers.0.self_attn.q_proj.scales", "F16", [1, 16]],
+      ]),
+    );
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        quantization_config: { quant_method: "awq", bits: 4 },
+      }),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 80);
+    assert.deepEqual(metadata.elementsByDtype, [
+      ["int4", 64],
+      ["F16", 16],
+    ]);
+    assert.equal(metadata.quantization, "awq 4-bit");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("qweight without configured bits infers the pack factor from scales and qzeros", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.layers.0.self_attn.q_proj.qweight", "I32", [4, 2]],
+        ["model.layers.0.self_attn.q_proj.qzeros", "I32", [1, 2]],
+        ["model.layers.0.self_attn.q_proj.scales", "F16", [1, 16]],
+      ]),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 64);
+    assert.deepEqual(metadata.elementsByDtype, [["int4", 64]]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("qweight with no bits and no scales ratio keeps the parameter count null", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.layers.0.self_attn.q_proj.qweight", "I32", [4, 2]],
+      ]),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, null);
+    assert.deepEqual(metadata.elementsByDtype, [["I32", 8]]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("int-quantized weights count as stored while scales are excluded", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["lm_head.weight", "BF16", [4, 4]],
+        ["model.layers.0.mlp.up_proj.weight", "I8", [4, 4]],
+        ["model.layers.0.mlp.up_proj.weight_scale", "BF16", [4, 1]],
+      ]),
+    );
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        quantization_config: {
+          quant_method: "compressed-tensors",
+          format: "int-quantized",
+          config_groups: { group_0: { weights: { num_bits: 8, type: "int" } } },
+        },
+      }),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 32);
+    assert.equal(metadata.quantization, "compressed-tensors 8-bit");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("dense fake-quantized weights count fully with scale remnants excluded", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.layers.0.mlp.up_proj.weight", "BF16", [4, 8]],
+        ["model.layers.0.mlp.up_proj.weight_scale", "BF16", [4, 1]],
+        ["model.layers.0.mlp.up_proj.weight_zero_point", "I8", [4, 1]],
+      ]),
+    );
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        quantization_config: {
+          quant_method: "compressed-tensors",
+          format: "dense",
+          config_groups: { group_0: { weights: { num_bits: 4, type: "int" } } },
+        },
+      }),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 32);
+    assert.deepEqual(metadata.elementsByDtype, [["BF16", 32]]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("bitsandbytes 4-bit doubles packed U8 weights and drops quant state", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.layers.0.mlp.up_proj.weight", "U8", [8, 1]],
+        ["model.layers.0.mlp.up_proj.weight.absmax", "U8", [1]],
+        ["model.layers.0.mlp.up_proj.weight.quant_map", "F32", [16]],
+        [
+          "model.layers.0.mlp.up_proj.weight.quant_state.bitsandbytes__nf4",
+          "U8",
+          [100],
+        ],
+        ["model.norm.weight", "F32", [4]],
+      ]),
+    );
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        quantization_config: {
+          quant_method: "bitsandbytes",
+          load_in_4bit: true,
+          bnb_4bit_quant_type: "nf4",
+        },
+      }),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 20);
+    assert.deepEqual(metadata.elementsByDtype, [
+      ["nf4", 16],
+      ["F32", 4],
+    ]);
+    assert.equal(metadata.quantization, "bitsandbytes 4-bit");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("mxfp4 blocks double while their scales are excluded", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.embed_tokens.weight", "BF16", [4, 4]],
+        ["model.layers.0.mlp.experts.down_proj_blocks", "U8", [2, 16]],
+        ["model.layers.0.mlp.experts.down_proj_scales", "U8", [2, 1]],
+      ]),
+    );
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ quantization_config: { quant_method: "mxfp4" } }),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 80);
+    assert.deepEqual(metadata.elementsByDtype, [
+      ["fp4", 64],
+      ["BF16", 16],
+    ]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an unquantized model keeps quantization-looking suffixes in the count", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.embed_tokens.weight", "BF16", [4, 4]],
+        ["model.logit_processor.scales", "F32", [4]],
+      ]),
+    );
+    writeFileSync(join(dir, "config.json"), JSON.stringify({}));
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 20);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an oversized quantization_config keeps its scheme with bulk lists trimmed", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([["model.embed_tokens.weight", "BF16", [4, 4]]]),
+    );
+    const ignore: string[] = [];
+    for (let index = 0; index < 1000; index += 1) {
+      ignore.push(`model.layers.${index}.some.module.that.is.not.converted`);
+    }
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        quantization_config: { quant_method: "awq", bits: 4, ignore },
+      }),
+    );
+
+    const { facts } = readSafetensorsFacts(dir);
+    const captured = facts.config?.quantization_config;
+    assert.ok(captured && typeof captured === "object");
+    assert.equal((captured as { quant_method?: string }).quant_method, "awq");
+    assert.equal("ignore" in (captured as object), false);
+    assert.equal(deriveSafetensorsMetadata(facts).quantization, "awq 4-bit");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("an adapter_config.json dir is an adapter with its base model", () => {
   const dir = makeDir();
   try {
@@ -335,8 +669,9 @@ test("a malformed config.json is reported but header facts survive", () => {
     assert.equal(errors.length, 1);
     assert.match(errors[0] ?? "", /config\.json/);
     assert.equal(facts.config, null);
-    assert.equal(facts.tensors?.parameterCount, 3);
-    assert.equal(deriveSafetensorsMetadata(facts).kind, "weights");
+    const metadata = deriveSafetensorsMetadata(facts);
+    assert.equal(metadata.parameterCount, 3);
+    assert.equal(metadata.kind, "weights");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
