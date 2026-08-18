@@ -1,6 +1,6 @@
 import { ArgumentOptionSchema, type ArgumentOption } from "@arriero/core";
 import { strict as assert } from "node:assert";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -29,11 +29,13 @@ function saveCatalog(
   options: ArgumentOption[],
   parserId = "llama-help",
 ) {
+  writeFileSync(binaryPath, `fake-binary:${binaryPath}`);
+  const stat = statSync(binaryPath);
   saveArgumentCatalog({
     binaryPath,
-    binarySize: 1,
-    binaryMtimeMs: "1",
-    binaryModifiedAt: "2026-08-17T00:00:00.000Z",
+    binarySize: stat.size,
+    binaryMtimeMs: String(stat.mtimeMs),
+    binaryModifiedAt: stat.mtime.toISOString(),
     helpHash: "test",
     options,
     generatedAt: "2026-08-17T00:00:00.000Z",
@@ -95,6 +97,27 @@ test("cachedGpuLayersDefaults is null for uncatalogued binaries and non-llama pa
       "vllm-help",
     );
     assert.deepEqual(cachedGpuLayersDefaults(vllmPath), {
+      main: null,
+      draft: null,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("cachedGpuLayersDefaults rejects a catalog cached for a different binary build", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-binary-defaults-"));
+  try {
+    const binaryPath = join(dir, "llama-server");
+    saveCatalog(binaryPath, [
+      option(["--gpu-layers", "-ngl"], "layers (default: auto)"),
+    ]);
+    assert.deepEqual(cachedGpuLayersDefaults(binaryPath), {
+      main: "auto",
+      draft: null,
+    });
+    writeFileSync(binaryPath, "rebuilt-binary-with-a-different-size");
+    assert.deepEqual(cachedGpuLayersDefaults(binaryPath), {
       main: null,
       draft: null,
     });

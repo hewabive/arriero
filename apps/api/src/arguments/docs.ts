@@ -11,6 +11,7 @@ import {
   readFileSync,
   readSync,
   statSync,
+  type Stats,
 } from "node:fs";
 import { resolve } from "node:path";
 
@@ -162,23 +163,15 @@ function firstMarkdownParagraph(markdown: string) {
   return paragraph?.replace(/\s+/g, " ").slice(0, 240) ?? null;
 }
 
-const DOC_INDEX_CACHE_TTL_MS = 5_000;
-
 const docIndexCache = new Map<
   string,
-  { value: LlamaArgumentDocIndex; expiresAt: number }
+  { mtimeMs: number; size: number; value: LlamaArgumentDocIndex }
 >();
 
-function readArgumentDocIndex(path: string): LlamaArgumentDocIndex {
-  if (!existsSync(path)) {
-    return {
-      exists: false,
-      path,
-      summary: null,
-      updatedAt: null,
-    };
-  }
-
+function readArgumentDocIndex(
+  path: string,
+  stat: Stats,
+): LlamaArgumentDocIndex {
   const parsed = parseArgumentDocFile(readFilePrefix(path));
   return {
     exists: true,
@@ -186,7 +179,7 @@ function readArgumentDocIndex(path: string): LlamaArgumentDocIndex {
     summary:
       stringFrontmatter(parsed.frontmatter, "summary") ??
       firstMarkdownParagraph(parsed.markdown),
-    updatedAt: statSync(path).mtime.toISOString(),
+    updatedAt: stat.mtime.toISOString(),
   };
 }
 
@@ -195,18 +188,25 @@ function getArgumentDocIndex(
   directory: string,
 ): LlamaArgumentDocIndex {
   const path = argumentDocPath(option.primaryName, directory);
-  const now = Date.now();
+  let stat: Stats;
+  try {
+    stat = statSync(path);
+  } catch {
+    docIndexCache.delete(path);
+    return {
+      exists: false,
+      path,
+      summary: null,
+      updatedAt: null,
+    };
+  }
   const cached = docIndexCache.get(path);
-  if (cached && cached.expiresAt > now) {
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
     return cached.value;
   }
-  const value = readArgumentDocIndex(path);
-  docIndexCache.set(path, { value, expiresAt: now + DOC_INDEX_CACHE_TTL_MS });
+  const value = readArgumentDocIndex(path, stat);
+  docIndexCache.set(path, { mtimeMs: stat.mtimeMs, size: stat.size, value });
   return value;
-}
-
-export function resetArgumentDocIndexCache(): void {
-  docIndexCache.clear();
 }
 
 export function withArgumentDocIndex(

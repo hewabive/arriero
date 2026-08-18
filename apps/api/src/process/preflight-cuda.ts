@@ -7,6 +7,18 @@ import {
   type SystemAccelerator,
 } from "@arriero/core";
 
+import { getSystemAccelerators } from "../system/resources.js";
+import type { PreflightOptions } from "./preflight.js";
+
+export function nvidiaGpuAccelerators(
+  options: PreflightOptions,
+): SystemAccelerator[] {
+  return (options.accelerators ?? getSystemAccelerators()).filter(
+    (accelerator) =>
+      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
+  );
+}
+
 export function pushCudaComputeCapabilityIssues(input: {
   issues: ProcessPreflightIssue[];
   detected: SystemAccelerator[];

@@ -7,12 +7,13 @@ import {
   type EnvironmentJobStepName,
   type EnvironmentSpec,
 } from "@arriero/core";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
 import { createJsonFileStore } from "../config-store/file-store.js";
 import { createJobStore } from "../jobs/store.js";
+import { isPathWithin } from "../path-utils.js";
 import { newId } from "../utils/id.js";
 import { environmentDirectory } from "./paths.js";
 
@@ -58,12 +59,8 @@ export function getEnvironmentSpec(id: string) {
 export function environmentSpecForBinaryPath(binaryPath: string) {
   const resolved = resolve(binaryPath);
   return (
-    load().find((spec) => {
-      const directory = environmentDirectory(spec);
-      return (
-        resolved === directory || resolved.startsWith(`${directory}${sep}`)
-      );
-    }) ?? null
+    load().find((spec) => isPathWithin(environmentDirectory(spec), resolved)) ??
+    null
   );
 }
 

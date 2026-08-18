@@ -95,6 +95,7 @@ import {
   instancePort,
   nextAvailablePort,
   parseEnvJson,
+  pythonEngineDefaultRows,
   RPC_WORKER_DEFAULT_PORT,
   presetNameFromPath,
   splitCudaVisibleDevices,
@@ -118,6 +119,11 @@ import {
   setDefaultValueRows,
 } from "./instance-form-arg-rows";
 
+export type InstanceFormInitialModel = {
+  path: string;
+  format: "gguf" | "safetensors";
+};
+
 export type InstanceFormModalProps = {
   opened: boolean;
   onClose: () => void;
@@ -126,8 +132,7 @@ export type InstanceFormModalProps = {
   onLaunchStarted?: (instance: Instance, source: "create") => void;
   instance?: Instance | null;
   duplicateFrom?: Instance | null;
-  initialModelPath?: string | null;
-  initialSafetensorsPath?: string | null;
+  initialModel?: InstanceFormInitialModel | null;
 };
 
 const RPC_WORKER_ARG_KEYS = new Set(
@@ -218,7 +223,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       : props.duplicateFrom
         ? `duplicate:${props.duplicateFrom.name}`
         : "new"
-  }:${props.initialModelPath ?? ""}:${props.initialSafetensorsPath ?? ""}`;
+  }:${props.initialModel ? `${props.initialModel.format}:${props.initialModel.path}` : ""}`;
   const resourcesQuery = useQuery({
     queryKey: ["resources"],
     queryFn: getResources,
@@ -762,10 +767,12 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setNumaBindNode(numa?.mode === "bind" ? numa.node : null);
       setNumaInterleaveNodes(numa?.mode === "interleave" ? numa.nodes : []);
     } else {
-      const safetensorsPath = props.initialSafetensorsPath ?? null;
-      const modelPath = safetensorsPath
-        ? null
-        : (props.initialModelPath ?? null);
+      const safetensorsPath =
+        props.initialModel?.format === "safetensors"
+          ? props.initialModel.path
+          : null;
+      const modelPath =
+        props.initialModel?.format === "gguf" ? props.initialModel.path : null;
       const seedPath = safetensorsPath ?? modelPath;
       const seedKind = safetensorsPath ? "vllm" : "llama-server";
       derivedNamesRef.current = new Set(
@@ -794,26 +801,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setSpecAdvancedOpen(false);
       setStartAfterCreate(false);
       if (safetensorsPath) {
-        setArgRows([
-          {
-            id: createUiId(),
-            key: "--host",
-            value: "127.0.0.1",
-            valueType: "string",
-          },
-          {
-            id: createUiId(),
-            key: "--port",
-            value: String(
-              nextAvailablePort(
-                props.instances,
-                undefined,
-                engineDescriptor("vllm").http.defaultPort,
-              ),
-            ),
-            valueType: "number",
-          },
-        ]);
+        setArgRows(pythonEngineDefaultRows("vllm", props.instances));
       } else {
         setArgRows(
           defaultRows(
@@ -1260,26 +1248,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setSelectedPresetName(null);
       setRpcWorkers([]);
       setLaunchMode("model");
-      setArgRows([
-        {
-          id: createUiId(),
-          key: "--host",
-          value: "127.0.0.1",
-          valueType: "string",
-        },
-        {
-          id: createUiId(),
-          key: "--port",
-          value: String(
-            nextAvailablePort(
-              props.instances,
-              props.instance?.name,
-              engineDescriptor("vllm").http.defaultPort,
-            ),
-          ),
-          valueType: "number",
-        },
-      ]);
+      setArgRows(
+        pythonEngineDefaultRows("vllm", props.instances, props.instance?.name),
+      );
       return;
     }
     if (next === "ktransformers") {
@@ -1305,26 +1276,13 @@ export function useInstanceForm(props: InstanceFormModalProps) {
           gib: "",
         })),
       );
-      setArgRows([
-        {
-          id: createUiId(),
-          key: "--host",
-          value: "127.0.0.1",
-          valueType: "string",
-        },
-        {
-          id: createUiId(),
-          key: "--port",
-          value: String(
-            nextAvailablePort(
-              props.instances,
-              props.instance?.name,
-              engineDescriptor("ktransformers").http.defaultPort,
-            ),
-          ),
-          valueType: "number",
-        },
-      ]);
+      setArgRows(
+        pythonEngineDefaultRows(
+          "ktransformers",
+          props.instances,
+          props.instance?.name,
+        ),
+      );
       return;
     }
     setArgRows((rows) => {

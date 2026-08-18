@@ -8,8 +8,10 @@ import { accessSync, constants, existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 
 import { environmentSpecForBinaryPath } from "../envs/repository.js";
-import { getSystemAccelerators } from "../system/resources.js";
-import { pushCudaComputeCapabilityIssues } from "./preflight-cuda.js";
+import {
+  nvidiaGpuAccelerators,
+  pushCudaComputeCapabilityIssues,
+} from "./preflight-cuda.js";
 import type { PreflightOptions } from "./preflight.js";
 
 function localModelPath(instance: Instance, model: string) {
@@ -78,10 +80,7 @@ function validateGpu(
   if (variant === "cpu" || variant === "rocm") {
     return;
   }
-  const detected = (options.accelerators ?? getSystemAccelerators()).filter(
-    (accelerator) =>
-      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
-  );
+  const detected = nvidiaGpuAccelerators(options);
   if (detected.length === 0) {
     if (variant === "cuda") {
       issues.push({

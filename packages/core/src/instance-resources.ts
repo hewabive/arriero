@@ -423,14 +423,14 @@ function resourceProfileContext(
           input.gpuLayersDefault ?? ASSUMED_GPU_LAYERS_DEFAULT,
         )
       : null;
-  const gpuRequestFromBinaryDefault =
+  const usableDefaultGpuRequest =
     defaultGpuRequest !== null &&
     (defaultGpuRequest.kind === "all" ||
-      (defaultGpuRequest.kind === "count" && defaultGpuRequest.count > 0));
-  const gpuRequest =
-    gpuRequestFromBinaryDefault && defaultGpuRequest !== null
+      (defaultGpuRequest.kind === "count" && defaultGpuRequest.count > 0))
       ? defaultGpuRequest
-      : configuredGpuRequest;
+      : null;
+  const gpuRequest = usableDefaultGpuRequest ?? configuredGpuRequest;
+  const gpuRequestFromBinaryDefault = usableDefaultGpuRequest !== null;
   const cpuMoe = parseCpuMoe(input.args);
   const blockCount = input.model?.blockCount ?? null;
   const expertCount = input.model?.expertCount ?? null;

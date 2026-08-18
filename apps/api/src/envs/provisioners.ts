@@ -1,5 +1,4 @@
 import {
-  cudaComputeCapabilityShortfall,
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
   type EnvironmentEngine,
   type EnvironmentSpec,
@@ -245,28 +244,17 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
         availabilityReason: "KTransformers requires Python 3.11 or 3.12",
       };
     }
-    const hasNvidia = context.accelerators.some(
-      (accelerator) => accelerator.vendor === "NVIDIA",
-    );
-    if (!hasNvidia) {
-      return {
-        availability: "unavailable",
-        availabilityReason:
-          "KTransformers requires an NVIDIA GPU available through NVML",
-      };
-    }
-    const shortfall = cudaComputeCapabilityShortfall(
-      context.accelerators,
-      ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.ktransformers,
-      this.displayName,
-    );
-    if (shortfall) {
-      return { availability: "unavailable", availabilityReason: shortfall };
-    }
-    if (!context.installed) {
-      return { availability: "not-installed", availabilityReason: null };
-    }
-    return { availability: "usable", availabilityReason: null };
+    return environmentAvailability({
+      accelerators: context.accelerators,
+      installed: context.installed,
+      rocmDeviceAvailable: context.rocmDeviceAvailable,
+      variant: spec.variant,
+      cuda: {
+        engineLabel: this.displayName,
+        minimumComputeCapability:
+          ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.ktransformers,
+      },
+    });
   },
   catalogName(spec) {
     return `KTransformers ${spec.version} [${spec.id.slice(0, 8)}]`.slice(

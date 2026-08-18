@@ -5,11 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import {
-  parseArgumentDocFile,
-  resetArgumentDocIndexCache,
-  withArgumentDocIndex,
-} from "./docs.js";
+import { parseArgumentDocFile, withArgumentDocIndex } from "./docs.js";
 import { extractGeneratedHelpBlock } from "./docs-source.js";
 
 test("parseArgumentDocFile reads simple frontmatter and markdown", () => {
@@ -54,7 +50,7 @@ after
   assert.doesNotMatch(block, /before|after/);
 });
 
-test("withArgumentDocIndex caches doc reads per path until reset", () => {
+test("withArgumentDocIndex tracks doc file changes by stat", () => {
   const option = ArgumentOptionSchema.parse({
     primaryName: "--ctx-size",
     names: ["--ctx-size", "-c"],
@@ -81,15 +77,14 @@ test("withArgumentDocIndex caches doc reads per path until reset", () => {
     writeFileSync(docPath, docFile("second"));
     assert.equal(
       withArgumentDocIndex([option], directory)[0]?.doc.summary,
-      "first",
-    );
-    resetArgumentDocIndexCache();
-    assert.equal(
-      withArgumentDocIndex([option], directory)[0]?.doc.summary,
       "second",
+    );
+    rmSync(docPath);
+    assert.equal(
+      withArgumentDocIndex([option], directory)[0]?.doc.exists,
+      false,
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });
-    resetArgumentDocIndexCache();
   }
 });

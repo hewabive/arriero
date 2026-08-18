@@ -67,20 +67,18 @@ export function modelLayerInfo(model: GgufModel): ModelLayerInfo {
   return { isMoe: true, total: blockCount, dense, moe: blockCount - dense };
 }
 
+function compareTitleText(left: string, right: string) {
+  return left.localeCompare(right, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
 export function compareModelTitles(left: GgufModel, right: GgufModel) {
   return (
-    modelTitle(left).localeCompare(modelTitle(right), undefined, {
-      numeric: true,
-      sensitivity: "base",
-    }) ||
-    left.name.localeCompare(right.name, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    }) ||
-    left.path.localeCompare(right.path, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    })
+    compareTitleText(modelTitle(left), modelTitle(right)) ||
+    compareTitleText(left.name, right.name) ||
+    compareTitleText(left.path, right.path)
   );
 }
 
@@ -105,28 +103,37 @@ export function isVocabModel(model: GgufModel) {
   );
 }
 
-export function safetensorsMatchesSearch(
-  model: SafetensorsModel,
+function fieldsMatchSearch(
+  values: Array<string | number | null>,
   query: string,
 ) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
     return true;
   }
-
-  return [
-    model.name,
-    model.path,
-    model.metadata.architecture,
-    model.metadata.modelType,
-    model.metadata.quantization,
-    model.metadata.dominantDtype,
-    model.metadata.kind,
-    model.metadata.mtpParameterCount ? "mtp" : null,
-    model.metadata.visionParameterCount ? "vision" : null,
-  ]
+  return values
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(normalized));
+}
+
+export function safetensorsMatchesSearch(
+  model: SafetensorsModel,
+  query: string,
+) {
+  return fieldsMatchSearch(
+    [
+      model.name,
+      model.path,
+      model.metadata.architecture,
+      model.metadata.modelType,
+      model.metadata.quantization,
+      model.metadata.dominantDtype,
+      model.metadata.kind,
+      model.metadata.mtpParameterCount ? "mtp" : null,
+      model.metadata.visionParameterCount ? "vision" : null,
+    ],
+    query,
+  );
 }
 
 export function compareSafetensorsTitles(
@@ -134,33 +141,58 @@ export function compareSafetensorsTitles(
   right: SafetensorsModel,
 ) {
   return (
-    left.name.localeCompare(right.name, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    }) ||
-    left.path.localeCompare(right.path, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    })
+    compareTitleText(left.name, right.name) ||
+    compareTitleText(left.path, right.path)
   );
 }
 
 export function modelMatchesSearch(model: GgufModel, query: string) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    return true;
-  }
+  return fieldsMatchSearch(
+    [
+      model.name,
+      model.path,
+      model.metadata.name,
+      model.metadata.architecture,
+      model.metadata.quantization,
+      model.metadata.sizeLabel,
+      model.metadata.basename,
+      model.metadata.nextnPredictLayers ? "mtp" : null,
+    ],
+    query,
+  );
+}
 
-  return [
-    model.name,
-    model.path,
-    model.metadata.name,
-    model.metadata.architecture,
-    model.metadata.quantization,
-    model.metadata.sizeLabel,
-    model.metadata.basename,
-    model.metadata.nextnPredictLayers ? "mtp" : null,
+function formatSampler(value: number) {
+  return String(Math.round(value * 1000) / 1000);
+}
+
+export function samplingSummary(metadata: {
+  samplingTemp: number | null;
+  samplingTopK: number | null;
+  samplingTopP: number | null;
+}) {
+  const summary = [
+    metadata.samplingTemp !== null
+      ? `temp ${formatSampler(metadata.samplingTemp)}`
+      : null,
+    metadata.samplingTopK !== null ? `top_k ${metadata.samplingTopK}` : null,
+    metadata.samplingTopP !== null
+      ? `top_p ${formatSampler(metadata.samplingTopP)}`
+      : null,
   ]
     .filter(Boolean)
-    .some((value) => String(value).toLowerCase().includes(normalized));
+    .join(", ");
+  return summary || null;
+}
+
+export function ropeScalingLabel(metadata: {
+  ropeScalingType: string | null;
+  ropeScalingFactor: number | null;
+}) {
+  if (!metadata.ropeScalingType) {
+    return null;
+  }
+  return `${metadata.ropeScalingType}${
+    metadata.ropeScalingFactor ? ` ×${metadata.ropeScalingFactor}` : ""
+  }`;
 }

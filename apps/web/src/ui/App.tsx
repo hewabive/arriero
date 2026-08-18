@@ -32,6 +32,7 @@ import { AppNav, type NavSectionBadge } from "./components/AppNav";
 import { CommandPalette } from "./components/CommandPalette";
 import { ConfigGitDirtyBadge } from "./components/ConfigGitDirtyBadge";
 import { InstanceFormModal } from "./components/InstanceFormModal";
+import { type InstanceFormInitialModel } from "./components/use-instance-form";
 import { NodeSwitcher } from "./components/NodeSwitcher";
 import { SectionTabs } from "./components/SectionTabs";
 import {
@@ -81,10 +82,8 @@ export function App() {
     mode: "edit" | "duplicate";
     instance: Instance;
   } | null>(null);
-  const [initialModelPath, setInitialModelPath] = useState<string | null>(null);
-  const [initialSafetensorsPath, setInitialSafetensorsPath] = useState<
-    string | null
-  >(null);
+  const [initialModel, setInitialModel] =
+    useState<InstanceFormInitialModel | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [launchMonitor, setLaunchMonitor] = useState<LaunchMonitor | null>(
     null,
@@ -497,13 +496,11 @@ export function App() {
           {canUseAdmin && route === "models" && (
             <ModelsView
               onUseModel={(model) => {
-                setInitialSafetensorsPath(null);
-                setInitialModelPath(model.path);
+                setInitialModel({ path: model.path, format: "gguf" });
                 setCreateOpened(true);
               }}
               onUseSafetensorsModel={(model) => {
-                setInitialModelPath(null);
-                setInitialSafetensorsPath(model.path);
+                setInitialModel({ path: model.path, format: "safetensors" });
                 setCreateOpened(true);
               }}
             />
@@ -534,14 +531,12 @@ export function App() {
       <InstanceFormModal
         opened={canUseAdmin && createOpened}
         instances={instances}
-        initialModelPath={initialModelPath}
-        initialSafetensorsPath={initialSafetensorsPath}
+        initialModel={initialModel}
         onSaved={(instance) => setSelectedId(instance.name)}
         onLaunchStarted={startLaunchMonitor}
         onClose={() => {
           setCreateOpened(false);
-          setInitialModelPath(null);
-          setInitialSafetensorsPath(null);
+          setInitialModel(null);
         }}
       />
       <InstanceFormModal

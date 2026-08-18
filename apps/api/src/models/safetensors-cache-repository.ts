@@ -1,10 +1,11 @@
 import type { SafetensorsMetadata, SafetensorsModel } from "@arriero/core";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns } from "drizzle-orm";
 import { existsSync } from "node:fs";
 
 import { db } from "../db/index.js";
 import { safetensorsCache } from "../db/schema.js";
 import { logger } from "../logger.js";
+import { deriveCacheRowMetadata, parseCacheJson } from "./cache-row.js";
 import {
   deriveSafetensorsMetadata,
   listSafetensorsWeightNames,
@@ -13,7 +14,15 @@ import {
   type SafetensorsRawFacts,
 } from "./safetensors.js";
 
-type SafetensorsCacheRow = typeof safetensorsCache.$inferSelect;
+const CACHE_LABEL = "safetensors";
+
+const { rawJson: omittedRawJson, ...safetensorsCacheListColumns } =
+  getTableColumns(safetensorsCache);
+
+type SafetensorsCacheListRow = Omit<
+  typeof safetensorsCache.$inferSelect,
+  "rawJson"
+>;
 
 export type CachedSafetensorsEntry = {
   sizeBytes: number;
@@ -24,59 +33,21 @@ export type CachedSafetensorsEntry = {
   derivedCurrent: boolean;
 };
 
-function parseJson<T>(value: string, path: string, field: string): T | null {
-  try {
-    return JSON.parse(value) as T;
-  } catch (error) {
-    logger.warn(
-      { err: error, path, field },
-      "safetensors cache row could not be parsed",
-    );
-    return null;
-  }
-}
-
-function factsFromRow(row: SafetensorsCacheRow): SafetensorsRawFacts | null {
-  if (row.rawVersion !== SAFETENSORS_RAW_VERSION || !row.rawJson) {
-    return null;
-  }
-  return parseJson<SafetensorsRawFacts>(row.rawJson, row.path, "raw_json");
-}
-
-function metadataFromRow(
-  row: SafetensorsCacheRow,
-  facts: () => SafetensorsRawFacts | null,
-): { metadata: SafetensorsMetadata | null; derivedCurrent: boolean } {
-  if (row.parserVersion === SAFETENSORS_PARSER_VERSION) {
-    const stored = parseJson<SafetensorsMetadata>(
-      row.metadataJson,
-      row.path,
-      "metadata_json",
-    );
-    if (stored) {
-      return { metadata: stored, derivedCurrent: true };
-    }
-  }
-  const loaded = facts();
-  return {
-    metadata: loaded ? deriveSafetensorsMetadata(loaded) : null,
-    derivedCurrent: false,
-  };
-}
-
 function modelFromRow(
-  row: SafetensorsCacheRow,
+  row: SafetensorsCacheListRow,
   metadata: SafetensorsMetadata,
 ): SafetensorsModel | null {
-  const weightFiles = parseJson<string[]>(
+  const weightFiles = parseCacheJson<string[]>(
     row.weightFilesJson,
     row.path,
     "weight_files_json",
+    CACHE_LABEL,
   );
-  const missingShardNames = parseJson<string[]>(
+  const missingShardNames = parseCacheJson<string[]>(
     row.missingShardsJson,
     row.path,
     "missing_shards_json",
+    CACHE_LABEL,
   );
   if (!weightFiles || !missingShardNames) {
     return null;
@@ -94,24 +65,39 @@ function modelFromRow(
   };
 }
 
-function entryFromRow(row: SafetensorsCacheRow): CachedSafetensorsEntry {
-  let factsMemo: SafetensorsRawFacts | null | undefined;
-  const facts = () => {
-    if (factsMemo === undefined) {
-      factsMemo = factsFromRow(row);
-    }
-    return factsMemo;
-  };
-  const { metadata, derivedCurrent } = metadataFromRow(row, facts);
+function cachedRawJson(path: string): string | null {
+  const row = db
+    .select({ rawJson: safetensorsCache.rawJson })
+    .from(safetensorsCache)
+    .where(eq(safetensorsCache.path, path))
+    .get();
+  return row?.rawJson ?? null;
+}
+
+function entryFromRow(
+  row: SafetensorsCacheListRow,
+  rawJson: () => string | null,
+): CachedSafetensorsEntry {
+  const derived = deriveCacheRowMetadata<
+    SafetensorsRawFacts,
+    SafetensorsMetadata
+  >({
+    row,
+    rawJson,
+    rawVersion: SAFETENSORS_RAW_VERSION,
+    parserVersion: SAFETENSORS_PARSER_VERSION,
+    label: CACHE_LABEL,
+    derive: deriveSafetensorsMetadata,
+  });
   return {
     sizeBytes: Number(row.sizeBytes),
     modifiedAt: row.modifiedAt,
-    model: metadata ? modelFromRow(row, metadata) : null,
+    model: derived.metadata ? modelFromRow(row, derived.metadata) : null,
     get facts() {
-      return facts();
+      return derived.facts();
     },
     error: row.error,
-    derivedCurrent,
+    derivedCurrent: derived.derivedCurrent,
   };
 }
 
@@ -123,15 +109,15 @@ export function getCachedSafetensorsEntry(
     .from(safetensorsCache)
     .where(eq(safetensorsCache.path, path))
     .get();
-  return row ? entryFromRow(row) : null;
+  return row ? entryFromRow(row, () => row.rawJson) : null;
 }
 
 export function listAllCachedSafetensorsModels(): SafetensorsModel[] {
   return db
-    .select()
+    .select(safetensorsCacheListColumns)
     .from(safetensorsCache)
     .all()
-    .map((row) => entryFromRow(row).model)
+    .map((row) => entryFromRow(row, () => cachedRawJson(row.path)).model)
     .filter((model): model is SafetensorsModel => model !== null);
 }
 
@@ -174,12 +160,17 @@ function directoryStillHoldsWeights(path: string): boolean {
   }
 }
 
-export function pruneMissingCachedSafetensorsModels(): number {
-  const rows = db.select().from(safetensorsCache).all();
+export function pruneMissingCachedSafetensorsModels(
+  survivingPaths?: ReadonlySet<string>,
+): number {
+  const rows = db
+    .select({ path: safetensorsCache.path })
+    .from(safetensorsCache)
+    .all();
   let deleted = 0;
 
   for (const row of rows) {
-    if (directoryStillHoldsWeights(row.path)) {
+    if (survivingPaths?.has(row.path) || directoryStillHoldsWeights(row.path)) {
       continue;
     }
 

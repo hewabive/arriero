@@ -8,7 +8,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
-  readSync,
+  type Stats,
 } from "node:fs";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -18,6 +18,7 @@ import {
   fileIdentityFromStats,
   type ModelFileIdentity,
 } from "./file-identity.js";
+import { readExactSync } from "./read-exact.js";
 
 export const SAFETENSORS_RAW_VERSION = 3;
 
@@ -100,17 +101,25 @@ export async function safetensorsDirIdentity(
   directory: string,
   weightPaths: string[],
 ): Promise<ModelFileIdentity> {
-  const stats = await Promise.all(weightPaths.map((path) => stat(path)));
-  for (const sidecar of SIDECAR_FILES) {
-    try {
-      stats.push(await stat(join(directory, sidecar)));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        throw error;
-      }
-    }
-  }
-  return fileIdentityFromStats(stats);
+  const [weightStats, sidecarStats] = await Promise.all([
+    Promise.all(weightPaths.map((path) => stat(path))),
+    Promise.all(
+      SIDECAR_FILES.map(async (sidecar) => {
+        try {
+          return await stat(join(directory, sidecar));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+            throw error;
+          }
+          return null;
+        }
+      }),
+    ),
+  ]);
+  return fileIdentityFromStats([
+    ...weightStats,
+    ...sidecarStats.filter((item): item is Stats => item !== null),
+  ]);
 }
 
 function readExact(
@@ -119,20 +128,7 @@ function readExact(
   length: number,
   position: number,
 ) {
-  let filled = 0;
-  while (filled < length) {
-    const bytesRead = readSync(
-      fd,
-      buffer,
-      filled,
-      length - filled,
-      position + filled,
-    );
-    if (bytesRead === 0) {
-      throw new Error("unexpected end of safetensors file");
-    }
-    filled += bytesRead;
-  }
+  readExactSync(fd, buffer, length, position, "safetensors");
 }
 
 const QUANT_STATE_SEGMENT = ".quant_state.";
@@ -158,36 +154,31 @@ function tensorPrefix(name: string): string {
 
 function mergePrefix(
   prefixes: Map<string, SafetensorsPrefixGroup>,
-  prefix: string,
-  tensorCount: number,
-  elements: number,
+  addition: SafetensorsPrefixGroup,
 ) {
-  const group = prefixes.get(prefix) ?? { prefix, tensorCount: 0, elements: 0 };
-  group.tensorCount += tensorCount;
-  group.elements += elements;
-  prefixes.set(prefix, group);
-}
-
-function groupKey(suffix: string, dtype: string): string {
-  return `${suffix}\0${dtype}`;
+  const group = prefixes.get(addition.prefix) ?? {
+    prefix: addition.prefix,
+    tensorCount: 0,
+    elements: 0,
+  };
+  group.tensorCount += addition.tensorCount;
+  group.elements += addition.elements;
+  prefixes.set(addition.prefix, group);
 }
 
 function mergeGroup(
   groups: Map<string, SafetensorsTensorGroup>,
-  suffix: string,
-  dtype: string,
-  tensorCount: number,
-  elements: number,
+  addition: SafetensorsTensorGroup,
 ) {
-  const key = groupKey(suffix, dtype);
+  const key = `${addition.suffix}\0${addition.dtype}`;
   const group = groups.get(key) ?? {
-    suffix,
-    dtype,
+    suffix: addition.suffix,
+    dtype: addition.dtype,
     tensorCount: 0,
     elements: 0,
   };
-  group.tensorCount += tensorCount;
-  group.elements += elements;
+  group.tensorCount += addition.tensorCount;
+  group.elements += addition.elements;
   groups.set(key, group);
 }
 
@@ -285,8 +276,12 @@ export function readSafetensorsHeader(path: string): SafetensorsTensorFacts {
       }
       tensorCount += 1;
       const suffix = tensorSuffix(name);
-      mergeGroup(groups, suffix, dtype, 1, elements);
-      mergePrefix(prefixes, tensorPrefix(name), 1, elements);
+      mergeGroup(groups, { suffix, dtype, tensorCount: 1, elements });
+      mergePrefix(prefixes, {
+        prefix: tensorPrefix(name),
+        tensorCount: 1,
+        elements,
+      });
       if (suffix === PACKED_SHAPE_SUFFIX) {
         const unpacked = readPackedShapeElements(
           fd,
@@ -486,21 +481,10 @@ export function readSafetensorsFacts(directory: string): SafetensorsReadResult {
       const summary = readSafetensorsHeader(join(directory, name));
       tensorCount += summary.tensorCount;
       for (const group of summary.groups) {
-        mergeGroup(
-          groups,
-          group.suffix,
-          group.dtype,
-          group.tensorCount,
-          group.elements,
-        );
+        mergeGroup(groups, group);
       }
       for (const prefixGroup of summary.prefixes) {
-        mergePrefix(
-          prefixes,
-          prefixGroup.prefix,
-          prefixGroup.tensorCount,
-          prefixGroup.elements,
-        );
+        mergePrefix(prefixes, prefixGroup);
       }
       packedShape = mergePackedShape(packedShape, summary.packedShape);
     } catch (error) {
@@ -876,18 +860,6 @@ function prefixParameterCount(
   return total > 0 ? total : null;
 }
 
-function dominantDtypeLabel(
-  elementsByDtype: Array<[string, number]>,
-): string | null {
-  let dominant: [string, number] | null = null;
-  for (const entry of elementsByDtype) {
-    if (!dominant || entry[1] > dominant[1]) {
-      dominant = entry;
-    }
-  }
-  return dominant ? dominant[0] : null;
-}
-
 function architectureFromConfig(config: JsonObject | null): string | null {
   const architectures = config?.architectures;
   if (!Array.isArray(architectures)) {
@@ -921,8 +893,7 @@ export function deriveSafetensorsMetadata(
 
   const quantization = quantizationScheme(config);
   const stats = deriveTensorStats(facts.tensors, quantization);
-  const elementsByDtype = stats.elementsByDtype;
-  const dominantDtype = dominantDtypeLabel(elementsByDtype);
+  const dominantDtype = stats.elementsByDtype[0]?.[0] ?? null;
 
   const ropeScalingRaw = config?.rope_scaling ?? textConfig?.rope_scaling;
   const ropeScaling = isJsonObject(ropeScalingRaw) ? ropeScalingRaw : null;
@@ -940,11 +911,10 @@ export function deriveSafetensorsMetadata(
     baseModel: pickString(facts.adapterConfig, ["base_model_name_or_path"]),
     torchDtype: str(["torch_dtype", "dtype"]),
     dominantDtype,
-    elementsByDtype,
+    elementsByDtype: stats.elementsByDtype,
     quantization: quantization.label ?? dominantDtype,
     quantizationMethod: quantization.method,
-    parameterCount:
-      facts.tensors && missingShards.length === 0 ? stats.parameterCount : null,
+    parameterCount: missingShards.length === 0 ? stats.parameterCount : null,
     visionParameterCount: prefixParameterCount(
       facts.tensors,
       VISION_TOWER_PREFIXES,

@@ -4,7 +4,6 @@ import type {
   MemoryPool,
   NumaNode,
   ProcessPreflightIssue,
-  SystemAccelerator,
 } from "@arriero/core";
 import {
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
@@ -21,7 +20,10 @@ import { getSystemResources } from "../system/resources.js";
 import { getArgumentCatalogAsync } from "../arguments/catalog.js";
 import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { listMemoryPools } from "../resources/repository.js";
-import { pushCudaComputeCapabilityIssues } from "./preflight-cuda.js";
+import {
+  nvidiaGpuAccelerators,
+  pushCudaComputeCapabilityIssues,
+} from "./preflight-cuda.js";
 import type { PreflightOptions } from "./preflight.js";
 
 const HF_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -33,17 +35,6 @@ function issue(
   message: string,
 ) {
   issues.push({ level, field, message });
-}
-
-function localAccelerators(options: PreflightOptions): SystemAccelerator[] {
-  return options.accelerators ?? getSystemResources().accelerators;
-}
-
-function nvidiaAccelerators(options: PreflightOptions) {
-  return localAccelerators(options).filter(
-    (accelerator) =>
-      accelerator.kind === "gpu" && accelerator.vendor === "NVIDIA",
-  );
 }
 
 function validateModel(model: string, issues: ProcessPreflightIssue[]) {
@@ -331,7 +322,7 @@ function validateCuda(
   issues: ProcessPreflightIssue[],
   options: PreflightOptions,
 ) {
-  const detected = nvidiaAccelerators(options);
+  const detected = nvidiaGpuAccelerators(options);
   if (detected.length === 0) {
     issue(
       issues,
@@ -389,7 +380,7 @@ function selectedGpuDeviceRefs(
   const candidates =
     visible.mode === "list"
       ? visible.ids
-      : nvidiaAccelerators(options).map((accelerator) => accelerator.id);
+      : nvidiaGpuAccelerators(options).map((accelerator) => accelerator.id);
   return candidates.slice(0, tensorParallel);
 }
 

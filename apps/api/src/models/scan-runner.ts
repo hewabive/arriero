@@ -45,7 +45,9 @@ async function runScanPass(refresh: boolean): Promise<void> {
       },
     });
     pruneMissingCachedModels();
-    pruneMissingCachedSafetensorsModels();
+    pruneMissingCachedSafetensorsModels(
+      new Set(pass.safetensors.map((model) => model.path)),
+    );
     lastCache = pass.cache;
     state = { ...state, status: "idle", finishedAt: new Date().toISOString() };
   } catch (error) {

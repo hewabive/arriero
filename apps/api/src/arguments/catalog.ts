@@ -115,18 +115,43 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function isCacheCurrent(
+function catalogMatchesBinary(
   cached: CachedArgumentCatalog,
   stat: ReturnType<typeof binaryStat>,
-  parserId: ArgumentCatalogHelpParserId,
 ) {
   const primaryNames = cached.options.map((option) => option.primaryName);
   return (
     cached.binarySize === stat.binarySize &&
     cached.binaryMtimeMs === stat.binaryMtimeMs &&
-    cached.parserId === parserId &&
     new Set(primaryNames).size === primaryNames.length
   );
+}
+
+function isCacheCurrent(
+  cached: CachedArgumentCatalog,
+  stat: ReturnType<typeof binaryStat>,
+  parserId: ArgumentCatalogHelpParserId,
+) {
+  return catalogMatchesBinary(cached, stat) && cached.parserId === parserId;
+}
+
+export function getCurrentCachedCatalog(
+  binaryPath: string,
+): CachedArgumentCatalog | null {
+  let stat: ReturnType<typeof binaryStat>;
+  try {
+    stat = binaryStat(binaryPath);
+  } catch {
+    return null;
+  }
+  const cached = getCachedArgumentCatalog(binaryPath);
+  if (cached && catalogMatchesBinary(cached, stat)) {
+    return cached;
+  }
+  const fromSidecar = readArgumentCatalogSidecar(binaryPath, stat);
+  return fromSidecar && catalogMatchesBinary(fromSidecar, stat)
+    ? fromSidecar
+    : null;
 }
 
 function applyArgumentHelp(options: ArgumentOption[]) {
@@ -160,8 +185,8 @@ function applyArgumentHelp(options: ArgumentOption[]) {
 
 function mergeWithArgumentRegistry(
   binaryOptions: ArgumentOption[],
+  registry: ReturnType<typeof loadArgumentRegistry>,
 ): ArgumentOption[] {
-  const registry = loadArgumentRegistry();
   const registryByName = registryNameMap(registry);
   const matchedRegistrySlugs = new Set<string>();
   const merged: ArgumentOption[] = [];
@@ -284,12 +309,47 @@ export function getLlamaArgumentReferenceCatalog(): ArgumentCatalog {
   });
 }
 
-function llamaCatalogOptions(
-  cachedOptions: ArgumentOption[],
-  docs: boolean,
-): ArgumentOption[] {
-  const merged = applyArgumentHelp(mergeWithArgumentRegistry(cachedOptions));
-  return docs ? withArgumentDocsAndCompatibility(merged) : merged;
+type MemoizedMergedCatalog = {
+  binarySize: number;
+  binaryMtimeMs: string;
+  parserId: ArgumentCatalogHelpParserId;
+  registry: ReturnType<typeof loadArgumentRegistry> | null;
+  catalog: Omit<ArgumentCatalog, "cache">;
+};
+
+const mergedCatalogMemo = new Map<string, MemoizedMergedCatalog>();
+
+function sameRegistryEntries(
+  left: ReturnType<typeof loadArgumentRegistry>,
+  right: ReturnType<typeof loadArgumentRegistry>,
+) {
+  return (
+    left === right ||
+    (left.length === right.length &&
+      left.every((entry, index) => entry === right[index]))
+  );
+}
+
+function memoizedMergedCatalog(
+  binaryPath: string,
+  stat: ReturnType<typeof binaryStat>,
+  parserId: ArgumentCatalogHelpParserId,
+): ArgumentCatalog | null {
+  const memo = mergedCatalogMemo.get(binaryPath);
+  if (
+    !memo ||
+    memo.binarySize !== stat.binarySize ||
+    memo.binaryMtimeMs !== stat.binaryMtimeMs ||
+    memo.parserId !== parserId ||
+    (memo.registry !== null &&
+      !sameRegistryEntries(memo.registry, loadArgumentRegistry()))
+  ) {
+    return null;
+  }
+  return {
+    ...memo.catalog,
+    cache: { hit: true, refreshed: false, stale: false },
+  };
 }
 
 function toCatalog(input: {
@@ -297,13 +357,15 @@ function toCatalog(input: {
   cached: CachedArgumentCatalog;
   cache: ArgumentCatalog["cache"];
   parserId: ArgumentCatalogHelpParserId;
-  docs: boolean;
 }): ArgumentCatalog {
-  const options =
-    input.parserId === "llama-help"
-      ? llamaCatalogOptions(input.cached.options, input.docs)
-      : input.cached.options;
-  return {
+  const registry =
+    input.parserId === "llama-help" ? loadArgumentRegistry() : null;
+  const options = registry
+    ? applyArgumentHelp(
+        mergeWithArgumentRegistry(input.cached.options, registry),
+      )
+    : input.cached.options;
+  const catalog: Omit<ArgumentCatalog, "cache"> = {
     binaryPath: input.binaryPath,
     generatedAt: input.cached.generatedAt,
     source: {
@@ -320,9 +382,16 @@ function toCatalog(input: {
       binarySize: input.cached.binarySize,
       binaryModifiedAt: input.cached.binaryModifiedAt,
     },
-    cache: input.cache,
     options,
   };
+  mergedCatalogMemo.set(input.binaryPath, {
+    binarySize: input.cached.binarySize,
+    binaryMtimeMs: input.cached.binaryMtimeMs,
+    parserId: input.parserId,
+    registry,
+    catalog,
+  });
+  return { ...catalog, cache: input.cache };
 }
 
 function fallbackCatalog(parserId: ArgumentCatalogHelpParserId) {
@@ -393,33 +462,37 @@ export function getArgumentCatalogAsync(
   const parserId = input?.parserId ?? "llama-help";
   const refresh = input?.refresh ?? false;
   const docs = input?.docs ?? true;
-  const key = `${binaryPath}|${parserId}|${refresh ? "refresh" : "cached"}|${docs ? "docs" : "no-docs"}`;
-  const inFlight = catalogsInFlight.get(key);
-  if (inFlight) {
-    return inFlight;
+  const key = `${binaryPath}|${parserId}|${refresh ? "refresh" : "cached"}`;
+  let loading = catalogsInFlight.get(key);
+  if (!loading) {
+    loading = loadArgumentCatalog(binaryPath, parserId, refresh).finally(() => {
+      catalogsInFlight.delete(key);
+    });
+    catalogsInFlight.set(key, loading);
   }
-  const loading = loadArgumentCatalog(
-    binaryPath,
-    parserId,
-    refresh,
-    docs,
-  ).finally(() => {
-    catalogsInFlight.delete(key);
-  });
-  catalogsInFlight.set(key, loading);
-  return loading;
+  return docs && parserId === "llama-help"
+    ? loading.then((catalog) => ({
+        ...catalog,
+        options: withArgumentDocsAndCompatibility(catalog.options),
+      }))
+    : loading;
 }
 
 async function loadArgumentCatalog(
   binaryPath: string,
   parserId: ArgumentCatalogHelpParserId,
   refresh: boolean,
-  docs: boolean,
 ): Promise<ArgumentCatalog> {
   if (!existsSync(binaryPath)) {
     throw new Error(`engine binary not found: ${binaryPath}`);
   }
   const stat = binaryStat(binaryPath);
+  if (!refresh) {
+    const memoized = memoizedMergedCatalog(binaryPath, stat, parserId);
+    if (memoized) {
+      return memoized;
+    }
+  }
   const cached = getCachedArgumentCatalog(binaryPath);
   const stale = cached ? !isCacheCurrent(cached, stat, parserId) : false;
   if (cached && !stale && !refresh) {
@@ -428,7 +501,6 @@ async function loadArgumentCatalog(
       cached,
       cache: { hit: true, refreshed: false, stale: false },
       parserId,
-      docs,
     });
   }
   if (!refresh) {
@@ -439,7 +511,6 @@ async function loadArgumentCatalog(
         cached: saveArgumentCatalog(fromSidecar),
         cache: { hit: true, refreshed: false, stale: false },
         parserId,
-        docs,
       });
     }
   }
@@ -448,6 +519,5 @@ async function loadArgumentCatalog(
     cached: await generateCatalogAsync(binaryPath, stat, parserId),
     cache: { hit: false, refreshed: true, stale },
     parserId,
-    docs,
   });
 }

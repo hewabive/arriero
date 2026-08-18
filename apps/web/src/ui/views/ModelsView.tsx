@@ -35,6 +35,15 @@ import {
   getModelScanSettings,
   updateModelScanSettings,
 } from "../../api/client";
+import {
+  DetailRows,
+  detailSection,
+  FeatureBadge,
+  MoeTypeBadge,
+  pushExpertRows,
+  pushKvHeadRows,
+  type DetailSection,
+} from "../components/ModelDetails";
 import { PathPickerInput } from "../components/PathPickerInput";
 import { useNarrowScreen } from "../hooks/use-narrow-screen";
 import { useScannedModels } from "../hooks/use-scanned-models";
@@ -47,13 +56,11 @@ import {
   modelLayerInfo,
   modelMatchesSearch,
   modelTitle,
+  ropeScalingLabel,
+  samplingSummary,
 } from "../utils/models";
 import { countLabel } from "../utils/plural";
-import {
-  DetailRows,
-  SafetensorsModelsSection,
-  type DetailRow,
-} from "./SafetensorsModelsSection";
+import { SafetensorsModelsSection } from "./SafetensorsModelsSection";
 
 function rootSourceLabel(root: ModelScanRoot) {
   if (root.source === "settings") {
@@ -73,25 +80,10 @@ function paramsLabel(model: GgufModel) {
   );
 }
 
-function formatSampler(value: number) {
-  return String(Math.round(value * 1000) / 1000);
-}
-
-type DetailSection = { title: string; rows: DetailRow[] };
-
 function metaSections(model: GgufModel): DetailSection[] {
   const m = model.metadata;
-  const section = (title: string) => {
-    const rows: DetailRow[] = [];
-    const push = (label: string, value: string | number | null | undefined) => {
-      if (value !== null && value !== undefined && value !== "") {
-        rows.push([label, String(value)]);
-      }
-    };
-    return { title, rows, push };
-  };
 
-  const overview = section("Overview");
+  const overview = detailSection("Overview");
   overview.push("Name", m.name);
   overview.push("Architecture", m.architecture);
   const role = ggufModelRole(m);
@@ -112,20 +104,13 @@ function metaSections(model: GgufModel): DetailSection[] {
   );
   overview.push("File size", formatBytes(model.sizeBytes));
 
-  const arch = section("Architecture");
+  const arch = detailSection("Architecture");
   const layers = modelLayerInfo(model);
   arch.push("Layers", layers.total);
   if (layers.isMoe) {
     arch.push("Dense layers", layers.dense);
     arch.push("MoE layers", layers.moe);
-    arch.push(
-      "Experts (used/total)",
-      m.expertCount !== null
-        ? `${m.expertUsedCount ?? "?"}/${m.expertCount}`
-        : null,
-    );
-    arch.push("Shared experts", m.expertSharedCount);
-    arch.push("Expert FFN", m.expertFeedForwardLength);
+    pushExpertRows(arch, m);
   }
   arch.push("MTP layers", m.nextnPredictLayers || null);
   arch.push("FFN length", m.feedForwardLength);
@@ -140,26 +125,14 @@ function metaSections(model: GgufModel): DetailSection[] {
         : "bidirectional",
   );
   arch.push("Attention heads", m.headCount);
-  if (m.headCountKv !== null && m.headCount) {
-    arch.push(
-      "KV heads (GQA)",
-      `${m.headCountKv} (${Math.round(m.headCount / m.headCountKv)}:1)`,
-    );
-  } else {
-    arch.push("KV heads", m.headCountKv);
-  }
+  pushKvHeadRows(arch, m);
   arch.push("Context (train)", m.contextLength);
   arch.push("Sliding window", m.slidingWindow);
   arch.push("RoPE freq base", m.ropeFreqBase);
-  if (m.ropeScalingType) {
-    arch.push(
-      "RoPE scaling",
-      `${m.ropeScalingType}${m.ropeScalingFactor ? ` ×${m.ropeScalingFactor}` : ""}`,
-    );
-  }
+  arch.push("RoPE scaling", ropeScalingLabel(m));
   arch.push("RoPE orig ctx", m.ropeScalingOrigCtxLen);
 
-  const tokenizer = section("Tokenizer");
+  const tokenizer = detailSection("Tokenizer");
   tokenizer.push("Vocab size", m.vocabularySize);
   tokenizer.push("Tokenizer", m.tokenizerModel);
   tokenizer.push("Pretokenizer", m.tokenizerPre);
@@ -172,21 +145,14 @@ function metaSections(model: GgufModel): DetailSection[] {
   tokenizer.push("Add tokens", addTokens || null);
   tokenizer.push("Chat template", m.hasChatTemplate ? "yes" : null);
 
-  const provenance = section("Provenance");
+  const provenance = detailSection("Provenance");
   provenance.push("Basename", m.basename);
   provenance.push("Finetune", m.finetune);
   provenance.push("License", m.license);
   provenance.push("Version", m.version);
   provenance.push("Quantized by", m.quantizedBy);
   provenance.push("Repo", m.repoUrl);
-  const sampling = [
-    m.samplingTemp !== null ? `temp ${formatSampler(m.samplingTemp)}` : null,
-    m.samplingTopK !== null ? `top_k ${m.samplingTopK}` : null,
-    m.samplingTopP !== null ? `top_p ${formatSampler(m.samplingTopP)}` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  provenance.push("Rec. sampling", sampling || null);
+  provenance.push("Rec. sampling", samplingSummary(m));
   if (m.imatrixDataset || m.imatrixEntries !== null) {
     const counts = [
       m.imatrixEntries !== null ? `${m.imatrixEntries} entries` : null,
@@ -202,10 +168,7 @@ function metaSections(model: GgufModel): DetailSection[] {
     );
   }
 
-  return [overview, arch, tokenizer, provenance].map(({ title, rows }) => ({
-    title,
-    rows,
-  }));
+  return [overview, arch, tokenizer, provenance];
 }
 
 function RoleBadge(props: { model: GgufModel }) {
@@ -214,37 +177,22 @@ function RoleBadge(props: { model: GgufModel }) {
     return null;
   }
   return (
-    <Tooltip label={role}>
-      <Badge
-        color={role === "reranker" ? "indigo" : "teal"}
-        variant="light"
-        size="sm"
-        style={{ flexShrink: 0 }}
-      >
-        {role === "reranker" ? "rerank" : "embed"}
-      </Badge>
-    </Tooltip>
+    <FeatureBadge
+      color={role === "reranker" ? "indigo" : "teal"}
+      label={role === "reranker" ? "rerank" : "embed"}
+      tooltip={role}
+    />
   );
 }
 
 function TypeBadge(props: { model: GgufModel }) {
   const m = props.model.metadata;
-  const layers = modelLayerInfo(props.model);
-  if (!layers.isMoe) {
-    return (
-      <Text c="dimmed" size="sm">
-        dense
-      </Text>
-    );
-  }
   return (
-    <Tooltip
-      label={`${m.expertUsedCount ?? "?"}/${m.expertCount} experts active`}
-    >
-      <Badge color="grape" variant="light">
-        MoE
-      </Badge>
-    </Tooltip>
+    <MoeTypeBadge
+      isMoe={modelLayerInfo(props.model).isMoe}
+      expertUsedCount={m.expertUsedCount}
+      expertCount={m.expertCount}
+    />
   );
 }
 
@@ -254,13 +202,11 @@ function MtpBadge(props: { model: GgufModel }) {
     return null;
   }
   return (
-    <Tooltip
-      label={`${countLabel(mtpLayers, "built-in speculative-decoding layer")} (NextN/MTP)`}
-    >
-      <Badge color="cyan" variant="light" size="sm" style={{ flexShrink: 0 }}>
-        MTP
-      </Badge>
-    </Tooltip>
+    <FeatureBadge
+      color="cyan"
+      label="MTP"
+      tooltip={`${countLabel(mtpLayers, "built-in speculative-decoding layer")} (NextN/MTP)`}
+    />
   );
 }
 

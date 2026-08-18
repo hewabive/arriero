@@ -5,7 +5,6 @@ import {
   Button,
   Collapse,
   Divider,
-  Flex,
   Group,
   Paper,
   Stack,
@@ -17,57 +16,28 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 
 import {
+  DetailRows,
+  detailSection,
+  FeatureBadge,
+  MoeTypeBadge,
+  pushExpertRows,
+  pushKvHeadRows,
+  type DetailSection,
+} from "../components/ModelDetails";
+import {
   compareSafetensorsTitles,
   formatBytes,
   formatParameterCount,
+  ropeScalingLabel,
   safetensorsMatchesSearch,
+  samplingSummary,
 } from "../utils/models";
 import { countLabel } from "../utils/plural";
 
-export type DetailRow = [string, string];
-
-export function DetailRows(props: { rows: DetailRow[] }) {
-  return (
-    <Flex wrap="wrap" rowGap={6} columnGap={24} maw="56rem">
-      {props.rows.map(([label, value]) => (
-        <Group key={label} gap={6} wrap="nowrap" align="baseline" maw="100%">
-          <Text c="dimmed" size="xs" style={{ flexShrink: 0 }}>
-            {label}
-          </Text>
-          <Text
-            size="xs"
-            style={{
-              fontVariantNumeric: "tabular-nums",
-              wordBreak: "break-word",
-            }}
-          >
-            {value}
-          </Text>
-        </Group>
-      ))}
-    </Flex>
-  );
-}
-
-type DetailSection = { title: string; rows: DetailRow[] };
-
-function formatSampler(value: number) {
-  return String(Math.round(value * 1000) / 1000);
-}
-
 function safetensorsMetaSections(model: SafetensorsModel): DetailSection[] {
   const m = model.metadata;
-  const section = (title: string) => {
-    const rows: DetailRow[] = [];
-    const push = (label: string, value: string | number | null | undefined) => {
-      if (value !== null && value !== undefined && value !== "") {
-        rows.push([label, String(value)]);
-      }
-    };
-    return { title, rows, push };
-  };
 
-  const overview = section("Overview");
+  const overview = detailSection("Overview");
   overview.push("Kind", m.kind !== "model" ? m.kind : null);
   overview.push("Architecture", m.architecture);
   overview.push("Model type", m.modelType);
@@ -89,67 +59,41 @@ function safetensorsMetaSections(model: SafetensorsModel): DetailSection[] {
     );
   }
 
-  const arch = section("Architecture");
+  const arch = detailSection("Architecture");
   arch.push("Layers", m.blockCount);
   if (m.expertCount !== null && m.expertCount > 1) {
-    arch.push(
-      "Experts (used/total)",
-      `${m.expertUsedCount ?? "?"}/${m.expertCount}`,
-    );
-    arch.push("Shared experts", m.expertSharedCount);
-    arch.push("Expert FFN", m.expertFeedForwardLength);
+    pushExpertRows(arch, m);
   }
   arch.push("FFN length", m.feedForwardLength);
   arch.push("Embedding length", m.embeddingLength);
   arch.push("Attention heads", m.headCount);
-  if (m.headCountKv !== null && m.headCount) {
-    arch.push(
-      "KV heads (GQA)",
-      `${m.headCountKv} (${Math.round(m.headCount / m.headCountKv)}:1)`,
-    );
-  } else {
-    arch.push("KV heads", m.headCountKv);
-  }
+  pushKvHeadRows(arch, m);
   arch.push("Head dim", m.headDim);
   arch.push("Vision tower", formatParameterCount(m.visionParameterCount));
   arch.push("MTP head", formatParameterCount(m.mtpParameterCount));
   arch.push("Context (train)", m.contextLength);
   arch.push("Sliding window", m.slidingWindow);
   arch.push("RoPE freq base", m.ropeFreqBase);
-  if (m.ropeScalingType) {
-    arch.push(
-      "RoPE scaling",
-      `${m.ropeScalingType}${m.ropeScalingFactor ? ` ×${m.ropeScalingFactor}` : ""}`,
-    );
-  }
+  arch.push("RoPE scaling", ropeScalingLabel(m));
   arch.push("RoPE orig ctx", m.ropeScalingOrigCtxLen);
   arch.push(
     "Tied embeddings",
     m.tieWordEmbeddings === null ? null : m.tieWordEmbeddings ? "yes" : "no",
   );
 
-  const tokenizer = section("Tokenizer");
+  const tokenizer = detailSection("Tokenizer");
   tokenizer.push("Vocab size", m.vocabularySize);
   tokenizer.push("Chat template", m.hasChatTemplate ? "yes" : null);
 
-  const provenance = section("Provenance");
+  const provenance = detailSection("Provenance");
   provenance.push("Transformers", m.transformersVersion);
-  const sampling = [
-    m.samplingTemp !== null ? `temp ${formatSampler(m.samplingTemp)}` : null,
-    m.samplingTopK !== null ? `top_k ${m.samplingTopK}` : null,
-    m.samplingTopP !== null ? `top_p ${formatSampler(m.samplingTopP)}` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  provenance.push("Rec. sampling", sampling || null);
+  provenance.push("Rec. sampling", samplingSummary(m));
 
-  const files = section("Files");
+  const files = detailSection("Files");
   files.push("Weight files", model.weightFiles.join(", ") || null);
   files.push("Missing shards", model.missingShardNames.join(", ") || null);
 
-  return [overview, arch, tokenizer, provenance, files].map(
-    ({ title, rows }) => ({ title, rows }),
-  );
+  return [overview, arch, tokenizer, provenance, files];
 }
 
 function safetensorsParamsLabel(model: SafetensorsModel) {
@@ -162,43 +106,26 @@ function KindBadge(props: { model: SafetensorsModel }) {
     return null;
   }
   return (
-    <Tooltip
-      label={
+    <FeatureBadge
+      color={kind === "adapter" ? "orange" : "gray"}
+      label={kind}
+      tooltip={
         kind === "adapter"
           ? "LoRA/PEFT adapter (adapter_config.json, no config.json)"
           : "Weights without a config.json"
       }
-    >
-      <Badge
-        color={kind === "adapter" ? "orange" : "gray"}
-        variant="light"
-        size="sm"
-        style={{ flexShrink: 0 }}
-      >
-        {kind}
-      </Badge>
-    </Tooltip>
+    />
   );
 }
 
 function SafetensorsTypeBadge(props: { model: SafetensorsModel }) {
   const m = props.model.metadata;
-  const isMoe = m.expertCount !== null && m.expertCount > 1;
-  if (!isMoe) {
-    return (
-      <Text c="dimmed" size="sm">
-        dense
-      </Text>
-    );
-  }
   return (
-    <Tooltip
-      label={`${m.expertUsedCount ?? "?"}/${m.expertCount} experts active`}
-    >
-      <Badge color="grape" variant="light">
-        MoE
-      </Badge>
-    </Tooltip>
+    <MoeTypeBadge
+      isMoe={m.expertCount !== null && m.expertCount > 1}
+      expertUsedCount={m.expertUsedCount}
+      expertCount={m.expertCount}
+    />
   );
 }
 
@@ -208,13 +135,11 @@ function SafetensorsMtpBadge(props: { model: SafetensorsModel }) {
     return null;
   }
   return (
-    <Tooltip
-      label={`Built-in speculative-decoding head (NextN/MTP), ${formatParameterCount(mtpParams)} params`}
-    >
-      <Badge color="cyan" variant="light" size="sm" style={{ flexShrink: 0 }}>
-        MTP
-      </Badge>
-    </Tooltip>
+    <FeatureBadge
+      color="cyan"
+      label="MTP"
+      tooltip={`Built-in speculative-decoding head (NextN/MTP), ${formatParameterCount(mtpParams)} params`}
+    />
   );
 }
 
@@ -224,13 +149,11 @@ function SafetensorsVisionBadge(props: { model: SafetensorsModel }) {
     return null;
   }
   return (
-    <Tooltip
-      label={`Built-in vision tower, ${formatParameterCount(visionParams)} params`}
-    >
-      <Badge color="indigo" variant="light" size="sm" style={{ flexShrink: 0 }}>
-        vision
-      </Badge>
-    </Tooltip>
+    <FeatureBadge
+      color="indigo"
+      label="vision"
+      tooltip={`Built-in vision tower, ${formatParameterCount(visionParams)} params`}
+    />
   );
 }
 

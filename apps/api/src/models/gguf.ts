@@ -12,6 +12,7 @@ import { basename, dirname, join } from "node:path";
 
 import { logger } from "../logger.js";
 import { extractChatTemplateReasoning } from "./chat-template-reasoning.js";
+import { readExactSync } from "./read-exact.js";
 import {
   fileIdentityFromStats,
   type ModelFileIdentity,
@@ -182,20 +183,7 @@ class FileReader {
   }
 
   private readExact(buffer: Buffer, length: number, position: number) {
-    let filled = 0;
-    while (filled < length) {
-      const bytesRead = readSync(
-        this.fd,
-        buffer,
-        filled,
-        length - filled,
-        position + filled,
-      );
-      if (bytesRead === 0) {
-        throw new Error("unexpected end of GGUF file");
-      }
-      filled += bytesRead;
-    }
+    readExactSync(this.fd, buffer, length, position, "GGUF");
   }
 
   string() {

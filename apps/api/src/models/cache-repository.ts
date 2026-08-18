@@ -1,12 +1,12 @@
 import type { GgufMetadata, GgufModel, ModelScanSettings } from "@arriero/core";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns } from "drizzle-orm";
 import { existsSync } from "node:fs";
 
 import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { modelCache } from "../db/schema.js";
-import { logger } from "../logger.js";
 import { readSettings, writeSettings } from "../settings/store.js";
+import { deriveCacheRowMetadata, parseCacheJson } from "./cache-row.js";
 import {
   deriveGgufMetadata,
   GGUF_PARSER_VERSION,
@@ -16,7 +16,12 @@ import {
 
 const defaultModelsDirectory = config.modelsDir;
 
-type ModelCacheRow = typeof modelCache.$inferSelect;
+const CACHE_LABEL = "model";
+
+const { rawJson: omittedRawJson, ...modelCacheListColumns } =
+  getTableColumns(modelCache);
+
+type ModelCacheListRow = Omit<typeof modelCache.$inferSelect, "rawJson">;
 
 export type CachedModelEntry = {
   sizeBytes: number;
@@ -26,54 +31,15 @@ export type CachedModelEntry = {
   derivedCurrent: boolean;
 };
 
-function parseJson<T>(value: string, path: string, field: string): T | null {
-  try {
-    return JSON.parse(value) as T;
-  } catch (error) {
-    logger.warn(
-      { err: error, path, field },
-      "model cache row could not be parsed",
-    );
-    return null;
-  }
-}
-
-function factsFromRow(row: ModelCacheRow): GgufRawFacts | null {
-  if (row.rawVersion !== GGUF_RAW_VERSION || !row.rawJson) {
-    return null;
-  }
-  return parseJson<GgufRawFacts>(row.rawJson, row.path, "raw_json");
-}
-
-function metadataFromRow(
-  row: ModelCacheRow,
-  facts: () => GgufRawFacts | null,
-): { metadata: GgufMetadata | null; derivedCurrent: boolean } {
-  if (row.parserVersion === GGUF_PARSER_VERSION) {
-    const stored = parseJson<GgufMetadata>(
-      row.metadataJson,
-      row.path,
-      "metadata_json",
-    );
-    if (stored) {
-      return { metadata: stored, derivedCurrent: true };
-    }
-  }
-  const loaded = facts();
-  return {
-    metadata: loaded ? deriveGgufMetadata(loaded) : null,
-    derivedCurrent: false,
-  };
-}
-
 function modelFromRow(
-  row: ModelCacheRow,
+  row: ModelCacheListRow,
   metadata: GgufMetadata,
 ): GgufModel | null {
-  const mmprojPaths = parseJson<string[]>(
+  const mmprojPaths = parseCacheJson<string[]>(
     row.mmprojPathsJson,
     row.path,
     "mmproj_paths_json",
+    CACHE_LABEL,
   );
   if (!mmprojPaths) {
     return null;
@@ -91,23 +57,35 @@ function modelFromRow(
   };
 }
 
-function entryFromRow(row: ModelCacheRow): CachedModelEntry {
-  let factsMemo: GgufRawFacts | null | undefined;
-  const facts = () => {
-    if (factsMemo === undefined) {
-      factsMemo = factsFromRow(row);
-    }
-    return factsMemo;
-  };
-  const { metadata, derivedCurrent } = metadataFromRow(row, facts);
+function cachedRawJson(path: string): string | null {
+  const row = db
+    .select({ rawJson: modelCache.rawJson })
+    .from(modelCache)
+    .where(eq(modelCache.path, path))
+    .get();
+  return row?.rawJson ?? null;
+}
+
+function entryFromRow(
+  row: ModelCacheListRow,
+  rawJson: () => string | null,
+): CachedModelEntry {
+  const derived = deriveCacheRowMetadata<GgufRawFacts, GgufMetadata>({
+    row,
+    rawJson,
+    rawVersion: GGUF_RAW_VERSION,
+    parserVersion: GGUF_PARSER_VERSION,
+    label: CACHE_LABEL,
+    derive: deriveGgufMetadata,
+  });
   return {
     sizeBytes: Number(row.sizeBytes),
     modifiedAt: row.modifiedAt,
-    model: metadata ? modelFromRow(row, metadata) : null,
+    model: derived.metadata ? modelFromRow(row, derived.metadata) : null,
     get facts() {
-      return facts();
+      return derived.facts();
     },
-    derivedCurrent,
+    derivedCurrent: derived.derivedCurrent,
   };
 }
 
@@ -117,15 +95,15 @@ export function getCachedModelEntry(path: string): CachedModelEntry | null {
     .from(modelCache)
     .where(eq(modelCache.path, path))
     .get();
-  return row ? entryFromRow(row) : null;
+  return row ? entryFromRow(row, () => row.rawJson) : null;
 }
 
 export function listAllCachedModels(): GgufModel[] {
   return db
-    .select()
+    .select(modelCacheListColumns)
     .from(modelCache)
     .all()
-    .map((row) => entryFromRow(row).model)
+    .map((row) => entryFromRow(row, () => cachedRawJson(row.path)).model)
     .filter((model): model is GgufModel => model !== null);
 }
 
@@ -151,7 +129,7 @@ export function saveCachedModel(model: GgufModel, facts: GgufRawFacts | null) {
 }
 
 export function pruneMissingCachedModels(): number {
-  const rows = db.select().from(modelCache).all();
+  const rows = db.select({ path: modelCache.path }).from(modelCache).all();
   let deleted = 0;
 
   for (const row of rows) {

@@ -2,14 +2,11 @@ import { DRAFT_GPU_LAYERS_ARG_KEYS, GPU_LAYERS_ARG_KEYS } from "@arriero/core";
 import { resolve } from "node:path";
 
 import { binaryStat } from "./binary-discovery.js";
-import {
-  getCachedArgumentCatalog,
-  type CachedArgumentCatalog,
-} from "./repository.js";
-import { readArgumentCatalogSidecar } from "./sidecar.js";
+import { getCurrentCachedCatalog } from "./catalog.js";
+import type { CachedArgumentCatalog } from "./repository.js";
 
 const HELP_DEFAULT_PATTERN = /\(default:\s*([^)]*)\)/g;
-const CACHE_TTL_MS = 30_000;
+const UNKNOWN_RETRY_MS = 30_000;
 
 export type GpuLayersDefaults = {
   main: string | null;
@@ -18,21 +15,14 @@ export type GpuLayersDefaults = {
 
 const UNKNOWN_DEFAULTS: GpuLayersDefaults = { main: null, draft: null };
 
-type CacheEntry = { value: GpuLayersDefaults; expiresAt: number };
+type CacheEntry = {
+  binarySize: number;
+  binaryMtimeMs: string;
+  retryAt: number | null;
+  value: GpuLayersDefaults;
+};
 
 const gpuLayersDefaultCache = new Map<string, CacheEntry>();
-
-function cachedCatalog(binaryPath: string): CachedArgumentCatalog | null {
-  const fromDb = getCachedArgumentCatalog(binaryPath);
-  if (fromDb) {
-    return fromDb;
-  }
-  try {
-    return readArgumentCatalogSidecar(binaryPath, binaryStat(binaryPath));
-  } catch {
-    return null;
-  }
-}
 
 function helpDefault(help: string): string | null {
   const matches = [...help.matchAll(HELP_DEFAULT_PATTERN)];
@@ -69,16 +59,30 @@ export function cachedGpuLayersDefaults(
     return UNKNOWN_DEFAULTS;
   }
   const binaryPath = resolve(binaryPathInput);
+  let stat: ReturnType<typeof binaryStat>;
+  try {
+    stat = binaryStat(binaryPath);
+  } catch {
+    gpuLayersDefaultCache.delete(binaryPath);
+    return UNKNOWN_DEFAULTS;
+  }
   const now = Date.now();
   const cached = gpuLayersDefaultCache.get(binaryPath);
-  if (cached && cached.expiresAt > now) {
+  if (
+    cached &&
+    cached.binarySize === stat.binarySize &&
+    cached.binaryMtimeMs === stat.binaryMtimeMs &&
+    (cached.retryAt === null || cached.retryAt > now)
+  ) {
     return cached.value;
   }
-  const catalog = cachedCatalog(binaryPath);
+  const catalog = getCurrentCachedCatalog(binaryPath);
   const value = catalog ? extractGpuLayersDefaults(catalog) : UNKNOWN_DEFAULTS;
   gpuLayersDefaultCache.set(binaryPath, {
+    binarySize: stat.binarySize,
+    binaryMtimeMs: stat.binaryMtimeMs,
+    retryAt: catalog ? null : now + UNKNOWN_RETRY_MS,
     value,
-    expiresAt: now + CACHE_TTL_MS,
   });
   return value;
 }

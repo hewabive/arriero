@@ -1,10 +1,13 @@
 import {
+  engineDescriptor,
   InstanceEnvSchema,
   stripGgufSuffix,
   type Instance,
+  type InstanceKind,
   type ArgumentOption,
 } from "@arriero/core";
 
+import { createUiId } from "../utils/id";
 import { pathBaseName } from "../utils/models";
 import { type ArgRow } from "./InstanceArgumentRows";
 
@@ -168,6 +171,33 @@ export function nextAvailablePort(
     }
   }
   return startPort;
+}
+
+export function pythonEngineDefaultRows(
+  kind: InstanceKind,
+  instances: Instance[],
+  currentName?: string,
+): ArgRow[] {
+  return [
+    {
+      id: createUiId(),
+      key: "--host",
+      value: "127.0.0.1",
+      valueType: "string",
+    },
+    {
+      id: createUiId(),
+      key: "--port",
+      value: String(
+        nextAvailablePort(
+          instances,
+          currentName,
+          engineDescriptor(kind).http.defaultPort,
+        ),
+      ),
+      valueType: "number",
+    },
+  ];
 }
 
 const managedArgumentKeys = new Set([
