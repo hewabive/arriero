@@ -19,6 +19,7 @@ const ERROR_MESSAGE_STARTS = [
   /^In import_model_classes:(?!.*\bIgnore import error\b).*import error/i,
 ];
 const WARNING_MESSAGE_STARTS = [/^warning\b/i, /^\S+\.py:\d+:\s*\w*Warning\b/];
+const DEPRECATION_WARNING = /^\S+\.py:\d+:\s*\w*DeprecationWarning\b/;
 const IGNORED_TRACEBACK_BLOCK_START =
   /\[start of libtorchcodec loading traceback\]/;
 const IGNORED_TRACEBACK_BLOCK_END =
@@ -59,6 +60,9 @@ function classify(line: string): LogLineLevel | null {
   const message = messageOf(line);
   if (ERROR_MESSAGE_STARTS.some((pattern) => pattern.test(message))) {
     return "error";
+  }
+  if (DEPRECATION_WARNING.test(message)) {
+    return null;
   }
   if (WARNING_MESSAGE_STARTS.some((pattern) => pattern.test(message))) {
     return "warning";

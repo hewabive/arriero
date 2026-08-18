@@ -164,6 +164,7 @@ test("SGLang parser reports anchored warning shapes only", () => {
     lines: [
       "[2026-08-12 10:40:58] Warning: The model does not declare a chat template.",
       "/env/lib/python3.12/site-packages/torch/cuda/__init__.py:123: UserWarning: CUDA initialization skipped",
+      "/env/lib/python3.12/site-packages/sglang/srt/entrypoints/http_server.py:450: FastAPIDeprecationWarning: on_event is deprecated",
       "[2026-08-12 10:40:59] Set the warning threshold for decode batches.",
     ],
     cudaDevicesDisabled: false,
