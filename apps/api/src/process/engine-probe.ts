@@ -15,8 +15,6 @@ import {
 import { probeJson, requestJsonProbe } from "../instances/endpoint.js";
 import { runtimeInstanceBaseUrl } from "./runtime-endpoint.js";
 
-const KTRANSFORMERS_HTTP_PROBE_TIMEOUT_MS = 15_000;
-
 export type EngineProbeRunner = {
   probe: (instance: Instance) => Promise<LlamaProbe>;
   offline: (instance: Instance, error: string) => LlamaProbe;
@@ -53,12 +51,10 @@ async function probeOpenAiHttp(instance: Instance): Promise<LlamaProbe> {
   if (!baseUrl) {
     return offlineOpenAiProbe(instance, "HTTP endpoint is not configured.");
   }
+  const timeoutMs = engineDescriptor(instance.kind).probe.httpTimeoutMs;
   const probe =
-    instance.kind === "ktransformers"
-      ? (url: string) =>
-          requestJsonProbe(url, {
-            timeoutMs: KTRANSFORMERS_HTTP_PROBE_TIMEOUT_MS,
-          })
+    timeoutMs !== undefined
+      ? (url: string) => requestJsonProbe(url, { timeoutMs })
       : probeJson;
   const unavailable = notApplicable(
     "not applicable for OpenAI-compatible engine",

@@ -473,6 +473,12 @@ const ASSESSMENT_ENGINES: Record<InstanceKind, AssessmentEngine | null> = {
       "Run Estimate footprint with an explicit --gpu-memory-utilization and save the assessment, or capture a measured baseline while the instance is running; host RAM draws stay manual.",
     updateRecommendation: PYTHON_UPDATE_RECOMMENDATION,
   }),
+  sglang: composedEngine("sglang", {
+    analytical: null,
+    notAssessedRecommendation:
+      "SGLang has no analytical estimator; capture a measured baseline while the instance is running and apply it as declared draws.",
+    updateRecommendation: PYTHON_UPDATE_RECOMMENDATION,
+  }),
   ktransformers: composedEngine("ktransformers", {
     analytical: null,
     notAssessedRecommendation:

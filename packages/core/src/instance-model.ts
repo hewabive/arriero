@@ -57,6 +57,15 @@ export function impliedInstanceModelId(
       null
     );
   }
+  if (source.kind === "sglang") {
+    const served = firstStringArg(source, "--served-model-name");
+    if (served) {
+      return served;
+    }
+    const model =
+      stringArg(source, "--model-path") ?? stringArg(source, "--model");
+    return model ? pathTail(model) : null;
+  }
   if (isRouterInstance(source)) {
     return null;
   }

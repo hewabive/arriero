@@ -1,4 +1,5 @@
 import {
+  engineDescriptor,
   InstanceBulkActionRequestSchema,
   InstanceStartRequestSchema,
   type InstanceBulkActionItem,
@@ -131,7 +132,10 @@ export function registerInstanceActionRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    if (!parsed.data.force || instance.kind === "ktransformers") {
+    if (
+      !parsed.data.force ||
+      engineDescriptor(instance.kind).admission === "strict"
+    ) {
       const admission = admitInstanceDraw(instance.memory, {
         excludeInstanceId: instance.name,
       });

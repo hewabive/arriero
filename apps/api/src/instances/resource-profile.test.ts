@@ -121,6 +121,27 @@ test("vllm --device cpu produces a host profile", () => {
   assert.equal(result.usesHost, true);
 });
 
+test("sglang tensor parallelism follows the --tp-size spelling", () => {
+  const result = profile({
+    kind: "sglang",
+    args: { "--tp-size": 2 },
+    env: { CUDA_VISIBLE_DEVICES: "1,0" },
+  });
+  assert.equal(result.placement, "gpu");
+  assert.equal(result.usesHost, false);
+  assert.deepEqual(
+    result.gpuPools.map((pool) => pool.poolId),
+    ["gpu1", "gpu0"],
+  );
+});
+
+test("sglang --device cpu produces a host profile", () => {
+  const result = profile({ kind: "sglang", args: { "--device": "cpu" } });
+  assert.equal(result.placement, "cpu");
+  assert.equal(result.usesHost, true);
+  assert.match(result.cpuReason ?? "", /SGLang CPU device/);
+});
+
 test("KTransformers is always hybrid and follows CUDA tensor-parallel order", () => {
   const result = profile({
     kind: "ktransformers",

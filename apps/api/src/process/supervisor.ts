@@ -105,6 +105,7 @@ const ENGINE_CACHE_ENV: Record<
   "llama-server": null,
   "rpc-worker": null,
   vllm: { name: "VLLM_CACHE_ROOT", dir: config.vllmCacheDir },
+  sglang: null,
   ktransformers: null,
 };
 

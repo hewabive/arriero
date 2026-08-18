@@ -601,51 +601,64 @@ function deriveRpcDeviceArgsProfile(
   };
 }
 
-function deriveVllmArgsProfile(
-  context: ResourceProfileContext,
-): InstanceResourceProfile {
-  const { input, allGpu, cuda, deviceTokens, baseSignals } = context;
-  const cpu =
-    cuda.mode === "none" ||
-    deviceTokens.some((token) => token.toLowerCase() === "cpu");
-  if (cpu) {
+function pythonGpuArgsProfileDeriver(
+  tensorParallelKeys: string[],
+  cpuDeviceReason: string,
+) {
+  return (context: ResourceProfileContext): InstanceResourceProfile => {
+    const { input, allGpu, cuda, deviceTokens, baseSignals } = context;
+    const cpu =
+      cuda.mode === "none" ||
+      deviceTokens.some((token) => token.toLowerCase() === "cpu");
+    if (cpu) {
+      return {
+        placement: "cpu",
+        gpuPools: [],
+        usesHost: true,
+        cpuReason:
+          cuda.mode === "none"
+            ? "GPU disabled (CUDA_VISIBLE_DEVICES)"
+            : cpuDeviceReason,
+        confidence: "args",
+        signals: {
+          ...baseSignals,
+          source: cuda.mode === "none" ? "cuda-visible-devices" : "device-arg",
+        },
+      };
+    }
+    const visible = visibleGpuPools(allGpu, cuda);
+    const tensorParallel = Math.max(
+      1,
+      Math.floor(argNumber(input.args, tensorParallelKeys) ?? 1),
+    );
     return {
-      placement: "cpu",
-      gpuPools: [],
-      usesHost: true,
-      cpuReason:
-        cuda.mode === "none"
-          ? "GPU disabled (CUDA_VISIBLE_DEVICES)"
-          : "vLLM CPU device selected",
+      placement: "gpu",
+      gpuPools: gpuEntries(
+        visible.slice(0, tensorParallel),
+        cuda,
+        deviceTokens,
+        allGpu,
+      ).slice(0, tensorParallel),
+      usesHost: false,
+      cpuReason: null,
       confidence: "args",
       signals: {
         ...baseSignals,
-        source: cuda.mode === "none" ? "cuda-visible-devices" : "device-arg",
+        source: cuda.mode === "list" ? "cuda-visible-devices" : "device-arg",
       },
     };
-  }
-  const visible = visibleGpuPools(allGpu, cuda);
-  const tensorParallel = Math.max(
-    1,
-    Math.floor(argNumber(input.args, VLLM_TENSOR_PARALLEL_KEYS) ?? 1),
-  );
-  return {
-    placement: "gpu",
-    gpuPools: gpuEntries(
-      visible.slice(0, tensorParallel),
-      cuda,
-      deviceTokens,
-      allGpu,
-    ).slice(0, tensorParallel),
-    usesHost: false,
-    cpuReason: null,
-    confidence: "args",
-    signals: {
-      ...baseSignals,
-      source: cuda.mode === "list" ? "cuda-visible-devices" : "device-arg",
-    },
   };
 }
+
+const deriveVllmArgsProfile = pythonGpuArgsProfileDeriver(
+  VLLM_TENSOR_PARALLEL_KEYS,
+  "vLLM CPU device selected",
+);
+
+const deriveSglangArgsProfile = pythonGpuArgsProfileDeriver(
+  SGLANG_TENSOR_PARALLEL_KEYS,
+  "SGLang CPU device selected",
+);
 
 const withDeclaredDraws =
   (derive: (context: ResourceProfileContext) => InstanceResourceProfile) =>
@@ -659,6 +672,7 @@ const RESOURCE_PROFILE_DERIVERS: Record<
   "llama-args": withDeclaredDraws(deriveLlamaArgsProfile),
   "rpc-device-args": withDeclaredDraws(deriveRpcDeviceArgsProfile),
   "vllm-args": withDeclaredDraws(deriveVllmArgsProfile),
+  "sglang-args": withDeclaredDraws(deriveSglangArgsProfile),
   "ktransformers-hybrid": deriveKtransformersHybridProfile,
 };
 

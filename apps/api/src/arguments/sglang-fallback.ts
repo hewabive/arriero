@@ -11,7 +11,7 @@ Server:
   --served-model-name NAME            Model name exposed by the API
 
 Model:
-  --model MODEL                       Model path or Hugging Face id
+  --model-path PATH, --model PATH     Model path or Hugging Face id
   --trust-remote-code                 Trust remote model code
   --context-length TOKENS             Maximum context length
 

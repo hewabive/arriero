@@ -15,6 +15,7 @@ import { dirname } from "node:path";
 
 import { validateLlamaServerPreflight } from "./preflight-llama.js";
 import { validateKTransformersPreflight } from "./preflight-ktransformers.js";
+import { validateSglangPreflight } from "./preflight-sglang.js";
 import { validateVllmPreflight } from "./preflight-vllm.js";
 import { validateRpcWorkerReadiness } from "./rpc-preflight.js";
 
@@ -43,6 +44,7 @@ const ENGINE_PREFLIGHT_CHECKS: Record<
 > = {
   "llama-server": validateLlamaServerPreflight,
   vllm: validateVllmPreflight,
+  sglang: validateSglangPreflight,
   ktransformers: validateKTransformersPreflight,
   none: null,
 };
@@ -333,16 +335,17 @@ function validateMemoryCapacity(
   if (!admission || admission.ok) {
     return;
   }
+  const engine = engineDescriptor(instance.kind);
+  const strict = engine.admission === "strict";
   for (const shortfall of admission.shortfalls) {
     const deficitGib = (shortfall.deficitBytes / 1024 ** 3).toFixed(1);
     const freeGib = (shortfall.availableBytes / 1024 ** 3).toFixed(1);
     issues.push({
-      level: instance.kind === "ktransformers" ? "error" : "warning",
+      level: strict ? "error" : "warning",
       field: "memory",
-      message:
-        instance.kind === "ktransformers"
-          ? `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. KTransformers strict admission cannot be overridden.`
-          : `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. Starting will require confirmation.`,
+      message: strict
+        ? `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. ${engine.displayName} strict admission cannot be overridden.`
+        : `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. Starting will require confirmation.`,
     });
   }
 }

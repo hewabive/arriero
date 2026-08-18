@@ -17,16 +17,19 @@ import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { getSystemResources } from "../system/resources.js";
-import { getArgumentCatalogAsync } from "../arguments/catalog.js";
 import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { listMemoryPools } from "../resources/repository.js";
+import { nvidiaGpuAccelerators } from "./preflight-cuda.js";
 import {
-  nvidiaGpuAccelerators,
-  pushCudaComputeCapabilityIssues,
-} from "./preflight-cuda.js";
+  isHuggingFaceModelId,
+  sglangArgNumber,
+  sglangConfiguredArg,
+  validateSglangArgumentCompatibility,
+  validateSglangCuda,
+  validateSglangManagedBoundary,
+  validateSglangServingWarnings,
+} from "./preflight-sglang.js";
 import type { PreflightOptions } from "./preflight.js";
-
-const HF_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function issue(
   issues: ProcessPreflightIssue[],
@@ -67,7 +70,7 @@ function validateModel(model: string, issues: ProcessPreflightIssue[]) {
     );
     return;
   }
-  if (!HF_MODEL_ID.test(model)) {
+  if (!isHuggingFaceModelId(model)) {
     issue(
       issues,
       "error",
@@ -292,16 +295,6 @@ async function validateRuntime(
   return outcome.runtime;
 }
 
-function argNumber(instance: Instance, keys: string[], fallback: number) {
-  for (const key of keys) {
-    const value = instance.args[key];
-    if (value === undefined || value === null || value === false) continue;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : Number.NaN;
-  }
-  return fallback;
-}
-
 function argValues(instance: Instance, keys: string[]): string[] {
   for (const key of keys) {
     const value = instance.args[key];
@@ -317,64 +310,15 @@ function argValues(instance: Instance, keys: string[]): string[] {
   return [];
 }
 
-function validateCuda(
-  instance: Instance,
-  issues: ProcessPreflightIssue[],
-  options: PreflightOptions,
-) {
-  const detected = nvidiaGpuAccelerators(options);
-  if (detected.length === 0) {
-    issue(
-      issues,
-      "error",
-      "env.CUDA_VISIBLE_DEVICES",
-      "KTransformers requires an NVIDIA GPU available through NVML",
-    );
-    return;
-  }
-  const visible = parseCudaVisibleDevices(instance.env.CUDA_VISIBLE_DEVICES);
-  if (visible.mode === "none") {
-    issue(
-      issues,
-      "error",
-      "env.CUDA_VISIBLE_DEVICES",
-      "KTransformers cannot start with CUDA devices disabled",
-    );
-    return;
-  }
-  const visibleCount =
-    visible.mode === "list" ? visible.ids.length : detected.length;
-  const tensorParallel = argNumber(instance, SGLANG_TENSOR_PARALLEL_KEYS, 1);
-  if (!Number.isInteger(tensorParallel) || tensorParallel < 1) {
-    issue(
-      issues,
-      "error",
-      "args.--tensor-parallel-size",
-      "Tensor parallel size must be a positive integer",
-    );
-  } else if (tensorParallel > visibleCount) {
-    issue(
-      issues,
-      "error",
-      "args.--tensor-parallel-size",
-      `Tensor parallel size ${tensorParallel} exceeds ${visibleCount} visible NVIDIA GPU(s)`,
-    );
-  }
-  pushCudaComputeCapabilityIssues({
-    issues,
-    detected,
-    visible,
-    minimum: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.ktransformers,
-    engineLabel: "KTransformers",
-    level: "error",
-  });
-}
-
 function selectedGpuDeviceRefs(
   instance: Instance,
   options: PreflightOptions,
 ): string[] {
-  const tensorParallel = argNumber(instance, SGLANG_TENSOR_PARALLEL_KEYS, 1);
+  const tensorParallel = sglangArgNumber(
+    instance,
+    SGLANG_TENSOR_PARALLEL_KEYS,
+    1,
+  );
   if (!Number.isInteger(tensorParallel) || tensorParallel < 1) return [];
   const visible = parseCudaVisibleDevices(instance.env.CUDA_VISIBLE_DEVICES);
   const candidates =
@@ -462,7 +406,7 @@ function validateNuma(
     );
   }
 
-  const rawCount = argNumber(instance, ["--kt-threadpool-count"], 1);
+  const rawCount = sglangArgNumber(instance, ["--kt-threadpool-count"], 1);
   if (!Number.isInteger(rawCount) || rawCount < 1) {
     issue(
       issues,
@@ -698,25 +642,15 @@ function validateCpuSizing(
   }
 }
 
-function configuredArg(instance: Instance, keys: string[]) {
-  for (const key of keys) {
-    const value = instance.args[key];
-    if (value !== undefined && value !== null && value !== false) {
-      return { key, value };
-    }
-  }
-  return null;
-}
-
 function validateGpuExpertPlacement(
   instance: Instance,
   issues: ProcessPreflightIssue[],
 ) {
-  const count = configuredArg(instance, [
+  const count = sglangConfiguredArg(instance, [
     "--kt-num-gpu-experts",
     "--kt-gpu-experts",
   ]);
-  const ratio = configuredArg(instance, ["--kt-gpu-experts-ratio"]);
+  const ratio = sglangConfiguredArg(instance, ["--kt-gpu-experts-ratio"]);
   if (!count && !ratio) {
     issue(
       issues,
@@ -783,22 +717,6 @@ function validateOperationalWarnings(
       "LLAMAFILE expects GGUF CPU weights, but model and CPU weights resolve to the same directory",
     );
   }
-  if (!configuredArg(instance, ["--mem-fraction-static"])) {
-    issue(
-      issues,
-      "warning",
-      "args.--mem-fraction-static",
-      "SGLang-KT will choose GPU static-memory allocation because --mem-fraction-static is not set",
-    );
-  }
-  if (configuredArg(instance, ["--tokenizer-metrics-allowed-custom-labels"])) {
-    issue(
-      issues,
-      "warning",
-      "args.--tokenizer-metrics-allowed-custom-labels",
-      "The arriero proxy strips the client metrics-labels header, so custom tokenizer metric labels only apply to clients that reach the instance port directly",
-    );
-  }
   const swapTotal = options.swapTotalBytes ?? detectedSwapTotalBytes();
   if (swapTotal > 0) {
     issue(
@@ -829,88 +747,6 @@ function validateOperationalWarnings(
   }
 }
 
-function validateManagedBoundary(
-  instance: Instance,
-  issues: ProcessPreflightIssue[],
-) {
-  if (Object.hasOwn(instance.args, "--api-key")) {
-    issue(
-      issues,
-      "error",
-      "args.--api-key",
-      "Managed KTransformers authentication terminates at arriero; --api-key is not allowed",
-    );
-  }
-  const host = String(instance.args["--host"] ?? "127.0.0.1").trim();
-  if (!["127.0.0.1", "localhost", "::1"].includes(host)) {
-    issue(
-      issues,
-      "error",
-      "args.--host",
-      "Managed KTransformers must bind to loopback",
-    );
-  }
-  if ((instance.positionalArgs?.length ?? 0) > 0) {
-    issue(
-      issues,
-      "error",
-      "positionalArgs",
-      "Managed KTransformers does not accept positional model arguments",
-    );
-  }
-}
-
-async function validateArgumentCompatibility(
-  instance: Instance,
-  issues: ProcessPreflightIssue[],
-) {
-  let catalog: Awaited<ReturnType<typeof getArgumentCatalogAsync>>;
-  try {
-    catalog = await getArgumentCatalogAsync(instance.binaryPath, {
-      parserId: "sglang-help",
-    });
-  } catch (error) {
-    issue(
-      issues,
-      "warning",
-      "args",
-      `Unable to inspect SGLang argument compatibility: ${(error as Error).message}`,
-    );
-    return;
-  }
-  const byName = new Map(
-    catalog.options.flatMap((option) =>
-      [option.primaryName, ...option.names].map(
-        (name) => [name, option] as const,
-      ),
-    ),
-  );
-  for (const [key, value] of Object.entries(instance.args)) {
-    if (value === false || value === null) continue;
-    const option = byName.get(key);
-    if (!option) {
-      issue(
-        issues,
-        "warning",
-        `args.${key}`,
-        "Argument was not found in selected SGLang help; the runtime may reject it",
-      );
-      continue;
-    }
-    const empty =
-      value === "" ||
-      (Array.isArray(value) && value.every((item) => !item.trim()));
-    if (option.valueType !== "flag" && empty) {
-      issue(
-        issues,
-        "error",
-        `args.${key}`,
-        `Argument ${option.primaryName} requires a value`,
-      );
-    }
-  }
-}
-
 export async function validateKTransformersPreflight(
   instance: Instance,
   issues: ProcessPreflightIssue[],
@@ -937,13 +773,17 @@ export async function validateKTransformersPreflight(
   validateModel(instance.engineConfig.model, issues);
   validateCpuWeights(instance.engineConfig.cpuWeights, issues);
   const runtime = await validateRuntime(instance, issues, options);
-  await validateArgumentCompatibility(instance, issues);
-  validateCuda(instance, issues, options);
+  await validateSglangArgumentCompatibility(instance, issues);
+  validateSglangCuda(instance, issues, options, {
+    engineLabel: "KTransformers",
+    minimum: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.ktransformers,
+  });
   validateMemoryReservations(instance, issues, options);
   validateNuma(instance, issues, options);
   validateCpuMethod(instance, issues, options, runtime);
   validateCpuSizing(instance, issues, options);
   validateGpuExpertPlacement(instance, issues);
   validateOperationalWarnings(instance, issues, options);
-  validateManagedBoundary(instance, issues);
+  validateSglangServingWarnings(instance, issues, "SGLang-KT");
+  validateSglangManagedBoundary(instance, issues, "KTransformers");
 }

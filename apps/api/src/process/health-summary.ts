@@ -142,10 +142,9 @@ export function deriveStatus(input: {
   swapBytes: number | null;
   numaPlacement: NumaPlacement | null;
 }): { status: InstanceHealthSummaryStatus; reason: string } {
-  const legacyReadinessName =
-    input.engine.displayName === "KTransformers (SGLang-KT)"
-      ? input.engine.displayName
-      : "llama-server";
+  const legacyReadinessName = input.engine.httpHealth
+    ? input.engine.displayName
+    : "llama-server";
   if (input.runtime.status === "stale") {
     if (input.healthOk) {
       return {

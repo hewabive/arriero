@@ -84,7 +84,7 @@ Not everything generalizes; these stay llama-specific implementations behind opt
 ## Preserved quirks (do not "fix" without intent)
 
 - The offline probe payload for a stopped rpc-worker keeps the llama HTTP shape (port-8080 `/health` URLs) — it is an API payload consumers already see.
-- Two `deriveStatus` strings ("…llama-server health is OK." on stale, "…waiting for llama-server readiness." on starting) are reachable by rpc-workers and stay literal; templating them would change today's output for rpc-workers.
+- Two `deriveStatus` strings name the engine ("…health is OK." on stale, "…waiting for readiness." on starting): kinds with `probe.httpHealth` use their `displayName`, while rpc-workers keep the literal `llama-server`; templating the rpc-worker case would change today's output.
 - `probe.httpHealth: false` currently selects the rpc-worker readiness *policy* too — an unanswered probe still reports `ready` ("may be busy serving the orchestrator"). A future engine with a non-llama health surface must not blindly set `httpHealth: false`; the policy needs splitting out (e.g. `probe.authoritative`) before that engine lands.
 - `filterRoutineProbeLogChunk` (probe-noise log filtering) applies to every kind; it recognizes the llama `done request:` format and the uvicorn access-line format (`INFO:     addr:port - "GET /health HTTP/1.1" 200 OK`, optionally behind a vLLM `(APIServer pid=N)` prefix) for local GET/HEAD probes of the routine endpoints.
 - Cross-node delegation injects `return_progress` before the sending node knows the remote engine (harmless today).

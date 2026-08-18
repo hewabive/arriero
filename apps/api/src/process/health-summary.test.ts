@@ -94,6 +94,17 @@ test("KTransformers readiness text is engine-aware while HTTP remains authoritat
   assert.match(derived.reason, /KTransformers/);
 });
 
+test("SGLang readiness text uses the engine display name", () => {
+  const derived = deriveStatus({
+    ...baseInput(),
+    runtime: { ...runningRuntime(), status: "starting" },
+    engine: { httpHealth: true, displayName: "SGLang" },
+    logReady: true,
+  });
+  assert.equal(derived.status, "starting");
+  assert.match(derived.reason, /SGLang readiness/);
+});
+
 test("error-state runtime surfaces the recent log error tail in the reason", () => {
   const derived = deriveStatus({
     ...baseInput(),

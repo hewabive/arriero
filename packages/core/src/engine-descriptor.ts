@@ -2,6 +2,7 @@ export const INSTANCE_KINDS = [
   "llama-server",
   "rpc-worker",
   "vllm",
+  "sglang",
   "ktransformers",
 ] as const;
 
@@ -22,10 +23,12 @@ export type EngineResourceProfileId =
   | "llama-args"
   | "rpc-device-args"
   | "vllm-args"
+  | "sglang-args"
   | "ktransformers-hybrid";
 export type EnginePreflightId =
   | "llama-server"
   | "vllm"
+  | "sglang"
   | "ktransformers"
   | "none";
 export type EngineAssessmentFingerprintId =
@@ -42,6 +45,7 @@ export type EngineConcurrencyId =
   | "vllm-sequences"
   | "sglang-max-running-requests";
 export type EngineEvictionPolicy = "never" | "idle-only" | "preemptible";
+export type EngineAdmissionPolicy = "confirmable" | "strict";
 
 export type EngineHttpDescriptor = {
   defaultHost: string;
@@ -65,7 +69,7 @@ export type EngineDescriptor = {
   displayName: string;
   http: EngineHttpDescriptor;
   proxy: EngineProxyCapabilities;
-  probe: { id: EngineProbeId; httpHealth: boolean };
+  probe: { id: EngineProbeId; httpHealth: boolean; httpTimeoutMs?: number };
   nativeApi: EngineNativeApiId;
   launch: {
     injectSlotSavePath: boolean;
@@ -87,6 +91,7 @@ export type EngineDescriptor = {
   resourceProfile: EngineResourceProfileId;
   processTree: EngineProcessTreePolicy;
   concurrency: EngineConcurrencyId;
+  admission: EngineAdmissionPolicy;
   defaultEvictionPolicy: EngineEvictionPolicy;
   form: {
     creatable: boolean;
@@ -127,6 +132,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     resourceProfile: "llama-args",
     processTree: "named-descendants",
     concurrency: "llama-parallel",
+    admission: "confirmable",
     defaultEvictionPolicy: "preemptible",
     form: { creatable: true, modelSource: "gguf" },
   },
@@ -162,6 +168,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     resourceProfile: "rpc-device-args",
     processTree: "root-only",
     concurrency: "none",
+    admission: "confirmable",
     defaultEvictionPolicy: "never",
     form: { creatable: true, modelSource: "none" },
   },
@@ -201,6 +208,48 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     resourceProfile: "vllm-args",
     processTree: "all-descendants",
     concurrency: "vllm-sequences",
+    admission: "confirmable",
+    defaultEvictionPolicy: "preemptible",
+    form: { creatable: true, modelSource: "free-text" },
+  },
+  sglang: {
+    id: "sglang",
+    displayName: "SGLang",
+    http: {
+      defaultHost: "127.0.0.1",
+      defaultPort: 30000,
+      hostArgKeys: ["--host"],
+      portArgKeys: ["--port"],
+      apiPrefixArgKeys: [],
+    },
+    proxy: {
+      serveEndpoint: true,
+      requestLease: true,
+      modelLoadUnload: false,
+      slotSave: false,
+      streamResume: false,
+      sseTimings: false,
+    },
+    probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
+    nativeApi: "none",
+    launch: {
+      injectSlotSavePath: false,
+      argv: "argparse-flags",
+      argvPrefix: [],
+      pythonModule: "sglang.launch_server",
+    },
+    preflight: {
+      engineChecks: "sglang",
+      argumentCatalogParser: "sglang-help",
+    },
+    logs: { parser: "sglang" },
+    estimator: "none",
+    benchmarkServerMetrics: "none",
+    assessment: { fingerprint: "python-env", measuredBaseline: true },
+    resourceProfile: "sglang-args",
+    processTree: "all-descendants",
+    concurrency: "sglang-max-running-requests",
+    admission: "confirmable",
     defaultEvictionPolicy: "preemptible",
     form: { creatable: true, modelSource: "free-text" },
   },
@@ -222,7 +271,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       streamResume: false,
       sseTimings: false,
     },
-    probe: { id: "openai-http", httpHealth: true },
+    probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
     nativeApi: "none",
     launch: {
       injectSlotSavePath: false,
@@ -241,6 +290,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     resourceProfile: "ktransformers-hybrid",
     processTree: "all-descendants",
     concurrency: "sglang-max-running-requests",
+    admission: "strict",
     defaultEvictionPolicy: "idle-only",
     form: { creatable: true, modelSource: "free-text" },
   },

@@ -71,6 +71,51 @@ test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () =
   });
 });
 
+test("sglang descriptor declares the upstream SGLang lifecycle contract", () => {
+  const descriptor = engineDescriptor("sglang");
+  assert.equal(descriptor.displayName, "SGLang");
+  assert.equal(descriptor.http.defaultPort, 30000);
+  assert.equal(descriptor.probe.id, "openai-http");
+  assert.equal(descriptor.probe.httpTimeoutMs, 15_000);
+  assert.equal(descriptor.nativeApi, "none");
+  assert.deepEqual(descriptor.launch, {
+    injectSlotSavePath: false,
+    argv: "argparse-flags",
+    argvPrefix: [],
+    pythonModule: "sglang.launch_server",
+  });
+  assert.equal(descriptor.preflight.engineChecks, "sglang");
+  assert.equal(descriptor.preflight.argumentCatalogParser, "sglang-help");
+  assert.equal(descriptor.logs.parser, "sglang");
+  assert.equal(descriptor.estimator, "none");
+  assert.equal(descriptor.resourceProfile, "sglang-args");
+  assert.equal(descriptor.processTree, "all-descendants");
+  assert.equal(descriptor.concurrency, "sglang-max-running-requests");
+  assert.equal(descriptor.admission, "confirmable");
+  assert.equal(descriptor.defaultEvictionPolicy, "preemptible");
+  assert.deepEqual(descriptor.form, {
+    creatable: true,
+    modelSource: "free-text",
+  });
+  assert.deepEqual(descriptor.proxy, {
+    serveEndpoint: true,
+    requestLease: true,
+    modelLoadUnload: false,
+    slotSave: false,
+    streamResume: false,
+    sseTimings: false,
+  });
+});
+
+test("only ktransformers uses strict memory admission", () => {
+  for (const kind of INSTANCE_KINDS) {
+    assert.equal(
+      engineDescriptor(kind).admission,
+      kind === "ktransformers" ? "strict" : "confirmable",
+    );
+  }
+});
+
 test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () => {
   const descriptor = engineDescriptor("ktransformers");
   assert.equal(descriptor.displayName, "KTransformers (SGLang-KT)");
