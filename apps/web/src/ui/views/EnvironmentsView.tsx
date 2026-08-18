@@ -28,6 +28,12 @@ import { EnvironmentCreateForm } from "../components/EnvironmentCreateForm";
 import { EnvironmentRepositorySettingsForm } from "../components/EnvironmentRepositorySettingsForm";
 import { formatLocalDateTime } from "../utils/time";
 
+const ENGINE_LABELS: Record<EnvironmentCreate["engine"], string> = {
+  vllm: "vLLM",
+  sglang: "SGLang",
+  ktransformers: "KTransformers",
+};
+
 function statusColor(status: string) {
   if (status === "installed" || status === "succeeded") return "green";
   if (status === "installing" || status === "running") return "blue";
@@ -84,7 +90,7 @@ export function EnvironmentsView() {
       await refresh();
       notifications.show({
         title: "Environment install started",
-        message: `${input.engine === "vllm" ? "vLLM" : "KTransformers"} ${input.version}`,
+        message: `${ENGINE_LABELS[input.engine]} ${input.version}`,
       });
     },
     onError: (error) =>
@@ -174,8 +180,7 @@ export function EnvironmentsView() {
                 <div>
                   <Group gap="xs">
                     <Text fw={600}>
-                      {environment.engine === "vllm" ? "vLLM" : "KTransformers"}{" "}
-                      {environment.version}
+                      {ENGINE_LABELS[environment.engine]} {environment.version}
                     </Text>
                     <Badge>{environment.variant}</Badge>
                     <Badge color={statusColor(environment.status)}>
