@@ -483,6 +483,11 @@ function SourceRepositoryPanel({
 
         {repository.valid && (
           <Group gap="xs" wrap="wrap">
+            {repository.tracking === "stable-tag" && (
+              <Badge color="teal" variant="light">
+                Stable releases
+              </Badge>
+            )}
             {repository.branch && (
               <Badge color="blue" variant="light">
                 {repository.branch}

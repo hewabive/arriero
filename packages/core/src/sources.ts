@@ -35,6 +35,8 @@ export const SourceRepositoryCloneSchema = z.object({
   branch: z.string().trim().min(1).max(255).nullable().default(null),
 });
 
+export const SourceRepositoryTrackingSchema = z.enum(["branch", "stable-tag"]);
+
 export const SourceRepositoryStateSchema = z.enum([
   "missing",
   "busy",
@@ -58,6 +60,7 @@ export const SourceRepositoryStatusSchema = z.object({
   remoteUrl: z.string().nullable(),
   originMatches: z.boolean().nullable(),
   dirty: z.boolean().nullable(),
+  tracking: SourceRepositoryTrackingSchema,
   driftSupported: z.boolean(),
   activeOperation: z.string().nullable(),
   checkedAt: z.string(),
@@ -149,6 +152,9 @@ export type SourceRepositorySettingsUpdate = z.infer<
   typeof SourceRepositorySettingsUpdateSchema
 >;
 export type SourceRepositoryClone = z.infer<typeof SourceRepositoryCloneSchema>;
+export type SourceRepositoryTracking = z.infer<
+  typeof SourceRepositoryTrackingSchema
+>;
 export type SourceRepositoryState = z.infer<typeof SourceRepositoryStateSchema>;
 export type SourceRepositoryStatus = z.infer<
   typeof SourceRepositoryStatusSchema

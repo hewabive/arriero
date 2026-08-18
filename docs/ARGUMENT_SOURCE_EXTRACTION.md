@@ -149,6 +149,11 @@ text while the extract recovers it.
 shape (`sync` / `write` / `diff`): `llama-cpp` delegates to the README help block
 (`docs/ARGUMENT_HELP_WORKFLOW.md`), `vllm` and `sglang` run the extractors above against the
 checkout registered in the `sources` domain (`runtime/sources/vllm`, `runtime/sources/sglang`).
+Those checkouts track the newest stable release tag, not upstream head
+(`docs/SOURCE_REPOSITORIES.md` § Tracking policy): the Python engines are installed from released
+wheels, so a source-sync pull moves the checkout — and therefore the extract — to the latest
+installable version. The stored snapshot commit is the tag's commit, and the `pendingCommits`
+range shows what the next release added.
 
 ```bash
 pnpm --filter @arriero/api args:docs:source-sync -- --engine vllm

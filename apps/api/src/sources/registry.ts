@@ -1,4 +1,7 @@
-import { LLAMA_CPP_SOURCE_ID } from "@arriero/core";
+import {
+  LLAMA_CPP_SOURCE_ID,
+  type SourceRepositoryTracking,
+} from "@arriero/core";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -10,6 +13,7 @@ export type SourceRepositoryDefinition = {
   displayName: string;
   directoryName: string;
   defaultOriginUrl: string;
+  tracking: SourceRepositoryTracking;
   driftSupported: boolean;
   validateCheckout(repoPath: string): string | null;
 };
@@ -28,6 +32,7 @@ const definitions: SourceRepositoryDefinition[] = [
     displayName: "llama.cpp",
     directoryName: "llama.cpp",
     defaultOriginUrl: "https://github.com/ggml-org/llama.cpp.git",
+    tracking: "branch",
     driftSupported: true,
     validateCheckout: markerCheckout("CMakeLists.txt", "llama.cpp"),
   },
@@ -37,6 +42,7 @@ const definitions: SourceRepositoryDefinition[] = [
     displayName: "vLLM",
     directoryName: "vllm",
     defaultOriginUrl: "https://github.com/vllm-project/vllm.git",
+    tracking: "stable-tag",
     driftSupported: false,
     validateCheckout: markerCheckout("vllm/engine/arg_utils.py", "vLLM"),
   },
@@ -46,6 +52,7 @@ const definitions: SourceRepositoryDefinition[] = [
     displayName: "SGLang",
     directoryName: "sglang",
     defaultOriginUrl: "https://github.com/sgl-project/sglang.git",
+    tracking: "stable-tag",
     driftSupported: false,
     validateCheckout: markerCheckout(
       "python/sglang/srt/server_args.py",
@@ -58,6 +65,7 @@ const definitions: SourceRepositoryDefinition[] = [
     displayName: "KTransformers",
     directoryName: "ktransformers",
     defaultOriginUrl: "https://github.com/kvcache-ai/ktransformers.git",
+    tracking: "stable-tag",
     driftSupported: false,
     validateCheckout: markerCheckout(
       "kt-kernel/CMakeLists.txt",

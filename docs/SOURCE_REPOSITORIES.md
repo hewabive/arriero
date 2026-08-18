@@ -38,7 +38,31 @@ adding another build implementation.
 them: their checkouts exist so the argument-declaration extractors can read the
 upstream sources (`docs/ARGUMENT_SOURCE_EXTRACTION.md`), so both declare
 `driftSupported: false` and validate on their argument-declaration file
-(`vllm/engine/arg_utils.py`, `python/sglang/srt/server_args.py`).
+(`vllm/engine/arg_utils.py`, `python/sglang/srt/server_args.py`). `ktransformers`
+is registered the same way for browsing the `kvcache-ai/ktransformers` sources.
+
+## Tracking policy
+
+Each source definition declares how pull chooses the commit to check out:
+
+- `branch` (llama.cpp) — `git pull --ff-only` fast-forwards the current tracking
+  branch. arriero builds llama.cpp from source, so the checkout follows upstream
+  head.
+- `stable-tag` (vLLM, SGLang, KTransformers) — pull fetches origin history and
+  tags, resolves the newest stable release tag (PEP 440 ordering via
+  `sources/stable-tag.ts`; pre-release and dev tags are ignored, `.postN` counts
+  as stable) and checks it out detached. These engines are installed from
+  released wheels, so the checkout — and everything derived from it, such as
+  argument-declaration extracts — stays at the latest version an operator can
+  actually install rather than an unreleased head. Clone performs the same
+  checkout when no explicit branch is requested; a repository without any stable
+  tag stays on its default branch after clone, and pull fails with a clear error
+  instead of guessing. The policy follows the source definition, so it applies
+  to managed and external locations alike.
+
+The status payload carries `tracking`, and the Source Sync page marks
+`stable-tag` repositories with a "Stable releases" badge; a detached checkout
+shows no branch badge, and the tag badge identifies the release.
 
 ## Clone and origin behavior
 
@@ -47,7 +71,8 @@ The Source Sync page can:
 - clone a missing checkout at its configured managed or external location;
 - override the default origin before cloning;
 - change the `origin` remote of an existing checkout;
-- fast-forward pull the current tracking branch;
+- pull the checkout forward per its tracking policy (branch fast-forward, or
+  detached checkout of the newest stable release tag);
 - show repository path, branch, commit, tag, and dirty state;
 - run adapter-specific integration drift checks.
 

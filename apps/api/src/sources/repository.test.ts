@@ -19,6 +19,7 @@ import {
 } from "../test/llama-origin.js";
 import {
   cloneSourceRepository,
+  pullSourceRepository,
   sweepSourceCloneStaging,
   updateSourceRepositorySettings,
 } from "./operations.js";
@@ -294,4 +295,75 @@ test("origin update changes both portable settings and the Git remote", async ()
     runFixtureGit(changed.status.repoPath, ["remote", "get-url", "origin"]),
     secondOrigin,
   );
+});
+
+function createVllmOriginRepository(name: string): string {
+  const path = resolve(config.dataDir, name);
+  rmSync(path, { recursive: true, force: true });
+  mkdirSync(resolve(path, "vllm", "engine"), { recursive: true });
+  runFixtureGit(path, ["init", "-b", "main"]);
+  writeFileSync(resolve(path, "vllm", "engine", "arg_utils.py"), "ARGS = {}\n");
+  runFixtureGit(path, ["add", "."]);
+  runFixtureGit(path, ["commit", "-m", "release 0.1.0"]);
+  runFixtureGit(path, ["tag", "v0.1.0"]);
+  return path;
+}
+
+function commitOriginRevision(path: string, message: string, tag?: string) {
+  runFixtureGit(path, ["commit", "--allow-empty", "-m", message]);
+  if (tag) {
+    runFixtureGit(path, ["tag", tag]);
+  }
+  return runFixtureGit(path, ["rev-parse", "HEAD"]);
+}
+
+test("clone of a stable-tag source checks out the latest stable release", async () => {
+  const origin = createVllmOriginRepository("vllm-origin");
+  const stableCommit = commitOriginRevision(origin, "release 0.2.0", "v0.2.0");
+  commitOriginRevision(origin, "pre-release work", "v0.3.0rc1");
+
+  const cloned = await cloneSourceRepository("vllm", {
+    originUrl: pathToFileURL(origin).href,
+    branch: null,
+  });
+
+  assert.equal(cloned.status.state, "ready");
+  assert.equal(cloned.status.tracking, "stable-tag");
+  assert.equal(cloned.status.currentCommit, stableCommit);
+  assert.ok(!cloned.status.branch);
+  assert.match(cloned.output, /Checked out v0\.2\.0/);
+});
+
+test("pull moves a stable-tag source onto the newest stable release", async () => {
+  const origin = createVllmOriginRepository("vllm-pull-origin");
+  await cloneSourceRepository("vllm", {
+    originUrl: pathToFileURL(origin).href,
+    branch: null,
+  });
+
+  const releaseCommit = commitOriginRevision(origin, "release 0.4.0", "v0.4.0");
+  commitOriginRevision(origin, "pre-release work", "v1.0.0rc1");
+
+  const pulled = await pullSourceRepository("vllm");
+  assert.equal(pulled.status.currentCommit, releaseCommit);
+  assert.ok(!pulled.status.branch);
+  assert.match(pulled.output, /Checked out v0\.4\.0/);
+
+  const repeated = await pullSourceRepository("vllm");
+  assert.match(repeated.output, /Already on v0\.4\.0\./);
+});
+
+test("pull fast-forwards a branch-tracking source", async () => {
+  const origin = createLlamaOriginRepository("llama-pull-origin");
+  await cloneSourceRepository(LLAMA_CPP_SOURCE_ID, {
+    originUrl: pathToFileURL(origin).href,
+    branch: null,
+  });
+
+  const nextCommit = commitOriginRevision(origin, "next change");
+
+  const pulled = await pullSourceRepository(LLAMA_CPP_SOURCE_ID);
+  assert.equal(pulled.status.currentCommit, nextCommit);
+  assert.equal(pulled.status.branch, "main");
+  assert.equal(pulled.status.tracking, "branch");
 });

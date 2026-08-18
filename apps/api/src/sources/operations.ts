@@ -40,6 +40,7 @@ import {
   saveSourceRepositoryOrigin,
   sourceRepositoryPath,
 } from "./repository.js";
+import { selectLatestStableTag } from "./stable-tag.js";
 import { withSourceRepositoryOperation } from "./state.js";
 
 const CLONE_STAGING_PREFIX = ".source-clone-";
@@ -59,6 +60,51 @@ function assertOperationNotCanceled(
   if (runtime.signal?.aborted) {
     throw new Error("source repository operation canceled");
   }
+}
+
+function longGitOptions(
+  runtime: SourceRepositoryOperationRuntime,
+  timeoutMs: number,
+) {
+  return {
+    timeoutMs,
+    maxOutputBytes: 8 * 1024 * 1024,
+    ...(runtime.signal ? { signal: runtime.signal } : {}),
+    ...(runtime.onGitOutput ? { onOutput: runtime.onGitOutput } : {}),
+    killProcessGroup: true,
+  };
+}
+
+async function resolveLatestStableTag(
+  repoPath: string,
+): Promise<string | null> {
+  const listed = await runGit(repoPath, ["tag", "--list"]);
+  return selectLatestStableTag(listed.stdout.split("\n"));
+}
+
+async function checkoutStableTag(
+  repoPath: string,
+  tag: string,
+  runtime: SourceRepositoryOperationRuntime,
+): Promise<string> {
+  const head = (await runGit(repoPath, ["rev-parse", "HEAD"])).stdout.trim();
+  const target = (
+    await runGit(repoPath, ["rev-parse", `${tag}^{commit}`])
+  ).stdout.trim();
+  if (head === target) {
+    return `Already on ${tag}.`;
+  }
+  assertOperationNotCanceled(runtime);
+  runtime.onPhase?.({
+    phase: "checking-out",
+    message: `Checking out release tag ${tag}.`,
+  });
+  await runGit(
+    repoPath,
+    ["checkout", "--detach", tag],
+    longGitOptions(runtime, 10 * 60_000),
+  );
+  return `Checked out ${tag} (${target.slice(0, 12)}).`;
 }
 
 export function sweepSourceCloneStaging(): number {
@@ -176,13 +222,24 @@ export async function cloneSourceRepository(
         });
         await validateClonedRepository(sourceId, staging);
         assertOperationNotCanceled(runtime);
+        let checkoutNote = "";
+        if (
+          getSourceRepositoryDefinition(sourceId).tracking === "stable-tag" &&
+          !parsed.branch
+        ) {
+          const tag = await resolveLatestStableTag(staging);
+          if (tag) {
+            checkoutNote = `\n${await checkoutStableTag(staging, tag, runtime)}`;
+          }
+        }
+        assertOperationNotCanceled(runtime);
         runtime.onPhase?.({
           phase: "publishing",
           message: `Publishing the checkout to ${target}.`,
         });
         renameSync(staging, target);
         saveSourceRepositoryOrigin(sourceId, originUrl);
-        return gitOutput(cloned) || `Cloned ${originUrl}.`;
+        return (gitOutput(cloned) || `Cloned ${originUrl}.`) + checkoutNote;
       } finally {
         traceBlockingSection("sources:rm-clone-staging", () =>
           rmSync(temporary, { recursive: true, force: true }),
@@ -240,33 +297,64 @@ export async function updateSourceRepositorySettings(
   return result(sourceId, "set-origin", output);
 }
 
+async function pullTrackingBranch(
+  repoPath: string,
+  runtime: SourceRepositoryOperationRuntime,
+): Promise<string> {
+  runtime.onPhase?.({
+    phase: "updating",
+    message: "Fetching and fast-forwarding the tracking branch.",
+  });
+  const pulled = await runGit(
+    repoPath,
+    ["pull", "--progress", "--ff-only"],
+    longGitOptions(runtime, 10 * 60_000),
+  );
+  return gitOutput(pulled) || "Already up to date.";
+}
+
+async function pullLatestStableTag(
+  repoPath: string,
+  runtime: SourceRepositoryOperationRuntime,
+): Promise<string> {
+  runtime.onPhase?.({
+    phase: "updating",
+    message: "Fetching origin history and release tags.",
+  });
+  const fetched = await runGit(
+    repoPath,
+    ["fetch", "--progress", "--tags", "--prune", "origin"],
+    longGitOptions(runtime, 10 * 60_000),
+  );
+  assertOperationNotCanceled(runtime);
+  runtime.onPhase?.({
+    phase: "resolving",
+    message: "Resolving the latest stable release tag.",
+  });
+  const tag = await resolveLatestStableTag(repoPath);
+  if (!tag) {
+    throw new Error(`no stable release tag found in ${repoPath}`);
+  }
+  const checkout = await checkoutStableTag(repoPath, tag, runtime);
+  const fetchOutput = gitOutput(fetched);
+  return fetchOutput ? `${fetchOutput}\n${checkout}` : checkout;
+}
+
 export async function pullSourceRepository(
   sourceId: string,
   runtime: SourceRepositoryOperationRuntime = {},
 ): Promise<SourceRepositoryOperationResult> {
   assertSourceContentCanChange(sourceId);
+  const definition = getSourceRepositoryDefinition(sourceId);
   const output = await withSourceRepositoryOperation(
     sourceId,
     "pull",
     async () => {
       assertOperationNotCanceled(runtime);
       const status = await assertSourceRepositoryReady(sourceId);
-      runtime.onPhase?.({
-        phase: "updating",
-        message: "Fetching and fast-forwarding the tracking branch.",
-      });
-      const pulled = await runGit(
-        status.repoPath,
-        ["pull", "--progress", "--ff-only"],
-        {
-          timeoutMs: 10 * 60_000,
-          maxOutputBytes: 8 * 1024 * 1024,
-          ...(runtime.signal ? { signal: runtime.signal } : {}),
-          ...(runtime.onGitOutput ? { onOutput: runtime.onGitOutput } : {}),
-          killProcessGroup: true,
-        },
-      );
-      return gitOutput(pulled) || "Already up to date.";
+      return definition.tracking === "stable-tag"
+        ? pullLatestStableTag(status.repoPath, runtime)
+        : pullTrackingBranch(status.repoPath, runtime);
     },
   );
   return result(sourceId, "pull", output);

@@ -466,7 +466,10 @@ extract owns flags/group/choices/default, so their frontmatter carries just
   `<models dir>/<owner>/<repo>/` with a `.arriero-hf.json` sidecar manifest
   (`docs/HF_DOWNLOADS.md`).
 - `runtime/sources/`: managed inference source checkouts (`config.sourcesDir`,
-  `ARRIERO_SOURCES_DIR`); `llama-cpp` defaults to `runtime/sources/llama.cpp`. Every Git operation
+  `ARRIERO_SOURCES_DIR`); `llama-cpp` defaults to `runtime/sources/llama.cpp`. Per-source tracking
+  policy: `llama-cpp` fast-forwards its branch; `vllm`/`sglang`/`ktransformers` pull to a detached
+  checkout of the newest stable release tag (`sources/stable-tag.ts`) so extracts document the
+  latest installable wheel, not head. Every Git operation
   requires the checkout's exact `--show-toplevel`, so an internal plain directory can never adopt the
   parent arriero repository. The generic API is `/api/source-repositories/*`; `/api/llama-source/*`
   remains the Build/docs compatibility adapter. See `docs/SOURCE_REPOSITORIES.md`.
