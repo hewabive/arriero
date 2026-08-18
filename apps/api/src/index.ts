@@ -94,6 +94,8 @@ eventLoopMonitor.onStall((stall) =>
   logger.warn(
     {
       durationMs: Math.round(stall.durationMs),
+      verdict: stall.verdict,
+      signals: stall.signals,
       culprits: stall.culprits.map(
         (culprit) => `${culprit.label} ${Math.round(culprit.durationMs)}ms`,
       ),

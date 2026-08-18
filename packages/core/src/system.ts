@@ -254,9 +254,26 @@ export const EventLoopBlockingSectionSchema = z.object({
   endedAt: z.number().int().nonnegative(),
 });
 
+export const EventLoopStallSignalsSchema = z.object({
+  cpuMs: z.number().nonnegative(),
+  runDelayMs: z.number().nonnegative(),
+  eluActiveMs: z.number().nonnegative(),
+  majorPageFaults: z.number().int().nonnegative(),
+});
+
+export const EventLoopStallVerdictSchema = z.enum([
+  "self-cpu",
+  "self-wait",
+  "starved",
+  "paging",
+  "unknown",
+]);
+
 export const EventLoopStallSchema = z.object({
   detectedAt: z.number().int().nonnegative(),
   durationMs: z.number().nonnegative(),
+  verdict: EventLoopStallVerdictSchema,
+  signals: EventLoopStallSignalsSchema.nullable(),
   culprits: z.array(EventLoopBlockingSectionSchema),
 });
 
@@ -333,6 +350,8 @@ export type SystemMetricsSample = z.infer<typeof SystemMetricsSampleSchema>;
 export type EventLoopBlockingSection = z.infer<
   typeof EventLoopBlockingSectionSchema
 >;
+export type EventLoopStallSignals = z.infer<typeof EventLoopStallSignalsSchema>;
+export type EventLoopStallVerdict = z.infer<typeof EventLoopStallVerdictSchema>;
 export type EventLoopStall = z.infer<typeof EventLoopStallSchema>;
 export type EventLoopReport = z.infer<typeof EventLoopReportSchema>;
 export type SystemMetricsWindow = z.infer<typeof SystemMetricsWindowSchema>;

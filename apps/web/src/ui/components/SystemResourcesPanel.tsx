@@ -72,12 +72,29 @@ function formatMs(value: number | null | undefined) {
   return formatDurationMs(value ?? null);
 }
 
+function stallVerdictLabel(stall: EventLoopStall) {
+  const signals = stall.signals;
+  if (stall.verdict === "starved") {
+    return `starved by the host${signals ? ` (run delay ${formatMs(signals.runDelayMs)})` : ""}`;
+  }
+  if (stall.verdict === "self-cpu") {
+    return `own CPU${signals ? ` (${formatMs(signals.cpuMs)})` : ""}`;
+  }
+  if (stall.verdict === "self-wait") {
+    return "own sync wait";
+  }
+  if (stall.verdict === "paging") {
+    return `paging${signals ? ` (${countLabel(signals.majorPageFaults, "major fault")})` : ""}`;
+  }
+  return "unattributed";
+}
+
 function stallSummary(stall: EventLoopStall) {
   const at = formatLocalClock(stall.detectedAt);
   const culprits = stall.culprits
     .map((culprit) => `${culprit.label} (${formatMs(culprit.durationMs)})`)
     .join(", ");
-  return `${at} · ${formatMs(stall.durationMs)}${culprits ? ` · ${culprits}` : ""}`;
+  return `${at} · ${formatMs(stall.durationMs)} · ${stallVerdictLabel(stall)}${culprits ? ` · ${culprits}` : ""}`;
 }
 
 function diskTypeLabel(type: SystemDiskDevice["type"]) {
@@ -317,7 +334,7 @@ export function SystemResourcesPanel(props: {
                 <Text c="dimmed" size="xs">
                   Longest single blockage of the manager event loop per sample
                   {props.eventLoop
-                    ? `; stalls above ${formatMs(props.eventLoop.stallThresholdMs)} are reported with the blocking operations caught in the act.`
+                    ? `; stalls above ${formatMs(props.eventLoop.stallThresholdMs)} are reported with a verdict (own code vs host contention) and the blocking operations caught in the act.`
                     : "."}
                 </Text>
               )

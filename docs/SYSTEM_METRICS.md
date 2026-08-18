@@ -157,6 +157,49 @@ live SSE samples for the `live` window; `hour` and `day` refetch on the tier int
 their samples are produced by server-side averaging. Samples are merged by timestamp, so a reconnect
 cannot duplicate points.
 
+## Event-loop stall verdicts
+
+`system/event-loop.ts` owns the stall monitor: the recorder tick calls `eventLoopMonitor.sample(at)`
+once per second, and a max lag ≥ 250 ms becomes an `EventLoopStall` served at
+`GET /api/system/event-loop` and logged as a `warn`. Culprit attribution via `traceBlockingSection`
+only sees code that opted in, so every stall also carries a **verdict** answering the question
+attribution cannot: did arriero's own code block the loop, or did the host starve the process?
+
+Three per-tick counters are read alongside the lag histogram (the whole set costs ~16 µs, measured):
+
+- `/proc/thread-self/schedstat` — the event-loop thread's on-CPU time and, crucially, its
+  **run_delay**: time spent runnable but waiting in the scheduler queue. Kernel-maintained,
+  per-thread, and the only signal that names external CPU contention directly. `thread-self`
+  matters: the tick runs on the main thread, which *is* the event loop; `process.cpuUsage()` was
+  rejected because it sums worker threads (GGUF parser) and would misattribute their burn.
+- `performance.eventLoopUtilization()` — active time distinguishes "the loop sat inside a callback"
+  from "the wakeup itself was delayed".
+- `process.resourceUsage().majorPageFault` — page-in from disk (swap or mmap). Process-wide, hence
+  used only as a refinement, never as the primary discriminator.
+
+Deltas are taken between consecutive `sample()` calls, so they cover the same ~1 s window as the lag
+histogram. Classification (`classifyStall`) checks in strict order, first match wins:
+
+1. `starved` — run_delay ≥ 50 % of the lag. Checked first because starvation while executing a
+   callback also inflates ELU active time (a stretched callback is still "active"), so ELU cannot
+   veto this verdict.
+2. `self-cpu` — own thread CPU ≥ 70 % of the lag: the loop computed through the stall (GC included).
+3. `paging` / `self-wait` — ELU active ≥ 70 % of the lag with low CPU: the loop sat in a callback
+   waiting on something synchronous. ≥ 16 major faults in the window means the wait was page-in
+   (`paging`); otherwise sync I/O or a sync child (`self-wait`), where `traceBlockingSection`
+   culprits usually name the call site.
+4. `unknown` — nothing dominant (also: schedstat unreadable, e.g. non-Linux, or the first tick after
+   boot, which has no delta window yet).
+
+The share thresholds come from measured separation on a 4-core host: an injected 300 ms sync block
+scored 307 ms CPU / 1.5 ms run_delay, an `execSync` wait scored 315 ms ELU active / 6 ms CPU, and
+scheduler starvation under pinned CPU hogs scored 1792 ms run_delay against 229 ms CPU over a 2 s
+window — each scenario saturates exactly one signal, so 50–70 % shares leave wide margins on both
+sides. Pure CPU pressure against an *idle* loop produces almost no lag on EEVDF kernels (sleepers
+wake with priority); starvation stalls appear when the loop is busy, which is when run_delay
+accumulates. The verdict and its signal receipt land in the stall record, the `warn` log line, and
+the System resources page, so a one-off stall is attributable after the fact without any profiler.
+
 ## Charts
 
 `ui/components/MetricChart.tsx` is a hand-written SVG area chart — no charting dependency. It plots

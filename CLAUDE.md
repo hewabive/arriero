@@ -118,7 +118,8 @@ footprint from GGUF + args) + `memory-assessment` (per-engine analytical/measure
 fingerprint drift + background auto-assess loop that auto-binds analytical / auto-captures measured
 evidence for unassessed or stale instances — never touches `mismatch`, never applies draws,
 `docs/MEMORY_ESTIMATION.md`) · `system` (host telemetry + the always-on
-1 Hz metrics recorder, `docs/SYSTEM_METRICS.md`) · `api-lab` · `benchmark` (inference-speed benchmark: engine-agnostic SSE-timed requests against an
+1 Hz metrics recorder; event-loop stalls get a self-vs-host verdict from schedstat/ELU/major-fault
+deltas, `docs/SYSTEM_METRICS.md`) · `api-lab` · `benchmark` (inference-speed benchmark: engine-agnostic SSE-timed requests against an
 instance endpoint, prefill/decode phase segmentation, per-topic speculative-acceptance metrics,
 built-in + custom prompt library, `docs/BENCHMARK.md`) · `filesystem` ·
 `nodes` (fleet registry + reverse-proxy transport, `docs/FEDERATION.md`) · `update` (manager
