@@ -86,7 +86,8 @@ function nowIso() {
 
 function localWheelArtifacts(spec: EnvironmentSpec): LocalWheelArtifact[] {
   const sources =
-    spec.engine === "vllm" && spec.source.kind === "wheel"
+    (spec.engine === "vllm" || spec.engine === "sglang") &&
+    spec.source.kind === "wheel"
       ? [spec.source]
       : spec.engine === "ktransformers" && spec.source.kind === "wheels"
         ? spec.source.artifacts

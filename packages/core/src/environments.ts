@@ -124,13 +124,18 @@ export const EnvironmentInstallSourceSchema = z.union([
   KTransformersEnvironmentInstallSourceSchema,
 ]);
 
-export const EnvironmentEngineSchema = z.enum(["vllm", "ktransformers"]);
+export const EnvironmentEngineSchema = z.enum([
+  "vllm",
+  "sglang",
+  "ktransformers",
+]);
 
 export const ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY: Record<
   z.infer<typeof EnvironmentEngineSchema>,
   ComputeCapability
 > = {
   vllm: { major: 7, minor: 5 },
+  sglang: { major: 7, minor: 5 },
   ktransformers: { major: 7, minor: 5 },
 };
 
@@ -146,6 +151,17 @@ const VllmEnvironmentCreateObjectSchema = z.object({
   source: VllmEnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],
+  }),
+});
+
+const SglangEnvironmentCreateObjectSchema = z.object({
+  ...EnvironmentCommonShape,
+  engine: z.literal("sglang"),
+  variant: z.literal("cuda").default("cuda"),
+  pythonVersion: PythonVersionSchema.default("3.12"),
+  source: VllmEnvironmentInstallSourceSchema.default({
+    kind: "pypi",
+    extras: ["all"],
   }),
 });
 
@@ -173,6 +189,7 @@ function withLegacyVllmEngine(value: unknown) {
 
 const EnvironmentCreateUnionSchema = z.discriminatedUnion("engine", [
   VllmEnvironmentCreateObjectSchema,
+  SglangEnvironmentCreateObjectSchema,
   KTransformersEnvironmentCreateObjectSchema,
 ]);
 
@@ -192,6 +209,7 @@ export const EnvironmentSpecSchema = z.preprocess(
   withLegacyVllmEngine,
   z.discriminatedUnion("engine", [
     VllmEnvironmentCreateObjectSchema.extend(EnvironmentSpecMetadataShape),
+    SglangEnvironmentCreateObjectSchema.extend(EnvironmentSpecMetadataShape),
     KTransformersEnvironmentCreateObjectSchema.extend(
       EnvironmentSpecMetadataShape,
     ),
@@ -255,6 +273,7 @@ export const EnvironmentRecordSchema = z.preprocess(
   withLegacyVllmEngine,
   z.discriminatedUnion("engine", [
     VllmEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
+    SglangEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
     KTransformersEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
   ]),
 );

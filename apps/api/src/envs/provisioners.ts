@@ -104,6 +104,15 @@ function vllmValidationScript(version: string) {
   ].join("; ");
 }
 
+function sglangValidationScript(version: string) {
+  return [
+    "import importlib.metadata as metadata",
+    "import sglang",
+    `assert metadata.version('sglang') == ${JSON.stringify(version)}`,
+    `assert sglang.__version__ == ${JSON.stringify(version)}`,
+  ].join("; ");
+}
+
 function ktransformersValidationScript(version: string) {
   return [
     "import importlib.metadata as metadata",
@@ -174,6 +183,66 @@ const VLLM_PROVISIONER: EnvironmentProvisioner = {
   },
   catalogName(spec) {
     return `vllm ${spec.version} [${spec.id.slice(0, 8)}]`.slice(0, 80);
+  },
+};
+
+const SGLANG_PROVISIONER: EnvironmentProvisioner = {
+  displayName: "SGLang",
+  entrypointRelative: "bin/sglang",
+  distributions: ["sglang"],
+  requirements(spec) {
+    if (spec.engine !== "sglang")
+      throw new Error("SGLang provisioner kind mismatch");
+    if (spec.source.kind === "wheel") {
+      return [wheelRequirement(spec.source.url, spec.source.sha256)];
+    }
+    const extras = spec.source.extras.length
+      ? `[${spec.source.extras.join(",")}]`
+      : "";
+    return [`sglang${extras}==${spec.version}`];
+  },
+  installOptions(spec) {
+    if (spec.engine !== "sglang")
+      throw new Error("SGLang provisioner kind mismatch");
+    return spec.source.kind === "wheel" && spec.source.torchBackend
+      ? ["--torch-backend", spec.source.torchBackend]
+      : [];
+  },
+  validationCommand(spec, finalDir) {
+    if (spec.engine !== "sglang")
+      throw new Error("SGLang provisioner kind mismatch");
+    return [
+      resolve(finalDir, "bin", "python"),
+      "-c",
+      sglangValidationScript(spec.version),
+    ];
+  },
+  validateLayout(spec, finalDir) {
+    if (spec.engine !== "sglang")
+      throw new Error("SGLang provisioner kind mismatch");
+    return commonLayoutError({
+      finalDir,
+      entrypointRelative: this.entrypointRelative,
+      entrypointDescription: "SGLang entrypoint",
+      freezePins: [`sglang==${spec.version}`],
+    });
+  },
+  availability(spec, context) {
+    if (spec.engine !== "sglang")
+      throw new Error("SGLang provisioner kind mismatch");
+    return environmentAvailability({
+      accelerators: context.accelerators,
+      installed: context.installed,
+      rocmDeviceAvailable: context.rocmDeviceAvailable,
+      variant: spec.variant,
+      cuda: {
+        engineLabel: this.displayName,
+        minimumComputeCapability: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.sglang,
+      },
+    });
+  },
+  catalogName(spec) {
+    return `sglang ${spec.version} [${spec.id.slice(0, 8)}]`.slice(0, 80);
   },
 };
 
@@ -269,6 +338,7 @@ const ENVIRONMENT_PROVISIONERS: Record<
   EnvironmentProvisioner
 > = {
   vllm: VLLM_PROVISIONER,
+  sglang: SGLANG_PROVISIONER,
   ktransformers: KTRANSFORMERS_PROVISIONER,
 };
 

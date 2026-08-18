@@ -4,6 +4,7 @@ import type {
   ProcessPreflightIssue,
 } from "@arriero/core";
 import {
+  ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
   parseCudaVisibleDevices,
   SGLANG_TENSOR_PARALLEL_KEYS,
 } from "@arriero/core";
@@ -16,11 +17,6 @@ import {
   pushCudaComputeCapabilityIssues,
 } from "./preflight-cuda.js";
 import type { PreflightOptions } from "./preflight.js";
-
-const SGLANG_MINIMUM_CUDA_COMPUTE_CAPABILITY: ComputeCapability = {
-  major: 7,
-  minor: 5,
-};
 
 const HF_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -286,7 +282,7 @@ export async function validateSglangPreflight(
   await validateSglangArgumentCompatibility(instance, issues);
   validateSglangCuda(instance, issues, options, {
     engineLabel: "SGLang",
-    minimum: SGLANG_MINIMUM_CUDA_COMPUTE_CAPABILITY,
+    minimum: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.sglang,
   });
   validateSglangServingWarnings(instance, issues, "SGLang");
   validateSglangManagedBoundary(instance, issues, "SGLang");

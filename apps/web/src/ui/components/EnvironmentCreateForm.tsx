@@ -160,26 +160,36 @@ export function EnvironmentCreateForm({
               },
       };
     }
+    const singleWheelSource =
+      sourceKind === "pypi"
+        ? {
+            kind: "pypi" as const,
+            extras: extras
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean),
+          }
+        : {
+            kind: "wheel" as const,
+            url: wheelUrl.trim(),
+            sha256: wheelSha256.trim() || null,
+            torchBackend: torchBackend.trim() || null,
+          };
+    if (engine === "sglang") {
+      return {
+        ...common,
+        engine,
+        variant: "cuda",
+        pythonVersion: pythonVersion.trim(),
+        source: singleWheelSource,
+      };
+    }
     return {
       ...common,
       engine,
       variant,
       pythonVersion: pythonVersion.trim(),
-      source:
-        sourceKind === "pypi"
-          ? {
-              kind: "pypi",
-              extras: extras
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean),
-            }
-          : {
-              kind: "wheel",
-              url: wheelUrl.trim(),
-              sha256: wheelSha256.trim() || null,
-              torchBackend: torchBackend.trim() || null,
-            },
+      source: singleWheelSource,
     };
   }, [
     engine,
@@ -201,22 +211,19 @@ export function EnvironmentCreateForm({
       options.push("--torch-backend", torchBackend.trim());
     }
     const pin = version.trim() || "<version>";
+    const extrasSuffix = extras.trim()
+      ? `[${extras
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .join(",")}]`
+      : "";
     const roots =
       sourceKind === "wheel"
         ? [wheelUrl.trim() || "<wheel url>"]
-        : engine === "vllm"
-          ? [
-              `vllm${
-                extras.trim()
-                  ? `[${extras
-                      .split(",")
-                      .map((item) => item.trim())
-                      .filter(Boolean)
-                      .join(",")}]`
-                  : ""
-              }==${pin}`,
-            ]
-          : [`kt-kernel==${pin}`, `sglang-kt==${pin}`];
+        : engine === "ktransformers"
+          ? [`kt-kernel==${pin}`, `sglang-kt==${pin}`]
+          : [`${engine}${extrasSuffix}==${pin}`];
     return ["uv pip install", ...options, ...roots].join(" ");
   }, [
     repositories.packageIndexUrl,
@@ -303,9 +310,17 @@ export function EnvironmentCreateForm({
                   setPythonVersion("3.12");
                 }
               }
+              if (next === "sglang") {
+                setVariant("cuda");
+                setExtras("all");
+              }
+              if (next === "vllm") {
+                setExtras("");
+              }
             }}
             data={[
               { label: "vLLM", value: "vllm" },
+              { label: "SGLang", value: "sglang" },
               { label: "KTransformers (SGLang-KT)", value: "ktransformers" },
             ]}
           />
@@ -366,14 +381,20 @@ export function EnvironmentCreateForm({
           ) : (
             <Stack gap="sm">
               <TextInput
-                label={engine === "vllm" ? "Wheel URL" : "kt-kernel wheel URL"}
+                label={
+                  engine === "ktransformers"
+                    ? "kt-kernel wheel URL"
+                    : "Wheel URL"
+                }
                 required
                 value={wheelUrl}
                 onChange={(event) => setWheelUrl(event.currentTarget.value)}
               />
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <TextInput
-                  label={engine === "vllm" ? "SHA-256" : "kt-kernel SHA-256"}
+                  label={
+                    engine === "ktransformers" ? "kt-kernel SHA-256" : "SHA-256"
+                  }
                   value={wheelSha256}
                   onChange={(event) =>
                     setWheelSha256(event.currentTarget.value)
@@ -425,7 +446,11 @@ export function EnvironmentCreateForm({
             <TouchAutocomplete
               style={{ flex: 1 }}
               label={
-                engine === "vllm" ? "vLLM version" : "Matched pair version"
+                engine === "vllm"
+                  ? "vLLM version"
+                  : engine === "sglang"
+                    ? "SGLang version"
+                    : "Matched pair version"
               }
               required
               data={versionOptions}
@@ -456,7 +481,13 @@ export function EnvironmentCreateForm({
               }}
               value={version}
               onChange={setVersion}
-              placeholder={engine === "vllm" ? "0.26.0" : "0.6.3.post1"}
+              placeholder={
+                engine === "vllm"
+                  ? "0.26.0"
+                  : engine === "sglang"
+                    ? "0.5.17"
+                    : "0.6.3.post1"
+              }
               description={
                 sourceKind === "wheel"
                   ? "Must match the version inside the wheel; it is verified after install"
@@ -503,7 +534,7 @@ export function EnvironmentCreateForm({
               fail unless the index is stale or the release is hidden.
             </Text>
           )}
-          {engine === "vllm" && sourceKind === "pypi" && (
+          {engine !== "ktransformers" && sourceKind === "pypi" && (
             <TextInput
               label="Extras"
               description="Comma-separated"

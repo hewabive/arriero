@@ -92,6 +92,22 @@ function ktransformersSpec(source: unknown) {
   });
 }
 
+function sglangSpec(source: unknown) {
+  const input = EnvironmentCreateSchema.parse({
+    engine: "sglang",
+    version: "0.5.17",
+    pythonVersion: "3.12",
+    source,
+  });
+  return EnvironmentSpecSchema.parse({
+    ...input,
+    id: "env-sglang-test-1234",
+    pathCatalogEntryId: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+}
+
 function installCommand(
   environment: EnvironmentSpec,
   repositories = ONLINE_REPOSITORIES,
@@ -176,6 +192,39 @@ test("KTransformers pypi plan uses the site index for both roots", () => {
   assert.deepEqual(indexFlags(command), ["--default-index", packageIndexUrl]);
   assert.ok(command.includes("kt-kernel==0.6.3.post1"));
   assert.ok(command.includes("sglang-kt==0.6.3.post1"));
+});
+
+test("SGLang pypi plan installs one root with extras and validates the import", () => {
+  const packageIndexUrl = "https://packages.example/simple";
+  const steps = environmentJobSteps(
+    sglangSpec({ kind: "pypi", extras: ["all"] }),
+    "uv",
+    repositorySettings({ packageIndexUrl }),
+  );
+  const install = steps.find((step) => step.name === "package-install")!;
+  assert.ok(install.command.includes("sglang[all]==0.5.17"));
+  assert.ok(install.command.includes(packageIndexUrl));
+  const validate = steps.find((step) => step.name === "validate")!;
+  assert.ok(validate.command.at(-1)?.includes("import sglang"));
+});
+
+test("SGLang wheel plan carries hash and torch backend", () => {
+  const hash = "b".repeat(64);
+  const steps = environmentJobSteps(
+    sglangSpec({
+      kind: "wheel",
+      url: "https://example/sglang.whl",
+      sha256: hash,
+      torchBackend: "cu128",
+    }),
+    "uv",
+    repositorySettings({}),
+  );
+  const command = steps.find(
+    (step) => step.name === "package-install",
+  )!.command;
+  assert.ok(command.includes(`https://example/sglang.whl#sha256=${hash}`));
+  assert.deepEqual(command.slice(-2), ["--torch-backend", "cu128"]);
 });
 
 test("wheel environment plan carries hash and torch backend", () => {

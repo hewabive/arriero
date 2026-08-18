@@ -79,3 +79,32 @@ test("KTransformers layout requires sglang and both exact package pins", () => {
   assert.equal(environmentLayoutError(ktSpec), null);
   rmSync(directory, { recursive: true, force: true });
 });
+
+const sglangSpec = EnvironmentSpecSchema.parse({
+  engine: "sglang",
+  version: "0.5.17",
+  pythonVersion: "3.12",
+  id: "sglang-layout-validation-test",
+  pathCatalogEntryId: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+});
+
+test("SGLang layout requires the sglang entrypoint and exact package pin", () => {
+  const directory = environmentDirectory(sglangSpec);
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(resolve(directory, "bin"), { recursive: true });
+  writeFileSync(resolve(directory, "bin", "python"), "#!/bin/sh\n", {
+    mode: 0o755,
+  });
+  writeFileSync(resolve(directory, "bin", "sglang"), "#!/bin/sh\n", {
+    mode: 0o755,
+  });
+  writeFileSync(resolve(directory, "freeze.txt"), "sglang==0.5.16\n", "utf8");
+
+  assert.match(environmentLayoutError(sglangSpec) ?? "", /sglang==0\.5\.17/);
+
+  writeFileSync(resolve(directory, "freeze.txt"), "sglang==0.5.17\n", "utf8");
+  assert.equal(environmentLayoutError(sglangSpec), null);
+  rmSync(directory, { recursive: true, force: true });
+});
