@@ -25,6 +25,7 @@ import {
 } from "./runner.js";
 
 const INSTANCE_NAME = "bench-runner-test";
+const VLLM_INSTANCE_NAME = "bench-runner-vllm-test";
 const PROMPT_ID = "runner-test-prompt";
 
 let prepared = false;
@@ -42,6 +43,14 @@ function prepareFixtures(): void {
       name: INSTANCE_NAME,
       binaryPathRefId: binary.id,
       args: { "--host": "127.0.0.1", "--port": 18099 },
+    }),
+  );
+  createInstance(
+    InstanceCreateSchema.parse({
+      name: VLLM_INSTANCE_NAME,
+      kind: "vllm",
+      binaryPathRefId: binary.id,
+      args: { "--host": "127.0.0.1", "--port": 18100 },
     }),
   );
   createBenchmarkPrompt({
@@ -179,6 +188,100 @@ test("benchmark run measures a full parallel wave", async () => {
     assert.ok(messages[0]?.content.startsWith("benchmark-nonce: "));
   }
 
+  deleteBenchmarkRun(run.id);
+});
+
+function vllmCompletionFrames(): string[] {
+  return [
+    'data: {"choices":[{"delta":{"content":"a"}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"b"}}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+    'data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n',
+    "data: [DONE]\n\n",
+  ];
+}
+
+function vllmFetchImpl(state: { finished: number; metricsCalls: number }): {
+  fetchImpl: typeof fetch;
+} {
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith("/v1/models")) {
+      return Response.json({ data: [{ id: "vllm-model" }] });
+    }
+    if (url.endsWith("/metrics")) {
+      state.metricsCalls += 1;
+      const sum = state.finished * 0.5;
+      return new Response(
+        [
+          `vllm:request_prefill_time_seconds_sum{model_name="vllm-model"} ${sum}`,
+          `vllm:request_prefill_time_seconds_count{model_name="vllm-model"} ${state.finished}`,
+        ].join("\n"),
+        { status: 200 },
+      );
+    }
+    if (url.endsWith("/v1/chat/completions")) {
+      state.finished += 1;
+      return sseResponse(vllmCompletionFrames());
+    }
+    throw new Error(`unexpected url ${url}`);
+  };
+  return { fetchImpl };
+}
+
+function vllmScenario(overrides: Record<string, unknown> = {}) {
+  return BenchmarkScenarioSchema.parse({
+    target: { kind: "instance", instanceName: VLLM_INSTANCE_NAME },
+    mode: "sequential",
+    composition: [{ promptId: PROMPT_ID, count: 2 }],
+    warmup: false,
+    ...overrides,
+  });
+}
+
+test("a sequential vllm run enriches prefill timings from the metrics delta", async () => {
+  prepareFixtures();
+  const state = { finished: 0, metricsCalls: 0 };
+  const run = startBenchmarkRun(vllmScenario(), vllmFetchImpl(state));
+  await awaitCompletion();
+
+  const finished = getBenchmarkRun(run.id);
+  assert.equal(finished?.status, "succeeded");
+  assert.equal(finished?.snapshot?.engineKind, "vllm");
+  assert.equal(finished?.snapshot?.buildInfo, null);
+
+  const result = readBenchmarkRunResult(run.id);
+  assert.equal(result?.requests.length, 2);
+  assert.ok(
+    result?.requests.every(
+      (request) => request.serverTimings?.promptMs === 500,
+    ),
+  );
+  assert.ok(
+    result?.requests.every((request) => request.prefillStartMs !== null),
+  );
+  assert.equal(finished?.summary?.headline?.totalPromptTokens, 10);
+  assert.notEqual(finished?.summary?.headline?.prefillTokensPerSecond, null);
+  assert.ok(state.metricsCalls >= 4);
+  deleteBenchmarkRun(run.id);
+});
+
+test("a parallel vllm wave skips the metrics scrape", async () => {
+  prepareFixtures();
+  const state = { finished: 0, metricsCalls: 0 };
+  const run = startBenchmarkRun(
+    vllmScenario({ mode: "parallel" }),
+    vllmFetchImpl(state),
+  );
+  await awaitCompletion();
+
+  const finished = getBenchmarkRun(run.id);
+  assert.equal(finished?.status, "succeeded");
+  assert.equal(state.metricsCalls, 0);
+  const result = readBenchmarkRunResult(run.id);
+  assert.ok(
+    result?.requests.every((request) => request.serverTimings === null),
+  );
   deleteBenchmarkRun(run.id);
 });
 

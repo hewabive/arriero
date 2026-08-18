@@ -20,13 +20,27 @@ arrival times, which works for every `InstanceKind`. llama.cpp responses additio
 `timings` object in the final chunk; it is consumed as **enrichment** (exact prefill duration,
 `draft_n`/`draft_n_accepted` acceptance) and its absence degrades the run, never fails it.
 
+vLLM publishes no per-request timings in the stream, so its enrichment source is the Prometheus
+endpoint: the runner snapshots the `vllm:request_prefill_time_seconds` histogram totals around each
+request and attributes the sum delta as that request's server prefill duration
+(`benchmark/server-metrics.ts`, selected per engine by
+`engineDescriptor(kind).benchmarkServerMetrics`). Attribution needs exactly one finished request
+between snapshots, so the scrape runs only when requests never overlap (`sequential` mode or a
+single-request wave); a delta whose count moved by anything but one (external traffic, a server
+restart) is discarded, and the after-snapshot retries briefly because vLLM observes the histogram at
+request finish, slightly after the stream closes. The warmup request is drained through the same
+path so its late observation cannot pollute the first measured delta. A failed or unavailable
+scrape degrades to the no-timings behavior; queue-vs-prefill precision beyond this and draft
+acceptance stay llama-only.
+
 ## Methodology
 
 Per request the measuring client (`measure-client.ts`, built on `api-lab/sse-parse.ts`) records
 `submitMs`, per-chunk arrival times, and the final `usage`/`timings`. The phase model per request:
 
-- `queued` — `[submitMs, firstTokenMs − prompt_ms)`, separable only when llama `timings.prompt_ms`
-  is present; otherwise queue time is merged into prefill and `prefillStartMs` is `null`.
+- `queued` — `[submitMs, firstTokenMs − promptMs)`, separable only when a server prefill duration
+  is known (llama `timings.prompt_ms`, or the vLLM metrics delta); otherwise queue time is merged
+  into prefill and `prefillStartMs` is `null`.
 - `prefill` — up to the first content chunk.
 - `decode` — first content chunk to the last one. The first chunk itself is attributed to prefill
   completion (standard TPOT convention), so per-request decode rate is
@@ -59,8 +73,8 @@ without a qualifying solo stretch reports no baseline rather than a plausible su
 
 **Headline metrics** (`BenchmarkRunSummary.headline`) are the run's answer in one row: aggregate and
 per-request decode tok/s over decode-active time, the solo baseline, prefill tok/s (prompt tokens
-over prefill duration, llama-timings only), total prompt tokens, TTFT p50/p95 and peak concurrent
-decode. `null` on runs recorded before the field existed — the field defaults to `null` on parse so
+over prefill duration, server-timings only — llama SSE timings or the vLLM metrics delta), total
+prompt tokens, TTFT p50/p95 and peak concurrent decode. `null` on runs recorded before the field existed — the field defaults to `null` on parse so
 old rows keep loading.
 
 ## Run lifecycle

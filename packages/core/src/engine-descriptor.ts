@@ -17,6 +17,7 @@ export type EngineArgumentCatalogParserId =
   | "sglang-help"
   | "none";
 export type EngineEstimatorId = "gguf" | "vllm-gpu-util" | "none";
+export type EngineBenchmarkServerMetricsId = "vllm-prometheus" | "none";
 export type EngineResourceProfileId =
   | "llama-args"
   | "rpc-device-args"
@@ -78,6 +79,7 @@ export type EngineDescriptor = {
   };
   logs: { parser: EngineLogParserId };
   estimator: EngineEstimatorId;
+  benchmarkServerMetrics: EngineBenchmarkServerMetricsId;
   assessment: {
     fingerprint: EngineAssessmentFingerprintId;
     measuredBaseline: boolean;
@@ -120,6 +122,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "llama" },
     estimator: "gguf",
+    benchmarkServerMetrics: "none",
     assessment: { fingerprint: "llama-binary-gguf", measuredBaseline: true },
     resourceProfile: "llama-args",
     processTree: "named-descendants",
@@ -154,6 +157,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "llama" },
     estimator: "none",
+    benchmarkServerMetrics: "none",
     assessment: { fingerprint: "none", measuredBaseline: false },
     resourceProfile: "rpc-device-args",
     processTree: "root-only",
@@ -192,6 +196,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "vllm" },
     estimator: "vllm-gpu-util",
+    benchmarkServerMetrics: "vllm-prometheus",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "vllm-args",
     processTree: "all-descendants",
@@ -231,6 +236,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     },
     logs: { parser: "sglang" },
     estimator: "none",
+    benchmarkServerMetrics: "none",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "ktransformers-hybrid",
     processTree: "all-descendants",

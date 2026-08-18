@@ -39,6 +39,10 @@ import {
   writeBenchmarkRunRecord,
 } from "./repository.js";
 import { analyzeBenchmarkRun, type MeasuredRequest } from "./segmenter.js";
+import {
+  benchmarkServerMetricsSource,
+  type BenchmarkServerMetricsSource,
+} from "./server-metrics.js";
 
 export const BENCHMARK_JOB_DOMAIN = "benchmark";
 
@@ -71,6 +75,7 @@ type ExecutionContext = {
   baseUrl: string;
   signal: AbortSignal;
   fetchImpl: typeof fetch;
+  serverMetrics: BenchmarkServerMetricsSource | null;
 };
 
 function nowIso(): string {
@@ -255,6 +260,9 @@ async function measurePlannedRequest(input: {
 }): Promise<void> {
   const { context, planned } = input;
   const requestId = `${input.repetition}:${planned.index}:${planned.prompt.id}`;
+  const metricsBefore = context.serverMetrics
+    ? await context.serverMetrics.captureBefore()
+    : null;
   const outcome = await runMeasuredRequest({
     url: `${context.baseUrl}/v1/chat/completions`,
     body: chatRequestBody({
@@ -267,6 +275,15 @@ async function measurePlannedRequest(input: {
     fetchImpl: context.fetchImpl,
     now: input.now,
   });
+  let serverTimings = outcome.serverTimings;
+  if (
+    serverTimings === null &&
+    context.serverMetrics &&
+    outcome.error === null &&
+    outcome.firstTokenMs !== null
+  ) {
+    serverTimings = await context.serverMetrics.requestTimings(metricsBefore);
+  }
   input.measured.push({
     requestId,
     promptId: planned.prompt.id,
@@ -279,7 +296,7 @@ async function measurePlannedRequest(input: {
     chunkTimesMs: outcome.chunkTimesMs,
     promptTokens: outcome.promptTokens,
     completionTokens: outcome.completionTokens,
-    serverTimings: outcome.serverTimings,
+    serverTimings,
     finishReason: outcome.finishReason,
     error: outcome.error,
   });
@@ -350,6 +367,9 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
         activeRequests,
         repetition: 0,
       });
+      const warmupMetricsBefore = context.serverMetrics
+        ? await context.serverMetrics.captureBefore()
+        : null;
       const warmup = await runMeasuredRequest({
         url: `${context.baseUrl}/v1/chat/completions`,
         body: chatRequestBody({
@@ -363,6 +383,9 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       });
       if (warmup.error !== null && !context.signal.aborted) {
         throw new Error(`warmup request failed: ${warmup.error}`);
+      }
+      if (context.serverMetrics) {
+        await context.serverMetrics.requestTimings(warmupMetricsBefore);
       }
     }
 
@@ -494,6 +517,14 @@ export function startBenchmarkRun(
   }
   const run = createBenchmarkRun({ id: newId(), scenario });
   const controller = new AbortController();
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const soloRequests = scenario.mode === "sequential" || wave.length <= 1;
+  const serverMetrics = soloRequests
+    ? benchmarkServerMetricsSource(
+        engineDescriptor(instance.kind).benchmarkServerMetrics,
+        { baseUrl, fetchImpl, signal: controller.signal },
+      )
+    : null;
   const completion = executeBenchmarkRun({
     runId: run.id,
     scenario,
@@ -503,7 +534,8 @@ export function startBenchmarkRun(
     launchSnapshot: activeLaunchSnapshot(instance.name, latestRun),
     baseUrl,
     signal: controller.signal,
-    fetchImpl: options.fetchImpl ?? fetch,
+    fetchImpl,
+    serverMetrics,
   });
   registerActiveJob({
     domain: BENCHMARK_JOB_DOMAIN,
