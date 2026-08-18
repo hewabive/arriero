@@ -108,6 +108,8 @@ export const SafetensorsMetadataSchema = z.object({
   quantization: z.string().nullable(),
   quantizationMethod: z.string().nullable(),
   parameterCount: z.number().nullable(),
+  visionParameterCount: z.number().nullable(),
+  mtpParameterCount: z.number().nullable(),
   tensorCount: z.number().nullable(),
   contextLength: z.number().nullable(),
   embeddingLength: z.number().nullable(),

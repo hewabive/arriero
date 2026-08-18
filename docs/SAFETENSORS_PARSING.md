@@ -31,7 +31,13 @@ The directory kind is derived, not guessed from names:
 - **Weight headers.** Each safetensors file contributes only its 8-byte length prefix plus the JSON
   header — tensor names, dtypes, shapes. Raw facts aggregate element counts per
   (tensor-name suffix, dtype) group — the suffix is the last dot segment, with anything under
-  `.quant_state.` collapsed to one `quant_state` group. The single exception to "tensor data is
+  `.quant_state.` collapsed to one `quant_state` group — and per leading-prefix group (the first
+  name segment, stepping over a bare `model.` wrapper). Prefix groups power component detection in
+  derive: a vision tower (`visual`/`vision_tower`/… → `visionParameterCount`) and a NextN/MTP head
+  (`mtp` → `mtpParameterCount`) report their stored elements, or null when absent — tensor
+  presence, not config, is the signal, because quantized re-uploads routinely keep the base
+  model's config while dropping those tensors. Component counts are raw stored elements (no
+  packed-weight expansion; these blocks are practically never packed). The single exception to "tensor data is
   never read": `weight_shape` sidecar tensors (compressed-tensors `pack-quantized`) are tiny I64
   shape records whose contents are read and summed into `packedShape`, because they are the exact
   unpacked size of the packed weights. If `model.safetensors.index.json` exists, only files in its

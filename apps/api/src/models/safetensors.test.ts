@@ -513,6 +513,46 @@ test("mxfp4 blocks double while their scales are excluded", () => {
   }
 });
 
+test("vision-tower and mtp tensors surface as component parameter counts", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([
+        ["model.language_model.embed_tokens.weight", "BF16", [8, 4]],
+        ["model.visual.blocks.0.attn.qkv.weight", "BF16", [4, 4]],
+        ["model.visual.merger.mlp.0.bias", "BF16", [4]],
+        ["mtp.layers.0.mlp.up_proj.weight", "BF16", [2, 4]],
+        ["lm_head.weight", "BF16", [8, 4]],
+      ]),
+    );
+    writeFileSync(join(dir, "config.json"), JSON.stringify({}));
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.parameterCount, 92);
+    assert.equal(metadata.visionParameterCount, 20);
+    assert.equal(metadata.mtpParameterCount, 8);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a text-only checkpoint has null vision and mtp component counts", () => {
+  const dir = makeDir();
+  try {
+    writeFileSync(
+      join(dir, "model.safetensors"),
+      safetensorsBuffer([["model.embed_tokens.weight", "BF16", [8, 4]]]),
+    );
+
+    const metadata = deriveSafetensorsMetadata(readSafetensorsFacts(dir).facts);
+    assert.equal(metadata.visionParameterCount, null);
+    assert.equal(metadata.mtpParameterCount, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("an unquantized model keeps quantization-looking suffixes in the count", () => {
   const dir = makeDir();
   try {

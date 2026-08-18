@@ -77,6 +77,7 @@ test("a stale derived layer is rebuilt from cached raw facts", () => {
         groups: [
           { suffix: "weight", dtype: "BF16", tensorCount: 1, elements: 1234 },
         ],
+        prefixes: [{ prefix: "embed_tokens", tensorCount: 1, elements: 1234 }],
         packedShape: null,
       },
     };

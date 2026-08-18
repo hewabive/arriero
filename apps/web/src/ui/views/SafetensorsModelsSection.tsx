@@ -111,6 +111,8 @@ function safetensorsMetaSections(model: SafetensorsModel): DetailSection[] {
     arch.push("KV heads", m.headCountKv);
   }
   arch.push("Head dim", m.headDim);
+  arch.push("Vision tower", formatParameterCount(m.visionParameterCount));
+  arch.push("MTP head", formatParameterCount(m.mtpParameterCount));
   arch.push("Context (train)", m.contextLength);
   arch.push("Sliding window", m.slidingWindow);
   arch.push("RoPE freq base", m.ropeFreqBase);
@@ -195,6 +197,38 @@ function SafetensorsTypeBadge(props: { model: SafetensorsModel }) {
     >
       <Badge color="grape" variant="light">
         MoE
+      </Badge>
+    </Tooltip>
+  );
+}
+
+function SafetensorsMtpBadge(props: { model: SafetensorsModel }) {
+  const mtpParams = props.model.metadata.mtpParameterCount;
+  if (!mtpParams) {
+    return null;
+  }
+  return (
+    <Tooltip
+      label={`Built-in speculative-decoding head (NextN/MTP), ${formatParameterCount(mtpParams)} params`}
+    >
+      <Badge color="cyan" variant="light" size="sm" style={{ flexShrink: 0 }}>
+        MTP
+      </Badge>
+    </Tooltip>
+  );
+}
+
+function SafetensorsVisionBadge(props: { model: SafetensorsModel }) {
+  const visionParams = props.model.metadata.visionParameterCount;
+  if (!visionParams) {
+    return null;
+  }
+  return (
+    <Tooltip
+      label={`Built-in vision tower, ${formatParameterCount(visionParams)} params`}
+    >
+      <Badge color="indigo" variant="light" size="sm" style={{ flexShrink: 0 }}>
+        vision
       </Badge>
     </Tooltip>
   );
@@ -291,6 +325,8 @@ export function SafetensorsModelsSection(props: {
                         "unknown arch"}
                     </Badge>
                     <SafetensorsTypeBadge model={model} />
+                    <SafetensorsMtpBadge model={model} />
+                    <SafetensorsVisionBadge model={model} />
                     <KindBadge model={model} />
                     <Badge variant="outline">
                       {safetensorsParamsLabel(model)}
@@ -347,7 +383,7 @@ export function SafetensorsModelsSection(props: {
                 <Table.Th w={36} />
                 <Table.Th>Model</Table.Th>
                 <Table.Th>Arch</Table.Th>
-                <Table.Th>Type</Table.Th>
+                <Table.Th w={160}>Type</Table.Th>
                 <Table.Th>Params</Table.Th>
                 <Table.Th>Layers</Table.Th>
                 <Table.Th>Ctx</Table.Th>
@@ -401,7 +437,11 @@ export function SafetensorsModelsSection(props: {
                         </Group>
                       </Table.Td>
                       <Table.Td>
-                        <SafetensorsTypeBadge model={model} />
+                        <Group gap={6}>
+                          <SafetensorsTypeBadge model={model} />
+                          <SafetensorsMtpBadge model={model} />
+                          <SafetensorsVisionBadge model={model} />
+                        </Group>
                       </Table.Td>
                       <Table.Td>{safetensorsParamsLabel(model)}</Table.Td>
                       <Table.Td>{model.metadata.blockCount ?? "-"}</Table.Td>

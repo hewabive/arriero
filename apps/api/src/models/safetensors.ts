@@ -19,9 +19,9 @@ import {
   type ModelFileIdentity,
 } from "./file-identity.js";
 
-export const SAFETENSORS_RAW_VERSION = 2;
+export const SAFETENSORS_RAW_VERSION = 3;
 
-export const SAFETENSORS_PARSER_VERSION = 2;
+export const SAFETENSORS_PARSER_VERSION = 3;
 
 const SAFETENSORS_INDEX_FILE = "model.safetensors.index.json";
 
@@ -52,9 +52,16 @@ type SafetensorsPackedShapeFacts = {
   elements: number;
 };
 
+type SafetensorsPrefixGroup = {
+  prefix: string;
+  tensorCount: number;
+  elements: number;
+};
+
 type SafetensorsTensorFacts = {
   tensorCount: number;
   groups: SafetensorsTensorGroup[];
+  prefixes: SafetensorsPrefixGroup[];
   packedShape: SafetensorsPackedShapeFacts | null;
 };
 
@@ -138,6 +145,27 @@ function tensorSuffix(name: string): string {
   }
   const separator = name.lastIndexOf(".");
   return separator >= 0 ? name.slice(separator + 1) : name;
+}
+
+function tensorPrefix(name: string): string {
+  const segments = name.split(".");
+  const first = segments[0] ?? name;
+  if (first === "model" && segments.length > 2) {
+    return segments[1] ?? first;
+  }
+  return first;
+}
+
+function mergePrefix(
+  prefixes: Map<string, SafetensorsPrefixGroup>,
+  prefix: string,
+  tensorCount: number,
+  elements: number,
+) {
+  const group = prefixes.get(prefix) ?? { prefix, tensorCount: 0, elements: 0 };
+  group.tensorCount += tensorCount;
+  group.elements += elements;
+  prefixes.set(prefix, group);
 }
 
 function groupKey(suffix: string, dtype: string): string {
@@ -237,6 +265,7 @@ export function readSafetensorsHeader(path: string): SafetensorsTensorFacts {
     const dataStart = 8 + Number(headerLength);
     let tensorCount = 0;
     const groups = new Map<string, SafetensorsTensorGroup>();
+    const prefixes = new Map<string, SafetensorsPrefixGroup>();
     let packedShape: SafetensorsPackedShapeFacts | null = null;
     for (const [name, info] of Object.entries(header)) {
       if (name === "__metadata__" || !isJsonObject(info)) {
@@ -257,6 +286,7 @@ export function readSafetensorsHeader(path: string): SafetensorsTensorFacts {
       tensorCount += 1;
       const suffix = tensorSuffix(name);
       mergeGroup(groups, suffix, dtype, 1, elements);
+      mergePrefix(prefixes, tensorPrefix(name), 1, elements);
       if (suffix === PACKED_SHAPE_SUFFIX) {
         const unpacked = readPackedShapeElements(
           fd,
@@ -273,7 +303,12 @@ export function readSafetensorsHeader(path: string): SafetensorsTensorFacts {
         }
       }
     }
-    return { tensorCount, groups: [...groups.values()], packedShape };
+    return {
+      tensorCount,
+      groups: [...groups.values()],
+      prefixes: [...prefixes.values()],
+      packedShape,
+    };
   } finally {
     closeSync(fd);
   }
@@ -443,6 +478,7 @@ export function readSafetensorsFacts(directory: string): SafetensorsReadResult {
 
   let tensorCount = 0;
   const groups = new Map<string, SafetensorsTensorGroup>();
+  const prefixes = new Map<string, SafetensorsPrefixGroup>();
   let packedShape: SafetensorsPackedShapeFacts | null = null;
   let headerFailed = false;
   for (const name of weightFiles) {
@@ -456,6 +492,14 @@ export function readSafetensorsFacts(directory: string): SafetensorsReadResult {
           group.dtype,
           group.tensorCount,
           group.elements,
+        );
+      }
+      for (const prefixGroup of summary.prefixes) {
+        mergePrefix(
+          prefixes,
+          prefixGroup.prefix,
+          prefixGroup.tensorCount,
+          prefixGroup.elements,
         );
       }
       packedShape = mergePackedShape(packedShape, summary.packedShape);
@@ -494,6 +538,7 @@ export function readSafetensorsFacts(directory: string): SafetensorsReadResult {
           : {
               tensorCount,
               groups: [...groups.values()],
+              prefixes: [...prefixes.values()],
               packedShape,
             },
     },
@@ -804,6 +849,33 @@ function deriveTensorStats(
   return finish(unresolved);
 }
 
+const VISION_TOWER_PREFIXES = new Set([
+  "visual",
+  "vision_tower",
+  "vision_model",
+  "vision_encoder",
+  "visual_tokenizer",
+  "image_encoder",
+]);
+
+const MTP_PREFIXES = new Set(["mtp", "mtp_predictor"]);
+
+function prefixParameterCount(
+  tensors: SafetensorsTensorFacts | null,
+  prefixNames: Set<string>,
+): number | null {
+  if (!tensors) {
+    return null;
+  }
+  let total = 0;
+  for (const group of tensors.prefixes) {
+    if (prefixNames.has(group.prefix)) {
+      total += group.elements;
+    }
+  }
+  return total > 0 ? total : null;
+}
+
 function dominantDtypeLabel(
   elementsByDtype: Array<[string, number]>,
 ): string | null {
@@ -873,6 +945,11 @@ export function deriveSafetensorsMetadata(
     quantizationMethod: quantization.method,
     parameterCount:
       facts.tensors && missingShards.length === 0 ? stats.parameterCount : null,
+    visionParameterCount: prefixParameterCount(
+      facts.tensors,
+      VISION_TOWER_PREFIXES,
+    ),
+    mtpParameterCount: prefixParameterCount(facts.tensors, MTP_PREFIXES),
     tensorCount: facts.tensors?.tensorCount ?? null,
     contextLength: num(["max_position_embeddings"]),
     embeddingLength: num(["hidden_size"]),

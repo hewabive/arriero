@@ -122,6 +122,8 @@ export function safetensorsMatchesSearch(
     model.metadata.quantization,
     model.metadata.dominantDtype,
     model.metadata.kind,
+    model.metadata.mtpParameterCount ? "mtp" : null,
+    model.metadata.visionParameterCount ? "vision" : null,
   ]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(normalized));
