@@ -56,21 +56,28 @@ file, so an interrupted job leaves a valid partial manifest and the next run res
 scan roots (`apps/api/src/models/roots.ts`) with a 30 s cache — there is no DB table; the manifest
 travels with the files and survives DB recreation. Each entry carries the manifest's per-file
 records (`path`/`size`/`oid`/`lfsOid` plus an on-disk `present` flag) and server-grouped GGUF
-`variants` (the same `grouping.ts` browse uses), so the UI can show exactly what was downloaded:
-the repo card renders variant chips, an expandable file list (with `missing` and per-file
-update-check badges) and an `Add files` action that prefills the repo browser with the repo id and
-the existing directory as destination. The browser panel joins the browse tree with this list
-client-side (`hfManifestOidMatches`, exported from core): variants and files get
-`on disk`/`partial`/`changed upstream` badges, and an already-downloaded repo shows a banner with
-its local directory plus a button to reuse it as the destination — so adding files to a repo
-downloaded into a custom directory does not fork a second copy. A destination outside every scan
-root still downloads but is not listed (the UI warns).
+`variants` (the same `grouping.ts` browse uses). The repo card is a read-only clickable summary
+(variant chips, update/missing/downloading badges); clicking it opens the repo detail modal
+(`apps/web/src/ui/views/HfRepoDetailModal.tsx`), the one management surface: it lazily browses the
+repo at `main` and joins the tree with the manifest client-side (`hfManifestOidMatches`, exported
+from core) into checkbox rows per variant and file with `on disk`/`partial`/`changed upstream`/
+`missing`/`not upstream` badges. One selection feeds two explicit verbs — `Download N` (the subset
+absent or changed upstream) and `Delete N` (the subset present on disk) — and the header actions
+are `Check updates`, `Download updates` (on drift), `Download all` (every remote file not current,
+sized in the label; an `all files on disk` badge when nothing is left) and `Delete repository`.
+Modal downloads always target the existing directory, so a repo downloaded into a custom directory
+never forks a second copy; free space from `dest-check` gates the download buttons. When the
+upstream listing is unavailable the modal degrades to the manifest — deletion keeps working,
+downloads switch off. The browser panel keeps the same client-side join for discovering new repos:
+an already-downloaded repo shows a banner with its local directory plus a button to reuse it as
+the destination. A destination outside every scan root still downloads but is not listed (the UI
+warns).
 
 ## Deletion
 
 `POST /api/hf/downloads/delete {dir, paths?, verifyUpstream?}` removes a downloaded repo — whole
 directory when `paths` is absent, individual manifest files otherwise (a GGUF variant in the UI is
-just its file list: file checkboxes plus clickable variant chips feed one selection). Only paths
+just its file list: the detail-modal variant checkbox toggles all its paths). Only paths
 listed in the manifest are deletable (unknown paths 404), a running job for the repo refuses with
 409, and per-file removal also drops the file's `.part` leftover, prunes emptied subdirectories
 and shrinks the manifest — the cached update check is pruned to the remaining files instead of

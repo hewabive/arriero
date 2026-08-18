@@ -1,7 +1,6 @@
 import {
   parseHfRepoInput,
   type HfDownloadedRepo,
-  type HfGgufVariant,
   type HfRepoBrowse,
   type HfTreeFile,
 } from "@arriero/core";
@@ -24,7 +23,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Download, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   browseHfRepo,
@@ -37,77 +36,20 @@ import {
   hfLocalFileState,
   hfLocalVariantState,
   hfVariantTitle,
-  type HfLocalFileState,
-  type HfLocalVariantState,
 } from "../utils/hf";
 import { formatBytes, pathBaseName } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import {
+  hfFileLocalBadge,
+  hfVariantKindBadge,
+  hfVariantLocalBadge,
+} from "./HfBadges";
 
 const DEST_CHECK_DEBOUNCE_MS = 350;
 
-export type HfBrowseRequest = {
-  repoId: string;
-  destDir: string;
-  nonce: number;
-};
-
-function fileLocalBadge(state: HfLocalFileState) {
-  if (state === "current") {
-    return (
-      <Badge color="green" variant="light">
-        on disk
-      </Badge>
-    );
-  }
-  if (state === "changed") {
-    return (
-      <Badge color="yellow" variant="light">
-        changed
-      </Badge>
-    );
-  }
-  return null;
-}
-
-function variantLocalBadge(state: HfLocalVariantState) {
-  if (state === "on-disk") {
-    return (
-      <Badge color="green" variant="light">
-        on disk
-      </Badge>
-    );
-  }
-  if (state === "partial") {
-    return (
-      <Badge color="orange" variant="light">
-        partial
-      </Badge>
-    );
-  }
-  if (state === "changed") {
-    return (
-      <Badge color="yellow" variant="light">
-        changed upstream
-      </Badge>
-    );
-  }
-  return null;
-}
-
-function variantKindBadge(variant: HfGgufVariant) {
-  if (variant.kind === "mmproj") {
-    return (
-      <Badge color="grape" variant="light">
-        mmproj
-      </Badge>
-    );
-  }
-  return null;
-}
-
 type DirGroup = { dir: string; files: HfTreeFile[]; totalBytes: number };
 
-export function HfRepoBrowserPanel(props: { request: HfBrowseRequest | null }) {
+export function HfRepoBrowserPanel() {
   const [repoInput, setRepoInput] = useState("");
   const [revisionInput, setRevisionInput] = useState("");
   const [submitted, setSubmitted] = useState<{
@@ -115,17 +57,6 @@ export function HfRepoBrowserPanel(props: { request: HfBrowseRequest | null }) {
     revision: string;
   } | null>(null);
   const [destDir, setDestDir] = useState("");
-
-  const request = props.request;
-  useEffect(() => {
-    if (!request) {
-      return;
-    }
-    setRepoInput(request.repoId);
-    setRevisionInput("");
-    setDestDir(request.destDir);
-    setSubmitted({ repo: request.repoId, revision: "" });
-  }, [request]);
 
   const browseQuery = useQuery({
     queryKey: ["hf-browse", submitted?.repo ?? "", submitted?.revision ?? ""],
@@ -424,8 +355,8 @@ function BrowseResults(props: {
                         <Text size="sm" fw={500}>
                           {hfVariantTitle(variant)}
                         </Text>
-                        {variantKindBadge(variant)}
-                        {variantLocalBadge(localState)}
+                        {hfVariantKindBadge(variant)}
+                        {hfVariantLocalBadge(localState)}
                         {variant.splitCount !== null && (
                           <Badge color="gray" variant="outline">
                             {countLabel(variant.paths.length, "shard")}
@@ -553,7 +484,7 @@ function BrowseResults(props: {
                                 <Text size="xs" c="dimmed">
                                   {formatBytes(file.size)}
                                 </Text>
-                                {fileLocalBadge(
+                                {hfFileLocalBadge(
                                   hfLocalFileState(file, localFiles),
                                 )}
                               </Group>

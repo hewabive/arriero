@@ -107,6 +107,15 @@ code {
   background: var(--mantine-color-default-hover);
 }
 
+.hf-repo-card {
+  display: block;
+  width: 100%;
+}
+
+.hf-repo-card:hover > .mantine-Paper-root {
+  background: var(--mantine-color-default-hover);
+}
+
 :root[data-mantine-color-scheme="dark"] .instance-card--selected {
   background: var(--mantine-color-dark-5);
 }

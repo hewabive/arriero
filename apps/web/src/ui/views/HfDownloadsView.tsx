@@ -7,7 +7,7 @@ import { getHfTokenStatus, updateHfToken } from "../../api/client";
 import { SecretInput } from "../components/SecretInput";
 import { HfDownloadJobsPanel } from "./HfDownloadJobsPanel";
 import { HfDownloadedReposPanel } from "./HfDownloadedReposPanel";
-import { HfRepoBrowserPanel, type HfBrowseRequest } from "./HfRepoBrowserPanel";
+import { HfRepoBrowserPanel } from "./HfRepoBrowserPanel";
 
 function HfTokenCard() {
   const queryClient = useQueryClient();
@@ -79,23 +79,11 @@ function HfTokenCard() {
 }
 
 export function HfDownloadsView() {
-  const [browseRequest, setBrowseRequest] = useState<HfBrowseRequest | null>(
-    null,
-  );
   return (
     <Stack gap="md">
-      <HfRepoBrowserPanel request={browseRequest} />
+      <HfRepoBrowserPanel />
       <HfDownloadJobsPanel />
-      <HfDownloadedReposPanel
-        onAddFiles={(repo) => {
-          setBrowseRequest({
-            repoId: repo.repoId,
-            destDir: repo.dir,
-            nonce: Date.now(),
-          });
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }}
-      />
+      <HfDownloadedReposPanel />
       <HfTokenCard />
     </Stack>
   );
