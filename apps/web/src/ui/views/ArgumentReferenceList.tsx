@@ -1,4 +1,4 @@
-import type { ArgumentDefaults, ArgumentOption } from "@arriero/core";
+import type { ArgumentDefault, ArgumentOption } from "@arriero/core";
 import { Code, Group, Paper, Stack, Table, Text, Tooltip } from "@mantine/core";
 import { Star } from "lucide-react";
 
@@ -7,7 +7,7 @@ import { defaultScopeLabel } from "./arguments-view-helpers";
 import { type ArgumentsViewController } from "./use-arguments-view";
 
 function ArgumentDefaultMarker(props: {
-  defaults: ArgumentDefaults;
+  defaults: ArgumentDefault[];
   option: ArgumentOption;
 }) {
   const label = defaultScopeLabel(props.defaults, props.option);
@@ -49,7 +49,7 @@ export function ArgumentReferenceList({ fm }: { fm: ArgumentsViewController }) {
                     {option.primaryName}
                   </Code>
                   <ArgumentDefaultMarker
-                    defaults={fm.argumentDefaults}
+                    defaults={fm.instanceDefaultsSection}
                     option={option}
                   />
                 </Group>
@@ -94,7 +94,7 @@ export function ArgumentReferenceList({ fm }: { fm: ArgumentsViewController }) {
                           {option.primaryName}
                         </Code>
                         <ArgumentDefaultMarker
-                          defaults={fm.argumentDefaults}
+                          defaults={fm.instanceDefaultsSection}
                           option={option}
                         />
                       </Group>

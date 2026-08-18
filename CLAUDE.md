@@ -296,8 +296,10 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   build). Portable source specs store adapter, origin and location policy; managed
   paths derive from `config.sourcesDir`. `defaultBinaryPath()` (`arguments/catalog.ts`) is exposed at
   `GET /api/build/default-binary` and pre-selects the binary in the New-instance modal.
-- `config/argument-defaults.json` — default instance args (pre-listed in the New-instance form;
-  presets are edited as raw INI and carry no arg-defaults).
+- `config/argument-defaults.json` — default instance args pre-listed in the New-instance form:
+  `instance` is the llama-server list, `engines.<id>` (`vllm`/`sglang`) covers the Python engines
+  (`argumentDefaultsForKind` in core maps kind → section; ktransformers reads `sglang`). Presets are
+  edited as raw INI and carry no arg-defaults.
 - `config/path-catalog.json` — named paths (`path-catalog/repository.ts`, in-memory array + atomic
   write-through; kinds `binary` and `models-dir`). Identity = `id` (uuidv7); `(kind, name)` is
   enforced unique in-code. `binary` entries are referenced by `binaryPathRefId` on instances;
@@ -366,7 +368,8 @@ in-sync. Contract and measured coverage: `docs/ARGUMENT_SOURCE_EXTRACTION.md`.
 The committed extract is also the **reference catalog** for those engines: `arguments/engine-reference.ts`
 maps it to `ArgumentOption[]` (`GET /api/engine-args/:engineId/reference`), attaches the Russian help
 from `content/engine-args/<engine>/args/<slug>.md` and serves it at `#/args/<engine>` — the llama
-Arguments page reused with instance-defaults and the llama sync panel switched off. Unlike llama,
+Arguments page reused with the llama sync panel switched off; instance defaults save into the
+per-engine `engines.<id>` section of `argument-defaults.json`. Unlike llama,
 where the doc files *are* the registry (`arguments/registry.ts`), engine docs add prose only: the
 extract owns flags/group/choices/default, so their frontmatter carries just
 `schema`/`engine`/`primaryName`/`title`/`summary`/`group`/`related`. Per-engine authoring contract:

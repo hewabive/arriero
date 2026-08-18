@@ -2,6 +2,7 @@ import {
   InstanceArgsSchema,
   KTRANSFORMERS_RESERVED_ARG_KEYS,
   RPC_SERVER_SUPPORTED_FLAGS,
+  argumentDefaultsForKind,
   engineDescriptor,
   ggufModelRole,
   ggufPoolingTypeLabel,
@@ -387,10 +388,10 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         message: (error as Error).message,
       }),
   });
-  const instanceDefaultArgs = useMemo(
-    () => argumentDefaultsQuery.data?.data.instance ?? [],
-    [argumentDefaultsQuery.data?.data.instance],
-  );
+  const instanceDefaultArgs = useMemo(() => {
+    const defaults = argumentDefaultsQuery.data?.data;
+    return defaults ? argumentDefaultsForKind(defaults, kind) : [];
+  }, [argumentDefaultsQuery.data?.data, kind]);
 
   const argsCatalog = argsCatalogQuery.data?.data;
   const argsCatalogTooltip = argsCatalog

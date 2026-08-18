@@ -25,11 +25,16 @@ function ensureFile() {
     copyFileSync(seedPath, filePath);
     return;
   }
-  writeFileSync(filePath, serializeConfigJson({ instance: [] }), "utf8");
+  writeFileSync(
+    filePath,
+    serializeConfigJson({ instance: [], engines: {} }),
+    "utf8",
+  );
 }
 
 const StoredArgumentDefaultsSchema = ArgumentDefaultsSchema.pick({
   instance: true,
+  engines: true,
 });
 
 const store = createJsonFileStore<z.infer<typeof StoredArgumentDefaultsSchema>>(
@@ -37,7 +42,7 @@ const store = createJsonFileStore<z.infer<typeof StoredArgumentDefaultsSchema>>(
     id: "argument-defaults",
     path: filePath,
     schema: StoredArgumentDefaultsSchema,
-    missing: () => ({ instance: [] }),
+    missing: () => ({ instance: [], engines: {} }),
     portablePaths: true,
     cache: "process",
     ensure: ensureFile,
@@ -62,11 +67,22 @@ function normalizeDefaults(defaults: ArgumentDefault[]) {
   return sortedByKey(cleaned, (item) => item.key);
 }
 
+function normalizeEngineDefaults(engines: ArgumentDefaults["engines"]) {
+  const entries = Object.entries(engines)
+    .map(
+      ([engineId, defaults]) =>
+        [engineId, normalizeDefaults(defaults)] as const,
+    )
+    .filter(([, defaults]) => defaults.length > 0);
+  return Object.fromEntries(sortedByKey(entries, ([engineId]) => engineId));
+}
+
 export function getArgumentDefaults(): ArgumentDefaults {
   const stored = store.read();
   const mtimeMs = fileMtimeMs(filePath);
   return {
     instance: stored.instance,
+    engines: stored.engines,
     updatedAt: mtimeMs !== null ? new Date(mtimeMs).toISOString() : null,
   };
 }
@@ -79,6 +95,9 @@ export function saveArgumentDefaults(
   input: ArgumentDefaults,
 ): ArgumentDefaults {
   const parsed = ArgumentDefaultsSchema.parse(input);
-  store.write({ instance: normalizeDefaults(parsed.instance) });
+  store.write({
+    instance: normalizeDefaults(parsed.instance),
+    engines: normalizeEngineDefaults(parsed.engines),
+  });
   return getArgumentDefaults();
 }

@@ -4,5 +4,12 @@
     { "key": "--cache-type-k", "value": "", "valueType": "null" },
     { "key": "--cache-type-v", "value": "", "valueType": "null" },
     { "key": "--metrics", "value": "", "valueType": "null" }
-  ]
+  ],
+  "engines": {
+    "vllm": [
+      { "key": "--gpu-memory-utilization", "value": "", "valueType": "null" },
+      { "key": "--kv-cache-dtype", "value": "", "valueType": "null" },
+      { "key": "--max-model-len", "value": "", "valueType": "null" }
+    ]
+  }
 }

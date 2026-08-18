@@ -1,4 +1,8 @@
-import type { ArgumentDefault, ArgumentOption } from "@arriero/core";
+import {
+  argumentDefaultsSection,
+  type ArgumentDefault,
+  type ArgumentOption,
+} from "@arriero/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -133,13 +137,16 @@ export function useArgumentsView(engineId?: string) {
   const argumentDefaultsQuery = useQuery({
     queryKey: ["llama-arg-defaults"],
     queryFn: getLlamaArgumentDefaults,
-    enabled: !engineId,
     staleTime: 60_000,
   });
   const argumentDefaults =
     argumentDefaultsQuery.data?.data ?? emptyArgumentDefaults;
+  const instanceDefaultsSection = argumentDefaultsSection(
+    argumentDefaults,
+    engineId ?? null,
+  );
   const selectedInstanceDefault = selectedOption
-    ? findInstanceDefault(argumentDefaults, selectedOption)
+    ? findInstanceDefault(instanceDefaultsSection, selectedOption)
     : null;
 
   useEffect(() => {
@@ -199,7 +206,10 @@ export function useArgumentsView(engineId?: string) {
 
     setDefaultValueDrafts((current) => {
       const suggested = argumentDefaultFromOption(selectedOption);
-      const saved = findInstanceDefault(argumentDefaults, selectedOption);
+      const saved = findInstanceDefault(
+        instanceDefaultsSection,
+        selectedOption,
+      );
       const key = defaultDraftKey(suggested.key);
       return {
         ...current,
@@ -266,12 +276,15 @@ export function useArgumentsView(engineId?: string) {
       notifications.show({
         color: "yellow",
         title: "Default argument is not applicable",
-        message: "This option cannot be passed as a llama-server CLI argument.",
+        message: "This option cannot be passed as a CLI argument.",
       });
       return;
     }
     const base = argumentDefaultFromOption(selectedOption);
-    const current = findInstanceDefault(argumentDefaults, selectedOption);
+    const current = findInstanceDefault(
+      instanceDefaultsSection,
+      selectedOption,
+    );
     const nextDefault = { ...base, ...current, ...patch };
     const validationError = enabled
       ? validateArgumentDefault(nextDefault)
@@ -285,14 +298,18 @@ export function useArgumentsView(engineId?: string) {
       return;
     }
 
-    const nextInstance = enabled
-      ? upsertDefault(argumentDefaults.instance, nextDefault)
-      : argumentDefaults.instance.filter((item) => item.key !== base.key);
+    const nextSection = enabled
+      ? upsertDefault(instanceDefaultsSection, nextDefault)
+      : instanceDefaultsSection.filter((item) => item.key !== base.key);
 
-    defaultsMutation.mutate({
-      ...argumentDefaults,
-      instance: nextInstance,
-    });
+    defaultsMutation.mutate(
+      engineId
+        ? {
+            ...argumentDefaults,
+            engines: { ...argumentDefaults.engines, [engineId]: nextSection },
+          }
+        : { ...argumentDefaults, instance: nextSection },
+    );
   }
 
   const selectedDefaultUnavailableMessage = selectedOption
@@ -308,7 +325,6 @@ export function useArgumentsView(engineId?: string) {
       : "";
 
   return {
-    supportsInstanceDefaults: !engineId,
     search,
     setSearch,
     category,
@@ -329,7 +345,7 @@ export function useArgumentsView(engineId?: string) {
     selectedOption,
     selectedDocQuery,
     selectedDoc,
-    argumentDefaults,
+    instanceDefaultsSection,
     selectedInstanceDefault,
     defaultsMutation,
     selectArgument,

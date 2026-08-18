@@ -10,6 +10,7 @@ import { argumentDefaultFromOption } from "../utils/argument-defaults";
 export const allFilterValue = "__all__";
 export const emptyArgumentDefaults: ArgumentDefaults = {
   instance: [],
+  engines: {},
   updatedAt: null,
 };
 
@@ -59,15 +60,15 @@ export function presetSupportColor(support: LlamaArgumentPresetSupport) {
 }
 
 export function findInstanceDefault(
-  defaults: ArgumentDefaults,
+  defaults: ArgumentDefault[],
   option: ArgumentOption,
 ) {
   const key = argumentDefaultFromOption(option).key;
-  return defaults.instance.find((item) => item.key === key) ?? null;
+  return defaults.find((item) => item.key === key) ?? null;
 }
 
 export function defaultScopeLabel(
-  defaults: ArgumentDefaults,
+  defaults: ArgumentDefault[],
   option: ArgumentOption,
 ) {
   return findInstanceDefault(defaults, option)

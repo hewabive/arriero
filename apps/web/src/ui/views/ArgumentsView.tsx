@@ -131,7 +131,7 @@ export function ArgumentsView() {
         </Alert>
       )}
 
-      {fm.argsCatalog && fm.supportsInstanceDefaults && (
+      {fm.argsCatalog && !engineId && (
         <SourceSyncPanel
           report={fm.docsSyncQuery.data?.data}
           error={
