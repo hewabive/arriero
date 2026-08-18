@@ -251,7 +251,7 @@ const navSections: NavSection[] = [
         label: "Environments",
         title: "Python environments",
         description: "Install immutable uv-managed inference engines",
-        keywords: ["uv", "venv", "python", "ktransformers"],
+        keywords: ["uv", "venv", "python", "sglang", "ktransformers"],
       },
       {
         route: "source-sync",

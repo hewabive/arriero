@@ -7,7 +7,7 @@ import { type InstanceFormController } from "./use-instance-form";
 export function InstanceFormHostPort({ fm }: { fm: InstanceFormController }) {
   return (
     <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-      {fm.kind === "ktransformers" ? (
+      {fm.kind === "ktransformers" || fm.kind === "sglang" ? (
         <TextInput
           label="Host"
           description="Public access terminates at arriero"

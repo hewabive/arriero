@@ -719,7 +719,11 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setModelReference(
         seedInstance.engineConfig?.type === "ktransformers"
           ? seedInstance.engineConfig.model
-          : (seedInstance.positionalArgs?.[0] ?? ""),
+          : seedInstance.kind === "sglang"
+            ? argString(seedInstance.args, "--model-path") ||
+              argString(seedInstance.args, "--model") ||
+              ""
+            : (seedInstance.positionalArgs?.[0] ?? ""),
       );
       setKTransformersCpuWeights(
         seedInstance.engineConfig?.type === "ktransformers"
@@ -761,7 +765,14 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         ),
       );
       setStartAfterCreate(false);
-      setArgRows(seedArgRows(seedInstance));
+      setArgRows(
+        seedInstance.kind === "sglang"
+          ? removeArgRows(seedArgRows(seedInstance), [
+              "--model-path",
+              "--model",
+            ])
+          : seedArgRows(seedInstance),
+      );
       setMemoryRows(memoryRowsFromDraws(seedInstance.memory));
       const numa = seedInstance.numa;
       setNumaMode(numa?.mode ?? "none");
@@ -911,6 +922,24 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         binaryPathRefId: selectedBinaryPathRefId,
         positionalArgs: [model],
         args,
+        env,
+        memory,
+        scheduling,
+        ...(numa ? { numa } : {}),
+      };
+    }
+
+    if (kind === "sglang") {
+      const model = modelReference.trim();
+      if (!model) {
+        throw new Error("Set a Hugging Face model id or local model path");
+      }
+      return {
+        name: values.name,
+        kind,
+        rpcWorkers: [],
+        binaryPathRefId: selectedBinaryPathRefId,
+        args: InstanceArgsSchema.parse({ ...args, "--model-path": model }),
         env,
         memory,
         scheduling,
@@ -1244,13 +1273,13 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       });
       return;
     }
-    if (next === "vllm") {
+    if (next === "vllm" || next === "sglang") {
       setSelectedModelPath(null);
       setSelectedPresetName(null);
       setRpcWorkers([]);
       setLaunchMode("model");
       setArgRows(
-        pythonEngineDefaultRows("vllm", props.instances, props.instance?.name),
+        pythonEngineDefaultRows(next, props.instances, props.instance?.name),
       );
       return;
     }
