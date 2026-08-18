@@ -43,6 +43,11 @@ import {
 } from "./plan.js";
 import { assertBuildPrerequisites } from "./preflight.js";
 import {
+  evaluateUiInstall,
+  recordUiTreeHash,
+  type UiInstallEvaluation,
+} from "./ui-install-skip.js";
+import {
   buildJobs,
   createBuildJob,
   getBuildJob,
@@ -217,6 +222,23 @@ class LlamaBuildRunner {
           continue;
         }
 
+        let uiInstall: UiInstallEvaluation | null = null;
+        if (plannedStep.name === "ui-install") {
+          uiInstall = await evaluateUiInstall(job.settings);
+          if (uiInstall.runReason === null && uiInstall.state.treeHash) {
+            this.markStep(jobId, plannedStep.name, {
+              status: "skipped",
+              finishedAt: nowIso(),
+              exitCode: null,
+            });
+            logStream.write(
+              `# ui-install: tools/ui unchanged since the last UI build (tree ${uiInstall.state.treeHash}); reusing tools/ui/dist\n\n`,
+            );
+            continue;
+          }
+          logStream.write(`# ui-install: ${uiInstall.runReason}\n`);
+        }
+
         if (
           plannedStep.name === "build-rpc-server" &&
           !existsSync(rpcSourceDir(job.settings))
@@ -326,6 +348,9 @@ class LlamaBuildRunner {
           finishedAt: nowIso(),
           exitCode,
         });
+        if (uiInstall?.state.treeHash && uiInstall.state.clean) {
+          recordUiTreeHash(job.settings.repoPath, uiInstall.state.treeHash);
+        }
         logStream.write(`\n# ${plannedStep.name} completed\n\n`);
       }
 

@@ -54,7 +54,20 @@ from PATH at configure time and caches compilations for any generator.
 ## UI rebuild and the npm registry
 
 The optional `ui-install` step rebuilds the embedded web UI: it removes `tools/ui/dist`, then runs
-`npm ci --include=dev && npm run build` in `tools/ui` (`uiInstallCommands` in `build/plan.ts`). When
+`npm ci --include=dev && npm run build` in `tools/ui` (`uiInstallCommands` in `build/plan.ts`).
+
+The step is skipped at runtime (`build/ui-install-skip.ts`, evaluated after `git-pull` so a pull
+that touches the UI still rebuilds it) when all three hold: the `tools/ui` git tree hash
+(`git rev-parse HEAD:tools/ui`) matches the hash recorded on the last successful `ui-install` for
+this checkout, the working tree under `tools/ui` is clean (`git status --porcelain`; generated
+`dist`/`node_modules`/PWA icons are gitignored upstream and do not dirty it), and
+`tools/ui/dist/index.html` exists. The recorded hash lives in `data/ui-build-state.json` (machine
+state, keyed by repo path, rebuildable); it is written only when the tree was clean at build time,
+so a dirty rebuild never poisons the skip. Any doubt — hash unavailable, dirty tree, missing dist,
+unreadable state file — falls back to a full rebuild. This turns the ~70 s unconditional UI
+rebuild into a no-op on every build where `tools/ui` did not change.
+
+When
 the host-wide npm registry is configured, `npm ci` gets an explicit `--registry <url>` — the mirror
 of the uv `--default-index` flag the Python environments use for their PyPI index.
 
