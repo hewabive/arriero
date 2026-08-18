@@ -34,7 +34,7 @@ Choose the backend for MoE A2A.
 - Тип значения: перечисление
 - Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `pplx`, `ascend_tp` (константа `MOE_A2A_BACKEND_CHOICES`). `ascend_tp` принимается argparse, но `_handle_a2a_moe` немедленно заменяет его на `none` — в коде это помечено как обход падения точности
 - Значение по умолчанию: `none`
-- Эффективное значение: переопределяется `_a2a_backend_overrides` (Waterfill ⇒ `deepep`; переменная `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE` ⇒ `megamoe`), `_handle_moe_runner_backend_alias` (`--moe-runner-backend megamoe` ⇒ `megamoe`), `_handle_dwdp` (DWDP ⇒ `none`) и правилом NPU (`none` на NPU и `ascend_tp` ⇒ `none`)
+- Эффективное значение: переопределяется `_a2a_backend_overrides` (Waterfill ⇒ `deepep`; переменная `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE` ⇒ `megamoe`), `_handle_dwdp` (DWDP ⇒ `none`) и правилом NPU (`none` на NPU и `ascend_tp` ⇒ `none`)
 - Где объявлен: `ServerArgs.moe_a2a_backend`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_a2a_moe`) → `initialize_moe_config` → создание диспетчера каждого MoE-слоя
@@ -67,7 +67,7 @@ Choose the backend for MoE A2A.
 - `flashinfer` — связка с FlashInfer-раннерами и DP-attention.
 - `pplx` — NVSHMEM-ядра Perplexity, только low-latency, только Hopper и FP8/DeepGEMM.
 - `ascend_fuseep`, `ascend_tp` — NPU-специфика; `ascend_tp` де-факто отключен.
-- `megamoe` — тот же вариант, который включается псевдонимом `--moe-runner-backend megamoe`.
+- `megamoe` — Mega-MoE-путь DeepSeek-моделей на ядрах DeepGEMM без пересылки токенов (`StandardDispatcher`); автоконфигурируется переменной `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE`.
 
 ## Когда использовать
 

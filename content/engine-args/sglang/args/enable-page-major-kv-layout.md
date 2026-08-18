@@ -49,8 +49,8 @@ Enable the page-major KV layout: lay out the Mamba state and full/SWA KV caches 
 Проверки бэкендов в `_handle_page_major_kv_layout`:
 
 - полное внимание — только `triton`; исключение сделано для MLA-модели с unified-пулом, где допустимы также `fa3`, `trtllm_mla`, `flashinfer`, `cutedsl_mla`, `tokenspeed_mla` (unified MLA-пул отдает плотные пер-слойные представления);
-- linear-attention decode — `triton`, `flashinfer`, плюс `cutedsl` и `helion` для MLA-гибридов (KDA);
-- linear-attention prefill — `triton`, `flashkda`, плюс `cutedsl` и `helion` для MLA-гибридов;
+- linear-attention decode — `triton`, `flashinfer`, плюс `cutedsl` для MLA-гибридов (KDA);
+- linear-attention prefill — `triton`, `flashkda`, плюс `cutedsl` для MLA-гибридов;
 - Mamba — только `triton` (`--mamba-backend triton` либо не задан).
 
 Есть и обратное влияние: `flashinfer_gdn_prefill_default` (`layers/attention/linear/gdn_backend.py`) не выбирает FlashInfer для GDN-prefill, если page-major включен.

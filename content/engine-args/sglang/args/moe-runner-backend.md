@@ -30,9 +30,9 @@ Choose the runner backend for MoE.
 - Флаги: `--moe-runner-backend`
 - Группа: `exec.moe`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
+- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
 - Значение по умолчанию: `auto`
-- Эффективное значение: переопределяется в нескольких местах — `ServerArgs._handle_moe_runner_backend_alias` (`megamoe`), `_moe_runner_backend_quant_constraints` (правила по `--quantization`), `_cutlass_moe_env_override` (устаревшая переменная `SGLANG_CUTLASS_MOE`), `_handle_a2a_moe` (для `pplx`) и, наконец, сам quant-метод слоя при `auto`
+- Эффективное значение: переопределяется в нескольких местах — `_moe_runner_backend_quant_constraints` (правила по `--quantization`), `_cutlass_moe_env_override` (устаревшая переменная `SGLANG_CUTLASS_MOE`), `_handle_a2a_moe` (для `pplx`) и, наконец, сам quant-метод слоя при `auto`
 - Где объявлен: `ServerArgs.moe_runner_backend`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: `__post_init__` (нормализация и проверки) → `initialize_moe_config` при инициализации model runner → создание `MoeRunner` для каждого MoE-слоя
@@ -58,7 +58,6 @@ Choose the runner backend for MoE.
 ## Значения и формат
 
 - `auto` — рекомендуемое значение. Оно означает «пусть решит quant-метод», а не «выбери самое быстрое».
-- `megamoe` — не раннер, а псевдоним: `_handle_moe_runner_backend_alias` (первый обработчик в `__post_init__`) превращает его в `--moe-runner-backend auto --moe-a2a-backend megamoe`, а если `--moe-a2a-backend` уже задан другим значением, перетирает его с предупреждением в логе.
 - `experimental_sgl_trtllm` и `experimental_sgl_marlin` — экспериментальные варианты, разделяющие подготовку весов с `flashinfer_trtllm` и `marlin` соответственно; контракт может меняться.
 - `hpc_ops` — только SM90 (Hopper) и только FP8 blockwise/per-tensor.
 - Устаревшая переменная окружения `SGLANG_CUTLASS_MOE` продолжает работать и перетирает значение на `cutlass`, печатая рекомендацию использовать этот флаг вместо нее.
@@ -80,7 +79,7 @@ Choose the runner backend for MoE.
 
 ## Взаимодействие с другими аргументами
 
-- `--moe-a2a-backend`: `megamoe` связывает их напрямую; `flashinfer_cutedsl` ограничивает набор a2a; `pplx` требует `deep_gemm` (или `auto`, который в него и разрешается); DeepGEMM-путь FP8 при `auto` включается только с a2a из семейства DeepEP.
+- `--moe-a2a-backend`: `flashinfer_cutedsl` ограничивает набор a2a значениями `none`/`deepep`/`flashinfer`; a2a `pplx` требует раннер `deep_gemm` (или `auto`, который в него и разрешается); DeepGEMM-путь FP8 при `auto` включается только с a2a из семейства DeepEP.
 - `--quantization`: главный ограничитель, см. выше.
 - `--ep-size`: `flashinfer_cutlass`/`flashinfer_cutedsl` требуют `1` или `tp_size`; `cutlass` с FP8/MXFP8 — строго `1`.
 - `--speculative-moe-runner-backend`: если не задан, наследует **разрешенное** значение целевой модели (`_speculative_moe_runner_default`).

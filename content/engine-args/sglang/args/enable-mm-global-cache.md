@@ -6,7 +6,6 @@ title: "--enable-mm-global-cache"
 summary: Общий для нескольких узлов кеш эмбеддингов энкодера поверх Mooncake. Работает только на encoder-сервере EPD-развертывания и поднимает 4 ГиБ pinned host-памяти на ранг.
 group: mm
 related:
-  - --mm-global-cache-backend
   - --encoder-only
   - --encoder-transfer-backend
   - --encoder-urls
@@ -41,7 +40,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 
 ## Что меняет в движке
 
-При включенном флаге encoder-воркер создает `EmbeddingCacheController` (`sglang/python/sglang/srt/mem_cache/embedding_cache_controller.py`) поверх backend'а, выбранного `--mm-global-cache-backend`. Контроллер:
+При включенном флаге encoder-воркер создает `EmbeddingCacheController` (`sglang/python/sglang/srt/mem_cache/storage/mooncake_store/embedding_cache_controller.py`) поверх `MooncakeEmbeddingStore` — Mooncake зашит как единственное хранилище, отдельного флага выбора backend'а нет. Контроллер:
 
 - выделяет пул **закрепленной (pinned) host-памяти** размером 4 ГиБ на ранг (значение по умолчанию `max_pool_size_gb=4.0`, encode-сервер его не переопределяет), деля его в пропорции 80/20 между vision- и audio-пулом (`VISION_POOL_RATIO = 0.8`);
 - нарезает пулы на страницы с целевым размером 256 КиБ и раздает их range-аллокатором, предпочитающим непрерывные пробеги страниц;
@@ -79,7 +78,6 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 
 ## Взаимодействие с другими аргументами
 
-- `--mm-global-cache-backend`: какой класс `EmbeddingStore` создать; сегодня в `choices` только `mooncake`.
 - `--encoder-only`: развертывание, в котором единственно и работает этот флаг.
 - `--encoder-transfer-backend`: ортогонален — про транспорт выхода энкодера, а не про кеш.
 - `--enable-prefix-mm-cache`: локальный L1 на том же энкодере; его размер задает `SGLANG_VLM_CACHE_SIZE_MB` (в encode-сервере читается напрямую из окружения со значением по умолчанию 4096 МиБ).
@@ -89,11 +87,11 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 
 ## Типовые проблемы и диагностика
 
-- `ImportError: Failed to import embedding store backend 'mooncake' ...` — пакет Mooncake не установлен в окружении.
+- `ImportError: Please install mooncake by following the instructions at ...` — пакет Mooncake не установлен в окружении.
 - Ошибки подключения при старте энкодера — не выставлены `MOONCAKE_TE_META_DATA_SERVER` / `MOONCAKE_MASTER` / `MOONCAKE_PROTOCOL` / `MOONCAKE_GLOBAL_SEGMENT_SIZE`.
 - Флаг задан, а поведение не изменилось — сервер поднят без `--encoder-only`: код чтения флага живет только в encode-сервере.
 - Хост неожиданно потерял несколько гигабайт «навсегда» — это pinned-пул контроллера.
-- Подтверждение создания backend'а в логе: `Creating embedding store backend 'mooncake' (sglang.srt.mem_cache.storage.mooncake_store.mooncake_embedding_store.MooncakeEmbeddingStore)`. Значение аргумента видно в дампе `server_args=`.
+- Подтверждение инициализации хранилища в логе: `Mooncake Embedding Store initialized successfully.` и строки `Registered <modality> embedding pool: ...` по каждому пулу. Значение аргумента видно в дампе `server_args=`.
 
 ## Примеры
 
@@ -102,14 +100,14 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encod
 ```
 
 ```bash
-python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encoder-only --enable-mm-global-cache --mm-global-cache-backend mooncake --encoder-transfer-backend mooncake --tp-size 2 --port 30000
+python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encoder-only --enable-mm-global-cache --encoder-transfer-backend mooncake --tp-size 2 --port 30000
 ```
 
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`
-- `sglang/python/sglang/srt/mem_cache/embedding_cache_controller.py`
-- `sglang/python/sglang/srt/mem_cache/embedding_store.py`
+- `sglang/python/sglang/srt/mem_cache/storage/mooncake_store/embedding_cache_controller.py`
+- `sglang/python/sglang/srt/mem_cache/storage/mooncake_store/mooncake_embedding_store.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`
 - arriero: `docs/RESOURCE_MANAGEMENT.md`

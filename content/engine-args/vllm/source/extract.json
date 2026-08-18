@@ -195,7 +195,7 @@
     "--api-key"
    ],
    "group": "Frontend",
-   "help": "If provided, the server will require one of these keys to be presented in\nthe header.\n\nWarning: this only authenticates endpoints under the `/v1`, `/v2`, and\n`/inference` path prefixes. Other endpoints on the same server, including\n`/invocations` (which exposes the same inference capabilities as `/v1`),\nremain unauthenticated. Do not rely on `--api-key` alone to secure vLLM;\nsee\nhttps://docs.vllm.ai/en/latest/usage/security.html#api-key-authentication-limitations\nfor what it does and does not protect.",
+   "help": "If provided, the server will require one of these keys to be presented in\nthe header.",
    "choices": null,
    "type": "list",
    "optional": true,
@@ -294,6 +294,24 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/cache.py:CacheConfig.block_size"
+  },
+  {
+   "flags": [
+    "--calculate-kv-scales",
+    "--no-calculate-kv-scales"
+   ],
+   "group": "CacheConfig",
+   "help": "Deprecated: This option is deprecated and will be removed in v0.19.\nIt enables dynamic calculation of `k_scale` and `v_scale` when\nkv_cache_dtype is fp8. If `False`, the scales will be loaded from the model\ncheckpoint if available. Otherwise, the scales will default to 1.0.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/cache.py:CacheConfig.calculate_kv_scales"
   },
   {
    "flags": [
@@ -690,7 +708,7 @@
     "-dpp"
    ],
    "group": "ParallelConfig",
-   "help": "Fixed port for data parallel RPC communication. All nodes must use the same port.",
+   "help": "Port for data parallel RPC communication.",
    "choices": null,
    "type": "int",
    "optional": false,
@@ -1230,23 +1248,6 @@
   },
   {
    "flags": [
-    "--ec-manager-config"
-   ],
-   "group": "VllmConfig",
-   "help": "The configurations for custom encoder cache manager.",
-   "choices": null,
-   "type": "json",
-   "optional": false,
-   "default": {
-    "kind": "expression",
-    "text": "Field(default_factory=EncoderCacheManagerConfig)"
-   },
-   "action": null,
-   "hidden": false,
-   "origin": "vllm/config/vllm.py:VllmConfig.ec_manager_config"
-  },
-  {
-   "flags": [
     "--ec-transfer-config"
    ],
    "group": "VllmConfig",
@@ -1539,7 +1540,7 @@
     "--no-enable-log-outputs"
    ],
    "group": "Frontend",
-   "help": "If set to True, log model outputs (generations). Requires\n`--enable-log-requests`. Output text and finish reasons are logged at INFO,\nwhile output token IDs are logged at DEBUG.",
+   "help": "If set to True, log model outputs (generations).\nRequires `--enable-log-requests`. As with `--enable-log-requests`,\ninformation is only logged at INFO level at maximum.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -2414,7 +2415,7 @@
     "--kv-cache-dtype"
    ],
    "group": "CacheConfig",
-   "help": "Data type for kv cache storage. If \"auto\", will use model data type.\nCUDA 11.8+ supports fp8 (=fp8_e4m3) and fp8_e5m2. ROCm (AMD GPU) supports\nfp8 (=fp8_e4m3). Intel Gaudi (HPU) supports fp8 (using fp8_inc).\nSome models (namely DeepSeekV3.2) default to fp8, set to bfloat16 to use\nbfloat16 instead, this is an invalid option for models that do not default\nto fp8.\n\"nvfp4_4over6\" uses the NVFP4 layout and selects between max/6 and max/4\nscales per 16 values by minimizing squared reconstruction error.",
+   "help": "Data type for kv cache storage. If \"auto\", will use model data type.\nCUDA 11.8+ supports fp8 (=fp8_e4m3) and fp8_e5m2. ROCm (AMD GPU) supports\nfp8 (=fp8_e4m3). Intel Gaudi (HPU) supports fp8 (using fp8_inc).\nSome models (namely DeepSeekV3.2) default to fp8, set to bfloat16 to use\nbfloat16 instead, this is an invalid option for models that do not default\nto fp8.",
    "choices": [
     "auto",
     "float16",
@@ -2431,8 +2432,7 @@
     "int4_per_token_head",
     "int8_per_token_head",
     "fp8_per_token_head",
-    "nvfp4",
-    "nvfp4_4over6"
+    "nvfp4"
    ],
    "type": "enum",
    "optional": false,
@@ -2642,7 +2642,7 @@
     "--linear-backend"
    ],
    "group": "KernelConfig",
-   "help": "Backend for quantized linear layer GEMM kernels. Available options:\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"cutlass\": Use CUTLASS-based kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuTe-DSL kernels (NVFP4, MXFP8)\n- \"flashinfer_trtllm\": Use FlashInfer with TensorRT-LLM kernels\n- \"flashinfer_cudnn\": Use FlashInfer with cuDNN kernels\n- \"flashinfer_b12x\": Use FlashInfer b12x CuteDSL NVFP4 GEMM (SM120+)\n- \"b12x\": Use native B12X FP8 and FP4 linear kernels on SM12x\n- \"marlin\": Use Marlin kernels\n- \"triton\": Use Triton-based kernels\n- \"deep_gemm\": Use DeepGEMM kernels\n- \"torch\": Use PyTorch native scaled_mm kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"machete\": Use Machete kernels (mixed-precision)\n- \"fbgemm\": Use FBGEMM kernels\n- \"conch\": Use Conch mixed-precision kernels\n- \"exllama\": Use Exllama mixed-precision kernels\n- \"emulation\": Use slow dequant-to-BF16 emulation (for testing only)\n- \"xpu\": Use XPU kernels\n- \"xpu_woq\": Use XPU kernels for weight-only quantization (e.g. W8A16)",
+   "help": "Backend for quantized linear layer GEMM kernels. Available options:\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"cutlass\": Use CUTLASS-based kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuTe-DSL kernels (NVFP4, MXFP8)\n- \"flashinfer_trtllm\": Use FlashInfer with TensorRT-LLM kernels\n- \"flashinfer_cudnn\": Use FlashInfer with cuDNN kernels\n- \"flashinfer_b12x\": Use FlashInfer b12x CuteDSL NVFP4 GEMM (SM120+)\n- \"marlin\": Use Marlin kernels\n- \"triton\": Use Triton-based kernels\n- \"deep_gemm\": Use DeepGEMM kernels\n- \"torch\": Use PyTorch native scaled_mm kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"machete\": Use Machete kernels (mixed-precision)\n- \"fbgemm\": Use FBGEMM kernels\n- \"conch\": Use Conch mixed-precision kernels\n- \"exllama\": Use Exllama mixed-precision kernels\n- \"emulation\": Use slow dequant-to-BF16 emulation (for testing only)\n- \"xpu\": Use XPU kernels\n- \"xpu_woq\": Use XPU kernels for weight-only quantization (e.g. W8A16)",
    "choices": [
     "auto",
     "cutlass",
@@ -2651,7 +2651,6 @@
     "flashinfer_trtllm",
     "flashinfer_cudnn",
     "flashinfer_b12x",
-    "b12x",
     "marlin",
     "humming",
     "triton",
@@ -2681,10 +2680,11 @@
     "--load-format"
    ],
    "group": "LoadConfig",
-   "help": "The format of the model weights to load.\n\n- \"auto\" will try to load the weights in the safetensors format and fall\n  back to the pytorch bin format if safetensors format is not available.\n- \"pt\" will load the weights in the pytorch bin format.\n- \"safetensors\" will load the weights in the safetensors format.\n- \"instanttensor\" will load the Safetensors weights on CUDA devices using\n  InstantTensor, which enables distributed loading with pipelined prefetching\n  and fast direct I/O.\n- \"npcache\" will load the weights in pytorch format and store a numpy cache\n  to speed up the loading.\n- \"dummy\" will initialize the weights with random values, which is mainly\n  for profiling.\n- \"tensorizer\" will use CoreWeave's tensorizer library for fast weight\n  loading. See the Tensorize vLLM Model script in the Examples section for\n  more information.\n- \"runai_streamer\" will load the Safetensors weights using Run:ai Model\n  Streamer.\n- \"runai_streamer_sharded\" will load weights from pre-sharded checkpoint\n  files using Run:ai Model Streamer.\n- \"sharded_state\" will load weights from pre-sharded checkpoint files,\n  supporting efficient loading of tensor-parallel models.\n- \"mistral\" will load weights from consolidated safetensors files used by\n  Mistral models.\n- \"modelexpress\" will load weights using ModelExpress.\n- Other custom values can be supported via plugins.",
+   "help": "The format of the model weights to load.\n\n- \"auto\" will try to load the weights in the safetensors format and fall\n  back to the pytorch bin format if safetensors format is not available.\n- \"pt\" will load the weights in the pytorch bin format.\n- \"safetensors\" will load the weights in the safetensors format.\n- \"instanttensor\" will load the Safetensors weights on CUDA devices using\n  InstantTensor, which enables distributed loading with pipelined prefetching\n  and fast direct I/O.\n- \"npcache\" will load the weights in pytorch format and store a numpy cache\n  to speed up the loading.\n- \"dummy\" will initialize the weights with random values, which is mainly\n  for profiling.\n- \"tensorizer\" will use CoreWeave's tensorizer library for fast weight\n  loading. See the Tensorize vLLM Model script in the Examples section for\n  more information.\n- \"runai_streamer\" will load the Safetensors weights using Run:ai Model\n  Streamer.\n- \"runai_streamer_sharded\" will load weights from pre-sharded checkpoint\n  files using Run:ai Model Streamer.\n- \"bitsandbytes\" will load the weights using bitsandbytes quantization.\n- \"sharded_state\" will load weights from pre-sharded checkpoint files,\n  supporting efficient loading of tensor-parallel models.\n- \"mistral\" will load weights from consolidated safetensors files used by\n  Mistral models.\n- \"modelexpress\" will load weights using ModelExpress.\n- Other custom values can be supported via plugins.",
    "choices": [
     "auto",
     "hf",
+    "bitsandbytes",
     "dummy",
     "fastsafetensors",
     "instanttensor",
@@ -2915,7 +2915,7 @@
     "--mamba-cache-mode"
    ],
    "group": "CacheConfig",
-   "help": "The cache strategy for Mamba layers:\n\n- \"none\": set when prefix caching is disabled.\n- \"all\": cache the mamba state of all tokens at position i * block_size.\n- \"align\": only cache the mamba state of the last token of each scheduler step and\n  when the token is at position i * block_size. This is the default when prefix\n  caching is enabled.",
+   "help": "The cache strategy for Mamba layers:\n\n- \"none\": set when prefix caching is disabled.\n- \"all\": cache the mamba state of all tokens at position i * block_size. This is\n  the default behavior (for models that support it) when prefix caching is enabled.\n- \"align\": only cache the mamba state of the last token of each scheduler step and\n  when the token is at position i * block_size.",
    "choices": [
     "all",
     "align",
@@ -3048,7 +3048,7 @@
     "--max-cudagraph-capture-size"
    ],
    "group": "CompilationConfig",
-   "help": "The maximum cudagraph capture size.\n\nIf cudagraph_capture_sizes is specified, this will be set to the largest\nsize in that list (or checked for consistency if specified). If\ncudagraph_capture_sizes is not specified, the list of sizes is generated\nautomatically following the pattern:\n\n    [1, 2, 4] + list(range(8, 256, 8)) + list(\n    range(256, max_cudagraph_capture_size + 1, 16))\n\nIf not specified, max_cudagraph_capture_size is capped at 512 by default,\nor 1024 on data center Blackwell GPUs. This avoids OOM in tight memory\nscenarios with small max_num_seqs, and limits capture of large graphs that\nincrease startup time and memory usage.",
+   "help": "The maximum cudagraph capture size.\n\nIf cudagraph_capture_sizes is specified, this will be set to the largest\nsize in that list (or checked for consistency if specified). If\ncudagraph_capture_sizes is not specified, the list of sizes is generated\nautomatically following the pattern:\n\n    [1, 2, 4] + list(range(8, 256, 8)) + list(\n    range(256, max_cudagraph_capture_size + 1, 16))\n\nIf not specified, max_cudagraph_capture_size is set to min(max_num_seqs*2,\n512) by default. This voids OOM in tight memory scenarios with small\nmax_num_seqs, and prevents capture of many large graphs (>512) that would\ngreatly increase startup time with limited performance benefit.",
    "choices": null,
    "type": "int",
    "optional": false,
@@ -3259,24 +3259,6 @@
   },
   {
    "flags": [
-    "--mm-device-do-normalize",
-    "--no-mm-device-do-normalize"
-   ],
-   "group": "MultiModalConfig",
-   "help": "Move the do_normalize computation in the mm preprocessing to before the ViT, \nand let the device do it, so that CPU computation can be saved.",
-   "choices": null,
-   "type": "bool",
-   "optional": true,
-   "default": {
-    "kind": "literal",
-    "value": null
-   },
-   "action": "argparse.BooleanOptionalAction",
-   "hidden": false,
-   "origin": "vllm/config/multimodal.py:MultiModalConfig.mm_device_do_normalize"
-  },
-  {
-   "flags": [
     "--mm-encoder-attn-backend"
    ],
    "group": "MultiModalConfig",
@@ -3474,23 +3456,6 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/multimodal.py:MultiModalConfig.mm_processor_cache_type"
-  },
-  {
-   "flags": [
-    "--mm-processor-device"
-   ],
-   "group": "MultiModalConfig",
-   "help": "Device the HF multi-modal processor runs the image/video transform on. Convenience for `--mm-processor-kwargs '{\"device\": ...}'`: the value is resolved here and stored there, it is not kept as separate state. Only takes effect for HF \"fast\" (torchvision-backed) processors, which accept a `device` argument; the others ignore it and stay on CPU.\n\n\"auto\" uses the accelerator on encoder instances of an encode/prefill/decode deployment -- an EC producer that is not also a consumer allocates no KV cache, so its accelerator is not contended by the language model -- and then only when `--mm-tensor-ipc=torch_shm` can carry device tensors, since every other transport would copy the result back to the host and that copy costs more than it saves. \"auto\" resolves to \"cpu\" everywhere else.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": {
-    "kind": "literal",
-    "value": "auto"
-   },
-   "action": null,
-   "hidden": false,
-   "origin": "vllm/engine/arg_utils.py:add_cli_args"
   },
   {
    "flags": [
@@ -3884,6 +3849,23 @@
   },
   {
    "flags": [
+    "--override-attention-dtype"
+   ],
+   "group": "ModelConfig",
+   "help": "Override dtype for attention",
+   "choices": null,
+   "type": "str",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/model.py:ModelConfig.override_attention_dtype"
+  },
+  {
+   "flags": [
     "--override-generation-config"
    ],
    "group": "ModelConfig",
@@ -4009,23 +3991,6 @@
   },
   {
    "flags": [
-    "--prefix-cache-retention-interval"
-   ],
-   "group": "CacheConfig",
-   "help": "Token interval between retained sliding-window and Mamba prefix-cache\ncheckpoints. ``0`` retains only semantic checkpoints, including the latest\nreplay boundary and shared-prefix junctions. Positive values additionally\nretain periodic checkpoints at the specified interval, which must be a\nmultiple of the scheduler block size. ``None`` retains checkpoints densely.\nApplies only to sliding-window and Mamba cache groups.",
-   "choices": null,
-   "type": "int",
-   "optional": true,
-   "default": {
-    "kind": "expression",
-    "text": "Field(default_factory=_get_prefix_cache_retention_interval, ge=0)"
-   },
-   "action": null,
-   "hidden": false,
-   "origin": "vllm/config/cache.py:CacheConfig.prefix_cache_retention_interval"
-  },
-  {
-   "flags": [
     "--prefix-caching-hash-algo"
    ],
    "group": "CacheConfig",
@@ -4120,6 +4085,7 @@
     "awq_marlin",
     "humming",
     "compressed-tensors",
+    "bitsandbytes",
     "experts_int8",
     "quark",
     "moe_wna16",
@@ -4254,7 +4220,7 @@
     "--replayssm-buffer-len"
    ],
    "group": "CacheConfig",
-   "help": "ReplaySSM history buffer length B for standard Mamba2 decode. Kimi-K3\nspeculative decoding does not use B. Default 16.",
+   "help": "ReplaySSM history buffer length B: with use_replayssm, standard decode\ncaches recent SSM inputs in a size-B ring buffer and flushes the checkpoint\nstate to HBM every B steps. Default 16.",
    "choices": null,
    "type": "int",
    "optional": false,
@@ -4282,24 +4248,6 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.response_role"
-  },
-  {
-   "flags": [
-    "--return-sampling-mask",
-    "--no-return-sampling-mask"
-   ],
-   "group": "ModelConfig",
-   "help": "Whether to return the post-processing token support for each sample.",
-   "choices": null,
-   "type": "bool",
-   "optional": false,
-   "default": {
-    "kind": "literal",
-    "value": false
-   },
-   "action": "argparse.BooleanOptionalAction",
-   "hidden": false,
-   "origin": "vllm/config/model.py:ModelConfig.return_sampling_mask"
   },
   {
    "flags": [
@@ -4607,7 +4555,6 @@
     "eagle3",
     "extract_hidden_states",
     "deepseek_mtp",
-    "dots3_note_mtp",
     "mimo_mtp",
     "mimo_v2_mtp",
     "glm4_moe_mtp",
@@ -4620,7 +4567,6 @@
     "qwen3_next_mtp",
     "qwen3_5_mtp",
     "longcat_flash_mtp",
-    "bailing_hybrid_v3_mtp",
     "minimax_m3_mtp",
     "bailing_hybrid_mtp",
     "mtp",

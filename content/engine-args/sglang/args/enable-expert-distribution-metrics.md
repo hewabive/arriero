@@ -3,81 +3,101 @@ schema: 1
 engine: sglang
 primaryName: "--enable-expert-distribution-metrics"
 title: "--enable-expert-distribution-metrics"
-summary: Удаленный флаг метрик balancedness экспертов. С PR #34998 регистрируется только ради понятной ошибки — передача флага валит запуск с указанием замены `--expert-balancedness-report-mode`.
-group: null
+summary: Включает наблюдаемость balancedness экспертов MoE при expert parallelism — рекордер распределения экспертов автостартует, ранг 0 агрегирует счетчики диспатча каждый forward pass и пишет строки `[Expert Balancedness]` в лог (или Prometheus-метрику при выставленной переменной окружения).
+group: exec.moe
 related:
-  - --expert-balancedness-report-mode
   - --expert-distribution-recorder-mode
+  - --expert-distribution-recorder-buffer-size
+  - --eplb-rebalance-num-iterations
   - --eplb-min-rebalancing-utilization-threshold
   - --enable-eplb
   - --enable-metrics
+  - --ep-size
 ---
 
 # --enable-expert-distribution-metrics
 
 ## Кратко
 
-Флаг удален в PR #34998 и заменен режимным аргументом `--expert-balancedness-report-mode` (`off`/`server_log`/`prometheus`/`both`). В парсере он оставлен только как заглушка `DeprecatedAction` с `error_message`: передача флага вызывает `parser.error(...)`, то есть процесс завершается на разборе аргументов с сообщением о замене, до загрузки модели. Поля `ServerArgs.enable_expert_distribution_metrics` больше не существует.
+Флаг включает мониторинг равномерности загрузки экспертов MoE-модели по GPU при expert parallelism. С ним рекордер распределения экспертов стартует автоматически, а ранг 0 на каждом forward pass'е суммирует, сколько токенов ушло на каждый GPU, и считает утилизацию `mean/max` — «balancedness» (1.0 — идеально ровно, чем ниже, тем сильнее перекос). Результат по умолчанию уходит строками `[Expert Balancedness]` в лог; с переменной окружения `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1` и `--enable-metrics` вместо лога публикуется Prometheus-метрика `sglang:eplb_balancedness`.
 
 ## Оригинальная справка
 
 ```text
-Removed. Use --expert-balancedness-report-mode with one of: off, server_log, prometheus, both.
+Enable logging metrics for expert balancedness
 ```
 
 ## Паспорт аргумента
 
 - Флаги: `--enable-expert-distribution-metrics`
-- Группа: нет (регистрируется литеральным `parser.add_argument` в блоке deprecated-аргументов `ServerArgs.add_cli_args`, вне групповых неймспейсов)
-- Тип значения: не принимает значения; любое использование — ошибка разбора
-- Действие: `DeprecatedAction` (`sglang/python/sglang/srt/arg_groups/argparse_actions.py`) с заданным `error_message`, что означает жесткий отказ, а не предупреждение
-- Где объявлен: `ServerArgs.add_cli_args`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: удален; заглушка существует ради диагностируемого сообщения об ошибке
+- Группа: `exec.moe`
+- Тип значения: булев флаг (`store_true`, парного `--no-*` нет)
+- Допустимые значения: наличие флага
+- Значение по умолчанию: `False`
+- Эффективное значение: сам флаг не переписывается, но тянет за собой соседние поля: `_handle_expert_distribution_metrics` в `__post_init__` подставляет `expert_distribution_recorder_mode = "stat"` (если режим не задан) и доопределяет `expert_distribution_recorder_buffer_size` из `--eplb-rebalance-num-iterations`
+- Где объявлен: `ServerArgs.enable_expert_distribution_metrics`, файл — `sglang/python/sglang/srt/server_args.py`
+- Статус: обычный
+- Этап применения: `__post_init__` → инициализация `ExpertDistributionRecorder` в воркерах → каждый forward pass
 
 ## Что меняет в движке
 
-Ничего: до логики движка значение не доходит. `DeprecatedAction.__call__` при непустом `error_message` вызывает `parser.error(error_message)` — argparse печатает usage и сообщение `--enable-expert-distribution-metrics is no longer supported. Use --expert-balancedness-report-mode with one of: off, server_log, prometheus, both.` и завершает процесс с кодом 2.
+Три звена, все в `sglang/python/sglang/srt/eplb/expert_distribution.py`:
 
-## Чем заменен
+1. **Автостарт рекордера.** Реальный рекордер создается, когда `expert_distribution_recorder_mode` не `None`, — а флаг как раз подставляет режим `stat`, если тот не задан. В `_ExpertDistributionRecorderReal.__init__` при включенном флаге запись стартует сразу, с info-строкой `ExpertDistributionRecorder auto start record since enable_expert_distribution_metrics` — отдельный вызов `/start_expert_distribution_record` не нужен.
+2. **Пер-pass агрегация.** `_UtilizationRateAccumulatorMixin` при включенном флаге заводит скользящие окна на 10/100/1000 проходов и на каждом forward pass'е делает `torch.distributed.reduce` счетчиков физического диспатча на ранг 0, где считается `mean(mean/max)` по слоям.
+3. **Вывод.** По умолчанию ранг 0 печатает на каждый проход строку `[Expert Balancedness] forward_pass_id=… current_pass_balancedness=… last_10_average_balancedness=… last_100_… last_1000_… gpu_physical_count_sum=…`. С `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1` вместо лога значение уезжает в `GenerationBatchResult` и, если включен `--enable-metrics`, публикуется Prometheus-summary `sglang:eplb_balancedness` (лейбл `forward_mode`; регистрируется только на `moe_ep_rank == 0` — `sglang/python/sglang/srt/observability/metrics_collector.py`).
 
-Вся механика наблюдаемости balancedness жива и переехала под `--expert-balancedness-report-mode`:
-
-- старое поведение «флаг включен, переменная окружения не задана» (строки `[Expert Balancedness]` в логе ранга 0) — это `--expert-balancedness-report-mode server_log`;
-- старое поведение «флаг включен плюс `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1`» (Prometheus-summary `sglang:eplb_balancedness` вместо лога) — это `--expert-balancedness-report-mode prometheus`; сама переменная окружения тем же PR удалена из `environ.py`, и выставленная в окружении она тоже валит запуск — `_handle_expert_distribution_metrics` бросает `ValueError` с тем же указанием на замену;
-- `both` пишет и туда, и туда — комбинации, которой у старой пары флаг+переменная не было.
-
-Побочные эффекты старого флага сохранились у нового аргумента в любом режиме, кроме `off`: рекордер распределения экспертов автостартует при инициализации (`should_report_expert_balancedness()` в `_ExpertDistributionRecorderReal.__init__`), а окно истории для `--eplb-min-rebalancing-utilization-threshold` наполняется. Детали — в документе `--expert-balancedness-report-mode`.
+Та же история окон питает EPLB: `EPLBManager` перед ребалансировкой сравнивает среднюю утилизацию окна с `--eplb-min-rebalancing-utilization-threshold` и пропускает ребалансировку со строкой `[EPLBManager] Skipped ep rebalancing: current GPU utilization … > minimum rebalance threshold …` (`sglang/python/sglang/srt/eplb/eplb_manager.py`). В метрик-режиме история наполняется, только если порог отличен от `1.0`.
 
 ## Значения и формат
 
-Не применим: флаг не принимает значения и не проходит разбор.
+Флаг без значения; обратной половины `--no-...` нет. Все настройки формата вывода — через переменную окружения `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC` и `--enable-metrics`, не через сам флаг.
 
 ## Когда использовать
 
-Никогда. Уберите флаг из строк запуска и INI/скриптов и задайте `--expert-balancedness-report-mode` с нужным режимом. Заглушка может исчезнуть в будущих версиях вместе с сообщением-подсказкой.
+- Диагностика перекоса экспертов на EP-развертывании (DeepSeek-класс моделей с `--ep-size > 1`): понять, оправдан ли EPLB, до его включения.
+- Вместе с `--enable-eplb` и `--eplb-min-rebalancing-utilization-threshold < 1.0` — чтобы менеджер пропускал ребалансировки, когда загрузка и так ровная.
+- В постоянной эксплуатации — только в метрик-режиме (`SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1` + `--enable-metrics`): строка в лог на каждый forward pass при высоком трафике превращается в шум.
+- На плотных (не-MoE) моделях бессмысленен; рекордеру нужна модель с поддержкой expert location metadata — иначе старт упадет с assert'ом о `ExpertLocationMetadata`.
 
 ## Влияние на производительность и память
 
-Не применимо: с этим флагом сервер не стартует.
+- Каждый forward pass получает коллективную операцию `reduce` по счетчикам диспатча и, в лог-режиме, синхронизацию GPU→CPU (`.item()`) на ранге 0 — на быстрых декодах это измеримый, хотя и небольшой, накладной расход.
+- Включенный рекордер (режим `stat`) накапливает счетчики в circular buffer размером `--expert-distribution-recorder-buffer-size` (по умолчанию — значение `--eplb-rebalance-num-iterations`, т.е. 1000 проходов) — расход памяти небольшой и фиксированный.
+- В лог-режиме основная цена — объем лога: одна строка на forward pass с ранга 0.
+- VRAM и размер KV-пула не затрагиваются.
 
 ## Взаимодействие с другими аргументами
 
-Единственное взаимодействие — замена: `--expert-balancedness-report-mode`. Прежние связки (`--expert-distribution-recorder-mode`, `--eplb-min-rebalancing-utilization-threshold`, `--enable-eplb`, `--enable-metrics`) теперь описаны в документе нового аргумента.
+- `--expert-distribution-recorder-mode`: флаг подставляет `stat`, только если режим не задан явно; явный режим сохраняется.
+- `--expert-distribution-recorder-buffer-size`: не задан — берется из `--eplb-rebalance-num-iterations` (по умолчанию 1000).
+- `--eplb-min-rebalancing-utilization-threshold`: потребитель истории balancedness; при значении `1.0` в метрик-режиме история не ведется.
+- `--enable-eplb`: сам флаг ребалансировку не включает — он только дает данные и гейт для нее.
+- `--enable-metrics`: обязателен для Prometheus-выхода; без него `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1` просто отключит лог-строки, не дав метрики.
+- `--ep-size`: определяет число GPU, по которым считается равномерность.
 
 ## Типовые проблемы и диагностика
 
-- Сервер падает на старте с `error: --enable-expert-distribution-metrics is no longer supported...` — это и есть штатное поведение заглушки; замените флаг на `--expert-balancedness-report-mode server_log` (или другой режим).
-- В установленном пакете старой версии флаг еще может работать по-старому: каталог аргументов arriero строится из `--help` установленного движка, а этот документ описывает checkout после PR #34998. Проверить свою сборку: `python -m sglang.launch_server --help | grep expert`.
+- Подтверждение работы: info-строка `ExpertDistributionRecorder auto start record since enable_expert_distribution_metrics` при старте, затем строки `[Expert Balancedness] …` с ранга 0.
+- Флаг задан, а строк нет: проверьте, не выставлен ли `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1` — тогда вывод идет в метрику `sglang:eplb_balancedness`, и без `--enable-metrics` не идет никуда.
+- `AssertionError` про `ExpertLocationMetadata` при старте — модель не поддерживает запись распределения экспертов (нет `get_model_config_for_expert_location`); флаг применим только к MoE-моделям с EP.
+- Значение, как его принял движок, — `enable_expert_distribution_metrics=True` в дампе `server_args=`.
 
 ## Примеры
 
 ```bash
-python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --expert-balancedness-report-mode server_log
+python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --enable-expert-distribution-metrics
+```
+
+```bash
+SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1 python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --enable-expert-distribution-metrics --enable-metrics
 ```
 
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/arg_groups/argparse_actions.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`
-- https://github.com/sgl-project/sglang/pull/34998
+- `sglang/python/sglang/srt/eplb/eplb_manager.py`
+- `sglang/python/sglang/srt/observability/metrics_collector.py`
+- `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`
+- `sglang/python/sglang/srt/environ.py`

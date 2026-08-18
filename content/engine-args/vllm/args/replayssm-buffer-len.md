@@ -24,11 +24,10 @@ related:
 ## Оригинальная справка
 
 ```text
-ReplaySSM history buffer length B for standard Mamba2 decode. Kimi-K3
-speculative decoding does not use B. Default 16.
+ReplaySSM history buffer length B: with use_replayssm, standard decode
+caches recent SSM inputs in a size-B ring buffer and flushes the checkpoint
+state to HBM every B steps. Default 16.
 ```
-
-Справка сокращена в PR #51855, добавившем Kimi-K3 RecoverSSM: спекулятивный decode KDA-слоев Kimi-K3 (`CacheConfig.use_kda_recoverssm`, выставляется движком в `VllmConfig.__post_init__` при активной спекулятивной конфигурации, не через CLI) идет отдельным путём и кольцевой буфер B не использует. Для стандартного (неспекулятивного) Mamba2 decode механика ниже не изменилась.
 
 ## Паспорт аргумента
 

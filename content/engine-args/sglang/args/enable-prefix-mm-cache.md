@@ -8,7 +8,6 @@ group: mm
 related:
   - --encoder-only
   - --enable-mm-global-cache
-  - --mm-global-cache-backend
   - --encoder-transfer-backend
   - --enable-metrics
   - --language-only
@@ -84,7 +83,6 @@ if self.enable_prefix_mm_cache and not self.encoder_only:
 
 - `--encoder-only`: жесткое требование; без него старт падает.
 - `--enable-mm-global-cache`: L2 поверх Mooncake, разделяемый между узлами. Дополняет этот кеш, а не заменяет: локальный дешевле и быстрее, глобальный переживает перезапуск и виден другим экземплярам.
-- `--mm-global-cache-backend`: относится к L2, не к этому кешу.
 - `--encoder-transfer-backend`: транспорт выхода энкодера; на попадания не влияет.
 - `--enable-metrics`: включает `EncoderMetricsCollector`, без которого статистика попаданий/вытеснений не публикуется, хотя сам кеш работает.
 - `--language-only`, `--encoder-urls`: LM-половина развертывания; кеш там не создается.

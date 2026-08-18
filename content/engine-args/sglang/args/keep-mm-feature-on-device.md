@@ -43,10 +43,10 @@ Deprecated. Use --mm-feature-transport=cuda_ipc for bounded GPU-resident multimo
 
 ```python
 if self.keep_mm_feature_on_device:
-    if requested_transport not in (None, "cuda_ipc"):
+    if requested_transport == "cpu":
         raise ValueError(
             "--keep-mm-feature-on-device conflicts with "
-            f"--mm-feature-transport={requested_transport}. Use only "
+            "--mm-feature-transport=cpu. Use only "
             "--mm-feature-transport=cuda_ipc."
         )
     requested_transport = "cuda_ipc"
@@ -67,14 +67,14 @@ self.mm_feature_transport = requested_transport
 self.keep_mm_feature_on_device = False
 ```
 
-То есть старая семантика «оставить тензор на устройстве вне пула» больше не существует ни в каком виде: при промахе ограниченного пула признак уходит на CPU. Процессоры читают производное свойство `keep_mm_features_on_device`, которое теперь вычисляется как `mm_feature_transport in ("cuda_ipc", "cuda_vmm")`, а не из этого поля.
+То есть старая семантика «оставить тензор на устройстве вне пула» больше не существует ни в каком виде: при промахе ограниченного пула признак уходит на CPU. Процессоры читают не это поле, а `use_cuda_ipc = mm_feature_transport == "cuda_ipc"` (`base_processor.py`).
 
-Важно и то, чего флаг **не** делает: он не увеличивает пул, не отключает CPU-фолбэк и не выбирает `cuda_vmm`.
+Важно и то, чего флаг **не** делает: он не увеличивает пул и не отключает CPU-фолбэк.
 
 ## Значения и формат
 
 - Флаг без значения.
-- Совместим только с `--mm-feature-transport cuda_ipc` или с его отсутствием. Любое другое явное значение транспорта дает `ValueError` на старте.
+- Совместим только с `--mm-feature-transport cuda_ipc` или с его отсутствием. Явный `--mm-feature-transport cpu` (единственное другое допустимое значение) дает `ValueError` на старте.
 - Значение поля после `__post_init__` всегда `False` — в дампе `server_args=` вы увидите именно `False`, даже если флаг передавали. Проверять надо `mm_feature_transport`.
 
 ## Когда использовать
@@ -92,7 +92,7 @@ self.keep_mm_feature_on_device = False
 
 ## Взаимодействие с другими аргументами
 
-- `--mm-feature-transport`: преемник. `cuda_ipc` — единственное совместимое явное значение; `cpu` и `cuda_vmm` дают `ValueError`.
+- `--mm-feature-transport`: преемник. `cuda_ipc` — единственное совместимое явное значение; `cpu` дает `ValueError`.
 - `--nnodes`: путь `cuda_ipc` требует одного узла, иначе `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.`
 - `--base-gpu-id`, `--tokenizer-worker-num`: где создается пул и как делится его бюджет.
 - `--enable-multimodal`: без мультимодального тракта транспорт не используется.

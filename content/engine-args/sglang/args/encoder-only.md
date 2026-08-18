@@ -43,7 +43,7 @@ For MLLM with an encoder, launch an encoder-only server
 - Тип значения: bool (`action="store_true"`, парного `--no-*` нет)
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным. Побочно переписывает `--mm-feature-transport`: при незаданном транспорте он авто-разрешается в `cpu`, а явные `cuda_ipc`/`cuda_vmm` понижаются до `cpu` с предупреждением
+- Эффективное значение: совпадает с заданным. Побочно переписывает `--mm-feature-transport`: при незаданном транспорте он авто-разрешается в `cpu`, а явный `cuda_ipc` понижается до `cpu` с предупреждением
 - Где объявлен: `ServerArgs.encoder_only`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_encoder_disaggregation` (взаимные запреты, проверка архитектуры модели) → `_handle_multimodal` (выбор транспорта) → `run_server` в `sglang/launch_server.py` (выбор entrypoint) → загрузка весов (только визуальная башня)

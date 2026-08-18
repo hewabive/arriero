@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--hicache-ratio"
 title: "--hicache-ratio"
-summary: Кратность host-пула HiCache относительно device-пула KV, в токенах. Работает только при `--enable-hierarchical-cache` и только если `--hicache-size` не задан.
+summary: Кратность host-пула HiCache относительно device-пула KV, в токенах. Читается при `--enable-hierarchical-cache` (и при KV-оффлоаде decode-узла PD) и перекрывается ненулевым `--hicache-size`.
 group: memory
 related:
   - --enable-hierarchical-cache
@@ -11,19 +11,19 @@ related:
   - --mem-fraction-static
   - --page-size
   - --tp-size
-  - --disaggregation-decode-retraction-backup
+  - --disaggregation-decode-enable-offload-kvcache
 ---
 
 # --hicache-ratio
 
 ## Кратко
 
-`--hicache-ratio` задает, во сколько раз L2-пул HiCache в памяти хоста больше KV-пула на GPU. Единица счета — **токены**, не байты: движок берет `device_pool.size` (число слотов KV на карте) и умножает на ratio. Байты получаются уже из этого числа и размера одного токена для конкретной модели, поэтому один и тот же ratio на разных моделях дает совершенно разный расход RAM. Аргумент читается только при включенном `--enable-hierarchical-cache` и молча игнорируется, если задан ненулевой `--hicache-size`.
+`--hicache-ratio` задает, во сколько раз L2-пул HiCache в памяти хоста больше KV-пула на GPU. Единица счета — **токены**, не байты: движок берет `device_pool.size` (число слотов KV на карте) и умножает на ratio. Байты получаются уже из этого числа и размера одного токена для конкретной модели, поэтому один и тот же ratio на разных моделях дает совершенно разный расход RAM. Аргумент читается при включенном `--enable-hierarchical-cache` (тем же способом host-пул строит и KV-оффлоад decode-узла PD-disaggregation) и молча игнорируется, если задан ненулевой `--hicache-size`.
 
 ## Оригинальная справка
 
 ```text
-The ratio of the size of host KV cache memory pool to the size of device pool. Defaults to 2.0, or 1.0 for host-pool decode retraction.
+The ratio of the size of host KV cache memory pool to the size of device pool.
 ```
 
 ## Паспорт аргумента
@@ -32,7 +32,7 @@ The ratio of the size of host KV cache memory pool to the size of device pool. D
 - Группа: `memory`
 - Тип значения: float
 - Допустимые значения: argparse ограничений не накладывает; осмысленны значения строго больше `1.0` — при меньших host-пул оказывается меньше device-пула, и L2 почти бесполезен
-- Значение по умолчанию: `None` (с PR #34801); разрешается в два этапа: `_handle_hicache_ratio_default` в `__post_init__` подставляет `2.0` на всех узлах, кроме `--disaggregation-mode decode`, а на decode-узле значение доопределяется в `kv_cache_builder` после выбора backend'а retraction: `1.0` при `host_pool`, иначе `2.0`
+- Значение по умолчанию: `2.0` — литерал в декларации, в `__post_init__` не переопределяется
 - Эффективное значение: перекрывается любым `--hicache-size > 0`; итоговый размер дополнительно округляется вверх до целого числа страниц
 - Где объявлен: `ServerArgs.hicache_ratio`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
@@ -59,7 +59,7 @@ self.size = self.page_num * self.page_size
 
 ## Значения и формат
 
-- Дробное число; не задано — эффективно `2.0` (на decode-узле с host-pool retraction — `1.0`, размер host-пула 1:1 с device-пулом). `--hicache-ratio 3` и `--hicache-ratio 3.0` эквивалентны.
+- Дробное число; не задано — `2.0`. `--hicache-ratio 3` и `--hicache-ratio 3.0` эквивалентны.
 - Значение ≤ 1 не отвергается, но при старте появится предупреждение «HiCache … host pool (N tokens) is smaller than the device pool (M tokens); L2 cache effectiveness is reduced.» — L2 не сможет удержать даже то, что вытесняется из L1.
 - `0` не «отключает» host-пул: это не тот же ноль, что у `--hicache-size`. Ноль в ratio даст `size = 0`, после выравнивания — одну страницу, то есть фактически неработающий L2.
 - Верхней границы нет; ограничитель — проверка доступной RAM с резервом 10 ГиБ.
@@ -86,7 +86,7 @@ self.size = self.page_num * self.page_size
 - `--mem-fraction-static`, `--max-total-tokens`, `--context-length`: определяют `device_pool.size`, то есть базу, на которую умножается ratio. Увеличили KV-пул на GPU — автоматически выросло и потребление RAM.
 - `--page-size`: размер выравнивается вверх до целого числа страниц.
 - `--tp-size`: host-пул создается на каждом rank; для MHA-моделей каждый rank хранит свою долю голов, для MLA — реплику. Общий расход RAM хоста считайте по всем rank'ам процесса.
-- `--disaggregation-mode decode` + `--disaggregation-decode-retraction-backup`: незаданный ratio на decode-узле разрешается только после выбора backend'а retraction — `1.0` при `host_pool` (зарезервированный HiCache-пул под сохранение KV вытесняемых запросов), `2.0` при `cpu_tensor`. Явно заданный `--hicache-ratio` эту логику отключает.
+- `--disaggregation-mode decode` + `--disaggregation-decode-enable-offload-kvcache`: асинхронный KV-оффлоад decode-узла строит свой host-пул тем же конструктором и с тем же ratio (`disaggregation/decode_kvcache_offload_manager.py`) — RAM под него считайте по той же формуле.
 
 ## Типовые проблемы и диагностика
 
@@ -112,7 +112,6 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 - `sglang/python/sglang/srt/mem_cache/pool_host/base.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
 - `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py`
-- `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`
+- `sglang/python/sglang/srt/disaggregation/decode_kvcache_offload_manager.py`
 - `sglang/docs/docs/advanced_features/hicache_design.mdx`
-- https://github.com/sgl-project/sglang/pull/34801
 - arriero: `docs/RESOURCE_MANAGEMENT.md`

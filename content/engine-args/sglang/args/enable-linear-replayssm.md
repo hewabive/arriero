@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--enable-linear-replayssm"
 title: "--enable-linear-replayssm"
-summary: Буферизованный decode-путь линейного внимания: вместо записи полного состояния в HBM каждый шаг ядро копит записи в кольце длины L и сбрасывает состояние раз в L шагов. Дает 1.2–1.5× на GDN при батче от 64; для KDA есть Triton- и Helion-реализации, но обе обычно медленнее packed-decode.
+summary: Буферизованный decode-путь линейного внимания: вместо записи полного состояния в HBM каждый шаг ядро копит записи в кольце длины L и сбрасывает состояние раз в L шагов. Дает 1.2–1.5× на GDN при батче от 64; единое ядро поддерживает и KDA, но там ReplaySSM обычно медленнее packed-decode.
 group: exec.mamba
 related:
   - --linear-replayssm-cache-len
@@ -23,14 +23,14 @@ related:
 
 ## Кратко
 
-Обычный decode линейного внимания на каждом токене читает и записывает полное рекуррентное состояние слота — а это мегабайты на слой. ReplaySSM меняет схему: ядро пишет в кольцевой буфер компактные записи (`d`, `k`, `g`) и полное состояние сбрасывает в HBM только раз в `--linear-replayssm-cache-len` шагов, восстанавливая выход из кольца. Выигрыш — на пропускной способности памяти, поэтому он проявляется на больших батчах: в справке заявлено 1.2–1.5× при батче от 64 для GDN (скалярный гейт). Для KDA режим исполняется выбранной реализацией — Triton или Helion (`--linear-attn-decode-backend helion`), — но покомпонентный гейт делает кольцо `g` в K раз больше, и ReplaySSM обычно **медленнее** packed-decode KDA; справка прямо советует замерить перед включением.
+Обычный decode линейного внимания на каждом токене читает и записывает полное рекуррентное состояние слота — а это мегабайты на слой. ReplaySSM меняет схему: ядро пишет в кольцевой буфер компактные записи (`d`, `k`, `g`) и полное состояние сбрасывает в HBM только раз в `--linear-replayssm-cache-len` шагов, восстанавливая выход из кольца. Выигрыш — на пропускной способности памяти, поэтому он проявляется на больших батчах: в справке заявлено 1.2–1.5× при батче от 64 для GDN (скалярный гейт). Единое Triton-ядро поддерживает и KDA (покомпонентный гейт) и численно корректно, но кольцо `g` там в K раз больше, а восстановление выхода на каждом шаге заново сворачивает покомпонентный decay, поэтому KDA-decode с ReplaySSM обычно **медленнее** packed-decode; справка прямо не рекомендует его для KDA-моделей.
 
 Отдельно стоит помнить о памяти: кольцо выделяется на каждый слот пула, но в бюджетном решении `_handle_max_mamba_cache` оно **не учитывается** — учитывается только кольцо спекулятивного варианта. Пул состояний в итоге занимает больше, чем заложено в расчет KV-пула.
 
 ## Оригинальная справка
 
 ```text
-Enable the ReplaySSM buffered output-only linear-attn decode kernel. Primarily a GDN (scalar-gate) decode-bandwidth optimization (~1.2-1.5x at batch >= 64). KDA uses its selected Triton or Helion implementation, but its per-K gate ring is larger and ReplaySSM is typically slower than packed KDA decode; benchmark before enabling it. Requires the Triton linear-attn decode backend, or Helion for KDA, and --mamba-radix-cache-strategy no_buffer (the default).
+Enable the ReplaySSM buffered output-only linear-attn decode kernel. Primarily a GDN (scalar-gate) decode-bandwidth optimization (~1.2-1.5x at batch >= 64). The unified kernel also supports KDA (per-K gate) and is numerically correct, but KDA decode is SLOWER than the packed baseline (the per-K g_cache is K x larger and the reconstruction refolds the per-K decay every step), so it is not recommended for KDA models. Requires the Triton linear-attn decode backend and --mamba-radix-cache-strategy no_buffer (the default).
 ```
 
 ## Паспорт аргумента
@@ -65,7 +65,7 @@ replayssm_g: [layers, slots, HV, L]      fp32 (GDN, скалярный гейт)
 
 ### Проверки на старте
 
-1. decode-backend линейного внимания должен быть `triton` либо `helion` (последний существует только для KDA: GDN-диспетчер отвергает Helion всегда);
+1. decode-backend линейного внимания должен быть `triton`;
 2. стратегия кеша не должна быть `extra_buffer`/`extra_buffer_lazy` — путь донорства ping-pong-слота не сбрасывает курсор кольца;
 3. `--disaggregation-mode` должен быть `null` — decode-пул PD не подключен к кольцу;
 4. `--linear-replayssm-cache-len` не меньше 1;
@@ -83,7 +83,7 @@ Radix-кеш при этом поддерживается (принудител�
 
 - На GDN-модели с устойчиво большим decode-батчем (от 64 одновременных запросов) и достаточным запасом VRAM под кольцо.
 - Когда профилирование показывает, что decode упирается в HBM, а не в вычисления: у линейных слоев это типично при большом батче.
-- На KDA-моделях — только после замера: справка аргумента прямо говорит, что ReplaySSM там обычно медленнее packed-decode (и на Triton, и на Helion-реализации); включать имеет смысл лишь если ваш бенчмарк показал обратное.
+- На KDA-моделях — только после замера: справка аргумента прямо говорит, что ReplaySSM там обычно медленнее packed-decode и не рекомендуется; включать имеет смысл лишь если ваш бенчмарк показал обратное.
 - Не включать на маленьких батчах: выигрыш пропорционален числу слотов, обрабатываемых за шаг, а кольцо занимает память всегда.
 - Не включать под PD-disaggregation и вместе со спекулятивным вариантом ReplaySSM — старт откажет.
 
@@ -99,7 +99,7 @@ Radix-кеш при этом поддерживается (принудител�
 ## Взаимодействие с другими аргументами
 
 - `--linear-replayssm-cache-len`: длина кольца L; линейно определяет и память, и частоту сбросов.
-- `--linear-attn-decode-backend`: обязателен `triton` или `helion` (в том числе унаследованный из `--linear-attn-backend`); `helion` применим только к KDA.
+- `--linear-attn-decode-backend`: обязателен `triton` (в том числе унаследованный из `--linear-attn-backend`).
 - `--mamba-radix-cache-strategy`: обязателен `no_buffer`; `extra_buffer` отвергается.
 - `--mamba-track-interval`: задает ритм принудительных сбросов для GDN.
 - `--disaggregation-mode`: любое значение кроме `null` отвергается.
@@ -109,7 +109,7 @@ Radix-кеш при этом поддерживается (принудител�
 
 ## Типовые проблемы и диагностика
 
-- `ValueError: --enable-linear-replayssm requires Triton, or Helion for KDA, as the linear-attn decode backend; got --linear-attn-decode-backend='flashinfer'.`
+- `ValueError: --enable-linear-replayssm requires the Triton linear-attn decode backend, got --linear-attn-decode-backend='flashinfer'.`
 - `ValueError: --enable-linear-replayssm requires --mamba-radix-cache-strategy no_buffer (the default); the extra_buffer ping-pong donation path is not yet supported (follow-up). Got --mamba-radix-cache-strategy='extra_buffer'.`
 - `ValueError: --enable-linear-replayssm is not supported under PD disaggregation yet (follow-up). Got --disaggregation-mode='decode'.`
 - `ValueError: --enable-linear-replayssm-spec and --enable-linear-replayssm are mutually exclusive …`

@@ -37,7 +37,7 @@ The number of nodes.
 - Тип значения: int
 - Допустимые значения: `choices` нет; делители `tp_size * pp_size`
 - Значение по умолчанию: `1`
-- Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Зато оно само переписывает соседей: при `nnodes > 1` отключается `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` (кроме MNNVL-железа) и запрещается `--mm-feature-transport cuda_ipc`; авто-выбор транспорта признаков на нескольких узлах может дать `cuda_vmm` (валидированные MNNVL-модели GB200/GB300 с IMEX-каналом), тогда как на одном узле он всегда `cpu`
+- Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Зато оно само переписывает соседей: при `nnodes > 1` отключается `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` (кроме MNNVL-железа) и запрещается `--mm-feature-transport cuda_ipc`; авто-выбор транспорта признаков на нескольких узлах дает `cpu` (IPC-хендлы работают только внутри узла), тогда как на одном CUDA-узле без disaggregation он выбирает `cuda_ipc`
 - Где объявлен: `ServerArgs.nnodes`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_multimodal_feature_transport`, `_handle_custom_all_reduce_v2_multinode`, ветки модельных настроек) → `check_server_args` (делимость) → `PortArgs.init_new` → `_calculate_rank_ranges` (какие ранги поднимает этот узел) → `init_distributed_environment`
@@ -72,8 +72,7 @@ HTTP-сервер, tokenizer и detokenizer живут только на узл�
 
 ### Что отключается на нескольких узлах
 
-- `--mm-feature-transport cuda_ipc`: `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` То есть на одном узле этот транспорт доступен, но только явным указанием — сам по себе авто-подбор его не выбирает. На нескольких узлах остается либо MNNVL/IMEX-путь (GB200/GB300 с `/dev/nvidia-caps-imex-channels/channel0` ⇒ `cuda_vmm`), либо CPU.
-- `--mm-feature-transport cuda_vmm` продолжает работать, но переключается с POSIX-FD на CUDA FABRIC-хендлы (видно в строке лога `Using CUDA VMM for multimodal features with CUDA FABRIC sharing: …`).
+- `--mm-feature-transport cuda_ipc`: `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` На одном CUDA-узле без disaggregation авто-подбор сам выбирает `cuda_ipc`; на нескольких узлах остается только CPU-транспорт.
 - `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` принудительно выставляется в `0` с предупреждением `Disabling SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2 because nnodes=N (custom all-reduce v2 is intra-node only).` Исключение — MNNVL-fabric при `tp_size <= 8`, где вместо этого включается `SGLANG_ENABLE_CUSTOM_ALL_REDUCE_V2_MULTINODE`.
 - Aiter AllReduce Fusion для DeepSeekV3/GPT-OSS рассматривается только при `nnodes == 1`.
 - `--weight-cache-mode daemon` требует заданного `--dist-init-addr`.

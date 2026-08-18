@@ -10,7 +10,6 @@ related:
   - --tokenizer-worker-num
   - --mm-process-config
   - --limit-mm-data-per-request
-  - --image-processor-backend
   - --disable-fast-image-processor
   - --enable-multimodal
 ---
@@ -100,7 +99,7 @@ if self.mm_processor_worker_num > 1 and not self.supports_mm_processor_concurren
 
 - `--mm-io-worker-num`: соседний пул, отвечающий за загрузку и декодирование. Их роли не пересекаются; при неверном диагнозе увеличение «не того» пула ничего не дает.
 - `--tokenizer-worker-num`: множитель для числа копий процессора и для суммарного расхода RAM.
-- `--image-processor-backend`: определяет, какой image-процессор клонируется и где выполняется resize/normalize (GPU или CPU); значение `pil` держит эту работу на CPU. Устаревший `--disable-fast-image-processor` — то же самое, что `pil`.
+- `--disable-fast-image-processor`: переводит с fast image processor'а на базовый; fast-вариант получает `device` (на CUDA — `cuda:<base_gpu_id>`) и может выполнять resize/normalize на GPU, базовый держит эту работу на CPU.
 - `--mm-process-config`: чем меньше разрешение и число кадров, тем дешевле каждый вызов и тем меньше нужны дополнительные воркеры.
 - `--limit-mm-data-per-request`: ограничивает длину очереди, которую один запрос кладет в пул.
 - В arriero расход RAM этих пулов должен быть заложен в host-draw инстанса (`docs/RESOURCE_MANAGEMENT.md`): он постоянный, возникает на старте и не виден в оценке по весам модели.

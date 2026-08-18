@@ -91,7 +91,7 @@ The worker num of the tokenizer manager.
   ```
 
 - **CPU:** `torch.set_num_threads(1)` в каждом воркере не дает им драться за потоки BLAS. Реальный выигрыш — параллельная токенизация и параллельная сериализация HTTP.
-- **VRAM:** обычно не затрагивается, **кроме** мультимодального пути. При `--mm-feature-transport cuda_ipc` или `cuda_vmm` пул под мультимодальные признаки делится между воркерами (`_per_worker_pool_size = total // tokenizer_worker_num`), и в лог пишется `reserving up to <N> MiB on base GPU <i> across <N> tokenizer worker(s). This reduces KV cache headroom`. То есть число воркеров влияет на запас VRAM под KV-кеш.
+- **VRAM:** обычно не затрагивается, **кроме** мультимодального пути. При `--mm-feature-transport cuda_ipc` пул под мультимодальные признаки делится между воркерами поровну в пределах общего бюджета (`get_mm_feature_pool_size_per_worker`), и в лог пишется `reserving up to <N> MiB on base GPU <i> across <N> tokenizer worker(s). This reduces KV cache headroom`. То есть число воркеров влияет на запас VRAM под KV-кеш.
 - **Время старта:** N процессов параллельно читают токенизатор; для мультимодальных моделей это заметно, из-за чего в SGLang даже есть отдельная переменная `SGLANG_UVICORN_WORKER_HEALTHCHECK_TIMEOUT` (по умолчанию 10 секунд) с комментарием, что дефолтных 5 секунд не хватает при холодном старте многих воркеров.
 - **Throughput:** растет только там, где узким местом был именно HTTP/токенизаторный процесс. На GPU-bound нагрузке эффекта нет.
 

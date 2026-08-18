@@ -10,7 +10,6 @@ related:
   - --tokenizer-backend
   - --skip-tokenizer-init
   - --trust-remote-code
-  - --image-processor-backend
   - --disable-fast-image-processor
   - --enable-dynamic-batch-tokenizer
   - --enable-tokenizer-batch-encode
@@ -68,7 +67,7 @@ elif tokenizer_mode == "auto":
 - `auto` — быстрый токенизатор, если он есть; иначе `transformers` сам вернет медленный.
 - `slow` — принудительно медленный. Если у модели нет медленной реализации, `transformers` выбросит ошибку; для процессоров SGLang это перехватывает и откатывается на fast, для чистого токенизатора — нет.
 - Других значений argparse не примет: `choices=["auto", "slow"]`.
-- Флаг **не** влияет на выбор реализации image processor'а — за это отвечает отдельный `--image-processor-backend` (и его устаревший предшественник `--disable-fast-image-processor`).
+- Флаг **не** влияет на выбор реализации image processor'а — за это отвечает отдельный `--disable-fast-image-processor`.
 
 ## Когда использовать
 

@@ -21,14 +21,14 @@ related:
 
 ## Кратко
 
-`--data-parallel-rpc-port` — порт ZMQ-канала, на котором ранг 0 принимает `HELLO`/`READY` от остальных DP-рангов и рассылает им адреса. Справка не преувеличивает: значение должно быть **буквально одинаковым на всех узлах**, потому что каждый узел строит из него один и тот же URI `tcp://<data-parallel-address>:<rpc-port>`.
+`--data-parallel-rpc-port` — порт ZMQ-канала, на котором ранг 0 принимает `HELLO`/`READY` от остальных DP-рангов и рассылает им адреса. Справка про это молчит, но значение должно быть **буквально одинаковым на всех узлах**: каждый узел строит из него один и тот же URI `tcp://<data-parallel-address>:<rpc-port>` — голова биндит на нем ROUTER-сокет, headless-узел по нему подключается.
 
 Это не HTTP-порт (`--port`) и не порт torch-группы (`--master-port`).
 
 ## Оригинальная справка
 
 ```text
-Fixed port for data parallel RPC communication. All nodes must use the same port.
+Port for data parallel RPC communication.
 ```
 
 ## Паспорт аргумента
@@ -36,9 +36,9 @@ Fixed port for data parallel RPC communication. All nodes must use the same port
 - Флаги: `--data-parallel-rpc-port`, `-dpp`
 - Группа argparse: `ParallelConfig`
 - Тип значения: int (номер TCP-порта)
-- Допустимые значения: `1 … 65535` — валидация `ge=1, le=65535` на поле `ParallelConfig.data_parallel_rpc_port`
+- Допустимые значения: любое целое — диапазон на поле `ParallelConfig.data_parallel_rpc_port` не валидируется
 - Значение по умолчанию: в объявлении CLI отсутствует (argparse подставляет `None`)
-- Эффективное значение: при `None` `create_engine_config` подставляет дефолт датакласса — `Field(default=29550, ge=1, le=65535)`, то есть **29550**
+- Эффективное значение: при `None` `create_engine_config` подставляет дефолт датакласса `ParallelConfig.data_parallel_rpc_port = 29550`, то есть **29550**
 - Где объявлен: `vllm/engine/arg_utils.py:add_cli_args`
 - Этап применения: `create_engine_config` → `ParallelConfig.data_parallel_rpc_port` → построение адреса рукопожатия при запуске engine-процессов
 
@@ -55,7 +55,8 @@ Fixed port for data parallel RPC communication. All nodes must use the same port
 
 ## Значения и формат
 
-- Целое `1 … 65535`. Значение вне диапазона отвергается валидацией `ParallelConfig`.
+- Целое — номер TCP-порта; диапазон не валидируется, некорректный номер проявится только ошибкой bind/connect.
+- `0` заставляет головной узел выбрать свободный порт при старте (`data_parallel_rpc_port or get_open_port()` в `launch_core_engines`). В многоузловом развертывании это бесполезно: headless-узел подставляет свое значение прямо в адрес подключения и про выбранный головой порт не узнает.
 - Пропуск флага равен `29550`. Дефолт не «свободный порт», а фиксированный номер, поэтому два независимых многоузловых развертывания на одном головном IP столкнутся на нем.
 - Порт нужен ровно один — он общий для всего развертывания, а не по одному на ранг. Индивидуальны только HTTP-порты (`--port`).
 - Порты самой DP-группы `torch.distributed` этим флагом не задаются: голова выбирает пять свободных портов (`get_open_ports_list(5)`) и раздает их рангам в init-сообщении.

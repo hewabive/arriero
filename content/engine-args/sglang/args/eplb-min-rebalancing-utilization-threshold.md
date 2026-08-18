@@ -3,11 +3,11 @@ schema: 1
 engine: sglang
 primaryName: "--eplb-min-rebalancing-utilization-threshold"
 title: "--eplb-min-rebalancing-utilization-threshold"
-summary: Порог сбалансированности экспертов, выше которого EPLB пропускает очередную перебалансировку. Значение по умолчанию `1.0` — это не «порог на единице», а выключенная проверка; работает порог только при `--expert-balancedness-report-mode`, отличном от `off`.
+summary: Порог сбалансированности экспертов, выше которого EPLB пропускает очередную перебалансировку. Значение по умолчанию `1.0` — это не «порог на единице», а выключенная проверка; работает порог только вместе с `--enable-expert-distribution-metrics`.
 group: exec.moe
 related:
   - --enable-eplb
-  - --expert-balancedness-report-mode
+  - --enable-expert-distribution-metrics
   - --eplb-rebalance-num-iterations
   - --expert-distribution-recorder-mode
   - --ep-size
@@ -32,7 +32,7 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 - Тип значения: float
 - Допустимые значения: справка обещает диапазон `[0.0, 1.0]`, но ни argparse, ни `__post_init__`, ни менеджер этот диапазон не проверяют — значение вне диапазона просто сделает проверку тождественно истинной или ложной
 - Значение по умолчанию: `1.0`
-- Эффективное значение: не переопределяется, но значение `1.0` обрабатывается особым образом: `math.isclose(threshold, 1.0)` отключает и накопление истории, и сам расчет — метод возвращает `None`, и перебалансировка идет всегда
+- Эффективное значение: не переопределяется, но значение `1.0` обрабатывается особым образом: при `math.isclose(threshold, 1.0)` расчет среднего по окну не выполняется — метод возвращает `None`, и перебалансировка идет всегда
 - Где объявлен: `ServerArgs.eplb_min_rebalancing_utilization_threshold`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: конец каждого forward-прохода (накопление истории) → каждая перебалансировка (сравнение)
@@ -41,7 +41,7 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 
 Величина считается в `sglang/python/sglang/srt/eplb/expert_distribution.py`. На каждом проходе счетчики физических экспертов сворачиваются по рангам, и `compute_utilization_rate` дает по каждому слою `(mean + 1e-5) / (max + 1e-5)`; берется среднее по слоям. Значения складываются в скользящие окна на 10, 100 и 1000 проходов.
 
-`_StatAccumulator._get_global_average_utilization_rate()` возвращает среднее по окну 1000 — но только при двух условиях: режим `--expert-balancedness-report-mode` отличен от `off` (иначе история вообще не наполняется) и порог не равен `1.0`. Иначе возвращается `None`.
+`_StatAccumulator._get_global_average_utilization_rate()` возвращает среднее по окну 1000 — но только при двух условиях: включен `--enable-expert-distribution-metrics` (иначе история вообще не наполняется) и порог не равен `1.0`. Иначе возвращается `None`.
 
 `EPLBManager._check_rebalance_needed` трактует `None` как «данных нет — перебалансируем». При числовом значении сравнение простое:
 
@@ -56,26 +56,26 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 - `1.0` (по умолчанию) — проверка выключена целиком; каждое срабатывание периода приводит к перебалансировке.
 - `0.9` — перебалансировка пропускается, пока средняя сбалансированность за последнюю тысячу проходов выше 0.9, то есть пока раскладка и так близка к ровной.
 - `0.0` — сбалансированность всегда выше порога, перебалансировка не будет выполнена никогда (кроме случая, когда история пуста и вернулся `None`).
-- Значения выше `1.0` эквивалентны «никогда не пропускать», но, в отличие от точного `1.0`, оставляют включенным расчет истории со всеми его накладными расходами.
+- Значения выше `1.0` эквивалентны «никогда не пропускать», но, в отличие от точного `1.0`, оставляют включенными расчет среднего по окну и `broadcast` при каждом дампе.
 - Единицы: безразмерное отношение, нижняя осмысленная граница — `1/ep_size` (вся нагрузка на одном ранге).
 
 ## Когда использовать
 
 - Инстанс в проде, перебалансировка стоит заметной паузы, а нагрузка большую часть времени и так ровная: порог 0.9–0.95 уберет бесполезные срабатывания.
-- Хотите видеть, какая сбалансированность у вас на самом деле, — сначала включите `--expert-balancedness-report-mode server_log` и посмотрите `last_1000_average_balancedness`, и только потом ставьте порог чуть ниже наблюдаемого значения.
-- Не задавайте порог с `--expert-balancedness-report-mode off` (дефолт): история останется пустой, `None` вернется в менеджер, и порог не сработает ни разу — вы получите ровно поведение по умолчанию плюс ложное ощущение, что защита включена.
-- Не ставьте порог близко к 1.0 (например, 0.999): проверка станет почти всегда истинной, а расчет истории с `.item()` на каждом проходе останется включенным.
+- Хотите видеть, какая сбалансированность у вас на самом деле, — сначала включите `--enable-expert-distribution-metrics` и посмотрите `last_1000_average_balancedness` в строках `[Expert Balancedness]`, и только потом ставьте порог чуть ниже наблюдаемого значения.
+- Не задавайте порог без `--enable-expert-distribution-metrics` (по умолчанию он выключен): история останется пустой, `None` вернется в менеджер, и порог не сработает ни разу — вы получите ровно поведение по умолчанию плюс ложное ощущение, что защита включена.
+- Не ставьте порог близко к 1.0 (например, 0.999): проверка станет почти всегда истинной — пропусков вы не получите, а расчет среднего и `broadcast` при каждом дампе останутся включенными.
 
 ## Влияние на производительность и память
 
-- Само сравнение бесплатно. Дорого стоит то, что порог включает: при значении, отличном от `1.0`, накопление истории идет на каждом проходе, и там же выполняется `broadcast` небольшого тензора при каждом дампе.
+- Само сравнение бесплатно. Накопление истории идет на каждом проходе при включенном `--enable-expert-distribution-metrics` независимо от порога; порог, отличный от `1.0`, добавляет расчет среднего по окну и `broadcast` небольшого тензора при каждом дампе.
 - При `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1` порог, отличный от `1.0`, дополнительно возвращает `.item()` в горячий путь (иначе значение переносилось бы вместе с остальными метриками) — то есть отключает именно ту оптимизацию, ради которой эта переменная существует.
 - На VRAM влияния нет: величина скалярная, история — три deque на CPU.
 - Выигрыш: пропущенная перебалансировка — это отсутствующая пауза на перенос весов.
 
 ## Взаимодействие с другими аргументами
 
-- `--expert-balancedness-report-mode`: любой режим, кроме `off`, обязателен — иначе порог не работает.
+- `--enable-expert-distribution-metrics`: обязателен — без него история не наполняется и порог не работает.
 - `--enable-eplb`: без него порог не читается.
 - `--eplb-rebalance-num-iterations`: пропуск по порогу не сдвигает период, только пропускает одно срабатывание.
 - `--expert-distribution-recorder-mode`: величина считается только в аккумуляторе режимов `stat`/`stat_approx`.
@@ -83,20 +83,20 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 
 ## Типовые проблемы и диагностика
 
-- Порог задан, но в логе нет ни одной строки `Skipped ep rebalancing` — `--expert-balancedness-report-mode` оставлен `off`, история пуста.
+- Порог задан, но в логе нет ни одной строки `Skipped ep rebalancing` — `--enable-expert-distribution-metrics` не включен, история пуста.
 - Перебалансировка перестала происходить совсем — порог слишком низкий; сравните его с `last_1000_average_balancedness` из строк `[Expert Balancedness]`.
-- Строки `[Expert Balancedness]` не печатаются, хотя метрики включены, — значение уходит в Prometheus (`SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC`), смотрите `sglang:eplb_balancedness`.
+- Строки `[Expert Balancedness]` не печатаются, хотя метрики включены, — задана переменная окружения `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC`, и значение уходит в Prometheus-метрику `sglang:eplb_balancedness`.
 - Первые срабатывания после старта не пропускаются, хотя порог задан, — окно 1000 проходов еще не набралось, метод вернул `0` или `None`.
 - Итоговое значение аргумента — в дампе `server_args=` при старте.
 
 ## Примеры
 
 ```bash
-python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-eplb --expert-balancedness-report-mode server_log --eplb-min-rebalancing-utilization-threshold 0.92
+python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-eplb --enable-expert-distribution-metrics --eplb-min-rebalancing-utilization-threshold 0.92
 ```
 
 ```bash
-python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --expert-balancedness-report-mode prometheus --enable-metrics
+SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1 python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-expert-distribution-metrics --enable-metrics
 ```
 
 ## Источники

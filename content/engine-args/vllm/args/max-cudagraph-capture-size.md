@@ -24,7 +24,7 @@ related:
 
 Аргумент задаёт потолок решётки CUDA-графов. Если `--cudagraph-capture-sizes` не задан, из этого потолка целиком генерируется набор размеров: `[1, 2, 4]`, дальше шаг 8 до 256, дальше шаг 16 до потолка. Понижение потолка одновременно укорачивает решётку — это самый дешёвый способ сократить и время захвата, и объём графового пула, не расписывая список вручную.
 
-Своего значения по умолчанию у аргумента нет: потолок вычисляется из `--max-num-seqs`, `--max-num-batched-tokens` и класса карты.
+Своего значения по умолчанию у аргумента нет: потолок вычисляется из `--max-num-seqs` и `--max-num-batched-tokens`.
 
 ## Оригинальная справка
 
@@ -39,10 +39,10 @@ automatically following the pattern:
     [1, 2, 4] + list(range(8, 256, 8)) + list(
     range(256, max_cudagraph_capture_size + 1, 16))
 
-If not specified, max_cudagraph_capture_size is capped at 512 by default,
-or 1024 on data center Blackwell GPUs. This avoids OOM in tight memory
-scenarios with small max_num_seqs, and limits capture of large graphs that
-increase startup time and memory usage.
+If not specified, max_cudagraph_capture_size is set to min(max_num_seqs*2,
+512) by default. This voids OOM in tight memory scenarios with small
+max_num_seqs, and prevents capture of many large graphs (>512) that would
+greatly increase startup time with limited performance benefit.
 ```
 
 ## Паспорт аргумента
@@ -52,7 +52,7 @@ increase startup time and memory usage.
 - Тип значения: int (число токенов в батче), `None` строкой не принимается — тип не обёрнут в `optional_type`
 - Допустимые значения: положительное целое; после всех правок проверяется ассертом `max_cudagraph_capture_size >= 1`
 - Значение по умолчанию: `None` — «вычислить»
-- Эффективное значение: считается в `VllmConfig._set_cudagraph_sizes()` и **всегда** перезаписывается финальным `cudagraph_capture_sizes[-1]`. Если аргумент не задан: `min(max_num_seqs × (1 + num_speculative_tokens) × 2, 1024 на data center Blackwell иначе 512)`. Затем, независимо от того, задан он или нет: `min(max_num_batched_tokens, значение)`. При `--enforce-eager` или `cudagraph_mode=NONE` обнуляется в `0`
+- Эффективное значение: считается в `VllmConfig._set_cudagraph_sizes()` и **всегда** перезаписывается финальным `cudagraph_capture_sizes[-1]`. Если аргумент не задан: `min(max_num_seqs × (1 + num_speculative_tokens) × 2, 512)`. Затем, независимо от того, задан он или нет: `min(max_num_batched_tokens, значение)`. При `--enforce-eager` или `cudagraph_mode=NONE` обнуляется в `0`
 - Где объявлен: `vllm/config/compilation.py:CompilationConfig.max_cudagraph_capture_size`
 - Этап применения: сборка `VllmConfig` → инициализация cudagraph-диспетчера → профилирование памяти графов → захват графов в прогреве worker'а
 
@@ -60,7 +60,7 @@ increase startup time and memory usage.
 
 `_set_cudagraph_sizes()` выполняет три шага.
 
-**Шаг 1 — потолок.** Не заданное значение выводится из планировщика: `max_num_seqs × decode_query_len × 2`, где `decode_query_len = 1 + num_speculative_tokens`, но не больше 512 (1024 на картах семейства SM 10.x, `is_device_capability_family(100)`). Заданное значение берётся как есть. В обоих случаях сверху накладывается `min(max_num_batched_tokens, …)`.
+**Шаг 1 — потолок.** Не заданное значение выводится из планировщика: `max_num_seqs × decode_query_len × 2`, где `decode_query_len = 1 + num_speculative_tokens`, но не больше 512. Заданное значение берётся как есть. В обоих случаях сверху накладывается `min(max_num_batched_tokens, …)`.
 
 **Шаг 2 — решётка.** Если `--cudagraph-capture-sizes` не задан, строится `[1, 2, 4]` (только те, что ≤ потолка), затем `range(8, min(потолок + 1, 256), 8)`, затем `range(256, потолок + 1, 16)`; в конец добавляется `max_num_batched_tokens`, если он помещается. При `--performance-mode interactivity` мелкая часть заменяется на сплошной `range(1, min(потолок, 32) + 1)`.
 

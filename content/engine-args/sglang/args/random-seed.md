@@ -7,7 +7,6 @@ summary: Общее зерно ГПСЧ для всех воркеров. Не �
 group: device
 related:
   - --enable-deterministic-inference
-  - --mlx-enable-sampling
   - --sampling-backend
   - --tp-size
   - --dp-size
@@ -58,8 +57,6 @@ if torch.xpu.is_available(): torch.xpu.manual_seed_all(seed)
 - инициализацию весов там, где они не загружаются (dummy-load, тесты);
 - любые случайные компоненты спекулятивного декодирования и служебных прогревов.
 
-На MLX-пути зерно передается отдельно: `MlxModelRunner(sampling_rng_seed=get_device().random_seed, …)` — там это зерно генератора сэмплирования внутри MLX-графа.
-
 Отдельно существует **позапросное** зерно `sampling_seed` в параметрах сэмплирования (`sglang/python/sglang/srt/sampling/sampling_params.py`). Оно не связано с `--random-seed`, обрабатывается в `layers/sampler.py` и является тем механизмом, которым клиент получает повторяемость конкретного запроса под `--enable-deterministic-inference`.
 
 ## Значения и формат
@@ -84,7 +81,6 @@ if torch.xpu.is_available(): torch.xpu.manual_seed_all(seed)
 
 - `--enable-deterministic-inference`: настоящий механизм воспроизводимости. Он фиксирует backend сэмплирования, backend внимания, алгоритм NCCL-all-reduce и число каналов; `--random-seed` без него даст повторяемость только при неизменном составе батчей.
 - `--sampling-backend`: определяет, какой код читает состояние генератора; на `pytorch`-backend'е это стандартные генераторы torch.
-- `--mlx-enable-sampling`: включает сэмплирование внутри MLX-графа, куда зерно передается как `sampling_rng_seed`.
 - `--tp-size` / `--pp-size` / `--dp-size`: определяют, сколько процессов синхронизируют зерно через broadcast мировой группы.
 - `--speculative-algorithm`: draft-воркер получает то же синхронизированное зерно.
 
@@ -113,4 +109,3 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --random-seed 42 --
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/layers/sampler.py`
 - `sglang/python/sglang/srt/sampling/sampling_params.py`
-- `sglang/python/sglang/srt/hardware_backend/mlx/tp_worker.py`

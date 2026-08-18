@@ -22,7 +22,7 @@ related:
 
 Prefill и decode у линейного внимания — принципиально разные ядра: prefill выполняет чанковое сканирование по всей длине, decode — рекуррентный шаг на один токен. Этот флаг задает ядро только для prefill/extend. Его отдельная ценность в том, что он не меняет базовое значение `--linear-attn-backend`, а значит не выбивает архитектуру из числа поддерживающих стратегию `extra_buffer` — в отличие от смены базы.
 
-Это единственная фаза, где движок может подставить backend сам: для GDN-моделей на Blackwell при выполнении девяти условий сразу prefill переключается на FlashInfer.
+Это единственная фаза, где движок может подставить backend сам: для GDN-моделей на Blackwell при выполнении десяти условий сразу prefill переключается на FlashInfer.
 
 ## Оригинальная справка
 
@@ -35,7 +35,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - Флаги: `--linear-attn-prefill-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion` (общий список `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`, расширяемый out-of-tree пакетами; `helion` — только KDA)
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda` (общий список `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`, расширяемый out-of-tree пакетами)
 - Значение по умолчанию: `null` — берется `--linear-attn-backend`
 - Эффективное значение: при незаданном значении и выполнении условий `flashinfer_gdn_prefill_default` подставляется `flashinfer`; это записывается в разрешенную конфигурацию через `get_context().override("gdn_backend.sm100_flashinfer_default", …)`
 - Где объявлен: `ServerArgs.linear_attn_prefill_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -73,8 +73,8 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 
 ### Что доступно в каждой семье
 
-- **GDN**: `triton`, `cutedsl`, `flashinfer`. `helion` отвергается именной ошибкой `The Helion linear-attention backend supports KDA only, not GDN.`, остальное — `ValueError: Unsupported GDN prefill backend: …`. `cutedsl` prefill существует только на SM100+, на SM90 диспетчер откатывается на Triton с сообщением `CuTe DSL GDN prefill is not supported on this GPU (requires SM100+). Falling back to Triton for prefill.`
-- **KDA**: `triton`, `helion`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`. `flashkda` — специализированное prefill-only ядро (обертка собирает непрерывную копию состояния слота, так что внешнее ядро самого пула не видит). `nvidia_kda` требует SM100, `ptx_kda` — SM103 (GB300); вне их обе откатываются на Triton с записью в лог. `helion` требует CUDA и пакет `helion` (`pip install helion==1.4.0`), prefill выполняет собственным chunk-ядром `chunk_kda`.
+- **GDN**: `triton`, `cutedsl`, `flashinfer`. Остальное — `ValueError: Unsupported GDN prefill backend: …`. `cutedsl` prefill существует только на SM100+, на SM90 диспетчер откатывается на Triton с сообщением `CuTe DSL GDN prefill is not supported on this GPU (requires SM100+). Falling back to Triton for prefill.`
+- **KDA**: `triton`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`. `flashkda` — специализированное prefill-only ядро (обертка собирает непрерывную копию состояния слота, так что внешнее ядро самого пула не видит). `nvidia_kda` требует SM100, `ptx_kda` — SM103 (GB300); вне их обе откатываются на Triton с записью в лог.
 
 ## Значения и формат
 
@@ -106,14 +106,13 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - `--mamba-ssm-dtype bfloat16`: одно из условий автоподбора (проверяется уже разрешенный тип пула состояний).
 - `--chunked-prefill-size`: условие автоподбора (1…8192) и одновременно размер окна, которое обрабатывает ядро.
 - `--enable-dynamic-chunking`: отключает автоподбор.
-- `--enable-page-major-kv-layout`: отключает автоподбор и сужает допустимые значения до `triton`/`flashkda` (плюс `cutedsl` и `helion` для MLA-гибридов).
+- `--enable-page-major-kv-layout`: отключает автоподбор и сужает допустимые значения до `triton`/`flashkda` (плюс `cutedsl` для MLA-гибридов).
 - `--mamba-radix-cache-strategy`: не зависит от этого флага — в этом и смысл per-phase переопределения.
 
 ## Типовые проблемы и диагностика
 
 - `ValueError: --linear-attn-prefill-backend flashinfer on SM100+ requires CUDA 13+, got CUDA 12.8` — сборка PyTorch с CUDA 12.
-- `ValueError: Unsupported GDN prefill backend: LinearAttnKernelBackend.FLASHKDA` — KDA-ядро на GDN-модели; `helion` на GDN дает `The Helion linear-attention backend supports KDA only, not GDN.`
-- `ImportError: The Helion package is required when a KDA backend is set to Helion. Install it with: pip install helion==1.4.0` — `helion` задан без установленного пакета.
+- `ValueError: Unsupported GDN prefill backend: LinearAttnKernelBackend.FLASHKDA` — KDA-ядро на GDN-модели.
 - В логе `PTX KDA prefill needs SM103 (GB300); falling back to Triton extend.` или `NVIDIA KDA prefill needs SM100; falling back to Triton extend.` — значение принято, но ядро не применилось. Это info-строка, а не ошибка.
 - Ожидали автоматический FlashInfer на Blackwell, а его нет — сверьте все десять условий; чаще всего мешает `--chunked-prefill-size` вне диапазона или незаданный `--mamba-ssm-dtype bfloat16`.
 - Что смотреть в логе: `Defaulting SM100 GDN prefill backend to FlashInfer.` (если автоподбор сработал), `Linear attention kernel backend: decode=…, prefill=…, verify=…` и строку диспетчера с реальными классами ядер.
@@ -133,7 +132,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`
-- `sglang/python/sglang/srt/layers/attention/linear/kernels/kda_helion.py`
 - `sglang/python/sglang/srt/layers/attention/linear/utils.py`
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`
-- upstream PR: sgl-project/sglang#32593 ([Kernel] Enable Helion backend for Kimi Delta-Attention)

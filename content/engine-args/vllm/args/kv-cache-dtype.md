@@ -32,8 +32,6 @@ fp8 (=fp8_e4m3). Intel Gaudi (HPU) supports fp8 (using fp8_inc).
 Some models (namely DeepSeekV3.2) default to fp8, set to bfloat16 to use
 bfloat16 instead, this is an invalid option for models that do not default
 to fp8.
-"nvfp4_4over6" uses the NVFP4 layout and selects between max/6 and max/4
-scales per 16 values by minimizing squared reconstruction error.
 ```
 
 ## Паспорт аргумента
@@ -41,7 +39,7 @@ scales per 16 values by minimizing squared reconstruction error.
 - Флаги: `--kv-cache-dtype`
 - Группа argparse: `CacheConfig`
 - Тип значения: enum (строка из фиксированного списка)
-- Допустимые значения: `auto`, `float16`, `bfloat16`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp8_inc`, `fp8_ds_mla`, `turboquant_k8v4`, `turboquant_4bit_nc`, `turboquant_k3v4_nc`, `turboquant_3bit_nc`, `int4_per_token_head`, `int8_per_token_head`, `fp8_per_token_head`, `nvfp4`, `nvfp4_4over6`. Список статический (`CacheDType` в `vllm/config/cache.py`), но принимает его не парсер, а backend: реально работоспособное подмножество зависит от устройства и выбранного attention-backend'а
+- Допустимые значения: `auto`, `float16`, `bfloat16`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp8_inc`, `fp8_ds_mla`, `turboquant_k8v4`, `turboquant_4bit_nc`, `turboquant_k3v4_nc`, `turboquant_3bit_nc`, `int4_per_token_head`, `int8_per_token_head`, `fp8_per_token_head`, `nvfp4`. Список статический (`CacheDType` в `vllm/config/cache.py`), но принимает его не парсер, а backend: реально работоспособное подмножество зависит от устройства и выбранного attention-backend'а
 - Значение по умолчанию: `auto`
 - Эффективное значение: `auto` разрешается в `create_engine_config` функцией `resolve_kv_cache_dtype_string` по `quantization_config` из HF-конфига модели — если чекпойнт объявляет алгоритм квантизации KV-cache, берется он. Дополнительно `Attention.__init__` подставляет `fp8`, если в quant-config есть `kv_cache_scheme`, а пользователь оставил `auto`
 - Где объявлен: `vllm/config/cache.py:CacheConfig.cache_dtype`
@@ -52,7 +50,7 @@ scales per 16 values by minimizing squared reconstruction error.
 Значение попадает в `CacheConfig.cache_dtype` и оттуда — в три независимых места.
 
 1. **Размер страницы.** `FullAttentionSpec.page_size_bytes` (и MLA/SW-аналоги) считает байты на токен по `kv_cache_torch_dtype` и `kv_quant_mode`. При том же `available_kv_cache_memory` меньший dtype дает больше блоков — это и есть основной эффект.
-2. **Выбор backend'а.** Каждый backend объявляет `supported_kv_cache_dtypes`. FlashAttention принимает `auto`, `float16`, `bfloat16`, `fp8`, `fp8_e4m3`; Triton — те же плюс `fp8_e5m2` и три `*_per_token_head`; FlashInfer — плюс `nvfp4` и `nvfp4_4over6` (и только на compute capability 10.x с работающим trtllm-attention). Несовместимое значение отбрасывает backend с причиной `kv_cache_dtype not supported`.
+2. **Выбор backend'а.** Каждый backend объявляет `supported_kv_cache_dtypes`. FlashAttention принимает `auto`, `float16`, `bfloat16`, `fp8`, `fp8_e4m3`; Triton — те же плюс `fp8_e5m2` и три `*_per_token_head`; FlashInfer — плюс `nvfp4` (и только на compute capability 10.x с работающим trtllm-attention). Несовместимое значение отбрасывает backend с причиной `kv_cache_dtype not supported`.
 3. **Kernel и точность.** `is_quantized_kv_cache` считает квантованными все `fp8*`, `nvfp4*` и `*_per_token_head`. Для `*_per_token_head` масштабы считаются динамически на каждом шаге (в лог пишется `Using ... data type to store kv cache. It reduces the GPU memory footprint and boosts the performance. Dynamic per-token-head scales will be computed at runtime.`); для остальных квантованных форматов в лог идет вариант с оговоркой `it may cause accuracy drop without a proper scaling factor`.
 
 Отдельная ветка — `turboquant_*`: после сборки `CacheConfig` в `create_engine_config` движок сам дописывает в `kv_cache_dtype_skip_layers` граничные слои, которые TurboQuant квантовать не должен (`TurboQuantConfig.get_boundary_skip_layers`). То есть при turboquant список skip-слоев не пуст даже если вы его не задавали, и следом срабатывает выравнивание `--block-size` под смешанные страницы.
@@ -63,7 +61,7 @@ scales per 16 values by minimizing squared reconstruction error.
 - `float16` / `bfloat16` — явное неквантованное хранение. Для моделей, чей чекпойнт по умолчанию просит fp8 (например, DeepSeekV3.2), `bfloat16` — это способ отказаться от fp8; для моделей, у которых fp8-дефолта нет, такой отказ бессмысленен.
 - `fp8` — синоним `fp8_e4m3`. `fp8_e5m2` — другой раскрой мантиссы/экспоненты, поддержан меньшим числом backend'ов. `fp8_inc` — вариант для Intel Gaudi.
 - `*_per_token_head` (`int4`, `int8`, `fp8`) — квантование с динамическими масштабами на токен и голову; масштабы не нужно калибровать заранее, но backend должен уметь `supports_per_head_quant_scales`.
-- `nvfp4`, `nvfp4_4over6` — NVFP4-раскладка; `nvfp4_4over6` выбирает между масштабами `max/6` и `max/4` на каждые 16 значений по минимуму квадратичной ошибки восстановления.
+- `nvfp4` — NVFP4-раскладка: fp4-данные плюс fp8-масштаб на каждые 16 значений в одной упакованной странице (`nvfp4_kv_cache_full_dim`); работает только через FlashInfer с trtllm-gen kernel.
 - `turboquant_*` — упакованная K|V-раскладка со своим `TQFullAttentionSpec`; список skip-слоев автоматически дополняется граничными.
 - Значения `None`/пустой строки нет: аргумент не `optional`.
 

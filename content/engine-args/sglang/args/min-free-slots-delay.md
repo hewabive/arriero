@@ -3,12 +3,11 @@ schema: 1
 engine: sglang
 primaryName: "--min-free-slots-delay"
 title: "--min-free-slots-delay"
-summary: Откладывает новые prefill'ы, пока не освободится хотя бы N слотов running-батча, чтобы принять их одним батчем, а не по одному. По умолчанию включается только для DFlash/DSpark; несовместим с pipeline parallelism.
+summary: Откладывает новые prefill'ы, пока не освободится хотя бы N слотов running-батча, чтобы принять их одним батчем, а не по одному. По умолчанию включается только для DFlash/DSpark; явное значение ограничено сверху формулой DFlash и не действует при `max-running-requests < 8`.
 group: schedule
 related:
   - --max-running-requests
   - --speculative-algorithm
-  - --pp-size
   - --pp-max-micro-batch-size
   - --enable-prefill-delayer
   - --chunked-prefill-size
@@ -23,7 +22,7 @@ related:
 ## Оригинальная справка
 
 ```text
-Hold new prefills until at least N running-request slots have freed up, so they are admitted in one batch instead of one at a time. Useful when each admission is disproportionately expensive, e.g. speculative decoding with a separate draft prefill pass. An explicit value always wins, capped by max-running-requests (1 disables). When unset, DFlash workloads auto-enable the formula; other workloads stay disabled. Not supported with pipeline parallelism.
+Hold new prefills until at least N running-request slots have freed up, so they are admitted in one batch instead of one at a time. Useful when each admission is disproportionately expensive, e.g. speculative decoding with a separate draft prefill pass. Capped to the DFlash formula (disabled when max-running-requests < 8; min(4, max(2, (max-run + 5) // 6))). DFlash workloads auto-enable this with the formula when unset; other workloads stay disabled.
 ```
 
 ## Паспорт аргумента
@@ -31,9 +30,9 @@ Hold new prefills until at least N running-request slots have freed up, so they 
 - Флаги: `--min-free-slots-delay`
 - Группа: `schedule`
 - Тип значения: целое (`Optional[int]`)
-- Допустимые значения: не ограничены на уровне argparse; значение приводится к `min(значение, max_running_requests)`, и результат `<= 1` означает «выключено»
+- Допустимые значения: не ограничены на уровне argparse; значение `<= 1` означает «выключено», иначе приводится к `min(значение, формула DFlash)`
 - Значение по умолчанию: `null` — «выключено, кроме DFlash-семейства»
-- Эффективное значение: считается в `resolve_min_free_slots` (`sglang/python/sglang/srt/managers/min_free_slots_delayer.py`). При незаданном аргументе и `--speculative-algorithm` из семейства DFlash (`DFLASH`, `DSPARK`) с `max_running_requests >= 8` включается формула `min(4, max(2, (max_running_requests + 5) // 6))`; для остальных нагрузок остается выключенным
+- Эффективное значение: считается в `resolve_min_free_slots` (`sglang/python/sglang/srt/managers/min_free_slots_delayer.py`). Формула — `min(4, max(2, (max_running_requests + 5) // 6))`; явное значение обрезается ею сверху, при `max_running_requests < 8` механизм выключен всегда. При незаданном аргументе и `--speculative-algorithm` из семейства DFlash (`DFLASH`, `DSPARK`) подставляется сама формула; для остальных нагрузок остается выключенным
 - Где объявлен: `ServerArgs.min_free_slots_delay`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: инициализация планировщика (создание `MinFreeSlotsDelayer`) → начало каждой сборки prefill-батча
@@ -59,22 +58,20 @@ if (self.min_free_slots_delayer is not None
 - продолжение chunked prefill (`self.chunked_req is not None`) проходит без задержки, иначе незавершенный запрос завис бы;
 - решение принимается локально каждым рангом: слоты running-батча приватны для DP-ранга, и ранг со свободными слотами не ждет перегруженного соседа.
 
-Отдельная блокировка при старте: с `--pp-size > 1` заданный аргумент роняет запуск, потому что число слотов на микробатч ограничено `pp_max_micro_batch_size` и порог может оказаться недостижимым в принципе.
-
 ## Значения и формат
 
 - Целое число слотов running-батча.
-- Значение обрезается сверху по `max_running_requests`: задать порог больше конкурентности бессмысленно и невозможно.
-- `1` и `0` (а также отрицательные) отключают механизм: после обрезки проверяется `threshold > 1`.
-- Явно заданное значение всегда побеждает автоматику DFlash — в том числе значением `1`, которым механизм можно принудительно выключить на DFlash-нагрузке.
-- Типичный автоматический результат — от 2 до 4 слотов: формула `min(4, max(2, (max_running_requests + 5) // 6))` дает 2 при `max_running_requests` 8-12 и упирается в 4 начиная с 19.
+- Значение обрезается сверху формулой `min(4, max(2, (max_running_requests + 5) // 6))` — задержать агрессивнее унаследованной DFlash-эвристики нельзя, каким бы большим ни было явное значение.
+- `1` и `0` (а также отрицательные) отключают механизм: до обрезки проверяется `user_value <= 1`.
+- При `max_running_requests < 8` механизм выключен всегда, даже с явно заданным значением.
+- Явное значение может опустить порог ниже формулы — в том числе до `1`, которым механизм принудительно выключается на DFlash-нагрузке, — но не поднять выше нее.
+- Типичный результат формулы — от 2 до 4 слотов: 2 при `max_running_requests` 8-12, 4 начиная с 19.
 
 ## Когда использовать
 
 - Спекулятивное декодирование с отдельным draft-prefill'ом (DFlash/DSpark) — штатный случай, включается сам; вручную имеет смысл трогать только при нестандартном `max_running_requests`.
 - Нагрузка, где в логе видно череду `Prefill batch, #new-seq: 1` при полном running-батче и непустой очереди: каждый освободившийся слот тут же тратится на отдельный prefill-проход.
-- Не включайте на интерактивной нагрузке с низкой конкурентностью: порог 2-4 слота при `max_running_requests` порядка десятка означает, что запросы будут ждать заметную часть времени.
-- Не используйте вместе с pipeline parallelism — старт откажет.
+- Не включайте на интерактивной нагрузке с низкой конкурентностью: порог 2-4 слота при `max_running_requests` порядка десятка означает, что запросы будут ждать заметную часть времени; при `max_running_requests < 8` движок и не даст его включить.
 
 ## Влияние на производительность и память
 
@@ -85,17 +82,16 @@ if (self.min_free_slots_delayer is not None
 
 ## Взаимодействие с другими аргументами
 
-- `--max-running-requests`: верхняя граница значения и вход в формулу автоподбора.
+- `--max-running-requests`: вход в формулу-ограничитель; значение меньше 8 отключает механизм целиком.
 - `--speculative-algorithm`: только DFlash-семейство включает механизм автоматически.
-- `--pp-size` (`> 1`): несовместим, старт падает с сообщением `--min-free-slots-delay is not supported with pipeline parallelism: allocatable slots per microbatch are bounded by pp-max-micro-batch-size, so the threshold may never be reached`.
 - `--pp-max-micro-batch-size`: участвует в расчете `num_allocatable_reqs` даже при `pp_size == 1`.
 - `--enable-prefill-delayer`: независимый механизм с той же целью. Оба могут быть включены одновременно; их задержки складываются.
 - `--chunked-prefill-size`: продолжение начатого chunked prefill эту задержку не проходит.
 
 ## Типовые проблемы и диагностика
 
-- `AssertionError: --min-free-slots-delay is not supported with pipeline parallelism …` — уберите аргумент или `--pp-size`.
-- Значение задано, но эффекта нет: проверьте, что оно больше 1 после обрезки по `--max-running-requests` (дамп `server_args=` показывает значение до обрезки — обрезку делает планировщик).
+- Значение задано, но эффекта нет: проверьте, что `--max-running-requests` не меньше 8 и что значение больше 1 — дамп `server_args=` показывает значение до обрезки, итоговый порог (`min` с формулой) вычисляет планировщик при старте.
+- Порог меньше заданного: значение обрезано формулой `min(4, max(2, (max_running_requests + 5) // 6))` — выше нее подняться нельзя.
 - Ощутимо вырос TTFT на слабой нагрузке: механизм не имеет таймаута, при редких запросах он держит prefill до освобождения слотов; уменьшите порог или отключите значением `1`.
 - Отдельной метрики у механизма нет. Косвенный признак работы — рост `#new-seq` и падение частоты строк `Prefill batch` при неизменном `#queue-req`.
 

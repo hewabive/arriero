@@ -84,7 +84,7 @@ KV-пул выделяется только под слои своей стад�
 - `--pp-max-micro-batch-size` / `--pp-async-batch-depth`: настройка конвейера; `pp_max_micro_batch_size` — либо `None` (авто), либо ≥ 1.
 - `--enable-dynamic-chunking`: рекомендованный спутник PP; связка `enable_dynamic_chunking && pp_size > 1` поднимает потолок prefill-буфера до `max(chunked_prefill_size, max_prefill_tokens, ceil(chunked_prefill_size * 1.25))` (`max_prefill_buffer_tokens`), то есть чанк может расти выше заданного значения.
 - `--nnodes`: делимость `tp_size * pp_size` на число узлов.
-- Несовместимо: `--enable-prefill-cp`/`--moe-dp-size > 1` (`PP is not supported with context parallelism`), elastic EP (`PP size should be set to 1 under elastic EP`), DWDP (`DWDP requires pp_size == 1`), PD-Multiplexing, `--mm-feature-transport cuda_vmm`, `--enable-unified-memory` в PD-режиме, `--enable-dsa-cache-layer-split`. `--optimistic-prefill-attempts` при `pp_size > 1` в PD-prefill молча обнуляется с предупреждением.
+- Несовместимо: `--enable-prefill-cp`/`--moe-dp-size > 1` (`PP is not supported with context parallelism`), elastic EP (`PP size should be set to 1 under elastic EP`), DWDP (`DWDP requires pp_size == 1`), PD-Multiplexing, `--enable-unified-memory` в PD-режиме, `--enable-dsa-cache-layer-split`. `--optimistic-prefill-attempts` при `pp_size > 1` в PD-prefill молча обнуляется с предупреждением.
 
 ## Типовые проблемы и диагностика
 
