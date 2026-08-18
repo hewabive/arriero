@@ -503,6 +503,42 @@ test("KTransformers preflight requires matching roots and versions RAWINT4 ISA",
   }
 });
 
+test("KTransformers 0.7.0 runtime allows FP8 and BF16 on AVX2 hosts", async () => {
+  const { root, instance } = fixture();
+  const python = join(root, "bin", "python");
+  try {
+    writeFileSync(
+      python,
+      '#!/bin/sh\nprintf \'ARRIERO_KT_RUNTIME=["3.12","0.7.0","0.7.0"]\\n\'\n',
+      { mode: 0o755 },
+    );
+    for (const method of ["FP8", "BF16"] as const) {
+      instance.engineConfig!.method = method;
+      const result = await validateInstancePreflight(instance, {
+        ...preflightOptions(),
+        cpuFlags: ["avx2"],
+      });
+      assert.equal(result.ok, true, JSON.stringify(result.issues));
+    }
+
+    instance.engineConfig!.method = "FP8_PERCHANNEL";
+    const perChannel = await validateInstancePreflight(instance, {
+      ...preflightOptions(),
+      cpuFlags: ["avx2"],
+    });
+    assert.equal(perChannel.ok, false);
+    assert.ok(
+      perChannel.issues.some(
+        (entry) =>
+          entry.field === "engineConfig.method" &&
+          /avx512f/.test(entry.message),
+      ),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("KTransformers runtime probe timeout is configurable and diagnostic", async () => {
   const { root, instance } = fixture();
   const python = join(root, "bin", "python");

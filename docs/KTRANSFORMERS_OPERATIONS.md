@@ -26,30 +26,36 @@ KT memory estimates are not in this release profile. A host-built wheel may be
 installed through the managed wheel source when its source revision, build
 flags, and SHA-256 are recorded; a general source-build job is still deferred.
 
-## Qualified host profile
+## Qualified host profiles
 
-The result and complete provenance are in
-`docs/qualification/ktransformers/0.6.4-2026-07-30.md`.
+Complete provenance lives in `docs/qualification/ktransformers/`:
+`0.7.0-2026-08-18.md` (current) and `0.6.4-2026-07-30.md`.
 
-| Component | Qualified value |
+| Component | 0.7.0 qualified value |
 | --- | --- |
-| Host | Ubuntu 24.04, AMD EPYC 7402P with 8 visible AVX2 cores and one NUMA node |
-| GPU | NVIDIA RTX A5000 24 GiB, compute capability 8.6 |
-| Packages | `kt-kernel==0.6.4` host build + `sglang-kt==0.6.4` with upstream RoPE fix `04653fa` |
-| Python / Torch | 3.12.13 / 2.9.1 with CUDA 12.8 runtime |
-| Model | `Qwen/Qwen3-30B-A3B` + official Q4_K_M GGUF |
-| KT profile | LLAMAFILE, 8 CPU workers, 1 pool, 32 GPU experts, 2 deferred experts |
-| SGLang profile | TP 1, concurrency 2, 8,192 scheduled tokens, CUDA graph batch 1/2, radix cache |
-| Result | direct and proxied OpenAI/Responses/Anthropic semantics and concurrency passed |
+| Host | Ubuntu 26.04, AMD EPYC 7402P with 8 visible AVX2 cores and one NUMA node |
+| GPU | NVIDIA RTX 4090 24 GiB, compute capability 8.9 |
+| Packages | **public PyPI wheels** `kt-kernel==0.7.0` + `sglang-kt==0.7.0`, hashes in the record |
+| Python / Torch | 3.12.14 / 2.9.1 with CUDA 12.8 runtime |
+| Model | `Qwen/Qwen3.5-35B-A3B-FP8` (native FP8 method, no separate GGUF) |
+| KT profile | FP8, 8 CPU workers, 1 pool, 2 GPU experts per layer |
+| Instance env | `SGLANG_DISABLE_CUDNN_CHECK=1` is mandatory (env pins cuDNN 9.10; the check demands 9.15 for a Conv3d-only PyTorch bug that text MoE inference does not exercise) |
+| Result | direct and proxied OpenAI/Responses/Anthropic semantics, concurrency, adoption and shutdown passed; ~2.3 tok/s decode — functional, not fast |
 
-Do not substitute the public wheels on this host:
+Since `kt-kernel` 0.7.0 the public wheel is multi-variant (AMX, four AVX-512
+tiers, AVX2) with runtime CPU dispatch, and its AVX2 build carries software
+fallbacks for the FP8/BF16/RAWINT4/GPTQ/MXFP native methods
+(`FP8_PERCHANNEL` stays AVX-512/AMX-only) — public wheels are the default
+install path from 0.7.0 on.
+
+**Version-scoped 0.6.4 warning — do not substitute the public 0.6.4 wheels:**
 
 - public `kt-kernel==0.6.4` selects an AVX2-named extension but `CPUInfer(1)`
   terminates with `SIGILL`;
 - public `sglang-kt==0.6.4` omits upstream RoPE commit `04653fa` and returned
   semantically corrupted output despite HTTP 200.
 
-The qualified local artifact hashes are:
+The 0.6.4-qualified local artifact hashes are:
 
 ```text
 kt_kernel-0.6.4-cp312-cp312-linux_x86_64.whl
@@ -59,6 +65,10 @@ sglang_kt-0.6.4-py3-none-any.whl
 7d9a32e236424b156060fd6ef82cc437948e7fa0e70916b831622bde08ab3365
 ```
 
+Known upstream defect in `sglang-kt` 0.7.0: `/v1/responses` rejects a plain
+string `input` (`input_ids should be a list of lists`); use the structured
+`input` array form.
+
 ## Install and create
 
 1. Upgrade every enabled federation peer to a version whose
@@ -66,10 +76,10 @@ sglang_kt-0.6.4-py3-none-any.whl
    `instanceKinds` and `creatableInstanceKinds`. Do not create a federated
    KTransformers instance while an enabled peer lacks that capability.
 2. Open **Environments**, choose **KTransformers (SGLang-KT)**, select Python
-   3.11/3.12, and install either a separately qualified matched PyPI version or
-   exactly one hashed wheel for each root package. On the RTX A5000 host use
-   the two artifacts above. Wait for `installed / usable`; validation executes
-   both imports, exact metadata checks, and `CPUInfer(1)`.
+   3.11/3.12, and install a qualified matched PyPI version (0.7.0+: the public
+   pair) or exactly one hashed wheel for each root package (the 0.6.4 path).
+   Wait for `installed / usable`; validation executes both imports, exact
+   metadata checks, and `CPUInfer(1)`.
 3. Create a KTransformers instance from the generated `sglang` catalog entry.
    Set the main model, CPU weights, method, optional served model name, CUDA
    visibility, and advanced SGLang/KT arguments.
@@ -158,8 +168,14 @@ Rationale that is not derivable from the code or from `docs/ENGINE_ADAPTERS.md`:
   then verify that SGLang-KT contains upstream RoPE fix `04653fa`. Readiness is
   transport health, not a semantic qualification.
 - **CPU method rejected:** select a method supported by host ISA or regenerate
-  weights for the intended backend. AMX methods require AMX; RAWINT4 and
-  LLAMAFILE require AVX2.
+  weights for the intended backend. AMX methods require AMX;
+  `FP8_PERCHANNEL` requires AVX-512; on kt-kernel ≥ 0.7.0 RAWINT4, FP8, BF16
+  and LLAMAFILE run on AVX2 (older versions need AVX-512 for FP8/BF16).
+- **Instance exits immediately citing cuDNN 9.15:** sglang-kt 0.7.0 gates
+  startup on cuDNN ≥ 9.15 under PyTorch 2.9.1 (pytorch/pytorch#168167, a
+  `nn.Conv3d`-only bug). Environments are immutable and pin cuDNN 9.10 — set
+  instance env `SGLANG_DISABLE_CUDNN_CHECK=1`; text MoE inference does not
+  use Conv3d.
 - **Reservation rejected:** reserve host RAM plus exactly the GPU pools selected
   in CUDA/TP order. Remove positive draws on hidden or unused GPUs.
 - **NUMA rejected:** make node values distinct and online, match the thread-pool

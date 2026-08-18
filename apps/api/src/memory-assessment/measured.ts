@@ -96,7 +96,7 @@ export async function captureMeasuredBaseline(input: {
   if (health.runtime.status !== "running") {
     return { ok: false, reason: "instance is not running" };
   }
-  if (!health.logSummary.ready) {
+  if (!health.logSummary.ready && !health.llama.health.ok) {
     return { ok: false, reason: "instance has not reached readiness yet" };
   }
   if (health.configDrift) {

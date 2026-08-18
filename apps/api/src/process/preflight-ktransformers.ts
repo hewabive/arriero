@@ -602,11 +602,21 @@ const METHOD_CPU_FEATURES: Record<KTransformersMethod, string[]> = {
   AMXINT4: ["amx_int8"],
   AMXINT8: ["amx_int8"],
   RAWINT4: ["avx2"],
-  FP8: ["avx512f"],
+  FP8: ["avx2"],
   FP8_PERCHANNEL: ["avx512f"],
-  BF16: ["avx512f", "avx512_bf16"],
+  BF16: ["avx2"],
   LLAMAFILE: ["avx2"],
 };
+
+const LEGACY_METHOD_CPU_FEATURES: Array<{
+  method: KTransformersMethod;
+  below: [number, number, number];
+  required: string[];
+}> = [
+  { method: "RAWINT4", below: [0, 6, 2], required: ["avx512f"] },
+  { method: "FP8", below: [0, 7, 0], required: ["avx512f"] },
+  { method: "BF16", below: [0, 7, 0], required: ["avx512f", "avx512_bf16"] },
+];
 
 function versionAtLeast(version: string, minimum: [number, number, number]) {
   const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
@@ -630,12 +640,14 @@ function validateCpuMethod(
   const flags = options.cpuFlags
     ? new Set(options.cpuFlags.map((flag) => flag.toLowerCase()))
     : detectedCpuFlags();
-  const required =
-    method === "RAWINT4" &&
-    runtime &&
-    !versionAtLeast(runtime.ktKernelVersion, [0, 6, 2])
-      ? ["avx512f"]
-      : METHOD_CPU_FEATURES[method];
+  const legacy = runtime
+    ? LEGACY_METHOD_CPU_FEATURES.find(
+        (entry) =>
+          entry.method === method &&
+          !versionAtLeast(runtime.ktKernelVersion, entry.below),
+      )
+    : undefined;
+  const required = legacy ? legacy.required : METHOD_CPU_FEATURES[method];
   const missing = required.filter((feature) => !flags.has(feature));
   if (missing.length > 0) {
     issue(
@@ -760,12 +772,15 @@ function validateOperationalWarnings(
       "engineConfig.model",
       "Remote KTransformers model resolution can download data and makes cold-start time unbounded",
     );
-  } else if (resolve(model) === resolve(cpuWeights)) {
+  } else if (
+    instance.engineConfig.method === "LLAMAFILE" &&
+    resolve(model) === resolve(cpuWeights)
+  ) {
     issue(
       issues,
       "warning",
       "engineConfig.cpuWeights",
-      "KTransformers model and CPU weights resolve to the same directory",
+      "LLAMAFILE expects GGUF CPU weights, but model and CPU weights resolve to the same directory",
     );
   }
   if (!configuredArg(instance, ["--mem-fraction-static"])) {
