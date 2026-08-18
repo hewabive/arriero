@@ -61,15 +61,25 @@ summaries split each request's decode time into **solo** (sole decoder, no prefi
 **contended** segments, giving isolated vs under-load rates per topic, plus draft acceptance
 weighted by drafted tokens. Repetitions (waves) segment independently; segments never span waves.
 
-**Class support and the solo baseline** (`isBenchmarkClassSupported` / `soloDecodeBaseline`, core):
-a phase-transition instant that nearly coincides with another produces a sliver segment whose rate
-is arithmetic noise (one chunk over 1 ms reads as 1000 tok/s). A class rate is therefore reported
-only above `BENCHMARK_CLASS_MIN_WALL_MS`; the threshold is wall time alone, because a long class
-with very few tokens (decode nearly frozen behind a competing prefill) is a real measurement, not
-noise. The `(0,1)` class doubles as the **solo baseline** every contention number is compared
-against, so promoting it additionally requires `BENCHMARK_BASELINE_MIN_WALL_MS` and
-`BENCHMARK_BASELINE_MIN_TOKENS` — an understated baseline would invert every comparison. A run
-without a qualifying solo stretch reports no baseline rather than a plausible substitute.
+**Class support and the solo baseline** (`isBenchmarkRateSupported` / `isBenchmarkClassSupported` /
+`soloDecodeBaseline`, core): a phase-transition instant that nearly coincides with another produces
+a sliver segment whose rate is arithmetic noise (one chunk over 1 ms reads as 1000 tok/s). The
+error of a class rate has two parts — chunk quantization (≈ `1/chunkCount`, set by tokens) and
+boundary-timestamp jitter (≈ a few ms over the wall, set by duration) — so a rate qualifies by
+either of two gates. The wall gate (`BENCHMARK_CLASS_MIN_WALL_MS`) is wall time alone, because a
+long class with very few tokens (decode nearly frozen behind a competing prefill) is a real
+measurement, not noise. The fast gate (`BENCHMARK_FAST_RATE_MIN_TOKENS` over at least
+`BENCHMARK_CLASS_FAST_MIN_WALL_MS`) admits the short-but-token-dense stretches a fast engine
+produces — 32 tokens bound quantization error at ~3%, the wall floor bounds jitter, and a sliver
+can never reach the token minimum. The `(0,1)` class doubles as the **solo baseline** every
+contention number is compared against, so promoting it is stricter on both paths — an understated
+baseline would invert every comparison: `BENCHMARK_BASELINE_MIN_WALL_MS` with
+`BENCHMARK_BASELINE_MIN_TOKENS`, or the fast token minimum over
+`BENCHMARK_BASELINE_FAST_MIN_WALL_MS`. A run without a qualifying solo stretch reports no baseline
+rather than a plausible substitute. The fast gate is a monotone relaxation: no rate reported under
+the wall-only rule disappears, and since the web recomputes class support from stored
+`segmentClasses`, phase-mix rows of pre-existing runs may light up while their persisted
+topic/headline numbers stay as recorded.
 
 **Headline metrics** (`BenchmarkRunSummary.headline`) are the run's answer in one row: aggregate and
 per-request decode tok/s over decode-active time, the solo baseline, prefill tok/s (prompt tokens

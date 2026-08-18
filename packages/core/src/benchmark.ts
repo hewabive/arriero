@@ -151,6 +151,9 @@ export const BenchmarkTopicSummarySchema = z.object({
 export const BENCHMARK_CLASS_MIN_WALL_MS = 200;
 export const BENCHMARK_BASELINE_MIN_WALL_MS = 500;
 export const BENCHMARK_BASELINE_MIN_TOKENS = 8;
+export const BENCHMARK_FAST_RATE_MIN_TOKENS = 32;
+export const BENCHMARK_CLASS_FAST_MIN_WALL_MS = 100;
+export const BENCHMARK_BASELINE_FAST_MIN_WALL_MS = 150;
 
 export const BenchmarkHeadlineSchema = z.object({
   decodeTokensPerSecond: z.number().nullable(),
@@ -264,10 +267,37 @@ export type BenchmarkStreamEventKind = z.infer<
 >;
 export type BenchmarkStreamEvent = z.infer<typeof BenchmarkStreamEventSchema>;
 
+export function isBenchmarkRateSupported(
+  tokens: number,
+  wallMs: number,
+): boolean {
+  if (wallMs >= BENCHMARK_CLASS_MIN_WALL_MS) return true;
+  return (
+    tokens >= BENCHMARK_FAST_RATE_MIN_TOKENS &&
+    wallMs >= BENCHMARK_CLASS_FAST_MIN_WALL_MS
+  );
+}
+
 export function isBenchmarkClassSupported(
   entry: BenchmarkSegmentClass,
 ): boolean {
-  return entry.decodeCount > 0 && entry.wallMs >= BENCHMARK_CLASS_MIN_WALL_MS;
+  return (
+    entry.decodeCount > 0 &&
+    isBenchmarkRateSupported(entry.decodeTokens, entry.wallMs)
+  );
+}
+
+function qualifiesAsBaseline(entry: BenchmarkSegmentClass): boolean {
+  if (
+    entry.wallMs >= BENCHMARK_BASELINE_MIN_WALL_MS &&
+    entry.decodeTokens >= BENCHMARK_BASELINE_MIN_TOKENS
+  ) {
+    return true;
+  }
+  return (
+    entry.wallMs >= BENCHMARK_BASELINE_FAST_MIN_WALL_MS &&
+    entry.decodeTokens >= BENCHMARK_FAST_RATE_MIN_TOKENS
+  );
 }
 
 export function soloDecodeBaseline(
@@ -277,8 +307,7 @@ export function soloDecodeBaseline(
     (entry) =>
       entry.prefillCount === 0 &&
       entry.decodeCount === 1 &&
-      entry.wallMs >= BENCHMARK_BASELINE_MIN_WALL_MS &&
-      entry.decodeTokens >= BENCHMARK_BASELINE_MIN_TOKENS,
+      qualifiesAsBaseline(entry),
   );
   return solo?.perRequestDecodeTokensPerSecond ?? null;
 }

@@ -1,5 +1,5 @@
 import {
-  BENCHMARK_CLASS_MIN_WALL_MS,
+  isBenchmarkRateSupported,
   type BenchmarkRequestResult,
   type BenchmarkRunResult,
   type BenchmarkSegment,
@@ -54,6 +54,7 @@ type RowShape = {
 type RatePoint = {
   startMs: number;
   endMs: number;
+  tokens: number;
   total: number;
   perRequest: number;
 };
@@ -140,6 +141,7 @@ function buildRatePoints(segments: readonly BenchmarkSegment[]): RatePoint[] {
     points.push({
       startMs: segment.startMs,
       endMs: segment.endMs,
+      tokens: segment.decodeTokens,
       total: rate,
       perRequest: rate / segment.decodeCount,
     });
@@ -257,8 +259,8 @@ function buildLayout(
   const svgHeight = plotBottom + AXIS_HEIGHT;
 
   const x = (ms: number) => gutter + ((ms - t0) / span) * plotWidth;
-  const scalePoints = ratePoints.filter(
-    (point) => point.endMs - point.startMs >= BENCHMARK_CLASS_MIN_WALL_MS,
+  const scalePoints = ratePoints.filter((point) =>
+    isBenchmarkRateSupported(point.tokens, point.endMs - point.startMs),
   );
   const laneMax = niceCeiling(
     Math.max(

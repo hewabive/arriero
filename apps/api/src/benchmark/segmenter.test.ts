@@ -370,6 +370,67 @@ test("boundary slivers do not become topic rates or a solo baseline", () => {
   );
 });
 
+test("a short token-dense solo decode qualifies for topic rates and the baseline", () => {
+  const chunkTimesMs = Array.from(
+    { length: 35 },
+    (_, index) => 100 + index * 5,
+  );
+  const { summary } = analyzeBenchmarkRun([
+    measured({
+      requestId: "a",
+      submitMs: 0,
+      firstTokenMs: 100,
+      doneMs: 270,
+      chunkTimesMs,
+      completionTokens: 35,
+      serverTimings: timings({ promptMs: 100 }),
+    }),
+  ]);
+
+  assert.equal(summary.topics[0]?.soloDecodeTokensPerSecond, 200);
+  assert.equal(summary.headline?.soloDecodeTokensPerSecond, 200);
+});
+
+test("a short sparse solo decode stays unreported", () => {
+  const { summary } = analyzeBenchmarkRun([
+    measured({
+      requestId: "a",
+      submitMs: 0,
+      firstTokenMs: 100,
+      doneMs: 270,
+      chunkTimesMs: [100, 150, 210, 270],
+      completionTokens: 4,
+      serverTimings: timings({ promptMs: 100 }),
+    }),
+  ]);
+
+  assert.equal(summary.topics[0]?.soloDecodeTokensPerSecond, null);
+  assert.equal(summary.headline?.soloDecodeTokensPerSecond, null);
+});
+
+test("the fast class floor admits a rate the stricter baseline floor rejects", () => {
+  const chunkTimesMs = Array.from(
+    { length: 41 },
+    (_, index) => 100 + index * 3,
+  );
+  const { summary } = analyzeBenchmarkRun([
+    measured({
+      requestId: "a",
+      submitMs: 0,
+      firstTokenMs: 100,
+      doneMs: 220,
+      chunkTimesMs,
+      completionTokens: 41,
+      serverTimings: timings({ promptMs: 100 }),
+    }),
+  ]);
+
+  const solo = summary.topics[0]?.soloDecodeTokensPerSecond;
+  assert.ok(solo !== null && solo !== undefined);
+  assert.ok(Math.abs(solo - 1000 / 3) < 1e-9);
+  assert.equal(summary.headline?.soloDecodeTokensPerSecond, null);
+});
+
 test("headline metrics derive rates, prefill throughput and prompt tokens", () => {
   const requests = [
     measured({

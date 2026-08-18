@@ -1,4 +1,4 @@
-import { BENCHMARK_CLASS_MIN_WALL_MS, soloDecodeBaseline } from "@arriero/core";
+import { isBenchmarkRateSupported, soloDecodeBaseline } from "@arriero/core";
 import type {
   BenchmarkHeadline,
   BenchmarkRequestResult,
@@ -50,7 +50,7 @@ function ratePerSecond(tokens: number, durationMs: number): number | null {
 }
 
 function supportedRate(tokens: number, durationMs: number): number | null {
-  return durationMs >= BENCHMARK_CLASS_MIN_WALL_MS
+  return isBenchmarkRateSupported(tokens, durationMs)
     ? ratePerSecond(tokens, durationMs)
     : null;
 }
