@@ -115,6 +115,20 @@ The vLLM provisioner installs:
 - validation: `import vllm`, exact `vllm` metadata and module version;
 - catalog tag: `vllm`.
 
+The SGLang provisioner installs upstream SGLang the same way vLLM is installed:
+
+- PyPI: `sglang[extras]==version` (the create form defaults extras to `all`, the
+  upstream-recommended install);
+- wheel: one file, HTTP, or HTTPS URL with optional SHA-256 and optional torch backend;
+- entrypoint: `bin/sglang`;
+- validation: `import sglang`, exact `sglang` metadata and module version;
+- catalog tag/name: `sglang` / `sglang <version> [<id>]`;
+- variant: CUDA only.
+
+The KT environment also exposes a `bin/sglang` entrypoint, but its catalog entry is
+tagged `ktransformers` — the engine-kind tag keeps a fork environment unselectable for a
+plain sglang instance and vice versa.
+
 The KTransformers provisioner installs a matched pair in one transaction:
 
 - PyPI: `kt-kernel==version` and `sglang-kt==version`;
@@ -161,7 +175,8 @@ it is runtime state, not portable configuration.
 `GET /api/environments/index-versions?engine=&pythonVersion=` reads the Simple API
 selected by the site profile and returns versions newest first. An absent site index
 means uv's default package index. Distribution names come from the provisioner registry,
-so vLLM queries `vllm` and KTransformers queries both `kt-kernel` and `sglang-kt`; a
+so vLLM queries `vllm`, SGLang queries `sglang`, and KTransformers queries both
+`kt-kernel` and `sglang-kt`; a
 version published for only one matched root is returned with `missingDistributions`
 instead of being hidden.
 

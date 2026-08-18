@@ -1,9 +1,11 @@
 # Engine adapters
 
 arriero uses a **static per-kind engine descriptor** in
-`packages/core/src/engine-descriptor.ts`. llama-server, rpc-worker, vLLM, and
-KTransformers are creatable. KTransformers uses a narrow Linux x86-64/NVIDIA
-release profile and a mandatory real-host qualification gate.
+`packages/core/src/engine-descriptor.ts`. llama-server, rpc-worker, vLLM,
+SGLang, and KTransformers are creatable. KTransformers uses a narrow Linux
+x86-64/NVIDIA release profile and a mandatory real-host qualification gate;
+SGLang is the upstream engine sharing most of that runtime plumbing without the
+kt-kernel specifics.
 This document is the contract: what a descriptor declares, which api-side
 registries implement its ids, what is llama-only by design, and the checklist
 for plugging in a new engine.
@@ -17,24 +19,25 @@ for plugging in a new engine.
 
 `engineDescriptor(kind)` returns a pure-data record (core is bundled into the web app — **no node APIs, no I/O in core**). Registered kinds live in `INSTANCE_KINDS`; `Record<InstanceKind, EngineDescriptor>` exhaustiveness makes the compiler point at every spot a new engine must fill in.
 
-| Field | Meaning | llama-server | rpc-worker | vllm | ktransformers |
-| --- | --- | --- | --- | --- | --- |
-| `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` | `vLLM` | `KTransformers (SGLang-KT)` |
-| `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` | 30000, `--host`/`--port` |
-| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` | serve + lease only | serve + lease only |
-| `probe` | Probe implementation id + whether `/health`-style HTTP health exists | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` | `openai-http`, `httpHealth: true` |
-| `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` | `none` |
-| `launch` | Slot-path injection, argv builder, fixed prefix/module | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` | no slot path, `argparse-flags`, sibling Python module `sglang.launch_server` |
-| `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` | `none` | `ktransformers` |
-| `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) | `sglang-help` (sibling Python module `--help`) |
-| `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` | `sglang` |
-| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `vllm-gpu-util` | `none` |
-| `benchmarkServerMetrics` | Benchmark server-side prefill-timing source | `none` (SSE timings) | `none` | `vllm-prometheus` | `none` |
-| `assessment` | Memory-assessment fingerprint id + measured-baseline capture | `llama-binary-gguf`, measured | `none` | `python-env`, measured | `python-env`, measured |
-| `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` | `ktransformers-hybrid` |
-| `processTree` | Runtime process ownership | named descendants | root only | all descendants | all descendants |
-| `concurrency` | Request-limit parser | llama parallel | none | vLLM sequences | SGLang max running requests |
-| `defaultEvictionPolicy` | Persisted scheduling default | `preemptible` | `never` | `preemptible` | `idle-only` |
+| Field | Meaning | llama-server | rpc-worker | vllm | sglang | ktransformers |
+| --- | --- | --- | --- | --- | --- | --- |
+| `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` | `vLLM` | `SGLang` | `KTransformers (SGLang-KT)` |
+| `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` | 30000, `--host`/`--port` | 30000, `--host`/`--port` |
+| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` | serve + lease only | serve + lease only | serve + lease only |
+| `probe` | Probe implementation id, whether `/health`-style HTTP health exists, optional slow-cold-start `httpTimeoutMs` | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` | `openai-http`, `httpHealth: true`, 15 s | `openai-http`, `httpHealth: true`, 15 s |
+| `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` | `none` | `none` |
+| `launch` | Slot-path injection, argv builder, fixed prefix/module | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` | no slot path, `argparse-flags`, sibling Python module `sglang.launch_server` | no slot path, `argparse-flags`, sibling Python module `sglang.launch_server` |
+| `preflight.engineChecks` | Engine-specific preflight module id | `llama-server` | `none` | `none` | `sglang` | `ktransformers` |
+| `preflight.argumentCatalogParser` | help implementation id | `llama-help` | `none` | `vllm-help` (`serve --help=all`) | `sglang-help` (sibling Python module `--help`) | `sglang-help` (sibling Python module `--help`) |
+| `logs.parser` | Log-parser id | `llama` | `llama` | `vllm` | `sglang` | `sglang` |
+| `estimator` | A-priori memory-estimator strategy id | `gguf` | `none` | `vllm-gpu-util` | `none` | `none` |
+| `benchmarkServerMetrics` | Benchmark server-side prefill-timing source | `none` (SSE timings) | `none` | `vllm-prometheus` | `none` | `none` |
+| `assessment` | Memory-assessment fingerprint id + measured-baseline capture | `llama-binary-gguf`, measured | `none` | `python-env`, measured | `python-env`, measured | `python-env`, measured |
+| `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` | `sglang-args` | `ktransformers-hybrid` |
+| `processTree` | Runtime process ownership | named descendants | root only | all descendants | all descendants | all descendants |
+| `concurrency` | Request-limit parser | llama parallel | none | vLLM sequences | SGLang max running requests | SGLang max running requests |
+| `admission` | Memory-shortfall policy: `confirmable` warns and allows force-start, `strict` errors and refuses force | `confirmable` | `confirmable` | `confirmable` | `confirmable` | `strict` |
+| `defaultEvictionPolicy` | Persisted scheduling default | `preemptible` | `never` | `preemptible` | `preemptible` | `idle-only` |
 
 String ids select **api-side implementations** from `Record`-keyed registries, keeping I/O out of core:
 
@@ -42,13 +45,13 @@ String ids select **api-side implementations** from `Record`-keyed registries, k
 | --- | --- | --- |
 | `EngineProbeId` | `apps/api/src/process/engine-probe.ts` | `llama-http`, `tcp-accept`, `openai-http`; vLLM uses real health/models probes and explicit not-applicable llama-native fields |
 | `EngineLogParserId` | `apps/api/src/process/log-parsers/index.ts` | `llama`, `vllm`, `sglang`. The Python parsers classify errors/warnings only at record start: vLLM records open with an optional `(name pid=N)` prefix plus a level token, SGLang's `[timestamp TPn]` prefix carries no level at all, so only anchored message shapes count (tracebacks, `X hit an exception`, `ExceptionName:` finals, `Warning`/`file.py:N: SomeWarning` starts). Request text logged inside INFO records (`Received request … prompt: '…'`, `Receive: obj=…`, `Finish: … out=…`) is repr-escaped onto one line, so anchoring is sufficient to keep prompt/response wording from flipping health to `degraded` |
-| `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts`; `ktransformers` → strict platform, runtime, model, CUDA, CPU-method, auth-boundary, TP, and argument checks; `none` → skip |
+| `EnginePreflightId` | `ENGINE_PREFLIGHT_CHECKS` in `apps/api/src/process/preflight.ts` | `llama-server` → `preflight-llama.ts`; `sglang` → `preflight-sglang.ts` (`--model-path` presence/local-path/HF-id, CUDA/TP, help-catalog argument compatibility, loopback managed boundary, serving warnings); `ktransformers` → `preflight-ktransformers.ts` (strict platform, kt_kernel runtime probe, model/CPU-weights, CPU-method ISA, NUMA, GPU-expert placement, reservations) reusing the shared SGLang checks from `preflight-sglang.ts`; `none` → skip |
 | `EngineArgumentCatalogParserId` | `HELP_PARSERS` + `HELP_INVOCATIONS` in `apps/api/src/arguments/catalog.ts` | `llama-help`, `vllm-help`, `sglang-help`; SGLang help uses sibling `bin/python -m sglang.launch_server --help` to avoid unrelated umbrella-CLI imports. Route generation is async; cache rows/sidecars carry `parserId` |
 | `EngineArgvBuilderId` | `ENGINE_ARGV_BUILDERS` in `apps/api/src/process/argv.ts` | `flag-map` joins arrays as CSV; `argparse-flags` emits each array item as a separate token. Both put positionals first and sort flags deterministically |
 | `EngineEstimatorId` | dispatch in `apps/api/src/memory-estimate/service.ts` | `gguf` → tensor-aware llama estimate; `vllm-gpu-util` → one utilization-based draw per selected GPU |
 | `EngineBenchmarkServerMetricsId` | `benchmarkServerMetricsSource` in `apps/api/src/benchmark/server-metrics.ts` | `vllm-prometheus` → per-request prefill duration from a `GET /metrics` delta of `vllm:request_prefill_time_seconds`, solo benchmark requests only (`docs/BENCHMARK.md`); `none` → the benchmark relies on stream timings alone |
 | `EngineAssessmentFingerprintId` | `apps/api/src/memory-assessment/engines.ts` | `llama-binary-gguf` → binary + llama.cpp libraries + GGUF artifacts + current-default-binary tracking; `python-env` → entrypoint + venv identity (`bin/python`, `pyvenv.cfg`, `freeze.txt`) + model dir artifacts; `none` → no `memoryAssessment` surface. Kinds with `measuredBaseline` also get the measured-baseline capture (`docs/MEMORY_ESTIMATION.md` § Instance assessment) |
-| `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args`, `ktransformers-hybrid` |
+| `EngineResourceProfileId` | dispatch inside `packages/core/src/instance-resources.ts` | `llama-args`, `rpc-device-args`, `vllm-args`, `sglang-args` (the vLLM GPU profile keyed on the SGLang TP spellings), `ktransformers-hybrid` |
 
 Instance records may also carry typed `engineConfig` and a persisted
 `scheduling.evictionPolicy`. KTransformers owns `--model`, `--model-path`,

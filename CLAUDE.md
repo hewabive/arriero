@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-`arriero` is a single-operator control plane for `llama.cpp` / `llama-server`, vLLM and
+`arriero` is a single-operator control plane for `llama.cpp` / `llama-server`, vLLM, SGLang and
 KTransformers: it manages instance definitions, supervises child processes, scans GGUF models,
 builds llama.cpp from source, documents engine arguments, and exposes an OpenAI/Anthropic-compatible
 API proxy in front of managed and external endpoints. One host is the default; the `nodes` domain
@@ -298,7 +298,8 @@ snapshot/restore across tree ops, clone carry-over) and are the only config file
   `GET /api/build/default-binary` and pre-selects the binary in the New-instance modal.
 - `config/argument-defaults.json` — default instance args pre-listed in the New-instance form:
   `instance` is the llama-server list, `engines.<id>` (`vllm`/`sglang`) covers the Python engines
-  (`argumentDefaultsForKind` in core maps kind → section; ktransformers reads `sglang`). Presets are
+  (`argumentDefaultsForKind` in core maps kind → section via the catalog-parser id; the `sglang`
+  and `ktransformers` kinds deliberately share `engines.sglang`). Presets are
   edited as raw INI and carry no arg-defaults.
 - `config/path-catalog.json` — named paths (`path-catalog/repository.ts`, in-memory array + atomic
   write-through; kinds `binary` and `models-dir`). Identity = `id` (uuidv7); `(kind, name)` is
