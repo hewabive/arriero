@@ -7,7 +7,7 @@ summary: Включает рекордер распределения экспе
 group: exec.moe
 related:
   - --expert-distribution-recorder-buffer-size
-  - --enable-expert-distribution-metrics
+  - --expert-balancedness-report-mode
   - --enable-eplb
   - --init-expert-location
   - --moe-a2a-backend
@@ -35,7 +35,7 @@ Mode of expert distribution recorder.
 - Тип значения: перечисление
 - Допустимые значения: `stat`, `stat_approx`, `per_pass`, `per_token`
 - Значение по умолчанию: `null` — рекордер выключен (no-op)
-- Эффективное значение: `stat` подставляется в `__post_init__` двумя местами — `_handle_eplb_and_dispatch` при `--enable-eplb` (с предупреждением `EPLB is enabled. The expert_distribution_recorder_mode is automatically set.`) и `_handle_expert_distribution_metrics` при `--enable-expert-distribution-metrics` (молча)
+- Эффективное значение: `stat` подставляется в `__post_init__` двумя местами — `_handle_eplb_and_dispatch` при `--enable-eplb` (с предупреждением `EPLB is enabled. The expert_distribution_recorder_mode is automatically set.`) и `_handle_expert_distribution_metrics` при `--expert-balancedness-report-mode`, отличном от `off` (молча)
 - Где объявлен: `ServerArgs.expert_distribution_recorder_mode`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: `__post_init__` → инициализация model runner (`maybe_init_expert_location_metadata` → `ExpertDistributionRecorder.init_new`) → каждый forward-проход → HTTP-эндпоинты записи/дампа
@@ -73,7 +73,7 @@ Mode of expert distribution recorder.
 ## Когда использовать
 
 - Нужна разовая карта загрузки экспертов под вашу нагрузку, чтобы потом зафиксировать раскладку через `--init-expert-location`: `stat`, запись через HTTP, дамп в файл.
-- Нужны метрики сбалансированности в проде: не трогайте этот аргумент, включайте `--enable-expert-distribution-metrics` — он сам поставит `stat`.
+- Нужны метрики сбалансированности в проде: не трогайте этот аргумент, задайте `--expert-balancedness-report-mode` (`server_log`/`prometheus`/`both`) — он сам поставит `stat`.
 - Не включайте `per_token` на боевом инстансе: тензор `topk_ids` пропорционален `--chunked-prefill-size`, а список записей ничем не ограничен.
 - Не включайте рекордер «на всякий случай» вместе с EPLB — EPLB его уже включил, а ручное значение `per_pass`/`per_token` сломает перебалансировку.
 
@@ -88,7 +88,7 @@ Mode of expert distribution recorder.
 ## Взаимодействие с другими аргументами
 
 - `--enable-eplb`: подставляет `stat`, если значение не задано; допускает только `stat`/`stat_approx`.
-- `--enable-expert-distribution-metrics`: подставляет `stat` и вдобавок автоматически стартует запись при инициализации рекордера, без HTTP-вызова.
+- `--expert-balancedness-report-mode` (≠ `off`): подставляет `stat` и вдобавок автоматически стартует запись при инициализации рекордера, без HTTP-вызова.
 - `--expert-distribution-recorder-buffer-size`: размер кольцевого буфера; на `per_pass`/`per_token` не влияет.
 - `--moe-a2a-backend` и `--deepep-mode`: определяют доступный сборщик; пара `deepep` + `auto` с рекордером не поднимается.
 - `--enable-two-batch-overlap`: несовместим с `per_token`.

@@ -84,6 +84,7 @@ The decode retraction policy to use when the KV cache is full. 'length' preserve
 - `--priority-scheduling-preemption-threshold`: другой, независимый механизм — вытеснение при **допуске** нового запроса. Retraction срабатывает по памяти в decode, preemption — по приоритету в prefill.
 - `--schedule-conservativeness`: единственная ручка, которая реально меняет частоту retraction.
 - `--radix-eviction-policy`: вытеснение из дерева префиксов происходит **до** retraction (внутри `check_decode_mem`); при удачной настройке кеша до retraction дело может не дойти.
+- `--disaggregation-decode-retraction-backup`: на PD decode-узле KV снятого запроса не пропадает, а сохраняется в CPU-tensor'ы или зарезервированный HiCache-пул и восстанавливается при повторном допуске — политика по-прежнему выбирает только жертв.
 - `--mem-fraction-static`, `--max-running-requests`: определяют, сколько запросов вообще может ужиться в пуле.
 
 ## Типовые проблемы и диагностика

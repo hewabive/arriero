@@ -94,7 +94,7 @@ Enable Waterfill: dispatch the fused shared expert as an extra routed expert slo
 - Предупреждение `moe_a2a_backend is overridden to 'deepep' ...` — вы задали несовместимый a2a-бэкенд.
 - Предупреждение `disable_shared_experts_fusion is overridden to False ...` — вы задали взаимоисключающие флаги.
 - Latency выросла после включения — проверьте `--deepep-mode`: `normal` отключает CUDA graph (`Cuda graph is disabled because deepep_mode=...`).
-- Выравнивания не видно — сравните `[Expert Balancedness]` до и после (нужен `--enable-expert-distribution-metrics`), и попробуйте динамический режим через `SGLANG_DISABLE_STATIC_WATERFILL=1`.
+- Выравнивания не видно — сравните `[Expert Balancedness]` до и после (нужен `--expert-balancedness-report-mode server_log`), и попробуйте динамический режим через `SGLANG_DISABLE_STATIC_WATERFILL=1`.
 
 ## Примеры
 

@@ -292,6 +292,23 @@
   },
   {
    "flags": [
+    "--c128-page-size"
+   ],
+   "group": "schedule",
+   "help": "The physical page size of the NPU DSV4 C128 KV cache. Must be a positive multiple of 16.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 16
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.c128_page_size"
+  },
+  {
+   "flags": [
     "--chat-template"
    ],
    "group": "serving",
@@ -1507,6 +1524,26 @@
   },
   {
    "flags": [
+    "--disaggregation-decode-retraction-backup"
+   ],
+   "group": "disagg",
+   "help": "Storage backend for KV preserved across PD decode retraction. 'cpu_tensor' uses per-request CPU tensors. 'host_pool' uses a reserved HiCache pool and does not fall back on exhaustion. If omitted, the backend is inferred from the decode KV pool.",
+   "choices": [
+    "cpu_tensor",
+    "host_pool"
+   ],
+   "type": "str",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.disaggregation_decode_retraction_backup"
+  },
+  {
+   "flags": [
     "--disaggregation-ib-device"
    ],
    "group": "disagg",
@@ -2345,18 +2382,15 @@
    "flags": [
     "--enable-expert-distribution-metrics"
    ],
-   "group": "exec.moe",
-   "help": "Enable logging metrics for expert balancedness",
+   "group": null,
+   "help": "Removed. Use --expert-balancedness-report-mode with one of: off, server_log, prometheus, both.",
    "choices": null,
-   "type": "bool",
+   "type": null,
    "optional": false,
-   "default": {
-    "kind": "literal",
-    "value": false
-   },
-   "action": null,
+   "default": null,
+   "action": "DeprecatedAction",
    "hidden": false,
-   "origin": "ServerArgs.enable_expert_distribution_metrics"
+   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -3317,6 +3351,24 @@
   },
   {
    "flags": [
+    "--enable-tp-lm-head-all-to-all",
+    "--no-enable-tp-lm-head-all-to-all"
+   ],
+   "group": "parallel",
+   "help": "Use all-to-all instead of TP all-gather followed by DP scatter for the TP-sharded LM head under DP attention. By default this is enabled only on decode-only PD nodes with pure DP attention (tp_size == dp_size > 1 and attn_cp_size == 1), and disabled on prefill-only and colocated nodes. Pass --no-enable-tp-lm-head-all-to-all to opt out. The path is incompatible with --enable-dp-lm-head; batches without an equal padded row count fall back to the existing all-gather path.",
+   "choices": null,
+   "type": "bool",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "ServerArgs.enable_tp_lm_head_all_to_all"
+  },
+  {
+   "flags": [
     "--enable-trace"
    ],
    "group": "observability",
@@ -3680,6 +3732,28 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.eplb_rebalance_num_iterations"
+  },
+  {
+   "flags": [
+    "--expert-balancedness-report-mode"
+   ],
+   "group": "exec.moe",
+   "help": "Where to report expert balancedness. Options: off, server_log, prometheus, both.",
+   "choices": [
+    "off",
+    "server_log",
+    "prometheus",
+    "both"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "off"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.expert_balancedness_report_mode"
   },
   {
    "flags": [
@@ -4227,13 +4301,13 @@
     "--hicache-ratio"
    ],
    "group": "memory",
-   "help": "The ratio of the size of host KV cache memory pool to the size of device pool.",
+   "help": "The ratio of the size of host KV cache memory pool to the size of device pool. Defaults to 2.0, or 1.0 for host-pool decode retraction.",
    "choices": null,
    "type": "float",
-   "optional": false,
+   "optional": true,
    "default": {
     "kind": "literal",
-    "value": 2.0
+    "value": null
    },
    "action": null,
    "hidden": false,

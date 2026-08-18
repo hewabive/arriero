@@ -27,7 +27,7 @@ related:
 
 `--cors-origins` задаёт значение `common_params::cors_origins`, по которому HTTP middleware формирует `Access-Control-Allow-Origin`. По умолчанию используется `*`.
 
-Если включены built-in tools или MCP servers и пользователь явно не передал этот аргумент, llama.cpp автоматически меняет origin на специальное значение `localhost`.
+Если включены server tools или MCP servers и пользователь явно не передал этот аргумент, llama.cpp автоматически меняет origin на специальное значение `localhost`.
 
 ## Оригинальная справка llama.cpp
 

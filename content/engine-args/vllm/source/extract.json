@@ -4009,6 +4009,23 @@
   },
   {
    "flags": [
+    "--prefix-cache-retention-interval"
+   ],
+   "group": "CacheConfig",
+   "help": "Token interval between retained sliding-window and Mamba prefix-cache\ncheckpoints. ``0`` retains only semantic checkpoints, including the latest\nreplay boundary and shared-prefix junctions. Positive values additionally\nretain periodic checkpoints at the specified interval, which must be a\nmultiple of the scheduler block size. ``None`` retains checkpoints densely.\nApplies only to sliding-window and Mamba cache groups.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default_factory=_get_prefix_cache_retention_interval, ge=0)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/cache.py:CacheConfig.prefix_cache_retention_interval"
+  },
+  {
+   "flags": [
     "--prefix-caching-hash-algo"
    ],
    "group": "CacheConfig",
@@ -4237,7 +4254,7 @@
     "--replayssm-buffer-len"
    ],
    "group": "CacheConfig",
-   "help": "ReplaySSM history buffer length B: with use_replayssm, standard decode\ncaches recent SSM inputs in a size-B ring buffer and flushes the checkpoint\nstate to HBM every B steps. Default 16.",
+   "help": "ReplaySSM history buffer length B for standard Mamba2 decode. Kimi-K3\nspeculative decoding does not use B. Default 16.",
    "choices": null,
    "type": "int",
    "optional": false,

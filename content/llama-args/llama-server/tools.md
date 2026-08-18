@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--tools"
 title: "--tools"
-summary: "Включает экспериментальные built-in tools для Web UI/agents на endpoint `/tools`. Опасно в недоверенных окружениях, особенно с write и shell tools."
+summary: "Включает экспериментальные server tools для Web UI/agents на endpoint `/tools`. Опасно в недоверенных окружениях, особенно с write и shell tools."
 category: "Параметры llama-server"
 valueType: "list"
 estimation: "normal"
@@ -30,11 +30,13 @@ related:
 ## Оригинальная справка llama.cpp
 
 ```text
-experimental: whether to enable built-in tools for AI agents - do not enable in untrusted environments (default: no tools)
+experimental: whether to enable server tools for AI agents - do not enable in untrusted environments (default: no tools)
 specify "all" to enable all tools
-available tools: read_file, file_glob_search, grep_search, exec_shell_command, write_file, edit_file, get_datetime, get_info
+available tools: read_file, file_glob_search, grep_search, exec_shell_command, write_file, edit_file, get_info
 note: for security reasons, this will limit --cors-origins to localhost by default
 ```
+
+В README эти tools называются «server tools» (переименование из «built-in tools» в PR #27271, чтобы отличать их от browser tools, исполняемых в Web UI); `common/arg.cpp` в текущем чекауте ещё печатает старую формулировку «built-in tools» в `--help`.
 
 ## Паспорт аргумента
 
@@ -59,12 +61,13 @@ note: for security reasons, this will limit --cors-origins to localhost by defau
 - `exec_shell_command`: выполняет shell command через `sh -c` или `cmd /c`, максимум 60 секунд и 16 KB вывода.
 - `write_file`: создает или перезаписывает файл, создает parent directories.
 - `edit_file`: применяет один или несколько непересекающихся exact-text replacements; каждый `old_text` должен быть уникален, при расхождении допускается ограниченная нормализация whitespace/типографики.
-- `get_datetime`: возвращает текущее время.
 - `get_info`: возвращает сведения о runtime-среде сервера, включая ОС и текущий рабочий каталог.
+
+Ранее в списке был `get_datetime`; в PR #27255 он перенесён на сторону Web UI (выполняется браузером как browser tool) и из server tools удалён — сервер отклонит его как `unknown tool`.
 
 ## Значения и формат
 
-Примеры значений: `read_file,grep_search`, `get_datetime`, `all`. Запятые разделяют элементы; пробелы в именах tools не используются.
+Примеры значений: `read_file,grep_search`, `get_info`, `all`. Запятые разделяют элементы; пробелы в именах tools не используются.
 
 ## Когда использовать
 
@@ -99,7 +102,7 @@ note: for security reasons, this will limit --cors-origins to localhost by defau
 llama-server --model /models/model.gguf --tools read_file,grep_search --api-key local-secret
 llama-server --model /models/model.gguf --tools all --host 127.0.0.1
 curl http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret"
-curl -X POST http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret" -d '{"tool":"get_datetime","params":{}}'
+curl -X POST http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret" -d '{"tool":"get_info","params":{}}'
 ```
 
 ## Источники
@@ -110,3 +113,5 @@ curl -X POST http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret"
 - `llama.cpp/tools/server/README.md`
 - `llama.cpp/tools/server/README-dev.md`
 - https://github.com/ggml-org/llama.cpp/pull/25498
+- https://github.com/ggml-org/llama.cpp/pull/27255
+- https://github.com/ggml-org/llama.cpp/pull/27271

@@ -71,7 +71,7 @@ whether to enable the Web UI (default: enabled)
 - `--api-prefix` сдвигает UI routes под префикс.
 - `--ui-config` и `--ui-config-file` задают настройки, которые видны в `/props`, но без UI они в основном полезны только клиентам, которые читают эти props.
 - `--webui`/`--no-webui` — алиасы этого же флага (не deprecated).
-- `--agent` включает встроенные tools и CORS proxy и предполагает работу из Web UI.
+- `--agent` включает server tools и CORS proxy и предполагает работу из Web UI.
 
 ## INI-пресеты и router-режим
 

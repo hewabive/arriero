@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--tools-runtime"
 title: "--tools-runtime"
-summary: "Выносит выполнение built-in tools из `--tools` за пределы хоста: новый контейнер (`docker:<image>`, `podman:<image>`), уже запущенный (`docker-container:<id>`, `podman-container:<id>`) или удалённый POSIX-хост по SSH (`ssh:<target>`). По умолчанию tools работают на хосте."
+summary: "Выносит выполнение server tools из `--tools` за пределы хоста: новый контейнер (`docker:<image>`, `podman:<image>`), уже запущенный (`docker-container:<id>`, `podman-container:<id>`) или удалённый POSIX-хост по SSH (`ssh:<target>`). По умолчанию tools работают на хосте."
 category: "Параметры llama-server"
 valueType: "string"
 estimation: "normal"
@@ -23,7 +23,7 @@ related:
 
 ## Кратко
 
-`--tools-runtime` уводит I/O built-in tools (`--tools`) из файловой системы и shell хоста в отдельную среду: контейнер Docker/Podman или удалённый хост по SSH. Без аргумента tools выполняются в среде процесса `llama-server` — читают его файлы и запускают команды от его имени.
+`--tools-runtime` уводит I/O server tools (`--tools`) из файловой системы и shell хоста в отдельную среду: контейнер Docker/Podman или удалённый хост по SSH. Без аргумента tools выполняются в среде процесса `llama-server` — читают его файлы и запускают команды от его имени.
 
 Аргумент экспериментальный и имеет смысл только вместе с непустым `--tools`.
 
