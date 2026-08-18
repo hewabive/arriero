@@ -19,9 +19,40 @@ const ERROR_MESSAGE_STARTS = [
   /^In import_model_classes:(?!.*\bIgnore import error\b).*import error/i,
 ];
 const WARNING_MESSAGE_STARTS = [/^warning\b/i, /^\S+\.py:\d+:\s*\w*Warning\b/];
+const IGNORED_TRACEBACK_BLOCK_START =
+  /\[start of libtorchcodec loading traceback\]/;
+const IGNORED_TRACEBACK_BLOCK_END =
+  /\[end of libtorchcodec loading traceback\]/;
 
 function messageOf(line: string) {
   return line.replace(RECORD_PREFIX, "");
+}
+
+function startsInsideIgnoredBlock(lines: string[]) {
+  for (const line of lines) {
+    if (IGNORED_TRACEBACK_BLOCK_START.test(line)) return false;
+    if (IGNORED_TRACEBACK_BLOCK_END.test(line)) return true;
+  }
+  return false;
+}
+
+function withoutIgnoredTracebackBlocks(lines: string[]) {
+  const kept: string[] = [];
+  let inIgnoredBlock = startsInsideIgnoredBlock(lines);
+  for (const line of lines) {
+    if (!inIgnoredBlock && IGNORED_TRACEBACK_BLOCK_START.test(line)) {
+      inIgnoredBlock = true;
+      continue;
+    }
+    if (inIgnoredBlock) {
+      if (IGNORED_TRACEBACK_BLOCK_END.test(line)) {
+        inIgnoredBlock = false;
+      }
+      continue;
+    }
+    kept.push(line);
+  }
+  return kept;
 }
 
 function classify(line: string): LogLineLevel | null {
@@ -108,7 +139,11 @@ function lastMatch(lines: string[], pattern: RegExp) {
 
 export const sglangLogParser: EngineLogParser = {
   parse: ({ lines }) => {
-    const { errors, warnings } = classifiedTails(lines, classify, 8);
+    const { errors, warnings } = classifiedTails(
+      withoutIgnoredTracebackBlocks(lines),
+      classify,
+      8,
+    );
     return {
       listeningUrl: lastMatch(
         lines,

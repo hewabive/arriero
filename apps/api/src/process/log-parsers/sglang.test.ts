@@ -65,6 +65,57 @@ test("SGLang parser treats optional DeepSeek-V4 imports as notices", () => {
   assert.equal(parsed.ready, true);
 });
 
+test("SGLang parser skips the wrapped libtorchcodec ignore traceback", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "[2026-08-18 23:03:21] Ignore import error when loading sglang.srt.multimodal.processors.mimo_audio: Could not load libtorchcodec. Likely causes:",
+      "        The following exceptions were raised as we tried to load libtorchcodec:",
+      "[start of libtorchcodec loading traceback]",
+      "FFmpeg version 8:",
+      "Traceback (most recent call last):",
+      '  File "/env/lib/python3.12/site-packages/torch/_ops.py", line 1503, in load_library',
+      "OSError: libavutil.so.56: cannot open shared object file: No such file or directory",
+      "[end of libtorchcodec loading traceback].",
+      "[2026-08-18 23:03:29] Load weight begin. avail mem=21.63 GB",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.deepEqual(parsed.errors, []);
+  assert.notEqual(parsed.loadProgress.stage, "error");
+});
+
+test("SGLang parser treats a truncated ignored block head as ignored", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "Traceback (most recent call last):",
+      "OSError: libavutil.so.56: cannot open shared object file: No such file or directory",
+      "[end of libtorchcodec loading traceback].",
+      "[2026-08-18 23:03:29] Load weight begin. avail mem=21.63 GB",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.deepEqual(parsed.errors, []);
+  assert.notEqual(parsed.loadProgress.stage, "error");
+});
+
+test("SGLang parser still reports tracebacks after an ignored block closes", () => {
+  const parsed = sglangLogParser.parse({
+    lines: [
+      "[start of libtorchcodec loading traceback]",
+      "Traceback (most recent call last):",
+      "[end of libtorchcodec loading traceback].",
+      "Traceback (most recent call last):",
+      "RuntimeError: CUDA out of memory",
+    ],
+    cudaDevicesDisabled: false,
+  });
+
+  assert.equal(parsed.errors.length, 2);
+  assert.equal(parsed.loadProgress.stage, "error");
+});
+
 test("SGLang parser never classifies request payload text", () => {
   const parsed = sglangLogParser.parse({
     lines: [
