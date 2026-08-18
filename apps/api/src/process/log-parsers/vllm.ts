@@ -17,8 +17,10 @@ const ERROR_RECORD_STARTS = [
   PYTHON_EXCEPTION_START,
 ];
 const WARNING_RECORD_START = /^WARNING\b/;
-const CAPABILITY_NOTICE =
-  /Model Runner V2 does not yet support the thinking_token_budget request parameter\./;
+const BENIGN_WARNING_NOTICES = [
+  /Model Runner V2 does not yet support the thinking_token_budget request parameter\./,
+  /Default vLLM sampling parameters have been overridden by the model's `generation_config\.json`/,
+];
 
 function recordOf(line: string) {
   return line.replace(PROCESS_PREFIX, "");
@@ -29,7 +31,10 @@ function classify(line: string): LogLineLevel | null {
   if (ERROR_RECORD_STARTS.some((pattern) => pattern.test(record))) {
     return "error";
   }
-  if (WARNING_RECORD_START.test(record) && !CAPABILITY_NOTICE.test(record)) {
+  if (
+    WARNING_RECORD_START.test(record) &&
+    !BENIGN_WARNING_NOTICES.some((pattern) => pattern.test(record))
+  ) {
     return "warning";
   }
   return null;
@@ -156,7 +161,7 @@ export const vllmLogParser: EngineLogParser = {
       errors,
       notices: tailMatches(
         lines,
-        /Application startup complete|Started server process|loading model weights|EngineCore|torch\.compile|Available KV cache memory|GPU KV cache size|CUDA graphs?|Model Runner V2 does not yet support the thinking_token_budget/i,
+        /Application startup complete|Started server process|loading model weights|EngineCore|torch\.compile|Available KV cache memory|GPU KV cache size|CUDA graphs?|Model Runner V2 does not yet support the thinking_token_budget|Default vLLM sampling parameters have been overridden/i,
         10,
       ),
       loadProgress: progress(lines, errors),

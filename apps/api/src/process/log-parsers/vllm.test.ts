@@ -44,6 +44,17 @@ test("vllm parser treats the default runner limitation as a capability notice", 
   assert.deepEqual(result.notices, [line]);
 });
 
+test("vllm parser treats the generation_config sampling override as a notice", () => {
+  const line =
+    "(APIServer pid=854361) WARNING 08-18 15:32:17 [model.py:1637] Default vLLM sampling parameters have been overridden by the model's `generation_config.json`: `{'temperature': 1.0, 'top_k': 20, 'top_p': 0.95}`. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.";
+  const result = vllmLogParser.parse({
+    lines: [line],
+    cudaDevicesDisabled: false,
+  });
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(result.notices, [line]);
+});
+
 test("vllm parser reads explicit model fields but not the models access log", () => {
   const result = vllmLogParser.parse({
     lines: [
