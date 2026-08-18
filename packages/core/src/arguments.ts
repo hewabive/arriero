@@ -91,6 +91,7 @@ export const ArgumentOptionSchema = z.object({
   valueType: ArgumentValueTypeSchema,
   env: z.array(z.string()),
   allowedValues: z.array(z.string()),
+  defaultValue: z.string().nullable().default(null),
   help: z.string(),
   helpRu: z.string(),
   helpRuSource: z.enum(["registry", "builtin", "fallback"]),

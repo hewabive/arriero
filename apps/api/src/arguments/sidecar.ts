@@ -4,6 +4,7 @@ import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 
 import { type binaryStat } from "./binary-discovery.js";
+import { fillMissingDefaultValues } from "./help-parser.js";
 import { type CachedArgumentCatalog } from "./repository.js";
 
 const SIDECAR_VERSION = 2;
@@ -69,7 +70,7 @@ export function readArgumentCatalogSidecar(
       binaryMtimeMs: data.binaryMtimeMs,
       binaryModifiedAt: data.binaryModifiedAt,
       helpHash: data.helpHash,
-      options: data.options,
+      options: fillMissingDefaultValues(data.options),
       generatedAt: data.generatedAt,
       parserId: data.parser,
     };

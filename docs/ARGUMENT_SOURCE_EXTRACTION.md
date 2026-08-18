@@ -63,7 +63,14 @@ require only python3 (stdlib).
 - `flags` — every option string argparse would register, in argparse order, including the `--no-…`
   member of a `BooleanOptionalAction` pair and short aliases.
 - `default` — `{"kind":"literal","value":…}` when the declaration is a literal,
-  `{"kind":"expression","text":"…"}` when it is computed. Never a guessed value.
+  `{"kind":"expression","text":"…"}` when it is computed. Never a guessed value. The reference
+  catalog renders literal defaults into `ArgumentOption.defaultValue` (strings verbatim, other
+  literals as JSON; expression, `None` and empty-string defaults stay `null`) — the same structural
+  channel llama catalogs fill from the `(default: …)` help convention at parse time. Cached catalog
+  rows and sidecars written before the field existed are backfilled from their stored help at the
+  read boundary (`fillMissingDefaultValues` in `arguments/help-parser.ts`), so growing the option
+  schema never forces a catalog regeneration; an explicitly stored value always wins over the
+  help-derived one.
 - `choices` — `null` when the list cannot be resolved statically (see gaps). Declaration order is
   preserved; vLLM sorts choices when it renders help, so compare as sets.
 - `type` — the declared value type normalized to `int`/`float`/`bool`/`str`/`path`/`json`/`list`/

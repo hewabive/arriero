@@ -36,6 +36,9 @@ test("parseLlamaArgumentOptions keeps long boolean and numeric options out of li
   assert.equal(options.get("--direct-io")?.valueType, "boolean");
   assert.equal(options.get("--gpu-layers")?.valueType, "number");
   assert.equal(options.get("--gpu-layers")?.valueHint, "N");
+  assert.equal(options.get("--help")?.defaultValue, null);
+  assert.equal(options.get("--direct-io")?.defaultValue, "disabled");
+  assert.equal(options.get("--gpu-layers")?.defaultValue, "auto");
 });
 
 test("parseLlamaArgumentOptions detects comma-separated list options", () => {

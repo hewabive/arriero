@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 
 import { db } from "../db/index.js";
 import { llamaArgumentCatalogs } from "../db/schema.js";
+import { fillMissingDefaultValues } from "./help-parser.js";
 
 type CatalogRow = typeof llamaArgumentCatalogs.$inferSelect;
 
@@ -25,8 +26,10 @@ function toCatalog(row: CatalogRow): CachedArgumentCatalog {
     binaryMtimeMs: row.binaryMtimeMs,
     binaryModifiedAt: row.binaryModifiedAt,
     helpHash: row.helpHash,
-    options: ArgumentOptionSchema.array().parse(
-      JSON.parse(row.optionsJson) as unknown,
+    options: fillMissingDefaultValues(
+      ArgumentOptionSchema.array().parse(
+        JSON.parse(row.optionsJson) as unknown,
+      ),
     ),
     generatedAt: row.generatedAt,
     parserId: row.parserId,

@@ -18,6 +18,10 @@ Frontend:
     options.find((item) => item.primaryName === "--host")?.category,
     "Frontend",
   );
+  assert.equal(
+    options.find((item) => item.primaryName === "--host")?.defaultValue,
+    "0.0.0.0",
+  );
   assert.deepEqual(
     options.find((item) => item.primaryName === "--dtype")?.allowedValues,
     ["auto", "float16", "bfloat16"],

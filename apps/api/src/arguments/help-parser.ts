@@ -187,6 +187,26 @@ function envFromHelp(help: string) {
   return env;
 }
 
+const HELP_DEFAULT_PATTERN = /\(default:\s*([^)]*)\)/g;
+
+function helpDefaultValue(help: string): string | null {
+  const matches = [...help.matchAll(HELP_DEFAULT_PATTERN)];
+  const value = matches[matches.length - 1]?.[1]?.trim() ?? "";
+  return value === "" ? null : value;
+}
+
+export function fillMissingDefaultValues(
+  options: ArgumentOption[],
+): ArgumentOption[] {
+  return options.map((option) => {
+    if (option.defaultValue !== null) {
+      return option;
+    }
+    const defaultValue = helpDefaultValue(option.help);
+    return defaultValue === null ? option : { ...option, defaultValue };
+  });
+}
+
 function helpWithoutEnv(help: string) {
   return help
     .replace(/\(env:\s*[^)]+\)/g, "")
@@ -219,6 +239,7 @@ function toOption(parsed: ParsedHelpOption): ArgumentOption | null {
     }),
     env: envFromHelp(parsed.help),
     allowedValues: values,
+    defaultValue: helpDefaultValue(help),
     help,
     helpRu:
       helpRuOverlay[name] ??

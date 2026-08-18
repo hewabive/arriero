@@ -1,3 +1,4 @@
+import { ArgumentOptionSchema, type ArgumentOption } from "@arriero/core";
 import { strict as assert } from "node:assert";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,17 +11,40 @@ import {
   saveArgumentCatalog,
 } from "./repository.js";
 
-function catalog(binaryPath: string) {
+function catalog(binaryPath: string, options: ArgumentOption[] = []) {
   return {
     binaryPath,
     binarySize: 1,
     binaryMtimeMs: "1",
     binaryModifiedAt: "2026-05-31T00:00:00.000Z",
     helpHash: "test",
-    options: [],
+    options,
     generatedAt: "2026-05-31T00:00:00.000Z",
     parserId: "llama-help",
   };
+}
+
+function option(input: {
+  primaryName: string;
+  help: string;
+  defaultValue?: string;
+}): ArgumentOption {
+  return ArgumentOptionSchema.parse({
+    primaryName: input.primaryName,
+    names: [input.primaryName],
+    category: "common",
+    valueHint: "N",
+    valueType: "number",
+    env: [],
+    allowedValues: [],
+    ...(input.defaultValue === undefined
+      ? {}
+      : { defaultValue: input.defaultValue }),
+    help: input.help,
+    helpRu: "",
+    helpRuSource: "fallback",
+    deprecated: false,
+  });
 }
 
 test("saveArgumentCatalog round-trips the parser id", () => {
@@ -31,6 +55,59 @@ test("saveArgumentCatalog round-trips the parser id", () => {
     writeFileSync(binaryPath, "");
     saveArgumentCatalog(catalog(binaryPath));
     assert.equal(getCachedArgumentCatalog(binaryPath)?.parserId, "llama-help");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("getCachedArgumentCatalog derives missing default values from stored help", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-argument-cache-"));
+  const binaryPath = join(dir, "llama-server");
+
+  try {
+    writeFileSync(binaryPath, "");
+    saveArgumentCatalog(
+      catalog(binaryPath, [
+        option({
+          primaryName: "--ctx-size",
+          help: "size of the prompt context (default: 4096)",
+        }),
+        option({ primaryName: "--threads", help: "number of threads" }),
+      ]),
+    );
+    const options = getCachedArgumentCatalog(binaryPath)?.options ?? [];
+    assert.equal(
+      options.find((entry) => entry.primaryName === "--ctx-size")?.defaultValue,
+      "4096",
+    );
+    assert.equal(
+      options.find((entry) => entry.primaryName === "--threads")?.defaultValue,
+      null,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a stored default value wins over the help-text marker", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-argument-cache-"));
+  const binaryPath = join(dir, "llama-server");
+
+  try {
+    writeFileSync(binaryPath, "");
+    saveArgumentCatalog(
+      catalog(binaryPath, [
+        option({
+          primaryName: "--ctx-size",
+          help: "size of the prompt context (default: 4096)",
+          defaultValue: "8192",
+        }),
+      ]),
+    );
+    assert.equal(
+      getCachedArgumentCatalog(binaryPath)?.options[0]?.defaultValue,
+      "8192",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

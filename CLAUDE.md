@@ -349,6 +349,11 @@ doc files are not marked stale per-commit. Repo-local skills `.claude/skills/arg
 and `.codex/skills/arg-help-sync` (Codex) are thin wrappers over `docs/ARGUMENT_HELP_WORKFLOW.md`,
 the single source of truth for the update procedure of **every** engine — it carries one step list
 for llama.cpp and one for the Python engines (`estimation` and phantom rows are llama-only).
+`ArgumentOption.defaultValue` is the one structural default channel: llama help parsing derives it
+from the `(default: …)` convention, the python reference maps the extract's literal `default`, and
+catalog read boundaries backfill it from stored help (`fillMissingDefaultValues`) so pre-field
+rows/sidecars need no regeneration — consumers (`arguments/binary-defaults.ts`, estimators) read
+the field, never the prose (`docs/ARGUMENT_SOURCE_EXTRACTION.md` § default).
 
 The Python engines publish no help block, so their sync source is a **declaration extract** read from
 the checkout by stdlib-`ast` scripts (`scripts/extract-args/{vllm,sglang}.py`) — no venv, no engine

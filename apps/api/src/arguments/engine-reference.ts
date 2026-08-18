@@ -129,7 +129,19 @@ export function engineArgumentValueType(
   return "string";
 }
 
-function toArgumentOption(
+function literalDefaultValue(option: EngineArgumentDeclaration): string | null {
+  if (option.default?.kind !== "literal") {
+    return null;
+  }
+  const value = option.default.value;
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const rendered = typeof value === "string" ? value : JSON.stringify(value);
+  return rendered ? rendered : null;
+}
+
+export function toArgumentOption(
   option: EngineArgumentDeclaration,
   engineName: string,
 ): ArgumentOption {
@@ -144,6 +156,7 @@ function toArgumentOption(
     valueType,
     env: [],
     allowedValues,
+    defaultValue: literalDefaultValue(option),
     help: option.help,
     helpRu: `Оригинальная справка ${engineName}: ${option.help || primaryName}`,
     helpRuSource: "fallback",

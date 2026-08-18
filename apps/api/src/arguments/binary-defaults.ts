@@ -5,7 +5,6 @@ import { binaryStat } from "./binary-discovery.js";
 import { getCurrentCachedCatalog } from "./catalog.js";
 import type { CachedArgumentCatalog } from "./repository.js";
 
-const HELP_DEFAULT_PATTERN = /\(default:\s*([^)]*)\)/g;
 const UNKNOWN_RETRY_MS = 30_000;
 
 export type GpuLayersDefaults = {
@@ -24,12 +23,6 @@ type CacheEntry = {
 
 const gpuLayersDefaultCache = new Map<string, CacheEntry>();
 
-function helpDefault(help: string): string | null {
-  const matches = [...help.matchAll(HELP_DEFAULT_PATTERN)];
-  const value = matches[matches.length - 1]?.[1]?.trim() ?? "";
-  return value === "" ? null : value;
-}
-
 function optionDefault(
   catalog: CachedArgumentCatalog,
   keys: string[],
@@ -37,7 +30,7 @@ function optionDefault(
   const option = catalog.options.find((candidate) =>
     candidate.names.some((name) => keys.includes(name)),
   );
-  return option ? helpDefault(option.help) : null;
+  return option?.defaultValue ?? null;
 }
 
 function extractGpuLayersDefaults(

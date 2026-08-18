@@ -275,6 +275,7 @@ function referenceCatalogHash(options: ArgumentOption[]) {
           valueType: option.valueType,
           env: option.env,
           allowedValues: option.allowedValues,
+          defaultValue: option.defaultValue,
           help: option.help,
           helpRu: option.helpRu,
           control: option.control,

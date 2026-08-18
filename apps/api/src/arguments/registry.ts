@@ -182,6 +182,7 @@ export function optionFromArgumentDocFrontmatter(
     valueType,
     env: stringArrayField(frontmatter, "env"),
     allowedValues,
+    defaultValue: null,
     help: summary ?? "",
     helpRu: summary ?? `См. инженерную справку для ${primaryName}.`,
     helpRuSource: "registry",

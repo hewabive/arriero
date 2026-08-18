@@ -5,7 +5,10 @@ import type {
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { engineArgumentValueType } from "./engine-reference.js";
+import {
+  engineArgumentValueType,
+  toArgumentOption,
+} from "./engine-reference.js";
 import { engineArgumentSurfaceHash } from "./help-source.js";
 
 function declaration(
@@ -79,6 +82,59 @@ describe("engineArgumentValueType", () => {
       ),
       "number",
     );
+  });
+});
+
+describe("toArgumentOption default values", () => {
+  it("renders literal defaults as strings", () => {
+    assert.equal(
+      toArgumentOption(
+        declaration({ default: { kind: "literal", value: "auto" } }),
+        "vLLM",
+      ).defaultValue,
+      "auto",
+    );
+    assert.equal(
+      toArgumentOption(
+        declaration({ default: { kind: "literal", value: 0.9 } }),
+        "vLLM",
+      ).defaultValue,
+      "0.9",
+    );
+    assert.equal(
+      toArgumentOption(
+        declaration({ default: { kind: "literal", value: true } }),
+        "vLLM",
+      ).defaultValue,
+      "true",
+    );
+  });
+
+  it("keeps expression, null and empty defaults unknown", () => {
+    assert.equal(
+      toArgumentOption(
+        declaration({
+          default: { kind: "expression", text: "ModelConfig.max_model_len" },
+        }),
+        "vLLM",
+      ).defaultValue,
+      null,
+    );
+    assert.equal(
+      toArgumentOption(
+        declaration({ default: { kind: "literal", value: null } }),
+        "vLLM",
+      ).defaultValue,
+      null,
+    );
+    assert.equal(
+      toArgumentOption(
+        declaration({ default: { kind: "literal", value: "" } }),
+        "vLLM",
+      ).defaultValue,
+      null,
+    );
+    assert.equal(toArgumentOption(declaration({}), "vLLM").defaultValue, null);
   });
 });
 
