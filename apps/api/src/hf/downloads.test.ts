@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { beforeEach, test } from "node:test";
 
 import { config } from "../config.js";
@@ -12,10 +12,13 @@ import {
   HF_DOWNLOAD_JOB_DOMAIN,
   HfDownloadBusyError,
   HfDownloadNotFoundError,
+  HfDownloadVerifyError,
   invalidateHfDownloadsCache,
   listHfDownloads,
+  verifyHfDownloadRedownloadable,
 } from "./downloads.js";
 import { writeHfManifest } from "./manifest.js";
+import { resetHfUpdateChecksForTests } from "./update-check.js";
 
 let scanDir = "";
 
@@ -38,14 +41,41 @@ function seedRepo(repoId: string, files: { path: string; present: boolean }[]) {
   });
   for (const file of files) {
     if (file.present) {
-      writeFileSync(join(dir, file.path), "x".repeat(10), "utf8");
+      const target = join(dir, file.path);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, "x".repeat(10), "utf8");
     }
   }
   return dir;
 }
 
+function upstreamFetch(input: {
+  sha: string;
+  files: { path: string; oid: string }[];
+}): typeof fetch {
+  return (async (url: string | URL | Request) => {
+    if (String(url).includes("/paths-info/")) {
+      return new Response(
+        JSON.stringify(
+          input.files.map((file) => ({
+            type: "file",
+            path: file.path,
+            oid: file.oid,
+            size: 10,
+          })),
+        ),
+        { headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response(JSON.stringify({ sha: input.sha }), {
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+}
+
 beforeEach(() => {
   resetActiveJobs();
+  resetHfUpdateChecksForTests();
   if (scanDir) {
     rmSync(scanDir, { recursive: true, force: true });
   }
@@ -107,6 +137,106 @@ test("delete removes the repo directory and refuses unknown dirs", async () => {
   assert.throws(
     () => deleteHfDownload(join(scanDir, "missing")),
     HfDownloadNotFoundError,
+  );
+});
+
+test("per-file delete removes files, part leftovers and manifest entries", async () => {
+  const dir = seedRepo("owner/repo", [
+    { path: "model-Q4_K_M.gguf", present: true },
+    { path: "model-Q8_0.gguf", present: true },
+    { path: "config.json", present: true },
+  ]);
+  writeFileSync(join(dir, "model-Q4_K_M.gguf.part"), "partial", "utf8");
+  deleteHfDownload(dir, ["model-Q4_K_M.gguf"]);
+  assert.equal(existsSync(join(dir, "model-Q4_K_M.gguf")), false);
+  assert.equal(existsSync(join(dir, "model-Q4_K_M.gguf.part")), false);
+  assert.equal(existsSync(join(dir, "model-Q8_0.gguf")), true);
+  const downloads = await listHfDownloads();
+  assert.deepEqual(
+    downloads[0]?.files.map((file) => file.path),
+    ["model-Q8_0.gguf", "config.json"],
+  );
+});
+
+test("per-file delete prunes emptied subdirectories", () => {
+  const dir = seedRepo("owner/subdir", [
+    { path: "Q4_K_M/model.gguf", present: true },
+    { path: "README.md", present: true },
+  ]);
+  deleteHfDownload(dir, ["Q4_K_M/model.gguf"]);
+  assert.equal(existsSync(join(dir, "Q4_K_M")), false);
+  assert.equal(existsSync(join(dir, "README.md")), true);
+});
+
+test("per-file delete covering every file removes the directory", () => {
+  const dir = seedRepo("owner/full", [
+    { path: "a.gguf", present: true },
+    { path: "b.gguf", present: true },
+  ]);
+  deleteHfDownload(dir, ["a.gguf", "b.gguf"]);
+  assert.equal(existsSync(dir), false);
+});
+
+test("per-file delete refuses paths outside the manifest", () => {
+  const dir = seedRepo("owner/guard", [{ path: "a.gguf", present: true }]);
+  assert.throws(
+    () => deleteHfDownload(dir, ["a.gguf", "other.gguf"]),
+    HfDownloadNotFoundError,
+  );
+  assert.equal(existsSync(join(dir, "a.gguf")), true);
+});
+
+test("verify passes for targeted files still available upstream", async () => {
+  const dir = seedRepo("owner/verify", [
+    { path: "keep.gguf", present: true },
+    { path: "gone.gguf", present: true },
+  ]);
+  const fetchImpl = upstreamFetch({
+    sha: "b".repeat(40),
+    files: [{ path: "keep.gguf", oid: "changed-upstream" }],
+  });
+  await verifyHfDownloadRedownloadable(dir, ["keep.gguf"], {
+    fetchImpl,
+    token: null,
+  });
+  await assert.rejects(
+    verifyHfDownloadRedownloadable(dir, ["gone.gguf"], {
+      fetchImpl,
+      token: null,
+    }),
+    (error: unknown) =>
+      error instanceof HfDownloadVerifyError &&
+      error.verification.files.some(
+        (file) => file.path === "gone.gguf" && file.status === "deleted",
+      ),
+  );
+});
+
+test("verify without paths blocks when any manifest file is gone upstream", async () => {
+  const dir = seedRepo("owner/verify-all", [
+    { path: "keep.gguf", present: true },
+    { path: "gone.gguf", present: true },
+  ]);
+  const fetchImpl = upstreamFetch({
+    sha: "b".repeat(40),
+    files: [{ path: "keep.gguf", oid: "oid-keep.gguf" }],
+  });
+  await assert.rejects(
+    verifyHfDownloadRedownloadable(dir, undefined, { fetchImpl, token: null }),
+    HfDownloadVerifyError,
+  );
+});
+
+test("verify reports an error when the upstream check fails", async () => {
+  const dir = seedRepo("owner/verify-err", [{ path: "a.gguf", present: true }]);
+  const fetchImpl = (async () => {
+    throw new Error("network down");
+  }) as typeof fetch;
+  await assert.rejects(
+    verifyHfDownloadRedownloadable(dir, ["a.gguf"], { fetchImpl, token: null }),
+    (error: unknown) =>
+      error instanceof HfDownloadVerifyError &&
+      /network down/.test(error.message),
   );
 });
 

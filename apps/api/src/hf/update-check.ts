@@ -32,6 +32,25 @@ export function clearHfUpdateCheck(dir: string): void {
   checks.delete(resolve(dir));
 }
 
+export function pruneHfUpdateCheckFiles(
+  dir: string,
+  removedPaths: ReadonlySet<string>,
+): void {
+  const key = resolve(dir);
+  const existing = checks.get(key);
+  if (!existing) {
+    return;
+  }
+  const files = existing.files.filter((file) => !removedPaths.has(file.path));
+  const status =
+    existing.status === "in-sync" || existing.status === "drift"
+      ? files.every((file) => file.status === "current")
+        ? "in-sync"
+        : "drift"
+      : existing.status;
+  checks.set(key, { ...existing, status, files });
+}
+
 export function resetHfUpdateChecksForTests(): void {
   checks.clear();
 }

@@ -20,7 +20,9 @@ import {
   deleteHfDownload,
   HfDownloadBusyError,
   HfDownloadNotFoundError,
+  HfDownloadVerifyError,
   listHfDownloads,
+  verifyHfDownloadRedownloadable,
 } from "../hf/downloads.js";
 import {
   defaultHfDestDir,
@@ -136,8 +138,12 @@ export function registerHfRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
+    const { dir, paths, verifyUpstream } = parsed.data;
     try {
-      deleteHfDownload(parsed.data.dir);
+      if (verifyUpstream) {
+        await verifyHfDownloadRedownloadable(dir, paths);
+      }
+      deleteHfDownload(dir, paths);
       return c.json({ data: { deleted: true } });
     } catch (error) {
       if (error instanceof HfDownloadNotFoundError) {
@@ -146,7 +152,13 @@ export function registerHfRoutes(app: Hono) {
       if (error instanceof HfDownloadBusyError) {
         return c.json({ error: error.message }, 409);
       }
-      throw error;
+      if (error instanceof HfDownloadVerifyError) {
+        return c.json(
+          { error: error.message, verification: error.verification },
+          412,
+        );
+      }
+      return hfErrorResponse(c, error);
     }
   });
 

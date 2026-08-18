@@ -1,4 +1,8 @@
-import type { HfDownloadedRepo, HfDownloadedRepoFile } from "@arriero/core";
+import type {
+  HfDownloadedRepo,
+  HfDownloadedRepoFile,
+  HfUpdateCheck,
+} from "@arriero/core";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { opendir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -11,14 +15,25 @@ import { IGNORED_DIRS } from "../models/scanner.js";
 import { isPathWithin } from "../path-utils.js";
 import { startModelScan } from "../models/scan-runner.js";
 import { traceBlockingSection } from "../system/event-loop.js";
+import type { HfClientOptions } from "./client.js";
 import { groupHfGgufFiles } from "./grouping.js";
 import {
   HF_MANIFEST_FILENAME,
   readHfManifest,
+  writeHfManifest,
   type HfManifest,
 } from "./manifest.js";
-import { isInsideScanRoots } from "./paths.js";
-import { clearHfUpdateCheck, getHfUpdateCheck } from "./update-check.js";
+import {
+  isInsideScanRoots,
+  resolveWithin,
+  sanitizeRepoRelativePath,
+} from "./paths.js";
+import {
+  clearHfUpdateCheck,
+  getHfUpdateCheck,
+  pruneHfUpdateCheckFiles,
+  runHfUpdateChecks,
+} from "./update-check.js";
 
 export const HF_DOWNLOAD_JOB_DOMAIN = "hf-download";
 
@@ -27,6 +42,14 @@ const MAX_VISITED_DIRS = 5_000;
 
 export class HfDownloadNotFoundError extends Error {}
 export class HfDownloadBusyError extends Error {}
+export class HfDownloadVerifyError extends Error {
+  readonly verification: HfUpdateCheck;
+
+  constructor(message: string, verification: HfUpdateCheck) {
+    super(message);
+    this.verification = verification;
+  }
+}
 
 type DiscoveredRepo = {
   dir: string;
@@ -142,7 +165,10 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
   });
 }
 
-export function deleteHfDownload(dir: string): void {
+function resolveDeletableHfDownload(dir: string): {
+  resolved: string;
+  manifest: HfManifest;
+} {
   const resolved = resolve(dir);
   const manifest = readHfManifest(resolved);
   if (!manifest || !isInsideScanRoots(resolved)) {
@@ -155,6 +181,42 @@ export function deleteHfDownload(dir: string): void {
       `a download for ${manifest.repoId} is running; cancel it first`,
     );
   }
+  return { resolved, manifest };
+}
+
+function resolveManifestDeletePaths(
+  manifest: HfManifest,
+  paths: readonly string[],
+): string[] {
+  const known = new Set(manifest.files.map((file) => file.path));
+  const targets = [...new Set(paths)];
+  const unknown = targets.filter((path) => !known.has(path));
+  if (unknown.length > 0) {
+    throw new HfDownloadNotFoundError(
+      `not in the download manifest: ${unknown.join(", ")}`,
+    );
+  }
+  return targets;
+}
+
+function pruneEmptyDirsWithin(baseDir: string, start: string): void {
+  let current = start;
+  while (current !== baseDir && isPathWithin(baseDir, current)) {
+    let entries: string[];
+    try {
+      entries = readdirSync(current);
+    } catch {
+      return;
+    }
+    if (entries.length > 0) {
+      return;
+    }
+    rmSync(current, { recursive: true, force: true });
+    current = dirname(current);
+  }
+}
+
+function removeHfDownloadDir(resolved: string): void {
   traceBlockingSection("hf:rm-download", () =>
     rmSync(resolved, { recursive: true, force: true }),
   );
@@ -165,7 +227,72 @@ export function deleteHfDownload(dir: string): void {
   if (strictlyInsideRoot && readdirSync(parent).length === 0) {
     rmSync(parent, { recursive: true, force: true });
   }
-  clearHfUpdateCheck(resolved);
+}
+
+function removeHfDownloadFiles(
+  resolved: string,
+  manifest: HfManifest,
+  targets: readonly string[],
+): void {
+  const targetSet = new Set(targets);
+  traceBlockingSection("hf:rm-download-files", () => {
+    for (const path of targets) {
+      const absolute = resolveWithin(resolved, sanitizeRepoRelativePath(path));
+      rmSync(absolute, { force: true });
+      rmSync(`${absolute}.part`, { force: true });
+      pruneEmptyDirsWithin(resolved, dirname(absolute));
+    }
+  });
+  writeHfManifest(resolved, {
+    ...manifest,
+    files: manifest.files.filter((file) => !targetSet.has(file.path)),
+  });
+}
+
+export function deleteHfDownload(dir: string, paths?: readonly string[]): void {
+  const { resolved, manifest } = resolveDeletableHfDownload(dir);
+  const targets = paths ? resolveManifestDeletePaths(manifest, paths) : null;
+  if (targets && targets.length < manifest.files.length) {
+    removeHfDownloadFiles(resolved, manifest, targets);
+    pruneHfUpdateCheckFiles(resolved, new Set(targets));
+  } else {
+    removeHfDownloadDir(resolved);
+    clearHfUpdateCheck(resolved);
+  }
   invalidateHfDownloadsCache();
   startModelScan({ refresh: true });
+}
+
+export async function verifyHfDownloadRedownloadable(
+  dir: string,
+  paths?: readonly string[],
+  options?: HfClientOptions,
+): Promise<void> {
+  const { resolved, manifest } = resolveDeletableHfDownload(dir);
+  const targets = paths
+    ? new Set(resolveManifestDeletePaths(manifest, paths))
+    : null;
+  const check = (await runHfUpdateChecks([resolved], options))[resolved];
+  if (!check || check.status === "error" || check.status === "unchecked") {
+    throw new HfDownloadVerifyError(
+      `could not verify ${manifest.repoId} on HuggingFace: ${check?.error ?? "no check result"}`,
+      check ?? {
+        status: "error",
+        checkedAt: null,
+        revisionSha: null,
+        error: "no check result",
+        files: [],
+      },
+    );
+  }
+  const gone = check.files.filter(
+    (file) =>
+      file.status === "deleted" && (targets === null || targets.has(file.path)),
+  );
+  if (gone.length > 0) {
+    throw new HfDownloadVerifyError(
+      `${manifest.repoId}: ${gone.length} of the files to delete no longer exist upstream and cannot be re-downloaded`,
+      check,
+    );
+  }
 }

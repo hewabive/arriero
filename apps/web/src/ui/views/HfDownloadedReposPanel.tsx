@@ -1,11 +1,15 @@
 import {
   HF_UPDATE_CHECK_MAX_DIRS,
+  HfDownloadDeleteBlockedSchema,
+  type HfDownloadDelete,
   type HfDownloadedRepo,
   type HfUpdateCheckStatus,
 } from "@arriero/core";
 import {
+  Alert,
   Badge,
   Button,
+  Checkbox,
   Code,
   Collapse,
   Group,
@@ -19,6 +23,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
   Plus,
@@ -28,6 +33,7 @@ import {
 import { useState } from "react";
 
 import {
+  ApiError,
   checkHfUpdates,
   deleteHfDownload,
   listHfDownloadJobs,
@@ -45,6 +51,23 @@ const UPDATE_BADGE_COLOR: Record<HfUpdateCheckStatus, string> = {
   drift: "yellow",
   error: "red",
 };
+
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
+
+type DeleteTarget = {
+  repo: HfDownloadedRepo;
+  paths: string[] | null;
+};
+
+function deleteTargetBytes(target: DeleteTarget): number {
+  if (!target.paths) {
+    return target.repo.totalBytes;
+  }
+  const paths = new Set(target.paths);
+  return target.repo.files
+    .filter((file) => paths.has(file.path))
+    .reduce((sum, file) => sum + file.size, 0);
+}
 
 function updateBadge(repo: HfDownloadedRepo) {
   const status = repo.update.status;
@@ -82,12 +105,14 @@ export function HfDownloadedReposPanel(props: {
       .filter((job) => job.status === "running")
       .map((job) => job.repoId),
   );
-  const [deleteTarget, setDeleteTarget] = useState<HfDownloadedRepo | null>(
-    null,
-  );
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [verifyUpstream, setVerifyUpstream] = useState(true);
   const [expandedFiles, setExpandedFiles] = useState<ReadonlySet<string>>(
     new Set(),
   );
+  const [selectedFiles, setSelectedFiles] = useState<
+    ReadonlyMap<string, ReadonlySet<string>>
+  >(new Map());
 
   function toggleFiles(dir: string) {
     setExpandedFiles((previous) => {
@@ -99,6 +124,46 @@ export function HfDownloadedReposPanel(props: {
       }
       return next;
     });
+  }
+
+  function toggleFileSelection(dir: string, path: string) {
+    setSelectedFiles((previous) => {
+      const current = new Set(previous.get(dir) ?? []);
+      if (current.has(path)) {
+        current.delete(path);
+      } else {
+        current.add(path);
+      }
+      const next = new Map(previous);
+      if (current.size === 0) {
+        next.delete(dir);
+      } else {
+        next.set(dir, current);
+      }
+      return next;
+    });
+  }
+
+  function toggleVariantSelection(dir: string, paths: readonly string[]) {
+    setSelectedFiles((previous) => {
+      const current = new Set(previous.get(dir) ?? []);
+      const allSelected = paths.every((path) => current.has(path));
+      for (const path of paths) {
+        if (allSelected) {
+          current.delete(path);
+        } else {
+          current.add(path);
+        }
+      }
+      const next = new Map(previous);
+      if (current.size === 0) {
+        next.delete(dir);
+      } else {
+        next.set(dir, current);
+      }
+      return next;
+    });
+    setExpandedFiles((previous) => new Set(previous).add(dir));
   }
 
   const invalidateDownloads = () =>
@@ -141,23 +206,56 @@ export function HfDownloadedReposPanel(props: {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (dir: string) => deleteHfDownload(dir),
-    onSuccess: () => {
+    mutationFn: (input: HfDownloadDelete) => deleteHfDownload(input),
+    onSuccess: (_result, input) => {
       setDeleteTarget(null);
+      setSelectedFiles((previous) => {
+        const next = new Map(previous);
+        next.delete(input.dir);
+        return next;
+      });
       void invalidateDownloads();
       void queryClient.invalidateQueries({ queryKey: ["models"] });
       notifications.show({
-        title: "Download deleted",
-        message: "The repository directory was removed.",
+        title: input.paths ? "Files deleted" : "Download deleted",
+        message: input.paths
+          ? `${countLabel(input.paths.length, "file")} removed from disk.`
+          : "The repository directory was removed.",
       });
     },
-    onError: (error) =>
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 412) {
+        return;
+      }
       notifications.show({
         color: "red",
         title: "Delete download",
         message: (error as Error).message,
-      }),
+      });
+    },
   });
+
+  function openDeleteModal(repo: HfDownloadedRepo, paths: string[] | null) {
+    deleteMutation.reset();
+    setVerifyUpstream(true);
+    setDeleteTarget({ repo, paths });
+  }
+
+  const verifyError =
+    deleteMutation.error instanceof ApiError &&
+    deleteMutation.error.status === 412
+      ? deleteMutation.error
+      : null;
+  const verifyBlockedParsed = verifyError
+    ? HfDownloadDeleteBlockedSchema.safeParse(verifyError.body)
+    : null;
+  const blockedFiles = verifyBlockedParsed?.success
+    ? verifyBlockedParsed.data.verification.files.filter(
+        (file) =>
+          file.status === "deleted" &&
+          (deleteTarget?.paths?.includes(file.path) ?? true),
+      )
+    : [];
 
   return (
     <Paper withBorder p="md" radius="sm">
@@ -195,6 +293,7 @@ export function HfDownloadedReposPanel(props: {
           ).length;
           const running = runningRepoIds.has(repo.repoId);
           const filesOpened = expandedFiles.has(repo.dir);
+          const selected = selectedFiles.get(repo.dir) ?? EMPTY_SELECTION;
           const updateStatusByPath = new Map(
             repo.update.files.map((file) => [file.path, file.status]),
           );
@@ -224,15 +323,38 @@ export function HfDownloadedReposPanel(props: {
                             repo.files.find((file) => file.path === path)
                               ?.present !== true,
                         );
+                        const variantSelected = variant.paths.every((path) =>
+                          selected.has(path),
+                        );
                         return (
-                          <Badge
+                          <Tooltip
                             key={variant.paths[0]}
-                            color={missing ? "orange" : "green"}
-                            variant="light"
+                            label={
+                              variantSelected
+                                ? "Deselect these files"
+                                : "Select these files for deletion"
+                            }
                           >
-                            {hfVariantChipLabel(variant)} ·{" "}
-                            {formatBytes(variant.totalBytes)}
-                          </Badge>
+                            <Badge
+                              color={
+                                variantSelected
+                                  ? "red"
+                                  : missing
+                                    ? "orange"
+                                    : "green"
+                              }
+                              variant={variantSelected ? "filled" : "light"}
+                              component="button"
+                              type="button"
+                              style={{ cursor: "pointer" }}
+                              onClick={() =>
+                                toggleVariantSelection(repo.dir, variant.paths)
+                              }
+                            >
+                              {hfVariantChipLabel(variant)} ·{" "}
+                              {formatBytes(variant.totalBytes)}
+                            </Badge>
+                          </Tooltip>
                         );
                       })}
                     </Group>
@@ -274,6 +396,14 @@ export function HfDownloadedReposPanel(props: {
                         const upstream = updateStatusByPath.get(file.path);
                         return (
                           <Group key={file.path} gap="xs" wrap="nowrap">
+                            <Checkbox
+                              size="xs"
+                              checked={selected.has(file.path)}
+                              onChange={() =>
+                                toggleFileSelection(repo.dir, file.path)
+                              }
+                              aria-label={`Select ${file.path} for deletion`}
+                            />
                             <Text
                               size="xs"
                               style={{
@@ -338,13 +468,27 @@ export function HfDownloadedReposPanel(props: {
                       Download updates
                     </Button>
                   )}
+                  {selected.size > 0 && (
+                    <Button
+                      variant="light"
+                      color="red"
+                      size="xs"
+                      leftSection={<Trash2 size={14} />}
+                      disabled={running}
+                      onClick={() =>
+                        openDeleteModal(repo, [...selected].sort())
+                      }
+                    >
+                      Delete {countLabel(selected.size, "file")}
+                    </Button>
+                  )}
                   <Button
                     variant="subtle"
                     color="red"
                     size="xs"
                     leftSection={<Trash2 size={14} />}
                     disabled={running}
-                    onClick={() => setDeleteTarget(repo)}
+                    onClick={() => openDeleteModal(repo, null)}
                   >
                     Delete
                   </Button>
@@ -358,15 +502,72 @@ export function HfDownloadedReposPanel(props: {
       <Modal
         opened={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        title="Delete downloaded repository"
+        title={
+          deleteTarget?.paths
+            ? "Delete downloaded files"
+            : "Delete downloaded repository"
+        }
       >
         <Stack gap="sm">
-          <Text size="sm">
-            Delete <Code>{deleteTarget?.dir}</Code> with{" "}
-            {countLabel(deleteTarget?.fileCount ?? 0, "file")} (
-            {formatBytes(deleteTarget?.totalBytes ?? 0)})? This removes the
-            files from disk.
-          </Text>
+          {deleteTarget?.paths ? (
+            <>
+              <Text size="sm">
+                Delete {countLabel(deleteTarget.paths.length, "file")} (
+                {formatBytes(deleteTargetBytes(deleteTarget))}) from{" "}
+                <Code>{deleteTarget.repo.repoId}</Code>? This removes the files
+                from disk; the rest of the download stays.
+              </Text>
+              <Stack gap={2} mah={140} style={{ overflowY: "auto" }}>
+                {deleteTarget.paths.map((path) => (
+                  <Text
+                    key={path}
+                    size="xs"
+                    style={{ overflowWrap: "anywhere" }}
+                  >
+                    {path}
+                  </Text>
+                ))}
+              </Stack>
+              {deleteTarget.paths.length === deleteTarget.repo.fileCount && (
+                <Text size="sm" c="orange">
+                  Every file is selected, so the whole repository directory will
+                  be removed.
+                </Text>
+              )}
+            </>
+          ) : (
+            <Text size="sm">
+              Delete <Code>{deleteTarget?.repo.dir}</Code> with{" "}
+              {countLabel(deleteTarget?.repo.fileCount ?? 0, "file")} (
+              {formatBytes(deleteTarget?.repo.totalBytes ?? 0)})? This removes
+              the files from disk.
+            </Text>
+          )}
+          {verifyError ? (
+            <Alert color="yellow" icon={<AlertTriangle size={16} />}>
+              <Stack gap={4}>
+                <Text size="sm">{verifyError.message}</Text>
+                {blockedFiles.map((file) => (
+                  <Text
+                    key={file.path}
+                    size="xs"
+                    style={{ overflowWrap: "anywhere" }}
+                  >
+                    {file.path}
+                  </Text>
+                ))}
+              </Stack>
+            </Alert>
+          ) : (
+            <Checkbox
+              checked={verifyUpstream}
+              onChange={(event) =>
+                setVerifyUpstream(event.currentTarget.checked)
+              }
+              label="Verify on Hugging Face before deleting"
+              description="Blocks deletion when a file is no longer available upstream and could not be re-downloaded."
+            />
+          )}
           <Group justify="flex-end" gap="sm">
             <Button variant="default" onClick={() => setDeleteTarget(null)}>
               Cancel
@@ -376,12 +577,17 @@ export function HfDownloadedReposPanel(props: {
               loading={deleteMutation.isPending}
               onClick={() => {
                 const target = deleteTarget;
-                if (target) {
-                  deleteMutation.mutate(target.dir);
+                if (!target) {
+                  return;
                 }
+                deleteMutation.mutate({
+                  dir: target.repo.dir,
+                  ...(target.paths ? { paths: target.paths } : {}),
+                  verifyUpstream: verifyError ? false : verifyUpstream,
+                });
               }}
             >
-              Delete
+              {verifyError ? "Delete anyway" : "Delete"}
             </Button>
           </Group>
         </Stack>

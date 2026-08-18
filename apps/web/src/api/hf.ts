@@ -1,6 +1,7 @@
 import {
   encodeHfPathSegments,
   type HfDestCheck,
+  type HfDownloadDelete,
   type HfDownloadJob,
   type HfDownloadStart,
   type HfDownloadedRepo,
@@ -52,10 +53,10 @@ export function checkHfUpdates(dirs: string[]) {
   );
 }
 
-export function deleteHfDownload(dir: string) {
+export function deleteHfDownload(input: HfDownloadDelete) {
   return request<{ data: { deleted: boolean } }>("/api/hf/downloads/delete", {
     method: "POST",
-    body: JSON.stringify({ dir }),
+    body: JSON.stringify(input),
   });
 }
 

@@ -64,8 +64,23 @@ client-side (`hfManifestOidMatches`, exported from core): variants and files get
 `on disk`/`partial`/`changed upstream` badges, and an already-downloaded repo shows a banner with
 its local directory plus a button to reuse it as the destination — so adding files to a repo
 downloaded into a custom directory does not fork a second copy. A destination outside every scan
-root still downloads but is not listed (the UI warns). `POST /api/hf/downloads/delete` removes a
-repo directory after confirming no job is running for it.
+root still downloads but is not listed (the UI warns).
+
+## Deletion
+
+`POST /api/hf/downloads/delete {dir, paths?, verifyUpstream?}` removes a downloaded repo — whole
+directory when `paths` is absent, individual manifest files otherwise (a GGUF variant in the UI is
+just its file list: file checkboxes plus clickable variant chips feed one selection). Only paths
+listed in the manifest are deletable (unknown paths 404), a running job for the repo refuses with
+409, and per-file removal also drops the file's `.part` leftover, prunes emptied subdirectories
+and shrinks the manifest — the cached update check is pruned to the remaining files instead of
+being cleared. A `paths` set covering every manifest file escalates to whole-directory removal
+(the UI dialog says so). With `verifyUpstream: true` the server first runs the standard update
+check (cached as usual, so `checkedAt` refreshes) and refuses with `412` +
+`{error, verification}` (`HfDownloadDeleteBlockedSchema`) when the check errors or a targeted
+file is `deleted` upstream — i.e. it could not be re-downloaded; `updated` files stay deletable.
+The UI delete dialog verifies by default and turns the confirm button into "Delete anyway" on a
+412.
 
 ## Update checks
 
@@ -101,7 +116,7 @@ token is sent as `Authorization: Bearer` and undici drops it on the cross-origin
 | `POST /api/hf/downloads` | start a download job (201) |
 | `GET /api/hf/downloads` | downloaded repos from manifest discovery |
 | `POST /api/hf/downloads/check` | manual update check for up to 50 dirs |
-| `POST /api/hf/downloads/delete` | delete a downloaded repo directory |
+| `POST /api/hf/downloads/delete` | delete a repo directory or selected files, optional upstream verify |
 | `GET /api/hf/jobs`, `GET /api/hf/jobs/:owner/:repo` | job list / single job with live progress |
 | `POST /api/hf/jobs/:owner/:repo/cancel` | cancel a running job |
 

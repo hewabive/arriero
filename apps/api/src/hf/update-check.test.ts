@@ -9,6 +9,7 @@ import { writeHfManifest, type HfManifest } from "./manifest.js";
 import {
   diffHfManifest,
   getHfUpdateCheck,
+  pruneHfUpdateCheckFiles,
   resetHfUpdateChecksForTests,
   runHfUpdateChecks,
 } from "./update-check.js";
@@ -138,6 +139,34 @@ test("a failing repo reports error while others complete", async () => {
   assert.match(result[errorDir]?.error ?? "", /network down/);
   rmSync(driftDir, { recursive: true, force: true });
   rmSync(errorDir, { recursive: true, force: true });
+});
+
+test("prune drops removed paths from a cached check and recomputes status", async () => {
+  const dir = tempManifestDir([
+    manifestFile("a.bin", { oid: "git-old" }),
+    manifestFile("b.bin", { oid: "git-same" }),
+  ]);
+  const fetchImpl = (async (input: string | URL | Request) => {
+    if (String(input).includes("/paths-info/")) {
+      return new Response(
+        JSON.stringify([
+          { type: "file", path: "a.bin", oid: "git-new", size: 10 },
+          { type: "file", path: "b.bin", oid: "git-same", size: 10 },
+        ]),
+        { headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response(JSON.stringify({ sha: NEW_SHA }), {
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  await runHfUpdateChecks([dir], { fetchImpl, token: null });
+  assert.equal(getHfUpdateCheck(dir).status, "drift");
+  pruneHfUpdateCheckFiles(dir, new Set(["a.bin"]));
+  const check = getHfUpdateCheck(dir);
+  assert.equal(check.status, "in-sync");
+  assert.deepEqual(check.files, [{ path: "b.bin", status: "current" }]);
+  rmSync(dir, { recursive: true, force: true });
 });
 
 test("a dir without a manifest reports error", async () => {
