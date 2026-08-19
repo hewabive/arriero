@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { AppVersionSchema, type AppVersion } from "@arriero/core";
 
-import { restartBlockedReason, withStartedAt } from "./restart.js";
+import { restartBlockedReason, withRuntimeInfo } from "./restart.js";
 
 function version(supervised: boolean): AppVersion {
   return AppVersionSchema.parse({
@@ -24,14 +24,26 @@ function version(supervised: boolean): AppVersion {
   });
 }
 
-test("AppVersionSchema defaults startedAt to null for older peers", () => {
-  assert.equal(version(true).startedAt, null);
+test("AppVersionSchema defaults runtime fields to null for older peers", () => {
+  const parsed = version(true);
+  assert.equal(parsed.startedAt, null);
+  assert.equal(parsed.builtCommit, null);
+  assert.equal(parsed.runningCommit, null);
+  assert.equal(parsed.buildPending, null);
+  assert.equal(parsed.restartPending, null);
 });
 
-test("withStartedAt stamps a stable process start time", () => {
-  const stamped = withStartedAt(version(true));
+test("withRuntimeInfo stamps a stable process start time", () => {
+  const stamped = withRuntimeInfo(version(true));
   assert.ok(stamped.startedAt);
-  assert.equal(withStartedAt(version(false)).startedAt, stamped.startedAt);
+  assert.equal(withRuntimeInfo(version(false)).startedAt, stamped.startedAt);
+});
+
+test("withRuntimeInfo keeps build-sync flags unknown without a build stamp", () => {
+  const stamped = withRuntimeInfo(version(true));
+  assert.equal(stamped.builtCommit, null);
+  assert.equal(stamped.buildPending, null);
+  assert.equal(stamped.restartPending, null);
 });
 
 test("restartBlockedReason allows supervised processes", () => {

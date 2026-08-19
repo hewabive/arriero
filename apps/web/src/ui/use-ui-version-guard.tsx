@@ -20,7 +20,8 @@ async function checkUiVersionOnce(): Promise<void> {
 
   let serverCommit: string | null;
   try {
-    serverCommit = (await getSelfVersion()).data.commit;
+    const version = (await getSelfVersion()).data;
+    serverCommit = version.builtCommit ?? version.commit;
   } catch {
     return;
   }

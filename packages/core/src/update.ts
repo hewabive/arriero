@@ -20,6 +20,10 @@ export const AppVersionSchema = z.object({
   updateAvailable: z.boolean(),
   lastCheckedAt: z.string().nullable(),
   startedAt: z.string().nullable().default(null),
+  builtCommit: z.string().nullable().default(null),
+  runningCommit: z.string().nullable().default(null),
+  buildPending: z.boolean().nullable().default(null),
+  restartPending: z.boolean().nullable().default(null),
 });
 
 export const AppRestartResultSchema = z.object({

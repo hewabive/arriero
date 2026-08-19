@@ -1,5 +1,10 @@
 import type { AppRestartResult, AppVersion } from "@arriero/core";
 
+import {
+  buildSyncFlags,
+  readDistBuildCommit,
+  runningBuildCommit,
+} from "./build-info.js";
 import { scheduleProcessRestart } from "./runner.js";
 import { getAppVersion } from "./version.js";
 
@@ -7,12 +12,24 @@ const appStartedAt = new Date().toISOString();
 
 let restartScheduled = false;
 
-export function withStartedAt(version: AppVersion): AppVersion {
-  return { ...version, startedAt: appStartedAt };
+export function withRuntimeInfo(version: AppVersion): AppVersion {
+  const builtCommit = readDistBuildCommit();
+  const runningCommit = runningBuildCommit();
+  return {
+    ...version,
+    startedAt: appStartedAt,
+    builtCommit,
+    runningCommit,
+    ...buildSyncFlags({
+      headCommit: version.commit,
+      distCommit: builtCommit,
+      runningCommit,
+    }),
+  };
 }
 
-export function appVersionWithStartedAt(): AppVersion {
-  return withStartedAt(getAppVersion());
+export function appVersionWithRuntimeInfo(): AppVersion {
+  return withRuntimeInfo(getAppVersion());
 }
 
 export function restartBlockedReason(supervised: boolean): string | null {

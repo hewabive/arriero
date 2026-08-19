@@ -128,6 +128,16 @@ export function AttentionSignalsCard() {
       detail: null,
       hash: "/nodes",
     });
+  } else if (version?.buildPending || version?.restartPending) {
+    items.push({
+      key: "update-apply-pending",
+      severity: "warning",
+      message: version.buildPending
+        ? "Checkout is ahead of the last build — run Update to rebuild"
+        : "A newer build is on disk — restart to apply",
+      detail: null,
+      hash: "/nodes",
+    });
   }
 
   const configState = configStateQuery.data?.data;

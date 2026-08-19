@@ -498,5 +498,8 @@ extract owns flags/group/choices/default, so their frontmatter carries just
   `scripts/install-service.sh` (`deploy/arriero.service`, `systemd --user`). The `update` domain
   refuses in `dev` mode. It doubles as a copyable kit shared with llm-arena/rag-manager —
   `update/adapter.ts` is the repo-specific seam; the other update files and the whole `jobs/` kernel
-  stay byte-identical (`node scripts/check-update-kit.mjs` verifies against sibling checkouts). See
-  `docs/SELF_UPDATE.md`.
+  stay byte-identical (`node scripts/check-update-kit.mjs` verifies against sibling checkouts). The
+  api build stamps `apps/api/dist/build-info.json`; `/api/version` derives
+  `buildPending`/`restartPending` from checkout↔dist↔running-process commit skew
+  (`update/build-info.ts`, outside the kit) so a manual pull/build without restart surfaces in the
+  UI instead of reading "up to date". See `docs/SELF_UPDATE.md`.

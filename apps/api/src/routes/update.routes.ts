@@ -5,17 +5,17 @@ import { updateFleet } from "../update/fleet.js";
 import { tailUpdateLog } from "../update/logs.js";
 import { getUpdateJob, latestUpdateJob } from "../update/repository.js";
 import {
-  appVersionWithStartedAt,
+  appVersionWithRuntimeInfo,
   restartBlockedReason,
   scheduleAppRestart,
-  withStartedAt,
+  withRuntimeInfo,
 } from "../update/restart.js";
 import { updateRunner } from "../update/runner.js";
 import { checkForUpdate, isSupervised } from "../update/version.js";
 
 export function registerUpdateRoutes(app: Hono) {
   app.get("/api/version", (c) => {
-    return c.json({ data: appVersionWithStartedAt() });
+    return c.json({ data: appVersionWithRuntimeInfo() });
   });
 
   app.get("/api/update/fleet", async (c) => {
@@ -24,7 +24,7 @@ export function registerUpdateRoutes(app: Hono) {
 
   app.post("/api/update/check", async (c) => {
     const { version, fetchError } = await checkForUpdate();
-    return c.json({ data: withStartedAt(version), fetchError });
+    return c.json({ data: withRuntimeInfo(version), fetchError });
   });
 
   app.post("/api/update/restart", (c) => {

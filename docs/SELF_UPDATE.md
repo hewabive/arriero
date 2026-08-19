@@ -98,10 +98,40 @@ entry node only.
 - `GET  /api/update/latest`, `GET /api/update/jobs/:id`, `…/logs`, `POST …/cancel`.
 
 `GET /api/version` also reports `startedAt` — the ISO time this process booted
-(stamped at route level by `update/restart.ts:withStartedAt`, so the kit's
+(stamped at route level by `update/restart.ts:withRuntimeInfo`, so the kit's
 `getAppVersion()` stays untouched; peers on older builds default to `null`).
 The Nodes page uses it as the restart confirmation signal: after
 `POST …/restart` it polls the node's `/api/version` until `startedAt` changes.
+
+## Manual pull/build skew detection (build stamp)
+
+The update pipeline is not the only way the checkout can move: an operator can
+`git pull` and/or `pnpm build` by hand while the prod process keeps running old
+code. `getAppVersion()` reads the **checkout's** HEAD, so on its own the domain
+cannot see that skew — after a manual pull it reports the new commit and "up to
+date" while the process still runs the old build, and after a pull *without* a
+build even a restart would boot the stale `dist`.
+
+The build stamp closes this. The api build ends with
+`scripts/write-build-info.mjs`, which records the built commit into
+`apps/api/dist/build-info.json`. `update/build-info.ts` (repo-specific, not
+part of the shared kit) reads the stamp twice — once at process start (the
+commit the running code was built from) and again on each version read (the
+commit currently on disk) — and `withRuntimeInfo` derives two `AppVersion`
+flags:
+
+- `buildPending` — checkout HEAD ≠ stamped dist commit: someone pulled without
+  building. An update run heals it (its `git pull --ff-only` no-ops, then
+  install → build → restart apply everything).
+- `restartPending` — stamped dist commit ≠ the commit loaded at process start:
+  a newer build sits on disk; plain **Restart** applies it.
+
+Both flags (and `builtCommit`/`runningCommit`) are `null` — unknown, never a
+fake `false` — when no stamp exists: dev mode, tests, or a dist built before
+stamping. The Nodes page shows `build pending` / `restart pending` badges,
+enables **Update** for a `buildPending` node even at `behindCount` 0, and
+suppresses the teal "up to date" marker; the dashboard attention card surfaces
+the same state when no regular update is available.
 
 ## Fleet view
 
@@ -119,7 +149,7 @@ the top.
   HEAD to the cached upstream to derive `outdated`/`behindCount`.
 - A card shows its commit + date only when the node is **behind**; an up-to-date
   node shows just a marker. Per-card **Update** is enabled only when the node is
-  `outdated && canUpdate && !dirty`.
+  `(outdated || buildPending) && canUpdate && !dirty`.
 - Per-card **Restart** (supervised, reachable nodes only) hits
   `POST /api/update/restart` and shows "restarting…" until the node's
   `/api/version` comes back with a new `startedAt` (2-minute confirmation
@@ -151,7 +181,9 @@ Three layers keep the managing browser off a stale bundle after a restart:
   (`ui/utils/reload.ts:forceReloadUi`).
 - **Version-mismatch watchdog** (`ui/use-ui-version-guard.tsx`): the build
   embeds the git commit into the bundle (`__ARRIERO_UI_COMMIT__`, Vite
-  `define`); a long-lived tab compares it against `/api/version` on window
+  `define`); a long-lived tab compares it against `/api/version` — preferring
+  `builtCommit` over checkout HEAD, so a pull without a build never prompts a
+  reload into an unchanged bundle — on window
   focus and every 10 minutes (throttled to one check per minute) and shows a
   one-shot reload notification on mismatch. Disabled in dev (Vite serves live
   sources; the config-load-time commit would go stale mid-session). The prompt

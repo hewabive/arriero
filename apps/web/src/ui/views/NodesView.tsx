@@ -111,7 +111,10 @@ function stepColor(status: UpdateJobStep["status"]): string {
 
 function isEligible(node: UpdateFleetNode): boolean {
   return Boolean(
-    node.ok && node.outdated && node.version?.canUpdate && !node.version?.dirty,
+    node.ok &&
+    (node.outdated || node.version?.buildPending) &&
+    node.version?.canUpdate &&
+    !node.version?.dirty,
   );
 }
 
@@ -153,7 +156,7 @@ function disabledReason(node: UpdateFleetNode): string | null {
   if (!node.version?.canUpdate) {
     return node.version?.updateBlockedReason ?? "update unavailable";
   }
-  if (!node.outdated) {
+  if (!node.outdated && !node.version?.buildPending) {
     return "already up to date";
   }
   return null;
@@ -746,6 +749,20 @@ function NodeCard({
                   dirty
                 </Badge>
               )}
+              {version?.buildPending && (
+                <Tooltip label="the checkout is ahead of the last build; run Update to rebuild and apply">
+                  <Badge size="sm" variant="light" color="orange">
+                    build pending
+                  </Badge>
+                </Tooltip>
+              )}
+              {version?.restartPending && (
+                <Tooltip label="a newer build is on disk; restart to apply it">
+                  <Badge size="sm" variant="light" color="orange">
+                    restart pending
+                  </Badge>
+                </Tooltip>
+              )}
             </Group>
             {registryNode && (
               <Text c="dimmed" size="xs">
@@ -771,7 +788,7 @@ function NodeCard({
                     : `behind ${fleetNode.behindCount}`}
                 </Text>
               </Group>
-            ) : (
+            ) : version?.buildPending || version?.restartPending ? null : (
               <Text size="sm" c="teal">
                 up to date
               </Text>

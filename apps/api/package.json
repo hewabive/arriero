@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "ARRIERO_PORT=8787 tsx watch --conditions=development src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ../../scripts/write-build-info.mjs",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --import ./src/test/setup-env.ts --test \"src/**/*.test.ts\"",
     "args:docs:quality": "tsx src/arguments/docs-quality.ts",
