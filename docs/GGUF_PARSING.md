@@ -74,7 +74,11 @@ pass rather than dropped. The web hook polls the view once per second while `sta
 so the list fills in incrementally instead of blocking behind one long request.
 
 Each successful pass prunes cache rows whose file disappeared, which is what keeps the
-cache-served view honest about deletions.
+cache-served view honest about deletions. A file that disappears mid-pass (deleted concurrently,
+or a transient network-FS error) is skipped with a warning instead of failing the whole pass —
+required for a models directory shared over a network mount (`docs/SHARED_MODELS_DIR.md`). The
+walk caps at 2000 model files per root; a capped pass sets `truncated` on the scan view so the
+UI warns instead of silently listing a subset.
 
 ## Memory estimation
 

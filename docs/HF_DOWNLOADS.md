@@ -79,7 +79,11 @@ warns).
 directory when `paths` is absent, individual manifest files otherwise (a GGUF variant in the UI is
 just its file list: the detail-modal variant checkbox toggles all its paths). Only paths
 listed in the manifest are deletable (unknown paths 404), a running job for the repo refuses with
-409, and per-file removal also drops the file's `.part` leftover, prunes emptied subdirectories
+409, and deletion refuses with 409 while a live local process references the targets
+(`apps/api/src/hf/in-use.ts`: open process runs with an alive PID, matched by launch-snapshot argv
+token; per-file scope also matches sibling shards of a targeted GGUF split and a dir-as-model
+reference; local processes only — see `docs/SHARED_MODELS_DIR.md` for multi-host discipline).
+Per-file removal also drops the file's `.part` leftover, prunes emptied subdirectories
 and shrinks the manifest — the cached update check is pruned to the remaining files instead of
 being cleared. A `paths` set covering every manifest file escalates to whole-directory removal
 (the UI dialog says so). With `verifyUpstream: true` the server first runs the standard update

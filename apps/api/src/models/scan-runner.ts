@@ -24,6 +24,7 @@ let state: ModelScanState = idleState();
 let running: Promise<void> | null = null;
 let pendingRefresh = false;
 let lastCache = { hits: 0, misses: 0 };
+let lastTruncated = false;
 
 async function runScanPass(refresh: boolean): Promise<void> {
   state = {
@@ -49,6 +50,7 @@ async function runScanPass(refresh: boolean): Promise<void> {
       new Set(pass.safetensors.map((model) => model.path)),
     );
     lastCache = pass.cache;
+    lastTruncated = pass.truncated;
     state = { ...state, status: "idle", finishedAt: new Date().toISOString() };
   } catch (error) {
     logger.error({ err: error }, "model scan failed");
@@ -101,6 +103,7 @@ export function getModelScanView(): ModelScanResult {
     models: pass.models,
     safetensors: pass.safetensors,
     cache: lastCache,
+    truncated: lastTruncated,
     scan: state,
   };
 }

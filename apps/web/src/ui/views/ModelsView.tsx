@@ -503,6 +503,13 @@ export function ModelsView(props: {
           </Text>
         )}
 
+        {scanned.truncated && !scanning && (
+          <Text c="orange" size="sm">
+            The last scan stopped at the file-count limit, so this list is
+            incomplete — narrow the scanned directories or reduce depth.
+          </Text>
+        )}
+
         {scanned.isError && scanned.error && (
           <Text c="red" size="sm">
             {scanned.error.message}

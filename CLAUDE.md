@@ -465,7 +465,8 @@ extract owns flags/group/choices/default, so their frontmatter carries just
   `models-dir` entries + the llama.cpp download cache (`$LLAMA_CACHE`, else `~/.cache/llama.cpp`) —
   deduped; missing roots are skipped, not errors. HF downloads land in
   `<models dir>/<owner>/<repo>/` with a `.arriero-hf.json` sidecar manifest
-  (`docs/HF_DOWNLOADS.md`).
+  (`docs/HF_DOWNLOADS.md`). One models dir shared across hosts over a network FS — what that
+  requires and what must stay host-local: `docs/SHARED_MODELS_DIR.md`.
 - `runtime/sources/`: managed inference source checkouts (`config.sourcesDir`,
   `ARRIERO_SOURCES_DIR`); `llama-cpp` defaults to `runtime/sources/llama.cpp`. Per-source tracking
   policy: `llama-cpp` fast-forwards its branch; `vllm`/`sglang`/`ktransformers` pull to a detached

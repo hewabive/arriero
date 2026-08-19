@@ -182,6 +182,7 @@ export const ModelScanResultSchema = z.object({
     hits: z.number(),
     misses: z.number(),
   }),
+  truncated: z.boolean(),
   scan: ModelScanStateSchema,
 });
 

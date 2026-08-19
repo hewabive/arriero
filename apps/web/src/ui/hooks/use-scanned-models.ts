@@ -24,6 +24,7 @@ export type ScannedModels = {
   coldLoading: boolean;
   fetched: boolean;
   cache: ModelScanResult["cache"] | undefined;
+  truncated: boolean;
   isError: boolean;
   error: Error | null;
   rescan: () => void;
@@ -105,6 +106,7 @@ export function useScannedModels(options?: {
     coldLoading: modelsQuery.isLoading,
     fetched: modelsQuery.isFetched,
     cache: result?.cache,
+    truncated: result?.truncated ?? false,
     isError: modelsQuery.isError,
     error: (modelsQuery.error as Error | null) ?? null,
     rescan: () => startScan(),

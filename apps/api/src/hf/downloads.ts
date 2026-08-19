@@ -17,6 +17,7 @@ import { startModelScan } from "../models/scan-runner.js";
 import { traceBlockingSection } from "../system/event-loop.js";
 import type { HfClientOptions } from "./client.js";
 import { groupHfGgufFiles } from "./grouping.js";
+import { hfDeleteBlockers, listLiveProcessArgs } from "./in-use.js";
 import {
   HF_MANIFEST_FILENAME,
   readHfManifest,
@@ -252,7 +253,18 @@ function removeHfDownloadFiles(
 export function deleteHfDownload(dir: string, paths?: readonly string[]): void {
   const { resolved, manifest } = resolveDeletableHfDownload(dir);
   const targets = paths ? resolveManifestDeletePaths(manifest, paths) : null;
-  if (targets && targets.length < manifest.files.length) {
+  const partialDelete =
+    targets !== null && targets.length < manifest.files.length;
+  const blockers = hfDeleteBlockers(
+    { dir: resolved, paths: partialDelete ? targets : null },
+    listLiveProcessArgs(),
+  );
+  if (blockers.length > 0) {
+    throw new HfDownloadBusyError(
+      `${manifest.repoId} is in use by running instances: ${blockers.join(", ")}; stop them first`,
+    );
+  }
+  if (partialDelete) {
     removeHfDownloadFiles(resolved, manifest, targets);
     pruneHfUpdateCheckFiles(resolved, new Set(targets));
   } else {

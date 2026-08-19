@@ -78,6 +78,63 @@ test("scanModels collapses split GGUF shards into a single model", async () => {
   }
 });
 
+test("scanModels skips a file that disappears between walk and stat", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-scan-race-"));
+
+  try {
+    writeFileSync(join(dir, "aaa.gguf"), "a");
+    writeFileSync(join(dir, "bbb.gguf"), "bb");
+
+    let deleted = false;
+    const result = await scanModels({
+      roots: [root(dir)],
+      refresh: true,
+      onProgress: () => {
+        if (!deleted) {
+          deleted = true;
+          rmSync(join(dir, "bbb.gguf"), { force: true });
+        }
+      },
+    });
+
+    assert.deepEqual(
+      result.models.map((model) => model.name),
+      ["aaa.gguf"],
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("scanModels flags truncation when a root exceeds maxFiles", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-scan-cap-"));
+
+  try {
+    writeFileSync(join(dir, "a.gguf"), "a");
+    writeFileSync(join(dir, "b.gguf"), "b");
+    writeFileSync(join(dir, "c.gguf"), "c");
+
+    const capped = await scanModels({
+      roots: [root(dir)],
+      refresh: true,
+      maxFiles: 2,
+    });
+    assert.equal(capped.truncated, true);
+    assert.equal(capped.models.length, 2);
+
+    rmSync(join(dir, "c.gguf"), { force: true });
+    const exact = await scanModels({
+      roots: [root(dir)],
+      refresh: true,
+      maxFiles: 2,
+    });
+    assert.equal(exact.truncated, false);
+    assert.equal(exact.models.length, 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("scanModels merges multiple roots and dedupes nested ones", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-model-scan-"));
 

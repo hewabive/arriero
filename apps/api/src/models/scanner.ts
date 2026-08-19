@@ -71,21 +71,25 @@ export type ModelScanPass = {
   models: GgufModel[];
   safetensors: SafetensorsModel[];
   cache: { hits: number; misses: number };
+  truncated: boolean;
 };
 
 type WalkFiles = {
   gguf: FoundFile[];
   safetensors: FoundFile[];
+  truncated: boolean;
 };
 
 async function walk(
   dir: string,
   maxDepth: number,
+  maxFiles: number,
   depth = 0,
-  out: WalkFiles = { gguf: [], safetensors: [] },
+  out: WalkFiles = { gguf: [], safetensors: [], truncated: false },
 ) {
   const foundCount = () => out.gguf.length + out.safetensors.length;
-  if (foundCount() >= MAX_FILES) {
+  if (foundCount() >= maxFiles) {
+    out.truncated = true;
     return out;
   }
 
@@ -100,14 +104,15 @@ async function walk(
   }
 
   for await (const entry of handle) {
-    if (foundCount() >= MAX_FILES) {
+    if (foundCount() >= maxFiles) {
+      out.truncated = true;
       break;
     }
 
     const entryPath = resolve(dir, entry.name);
     if (entry.isDirectory()) {
       if (depth < maxDepth && !IGNORED_DIRS.has(entry.name)) {
-        await walk(entryPath, maxDepth, depth + 1, out);
+        await walk(entryPath, maxDepth, maxFiles, depth + 1, out);
       }
       continue;
     }
@@ -328,6 +333,7 @@ async function readModelFacts(
 export async function scanModels(input: {
   roots: ModelScanRoot[];
   maxDepth?: number;
+  maxFiles?: number;
   refresh?: boolean;
   onProgress?: (progress: { done: number; total: number }) => void;
 }): Promise<ModelScanPass> {
@@ -335,9 +341,11 @@ export async function scanModels(input: {
     0,
     Math.min(input.maxDepth ?? DEFAULT_MAX_DEPTH, 16),
   );
+  const maxFiles = Math.max(1, input.maxFiles ?? MAX_FILES);
 
   const foundGguf: FoundFile[] = [];
   const foundSafetensors: FoundFile[] = [];
+  let truncated = false;
   const seenPaths = new Set<string>();
   const collect = (walked: FoundFile[], into: FoundFile[]) => {
     for (const file of walked) {
@@ -352,7 +360,8 @@ export async function scanModels(input: {
     if (!root.exists) {
       continue;
     }
-    const walked = await walk(resolve(root.path), maxDepth);
+    const walked = await walk(resolve(root.path), maxDepth, maxFiles);
+    truncated ||= walked.truncated;
     collect(walked.gguf, foundGguf);
     collect(walked.safetensors, foundSafetensors);
   }
@@ -380,10 +389,21 @@ export async function scanModels(input: {
   let cacheMisses = 0;
   let done = 0;
   for (const file of files) {
-    const shardStats = await Promise.all(
-      file.shardPaths.map((path) => stat(path)),
-    );
-    const { sizeBytes, modifiedAt } = fileIdentityFromStats(shardStats);
+    let identity: ModelFileIdentity;
+    try {
+      identity = fileIdentityFromStats(
+        await Promise.all(file.shardPaths.map((path) => stat(path))),
+      );
+    } catch (error) {
+      logger.warn(
+        { err: error, path: file.path },
+        "GGUF file could not be inspected during scan",
+      );
+      done += 1;
+      input.onProgress?.({ done, total });
+      continue;
+    }
+    const { sizeBytes, modifiedAt } = identity;
     const isMmproj = file.name.toLowerCase().includes("mmproj");
     const mmprojPaths = isMmproj ? [] : (mmprojByDir.get(file.directory) ?? []);
     const cached = input.refresh ? null : getCachedModelEntry(file.path);
@@ -523,6 +543,7 @@ export async function scanModels(input: {
       hits: cacheHits,
       misses: cacheMisses,
     },
+    truncated,
   };
 }
 
@@ -584,5 +605,6 @@ export function scanModelsFromCache(input: {
     models,
     safetensors,
     cache: { hits: scoped.length + safetensors.length, misses: 0 },
+    truncated: false,
   };
 }
