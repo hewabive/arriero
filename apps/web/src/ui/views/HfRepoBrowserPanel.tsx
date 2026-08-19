@@ -32,18 +32,11 @@ import {
   startHfDownload,
 } from "../../api/client";
 import { PathPickerInput } from "../components/PathPickerInput";
-import {
-  hfLocalFileState,
-  hfLocalVariantState,
-  hfVariantTitle,
-} from "../utils/hf";
+import { hfLocalFileState, hfLocalVariantState } from "../utils/hf";
 import { formatBytes, pathBaseName } from "../utils/models";
 import { countLabel } from "../utils/plural";
-import {
-  hfFileLocalBadge,
-  hfVariantKindBadge,
-  hfVariantLocalBadge,
-} from "./HfBadges";
+import { hfFileLocalBadge } from "./HfBadges";
+import { HfVariantCheckbox } from "./HfVariantCheckbox";
 
 const DEST_CHECK_DEBOUNCE_MS = 350;
 
@@ -331,50 +324,19 @@ function BrowseResults(props: {
           </Text>
           <ScrollArea.Autosize mah={320} type="auto" offsetScrollbars>
             <Stack gap={4}>
-              {browse.ggufVariants.map((variant) => {
-                const checked = variant.paths.every((path) =>
-                  selection.has(path),
-                );
-                const indeterminate =
-                  !checked && variant.paths.some((path) => selection.has(path));
-                const localState = hfLocalVariantState(
-                  variant.paths,
-                  fileByPath,
-                  localFiles,
-                );
-                return (
-                  <Checkbox
-                    key={variant.paths[0]}
-                    checked={checked}
-                    indeterminate={indeterminate}
-                    onChange={(event) =>
-                      togglePaths(variant.paths, event.currentTarget.checked)
-                    }
-                    label={
-                      <Group gap="xs" wrap="wrap">
-                        <Text size="sm" fw={500}>
-                          {hfVariantTitle(variant)}
-                        </Text>
-                        {hfVariantKindBadge(variant)}
-                        {hfVariantLocalBadge(localState)}
-                        {variant.splitCount !== null && (
-                          <Badge color="gray" variant="outline">
-                            {countLabel(variant.paths.length, "shard")}
-                          </Badge>
-                        )}
-                        {!variant.complete && (
-                          <Badge color="red" variant="light">
-                            incomplete split
-                          </Badge>
-                        )}
-                        <Text size="sm" c="dimmed">
-                          {formatBytes(variant.totalBytes)}
-                        </Text>
-                      </Group>
-                    }
-                  />
-                );
-              })}
+              {browse.ggufVariants.map((variant) => (
+                <HfVariantCheckbox
+                  key={variant.paths[0]}
+                  variant={variant}
+                  state={hfLocalVariantState(
+                    variant.paths,
+                    fileByPath,
+                    localFiles,
+                  )}
+                  selection={selection}
+                  onToggle={togglePaths}
+                />
+              ))}
             </Stack>
           </ScrollArea.Autosize>
         </Stack>

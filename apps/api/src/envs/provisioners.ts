@@ -1,5 +1,6 @@
 import {
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
+  ENVIRONMENT_ENGINE_LABELS,
   type EnvironmentEngine,
   type EnvironmentSpec,
   type SystemAccelerator,
@@ -21,12 +22,18 @@ type EnvironmentAvailabilityContext = {
   arch?: string;
 };
 
+type EnvironmentWheelArtifact = {
+  url: string;
+  sha256: string | null;
+};
+
 export type EnvironmentProvisioner = {
   displayName: string;
   entrypointRelative: string;
   distributions: readonly string[];
   requirements(spec: EnvironmentSpec): string[];
   installOptions(spec: EnvironmentSpec): string[];
+  wheelArtifacts(spec: EnvironmentSpec): EnvironmentWheelArtifact[];
   validationCommand(spec: EnvironmentSpec, finalDir: string): string[];
   validateLayout(spec: EnvironmentSpec, finalDir: string): string | null;
   availability(
@@ -95,21 +102,12 @@ function commonLayoutError(input: {
   return null;
 }
 
-function vllmValidationScript(version: string) {
+function pythonPackageValidationScript(distribution: string, version: string) {
   return [
     "import importlib.metadata as metadata",
-    "import vllm",
-    `assert metadata.version('vllm') == ${JSON.stringify(version)}`,
-    `assert vllm.__version__ == ${JSON.stringify(version)}`,
-  ].join("; ");
-}
-
-function sglangValidationScript(version: string) {
-  return [
-    "import importlib.metadata as metadata",
-    "import sglang",
-    `assert metadata.version('sglang') == ${JSON.stringify(version)}`,
-    `assert sglang.__version__ == ${JSON.stringify(version)}`,
+    `import ${distribution}`,
+    `assert metadata.version('${distribution}') == ${JSON.stringify(version)}`,
+    `assert ${distribution}.__version__ == ${JSON.stringify(version)}`,
   ].join("; ");
 }
 
@@ -126,128 +124,89 @@ function ktransformersValidationScript(version: string) {
   ].join("; ");
 }
 
-const VLLM_PROVISIONER: EnvironmentProvisioner = {
-  displayName: "vLLM",
-  entrypointRelative: "bin/vllm",
-  distributions: ["vllm"],
-  requirements(spec) {
-    if (spec.engine !== "vllm")
-      throw new Error("vLLM provisioner kind mismatch");
-    if (spec.source.kind === "wheel") {
-      return [wheelRequirement(spec.source.url, spec.source.sha256)];
-    }
-    const extras = spec.source.extras.length
-      ? `[${spec.source.extras.join(",")}]`
-      : "";
-    return [`vllm${extras}==${spec.version}`];
-  },
-  installOptions(spec) {
-    if (spec.engine !== "vllm")
-      throw new Error("vLLM provisioner kind mismatch");
-    return spec.source.kind === "wheel" && spec.source.torchBackend
-      ? ["--torch-backend", spec.source.torchBackend]
-      : [];
-  },
-  validationCommand(spec, finalDir) {
-    if (spec.engine !== "vllm")
-      throw new Error("vLLM provisioner kind mismatch");
-    return [
-      resolve(finalDir, "bin", "python"),
-      "-c",
-      vllmValidationScript(spec.version),
-    ];
-  },
-  validateLayout(spec, finalDir) {
-    if (spec.engine !== "vllm")
-      throw new Error("vLLM provisioner kind mismatch");
-    return commonLayoutError({
-      finalDir,
-      entrypointRelative: this.entrypointRelative,
-      entrypointDescription: "vLLM entrypoint",
-      freezePins: [`vllm==${spec.version}`],
-    });
-  },
-  availability(spec, context) {
-    if (spec.engine !== "vllm")
-      throw new Error("vLLM provisioner kind mismatch");
-    return environmentAvailability({
-      accelerators: context.accelerators,
-      installed: context.installed,
-      rocmDeviceAvailable: context.rocmDeviceAvailable,
-      variant: spec.variant,
-      cuda: {
-        engineLabel: this.displayName,
-        minimumComputeCapability: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.vllm,
-      },
-    });
-  },
-  catalogName(spec) {
-    return `vllm ${spec.version} [${spec.id.slice(0, 8)}]`.slice(0, 80);
-  },
-};
+type SingleDistributionEngine = "vllm" | "sglang";
+type SingleDistributionSpec = Extract<
+  EnvironmentSpec,
+  { engine: SingleDistributionEngine }
+>;
 
-const SGLANG_PROVISIONER: EnvironmentProvisioner = {
-  displayName: "SGLang",
-  entrypointRelative: "bin/sglang",
-  distributions: ["sglang"],
-  requirements(spec) {
-    if (spec.engine !== "sglang")
-      throw new Error("SGLang provisioner kind mismatch");
-    if (spec.source.kind === "wheel") {
-      return [wheelRequirement(spec.source.url, spec.source.sha256)];
+function singleDistributionProvisioner(
+  engine: SingleDistributionEngine,
+): EnvironmentProvisioner {
+  const displayName = ENVIRONMENT_ENGINE_LABELS[engine];
+  function checkedSpec(spec: EnvironmentSpec): SingleDistributionSpec {
+    if (spec.engine !== engine) {
+      throw new Error(`${displayName} provisioner kind mismatch`);
     }
-    const extras = spec.source.extras.length
-      ? `[${spec.source.extras.join(",")}]`
-      : "";
-    return [`sglang${extras}==${spec.version}`];
-  },
-  installOptions(spec) {
-    if (spec.engine !== "sglang")
-      throw new Error("SGLang provisioner kind mismatch");
-    return spec.source.kind === "wheel" && spec.source.torchBackend
-      ? ["--torch-backend", spec.source.torchBackend]
-      : [];
-  },
-  validationCommand(spec, finalDir) {
-    if (spec.engine !== "sglang")
-      throw new Error("SGLang provisioner kind mismatch");
-    return [
-      resolve(finalDir, "bin", "python"),
-      "-c",
-      sglangValidationScript(spec.version),
-    ];
-  },
-  validateLayout(spec, finalDir) {
-    if (spec.engine !== "sglang")
-      throw new Error("SGLang provisioner kind mismatch");
-    return commonLayoutError({
-      finalDir,
-      entrypointRelative: this.entrypointRelative,
-      entrypointDescription: "SGLang entrypoint",
-      freezePins: [`sglang==${spec.version}`],
-    });
-  },
-  availability(spec, context) {
-    if (spec.engine !== "sglang")
-      throw new Error("SGLang provisioner kind mismatch");
-    return environmentAvailability({
-      accelerators: context.accelerators,
-      installed: context.installed,
-      rocmDeviceAvailable: context.rocmDeviceAvailable,
-      variant: spec.variant,
-      cuda: {
-        engineLabel: this.displayName,
-        minimumComputeCapability: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.sglang,
-      },
-    });
-  },
-  catalogName(spec) {
-    return `sglang ${spec.version} [${spec.id.slice(0, 8)}]`.slice(0, 80);
-  },
-};
+    return spec;
+  }
+  return {
+    displayName,
+    entrypointRelative: `bin/${engine}`,
+    distributions: [engine],
+    requirements(spec) {
+      const checked = checkedSpec(spec);
+      if (checked.source.kind === "wheel") {
+        return [wheelRequirement(checked.source.url, checked.source.sha256)];
+      }
+      const extras = checked.source.extras.length
+        ? `[${checked.source.extras.join(",")}]`
+        : "";
+      return [`${engine}${extras}==${checked.version}`];
+    },
+    installOptions(spec) {
+      const checked = checkedSpec(spec);
+      return checked.source.kind === "wheel" && checked.source.torchBackend
+        ? ["--torch-backend", checked.source.torchBackend]
+        : [];
+    },
+    wheelArtifacts(spec) {
+      const checked = checkedSpec(spec);
+      return checked.source.kind === "wheel" ? [checked.source] : [];
+    },
+    validationCommand(spec, finalDir) {
+      const checked = checkedSpec(spec);
+      return [
+        resolve(finalDir, "bin", "python"),
+        "-c",
+        pythonPackageValidationScript(engine, checked.version),
+      ];
+    },
+    validateLayout(spec, finalDir) {
+      const checked = checkedSpec(spec);
+      return commonLayoutError({
+        finalDir,
+        entrypointRelative: this.entrypointRelative,
+        entrypointDescription: `${displayName} entrypoint`,
+        freezePins: [`${engine}==${checked.version}`],
+      });
+    },
+    availability(spec, context) {
+      const checked = checkedSpec(spec);
+      return environmentAvailability({
+        accelerators: context.accelerators,
+        installed: context.installed,
+        rocmDeviceAvailable: context.rocmDeviceAvailable,
+        variant: checked.variant,
+        cuda: {
+          engineLabel: this.displayName,
+          minimumComputeCapability:
+            ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY[engine],
+        },
+      });
+    },
+    catalogName(spec) {
+      return `${engine} ${spec.version} [${spec.id.slice(0, 8)}]`.slice(0, 80);
+    },
+  };
+}
+
+const VLLM_PROVISIONER = singleDistributionProvisioner("vllm");
+
+const SGLANG_PROVISIONER = singleDistributionProvisioner("sglang");
 
 const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
-  displayName: "KTransformers",
+  displayName: ENVIRONMENT_ENGINE_LABELS.ktransformers,
   entrypointRelative: "bin/sglang",
   distributions: ["kt-kernel", "sglang-kt"],
   requirements(spec) {
@@ -273,6 +232,12 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
     return spec.source.kind === "wheels" && spec.source.torchBackend
       ? ["--torch-backend", spec.source.torchBackend]
       : [];
+  },
+  wheelArtifacts(spec) {
+    if (spec.engine !== "ktransformers") {
+      throw new Error("KTransformers provisioner kind mismatch");
+    }
+    return spec.source.kind === "wheels" ? spec.source.artifacts : [];
   },
   validationCommand(spec, finalDir) {
     if (spec.engine !== "ktransformers") {

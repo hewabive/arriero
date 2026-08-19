@@ -225,14 +225,14 @@ class LlamaBuildRunner {
         let uiInstall: UiInstallEvaluation | null = null;
         if (plannedStep.name === "ui-install") {
           uiInstall = await evaluateUiInstall(job.settings);
-          if (uiInstall.runReason === null && uiInstall.state.treeHash) {
+          if (uiInstall.skip) {
             this.markStep(jobId, plannedStep.name, {
               status: "skipped",
               finishedAt: nowIso(),
               exitCode: null,
             });
             logStream.write(
-              `# ui-install: tools/ui unchanged since the last UI build (tree ${uiInstall.state.treeHash}); reusing tools/ui/dist\n\n`,
+              `# ui-install: tools/ui unchanged since the last UI build (tree ${uiInstall.treeHash}); reusing tools/ui/dist\n\n`,
             );
             continue;
           }
@@ -348,7 +348,12 @@ class LlamaBuildRunner {
           finishedAt: nowIso(),
           exitCode,
         });
-        if (uiInstall?.state.treeHash && uiInstall.state.clean) {
+        if (
+          uiInstall &&
+          !uiInstall.skip &&
+          uiInstall.state.treeHash &&
+          uiInstall.state.clean
+        ) {
           recordUiTreeHash(job.settings.repoPath, uiInstall.state.treeHash);
         }
         logStream.write(`\n# ${plannedStep.name} completed\n\n`);

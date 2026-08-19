@@ -6,6 +6,10 @@ const HF_REPO_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/;
 
 export const HfRepoIdSchema = z.string().regex(HF_REPO_ID_PATTERN);
 
+export function isHfRepoId(value: string): boolean {
+  return HF_REPO_ID_PATTERN.test(value);
+}
+
 export const HfLfsInfoSchema = z.object({
   oid: z.string().min(1),
   size: z.number().int().nonnegative(),

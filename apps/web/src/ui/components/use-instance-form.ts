@@ -7,6 +7,8 @@ import {
   ggufModelRole,
   ggufPoolingTypeLabel,
   impliedInstanceModelId,
+  SGLANG_MODEL_ARG_KEYS,
+  sglangModelArg,
   stripGgufSuffix,
   pathCatalogBinaryEngineKind,
   type Instance,
@@ -720,9 +722,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         seedInstance.engineConfig?.type === "ktransformers"
           ? seedInstance.engineConfig.model
           : seedInstance.kind === "sglang"
-            ? argString(seedInstance.args, "--model-path") ||
-              argString(seedInstance.args, "--model") ||
-              ""
+            ? (sglangModelArg(seedInstance) ?? "")
             : (seedInstance.positionalArgs?.[0] ?? ""),
       );
       setKTransformersCpuWeights(
@@ -767,10 +767,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setStartAfterCreate(false);
       setArgRows(
         seedInstance.kind === "sglang"
-          ? removeArgRows(seedArgRows(seedInstance), [
-              "--model-path",
-              "--model",
-            ])
+          ? removeArgRows(seedArgRows(seedInstance), [...SGLANG_MODEL_ARG_KEYS])
           : seedArgRows(seedInstance),
       );
       setMemoryRows(memoryRowsFromDraws(seedInstance.memory));
@@ -910,7 +907,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     const args = InstanceArgsSchema.parse(
       rowsToArgsWithCatalog(argRows, knownArgByName),
     );
-    if (kind === "vllm") {
+    if (kind === "vllm" || kind === "sglang") {
       const model = modelReference.trim();
       if (!model) {
         throw new Error("Set a Hugging Face model id or local model path");
@@ -920,26 +917,14 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         kind,
         rpcWorkers: [],
         binaryPathRefId: selectedBinaryPathRefId,
-        positionalArgs: [model],
-        args,
-        env,
-        memory,
-        scheduling,
-        ...(numa ? { numa } : {}),
-      };
-    }
-
-    if (kind === "sglang") {
-      const model = modelReference.trim();
-      if (!model) {
-        throw new Error("Set a Hugging Face model id or local model path");
-      }
-      return {
-        name: values.name,
-        kind,
-        rpcWorkers: [],
-        binaryPathRefId: selectedBinaryPathRefId,
-        args: InstanceArgsSchema.parse({ ...args, "--model-path": model }),
+        ...(kind === "vllm"
+          ? { positionalArgs: [model], args }
+          : {
+              args: InstanceArgsSchema.parse({
+                ...args,
+                [SGLANG_MODEL_ARG_KEYS[0]]: model,
+              }),
+            }),
         env,
         memory,
         scheduling,

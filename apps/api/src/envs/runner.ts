@@ -85,13 +85,7 @@ function nowIso() {
 }
 
 function localWheelArtifacts(spec: EnvironmentSpec): LocalWheelArtifact[] {
-  const sources =
-    (spec.engine === "vllm" || spec.engine === "sglang") &&
-    spec.source.kind === "wheel"
-      ? [spec.source]
-      : spec.engine === "ktransformers" && spec.source.kind === "wheels"
-        ? spec.source.artifacts
-        : [];
+  const sources = environmentProvisioner(spec.engine).wheelArtifacts(spec);
   return sources.flatMap((artifact) => {
     if (!artifact.sha256 || new URL(artifact.url).protocol !== "file:") {
       return [];

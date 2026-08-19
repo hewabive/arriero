@@ -2,7 +2,6 @@ import { HF_UPDATE_CHECK_MAX_DIRS, type HfDownloadedRepo } from "@arriero/core";
 import {
   Badge,
   Button,
-  Code,
   Group,
   Paper,
   Stack,
@@ -22,13 +21,7 @@ import {
 } from "../../api/client";
 import { hfVariantChipLabel } from "../utils/hf";
 import { formatBytes } from "../utils/models";
-import { countLabel } from "../utils/plural";
-import { formatLocalDateTime } from "../utils/time";
-import {
-  hfDownloadingBadge,
-  hfMissingFilesBadge,
-  hfUpdateBadge,
-} from "./HfBadges";
+import { hfRepoMetaLines, hfRepoStatusBadges } from "./HfBadges";
 import { HfRepoDetailModal } from "./HfRepoDetailModal";
 
 function HfRepoCard(props: {
@@ -37,6 +30,9 @@ function HfRepoCard(props: {
   onOpen: () => void;
 }) {
   const { repo } = props;
+  const presentPaths = new Set(
+    repo.files.filter((file) => file.present).map((file) => file.path),
+  );
   return (
     <UnstyledButton className="hf-repo-card" onClick={props.onOpen}>
       <Paper withBorder p="sm" radius="sm">
@@ -46,20 +42,13 @@ function HfRepoCard(props: {
               <Text fw={600} size="sm">
                 {repo.repoId}
               </Text>
-              <Badge color="gray" variant="outline">
-                {repo.revision.slice(0, 10)}
-              </Badge>
-              {hfUpdateBadge(repo)}
-              {hfMissingFilesBadge(repo)}
-              {hfDownloadingBadge(props.running)}
+              {hfRepoStatusBadges(repo, props.running)}
             </Group>
             {repo.variants && repo.variants.length > 0 && (
               <Group gap={6} wrap="wrap">
                 {repo.variants.map((variant) => {
                   const missing = variant.paths.some(
-                    (path) =>
-                      repo.files.find((file) => file.path === path)?.present !==
-                      true,
+                    (path) => !presentPaths.has(path),
                   );
                   return (
                     <Badge
@@ -74,17 +63,7 @@ function HfRepoCard(props: {
                 })}
               </Group>
             )}
-            <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-              <Code>{repo.dir}</Code>
-            </Text>
-            <Text size="xs" c="dimmed">
-              {countLabel(repo.fileCount, "file")} ·{" "}
-              {formatBytes(repo.totalBytes)} · downloaded{" "}
-              {formatLocalDateTime(repo.downloadedAt)}
-              {repo.update.checkedAt
-                ? ` · checked ${formatLocalDateTime(repo.update.checkedAt)}`
-                : ""}
-            </Text>
+            {hfRepoMetaLines(repo)}
           </Stack>
           <ChevronRight
             size={16}

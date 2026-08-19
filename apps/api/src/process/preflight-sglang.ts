@@ -5,57 +5,26 @@ import type {
 } from "@arriero/core";
 import {
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
+  engineDescriptor,
+  isHfRepoId,
   parseCudaVisibleDevices,
+  sglangModelArg,
   SGLANG_TENSOR_PARALLEL_KEYS,
 } from "@arriero/core";
 import { existsSync } from "node:fs";
-import { isAbsolute } from "node:path";
 
 import { getArgumentCatalogAsync } from "../arguments/catalog.js";
 import {
   nvidiaGpuAccelerators,
   pushCudaComputeCapabilityIssues,
 } from "./preflight-cuda.js";
+import {
+  configuredInstanceArg,
+  instanceArgNumber,
+  isExplicitPath,
+  issue,
+} from "./preflight-shared.js";
 import type { PreflightOptions } from "./preflight.js";
-
-const HF_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
-
-export function isHuggingFaceModelId(value: string): boolean {
-  return HF_MODEL_ID.test(value);
-}
-
-function issue(
-  issues: ProcessPreflightIssue[],
-  level: ProcessPreflightIssue["level"],
-  field: string,
-  message: string,
-) {
-  issues.push({ level, field, message });
-}
-
-export function sglangArgNumber(
-  instance: Instance,
-  keys: string[],
-  fallback: number,
-) {
-  for (const key of keys) {
-    const value = instance.args[key];
-    if (value === undefined || value === null || value === false) continue;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : Number.NaN;
-  }
-  return fallback;
-}
-
-export function sglangConfiguredArg(instance: Instance, keys: string[]) {
-  for (const key of keys) {
-    const value = instance.args[key];
-    if (value !== undefined && value !== null && value !== false) {
-      return { key, value };
-    }
-  }
-  return null;
-}
 
 export function validateSglangCuda(
   instance: Instance,
@@ -85,7 +54,7 @@ export function validateSglangCuda(
   }
   const visibleCount =
     visible.mode === "list" ? visible.ids.length : detected.length;
-  const tensorParallel = sglangArgNumber(
+  const tensorParallel = instanceArgNumber(
     instance,
     SGLANG_TENSOR_PARALLEL_KEYS,
     1,
@@ -120,7 +89,7 @@ export function validateSglangServingWarnings(
   issues: ProcessPreflightIssue[],
   engineLabel: string,
 ) {
-  if (!sglangConfiguredArg(instance, ["--mem-fraction-static"])) {
+  if (!configuredInstanceArg(instance, ["--mem-fraction-static"])) {
     issue(
       issues,
       "warning",
@@ -129,7 +98,9 @@ export function validateSglangServingWarnings(
     );
   }
   if (
-    sglangConfiguredArg(instance, ["--tokenizer-metrics-allowed-custom-labels"])
+    configuredInstanceArg(instance, [
+      "--tokenizer-metrics-allowed-custom-labels",
+    ])
   ) {
     issue(
       issues,
@@ -176,11 +147,14 @@ export async function validateSglangArgumentCompatibility(
   instance: Instance,
   issues: ProcessPreflightIssue[],
 ) {
+  const parserId = engineDescriptor(instance.kind).preflight
+    .argumentCatalogParser;
+  if (parserId === "none") {
+    return;
+  }
   let catalog: Awaited<ReturnType<typeof getArgumentCatalogAsync>>;
   try {
-    catalog = await getArgumentCatalogAsync(instance.binaryPath, {
-      parserId: "sglang-help",
-    });
+    catalog = await getArgumentCatalogAsync(instance.binaryPath, { parserId });
   } catch (error) {
     issue(
       issues,
@@ -223,16 +197,6 @@ export async function validateSglangArgumentCompatibility(
   }
 }
 
-function sglangModelArg(instance: Instance): string | null {
-  for (const key of ["--model-path", "--model"]) {
-    const value = instance.args[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-}
-
 function validateModel(instance: Instance, issues: ProcessPreflightIssue[]) {
   const model = sglangModelArg(instance);
   if (!model) {
@@ -247,7 +211,7 @@ function validateModel(instance: Instance, issues: ProcessPreflightIssue[]) {
   if (existsSync(model)) {
     return;
   }
-  if (isAbsolute(model) || model.startsWith("./") || model.startsWith("../")) {
+  if (isExplicitPath(model)) {
     issue(
       issues,
       "error",
@@ -256,7 +220,7 @@ function validateModel(instance: Instance, issues: ProcessPreflightIssue[]) {
     );
     return;
   }
-  if (!isHuggingFaceModelId(model)) {
+  if (!isHfRepoId(model)) {
     issue(
       issues,
       "error",

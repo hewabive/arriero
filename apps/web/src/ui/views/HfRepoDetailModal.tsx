@@ -44,19 +44,16 @@ import {
 import {
   hfLocalFileState,
   hfLocalVariantState,
-  hfVariantTitle,
   type HfLocalVariantState,
 } from "../utils/hf";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
-import { formatLocalDateTime } from "../utils/time";
 import {
-  hfDownloadingBadge,
-  hfMissingFilesBadge,
-  hfUpdateBadge,
-  hfVariantKindBadge,
-  hfVariantLocalBadge,
+  hfFileLocalBadge,
+  hfRepoMetaLines,
+  hfRepoStatusBadges,
 } from "./HfBadges";
+import { HfVariantCheckbox } from "./HfVariantCheckbox";
 
 type HfFileRowState =
   | "current"
@@ -134,16 +131,18 @@ function browseRows(
     variant,
     state: hfLocalVariantState(variant.paths, fileByPath, localFiles),
   }));
-  const files = browse.files
-    .filter((file) => !variantPaths.has(file.path))
-    .map(
-      (file): HfFileRow => ({
-        path: file.path,
-        size: file.size,
-        state: remoteRowState(file, localFiles),
-      }),
-    )
-    .sort(byPath);
+  const files: HfFileRow[] = [];
+  const downloadable = new Map<string, number>();
+  for (const file of browse.files) {
+    const state = remoteRowState(file, localFiles);
+    if (state !== "current") {
+      downloadable.set(file.path, file.size);
+    }
+    if (!variantPaths.has(file.path)) {
+      files.push({ path: file.path, size: file.size, state });
+    }
+  }
+  files.sort(byPath);
   const localOnly = repo.files
     .filter((file) => file.present && !fileByPath.has(file.path))
     .map(
@@ -154,45 +153,7 @@ function browseRows(
       }),
     )
     .sort(byPath);
-  const downloadable = new Map<string, number>();
-  for (const file of browse.files) {
-    if (remoteRowState(file, localFiles) !== "current") {
-      downloadable.set(file.path, file.size);
-    }
-  }
   return { variants, files, localOnly, downloadable };
-}
-
-function fileRowBadge(state: HfFileRowState) {
-  if (state === "current") {
-    return (
-      <Badge color="green" variant="light">
-        on disk
-      </Badge>
-    );
-  }
-  if (state === "changed") {
-    return (
-      <Badge color="yellow" variant="light">
-        changed upstream
-      </Badge>
-    );
-  }
-  if (state === "missing") {
-    return (
-      <Badge color="orange" variant="light">
-        missing
-      </Badge>
-    );
-  }
-  if (state === "local-only") {
-    return (
-      <Badge color="gray" variant="light">
-        not upstream
-      </Badge>
-    );
-  }
-  return null;
 }
 
 function FileRows(props: {
@@ -215,7 +176,7 @@ function FileRows(props: {
                 <Text size="sm" style={{ overflowWrap: "anywhere" }}>
                   {row.path}
                 </Text>
-                {fileRowBadge(row.state)}
+                {hfFileLocalBadge(row.state)}
                 <Text size="xs" c="dimmed">
                   {formatBytes(row.size)}
                 </Text>
@@ -451,12 +412,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
   return (
     <Stack gap="sm">
       <Group gap="xs" wrap="wrap">
-        <Badge color="gray" variant="outline">
-          {repo.revision.slice(0, 10)}
-        </Badge>
-        {hfUpdateBadge(repo)}
-        {hfMissingFilesBadge(repo)}
-        {hfDownloadingBadge(props.running)}
+        {hfRepoStatusBadges(repo, props.running)}
         <Anchor
           size="xs"
           href={`https://huggingface.co/${repo.repoId}`}
@@ -468,16 +424,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
           <ExternalLink size={12} />
         </Anchor>
       </Group>
-      <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-        <Code>{repo.dir}</Code>
-      </Text>
-      <Text size="xs" c="dimmed">
-        {countLabel(repo.fileCount, "file")} · {formatBytes(repo.totalBytes)} ·
-        downloaded {formatLocalDateTime(repo.downloadedAt)}
-        {repo.update.checkedAt
-          ? ` · checked ${formatLocalDateTime(repo.update.checkedAt)}`
-          : ""}
-      </Text>
+      {hfRepoMetaLines(repo)}
 
       <Group gap="xs" wrap="wrap">
         <Button
@@ -565,45 +512,15 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
           </Text>
           <ScrollArea.Autosize mah={260} type="auto" offsetScrollbars>
             <Stack gap={4}>
-              {rows.variants.map(({ variant, state }) => {
-                const checked = variant.paths.every((path) =>
-                  selection.has(path),
-                );
-                const indeterminate =
-                  !checked && variant.paths.some((path) => selection.has(path));
-                return (
-                  <Checkbox
-                    key={variant.paths[0]}
-                    checked={checked}
-                    indeterminate={indeterminate}
-                    onChange={(event) =>
-                      togglePaths(variant.paths, event.currentTarget.checked)
-                    }
-                    label={
-                      <Group gap="xs" wrap="wrap">
-                        <Text size="sm" fw={500}>
-                          {hfVariantTitle(variant)}
-                        </Text>
-                        {hfVariantKindBadge(variant)}
-                        {hfVariantLocalBadge(state)}
-                        {variant.splitCount !== null && (
-                          <Badge color="gray" variant="outline">
-                            {countLabel(variant.paths.length, "shard")}
-                          </Badge>
-                        )}
-                        {!variant.complete && (
-                          <Badge color="red" variant="light">
-                            incomplete split
-                          </Badge>
-                        )}
-                        <Text size="sm" c="dimmed">
-                          {formatBytes(variant.totalBytes)}
-                        </Text>
-                      </Group>
-                    }
-                  />
-                );
-              })}
+              {rows.variants.map(({ variant, state }) => (
+                <HfVariantCheckbox
+                  key={variant.paths[0]}
+                  variant={variant}
+                  state={state}
+                  selection={selection}
+                  onToggle={togglePaths}
+                />
+              ))}
             </Stack>
           </ScrollArea.Autosize>
         </Stack>

@@ -62,6 +62,7 @@ export function parsePrometheusHistogramTotals(
   let count = 0;
   let seen = false;
   for (const line of text.split("\n")) {
+    if (!line.startsWith(metricName)) continue;
     const sample = parseSampleLine(line);
     if (!sample) continue;
     if (sample.name === `${metricName}_sum`) {

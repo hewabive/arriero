@@ -3,10 +3,12 @@ import type {
   HfGgufVariant,
   HfUpdateCheckStatus,
 } from "@arriero/core";
-import { Badge, Tooltip } from "@mantine/core";
+import { Badge, Code, Text, Tooltip } from "@mantine/core";
 
 import type { HfLocalFileState, HfLocalVariantState } from "../utils/hf";
+import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import { formatLocalDateTime } from "../utils/time";
 
 const UPDATE_BADGE_COLOR: Record<HfUpdateCheckStatus, string> = {
   unchecked: "gray",
@@ -15,7 +17,7 @@ const UPDATE_BADGE_COLOR: Record<HfUpdateCheckStatus, string> = {
   error: "red",
 };
 
-export function hfUpdateBadge(repo: HfDownloadedRepo) {
+function hfUpdateBadge(repo: HfDownloadedRepo) {
   const status = repo.update.status;
   const changed = repo.update.files.filter(
     (file) => file.status !== "current",
@@ -33,7 +35,9 @@ export function hfUpdateBadge(repo: HfDownloadedRepo) {
   return badge;
 }
 
-export function hfFileLocalBadge(state: HfLocalFileState) {
+export function hfFileLocalBadge(
+  state: HfLocalFileState | "missing" | "local-only",
+) {
   if (state === "current") {
     return (
       <Badge color="green" variant="light">
@@ -44,7 +48,21 @@ export function hfFileLocalBadge(state: HfLocalFileState) {
   if (state === "changed") {
     return (
       <Badge color="yellow" variant="light">
-        changed
+        changed upstream
+      </Badge>
+    );
+  }
+  if (state === "missing") {
+    return (
+      <Badge color="orange" variant="light">
+        missing
+      </Badge>
+    );
+  }
+  if (state === "local-only") {
+    return (
+      <Badge color="gray" variant="light">
+        not upstream
       </Badge>
     );
   }
@@ -87,7 +105,7 @@ export function hfVariantKindBadge(variant: HfGgufVariant) {
   return null;
 }
 
-export function hfMissingFilesBadge(repo: HfDownloadedRepo) {
+function hfMissingFilesBadge(repo: HfDownloadedRepo) {
   if (repo.missingFiles === 0) {
     return null;
   }
@@ -98,7 +116,7 @@ export function hfMissingFilesBadge(repo: HfDownloadedRepo) {
   );
 }
 
-export function hfDownloadingBadge(running: boolean) {
+function hfDownloadingBadge(running: boolean) {
   if (!running) {
     return null;
   }
@@ -106,5 +124,35 @@ export function hfDownloadingBadge(running: boolean) {
     <Badge color="blue" variant="light">
       downloading
     </Badge>
+  );
+}
+
+export function hfRepoStatusBadges(repo: HfDownloadedRepo, running: boolean) {
+  return (
+    <>
+      <Badge color="gray" variant="outline">
+        {repo.revision.slice(0, 10)}
+      </Badge>
+      {hfUpdateBadge(repo)}
+      {hfMissingFilesBadge(repo)}
+      {hfDownloadingBadge(running)}
+    </>
+  );
+}
+
+export function hfRepoMetaLines(repo: HfDownloadedRepo) {
+  return (
+    <>
+      <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
+        <Code>{repo.dir}</Code>
+      </Text>
+      <Text size="xs" c="dimmed">
+        {countLabel(repo.fileCount, "file")} · {formatBytes(repo.totalBytes)} ·
+        downloaded {formatLocalDateTime(repo.downloadedAt)}
+        {repo.update.checkedAt
+          ? ` · checked ${formatLocalDateTime(repo.update.checkedAt)}`
+          : ""}
+      </Text>
+    </>
   );
 }

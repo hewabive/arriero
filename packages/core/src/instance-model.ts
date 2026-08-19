@@ -29,6 +29,18 @@ export function stripGgufSuffix(value: string): string {
   return value.replace(/\.gguf$/i, "");
 }
 
+export const SGLANG_MODEL_ARG_KEYS = ["--model-path", "--model"] as const;
+
+export function sglangModelArg(source: InstanceModelSource): string | null {
+  for (const key of SGLANG_MODEL_ARG_KEYS) {
+    const value = stringArg(source, key);
+    if (value) {
+      return value;
+    }
+  }
+  return null;
+}
+
 export function isRouterInstance(source: InstanceModelSource): boolean {
   return (
     Boolean(stringArg(source, "--models-preset")) &&
@@ -62,8 +74,7 @@ export function impliedInstanceModelId(
     if (served) {
       return served;
     }
-    const model =
-      stringArg(source, "--model-path") ?? stringArg(source, "--model");
+    const model = sglangModelArg(source);
     return model ? pathTail(model) : null;
   }
   if (isRouterInstance(source)) {

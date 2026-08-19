@@ -139,6 +139,15 @@ export const ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY: Record<
   ktransformers: { major: 7, minor: 5 },
 };
 
+export const ENVIRONMENT_ENGINE_LABELS: Record<
+  z.infer<typeof EnvironmentEngineSchema>,
+  string
+> = {
+  vllm: "vLLM",
+  sglang: "SGLang",
+  ktransformers: "KTransformers",
+};
+
 const EnvironmentCommonShape = {
   version: EnvironmentVersionSchema,
 };

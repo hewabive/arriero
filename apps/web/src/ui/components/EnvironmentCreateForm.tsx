@@ -5,7 +5,10 @@ import type {
   PackageIndexVersion,
   UvToolStatus,
 } from "@arriero/core";
-import { packageIndexInstallOptions } from "@arriero/core";
+import {
+  ENVIRONMENT_ENGINE_LABELS,
+  packageIndexInstallOptions,
+} from "@arriero/core";
 import {
   Badge,
   Button,
@@ -319,9 +322,12 @@ export function EnvironmentCreateForm({
               }
             }}
             data={[
-              { label: "vLLM", value: "vllm" },
-              { label: "SGLang", value: "sglang" },
-              { label: "KTransformers (SGLang-KT)", value: "ktransformers" },
+              { label: ENVIRONMENT_ENGINE_LABELS.vllm, value: "vllm" },
+              { label: ENVIRONMENT_ENGINE_LABELS.sglang, value: "sglang" },
+              {
+                label: `${ENVIRONMENT_ENGINE_LABELS.ktransformers} (SGLang-KT)`,
+                value: "ktransformers",
+              },
             ]}
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -446,11 +452,9 @@ export function EnvironmentCreateForm({
             <TouchAutocomplete
               style={{ flex: 1 }}
               label={
-                engine === "vllm"
-                  ? "vLLM version"
-                  : engine === "sglang"
-                    ? "SGLang version"
-                    : "Matched pair version"
+                engine === "ktransformers"
+                  ? "Matched pair version"
+                  : `${ENVIRONMENT_ENGINE_LABELS[engine]} version`
               }
               required
               data={versionOptions}

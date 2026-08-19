@@ -7,13 +7,14 @@ import type {
 } from "@arriero/core";
 import {
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
+  isHfRepoId,
   parseCudaVisibleDevices,
   SGLANG_TENSOR_PARALLEL_KEYS,
 } from "@arriero/core";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { availableParallelism } from "node:os";
-import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { getSystemResources } from "../system/resources.js";
@@ -21,24 +22,18 @@ import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { listMemoryPools } from "../resources/repository.js";
 import { nvidiaGpuAccelerators } from "./preflight-cuda.js";
 import {
-  isHuggingFaceModelId,
-  sglangArgNumber,
-  sglangConfiguredArg,
   validateSglangArgumentCompatibility,
   validateSglangCuda,
   validateSglangManagedBoundary,
   validateSglangServingWarnings,
 } from "./preflight-sglang.js";
+import {
+  configuredInstanceArg,
+  instanceArgNumber,
+  isExplicitPath,
+  issue,
+} from "./preflight-shared.js";
 import type { PreflightOptions } from "./preflight.js";
-
-function issue(
-  issues: ProcessPreflightIssue[],
-  level: ProcessPreflightIssue["level"],
-  field: string,
-  message: string,
-) {
-  issues.push({ level, field, message });
-}
 
 function validateModel(model: string, issues: ProcessPreflightIssue[]) {
   if (existsSync(model)) {
@@ -61,7 +56,7 @@ function validateModel(model: string, issues: ProcessPreflightIssue[]) {
     }
     return;
   }
-  if (isAbsolute(model) || model.startsWith("./") || model.startsWith("../")) {
+  if (isExplicitPath(model)) {
     issue(
       issues,
       "error",
@@ -70,7 +65,7 @@ function validateModel(model: string, issues: ProcessPreflightIssue[]) {
     );
     return;
   }
-  if (!isHuggingFaceModelId(model)) {
+  if (!isHfRepoId(model)) {
     issue(
       issues,
       "error",
@@ -314,7 +309,7 @@ function selectedGpuDeviceRefs(
   instance: Instance,
   options: PreflightOptions,
 ): string[] {
-  const tensorParallel = sglangArgNumber(
+  const tensorParallel = instanceArgNumber(
     instance,
     SGLANG_TENSOR_PARALLEL_KEYS,
     1,
@@ -406,7 +401,7 @@ function validateNuma(
     );
   }
 
-  const rawCount = sglangArgNumber(instance, ["--kt-threadpool-count"], 1);
+  const rawCount = instanceArgNumber(instance, ["--kt-threadpool-count"], 1);
   if (!Number.isInteger(rawCount) || rawCount < 1) {
     issue(
       issues,
@@ -646,11 +641,11 @@ function validateGpuExpertPlacement(
   instance: Instance,
   issues: ProcessPreflightIssue[],
 ) {
-  const count = sglangConfiguredArg(instance, [
+  const count = configuredInstanceArg(instance, [
     "--kt-num-gpu-experts",
     "--kt-gpu-experts",
   ]);
-  const ratio = sglangConfiguredArg(instance, ["--kt-gpu-experts-ratio"]);
+  const ratio = configuredInstanceArg(instance, ["--kt-gpu-experts-ratio"]);
   if (!count && !ratio) {
     issue(
       issues,

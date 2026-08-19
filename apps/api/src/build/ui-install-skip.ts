@@ -1,17 +1,12 @@
 import type { BuildSettings } from "@arriero/core";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
 import { runGit } from "../git/process.js";
 import { logger } from "../logger.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
 import { uiDirectory } from "./plan.js";
 
 export const UI_BUILD_STATE_FILE = resolve(
@@ -23,19 +18,11 @@ const UiBuildStateSchema = z.record(z.string(), z.string());
 
 export type UiTreeState = { treeHash: string | null; clean: boolean };
 
-export type UiInstallEvaluation = {
-  state: UiTreeState;
-  runReason: string | null;
-};
+export type UiInstallEvaluation =
+  | { skip: true; treeHash: string }
+  | { skip: false; runReason: string; state: UiTreeState };
 
 let cache: Map<string, string> | null = null;
-
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
 
 function load(): Map<string, string> {
   if (cache) {
@@ -70,7 +57,7 @@ export function storedUiTreeHash(repoPath: string): string | null {
 export function recordUiTreeHash(repoPath: string, treeHash: string): void {
   const map = load();
   map.set(resolve(repoPath), treeHash);
-  atomicWrite(
+  atomicWriteFile(
     UI_BUILD_STATE_FILE,
     `${JSON.stringify(Object.fromEntries(map), null, 2)}\n`,
   );
@@ -132,12 +119,20 @@ export async function evaluateUiInstall(
   settings: BuildSettings,
 ): Promise<UiInstallEvaluation> {
   const state = await readUiTreeState(settings.repoPath);
-  return {
+  const runReason = uiInstallRunReason(
     state,
-    runReason: uiInstallRunReason(
+    storedUiTreeHash(settings.repoPath),
+    uiDistExists(settings),
+  );
+  if (runReason !== null) {
+    return { skip: false, runReason, state };
+  }
+  if (!state.treeHash) {
+    return {
+      skip: false,
+      runReason: "tools/ui tree hash is unavailable",
       state,
-      storedUiTreeHash(settings.repoPath),
-      uiDistExists(settings),
-    ),
-  };
+    };
+  }
+  return { skip: true, treeHash: state.treeHash };
 }

@@ -50,6 +50,7 @@ export type EngineAdmissionPolicy = "confirmable" | "strict";
 export type EngineHttpDescriptor = {
   defaultHost: string;
   defaultPort: number;
+  loopbackOnly: boolean;
   hostArgKeys: readonly string[];
   portArgKeys: readonly string[];
   apiPrefixArgKeys: readonly string[];
@@ -106,6 +107,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     http: {
       defaultHost: "127.0.0.1",
       defaultPort: 8080,
+      loopbackOnly: false,
       hostArgKeys: ["--host"],
       portArgKeys: ["--port"],
       apiPrefixArgKeys: ["--api-prefix"],
@@ -142,6 +144,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     http: {
       defaultHost: "127.0.0.1",
       defaultPort: 50052,
+      loopbackOnly: false,
       hostArgKeys: ["--host"],
       portArgKeys: ["--port", "-p"],
       apiPrefixArgKeys: [],
@@ -178,6 +181,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     http: {
       defaultHost: "127.0.0.1",
       defaultPort: 8000,
+      loopbackOnly: false,
       hostArgKeys: ["--host"],
       portArgKeys: ["--port"],
       apiPrefixArgKeys: [],
@@ -218,6 +222,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     http: {
       defaultHost: "127.0.0.1",
       defaultPort: 30000,
+      loopbackOnly: true,
       hostArgKeys: ["--host"],
       portArgKeys: ["--port"],
       apiPrefixArgKeys: [],
@@ -259,6 +264,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     http: {
       defaultHost: "127.0.0.1",
       defaultPort: 30000,
+      loopbackOnly: true,
       hostArgKeys: ["--host"],
       portArgKeys: ["--port"],
       apiPrefixArgKeys: [],

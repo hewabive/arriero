@@ -145,21 +145,15 @@ export const ArgumentDefaultsSchema = z.object({
   updatedAt: z.string().nullable().default(null),
 });
 
-const DEFAULTS_ENGINE_BY_CATALOG_PARSER: Record<
+const DEFAULTS_SECTION_BY_CATALOG_PARSER: Record<
   EngineArgumentCatalogParserId,
-  string | null
+  "instance" | { engine: string } | null
 > = {
-  "llama-help": null,
-  "vllm-help": "vllm",
-  "sglang-help": "sglang",
+  "llama-help": "instance",
+  "vllm-help": { engine: "vllm" },
+  "sglang-help": { engine: "sglang" },
   none: null,
 };
-
-export function argumentDefaultsEngineId(kind: InstanceKind): string | null {
-  return DEFAULTS_ENGINE_BY_CATALOG_PARSER[
-    engineDescriptor(kind).preflight.argumentCatalogParser
-  ];
-}
 
 export function argumentDefaultsSection(
   defaults: Pick<ArgumentDefaults, "instance" | "engines">,
@@ -174,11 +168,16 @@ export function argumentDefaultsForKind(
   defaults: Pick<ArgumentDefaults, "instance" | "engines">,
   kind: InstanceKind,
 ): ArgumentDefault[] {
-  if (kind === "llama-server") {
-    return defaults.instance;
+  const section =
+    DEFAULTS_SECTION_BY_CATALOG_PARSER[
+      engineDescriptor(kind).preflight.argumentCatalogParser
+    ];
+  if (section === null) {
+    return [];
   }
-  const engineId = argumentDefaultsEngineId(kind);
-  return engineId === null ? [] : argumentDefaultsSection(defaults, engineId);
+  return section === "instance"
+    ? defaults.instance
+    : (defaults.engines[section.engine] ?? []);
 }
 
 export const LlamaArgumentEngineeringDocSchema = z.object({

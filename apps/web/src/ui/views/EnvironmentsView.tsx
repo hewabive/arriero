@@ -1,4 +1,7 @@
-import type { EnvironmentCreate } from "@arriero/core";
+import {
+  ENVIRONMENT_ENGINE_LABELS,
+  type EnvironmentCreate,
+} from "@arriero/core";
 import {
   Badge,
   Button,
@@ -27,12 +30,6 @@ import {
 import { EnvironmentCreateForm } from "../components/EnvironmentCreateForm";
 import { EnvironmentRepositorySettingsForm } from "../components/EnvironmentRepositorySettingsForm";
 import { formatLocalDateTime } from "../utils/time";
-
-const ENGINE_LABELS: Record<EnvironmentCreate["engine"], string> = {
-  vllm: "vLLM",
-  sglang: "SGLang",
-  ktransformers: "KTransformers",
-};
 
 function statusColor(status: string) {
   if (status === "installed" || status === "succeeded") return "green";
@@ -90,7 +87,7 @@ export function EnvironmentsView() {
       await refresh();
       notifications.show({
         title: "Environment install started",
-        message: `${ENGINE_LABELS[input.engine]} ${input.version}`,
+        message: `${ENVIRONMENT_ENGINE_LABELS[input.engine]} ${input.version}`,
       });
     },
     onError: (error) =>
@@ -180,7 +177,8 @@ export function EnvironmentsView() {
                 <div>
                   <Group gap="xs">
                     <Text fw={600}>
-                      {ENGINE_LABELS[environment.engine]} {environment.version}
+                      {ENVIRONMENT_ENGINE_LABELS[environment.engine]}{" "}
+                      {environment.version}
                     </Text>
                     <Badge>{environment.variant}</Badge>
                     <Badge color={statusColor(environment.status)}>

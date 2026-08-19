@@ -208,13 +208,11 @@ export async function cloneSourceRepository(
       if (parsed.branch) args.push("--branch", parsed.branch);
       args.push("--", originUrl, staging);
       try {
-        const cloned = await runGit(parent, args, {
-          timeoutMs: 30 * 60_000,
-          maxOutputBytes: 8 * 1024 * 1024,
-          ...(runtime.signal ? { signal: runtime.signal } : {}),
-          ...(runtime.onGitOutput ? { onOutput: runtime.onGitOutput } : {}),
-          killProcessGroup: true,
-        });
+        const cloned = await runGit(
+          parent,
+          args,
+          longGitOptions(runtime, 30 * 60_000),
+        );
         assertOperationNotCanceled(runtime);
         runtime.onPhase?.({
           phase: "validating",
