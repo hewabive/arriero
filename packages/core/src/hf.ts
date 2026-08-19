@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { BackgroundJobStatusSchema } from "./jobs.js";
-
 const HF_REPO_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/;
 
 export const HfRepoIdSchema = z.string().regex(HF_REPO_ID_PATTERN);
@@ -76,21 +74,60 @@ export const HfDownloadFileSchema = z.object({
   error: z.string().nullable(),
 });
 
-export const HfDownloadJobSchema = z.object({
+export const HfDownloadJobStatusSchema = z.enum([
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "canceled",
+]);
+
+export const HfDownloadQueueJobSchema = z.object({
   id: z.string().min(1),
   repoId: HfRepoIdSchema,
   revision: z.string().min(1),
   destDir: z.string().min(1),
-  status: BackgroundJobStatusSchema,
+  status: HfDownloadJobStatusSchema,
   message: z.string().nullable(),
-  startedAt: z.string(),
+  error: z.string().nullable(),
+  enqueuedAt: z.string(),
+  startedAt: z.string().nullable(),
   finishedAt: z.string().nullable(),
   cancelRequested: z.boolean(),
-  error: z.string().nullable(),
   totalBytes: z.number().int().nonnegative(),
   downloadedBytes: z.number().int().nonnegative(),
-  currentPath: z.string().nullable(),
+  activePaths: z.array(z.string().min(1)),
+  connections: z.number().int().positive().nullable(),
   files: z.array(HfDownloadFileSchema),
+});
+
+export const HfDownloadQueueStateSchema = z.object({
+  active: HfDownloadQueueJobSchema.nullable(),
+  queued: z.array(HfDownloadQueueJobSchema),
+  history: z.array(HfDownloadQueueJobSchema),
+});
+
+export const HfDownloadQueueReorderSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+});
+
+export const HfDownloadFileSkipSchema = z.object({
+  paths: z.array(z.string().min(1)).min(1).max(2_000),
+});
+
+export const HfOrphanPartSchema = z.object({
+  path: z.string().min(1),
+  partialBytes: z.number().int().nonnegative(),
+});
+
+export const HfDownloadSettingsSchema = z.object({
+  connections: z.number().int().min(1).max(16).default(6),
+  chunkBytes: z
+    .number()
+    .int()
+    .min(4 * 1024 * 1024)
+    .max(512 * 1024 * 1024)
+    .default(32 * 1024 * 1024),
 });
 
 export const HfUpdateFileStatusSchema = z.enum([
@@ -125,6 +162,7 @@ export const HfDownloadedRepoFileSchema = z.object({
   oid: z.string().min(1),
   lfsOid: z.string().nullable(),
   present: z.boolean(),
+  partialBytes: z.number().int().nonnegative(),
 });
 
 export const HfDownloadedRepoSchema = z.object({
@@ -136,6 +174,7 @@ export const HfDownloadedRepoSchema = z.object({
   totalBytes: z.number().int().nonnegative(),
   missingFiles: z.number().int().nonnegative(),
   files: z.array(HfDownloadedRepoFileSchema),
+  orphanParts: z.array(HfOrphanPartSchema),
   variants: z.array(HfGgufVariantSchema).nullable(),
   update: HfUpdateCheckSchema,
 });
@@ -234,7 +273,15 @@ export type HfTokenUpdate = z.infer<typeof HfTokenUpdateSchema>;
 export type HfDownloadStart = z.infer<typeof HfDownloadStartSchema>;
 export type HfDownloadFileStatus = z.infer<typeof HfDownloadFileStatusSchema>;
 export type HfDownloadFile = z.infer<typeof HfDownloadFileSchema>;
-export type HfDownloadJob = z.infer<typeof HfDownloadJobSchema>;
+export type HfDownloadJobStatus = z.infer<typeof HfDownloadJobStatusSchema>;
+export type HfDownloadQueueJob = z.infer<typeof HfDownloadQueueJobSchema>;
+export type HfDownloadQueueState = z.infer<typeof HfDownloadQueueStateSchema>;
+export type HfDownloadQueueReorder = z.infer<
+  typeof HfDownloadQueueReorderSchema
+>;
+export type HfDownloadFileSkip = z.infer<typeof HfDownloadFileSkipSchema>;
+export type HfOrphanPart = z.infer<typeof HfOrphanPartSchema>;
+export type HfDownloadSettings = z.infer<typeof HfDownloadSettingsSchema>;
 export type HfUpdateFileStatus = z.infer<typeof HfUpdateFileStatusSchema>;
 export type HfUpdateCheckStatus = z.infer<typeof HfUpdateCheckStatusSchema>;
 export type HfUpdateCheckFile = z.infer<typeof HfUpdateCheckFileSchema>;

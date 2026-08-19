@@ -1,5 +1,5 @@
 import { HfRepoIdSchema } from "@arriero/core";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 
@@ -58,6 +58,22 @@ export function writeHfManifest(dir: string, manifest: HfManifest): void {
     hfManifestPath(dir),
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
+}
+
+export function ensureHfManifestHeader(
+  dir: string,
+  header: { repoId: string; revision: string },
+): void {
+  if (existsSync(hfManifestPath(dir))) {
+    return;
+  }
+  writeHfManifest(dir, {
+    version: 1,
+    repoId: header.repoId,
+    revision: header.revision,
+    downloadedAt: new Date().toISOString(),
+    files: [],
+  });
 }
 
 export function upsertHfManifestFile(

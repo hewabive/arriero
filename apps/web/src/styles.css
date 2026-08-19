@@ -110,9 +110,10 @@ code {
 .hf-repo-card {
   display: block;
   width: 100%;
+  border-radius: var(--mantine-radius-sm);
 }
 
-.hf-repo-card:hover > .mantine-Paper-root {
+.hf-repo-card:hover {
   background: var(--mantine-color-default-hover);
 }
 
@@ -121,6 +122,18 @@ code {
 }
 
 :root[data-mantine-color-scheme="light"] .instance-card--selected {
+  background: var(--mantine-color-blue-0);
+}
+
+.hf-queue-card--highlight {
+  transition: background 1.2s ease;
+}
+
+:root[data-mantine-color-scheme="dark"] .hf-queue-card--highlight {
+  background: var(--mantine-color-dark-5);
+}
+
+:root[data-mantine-color-scheme="light"] .hf-queue-card--highlight {
   background: var(--mantine-color-blue-0);
 }
 

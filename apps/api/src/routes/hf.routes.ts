@@ -1,5 +1,8 @@
 import {
   HfDownloadDeleteSchema,
+  HfDownloadFileSkipSchema,
+  HfDownloadQueueReorderSchema,
+  HfDownloadSettingsSchema,
   HfDownloadStartSchema,
   HfTokenUpdateSchema,
   HfUpdateCheckRequestSchema,
@@ -9,13 +12,17 @@ import type { Context, Hono } from "hono";
 
 import { browseHfRepo } from "../hf/browse.js";
 import { HfHubError, type HfErrorKind } from "../hf/client.js";
+import { HfDownloadConflictError } from "../hf/download-plan.js";
 import {
-  cancelHfDownload,
-  getHfDownloadJob,
-  HfDownloadConflictError,
-  listHfDownloadJobs,
-  startHfDownload,
-} from "../hf/download-runner.js";
+  cancelActiveHfDownload,
+  clearHfDownloadHistory,
+  enqueueHfDownload,
+  getHfDownloadQueueState,
+  removeHfDownloadQueueJob,
+  reorderHfDownloadQueue,
+  skipHfDownloadFiles,
+  type HfQueueMutationResult,
+} from "../hf/download-queue.js";
 import {
   deleteHfDownload,
   HfDownloadBusyError,
@@ -31,6 +38,10 @@ import {
 } from "../hf/paths.js";
 import { hfTokenConfigured, setHfToken } from "../hf/token.js";
 import { runHfUpdateChecks } from "../hf/update-check.js";
+import {
+  getHfDownloadSettings,
+  saveHfDownloadSettings,
+} from "../settings/downloads.js";
 
 const HF_ERROR_STATUS: Record<HfErrorKind, 403 | 404 | 429 | 502> = {
   unauthorized: 403,
@@ -52,6 +63,16 @@ function hfErrorResponse(c: Context, error: unknown): Response {
     return c.json({ error: error.message }, 409);
   }
   throw error;
+}
+
+function queueMutationResponse(
+  c: Context,
+  result: HfQueueMutationResult,
+): Response {
+  if (!result.ok) {
+    return c.json({ error: result.error }, result.status);
+  }
+  return c.json({ data: result.state });
 }
 
 export function registerHfRoutes(app: Hono) {
@@ -119,7 +140,7 @@ export function registerHfRoutes(app: Hono) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
     try {
-      return c.json({ data: await startHfDownload(parsed.data) }, 201);
+      return c.json({ data: await enqueueHfDownload(parsed.data) }, 201);
     } catch (error) {
       return hfErrorResponse(c, error);
     }
@@ -162,25 +183,53 @@ export function registerHfRoutes(app: Hono) {
     }
   });
 
-  app.get("/api/hf/jobs", (c) => {
-    return c.json({ data: listHfDownloadJobs() });
+  app.get("/api/hf/download-settings", (c) => {
+    return c.json({ data: getHfDownloadSettings() });
   });
 
-  app.get("/api/hf/jobs/:owner/:repo", (c) => {
-    const repoId = `${c.req.param("owner")}/${c.req.param("repo")}`;
-    const job = getHfDownloadJob(repoId);
-    if (!job) {
-      return c.json({ error: `no download job for ${repoId}` }, 404);
+  app.put("/api/hf/download-settings", async (c) => {
+    const parsed = HfDownloadSettingsSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
     }
-    return c.json({ data: job });
+    return c.json({ data: saveHfDownloadSettings(parsed.data) });
   });
 
-  app.post("/api/hf/jobs/:owner/:repo/cancel", (c) => {
-    const repoId = `${c.req.param("owner")}/${c.req.param("repo")}`;
-    const job = cancelHfDownload(repoId);
-    if (!job) {
-      return c.json({ error: `no running download job for ${repoId}` }, 404);
+  app.get("/api/hf/queue", (c) => {
+    return c.json({ data: getHfDownloadQueueState() });
+  });
+
+  app.post("/api/hf/queue/reorder", async (c) => {
+    const parsed = HfDownloadQueueReorderSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
     }
-    return c.json({ data: job });
+    return queueMutationResponse(c, reorderHfDownloadQueue(parsed.data.ids));
+  });
+
+  app.delete("/api/hf/queue/history", (c) => {
+    return c.json({ data: clearHfDownloadHistory() });
+  });
+
+  app.post("/api/hf/queue/:id/cancel", (c) => {
+    return queueMutationResponse(c, cancelActiveHfDownload(c.req.param("id")));
+  });
+
+  app.delete("/api/hf/queue/:id", (c) => {
+    return queueMutationResponse(
+      c,
+      removeHfDownloadQueueJob(c.req.param("id")),
+    );
+  });
+
+  app.post("/api/hf/queue/:id/files/skip", async (c) => {
+    const parsed = HfDownloadFileSkipSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    return queueMutationResponse(
+      c,
+      skipHfDownloadFiles(c.req.param("id"), parsed.data.paths),
+    );
   });
 }

@@ -11,38 +11,65 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronRight, Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import {
   checkHfUpdates,
-  listHfDownloadJobs,
   listHfDownloads,
+  startHfDownload,
 } from "../../api/client";
 import { hfVariantChipLabel } from "../utils/hf";
 import { formatBytes } from "../utils/models";
-import { hfRepoMetaLines, hfRepoStatusBadges } from "./HfBadges";
+import {
+  hfRepoMetaLines,
+  hfRepoStatusBadges,
+  type HfRepoJobState,
+} from "./HfBadges";
 import { HfRepoDetailModal } from "./HfRepoDetailModal";
+import { useHfQueueQuery } from "./use-hf-queue";
+
+function repoDiskBytes(repo: HfDownloadedRepo): number {
+  return repo.files.reduce(
+    (sum, file) => sum + (file.present ? file.size : file.partialBytes),
+    0,
+  );
+}
 
 function HfRepoCard(props: {
   repo: HfDownloadedRepo;
-  running: boolean;
+  jobState: HfRepoJobState;
+  resuming: boolean;
+  onResume: () => void;
   onOpen: () => void;
 }) {
   const { repo } = props;
   const presentPaths = new Set(
     repo.files.filter((file) => file.present).map((file) => file.path),
   );
+  const diskBytes = repoDiskBytes(repo);
+  const missingBytes = Math.max(0, repo.totalBytes - diskBytes);
+  const resumable =
+    props.jobState === null && missingBytes > 0 && repo.missingFiles > 0;
   return (
-    <UnstyledButton className="hf-repo-card" onClick={props.onOpen}>
-      <Paper withBorder p="sm" radius="sm">
-        <Group justify="space-between" align="center" wrap="nowrap" gap="sm">
-          <Stack gap={4} style={{ flex: "1 1 auto", minWidth: 0 }}>
+    <Paper withBorder p="sm" radius="sm">
+      <Group justify="space-between" align="center" wrap="nowrap" gap="sm">
+        <UnstyledButton
+          className="hf-repo-card"
+          onClick={props.onOpen}
+          style={{ flex: "1 1 auto", minWidth: 0 }}
+        >
+          <Stack gap={4}>
             <Group gap="xs" wrap="wrap">
               <Text fw={600} size="sm">
                 {repo.repoId}
               </Text>
-              {hfRepoStatusBadges(repo, props.running)}
+              {hfRepoStatusBadges(repo, props.jobState)}
+              {missingBytes > 0 && (
+                <Badge color="orange" variant="light">
+                  {formatBytes(missingBytes)} to resume
+                </Badge>
+              )}
             </Group>
             {repo.variants && repo.variants.length > 0 && (
               <Group gap={6} wrap="wrap">
@@ -63,15 +90,34 @@ function HfRepoCard(props: {
                 })}
               </Group>
             )}
+            {missingBytes > 0 && (
+              <Text size="xs" c="dimmed">
+                {formatBytes(diskBytes)} of {formatBytes(repo.totalBytes)} on
+                disk
+              </Text>
+            )}
             {hfRepoMetaLines(repo)}
           </Stack>
+        </UnstyledButton>
+        <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          {resumable && (
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<Download size={14} />}
+              loading={props.resuming}
+              onClick={props.onResume}
+            >
+              Resume · {formatBytes(missingBytes)}
+            </Button>
+          )}
           <ChevronRight
             size={16}
-            style={{ flexShrink: 0, color: "var(--mantine-color-dimmed)" }}
+            style={{ color: "var(--mantine-color-dimmed)" }}
           />
         </Group>
-      </Paper>
-    </UnstyledButton>
+      </Group>
+    </Paper>
   );
 }
 
@@ -81,16 +127,17 @@ export function HfDownloadedReposPanel() {
     queryKey: ["hf-downloads"],
     queryFn: listHfDownloads,
   });
-  const jobsQuery = useQuery({
-    queryKey: ["hf-download-jobs"],
-    queryFn: listHfDownloadJobs,
-  });
+  const queueData = useHfQueueQuery().data?.data ?? null;
   const repos = downloadsQuery.data?.data ?? [];
-  const runningRepoIds = new Set(
-    (jobsQuery.data?.data ?? [])
-      .filter((job) => job.status === "running")
-      .map((job) => job.repoId),
-  );
+  const jobStateForDir = (dir: string): HfRepoJobState => {
+    if (queueData?.active && queueData.active.destDir === dir) {
+      return "running";
+    }
+    if (queueData?.queued.some((job) => job.destDir === dir)) {
+      return "queued";
+    }
+    return null;
+  };
   const [detailDir, setDetailDir] = useState<string | null>(null);
   const detailRepo = repos.find((repo) => repo.dir === detailDir) ?? null;
 
@@ -102,6 +149,27 @@ export function HfDownloadedReposPanel() {
       notifications.show({
         color: "red",
         title: "Update check",
+        message: (error as Error).message,
+      }),
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: (repo: HfDownloadedRepo) =>
+      startHfDownload({
+        repoId: repo.repoId,
+        revision: repo.revision,
+        paths: repo.files
+          .filter((file) => !file.present)
+          .map((file) => file.path),
+        destDir: repo.dir,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["hf-queue"] });
+    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Resume download",
         message: (error as Error).message,
       }),
   });
@@ -140,17 +208,18 @@ export function HfDownloadedReposPanel() {
           <HfRepoCard
             key={repo.dir}
             repo={repo}
-            running={runningRepoIds.has(repo.repoId)}
+            jobState={jobStateForDir(repo.dir)}
+            resuming={
+              resumeMutation.isPending &&
+              resumeMutation.variables?.dir === repo.dir
+            }
+            onResume={() => resumeMutation.mutate(repo)}
             onOpen={() => setDetailDir(repo.dir)}
           />
         ))}
       </Stack>
 
-      <HfRepoDetailModal
-        repo={detailRepo}
-        running={detailRepo !== null && runningRepoIds.has(detailRepo.repoId)}
-        onClose={() => setDetailDir(null)}
-      />
+      <HfRepoDetailModal repo={detailRepo} onClose={() => setDetailDir(null)} />
     </Paper>
   );
 }

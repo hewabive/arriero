@@ -36,7 +36,8 @@ function hfUpdateBadge(repo: HfDownloadedRepo) {
 }
 
 export function hfFileLocalBadge(
-  state: HfLocalFileState | "missing" | "local-only",
+  state: HfLocalFileState | "missing" | "partial" | "local-only",
+  partial?: { partialBytes: number; size: number } | undefined,
 ) {
   if (state === "current") {
     return (
@@ -49,6 +50,15 @@ export function hfFileLocalBadge(
     return (
       <Badge color="yellow" variant="light">
         changed upstream
+      </Badge>
+    );
+  }
+  if (state === "partial") {
+    return (
+      <Badge color="orange" variant="light">
+        {partial
+          ? `${formatBytes(partial.partialBytes)} of ${formatBytes(partial.size)}`
+          : "partial"}
       </Badge>
     );
   }
@@ -116,18 +126,41 @@ function hfMissingFilesBadge(repo: HfDownloadedRepo) {
   );
 }
 
-function hfDownloadingBadge(running: boolean) {
-  if (!running) {
+export type HfRepoJobState = "running" | "queued" | null;
+
+function hfDownloadingBadge(jobState: HfRepoJobState) {
+  if (jobState === "running") {
+    return (
+      <Badge color="blue" variant="light">
+        downloading
+      </Badge>
+    );
+  }
+  if (jobState === "queued") {
+    return (
+      <Badge color="gray" variant="light">
+        queued
+      </Badge>
+    );
+  }
+  return null;
+}
+
+function hfOrphanPartsBadge(repo: HfDownloadedRepo) {
+  if (repo.orphanParts.length === 0) {
     return null;
   }
   return (
-    <Badge color="blue" variant="light">
-      downloading
+    <Badge color="gray" variant="light">
+      {countLabel(repo.orphanParts.length, "orphan part")}
     </Badge>
   );
 }
 
-export function hfRepoStatusBadges(repo: HfDownloadedRepo, running: boolean) {
+export function hfRepoStatusBadges(
+  repo: HfDownloadedRepo,
+  jobState: HfRepoJobState,
+) {
   return (
     <>
       <Badge color="gray" variant="outline">
@@ -135,7 +168,8 @@ export function hfRepoStatusBadges(repo: HfDownloadedRepo, running: boolean) {
       </Badge>
       {hfUpdateBadge(repo)}
       {hfMissingFilesBadge(repo)}
-      {hfDownloadingBadge(running)}
+      {hfOrphanPartsBadge(repo)}
+      {hfDownloadingBadge(jobState)}
     </>
   );
 }

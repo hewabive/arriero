@@ -19,20 +19,11 @@ import {
   useJobPanelCollapse,
 } from "../components/JobPanelControls";
 import { backgroundJobStatusColor } from "../utils/job-status";
+import { formatElapsed } from "../utils/time";
 
 function phaseLabel(phase: SourceRepositoryOperationJob["phase"]) {
   if (phase === "checking-out") return "checking out";
   return phase;
-}
-
-function elapsed(job: SourceRepositoryOperationJob) {
-  const start = Date.parse(job.startedAt);
-  const end = job.finishedAt ? Date.parse(job.finishedAt) : Date.now();
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  const seconds = Math.max(0, Math.floor((end - start) / 1_000));
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return minutes > 0 ? `${minutes}m ${remainder}s` : `${remainder}s`;
 }
 
 export function SourceOperationPanel(props: {
@@ -49,7 +40,7 @@ export function SourceOperationPanel(props: {
 
   if (!job) return null;
   if (job.id === dismissedJobId) return null;
-  const duration = elapsed(job);
+  const duration = formatElapsed(job.startedAt, job.finishedAt);
 
   return (
     <Paper withBorder p="sm" radius="sm">

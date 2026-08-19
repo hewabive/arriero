@@ -240,11 +240,11 @@ test("verify reports an error when the upstream check fails", async () => {
   );
 });
 
-test("delete refuses while a download job is active for the repo", () => {
+test("delete refuses while a download job is active for the directory", () => {
   const dir = seedRepo("owner/repo", [{ path: "model.gguf", present: true }]);
   registerActiveJob({
     domain: HF_DOWNLOAD_JOB_DOMAIN,
-    entityId: "owner/repo",
+    entityId: dir,
     jobId: "job-1",
     cancel: () => {},
     completion: new Promise(() => {}),

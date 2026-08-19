@@ -1,197 +1,44 @@
-import {
-  HfDownloadDeleteBlockedSchema,
-  type HfDownloadStart,
-  type HfDownloadedRepo,
-  type HfDownloadedRepoFile,
-  type HfGgufVariant,
-  type HfRepoBrowse,
-  type HfTreeFile,
+import type {
+  HfDownloadStart,
+  HfDownloadedRepo,
+  HfDownloadQueueJob,
 } from "@arriero/core";
 import {
   Alert,
   Anchor,
   Badge,
   Button,
-  Checkbox,
-  Code,
   Divider,
   Group,
   Loader,
   Modal,
+  Progress,
   ScrollArea,
   Stack,
   Text,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  Download,
-  ExternalLink,
-  RefreshCw,
-  Trash2,
-} from "lucide-react";
+import { Download, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
-  ApiError,
   browseHfRepo,
   checkHfUpdates,
-  deleteHfDownload,
   getHfDestCheck,
   startHfDownload,
 } from "../../api/client";
-import {
-  hfLocalFileState,
-  hfLocalVariantState,
-  type HfLocalVariantState,
-} from "../utils/hf";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
-import {
-  hfFileLocalBadge,
-  hfRepoMetaLines,
-  hfRepoStatusBadges,
-} from "./HfBadges";
+import { hfRepoMetaLines, hfRepoStatusBadges } from "./HfBadges";
+import { hfJobPercent, hfJobProgressLine } from "./HfQueueJobCard";
+import { HfRepoDeleteModal, type HfDeleteRequest } from "./HfRepoDeleteModal";
+import { browseRows, FileRows, manifestRows } from "./HfRepoDetailRows";
 import { HfVariantCheckbox } from "./HfVariantCheckbox";
-
-type HfFileRowState =
-  | "current"
-  | "changed"
-  | "absent"
-  | "missing"
-  | "local-only";
-
-type HfFileRow = { path: string; size: number; state: HfFileRowState };
-
-type HfVariantRow = { variant: HfGgufVariant; state: HfLocalVariantState };
-
-type HfDetailRows = {
-  variants: HfVariantRow[];
-  files: HfFileRow[];
-  localOnly: HfFileRow[];
-  downloadable: ReadonlyMap<string, number>;
-};
-
-function byPath(a: { path: string }, b: { path: string }) {
-  return a.path.localeCompare(b.path);
-}
-
-function remoteRowState(
-  file: HfTreeFile,
-  localFiles: ReadonlyMap<string, HfDownloadedRepoFile>,
-): HfFileRowState {
-  const entry = localFiles.get(file.path);
-  if (entry && !entry.present) {
-    return "missing";
-  }
-  return hfLocalFileState(file, localFiles);
-}
-
-function manifestRows(repo: HfDownloadedRepo): HfDetailRows {
-  const localFiles = new Map(repo.files.map((file) => [file.path, file]));
-  const variantPaths = new Set(
-    (repo.variants ?? []).flatMap((variant) => variant.paths),
-  );
-  const variants = (repo.variants ?? []).map((variant) => {
-    const presentCount = variant.paths.filter(
-      (path) => localFiles.get(path)?.present === true,
-    ).length;
-    const state: HfLocalVariantState =
-      presentCount === variant.paths.length
-        ? "on-disk"
-        : presentCount > 0
-          ? "partial"
-          : null;
-    return { variant, state };
-  });
-  const files = repo.files
-    .filter((file) => !variantPaths.has(file.path))
-    .map(
-      (file): HfFileRow => ({
-        path: file.path,
-        size: file.size,
-        state: file.present ? "current" : "missing",
-      }),
-    )
-    .sort(byPath);
-  return { variants, files, localOnly: [], downloadable: new Map() };
-}
-
-function browseRows(
-  repo: HfDownloadedRepo,
-  browse: HfRepoBrowse,
-): HfDetailRows {
-  const localFiles = new Map(repo.files.map((file) => [file.path, file]));
-  const fileByPath = new Map(browse.files.map((file) => [file.path, file]));
-  const variantPaths = new Set(
-    (browse.ggufVariants ?? []).flatMap((variant) => variant.paths),
-  );
-  const variants = (browse.ggufVariants ?? []).map((variant) => ({
-    variant,
-    state: hfLocalVariantState(variant.paths, fileByPath, localFiles),
-  }));
-  const files: HfFileRow[] = [];
-  const downloadable = new Map<string, number>();
-  for (const file of browse.files) {
-    const state = remoteRowState(file, localFiles);
-    if (state !== "current") {
-      downloadable.set(file.path, file.size);
-    }
-    if (!variantPaths.has(file.path)) {
-      files.push({ path: file.path, size: file.size, state });
-    }
-  }
-  files.sort(byPath);
-  const localOnly = repo.files
-    .filter((file) => file.present && !fileByPath.has(file.path))
-    .map(
-      (file): HfFileRow => ({
-        path: file.path,
-        size: file.size,
-        state: "local-only",
-      }),
-    )
-    .sort(byPath);
-  return { variants, files, localOnly, downloadable };
-}
-
-function FileRows(props: {
-  rows: HfFileRow[];
-  selection: ReadonlySet<string>;
-  onToggle: (paths: readonly string[], checked: boolean) => void;
-}) {
-  return (
-    <ScrollArea.Autosize mah={240} type="auto" offsetScrollbars>
-      <Stack gap={2}>
-        {props.rows.map((row) => (
-          <Checkbox
-            key={row.path}
-            checked={props.selection.has(row.path)}
-            onChange={(event) =>
-              props.onToggle([row.path], event.currentTarget.checked)
-            }
-            label={
-              <Group gap="xs" wrap="wrap">
-                <Text size="sm" style={{ overflowWrap: "anywhere" }}>
-                  {row.path}
-                </Text>
-                {hfFileLocalBadge(row.state)}
-                <Text size="xs" c="dimmed">
-                  {formatBytes(row.size)}
-                </Text>
-              </Group>
-            }
-          />
-        ))}
-      </Stack>
-    </ScrollArea.Autosize>
-  );
-}
+import { useHfQueue } from "./use-hf-queue";
 
 export function HfRepoDetailModal(props: {
   repo: HfDownloadedRepo | null;
-  running: boolean;
   onClose: () => void;
 }) {
   return (
@@ -202,24 +49,32 @@ export function HfRepoDetailModal(props: {
       title={props.repo ? <Text fw={600}>{props.repo.repoId}</Text> : null}
     >
       {props.repo && (
-        <HfRepoDetailBody
-          key={props.repo.dir}
-          repo={props.repo}
-          running={props.running}
-        />
+        <HfRepoDetailBody key={props.repo.dir} repo={props.repo} />
       )}
     </Modal>
   );
 }
 
-function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
+function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
   const { repo } = props;
   const queryClient = useQueryClient();
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set());
-  const [deleteRequest, setDeleteRequest] = useState<{
-    paths: string[] | null;
-  } | null>(null);
-  const [verifyUpstream, setVerifyUpstream] = useState(true);
+  const [deleteRequest, setDeleteRequest] = useState<HfDeleteRequest | null>(
+    null,
+  );
+
+  const queue = useHfQueue();
+  const job: HfDownloadQueueJob | null =
+    queue.active && queue.active.destDir === repo.dir
+      ? queue.active
+      : (queue.queued.find((entry) => entry.destDir === repo.dir) ?? null);
+  const jobRate =
+    job && queue.active && queue.active.id === job.id ? queue.rate : null;
+  const jobFiles = useMemo(
+    () => (job ? new Map(job.files.map((file) => [file.path, file])) : null),
+    [job],
+  );
+  const busy = job !== null;
 
   const browseQuery = useQuery({
     queryKey: ["hf-browse", repo.repoId, ""],
@@ -272,12 +127,10 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
     .map((file) => file.path);
   const fits = (bytes: number) => freeBytes === null || bytes <= freeBytes;
 
-  const invalidateDownloads = () =>
-    queryClient.invalidateQueries({ queryKey: ["hf-downloads"] });
-
   const checkMutation = useMutation({
     mutationFn: () => checkHfUpdates([repo.dir]),
-    onSuccess: () => void invalidateDownloads(),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] }),
     onError: (error) =>
       notifications.show({
         color: "red",
@@ -296,9 +149,12 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
         }
         return next;
       });
-      void queryClient.invalidateQueries({ queryKey: ["hf-download-jobs"] });
+      void queryClient.invalidateQueries({ queryKey: ["hf-queue"] });
       notifications.show({
-        title: "Download started",
+        title:
+          result.data.status === "queued"
+            ? "Added to queue"
+            : "Download started",
         message: `${result.data.repoId}: ${countLabel(result.data.files.length, "file")}, ${formatBytes(result.data.totalBytes)}`,
       });
     },
@@ -308,41 +164,6 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
         title: "Download",
         message: (error as Error).message,
       }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteHfDownload,
-    onSuccess: (_result, input) => {
-      setDeleteRequest(null);
-      setSelection((previous) => {
-        if (!input.paths) {
-          return new Set();
-        }
-        const next = new Set(previous);
-        for (const path of input.paths) {
-          next.delete(path);
-        }
-        return next;
-      });
-      void invalidateDownloads();
-      void queryClient.invalidateQueries({ queryKey: ["models"] });
-      notifications.show({
-        title: input.paths ? "Files deleted" : "Download deleted",
-        message: input.paths
-          ? `${countLabel(input.paths.length, "file")} removed from disk.`
-          : "The repository directory was removed.",
-      });
-    },
-    onError: (error) => {
-      if (error instanceof ApiError && error.status === 412) {
-        return;
-      }
-      notifications.show({
-        color: "red",
-        title: "Delete download",
-        message: (error as Error).message,
-      });
-    },
   });
 
   function togglePaths(paths: readonly string[], checked: boolean) {
@@ -381,38 +202,21 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
     });
   }
 
-  function openDelete(paths: string[] | null) {
-    deleteMutation.reset();
-    setVerifyUpstream(true);
-    setDeleteRequest({ paths });
+  function openDelete(paths: string[] | null, bytes: number) {
+    setDeleteRequest({ paths, bytes });
   }
 
-  const verifyError =
-    deleteMutation.error instanceof ApiError &&
-    deleteMutation.error.status === 412
-      ? deleteMutation.error
-      : null;
-  const verifyBlockedParsed = verifyError
-    ? HfDownloadDeleteBlockedSchema.safeParse(verifyError.body)
-    : null;
-  const blockedFiles = verifyBlockedParsed?.success
-    ? verifyBlockedParsed.data.verification.files.filter(
-        (file) =>
-          file.status === "deleted" &&
-          (deleteRequest?.paths?.includes(file.path) ?? true),
-      )
-    : [];
-  const deleteBytes = deleteRequest?.paths
-    ? deleteRequest.paths.reduce(
-        (sum, path) => sum + (deletableBytes.get(path) ?? 0),
-        0,
-      )
-    : repo.totalBytes;
+  const skipJobFile = job
+    ? (path: string) => queue.skipFiles(job.id, [path])
+    : undefined;
 
   return (
     <Stack gap="sm">
       <Group gap="xs" wrap="wrap">
-        {hfRepoStatusBadges(repo, props.running)}
+        {hfRepoStatusBadges(
+          repo,
+          job ? (job.status === "running" ? "running" : "queued") : null,
+        )}
         <Anchor
           size="xs"
           href={`https://huggingface.co/${repo.repoId}`}
@@ -425,6 +229,32 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
         </Anchor>
       </Group>
       {hfRepoMetaLines(repo)}
+
+      {job && (
+        <Stack gap={4}>
+          <Group gap="xs" wrap="wrap">
+            <Badge
+              color={job.status === "running" ? "blue" : "gray"}
+              variant="light"
+            >
+              {job.status === "running" ? "downloading" : "queued"}
+            </Badge>
+            <Text size="xs" c="dimmed">
+              {hfJobProgressLine(job, jobRate)}
+            </Text>
+          </Group>
+          {(() => {
+            const percent = hfJobPercent(job);
+            return percent !== null ? (
+              <Progress
+                value={percent}
+                animated={job.status === "running"}
+                striped={job.status === "running"}
+              />
+            ) : null;
+          })()}
+        </Stack>
+      )}
 
       <Group gap="xs" wrap="wrap">
         <Button
@@ -442,7 +272,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
             variant="light"
             leftSection={<Download size={14} />}
             loading={downloadMutation.isPending}
-            disabled={props.running}
+            disabled={busy}
             onClick={() =>
               downloadMutation.mutate({
                 repoId: repo.repoId,
@@ -460,10 +290,10 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
             size="xs"
             leftSection={<Download size={14} />}
             loading={downloadMutation.isPending}
-            disabled={props.running || !fits(allBytes)}
+            disabled={busy || !fits(allBytes)}
             onClick={() => startDownload([...rows.downloadable.keys()])}
           >
-            Download all · {formatBytes(allBytes)}
+            {busy ? "Queued" : `Download all · ${formatBytes(allBytes)}`}
           </Button>
         )}
         {browse && rows.downloadable.size === 0 && (
@@ -476,8 +306,8 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
           color="red"
           variant="light"
           leftSection={<Trash2 size={14} />}
-          disabled={props.running}
-          onClick={() => openDelete(null)}
+          disabled={busy}
+          onClick={() => openDelete(null, repo.totalBytes)}
         >
           Delete repository
         </Button>
@@ -535,6 +365,8 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
             rows={rows.files}
             selection={selection}
             onToggle={togglePaths}
+            jobFiles={jobFiles ?? undefined}
+            onSkipFile={skipJobFile}
           />
         </Stack>
       )}
@@ -549,6 +381,49 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
             selection={selection}
             onToggle={togglePaths}
           />
+        </Stack>
+      )}
+
+      {repo.orphanParts.length > 0 && !busy && (
+        <Stack gap={6}>
+          <Group gap="xs" wrap="wrap">
+            <Text fw={600} size="sm">
+              Orphan part files
+            </Text>
+            <Button
+              size="compact-xs"
+              color="red"
+              variant="subtle"
+              leftSection={<Trash2 size={12} />}
+              onClick={() =>
+                openDelete(
+                  repo.orphanParts.map((part) => part.path),
+                  repo.orphanParts.reduce(
+                    (sum, part) => sum + part.partialBytes,
+                    0,
+                  ),
+                )
+              }
+            >
+              Delete orphan parts
+            </Button>
+          </Group>
+          <Stack gap={2}>
+            {repo.orphanParts.map((part) => (
+              <Group key={part.path} gap="xs" wrap="nowrap">
+                <Text size="xs" style={{ overflowWrap: "anywhere" }}>
+                  {part.path}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {formatBytes(part.partialBytes)}
+                </Text>
+              </Group>
+            ))}
+          </Stack>
+          <Text size="xs" c="dimmed">
+            Leftovers of downloads that never finished — safe to delete; a new
+            download resumes from them if kept.
+          </Text>
         </Stack>
       )}
 
@@ -578,7 +453,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
             loading={downloadMutation.isPending}
             disabled={
               selectedDownload.length === 0 ||
-              props.running ||
+              busy ||
               !fits(selectedDownloadBytes)
             }
             onClick={() => startDownload(selectedDownload)}
@@ -593,8 +468,10 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
             color="red"
             variant="light"
             leftSection={<Trash2 size={14} />}
-            disabled={selectedDelete.length === 0 || props.running}
-            onClick={() => openDelete([...selectedDelete].sort())}
+            disabled={selectedDelete.length === 0 || busy}
+            onClick={() =>
+              openDelete([...selectedDelete].sort(), selectedDeleteBytes)
+            }
           >
             Delete
             {selectedDelete.length > 0
@@ -604,98 +481,24 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo; running: boolean }) {
         </Group>
       </Group>
 
-      <Modal
-        opened={deleteRequest !== null}
+      <HfRepoDeleteModal
+        repo={repo}
+        request={deleteRequest}
         onClose={() => setDeleteRequest(null)}
-        title={
-          deleteRequest?.paths
-            ? "Delete downloaded files"
-            : "Delete downloaded repository"
-        }
-      >
-        <Stack gap="sm">
-          {deleteRequest?.paths ? (
-            <>
-              <Text size="sm">
-                Delete {countLabel(deleteRequest.paths.length, "file")} (
-                {formatBytes(deleteBytes)}) from <Code>{repo.repoId}</Code>?
-                This removes the files from disk; the rest of the download
-                stays.
-              </Text>
-              <Stack gap={2} mah={140} style={{ overflowY: "auto" }}>
-                {deleteRequest.paths.map((path) => (
-                  <Text
-                    key={path}
-                    size="xs"
-                    style={{ overflowWrap: "anywhere" }}
-                  >
-                    {path}
-                  </Text>
-                ))}
-              </Stack>
-              {deleteRequest.paths.length === repo.fileCount && (
-                <Text size="sm" c="orange">
-                  Every file is selected, so the whole repository directory will
-                  be removed.
-                </Text>
-              )}
-            </>
-          ) : (
-            <Text size="sm">
-              Delete <Code>{repo.dir}</Code> with{" "}
-              {countLabel(repo.fileCount, "file")} (
-              {formatBytes(repo.totalBytes)})? This removes the files from disk.
-            </Text>
-          )}
-          {verifyError ? (
-            <Alert color="yellow" icon={<AlertTriangle size={16} />}>
-              <Stack gap={4}>
-                <Text size="sm">{verifyError.message}</Text>
-                {blockedFiles.map((file) => (
-                  <Text
-                    key={file.path}
-                    size="xs"
-                    style={{ overflowWrap: "anywhere" }}
-                  >
-                    {file.path}
-                  </Text>
-                ))}
-              </Stack>
-            </Alert>
-          ) : (
-            <Checkbox
-              checked={verifyUpstream}
-              onChange={(event) =>
-                setVerifyUpstream(event.currentTarget.checked)
-              }
-              label="Verify on Hugging Face before deleting"
-              description="Blocks deletion when a file is no longer available upstream and could not be re-downloaded."
-            />
-          )}
-          <Group justify="flex-end" gap="sm">
-            <Button variant="default" onClick={() => setDeleteRequest(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deleteMutation.isPending}
-              onClick={() => {
-                const request = deleteRequest;
-                if (!request) {
-                  return;
-                }
-                deleteMutation.mutate({
-                  dir: repo.dir,
-                  ...(request.paths ? { paths: request.paths } : {}),
-                  verifyUpstream: verifyError ? false : verifyUpstream,
-                });
-              }}
-            >
-              {verifyError ? "Delete anyway" : "Delete"}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        onDeleted={(paths) => {
+          setDeleteRequest(null);
+          setSelection((previous) => {
+            if (!paths) {
+              return new Set();
+            }
+            const next = new Set(previous);
+            for (const path of paths) {
+              next.delete(path);
+            }
+            return next;
+          });
+        }}
+      />
     </Stack>
   );
 }

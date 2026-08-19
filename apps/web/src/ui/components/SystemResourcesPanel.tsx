@@ -22,6 +22,7 @@ import {
 } from "@mantine/core";
 import { useMemo, type ReactNode } from "react";
 
+import { formatBytesPerSecond } from "../utils/models";
 import { formatAcceleratorName } from "../utils/pools";
 import { formatLocalClock } from "../utils/time";
 import { formatDurationMs } from "../views/benchmark-format";
@@ -59,13 +60,6 @@ function formatPercent(value: number | null | undefined) {
     return "-";
   }
   return `${Math.round(value)}%`;
-}
-
-function formatRate(value: number | null | undefined) {
-  if (value === undefined || value === null) {
-    return "-";
-  }
-  return `${formatBytes(value)}/s`;
 }
 
 function formatMs(value: number | null | undefined) {
@@ -523,10 +517,10 @@ export function SystemResourcesPanel(props: {
                   meta={
                     <Group gap="md">
                       <Text c="dimmed" size="xs">
-                        read {formatRate(disk.totalReadBytesPerSec)}
+                        read {formatBytesPerSecond(disk.totalReadBytesPerSec)}
                       </Text>
                       <Text c="dimmed" size="xs">
-                        write {formatRate(disk.totalWriteBytesPerSec)}
+                        write {formatBytesPerSecond(disk.totalWriteBytesPerSec)}
                       </Text>
                     </Group>
                   }
@@ -617,10 +611,10 @@ export function SystemResourcesPanel(props: {
                           />
                           <MetricChart
                             title="Transfer rate"
-                            headline={`${formatRate(device.readBytesPerSec)} · ${formatRate(device.writeBytesPerSec)}`}
+                            headline={`${formatBytesPerSecond(device.readBytesPerSec)} · ${formatBytesPerSecond(device.writeBytesPerSec)}`}
                             axis={axis}
                             domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
-                            formatValue={formatRate}
+                            formatValue={formatBytesPerSecond}
                             height={DEVICE_CHART_HEIGHT}
                             series={throughput}
                           />
@@ -772,10 +766,11 @@ export function SystemResourcesPanel(props: {
                   meta={
                     <Group gap="md">
                       <Text c="dimmed" size="xs">
-                        receive {formatRate(rdma.receiveBytesPerSec)}
+                        receive {formatBytesPerSecond(rdma.receiveBytesPerSec)}
                       </Text>
                       <Text c="dimmed" size="xs">
-                        transmit {formatRate(rdma.transmitBytesPerSec)}
+                        transmit{" "}
+                        {formatBytesPerSecond(rdma.transmitBytesPerSec)}
                       </Text>
                     </Group>
                   }
@@ -788,10 +783,10 @@ export function SystemResourcesPanel(props: {
                   <MetricCard title="All traffic on the RDMA port">
                     <MetricChart
                       title="Receive / transmit"
-                      headline={`${formatRate(rdma.receiveBytesPerSec)} · ${formatRate(rdma.transmitBytesPerSec)}`}
+                      headline={`${formatBytesPerSecond(rdma.receiveBytesPerSec)} · ${formatBytesPerSecond(rdma.transmitBytesPerSec)}`}
                       axis={axis}
                       domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
-                      formatValue={formatRate}
+                      formatValue={formatBytesPerSecond}
                       height={DEVICE_CHART_HEIGHT}
                       series={[
                         {
@@ -843,10 +838,10 @@ export function SystemResourcesPanel(props: {
                   meta={
                     <Group gap="md">
                       <Text c="dimmed" size="xs">
-                        in {formatRate(network.totalRxBytesPerSec)}
+                        in {formatBytesPerSecond(network.totalRxBytesPerSec)}
                       </Text>
                       <Text c="dimmed" size="xs">
-                        out {formatRate(network.totalTxBytesPerSec)}
+                        out {formatBytesPerSecond(network.totalTxBytesPerSec)}
                       </Text>
                     </Group>
                   }
@@ -877,10 +872,10 @@ export function SystemResourcesPanel(props: {
                       >
                         <MetricChart
                           title="Throughput"
-                          headline={`${formatRate(entry.rxBytesPerSec)} · ${formatRate(entry.txBytesPerSec)}`}
+                          headline={`${formatBytesPerSecond(entry.rxBytesPerSec)} · ${formatBytesPerSecond(entry.txBytesPerSec)}`}
                           axis={axis}
                           domain={{ kind: "auto", minimumMax: 128 * 1024 }}
-                          formatValue={formatRate}
+                          formatValue={formatBytesPerSecond}
                           height={DEVICE_CHART_HEIGHT}
                           series={[
                             {

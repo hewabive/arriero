@@ -6,6 +6,10 @@ import { initConfigStores } from "./config-store/registry.js";
 import { untrackMachineStateFiles } from "./config-git/machine-state.js";
 import { normalizeConfigFiles } from "./config-normalize.js";
 import { migrate } from "./db/index.js";
+import {
+  adoptHfDownloadQueue,
+  beginHfDownloadQueueShutdown,
+} from "./hf/download-queue.js";
 import { logger } from "./logger.js";
 import {
   app,
@@ -152,6 +156,10 @@ if (pendingResume && pendingResume.adopted > 0) {
   });
 }
 
+const hfDownloadQueue = bootStep("adopt hf download queue", () =>
+  adoptHfDownloadQueue(),
+);
+
 bootStep("check proxy pipeline graphs", () => {
   for (const warning of collectApiProxyPipelineGraphWarnings({
     pipelines: listApiProxyPipelines(),
@@ -189,6 +197,7 @@ const server = serve(
         refreshedResourcePools,
         environments,
         sweptSourceCloneStaging,
+        hfDownloadQueue,
       },
       "arriero api listening",
     );
@@ -289,6 +298,7 @@ async function shutdown(signal: NodeJS.Signals) {
     systemMetricsRecorder.stop();
     await closeServer();
     logger.info("http server closed");
+    beginHfDownloadQueueShutdown();
     const stoppedJobs = await shutdownActiveJobs(config.shutdown.timeoutMs);
     if (stoppedJobs > 0) {
       logger.info(

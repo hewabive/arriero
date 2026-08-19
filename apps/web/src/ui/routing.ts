@@ -205,6 +205,8 @@ const navSections: NavSection[] = [
           "huggingface",
           "hf",
           "download",
+          "queue",
+          "resume",
           "gguf",
           "safetensors",
           "quant",

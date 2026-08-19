@@ -21,29 +21,60 @@ filename or — for per-quant-subfolder repos — the immediate parent directory
 are a separate kind. Repos without GGUF files get `ggufVariants: null` and the UI falls back to
 the generic per-directory checkbox tree.
 
-## Download jobs
+## Download queue
 
-`POST /api/hf/downloads` starts one background job per repo (registry domain `hf-download`,
-`entityId = repoId`, so different repos download in parallel). The runner
-(`apps/api/src/hf/download-runner.ts`) is in-process async work on the shared jobs kernel — no
-child processes; `createLatestJobStore` keeps the latest job per repo and per-chunk byte progress
-lives in a side map merged into the record at read time.
+`POST /api/hf/downloads` **enqueues** a job; the queue (`apps/api/src/hf/download-queue.ts`) runs
+**strictly sequentially** — one active job, FIFO with manual reorder, duplicate enqueues for the
+same repo allowed (the on-disk skip fast-path dedupes at execution). The scheduler `pump()` is the
+only place a job starts, so there is no start-time race; the active job registers in the jobs
+kernel (registry domain `hf-download`, `entityId = destDir`) purely so `shutdownActiveJobs` can
+abort it. Parallelism lives **inside** a job: the transfer engine
+(`apps/api/src/hf/transfer-engine.ts`) runs N worker connections (the `downloads` settings
+section: `connections` 1–16 default 6, `chunkBytes` default 32 MiB — measured ~1.7× over a single
+connection at 8 on a ~30 MB/s-per-connection CDN path) over a shared task list: large files split
+into ranged chunks, files ≤ one chunk (or with `connections: 1`) stream whole; workers converge on
+the earliest incomplete file so early files finish first.
 
-Start phase (synchronous, errors map to HTTP statuses in `apps/api/src/routes/hf.routes.ts`):
-sanitize repo-relative paths (traversal guard in `apps/api/src/hf/paths.ts`), resolve the
-destination (`<models dir>/<owner>/<repo>` by default, override allowed), pin the revision sha,
-fetch authoritative per-file metadata via `paths-info` (`expand: true`), and check free space via
-`capacityFromStatFs` with a 256 MiB headroom.
+Enqueue phase (synchronous in the request, `apps/api/src/hf/download-plan.ts`): sanitize
+repo-relative paths (traversal guard in `apps/api/src/hf/paths.ts`), resolve the destination
+(`<models dir>/<owner>/<repo>` by default, override allowed), pin the revision sha, fetch
+authoritative per-file metadata via `paths-info` (`expand: true`), and check free space with a
+256 MiB headroom (re-checked hard at job start; partial bytes are counted via
+`partialBytesFor`, never a raw `.part` stat — chunked parts are preallocated sparse at full size).
 
-Per file, sequentially: a file already on disk with matching size and manifest oid (or matching
-content hash) is `skipped`; otherwise the file streams to `<name>.part` and is renamed into place
-only after verification. A leftover `.part` resumes with `Range: bytes=<offset>-` — the hash is
-re-primed from the existing bytes first; a `200` on a resume attempt truncates and restarts, a
-`416` retries once from zero. Every file is verified while streaming: sha256 against `lfs.oid`
-for LFS files, git blob sha1 (`blob <size>\0` prefix) against `oid` for small plain files; a
-mismatch deletes the `.part` and fails the file. Per-file failures are recorded and the job
-continues; `unauthorized`/`gated`/`rate-limited` fail fast. Cancel keeps the current `.part` for
-a later resume. A completed `.gguf` triggers a model rescan.
+**The queue persists** to `data/hf-download-queue.json` (`apps/api/src/hf/queue-store.ts`,
+atomic write-through; per-file oids stored so a resume never refetches `paths-info`) on every
+state transition — never per byte. Boot adopts the file (`adoptHfDownloadQueue`, a bootStep in
+`apps/api/src/index.ts`): a `running` job is normalized back to `queued` at the head and
+**auto-resumes**; finished jobs stay as history (trimmed to 20). Shutdown flags the queue
+(`beginHfDownloadQueueShutdown`) before `shutdownActiveJobs` aborts the transfer, and the
+interrupted job re-persists as `queued` with its `downloading` files back to `pending` — a user
+cancel is distinguished by `cancelRequested`, persisted before the abort. An invalid queue file is
+quarantined to `.invalid` and logged, never silently defaulted.
+
+Per chunked file the engine keeps a sidecar `<file>.part.json`
+(`apps/api/src/hf/chunk-store.ts`: size, frozen `chunkBytes`, expected oid, revision, completed
+chunk indexes, rewritten after every completed chunk) next to the sparse preallocated `<file>.part`;
+workers write with explicit positions (never the append flag). Resume validates the sidecar
+(size/oid/revision + part size) and refetches only missing chunks; a legacy append-`.part` without
+a sidecar is adopted as whole completed chunks; a mismatched sidecar restarts the file. Since
+chunks land out of order, verification is a **post-pass**: after the last chunk the assembled part
+is re-read and hashed (sha256 against `lfs.oid` for LFS files, git blob sha1 with the
+`blob <size>\0` prefix against `oid` otherwise), then renamed into place and the sidecar removed;
+a mismatch deletes part + sidecar and fails the file. Single-stream files keep the old behavior:
+inline hashing, `Range: bytes=<offset>-` resume with the hash re-primed from existing bytes, a
+`200` on resume truncates and restarts, a `416` retries once from zero. A file already on disk
+with matching size and manifest oid (or matching content hash) is `skipped`.
+
+Failure policy: transient errors (network, 5xx) retry per chunk up to 5 attempts with exponential
+backoff (max 30 s + jitter); a `416`/`200` on a bounded range falls the file back to a single
+stream; `429` gets two long retries (30/60 s) then fails the job; `unauthorized`/`gated` and
+`ENOSPC` fail the job immediately (remaining files → `canceled`); other per-file failures are
+recorded and the job continues. Cancel — whole job (`POST /api/hf/queue/:id/cancel`) or per file
+(`POST /api/hf/queue/:id/files/skip`, which also drops files from a queued job) — keeps `.part` +
+sidecar for a later resume. A completed `.gguf`/`.safetensors` triggers a model rescan. A manifest
+header is written at job start so a directory holding only `.part`s is discoverable, and the
+downloads cache is invalidated after every completed file so the UI list stays fresh mid-job.
 
 ## Manifest and the downloads list
 
@@ -55,31 +86,52 @@ file, so an interrupted job leaves a valid partial manifest and the next run res
 `GET /api/hf/downloads` (`apps/api/src/hf/downloads.ts`) discovers manifests by walking the model
 scan roots (`apps/api/src/models/roots.ts`) with a 30 s cache — there is no DB table; the manifest
 travels with the files and survives DB recreation. Each entry carries the manifest's per-file
-records (`path`/`size`/`oid`/`lfsOid` plus an on-disk `present` flag) and server-grouped GGUF
-`variants` (the same `grouping.ts` browse uses). The repo card is a read-only clickable summary
-(variant chips, update/missing/downloading badges); clicking it opens the repo detail modal
-(`apps/web/src/ui/views/HfRepoDetailModal.tsx`), the one management surface: it lazily browses the
-repo at `main` and joins the tree with the manifest client-side (`hfManifestOidMatches`, exported
-from core) into checkbox rows per variant and file with `on disk`/`partial`/`changed upstream`/
-`missing`/`not upstream` badges. One selection feeds two explicit verbs — `Download N` (the subset
-absent or changed upstream) and `Delete N` (the subset present on disk) — and the header actions
-are `Check updates`, `Download updates` (on drift), `Download all` (every remote file not current,
-sized in the label; an `all files on disk` badge when nothing is left) and `Delete repository`.
-Modal downloads always target the existing directory, so a repo downloaded into a custom directory
-never forks a second copy; free space from `dest-check` gates the download buttons. When the
-upstream listing is unavailable the modal degrades to the manifest — deletion keeps working,
-downloads switch off. The browser panel keeps the same client-side join for discovering new repos:
-an already-downloaded repo shows a banner with its local directory plus a button to reuse it as
-the destination. A destination outside every scan root still downloads but is not listed (the UI
-warns).
+records (`path`/`size`/`oid`/`lfsOid` plus an on-disk `present` flag and `partialBytes` — bytes
+already on disk for an unfinished file, read via `partialBytesFor`), `orphanParts` (`.part`/
+`.part.json` leftovers whose final file is not in the manifest, capped bounded walk) and
+server-grouped GGUF `variants` (the same `grouping.ts` browse uses).
+
+The UI (`apps/web/src/ui/views/`) is one page: the collapsible repository browser
+(`HfRepoBrowserPanel.tsx` — the Download button always enqueues and hints at the queue length),
+the live queue panel (`HfQueuePanel.tsx` + `HfQueueJobCard.tsx`/`HfQueuedJobCard.tsx`/
+`HfJobFileRow.tsx`, polling `["hf-queue"]` at 1.5 s while anything is active: overall progress,
+client-side EWMA speed + ETA (`ui/utils/byte-rate.ts`), per-file progress bars with per-file
+skip, queued cards with reorder/remove, server-side history with dismiss/clear), the library
+(`HfDownloadedReposPanel.tsx` — a partial repo shows `X of Y on disk` plus a one-click
+**Resume** button that enqueues exactly the missing files into the same directory at the manifest
+revision) and the download-settings + token cards. Queue mutations return the full queue state and
+land via `setQueryData` — no refetch; `useHfJobsSync` (`use-hf-queue.ts`) invalidates
+`["hf-downloads"]`/`["models"]` when a job settles and throttled on per-file completions.
+
+Clicking a repo card opens the repo detail modal (`HfRepoDetailModal.tsx`), the one management
+surface: it lazily browses the repo at `main` and joins the tree with the manifest client-side
+(`hfManifestOidMatches`, exported from core; row models in `HfRepoDetailRows.tsx`) into checkbox
+rows per variant and file with `on disk`/partial (`X of Y`)/`changed upstream`/`missing`/
+`not upstream` badges. While its directory has an active or queued job the modal shows the live
+progress strip and per-file rows inline (same components as the queue panel) and download buttons
+enqueue-gate on this directory only — other repos may download meanwhile; delete stays disabled
+until the job is gone. One selection feeds two explicit verbs — `Download N` (the subset absent or
+changed upstream) and `Delete N` (the subset present on disk) — and the header actions are
+`Check updates`, `Download updates` (on drift), `Download all` (every remote file not current,
+sized in the label; an `all files on disk` badge when nothing is left) and `Delete repository`;
+an orphan-parts section lists leftovers with their sizes and deletes them (upstream verification
+skipped for parts). Modal downloads always target the existing directory, so a repo downloaded
+into a custom directory never forks a second copy; free space from `dest-check` gates the download
+buttons. When the upstream listing is unavailable the modal degrades to the manifest — deletion
+keeps working, downloads switch off. The browser panel keeps the same client-side join for
+discovering new repos: an already-downloaded repo shows a banner with its local directory plus a
+button to reuse it as the destination. A destination outside every scan root still downloads but
+is not listed (the UI warns).
 
 ## Deletion
 
 `POST /api/hf/downloads/delete {dir, paths?, verifyUpstream?}` removes a downloaded repo — whole
 directory when `paths` is absent, individual manifest files otherwise (a GGUF variant in the UI is
-just its file list: the detail-modal variant checkbox toggles all its paths). Only paths
-listed in the manifest are deletable (unknown paths 404), a running job for the repo refuses with
-409, and deletion refuses with 409 while a live local process references the targets
+just its file list: the detail-modal variant checkbox toggles all its paths). `paths` may also
+name orphan `.part`/`.part.json` leftovers (deleted together with their sidecar, upstream
+verification skipped for them); anything else not listed in the manifest is 404. A job actively
+downloading into the directory refuses with 409 (queued jobs do not block — they recreate what
+they need), and deletion refuses with 409 while a live local process references the targets
 (`apps/api/src/hf/in-use.ts`: open process runs with an alive PID, matched by launch-snapshot argv
 token; per-file scope also matches sibling shards of a targeted GGUF split and a dir-as-model
 reference; local processes only — see `docs/SHARED_MODELS_DIR.md` for multi-host discipline).
@@ -124,12 +176,20 @@ token is sent as `Authorization: Bearer` and undici drops it on the cross-origin
 | `GET /api/hf/token`, `PUT /api/hf/token` | write-only token surface |
 | `GET /api/hf/browse?repo=&revision=` | repo info + tree + GGUF variants |
 | `GET /api/hf/dest-check?dir=` / `?repo=` | free space + inside-scan-roots for a destination |
-| `POST /api/hf/downloads` | start a download job (201) |
-| `GET /api/hf/downloads` | downloaded repos from manifest discovery |
+| `POST /api/hf/downloads` | enqueue a download job (201; 409 only for insufficient space) |
+| `GET /api/hf/downloads` | downloaded repos from manifest discovery (+ `partialBytes`, `orphanParts`) |
 | `POST /api/hf/downloads/check` | manual update check for up to 50 dirs |
-| `POST /api/hf/downloads/delete` | delete a repo directory or selected files, optional upstream verify |
-| `GET /api/hf/jobs`, `GET /api/hf/jobs/:owner/:repo` | job list / single job with live progress |
-| `POST /api/hf/jobs/:owner/:repo/cancel` | cancel a running job |
+| `POST /api/hf/downloads/delete` | delete a repo directory, selected files or orphan parts, optional upstream verify |
+| `GET /api/hf/queue` | queue state: active job with live progress, queued jobs, history |
+| `POST /api/hf/queue/reorder` | reorder queued jobs (`ids` = the complete new order) |
+| `POST /api/hf/queue/:id/cancel` | cancel the active job (parts kept for resume) |
+| `DELETE /api/hf/queue/:id` | remove a queued job or dismiss a history entry |
+| `POST /api/hf/queue/:id/files/skip` | skip files of the active job / drop files from a queued one |
+| `DELETE /api/hf/queue/history` | clear the finished-job history |
+| `GET/PUT /api/hf/download-settings` | connection count + chunk size |
+
+Every mutating queue endpoint returns the full queue state so the UI applies it without a
+follow-up fetch.
 
 Upstream HF errors map to: 403 (`unauthorized` and `gated`), 404, 429, 502; our own 401 stays
 reserved for the admin session (`requireAdmin`). Note HF answers anonymous requests for

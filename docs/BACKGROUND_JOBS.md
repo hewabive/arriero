@@ -48,6 +48,7 @@ schemas and public API shapes.
 | envs | `environmentJobs` (history 20) | steps | `envs` |
 | update | `updateJobs` (history 10) | steps | — (see below) |
 | sources | latest-per-`sourceId` | phase + progress % | `source` (entity = sourceId) |
+| hf | persisted queue in `data/hf-download-queue.json` (history 20) | per-file bytes + chunk maps | `hf-download` (entity = destDir of the active job) |
 
 Deliberate asymmetries:
 
@@ -60,8 +61,13 @@ Deliberate asymmetries:
   (`set-origin`, the llama checkout) that are not jobs. The registry tracks
   only the background clone/pull jobs; `build` checks the mutex, config-git
   checks both.
+- **hf downloads persist their queue to disk and survive restarts** — the
+  registry holds only the currently running job (for shutdown abort); the
+  queue file is the durable state and boot re-adopts it
+  (`docs/HF_DOWNLOADS.md`). The other domains keep in-memory stores only.
 - Registry domain names are plain string literals owned by each domain
-  (`"build"`, `"envs"`, `"source"`); the kernel has no domain enum by design.
+  (`"build"`, `"envs"`, `"source"`, `"hf-download"`); the kernel has no domain
+  enum by design.
 
 ## Cancellation
 

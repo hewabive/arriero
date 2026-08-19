@@ -1,5 +1,6 @@
 import {
   parseHfRepoInput,
+  type HfDownloadQueueJob,
   type HfDownloadedRepo,
   type HfRepoBrowse,
   type HfTreeFile,
@@ -37,12 +38,15 @@ import { formatBytes, pathBaseName } from "../utils/models";
 import { countLabel } from "../utils/plural";
 import { hfFileLocalBadge } from "./HfBadges";
 import { HfVariantCheckbox } from "./HfVariantCheckbox";
+import { useHfQueueQuery } from "./use-hf-queue";
 
 const DEST_CHECK_DEBOUNCE_MS = 350;
 
 type DirGroup = { dir: string; files: HfTreeFile[]; totalBytes: number };
 
-export function HfRepoBrowserPanel() {
+export function HfRepoBrowserPanel(props: {
+  onEnqueued?: ((job: HfDownloadQueueJob) => void) | undefined;
+}) {
   const [repoInput, setRepoInput] = useState("");
   const [revisionInput, setRevisionInput] = useState("");
   const [submitted, setSubmitted] = useState<{
@@ -50,6 +54,7 @@ export function HfRepoBrowserPanel() {
     revision: string;
   } | null>(null);
   const [destDir, setDestDir] = useState("");
+  const [resultsOpened, setResultsOpened] = useState(true);
 
   const browseQuery = useQuery({
     queryKey: ["hf-browse", submitted?.repo ?? "", submitted?.revision ?? ""],
@@ -77,6 +82,7 @@ export function HfRepoBrowserPanel() {
       setRevisionInput(parsed.revision);
     }
     setSubmitted({ repo: parsed.repoId, revision });
+    setResultsOpened(true);
   }
 
   return (
@@ -122,12 +128,40 @@ export function HfRepoBrowserPanel() {
         )}
 
         {browse && (
-          <BrowseResults
-            key={`${browse.repoId}@${browse.commitSha}`}
-            browse={browse}
-            destDir={destDir}
-            onDestDirChange={setDestDir}
-          />
+          <Stack gap="xs">
+            <Group gap={4}>
+              <Button
+                variant="subtle"
+                size="compact-sm"
+                color="gray"
+                leftSection={
+                  resultsOpened ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )
+                }
+                onClick={() => setResultsOpened((value) => !value)}
+              >
+                {browse.repoId}
+              </Button>
+              <Text size="xs" c="dimmed">
+                {countLabel(browse.files.length, "file")}
+              </Text>
+            </Group>
+            <Collapse in={resultsOpened}>
+              <BrowseResults
+                key={`${browse.repoId}@${browse.commitSha}`}
+                browse={browse}
+                destDir={destDir}
+                onDestDirChange={setDestDir}
+                onEnqueued={(job) => {
+                  setResultsOpened(false);
+                  props.onEnqueued?.(job);
+                }}
+              />
+            </Collapse>
+          </Stack>
         )}
       </Stack>
     </Paper>
@@ -138,9 +172,13 @@ function BrowseResults(props: {
   browse: HfRepoBrowse;
   destDir: string;
   onDestDirChange: (value: string) => void;
+  onEnqueued: (job: HfDownloadQueueJob) => void;
 }) {
   const { browse, destDir } = props;
   const queryClient = useQueryClient();
+  const queueData = useHfQueueQuery().data?.data ?? null;
+  const queueAhead =
+    (queueData?.active ? 1 : 0) + (queueData?.queued.length ?? 0);
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set());
   const [expandedDirs, setExpandedDirs] = useState<ReadonlySet<string>>(
     new Set(),
@@ -220,11 +258,8 @@ function BrowseResults(props: {
       }),
     onSuccess: (result) => {
       setSelection(new Set());
-      void queryClient.invalidateQueries({ queryKey: ["hf-download-jobs"] });
-      notifications.show({
-        title: "Download started",
-        message: `${result.data.repoId}: ${countLabel(result.data.files.length, "file")}, ${formatBytes(result.data.totalBytes)}`,
-      });
+      void queryClient.invalidateQueries({ queryKey: ["hf-queue"] });
+      props.onEnqueued(result.data);
     },
     onError: (error) =>
       notifications.show({
@@ -478,7 +513,7 @@ function BrowseResults(props: {
           loading={startMutation.isPending}
           disabled={selection.size === 0 || notEnoughSpace}
         >
-          Download
+          {queueAhead > 0 ? "Add to queue" : "Download"}
         </Button>
       </Group>
       <Group gap="xs" wrap="wrap">
@@ -487,6 +522,12 @@ function BrowseResults(props: {
           {formatBytes(selectedBytes)}
           {freeBytes !== null ? ` · free ${formatBytes(freeBytes)}` : ""}
         </Text>
+        {queueAhead > 0 && (
+          <Text size="sm" c="dimmed">
+            Will start after {countLabel(queueAhead, "download")} ahead in the
+            queue.
+          </Text>
+        )}
         {destCheck && !destCheck.insideScanRoots && (
           <Text size="sm" c="orange">
             Outside the model scan roots — the download will not appear in the

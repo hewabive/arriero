@@ -1,13 +1,14 @@
-import {
-  encodeHfPathSegments,
-  type HfDestCheck,
-  type HfDownloadDelete,
-  type HfDownloadJob,
-  type HfDownloadStart,
-  type HfDownloadedRepo,
-  type HfRepoBrowse,
-  type HfTokenStatus,
-  type HfUpdateCheck,
+import type {
+  HfDestCheck,
+  HfDownloadDelete,
+  HfDownloadQueueJob,
+  HfDownloadQueueState,
+  HfDownloadSettings,
+  HfDownloadStart,
+  HfDownloadedRepo,
+  HfRepoBrowse,
+  HfTokenStatus,
+  HfUpdateCheck,
 } from "@arriero/core";
 
 import { buildQuery, nodeRequest as request } from "./http.js";
@@ -40,7 +41,7 @@ export function listHfDownloads() {
 }
 
 export function startHfDownload(input: HfDownloadStart) {
-  return request<{ data: HfDownloadJob }>("/api/hf/downloads", {
+  return request<{ data: HfDownloadQueueJob }>("/api/hf/downloads", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -60,13 +61,51 @@ export function deleteHfDownload(input: HfDownloadDelete) {
   });
 }
 
-export function listHfDownloadJobs() {
-  return request<{ data: HfDownloadJob[] }>("/api/hf/jobs");
+export function getHfDownloadQueue() {
+  return request<{ data: HfDownloadQueueState }>("/api/hf/queue");
 }
 
-export function cancelHfDownloadJob(repoId: string) {
-  return request<{ data: HfDownloadJob }>(
-    `/api/hf/jobs/${encodeHfPathSegments(repoId)}/cancel`,
+export function cancelHfDownloadJob(jobId: string) {
+  return request<{ data: HfDownloadQueueState }>(
+    `/api/hf/queue/${encodeURIComponent(jobId)}/cancel`,
     { method: "POST" },
   );
+}
+
+export function removeHfDownloadJob(jobId: string) {
+  return request<{ data: HfDownloadQueueState }>(
+    `/api/hf/queue/${encodeURIComponent(jobId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function reorderHfDownloadQueue(ids: string[]) {
+  return request<{ data: HfDownloadQueueState }>("/api/hf/queue/reorder", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export function skipHfDownloadFiles(jobId: string, paths: string[]) {
+  return request<{ data: HfDownloadQueueState }>(
+    `/api/hf/queue/${encodeURIComponent(jobId)}/files/skip`,
+    { method: "POST", body: JSON.stringify({ paths }) },
+  );
+}
+
+export function clearHfDownloadHistory() {
+  return request<{ data: HfDownloadQueueState }>("/api/hf/queue/history", {
+    method: "DELETE",
+  });
+}
+
+export function getHfDownloadSettings() {
+  return request<{ data: HfDownloadSettings }>("/api/hf/download-settings");
+}
+
+export function updateHfDownloadSettings(input: HfDownloadSettings) {
+  return request<{ data: HfDownloadSettings }>("/api/hf/download-settings", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 }

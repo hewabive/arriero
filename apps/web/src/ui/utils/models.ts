@@ -15,6 +15,13 @@ export function formatBytes(bytes: number) {
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+export function formatBytesPerSecond(value: number | null | undefined) {
+  if (value === undefined || value === null) {
+    return "-";
+  }
+  return `${formatBytes(value)}/s`;
+}
+
 function displayNameFromFileName(name: string) {
   return stripGgufSuffix(name.replace(/-\d+-of-\d+\.gguf$/i, ""));
 }

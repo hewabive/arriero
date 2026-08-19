@@ -1,11 +1,12 @@
 import type {
   HfDownloadedRepo,
   HfDownloadedRepoFile,
+  HfOrphanPart,
   HfUpdateCheck,
 } from "@arriero/core";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { opendir } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { getActiveJob } from "../jobs/registry.js";
 import { logger } from "../logger.js";
@@ -15,6 +16,7 @@ import { IGNORED_DIRS } from "../models/scanner.js";
 import { isPathWithin } from "../path-utils.js";
 import { startModelScan } from "../models/scan-runner.js";
 import { traceBlockingSection } from "../system/event-loop.js";
+import { partialBytesFor } from "./chunk-store.js";
 import type { HfClientOptions } from "./client.js";
 import { groupHfGgufFiles } from "./grouping.js";
 import { hfDeleteBlockers, listLiveProcessArgs } from "./in-use.js";
@@ -40,6 +42,8 @@ export const HF_DOWNLOAD_JOB_DOMAIN = "hf-download";
 
 const CACHE_TTL_MS = 30_000;
 const MAX_VISITED_DIRS = 5_000;
+const ORPHAN_SCAN_MAX_ENTRIES = 500;
+const ORPHAN_SCAN_MAX_DEPTH = 6;
 
 export class HfDownloadNotFoundError extends Error {}
 export class HfDownloadBusyError extends Error {}
@@ -136,6 +140,60 @@ async function discoverRepos(): Promise<DiscoveredRepo[]> {
   );
 }
 
+function collectOrphanParts(dir: string, manifest: HfManifest): HfOrphanPart[] {
+  const known = new Set(manifest.files.map((file) => resolve(dir, file.path)));
+  const out: HfOrphanPart[] = [];
+  const state = { visited: 0 };
+  const walk = (current: string, depth: number): void => {
+    if (state.visited >= ORPHAN_SCAN_MAX_ENTRIES) {
+      return;
+    }
+    let entries;
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (state.visited >= ORPHAN_SCAN_MAX_ENTRIES) {
+        return;
+      }
+      state.visited += 1;
+      const absolute = join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (
+          depth < ORPHAN_SCAN_MAX_DEPTH &&
+          !IGNORED_DIRS.has(entry.name) &&
+          !entry.name.startsWith(".")
+        ) {
+          walk(absolute, depth + 1);
+        }
+        continue;
+      }
+      if (!entry.isFile()) {
+        continue;
+      }
+      if (entry.name.endsWith(".part")) {
+        const finalAbsolute = absolute.slice(0, -".part".length);
+        if (!known.has(finalAbsolute)) {
+          out.push({
+            path: relative(dir, absolute),
+            partialBytes: partialBytesFor(finalAbsolute),
+          });
+        }
+      } else if (entry.name.endsWith(".part.json")) {
+        const partAbsolute = absolute.slice(0, -".json".length);
+        const finalAbsolute = absolute.slice(0, -".part.json".length);
+        if (!existsSync(partAbsolute) && !known.has(finalAbsolute)) {
+          out.push({ path: relative(dir, absolute), partialBytes: 0 });
+        }
+      }
+    }
+  };
+  walk(dir, 0);
+  return out.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
   const key = listModelScanRoots()
     .map((root) => root.path)
@@ -144,13 +202,20 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
     cache = { key, at: Date.now(), repos: await discoverRepos() };
   }
   return cache.repos.map(({ dir, manifest }) => {
-    const files: HfDownloadedRepoFile[] = manifest.files.map((file) => ({
-      path: file.path,
-      size: file.size,
-      oid: file.oid,
-      lfsOid: file.lfsOid,
-      present: existsSync(join(dir, file.path)),
-    }));
+    const files: HfDownloadedRepoFile[] = manifest.files.map((file) => {
+      const finalPath = join(dir, file.path);
+      const present = existsSync(finalPath);
+      return {
+        path: file.path,
+        size: file.size,
+        oid: file.oid,
+        lfsOid: file.lfsOid,
+        present,
+        partialBytes: present
+          ? 0
+          : Math.min(partialBytesFor(finalPath), file.size),
+      };
+    });
     return {
       dir,
       repoId: manifest.repoId,
@@ -160,6 +225,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
       totalBytes: files.reduce((sum, file) => sum + file.size, 0),
       missingFiles: files.filter((file) => !file.present).length,
       files,
+      orphanParts: collectOrphanParts(dir, manifest),
       variants: groupHfGgufFiles(manifest.files),
       update: getHfUpdateCheck(dir),
     };
@@ -177,27 +243,48 @@ function resolveDeletableHfDownload(dir: string): {
       `no downloaded HuggingFace repo at ${resolved}`,
     );
   }
-  if (getActiveJob(HF_DOWNLOAD_JOB_DOMAIN, manifest.repoId)) {
+  if (getActiveJob(HF_DOWNLOAD_JOB_DOMAIN, resolved)) {
     throw new HfDownloadBusyError(
-      `a download for ${manifest.repoId} is running; cancel it first`,
+      `a download into ${resolved} is running; cancel it first`,
     );
   }
   return { resolved, manifest };
 }
 
-function resolveManifestDeletePaths(
+type HfDeleteTargets = {
+  manifestPaths: string[];
+  orphanPaths: string[];
+};
+
+function splitHfDeleteTargets(
+  resolved: string,
   manifest: HfManifest,
   paths: readonly string[],
-): string[] {
+): HfDeleteTargets {
   const known = new Set(manifest.files.map((file) => file.path));
-  const targets = [...new Set(paths)];
-  const unknown = targets.filter((path) => !known.has(path));
+  const manifestPaths: string[] = [];
+  const orphanPaths: string[] = [];
+  const unknown: string[] = [];
+  for (const path of [...new Set(paths)]) {
+    if (known.has(path)) {
+      manifestPaths.push(path);
+      continue;
+    }
+    if (
+      (path.endsWith(".part") || path.endsWith(".part.json")) &&
+      existsSync(resolveWithin(resolved, sanitizeRepoRelativePath(path)))
+    ) {
+      orphanPaths.push(path);
+      continue;
+    }
+    unknown.push(path);
+  }
   if (unknown.length > 0) {
     throw new HfDownloadNotFoundError(
       `not in the download manifest: ${unknown.join(", ")}`,
     );
   }
-  return targets;
+  return { manifestPaths, orphanPaths };
 }
 
 function pruneEmptyDirsWithin(baseDir: string, start: string): void {
@@ -241,6 +328,7 @@ function removeHfDownloadFiles(
       const absolute = resolveWithin(resolved, sanitizeRepoRelativePath(path));
       rmSync(absolute, { force: true });
       rmSync(`${absolute}.part`, { force: true });
+      rmSync(`${absolute}.part.json`, { force: true });
       pruneEmptyDirsWithin(resolved, dirname(absolute));
     }
   });
@@ -250,13 +338,36 @@ function removeHfDownloadFiles(
   });
 }
 
+function removeHfOrphanParts(
+  resolved: string,
+  orphanPaths: readonly string[],
+): void {
+  traceBlockingSection("hf:rm-orphan-parts", () => {
+    for (const path of orphanPaths) {
+      const absolute = resolveWithin(resolved, sanitizeRepoRelativePath(path));
+      rmSync(absolute, { force: true });
+      if (absolute.endsWith(".part")) {
+        rmSync(`${absolute}.json`, { force: true });
+      }
+      pruneEmptyDirsWithin(resolved, dirname(absolute));
+    }
+  });
+}
+
 export function deleteHfDownload(dir: string, paths?: readonly string[]): void {
   const { resolved, manifest } = resolveDeletableHfDownload(dir);
-  const targets = paths ? resolveManifestDeletePaths(manifest, paths) : null;
-  const partialDelete =
-    targets !== null && targets.length < manifest.files.length;
+  const targets = paths
+    ? splitHfDeleteTargets(resolved, manifest, paths)
+    : null;
+  const fullDelete =
+    targets === null ||
+    (manifest.files.length > 0 &&
+      targets.manifestPaths.length === manifest.files.length);
   const blockers = hfDeleteBlockers(
-    { dir: resolved, paths: partialDelete ? targets : null },
+    {
+      dir: resolved,
+      paths: fullDelete ? null : (targets?.manifestPaths ?? null),
+    },
     listLiveProcessArgs(),
   );
   if (blockers.length > 0) {
@@ -264,9 +375,14 @@ export function deleteHfDownload(dir: string, paths?: readonly string[]): void {
       `${manifest.repoId} is in use by running instances: ${blockers.join(", ")}; stop them first`,
     );
   }
-  if (partialDelete) {
-    removeHfDownloadFiles(resolved, manifest, targets);
-    pruneHfUpdateCheckFiles(resolved, new Set(targets));
+  if (!fullDelete && targets) {
+    if (targets.manifestPaths.length > 0) {
+      removeHfDownloadFiles(resolved, manifest, targets.manifestPaths);
+      pruneHfUpdateCheckFiles(resolved, new Set(targets.manifestPaths));
+    }
+    if (targets.orphanPaths.length > 0) {
+      removeHfOrphanParts(resolved, targets.orphanPaths);
+    }
   } else {
     removeHfDownloadDir(resolved);
     clearHfUpdateCheck(resolved);
@@ -282,7 +398,7 @@ export async function verifyHfDownloadRedownloadable(
 ): Promise<void> {
   const { resolved, manifest } = resolveDeletableHfDownload(dir);
   const targets = paths
-    ? new Set(resolveManifestDeletePaths(manifest, paths))
+    ? new Set(splitHfDeleteTargets(resolved, manifest, paths).manifestPaths)
     : null;
   const check = (await runHfUpdateChecks([resolved], options))[resolved];
   if (!check || check.status === "error" || check.status === "unchecked") {

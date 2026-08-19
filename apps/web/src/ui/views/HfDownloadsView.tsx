@@ -1,13 +1,31 @@
-import { Badge, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import type { HfDownloadQueueJob, HfDownloadSettings } from "@arriero/core";
+import {
+  Badge,
+  Button,
+  Group,
+  NumberInput,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { getHfTokenStatus, updateHfToken } from "../../api/client";
+import {
+  getHfDownloadSettings,
+  getHfTokenStatus,
+  updateHfDownloadSettings,
+  updateHfToken,
+} from "../../api/client";
 import { SecretInput } from "../components/SecretInput";
-import { HfDownloadJobsPanel } from "./HfDownloadJobsPanel";
 import { HfDownloadedReposPanel } from "./HfDownloadedReposPanel";
+import { HfQueuePanel } from "./HfQueuePanel";
 import { HfRepoBrowserPanel } from "./HfRepoBrowserPanel";
+import { useHfJobsSync } from "./use-hf-queue";
+
+const MIB = 1024 * 1024;
 
 function HfTokenCard() {
   const queryClient = useQueryClient();
@@ -78,12 +96,117 @@ function HfTokenCard() {
   );
 }
 
+function HfDownloadSettingsCard() {
+  const queryClient = useQueryClient();
+  const settingsQuery = useQuery({
+    queryKey: ["hf-download-settings"],
+    queryFn: getHfDownloadSettings,
+  });
+  const settings = settingsQuery.data?.data ?? null;
+  const [connections, setConnections] = useState<number | null>(null);
+  const [chunkMib, setChunkMib] = useState<number | null>(null);
+  const mutation = useMutation({
+    mutationFn: (input: HfDownloadSettings) => updateHfDownloadSettings(input),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["hf-download-settings"], result);
+      setConnections(null);
+      setChunkMib(null);
+      notifications.show({
+        title: "Download settings",
+        message: "Settings saved.",
+      });
+    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Download settings",
+        message: (error as Error).message,
+      }),
+  });
+  if (!settings) {
+    return null;
+  }
+  const effectiveConnections = connections ?? settings.connections;
+  const effectiveChunkMib = chunkMib ?? Math.round(settings.chunkBytes / MIB);
+  const dirty =
+    effectiveConnections !== settings.connections ||
+    effectiveChunkMib !== Math.round(settings.chunkBytes / MIB);
+
+  return (
+    <Paper withBorder p="md" radius="sm">
+      <Stack gap="sm">
+        <Title order={4}>Download settings</Title>
+        <Text size="sm" c="dimmed">
+          Parallel connections per download. More connections usually download
+          faster and ride out a stuck stream; files smaller than one chunk use a
+          single connection.
+        </Text>
+        <Group align="flex-end" gap="sm" wrap="wrap">
+          <NumberInput
+            label="Connections"
+            min={1}
+            max={16}
+            value={effectiveConnections}
+            onChange={(value) =>
+              setConnections(typeof value === "number" ? value : null)
+            }
+            w={140}
+          />
+          <NumberInput
+            label="Chunk size (MiB)"
+            min={4}
+            max={512}
+            value={effectiveChunkMib}
+            onChange={(value) =>
+              setChunkMib(typeof value === "number" ? value : null)
+            }
+            w={160}
+          />
+          <Button
+            onClick={() =>
+              mutation.mutate({
+                connections: effectiveConnections,
+                chunkBytes: effectiveChunkMib * MIB,
+              })
+            }
+            disabled={!dirty}
+            loading={mutation.isPending}
+          >
+            Save
+          </Button>
+        </Group>
+      </Stack>
+    </Paper>
+  );
+}
+
 export function HfDownloadsView() {
+  useHfJobsSync();
+  const queuePanelRef = useRef<HTMLDivElement>(null);
+  const [highlightJobId, setHighlightJobId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightJobId) {
+      return;
+    }
+    const timer = setTimeout(() => setHighlightJobId(null), 1_600);
+    return () => clearTimeout(timer);
+  }, [highlightJobId]);
+
+  const handleEnqueued = (job: HfDownloadQueueJob) => {
+    setHighlightJobId(job.id);
+    queuePanelRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   return (
     <Stack gap="md">
-      <HfRepoBrowserPanel />
-      <HfDownloadJobsPanel />
+      <HfRepoBrowserPanel onEnqueued={handleEnqueued} />
+      <HfQueuePanel ref={queuePanelRef} highlightJobId={highlightJobId} />
       <HfDownloadedReposPanel />
+      <HfDownloadSettingsCard />
       <HfTokenCard />
     </Stack>
   );
