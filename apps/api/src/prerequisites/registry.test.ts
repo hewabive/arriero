@@ -27,6 +27,13 @@ const rocky9: OsRelease = {
   versionId: "9.8",
 };
 
+const almalinux9: OsRelease = {
+  id: "almalinux",
+  idLike: ["rhel", "centos", "fedora"],
+  prettyName: "AlmaLinux 9.7 (Moss Jungle Cat)",
+  versionId: "9.7",
+};
+
 const rhel9: OsRelease = {
   id: "rhel",
   idLike: ["fedora"],
@@ -221,6 +228,34 @@ test("uses NVIDIA's hardware-aware driver assistant on Rocky Linux 9 x86-64", ()
   ]);
 });
 
+test("uses AlmaLinux's precompiled NVIDIA driver packages on AlmaLinux 9", () => {
+  const expectedDriverCommands = [
+    "sudo dnf install -y almalinux-release-nvidia-driver",
+    "sudo dnf install -y nvidia-open-kmod nvidia-driver nvidia-driver-cuda",
+  ];
+  const expectedSmiCommands = [
+    "sudo dnf install -y almalinux-release-nvidia-driver",
+    "sudo dnf install -y nvidia-driver-cuda",
+  ];
+
+  assert.deepEqual(
+    nvidiaDriverInstallCommands(almalinux9, "x64"),
+    expectedDriverCommands,
+  );
+  assert.deepEqual(
+    nvidiaDriverInstallCommands(almalinux9, "arm64"),
+    expectedDriverCommands,
+  );
+  assert.deepEqual(
+    nvidiaSmiInstallCommands(almalinux9, "x64"),
+    expectedSmiCommands,
+  );
+  assert.deepEqual(
+    nvidiaSmiInstallCommands(almalinux9, "arm64"),
+    expectedSmiCommands,
+  );
+});
+
 test("does not suggest distro-specific driver commands on unsupported hosts", () => {
   assert.deepEqual(
     nvidiaDriverInstallCommands({
@@ -233,6 +268,8 @@ test("does not suggest distro-specific driver commands on unsupported hosts", ()
   );
   assert.deepEqual(nvidiaDriverInstallCommands(rocky9, "arm64"), []);
   assert.deepEqual(nvidiaSmiInstallCommands(rocky9, "arm64"), []);
+  assert.deepEqual(nvidiaDriverInstallCommands(almalinux9, "ia32"), []);
+  assert.deepEqual(nvidiaSmiInstallCommands(almalinux9, "ia32"), []);
 });
 
 test("maps NVML provider states to prerequisite outcomes", () => {

@@ -182,8 +182,11 @@ const UBUNTU_NVIDIA_UTILS_PACKAGE_COMMANDS = [
 const UBUNTU_NVIDIA_UTILS_INSTALL_COMMAND =
   'sudo apt-get install -y "$nvidia_utils_package"';
 
-const ROCKY9_NVIDIA_USERSPACE_COMMAND =
-  "sudo dnf install -y nvidia-driver-cuda";
+const NVIDIA_DNF_USERSPACE_COMMAND = "sudo dnf install -y nvidia-driver-cuda";
+const ALMALINUX_NVIDIA_REPOSITORY_COMMAND =
+  "sudo dnf install -y almalinux-release-nvidia-driver";
+const ALMALINUX_NVIDIA_DRIVER_COMMAND =
+  "sudo dnf install -y nvidia-open-kmod nvidia-driver nvidia-driver-cuda";
 
 function isUbuntuFamily(release: OsRelease): boolean {
   return release.id === "ubuntu" || release.idLike.includes("ubuntu");
@@ -191,6 +194,16 @@ function isUbuntuFamily(release: OsRelease): boolean {
 
 function isRocky9(release: OsRelease): boolean {
   return release.id === "rocky" && release.versionId?.split(".")[0] === "9";
+}
+
+function isAlmaLinux9(release: OsRelease): boolean {
+  return release.id === "almalinux" && release.versionId?.split(".")[0] === "9";
+}
+
+function isAlmaLinuxNvidiaArchitecture(
+  architecture: NodeJS.Architecture,
+): boolean {
+  return architecture === "x64" || architecture === "arm64";
 }
 
 export function nvidiaDriverInstallCommands(
@@ -202,6 +215,13 @@ export function nvidiaDriverInstallCommands(
       ...UBUNTU_NVIDIA_UTILS_PACKAGE_COMMANDS,
       "sudo ubuntu-drivers install --gpgpu",
       UBUNTU_NVIDIA_UTILS_INSTALL_COMMAND,
+    ];
+  }
+
+  if (isAlmaLinux9(release) && isAlmaLinuxNvidiaArchitecture(architecture)) {
+    return [
+      ALMALINUX_NVIDIA_REPOSITORY_COMMAND,
+      ALMALINUX_NVIDIA_DRIVER_COMMAND,
     ];
   }
 
@@ -219,7 +239,7 @@ export function nvidiaDriverInstallCommands(
     ...repoCommands,
     "sudo dnf install -y nvidia-driver-assistant",
     "nvidia-driver-assistant --install",
-    ROCKY9_NVIDIA_USERSPACE_COMMAND,
+    NVIDIA_DNF_USERSPACE_COMMAND,
   ];
 }
 
@@ -233,8 +253,11 @@ export function nvidiaSmiInstallCommands(
       UBUNTU_NVIDIA_UTILS_INSTALL_COMMAND,
     ];
   }
+  if (isAlmaLinux9(release) && isAlmaLinuxNvidiaArchitecture(architecture)) {
+    return [ALMALINUX_NVIDIA_REPOSITORY_COMMAND, NVIDIA_DNF_USERSPACE_COMMAND];
+  }
   if (isRocky9(release) && architecture === "x64") {
-    return [ROCKY9_NVIDIA_USERSPACE_COMMAND];
+    return [NVIDIA_DNF_USERSPACE_COMMAND];
   }
   return [];
 }
@@ -629,7 +652,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     requiresRebootAfterInstall: true,
     applies: nvidiaDriverIsApplicable,
     docPath: "docs/RESOURCE_MANAGEMENT.md",
-    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. The distro-specific helper selects a driver compatible with the detected PCI GPU: ubuntu-drivers on Ubuntu, or NVIDIA's driver assistant on Rocky Linux 9 x86-64. The install also adds nvidia-smi for operator diagnostics. Reboot remains a separate manual action; after the server returns, press Re-check.",
+    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. Ubuntu and Rocky Linux use hardware-aware helpers; AlmaLinux 9 uses its signed, precompiled open kernel module packages on x86-64 and aarch64. The install also adds nvidia-smi for operator diagnostics. Reboot remains a separate manual action; after the server returns, press Re-check.",
     probe: async (context) =>
       nvidiaDriverProbeOutcome(
         context.nvidiaTelemetryStatus(),
@@ -651,7 +674,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     includeInInstallPlan: false,
     applies: nvidiaSmiIsApplicable,
     docPath: null,
-    note: "Arriero telemetry uses NVML directly and does not depend on this CLI. The installer adds the utility package matching the Ubuntu driver branch, or NVIDIA's compute userspace package on Rocky Linux 9.",
+    note: "Arriero telemetry uses NVML directly and does not depend on this CLI. The installer adds the utility package matching the Ubuntu driver branch, or NVIDIA's compute userspace package on Rocky Linux 9 and AlmaLinux 9.",
     probe: executableProbe(["nvidia-smi"]),
   },
   {

@@ -105,6 +105,16 @@ module flavor supported by the detected GPU instead of arriero assuming that
 every NVIDIA device can use the open kernel module. Those setup steps form one
 `&&`-joined runnable row; `sudo reboot` remains a separate manual row.
 
+AlmaLinux 9 uses the distribution's signed, precompiled open kernel modules on
+x86-64 and aarch64. Its remediation installs
+`almalinux-release-nvidia-driver`, which enables AlmaLinux's NVIDIA repository,
+CRB, EPEL and NVIDIA's CUDA repository, followed by `nvidia-open-kmod`,
+`nvidia-driver` and `nvidia-driver-cuda`. This avoids a DKMS build and supplies
+both `libnvidia-ml.so.1` and `nvidia-smi`. The open kernel module supports Turing
+and newer GPUs; reboot handling is the same as for the other driver installers.
+The package sequence follows the
+[AlmaLinux NVIDIA driver guide](https://wiki.almalinux.org/documentation/nvidia.html).
+
 On Ubuntu 24.04 the install may repeat
 `udevadm hwdb is deprecated. Use systemd-hwdb instead.` while packages are
 configured. This warning comes from the current `ubuntu-drivers` integration
@@ -205,10 +215,10 @@ Runner rules (`install-runner.ts`):
   (`resolveInstallCommand`) — clients never submit command text.
 - Package-manager commands and explicitly allowlisted, server-generated install
   sequences are runnable. The DNF `nvcc` remediation is one such sequence;
-  the Ubuntu/Rocky NVIDIA driver setup and the `uv` bootstrap are others. Driver
-  setup is intentionally excluded from the aggregated required/recommended
-  command and is runnable only from its own check. Its separate `sudo reboot`
-  command and the delegation script stay copy-paste.
+  the Ubuntu/Rocky/AlmaLinux NVIDIA driver setup and the `uv` bootstrap are
+  others. Driver setup is intentionally excluded from the aggregated
+  required/recommended command and is runnable only from its own check. Its
+  separate `sudo reboot` command and the delegation script stay copy-paste.
 - A missing `uv` is installed with `pipx install uv`; no minimum uv version is
   enforced. If `pipx` is absent, supported distributions first install their
   `pipx` package. DNF-based RHEL-family hosts use that path too; `pipx` is provided
