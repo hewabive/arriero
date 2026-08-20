@@ -7,8 +7,10 @@ import {
   cancelHfDownloadJob,
   clearHfDownloadHistory,
   getHfDownloadQueue,
+  pauseHfDownloadJob,
   removeHfDownloadJob,
   reorderHfDownloadQueue,
+  resumeHfDownloadJob,
   skipHfDownloadFiles,
 } from "../../api/client";
 import {
@@ -48,6 +50,7 @@ export function useHfJobsSync(): void {
     const jobs = [
       ...(data.active ? [data.active] : []),
       ...data.queued,
+      ...data.paused,
       ...data.history,
     ];
     let settled = false;
@@ -86,6 +89,7 @@ export function useHfQueue() {
   const state: HfDownloadQueueState | null = query.data?.data ?? null;
   const active = state?.active ?? null;
   const queued = state?.queued ?? [];
+  const paused = state?.paused ?? [];
   const history = state?.history ?? [];
 
   const activeId = active?.id ?? null;
@@ -116,6 +120,16 @@ export function useHfQueue() {
     mutationFn: (jobId: string) => cancelHfDownloadJob(jobId),
     onSuccess: apply,
     onError: reportError("Cancel download"),
+  });
+  const pauseMutation = useMutation({
+    mutationFn: (jobId: string) => pauseHfDownloadJob(jobId),
+    onSuccess: apply,
+    onError: reportError("Pause download"),
+  });
+  const resumeMutation = useMutation({
+    mutationFn: (jobId: string) => resumeHfDownloadJob(jobId),
+    onSuccess: apply,
+    onError: reportError("Resume download"),
   });
   const removeMutation = useMutation({
     mutationFn: (jobId: string) => removeHfDownloadJob(jobId),
@@ -160,9 +174,12 @@ export function useHfQueue() {
     state,
     active,
     queued,
+    paused,
     history,
     rate,
     cancel: (jobId: string) => cancelMutation.mutate(jobId),
+    pause: (jobId: string) => pauseMutation.mutate(jobId),
+    resume: (jobId: string) => resumeMutation.mutate(jobId),
     remove: (jobId: string) => removeMutation.mutate(jobId),
     move,
     skipFiles: (jobId: string, paths: string[]) =>
@@ -170,6 +187,8 @@ export function useHfQueue() {
     clearHistory: () => clearMutation.mutate(),
     pending: {
       cancelId: cancelMutation.isPending ? cancelMutation.variables : null,
+      pauseId: pauseMutation.isPending ? pauseMutation.variables : null,
+      resumeId: resumeMutation.isPending ? resumeMutation.variables : null,
       removeId: removeMutation.isPending ? removeMutation.variables : null,
       reorder: reorderMutation.isPending,
       skip: skipMutation.isPending ? skipMutation.variables : null,

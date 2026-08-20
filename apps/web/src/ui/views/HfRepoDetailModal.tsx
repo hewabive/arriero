@@ -67,7 +67,9 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
   const job: HfDownloadQueueJob | null =
     queue.active && queue.active.destDir === repo.dir
       ? queue.active
-      : (queue.queued.find((entry) => entry.destDir === repo.dir) ?? null);
+      : (queue.queued.find((entry) => entry.destDir === repo.dir) ??
+        queue.paused.find((entry) => entry.destDir === repo.dir) ??
+        null);
   const jobRate =
     job && queue.active && queue.active.id === job.id ? queue.rate : null;
   const jobFiles = useMemo(

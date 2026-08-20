@@ -126,7 +126,7 @@ function hfMissingFilesBadge(repo: HfDownloadedRepo) {
   );
 }
 
-export type HfRepoJobState = "running" | "queued" | null;
+export type HfRepoJobState = "running" | "queued" | "paused" | null;
 
 function hfDownloadingBadge(jobState: HfRepoJobState) {
   if (jobState === "running") {
@@ -140,6 +140,13 @@ function hfDownloadingBadge(jobState: HfRepoJobState) {
     return (
       <Badge color="gray" variant="light">
         queued
+      </Badge>
+    );
+  }
+  if (jobState === "paused") {
+    return (
+      <Badge color="yellow" variant="light">
+        paused
       </Badge>
     );
   }

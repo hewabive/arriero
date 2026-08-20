@@ -21,15 +21,21 @@ export const HfQueuePanel = forwardRef<
 >(function HfQueuePanel(props, ref) {
   const queue = useHfQueue();
   const [historyOpened, setHistoryOpened] = useState(false);
-  const { active, queued, history } = queue;
+  const { active, queued, paused, history } = queue;
 
-  if (!active && queued.length === 0 && history.length === 0) {
+  if (
+    !active &&
+    queued.length === 0 &&
+    paused.length === 0 &&
+    history.length === 0
+  ) {
     return null;
   }
 
   const summary = [
     active ? "1 active" : null,
     queued.length > 0 ? countLabel(queued.length, "queued download") : null,
+    paused.length > 0 ? countLabel(paused.length, "paused download") : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -48,7 +54,7 @@ export const HfQueuePanel = forwardRef<
           </Group>
         </Group>
 
-        {!active && queued.length === 0 && (
+        {!active && queued.length === 0 && paused.length === 0 && (
           <Text size="sm" c="dimmed">
             The queue is empty — pick files in the repository browser above.
           </Text>
@@ -60,10 +66,26 @@ export const HfQueuePanel = forwardRef<
             rate={queue.rate}
             canceling={queue.pending.cancelId === active.id}
             onCancel={() => queue.cancel(active.id)}
+            onPause={() => queue.pause(active.id)}
+            pausing={queue.pending.pauseId === active.id}
             onSkipFile={(path) => queue.skipFiles(active.id, [path])}
             highlighted={props.highlightJobId === active.id}
           />
         )}
+
+        {paused.map((job) => (
+          <HfQueueJobCard
+            key={job.id}
+            job={job}
+            rate={null}
+            canceling={false}
+            onResume={() => queue.resume(job.id)}
+            resuming={queue.pending.resumeId === job.id}
+            onDismiss={() => queue.remove(job.id)}
+            onSkipFile={(path) => queue.skipFiles(job.id, [path])}
+            highlighted={props.highlightJobId === job.id}
+          />
+        ))}
 
         {queued.map((job, index) => (
           <HfQueuedJobCard

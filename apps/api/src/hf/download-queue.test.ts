@@ -15,10 +15,12 @@ import {
   clearHfDownloadHistory,
   enqueueHfDownload,
   getHfDownloadQueueState,
+  pauseHfDownloadJob,
   reloadHfDownloadQueueFromStoreForTests,
   removeHfDownloadQueueJob,
   reorderHfDownloadQueue,
   resetHfDownloadQueueForTests,
+  resumeHfDownloadJob,
   setHfDownloadQueueFallbackOptionsForTests,
   skipHfDownloadFiles,
   waitForHfDownloadQueueIdle,
@@ -57,6 +59,7 @@ type StubOptions = {
   serveContent?: Map<string, Buffer>;
   failResolveWith?: number;
   gatedPaths?: Set<string>;
+  terminatePaths?: Map<string, number>;
 };
 
 type Stub = {
@@ -120,6 +123,16 @@ function makeStub(
       const file = files.get(path);
       assert.ok(file, `unexpected resolve request for ${path}`);
       const content = options?.serveContent?.get(path) ?? file.content;
+      const remainingTerminations = options?.terminatePaths?.get(path) ?? 0;
+      if (remainingTerminations > 0) {
+        options?.terminatePaths?.set(path, remainingTerminations - 1);
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            controller.error(new TypeError("terminated"));
+          },
+        });
+        return new Response(body, { status: 200 });
+      }
       if (options?.gatedPaths?.has(path)) {
         const signal = init?.signal;
         const firstChunk = content.subarray(0, 1);
@@ -661,6 +674,192 @@ test("skipping files of the running job aborts the in-flight file and continues"
   );
 });
 
+test("a transfer stalled without progress pauses the job and resume completes it", async () => {
+  const content = randomBytes(64);
+  const files = new Map<string, FixtureFile>([
+    ["model.safetensors", { content, lfs: true }],
+  ]);
+  const stub = makeStub(files, {
+    terminatePaths: new Map([["model.safetensors", 5]]),
+  });
+  const job = await enqueueHfDownload(
+    { repoId: REPO_ID, revision: SHA, paths: ["model.safetensors"], destDir },
+    { ...stubOptions(stub), sleep: () => Promise.resolve() },
+  );
+  await waitFor(
+    () => getHfDownloadQueueState().paused.some((entry) => entry.id === job.id),
+    "job to pause on stall",
+  );
+  const paused = getHfDownloadQueueState().paused.find(
+    (entry) => entry.id === job.id,
+  );
+  assert.equal(paused?.pauseReason, "network");
+  assert.equal(paused?.error, null);
+  assert.deepEqual(
+    paused?.files.map((file) => file.status),
+    ["pending"],
+  );
+  assert.equal(getHfDownloadQueueState().active, null);
+  const resumed = resumeHfDownloadJob(job.id);
+  assert.equal(resumed.ok, true);
+  await waitForHfDownloadQueueIdle();
+  const finished = historyJob(job.id);
+  assert.equal(finished.status, "succeeded");
+  assert.deepEqual(readFileSync(join(destDir, "model.safetensors")), content);
+});
+
+test("pausing the running job parks it for a later resume", async () => {
+  const content = randomBytes(300);
+  const files = new Map<string, FixtureFile>([
+    ["slow.bin", { content, lfs: true }],
+  ]);
+  const stub = makeStub(files, { gatedPaths: new Set(["slow.bin"]) });
+  const job = await enqueueHfDownload(
+    { repoId: REPO_ID, revision: SHA, paths: ["slow.bin"], destDir },
+    stubOptions(stub),
+  );
+  await waitFor(
+    () => (getHfDownloadQueueState().active?.downloadedBytes ?? 0) > 0,
+    "first bytes",
+  );
+  const pausing = pauseHfDownloadJob(job.id);
+  assert.equal(pausing.ok, true);
+  await waitFor(
+    () => getHfDownloadQueueState().paused.some((entry) => entry.id === job.id),
+    "job to pause",
+  );
+  const paused = getHfDownloadQueueState().paused.find(
+    (entry) => entry.id === job.id,
+  );
+  assert.equal(paused?.pauseReason, "manual");
+  assert.equal(paused?.error, null);
+  assert.deepEqual(
+    paused?.files.map((file) => file.status),
+    ["pending"],
+  );
+  const resumed = resumeHfDownloadJob(job.id);
+  assert.equal(resumed.ok, true);
+  await waitFor(
+    () => stub.resolveRequests.length >= 2,
+    "restarted job to re-request the file",
+  );
+  stub.releaseGate("slow.bin");
+  await waitForHfDownloadQueueIdle();
+  assert.equal(historyJob(job.id).status, "succeeded");
+  assert.deepEqual(readFileSync(join(destDir, "slow.bin")), content);
+});
+
+test("a queued job pauses in place and reorder retains it", async () => {
+  const running = new Map<string, FixtureFile>([
+    ["slow.bin", { content: randomBytes(300), lfs: true }],
+  ]);
+  const stub = makeStub(running, { gatedPaths: new Set(["slow.bin"]) });
+  const first = await enqueueHfDownload(
+    { repoId: REPO_ID, revision: SHA, paths: ["slow.bin"], destDir },
+    stubOptions(stub),
+  );
+  await waitFor(
+    () => getHfDownloadQueueState().active?.id === first.id,
+    "first job running",
+  );
+  const filesB = new Map<string, FixtureFile>([
+    ["b.bin", { content: randomBytes(10), lfs: false }],
+  ]);
+  const filesC = new Map<string, FixtureFile>([
+    ["c.bin", { content: randomBytes(10), lfs: false }],
+  ]);
+  const dirB = join(config.runtimeDir, `hf-queue-test-${randomUUID()}`);
+  const dirC = join(config.runtimeDir, `hf-queue-test-${randomUUID()}`);
+  const jobB = await enqueueHfDownload(
+    { repoId: "owner/b", revision: SHA, paths: ["b.bin"], destDir: dirB },
+    stubOptions(makeStub(filesB)),
+  );
+  const jobC = await enqueueHfDownload(
+    { repoId: "owner/c", revision: SHA, paths: ["c.bin"], destDir: dirC },
+    stubOptions(makeStub(filesC)),
+  );
+  const pausedB = pauseHfDownloadJob(jobB.id);
+  assert.equal(pausedB.ok, true);
+  if (pausedB.ok) {
+    assert.deepEqual(
+      pausedB.state.paused.map((entry) => entry.id),
+      [jobB.id],
+    );
+    assert.deepEqual(
+      pausedB.state.queued.map((entry) => entry.id),
+      [jobC.id],
+    );
+  }
+  const reordered = reorderHfDownloadQueue([jobC.id]);
+  assert.equal(reordered.ok, true);
+  if (reordered.ok) {
+    assert.deepEqual(
+      reordered.state.paused.map((entry) => entry.id),
+      [jobB.id],
+    );
+  }
+  stub.releaseGate("slow.bin");
+  await waitForHfDownloadQueueIdle();
+  assert.equal(historyJob(jobC.id).status, "succeeded");
+  assert.equal(
+    getHfDownloadQueueState().paused.some((entry) => entry.id === jobB.id),
+    true,
+  );
+  const resumedB = resumeHfDownloadJob(jobB.id);
+  assert.equal(resumedB.ok, true);
+  await waitForHfDownloadQueueIdle();
+  assert.equal(historyJob(jobB.id).status, "succeeded");
+});
+
+test("a persisted paused job is adopted without auto-resuming", async () => {
+  const content = randomBytes(100);
+  persistHfQueueStore({
+    version: 1,
+    queue: [
+      {
+        id: "job-paused",
+        repoId: REPO_ID,
+        revision: SHA,
+        destDir,
+        status: "paused",
+        message: "Paused: no download progress (terminated).",
+        error: null,
+        enqueuedAt: "2026-08-19T00:00:00.000Z",
+        startedAt: "2026-08-19T00:00:01.000Z",
+        finishedAt: null,
+        cancelRequested: false,
+        pauseRequested: false,
+        pauseReason: "network",
+        totalBytes: content.length,
+        downloadedBytes: 0,
+        files: [
+          {
+            path: "model.safetensors",
+            size: content.length,
+            status: "pending",
+            downloadedBytes: 0,
+            error: null,
+            oid: "git-model.safetensors",
+            lfs: { oid: sha256Hex(content), size: content.length },
+            lastCommitId: null,
+            lastCommitDate: null,
+          },
+        ],
+      },
+    ],
+    history: [],
+  });
+  reloadHfDownloadQueueFromStoreForTests();
+  const adopted = adoptHfDownloadQueue();
+  assert.equal(adopted.resumed, 0);
+  const state = getHfDownloadQueueState();
+  assert.equal(state.active, null);
+  assert.deepEqual(
+    state.paused.map((entry) => [entry.id, entry.pauseReason]),
+    [["job-paused", "network"]],
+  );
+});
+
 test("finished jobs land in history newest-first, trimmed and clearable", async () => {
   const content = Buffer.from("tiny");
   const files = new Map<string, FixtureFile>([
@@ -711,6 +910,8 @@ test("a persisted running job is adopted as queued and auto-resumes", async () =
         startedAt: "2026-08-19T00:00:01.000Z",
         finishedAt: null,
         cancelRequested: false,
+        pauseRequested: false,
+        pauseReason: null,
         totalBytes: content.length,
         downloadedBytes: 0,
         files: [

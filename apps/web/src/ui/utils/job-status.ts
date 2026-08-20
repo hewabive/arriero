@@ -9,5 +9,6 @@ export function backgroundJobStatusColor(status: BackgroundJobStatus): string {
 
 export function hfDownloadJobStatusColor(status: HfDownloadJobStatus): string {
   if (status === "queued") return "gray";
+  if (status === "paused") return "yellow";
   return backgroundJobStatusColor(status);
 }

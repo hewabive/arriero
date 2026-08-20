@@ -65,6 +65,7 @@ export type HfTransferContext = {
 export type HfTransferResult = {
   failedCount: number;
   fatalError: string | null;
+  stalled: string | null;
 };
 
 class RangeUnsupportedError extends Error {}
@@ -332,11 +333,14 @@ export async function runHfTransfer(
   const engine = {
     failedCount: 0,
     fatalError: null as string | null,
+    stalled: null as string | null,
+    progressStamp: 0,
     nextFileIndex: 0,
     opening: false,
     busy: 0,
     openFiles: [] as ChunkedFile[],
     singleQueue: [] as HfPlannedFile[],
+    singleControllers: new Set<AbortController>(),
     wakeWaiters: [] as (() => void)[],
   };
 
@@ -359,6 +363,26 @@ export async function runHfTransfer(
   function abortActiveTransfers(): void {
     for (const abort of [...ctx.fileAborts.values()]) {
       abort();
+    }
+    wake();
+  }
+
+  function declareStall(message: string): void {
+    if (engine.stalled !== null || engine.fatalError !== null) {
+      return;
+    }
+    engine.stalled = message;
+    logger.warn(
+      { repoId: ctx.repoId, message },
+      "hf transfer stalled without progress; pausing",
+    );
+    for (const state of engine.openFiles) {
+      for (const controller of [...state.controllers]) {
+        controller.abort();
+      }
+    }
+    for (const controller of [...engine.singleControllers]) {
+      controller.abort();
     }
     wake();
   }
@@ -602,6 +626,9 @@ export async function runHfTransfer(
         await state.handle.write(buffer, 0, buffer.length, position);
         position += buffer.length;
         progress.flushed = received;
+        if (buffer.length > 0) {
+          engine.progressStamp += 1;
+        }
         state.liveByChunk.set(index, received);
         reportBytes(state);
       }
@@ -624,11 +651,13 @@ export async function runHfTransfer(
     let attempt = 0;
     let rateLimited = 0;
     let reResolved = false;
+    let noProgressStamp: number | null = null;
     const progress: ChunkProgress = { flushed: 0 };
     for (;;) {
       if (
         ctx.signal.aborted ||
         engine.fatalError !== null ||
+        engine.stalled !== null ||
         state.canceled ||
         state.settled
       ) {
@@ -638,6 +667,7 @@ export async function runHfTransfer(
         return;
       }
       const flushedBefore = progress.flushed;
+      const stampBefore = engine.progressStamp;
       const controller = new AbortController();
       const onAbort = () => controller.abort();
       ctx.signal.addEventListener("abort", onAbort, { once: true });
@@ -663,7 +693,7 @@ export async function runHfTransfer(
         } else {
           state.liveByChunk.delete(index);
         }
-        if (ctx.signal.aborted || state.settled) {
+        if (ctx.signal.aborted || engine.stalled !== null || state.settled) {
           return;
         }
         if (state.canceled) {
@@ -704,10 +734,23 @@ export async function runHfTransfer(
           return;
         }
         if (isTransientError(error)) {
-          attempt = progress.flushed > flushedBefore ? 1 : attempt + 1;
+          if (progress.flushed > flushedBefore) {
+            attempt = 1;
+            noProgressStamp = null;
+          } else {
+            noProgressStamp = noProgressStamp ?? stampBefore;
+            attempt += 1;
+          }
           if (attempt < CHUNK_ATTEMPT_LIMIT) {
             await sleep(backoffMs(attempt));
             continue;
+          }
+          if (
+            noProgressStamp !== null &&
+            engine.progressStamp === noProgressStamp
+          ) {
+            declareStall((error as Error).message);
+            return;
           }
         }
         await settleFailed(state, (error as Error).message);
@@ -726,14 +769,17 @@ export async function runHfTransfer(
     }
     ctx.events.onFileStart(file.path);
     const fileController = new AbortController();
+    engine.singleControllers.add(fileController);
     const onJobAbort = () => fileController.abort();
     ctx.signal.addEventListener("abort", onJobAbort, { once: true });
     ctx.fileAborts.set(file.path, () => fileController.abort());
     let attempt = 0;
     let reportedBytes = 0;
+    let noProgressStamp: number | null = null;
     try {
       for (;;) {
         const bytesBefore = reportedBytes;
+        const stampBefore = engine.progressStamp;
         try {
           const outcome = await downloadOneFile({
             url: hfResolveUrl(ctx.repoId, ctx.sha, file.path),
@@ -743,14 +789,17 @@ export async function runHfTransfer(
             manifestEntry: ctx.manifestEntries.get(file.path) ?? null,
             onBytes: (bytes) => {
               const capped = Math.min(bytes, file.size);
-              reportedBytes = Math.max(reportedBytes, capped);
+              if (capped > reportedBytes) {
+                reportedBytes = capped;
+                engine.progressStamp += 1;
+              }
               ctx.events.onFileBytes(file.path, capped);
             },
           });
           ctx.events.onFileFinished(file, outcome);
           return;
         } catch (error) {
-          if (ctx.signal.aborted) {
+          if (ctx.signal.aborted || engine.stalled !== null) {
             return;
           }
           if (fileController.signal.aborted) {
@@ -758,10 +807,23 @@ export async function runHfTransfer(
             return;
           }
           if (isTransientError(error) && !isEnospc(error)) {
-            attempt = reportedBytes > bytesBefore ? 1 : attempt + 1;
+            if (reportedBytes > bytesBefore) {
+              attempt = 1;
+              noProgressStamp = null;
+            } else {
+              noProgressStamp = noProgressStamp ?? stampBefore;
+              attempt += 1;
+            }
             if (attempt < CHUNK_ATTEMPT_LIMIT) {
               await sleep(backoffMs(attempt));
               continue;
+            }
+            if (
+              noProgressStamp !== null &&
+              engine.progressStamp === noProgressStamp
+            ) {
+              declareStall((error as Error).message);
+              return;
             }
           }
           const message = (error as Error).message;
@@ -785,6 +847,7 @@ export async function runHfTransfer(
         }
       }
     } finally {
+      engine.singleControllers.delete(fileController);
       ctx.signal.removeEventListener("abort", onJobAbort);
       ctx.fileAborts.delete(file.path);
     }
@@ -885,7 +948,11 @@ export async function runHfTransfer(
 
   async function worker(): Promise<void> {
     for (;;) {
-      if (ctx.signal.aborted || engine.fatalError !== null) {
+      if (
+        ctx.signal.aborted ||
+        engine.fatalError !== null ||
+        engine.stalled !== null
+      ) {
         return;
       }
       const work = nextWork();
@@ -930,5 +997,9 @@ export async function runHfTransfer(
       ctx.fileAborts.delete(state.file.path);
     }
   }
-  return { failedCount: engine.failedCount, fatalError: engine.fatalError };
+  return {
+    failedCount: engine.failedCount,
+    fatalError: engine.fatalError,
+    stalled: engine.stalled,
+  };
 }

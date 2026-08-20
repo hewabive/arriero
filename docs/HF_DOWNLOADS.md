@@ -80,7 +80,19 @@ the process). All download requests go through a dedicated undici agent
 cut. A `416`/`200` on a bounded range falls the file back to a single
 stream; `429` gets two long retries (30/60 s) then fails the job; `unauthorized`/`gated` and
 `ENOSPC` fail the job immediately (remaining files → `canceled`); other per-file failures are
-recorded and the job continues. Cancel — whole job (`POST /api/hf/queue/:id/cancel`) or per file
+recorded and the job continues.
+
+**Stall pause**: when a chunk (or single stream) exhausts its no-progress attempts, the engine
+checks a job-wide progress stamp — if any worker flushed bytes during that failure run, the link
+works and only this file fails (status `failed`, job continues); if nothing progressed anywhere,
+the link is sick and the whole job transitions to **`paused`** (`pauseReason: "network"`) instead
+of grinding through every remaining file: `downloading` files go back to `pending`, parts and
+sidecars stay, the queue moves on to the next queued job, and one click (or
+`POST /api/hf/queue/:id/resume`) re-queues it. `POST /api/hf/queue/:id/pause` pauses manually —
+immediately for a queued job, via abort + finalize for the running one (`pauseRequested` mirrors
+`cancelRequested` in the API shape; cancel wins over pause). A paused job survives restarts as
+paused (boot adoption auto-resumes only interrupted `running` jobs), is skipped by `pump()`,
+retained by reorder, has files droppable like a queued job, and is removable outright. Cancel — whole job (`POST /api/hf/queue/:id/cancel`) or per file
 (`POST /api/hf/queue/:id/files/skip`, which also drops files from a queued job) — keeps `.part` +
 sidecar for a later resume. A completed `.gguf`/`.safetensors` triggers a model rescan. A manifest
 header is written at job start so a directory holding only `.part`s is discoverable, and the
@@ -193,6 +205,8 @@ token is sent as `Authorization: Bearer` and undici drops it on the cross-origin
 | `GET /api/hf/queue` | queue state: active job with live progress, queued jobs, history |
 | `POST /api/hf/queue/reorder` | reorder queued jobs (`ids` = the complete new order) |
 | `POST /api/hf/queue/:id/cancel` | cancel the active job (parts kept for resume) |
+| `POST /api/hf/queue/:id/pause` | pause the active or a queued job (parts kept) |
+| `POST /api/hf/queue/:id/resume` | re-queue a paused job |
 | `DELETE /api/hf/queue/:id` | remove a queued job or dismiss a history entry |
 | `POST /api/hf/queue/:id/files/skip` | skip files of the active job / drop files from a queued one |
 | `DELETE /api/hf/queue/history` | clear the finished-job history |

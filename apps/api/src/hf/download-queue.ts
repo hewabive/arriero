@@ -41,6 +41,7 @@ export type HfDownloadQueueOptions = {
   fetchImpl?: typeof fetch | undefined;
   token?: string | null | undefined;
   freeBytes?: FreeBytesImpl | undefined;
+  sleep?: ((ms: number) => Promise<void>) | undefined;
 };
 
 export type HfQueueMutationResult =
@@ -80,6 +81,7 @@ function ensureState(): QueueState {
   const stored = loadHfQueueStore();
   let resumed = 0;
   for (const job of stored.queue) {
+    job.pauseRequested = false;
     if (job.status === "running") {
       job.status = "queued";
       job.message = "Interrupted by a manager restart.";
@@ -161,6 +163,8 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
     startedAt: job.startedAt,
     finishedAt: job.finishedAt,
     cancelRequested: job.cancelRequested,
+    pauseRequested: job.pauseRequested,
+    pauseReason: job.pauseReason,
     totalBytes: job.totalBytes,
     downloadedBytes: files.reduce((sum, file) => sum + file.downloadedBytes, 0),
     activePaths: isActive
@@ -180,6 +184,9 @@ export function getHfDownloadQueueState(): HfDownloadQueueState {
     active: active ? toApiJob(active) : null,
     queued: current.queue
       .filter((job) => job.status === "queued")
+      .map(toApiJob),
+    paused: current.queue
+      .filter((job) => job.status === "paused")
       .map(toApiJob),
     history: current.history.map(toApiJob),
   };
@@ -204,6 +211,7 @@ function isModelFilePath(path: string): boolean {
 type TransferOutcome = {
   failedCount: number;
   fatalError: string | null;
+  stalled: string | null;
   downloadedModelFile: boolean;
 };
 
@@ -225,6 +233,7 @@ async function executeJob(
     return {
       failedCount: 0,
       fatalError: spaceError,
+      stalled: null,
       downloadedModelFile: false,
     };
   }
@@ -251,6 +260,7 @@ async function executeJob(
     chunkBytes: settings.chunkBytes,
     isFileCanceled: (path) => userCanceledPaths.has(path),
     fileAborts,
+    sleep: optionsFor(job)?.sleep,
     events: {
       onFileStart: (path) => {
         patchFile(job, path, { status: "downloading" });
@@ -309,8 +319,13 @@ async function executeJob(
 
 function finalizeJob(
   job: HfQueueJob,
-  input: { aborted: boolean; failedCount: number; fatalError: string | null },
-): "finished" | "requeued" | "orphaned" {
+  input: {
+    aborted: boolean;
+    failedCount: number;
+    fatalError: string | null;
+    stalled: string | null;
+  },
+): "finished" | "requeued" | "paused" | "orphaned" {
   const current = ensureState();
   if (!current.queue.some((entry) => entry.id === job.id)) {
     return "orphaned";
@@ -334,6 +349,30 @@ function finalizeJob(
     persist();
     return "requeued";
   }
+  const pauseReason =
+    input.aborted && job.pauseRequested && !job.cancelRequested
+      ? "manual"
+      : !input.aborted && input.stalled !== null
+        ? "network"
+        : null;
+  if (pauseReason !== null) {
+    job.status = "paused";
+    job.pauseReason = pauseReason;
+    job.pauseRequested = false;
+    job.error = null;
+    job.message =
+      pauseReason === "network"
+        ? `Paused: no download progress (${input.stalled}).`
+        : "Paused by user.";
+    for (const file of job.files) {
+      if (file.status === "downloading") {
+        file.status = "pending";
+      }
+    }
+    persist();
+    return "paused";
+  }
+  job.pauseRequested = false;
   for (const file of job.files) {
     if (file.status === "pending" || file.status === "downloading") {
       file.status = "canceled";
@@ -374,6 +413,7 @@ async function runActive(
   let outcome: TransferOutcome = {
     failedCount: 0,
     fatalError: null,
+    stalled: null,
     downloadedModelFile: false,
   };
   const clientOptions = clientOptionsFor(job);
@@ -392,6 +432,7 @@ async function runActive(
       aborted: controller.signal.aborted,
       failedCount: outcome.failedCount,
       fatalError: outcome.fatalError,
+      stalled: outcome.stalled,
     });
     if (currentRun?.jobId === job.id) {
       liveBytes.clear();
@@ -477,6 +518,8 @@ export async function enqueueHfDownload(
     startedAt: null,
     finishedAt: null,
     cancelRequested: false,
+    pauseRequested: false,
+    pauseReason: null,
     totalBytes: plan.totalBytes,
     downloadedBytes: 0,
     files: plan.planned.map((file) => ({
@@ -519,6 +562,64 @@ export function cancelActiveHfDownload(id: string): HfQueueMutationResult {
   job.message = "Canceling download.";
   persist();
   currentRun.controller.abort();
+  return { ok: true, state: getHfDownloadQueueState() };
+}
+
+export function pauseHfDownloadJob(id: string): HfQueueMutationResult {
+  const current = ensureState();
+  const job = current.queue.find((entry) => entry.id === id);
+  if (!job) {
+    return { ok: false, status: 404, error: `no download job ${id}` };
+  }
+  if (job.status === "queued") {
+    job.status = "paused";
+    job.pauseReason = "manual";
+    job.message = "Paused by user.";
+    persist();
+    return { ok: true, state: getHfDownloadQueueState() };
+  }
+  if (job.status === "running" && currentRun?.jobId === job.id) {
+    if (job.cancelRequested) {
+      return {
+        ok: false,
+        status: 409,
+        error: `download job ${id} is being canceled`,
+      };
+    }
+    if (!job.pauseRequested) {
+      job.pauseRequested = true;
+      job.message = "Pausing download.";
+      persist();
+      currentRun.controller.abort();
+    }
+    return { ok: true, state: getHfDownloadQueueState() };
+  }
+  return {
+    ok: false,
+    status: 409,
+    error: `download job ${id} is not running or queued`,
+  };
+}
+
+export function resumeHfDownloadJob(id: string): HfQueueMutationResult {
+  const current = ensureState();
+  const job = current.queue.find((entry) => entry.id === id);
+  if (!job) {
+    return { ok: false, status: 404, error: `no download job ${id}` };
+  }
+  if (job.status !== "paused") {
+    return {
+      ok: false,
+      status: 409,
+      error: `download job ${id} is not paused`,
+    };
+  }
+  job.status = "queued";
+  job.pauseReason = null;
+  job.message = "Queued.";
+  job.error = null;
+  persist();
+  pump();
   return { ok: true, state: getHfDownloadQueueState() };
 }
 
@@ -567,9 +668,9 @@ export function reorderHfDownloadQueue(
     };
   }
   const byId = new Map(queued.map((entry) => [entry.id, entry]));
-  const running = current.queue.filter((entry) => entry.status === "running");
+  const retained = current.queue.filter((entry) => entry.status !== "queued");
   current.queue = [
-    ...running,
+    ...retained,
     ...ids.flatMap((id) => {
       const job = byId.get(id);
       return job ? [job] : [];
@@ -606,7 +707,7 @@ export function skipHfDownloadFiles(
       error: `not in this download: ${unknown.slice(0, 5).join(", ")}`,
     };
   }
-  if (job.status === "queued") {
+  if (job.status === "queued" || job.status === "paused") {
     const targetSet = new Set(targets);
     job.files = job.files.filter((file) => !targetSet.has(file.path));
     job.totalBytes = job.files.reduce((sum, file) => sum + file.size, 0);

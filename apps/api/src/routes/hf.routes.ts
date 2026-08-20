@@ -18,8 +18,10 @@ import {
   clearHfDownloadHistory,
   enqueueHfDownload,
   getHfDownloadQueueState,
+  pauseHfDownloadJob,
   removeHfDownloadQueueJob,
   reorderHfDownloadQueue,
+  resumeHfDownloadJob,
   skipHfDownloadFiles,
   type HfQueueMutationResult,
 } from "../hf/download-queue.js";
@@ -213,6 +215,14 @@ export function registerHfRoutes(app: Hono) {
 
   app.post("/api/hf/queue/:id/cancel", (c) => {
     return queueMutationResponse(c, cancelActiveHfDownload(c.req.param("id")));
+  });
+
+  app.post("/api/hf/queue/:id/pause", (c) => {
+    return queueMutationResponse(c, pauseHfDownloadJob(c.req.param("id")));
+  });
+
+  app.post("/api/hf/queue/:id/resume", (c) => {
+    return queueMutationResponse(c, resumeHfDownloadJob(c.req.param("id")));
   });
 
   app.delete("/api/hf/queue/:id", (c) => {

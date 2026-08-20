@@ -181,6 +181,7 @@ function startEngine(
     chunkBytes?: number;
     manifestEntries?: Map<string, HfManifestFile>;
     canceled?: Set<string>;
+    sleep?: (ms: number) => Promise<void>;
   },
 ): EngineRun {
   const statuses = new Map<string, string>();
@@ -208,7 +209,7 @@ function startEngine(
     },
     sleep: (ms) => {
       sleeps.push(ms);
-      return Promise.resolve();
+      return options?.sleep ? options.sleep(ms) : Promise.resolve();
     },
   });
   return { result, statuses, bytes, fileAborts, controller, sleeps };
@@ -230,7 +231,7 @@ test("a large file downloads in parallel bounded chunks and verifies", async () 
   const stub = makeRangeStub(new Map([["model.bin", content]]));
   const run = startEngine([file], stub.fetchImpl);
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.equal(run.statuses.get("model.bin"), "succeeded");
   assert.deepEqual(readFileSync(file.finalPath), content);
   assert.equal(existsSync(file.partPath), false);
@@ -254,7 +255,7 @@ test("out-of-order chunk completion still assembles a correct file", async () =>
   );
   stub.release("bytes=0-9");
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.deepEqual(readFileSync(file.finalPath), content);
 });
 
@@ -276,7 +277,7 @@ test("resume with a chunk sidecar fetches only the missing chunks", async () => 
   const stub = makeRangeStub(new Map([["model.bin", content]]));
   const run = startEngine([file], stub.fetchImpl);
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.deepEqual(readFileSync(file.finalPath), content);
   const requested = new Set(stub.requests.map((request) => request.range));
   assert.equal(stub.requests.length, 7);
@@ -292,7 +293,7 @@ test("a legacy append part is adopted as whole completed chunks", async () => {
   const stub = makeRangeStub(new Map([["model.bin", content]]));
   const run = startEngine([file], stub.fetchImpl);
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.deepEqual(readFileSync(file.finalPath), content);
   const requested = new Set(stub.requests.map((request) => request.range));
   assert.equal(requested.has("bytes=0-9"), false);
@@ -309,7 +310,7 @@ test("a server that ignores bounded ranges falls back to a single stream", async
   });
   const run = startEngine([file], stub.fetchImpl);
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.equal(run.statuses.get("model.bin"), "succeeded");
   assert.deepEqual(readFileSync(file.finalPath), content);
   assert.equal(existsSync(hfChunkSidecarPath(file.finalPath)), false);
@@ -323,7 +324,7 @@ test("transient chunk errors retry with backoff and succeed", async () => {
   });
   const run = startEngine([file], stub.fetchImpl, { connections: 2 });
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.deepEqual(readFileSync(file.finalPath), content);
   assert.equal(run.sleeps.length, 2);
 });
@@ -336,7 +337,7 @@ test("a mid-stream disconnect is classified and the chunk resumes from the flush
   });
   const run = startEngine([file], stub.fetchImpl, { connections: 2 });
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.equal(run.statuses.get("model.bin"), "succeeded");
   assert.deepEqual(readFileSync(file.finalPath), content);
   const ranges = stub.requests.map((request) => request.range);
@@ -358,22 +359,64 @@ test("repeated disconnects with progress never exhaust the retry limit", async (
   });
   const run = startEngine([file], stub.fetchImpl, { connections: 2 });
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.deepEqual(readFileSync(file.finalPath), content);
   assert.equal(run.sleeps.length, 5);
 });
 
-test("disconnects without progress still exhaust the retry limit", async () => {
+test("no-progress disconnects on one chunk fail the file when siblings progress", async () => {
   const content = randomBytes(30);
   const file = plannedFile("model.bin", content);
   const stub = makeRangeStub(new Map([["model.bin", content]]), {
     terminateAfter: new Map([["bytes=10-19", 0]]),
   });
-  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const runBox: { current: EngineRun | null } = { current: null };
+  const run = startEngine([file], stub.fetchImpl, {
+    connections: 2,
+    sleep: () =>
+      waitFor(
+        () => (runBox.current?.bytes.get("model.bin") ?? 0) >= 20,
+        "sibling chunks to progress",
+      ),
+  });
+  runBox.current = run;
   const result = await run.result;
   assert.equal(result.failedCount, 1);
+  assert.equal(result.stalled, null);
   assert.equal(run.statuses.get("model.bin"), "failed");
   assert.equal(run.sleeps.length, 4);
+});
+
+test("no-progress disconnects across all connections stall the engine instead of failing", async () => {
+  const content = randomBytes(30);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    terminateAfter: new Map([
+      ["bytes=0-9", 0],
+      ["bytes=10-19", 0],
+      ["bytes=20-29", 0],
+    ]),
+  });
+  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const result = await run.result;
+  assert.equal(result.failedCount, 0);
+  assert.notEqual(result.stalled, null);
+  assert.equal(run.statuses.get("model.bin"), "downloading");
+  assert.equal(existsSync(file.partPath), true);
+  assert.equal(existsSync(hfChunkSidecarPath(file.finalPath)), true);
+});
+
+test("a single-stream file with no-progress disconnects stalls the engine", async () => {
+  const content = randomBytes(8);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    terminateAfter: new Map([["whole", 0]]),
+  });
+  const run = startEngine([file], stub.fetchImpl);
+  const result = await run.result;
+  assert.equal(result.failedCount, 0);
+  assert.notEqual(result.stalled, null);
+  assert.equal(run.statuses.get("model.bin"), "downloading");
 });
 
 test("a single-stream disconnect resumes from the flushed part bytes", async () => {
@@ -384,7 +427,7 @@ test("a single-stream disconnect resumes from the flushed part bytes", async () 
   });
   const run = startEngine([file], stub.fetchImpl);
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.equal(run.statuses.get("model.bin"), "succeeded");
   assert.deepEqual(readFileSync(file.finalPath), content);
   assert.deepEqual(
@@ -399,7 +442,16 @@ test("a chunk that keeps failing exhausts retries and fails the file, keeping th
   const stub = makeRangeStub(new Map([["model.bin", content]]), {
     failuresByRange: new Map([["bytes=10-19", 99]]),
   });
-  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const runBox: { current: EngineRun | null } = { current: null };
+  const run = startEngine([file], stub.fetchImpl, {
+    connections: 2,
+    sleep: () =>
+      waitFor(
+        () => (runBox.current?.bytes.get("model.bin") ?? 0) >= 20,
+        "sibling chunks to progress",
+      ),
+  });
+  runBox.current = run;
   const result = await run.result;
   assert.equal(result.failedCount, 1);
   assert.equal(run.statuses.get("model.bin"), "failed");
@@ -452,7 +504,7 @@ test("canceling a chunked file keeps the part and sidecar for resume", async () 
   );
   run.fileAborts.get("model.bin")?.();
   const result = await run.result;
-  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.equal(run.statuses.get("model.bin"), "canceled");
   assert.equal(existsSync(file.partPath), true);
   assert.equal(statSync(file.partPath).size, 50);

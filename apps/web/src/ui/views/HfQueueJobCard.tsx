@@ -10,7 +10,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { X } from "lucide-react";
+import { Pause, Play, X } from "lucide-react";
 
 import {
   JobPanelControls,
@@ -70,6 +70,10 @@ export function HfQueueJobCard(props: {
   rate: ByteRate | null;
   canceling: boolean;
   onCancel?: (() => void) | undefined;
+  onPause?: (() => void) | undefined;
+  pausing?: boolean | undefined;
+  onResume?: (() => void) | undefined;
+  resuming?: boolean | undefined;
   onDismiss?: (() => void) | undefined;
   onSkipFile?: ((path: string) => void) | undefined;
   highlighted?: boolean | undefined;
@@ -81,6 +85,7 @@ export function HfQueueJobCard(props: {
   );
   const percent = hfJobPercent(job);
   const running = job.status === "running";
+  const paused = job.status === "paused";
 
   return (
     <Paper
@@ -111,13 +116,38 @@ export function HfQueueJobCard(props: {
             <Text c="dimmed" size="xs" style={{ overflowWrap: "anywhere" }}>
               {hfJobProgressLine(job, props.rate)}
             </Text>
-            {running && job.message && (
+            {(running || paused) && job.message && (
               <Text c="dimmed" size="xs" style={{ overflowWrap: "anywhere" }}>
                 {job.message}
               </Text>
             )}
           </Stack>
           <Group gap={4} wrap="nowrap">
+            {paused && props.onResume && (
+              <Button
+                size="xs"
+                variant="light"
+                color="blue"
+                leftSection={<Play size={14} />}
+                loading={props.resuming ?? false}
+                onClick={props.onResume}
+              >
+                Resume
+              </Button>
+            )}
+            {running && props.onPause && (
+              <Button
+                size="xs"
+                variant="subtle"
+                color="yellow"
+                leftSection={<Pause size={14} />}
+                loading={props.pausing ?? false}
+                disabled={job.pauseRequested || job.cancelRequested}
+                onClick={props.onPause}
+              >
+                {job.pauseRequested ? "Pausing" : "Pause"}
+              </Button>
+            )}
             {running && props.onCancel && (
               <Button
                 size="xs"

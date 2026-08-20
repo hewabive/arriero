@@ -136,6 +136,9 @@ export function HfDownloadedReposPanel() {
     if (queueData?.queued.some((job) => job.destDir === dir)) {
       return "queued";
     }
+    if (queueData?.paused.some((job) => job.destDir === dir)) {
+      return "paused";
+    }
     return null;
   };
   const [detailDir, setDetailDir] = useState<string | null>(null);

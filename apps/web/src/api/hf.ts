@@ -72,6 +72,20 @@ export function cancelHfDownloadJob(jobId: string) {
   );
 }
 
+export function pauseHfDownloadJob(jobId: string) {
+  return request<{ data: HfDownloadQueueState }>(
+    `/api/hf/queue/${encodeURIComponent(jobId)}/pause`,
+    { method: "POST" },
+  );
+}
+
+export function resumeHfDownloadJob(jobId: string) {
+  return request<{ data: HfDownloadQueueState }>(
+    `/api/hf/queue/${encodeURIComponent(jobId)}/resume`,
+    { method: "POST" },
+  );
+}
+
 export function removeHfDownloadJob(jobId: string) {
   return request<{ data: HfDownloadQueueState }>(
     `/api/hf/queue/${encodeURIComponent(jobId)}`,
