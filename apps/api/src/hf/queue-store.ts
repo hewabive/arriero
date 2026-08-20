@@ -21,6 +21,7 @@ const HfQueueFileSchema = HfDownloadFileSchema.extend({
 const HfQueueStoredJobSchema = HfDownloadQueueJobSchema.omit({
   activePaths: true,
   connections: true,
+  transfer: true,
 }).extend({
   files: z.array(HfQueueFileSchema),
 });

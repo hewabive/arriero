@@ -92,7 +92,18 @@ sidecars stay, the queue moves on to the next queued job, and one click (or
 immediately for a queued job, via abort + finalize for the running one (`pauseRequested` mirrors
 `cancelRequested` in the API shape; cancel wins over pause). A paused job survives restarts as
 paused (boot adoption auto-resumes only interrupted `running` jobs), is skipped by `pump()`,
-retained by reorder, has files droppable like a queued job, and is removable outright. Cancel — whole job (`POST /api/hf/queue/:id/cancel`) or per file
+retained by reorder, has files droppable like a queued job, and is removable outright.
+
+**Server-side transfer telemetry**: the active job carries a `transfer` snapshot
+(`HfDownloadTransferSchema`; `null` on inactive jobs, never persisted) computed by
+`apps/api/src/hf/transfer-telemetry.ts` from engine events: `payloadBps` (EWMA over useful bytes,
+nulled after 6 s without wire progress together with `etaSeconds`), `wireBytes` (everything
+received, re-downloads included) vs `wastedBytes` (wire minus useful — with mid-chunk resume
+normally 0), `resetCount` (transient transport errors), `lastProgressAt` and `stalledSeconds`.
+Useful-byte deltas skip each file's first byte report (baseline restoration of resumed parts, not
+new progress). The web queue card prefers this server snapshot over its client-side EWMA
+(`ui/utils/byte-rate.ts` stays as the fallback) and surfaces resets and re-downloaded bytes; the
+server numbers are the basis for pause policies, since the queue outlives any browser tab. Cancel — whole job (`POST /api/hf/queue/:id/cancel`) or per file
 (`POST /api/hf/queue/:id/files/skip`, which also drops files from a queued job) — keeps `.part` +
 sidecar for a later resume. A completed `.gguf`/`.safetensors` triggers a model rescan. A manifest
 header is written at job start so a directory holding only `.part`s is discoverable, and the

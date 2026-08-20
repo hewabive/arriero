@@ -19,6 +19,7 @@ import {
 import type { ByteRate } from "../utils/byte-rate";
 import { hfDownloadJobStatusColor } from "../utils/job-status";
 import { formatBytes, formatBytesPerSecond } from "../utils/models";
+import { countLabel } from "../utils/plural";
 import { formatElapsed, formatEtaSeconds } from "../utils/time";
 import { HfJobFileRow } from "./HfJobFileRow";
 
@@ -39,16 +40,37 @@ export function hfJobProgressLine(
   const parts: string[] = [
     `${formatBytes(job.downloadedBytes)} of ${formatBytes(job.totalBytes)}`,
   ];
-  if (job.status === "running" && rate) {
-    if (rate.stalled) {
-      parts.push("stalled");
-    } else if (rate.bps !== null) {
-      parts.push(formatBytesPerSecond(rate.bps));
-      const remaining = job.totalBytes - job.downloadedBytes;
-      if (rate.bps > 0 && remaining > 0) {
-        const eta = formatEtaSeconds(remaining / rate.bps);
-        if (eta) {
-          parts.push(`${eta} left`);
+  if (job.status === "running") {
+    const transfer = job.transfer;
+    if (transfer) {
+      if (transfer.stalledSeconds !== null) {
+        parts.push(`stalled ${transfer.stalledSeconds}s`);
+      } else if (transfer.payloadBps !== null) {
+        parts.push(formatBytesPerSecond(transfer.payloadBps));
+        if (transfer.etaSeconds !== null) {
+          const eta = formatEtaSeconds(transfer.etaSeconds);
+          if (eta) {
+            parts.push(`${eta} left`);
+          }
+        }
+      }
+      if (transfer.resetCount > 0) {
+        parts.push(countLabel(transfer.resetCount, "reset"));
+      }
+      if (transfer.wastedBytes > 0) {
+        parts.push(`${formatBytes(transfer.wastedBytes)} re-downloaded`);
+      }
+    } else if (rate) {
+      if (rate.stalled) {
+        parts.push("stalled");
+      } else if (rate.bps !== null) {
+        parts.push(formatBytesPerSecond(rate.bps));
+        const remaining = job.totalBytes - job.downloadedBytes;
+        if (rate.bps > 0 && remaining > 0) {
+          const eta = formatEtaSeconds(remaining / rate.bps);
+          if (eta) {
+            parts.push(`${eta} left`);
+          }
         }
       }
     }

@@ -168,6 +168,7 @@ type EngineRun = {
   result: Promise<HfTransferResult>;
   statuses: Map<string, string>;
   bytes: Map<string, number>;
+  wire: { bytes: number; resets: number };
   fileAborts: Map<string, () => void>;
   controller: AbortController;
   sleeps: number[];
@@ -186,6 +187,7 @@ function startEngine(
 ): EngineRun {
   const statuses = new Map<string, string>();
   const bytes = new Map<string, number>();
+  const wire = { bytes: 0, resets: 0 };
   const fileAborts = new Map<string, () => void>();
   const controller = new AbortController();
   const sleeps: number[] = [];
@@ -203,6 +205,12 @@ function startEngine(
     events: {
       onFileStart: (path) => statuses.set(path, "downloading"),
       onFileBytes: (path, value) => bytes.set(path, value),
+      onWireBytes: (deltaBytes) => {
+        wire.bytes += deltaBytes;
+      },
+      onTransportError: () => {
+        wire.resets += 1;
+      },
       onFileFinished: (file, outcome) => statuses.set(file.path, outcome),
       onFileFailed: (path) => statuses.set(path, "failed"),
       onFileCanceled: (path) => statuses.set(path, "canceled"),
@@ -212,7 +220,7 @@ function startEngine(
       return options?.sleep ? options.sleep(ms) : Promise.resolve();
     },
   });
-  return { result, statuses, bytes, fileAborts, controller, sleeps };
+  return { result, statuses, bytes, wire, fileAborts, controller, sleeps };
 }
 
 async function waitFor(predicate: () => boolean, label: string): Promise<void> {
@@ -343,6 +351,8 @@ test("a mid-stream disconnect is classified and the chunk resumes from the flush
   const ranges = stub.requests.map((request) => request.range);
   assert.ok(ranges.includes("bytes=14-19"));
   assert.equal(run.sleeps.length, 1);
+  assert.equal(run.wire.bytes, 30);
+  assert.equal(run.wire.resets, 1);
 });
 
 test("repeated disconnects with progress never exhaust the retry limit", async () => {

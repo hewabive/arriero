@@ -33,6 +33,14 @@ import {
   type HfQueueJob,
 } from "./queue-store.js";
 import { runHfTransfer } from "./transfer-engine.js";
+import {
+  createHfTransferTelemetry,
+  hfTransferSnapshot,
+  recordHfTransferPayload,
+  recordHfTransferReset,
+  recordHfTransferWire,
+  type HfTransferTelemetry,
+} from "./transfer-telemetry.js";
 import { clearHfUpdateCheck, runHfUpdateChecks } from "./update-check.js";
 
 const HISTORY_LIMIT = 20;
@@ -64,9 +72,11 @@ let state: QueueState | null = null;
 let currentRun: ActiveRun | null = null;
 let shuttingDown = false;
 let currentConnections: number | null = null;
+let currentTelemetry: HfTransferTelemetry | null = null;
 let fallbackJobOptions: HfDownloadQueueOptions | null = null;
 const jobOptions = new Map<string, HfDownloadQueueOptions>();
 const liveBytes = new Map<string, number>();
+const pendingBaselinePaths = new Set<string>();
 const userCanceledPaths = new Set<string>();
 const fileAborts = new Map<string, () => void>();
 
@@ -151,6 +161,10 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
     ),
     error: file.error,
   }));
+  const downloadedBytes = files.reduce(
+    (sum, file) => sum + file.downloadedBytes,
+    0,
+  );
   return {
     id: job.id,
     repoId: job.repoId,
@@ -166,13 +180,21 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
     pauseRequested: job.pauseRequested,
     pauseReason: job.pauseReason,
     totalBytes: job.totalBytes,
-    downloadedBytes: files.reduce((sum, file) => sum + file.downloadedBytes, 0),
+    downloadedBytes,
     activePaths: isActive
       ? files
           .filter((file) => file.status === "downloading")
           .map((file) => file.path)
       : [],
     connections: isActive ? currentConnections : null,
+    transfer:
+      isActive && currentTelemetry
+        ? hfTransferSnapshot(
+            currentTelemetry,
+            Math.max(0, job.totalBytes - downloadedBytes),
+            Date.now(),
+          )
+        : null,
     files,
   };
 }
@@ -249,6 +271,8 @@ async function executeJob(
   let downloadedModelFile = false;
   const settings = getHfDownloadSettings();
   currentConnections = settings.connections;
+  const telemetry = createHfTransferTelemetry(Date.now());
+  currentTelemetry = telemetry;
   const result = await runHfTransfer({
     repoId: job.repoId,
     sha: job.revision,
@@ -265,10 +289,24 @@ async function executeJob(
       onFileStart: (path) => {
         patchFile(job, path, { status: "downloading" });
         liveBytes.set(path, 0);
+        pendingBaselinePaths.add(path);
         job.message = `Downloading ${path}`;
       },
       onFileBytes: (path, bytes) => {
+        const previous = liveBytes.get(path) ?? 0;
         liveBytes.set(path, bytes);
+        if (pendingBaselinePaths.delete(path)) {
+          return;
+        }
+        if (bytes > previous) {
+          recordHfTransferPayload(telemetry, bytes - previous, Date.now());
+        }
+      },
+      onWireBytes: (deltaBytes) => {
+        recordHfTransferWire(telemetry, deltaBytes, Date.now());
+      },
+      onTransportError: () => {
+        recordHfTransferReset(telemetry);
       },
       onFileFinished: (file, outcome) => {
         upsertHfManifestFile(
@@ -438,7 +476,9 @@ async function runActive(
       liveBytes.clear();
       fileAborts.clear();
       userCanceledPaths.clear();
+      pendingBaselinePaths.clear();
       currentConnections = null;
+      currentTelemetry = null;
     }
     invalidateHfDownloadsCache();
     if (disposition === "finished") {
@@ -795,9 +835,11 @@ export function resetHfDownloadQueueForTests(): void {
   currentRun = null;
   shuttingDown = false;
   currentConnections = null;
+  currentTelemetry = null;
   fallbackJobOptions = null;
   jobOptions.clear();
   liveBytes.clear();
+  pendingBaselinePaths.clear();
   userCanceledPaths.clear();
   fileAborts.clear();
   state = { queue: [], history: [], resumedAtLoad: 0 };

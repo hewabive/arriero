@@ -39,6 +39,8 @@ const RATE_LIMIT_DELAYS_MS = [30_000, 60_000];
 type HfTransferEvents = {
   onFileStart: (path: string) => void;
   onFileBytes: (path: string, bytes: number) => void;
+  onWireBytes: (deltaBytes: number) => void;
+  onTransportError: () => void;
   onFileFinished: (
     file: HfPlannedFile,
     outcome: "succeeded" | "skipped",
@@ -157,6 +159,7 @@ type DownloadFileContext = {
   clientOptions: HfClientOptions;
   manifestEntry: HfManifestFile | null;
   onBytes: (bytes: number) => void;
+  onWireBytes: (deltaBytes: number) => void;
 };
 
 async function attemptDownload(
@@ -239,6 +242,7 @@ async function attemptDownload(
       const buffer = Buffer.from(chunk);
       hash.update(buffer);
       received += buffer.length;
+      ctx.onWireBytes(buffer.length);
       ctx.onBytes(received);
       if (!out.write(buffer)) {
         await once(out, "drain");
@@ -628,6 +632,7 @@ export async function runHfTransfer(
         progress.flushed = received;
         if (buffer.length > 0) {
           engine.progressStamp += 1;
+          ctx.events.onWireBytes(buffer.length);
         }
         state.liveByChunk.set(index, received);
         reportBytes(state);
@@ -734,6 +739,7 @@ export async function runHfTransfer(
           return;
         }
         if (isTransientError(error)) {
+          ctx.events.onTransportError();
           if (progress.flushed > flushedBefore) {
             attempt = 1;
             noProgressStamp = null;
@@ -795,6 +801,7 @@ export async function runHfTransfer(
               }
               ctx.events.onFileBytes(file.path, capped);
             },
+            onWireBytes: (deltaBytes) => ctx.events.onWireBytes(deltaBytes),
           });
           ctx.events.onFileFinished(file, outcome);
           return;
@@ -807,6 +814,7 @@ export async function runHfTransfer(
             return;
           }
           if (isTransientError(error) && !isEnospc(error)) {
+            ctx.events.onTransportError();
             if (reportedBytes > bytesBefore) {
               attempt = 1;
               noProgressStamp = null;

@@ -85,6 +85,16 @@ export const HfDownloadJobStatusSchema = z.enum([
 
 export const HfDownloadPauseReasonSchema = z.enum(["network", "manual"]);
 
+export const HfDownloadTransferSchema = z.object({
+  payloadBps: z.number().nonnegative().nullable(),
+  etaSeconds: z.number().int().nonnegative().nullable(),
+  wireBytes: z.number().int().nonnegative(),
+  wastedBytes: z.number().int().nonnegative(),
+  resetCount: z.number().int().nonnegative(),
+  lastProgressAt: z.string().nullable(),
+  stalledSeconds: z.number().int().nonnegative().nullable(),
+});
+
 export const HfDownloadQueueJobSchema = z.object({
   id: z.string().min(1),
   repoId: HfRepoIdSchema,
@@ -103,6 +113,7 @@ export const HfDownloadQueueJobSchema = z.object({
   downloadedBytes: z.number().int().nonnegative(),
   activePaths: z.array(z.string().min(1)),
   connections: z.number().int().positive().nullable(),
+  transfer: HfDownloadTransferSchema.nullable().default(null),
   files: z.array(HfDownloadFileSchema),
 });
 
@@ -281,6 +292,7 @@ export type HfDownloadFileStatus = z.infer<typeof HfDownloadFileStatusSchema>;
 export type HfDownloadFile = z.infer<typeof HfDownloadFileSchema>;
 export type HfDownloadJobStatus = z.infer<typeof HfDownloadJobStatusSchema>;
 export type HfDownloadPauseReason = z.infer<typeof HfDownloadPauseReasonSchema>;
+export type HfDownloadTransfer = z.infer<typeof HfDownloadTransferSchema>;
 export type HfDownloadQueueJob = z.infer<typeof HfDownloadQueueJobSchema>;
 export type HfDownloadQueueState = z.infer<typeof HfDownloadQueueStateSchema>;
 export type HfDownloadQueueReorder = z.infer<
