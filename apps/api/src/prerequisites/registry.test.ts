@@ -230,12 +230,12 @@ test("uses NVIDIA's hardware-aware driver assistant on Rocky Linux 9 x86-64", ()
 
 test("uses AlmaLinux's precompiled NVIDIA driver packages on AlmaLinux 9", () => {
   const expectedDriverCommands = [
-    "sudo dnf install -y almalinux-release-nvidia-driver",
-    "sudo dnf install -y nvidia-open-kmod nvidia-driver nvidia-driver-cuda",
+    "(rpm -q almalinux-release-nvidia-driver >/dev/null 2>&1 || sudo dnf install -y almalinux-release-nvidia-driver)",
+    "sudo dnf install -y --nobest nvidia-open-kmod nvidia-driver nvidia-driver-cuda",
   ];
   const expectedSmiCommands = [
-    "sudo dnf install -y almalinux-release-nvidia-driver",
-    "sudo dnf install -y nvidia-driver-cuda",
+    "(rpm -q almalinux-release-nvidia-driver >/dev/null 2>&1 || sudo dnf install -y almalinux-release-nvidia-driver)",
+    "sudo dnf install -y --nobest nvidia-driver-cuda",
   ];
 
   assert.deepEqual(

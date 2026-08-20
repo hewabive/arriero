@@ -112,6 +112,14 @@ CRB, EPEL and NVIDIA's CUDA repository, followed by `nvidia-open-kmod`,
 `nvidia-driver` and `nvidia-driver-cuda`. This avoids a DKMS build and supplies
 both `libnvidia-ml.so.1` and `nvidia-smi`. The open kernel module supports Turing
 and newer GPUs; reboot handling is the same as for the other driver installers.
+The driver transaction passes `--nobest` because precompiled kmods carry exact
+kernel-symbol dependencies: if the repository's newest kmod targets a different
+kernel ABI, DNF may otherwise abort even though an older, internally consistent
+driver set supports the installed kernel. This relaxes only candidate freshness;
+it does not skip dependencies or permit a partial driver installation.
+The repository bootstrap is guarded by an RPM query so rerunning remediation
+does not ask DNF for an already-installed release package. This also keeps a
+machine-local DNF exclusion policy in force instead of overriding it.
 The package sequence follows the
 [AlmaLinux NVIDIA driver guide](https://wiki.almalinux.org/documentation/nvidia.html).
 

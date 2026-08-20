@@ -184,9 +184,11 @@ const UBUNTU_NVIDIA_UTILS_INSTALL_COMMAND =
 
 const NVIDIA_DNF_USERSPACE_COMMAND = "sudo dnf install -y nvidia-driver-cuda";
 const ALMALINUX_NVIDIA_REPOSITORY_COMMAND =
-  "sudo dnf install -y almalinux-release-nvidia-driver";
+  "(rpm -q almalinux-release-nvidia-driver >/dev/null 2>&1 || sudo dnf install -y almalinux-release-nvidia-driver)";
 const ALMALINUX_NVIDIA_DRIVER_COMMAND =
-  "sudo dnf install -y nvidia-open-kmod nvidia-driver nvidia-driver-cuda";
+  "sudo dnf install -y --nobest nvidia-open-kmod nvidia-driver nvidia-driver-cuda";
+const ALMALINUX_NVIDIA_USERSPACE_COMMAND =
+  "sudo dnf install -y --nobest nvidia-driver-cuda";
 
 function isUbuntuFamily(release: OsRelease): boolean {
   return release.id === "ubuntu" || release.idLike.includes("ubuntu");
@@ -254,7 +256,10 @@ export function nvidiaSmiInstallCommands(
     ];
   }
   if (isAlmaLinux9(release) && isAlmaLinuxNvidiaArchitecture(architecture)) {
-    return [ALMALINUX_NVIDIA_REPOSITORY_COMMAND, NVIDIA_DNF_USERSPACE_COMMAND];
+    return [
+      ALMALINUX_NVIDIA_REPOSITORY_COMMAND,
+      ALMALINUX_NVIDIA_USERSPACE_COMMAND,
+    ];
   }
   if (isRocky9(release) && architecture === "x64") {
     return [NVIDIA_DNF_USERSPACE_COMMAND];
@@ -652,7 +657,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     requiresRebootAfterInstall: true,
     applies: nvidiaDriverIsApplicable,
     docPath: "docs/RESOURCE_MANAGEMENT.md",
-    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. Ubuntu and Rocky Linux use hardware-aware helpers; AlmaLinux 9 uses its signed, precompiled open kernel module packages on x86-64 and aarch64. The install also adds nvidia-smi for operator diagnostics. Reboot remains a separate manual action; after the server returns, press Re-check.",
+    note: "NVML ships with the NVIDIA driver, not with the CUDA toolkit. Ubuntu and Rocky Linux use hardware-aware helpers; AlmaLinux 9 uses its signed, precompiled open kernel module packages on x86-64 and aarch64. Its package command allows DNF to select the newest kernel-ABI-compatible set when the repository's newest kmod cannot run on the installed kernel. The install also adds nvidia-smi for operator diagnostics. Reboot remains a separate manual action; after the server returns, press Re-check.",
     probe: async (context) =>
       nvidiaDriverProbeOutcome(
         context.nvidiaTelemetryStatus(),
