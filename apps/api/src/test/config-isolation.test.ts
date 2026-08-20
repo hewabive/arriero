@@ -62,7 +62,7 @@ function runRouteTest(env: NodeJS.ProcessEnv): Promise<ProbeRun> {
   return new Promise((resolveRun) => {
     const child = spawn(
       process.execPath,
-      ["--import", "tsx", "--test", routeTest],
+      ["--conditions=development", "--import", "tsx", "--test", routeTest],
       { cwd: apiDir, env, timeout: probeTimeoutMs },
     );
     let output = "";

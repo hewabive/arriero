@@ -7,7 +7,7 @@
     "dev": "ARRIERO_PORT=8787 tsx watch --conditions=development src/index.ts",
     "build": "tsc -p tsconfig.json && node ../../scripts/write-build-info.mjs",
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --import ./src/test/setup-env.ts --test \"src/**/*.test.ts\"",
+    "test": "tsx --conditions=development --import ./src/test/setup-env.ts --test \"src/**/*.test.ts\"",
     "args:docs:quality": "tsx src/arguments/docs-quality.ts",
     "args:docs:source-sync": "tsx src/arguments/docs-source-sync-cli.ts",
     "auth:hash": "tsx src/auth-hash-cli.ts",
