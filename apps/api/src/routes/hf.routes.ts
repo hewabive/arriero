@@ -2,6 +2,7 @@ import {
   HfDownloadDeleteSchema,
   HfDownloadFileSkipSchema,
   HfDownloadQueueReorderSchema,
+  HfDownloadResumeSchema,
   HfDownloadSettingsSchema,
   HfDownloadStartSchema,
   HfTokenUpdateSchema,
@@ -221,8 +222,26 @@ export function registerHfRoutes(app: Hono) {
     return queueMutationResponse(c, pauseHfDownloadJob(c.req.param("id")));
   });
 
-  app.post("/api/hf/queue/:id/resume", (c) => {
-    return queueMutationResponse(c, resumeHfDownloadJob(c.req.param("id")));
+  app.post("/api/hf/queue/:id/resume", async (c) => {
+    const raw = await c.req.text();
+    let ignoreSlowEta = false;
+    if (raw.trim().length > 0) {
+      let body: unknown;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        return c.json({ error: "request body is not valid JSON" }, 400);
+      }
+      const parsed = HfDownloadResumeSchema.safeParse(body);
+      if (!parsed.success) {
+        return c.json({ error: parsed.error.flatten() }, 400);
+      }
+      ignoreSlowEta = parsed.data.ignoreSlowEta ?? false;
+    }
+    return queueMutationResponse(
+      c,
+      resumeHfDownloadJob(c.req.param("id"), { ignoreSlowEta }),
+    );
   });
 
   app.delete("/api/hf/queue/:id", (c) => {

@@ -94,6 +94,16 @@ immediately for a queued job, via abort + finalize for the running one (`pauseRe
 paused (boot adoption auto-resumes only interrupted `running` jobs), is skipped by `pump()`,
 retained by reorder, has files droppable like a queued job, and is removable outright.
 
+**Slow-ETA pause**: with `downloads.maxEtaHours` set (default 24, `null` switches the policy off,
+editable in the download-settings card), the active job's projected finish time is checked on byte
+events after a 90 s measurement window, using the run-average useful rate (not the jumpy short
+EWMA); a projection over the limit aborts the run into `paused` (`pauseReason: "slow-eta"`) with
+the projection in the message — this catches the trickling-but-hopeless link the no-progress stall
+detector cannot (bytes do arrive), and stops a doomed job from blocking the strictly sequential
+queue. The paused card offers **Resume** (re-measures; pauses again if still hopeless — the route
+may have recovered) and **Continue anyway** (`POST …/resume` with `{ignoreSlowEta: true}`), which
+sets a persisted per-job `slowEtaOverride` disabling the policy for that job for good.
+
 **Server-side transfer telemetry**: the active job carries a `transfer` snapshot
 (`HfDownloadTransferSchema`; `null` on inactive jobs, never persisted) computed by
 `apps/api/src/hf/transfer-telemetry.ts` from engine events: `payloadBps` (EWMA over useful bytes,
@@ -217,11 +227,11 @@ token is sent as `Authorization: Bearer` and undici drops it on the cross-origin
 | `POST /api/hf/queue/reorder` | reorder queued jobs (`ids` = the complete new order) |
 | `POST /api/hf/queue/:id/cancel` | cancel the active job (parts kept for resume) |
 | `POST /api/hf/queue/:id/pause` | pause the active or a queued job (parts kept) |
-| `POST /api/hf/queue/:id/resume` | re-queue a paused job |
+| `POST /api/hf/queue/:id/resume` | re-queue a paused job (`{ignoreSlowEta: true}` disables the ETA policy for it) |
 | `DELETE /api/hf/queue/:id` | remove a queued job or dismiss a history entry |
 | `POST /api/hf/queue/:id/files/skip` | skip files of the active job / drop files from a queued one |
 | `DELETE /api/hf/queue/history` | clear the finished-job history |
-| `GET/PUT /api/hf/download-settings` | connection count + chunk size |
+| `GET/PUT /api/hf/download-settings` | connection count + chunk size + max ETA hours |
 
 Every mutating queue endpoint returns the full queue state so the UI applies it without a
 follow-up fetch.

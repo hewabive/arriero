@@ -105,12 +105,14 @@ function HfDownloadSettingsCard() {
   const settings = settingsQuery.data?.data ?? null;
   const [connections, setConnections] = useState<number | null>(null);
   const [chunkMib, setChunkMib] = useState<number | null>(null);
+  const [maxEta, setMaxEta] = useState<number | "off" | null>(null);
   const mutation = useMutation({
     mutationFn: (input: HfDownloadSettings) => updateHfDownloadSettings(input),
     onSuccess: (result) => {
       queryClient.setQueryData(["hf-download-settings"], result);
       setConnections(null);
       setChunkMib(null);
+      setMaxEta(null);
       notifications.show({
         title: "Download settings",
         message: "Settings saved.",
@@ -128,9 +130,13 @@ function HfDownloadSettingsCard() {
   }
   const effectiveConnections = connections ?? settings.connections;
   const effectiveChunkMib = chunkMib ?? Math.round(settings.chunkBytes / MIB);
+  const effectiveMaxEta = maxEta ?? settings.maxEtaHours ?? "off";
+  const effectiveMaxEtaValue =
+    effectiveMaxEta === "off" ? null : effectiveMaxEta;
   const dirty =
     effectiveConnections !== settings.connections ||
-    effectiveChunkMib !== Math.round(settings.chunkBytes / MIB);
+    effectiveChunkMib !== Math.round(settings.chunkBytes / MIB) ||
+    effectiveMaxEtaValue !== settings.maxEtaHours;
 
   return (
     <Paper withBorder p="md" radius="sm">
@@ -139,7 +145,9 @@ function HfDownloadSettingsCard() {
         <Text size="sm" c="dimmed">
           Parallel connections per download. More connections usually download
           faster and ride out a stuck stream; files smaller than one chunk use a
-          single connection.
+          single connection. When a projected finish time exceeds the max ETA,
+          the job pauses instead of grinding for hours — clear the field to
+          switch that off.
         </Text>
         <Group align="flex-end" gap="sm" wrap="wrap">
           <NumberInput
@@ -162,11 +170,22 @@ function HfDownloadSettingsCard() {
             }
             w={160}
           />
+          <NumberInput
+            label="Max ETA (hours)"
+            min={1}
+            max={720}
+            value={effectiveMaxEta === "off" ? "" : effectiveMaxEta}
+            onChange={(value) =>
+              setMaxEta(typeof value === "number" ? value : "off")
+            }
+            w={160}
+          />
           <Button
             onClick={() =>
               mutation.mutate({
                 connections: effectiveConnections,
                 chunkBytes: effectiveChunkMib * MIB,
+                maxEtaHours: effectiveMaxEtaValue,
               })
             }
             disabled={!dirty}

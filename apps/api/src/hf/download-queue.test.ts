@@ -60,6 +60,7 @@ type StubOptions = {
   failResolveWith?: number;
   gatedPaths?: Set<string>;
   terminatePaths?: Map<string, number>;
+  tricklePaths?: Set<string>;
 };
 
 type Stub = {
@@ -133,6 +134,30 @@ function makeStub(
         });
         return new Response(body, { status: 200 });
       }
+      if (options?.tricklePaths?.has(path)) {
+        const signal = init?.signal;
+        let offset = 0;
+        let pulls = 0;
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            if (signal?.aborted) {
+              controller.error(new Error("aborted"));
+              return;
+            }
+            if (offset >= content.length) {
+              controller.close();
+              return;
+            }
+            pulls += 1;
+            const step = pulls <= 10 ? 1 : content.length - offset;
+            controller.enqueue(
+              Uint8Array.from(content.subarray(offset, offset + step)),
+            );
+            offset += step;
+          },
+        });
+        return new Response(body, { status: 200 });
+      }
       if (options?.gatedPaths?.has(path)) {
         const signal = init?.signal;
         const firstChunk = content.subarray(0, 1);
@@ -176,7 +201,11 @@ let destDir = "";
 beforeEach(() => {
   resetHfDownloadQueueForTests();
   resetHfUpdateChecksForTests();
-  saveHfDownloadSettings({ connections: 1, chunkBytes: 4 * 1024 * 1024 });
+  saveHfDownloadSettings({
+    connections: 1,
+    chunkBytes: 4 * 1024 * 1024,
+    maxEtaHours: 24,
+  });
   destDir = join(config.runtimeDir, `hf-queue-test-${randomUUID()}`);
 });
 
@@ -811,6 +840,42 @@ test("a queued job pauses in place and reorder retains it", async () => {
   assert.equal(historyJob(jobB.id).status, "succeeded");
 });
 
+test("a hopeless projected eta pauses the job and continue-anyway overrides it", async () => {
+  const content = randomBytes(100_000);
+  const files = new Map<string, FixtureFile>([
+    ["model.safetensors", { content, lfs: true }],
+  ]);
+  const stub = makeStub(files, {
+    tricklePaths: new Set(["model.safetensors"]),
+  });
+  let clock = 0;
+  const fakeNow = () => {
+    clock += 10_000;
+    return clock;
+  };
+  const job = await enqueueHfDownload(
+    { repoId: REPO_ID, revision: SHA, paths: ["model.safetensors"], destDir },
+    { ...stubOptions(stub), now: fakeNow },
+  );
+  await waitFor(
+    () => getHfDownloadQueueState().paused.some((entry) => entry.id === job.id),
+    "job to pause on slow eta",
+  );
+  const paused = getHfDownloadQueueState().paused.find(
+    (entry) => entry.id === job.id,
+  );
+  assert.equal(paused?.pauseReason, "slow-eta");
+  assert.ok(paused?.message?.includes("exceeds"));
+  assert.equal(paused?.slowEtaOverride, false);
+  const resumed = resumeHfDownloadJob(job.id, { ignoreSlowEta: true });
+  assert.equal(resumed.ok, true);
+  await waitForHfDownloadQueueIdle();
+  const finished = historyJob(job.id);
+  assert.equal(finished.status, "succeeded");
+  assert.equal(finished.slowEtaOverride, true);
+  assert.deepEqual(readFileSync(join(destDir, "model.safetensors")), content);
+});
+
 test("a persisted paused job is adopted without auto-resuming", async () => {
   const content = randomBytes(100);
   persistHfQueueStore({
@@ -830,6 +895,7 @@ test("a persisted paused job is adopted without auto-resuming", async () => {
         cancelRequested: false,
         pauseRequested: false,
         pauseReason: "network",
+        slowEtaOverride: false,
         totalBytes: content.length,
         downloadedBytes: 0,
         files: [
@@ -912,6 +978,7 @@ test("a persisted running job is adopted as queued and auto-resumes", async () =
         cancelRequested: false,
         pauseRequested: false,
         pauseReason: null,
+        slowEtaOverride: false,
         totalBytes: content.length,
         downloadedBytes: 0,
         files: [

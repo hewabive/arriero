@@ -95,6 +95,7 @@ export function HfQueueJobCard(props: {
   onPause?: (() => void) | undefined;
   pausing?: boolean | undefined;
   onResume?: (() => void) | undefined;
+  onContinueAnyway?: (() => void) | undefined;
   resuming?: boolean | undefined;
   onDismiss?: (() => void) | undefined;
   onSkipFile?: ((path: string) => void) | undefined;
@@ -157,6 +158,19 @@ export function HfQueueJobCard(props: {
                 Resume
               </Button>
             )}
+            {paused &&
+              job.pauseReason === "slow-eta" &&
+              props.onContinueAnyway && (
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="yellow"
+                  loading={props.resuming ?? false}
+                  onClick={props.onContinueAnyway}
+                >
+                  Continue anyway
+                </Button>
+              )}
             {running && props.onPause && (
               <Button
                 size="xs"

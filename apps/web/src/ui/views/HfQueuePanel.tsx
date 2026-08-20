@@ -80,6 +80,7 @@ export const HfQueuePanel = forwardRef<
             rate={null}
             canceling={false}
             onResume={() => queue.resume(job.id)}
+            onContinueAnyway={() => queue.resume(job.id, true)}
             resuming={queue.pending.resumeId === job.id}
             onDismiss={() => queue.remove(job.id)}
             onSkipFile={(path) => queue.skipFiles(job.id, [path])}

@@ -111,8 +111,9 @@ quantization label cross-checks `general.file_type` against the tensor table,
 path — header + config sidecar capture, `docs/SAFETENSORS_PARSING.md`) ·
 `presets` · `llama` (probe + source repo) ·
 `hf` (HuggingFace Hub browser + download jobs with GGUF variant/split grouping, resume + hash
-verification, mid-stream disconnects resume from the flushed byte and a no-progress stall pauses
-the job (`paused` + resume) instead of failing files, per-repo `.arriero-hf.json` sidecar manifest
+verification, mid-stream disconnects resume from the flushed byte, a no-progress stall or a
+hopeless projected ETA pauses the job (`paused` + resume/Continue anyway) instead of failing
+files, per-repo `.arriero-hf.json` sidecar manifest
 discovered across scan roots, manual
 upstream update checks, write-only `hf:token` secret — `docs/HF_DOWNLOADS.md`) ·
 `path-catalog` · `resources` (memory pools + capacity ledger) · `memory-estimate` (a-priori per-pool

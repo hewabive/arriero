@@ -127,7 +127,8 @@ export function useHfQueue() {
     onError: reportError("Pause download"),
   });
   const resumeMutation = useMutation({
-    mutationFn: (jobId: string) => resumeHfDownloadJob(jobId),
+    mutationFn: (input: { jobId: string; ignoreSlowEta: boolean }) =>
+      resumeHfDownloadJob(input.jobId, input.ignoreSlowEta),
     onSuccess: apply,
     onError: reportError("Resume download"),
   });
@@ -179,7 +180,8 @@ export function useHfQueue() {
     rate,
     cancel: (jobId: string) => cancelMutation.mutate(jobId),
     pause: (jobId: string) => pauseMutation.mutate(jobId),
-    resume: (jobId: string) => resumeMutation.mutate(jobId),
+    resume: (jobId: string, ignoreSlowEta = false) =>
+      resumeMutation.mutate({ jobId, ignoreSlowEta }),
     remove: (jobId: string) => removeMutation.mutate(jobId),
     move,
     skipFiles: (jobId: string, paths: string[]) =>
@@ -188,7 +190,9 @@ export function useHfQueue() {
     pending: {
       cancelId: cancelMutation.isPending ? cancelMutation.variables : null,
       pauseId: pauseMutation.isPending ? pauseMutation.variables : null,
-      resumeId: resumeMutation.isPending ? resumeMutation.variables : null,
+      resumeId: resumeMutation.isPending
+        ? resumeMutation.variables.jobId
+        : null,
       removeId: removeMutation.isPending ? removeMutation.variables : null,
       reorder: reorderMutation.isPending,
       skip: skipMutation.isPending ? skipMutation.variables : null,

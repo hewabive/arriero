@@ -79,10 +79,10 @@ export function pauseHfDownloadJob(jobId: string) {
   );
 }
 
-export function resumeHfDownloadJob(jobId: string) {
+export function resumeHfDownloadJob(jobId: string, ignoreSlowEta = false) {
   return request<{ data: HfDownloadQueueState }>(
     `/api/hf/queue/${encodeURIComponent(jobId)}/resume`,
-    { method: "POST" },
+    { method: "POST", body: JSON.stringify({ ignoreSlowEta }) },
   );
 }
 

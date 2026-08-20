@@ -44,12 +44,15 @@ import {
 import { clearHfUpdateCheck, runHfUpdateChecks } from "./update-check.js";
 
 const HISTORY_LIMIT = 20;
+const SLOW_ETA_MEASURE_MS = 90_000;
+const SLOW_ETA_CHECK_INTERVAL_MS = 5_000;
 
 export type HfDownloadQueueOptions = {
   fetchImpl?: typeof fetch | undefined;
   token?: string | null | undefined;
   freeBytes?: FreeBytesImpl | undefined;
   sleep?: ((ms: number) => Promise<void>) | undefined;
+  now?: (() => number) | undefined;
 };
 
 export type HfQueueMutationResult =
@@ -73,6 +76,7 @@ let currentRun: ActiveRun | null = null;
 let shuttingDown = false;
 let currentConnections: number | null = null;
 let currentTelemetry: HfTransferTelemetry | null = null;
+let slowEtaTrigger: string | null = null;
 let fallbackJobOptions: HfDownloadQueueOptions | null = null;
 const jobOptions = new Map<string, HfDownloadQueueOptions>();
 const liveBytes = new Map<string, number>();
@@ -179,6 +183,7 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
     cancelRequested: job.cancelRequested,
     pauseRequested: job.pauseRequested,
     pauseReason: job.pauseReason,
+    slowEtaOverride: job.slowEtaOverride,
     totalBytes: job.totalBytes,
     downloadedBytes,
     activePaths: isActive
@@ -271,8 +276,41 @@ async function executeJob(
   let downloadedModelFile = false;
   const settings = getHfDownloadSettings();
   currentConnections = settings.connections;
-  const telemetry = createHfTransferTelemetry(Date.now());
+  const now = optionsFor(job)?.now ?? Date.now;
+  const telemetry = createHfTransferTelemetry(now());
   currentTelemetry = telemetry;
+  const maxEtaHours = settings.maxEtaHours;
+  let lastEtaCheckAt = telemetry.startedAt;
+  const maybePauseOnSlowEta = (at: number) => {
+    if (
+      maxEtaHours === null ||
+      job.slowEtaOverride ||
+      slowEtaTrigger !== null ||
+      at - telemetry.startedAt < SLOW_ETA_MEASURE_MS ||
+      at - lastEtaCheckAt < SLOW_ETA_CHECK_INTERVAL_MS
+    ) {
+      return;
+    }
+    lastEtaCheckAt = at;
+    const elapsedSeconds = (at - telemetry.startedAt) / 1_000;
+    const averageBps = telemetry.payloadBytes / elapsedSeconds;
+    if (averageBps <= 0) {
+      return;
+    }
+    const downloaded = job.files.reduce(
+      (sum, file) =>
+        sum +
+        Math.min(fileBytes(job, file.path, file.downloadedBytes), file.size),
+      0,
+    );
+    const remaining = Math.max(0, job.totalBytes - downloaded);
+    const etaSeconds = remaining / averageBps;
+    if (etaSeconds <= maxEtaHours * 3_600) {
+      return;
+    }
+    slowEtaTrigger = `projected finish in ${Math.round(etaSeconds / 3_600)} h exceeds the ${maxEtaHours} h limit at the current rate`;
+    currentRun?.controller.abort();
+  };
   const result = await runHfTransfer({
     repoId: job.repoId,
     sha: job.revision,
@@ -299,11 +337,13 @@ async function executeJob(
           return;
         }
         if (bytes > previous) {
-          recordHfTransferPayload(telemetry, bytes - previous, Date.now());
+          const at = now();
+          recordHfTransferPayload(telemetry, bytes - previous, at);
+          maybePauseOnSlowEta(at);
         }
       },
       onWireBytes: (deltaBytes) => {
-        recordHfTransferWire(telemetry, deltaBytes, Date.now());
+        recordHfTransferWire(telemetry, deltaBytes, now());
       },
       onTransportError: () => {
         recordHfTransferReset(telemetry);
@@ -390,9 +430,11 @@ function finalizeJob(
   const pauseReason =
     input.aborted && job.pauseRequested && !job.cancelRequested
       ? "manual"
-      : !input.aborted && input.stalled !== null
-        ? "network"
-        : null;
+      : input.aborted && slowEtaTrigger !== null && !job.cancelRequested
+        ? "slow-eta"
+        : !input.aborted && input.stalled !== null
+          ? "network"
+          : null;
   if (pauseReason !== null) {
     job.status = "paused";
     job.pauseReason = pauseReason;
@@ -401,7 +443,9 @@ function finalizeJob(
     job.message =
       pauseReason === "network"
         ? `Paused: no download progress (${input.stalled}).`
-        : "Paused by user.";
+        : pauseReason === "slow-eta"
+          ? `Paused: ${slowEtaTrigger}.`
+          : "Paused by user.";
     for (const file of job.files) {
       if (file.status === "downloading") {
         file.status = "pending";
@@ -479,6 +523,7 @@ async function runActive(
       pendingBaselinePaths.clear();
       currentConnections = null;
       currentTelemetry = null;
+      slowEtaTrigger = null;
     }
     invalidateHfDownloadsCache();
     if (disposition === "finished") {
@@ -560,6 +605,7 @@ export async function enqueueHfDownload(
     cancelRequested: false,
     pauseRequested: false,
     pauseReason: null,
+    slowEtaOverride: false,
     totalBytes: plan.totalBytes,
     downloadedBytes: 0,
     files: plan.planned.map((file) => ({
@@ -641,7 +687,10 @@ export function pauseHfDownloadJob(id: string): HfQueueMutationResult {
   };
 }
 
-export function resumeHfDownloadJob(id: string): HfQueueMutationResult {
+export function resumeHfDownloadJob(
+  id: string,
+  options?: { ignoreSlowEta?: boolean },
+): HfQueueMutationResult {
   const current = ensureState();
   const job = current.queue.find((entry) => entry.id === id);
   if (!job) {
@@ -653,6 +702,9 @@ export function resumeHfDownloadJob(id: string): HfQueueMutationResult {
       status: 409,
       error: `download job ${id} is not paused`,
     };
+  }
+  if (options?.ignoreSlowEta) {
+    job.slowEtaOverride = true;
   }
   job.status = "queued";
   job.pauseReason = null;
@@ -836,6 +888,7 @@ export function resetHfDownloadQueueForTests(): void {
   shuttingDown = false;
   currentConnections = null;
   currentTelemetry = null;
+  slowEtaTrigger = null;
   fallbackJobOptions = null;
   jobOptions.clear();
   liveBytes.clear();
