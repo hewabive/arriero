@@ -66,8 +66,18 @@ inline hashing, `Range: bytes=<offset>-` resume with the hash re-primed from exi
 `200` on resume truncates and restarts, a `416` retries once from zero. A file already on disk
 with matching size and manifest oid (or matching content hash) is `skipped`.
 
-Failure policy: transient errors (network, 5xx) retry per chunk up to 5 attempts with exponential
-backoff (max 30 s + jitter); a `416`/`200` on a bounded range falls the file back to a single
+Failure policy: transient errors (network, 5xx) retry per chunk with exponential backoff (max
+30 s + jitter); the 5-attempt limit bounds only **consecutive attempts without byte progress** —
+any flushed progress resets the counter. A mid-stream disconnect (undici's raw
+`TypeError: terminated` and friends) is classified as a network error by the body-read wrappers,
+not just fetch-time failures, and a retry resumes where the data stopped: a chunked retry
+re-requests the bounded range from the last byte flushed via the positional file handle, a
+single-stream retry from the flushed `.part` size (the write stream is flushed, not destroyed, on
+error — buffered bytes are never lost, and a stream write error is captured instead of crashing
+the process). All download requests go through a dedicated undici agent
+(`apps/api/src/hf/http.ts`): 30 s to response headers, 45 s body idle timeout, replacing undici's
+300 s defaults so a silently dead connection fails fast while a slow-but-moving stream is never
+cut. A `416`/`200` on a bounded range falls the file back to a single
 stream; `429` gets two long retries (30/60 s) then fails the job; `unauthorized`/`gated` and
 `ENOSPC` fail the job immediately (remaining files → `canceled`); other per-file failures are
 recorded and the job continues. Cancel — whole job (`POST /api/hf/queue/:id/cancel`) or per file

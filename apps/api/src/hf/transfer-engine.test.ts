@@ -55,7 +55,22 @@ type RangeStubOptions = {
   failStatus?: number;
   gatedRanges?: Set<string>;
   corruptRanges?: Set<string>;
+  terminateAfter?: Map<string, number>;
 };
+
+function terminatingBody(slice: Buffer, deliverBytes: number): ReadableStream {
+  let delivered = false;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (!delivered) {
+        delivered = true;
+        controller.enqueue(Uint8Array.from(slice.subarray(0, deliverBytes)));
+        return;
+      }
+      controller.error(new TypeError("terminated"));
+    },
+  });
+}
 
 type RangeStub = {
   fetchImpl: typeof fetch;
@@ -92,12 +107,18 @@ function makeRangeStub(
     }
     const bounded = range ? /^bytes=(\d+)-(\d+)$/.exec(range) : null;
     const openEnded = range ? /^bytes=(\d+)-$/.exec(range) : null;
+    const terminateBytes = options?.terminateAfter?.get(range ?? "whole");
     if (bounded && !options?.force200) {
       const start = Number(bounded[1]);
       const end = Number(bounded[2]);
       let slice = Buffer.from(content.subarray(start, end + 1));
       if (options?.corruptRanges?.has(range ?? "")) {
         slice = randomBytes(slice.length);
+      }
+      if (terminateBytes !== undefined) {
+        return new Response(terminatingBody(slice, terminateBytes), {
+          status: 206,
+        });
       }
       if (options?.gatedRanges?.has(range ?? "")) {
         const signal = init?.signal;
@@ -118,8 +139,17 @@ function makeRangeStub(
     }
     if (openEnded && !options?.force200) {
       const start = Number(openEnded[1]);
-      return new Response(Uint8Array.from(content.subarray(start)), {
-        status: 206,
+      const slice = Buffer.from(content.subarray(start));
+      if (terminateBytes !== undefined) {
+        return new Response(terminatingBody(slice, terminateBytes), {
+          status: 206,
+        });
+      }
+      return new Response(Uint8Array.from(slice), { status: 206 });
+    }
+    if (terminateBytes !== undefined) {
+      return new Response(terminatingBody(content, terminateBytes), {
+        status: 200,
       });
     }
     return new Response(Uint8Array.from(content), { status: 200 });
@@ -296,6 +326,71 @@ test("transient chunk errors retry with backoff and succeed", async () => {
   assert.deepEqual(result, { failedCount: 0, fatalError: null });
   assert.deepEqual(readFileSync(file.finalPath), content);
   assert.equal(run.sleeps.length, 2);
+});
+
+test("a mid-stream disconnect is classified and the chunk resumes from the flushed offset", async () => {
+  const content = randomBytes(30);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    terminateAfter: new Map([["bytes=10-19", 4]]),
+  });
+  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const result = await run.result;
+  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.equal(run.statuses.get("model.bin"), "succeeded");
+  assert.deepEqual(readFileSync(file.finalPath), content);
+  const ranges = stub.requests.map((request) => request.range);
+  assert.ok(ranges.includes("bytes=14-19"));
+  assert.equal(run.sleeps.length, 1);
+});
+
+test("repeated disconnects with progress never exhaust the retry limit", async () => {
+  const content = randomBytes(20);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    terminateAfter: new Map([
+      ["bytes=10-19", 2],
+      ["bytes=12-19", 2],
+      ["bytes=14-19", 2],
+      ["bytes=16-19", 2],
+      ["bytes=18-19", 1],
+    ]),
+  });
+  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const result = await run.result;
+  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.deepEqual(readFileSync(file.finalPath), content);
+  assert.equal(run.sleeps.length, 5);
+});
+
+test("disconnects without progress still exhaust the retry limit", async () => {
+  const content = randomBytes(30);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    terminateAfter: new Map([["bytes=10-19", 0]]),
+  });
+  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const result = await run.result;
+  assert.equal(result.failedCount, 1);
+  assert.equal(run.statuses.get("model.bin"), "failed");
+  assert.equal(run.sleeps.length, 4);
+});
+
+test("a single-stream disconnect resumes from the flushed part bytes", async () => {
+  const content = randomBytes(8);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    terminateAfter: new Map([["whole", 4]]),
+  });
+  const run = startEngine([file], stub.fetchImpl);
+  const result = await run.result;
+  assert.deepEqual(result, { failedCount: 0, fatalError: null });
+  assert.equal(run.statuses.get("model.bin"), "succeeded");
+  assert.deepEqual(readFileSync(file.finalPath), content);
+  assert.deepEqual(
+    stub.requests.map((request) => request.range),
+    [null, "bytes=4-"],
+  );
 });
 
 test("a chunk that keeps failing exhausts retries and fails the file, keeping the part", async () => {
