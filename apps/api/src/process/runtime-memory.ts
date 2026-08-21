@@ -537,32 +537,30 @@ export async function getRuntimeMemoryLayout(input: {
     return null;
   }
 
-  const gpuBytesByPid = new Map<
-    number,
-    { bytes: number; processNames: Set<string> }
-  >();
+  const gpuBytesByPid = new Map<number, number>();
   for (const app of sample.gpuProcesses) {
-    const current = gpuBytesByPid.get(app.pid) ?? {
-      bytes: 0,
-      processNames: new Set<string>(),
-    };
-    current.bytes += app.usedMemoryBytes;
-    if (app.processName) {
-      current.processNames.add(basename(app.processName));
-    }
-    gpuBytesByPid.set(app.pid, current);
+    gpuBytesByPid.set(
+      app.pid,
+      (gpuBytesByPid.get(app.pid) ?? 0) + app.usedMemoryBytes,
+    );
   }
 
+  const commandByPid = new Map(
+    cachedProcessTable().map((processInfo) => [
+      processInfo.pid,
+      processInfo.command,
+    ]),
+  );
   const entries: InstanceMemoryPlacement[] = [];
-  for (const [pid, info] of gpuBytesByPid) {
-    const names = [...info.processNames].sort();
-    const suffix = names.length === 0 ? "" : ` (${names.join(", ")})`;
+  for (const [pid, bytes] of gpuBytesByPid) {
+    const command = commandByPid.get(pid);
+    const suffix = command ? ` (${basename(command)})` : "";
     const placement = emptyMemoryPlacement(
       `GPU process pid ${pid}${suffix}`,
       "device",
     );
-    placement.otherBytes = info.bytes;
-    placement.totalBytes = info.bytes;
+    placement.otherBytes = bytes;
+    placement.totalBytes = bytes;
     entries.push(placement);
   }
 

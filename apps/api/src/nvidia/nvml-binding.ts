@@ -2,7 +2,6 @@ import koffi, { type LibraryHandle } from "koffi";
 
 export const NVML_ERROR_NOT_SUPPORTED = 3;
 export const NVML_ERROR_NO_PERMISSION = 4;
-const NVML_ERROR_NOT_FOUND = 6;
 const NVML_ERROR_INSUFFICIENT_SIZE = 7;
 export const NVML_ERROR_DRIVER_NOT_LOADED = 9;
 export const NVML_ERROR_GPU_IS_LOST = 15;
@@ -74,7 +73,6 @@ export interface NvmlBinding {
   deviceUtilization(device: NvmlDeviceHandle): number | null;
   deviceTemperature(device: NvmlDeviceHandle): number | null;
   computeProcesses(device: NvmlDeviceHandle): NvmlProcessInfo[];
-  processName(pid: number): string | null;
 }
 
 export class NvmlLibraryError extends Error {
@@ -244,12 +242,6 @@ class KoffiNvmlBinding implements NvmlBinding {
     "int",
     [NvmlDevicePointer, koffi.inout(koffi.pointer("uint32_t")), "void *"],
   );
-  private readonly getProcessName = this.library.func(
-    "nvmlSystemGetProcessName",
-    "int",
-    ["uint32_t", "void *", "uint32_t"],
-  );
-
   private detail(code: number): string {
     try {
       return String(this.errorString(code));
@@ -434,16 +426,6 @@ class KoffiNvmlBinding implements NvmlBinding {
       NVML_ERROR_INSUFFICIENT_SIZE,
       "process list kept growing while it was read",
     );
-  }
-
-  processName(pid: number): string | null {
-    const buffer = Buffer.alloc(STRING_BUFFER_SIZE);
-    const code = this.getProcessName(pid, buffer, buffer.length);
-    if (code === NVML_ERROR_NOT_FOUND || code === NVML_ERROR_NO_PERMISSION) {
-      return null;
-    }
-    this.check("nvmlSystemGetProcessName", code);
-    return decodeCString(buffer) || null;
   }
 }
 

@@ -200,6 +200,29 @@ wake with priority); starvation stalls appear when the loop is busy, which is wh
 accumulates. The verdict and its signal receipt land in the stall record, the `warn` log line, and
 the System resources page, so a one-off stall is attributable after the fact without any profiler.
 
+### Never read another process's `/proc/<pid>/cmdline` from the main thread
+
+A production `self-wait` case (2026-08-21): three 58–62 s stalls, each during a model load onto GPUs.
+`strace` pinned every one to a single `read()` of the freshly spawned llama-server's
+`/proc/<pid>/cmdline`, issued from inside `libnvidia-ml.so` by `nvmlSystemGetProcessName()`, which
+`nvidia/telemetry.ts` used to call synchronously (koffi blocks the calling thread) every ~2 s to
+label GPU compute processes. Reading a foreign `cmdline` copies argv out of the target's address
+space (`access_process_vm` → `mmap_read_lock`), so it queues behind the target's own mmap writers —
+and a child mid-CUDA-init committing tens of GB generates sustained write-lock traffic for the whole
+load window. Smaller siblings of the same mechanism: multi-second blocks on a *dying* child's
+teardown munmap burst.
+
+The fix removed `nvmlSystemGetProcessName` from the binding entirely. `computeProcesses()` returns
+pid + bytes + device only; the display name in `process/runtime-memory.ts` comes from the
+`ps`-backed `cachedProcessTable()` (a child process refreshed off-thread — if *it* blocks on the
+same lock, the table goes stale, the loop does not), and the one-shot `nvidia/report-cli.ts` reads
+`/proc/<pid>/cmdline` itself, where blocking is harmless. The constraint is standing: no main-thread
+code may read another process's `cmdline`/`environ`/`auxv` — directly, via an FFI call that does, or
+via any NVML "name" API — because any of them can block for as long as the target holds its mmap
+lock. Boot-time `process/reconcile.ts` reads adopted children's `cmdline` before the server starts,
+which is the same wait moved to startup; acceptable today because adoption happens once, but a child
+mid-load at manager boot would delay startup by the same mechanism.
+
 ## Charts
 
 `ui/components/MetricChart.tsx` is a hand-written SVG area chart — no charting dependency. It plots

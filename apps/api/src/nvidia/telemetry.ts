@@ -47,7 +47,6 @@ export type NvidiaDeviceSnapshot = {
 
 export type NvidiaComputeProcess = {
   pid: number;
-  processName: string | null;
   usedMemoryBytes: number;
   deviceIndex: number;
 };
@@ -247,7 +246,6 @@ export class NvidiaTelemetry {
       return this.binding!.computeProcesses(device.handle).map(
         (processInfo) => ({
           pid: processInfo.pid,
-          processName: null,
           usedMemoryBytes: processInfo.usedMemoryBytes,
           deviceIndex: device.index,
         }),
@@ -274,20 +272,8 @@ export class NvidiaTelemetry {
     }
 
     try {
-      const names = new Map<number, string | null>();
       const value = this.inventory!.flatMap((device) =>
-        this.computeProcessesForDevice(device).map((processInfo) => {
-          if (!names.has(processInfo.pid)) {
-            names.set(
-              processInfo.pid,
-              this.binding!.processName(processInfo.pid),
-            );
-          }
-          return {
-            ...processInfo,
-            processName: names.get(processInfo.pid) ?? null,
-          };
-        }),
+        this.computeProcessesForDevice(device),
       ).sort(
         (left, right) =>
           left.pid - right.pid || left.deviceIndex - right.deviceIndex,

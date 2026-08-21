@@ -29,7 +29,6 @@ type FakeDevice = {
 
 class FakeNvmlBinding implements NvmlBinding {
   readonly devices: FakeDevice[];
-  readonly processNames = new Map<number, string>();
   initError: Error | null = null;
   memoryError: Error | null = null;
   processError: Error | null = null;
@@ -37,7 +36,6 @@ class FakeNvmlBinding implements NvmlBinding {
   shutdownCalls = 0;
   memoryCalls = 0;
   processCalls = 0;
-  processNameCalls = 0;
 
   constructor(devices: FakeDevice[]) {
     this.devices = devices;
@@ -105,11 +103,6 @@ class FakeNvmlBinding implements NvmlBinding {
     if (this.processError) throw this.processError;
     return this.device(handle).processes;
   }
-
-  processName(pid: number): string | null {
-    this.processNameCalls += 1;
-    return this.processNames.get(pid) ?? null;
-  }
 }
 
 function fakeDevice(
@@ -176,43 +169,38 @@ test("initializes NVML once and caches accelerator samples", () => {
   assert.equal(binding.initializeCalls, 1);
 });
 
-test("collects per-device process memory and resolves each PID name once", () => {
+test("collects per-device process memory sorted by pid then device", () => {
   const binding = new FakeNvmlBinding([
     fakeDevice(0, {
       processes: [{ pid: 123, usedMemoryBytes: 100 }],
     }),
     fakeDevice(1, {
       processes: [
-        { pid: 123, usedMemoryBytes: 200 },
         { pid: 456, usedMemoryBytes: 300 },
+        { pid: 123, usedMemoryBytes: 200 },
       ],
     }),
   ]);
-  binding.processNames.set(123, "/opt/llama-server");
   const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
 
   assert.deepEqual(telemetry.computeProcesses(), [
     {
       pid: 123,
-      processName: "/opt/llama-server",
       usedMemoryBytes: 100,
       deviceIndex: 0,
     },
     {
       pid: 123,
-      processName: "/opt/llama-server",
       usedMemoryBytes: 200,
       deviceIndex: 1,
     },
     {
       pid: 456,
-      processName: null,
       usedMemoryBytes: 300,
       deviceIndex: 1,
     },
   ]);
   assert.equal(binding.processCalls, 2);
-  assert.equal(binding.processNameCalls, 2);
 });
 
 test("keeps accelerator telemetry ready when process accounting is unsupported", () => {
