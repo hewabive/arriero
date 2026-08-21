@@ -768,6 +768,9 @@ export function commitConfigChanges(
       validation = validateConfigRoot(config.configDir);
       assertValid(validation);
       staged = await stageAll(config.configDir);
+      if (staged.length === 0) {
+        throw new Error("there are no configuration changes to commit");
+      }
     } else {
       staged = await stageSelectedPaths(config.configDir, input.paths);
       if (staged.length === 0) {
@@ -778,9 +781,6 @@ export function commitConfigChanges(
         await runGit(config.configDir, ["reset", "--quiet"]);
       }
       assertValid(validation);
-    }
-    if (staged.length === 0) {
-      throw new Error("there are no configuration changes to commit");
     }
     const args = await commitIdentityArguments(input);
     args.push("commit", "-m", input.message);

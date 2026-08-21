@@ -5,7 +5,7 @@ import type {
   HfUpdateCheck,
 } from "@arriero/core";
 import { existsSync, readdirSync, rmSync } from "node:fs";
-import { opendir } from "node:fs/promises";
+import { opendir, readdir } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { getActiveJob } from "../jobs/registry.js";
@@ -59,6 +59,7 @@ export class HfDownloadVerifyError extends Error {
 type DiscoveredRepo = {
   dir: string;
   manifest: HfManifest;
+  orphanParts: HfOrphanPart[];
 };
 
 let cache: { key: string; at: number; repos: DiscoveredRepo[] } | null = null;
@@ -132,7 +133,11 @@ async function discoverRepos(): Promise<DiscoveredRepo[]> {
     seen.add(resolved);
     const manifest = readHfManifest(resolved);
     if (manifest) {
-      repos.push({ dir: resolved, manifest });
+      repos.push({
+        dir: resolved,
+        manifest,
+        orphanParts: await collectOrphanParts(resolved, manifest),
+      });
     }
   }
   return repos.sort((a, b) =>
@@ -140,17 +145,20 @@ async function discoverRepos(): Promise<DiscoveredRepo[]> {
   );
 }
 
-function collectOrphanParts(dir: string, manifest: HfManifest): HfOrphanPart[] {
+async function collectOrphanParts(
+  dir: string,
+  manifest: HfManifest,
+): Promise<HfOrphanPart[]> {
   const known = new Set(manifest.files.map((file) => resolve(dir, file.path)));
   const out: HfOrphanPart[] = [];
   const state = { visited: 0 };
-  const walk = (current: string, depth: number): void => {
+  const walk = async (current: string, depth: number): Promise<void> => {
     if (state.visited >= ORPHAN_SCAN_MAX_ENTRIES) {
       return;
     }
     let entries;
     try {
-      entries = readdirSync(current, { withFileTypes: true });
+      entries = await readdir(current, { withFileTypes: true });
     } catch {
       return;
     }
@@ -166,7 +174,7 @@ function collectOrphanParts(dir: string, manifest: HfManifest): HfOrphanPart[] {
           !IGNORED_DIRS.has(entry.name) &&
           !entry.name.startsWith(".")
         ) {
-          walk(absolute, depth + 1);
+          await walk(absolute, depth + 1);
         }
         continue;
       }
@@ -190,7 +198,7 @@ function collectOrphanParts(dir: string, manifest: HfManifest): HfOrphanPart[] {
       }
     }
   };
-  walk(dir, 0);
+  await walk(dir, 0);
   return out.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -201,7 +209,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
   if (!cache || cache.key !== key || Date.now() - cache.at > CACHE_TTL_MS) {
     cache = { key, at: Date.now(), repos: await discoverRepos() };
   }
-  return cache.repos.map(({ dir, manifest }) => {
+  return cache.repos.map(({ dir, manifest, orphanParts }) => {
     const files: HfDownloadedRepoFile[] = manifest.files.map((file) => {
       const finalPath = join(dir, file.path);
       const present = existsSync(finalPath);
@@ -225,7 +233,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
       totalBytes: files.reduce((sum, file) => sum + file.size, 0),
       missingFiles: files.filter((file) => !file.present).length,
       files,
-      orphanParts: collectOrphanParts(dir, manifest),
+      orphanParts,
       variants: groupHfGgufFiles(manifest.files),
       update: getHfUpdateCheck(dir),
     };

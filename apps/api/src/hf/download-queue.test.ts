@@ -23,7 +23,7 @@ import {
   resumeHfDownloadJob,
   setHfDownloadQueueFallbackOptionsForTests,
   skipHfDownloadFiles,
-  waitForHfDownloadQueueIdle,
+  waitForHfDownloadQueueIdleForTests,
 } from "./download-queue.js";
 import { HF_DOWNLOAD_JOB_DOMAIN } from "./downloads.js";
 import { readHfManifest, writeHfManifest } from "./manifest.js";
@@ -250,7 +250,7 @@ test("happy path downloads, verifies and records the manifest incrementally", as
   );
   assert.ok(job.status === "queued" || job.status === "running");
   assert.equal(job.totalBytes, 2_048 + 7);
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
 
   const finished = historyJob(job.id);
   assert.equal(finished.status, "succeeded");
@@ -308,7 +308,7 @@ test("a file already current on disk is skipped without a resolve request", asyn
     { repoId: REPO_ID, revision: SHA, paths: ["model.safetensors"], destDir },
     stubOptions(stub),
   );
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(job.id);
   assert.equal(finished.status, "succeeded");
   assert.deepEqual(
@@ -333,7 +333,7 @@ test("a leftover part file resumes with a range request", async () => {
     { repoId: REPO_ID, revision: SHA, paths: ["model.safetensors"], destDir },
     stubOptions(stub),
   );
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   assert.equal(historyJob(job.id).status, "succeeded");
   assert.deepEqual(stub.resolveRequests, [
     { path: "model.safetensors", range: "bytes=400-" },
@@ -357,7 +357,7 @@ test("a server that ignores the range request still produces a correct file", as
     { repoId: REPO_ID, revision: SHA, paths: ["model.safetensors"], destDir },
     stubOptions(stub),
   );
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   assert.equal(historyJob(job.id).status, "succeeded");
   assert.deepEqual(readFileSync(join(destDir, "model.safetensors")), content);
 });
@@ -376,7 +376,7 @@ test("a checksum mismatch fails the file and removes the part", async () => {
     { repoId: REPO_ID, revision: SHA, paths: ["model.safetensors"], destDir },
     stubOptions(stub),
   );
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(job.id);
   assert.equal(finished.status, "failed");
   assert.match(finished.files[0]?.error ?? "", /checksum mismatch/);
@@ -396,7 +396,7 @@ test("an unauthorized upstream fails fast and cancels the rest", async () => {
     { repoId: REPO_ID, revision: SHA, paths: ["a.bin", "b.bin"], destDir },
     stubOptions(stub),
   );
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(job.id);
   assert.equal(finished.status, "failed");
   assert.deepEqual(
@@ -422,7 +422,7 @@ test("cancel mid-stream keeps the part file for a later resume", async () => {
   );
   const canceled = cancelActiveHfDownload(job.id);
   assert.equal(canceled.ok, true);
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(job.id);
   assert.equal(finished.status, "canceled");
   assert.equal(finished.cancelRequested, true);
@@ -512,7 +512,7 @@ test("the queue runs jobs sequentially in FIFO order", async () => {
   );
   assert.equal(fastStub.resolveRequests.length, 0);
   slowStub.releaseGate("slow.bin");
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const done = getHfDownloadQueueState();
   assert.equal(done.active, null);
   assert.deepEqual(
@@ -545,7 +545,7 @@ test("the same repo can be enqueued again while a job for it runs", async () => 
   );
   assert.equal(second.status, "queued");
   stub.releaseGate("slow.bin");
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   assert.deepEqual(
     getHfDownloadQueueState().history.map((entry) => entry.status),
     ["succeeded", "succeeded"],
@@ -606,7 +606,7 @@ test("queued jobs can be reordered, removed and validated", async () => {
     );
   }
   stub.releaseGate("slow.bin");
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(first.id);
   assert.equal(finished.status, "succeeded");
   const removedHistory = removeHfDownloadQueueJob(first.id);
@@ -660,7 +660,7 @@ test("files can be skipped from a queued job and the empty job is dropped", asyn
     );
   }
   stub.releaseGate("slow.bin");
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
 });
 
 test("skipping files of the running job aborts the in-flight file and continues", async () => {
@@ -685,7 +685,7 @@ test("skipping files of the running job aborts the in-flight file and continues"
   );
   const result = skipHfDownloadFiles(job.id, ["slow.bin", "tail.bin"]);
   assert.equal(result.ok, true);
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(job.id);
   assert.equal(finished.status, "succeeded");
   assert.deepEqual(
@@ -731,7 +731,7 @@ test("a transfer stalled without progress pauses the job and resume completes it
   assert.equal(getHfDownloadQueueState().active, null);
   const resumed = resumeHfDownloadJob(job.id);
   assert.equal(resumed.ok, true);
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(job.id);
   assert.equal(finished.status, "succeeded");
   assert.deepEqual(readFileSync(join(destDir, "model.safetensors")), content);
@@ -773,7 +773,7 @@ test("pausing the running job parks it for a later resume", async () => {
     "restarted job to re-request the file",
   );
   stub.releaseGate("slow.bin");
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   assert.equal(historyJob(job.id).status, "succeeded");
   assert.deepEqual(readFileSync(join(destDir, "slow.bin")), content);
 });
@@ -828,7 +828,7 @@ test("a queued job pauses in place and reorder retains it", async () => {
     );
   }
   stub.releaseGate("slow.bin");
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   assert.equal(historyJob(jobC.id).status, "succeeded");
   assert.equal(
     getHfDownloadQueueState().paused.some((entry) => entry.id === jobB.id),
@@ -836,7 +836,7 @@ test("a queued job pauses in place and reorder retains it", async () => {
   );
   const resumedB = resumeHfDownloadJob(jobB.id);
   assert.equal(resumedB.ok, true);
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   assert.equal(historyJob(jobB.id).status, "succeeded");
 });
 
@@ -869,7 +869,7 @@ test("a hopeless projected eta pauses the job and continue-anyway overrides it",
   assert.equal(paused?.slowEtaOverride, false);
   const resumed = resumeHfDownloadJob(job.id, { ignoreSlowEta: true });
   assert.equal(resumed.ok, true);
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob(job.id);
   assert.equal(finished.status, "succeeded");
   assert.equal(finished.slowEtaOverride, true);
@@ -897,7 +897,6 @@ test("a persisted paused job is adopted without auto-resuming", async () => {
         pauseReason: "network",
         slowEtaOverride: false,
         totalBytes: content.length,
-        downloadedBytes: 0,
         files: [
           {
             path: "model.safetensors",
@@ -938,7 +937,7 @@ test("finished jobs land in history newest-first, trimmed and clearable", async 
       stubOptions(makeStub(files)),
     );
     ids.push(job.id);
-    await waitForHfDownloadQueueIdle();
+    await waitForHfDownloadQueueIdleForTests();
   }
   const state = getHfDownloadQueueState();
   assert.equal(state.history.length, 20);
@@ -980,7 +979,6 @@ test("a persisted running job is adopted as queued and auto-resumes", async () =
         pauseReason: null,
         slowEtaOverride: false,
         totalBytes: content.length,
-        downloadedBytes: 0,
         files: [
           {
             path: "model.safetensors",
@@ -1007,7 +1005,7 @@ test("a persisted running job is adopted as queued and auto-resumes", async () =
   reloadHfDownloadQueueFromStoreForTests();
   const adopted = adoptHfDownloadQueue();
   assert.equal(adopted.resumed, 1);
-  await waitForHfDownloadQueueIdle();
+  await waitForHfDownloadQueueIdleForTests();
   const finished = historyJob("job-restart");
   assert.equal(finished.status, "succeeded");
   assert.equal(finished.startedAt, "2026-08-19T00:00:01.000Z");

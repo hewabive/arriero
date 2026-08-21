@@ -1,10 +1,10 @@
 import { HfRepoIdSchema } from "@arriero/core";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 
-import { logger } from "../logger.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 
 export const HF_MANIFEST_FILENAME = ".arriero-hf.json";
 
@@ -33,24 +33,11 @@ export function hfManifestPath(dir: string): string {
 }
 
 export function readHfManifest(dir: string): HfManifest | null {
-  const path = hfManifestPath(dir);
-  let raw: string;
-  try {
-    raw = readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-  try {
-    const parsed = HfManifestSchema.safeParse(JSON.parse(raw));
-    if (!parsed.success) {
-      logger.warn({ path }, "hf download manifest failed validation");
-      return null;
-    }
-    return parsed.data;
-  } catch (error) {
-    logger.warn({ path, err: error }, "hf download manifest is not valid JSON");
-    return null;
-  }
+  return readValidatedJsonFile(
+    hfManifestPath(dir),
+    HfManifestSchema,
+    "hf download manifest",
+  );
 }
 
 export function writeHfManifest(dir: string, manifest: HfManifest): void {

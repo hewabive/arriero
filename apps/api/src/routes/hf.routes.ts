@@ -223,24 +223,17 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.post("/api/hf/queue/:id/resume", async (c) => {
-    const raw = await c.req.text();
-    let ignoreSlowEta = false;
-    if (raw.trim().length > 0) {
-      let body: unknown;
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        return c.json({ error: "request body is not valid JSON" }, 400);
-      }
-      const parsed = HfDownloadResumeSchema.safeParse(body);
-      if (!parsed.success) {
-        return c.json({ error: parsed.error.flatten() }, 400);
-      }
-      ignoreSlowEta = parsed.data.ignoreSlowEta ?? false;
+    const parsed = HfDownloadResumeSchema.safeParse(
+      await c.req.json().catch(() => ({})),
+    );
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
     }
     return queueMutationResponse(
       c,
-      resumeHfDownloadJob(c.req.param("id"), { ignoreSlowEta }),
+      resumeHfDownloadJob(c.req.param("id"), {
+        ignoreSlowEta: parsed.data.ignoreSlowEta ?? false,
+      }),
     );
   });
 

@@ -6,6 +6,7 @@ import type {
 import { Badge, Code, Text, Tooltip } from "@mantine/core";
 
 import type { HfLocalFileState, HfLocalVariantState } from "../utils/hf";
+import { hfDownloadJobStatusColor } from "../utils/job-status";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
@@ -129,28 +130,14 @@ function hfMissingFilesBadge(repo: HfDownloadedRepo) {
 export type HfRepoJobState = "running" | "queued" | "paused" | null;
 
 function hfDownloadingBadge(jobState: HfRepoJobState) {
-  if (jobState === "running") {
-    return (
-      <Badge color="blue" variant="light">
-        downloading
-      </Badge>
-    );
+  if (jobState === null) {
+    return null;
   }
-  if (jobState === "queued") {
-    return (
-      <Badge color="gray" variant="light">
-        queued
-      </Badge>
-    );
-  }
-  if (jobState === "paused") {
-    return (
-      <Badge color="yellow" variant="light">
-        paused
-      </Badge>
-    );
-  }
-  return null;
+  return (
+    <Badge color={hfDownloadJobStatusColor(jobState)} variant="light">
+      {jobState === "running" ? "downloading" : jobState}
+    </Badge>
+  );
 }
 
 function hfOrphanPartsBadge(repo: HfDownloadedRepo) {

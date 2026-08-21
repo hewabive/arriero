@@ -131,8 +131,9 @@ function optionsFor(job: HfQueueJob): HfDownloadQueueOptions | null {
   return jobOptions.get(job.id) ?? fallbackJobOptions;
 }
 
-function clientOptionsFor(job: HfQueueJob): HfClientOptions {
-  const options = optionsFor(job);
+function toClientOptions(
+  options: HfDownloadQueueOptions | null,
+): HfClientOptions {
   const clientOptions: HfClientOptions = {};
   if (options?.fetchImpl) {
     clientOptions.fetchImpl = options.fetchImpl;
@@ -141,6 +142,10 @@ function clientOptionsFor(job: HfQueueJob): HfClientOptions {
     clientOptions.token = options.token;
   }
   return clientOptions;
+}
+
+function clientOptionsFor(job: HfQueueJob): HfClientOptions {
+  return toClientOptions(optionsFor(job));
 }
 
 function fileBytes(job: HfQueueJob, path: string, fallback: number): number {
@@ -186,11 +191,6 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
     slowEtaOverride: job.slowEtaOverride,
     totalBytes: job.totalBytes,
     downloadedBytes,
-    activePaths: isActive
-      ? files
-          .filter((file) => file.status === "downloading")
-          .map((file) => file.path)
-      : [],
     connections: isActive ? currentConnections : null,
     transfer:
       isActive && currentTelemetry
@@ -204,6 +204,18 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
   };
 }
 
+const historyApiJobs = new WeakMap<HfQueueJob, HfDownloadQueueJob>();
+
+function toApiHistoryJob(job: HfQueueJob): HfDownloadQueueJob {
+  const cached = historyApiJobs.get(job);
+  if (cached) {
+    return cached;
+  }
+  const api = toApiJob(job);
+  historyApiJobs.set(job, api);
+  return api;
+}
+
 export function getHfDownloadQueueState(): HfDownloadQueueState {
   const current = ensureState();
   const active = current.queue.find((job) => job.status === "running") ?? null;
@@ -215,7 +227,7 @@ export function getHfDownloadQueueState(): HfDownloadQueueState {
     paused: current.queue
       .filter((job) => job.status === "paused")
       .map(toApiJob),
-    history: current.history.map(toApiJob),
+    history: current.history.map(toApiHistoryJob),
   };
 }
 
@@ -583,13 +595,7 @@ export async function enqueueHfDownload(
   options?: HfDownloadQueueOptions,
 ): Promise<HfDownloadQueueJob> {
   const current = ensureState();
-  const clientOptions: HfClientOptions = {};
-  if (options?.fetchImpl) {
-    clientOptions.fetchImpl = options.fetchImpl;
-  }
-  if (options && options.token !== undefined) {
-    clientOptions.token = options.token;
-  }
+  const clientOptions = toClientOptions(options ?? null);
   const plan = await planHfDownload(input, clientOptions, options?.freeBytes);
   const job: HfQueueJob = {
     id: newId(),
@@ -607,7 +613,6 @@ export async function enqueueHfDownload(
     pauseReason: null,
     slowEtaOverride: false,
     totalBytes: plan.totalBytes,
-    downloadedBytes: 0,
     files: plan.planned.map((file) => ({
       path: file.path,
       size: file.size,
@@ -852,7 +857,7 @@ export function beginHfDownloadQueueShutdown(): void {
   shuttingDown = true;
 }
 
-export async function waitForHfDownloadQueueIdle(): Promise<void> {
+export async function waitForHfDownloadQueueIdleForTests(): Promise<void> {
   for (;;) {
     const run = currentRun;
     if (run) {

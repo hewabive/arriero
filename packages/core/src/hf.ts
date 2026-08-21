@@ -120,7 +120,6 @@ export const HfDownloadQueueJobSchema = z.object({
   slowEtaOverride: z.boolean().default(false),
   totalBytes: z.number().int().nonnegative(),
   downloadedBytes: z.number().int().nonnegative(),
-  activePaths: z.array(z.string().min(1)),
   connections: z.number().int().positive().nullable(),
   transfer: HfDownloadTransferSchema.nullable().default(null),
   files: z.array(HfDownloadFileSchema),

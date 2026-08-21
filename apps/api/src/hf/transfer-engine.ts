@@ -157,7 +157,6 @@ type DownloadFileContext = {
   file: HfPlannedFile;
   signal: AbortSignal;
   clientOptions: HfClientOptions;
-  manifestEntry: HfManifestFile | null;
   onBytes: (bytes: number) => void;
   onWireBytes: (deltaBytes: number) => void;
 };
@@ -239,12 +238,11 @@ async function attemptDownload(
       if (writeError !== null) {
         throw writeError;
       }
-      const buffer = Buffer.from(chunk);
-      hash.update(buffer);
-      received += buffer.length;
-      ctx.onWireBytes(buffer.length);
+      hash.update(chunk);
+      received += chunk.length;
+      ctx.onWireBytes(chunk.length);
       ctx.onBytes(received);
-      if (!out.write(buffer)) {
+      if (!out.write(chunk)) {
         await once(out, "drain");
       }
     }
@@ -314,9 +312,9 @@ type ChunkedFile = {
   bytesDone: number;
   controllers: Set<AbortController>;
   url: string | null;
+  nextChunkIndex: number;
   canceled: boolean;
   closed: boolean;
-  switchedToSingle: boolean;
   settled: boolean;
 };
 
@@ -465,7 +463,6 @@ export async function runHfTransfer(
       return;
     }
     state.settled = true;
-    state.switchedToSingle = true;
     detachState(state);
     for (const controller of state.controllers) {
       controller.abort();
@@ -558,9 +555,9 @@ export async function runHfTransfer(
       ),
       controllers: new Set(),
       url: null,
+      nextChunkIndex: 0,
       canceled: false,
       closed: false,
-      switchedToSingle: false,
       settled: false,
     };
     persistSidecar(state);
@@ -618,8 +615,7 @@ export async function runHfTransfer(
     const body = response.body as unknown as AsyncIterable<Uint8Array>;
     try {
       for await (const chunk of body) {
-        const buffer = Buffer.from(chunk);
-        received += buffer.length;
+        received += chunk.length;
         if (received > size) {
           throw new HfHubError(
             "upstream",
@@ -627,12 +623,12 @@ export async function runHfTransfer(
             `server sent more bytes than requested for ${state.file.path}`,
           );
         }
-        await state.handle.write(buffer, 0, buffer.length, position);
-        position += buffer.length;
+        await state.handle.write(chunk, 0, chunk.length, position);
+        position += chunk.length;
         progress.flushed = received;
-        if (buffer.length > 0) {
+        if (chunk.length > 0) {
           engine.progressStamp += 1;
-          ctx.events.onWireBytes(buffer.length);
+          ctx.events.onWireBytes(chunk.length);
         }
         state.liveByChunk.set(index, received);
         reportBytes(state);
@@ -792,7 +788,6 @@ export async function runHfTransfer(
             file,
             signal: fileController.signal,
             clientOptions: ctx.clientOptions,
-            manifestEntry: ctx.manifestEntries.get(file.path) ?? null,
             onBytes: (bytes) => {
               const capped = Math.min(bytes, file.size);
               if (capped > reportedBytes) {
@@ -931,11 +926,15 @@ export async function runHfTransfer(
       if (state.canceled || state.settled) {
         continue;
       }
-      for (let index = 0; index < state.chunkCount; index += 1) {
-        if (!state.claimed.has(index)) {
-          state.claimed.add(index);
-          return { kind: "chunk", state, index };
-        }
+      let index = state.nextChunkIndex;
+      while (index < state.chunkCount && state.claimed.has(index)) {
+        index += 1;
+      }
+      state.nextChunkIndex = index;
+      if (index < state.chunkCount) {
+        state.claimed.add(index);
+        state.nextChunkIndex = index + 1;
+        return { kind: "chunk", state, index };
       }
     }
     const single = engine.singleQueue.shift();

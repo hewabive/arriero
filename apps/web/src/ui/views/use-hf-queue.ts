@@ -19,8 +19,36 @@ import {
   recordRateSample,
   type ByteRate,
 } from "../utils/byte-rate";
+import type { HfRepoJobState } from "./HfBadges";
 
 const QUEUE_QUERY_KEY = ["hf-queue"] as const;
+
+export function hfQueueJobForDir(
+  state: HfDownloadQueueState | null,
+  dir: string,
+): HfDownloadQueueJob | null {
+  if (!state) {
+    return null;
+  }
+  if (state.active && state.active.destDir === dir) {
+    return state.active;
+  }
+  return (
+    state.queued.find((job) => job.destDir === dir) ??
+    state.paused.find((job) => job.destDir === dir) ??
+    null
+  );
+}
+
+export function hfRepoJobStateForDir(
+  state: HfDownloadQueueState | null,
+  dir: string,
+): HfRepoJobState {
+  const status = hfQueueJobForDir(state, dir)?.status ?? null;
+  return status === "running" || status === "queued" || status === "paused"
+    ? status
+    : null;
+}
 
 export function useHfQueueQuery() {
   return useQuery({
@@ -195,7 +223,6 @@ export function useHfQueue() {
         : null,
       removeId: removeMutation.isPending ? removeMutation.variables : null,
       reorder: reorderMutation.isPending,
-      skip: skipMutation.isPending ? skipMutation.variables : null,
       clear: clearMutation.isPending,
     },
   };

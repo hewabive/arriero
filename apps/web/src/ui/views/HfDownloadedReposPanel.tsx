@@ -27,7 +27,7 @@ import {
   type HfRepoJobState,
 } from "./HfBadges";
 import { HfRepoDetailModal } from "./HfRepoDetailModal";
-import { useHfQueueQuery } from "./use-hf-queue";
+import { hfRepoJobStateForDir, useHfQueueQuery } from "./use-hf-queue";
 
 function repoDiskBytes(repo: HfDownloadedRepo): number {
   return repo.files.reduce(
@@ -129,18 +129,6 @@ export function HfDownloadedReposPanel() {
   });
   const queueData = useHfQueueQuery().data?.data ?? null;
   const repos = downloadsQuery.data?.data ?? [];
-  const jobStateForDir = (dir: string): HfRepoJobState => {
-    if (queueData?.active && queueData.active.destDir === dir) {
-      return "running";
-    }
-    if (queueData?.queued.some((job) => job.destDir === dir)) {
-      return "queued";
-    }
-    if (queueData?.paused.some((job) => job.destDir === dir)) {
-      return "paused";
-    }
-    return null;
-  };
   const [detailDir, setDetailDir] = useState<string | null>(null);
   const detailRepo = repos.find((repo) => repo.dir === detailDir) ?? null;
 
@@ -211,7 +199,7 @@ export function HfDownloadedReposPanel() {
           <HfRepoCard
             key={repo.dir}
             repo={repo}
-            jobState={jobStateForDir(repo.dir)}
+            jobState={hfRepoJobStateForDir(queueData, repo.dir)}
             resuming={
               resumeMutation.isPending &&
               resumeMutation.variables?.dir === repo.dir

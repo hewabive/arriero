@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, rmSync, statSync } from "node:fs";
 import { z } from "zod";
 
-import { logger } from "../logger.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 
 const HfChunkSidecarSchema = z.object({
   version: z.literal(1),
@@ -33,23 +33,11 @@ export function chunkSizeAt(
 }
 
 export function readHfChunkSidecar(finalPath: string): HfChunkSidecar | null {
-  const path = hfChunkSidecarPath(finalPath);
-  let raw: string;
-  try {
-    raw = readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-  try {
-    const parsed = HfChunkSidecarSchema.safeParse(JSON.parse(raw));
-    if (parsed.success) {
-      return parsed.data;
-    }
-    logger.warn({ path }, "hf chunk sidecar failed validation");
-  } catch (error) {
-    logger.warn({ path, err: error }, "hf chunk sidecar is not valid JSON");
-  }
-  return null;
+  return readValidatedJsonFile(
+    hfChunkSidecarPath(finalPath),
+    HfChunkSidecarSchema,
+    "hf chunk sidecar",
+  );
 }
 
 export function writeHfChunkSidecar(

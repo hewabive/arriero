@@ -3,13 +3,14 @@ import {
   HfDownloadQueueJobSchema,
   HfLfsInfoSchema,
 } from "@arriero/core";
-import { existsSync, readFileSync, renameSync } from "node:fs";
+import { existsSync, renameSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 
 const HfQueueFileSchema = HfDownloadFileSchema.extend({
   oid: z.string().min(1),
@@ -19,8 +20,8 @@ const HfQueueFileSchema = HfDownloadFileSchema.extend({
 });
 
 const HfQueueStoredJobSchema = HfDownloadQueueJobSchema.omit({
-  activePaths: true,
   connections: true,
+  downloadedBytes: true,
   transfer: true,
 }).extend({
   files: z.array(HfQueueFileSchema),
@@ -44,23 +45,18 @@ export function loadHfQueueStore(): HfQueueStoreState {
   if (!existsSync(path)) {
     return { version: 1, queue: [], history: [] };
   }
-  try {
-    const parsed = HfQueueStoreFileSchema.safeParse(
-      JSON.parse(readFileSync(path, "utf8")),
-    );
-    if (parsed.success) {
-      return parsed.data;
-    }
-    logger.error(
-      { path, issues: parsed.error.issues.slice(0, 5) },
-      "hf download queue file failed validation; starting with an empty queue",
-    );
-  } catch (error) {
-    logger.error(
-      { path, err: error },
-      "hf download queue file is not valid JSON; starting with an empty queue",
-    );
+  const parsed = readValidatedJsonFile(
+    path,
+    HfQueueStoreFileSchema,
+    "hf download queue file",
+  );
+  if (parsed) {
+    return parsed;
   }
+  logger.error(
+    { path },
+    "hf download queue file is invalid; quarantining and starting with an empty queue",
+  );
   try {
     renameSync(path, `${path}.invalid`);
   } catch (error) {

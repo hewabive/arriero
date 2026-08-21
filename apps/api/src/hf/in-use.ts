@@ -2,8 +2,7 @@ import { basename, dirname, join } from "node:path";
 
 import { parseSplitInfo, splitShardName } from "../models/split.js";
 import { parseLaunchSnapshot } from "../process/launch-snapshot.js";
-import { isPidAlive } from "../process/pid.js";
-import { listOpenProcessRuns } from "../process/runs-repository.js";
+import { listLiveOpenProcessRuns } from "../process/live-runs.js";
 
 export type HfDeleteScope = {
   dir: string;
@@ -68,11 +67,7 @@ export function hfDeleteBlockers(
 }
 
 export function listLiveProcessArgs(): LiveProcessArgs[] {
-  return listOpenProcessRuns().flatMap((run) => {
-    const pid = run.pid ? Number(run.pid) : null;
-    if (!pid || !Number.isFinite(pid) || !isPidAlive(pid)) {
-      return [];
-    }
+  return listLiveOpenProcessRuns().flatMap(({ run }) => {
     const snapshot = parseLaunchSnapshot(run.launchSnapshot);
     if (!snapshot) {
       return [];

@@ -1,8 +1,4 @@
-import type {
-  HfDownloadStart,
-  HfDownloadedRepo,
-  HfDownloadQueueJob,
-} from "@arriero/core";
+import type { HfDownloadStart, HfDownloadedRepo } from "@arriero/core";
 import {
   Alert,
   Anchor,
@@ -28,6 +24,7 @@ import {
   getHfDestCheck,
   startHfDownload,
 } from "../../api/client";
+import { hfDownloadJobStatusColor } from "../utils/job-status";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
 import { hfRepoMetaLines, hfRepoStatusBadges } from "./HfBadges";
@@ -35,7 +32,11 @@ import { hfJobPercent, hfJobProgressLine } from "./HfQueueJobCard";
 import { HfRepoDeleteModal, type HfDeleteRequest } from "./HfRepoDeleteModal";
 import { browseRows, FileRows, manifestRows } from "./HfRepoDetailRows";
 import { HfVariantCheckbox } from "./HfVariantCheckbox";
-import { useHfQueue } from "./use-hf-queue";
+import {
+  hfQueueJobForDir,
+  hfRepoJobStateForDir,
+  useHfQueue,
+} from "./use-hf-queue";
 
 export function HfRepoDetailModal(props: {
   repo: HfDownloadedRepo | null;
@@ -64,14 +65,11 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
   );
 
   const queue = useHfQueue();
-  const job: HfDownloadQueueJob | null =
-    queue.active && queue.active.destDir === repo.dir
-      ? queue.active
-      : (queue.queued.find((entry) => entry.destDir === repo.dir) ??
-        queue.paused.find((entry) => entry.destDir === repo.dir) ??
-        null);
+  const job = hfQueueJobForDir(queue.state, repo.dir);
+  const jobState = hfRepoJobStateForDir(queue.state, repo.dir);
   const jobRate =
     job && queue.active && queue.active.id === job.id ? queue.rate : null;
+  const jobPercent = job ? hfJobPercent(job) : null;
   const jobFiles = useMemo(
     () => (job ? new Map(job.files.map((file) => [file.path, file])) : null),
     [job],
@@ -215,10 +213,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
   return (
     <Stack gap="sm">
       <Group gap="xs" wrap="wrap">
-        {hfRepoStatusBadges(
-          repo,
-          job ? (job.status === "running" ? "running" : "queued") : null,
-        )}
+        {hfRepoStatusBadges(repo, jobState)}
         <Anchor
           size="xs"
           href={`https://huggingface.co/${repo.repoId}`}
@@ -235,26 +230,20 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
       {job && (
         <Stack gap={4}>
           <Group gap="xs" wrap="wrap">
-            <Badge
-              color={job.status === "running" ? "blue" : "gray"}
-              variant="light"
-            >
-              {job.status === "running" ? "downloading" : "queued"}
+            <Badge color={hfDownloadJobStatusColor(job.status)} variant="light">
+              {job.status === "running" ? "downloading" : job.status}
             </Badge>
             <Text size="xs" c="dimmed">
               {hfJobProgressLine(job, jobRate)}
             </Text>
           </Group>
-          {(() => {
-            const percent = hfJobPercent(job);
-            return percent !== null ? (
-              <Progress
-                value={percent}
-                animated={job.status === "running"}
-                striped={job.status === "running"}
-              />
-            ) : null;
-          })()}
+          {jobPercent !== null && (
+            <Progress
+              value={jobPercent}
+              animated={job.status === "running"}
+              striped={job.status === "running"}
+            />
+          )}
         </Stack>
       )}
 

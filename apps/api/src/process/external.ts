@@ -6,8 +6,7 @@ import type {
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { isPidAlive } from "./pid.js";
-import { listOpenProcessRuns } from "./runs-repository.js";
+import { listLiveOpenProcessRuns } from "./live-runs.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -35,25 +34,17 @@ function isLlamaServerProcess(processInfo: RawProcess) {
   );
 }
 
-function managedRunByPid() {
+function managedRunByPid(): Map<
+  number,
+  { instanceId: string; status: string }
+> {
   return new Map(
-    listOpenProcessRuns()
-      .map((run) => {
-        const pid = run.pid ? Number(run.pid) : null;
-        return pid && Number.isFinite(pid) && isPidAlive(pid)
-          ? [
-              pid,
-              {
-                instanceId: run.instanceId,
-                status: run.status,
-              },
-            ]
-          : null;
-      })
-      .filter(
-        (item): item is [number, { instanceId: string; status: string }] =>
-          Boolean(item),
-      ),
+    listLiveOpenProcessRuns().map(
+      ({ run, pid }): [number, { instanceId: string; status: string }] => [
+        pid,
+        { instanceId: run.instanceId, status: run.status },
+      ],
+    ),
   );
 }
 
