@@ -22,14 +22,18 @@ pair, CPU backend, or hardware topology must repeat the release gate below.
 | Scheduling | explicit host + selected-GPU reservations; `idle-only` by default |
 
 ROCm, managed downloads/conversion, dynamic weight replacement, and automatic
-KT memory estimates are not in this release profile. A host-built wheel may be
-installed through the managed wheel source when its source revision, build
-flags, and SHA-256 are recorded; a general source-build job is still deferred.
+KT memory estimates are not in this release profile. Released wheels are the
+install path; a host-built wheel may still be installed through the managed
+wheel source when its source revision, build flags, and SHA-256 are recorded.
+Building `kt-kernel`/`sglang-kt` from source inside arriero is not planned
+(the initiative was closed after 0.7.0 shipped working public wheels), and
+KTransformers has no entry in the source-repository registry.
 
 ## Qualified host profiles
 
 Complete provenance lives in `docs/qualification/ktransformers/`:
-`0.7.0-2026-08-18.md` (current) and `0.6.4-2026-07-30.md`.
+`0.7.0-2026-08-18.md` is current; superseded records (0.6.x, restricted to
+manually built wheels) live in git history only.
 
 | Component | 0.7.0 qualified value |
 | --- | --- |
@@ -46,24 +50,9 @@ Since `kt-kernel` 0.7.0 the public wheel is multi-variant (AMX, four AVX-512
 tiers, AVX2) with runtime CPU dispatch, and its AVX2 build carries software
 fallbacks for the FP8/BF16/RAWINT4/GPTQ/MXFP native methods
 (`FP8_PERCHANNEL` stays AVX-512/AMX-only) — public wheels are the default
-install path from 0.7.0 on.
-
-**Version-scoped 0.6.4 warning — do not substitute the public 0.6.4 wheels:**
-
-- public `kt-kernel==0.6.4` selects an AVX2-named extension but `CPUInfer(1)`
-  terminates with `SIGILL`;
-- public `sglang-kt==0.6.4` omits upstream RoPE commit `04653fa` and returned
-  semantically corrupted output despite HTTP 200.
-
-The 0.6.4-qualified local artifact hashes are:
-
-```text
-kt_kernel-0.6.4-cp312-cp312-linux_x86_64.whl
-f96de0b5cb06a3059b6f7342080fbbf2b481e1bc06129e07b136039a45775c35
-
-sglang_kt-0.6.4-py3-none-any.whl
-7d9a32e236424b156060fd6ef82cc437948e7fa0e70916b831622bde08ab3365
-```
+install path from 0.7.0 on. Pre-0.7.0 public wheels were unusable on this host
+class; the specifics are in the superseded 0.6.x qualification records in git
+history.
 
 Known upstream defect in `sglang-kt` 0.7.0: `/v1/responses` rejects a plain
 string `input` (`input_ids should be a list of lists`); use the structured
@@ -77,7 +66,7 @@ string `input` (`input_ids should be a list of lists`); use the structured
    KTransformers instance while an enabled peer lacks that capability.
 2. Open **Environments**, choose **KTransformers (SGLang-KT)**, select Python
    3.11/3.12, and install a qualified matched PyPI version (0.7.0+: the public
-   pair) or exactly one hashed wheel for each root package (the 0.6.4 path).
+   pair) or exactly one hashed wheel for each root package.
    Wait for `installed / usable`; validation executes both imports, exact
    metadata checks, and `CPUInfer(1)`.
 3. Create a KTransformers instance from the generated `sglang` catalog entry.
@@ -162,15 +151,13 @@ Rationale that is not derivable from the code or from `docs/ENGINE_ADAPTERS.md`:
 - **Runtime imports failed:** rebuild the immutable environment. Both package
   metadata versions, imports, and freeze pins must match the environment spec.
 - **`CPUInfer(1)` exits with `SIGILL`:** the wheel contains instructions newer
-  than the CPU exposes even if its filename says AVX2. Use a wheel built for
-  the exact host ISA; do not weaken the provisioning/preflight smoke test.
-- **HTTP 200 but nonsensical tokens:** first validate the model independently,
-  then verify that SGLang-KT contains upstream RoPE fix `04653fa`. Readiness is
-  transport health, not a semantic qualification.
+  than the CPU exposes. Use the public multi-variant wheel (0.7.0+) or a wheel
+  built for the exact host ISA; do not weaken the provisioning/preflight smoke
+  test.
 - **CPU method rejected:** select a method supported by host ISA or regenerate
   weights for the intended backend. AMX methods require AMX;
-  `FP8_PERCHANNEL` requires AVX-512; on kt-kernel ≥ 0.7.0 RAWINT4, FP8, BF16
-  and LLAMAFILE run on AVX2 (older versions need AVX-512 for FP8/BF16).
+  `FP8_PERCHANNEL` requires AVX-512; RAWINT4, FP8, BF16 and LLAMAFILE run on
+  AVX2.
 - **Instance exits immediately citing cuDNN 9.15:** sglang-kt 0.7.0 gates
   startup on cuDNN ≥ 9.15 under PyTorch 2.9.1 (pytorch/pytorch#168167, a
   `nn.Conv3d`-only bug). Environments are immutable and pin cuDNN 9.10 — set
@@ -185,10 +172,9 @@ Rationale that is not derivable from the code or from `docs/ENGINE_ADAPTERS.md`:
 - **Memory exceeds declaration:** the details panel compares measured complete
   process-tree memory with declared reservations. Stop the instance and raise
   its draws before admitting competitors.
-- **Healthy model remains degraded:** inspect swap and warnings. The qualified
-  32-GiB host swapped roughly 2.8–3.4 GiB of the process tree during
-  qualification, so degraded status is intentional. Do not hide it or disable
-  admission checks.
+- **Healthy model remains degraded:** inspect swap and warnings. A RAM-tight KT
+  host swapping part of the process tree is degraded by design. Do not hide it
+  or disable admission checks.
 - **Proxy requests queue:** check `--max-running-requests`, resource contention,
   target priority, and eviction policy. Under `idle-only`, active work drains
   instead of being interrupted.

@@ -38,8 +38,9 @@ adding another build implementation.
 them: their checkouts exist so the argument-declaration extractors can read the
 upstream sources (`docs/ARGUMENT_SOURCE_EXTRACTION.md`), so both declare
 `driftSupported: false` and validate on their argument-declaration file
-(`vllm/engine/arg_utils.py`, `python/sglang/srt/server_args.py`). `ktransformers`
-is registered the same way for browsing the `kvcache-ai/ktransformers` sources.
+(`vllm/engine/arg_utils.py`, `python/sglang/srt/server_args.py`). KTransformers
+has no source registration: nothing reads its sources — the engine installs from
+released wheels and shares the SGLang argument surface.
 
 ## Tracking policy
 
@@ -48,7 +49,7 @@ Each source definition declares how pull chooses the commit to check out:
 - `branch` (llama.cpp) — `git pull --ff-only` fast-forwards the current tracking
   branch. arriero builds llama.cpp from source, so the checkout follows upstream
   head.
-- `stable-tag` (vLLM, SGLang, KTransformers) — pull fetches origin history and
+- `stable-tag` (vLLM, SGLang) — pull fetches origin history and
   tags, resolves the newest stable release tag (PEP 440 ordering via
   `sources/stable-tag.ts`; pre-release and dev tags are ignored, `.postN` counts
   as stable) and checks it out detached. These engines are installed from

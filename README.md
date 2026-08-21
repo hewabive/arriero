@@ -13,9 +13,9 @@ idle-only scheduling default. See
 [KTransformers operations](docs/KTRANSFORMERS_OPERATIONS.md) for the profile,
 release gate and design decisions, and
 [engine adapters](docs/ENGINE_ADAPTERS.md) for the descriptor contract. The
-first real-host LLAMAFILE qualification, including exact artifact hashes and
-hardware restrictions, is
-[docs/qualification/ktransformers/0.6.4-2026-07-30.md](docs/qualification/ktransformers/0.6.4-2026-07-30.md).
+current qualification record, including exact package hashes and hardware
+restrictions, is
+[docs/qualification/ktransformers/0.7.0-2026-08-18.md](docs/qualification/ktransformers/0.7.0-2026-08-18.md).
 
 ## Development
 

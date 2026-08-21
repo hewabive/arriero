@@ -472,7 +472,7 @@ extract owns flags/group/choices/default, so their frontmatter carries just
   requires and what must stay host-local: `docs/SHARED_MODELS_DIR.md`.
 - `runtime/sources/`: managed inference source checkouts (`config.sourcesDir`,
   `ARRIERO_SOURCES_DIR`); `llama-cpp` defaults to `runtime/sources/llama.cpp`. Per-source tracking
-  policy: `llama-cpp` fast-forwards its branch; `vllm`/`sglang`/`ktransformers` pull to a detached
+  policy: `llama-cpp` fast-forwards its branch; `vllm`/`sglang` pull to a detached
   checkout of the newest stable release tag (`sources/stable-tag.ts`) so extracts document the
   latest installable wheel, not head. Every Git operation
   requires the checkout's exact `--show-toplevel`, so an internal plain directory can never adopt the
