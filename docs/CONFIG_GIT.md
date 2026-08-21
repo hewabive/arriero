@@ -105,6 +105,25 @@ from the active configuration while its process is still running. Reset only
 touches the currently dirty files, so it follows a narrower rule — see Reset
 semantics.
 
+## Commit
+
+`POST /api/config-git/commit` (`{message, authorName?, authorEmail?, paths?}`)
+commits the working tree. With `paths: null` (the default) everything is staged
+with `git add -A` and the whole root is validated first, so a broken file blocks
+the commit. With `paths` given, only the selected files are committed: the index
+is reset, the selection is staged (a rename's original path is staged along with
+its new path, untracked files are stageable), and the **candidate commit tree** —
+HEAD plus the selection — is validated in a detached temporary worktree via a
+dangling `commit-tree` object before the commit is created. Validation of the
+candidate rather than the working root means valid files can be committed while
+an unrelated file in the tree is still broken or quarantined; a selection whose
+candidate tree fails validation (e.g. half of a cross-file reference) is
+rejected and unstaged. Sensitive paths are refused in both modes, and a
+requested path with no current change fails the whole request. The UI maps this
+to per-file checkboxes on the Working tree card: full selection sends
+`paths: null` ("Commit all portable changes"), any subset sends the explicit
+list.
+
 ## Secrets and credentials
 
 The following values never belong in the configuration repository:

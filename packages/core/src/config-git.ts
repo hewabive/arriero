@@ -123,10 +123,24 @@ export const ConfigGitResetSchema = z.object({
   confirm: z.literal(true),
 });
 
+const ConfigGitRelativePathSchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine(isPlainRelativeConfigGitPath, {
+    message: "path must be a plain relative file path",
+  });
+
 export const ConfigGitCommitInputSchema = z.object({
   message: z.string().trim().min(1).max(10_000),
   authorName: z.string().trim().min(1).max(200).nullable().default(null),
   authorEmail: z.string().trim().email().max(320).nullable().default(null),
+  paths: z
+    .array(ConfigGitRelativePathSchema)
+    .min(1)
+    .max(1000)
+    .nullable()
+    .default(null),
 });
 
 export const CONFIG_GIT_PROXY_COLLECTIONS = [
@@ -215,17 +229,9 @@ export function isRestorableConfigGitPath(path: string): boolean {
   );
 }
 
-const ConfigGitRestorePathSchema = z
-  .string()
-  .min(1)
-  .max(512)
-  .refine(isPlainRelativeConfigGitPath, {
-    message: "path must be a plain relative file path",
-  });
-
 export const ConfigGitRestoreFilesSchema = z.object({
   ref: z.string().trim().min(1).max(255),
-  paths: z.array(ConfigGitRestorePathSchema).min(1).max(50),
+  paths: z.array(ConfigGitRelativePathSchema).min(1).max(50),
 });
 
 export const ConfigGitCommitFileChangeSchema = z.object({

@@ -94,6 +94,7 @@ test("untrackMachineStateFiles stages removal once and keeps worktree files", as
     message: "untrack machine state",
     authorName: null,
     authorEmail: null,
+    paths: null,
   });
   assert.equal(committed.status.dirty, false);
   assert.equal(git(["ls-files", "--", "path-catalog.json", "envs.json"]), "");
@@ -107,6 +108,7 @@ test("tree operations preserve untracked machine-state files", async () => {
     message: "untrack machine state",
     authorName: null,
     authorEmail: null,
+    paths: null,
   });
 
   const catalogPath = resolve(config.configDir, "path-catalog.json");
@@ -137,6 +139,7 @@ test("commitConfigChanges records portable changes and exposes them in log", asy
     message: "add hardware profile",
     authorName: null,
     authorEmail: null,
+    paths: null,
   });
   assert.equal(result.status.dirty, false);
   const log = await getConfigGitLog(2);
@@ -218,8 +221,81 @@ test("commitConfigChanges refuses tracked secret files", async () => {
       message: "unsafe",
       authorName: null,
       authorEmail: null,
+      paths: null,
     }),
     /sensitive path/,
+  );
+});
+
+test("commitConfigChanges with paths commits only the selected files", async () => {
+  writeJson(resolve(config.configDir, "settings.json"), {
+    modelScan: { directory: "/models", maxDepth: 2 },
+  });
+  writeFileSync(resolve(config.configDir, "README.md"), "hardware profile\n");
+  const result = await commitConfigChanges({
+    message: "settings only",
+    authorName: null,
+    authorEmail: null,
+    paths: ["settings.json"],
+  });
+  assert.equal(result.status.dirty, true);
+  assert.deepEqual(
+    result.status.files.map((file) => file.path),
+    ["README.md"],
+  );
+  assert.equal(
+    git(["show", "--name-only", "--format="]).trim(),
+    "settings.json",
+  );
+  const log = await getConfigGitLog(2);
+  assert.equal(log[0]?.subject, "settings only");
+});
+
+test("commitConfigChanges with paths validates the candidate commit tree", async () => {
+  writeFileSync(resolve(config.configDir, "settings.json"), "{ broken", "utf8");
+  writeFileSync(resolve(config.configDir, "README.md"), "notes\n");
+  await assert.rejects(
+    commitConfigChanges({
+      message: "broken settings",
+      authorName: null,
+      authorEmail: null,
+      paths: ["settings.json"],
+    }),
+    /validation failed/,
+  );
+  assert.equal(git(["diff", "--cached", "--name-only"]), "");
+  const result = await commitConfigChanges({
+    message: "notes only",
+    authorName: null,
+    authorEmail: null,
+    paths: ["README.md"],
+  });
+  assert.equal(result.validation.valid, true);
+  assert.deepEqual(
+    result.status.files.map((file) => file.path),
+    ["settings.json"],
+  );
+});
+
+test("commitConfigChanges with paths refuses sensitive and unchanged paths", async () => {
+  writeFileSync(resolve(config.configDir, ".env"), "TOKEN=secret\n");
+  await assert.rejects(
+    commitConfigChanges({
+      message: "unsafe",
+      authorName: null,
+      authorEmail: null,
+      paths: [".env"],
+    }),
+    /sensitive path/,
+  );
+  await assert.rejects(
+    commitConfigChanges({
+      message: "nothing",
+      authorName: null,
+      authorEmail: null,
+      paths: ["resources.json"],
+    }),
+    /no configuration changes to commit for: resources\.json/,
   );
 });
 

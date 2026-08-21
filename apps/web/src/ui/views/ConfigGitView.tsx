@@ -136,6 +136,7 @@ export function ConfigGitView() {
   );
   const [restorePaths, setRestorePaths] = useState<string[]>([]);
   const [showFullTree, setShowFullTree] = useState(false);
+  const [excludedCommitPaths, setExcludedCommitPaths] = useState<string[]>([]);
 
   const statusQuery = useQuery({
     queryKey: ["config-git-status"],
@@ -276,13 +277,17 @@ export function ConfigGitView() {
   );
   const commitMutation = useConfigMutation(
     "Configuration committed",
-    () =>
+    (paths: string[] | null) =>
       commitConfigChanges({
         message: commitMessage,
         authorName: authorName.trim() || null,
         authorEmail: authorEmail.trim() || null,
+        paths,
       }),
-    () => setCommitMessage(""),
+    () => {
+      setCommitMessage("");
+      setExcludedCommitPaths([]);
+    },
   );
   const resetMutation = useConfigMutation(
     "Configuration changes discarded",
@@ -343,6 +348,13 @@ export function ConfigGitView() {
   }, [commitDetail, showFullTree]);
   const toggleRestorePath = (path: string) => {
     setRestorePaths((current) =>
+      current.includes(path)
+        ? current.filter((item) => item !== path)
+        : [...current, path],
+    );
+  };
+  const toggleCommitPath = (path: string) => {
+    setExcludedCommitPaths((current) =>
       current.includes(path)
         ? current.filter((item) => item !== path)
         : [...current, path],
@@ -514,6 +526,12 @@ export function ConfigGitView() {
   const validation = validationQuery.data?.data;
   const diff = diffQuery.data?.data;
   const commits = logQuery.data?.data ?? [];
+  const changedPaths = status.files.map((file) => file.path);
+  const selectedCommitPaths = changedPaths.filter(
+    (path) => !excludedCommitPaths.includes(path),
+  );
+  const allCommitPathsSelected =
+    selectedCommitPaths.length === changedPaths.length;
 
   return (
     <Stack gap="md">
@@ -660,52 +678,80 @@ export function ConfigGitView() {
                 No local changes.
               </Text>
             ) : (
-              <ScrollArea.Autosize mah={260}>
-                <Stack gap={4}>
-                  {status.files.map((file, index) => (
-                    <Group
-                      key={`${file.path}:${index}`}
-                      gap="xs"
-                      justify="space-between"
-                      wrap="nowrap"
-                    >
-                      <Group gap="xs" wrap="nowrap">
-                        <Code>
-                          {file.index}
-                          {file.worktree}
-                        </Code>
-                        <Text size="sm" className="text-wrap">
-                          {file.origPath
-                            ? `${file.origPath} -> ${file.path}`
-                            : file.path}
-                        </Text>
-                      </Group>
-                      <Group gap={4} wrap="nowrap">
-                        <Button
-                          size="compact-xs"
-                          variant="subtle"
-                          onClick={() => setDiffPath(file.path)}
-                        >
-                          Diff
-                        </Button>
-                        <Button
-                          size="compact-xs"
-                          color="red"
-                          variant="subtle"
-                          disabled={
-                            busy ||
-                            file.index === "?" ||
-                            !isRestorableConfigGitPath(file.path)
+              <>
+                {status.files.length > 1 && (
+                  <Checkbox
+                    checked={allCommitPathsSelected}
+                    indeterminate={
+                      !allCommitPathsSelected && selectedCommitPaths.length > 0
+                    }
+                    onChange={() =>
+                      setExcludedCommitPaths(
+                        allCommitPathsSelected ? changedPaths : [],
+                      )
+                    }
+                    label={
+                      <Text size="sm" c="dimmed">
+                        {selectedCommitPaths.length} of{" "}
+                        {countLabel(status.files.length, "file")} selected to
+                        commit
+                      </Text>
+                    }
+                  />
+                )}
+                <ScrollArea.Autosize mah={260}>
+                  <Stack gap={4}>
+                    {status.files.map((file, index) => (
+                      <Group
+                        key={`${file.path}:${index}`}
+                        gap="xs"
+                        justify="space-between"
+                        wrap="nowrap"
+                      >
+                        <Checkbox
+                          checked={!excludedCommitPaths.includes(file.path)}
+                          onChange={() => toggleCommitPath(file.path)}
+                          label={
+                            <Group gap="xs" wrap="nowrap">
+                              <Code>
+                                {file.index}
+                                {file.worktree}
+                              </Code>
+                              <Text size="sm" className="text-wrap">
+                                {file.origPath
+                                  ? `${file.origPath} -> ${file.path}`
+                                  : file.path}
+                              </Text>
+                            </Group>
                           }
-                          onClick={() => setDiscardPath(file.path)}
-                        >
-                          Discard
-                        </Button>
+                        />
+                        <Group gap={4} wrap="nowrap">
+                          <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            onClick={() => setDiffPath(file.path)}
+                          >
+                            Diff
+                          </Button>
+                          <Button
+                            size="compact-xs"
+                            color="red"
+                            variant="subtle"
+                            disabled={
+                              busy ||
+                              file.index === "?" ||
+                              !isRestorableConfigGitPath(file.path)
+                            }
+                            onClick={() => setDiscardPath(file.path)}
+                          >
+                            Discard
+                          </Button>
+                        </Group>
                       </Group>
-                    </Group>
-                  ))}
-                </Stack>
-              </ScrollArea.Autosize>
+                    ))}
+                  </Stack>
+                </ScrollArea.Autosize>
+              </>
             )}
             <Textarea
               label="Commit message"
@@ -732,12 +778,19 @@ export function ConfigGitView() {
                   busy ||
                   !status.dirty ||
                   !commitMessage.trim() ||
-                  !validation?.valid
+                  selectedCommitPaths.length === 0 ||
+                  (allCommitPathsSelected && !validation?.valid)
                 }
                 loading={commitMutation.isPending}
-                onClick={() => commitMutation.mutate(undefined)}
+                onClick={() =>
+                  commitMutation.mutate(
+                    allCommitPathsSelected ? null : selectedCommitPaths,
+                  )
+                }
               >
-                Commit all portable changes
+                {allCommitPathsSelected
+                  ? "Commit all portable changes"
+                  : `Commit ${countLabel(selectedCommitPaths.length, "file")}`}
               </Button>
             </Group>
           </Stack>

@@ -697,17 +697,91 @@ export function restoreConfigFiles(
   });
 }
 
+async function stageSelectedPaths(
+  repository: string,
+  requestedPaths: string[],
+): Promise<string[]> {
+  const requested = [...new Set(requestedPaths)];
+  const statusResult = await runGit(repository, [
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all",
+  ]);
+  const changeByPath = new Map(
+    parseFileStatuses(statusResult.stdout).map((file) => [file.path, file]),
+  );
+  const unchanged = requested.filter((path) => !changeByPath.has(path));
+  if (unchanged.length > 0) {
+    throw new Error(
+      `no configuration changes to commit for: ${unchanged.join(", ")}`,
+    );
+  }
+  const pathspecs = new Set<string>();
+  for (const path of requested) {
+    pathspecs.add(path);
+    const origPath = changeByPath.get(path)?.origPath;
+    if (origPath) pathspecs.add(origPath);
+  }
+  const forbidden = [...pathspecs].find((path) =>
+    configGitSensitivePathPattern.test(path),
+  );
+  if (forbidden) {
+    throw new Error(`refusing to commit sensitive path: ${forbidden}`);
+  }
+  await runGit(repository, ["reset", "--quiet"]);
+  await runGit(repository, [
+    "add",
+    "-A",
+    "--",
+    ...[...pathspecs].map((path) => `:(literal)${path}`),
+  ]);
+  const staged = await tryGit(repository, ["diff", "--cached", "--name-only"]);
+  return (staged?.split("\n") ?? []).filter(Boolean);
+}
+
+async function validateStagedTree(input: {
+  authorName: string | null;
+  authorEmail: string | null;
+}): Promise<ConfigGitValidation> {
+  const tree = (await runGit(config.configDir, ["write-tree"])).stdout.trim();
+  const head = await tryGit(config.configDir, [
+    "rev-parse",
+    "--verify",
+    "HEAD",
+  ]);
+  const args = await commitIdentityArguments(input);
+  args.push("commit-tree", tree, "-m", "arriero commit candidate");
+  if (head) args.push("-p", head);
+  const candidate = (await runGit(config.configDir, args)).stdout.trim();
+  return validateCommit(candidate);
+}
+
 export function commitConfigChanges(
   input: ConfigGitCommitInput,
 ): Promise<ConfigGitMutationResult> {
   return mutation("commit", async () => {
     await assertPreparedRepository();
-    const validation = validateConfigRoot(config.configDir);
-    assertValid(validation);
     await assertNoSensitiveTrackedFiles(config.configDir);
-    const staged = await stageAll(config.configDir);
-    if (staged.length === 0)
+    let validation: ConfigGitValidation;
+    let staged: string[];
+    if (input.paths === null) {
+      validation = validateConfigRoot(config.configDir);
+      assertValid(validation);
+      staged = await stageAll(config.configDir);
+    } else {
+      staged = await stageSelectedPaths(config.configDir, input.paths);
+      if (staged.length === 0) {
+        throw new Error("there are no configuration changes to commit");
+      }
+      validation = await validateStagedTree(input);
+      if (!validation.valid) {
+        await runGit(config.configDir, ["reset", "--quiet"]);
+      }
+      assertValid(validation);
+    }
+    if (staged.length === 0) {
       throw new Error("there are no configuration changes to commit");
+    }
     const args = await commitIdentityArguments(input);
     args.push("commit", "-m", input.message);
     const result = await runGit(config.configDir, args, { timeoutMs: 60_000 });
