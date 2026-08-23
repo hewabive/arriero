@@ -397,6 +397,12 @@ export const ApiProxyRequestTraceSchema = z.object({
     .default([]),
   displacedTargetIds: z.array(ApiProxyIdSchema).default([]),
   usage: ApiProxyTraceUsageSchema.nullable().default(null),
+  streamHealth: z
+    .object({
+      malformedChunks: z.number().int().min(0).default(0),
+    })
+    .nullable()
+    .default(null),
   status: z.number().int().min(0).default(0),
   ok: z.boolean().default(false),
   errorCode: z.string().nullable().default(null),

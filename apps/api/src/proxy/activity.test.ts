@@ -40,6 +40,7 @@ function trace(
     schedulerActions: [],
     displacedTargetIds: [],
     usage: null,
+    streamHealth: null,
     status: 200,
     ok: true,
     errorCode: null,

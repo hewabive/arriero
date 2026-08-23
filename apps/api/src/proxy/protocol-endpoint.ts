@@ -107,6 +107,10 @@ import {
   runResumableForward,
   runResumableUpstreamAttempt,
 } from "./resumable-forward.js";
+import {
+  applyProxyStreamHealth,
+  proxyStreamHealthFromState,
+} from "./stream-health.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
 import {
   proxyEngineGates,
@@ -850,7 +854,10 @@ async function delegateRemoteTarget(input: {
           upstream.status,
           headers,
         ),
-        () => meter.finalize(),
+        () => {
+          applyProxyStreamHealth({ trace, health: meter.health() });
+          meter.finalize();
+        },
       ),
       streamOwnerKey,
       { status: upstream.status, headers },
@@ -1362,6 +1369,10 @@ export async function serveResolvedTarget(input: {
             });
           }
           trace.usage = resumableTraceUsage(state);
+          applyProxyStreamHealth({
+            trace,
+            health: proxyStreamHealthFromState(state),
+          });
           const task = resolveSlot();
           const final = finalFromState(bufferCodec, state, false);
           const delivered = applyApiProxyResponsePlanText(
@@ -1532,7 +1543,10 @@ export async function serveResolvedTarget(input: {
             upstream.status,
             upstream.headers,
           ),
-          () => meter.finalize(),
+          () => {
+            applyProxyStreamHealth({ trace, health: meter.health() });
+            meter.finalize();
+          },
         ),
         upstream.status,
         upstream.headers,
@@ -1695,6 +1709,10 @@ export async function serveResolvedTarget(input: {
     });
 
     trace.usage = resumableTraceUsage(state);
+    applyProxyStreamHealth({
+      trace,
+      health: proxyStreamHealthFromState(state),
+    });
     let task: number | null = null;
     if (instanceId !== null && slotSeq !== null) {
       const resolved = apiProxySlotTracker.resolve(instanceId, slotSeq);

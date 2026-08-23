@@ -128,7 +128,9 @@ export type ApiProxyResumableFinalResponse = {
 
 export type ApiProxyResumableCodec = {
   upstreamBody: (originalBody: unknown, tail: string | null) => unknown;
-  parseChunk: (data: string) => ApiProxyResumableStreamChunk | "done" | null;
+  parseChunk: (
+    data: string,
+  ) => ApiProxyResumableStreamChunk | "done" | "malformed" | null;
   finalResponse: (input: {
     text: string;
     id: string | null;

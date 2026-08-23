@@ -110,11 +110,11 @@ export const openAiResumableCodec: ApiProxyResumableCodec = {
     try {
       parsed = JSON.parse(data);
     } catch {
-      return null;
+      return "malformed";
     }
     const event = asObject(parsed);
     if (!event) {
-      return null;
+      return "malformed";
     }
     const choices = Array.isArray(event.choices) ? event.choices : [];
     const choice = asObject(choices[0]);
@@ -378,15 +378,18 @@ export const openAiResponsesUsageCodec: Pick<
   "parseChunk"
 > = {
   parseChunk(data) {
+    if (data === "[DONE]") {
+      return "done";
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(data);
     } catch {
-      return null;
+      return "malformed";
     }
     const event = asObject(parsed);
     if (!event) {
-      return null;
+      return "malformed";
     }
     const type = typeof event.type === "string" ? event.type : null;
     if (type === "response.completed") {

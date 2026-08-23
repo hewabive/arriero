@@ -99,7 +99,8 @@ test("openAiResumableCodec.upstreamBody forces stream and appends prefill", () =
 
 test("openAiResumableCodec.parseChunk reads deltas, done and junk", () => {
   assert.equal(openAiResumableCodec.parseChunk("[DONE]"), "done");
-  assert.equal(openAiResumableCodec.parseChunk("not json"), null);
+  assert.equal(openAiResumableCodec.parseChunk("not json"), "malformed");
+  assert.equal(openAiResumableCodec.parseChunk('"just a string"'), "malformed");
   assert.deepEqual(
     openAiResumableCodec.parseChunk(
       JSON.stringify({
@@ -270,6 +271,30 @@ test("finalResponse omits usage/timings when no tokens were counted", () => {
   const body = JSON.parse(final.body);
   assert.equal(body.usage, undefined);
   assert.equal(body.timings, undefined);
+});
+
+test("runResumableUpstreamAttempt counts malformed payloads without dropping the stream", async () => {
+  const state = createResumableBufferState();
+  const outcome = await runResumableUpstreamAttempt({
+    url: "http://upstream",
+    method: "POST",
+    headers: {},
+    body: {},
+    codec,
+    state,
+    preemptSignal: new AbortController().signal,
+    fetchImpl: makeFetch([
+      chunkFrame({ content: "Hel" }),
+      "data: {broken json\n\n",
+      chunkFrame({ content: "lo", finish: "stop" }),
+      "data: [DONE]\n\n",
+    ]),
+  });
+
+  assert.equal(outcome.type, "completed");
+  assert.equal(state.text, "Hello");
+  assert.equal(state.health.malformedChunks, 1);
+  assert.equal(state.health.malformedSample, "{broken json");
 });
 
 test("runResumableUpstreamAttempt accumulates a completed stream", async () => {

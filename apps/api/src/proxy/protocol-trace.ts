@@ -48,6 +48,9 @@ export type ProxyTraceAccumulator = {
     prefillMs: number | null;
     promptPerSecond: number | null;
   } | null;
+  streamHealth: {
+    malformedChunks: number;
+  } | null;
   status: number;
   ok: boolean;
   errorCode: string | null;
@@ -91,6 +94,7 @@ export function createProxyTrace(
     schedulerActions: [],
     displacedTargetIds: [],
     usage: null,
+    streamHealth: null,
     status: 0,
     ok: false,
     errorCode: null,

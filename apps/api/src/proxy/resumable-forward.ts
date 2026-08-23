@@ -10,6 +10,11 @@ import type {
   ApiProxyResumableToolCallDelta,
 } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
+import {
+  emptyProxyStreamHealth,
+  noteMalformedPayload,
+  type ProxyStreamHealth,
+} from "./stream-health.js";
 
 export type ResumableBufferState = {
   text: string;
@@ -24,6 +29,7 @@ export type ResumableBufferState = {
   genMs: number;
   toolCalls: ApiProxyResumableToolCall[];
   inToolPhase: boolean;
+  health: ProxyStreamHealth;
 };
 
 export type ResumableUpstreamOutcome =
@@ -49,6 +55,7 @@ export function createResumableBufferState(): ResumableBufferState {
     genMs: 0,
     toolCalls: [],
     inToolPhase: false,
+    health: emptyProxyStreamHealth(),
   };
 }
 
@@ -77,6 +84,10 @@ function applyFrame(
     const chunk = codec.parseChunk(data);
     if (chunk === "done") {
       return "done";
+    }
+    if (chunk === "malformed") {
+      noteMalformedPayload(state.health, data);
+      continue;
     }
     if (chunk === null) {
       continue;

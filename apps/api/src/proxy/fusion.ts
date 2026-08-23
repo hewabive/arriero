@@ -51,6 +51,10 @@ import {
   runResumableUpstreamAttempt,
   type ResumableBufferState,
 } from "./resumable-forward.js";
+import {
+  applyProxyStreamHealth,
+  proxyStreamHealthFromState,
+} from "./stream-health.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
 import { translatedAnthropicResumableCodec } from "./translation.js";
 import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
@@ -635,6 +639,13 @@ export async function executeApiProxyFusion(input: {
         resolved,
         resolved.textReplacementCount,
       );
+    }
+    if (io) {
+      applyProxyStreamHealth({
+        trace: io.trace,
+        health: proxyStreamHealthFromState(sub.state),
+        targetName: sub.target.name,
+      });
     }
     return {
       ok: true,

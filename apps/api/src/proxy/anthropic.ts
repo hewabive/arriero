@@ -81,11 +81,11 @@ export const anthropicResumableCodec: ApiProxyResumableCodec = {
     try {
       parsed = JSON.parse(data);
     } catch {
-      return null;
+      return "malformed";
     }
     const event = asObject(parsed);
     if (!event) {
-      return null;
+      return "malformed";
     }
 
     if (event.type === "message_stop") {

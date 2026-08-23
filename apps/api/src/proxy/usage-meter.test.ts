@@ -264,6 +264,36 @@ test("createUsageMeterStream strips synthetic usage frame and meters tokens", as
   assert.equal(Number.isInteger(counted?.genMs), true);
 });
 
+test("createUsageMeterStream counts malformed payloads and passes them through", async () => {
+  const meter = createUsageMeterStream({
+    codec: openAiResumableCodec,
+    stripUsageFrames: false,
+    onComplete: () => undefined,
+  });
+
+  const input = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        openAiFrames([
+          `data: ${JSON.stringify({ id: "a", model: "m", choices: [{ delta: { content: "Hi" } }] })}`,
+          "data: {broken json",
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+          "data: [DONE]",
+        ]),
+      );
+      controller.close();
+    },
+  });
+
+  const out = await drain(input.pipeThrough(meter.transform));
+
+  assert.equal(out.includes("{broken json"), true);
+  assert.deepEqual(meter.health(), {
+    malformedChunks: 1,
+    malformedSample: "{broken json",
+  });
+});
+
 test("createUsageMeterStream fires onReasoning before onFirstToken", async () => {
   const order: string[] = [];
   const meter = createUsageMeterStream({

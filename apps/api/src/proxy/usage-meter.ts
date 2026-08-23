@@ -5,6 +5,11 @@ import type {
   ApiProxyResumableToolCallDelta,
 } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
+import {
+  emptyProxyStreamHealth,
+  noteMalformedPayload,
+  type ProxyStreamHealth,
+} from "./stream-health.js";
 
 export type ProxyUsageCounts = {
   promptTokens: number | null;
@@ -171,6 +176,7 @@ export function ratePerSecondFromUsage(usage: ProxyUsageCounts): number | null {
 export type UsageMeterStream = {
   transform: TransformStream<Uint8Array, Uint8Array>;
   finalize: () => void;
+  health: () => ProxyStreamHealth;
 };
 
 export type ProxyPrefillProgress = {
@@ -215,11 +221,16 @@ export function createUsageMeterStream(input: {
   let firstTokenSeen = false;
   let reasoningSeen = false;
   let done = false;
+  const streamHealth = emptyProxyStreamHealth();
 
   const observeFrame = (frame: string): boolean => {
     let keep = true;
     for (const data of sseDataPayloads(frame)) {
       const chunk = codec.parseChunk(data);
+      if (chunk === "malformed") {
+        noteMalformedPayload(streamHealth, data);
+        continue;
+      }
       if (chunk === "done" || chunk === null) {
         continue;
       }
@@ -332,5 +343,5 @@ export function createUsageMeterStream(input: {
     },
   });
 
-  return { transform, finalize };
+  return { transform, finalize, health: () => ({ ...streamHealth }) };
 }

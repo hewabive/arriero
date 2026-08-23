@@ -31,6 +31,10 @@ import {
   createResumableBufferState,
   finalFromState,
 } from "./resumable-forward.js";
+import {
+  applyProxyStreamHealth,
+  proxyStreamHealthFromState,
+} from "./stream-health.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import {
   apiProxyStreamResumeKey,
@@ -216,6 +220,10 @@ export async function serveResumedStreamSession(input: {
       });
     }
     trace.usage = resumableTraceUsage(state);
+    applyProxyStreamHealth({
+      trace,
+      health: proxyStreamHealthFromState(state),
+    });
     const final = finalFromState(effectiveCodec, state, false);
     const delivered = applyApiProxyResponsePlanText(
       input.responsePlan,
@@ -290,6 +298,7 @@ export async function serveResumedStreamSession(input: {
       ),
       () => {
         store.finish(entry, { evict: true });
+        applyProxyStreamHealth({ trace, health: meter.health() });
         meter.finalize();
       },
     ),

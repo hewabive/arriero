@@ -190,7 +190,7 @@ test("anthropicResumableCodec.parseChunk reads Anthropic SSE events", () => {
     ),
     "done",
   );
-  assert.equal(anthropicResumableCodec.parseChunk("not json"), null);
+  assert.equal(anthropicResumableCodec.parseChunk("not json"), "malformed");
   assert.equal(
     anthropicResumableCodec.parseChunk(
       JSON.stringify({ type: "content_block_start", index: 0 }),
