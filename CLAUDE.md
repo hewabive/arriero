@@ -129,7 +129,9 @@ built-in + custom prompt library, `docs/BENCHMARK.md`) · `filesystem` ·
 version/run-mode + UI self-update runner, `docs/SELF_UPDATE.md`) · `prerequisites` (host-tooling
 registry behind `GET /api/prerequisites` + `#/prerequisites`, `docs/PREREQUISITES.md`) ·
 `sources` (engine source checkouts + drift report, `docs/SOURCE_REPOSITORIES.md`) ·
-`nvidia` (NVML telemetry over a koffi FFI binding; the only GPU-memory authority) ·
+`nvidia` (NVML telemetry over a koffi FFI binding; the only GPU-memory authority; also per-GPU
+health facts — ECC/row-remap/page-retirement, throttle reasons, PCIe link, recovery action, VRAM
+temp — surfaced as optional `SystemAccelerator` fields and web health badges) ·
 `git` (the one git-process primitive under `config-git`/`sources`) · `settings` ·
 `config-git` (`docs/CONFIG_GIT.md`) · `migrations` (`docs/MIGRATIONS.md`) · `numa`
 (`docs/NUMA_PINNING.md`) · `db` · `routes` (one `*.routes.ts` per domain) · `utils`.

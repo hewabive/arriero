@@ -2,8 +2,11 @@ import {
   SystemMetricsWindowSchema,
   type EventLoopReport,
   type EventLoopStall,
+  type SystemAccelerator,
   type SystemAcceleratorEcc,
+  type SystemAcceleratorPcie,
   type SystemAcceleratorRecoveryAction,
+  type SystemAcceleratorThrottleReason,
   type SystemDiskDevice,
   type SystemMetricsSample,
   type SystemMetricsWindow,
@@ -124,16 +127,29 @@ function usedPercent(total: number | null, free: number | null) {
     : Math.min(100, (used / total) * 100);
 }
 
+type AcceleratorHealthBadge = {
+  key: string;
+  label: string;
+  color: "red" | "yellow";
+  detail: string;
+};
+
 function eccBadgeInfo(
   ecc: SystemAcceleratorEcc | undefined,
-): { label: string; color: "red" | "yellow"; detail: string } | null {
+): Omit<AcceleratorHealthBadge, "key"> | null {
   if (!ecc) {
     return null;
   }
   const rows = ecc.remappedRows;
-  const actionRequired = rows?.pending === true || rows?.failure === true;
+  const pages = ecc.retiredPages;
+  const actionRequired =
+    rows?.pending === true || rows?.failure === true || pages?.pending === true;
   const remappedCount = rows ? rows.corrected + rows.uncorrected : 0;
-  const hasHistory = (ecc.uncorrected ?? 0) > 0 || remappedCount > 0;
+  const retiredCount = pages
+    ? (pages.corrected ?? 0) + (pages.uncorrected ?? 0)
+    : 0;
+  const hasHistory =
+    (ecc.uncorrected ?? 0) > 0 || remappedCount > 0 || retiredCount > 0;
   if (!actionRequired && !hasHistory) {
     return null;
   }
@@ -155,6 +171,11 @@ function eccBadgeInfo(
       `Remapped rows ${remappedCount}${rowState ? ` (${rowState})` : ""}`,
     );
   }
+  if (pages) {
+    parts.push(
+      `Retired pages ${retiredCount}${pages.pending === true ? " (retirement pending)" : ""}`,
+    );
+  }
   return {
     label: actionRequired ? "ECC action required" : "ECC history",
     color: actionRequired ? "red" : "yellow",
@@ -171,6 +192,111 @@ const RECOVERY_ACTION_LABELS: Partial<
   "drain-and-reset": "Drain + reset required",
   "recover-imex-domain": "IMEX recovery required",
 };
+
+const THROTTLE_REASON_LABELS: Record<SystemAcceleratorThrottleReason, string> =
+  {
+    "hw-slowdown": "HW slowdown",
+    "hw-thermal": "HW thermal slowdown",
+    "hw-power-brake": "HW power brake",
+    "sw-thermal": "SW thermal slowdown",
+    "sw-power-cap": "SW power cap",
+  };
+
+const CRITICAL_THROTTLE_REASONS: ReadonlySet<SystemAcceleratorThrottleReason> =
+  new Set(["hw-slowdown", "hw-thermal", "hw-power-brake"]);
+
+function throttleBadgeInfo(
+  reasons: SystemAcceleratorThrottleReason[] | undefined,
+): Omit<AcceleratorHealthBadge, "key"> | null {
+  if (!reasons || reasons.length === 0) {
+    return null;
+  }
+  const alerting = reasons.filter((reason) => reason !== "sw-power-cap");
+  if (alerting.length === 0) {
+    return null;
+  }
+  const critical = alerting.some((reason) =>
+    CRITICAL_THROTTLE_REASONS.has(reason),
+  );
+  return {
+    label: critical ? "HW throttling" : "Thermal throttling",
+    color: critical ? "red" : "yellow",
+    detail: reasons.map((reason) => THROTTLE_REASON_LABELS[reason]).join(" · "),
+  };
+}
+
+function pcieLinkLabel(
+  generation: number | undefined,
+  width: number | undefined,
+) {
+  return [
+    width === undefined ? null : `x${width}`,
+    generation === undefined ? null : `gen${generation}`,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" ");
+}
+
+function pcieBadgeInfo(
+  pcie: SystemAcceleratorPcie | undefined,
+): Omit<AcceleratorHealthBadge, "key"> | null {
+  if (!pcie) {
+    return null;
+  }
+  const widthDegraded =
+    pcie.currentWidth !== undefined &&
+    pcie.maxWidth !== undefined &&
+    pcie.currentWidth < pcie.maxWidth;
+  if (!widthDegraded && (pcie.replayCounter ?? 0) <= 0) {
+    return null;
+  }
+  const parts: string[] = [];
+  const current = pcieLinkLabel(pcie.currentGeneration, pcie.currentWidth);
+  const max = pcieLinkLabel(pcie.maxGeneration, pcie.maxWidth);
+  if (current) {
+    parts.push(`Link ${current}${max ? ` (max ${max})` : ""}`);
+  }
+  if (pcie.replayCounter !== undefined) {
+    parts.push(`Replay counter ${pcie.replayCounter}`);
+  }
+  return {
+    label: widthDegraded
+      ? `PCIe x${pcie.currentWidth} (max x${pcie.maxWidth})`
+      : "PCIe replays",
+    color: "yellow",
+    detail: parts.join(" · "),
+  };
+}
+
+function acceleratorHealthBadges(
+  accelerator: SystemAccelerator,
+): AcceleratorHealthBadge[] {
+  const badges: AcceleratorHealthBadge[] = [];
+  const recoveryLabel = accelerator.recoveryAction
+    ? RECOVERY_ACTION_LABELS[accelerator.recoveryAction]
+    : undefined;
+  if (recoveryLabel) {
+    badges.push({
+      key: "recovery",
+      label: recoveryLabel,
+      color: "red",
+      detail: `GPU recovery action: ${recoveryLabel}. Set by the driver after a hardware error; the GPU cannot serve CUDA work until the action is completed.`,
+    });
+  }
+  const ecc = eccBadgeInfo(accelerator.ecc);
+  if (ecc) {
+    badges.push({ key: "ecc", ...ecc });
+  }
+  const throttle = throttleBadgeInfo(accelerator.throttleReasons);
+  if (throttle) {
+    badges.push({ key: "throttle", ...throttle });
+  }
+  const pcie = pcieBadgeInfo(accelerator.pcie);
+  if (pcie) {
+    badges.push({ key: "pcie", ...pcie });
+  }
+  return badges;
+}
 
 function ResourceMetric(props: { label: string; value: string }) {
   return (
@@ -465,36 +591,31 @@ export function SystemResourcesPanel(props: {
                           accelerator.totalMemoryBytes *
                             (accelerator.memoryUsedRatio ?? 0),
                         );
-                  const eccBadge = eccBadgeInfo(accelerator.ecc);
-                  const recoveryLabel = accelerator.recoveryAction
-                    ? RECOVERY_ACTION_LABELS[accelerator.recoveryAction]
-                    : undefined;
                   return (
                     <MetricCard
                       key={accelerator.id}
                       title={formatAcceleratorName(accelerator)}
                       meta={
                         <>
-                          {recoveryLabel && (
+                          {acceleratorHealthBadges(accelerator).map((badge) => (
                             <Tooltip
-                              label={`GPU recovery action: ${recoveryLabel}. Set by the driver after a hardware error; the GPU cannot serve CUDA work until the action is completed.`}
+                              key={badge.key}
+                              label={badge.detail}
                               withArrow
                             >
-                              <Badge color="red" variant="light">
-                                {recoveryLabel}
+                              <Badge color={badge.color} variant="light">
+                                {badge.label}
                               </Badge>
                             </Tooltip>
-                          )}
-                          {eccBadge && (
-                            <Tooltip label={eccBadge.detail} withArrow>
-                              <Badge color={eccBadge.color} variant="light">
-                                {eccBadge.label}
-                              </Badge>
-                            </Tooltip>
-                          )}
+                          ))}
                           {accelerator.temperatureC !== null && (
                             <Badge variant="light" color="gray">
                               {accelerator.temperatureC}C
+                            </Badge>
+                          )}
+                          {accelerator.memoryTemperatureC !== undefined && (
+                            <Badge variant="light" color="gray">
+                              VRAM {accelerator.memoryTemperatureC}C
                             </Badge>
                           )}
                           {accelerator.numaNode !== null && (

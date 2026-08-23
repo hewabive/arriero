@@ -8,8 +8,11 @@ import {
   type NvmlEccErrors,
   type NvmlGpuRecoveryAction,
   type NvmlMemoryInfo,
+  type NvmlPcieLink,
   type NvmlProcessInfo,
   type NvmlRemappedRows,
+  type NvmlRetiredPages,
+  type NvmlThrottleReason,
   NvmlError,
   NVML_ERROR_DRIVER_NOT_LOADED,
   NVML_ERROR_GPU_IS_LOST,
@@ -27,7 +30,11 @@ type FakeDevice = {
   processes: NvmlProcessInfo[];
   eccErrors: NvmlEccErrors | null;
   remappedRows: NvmlRemappedRows | null;
+  retiredPages: NvmlRetiredPages | null;
   recoveryAction: NvmlGpuRecoveryAction | null;
+  memoryTemperatureC: number | null;
+  throttleReasons: NvmlThrottleReason[] | null;
+  pcieLink: NvmlPcieLink | null;
   temperatureC: number | null;
   utilizationPercent: number | null;
   uuid: string;
@@ -112,8 +119,24 @@ class FakeNvmlBinding implements NvmlBinding {
     return this.device(handle).remappedRows;
   }
 
+  deviceRetiredPages(handle: NvmlDeviceHandle): NvmlRetiredPages | null {
+    return this.device(handle).retiredPages;
+  }
+
   deviceRecoveryAction(handle: NvmlDeviceHandle): NvmlGpuRecoveryAction | null {
     return this.device(handle).recoveryAction;
+  }
+
+  deviceMemoryTemperature(handle: NvmlDeviceHandle): number | null {
+    return this.device(handle).memoryTemperatureC;
+  }
+
+  deviceThrottleReasons(handle: NvmlDeviceHandle): NvmlThrottleReason[] | null {
+    return this.device(handle).throttleReasons;
+  }
+
+  devicePcieLink(handle: NvmlDeviceHandle): NvmlPcieLink | null {
+    return this.device(handle).pcieLink;
   }
 
   computeProcesses(handle: NvmlDeviceHandle): NvmlProcessInfo[] {
@@ -140,7 +163,11 @@ function fakeDevice(
     processes: [],
     eccErrors: null,
     remappedRows: null,
+    retiredPages: null,
     recoveryAction: null,
+    memoryTemperatureC: null,
+    throttleReasons: null,
+    pcieLink: null,
     temperatureC: 42,
     utilizationPercent: 12,
     uuid: `GPU-${index}`,
@@ -175,8 +202,11 @@ test("initializes NVML once and caches accelerator samples", () => {
       usedMemoryBytes: 4 * 1024 ** 3,
       utilizationPercent: 12,
       temperatureC: 42,
+      memoryTemperatureC: null,
       ecc: null,
       recoveryAction: null,
+      throttleReasons: null,
+      pcie: null,
     },
   ]);
   assert.equal(binding.initializeCalls, 1);
@@ -278,6 +308,47 @@ test("leaves ecc null when both ECC counters and remap reporting are unsupported
   const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
 
   assert.equal(telemetry.accelerators()[0]?.ecc, null);
+});
+
+test("merges retired pages into the ecc snapshot", () => {
+  const binding = new FakeNvmlBinding([
+    fakeDevice(0, {
+      retiredPages: { corrected: 2, uncorrected: 1, pending: false },
+    }),
+  ]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  assert.deepEqual(telemetry.accelerators()[0]?.ecc, {
+    retiredPages: { corrected: 2, uncorrected: 1, pending: false },
+  });
+});
+
+test("exposes throttle reasons, PCIe link state and memory temperature", () => {
+  const binding = new FakeNvmlBinding([
+    fakeDevice(0, {
+      throttleReasons: ["hw-thermal", "sw-power-cap"],
+      pcieLink: {
+        currentGeneration: 1,
+        currentWidth: 4,
+        maxGeneration: 4,
+        maxWidth: 16,
+        replayCounter: 12,
+      },
+      memoryTemperatureC: 84,
+    }),
+  ]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  const snapshot = telemetry.accelerators()[0];
+  assert.deepEqual(snapshot?.throttleReasons, ["hw-thermal", "sw-power-cap"]);
+  assert.deepEqual(snapshot?.pcie, {
+    currentGeneration: 1,
+    currentWidth: 4,
+    maxGeneration: 4,
+    maxWidth: 16,
+    replayCounter: 12,
+  });
+  assert.equal(snapshot?.memoryTemperatureC, 84);
 });
 
 test("collects per-device process memory sorted by pid then device", () => {

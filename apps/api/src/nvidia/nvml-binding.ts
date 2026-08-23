@@ -1,5 +1,8 @@
 import koffi, { type LibraryHandle } from "koffi";
-import { type SystemAcceleratorRecoveryAction } from "@arriero/core";
+import {
+  type SystemAcceleratorRecoveryAction,
+  type SystemAcceleratorThrottleReason,
+} from "@arriero/core";
 
 export const NVML_ERROR_NOT_SUPPORTED = 3;
 export const NVML_ERROR_NO_PERMISSION = 4;
@@ -26,6 +29,14 @@ const NVML_UNSIGNED_VALUE_TYPES = new Set([
   NVML_VALUE_TYPE_UNSIGNED_LONG_LONG,
   NVML_VALUE_TYPE_UNSIGNED_SHORT,
 ]);
+const NVML_FI_DEV_MEMORY_TEMP = 82;
+const NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS = 0;
+const NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR = 1;
+const NVML_CLOCKS_EVENT_REASON_SW_POWER_CAP = 0x4n;
+const NVML_CLOCKS_EVENT_REASON_HW_SLOWDOWN = 0x8n;
+const NVML_CLOCKS_EVENT_REASON_SW_THERMAL_SLOWDOWN = 0x20n;
+const NVML_CLOCKS_EVENT_REASON_HW_THERMAL_SLOWDOWN = 0x40n;
+const NVML_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN = 0x80n;
 
 const NvmlDevice = koffi.opaque("arriero_nvmlDevice_st");
 const NvmlDevicePointer = koffi.pointer(NvmlDevice);
@@ -95,6 +106,22 @@ export type NvmlRemappedRows = {
 
 export type NvmlGpuRecoveryAction = SystemAcceleratorRecoveryAction;
 
+export type NvmlThrottleReason = SystemAcceleratorThrottleReason;
+
+export type NvmlRetiredPages = {
+  corrected?: number;
+  uncorrected?: number;
+  pending: boolean | null;
+};
+
+export type NvmlPcieLink = {
+  currentGeneration?: number;
+  currentWidth?: number;
+  maxGeneration?: number;
+  maxWidth?: number;
+  replayCounter?: number;
+};
+
 export interface NvmlBinding {
   initialize(): void;
   shutdown(): void;
@@ -112,7 +139,11 @@ export interface NvmlBinding {
   deviceTemperature(device: NvmlDeviceHandle): number | null;
   deviceEccErrors(device: NvmlDeviceHandle): NvmlEccErrors | null;
   deviceRemappedRows(device: NvmlDeviceHandle): NvmlRemappedRows | null;
+  deviceRetiredPages(device: NvmlDeviceHandle): NvmlRetiredPages | null;
   deviceRecoveryAction(device: NvmlDeviceHandle): NvmlGpuRecoveryAction | null;
+  deviceMemoryTemperature(device: NvmlDeviceHandle): number | null;
+  deviceThrottleReasons(device: NvmlDeviceHandle): NvmlThrottleReason[] | null;
+  devicePcieLink(device: NvmlDeviceHandle): NvmlPcieLink | null;
   computeProcesses(device: NvmlDeviceHandle): NvmlProcessInfo[];
 }
 
@@ -170,6 +201,16 @@ const GPU_RECOVERY_ACTIONS: Record<number, SystemAcceleratorRecoveryAction> = {
   4: "drain-and-reset",
   5: "recover-imex-domain",
 };
+
+const THROTTLE_REASON_BITS: ReadonlyArray<
+  readonly [bigint, NvmlThrottleReason]
+> = [
+  [NVML_CLOCKS_EVENT_REASON_HW_SLOWDOWN, "hw-slowdown"],
+  [NVML_CLOCKS_EVENT_REASON_HW_THERMAL_SLOWDOWN, "hw-thermal"],
+  [NVML_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN, "hw-power-brake"],
+  [NVML_CLOCKS_EVENT_REASON_SW_THERMAL_SLOWDOWN, "sw-thermal"],
+  [NVML_CLOCKS_EVENT_REASON_SW_POWER_CAP, "sw-power-cap"],
+];
 
 function libraryCandidates(platform = process.platform): string[] {
   if (platform === "linux") {
@@ -322,11 +363,70 @@ class KoffiNvmlBinding implements NvmlBinding {
     "int",
     [NvmlDevicePointer, "int", koffi.inout(koffi.pointer(NvmlFieldValue))],
   );
+  private readonly getRetiredPages = this.library.func(
+    "nvmlDeviceGetRetiredPages",
+    "int",
+    [
+      NvmlDevicePointer,
+      "uint32_t",
+      koffi.inout(koffi.pointer("uint32_t")),
+      "void *",
+    ],
+  );
+  private readonly getRetiredPagesPendingStatus = this.library.func(
+    "nvmlDeviceGetRetiredPagesPendingStatus",
+    "int",
+    [NvmlDevicePointer, koffi.out(koffi.pointer("uint32_t"))],
+  );
+  private readonly getCurrPcieLinkGeneration = this.library.func(
+    "nvmlDeviceGetCurrPcieLinkGeneration",
+    "int",
+    [NvmlDevicePointer, koffi.out(koffi.pointer("uint32_t"))],
+  );
+  private readonly getCurrPcieLinkWidth = this.library.func(
+    "nvmlDeviceGetCurrPcieLinkWidth",
+    "int",
+    [NvmlDevicePointer, koffi.out(koffi.pointer("uint32_t"))],
+  );
+  private readonly getMaxPcieLinkGeneration = this.library.func(
+    "nvmlDeviceGetMaxPcieLinkGeneration",
+    "int",
+    [NvmlDevicePointer, koffi.out(koffi.pointer("uint32_t"))],
+  );
+  private readonly getMaxPcieLinkWidth = this.library.func(
+    "nvmlDeviceGetMaxPcieLinkWidth",
+    "int",
+    [NvmlDevicePointer, koffi.out(koffi.pointer("uint32_t"))],
+  );
+  private readonly getPcieReplayCounter = this.library.func(
+    "nvmlDeviceGetPcieReplayCounter",
+    "int",
+    [NvmlDevicePointer, koffi.out(koffi.pointer("uint32_t"))],
+  );
+  private readonly getClocksEventReasons = this.resolveClocksEventReasons();
   private readonly getComputeProcesses = this.library.func(
     "nvmlDeviceGetComputeRunningProcesses_v3",
     "int",
     [NvmlDevicePointer, koffi.inout(koffi.pointer("uint32_t")), "void *"],
   );
+  private resolveClocksEventReasons() {
+    const parameters = [
+      NvmlDevicePointer,
+      koffi.out(koffi.pointer("uint64_t")),
+    ];
+    for (const name of [
+      "nvmlDeviceGetCurrentClocksEventReasons",
+      "nvmlDeviceGetCurrentClocksThrottleReasons",
+    ]) {
+      try {
+        return this.library.func(name, "int", parameters);
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
   private detail(code: number): string {
     try {
       return String(this.errorString(code));
@@ -526,10 +626,11 @@ class KoffiNvmlBinding implements NvmlBinding {
     };
   }
 
-  deviceRecoveryAction(device: NvmlDeviceHandle): NvmlGpuRecoveryAction | null {
-    const field: NativeFieldValue = {
-      fieldId: NVML_FI_DEV_GET_GPU_RECOVERY_ACTION,
-    };
+  private readUnsignedField(
+    device: NvmlDeviceHandle,
+    fieldId: number,
+  ): number | null {
+    const field: NativeFieldValue = { fieldId };
     const code = this.getFieldValues(device, 1, field);
     if (code === NVML_ERROR_NOT_SUPPORTED) {
       return null;
@@ -544,11 +645,145 @@ class KoffiNvmlBinding implements NvmlBinding {
     ) {
       return null;
     }
-    const raw = safeUnsigned(field.value);
+    return safeUnsigned(field.value);
+  }
+
+  deviceRecoveryAction(device: NvmlDeviceHandle): NvmlGpuRecoveryAction | null {
+    const raw = this.readUnsignedField(
+      device,
+      NVML_FI_DEV_GET_GPU_RECOVERY_ACTION,
+    );
     if (raw === null) {
       return null;
     }
     return GPU_RECOVERY_ACTIONS[raw] ?? null;
+  }
+
+  deviceMemoryTemperature(device: NvmlDeviceHandle): number | null {
+    return this.readUnsignedField(device, NVML_FI_DEV_MEMORY_TEMP);
+  }
+
+  private readRetiredPageCount(
+    device: NvmlDeviceHandle,
+    cause: number,
+  ): number | null {
+    const count = [0];
+    const code = this.getRetiredPages(device, cause, count, null);
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    if (code !== NVML_ERROR_INSUFFICIENT_SIZE) {
+      this.check("nvmlDeviceGetRetiredPages", code);
+    }
+    return count[0] ?? null;
+  }
+
+  private readRetiredPagesPending(device: NvmlDeviceHandle): boolean | null {
+    const pending = [0];
+    const code = this.getRetiredPagesPendingStatus(device, pending);
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    this.check("nvmlDeviceGetRetiredPagesPendingStatus", code);
+    const value = pending[0];
+    return value === undefined ? null : value !== 0;
+  }
+
+  deviceRetiredPages(device: NvmlDeviceHandle): NvmlRetiredPages | null {
+    const corrected = this.readRetiredPageCount(
+      device,
+      NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
+    );
+    const uncorrected = this.readRetiredPageCount(
+      device,
+      NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR,
+    );
+    if (corrected === null && uncorrected === null) {
+      return null;
+    }
+    return {
+      ...(corrected === null ? {} : { corrected }),
+      ...(uncorrected === null ? {} : { uncorrected }),
+      pending: this.readRetiredPagesPending(device),
+    };
+  }
+
+  deviceThrottleReasons(device: NvmlDeviceHandle): NvmlThrottleReason[] | null {
+    if (!this.getClocksEventReasons) {
+      return null;
+    }
+    const output: Array<NativeNumber | null> = [null];
+    const code = this.getClocksEventReasons(device, output);
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    this.check("nvmlDeviceGetCurrentClocksEventReasons", code);
+    const raw = output[0];
+    if (raw === null || raw === undefined) {
+      return null;
+    }
+    const mask = typeof raw === "bigint" ? raw : BigInt(raw);
+    return THROTTLE_REASON_BITS.filter(([bit]) => (mask & bit) !== 0n).map(
+      ([, reason]) => reason,
+    );
+  }
+
+  private readDeviceUint(
+    operation: string,
+    read: (device: NvmlDeviceHandle, output: number[]) => number,
+    device: NvmlDeviceHandle,
+  ): number | null {
+    const output = [0];
+    const code = read(device, output);
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    this.check(operation, code);
+    return output[0] ?? null;
+  }
+
+  devicePcieLink(device: NvmlDeviceHandle): NvmlPcieLink | null {
+    const currentGeneration = this.readDeviceUint(
+      "nvmlDeviceGetCurrPcieLinkGeneration",
+      this.getCurrPcieLinkGeneration,
+      device,
+    );
+    const currentWidth = this.readDeviceUint(
+      "nvmlDeviceGetCurrPcieLinkWidth",
+      this.getCurrPcieLinkWidth,
+      device,
+    );
+    const maxGeneration = this.readDeviceUint(
+      "nvmlDeviceGetMaxPcieLinkGeneration",
+      this.getMaxPcieLinkGeneration,
+      device,
+    );
+    const maxWidth = this.readDeviceUint(
+      "nvmlDeviceGetMaxPcieLinkWidth",
+      this.getMaxPcieLinkWidth,
+      device,
+    );
+    const replayCounter = this.readDeviceUint(
+      "nvmlDeviceGetPcieReplayCounter",
+      this.getPcieReplayCounter,
+      device,
+    );
+    if (
+      currentGeneration === null &&
+      currentWidth === null &&
+      maxGeneration === null &&
+      maxWidth === null &&
+      replayCounter === null
+    ) {
+      return null;
+    }
+    return {
+      ...(currentGeneration === null ? {} : { currentGeneration }),
+      ...(currentWidth === null ? {} : { currentWidth }),
+      ...(maxGeneration === null ? {} : { maxGeneration }),
+      ...(maxWidth === null ? {} : { maxWidth }),
+      ...(replayCounter === null ? {} : { replayCounter }),
+    };
   }
 
   computeProcesses(device: NvmlDeviceHandle): NvmlProcessInfo[] {

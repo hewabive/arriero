@@ -35,10 +35,33 @@ export const SystemAcceleratorRemappedRowsSchema = z.object({
   failure: z.boolean(),
 });
 
+export const SystemAcceleratorRetiredPagesSchema = z.object({
+  corrected: z.number().int().nonnegative().optional(),
+  uncorrected: z.number().int().nonnegative().optional(),
+  pending: z.boolean().nullable(),
+});
+
 export const SystemAcceleratorEccSchema = z.object({
   corrected: z.number().int().nonnegative().optional(),
   uncorrected: z.number().int().nonnegative().optional(),
   remappedRows: SystemAcceleratorRemappedRowsSchema.optional(),
+  retiredPages: SystemAcceleratorRetiredPagesSchema.optional(),
+});
+
+export const SystemAcceleratorThrottleReasonSchema = z.enum([
+  "hw-slowdown",
+  "hw-thermal",
+  "hw-power-brake",
+  "sw-thermal",
+  "sw-power-cap",
+]);
+
+export const SystemAcceleratorPcieSchema = z.object({
+  currentGeneration: z.number().int().nonnegative().optional(),
+  currentWidth: z.number().int().nonnegative().optional(),
+  maxGeneration: z.number().int().nonnegative().optional(),
+  maxWidth: z.number().int().nonnegative().optional(),
+  replayCounter: z.number().int().nonnegative().optional(),
 });
 
 export const SystemAcceleratorRecoveryActionSchema = z.enum([
@@ -63,8 +86,11 @@ export const SystemAcceleratorSchema = z.object({
   numaNode: z.number().int().min(0).nullable(),
   computeCapability: ComputeCapabilitySchema.nullable().default(null),
   source: z.string(),
+  memoryTemperatureC: z.number().optional(),
   ecc: SystemAcceleratorEccSchema.optional(),
   recoveryAction: SystemAcceleratorRecoveryActionSchema.optional(),
+  throttleReasons: z.array(SystemAcceleratorThrottleReasonSchema).optional(),
+  pcie: SystemAcceleratorPcieSchema.optional(),
 });
 
 export function formatComputeCapability(value: ComputeCapability): string {
@@ -346,7 +372,14 @@ export type ComputeCapability = z.infer<typeof ComputeCapabilitySchema>;
 export type SystemAcceleratorRemappedRows = z.infer<
   typeof SystemAcceleratorRemappedRowsSchema
 >;
+export type SystemAcceleratorRetiredPages = z.infer<
+  typeof SystemAcceleratorRetiredPagesSchema
+>;
 export type SystemAcceleratorEcc = z.infer<typeof SystemAcceleratorEccSchema>;
+export type SystemAcceleratorThrottleReason = z.infer<
+  typeof SystemAcceleratorThrottleReasonSchema
+>;
+export type SystemAcceleratorPcie = z.infer<typeof SystemAcceleratorPcieSchema>;
 export type SystemAcceleratorRecoveryAction = z.infer<
   typeof SystemAcceleratorRecoveryActionSchema
 >;

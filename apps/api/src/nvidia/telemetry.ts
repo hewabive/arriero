@@ -1,4 +1,8 @@
-import { type SystemAcceleratorEcc } from "@arriero/core";
+import {
+  type SystemAcceleratorEcc,
+  type SystemAcceleratorPcie,
+  type SystemAcceleratorThrottleReason,
+} from "@arriero/core";
 import {
   createKoffiNvmlBinding,
   type NvmlBinding,
@@ -45,8 +49,11 @@ export type NvidiaDeviceSnapshot = {
   usedMemoryBytes: number;
   utilizationPercent: number | null;
   temperatureC: number | null;
+  memoryTemperatureC: number | null;
   ecc: SystemAcceleratorEcc | null;
   recoveryAction: NvmlGpuRecoveryAction | null;
+  throttleReasons: SystemAcceleratorThrottleReason[] | null;
+  pcie: SystemAcceleratorPcie | null;
 };
 
 export type NvidiaComputeProcess = {
@@ -221,6 +228,7 @@ export class NvidiaTelemetry {
         const memory = this.binding!.deviceMemory(device.handle);
         const eccErrors = this.binding!.deviceEccErrors(device.handle);
         const remappedRows = this.binding!.deviceRemappedRows(device.handle);
+        const retiredPages = this.binding!.deviceRetiredPages(device.handle);
         return {
           index: device.index,
           name: device.name,
@@ -232,14 +240,20 @@ export class NvidiaTelemetry {
           usedMemoryBytes: memory.usedBytes,
           utilizationPercent: this.binding!.deviceUtilization(device.handle),
           temperatureC: this.binding!.deviceTemperature(device.handle),
+          memoryTemperatureC: this.binding!.deviceMemoryTemperature(
+            device.handle,
+          ),
           ecc:
-            eccErrors === null && remappedRows === null
+            eccErrors === null && remappedRows === null && retiredPages === null
               ? null
               : {
                   ...(eccErrors ?? {}),
                   ...(remappedRows === null ? {} : { remappedRows }),
+                  ...(retiredPages === null ? {} : { retiredPages }),
                 },
           recoveryAction: this.binding!.deviceRecoveryAction(device.handle),
+          throttleReasons: this.binding!.deviceThrottleReasons(device.handle),
+          pcie: this.binding!.devicePcieLink(device.handle),
         };
       });
       this.acceleratorsCache = {

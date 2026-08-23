@@ -39,6 +39,7 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
       usedMemoryBytes: 1_024 * 1024 * 1024,
       utilizationPercent: 12,
       temperatureC: 55,
+      memoryTemperatureC: 84,
       ecc: {
         corrected: 2,
         uncorrected: 1,
@@ -48,8 +49,21 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
           pending: true,
           failure: false,
         },
+        retiredPages: {
+          corrected: 2,
+          uncorrected: 0,
+          pending: false,
+        },
       },
       recoveryAction: "gpu-reset",
+      throttleReasons: ["sw-power-cap"],
+      pcie: {
+        currentGeneration: 4,
+        currentWidth: 16,
+        maxGeneration: 4,
+        maxWidth: 16,
+        replayCounter: 0,
+      },
     },
   ]);
 
@@ -67,6 +81,7 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
     numaNode: null,
     computeCapability: { major: 8, minor: 9 },
     source: "nvml",
+    memoryTemperatureC: 84,
     ecc: {
       corrected: 2,
       uncorrected: 1,
@@ -76,8 +91,21 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
         pending: true,
         failure: false,
       },
+      retiredPages: {
+        corrected: 2,
+        uncorrected: 0,
+        pending: false,
+      },
     },
     recoveryAction: "gpu-reset",
+    throttleReasons: ["sw-power-cap"],
+    pcie: {
+      currentGeneration: 4,
+      currentWidth: 16,
+      maxGeneration: 4,
+      maxWidth: 16,
+      replayCounter: 0,
+    },
   });
 });
 
@@ -95,8 +123,11 @@ test("nvidiaDevicesToAccelerators maps pci bus ids to NUMA nodes", () => {
         usedMemoryBytes: 4,
         utilizationPercent: 12,
         temperatureC: 55,
+        memoryTemperatureC: null,
         ecc: null,
         recoveryAction: null,
+        throttleReasons: null,
+        pcie: null,
       },
       {
         index: 1,
@@ -109,8 +140,11 @@ test("nvidiaDevicesToAccelerators maps pci bus ids to NUMA nodes", () => {
         usedMemoryBytes: 8,
         utilizationPercent: 0,
         temperatureC: 42,
+        memoryTemperatureC: null,
         ecc: null,
         recoveryAction: null,
+        throttleReasons: null,
+        pcie: null,
       },
     ],
     (busId) => (busId === "00000000:81:00.0" ? 1 : 0),
