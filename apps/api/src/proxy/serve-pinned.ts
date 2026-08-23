@@ -9,6 +9,7 @@ import { getInstance } from "../instances/repository.js";
 import { anthropicProtocolAdapter } from "./anthropic.js";
 import { withDelegatedTraceHeader } from "./delegated-trace.js";
 import { instanceEndpointId } from "./endpoints.js";
+import type { ApiProxyInflightHandle } from "./inflight.js";
 import { openAiProtocolAdapter } from "./openai.js";
 import { runWithProxyTrace, serveResolvedTarget } from "./protocol-endpoint.js";
 import type {
@@ -35,6 +36,22 @@ function serveOperation(
     routePath: `/${protocol}/${endpoint}`,
     transport: "http-json",
   };
+}
+
+export function applyDelegatedServeOrigin(
+  origin: ApiProxyServeRequest["origin"],
+  trace: { sourceId: string | null; sourceName: string | null },
+  inflight: Pick<ApiProxyInflightHandle, "setOrigin" | "setSource">,
+): void {
+  if (!origin) {
+    return;
+  }
+  inflight.setOrigin(origin.inflightId);
+  if (origin.sourceId !== null && origin.sourceName !== null) {
+    trace.sourceId = origin.sourceId;
+    trace.sourceName = origin.sourceName;
+    inflight.setSource(origin.sourceId, origin.sourceName);
+  }
 }
 
 export function ephemeralTarget(
@@ -99,9 +116,7 @@ export async function serveApiProxyPinnedInstance(
     inflight.setModel(modelId);
     inflight.setTarget(target.id);
     inflight.setStream(payload.stream);
-    if (payload.origin) {
-      inflight.setOrigin(payload.origin.inflightId);
-    }
+    applyDelegatedServeOrigin(payload.origin, trace, inflight);
     const response = await serveResolvedTarget({
       c,
       adapter,

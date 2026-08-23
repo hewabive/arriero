@@ -704,7 +704,11 @@ async function delegateRemoteTarget(input: {
     preemptible: target.preemptible,
     saveSlotsBeforeUnload: target.saveSlotsBeforeUnload,
     slotIds: target.slotIds,
-    origin: { inflightId: inflight.id },
+    origin: {
+      inflightId: inflight.id,
+      sourceId: trace.sourceId,
+      sourceName: trace.sourceName,
+    },
     body: serveBody,
   };
 

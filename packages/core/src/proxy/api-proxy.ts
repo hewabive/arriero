@@ -164,6 +164,8 @@ export const ApiProxyServeProtocolSchema = z.enum(["openai", "anthropic"]);
 
 const ApiProxyServeOriginSchema = z.object({
   inflightId: z.string().min(1),
+  sourceId: ApiProxyIdSchema.nullable().default(null),
+  sourceName: z.string().nullable().default(null),
 });
 
 export const ApiProxyServeRequestSchema = z.object({

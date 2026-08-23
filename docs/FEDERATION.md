@@ -145,19 +145,42 @@ being masked as `stopped`. The output `instanceId` stays `null` for remote targe
 to avoid colliding with a same-named local instance in downstream local lookups
 (e.g. idle-maintenance draws).
 
-### Deferred: remote-instance telemetry depth parity
+### Remote-request telemetry depth
 
-Today the proxy extracts **rich live telemetry from native managed instances** —
+The proxy extracts **rich live telemetry from native managed instances** —
 prefill %, TTFT, thinking, the in-flight registry — by injecting llama.cpp's
 `return_progress` and metering the stream (`proxy/usage-meter.ts`,
-`resumable-forward.ts`; see `docs/API_PROXY_FOUNDATION.md`). For remote targets the
-fleet proxy must eventually pull the **same depth** of telemetry across the node
-boundary (the load-state above is the coarse layer; deep per-request telemetry is
-not yet pulled across the boundary).
+`resumable-forward.ts`; see `docs/API_PROXY_FOUNDATION.md`). For OpenAI-protocol
+delegated streams most of that survives the serve hop unchanged, but the
+anthropic bridge on the owning node deliberately keeps `prompt_progress`/
+`timings` out of the client stream (they are its host-only `extensions`
+side-channel), and slot id / cache origin / lease queue / scheduler actions never
+leave the owning node's process at all. Two read-side mechanisms close the gap
+without touching the stream wire format:
 
-This is **explicitly deferred** — not first-priority. Base federation (route +
-forward to remote targets) works without it; remote requests just report shallower
-live stats until the depth parity is built. Tracked so it is not forgotten.
+- **Post-hoc trace merge** (`proxy/delegated-trace.ts`): the owning node stamps
+  `x-arriero-trace-id` on `/api/proxy/serve` responses; when the delegated
+  response completes, the entry fetches that trace from the peer
+  (`GET /api/proxy/traces/:id`, retrying while the peer's deferred slot-timing
+  record settles) and merges the owning-node-only fields — slot id, cache
+  origin, queue time, scheduler actions, translation flags, server-measured
+  usage timings — into its own trace before recording. An older peer sends no
+  header ⇒ the entry records its shallow trace as before.
+- **Live inflight enrichment** (`proxy/remote-inflight.ts`): the serve payload's
+  `origin` carries the entry's inflight id plus the resolved request source
+  (which the owning node stamps into its own trace and in-flight entry, so the
+  peer's Request history attributes delegated calls instead of showing them
+  anonymous). The owning node lists its registry at `GET /api/proxy/inflight`;
+  the entry's runtime-snapshot assembly fans out to nodes owning remote targets
+  (2 s TTL cache, refreshed by the reconcile loop while requests are active) and
+  enriches its own inflight views by origin id — prefill progress tokens,
+  lease-queue wait, server-side prefill timing — while stream-observed phases
+  and an ended local state always win. Proxy load cards show remote requests at
+  near-native depth with a ~2–4 s polling lag.
+
+Still deferred: sub-second live telemetry (in-band telemetry frames muxed into
+the serve stream instead of polling), and cross-node delegation of in-flight
+actions (force-answer / finish / cancel) and the reasoning-text detail view.
 
 ## Identity & namespacing
 
@@ -201,7 +224,8 @@ live stats until the depth parity is built. Tracked so it is not forgotten.
 
 ## Deferred backlog (intentionally not in the base)
 
-- Remote-instance proxy **telemetry depth parity** (above).
+- Remote-request telemetry: **sub-second in-band frames** and **in-flight action
+  delegation** (the residual items in § Remote-request telemetry depth).
 - A dedicated **Network overview** page (all instances/resources fleet-wide with
   deep-links to node-scoped editing). Aggregation on Resources + Public Status is
   enough for now; the overview is polish, built after the foundation is solid.
