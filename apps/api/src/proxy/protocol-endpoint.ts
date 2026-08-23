@@ -1186,6 +1186,7 @@ export async function serveResolvedTarget(input: {
     const {
       baseUrl,
       instanceId,
+      endpointId,
       engine,
       authHeaders,
       translateAnthropic,
@@ -1197,8 +1198,8 @@ export async function serveResolvedTarget(input: {
       path: upstreamPath,
       body: route.request.body,
       headers: c.req.raw.headers,
-      model: route.request.model,
       instanceId,
+      endpointId,
       trace,
     });
     const upstreamRequestBody = forward.body;
@@ -1566,16 +1567,22 @@ export async function serveResolvedTarget(input: {
     if (!resolved.ok) {
       return resolved.response;
     }
-    const { baseUrl, instanceId, engine, authHeaders, translateAnthropic } =
-      resolved.context;
+    const {
+      baseUrl,
+      instanceId,
+      endpointId,
+      engine,
+      authHeaders,
+      translateAnthropic,
+    } = resolved.context;
     const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
       operation,
       path: upstreamPath,
       body: route.request.body,
       headers: c.req.raw.headers,
-      model: route.request.model,
       instanceId,
+      endpointId,
       trace,
     });
     const upstreamRequestBody = forward.body;

@@ -18,7 +18,6 @@ import type {
   ApiProxyJsonValue,
   ApiProxyLoopGuardAction,
   ApiProxyModelCreate,
-  ApiProxyModelReasoning,
   ApiProxyModelRecord,
   ApiProxyPipelineCreate,
   ApiProxyPipelineNode,
@@ -64,7 +63,6 @@ export type ModelDraft = {
   routeToValue: string | null;
   description: string;
   blockedMessage: string;
-  reasoning: ApiProxyModelReasoning | null;
 };
 
 export type QuickRouteDraft = {
@@ -249,7 +247,6 @@ export const emptyModelDraft: ModelDraft = {
   routeToValue: null,
   description: "",
   blockedMessage: "",
-  reasoning: null,
 };
 
 export const emptyQuickRouteDraft: QuickRouteDraft = {
@@ -590,7 +587,6 @@ export function modelDraftFromRecord(model: ApiProxyModelRecord): ModelDraft {
     ),
     description: model.description ?? "",
     blockedMessage: model.blockedMessage,
-    reasoning: model.reasoning,
   };
 }
 
@@ -1158,7 +1154,6 @@ export function modelPayload(draft: ModelDraft): ApiProxyModelCreate {
     routeTo,
     description: draft.description.trim() || null,
     blockedMessage: draft.blockedMessage.trim(),
-    reasoning: draft.reasoning,
   };
 }
 

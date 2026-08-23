@@ -30,6 +30,7 @@ function seedTarget(name: string) {
     name: `${name}-endpoint`,
     baseUrl: "http://upstream.local",
     profile: "openai",
+    reasoning: null,
     apiKeyEnvVar: null,
     authHeaderName: null,
     extraHeaders: {},
@@ -61,7 +62,6 @@ function seedModel(modelId: string, routeTo: ApiProxyRouteTo) {
     routeTo,
     description: null,
     blockedMessage: "",
-    reasoning: null,
   });
 }
 

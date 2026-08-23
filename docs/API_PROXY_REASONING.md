@@ -44,15 +44,21 @@ reasoning trace step when handed a trace accumulator, and is called from
 branch (`fusion.ts`), and in the resume-claim key derivation
 (`resume-replay.ts`, so a retried stream still matches its persisted
 session). At that point the body is post-translation (openai-shaped for every
-managed upstream), the instance is known, and
+managed upstream), the upstream identity — `instanceId` and `endpointId` from
+the resolved upstream context — is known, and
 `resolveApiProxyUpstreamReasoningProfile` picks, in precedence order:
 
-1. **`ApiProxyModelRecord.reasoning`** (nullable) — an explicit operator
-   override: `{kind:"preset", preset}` (built-ins: `qwen3.8`, `gpt-oss`,
-   `thinking-budget`, `enable-flag`, `native-passthrough`, `non-reasoning`)
-   or `{kind:"custom", profile}` for a future model's ladder — no code
-   change, editable in `config/proxy/models.json` (the UI select offers
-   presets and preserves a custom profile).
+1. **`Instance.reasoning`** (optional, `config/instances/<name>.json`) — an
+   explicit operator override on the upstream itself: `{kind:"preset",
+   preset}` (built-ins: `qwen3.8`, `gpt-oss`, `thinking-budget`,
+   `enable-flag`, `native-passthrough`, `non-reasoning`) or
+   `{kind:"custom", profile}` for a future model's ladder — no code change.
+   The instance form edits presets; a custom profile is authored via API and
+   survives the form. Applies to every engine kind, so a Python-engine
+   instance gets a profile only this way. Because the override lives on the
+   instance, it holds for every route that lands on it — condition/fusion
+   branches, and delegated requests mapped by the peer against its own
+   instance config.
 2. **Template autodetection** for llama-engine instances: instance →
    `resolveModelPath(args)` → `model_cache` → the derived
    `metadata.chatTemplateReasoning` (see below). A template that uses
@@ -62,15 +68,26 @@ managed upstream), the instance is known, and
    `reasoning_effort`: the `budget` interface —
    `thinking_budget_tokens`/`enable_thinking` work at the engine level for
    any llama model.
-4. Otherwise (external providers, Python engines, no instance): no mapping —
-   canonical fields pass through as sent (the bridge already translates
-   Anthropic `output_config.effort`/`thinking {adaptive}` to
+4. **`ApiEndpointRecord.reasoning`** for external endpoints (no instance):
+   the same override union on the endpoint catalog record
+   (`config/proxy/endpoints.json`, endpoint editor select). Unset ⇒
+   passthrough — canonical fields go out as sent (the bridge already
+   translates Anthropic `output_config.effort`/`thinking {adaptive}` to
    `reasoning_effort`/`enable_thinking`).
 
-The instance-derived branch (2–3) reads the instance record and the model
+There is no per-public-model override: a profile describes how an *upstream*
+expresses effort, and one proxy model can fan out to several upstreams
+(condition/fusion, delegation). Route-scoped *intent* belongs to the
+`reasoning` pipeline node. The legacy `ApiProxyModelRecord.reasoning` field
+is migrated by `0012-model-reasoning-to-upstreams` (`docs/MIGRATIONS.md`):
+statically-routed overrides move onto the routed instance or endpoint,
+ambiguous ones (pipeline routes, unbound models) are dropped with a warning
+in the log.
+
+The instance-derived branch (1–3) reads the instance record and the model
 cache row, so it is memoized per instance with a 2 s TTL (the same staleness
 budget as `getCachedApiProxyRuntimeSnapshot`) — a hot request path never
-re-reads `model_cache` per request, and an instance-args or template change
+re-reads `model_cache` per request, and an instance edit or template change
 is picked up within 2 s.
 
 With a profile, the mapping extracts the directive, strips every native
@@ -121,11 +138,9 @@ drives a `reasoning template` badge on the instance (red for strict
 templates — requests can fail with a template error; yellow for tolerant
 ones — levels may be silently ignored), lists the instance on the
 dashboard's "Instances needing attention" card, and renders as a warning
-callout in the diagnostics panel. The fix is either a reasoning override or
-teaching the extractor the new convention; only a recognized template clears
-the badge — a model-level override fixes traffic routed through that proxy
-model but stays per-model (the panel lists such overrides right below the
-callout), so the instance-level badge persists until detection works.
+callout in the diagnostics panel. The fix is either an `Instance.reasoning`
+override (clears the badge — the resolved source is no longer the template)
+or teaching the extractor the new convention.
 llama-server's `/props.chat_template_caps.supports_reasoning_effort` is the
 live confirmation of the same paradigm, surfaced in the diagnostics panel
 below.
@@ -135,8 +150,8 @@ below.
 `GET /api/instances/:id/reasoning-profile` returns the instance-resolved
 profile (`ApiProxyUpstreamReasoningProfile` in core: `profile` + `source`,
 `null` = passthrough) via the same cached `instanceReasoningProfile` the
-forward boundary uses — model-override precedence is deliberately excluded
-(it is per proxy model, not per instance). The web renders it as the
+forward boundary uses — instance override included, so the panel shows
+exactly what requests landing on this instance get. The web renders it as the
 "Reasoning effort" accordion item on the Diagnostics page
 (`InstanceReasoningPanel`): interface + source, the native ladder (with a
 `tolerant template` marker for non-strict ones) or a warning callout when the
@@ -145,8 +160,7 @@ requested→sent table computed client-side with
 `projectApiProxyReasoningLevel` (only remapped levels, annotated
 alias/nearest), level→budget badges for the budget interface, the live
 `/props.chat_template_caps.supports_reasoning_effort` confirmation when the
-instance is running, and the bound proxy models whose `reasoning` override
-supersedes the shown profile (via `computeInstanceProxyBindings`).
+instance is running.
 
 ## Reasoning pipeline node
 
@@ -169,12 +183,11 @@ wire-format changes: an unrecognized effort field shows up as an
 
 ## Known limits
 
-- A model-level override does not travel with remote delegation — the peer
-  resolves its own profile (autodetect covers the normal case).
 - Router instances (`--models-preset`, no `--model`) have no single GGUF to
-  detect from → engine-default budget profile; use a model override for
-  per-model ladders behind a router.
+  detect from → engine-default budget profile. An `Instance.reasoning`
+  override applies to *every* model behind the router; per-model ladders
+  behind one router are not expressible.
 - Python engines get no autodetection (no GGUF template) — passthrough unless
-  overridden.
+  the instance carries an override.
 - `output_config.format` (structured outputs) is out of scope — the bridge
   drops it with a warning.

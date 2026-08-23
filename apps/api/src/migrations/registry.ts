@@ -29,6 +29,10 @@ import {
   migrateStoredEndpointsAuth,
   storedEndpointsHaveLegacyAuth,
 } from "../proxy/endpoints-auth-migration.js";
+import {
+  migrateModelReasoningToUpstreams,
+  modelsFileHasReasoningOverrides,
+} from "../proxy/model-reasoning-migration.js";
 import { migrateApiProxyRuntimeMetadataToFile } from "../proxy/runtime-metadata-migration.js";
 import {
   dropPresetsSettingsSection,
@@ -138,6 +142,15 @@ export const migrations: Migration[] = [
     isApplied: () => !storedEndpointsHaveLegacyAuth(),
     apply: () => {
       migrateStoredEndpointsAuth();
+    },
+  },
+  {
+    id: "0012-model-reasoning-to-upstreams",
+    describe:
+      "config/proxy/models.json reasoning → instance/endpoint reasoning override",
+    isApplied: () => !modelsFileHasReasoningOverrides(),
+    apply: () => {
+      migrateModelReasoningToUpstreams();
     },
   },
 ];

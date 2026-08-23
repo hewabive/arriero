@@ -174,8 +174,8 @@ export async function executeApiProxyModelSubRequest(input: {
       path: upstreamPath,
       body: input.body,
       headers: new Headers(),
-      model: input.model,
       instanceId: upstream.context.instanceId,
+      endpointId: upstream.context.endpointId,
     });
     const codec = translateAnthropic
       ? translatedAnthropicResumableCodec(forward.body)

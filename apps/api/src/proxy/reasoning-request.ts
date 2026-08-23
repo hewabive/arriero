@@ -8,7 +8,6 @@ import {
   normalizeApiProxyReasoningLevel,
   resolveApiProxyReasoningProfile,
   stripApiProxyReasoningFields,
-  type ApiProxyModelRecord,
   type ApiProxyReasoningLevel,
   type ApiProxyReasoningProfile,
   type ApiProxyRouteTraceStep,
@@ -21,6 +20,7 @@ import {
 import { getInstanceRecord } from "../instances/config-files.js";
 import { resolveModelPath } from "../memory-estimate/service.js";
 import { getCachedModelEntry } from "../models/cache-repository.js";
+import { getExternalApiEndpoint } from "./endpoints.js";
 import type {
   ApiProxyProtocolId,
   ApiProxyProtocolOperation,
@@ -81,7 +81,14 @@ function computeInstanceReasoningProfile(
   instanceId: string,
 ): ApiProxyUpstreamReasoningProfile | null {
   const record = getInstanceRecord(instanceId);
-  if (!record || engineDescriptor(record.kind).nativeApi !== "llama") {
+  if (!record) {
+    return null;
+  }
+  const override = resolveApiProxyReasoningProfile(record.reasoning ?? null);
+  if (override) {
+    return { profile: override, source: "instance override" };
+  }
+  if (engineDescriptor(record.kind).nativeApi !== "llama") {
     return null;
   }
   const modelPath = resolveModelPath(record.args as MemoryEstimateArgs);
@@ -125,15 +132,22 @@ export function instanceReasoningTemplateIssue(
   return { strict: resolved.profile.strict };
 }
 
+function endpointReasoningProfile(
+  endpointId: string,
+): ApiProxyUpstreamReasoningProfile | null {
+  const endpoint = getExternalApiEndpoint(endpointId);
+  const profile = resolveApiProxyReasoningProfile(endpoint?.reasoning ?? null);
+  return profile ? { profile, source: "endpoint override" } : null;
+}
+
 export function resolveApiProxyUpstreamReasoningProfile(input: {
-  model: ApiProxyModelRecord;
   instanceId: string | null;
+  endpointId: string | null;
 }): ApiProxyUpstreamReasoningProfile | null {
-  const override = resolveApiProxyReasoningProfile(input.model.reasoning);
-  if (override) {
-    return { profile: override, source: "model override" };
+  if (input.instanceId) {
+    return instanceReasoningProfile(input.instanceId);
   }
-  return input.instanceId ? instanceReasoningProfile(input.instanceId) : null;
+  return input.endpointId ? endpointReasoningProfile(input.endpointId) : null;
 }
 
 export type ApiProxyMappedReasoningBody = {
@@ -156,8 +170,8 @@ export function prepareApiProxyUpstreamRequest(input: {
   path: string;
   body: unknown;
   headers: Headers;
-  model: ApiProxyModelRecord;
   instanceId: string | null;
+  endpointId: string | null;
   trace?: ProxyTraceAccumulator;
 }): ApiProxyUpstreamRequest {
   const exchange = prepareUpstreamExchange({
@@ -170,8 +184,8 @@ export function prepareApiProxyUpstreamRequest(input: {
   const reasoning = applyApiProxyReasoningMapping({
     body: exchange.body,
     protocol: exchange.protocol,
-    model: input.model,
     instanceId: input.instanceId,
+    endpointId: input.endpointId,
   });
   if (input.trace) {
     if (exchange.warnings.length > 0) {
@@ -194,8 +208,8 @@ export function prepareApiProxyUpstreamRequest(input: {
 export function applyApiProxyReasoningMapping(input: {
   body: unknown;
   protocol: "openai" | "anthropic";
-  model: ApiProxyModelRecord;
   instanceId: string | null;
+  endpointId: string | null;
 }): ApiProxyMappedReasoningBody {
   const resolved = resolveApiProxyUpstreamReasoningProfile(input);
   if (!resolved || resolved.profile.interface === "passthrough") {

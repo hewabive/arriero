@@ -9,8 +9,7 @@ import {
   projectApiProxyReasoningLevel,
   resolveApiProxyReasoningProfile,
   stripApiProxyReasoningFields,
-  type ApiProxyModelReasoning,
-  type ApiProxyModelRecord,
+  type ApiProxyReasoningOverride,
   type ApiProxyReasoningProfile,
   type GgufModel,
 } from "@arriero/core";
@@ -20,6 +19,7 @@ import { createInstance } from "../instances/repository.js";
 import { instanceTestFixture } from "../instances/test-fixtures.js";
 import { saveCachedModel } from "../models/cache-repository.js";
 import { emptyMetadata } from "../models/scanner.js";
+import { createApiEndpoint } from "./endpoints.js";
 import {
   applyApiProxyReasoningMapping,
   instanceReasoningTemplateIssue,
@@ -29,21 +29,6 @@ import {
 
 const { uniqueName, seedBinaryRef, binaryRefId } =
   instanceTestFixture("reasoning");
-
-function model(reasoning: ApiProxyModelReasoning | null): ApiProxyModelRecord {
-  return {
-    id: "model-a",
-    modelId: "public-model",
-    visible: true,
-    enabled: true,
-    ownedBy: "arriero",
-    targetId: null,
-    routeTo: null,
-    description: null,
-    blockedMessage: "",
-    reasoning,
-  };
-}
 
 const qwen38 = { kind: "preset", preset: "qwen3.8" } as const;
 
@@ -56,6 +41,7 @@ function qwen38Profile(): ApiProxyReasoningProfile {
 function seedLlamaInstance(input: {
   modelPath: string | null;
   cachedReasoning?: GgufModel["metadata"]["chatTemplateReasoning"];
+  reasoning?: ApiProxyReasoningOverride;
 }): string {
   const name = uniqueName("inst");
   const dir = join(config.modelsDir, "reasoning-test");
@@ -96,8 +82,24 @@ function seedLlamaInstance(input: {
     args,
     env: {},
     memory: [],
+    ...(input.reasoning ? { reasoning: input.reasoning } : {}),
   });
   return name;
+}
+
+function seedEndpoint(reasoning: ApiProxyReasoningOverride | null): string {
+  return createApiEndpoint({
+    name: uniqueName("endpoint"),
+    enabled: true,
+    baseUrl: "https://upstream.test/v1",
+    profile: "openai",
+    apiKeyEnvVar: null,
+    authHeaderName: null,
+    extraHeaders: {},
+    passthrough: false,
+    modelFilter: null,
+    reasoning,
+  }).id;
 }
 
 test("openai extraction reads reasoning_effort and off spellings", () => {
@@ -207,17 +209,28 @@ test("tolerant ladders keep sub-ladder levels and project the rest", () => {
   assert.equal(projectApiProxyReasoningLevel("max", profile), "max");
 });
 
-test("model override wins and clamps onto the Qwen3.8 ladder", () => {
+test("instance override wins over autodetect and clamps onto its ladder", () => {
+  const instanceId = seedLlamaInstance({
+    modelPath: "override-wins.gguf",
+    cachedReasoning: {
+      usesReasoningEffort: true,
+      usesEnableThinking: true,
+      levels: ["high", "max"],
+      aliases: null,
+      strict: false,
+    },
+    reasoning: qwen38,
+  });
   const minimal = applyApiProxyReasoningMapping({
     protocol: "openai",
     body: { model: "m", reasoning_effort: "minimal" },
-    model: model(qwen38),
-    instanceId: null,
+    instanceId,
+    endpointId: null,
   });
   assert.deepEqual(minimal.body, { model: "m", reasoning_effort: "low" });
   assert.equal(
     minimal.traceStep?.nodeName,
-    "reasoning profile (model override)",
+    "reasoning profile (instance override)",
   );
 
   const claudeCode = applyApiProxyReasoningMapping({
@@ -227,8 +240,8 @@ test("model override wins and clamps onto the Qwen3.8 ladder", () => {
       thinking: { type: "adaptive" },
       output_config: { effort: "high" },
     },
-    model: model(qwen38),
-    instanceId: null,
+    instanceId,
+    endpointId: null,
   });
   assert.deepEqual(claudeCode.body, {
     model: "m",
@@ -238,23 +251,27 @@ test("model override wins and clamps onto the Qwen3.8 ladder", () => {
 });
 
 test("mapping is identity without a profile or without a directive", () => {
-  const noProfile = { model: "m", reasoning_effort: "medium" };
+  const noUpstream = { model: "m", reasoning_effort: "medium" };
   assert.equal(
     applyApiProxyReasoningMapping({
       protocol: "openai",
-      body: noProfile,
-      model: model(null),
+      body: noUpstream,
       instanceId: null,
+      endpointId: null,
     }).body,
-    noProfile,
+    noUpstream,
   );
+  const instanceId = seedLlamaInstance({
+    modelPath: null,
+    reasoning: qwen38,
+  });
   const noDirective = { model: "m", messages: [] };
   assert.equal(
     applyApiProxyReasoningMapping({
       protocol: "openai",
       body: noDirective,
-      model: model(qwen38),
-      instanceId: null,
+      instanceId,
+      endpointId: null,
     }).body,
     noDirective,
   );
@@ -263,8 +280,8 @@ test("mapping is identity without a profile or without a directive", () => {
 test("a llama instance without template detection defaults to the budget interface", () => {
   const instanceId = seedLlamaInstance({ modelPath: null });
   const resolved = resolveApiProxyUpstreamReasoningProfile({
-    model: model(null),
     instanceId,
+    endpointId: null,
   });
   assert.equal(resolved?.profile.interface, "budget");
   assert.equal(resolved?.source, "engine default");
@@ -272,8 +289,8 @@ test("a llama instance without template detection defaults to the budget interfa
   const mapped = applyApiProxyReasoningMapping({
     protocol: "openai",
     body: { model: "m", reasoning_effort: "high" },
-    model: model(null),
     instanceId,
+    endpointId: null,
   });
   assert.deepEqual(mapped.body, {
     model: "m",
@@ -296,8 +313,8 @@ test("a llama instance with a detected effort template maps onto its ladder", ()
   const mapped = applyApiProxyReasoningMapping({
     protocol: "openai",
     body: { model: "m", reasoning_effort: "high" },
-    model: model(null),
     instanceId,
+    endpointId: null,
   });
   assert.deepEqual(mapped.body, { model: "m", reasoning_effort: "xhigh" });
   assert.equal(mapped.traceStep?.nodeName, "reasoning profile (template)");
@@ -322,15 +339,15 @@ test("a tolerant template instance passes sub-ladder levels unchanged", () => {
   const low = applyApiProxyReasoningMapping({
     protocol: "openai",
     body: { model: "m", reasoning_effort: "low" },
-    model: model(null),
     instanceId,
+    endpointId: null,
   });
   assert.deepEqual(low.body, { model: "m", reasoning_effort: "low" });
   const xhigh = applyApiProxyReasoningMapping({
     protocol: "openai",
     body: { model: "m", reasoning_effort: "xhigh" },
-    model: model(null),
     instanceId,
+    endpointId: null,
   });
   assert.deepEqual(xhigh.body, { model: "m", reasoning_effort: "max" });
   assert.equal(instanceReasoningTemplateIssue(instanceId), null);
@@ -369,44 +386,102 @@ test("an unrecognized effort template surfaces as a reasoning-template issue", (
   assert.equal(instanceReasoningTemplateIssue(budgetInstance), null);
 });
 
+test("an instance override clears the reasoning-template issue", () => {
+  const instanceId = seedLlamaInstance({
+    modelPath: "overridden-unknown.gguf",
+    cachedReasoning: {
+      usesReasoningEffort: true,
+      usesEnableThinking: false,
+      levels: null,
+      aliases: null,
+      strict: true,
+    },
+    reasoning: qwen38,
+  });
+  assert.equal(instanceReasoningTemplateIssue(instanceId), null);
+  const resolved = resolveApiProxyUpstreamReasoningProfile({
+    instanceId,
+    endpointId: null,
+  });
+  assert.equal(resolved?.source, "instance override");
+});
+
 test("non-reasoning override strips effort fields and passthrough is identity", () => {
+  const strippingInstance = seedLlamaInstance({
+    modelPath: null,
+    reasoning: { kind: "preset", preset: "non-reasoning" },
+  });
   const stripped = applyApiProxyReasoningMapping({
     protocol: "openai",
     body: { model: "m", reasoning_effort: "high" },
-    model: model({ kind: "preset", preset: "non-reasoning" }),
-    instanceId: null,
+    instanceId: strippingInstance,
+    endpointId: null,
   });
   assert.deepEqual(stripped.body, { model: "m" });
 
+  const passthroughInstance = seedLlamaInstance({
+    modelPath: null,
+    reasoning: { kind: "preset", preset: "native-passthrough" },
+  });
   const passthrough = { model: "m", reasoning_effort: "high" };
   assert.equal(
     applyApiProxyReasoningMapping({
       protocol: "openai",
       body: passthrough,
-      model: model({ kind: "preset", preset: "native-passthrough" }),
-      instanceId: null,
+      instanceId: passthroughInstance,
+      endpointId: null,
     }).body,
     passthrough,
   );
 });
 
 test("custom profiles honor their default level when the client sent nothing", () => {
-  const custom: ApiProxyModelReasoning = {
-    kind: "custom",
-    profile: {
-      interface: "template-effort",
-      strict: true,
-      levels: ["low", "high"],
-      aliases: {},
-      defaultLevel: "high",
-      levelBudgets: {},
+  const instanceId = seedLlamaInstance({
+    modelPath: null,
+    reasoning: {
+      kind: "custom",
+      profile: {
+        interface: "template-effort",
+        strict: true,
+        levels: ["low", "high"],
+        aliases: {},
+        defaultLevel: "high",
+        levelBudgets: {},
+      },
     },
-  };
+  });
   const defaulted = applyApiProxyReasoningMapping({
     protocol: "openai",
     body: { model: "m" },
-    model: model(custom),
-    instanceId: null,
+    instanceId,
+    endpointId: null,
   });
   assert.deepEqual(defaulted.body, { model: "m", reasoning_effort: "high" });
+});
+
+test("an endpoint override maps requests routed to an external provider", () => {
+  const endpointId = seedEndpoint({ kind: "preset", preset: "non-reasoning" });
+  const resolved = resolveApiProxyUpstreamReasoningProfile({
+    instanceId: null,
+    endpointId,
+  });
+  assert.equal(resolved?.source, "endpoint override");
+  assert.equal(resolved?.profile.interface, "none");
+
+  const mapped = applyApiProxyReasoningMapping({
+    protocol: "openai",
+    body: { model: "m", reasoning_effort: "high" },
+    instanceId: null,
+    endpointId,
+  });
+  assert.deepEqual(mapped.body, { model: "m" });
+
+  const plainEndpoint = seedEndpoint(null);
+  assert.equal(
+    resolveApiProxyUpstreamReasoningProfile({
+      instanceId: null,
+      endpointId: plainEndpoint,
+    }),
+    null,
+  );
 });

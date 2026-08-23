@@ -100,12 +100,12 @@ export async function explainApiProxyRoute(
     };
   }
 
-  const mapped = (instanceId: string | null) => {
+  const mapped = (instanceId: string | null, endpointId: string | null) => {
     const reasoning = applyApiProxyReasoningMapping({
       body: route.request.body,
       protocol: input.protocol,
-      model,
       instanceId,
+      endpointId,
     });
     return {
       routeTrace: reasoning.traceStep
@@ -136,7 +136,7 @@ export async function explainApiProxyRoute(
       targetId: null,
       targetName: `${endpoint?.name ?? route.endpointId} · ${upstream}`,
       textReplacementCount: route.textReplacementCount,
-      ...mapped(null),
+      ...mapped(null, route.endpointId),
     };
   }
 
@@ -161,6 +161,6 @@ export async function explainApiProxyRoute(
     targetId: route.targetId,
     targetName: target?.name ?? null,
     textReplacementCount: route.textReplacementCount,
-    ...mapped(endpoint?.instanceId ?? null),
+    ...mapped(endpoint?.instanceId ?? null, target?.endpointId ?? null),
   };
 }

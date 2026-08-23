@@ -27,6 +27,7 @@ import { InstanceFormRenameSection } from "./InstanceFormRenameSection";
 import { InstanceFormRpcWorkersSection } from "./InstanceFormRpcWorkersSection";
 import { InstanceFormSpecSection } from "./InstanceFormSpecSection";
 import { InstanceFormWorkerEndpointSection } from "./InstanceFormWorkerEndpointSection";
+import { ReasoningOverrideSelect } from "./ReasoningOverrideSelect";
 import { TouchSelect } from "./TouchCombobox";
 import {
   useInstanceForm,
@@ -139,6 +140,14 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
           <InstanceFormCudaSection fm={fm} />
           <InstanceFormNumaSection fm={fm} />
           <InstanceFormMemorySection fm={fm} />
+          {!fm.isWorker && (
+            <ReasoningOverrideSelect
+              value={fm.reasoning}
+              onChange={fm.setReasoning}
+              autoLabel="Auto (detect from the model's chat template)"
+              description="How the proxy maps client-requested reasoning effort onto this instance; Auto derives the level ladder from the chat template, a preset overrides autodetection."
+            />
+          )}
           <InstanceFormEnvSection fm={fm} />
           <Group justify="space-between" mt="sm">
             <Box>

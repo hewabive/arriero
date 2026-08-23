@@ -33,7 +33,6 @@ const model: ApiProxyModelRecord = {
   routeTo: null,
   description: null,
   blockedMessage: "",
-  reasoning: null,
 };
 
 test("bodyRequestsStreaming reads OpenAI-style stream flag", () => {

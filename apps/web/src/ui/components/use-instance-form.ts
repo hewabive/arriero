@@ -11,6 +11,7 @@ import {
   sglangModelArg,
   stripGgufSuffix,
   pathCatalogBinaryEngineKind,
+  type ApiProxyReasoningOverride,
   type Instance,
   type InstanceCreate,
   type InstanceKind,
@@ -203,6 +204,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   );
   const [numaBindNode, setNumaBindNode] = useState<number | null>(null);
   const [numaInterleaveNodes, setNumaInterleaveNodes] = useState<number[]>([]);
+  const [reasoning, setReasoning] = useState<ApiProxyReasoningOverride | null>(
+    null,
+  );
   const [renameSkips, setRenameSkips] = useState<Record<string, boolean>>({});
   const derivedNamesRef = useRef<Set<string>>(new Set());
   const form = useForm({
@@ -775,6 +779,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setNumaMode(numa?.mode ?? "none");
       setNumaBindNode(numa?.mode === "bind" ? numa.node : null);
       setNumaInterleaveNodes(numa?.mode === "interleave" ? numa.nodes : []);
+      setReasoning(seedInstance.reasoning ?? null);
     } else {
       const safetensorsPath =
         props.initialModel?.format === "safetensors"
@@ -823,6 +828,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setNumaMode("none");
       setNumaBindNode(null);
       setNumaInterleaveNodes([]);
+      setReasoning(null);
     }
   }, [argumentDefaultsQuery.isLoading, props.opened, formKey]);
 
@@ -901,6 +907,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         memory,
         scheduling,
         ...(numa ? { numa } : {}),
+        ...(reasoning ? { reasoning } : {}),
       };
     }
 
@@ -929,6 +936,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         memory,
         scheduling,
         ...(numa ? { numa } : {}),
+        ...(reasoning ? { reasoning } : {}),
       };
     }
 
@@ -960,6 +968,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         },
         scheduling,
         ...(numa ? { numa } : {}),
+        ...(reasoning ? { reasoning } : {}),
       };
     }
 
@@ -999,6 +1008,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       memory,
       scheduling,
       ...(numa ? { numa } : {}),
+      ...(reasoning ? { reasoning } : {}),
     };
   }
 
@@ -1990,6 +2000,8 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     setNumaBindNode,
     numaInterleaveNodes,
     setNumaInterleaveNodes,
+    reasoning,
+    setReasoning,
     memoryRows,
     memoryPoolOptions,
     memoryLedger,

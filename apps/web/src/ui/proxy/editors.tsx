@@ -1,8 +1,4 @@
-import {
-  apiProxyReasoningPresets,
-  stripGgufSuffix,
-  type ApiProxyTargetModelGroup,
-} from "@arriero/core";
+import { stripGgufSuffix, type ApiProxyTargetModelGroup } from "@arriero/core";
 import {
   Button,
   Group,
@@ -55,29 +51,7 @@ type ModelEditorModalProps = {
   onDraftChange: (draft: ModelDraft) => void;
 };
 
-const reasoningPassthroughValue = "__passthrough";
-const reasoningCustomValue = "__custom";
-
 export function ModelEditorModal(props: ModelEditorModalProps) {
-  const reasoningValue =
-    props.draft.reasoning === null
-      ? reasoningPassthroughValue
-      : props.draft.reasoning.kind === "preset"
-        ? `preset:${props.draft.reasoning.preset}`
-        : reasoningCustomValue;
-  const reasoningOptions = [
-    {
-      value: reasoningPassthroughValue,
-      label: "Auto (detect from the upstream instance)",
-    },
-    ...apiProxyReasoningPresets.map((entry) => ({
-      value: `preset:${entry.id}`,
-      label: entry.label,
-    })),
-    ...(props.draft.reasoning?.kind === "custom"
-      ? [{ value: reasoningCustomValue, label: "Custom profile (via API)" }]
-      : []),
-  ];
   return (
     <Modal
       opened={Boolean(props.editor)}
@@ -126,24 +100,6 @@ export function ModelEditorModal(props: ModelEditorModalProps) {
           onChange={(event) => {
             const description = event.currentTarget.value;
             props.onDraftChange({ ...props.draft, description });
-          }}
-        />
-        <TouchSelect
-          label="Reasoning effort mapping"
-          description="Maps the client-requested effort (reasoning_effort, output_config.effort, thinking) onto the upstream's native reasoning interface; Auto derives it from the resolved instance's chat template. A preset overrides autodetection."
-          data={reasoningOptions}
-          value={reasoningValue}
-          onChange={(value) => {
-            if (value === reasoningCustomValue) {
-              return;
-            }
-            props.onDraftChange({
-              ...props.draft,
-              reasoning:
-                value && value.startsWith("preset:")
-                  ? { kind: "preset", preset: value.slice("preset:".length) }
-                  : null,
-            });
           }}
         />
         <Switch

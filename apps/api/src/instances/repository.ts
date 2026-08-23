@@ -97,6 +97,7 @@ function toInstance(record: InstanceConfigRecord): Instance {
     memory: record.memory,
     rpcWorkers: record.rpcWorkers,
     ...(record.numa !== undefined ? { numa: record.numa } : {}),
+    ...(record.reasoning !== undefined ? { reasoning: record.reasoning } : {}),
     ...(record.engineConfig !== undefined
       ? { engineConfig: record.engineConfig }
       : {}),
@@ -138,6 +139,7 @@ export function createInstance(input: InstanceCreate): Instance {
     memory: input.memory,
     rpcWorkers: input.rpcWorkers,
     ...(input.numa !== undefined ? { numa: input.numa } : {}),
+    ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
     ...(input.engineConfig !== undefined
       ? { engineConfig: input.engineConfig }
       : {}),
@@ -188,6 +190,7 @@ export function updateInstance(
     memory: input.memory ?? current.memory,
     rpcWorkers: input.rpcWorkers ?? current.rpcWorkers,
     ...(input.numa !== undefined ? { numa: input.numa } : {}),
+    ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
     ...((input.engineConfig ?? current.engineConfig)
       ? { engineConfig: input.engineConfig ?? current.engineConfig }
       : {}),

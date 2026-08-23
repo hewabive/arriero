@@ -59,7 +59,6 @@ test("rename rewrites proxy target endpointId and model endpoint routes", () => 
     },
     description: null,
     blockedMessage: "",
-    reasoning: null,
   });
   const unrelatedTarget = createApiProxyTarget({
     name: "unrelated",

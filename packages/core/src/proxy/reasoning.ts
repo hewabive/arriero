@@ -72,7 +72,7 @@ export type ApiProxyUpstreamReasoningProfile = z.infer<
   typeof ApiProxyUpstreamReasoningProfileSchema
 >;
 
-export const ApiProxyModelReasoningSchema = z.union([
+export const ApiProxyReasoningOverrideSchema = z.union([
   z.object({ kind: z.literal("preset"), preset: z.string().min(1).max(80) }),
   z.object({
     kind: z.literal("custom"),
@@ -80,8 +80,8 @@ export const ApiProxyModelReasoningSchema = z.union([
   }),
 ]);
 
-export type ApiProxyModelReasoning = z.infer<
-  typeof ApiProxyModelReasoningSchema
+export type ApiProxyReasoningOverride = z.infer<
+  typeof ApiProxyReasoningOverrideSchema
 >;
 
 export type ApiProxyReasoningPreset = {
@@ -126,7 +126,7 @@ export const apiProxyPassthroughReasoningProfile: ApiProxyReasoningProfile =
   ApiProxyReasoningProfileSchema.parse({ interface: "passthrough" });
 
 export function resolveApiProxyReasoningProfile(
-  reasoning: ApiProxyModelReasoning | null | undefined,
+  reasoning: ApiProxyReasoningOverride | null | undefined,
 ): ApiProxyReasoningProfile | null {
   if (!reasoning) {
     return null;

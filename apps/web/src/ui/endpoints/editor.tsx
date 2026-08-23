@@ -13,6 +13,7 @@ import {
 } from "@mantine/core";
 import { Plus, Save, Trash2 } from "lucide-react";
 
+import { ReasoningOverrideSelect } from "../components/ReasoningOverrideSelect";
 import { SecretInput } from "../components/SecretInput";
 import type { EndpointDraft, EndpointEditor } from "./forms";
 
@@ -94,6 +95,12 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
               profile: (profile ?? "openai") as EndpointDraft["profile"],
             })
           }
+        />
+        <ReasoningOverrideSelect
+          value={draft.reasoning}
+          onChange={(reasoning) => onDraftChange({ ...draft, reasoning })}
+          autoLabel="None (pass reasoning fields through unchanged)"
+          description="How the proxy maps client-requested reasoning effort for models served by this endpoint; None forwards the canonical fields as sent."
         />
 
         <Divider label="Authentication" labelPosition="left" />

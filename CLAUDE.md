@@ -216,12 +216,16 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
 - Client-requested reasoning effort (`reasoning_effort`, `output_config.effort`, `thinking` incl.
   `adaptive`) maps onto the resolved upstream's native reasoning interface **at the forward
   boundary** (`proxy/reasoning-request.ts`, applied in respond/resumable/fusion-branch/resume-claim
-  — so condition/fusion routing and peer delegation map per-instance): profile precedence = model
-  override `ApiProxyModelRecord.reasoning` (presets `qwen3.8`/`gpt-oss`/… + custom ladders) →
+  — so condition/fusion routing and peer delegation map per-instance): the profile is a property of
+  the **upstream**, never the public model id — precedence = `Instance.reasoning` override (presets
+  `qwen3.8`/`gpt-oss`/… + custom ladders; instance-form select, works for Python engines too,
+  travels with delegation) →
   chat-template autodetect for llama instances (`model_cache` derived `chatTemplateReasoning`,
   ladder from the `not in (...)` guard or DeepSeek-style `== '<level>'` chains, `strict` from
   raise_exception proximity; strict ladders clamp every level, tolerant ladders keep sub-ladder
-  levels unchanged) → llama engine-default budget → passthrough. An effort template whose ladder
+  levels unchanged) → llama engine-default budget → external `ApiEndpointRecord.reasoning` override
+  → passthrough. Legacy `ApiProxyModelRecord.reasoning` was removed (migration
+  `0012-model-reasoning-to-upstreams`). An effort template whose ladder
   stays unrecognized is loud: `InstanceHealthSummary.reasoningTemplateIssue` drives a
   `reasoning template` instance badge (red = strict, may 500; yellow = tolerant, silently ignored)
   and the dashboard attention card. The `reasoning` node is a canonical override

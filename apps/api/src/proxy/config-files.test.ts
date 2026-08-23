@@ -34,7 +34,6 @@ function seedModel(modelId: string, targetId: string | null) {
     routeTo: null,
     description: null,
     blockedMessage: "",
-    reasoning: null,
   });
 }
 
@@ -151,6 +150,7 @@ test("endpoint api key is stored in secrets, never in endpoints.json", () => {
     name: "external-secret",
     enabled: true,
     baseUrl: "https://api.example.com/v1",
+    reasoning: null,
     profile: "openai",
     apiKeyEnvVar: null,
     authHeaderName: null,

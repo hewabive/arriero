@@ -1,4 +1,8 @@
-import type { ApiEndpointCreate, ApiEndpointRecord } from "@arriero/core";
+import type {
+  ApiEndpointCreate,
+  ApiEndpointRecord,
+  ApiProxyReasoningOverride,
+} from "@arriero/core";
 
 export type EndpointEditor =
   | { mode: "create"; endpoint: null }
@@ -18,6 +22,7 @@ export type EndpointDraft = {
   passthrough: boolean;
   allowPatterns: string;
   denyPatterns: string;
+  reasoning: ApiProxyReasoningOverride | null;
 };
 
 export const emptyEndpointDraft: EndpointDraft = {
@@ -32,6 +37,7 @@ export const emptyEndpointDraft: EndpointDraft = {
   passthrough: false,
   allowPatterns: "",
   denyPatterns: "",
+  reasoning: null,
 };
 
 function parsePatterns(text: string): string[] {
@@ -65,6 +71,7 @@ export function endpointDraftFromRecord(
     passthrough: endpoint.passthrough,
     allowPatterns: formatPatterns(endpoint.modelFilter?.allow),
     denyPatterns: formatPatterns(endpoint.modelFilter?.deny),
+    reasoning: endpoint.reasoning,
   };
 }
 
@@ -100,6 +107,7 @@ export function endpointPayload(draft: EndpointDraft): ApiEndpointCreate {
     extraHeaders,
     passthrough: draft.passthrough,
     modelFilter,
+    reasoning: draft.reasoning,
     ...(apiKey && !envVar ? { apiKey } : {}),
   };
 }

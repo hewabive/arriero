@@ -78,6 +78,7 @@ function apiEndpoint(
     kind: input.kind ?? "managed-instance",
     baseUrl: input.baseUrl ?? "http://127.0.0.1:8080/v1",
     profile: "openai",
+    reasoning: null,
     apiKeyEnvVar: null,
     authHeaderName: null,
     extraHeaders: {},

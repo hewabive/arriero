@@ -1,23 +1,15 @@
 import {
   API_PROXY_REASONING_LEVELS,
   apiProxyReasoningLevelBudgets,
-  apiProxyReasoningPresets,
   projectApiProxyReasoningLevel,
-  type ApiProxyModelReasoning,
-  type ApiProxyModelRecord,
   type ApiProxyReasoningInterface,
   type ApiProxyReasoningLevel,
   type ApiProxyReasoningProfile,
 } from "@arriero/core";
 import { Alert, Badge, Group, Stack, Table, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 
-import {
-  getApiProxyConfig,
-  getInstanceReasoningProfile,
-} from "../../api/client";
-import { computeInstanceProxyBindings } from "../proxy/instance-refs";
+import { getInstanceReasoningProfile } from "../../api/client";
 
 const interfaceLabels: Record<ApiProxyReasoningInterface, string> = {
   "template-effort": "Template effort levels",
@@ -68,18 +60,6 @@ function remappedLevels(profile: ApiProxyReasoningProfile): RemapRow[] {
   });
 }
 
-function overrideLabel(reasoning: ApiProxyModelReasoning) {
-  if (reasoning.kind === "preset") {
-    return (
-      apiProxyReasoningPresets.find((entry) => entry.id === reasoning.preset)
-        ?.label ?? `preset ${reasoning.preset}`
-    );
-  }
-  const levels = reasoning.profile.levels;
-  const suffix = levels.length > 0 ? `: ${levels.join("/")}` : "";
-  return `custom profile (${reasoning.profile.interface}${suffix})`;
-}
-
 function formatBudget(tokens: number) {
   return tokens < 0 ? "unlimited" : String(tokens);
 }
@@ -93,8 +73,8 @@ function TemplateEffortBlock(props: { profile: ApiProxyReasoningProfile }) {
         variant="light"
       >
         {props.profile.strict
-          ? "The chat template takes reasoning_effort and rejects unknown values, but its level ladder could not be extracted — requested levels are sent unchanged and can fail with a template error. Set a reasoning override on the proxy model, or report the template convention so autodetection can learn it."
-          : "The chat template takes reasoning_effort, but its level ladder could not be extracted — requested levels are sent unchanged and may be silently ignored by the template. Set a reasoning override on the proxy model, or report the template convention so autodetection can learn it."}
+          ? "The chat template takes reasoning_effort and rejects unknown values, but its level ladder could not be extracted — requested levels are sent unchanged and can fail with a template error. Set a reasoning override on the instance, or report the template convention so autodetection can learn it."
+          : "The chat template takes reasoning_effort, but its level ladder could not be extracted — requested levels are sent unchanged and may be silently ignored by the template. Set a reasoning override on the instance, or report the template convention so autodetection can learn it."}
       </Alert>
     );
   }
@@ -229,8 +209,8 @@ function liveConfirmation(
     return (
       <Text c="yellow" size="xs">
         The running server reports reasoning-effort template support, but no
-        level ladder was detected — consider a preset override on the proxy
-        model.
+        level ladder was detected — consider a reasoning override on the
+        instance.
       </Text>
     );
   }
@@ -248,25 +228,6 @@ export function InstanceReasoningPanel(props: {
     enabled: props.active,
     staleTime: 10_000,
   });
-
-  const proxyConfigQuery = useQuery({
-    queryKey: ["api-proxy-config"],
-    queryFn: getApiProxyConfig,
-    enabled: props.active,
-  });
-
-  const proxyConfig = proxyConfigQuery.data?.data;
-  const overrides = useMemo(() => {
-    if (!proxyConfig) {
-      return [];
-    }
-    return computeInstanceProxyBindings(
-      props.instanceName,
-      proxyConfig,
-    ).boundModels.flatMap((model: ApiProxyModelRecord) =>
-      model.reasoning ? [{ model, reasoning: model.reasoning }] : [],
-    );
-  }, [proxyConfig, props.instanceName]);
 
   if (profileQuery.isError) {
     return (
@@ -312,22 +273,6 @@ export function InstanceReasoningPanel(props: {
             propsSupportsReasoningEffort(props.llamaPropsBody),
           )}
         </>
-      )}
-      {overrides.length > 0 && (
-        <Stack gap={4}>
-          <Text fw={600} size="sm">
-            Proxy-model overrides
-          </Text>
-          {overrides.map((entry) => (
-            <Text key={entry.model.id} size="sm">
-              {entry.model.modelId}: {overrideLabel(entry.reasoning)}
-            </Text>
-          ))}
-          <Text c="dimmed" size="xs">
-            Requests routed through these proxy models use the override instead
-            of the profile above.
-          </Text>
-        </Stack>
       )}
     </Stack>
   );

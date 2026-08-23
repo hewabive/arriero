@@ -14,7 +14,6 @@ import {
   ApiProxyPortRefSchema,
   PIPELINE_NODE_TYPES,
 } from "./pipeline-nodes.js";
-import { ApiProxyModelReasoningSchema } from "./reasoning.js";
 
 export const ApiProxyTargetKindSchema = z.enum([
   "managed-instance",
@@ -88,7 +87,6 @@ export const ApiProxyModelRecordSchema = z.object({
   routeTo: ApiProxyRouteToSchema.nullable().default(null),
   description: ApiProxyModelDescriptionSchema.default(null),
   blockedMessage: ApiProxyBlockedMessageSchema.default(""),
-  reasoning: ApiProxyModelReasoningSchema.nullable().default(null),
 });
 
 export const ApiProxyPublicModelLoadStateSchema = z.enum([
@@ -150,7 +148,6 @@ export const ApiProxyModelUpdateSchema = z.object({
   routeTo: ApiProxyRouteToSchema.nullable().optional(),
   description: ApiProxyModelDescriptionSchema.optional(),
   blockedMessage: ApiProxyBlockedMessageSchema.optional(),
-  reasoning: ApiProxyModelReasoningSchema.nullable().optional(),
 });
 
 export const ApiProxyPipelineUpdateSchema = z.object({

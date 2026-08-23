@@ -36,6 +36,7 @@ function makeEndpoint(
     enabled: true,
     baseUrl: "https://upstream.test/v1",
     profile: "openai",
+    reasoning: null,
     apiKeyEnvVar: null,
     authHeaderName: null,
     extraHeaders: {},

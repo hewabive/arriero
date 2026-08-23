@@ -21,6 +21,7 @@ import { shouldTranslateAnthropicMessages } from "./translation.js";
 export type ApiProxyUpstreamContext = {
   baseUrl: string;
   instanceId: string | null;
+  endpointId: string | null;
   engine: ProxyEngineGates;
   authHeaders: Record<string, string>;
   translateAnthropic: boolean;
@@ -92,6 +93,7 @@ export function resolveApiProxyUpstreamContext(input: {
     context: {
       baseUrl: targetResolution.baseUrl,
       instanceId: targetResolution.instanceId,
+      endpointId: targetResolution.endpointId,
       engine: proxyEngineGates(targetResolution.instance),
       authHeaders: auth.headers,
       translateAnthropic,

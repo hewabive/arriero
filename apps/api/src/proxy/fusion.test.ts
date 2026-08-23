@@ -93,6 +93,7 @@ function seedExternalTarget(name: string, baseUrl = "http://fake.local") {
     name: `${name}-endpoint`,
     baseUrl,
     profile: "openai",
+    reasoning: null,
     apiKeyEnvVar: null,
     authHeaderName: null,
     extraHeaders: {},
@@ -152,7 +153,6 @@ function fusionRequest(body: unknown): ApiProxyProtocolModelRequest {
     routeTo: null,
     description: null,
     blockedMessage: "",
-    reasoning: null,
   });
   return {
     operation: chatOperation,

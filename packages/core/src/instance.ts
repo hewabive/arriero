@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { INSTANCE_KINDS, type InstanceKind } from "./engine-descriptor.js";
 import { InstanceMemoryDrawSchema } from "./memory-assessment.js";
+import { ApiProxyReasoningOverrideSchema } from "./proxy/reasoning.js";
 
 export const InstanceArgValueSchema = z.union([
   z.string(),
@@ -135,6 +136,7 @@ const InstanceCreateBaseSchema = z.object({
   memory: z.array(InstanceMemoryDrawSchema).default([]),
   rpcWorkers: z.array(RpcWorkerRefSchema).default([]),
   numa: InstanceNumaSchema.optional(),
+  reasoning: ApiProxyReasoningOverrideSchema.optional(),
   engineConfig: InstanceEngineConfigSchema.optional(),
   scheduling: InstanceSchedulingPolicySchema.optional(),
 });
@@ -158,6 +160,7 @@ export const InstanceUpdateSchema = z
     memory: z.array(InstanceMemoryDrawSchema).optional(),
     rpcWorkers: z.array(RpcWorkerRefSchema).optional(),
     numa: InstanceNumaSchema.optional(),
+    reasoning: ApiProxyReasoningOverrideSchema.optional(),
     engineConfig: InstanceEngineConfigSchema.optional(),
     scheduling: InstanceSchedulingPolicySchema.optional(),
   })
@@ -218,6 +221,7 @@ export const InstanceConfigRecordSchema = z
     memory: z.array(InstanceMemoryDrawSchema).default([]),
     rpcWorkers: z.array(RpcWorkerRefSchema).default([]),
     numa: InstanceNumaSchema.optional(),
+    reasoning: ApiProxyReasoningOverrideSchema.optional(),
     engineConfig: InstanceEngineConfigSchema.optional(),
     scheduling: InstanceSchedulingPolicySchema.optional(),
   })

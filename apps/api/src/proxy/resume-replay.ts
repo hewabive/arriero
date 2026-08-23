@@ -100,8 +100,8 @@ export function claimApiProxyResumedSession(input: {
     path: upstreamPath,
     body: input.request.body,
     headers: input.headers,
-    model: input.request.model,
     instanceId: resolved.context.instanceId,
+    endpointId: resolved.context.endpointId,
   });
   const entry = store.claim(
     apiProxyStreamResumeKey({
