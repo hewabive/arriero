@@ -11,6 +11,7 @@ export const GgufChatTemplateReasoningSchema = z.object({
   usesEnableThinking: z.boolean(),
   levels: z.array(z.string()).nullable(),
   aliases: z.record(z.string(), z.string()).nullable(),
+  strict: z.boolean().default(false),
 });
 
 export type GgufChatTemplateReasoning = z.infer<

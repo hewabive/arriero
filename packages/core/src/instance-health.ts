@@ -121,6 +121,10 @@ export const NumaPlacementSchema = z.object({
   interleaveNodeCount: z.number().int().min(1),
 });
 
+export const ReasoningTemplateIssueSchema = z.object({
+  strict: z.boolean(),
+});
+
 export const InstanceHealthSummarySchema = z.object({
   instanceId: z.string(),
   status: InstanceHealthSummaryStatusSchema,
@@ -132,6 +136,7 @@ export const InstanceHealthSummarySchema = z.object({
   logSummary: InstanceLogSummarySchema,
   promptCache: PromptCacheStateSchema.nullable().default(null),
   configDrift: z.boolean().default(false),
+  reasoningTemplateIssue: ReasoningTemplateIssueSchema.nullable().default(null),
   memoryAssessment: MemoryAssessmentSummarySchema.optional(),
   swapBytes: z.number().int().min(0).nullable().default(null),
   numaPlacement: NumaPlacementSchema.nullable().default(null),
@@ -187,6 +192,9 @@ export type InstanceHealthSummaryStatus = z.infer<
 export type InstanceHealthActions = z.infer<typeof InstanceHealthActionsSchema>;
 export type InstanceHealthSummary = z.infer<typeof InstanceHealthSummarySchema>;
 export type NumaPlacement = z.infer<typeof NumaPlacementSchema>;
+export type ReasoningTemplateIssue = z.infer<
+  typeof ReasoningTemplateIssueSchema
+>;
 export type PromptCacheState = z.infer<typeof PromptCacheStateSchema>;
 export type InstanceBulkActionName = z.infer<
   typeof InstanceBulkActionNameSchema

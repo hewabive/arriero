@@ -15,6 +15,7 @@ import {
   type ApiProxyUpstreamReasoningProfile,
   type GgufChatTemplateReasoning,
   type MemoryEstimateArgs,
+  type ReasoningTemplateIssue,
 } from "@arriero/core";
 
 import { getInstanceRecord } from "../instances/config-files.js";
@@ -29,6 +30,7 @@ import { prepareUpstreamExchange } from "./translation.js";
 
 const llamaBudgetProfile: ApiProxyReasoningProfile = {
   interface: "budget",
+  strict: true,
   levels: [],
   aliases: {},
   defaultLevel: null,
@@ -60,6 +62,7 @@ export function reasoningProfileFromTemplate(
   }
   return {
     interface: "template-effort",
+    strict: detection.strict,
     levels: levels.length >= 2 ? levels : [],
     aliases,
     defaultLevel: null,
@@ -105,6 +108,21 @@ export function instanceReasoningProfile(
   const value = computeInstanceReasoningProfile(instanceId);
   instanceProfileCache.set(instanceId, { at: Date.now(), value });
   return value;
+}
+
+export function instanceReasoningTemplateIssue(
+  instanceId: string,
+): ReasoningTemplateIssue | null {
+  const resolved = instanceReasoningProfile(instanceId);
+  if (
+    !resolved ||
+    resolved.source !== "template" ||
+    resolved.profile.interface !== "template-effort" ||
+    resolved.profile.levels.length > 0
+  ) {
+    return null;
+  }
+  return { strict: resolved.profile.strict };
 }
 
 export function resolveApiProxyUpstreamReasoningProfile(input: {

@@ -219,8 +219,12 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
   — so condition/fusion routing and peer delegation map per-instance): profile precedence = model
   override `ApiProxyModelRecord.reasoning` (presets `qwen3.8`/`gpt-oss`/… + custom ladders) →
   chat-template autodetect for llama instances (`model_cache` derived `chatTemplateReasoning`,
-  ladder from the `not in (...)` convention; levels clamp instead of 500-ing in the template) →
-  llama engine-default budget → passthrough. The `reasoning` node is a canonical override
+  ladder from the `not in (...)` guard or DeepSeek-style `== '<level>'` chains, `strict` from
+  raise_exception proximity; strict ladders clamp every level, tolerant ladders keep sub-ladder
+  levels unchanged) → llama engine-default budget → passthrough. An effort template whose ladder
+  stays unrecognized is loud: `InstanceHealthSummary.reasoningTemplateIssue` drives a
+  `reasoning template` instance badge (red = strict, may 500; yellow = tolerant, silently ignored)
+  and the dashboard attention card. The `reasoning` node is a canonical override
   (`auto` keeps inbound). Traced as a `reasoning` route step; the instance-resolved profile, remap
   table and `/props` live confirmation surface in the Diagnostics "Reasoning effort" panel
   (`GET /api/instances/:id/reasoning-profile`); `docs/API_PROXY_REASONING.md`.

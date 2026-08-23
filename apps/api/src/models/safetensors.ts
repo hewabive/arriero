@@ -22,7 +22,7 @@ import { readExactSync } from "./read-exact.js";
 
 export const SAFETENSORS_RAW_VERSION = 3;
 
-export const SAFETENSORS_PARSER_VERSION = 3;
+export const SAFETENSORS_PARSER_VERSION = 4;
 
 const SAFETENSORS_INDEX_FILE = "model.safetensors.index.json";
 

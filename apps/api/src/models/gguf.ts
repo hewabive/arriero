@@ -450,7 +450,7 @@ function readQuantization(
 
 export const GGUF_RAW_VERSION = 1;
 
-export const GGUF_PARSER_VERSION = 12;
+export const GGUF_PARSER_VERSION = 13;
 
 function skipFormatVersion(reader: FileReader) {
   reader.u32();

@@ -59,6 +59,31 @@ function InstanceNumaSkewBadge(props: {
   );
 }
 
+function InstanceReasoningTemplateBadge(props: {
+  health: InstanceHealthSummary | undefined;
+}) {
+  const issue = props.health?.reasoningTemplateIssue;
+  if (!issue) {
+    return null;
+  }
+  return (
+    <Tooltip
+      label={
+        issue.strict
+          ? "The chat template takes reasoning_effort and rejects unknown values, but its level ladder was not recognized — reasoning requests can fail with a template error. Set a reasoning override, or see Diagnostics → Reasoning effort."
+          : "The chat template takes reasoning_effort, but its level ladder was not recognized — requested levels may be silently ignored. Set a reasoning override, or see Diagnostics → Reasoning effort."
+      }
+      withArrow
+      multiline
+      w={340}
+    >
+      <Badge color={issue.strict ? "red" : "yellow"} variant="light">
+        reasoning template
+      </Badge>
+    </Tooltip>
+  );
+}
+
 function InstanceMemoryAssessmentBadge(props: {
   health: InstanceHealthSummary | undefined;
 }) {
@@ -113,6 +138,7 @@ export function InstanceHealthBadge(props: {
       </Tooltip>
       <InstanceConfigDriftBadge health={health} />
       <InstanceNumaSkewBadge health={health} />
+      <InstanceReasoningTemplateBadge health={health} />
       <InstanceMemoryAssessmentBadge health={health} />
     </>
   );

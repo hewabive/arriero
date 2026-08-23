@@ -27,6 +27,7 @@ function hasProblem(health: InstanceHealthSummary | undefined) {
   return (
     PROBLEM_STATUSES.has(health.status) ||
     health.configDrift ||
+    health.reasoningTemplateIssue !== null ||
     health.memoryAssessment?.status === "mismatch"
   );
 }

@@ -42,6 +42,7 @@ export type ApiProxyReasoningInterface = z.infer<
 
 export const ApiProxyReasoningProfileSchema = z.object({
   interface: ApiProxyReasoningInterfaceSchema,
+  strict: z.boolean().default(true),
   levels: z
     .array(ApiProxyReasoningLevelSchema)
     .max(API_PROXY_REASONING_LEVELS.length)
@@ -205,6 +206,14 @@ export function projectApiProxyReasoningLevel(
     return aliased;
   }
   const target = apiProxyReasoningLevelRank(aliased);
+  if (
+    !profile.strict &&
+    profile.levels.every(
+      (candidate) => apiProxyReasoningLevelRank(candidate) > target,
+    )
+  ) {
+    return aliased;
+  }
   let best = profile.levels[0] as ApiProxyReasoningLevel;
   let bestDistance = Math.abs(apiProxyReasoningLevelRank(best) - target);
   for (const candidate of profile.levels) {

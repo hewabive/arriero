@@ -10,6 +10,7 @@ import {
 
 import { engineProbe } from "./engine-probe.js";
 import { evaluateInstanceMemoryAssessment } from "../memory-assessment/service.js";
+import { instanceReasoningTemplateIssue } from "../proxy/reasoning-request.js";
 import {
   hasLaunchSnapshotDrift,
   parseLaunchSnapshot,
@@ -401,6 +402,7 @@ export async function getInstanceHealthSummary(
     logSummary,
     promptCache: promptCacheTracker.get(instance.name),
     configDrift,
+    reasoningTemplateIssue: instanceReasoningTemplateIssue(instance.name),
     ...(memoryAssessment ? { memoryAssessment } : {}),
     swapBytes,
     numaPlacement,

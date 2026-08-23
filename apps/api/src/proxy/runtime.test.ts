@@ -191,6 +191,7 @@ function health(
     },
     promptCache: null,
     configDrift: false,
+    reasoningTemplateIssue: null,
     swapBytes: null,
     numaPlacement: null,
     checkedAt: "2026-05-30T10:00:00.000Z",

@@ -22,6 +22,7 @@ import { saveCachedModel } from "../models/cache-repository.js";
 import { emptyMetadata } from "../models/scanner.js";
 import {
   applyApiProxyReasoningMapping,
+  instanceReasoningTemplateIssue,
   reasoningProfileFromTemplate,
   resolveApiProxyUpstreamReasoningProfile,
 } from "./reasoning-request.js";
@@ -168,9 +169,11 @@ test("template detection maps to a normalized template-effort profile", () => {
     usesEnableThinking: true,
     levels: ["xhigh", "medium", "low", "banana"],
     aliases: { high: "xhigh", weird: "banana" },
+    strict: true,
   });
   assert.deepEqual(profile, {
     interface: "template-effort",
+    strict: true,
     levels: ["low", "medium", "xhigh"],
     aliases: { high: "xhigh" },
     defaultLevel: null,
@@ -182,9 +185,26 @@ test("template detection maps to a normalized template-effort profile", () => {
       usesEnableThinking: false,
       levels: ["fast"],
       aliases: null,
+      strict: false,
     }).levels,
     [],
   );
+});
+
+test("tolerant ladders keep sub-ladder levels and project the rest", () => {
+  const profile = reasoningProfileFromTemplate({
+    usesReasoningEffort: true,
+    usesEnableThinking: true,
+    levels: ["high", "max"],
+    aliases: null,
+    strict: false,
+  });
+  assert.equal(projectApiProxyReasoningLevel("minimal", profile), "minimal");
+  assert.equal(projectApiProxyReasoningLevel("low", profile), "low");
+  assert.equal(projectApiProxyReasoningLevel("medium", profile), "medium");
+  assert.equal(projectApiProxyReasoningLevel("high", profile), "high");
+  assert.equal(projectApiProxyReasoningLevel("xhigh", profile), "max");
+  assert.equal(projectApiProxyReasoningLevel("max", profile), "max");
 });
 
 test("model override wins and clamps onto the Qwen3.8 ladder", () => {
@@ -270,6 +290,7 @@ test("a llama instance with a detected effort template maps onto its ladder", ()
       usesEnableThinking: true,
       levels: ["xhigh", "medium", "low"],
       aliases: { high: "xhigh" },
+      strict: true,
     },
   });
   const mapped = applyApiProxyReasoningMapping({
@@ -284,6 +305,68 @@ test("a llama instance with a detected effort template maps onto its ladder", ()
     mapped.traceStep?.detail,
     'reasoning_effort=high → level high → reasoning_effort "xhigh"',
   );
+  assert.equal(instanceReasoningTemplateIssue(instanceId), null);
+});
+
+test("a tolerant template instance passes sub-ladder levels unchanged", () => {
+  const instanceId = seedLlamaInstance({
+    modelPath: "deepseek-v4.gguf",
+    cachedReasoning: {
+      usesReasoningEffort: true,
+      usesEnableThinking: true,
+      levels: ["high", "max"],
+      aliases: null,
+      strict: false,
+    },
+  });
+  const low = applyApiProxyReasoningMapping({
+    protocol: "openai",
+    body: { model: "m", reasoning_effort: "low" },
+    model: model(null),
+    instanceId,
+  });
+  assert.deepEqual(low.body, { model: "m", reasoning_effort: "low" });
+  const xhigh = applyApiProxyReasoningMapping({
+    protocol: "openai",
+    body: { model: "m", reasoning_effort: "xhigh" },
+    model: model(null),
+    instanceId,
+  });
+  assert.deepEqual(xhigh.body, { model: "m", reasoning_effort: "max" });
+  assert.equal(instanceReasoningTemplateIssue(instanceId), null);
+});
+
+test("an unrecognized effort template surfaces as a reasoning-template issue", () => {
+  const strictInstance = seedLlamaInstance({
+    modelPath: "strict-unknown.gguf",
+    cachedReasoning: {
+      usesReasoningEffort: true,
+      usesEnableThinking: false,
+      levels: null,
+      aliases: null,
+      strict: true,
+    },
+  });
+  assert.deepEqual(instanceReasoningTemplateIssue(strictInstance), {
+    strict: true,
+  });
+
+  const tolerantInstance = seedLlamaInstance({
+    modelPath: "tolerant-unknown.gguf",
+    cachedReasoning: {
+      usesReasoningEffort: true,
+      usesEnableThinking: true,
+      levels: null,
+      aliases: null,
+      strict: false,
+    },
+  });
+  assert.deepEqual(instanceReasoningTemplateIssue(tolerantInstance), {
+    strict: false,
+  });
+
+  const budgetInstance = seedLlamaInstance({ modelPath: null });
+  assert.equal(instanceReasoningTemplateIssue(budgetInstance), null);
 });
 
 test("non-reasoning override strips effort fields and passthrough is identity", () => {
@@ -312,6 +395,7 @@ test("custom profiles honor their default level when the client sent nothing", (
     kind: "custom",
     profile: {
       interface: "template-effort",
+      strict: true,
       levels: ["low", "high"],
       aliases: {},
       defaultLevel: "high",

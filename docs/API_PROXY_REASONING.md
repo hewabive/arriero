@@ -77,7 +77,8 @@ With a profile, the mapping extracts the directive, strips every native
 effort field and re-materializes: levels project onto the ladder (aliases
 first, then nearest by canonical rank, ties toward the higher level — Qwen3.8
 hard-fails via `raise_exception` on unknown values, which is exactly why the
-proxy clamps); budgets quantize via `apiProxyReasoningLevelFromBudget`;
+proxy clamps; a tolerant profile keeps sub-ladder levels unchanged, see
+Template autodetection); budgets quantize via `apiProxyReasoningLevelFromBudget`;
 levels convert to budgets via `apiProxyReasoningLevelBudgets`
 (256/512/2048/8192/24576/-1, overridable per profile). A request with **no
 reasoning fields stays byte-identical** unless the profile sets
@@ -90,15 +91,41 @@ inbound protocol shape, before translation — a deliberate approximation).
 
 `extractChatTemplateReasoning` (pure, over the `tokenizer.chat_template`
 string already stored in `model_cache` raw facts) detects `reasoning_effort`
-/ `enable_thinking` usage, extracts the ladder from the conventional
-`not in ('xhigh', 'medium', 'low')` + `raise_exception` guard and aliases
-from `== 'high' → set … = 'xhigh'` branches. The result is the derived
-metadata field `chatTemplateReasoning` (parser version 12); a parser bump
-re-derives from cached raw facts on read, so detection works without a
-re-scan. Extraction is conservative: an unconventional template yields
-`levels: null` → the profile keeps an empty ladder and passes canonical
-levels through unclamped (a template `raise_exception` then surfaces as an
-upstream error in the trace — the signal to set a manual profile).
+/ `enable_thinking` usage and extracts the ladder from two known template
+conventions:
+
+- **Guard** (Qwen3.8): `not in ('xhigh', 'medium', 'low')` membership test —
+  the authoritative source when present; aliases come from
+  `== 'high' → set … = 'xhigh'` branches.
+- **Equality chain** (DeepSeek V4): `reasoning_effort == '<level>'` /
+  `elif` comparisons — the fallback; alias sources are excluded, and a
+  single-value result is discarded rather than promoted to a ladder.
+
+The extractor also derives `strict`: whether a `raise_exception` call sits
+within 300 characters after a `reasoning_effort` mention — i.e. whether the
+template rejects unknown values (Qwen3.8) or silently ignores them
+(DeepSeek V4 treats anything that is not `high`/`max` as its baseline). The
+profile carries the flag: a **strict** ladder clamps every canonical level
+onto it (nearest, ties up), a **tolerant** ladder passes levels below its
+lowest rung through unchanged — that is the template's baseline semantics —
+and projects only levels at or above it (`xhigh` → `max` on DeepSeek V4).
+
+The result is the derived metadata field `chatTemplateReasoning` (parser
+version 13); a parser bump re-derives from cached raw facts on read, so
+detection works without a re-scan. Extraction is conservative: an
+unconventional template yields `levels: null` → the profile keeps an empty
+ladder and passes canonical levels through unclamped — and that state is
+**deliberately loud**: `InstanceHealthSummary.reasoningTemplateIssue`
+(`{strict}` | null, computed from the same cached `instanceReasoningProfile`)
+drives a `reasoning template` badge on the instance (red for strict
+templates — requests can fail with a template error; yellow for tolerant
+ones — levels may be silently ignored), lists the instance on the
+dashboard's "Instances needing attention" card, and renders as a warning
+callout in the diagnostics panel. The fix is either a reasoning override or
+teaching the extractor the new convention; only a recognized template clears
+the badge — a model-level override fixes traffic routed through that proxy
+model but stays per-model (the panel lists such overrides right below the
+callout), so the instance-level badge persists until detection works.
 llama-server's `/props.chat_template_caps.supports_reasoning_effort` is the
 live confirmation of the same paradigm, surfaced in the diagnostics panel
 below.
@@ -111,7 +138,9 @@ profile (`ApiProxyUpstreamReasoningProfile` in core: `profile` + `source`,
 forward boundary uses — model-override precedence is deliberately excluded
 (it is per proxy model, not per instance). The web renders it as the
 "Reasoning effort" accordion item on the Diagnostics page
-(`InstanceReasoningPanel`): interface + source, the native ladder, a
+(`InstanceReasoningPanel`): interface + source, the native ladder (with a
+`tolerant template` marker for non-strict ones) or a warning callout when the
+ladder is unrecognized, a
 requested→sent table computed client-side with
 `projectApiProxyReasoningLevel` (only remapped levels, annotated
 alias/nearest), level→budget badges for the budget interface, the live

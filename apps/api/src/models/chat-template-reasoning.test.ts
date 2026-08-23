@@ -15,6 +15,22 @@ const qwen38Snippet = `
 {%- endif %}
 `;
 
+const deepseekV4Snippet = `
+{%- if not reasoning_effort is defined -%}
+  {%- set reasoning_effort = none -%}
+{%- endif -%}
+{%- set reasoning_effort_high = 'Reasoning Effort: Absolute maximum.' -%}
+{%- set reasoning_effort_max = 'Reasoning Effort: Beyond maximum.' -%}
+{%- if thinking -%}
+  {%- if reasoning_effort == 'high' -%}
+    {{- reasoning_effort_high -}}
+  {%- elif reasoning_effort == 'max' -%}
+    {{- reasoning_effort_max -}}
+  {%- endif -%}
+{%- endif -%}
+{%- if enable_thinking is defined -%}{%- endif -%}
+`;
+
 test("extracts the Qwen3.8 effort ladder and alias from the template", () => {
   const detection = extractChatTemplateReasoning(qwen38Snippet);
   assert.ok(detection);
@@ -22,6 +38,39 @@ test("extracts the Qwen3.8 effort ladder and alias from the template", () => {
   assert.equal(detection.usesEnableThinking, true);
   assert.deepEqual(detection.levels, ["xhigh", "medium", "low"]);
   assert.deepEqual(detection.aliases, { high: "xhigh" });
+  assert.equal(detection.strict, true);
+});
+
+test("extracts a tolerant ladder from DeepSeek-style equality chains", () => {
+  const detection = extractChatTemplateReasoning(deepseekV4Snippet);
+  assert.ok(detection);
+  assert.equal(detection.usesReasoningEffort, true);
+  assert.equal(detection.usesEnableThinking, true);
+  assert.deepEqual(detection.levels, ["high", "max"]);
+  assert.equal(detection.aliases, null);
+  assert.equal(detection.strict, false);
+});
+
+test("equality-chain fallback skips alias sources and single-level ladders", () => {
+  const detection = extractChatTemplateReasoning(`
+{%- if reasoning_effort == 'high' %}{%- set reasoning_effort = 'xhigh' %}{%- endif %}
+{%- if reasoning_effort == 'xhigh' %}{{ 'think hard' }}{%- endif %}
+`);
+  assert.ok(detection);
+  assert.equal(detection.levels, null);
+  assert.deepEqual(detection.aliases, { high: "xhigh" });
+});
+
+test("a raise_exception far from the effort logic stays tolerant", () => {
+  const filler = "{{ '.' }}".repeat(80);
+  const detection = extractChatTemplateReasoning(`
+{%- if reasoning_effort == 'high' -%}{{ 'deep' }}{%- elif reasoning_effort == 'max' -%}{{ 'deeper' }}{%- endif -%}
+${filler}
+{%- if messages | length == 0 -%}{{- raise_exception('empty conversation') -}}{%- endif -%}
+`);
+  assert.ok(detection);
+  assert.deepEqual(detection.levels, ["high", "max"]);
+  assert.equal(detection.strict, false);
 });
 
 test("reports plain enable_thinking templates without inventing a ladder", () => {
@@ -42,6 +91,7 @@ test("keeps the ladder null when the convention is absent", () => {
   assert.ok(detection);
   assert.equal(detection.usesReasoningEffort, true);
   assert.equal(detection.levels, null);
+  assert.equal(detection.strict, false);
 });
 
 test("returns null without a chat template", () => {

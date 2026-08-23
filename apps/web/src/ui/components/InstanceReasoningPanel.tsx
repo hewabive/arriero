@@ -9,7 +9,7 @@ import {
   type ApiProxyReasoningLevel,
   type ApiProxyReasoningProfile,
 } from "@arriero/core";
-import { Badge, Group, Stack, Table, Text } from "@mantine/core";
+import { Alert, Badge, Group, Stack, Table, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -87,10 +87,15 @@ function formatBudget(tokens: number) {
 function TemplateEffortBlock(props: { profile: ApiProxyReasoningProfile }) {
   if (props.profile.levels.length === 0) {
     return (
-      <Text size="sm">
-        No level ladder is known for this template — requested levels are sent
-        as reasoning_effort unchanged.
-      </Text>
+      <Alert
+        color={props.profile.strict ? "red" : "yellow"}
+        title="Template convention not recognized"
+        variant="light"
+      >
+        {props.profile.strict
+          ? "The chat template takes reasoning_effort and rejects unknown values, but its level ladder could not be extracted — requested levels are sent unchanged and can fail with a template error. Set a reasoning override on the proxy model, or report the template convention so autodetection can learn it."
+          : "The chat template takes reasoning_effort, but its level ladder could not be extracted — requested levels are sent unchanged and may be silently ignored by the template. Set a reasoning override on the proxy model, or report the template convention so autodetection can learn it."}
+      </Alert>
     );
   }
   const rows = remappedLevels(props.profile);
@@ -103,6 +108,11 @@ function TemplateEffortBlock(props: { profile: ApiProxyReasoningProfile }) {
             {level}
           </Badge>
         ))}
+        {!props.profile.strict && (
+          <Badge color="gray" variant="light">
+            tolerant template
+          </Badge>
+        )}
       </Group>
       {rows.length > 0 && (
         <Table
@@ -136,6 +146,8 @@ function TemplateEffortBlock(props: { profile: ApiProxyReasoningProfile }) {
       <Text c="dimmed" size="xs">
         Budget-style requests pick the closest level first; &quot;off&quot; is
         sent as reasoning_effort &quot;none&quot;.
+        {!props.profile.strict &&
+          " Levels below the template's ladder pass through unchanged — the template treats them as its default behavior."}
       </Text>
     </Stack>
   );
