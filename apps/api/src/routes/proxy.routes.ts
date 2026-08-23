@@ -41,6 +41,7 @@ import {
 import { apiProxyStats } from "../proxy/stats.js";
 import {
   countApiProxyTraces,
+  getApiProxyTrace,
   getApiProxyTraceFacets,
   listApiProxyTraces,
 } from "../proxy/traces-repository.js";
@@ -119,6 +120,14 @@ export function registerProxyRoutes(app: Hono) {
 
   app.get("/api/proxy/traces/facets", (c) => {
     return c.json({ data: getApiProxyTraceFacets() });
+  });
+
+  app.get("/api/proxy/traces/:id", (c) => {
+    const trace = getApiProxyTrace(c.req.param("id"));
+    if (!trace) {
+      return c.json({ error: "trace not found" }, 404);
+    }
+    return c.json({ data: trace });
   });
 
   app.get("/api/proxy/cache", (c) => {

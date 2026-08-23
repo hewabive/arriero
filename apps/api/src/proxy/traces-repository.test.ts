@@ -15,6 +15,7 @@ import { saveApiProxyRequestFile } from "./request-files.js";
 import {
   clearApiProxyTraceHistory,
   countApiProxyTraces,
+  getApiProxyTrace,
   getApiProxyTraceFacets,
   insertApiProxyTrace,
   listApiProxyTraces,
@@ -66,6 +67,14 @@ function daysBefore(days: number): string {
 
 beforeEach(() => {
   clearApiProxyTraceHistory();
+});
+
+test("gets a single trace by id", () => {
+  insertApiProxyTrace(
+    trace({ id: "one", at: "2026-07-31T10:00:00.000Z", slotId: 3 }),
+  );
+  assert.equal(getApiProxyTrace("one")?.slotId, 3);
+  assert.equal(getApiProxyTrace("missing"), null);
 });
 
 test("lists newest-first with limit and before cursor", () => {

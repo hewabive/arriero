@@ -11,6 +11,10 @@ import { getNode } from "../nodes/repository.js";
 import { observeBodyCompletion } from "./body-completion.js";
 import { apiProxyDrainBody, isApiProxyDraining } from "./drain.js";
 import { delegateApiProxyServe } from "./delegate.js";
+import {
+  delegatedTraceHeader,
+  recordDelegatedTrace,
+} from "./delegated-trace.js";
 import { getApiEndpointById } from "./endpoints.js";
 import { externalEndpointTarget } from "./external-target.js";
 import { resolvePassthroughModel } from "./passthrough.js";
@@ -721,15 +725,39 @@ async function delegateRemoteTarget(input: {
       payload,
       signal: c.req.raw.signal,
     });
+    const remoteTraceId = upstream.headers.get(delegatedTraceHeader);
+    headers.delete(delegatedTraceHeader);
+    const recordWithDelegatedTrace = (response: Response | undefined) => {
+      if (!remoteTraceId) {
+        recorder.record(response);
+        return;
+      }
+      recorder.freezeDuration();
+      recordDelegatedTrace({
+        node,
+        traceId: remoteTraceId,
+        trace,
+        record: () => recorder.record(response),
+      });
+    };
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => "");
       if (text) {
         trace.errorMessage = upstreamErrorText(text);
       }
-      return new Response(text, { status: upstream.status, headers });
+      recorder.markDeferred();
+      const response = new Response(text, {
+        status: upstream.status,
+        headers,
+      });
+      recordWithDelegatedTrace(response);
+      return response;
     }
     if (!upstream.body) {
-      return new Response(null, { status: upstream.status, headers });
+      recorder.markDeferred();
+      const response = new Response(null, { status: upstream.status, headers });
+      recordWithDelegatedTrace(response);
+      return response;
     }
 
     if (!request.stream) {
@@ -752,7 +780,13 @@ async function delegateRemoteTarget(input: {
         contentType: headers.get("content-type") ?? "application/json",
         isSse: false,
       });
-      return new Response(delivered, { status: upstream.status, headers });
+      recorder.markDeferred();
+      const response = new Response(delivered, {
+        status: upstream.status,
+        headers,
+      });
+      recordWithDelegatedTrace(response);
+      return response;
     }
 
     if (!streamMeter) {
@@ -765,7 +799,7 @@ async function delegateRemoteTarget(input: {
             upstream.status,
             headers,
           ),
-          () => recorder.record(upstream),
+          () => recordWithDelegatedTrace(upstream),
         ),
         streamOwnerKey,
         {
@@ -799,7 +833,7 @@ async function delegateRemoteTarget(input: {
           prefillMs: usage.prefillMs,
           promptPerSecond: usage.promptPerSecond,
         };
-        recorder.record(metered);
+        recordWithDelegatedTrace(metered);
       },
     });
     recorder.markDeferred();

@@ -7,6 +7,7 @@ import type { Context } from "hono";
 
 import { getInstance } from "../instances/repository.js";
 import { anthropicProtocolAdapter } from "./anthropic.js";
+import { withDelegatedTraceHeader } from "./delegated-trace.js";
 import { instanceEndpointId } from "./endpoints.js";
 import { openAiProtocolAdapter } from "./openai.js";
 import { runWithProxyTrace, serveResolvedTarget } from "./protocol-endpoint.js";
@@ -90,7 +91,7 @@ export async function serveApiProxyPinnedInstance(
     stream: payload.stream,
   };
 
-  return runWithProxyTrace(operation, ({ trace, recorder, inflight }) => {
+  return runWithProxyTrace(operation, async ({ trace, recorder, inflight }) => {
     trace.modelId = modelId;
     trace.targetId = target.id;
     trace.targetName = target.name;
@@ -98,7 +99,7 @@ export async function serveApiProxyPinnedInstance(
     inflight.setModel(modelId);
     inflight.setTarget(target.id);
     inflight.setStream(payload.stream);
-    return serveResolvedTarget({
+    const response = await serveResolvedTarget({
       c,
       adapter,
       operation,
@@ -109,5 +110,6 @@ export async function serveApiProxyPinnedInstance(
       inflight,
       extraTarget: target,
     });
+    return withDelegatedTraceHeader(response, trace.id);
   });
 }

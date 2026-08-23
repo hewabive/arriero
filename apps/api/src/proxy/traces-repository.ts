@@ -159,6 +159,16 @@ function filterConditions(filter: ApiProxyTraceListFilter): SQL[] {
   return conditions;
 }
 
+export function getApiProxyTrace(id: string): ApiProxyRequestTrace | null {
+  const rows = db
+    .select({ traceJson: proxyRequestTraces.traceJson })
+    .from(proxyRequestTraces)
+    .where(eq(proxyRequestTraces.id, id))
+    .limit(1)
+    .all();
+  return parseTraceRows(rows)[0] ?? null;
+}
+
 export function listApiProxyTraces(
   filter: ApiProxyTraceListFilter = {},
 ): ApiProxyRequestTrace[] {
