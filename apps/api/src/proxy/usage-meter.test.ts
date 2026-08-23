@@ -291,7 +291,58 @@ test("createUsageMeterStream counts malformed payloads and passes them through",
   assert.deepEqual(meter.health(), {
     malformedChunks: 1,
     malformedSample: "{broken json",
+    terminal: "done",
+    truncationRetries: 0,
   });
+});
+
+test("createUsageMeterStream classifies the stream terminal", async () => {
+  const run = async (frames: string[]) => {
+    const meter = createUsageMeterStream({
+      codec: openAiResumableCodec,
+      stripUsageFrames: false,
+      onComplete: () => undefined,
+    });
+    const input = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(openAiFrames(frames));
+        controller.close();
+      },
+    });
+    await drain(input.pipeThrough(meter.transform));
+    return meter.health().terminal;
+  };
+
+  const content = `data: ${JSON.stringify({ choices: [{ delta: { content: "x" } }] })}`;
+  const finish = `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`;
+
+  assert.equal(await run([content, finish, "data: [DONE]"]), "done");
+  assert.equal(await run([content, finish]), "finish");
+  assert.equal(await run([content]), "eof");
+});
+
+test("createUsageMeterStream reports terminal via onStreamEnd at flush time", async () => {
+  let seen: string | null | undefined;
+  const meter = createUsageMeterStream({
+    codec: openAiResumableCodec,
+    stripUsageFrames: false,
+    onStreamEnd: (health) => {
+      seen = health.terminal;
+    },
+    onComplete: () => undefined,
+  });
+  const input = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        openAiFrames([
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "x" } }] })}`,
+        ]),
+      );
+      controller.close();
+    },
+  });
+  await drain(input.pipeThrough(meter.transform));
+  assert.equal(seen, "eof");
 });
 
 test("createUsageMeterStream fires onReasoning before onFirstToken", async () => {

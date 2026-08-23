@@ -2,7 +2,7 @@ import {
   ApiEndpointCreateSchema,
   ApiEndpointRecordSchema,
   ApiEndpointUpdateSchema,
-  type ApiEndpointCreate,
+  type ApiEndpointCreateInput,
   type ApiEndpointRecord,
   type ApiEndpointUpdate,
   engineDescriptor,
@@ -41,6 +41,7 @@ export const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
   passthrough: true,
   modelFilter: true,
   reasoning: true,
+  streamTerminal: true,
 });
 
 type StoredEndpoint = z.infer<typeof StoredEndpointSchema>;
@@ -111,6 +112,7 @@ function toExternalEndpoint(stored: StoredEndpoint): ApiEndpointRecord {
     passthrough: stored.passthrough,
     modelFilter: stored.modelFilter,
     reasoning: stored.reasoning,
+    streamTerminal: stored.streamTerminal,
     instanceId: null,
     editable: true,
     authConfigured:
@@ -299,7 +301,9 @@ export function getApiEndpointFromCatalog(
   );
 }
 
-export function createApiEndpoint(input: ApiEndpointCreate): ApiEndpointRecord {
+export function createApiEndpoint(
+  input: ApiEndpointCreateInput,
+): ApiEndpointRecord {
   const parsed = ApiEndpointCreateSchema.parse(input);
   const records = readStoredEndpoints();
   assertUniqueName(records, parsed.name, null);
@@ -316,6 +320,7 @@ export function createApiEndpoint(input: ApiEndpointCreate): ApiEndpointRecord {
     passthrough: parsed.passthrough,
     modelFilter: parsed.modelFilter,
     reasoning: parsed.reasoning,
+    streamTerminal: parsed.streamTerminal,
   });
   persistEndpoints([...records, stored]);
 
@@ -362,6 +367,10 @@ export function updateApiEndpoint(
         : current.modelFilter,
     reasoning:
       parsed.reasoning !== undefined ? parsed.reasoning : current.reasoning,
+    streamTerminal:
+      parsed.streamTerminal !== undefined
+        ? parsed.streamTerminal
+        : current.streamTerminal,
   });
   assertUniqueName(records, next.name, id);
   persistEndpoints(records.map((item) => (item.id === id ? next : item)));

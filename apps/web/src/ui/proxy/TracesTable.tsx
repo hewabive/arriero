@@ -27,6 +27,7 @@ import { memo, useState, type ReactNode } from "react";
 import { getApiProxyRequestFile } from "../../api/client";
 import { JsonTreeView } from "../components/JsonTreeView";
 import { formatBytes } from "../utils/models";
+import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
 import { DetailBadge } from "./sections/DetailBadge";
 
@@ -403,6 +404,42 @@ function CacheBadge(props: { trace: ApiProxyRequestTrace }) {
   );
 }
 
+function StreamHealthBadges(props: { trace: ApiProxyRequestTrace }) {
+  const health = props.trace.streamHealth;
+  if (!health) {
+    return null;
+  }
+  return (
+    <>
+      {health.truncated && (
+        <Tooltip label="upstream stream ended without [DONE] or a finish reason">
+          <Badge size="xs" variant="light" color="red">
+            truncated
+          </Badge>
+        </Tooltip>
+      )}
+      {!health.truncated && health.truncationRetries > 0 && (
+        <Tooltip
+          label={`stream was cut off and resumed to completion (${countLabel(health.truncationRetries, "retry", "retries")})`}
+        >
+          <Badge size="xs" variant="light" color="yellow">
+            re-stitched
+          </Badge>
+        </Tooltip>
+      )}
+      {health.malformedChunks > 0 && (
+        <Tooltip
+          label={`${countLabel(health.malformedChunks, "unparseable SSE data payload")} skipped`}
+        >
+          <Badge size="xs" variant="light" color="orange">
+            malformed
+          </Badge>
+        </Tooltip>
+      )}
+    </>
+  );
+}
+
 const TraceRow = memo(function TraceRow(props: {
   trace: ApiProxyRequestTrace;
   onOpenFile: (file: ApiProxyTraceFile) => void;
@@ -434,13 +471,16 @@ const TraceRow = memo(function TraceRow(props: {
         </Tooltip>
       </Table.Td>
       <Table.Td>
-        {trace.stream === null ? (
-          "—"
-        ) : (
-          <Badge color={trace.stream ? "teal" : "gray"} variant="light">
-            {trace.stream ? "stream" : "single"}
-          </Badge>
-        )}
+        <Group gap={4} wrap="wrap">
+          {trace.stream === null ? (
+            "—"
+          ) : (
+            <Badge color={trace.stream ? "teal" : "gray"} variant="light">
+              {trace.stream ? "stream" : "single"}
+            </Badge>
+          )}
+          <StreamHealthBadges trace={trace} />
+        </Group>
       </Table.Td>
       <Table.Td>
         <CacheBadge trace={trace} />

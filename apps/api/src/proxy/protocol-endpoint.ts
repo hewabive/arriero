@@ -824,6 +824,11 @@ async function delegateRemoteTarget(input: {
       codec: streamMeter.codec,
       stripUsageFrames: streamMeter.strip,
       stripProgressFrames,
+      onStreamEnd: (health) => {
+        if (health.terminal === "eof") {
+          responsePlan?.markTruncated();
+        }
+      },
       onFirstToken: markFirstToken,
       onReasoning: () => inflight.firstReasoning(),
       onReasoningDelta: (text) => inflight.appendReasoning(text),
@@ -1368,6 +1373,27 @@ export async function serveResolvedTarget(input: {
               },
             });
           }
+          if (outcome.type === "truncated") {
+            if (resolved.context.streamTerminal === "strict") {
+              applyProxyStreamHealth({
+                trace,
+                health: proxyStreamHealthFromState(state),
+              });
+              return traceDiagnosticResponse({
+                c,
+                adapter,
+                request: route.request,
+                trace,
+                diagnostic: {
+                  status: 502,
+                  code: "arriero_proxy_upstream_error",
+                  param: "model",
+                  message: `Proxy target ${decision.target.name} stream ended without a terminal chunk (${state.text.length} chars buffered).`,
+                },
+              });
+            }
+            responsePlan?.markTruncated();
+          }
           trace.usage = resumableTraceUsage(state);
           applyProxyStreamHealth({
             trace,
@@ -1525,6 +1551,11 @@ export async function serveResolvedTarget(input: {
         codec: streamMeter.codec,
         stripUsageFrames: streamMeter.strip,
         stripProgressFrames: injectPrefillProgress,
+        onStreamEnd: (health) => {
+          if (health.terminal === "eof") {
+            responsePlan?.markTruncated();
+          }
+        },
         onFirstToken: markFirstToken,
         onReasoning: markReasoning,
         onReasoningDelta: markReasoningDelta,
@@ -1690,6 +1721,14 @@ export async function serveResolvedTarget(input: {
       codec: effectiveCodec,
       yieldLease: () => heldLease.yield(),
       wantsStream: route.request.stream,
+      truncation: {
+        mode:
+          resolved.context.streamTerminal === "tolerant"
+            ? "accept"
+            : instanceId !== null
+              ? "resume"
+              : "error",
+      },
       ...(buildForceAnswerTail ? { buildForceAnswerTail } : {}),
       onError: (message) => {
         const diagnostic: ApiProxyProtocolDiagnostic = {
@@ -1713,6 +1752,9 @@ export async function serveResolvedTarget(input: {
       trace,
       health: proxyStreamHealthFromState(state),
     });
+    if (state.health.terminal === "eof") {
+      responsePlan?.markTruncated();
+    }
     let task: number | null = null;
     if (instanceId !== null && slotSeq !== null) {
       const resolved = apiProxySlotTracker.resolve(instanceId, slotSeq);

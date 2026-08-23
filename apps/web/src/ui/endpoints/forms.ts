@@ -1,6 +1,7 @@
 import type {
   ApiEndpointCreate,
   ApiEndpointRecord,
+  ApiEndpointStreamTerminal,
   ApiProxyReasoningOverride,
 } from "@arriero/core";
 
@@ -23,6 +24,7 @@ export type EndpointDraft = {
   allowPatterns: string;
   denyPatterns: string;
   reasoning: ApiProxyReasoningOverride | null;
+  streamTerminal: ApiEndpointStreamTerminal | null;
 };
 
 export const emptyEndpointDraft: EndpointDraft = {
@@ -38,6 +40,7 @@ export const emptyEndpointDraft: EndpointDraft = {
   allowPatterns: "",
   denyPatterns: "",
   reasoning: null,
+  streamTerminal: null,
 };
 
 function parsePatterns(text: string): string[] {
@@ -72,6 +75,7 @@ export function endpointDraftFromRecord(
     allowPatterns: formatPatterns(endpoint.modelFilter?.allow),
     denyPatterns: formatPatterns(endpoint.modelFilter?.deny),
     reasoning: endpoint.reasoning,
+    streamTerminal: endpoint.streamTerminal,
   };
 }
 
@@ -108,6 +112,7 @@ export function endpointPayload(draft: EndpointDraft): ApiEndpointCreate {
     passthrough: draft.passthrough,
     modelFilter,
     reasoning: draft.reasoning,
+    streamTerminal: draft.streamTerminal,
     ...(apiKey && !envVar ? { apiKey } : {}),
   };
 }

@@ -14,6 +14,7 @@ import type {
   ApiProxyProtocolOperation,
 } from "./protocol.js";
 import type { ResumableBufferState } from "./resumable-forward.js";
+import type { ProxyStreamTerminal } from "./stream-health.js";
 import { apiProxySlotTracker } from "./slot-tracker.js";
 
 export type ProxyTraceAccumulator = {
@@ -50,6 +51,9 @@ export type ProxyTraceAccumulator = {
   } | null;
   streamHealth: {
     malformedChunks: number;
+    terminal: ProxyStreamTerminal | null;
+    truncated: boolean;
+    truncationRetries: number;
   } | null;
   status: number;
   ok: boolean;

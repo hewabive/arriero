@@ -36,6 +36,7 @@ function seedTarget(name: string) {
     extraHeaders: {},
     passthrough: false,
     modelFilter: null,
+    streamTerminal: null,
     enabled: true,
     apiKey: "",
   });

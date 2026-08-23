@@ -400,6 +400,9 @@ export const ApiProxyRequestTraceSchema = z.object({
   streamHealth: z
     .object({
       malformedChunks: z.number().int().min(0).default(0),
+      terminal: z.enum(["done", "finish", "eof"]).nullable().default(null),
+      truncated: z.boolean().default(false),
+      truncationRetries: z.number().int().min(0).default(0),
     })
     .nullable()
     .default(null),

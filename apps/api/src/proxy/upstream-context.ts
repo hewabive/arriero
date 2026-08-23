@@ -1,5 +1,7 @@
 import {
   argString,
+  type ApiEndpointRecord,
+  type ApiEndpointStreamTerminal,
   type ApiProxyTargetRecord,
   type Instance,
 } from "@arriero/core";
@@ -26,7 +28,17 @@ export type ApiProxyUpstreamContext = {
   authHeaders: Record<string, string>;
   translateAnthropic: boolean;
   stripClientHeaders: string[];
+  streamTerminal: ApiEndpointStreamTerminal;
 };
+
+function apiEndpointStreamTerminal(
+  endpoint: ApiEndpointRecord | null,
+): ApiEndpointStreamTerminal {
+  if (endpoint?.streamTerminal) {
+    return endpoint.streamTerminal;
+  }
+  return endpoint?.kind === "external-api" ? "tolerant" : "strict";
+}
 
 const METRICS_LABEL_HEADER_ARG = "--tokenizer-metrics-custom-labels-header";
 
@@ -100,6 +112,7 @@ export function resolveApiProxyUpstreamContext(input: {
       stripClientHeaders: renamedMetricsLabelHeader
         ? [renamedMetricsLabelHeader]
         : [],
+      streamTerminal: apiEndpointStreamTerminal(endpoint),
     },
   };
 }

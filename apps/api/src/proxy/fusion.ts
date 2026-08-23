@@ -207,6 +207,13 @@ export async function executeApiProxyModelSubRequest(input: {
     if (outcome.type === "completed") {
       return { ok: true, state, codec, target, translateAnthropic };
     }
+    if (outcome.type === "truncated") {
+      return fail({
+        status: 502,
+        code: "arriero_proxy_upstream_error",
+        message: `fusion branch target ${target.name} stream ended without a terminal chunk`,
+      });
+    }
     if (outcome.type === "consumer-gone") {
       return fail({
         status: 503,

@@ -198,6 +198,13 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
   resumable. `proxy/resumable-forward.ts` survives mid-request preemption (slot save → swap → restore
   → assistant-prefill resume, `docs/API_PROXY_PREEMPTION.md`). Protocol adapters (`openai.ts`,
   `anthropic.ts`, `protocol.ts`) shape errors per public API.
+- **Stream health** (`docs/API_PROXY_STREAM_HEALTH.md`): a stream's valid terminal is `[DONE]`
+  **or** an explicit finish_reason; EOF with neither = truncated. Policy is per-endpoint
+  (`ApiEndpointRecord.streamTerminal`, null = strict for managed / tolerant for external): strict
+  managed resumes via the preemption tail (bounded retries) then 502, strict external 502s,
+  tolerant accepts but flags the trace; truncated responses are never cached. Malformed SSE
+  payloads are counted (`parseChunk` → `"malformed"` ≠ ignorable `null`), logged and recorded in
+  `trace.streamHealth` — never silently dropped.
 - Two resource axes, documented in `docs/RESOURCE_MANAGEMENT.md`: **memory residency** (scheduler
   fit/eviction over the file-backed pools in `config/resources.json`) and **compute contention** (a
   multi-holder per-domain priority gate/lease in `proxy/domain-coordinator.ts`, keyed on the memory

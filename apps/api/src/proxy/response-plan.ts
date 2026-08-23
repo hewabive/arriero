@@ -52,6 +52,7 @@ export type ApiProxyResponsePlanExecutor = {
     stream: ReadableStream<Uint8Array>,
     metadata: ApiProxyResponseMetadata,
   ) => ReadableStream<Uint8Array>;
+  markTruncated: () => void;
   flush: () => void;
 };
 
@@ -122,6 +123,7 @@ export function createApiProxyResponsePlanExecutor(input: {
   }));
   let metadata: ApiProxyResponseMetadata | null = null;
   let responseTruncated = false;
+  let streamTruncated = false;
 
   const flushState = (state: EffectState) => {
     if (state.flushed) {
@@ -200,6 +202,7 @@ export function createApiProxyResponsePlanExecutor(input: {
       isSuccessStatus(meta) &&
       !input.trace.errorMessage &&
       !responseTruncated &&
+      !streamTruncated &&
       (meta.isSse || !looksLikeErrorBody(parsed));
     if (!cacheable) {
       settleCacheWithoutBody(
@@ -400,6 +403,9 @@ export function createApiProxyResponsePlanExecutor(input: {
       }
       drainGroup();
       return current;
+    },
+    markTruncated() {
+      streamTruncated = true;
     },
     flush() {
       for (let index = states.length - 1; index >= 0; index -= 1) {

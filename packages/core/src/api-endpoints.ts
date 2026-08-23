@@ -83,6 +83,8 @@ export const ApiEndpointKindSchema = z.enum([
   "external-api",
 ]);
 
+export const ApiEndpointStreamTerminalSchema = z.enum(["strict", "tolerant"]);
+
 const INSTANCE_ENDPOINT_PREFIX = "instance:";
 
 export function instanceEndpointId(instanceId: string): string {
@@ -108,6 +110,7 @@ export const ApiEndpointConfigSchema = z.object({
   passthrough: z.boolean().default(false),
   modelFilter: ApiEndpointModelFilterSchema.default(null),
   reasoning: ApiProxyReasoningOverrideSchema.nullable().default(null),
+  streamTerminal: ApiEndpointStreamTerminalSchema.nullable().default(null),
   instanceId: z.string().min(1).nullable().default(null),
   nodeId: z.string().min(1).nullable().default(null),
   editable: z.boolean().default(true),
@@ -144,6 +147,7 @@ export const ApiEndpointUpdateSchema = z.object({
   passthrough: z.boolean().optional(),
   modelFilter: ApiEndpointModelFilterSchema.optional(),
   reasoning: ApiProxyReasoningOverrideSchema.nullable().optional(),
+  streamTerminal: ApiEndpointStreamTerminalSchema.nullable().optional(),
   apiKey: ApiEndpointSecretSchema,
 });
 
@@ -257,6 +261,9 @@ export const ApiProbeResultSchema = z.object({
 
 export type ApiLabProbeProfile = z.infer<typeof ApiLabProbeProfileSchema>;
 export type ApiEndpointKind = z.infer<typeof ApiEndpointKindSchema>;
+export type ApiEndpointStreamTerminal = z.infer<
+  typeof ApiEndpointStreamTerminalSchema
+>;
 export type ApiEndpointModelFilter = z.infer<
   typeof ApiEndpointModelFilterSchema
 >;
@@ -285,6 +292,7 @@ export function apiEndpointModelFilterAdmits(
 }
 export type ApiEndpointConfig = z.infer<typeof ApiEndpointConfigSchema>;
 export type ApiEndpointCreate = z.infer<typeof ApiEndpointCreateSchema>;
+export type ApiEndpointCreateInput = z.input<typeof ApiEndpointCreateSchema>;
 export type ApiEndpointUpdate = z.infer<typeof ApiEndpointUpdateSchema>;
 export type ApiEndpointRecord = z.infer<typeof ApiEndpointRecordSchema>;
 export type OpenAiApiProbeKind = z.infer<typeof OpenAiApiProbeKindSchema>;

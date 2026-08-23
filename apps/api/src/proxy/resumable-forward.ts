@@ -34,12 +34,20 @@ export type ResumableBufferState = {
 
 export type ResumableUpstreamOutcome =
   | { type: "completed" }
+  | { type: "truncated" }
   | { type: "preempted" }
   | { type: "interrupted" }
   | { type: "finished" }
   | { type: "cancelled" }
   | { type: "consumer-gone" }
   | { type: "error"; message: string };
+
+export type ResumableTruncationPolicy = {
+  mode: "resume" | "error" | "accept";
+  maxRetries?: number | undefined;
+};
+
+const DEFAULT_TRUNCATION_RETRIES = 2;
 
 export function createResumableBufferState(): ResumableBufferState {
   return {
@@ -63,6 +71,7 @@ type FrameMeta = {
   upstreamGenMs: number | null;
   firstTokenSeen: boolean;
   reasoningSeen: boolean;
+  finishSeen: boolean;
   onFirstToken?: ((promptTokens: number | null) => void) | undefined;
   onReasoning?: (() => void) | undefined;
   onReasoningDelta?: ((text: string) => void) | undefined;
@@ -108,6 +117,7 @@ function applyFrame(
     }
     if (chunk.finishReason) {
       state.finishReason = chunk.finishReason;
+      meta.finishSeen = true;
     }
     if (typeof chunk.genMs === "number") {
       meta.upstreamGenMs = chunk.genMs;
@@ -175,7 +185,7 @@ async function pumpSseFrames(
   codec: ApiProxyResumableCodec,
   state: ResumableBufferState,
   meta: FrameMeta,
-): Promise<void> {
+): Promise<"done" | "eof"> {
   const reader = body.getReader();
   const frames = createSseFrameBuffer();
   for (;;) {
@@ -185,14 +195,32 @@ async function pumpSseFrames(
     }
     for (const frame of frames.push(value)) {
       if (applyFrame(frame, codec, state, meta) === "done") {
-        return;
+        return "done";
       }
     }
   }
   const tail = frames.flush();
-  if (tail) {
-    applyFrame(tail, codec, state, meta);
+  if (tail && applyFrame(tail, codec, state, meta) === "done") {
+    return "done";
   }
+  return "eof";
+}
+
+function classifyStreamEnding(
+  ending: "done" | "eof",
+  meta: FrameMeta,
+  state: ResumableBufferState,
+): "completed" | "truncated" {
+  if (ending === "done") {
+    state.health.terminal = "done";
+    return "completed";
+  }
+  if (meta.finishSeen) {
+    state.health.terminal = "finish";
+    return "completed";
+  }
+  state.health.terminal = "eof";
+  return "truncated";
 }
 
 export async function runResumableUpstreamAttempt(input: {
@@ -246,6 +274,7 @@ export async function runResumableUpstreamAttempt(input: {
     upstreamGenMs: null,
     firstTokenSeen: false,
     reasoningSeen: false,
+    finishSeen: false,
     onFirstToken: input.onFirstToken,
     onReasoning: input.onReasoning,
     onReasoningDelta: input.onReasoningDelta,
@@ -323,8 +352,13 @@ export async function runResumableUpstreamAttempt(input: {
   }
 
   try {
-    await pumpSseFrames(upstream.body, input.codec, input.state, meta);
-    return settle({ type: "completed" });
+    const ending = await pumpSseFrames(
+      upstream.body,
+      input.codec,
+      input.state,
+      meta,
+    );
+    return settle({ type: classifyStreamEnding(ending, meta, input.state) });
   } catch (error) {
     return settle(classifyAbort(error));
   }
@@ -332,6 +366,7 @@ export async function runResumableUpstreamAttempt(input: {
 
 export type ConsumeResumableSseOutcome =
   | { type: "completed" }
+  | { type: "truncated" }
   | { type: "finished" }
   | { type: "cancelled" }
   | { type: "consumer-gone" }
@@ -358,6 +393,7 @@ export async function consumeResumableSse(input: {
     upstreamGenMs: null,
     firstTokenSeen: false,
     reasoningSeen: false,
+    finishSeen: false,
     onFirstToken: input.onFirstToken,
     onReasoning: input.onReasoning,
     onReasoningDelta: input.onReasoningDelta,
@@ -383,11 +419,16 @@ export async function consumeResumableSse(input: {
     return pending;
   }
   try {
-    await pumpSseFrames(input.body, input.codec, input.state, meta);
+    const ending = await pumpSseFrames(
+      input.body,
+      input.codec,
+      input.state,
+      meta,
+    );
     if (meta.upstreamGenMs !== null) {
       input.state.genMs += Math.max(0, meta.upstreamGenMs);
     }
-    return { type: "completed" };
+    return { type: classifyStreamEnding(ending, meta, input.state) };
   } catch (error) {
     return (
       classifyStop() ?? { type: "error", message: describeFetchError(error) }
@@ -428,9 +469,12 @@ export async function runResumableForward(input: {
   onError: (message: string) => ApiProxyResumableFinalResponse;
   buildForceAnswerTail?: ((reasoningText: string) => string | null) | undefined;
   maxAttempts?: number | undefined;
+  truncation?: ResumableTruncationPolicy | undefined;
 }): Promise<ApiProxyResumableFinalResponse> {
   const maxAttempts = input.maxAttempts ?? 8;
+  const truncation = input.truncation ?? { mode: "accept" };
   let preemptions = 0;
+  let truncationRetries = 0;
   let forceAnswerNext = false;
   let forceAnswerPrefix: string | null = null;
 
@@ -450,7 +494,8 @@ export async function runResumableForward(input: {
       tail = forceAnswerPrefix + input.state.text;
     } else {
       tail =
-        preemptions === 0 || input.state.text.length === 0
+        (preemptions === 0 && truncationRetries === 0) ||
+        input.state.text.length === 0
           ? null
           : input.state.text;
       if (tail === null) {
@@ -461,6 +506,23 @@ export async function runResumableForward(input: {
 
     if (outcome.type === "completed" || outcome.type === "finished") {
       return finalFromState(input.codec, input.state, input.wantsStream);
+    }
+    if (outcome.type === "truncated") {
+      if (truncation.mode === "accept") {
+        return finalFromState(input.codec, input.state, input.wantsStream);
+      }
+      if (
+        truncation.mode === "error" ||
+        truncationRetries >=
+          (truncation.maxRetries ?? DEFAULT_TRUNCATION_RETRIES)
+      ) {
+        return input.onError(
+          `upstream stream ended without a terminal chunk (${input.state.text.length} chars buffered, ${truncationRetries} resume retries)`,
+        );
+      }
+      truncationRetries += 1;
+      input.state.health.truncationRetries = truncationRetries;
+      continue;
     }
     if (outcome.type === "consumer-gone" || outcome.type === "cancelled") {
       return { status: CLIENT_ABORT_STATUS, headers: {}, body: "" };

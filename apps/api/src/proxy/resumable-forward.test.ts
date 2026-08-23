@@ -599,12 +599,224 @@ test("runResumableUpstreamAttempt forwards tool-call deltas via onToolCall", asy
     fetchImpl: makeFetch([
       toolFrame({ id: "call_1", name: "get_weather" }),
       toolFrame({ arguments: '{"city":"Moscow"}' }),
+      chunkFrame({ finish: "tool_calls" }),
+      "data: [DONE]\n\n",
     ]),
   });
   assert.equal(outcome.type, "completed");
   assert.equal(deltas.length, 2);
   assert.equal(deltas[0]?.name, "get_weather");
   assert.equal(deltas[1]?.arguments, '{"city":"Moscow"}');
+});
+
+test("runResumableUpstreamAttempt reports truncated on EOF without a terminal", async () => {
+  const state = createResumableBufferState();
+  const outcome = await runResumableUpstreamAttempt({
+    url: "http://upstream",
+    method: "POST",
+    headers: {},
+    body: {},
+    codec,
+    state,
+    preemptSignal: new AbortController().signal,
+    fetchImpl: makeFetch([chunkFrame({ content: "cut off mid-answ" })]),
+  });
+
+  assert.equal(outcome.type, "truncated");
+  assert.equal(state.text, "cut off mid-answ");
+  assert.equal(state.health.terminal, "eof");
+});
+
+test("runResumableUpstreamAttempt accepts a finish_reason terminal without [DONE]", async () => {
+  const state = createResumableBufferState();
+  const outcome = await runResumableUpstreamAttempt({
+    url: "http://upstream",
+    method: "POST",
+    headers: {},
+    body: {},
+    codec,
+    state,
+    preemptSignal: new AbortController().signal,
+    fetchImpl: makeFetch([
+      chunkFrame({ content: "Hi" }),
+      chunkFrame({ finish: "stop" }),
+      usageFrame({ prompt: 3, completion: 2 }),
+    ]),
+  });
+
+  assert.equal(outcome.type, "completed");
+  assert.equal(state.health.terminal, "finish");
+  assert.equal(state.completionTokens, 2);
+});
+
+test("runResumableUpstreamAttempt accepts [DONE] without any finish_reason", async () => {
+  const state = createResumableBufferState();
+  const outcome = await runResumableUpstreamAttempt({
+    url: "http://upstream",
+    method: "POST",
+    headers: {},
+    body: {},
+    codec,
+    state,
+    preemptSignal: new AbortController().signal,
+    fetchImpl: makeFetch([chunkFrame({ content: "Hi" }), "data: [DONE]\n\n"]),
+  });
+
+  assert.equal(outcome.type, "completed");
+  assert.equal(state.health.terminal, "done");
+});
+
+test("runResumableUpstreamAttempt reports a truncated Anthropic stream", async () => {
+  const state = createResumableBufferState();
+  const outcome = await runResumableUpstreamAttempt({
+    url: "http://upstream",
+    method: "POST",
+    headers: {},
+    body: {},
+    codec: anthropicResumableCodec,
+    state,
+    preemptSignal: new AbortController().signal,
+    fetchImpl: makeFetch([
+      anthropicEvent("message_start", {
+        type: "message_start",
+        message: { id: "msg_1", model: "m", usage: { input_tokens: 5 } },
+      }),
+      anthropicEvent("content_block_delta", {
+        type: "content_block_delta",
+        delta: { type: "text_delta", text: "partial" },
+      }),
+    ]),
+  });
+
+  assert.equal(outcome.type, "truncated");
+  assert.equal(state.text, "partial");
+  assert.equal(state.health.terminal, "eof");
+});
+
+test("runResumableForward resumes with the tail after a truncation and records the retry", async () => {
+  const state = createResumableBufferState();
+  const tails: Array<string | null> = [];
+  let attempts = 0;
+  let yields = 0;
+  const final = await runResumableForward({
+    makeReady: async () => ({ ok: true }),
+    attempt: async (tail) => {
+      tails.push(tail);
+      attempts += 1;
+      if (attempts === 1) {
+        state.text = "AB";
+        state.health.terminal = "eof";
+        return { type: "truncated" };
+      }
+      state.text = "ABCD";
+      state.finishReason = "stop";
+      state.health.terminal = "done";
+      return { type: "completed" };
+    },
+    state,
+    codec,
+    yieldLease: async () => {
+      yields += 1;
+    },
+    wantsStream: false,
+    truncation: { mode: "resume" },
+    onError: (message) => ({ status: 502, headers: {}, body: message }),
+  });
+
+  assert.deepEqual(tails, [null, "AB"]);
+  assert.equal(yields, 0);
+  assert.equal(state.health.truncationRetries, 1);
+  assert.equal(JSON.parse(final.body).choices[0].message.content, "ABCD");
+});
+
+test("runResumableForward accept mode finalizes a truncated buffer", async () => {
+  const state = createResumableBufferState();
+  let attempts = 0;
+  const final = await runResumableForward({
+    makeReady: async () => ({ ok: true }),
+    attempt: async () => {
+      attempts += 1;
+      state.text = "partial";
+      state.health.terminal = "eof";
+      return { type: "truncated" };
+    },
+    state,
+    codec,
+    yieldLease: async () => undefined,
+    wantsStream: false,
+    truncation: { mode: "accept" },
+    onError: (message) => ({ status: 502, headers: {}, body: message }),
+  });
+
+  assert.equal(attempts, 1);
+  assert.equal(final.status, 200);
+  assert.equal(JSON.parse(final.body).choices[0].message.content, "partial");
+  assert.equal(state.health.truncationRetries, 0);
+});
+
+test("runResumableForward error mode rejects a truncated stream without retrying", async () => {
+  const state = createResumableBufferState();
+  let attempts = 0;
+  const final = await runResumableForward({
+    makeReady: async () => ({ ok: true }),
+    attempt: async () => {
+      attempts += 1;
+      state.text = "partial";
+      return { type: "truncated" };
+    },
+    state,
+    codec,
+    yieldLease: async () => undefined,
+    wantsStream: false,
+    truncation: { mode: "error" },
+    onError: (message) => ({ status: 502, headers: {}, body: message }),
+  });
+
+  assert.equal(attempts, 1);
+  assert.equal(final.status, 502);
+  assert.match(final.body, /ended without a terminal chunk/);
+});
+
+test("runResumableForward caps truncation retries and then errors", async () => {
+  const state = createResumableBufferState();
+  let attempts = 0;
+  const final = await runResumableForward({
+    makeReady: async () => ({ ok: true }),
+    attempt: async () => {
+      attempts += 1;
+      state.text += "x";
+      return { type: "truncated" };
+    },
+    state,
+    codec,
+    yieldLease: async () => undefined,
+    wantsStream: false,
+    truncation: { mode: "resume" },
+    onError: (message) => ({ status: 502, headers: {}, body: message }),
+  });
+
+  assert.equal(attempts, 3);
+  assert.equal(final.status, 502);
+  assert.match(final.body, /2 resume retries/);
+});
+
+test("runResumableForward defaults to accepting truncated streams", async () => {
+  const state = createResumableBufferState();
+  const final = await runResumableForward({
+    makeReady: async () => ({ ok: true }),
+    attempt: async () => {
+      state.text = "legacy";
+      return { type: "truncated" };
+    },
+    state,
+    codec,
+    yieldLease: async () => undefined,
+    wantsStream: false,
+    onError: (message) => ({ status: 502, headers: {}, body: message }),
+  });
+
+  assert.equal(final.status, 200);
+  assert.equal(JSON.parse(final.body).choices[0].message.content, "legacy");
 });
 
 test("runResumableForward regenerates from scratch when preempted before any text", async () => {
@@ -868,6 +1080,34 @@ test("consumeResumableSse rebuilds a non-stream response via finalFromState", as
     completion_tokens: 2,
     total_tokens: 6,
   });
+});
+
+test("consumeResumableSse reports truncated on EOF without a terminal", async () => {
+  const state = createResumableBufferState();
+  const outcome = await consumeResumableSse({
+    body: streamOf([chunkFrame({ content: "partial" })]),
+    codec,
+    state,
+  });
+
+  assert.equal(outcome.type, "truncated");
+  assert.equal(state.text, "partial");
+  assert.equal(state.health.terminal, "eof");
+});
+
+test("consumeResumableSse accepts a finish_reason terminal without [DONE]", async () => {
+  const state = createResumableBufferState();
+  const outcome = await consumeResumableSse({
+    body: streamOf([
+      chunkFrame({ content: "Hi" }),
+      chunkFrame({ finish: "stop" }),
+    ]),
+    codec,
+    state,
+  });
+
+  assert.equal(outcome.type, "completed");
+  assert.equal(state.health.terminal, "finish");
 });
 
 test("consumeResumableSse returns consumer-gone when the client aborts", async () => {

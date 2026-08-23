@@ -219,6 +219,24 @@ export async function serveResumedStreamSession(input: {
         },
       });
     }
+    if (outcome.type === "truncated") {
+      applyProxyStreamHealth({
+        trace,
+        health: proxyStreamHealthFromState(state),
+      });
+      return traceDiagnosticResponse({
+        c,
+        adapter: input.adapter,
+        request,
+        trace,
+        diagnostic: {
+          status: 502,
+          code: "arriero_proxy_upstream_error",
+          param: "model",
+          message: `Resumed stream replay ended without a terminal chunk (${state.text.length} chars buffered).`,
+        },
+      });
+    }
     trace.usage = resumableTraceUsage(state);
     applyProxyStreamHealth({
       trace,
@@ -279,6 +297,11 @@ export async function serveResumedStreamSession(input: {
     codec,
     stripUsageFrames: !includeUsageRequested(request.body),
     stripProgressFrames: !returnProgressRequested(claim.exchangeBody),
+    onStreamEnd: (health) => {
+      if (health.terminal === "eof") {
+        input.responsePlan?.markTruncated();
+      }
+    },
     onFirstToken: (promptTokens) => inflight.firstToken(promptTokens),
     onReasoning: () => inflight.firstReasoning(),
     onReasoningDelta: (text) => inflight.appendReasoning(text),

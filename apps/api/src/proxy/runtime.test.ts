@@ -83,6 +83,7 @@ function apiEndpoint(
     authHeaderName: null,
     extraHeaders: {},
     passthrough: false,
+    streamTerminal: null,
     modelFilter: null,
     authConfigured: false,
     instanceId:

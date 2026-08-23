@@ -102,6 +102,24 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
           autoLabel="None (pass reasoning fields through unchanged)"
           description="How the proxy maps client-requested reasoning effort for models served by this endpoint; None forwards the canonical fields as sent."
         />
+        <Select
+          allowDeselect={false}
+          data={[
+            { value: "auto", label: "Tolerant (default for external APIs)" },
+            { value: "strict", label: "Strict" },
+            { value: "tolerant", label: "Tolerant" },
+          ]}
+          label="Stream terminal"
+          description="A stream must end with [DONE] or an explicit finish reason. Strict rejects buffered responses cut off before either; tolerant accepts them and only flags the trace."
+          value={draft.streamTerminal ?? "auto"}
+          onChange={(value) =>
+            onDraftChange({
+              ...draft,
+              streamTerminal:
+                value === "strict" || value === "tolerant" ? value : null,
+            })
+          }
+        />
 
         <Divider label="Authentication" labelPosition="left" />
         <Text c="dimmed" size="xs">

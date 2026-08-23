@@ -98,6 +98,7 @@ function seedEndpoint(reasoning: ApiProxyReasoningOverride | null): string {
     extraHeaders: {},
     passthrough: false,
     modelFilter: null,
+    streamTerminal: null,
     reasoning,
   }).id;
 }

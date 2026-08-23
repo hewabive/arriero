@@ -2,15 +2,24 @@ import { logger } from "../logger.js";
 import type { ProxyTraceAccumulator } from "./protocol-trace.js";
 import type { ResumableBufferState } from "./resumable-forward.js";
 
+export type ProxyStreamTerminal = "done" | "finish" | "eof";
+
 export type ProxyStreamHealth = {
   malformedChunks: number;
   malformedSample: string | null;
+  terminal: ProxyStreamTerminal | null;
+  truncationRetries: number;
 };
 
 const MALFORMED_SAMPLE_LIMIT = 200;
 
 export function emptyProxyStreamHealth(): ProxyStreamHealth {
-  return { malformedChunks: 0, malformedSample: null };
+  return {
+    malformedChunks: 0,
+    malformedSample: null,
+    terminal: null,
+    truncationRetries: 0,
+  };
 }
 
 export function noteMalformedPayload(
@@ -24,10 +33,17 @@ export function noteMalformedPayload(
 export function proxyStreamHealthFromState(
   state: ResumableBufferState,
 ): ProxyStreamHealth {
-  return {
-    malformedChunks: state.health.malformedChunks,
-    malformedSample: state.health.malformedSample,
-  };
+  return { ...state.health };
+}
+
+function mergedTerminal(
+  previous: ProxyStreamTerminal | null,
+  next: ProxyStreamTerminal | null,
+): ProxyStreamTerminal | null {
+  if (previous === "eof" || next === "eof") {
+    return "eof";
+  }
+  return next ?? previous;
 }
 
 export function applyProxyStreamHealth(input: {
@@ -35,20 +51,44 @@ export function applyProxyStreamHealth(input: {
   health: ProxyStreamHealth;
   targetName?: string | null | undefined;
 }): void {
-  if (input.health.malformedChunks === 0) {
+  const { health } = input;
+  if (
+    health.malformedChunks === 0 &&
+    health.terminal === null &&
+    health.truncationRetries === 0
+  ) {
     return;
   }
-  const previous = input.trace.streamHealth?.malformedChunks ?? 0;
+  const previous = input.trace.streamHealth;
+  const terminal = mergedTerminal(previous?.terminal ?? null, health.terminal);
+  const truncated = terminal === "eof";
   input.trace.streamHealth = {
-    malformedChunks: previous + input.health.malformedChunks,
+    malformedChunks: (previous?.malformedChunks ?? 0) + health.malformedChunks,
+    terminal,
+    truncated,
+    truncationRetries:
+      (previous?.truncationRetries ?? 0) + health.truncationRetries,
   };
-  logger.warn(
-    {
-      modelId: input.trace.modelId,
-      targetName: input.targetName ?? input.trace.targetName,
-      malformedChunks: input.health.malformedChunks,
-      sample: input.health.malformedSample,
-    },
-    "proxy stream contained malformed SSE data payloads",
-  );
+  const targetName = input.targetName ?? input.trace.targetName;
+  if (health.malformedChunks > 0) {
+    logger.warn(
+      {
+        modelId: input.trace.modelId,
+        targetName,
+        malformedChunks: health.malformedChunks,
+        sample: health.malformedSample,
+      },
+      "proxy stream contained malformed SSE data payloads",
+    );
+  }
+  if (truncated) {
+    logger.warn(
+      {
+        modelId: input.trace.modelId,
+        targetName,
+        truncationRetries: input.trace.streamHealth.truncationRetries,
+      },
+      "proxy stream ended without a terminal chunk",
+    );
+  }
 }

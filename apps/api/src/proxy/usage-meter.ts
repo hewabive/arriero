@@ -190,6 +190,7 @@ export function createUsageMeterStream(input: {
   stripUsageFrames: boolean;
   stripProgressFrames?: boolean;
   onComplete: (usage: ProxyUsageCounts) => void;
+  onStreamEnd?: (health: ProxyStreamHealth) => void;
   onFirstToken?: (promptTokens: number | null) => void;
   onReasoning?: () => void;
   onReasoningDelta?: (text: string) => void;
@@ -203,6 +204,7 @@ export function createUsageMeterStream(input: {
     stripUsageFrames,
     stripProgressFrames = false,
     onComplete,
+    onStreamEnd,
     onFirstToken,
     onReasoning,
     onReasoningDelta,
@@ -221,7 +223,15 @@ export function createUsageMeterStream(input: {
   let firstTokenSeen = false;
   let reasoningSeen = false;
   let done = false;
+  let sawDone = false;
+  let sawFinish = false;
+  let ended = false;
   const streamHealth = emptyProxyStreamHealth();
+
+  const health = (): ProxyStreamHealth => ({
+    ...streamHealth,
+    terminal: ended ? (sawDone ? "done" : sawFinish ? "finish" : "eof") : null,
+  });
 
   const observeFrame = (frame: string): boolean => {
     let keep = true;
@@ -231,8 +241,15 @@ export function createUsageMeterStream(input: {
         noteMalformedPayload(streamHealth, data);
         continue;
       }
-      if (chunk === "done" || chunk === null) {
+      if (chunk === "done") {
+        sawDone = true;
         continue;
+      }
+      if (chunk === null) {
+        continue;
+      }
+      if (chunk.finishReason !== null) {
+        sawFinish = true;
       }
       if (typeof chunk.genMs === "number") {
         upstreamGenMs = chunk.genMs;
@@ -339,9 +356,11 @@ export function createUsageMeterStream(input: {
           controller.enqueue(encoder.encode(tail));
         }
       }
+      ended = true;
+      onStreamEnd?.(health());
       finalize();
     },
   });
 
-  return { transform, finalize, health: () => ({ ...streamHealth }) };
+  return { transform, finalize, health };
 }
