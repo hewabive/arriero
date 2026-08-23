@@ -35,6 +35,8 @@ export function nvidiaDevicesToAccelerators(
     numaNode: device.pciBusId ? resolveNumaNode(device.pciBusId) : null,
     computeCapability: device.computeCapability,
     source: "nvml",
+    ...(device.ecc ? { ecc: device.ecc } : {}),
+    ...(device.recoveryAction ? { recoveryAction: device.recoveryAction } : {}),
   }));
 }
 

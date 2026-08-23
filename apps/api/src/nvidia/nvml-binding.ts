@@ -1,4 +1,5 @@
 import koffi, { type LibraryHandle } from "koffi";
+import { type SystemAcceleratorRecoveryAction } from "@arriero/core";
 
 export const NVML_ERROR_NOT_SUPPORTED = 3;
 export const NVML_ERROR_NO_PERMISSION = 4;
@@ -11,6 +12,20 @@ const STRING_BUFFER_SIZE = 96;
 const PROCESS_LIST_RETRIES = 3;
 const PROCESS_LIST_HEADROOM = 8;
 const NVML_VALUE_NOT_AVAILABLE = 0xffff_ffff_ffff_ffffn;
+const NVML_MEMORY_ERROR_TYPE_CORRECTED = 0;
+const NVML_MEMORY_ERROR_TYPE_UNCORRECTED = 1;
+const NVML_AGGREGATE_ECC = 1;
+const NVML_FI_DEV_GET_GPU_RECOVERY_ACTION = 230;
+const NVML_VALUE_TYPE_UNSIGNED_INT = 1;
+const NVML_VALUE_TYPE_UNSIGNED_LONG = 2;
+const NVML_VALUE_TYPE_UNSIGNED_LONG_LONG = 3;
+const NVML_VALUE_TYPE_UNSIGNED_SHORT = 6;
+const NVML_UNSIGNED_VALUE_TYPES = new Set([
+  NVML_VALUE_TYPE_UNSIGNED_INT,
+  NVML_VALUE_TYPE_UNSIGNED_LONG,
+  NVML_VALUE_TYPE_UNSIGNED_LONG_LONG,
+  NVML_VALUE_TYPE_UNSIGNED_SHORT,
+]);
 
 const NvmlDevice = koffi.opaque("arriero_nvmlDevice_st");
 const NvmlDevicePointer = koffi.pointer(NvmlDevice);
@@ -38,6 +53,15 @@ const NvmlProcessInfo = koffi.struct("arriero_nvmlProcessInfo_t", {
   gpuInstanceId: "uint32_t",
   computeInstanceId: "uint32_t",
 });
+const NvmlFieldValue = koffi.struct("arriero_nvmlFieldValue_t", {
+  fieldId: "uint32_t",
+  scopeId: "uint32_t",
+  timestamp: "int64_t",
+  latencyUsec: "int64_t",
+  valueType: "uint32_t",
+  nvmlReturn: "int32_t",
+  value: "uint64_t",
+});
 
 export type NvmlDeviceHandle = bigint;
 
@@ -57,6 +81,20 @@ export type NvmlComputeCapability = {
   minor: number;
 };
 
+export type NvmlEccErrors = {
+  corrected?: number;
+  uncorrected?: number;
+};
+
+export type NvmlRemappedRows = {
+  corrected: number;
+  uncorrected: number;
+  pending: boolean;
+  failure: boolean;
+};
+
+export type NvmlGpuRecoveryAction = SystemAcceleratorRecoveryAction;
+
 export interface NvmlBinding {
   initialize(): void;
   shutdown(): void;
@@ -72,6 +110,9 @@ export interface NvmlBinding {
   deviceMemory(device: NvmlDeviceHandle): NvmlMemoryInfo;
   deviceUtilization(device: NvmlDeviceHandle): number | null;
   deviceTemperature(device: NvmlDeviceHandle): number | null;
+  deviceEccErrors(device: NvmlDeviceHandle): NvmlEccErrors | null;
+  deviceRemappedRows(device: NvmlDeviceHandle): NvmlRemappedRows | null;
+  deviceRecoveryAction(device: NvmlDeviceHandle): NvmlGpuRecoveryAction | null;
   computeProcesses(device: NvmlDeviceHandle): NvmlProcessInfo[];
 }
 
@@ -110,6 +151,24 @@ type NativePciInfo = {
 type NativeProcessInfo = {
   pid?: number;
   usedGpuMemory?: NativeNumber;
+};
+type NativeFieldValue = {
+  fieldId?: number;
+  scopeId?: number;
+  timestamp?: NativeNumber;
+  latencyUsec?: NativeNumber;
+  valueType?: number;
+  nvmlReturn?: number;
+  value?: NativeNumber;
+};
+
+const GPU_RECOVERY_ACTIONS: Record<number, SystemAcceleratorRecoveryAction> = {
+  0: "none",
+  1: "gpu-reset",
+  2: "node-reboot",
+  3: "drain-p2p",
+  4: "drain-and-reset",
+  5: "recover-imex-domain",
 };
 
 function libraryCandidates(platform = process.platform): string[] {
@@ -236,6 +295,32 @@ class KoffiNvmlBinding implements NvmlBinding {
     "nvmlDeviceGetTemperature",
     "int",
     [NvmlDevicePointer, "uint32_t", koffi.out(koffi.pointer("uint32_t"))],
+  );
+  private readonly getTotalEccErrors = this.library.func(
+    "nvmlDeviceGetTotalEccErrors",
+    "int",
+    [
+      NvmlDevicePointer,
+      "uint32_t",
+      "uint32_t",
+      koffi.out(koffi.pointer("uint64_t")),
+    ],
+  );
+  private readonly getRemappedRows = this.library.func(
+    "nvmlDeviceGetRemappedRows",
+    "int",
+    [
+      NvmlDevicePointer,
+      koffi.out(koffi.pointer("uint32_t")),
+      koffi.out(koffi.pointer("uint32_t")),
+      koffi.out(koffi.pointer("uint32_t")),
+      koffi.out(koffi.pointer("uint32_t")),
+    ],
+  );
+  private readonly getFieldValues = this.library.func(
+    "nvmlDeviceGetFieldValues",
+    "int",
+    [NvmlDevicePointer, "int", koffi.inout(koffi.pointer(NvmlFieldValue))],
   );
   private readonly getComputeProcesses = this.library.func(
     "nvmlDeviceGetComputeRunningProcesses_v3",
@@ -379,6 +464,91 @@ class KoffiNvmlBinding implements NvmlBinding {
     }
     this.check("nvmlDeviceGetTemperature", code);
     return temperature[0] ?? null;
+  }
+
+  private readAggregateEcc(
+    device: NvmlDeviceHandle,
+    errorType: number,
+  ): number | null {
+    const count: Array<bigint | null> = [null];
+    const code = this.getTotalEccErrors(
+      device,
+      errorType,
+      NVML_AGGREGATE_ECC,
+      count,
+    );
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    this.check("nvmlDeviceGetTotalEccErrors", code);
+    return safeUnsigned(count[0] ?? undefined);
+  }
+
+  deviceEccErrors(device: NvmlDeviceHandle): NvmlEccErrors | null {
+    const corrected = this.readAggregateEcc(
+      device,
+      NVML_MEMORY_ERROR_TYPE_CORRECTED,
+    );
+    const uncorrected = this.readAggregateEcc(
+      device,
+      NVML_MEMORY_ERROR_TYPE_UNCORRECTED,
+    );
+    if (corrected === null && uncorrected === null) {
+      return null;
+    }
+    return {
+      ...(corrected === null ? {} : { corrected }),
+      ...(uncorrected === null ? {} : { uncorrected }),
+    };
+  }
+
+  deviceRemappedRows(device: NvmlDeviceHandle): NvmlRemappedRows | null {
+    const corrected = [0];
+    const uncorrected = [0];
+    const pending = [0];
+    const failure = [0];
+    const code = this.getRemappedRows(
+      device,
+      corrected,
+      uncorrected,
+      pending,
+      failure,
+    );
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    this.check("nvmlDeviceGetRemappedRows", code);
+    return {
+      corrected: corrected[0] ?? 0,
+      uncorrected: uncorrected[0] ?? 0,
+      pending: (pending[0] ?? 0) !== 0,
+      failure: (failure[0] ?? 0) !== 0,
+    };
+  }
+
+  deviceRecoveryAction(device: NvmlDeviceHandle): NvmlGpuRecoveryAction | null {
+    const field: NativeFieldValue = {
+      fieldId: NVML_FI_DEV_GET_GPU_RECOVERY_ACTION,
+    };
+    const code = this.getFieldValues(device, 1, field);
+    if (code === NVML_ERROR_NOT_SUPPORTED) {
+      return null;
+    }
+    this.check("nvmlDeviceGetFieldValues", code);
+    if (field.nvmlReturn !== NVML_SUCCESS) {
+      return null;
+    }
+    if (
+      field.valueType === undefined ||
+      !NVML_UNSIGNED_VALUE_TYPES.has(field.valueType)
+    ) {
+      return null;
+    }
+    const raw = safeUnsigned(field.value);
+    if (raw === null) {
+      return null;
+    }
+    return GPU_RECOVERY_ACTIONS[raw] ?? null;
   }
 
   computeProcesses(device: NvmlDeviceHandle): NvmlProcessInfo[] {

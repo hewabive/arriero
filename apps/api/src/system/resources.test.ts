@@ -39,6 +39,17 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
       usedMemoryBytes: 1_024 * 1024 * 1024,
       utilizationPercent: 12,
       temperatureC: 55,
+      ecc: {
+        corrected: 2,
+        uncorrected: 1,
+        remappedRows: {
+          corrected: 1,
+          uncorrected: 0,
+          pending: true,
+          failure: false,
+        },
+      },
+      recoveryAction: "gpu-reset",
     },
   ]);
 
@@ -56,6 +67,17 @@ test("nvidiaDevicesToAccelerators maps NVML device telemetry", () => {
     numaNode: null,
     computeCapability: { major: 8, minor: 9 },
     source: "nvml",
+    ecc: {
+      corrected: 2,
+      uncorrected: 1,
+      remappedRows: {
+        corrected: 1,
+        uncorrected: 0,
+        pending: true,
+        failure: false,
+      },
+    },
+    recoveryAction: "gpu-reset",
   });
 });
 
@@ -73,6 +95,8 @@ test("nvidiaDevicesToAccelerators maps pci bus ids to NUMA nodes", () => {
         usedMemoryBytes: 4,
         utilizationPercent: 12,
         temperatureC: 55,
+        ecc: null,
+        recoveryAction: null,
       },
       {
         index: 1,
@@ -85,6 +109,8 @@ test("nvidiaDevicesToAccelerators maps pci bus ids to NUMA nodes", () => {
         usedMemoryBytes: 8,
         utilizationPercent: 0,
         temperatureC: 42,
+        ecc: null,
+        recoveryAction: null,
       },
     ],
     (busId) => (busId === "00000000:81:00.0" ? 1 : 0),

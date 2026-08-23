@@ -2,6 +2,8 @@ import {
   SystemMetricsWindowSchema,
   type EventLoopReport,
   type EventLoopStall,
+  type SystemAcceleratorEcc,
+  type SystemAcceleratorRecoveryAction,
   type SystemDiskDevice,
   type SystemMetricsSample,
   type SystemMetricsWindow,
@@ -19,6 +21,7 @@ import {
   Stack,
   Table,
   Text,
+  Tooltip,
 } from "@mantine/core";
 import { useMemo, type ReactNode } from "react";
 
@@ -120,6 +123,54 @@ function usedPercent(total: number | null, free: number | null) {
     ? null
     : Math.min(100, (used / total) * 100);
 }
+
+function eccBadgeInfo(
+  ecc: SystemAcceleratorEcc | undefined,
+): { label: string; color: "red" | "yellow"; detail: string } | null {
+  if (!ecc) {
+    return null;
+  }
+  const rows = ecc.remappedRows;
+  const actionRequired = rows?.pending === true || rows?.failure === true;
+  const remappedCount = rows ? rows.corrected + rows.uncorrected : 0;
+  const hasHistory = (ecc.uncorrected ?? 0) > 0 || remappedCount > 0;
+  if (!actionRequired && !hasHistory) {
+    return null;
+  }
+  const parts: string[] = [];
+  if (ecc.uncorrected !== undefined) {
+    parts.push(`Uncorrectable ${ecc.uncorrected}`);
+  }
+  if (ecc.corrected !== undefined) {
+    parts.push(`Correctable ${ecc.corrected}`);
+  }
+  if (rows) {
+    const rowState = [
+      rows.pending ? "pending GPU reset" : null,
+      rows.failure ? "remap failure" : null,
+    ]
+      .filter((part): part is string => part !== null)
+      .join(", ");
+    parts.push(
+      `Remapped rows ${remappedCount}${rowState ? ` (${rowState})` : ""}`,
+    );
+  }
+  return {
+    label: actionRequired ? "ECC action required" : "ECC history",
+    color: actionRequired ? "red" : "yellow",
+    detail: parts.join(" · "),
+  };
+}
+
+const RECOVERY_ACTION_LABELS: Partial<
+  Record<SystemAcceleratorRecoveryAction, string>
+> = {
+  "gpu-reset": "Reset required",
+  "node-reboot": "Reboot required",
+  "drain-p2p": "Drain P2P required",
+  "drain-and-reset": "Drain + reset required",
+  "recover-imex-domain": "IMEX recovery required",
+};
 
 function ResourceMetric(props: { label: string; value: string }) {
   return (
@@ -414,12 +465,33 @@ export function SystemResourcesPanel(props: {
                           accelerator.totalMemoryBytes *
                             (accelerator.memoryUsedRatio ?? 0),
                         );
+                  const eccBadge = eccBadgeInfo(accelerator.ecc);
+                  const recoveryLabel = accelerator.recoveryAction
+                    ? RECOVERY_ACTION_LABELS[accelerator.recoveryAction]
+                    : undefined;
                   return (
                     <MetricCard
                       key={accelerator.id}
                       title={formatAcceleratorName(accelerator)}
                       meta={
                         <>
+                          {recoveryLabel && (
+                            <Tooltip
+                              label={`GPU recovery action: ${recoveryLabel}. Set by the driver after a hardware error; the GPU cannot serve CUDA work until the action is completed.`}
+                              withArrow
+                            >
+                              <Badge color="red" variant="light">
+                                {recoveryLabel}
+                              </Badge>
+                            </Tooltip>
+                          )}
+                          {eccBadge && (
+                            <Tooltip label={eccBadge.detail} withArrow>
+                              <Badge color={eccBadge.color} variant="light">
+                                {eccBadge.label}
+                              </Badge>
+                            </Tooltip>
+                          )}
                           {accelerator.temperatureC !== null && (
                             <Badge variant="light" color="gray">
                               {accelerator.temperatureC}C

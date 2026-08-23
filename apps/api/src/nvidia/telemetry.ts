@@ -1,8 +1,10 @@
+import { type SystemAcceleratorEcc } from "@arriero/core";
 import {
   createKoffiNvmlBinding,
   type NvmlBinding,
   type NvmlComputeCapability,
   type NvmlDeviceHandle,
+  type NvmlGpuRecoveryAction,
   NvmlError,
   NVML_ERROR_DRIVER_NOT_LOADED,
   NVML_ERROR_GPU_IS_LOST,
@@ -43,6 +45,8 @@ export type NvidiaDeviceSnapshot = {
   usedMemoryBytes: number;
   utilizationPercent: number | null;
   temperatureC: number | null;
+  ecc: SystemAcceleratorEcc | null;
+  recoveryAction: NvmlGpuRecoveryAction | null;
 };
 
 export type NvidiaComputeProcess = {
@@ -215,6 +219,8 @@ export class NvidiaTelemetry {
     try {
       const value = this.inventory!.map((device) => {
         const memory = this.binding!.deviceMemory(device.handle);
+        const eccErrors = this.binding!.deviceEccErrors(device.handle);
+        const remappedRows = this.binding!.deviceRemappedRows(device.handle);
         return {
           index: device.index,
           name: device.name,
@@ -226,6 +232,14 @@ export class NvidiaTelemetry {
           usedMemoryBytes: memory.usedBytes,
           utilizationPercent: this.binding!.deviceUtilization(device.handle),
           temperatureC: this.binding!.deviceTemperature(device.handle),
+          ecc:
+            eccErrors === null && remappedRows === null
+              ? null
+              : {
+                  ...(eccErrors ?? {}),
+                  ...(remappedRows === null ? {} : { remappedRows }),
+                },
+          recoveryAction: this.binding!.deviceRecoveryAction(device.handle),
         };
       });
       this.acceleratorsCache = {

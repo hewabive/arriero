@@ -5,8 +5,11 @@ import {
   type NvmlBinding,
   type NvmlComputeCapability,
   type NvmlDeviceHandle,
+  type NvmlEccErrors,
+  type NvmlGpuRecoveryAction,
   type NvmlMemoryInfo,
   type NvmlProcessInfo,
+  type NvmlRemappedRows,
   NvmlError,
   NVML_ERROR_DRIVER_NOT_LOADED,
   NVML_ERROR_GPU_IS_LOST,
@@ -22,6 +25,9 @@ type FakeDevice = {
   pciBusId: string;
   computeCapability: NvmlComputeCapability | null;
   processes: NvmlProcessInfo[];
+  eccErrors: NvmlEccErrors | null;
+  remappedRows: NvmlRemappedRows | null;
+  recoveryAction: NvmlGpuRecoveryAction | null;
   temperatureC: number | null;
   utilizationPercent: number | null;
   uuid: string;
@@ -98,6 +104,18 @@ class FakeNvmlBinding implements NvmlBinding {
     return this.device(handle).temperatureC;
   }
 
+  deviceEccErrors(handle: NvmlDeviceHandle): NvmlEccErrors | null {
+    return this.device(handle).eccErrors;
+  }
+
+  deviceRemappedRows(handle: NvmlDeviceHandle): NvmlRemappedRows | null {
+    return this.device(handle).remappedRows;
+  }
+
+  deviceRecoveryAction(handle: NvmlDeviceHandle): NvmlGpuRecoveryAction | null {
+    return this.device(handle).recoveryAction;
+  }
+
   computeProcesses(handle: NvmlDeviceHandle): NvmlProcessInfo[] {
     this.processCalls += 1;
     if (this.processError) throw this.processError;
@@ -120,6 +138,9 @@ function fakeDevice(
     pciBusId: `00000000:0${index + 1}:00.0`,
     computeCapability: { major: 8, minor: 9 },
     processes: [],
+    eccErrors: null,
+    remappedRows: null,
+    recoveryAction: null,
     temperatureC: 42,
     utilizationPercent: 12,
     uuid: `GPU-${index}`,
@@ -154,6 +175,8 @@ test("initializes NVML once and caches accelerator samples", () => {
       usedMemoryBytes: 4 * 1024 ** 3,
       utilizationPercent: 12,
       temperatureC: 42,
+      ecc: null,
+      recoveryAction: null,
     },
   ]);
   assert.equal(binding.initializeCalls, 1);
@@ -167,6 +190,94 @@ test("initializes NVML once and caches accelerator samples", () => {
   telemetry.accelerators();
   assert.equal(binding.memoryCalls, 2);
   assert.equal(binding.initializeCalls, 1);
+});
+
+test("exposes aggregate ECC counters and remapped rows in accelerator snapshots", () => {
+  const binding = new FakeNvmlBinding([
+    fakeDevice(0, {
+      eccErrors: { corrected: 7, uncorrected: 2 },
+      remappedRows: {
+        corrected: 1,
+        uncorrected: 1,
+        pending: true,
+        failure: false,
+      },
+    }),
+  ]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  assert.deepEqual(telemetry.accelerators()[0]?.ecc, {
+    corrected: 7,
+    uncorrected: 2,
+    remappedRows: {
+      corrected: 1,
+      uncorrected: 1,
+      pending: true,
+      failure: false,
+    },
+  });
+});
+
+test("omits remapped rows when the remap API is unsupported", () => {
+  const binding = new FakeNvmlBinding([
+    fakeDevice(0, {
+      eccErrors: { corrected: 3, uncorrected: 0 },
+    }),
+  ]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  assert.deepEqual(telemetry.accelerators()[0]?.ecc, {
+    corrected: 3,
+    uncorrected: 0,
+  });
+});
+
+test("keeps a partial ECC counter when only one aggregate counter is supported", () => {
+  const binding = new FakeNvmlBinding([
+    fakeDevice(0, { eccErrors: { uncorrected: 4 } }),
+  ]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  assert.deepEqual(telemetry.accelerators()[0]?.ecc, { uncorrected: 4 });
+});
+
+test("exposes the NVML recovery action in accelerator snapshots", () => {
+  const binding = new FakeNvmlBinding([
+    fakeDevice(0, { recoveryAction: "gpu-reset" }),
+  ]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  assert.equal(telemetry.accelerators()[0]?.recoveryAction, "gpu-reset");
+});
+
+test("keeps remapped rows when ECC counters are unsupported", () => {
+  const binding = new FakeNvmlBinding([
+    fakeDevice(0, {
+      remappedRows: {
+        corrected: 1,
+        uncorrected: 0,
+        pending: true,
+        failure: false,
+      },
+    }),
+  ]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  assert.deepEqual(telemetry.accelerators()[0]?.ecc, {
+    remappedRows: {
+      corrected: 1,
+      uncorrected: 0,
+      pending: true,
+      failure: false,
+    },
+  });
+});
+
+test("leaves ecc null when both ECC counters and remap reporting are unsupported", () => {
+  const binding = new FakeNvmlBinding([fakeDevice(0)]);
+  const telemetry = new NvidiaTelemetry({ bindingFactory: () => binding });
+
+  assert.equal(telemetry.accelerators()[0]?.ecc, null);
 });
 
 test("collects per-device process memory sorted by pid then device", () => {

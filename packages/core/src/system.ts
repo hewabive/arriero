@@ -28,6 +28,28 @@ export const ComputeCapabilitySchema = z.object({
   minor: z.number().int().nonnegative(),
 });
 
+export const SystemAcceleratorRemappedRowsSchema = z.object({
+  corrected: z.number().int().nonnegative(),
+  uncorrected: z.number().int().nonnegative(),
+  pending: z.boolean(),
+  failure: z.boolean(),
+});
+
+export const SystemAcceleratorEccSchema = z.object({
+  corrected: z.number().int().nonnegative().optional(),
+  uncorrected: z.number().int().nonnegative().optional(),
+  remappedRows: SystemAcceleratorRemappedRowsSchema.optional(),
+});
+
+export const SystemAcceleratorRecoveryActionSchema = z.enum([
+  "none",
+  "gpu-reset",
+  "node-reboot",
+  "drain-p2p",
+  "drain-and-reset",
+  "recover-imex-domain",
+]);
+
 export const SystemAcceleratorSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -41,6 +63,8 @@ export const SystemAcceleratorSchema = z.object({
   numaNode: z.number().int().min(0).nullable(),
   computeCapability: ComputeCapabilitySchema.nullable().default(null),
   source: z.string(),
+  ecc: SystemAcceleratorEccSchema.optional(),
+  recoveryAction: SystemAcceleratorRecoveryActionSchema.optional(),
 });
 
 export function formatComputeCapability(value: ComputeCapability): string {
@@ -319,6 +343,13 @@ export type NetworkInterfacesResult = z.infer<
 >;
 export type SystemMemory = z.infer<typeof SystemMemorySchema>;
 export type ComputeCapability = z.infer<typeof ComputeCapabilitySchema>;
+export type SystemAcceleratorRemappedRows = z.infer<
+  typeof SystemAcceleratorRemappedRowsSchema
+>;
+export type SystemAcceleratorEcc = z.infer<typeof SystemAcceleratorEccSchema>;
+export type SystemAcceleratorRecoveryAction = z.infer<
+  typeof SystemAcceleratorRecoveryActionSchema
+>;
 export type SystemAccelerator = z.infer<typeof SystemAcceleratorSchema>;
 export type SystemDiskDevice = z.infer<typeof SystemDiskDeviceSchema>;
 export type SystemIoPressure = z.infer<typeof SystemIoPressureSchema>;
