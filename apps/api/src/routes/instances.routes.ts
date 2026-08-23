@@ -40,6 +40,7 @@ import {
 import { tailInstanceLog } from "../process/logs.js";
 import { validateInstanceStartPreflight } from "../process/preflight.js";
 import { latestProcessRun } from "../process/runs-repository.js";
+import { instanceReasoningProfile } from "../proxy/reasoning-request.js";
 import { stopStaleProcess } from "../process/stale.js";
 import { supervisor } from "../process/supervisor.js";
 
@@ -218,6 +219,15 @@ export function registerInstanceRoutes(app: Hono) {
         }),
       }),
     });
+  });
+
+  app.get("/api/instances/:id/reasoning-profile", (c) => {
+    const instance = getInstance(c.req.param("id"));
+    if (!instance) {
+      return c.json({ error: "instance not found" }, 404);
+    }
+
+    return c.json({ data: instanceReasoningProfile(instance.name) });
   });
 
   app.get("/api/instances/:id/health-summary", async (c) => {

@@ -62,6 +62,15 @@ export type ApiProxyReasoningProfile = z.infer<
   typeof ApiProxyReasoningProfileSchema
 >;
 
+export const ApiProxyUpstreamReasoningProfileSchema = z.object({
+  profile: ApiProxyReasoningProfileSchema,
+  source: z.string(),
+});
+
+export type ApiProxyUpstreamReasoningProfile = z.infer<
+  typeof ApiProxyUpstreamReasoningProfileSchema
+>;
+
 export const ApiProxyModelReasoningSchema = z.union([
   z.object({ kind: z.literal("preset"), preset: z.string().min(1).max(80) }),
   z.object({

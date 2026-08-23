@@ -1,4 +1,5 @@
 import type {
+  ApiProxyUpstreamReasoningProfile,
   Instance,
   InstanceBulkActionRequest,
   InstanceBulkActionResult,
@@ -101,6 +102,12 @@ export async function getInstancePreflight(id: string) {
 export async function getInstanceHealthSummary(id: string) {
   return request<{ data: InstanceHealthSummary }>(
     `/api/instances/${id}/health-summary`,
+  );
+}
+
+export async function getInstanceReasoningProfile(id: string) {
+  return request<{ data: ApiProxyUpstreamReasoningProfile | null }>(
+    `/api/instances/${id}/reasoning-profile`,
   );
 }
 

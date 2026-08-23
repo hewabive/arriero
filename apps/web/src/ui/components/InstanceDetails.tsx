@@ -71,6 +71,7 @@ import {
   PromptCachePanel,
   SectionLabel,
 } from "./InstanceDetailsPanels";
+import { InstanceReasoningPanel } from "./InstanceReasoningPanel";
 import { LlamaCapabilitiesPanel } from "./LlamaCapabilitiesPanel";
 
 export function InstanceDetails(props: {
@@ -565,6 +566,17 @@ export function InstanceDetails(props: {
               </Accordion.Panel>
             </Accordion.Item>
           )}
+
+          <Accordion.Item value="reasoning">
+            <Accordion.Control>Reasoning effort</Accordion.Control>
+            <Accordion.Panel>
+              <InstanceReasoningPanel
+                instanceName={props.instance.name}
+                active={openDetails.includes("reasoning")}
+                llamaPropsBody={llama?.props.body ?? null}
+              />
+            </Accordion.Panel>
+          </Accordion.Item>
 
           <Accordion.Item value="preflight">
             <Accordion.Control>

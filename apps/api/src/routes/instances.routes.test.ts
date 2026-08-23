@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { Hono } from "hono";
 
+import { instanceTestFixture } from "../instances/test-fixtures.js";
 import { createPathCatalogEntry } from "../path-catalog/repository.js";
 import { registerInstanceRoutes } from "./instances.routes.js";
 
@@ -76,4 +77,36 @@ test("preview rejects RPC worker references on an RPC worker", async () => {
   assert.deepEqual(await response.json(), {
     error: "rpc-worker instances cannot reference other rpc workers",
   });
+});
+
+test("reasoning profile resolves per instance kind and 404s on unknown names", async () => {
+  const app = new Hono();
+  registerInstanceRoutes(app);
+  const fixture = instanceTestFixture("reasoning-route");
+  fixture.seedBinaryRef();
+
+  const llamaName = fixture.uniqueName("inst");
+  fixture.seedInstance(llamaName);
+  const llamaResponse = await app.request(
+    `/api/instances/${llamaName}/reasoning-profile`,
+  );
+  assert.equal(llamaResponse.status, 200);
+  const llamaPayload = (await llamaResponse.json()) as {
+    data: { profile: { interface: string }; source: string } | null;
+  };
+  assert.equal(llamaPayload.data?.profile.interface, "budget");
+  assert.equal(llamaPayload.data?.source, "engine default");
+
+  const workerName = fixture.uniqueName("inst");
+  fixture.seedInstance(workerName, "rpc-worker");
+  const workerResponse = await app.request(
+    `/api/instances/${workerName}/reasoning-profile`,
+  );
+  assert.equal(workerResponse.status, 200);
+  assert.deepEqual(await workerResponse.json(), { data: null });
+
+  const missing = await app.request(
+    "/api/instances/absent-reasoning/reasoning-profile",
+  );
+  assert.equal(missing.status, 404);
 });

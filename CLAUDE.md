@@ -221,7 +221,9 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
   chat-template autodetect for llama instances (`model_cache` derived `chatTemplateReasoning`,
   ladder from the `not in (...)` convention; levels clamp instead of 500-ing in the template) →
   llama engine-default budget → passthrough. The `reasoning` node is a canonical override
-  (`auto` keeps inbound). Traced as a `reasoning` route step; `docs/API_PROXY_REASONING.md`.
+  (`auto` keeps inbound). Traced as a `reasoning` route step; the instance-resolved profile, remap
+  table and `/props` live confirmation surface in the Diagnostics "Reasoning effort" panel
+  (`GET /api/instances/:id/reasoning-profile`); `docs/API_PROXY_REASONING.md`.
 - Inbound Anthropic `messages` to non-anthropic-profile upstreams is **always translated to OpenAI
   chat completions** via the sans-IO workspace package `packages/anthropic-openai-bridge`, wired in
   `proxy/translation.ts`; anthropic-profile endpoints pass through verbatim. Claude Code's

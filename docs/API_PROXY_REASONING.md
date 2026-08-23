@@ -100,7 +100,24 @@ re-scan. Extraction is conservative: an unconventional template yields
 levels through unclamped (a template `raise_exception` then surfaces as an
 upstream error in the trace — the signal to set a manual profile).
 llama-server's `/props.chat_template_caps.supports_reasoning_effort` is the
-live confirmation of the same paradigm (not yet wired into the UI).
+live confirmation of the same paradigm, surfaced in the diagnostics panel
+below.
+
+## Diagnostics panel
+
+`GET /api/instances/:id/reasoning-profile` returns the instance-resolved
+profile (`ApiProxyUpstreamReasoningProfile` in core: `profile` + `source`,
+`null` = passthrough) via the same cached `instanceReasoningProfile` the
+forward boundary uses — model-override precedence is deliberately excluded
+(it is per proxy model, not per instance). The web renders it as the
+"Reasoning effort" accordion item on the Diagnostics page
+(`InstanceReasoningPanel`): interface + source, the native ladder, a
+requested→sent table computed client-side with
+`projectApiProxyReasoningLevel` (only remapped levels, annotated
+alias/nearest), level→budget badges for the budget interface, the live
+`/props.chat_template_caps.supports_reasoning_effort` confirmation when the
+instance is running, and the bound proxy models whose `reasoning` override
+supersedes the shown profile (via `computeInstanceProxyBindings`).
 
 ## Reasoning pipeline node
 

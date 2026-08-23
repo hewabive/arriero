@@ -12,6 +12,7 @@ import {
   type ApiProxyReasoningLevel,
   type ApiProxyReasoningProfile,
   type ApiProxyRouteTraceStep,
+  type ApiProxyUpstreamReasoningProfile,
   type GgufChatTemplateReasoning,
   type MemoryEstimateArgs,
 } from "@arriero/core";
@@ -66,11 +67,6 @@ export function reasoningProfileFromTemplate(
   };
 }
 
-export type ApiProxyUpstreamReasoningProfile = {
-  profile: ApiProxyReasoningProfile;
-  source: string;
-};
-
 const INSTANCE_PROFILE_TTL_MS = 2000;
 
 const instanceProfileCache = new Map<
@@ -99,7 +95,7 @@ function computeInstanceReasoningProfile(
   return { profile: llamaBudgetProfile, source: "engine default" };
 }
 
-function instanceReasoningProfile(
+export function instanceReasoningProfile(
   instanceId: string,
 ): ApiProxyUpstreamReasoningProfile | null {
   const cached = instanceProfileCache.get(instanceId);
