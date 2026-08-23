@@ -20,6 +20,10 @@ export function updateApiProxySettings(
   const current = getApiProxySettings();
   const next: ApiProxySettings = {
     allowAnonymous: parsed.allowAnonymous ?? current.allowAnonymous,
+    streamIdleTimeoutMs:
+      parsed.streamIdleTimeoutMs !== undefined
+        ? parsed.streamIdleTimeoutMs
+        : current.streamIdleTimeoutMs,
   };
   writeObjectFile(SETTINGS_FILE, ApiProxySettingsSchema, next);
   return next;

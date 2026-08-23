@@ -4,6 +4,7 @@ import {
   Divider,
   Group,
   Modal,
+  NumberInput,
   Select,
   Stack,
   Switch,
@@ -117,6 +118,22 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
               ...draft,
               streamTerminal:
                 value === "strict" || value === "tolerant" ? value : null,
+            })
+          }
+        />
+        <NumberInput
+          label="Stream idle timeout (seconds)"
+          description="Abort a stream when the upstream sends nothing for this long. Empty inherits the proxy-wide setting; 0 disables the watchdog for this endpoint."
+          placeholder="proxy default"
+          min={0}
+          max={3600}
+          allowDecimal={false}
+          value={draft.streamIdleTimeoutSeconds ?? ""}
+          onChange={(value) =>
+            onDraftChange({
+              ...draft,
+              streamIdleTimeoutSeconds:
+                typeof value === "number" ? value : null,
             })
           }
         />

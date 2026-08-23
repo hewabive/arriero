@@ -95,6 +95,35 @@ count is diagnostic.
 The sans-IO Anthropic↔OpenAI bridge package keeps its own parsing and is not
 covered by this accounting; the translated streaming path reports no terminal.
 
+## Idle timeout
+
+A stalled upstream — connection open, no bytes — used to hold its domain lease
+until the client gave up (the undici transport in `proxy/http.ts` only caps
+inactivity at one hour). `watchStreamIdle` (`proxy/stream-idle.ts`) wraps an
+upstream body with a per-read inactivity deadline that re-arms on every chunk;
+SSE keepalive comments arrive as bytes, so they reset it too. On expiry the
+wrapped stream errors with `StreamIdleTimeoutError` and the upstream reader is
+cancelled — a stall never surfaces as a clean EOF (which would re-open the
+truncation-masking hole).
+
+Resolution order for the deadline: `ApiEndpointRecord.streamIdleTimeoutMs` →
+proxy-wide `streamIdleTimeoutMs` in `config/proxy/settings.json` →
+`DEFAULT_STREAM_IDLE_TIMEOUT_MS` (300 s). A value of `0` at either level
+disables the watchdog; the endpoint editor and the endpoints page expose both
+knobs in seconds. Managed llama instances keep progress frames flowing during
+prefill (`return_progress` injection), so the default does not bite long
+prefills there; engines without SSE timings doing very long silent prefill are
+the reason the proxy-wide knob exists.
+
+Enforcement: resumable attempts and buffered consumption see the stall as an
+error outcome (502 with the stall message — deliberately no truncation-style
+retry: a wedged server would likely wedge again while double-holding the
+lease); pass-through streaming errors the client stream mid-flight and stamps
+the trace with `arriero_proxy_upstream_timeout`; restart replay is watched the
+same way. The delegating node does not watch delegated streams — the owning
+node enforces its own timeout, and undici's transport timeout stays the outer
+bound.
+
 ## Trace surface
 
 `ApiProxyRequestTraceSchema.streamHealth` records `malformedChunks`,

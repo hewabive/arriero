@@ -4,6 +4,7 @@ import {
   ApiEndpointBaseUrlSchema,
   ApiEndpointIdSchema,
   ApiEndpointRecordSchema,
+  ApiProxyStreamIdleTimeoutSchema,
 } from "../api-endpoints.js";
 import { InstanceMemoryDrawSchema } from "../memory-assessment.js";
 import { MemoryPoolKindSchema } from "../resources.js";
@@ -276,10 +277,12 @@ export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
 
 export const ApiProxySettingsSchema = z.object({
   allowAnonymous: z.boolean().default(true),
+  streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().default(null),
 });
 
 export const ApiProxySettingsUpdateSchema = z.object({
   allowAnonymous: z.boolean().optional(),
+  streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().optional(),
 });
 
 export const ApiProxyTraceUsageSchema = z.object({

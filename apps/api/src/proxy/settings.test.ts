@@ -13,7 +13,21 @@ beforeEach(() => {
 });
 
 test("defaults to allowing anonymous requests", () => {
-  assert.deepEqual(getApiProxySettings(), { allowAnonymous: true });
+  assert.deepEqual(getApiProxySettings(), {
+    allowAnonymous: true,
+    streamIdleTimeoutMs: null,
+  });
+});
+
+test("persists the stream idle timeout independently of other fields", () => {
+  updateApiProxySettings({ streamIdleTimeoutMs: 60_000 });
+  assert.equal(getApiProxySettings().streamIdleTimeoutMs, 60_000);
+
+  updateApiProxySettings({ allowAnonymous: false });
+  assert.equal(getApiProxySettings().streamIdleTimeoutMs, 60_000);
+
+  updateApiProxySettings({ streamIdleTimeoutMs: null });
+  assert.equal(getApiProxySettings().streamIdleTimeoutMs, null);
 });
 
 test("persists the anonymous toggle across cache resets", () => {

@@ -84,6 +84,7 @@ function apiEndpoint(
     extraHeaders: {},
     passthrough: false,
     streamTerminal: null,
+    streamIdleTimeoutMs: null,
     modelFilter: null,
     authConfigured: false,
     instanceId:

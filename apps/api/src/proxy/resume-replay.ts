@@ -35,6 +35,7 @@ import {
   applyProxyStreamHealth,
   proxyStreamHealthFromState,
 } from "./stream-health.js";
+import { watchStreamIdle } from "./stream-idle.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import {
   apiProxyStreamResumeKey,
@@ -63,6 +64,7 @@ export type ApiProxyResumeClaim = {
   translateAnthropic: boolean;
   exchangeBody: unknown;
   codec: ApiProxyResumableCodec;
+  streamIdleTimeoutMs: number | null;
 };
 
 export function claimApiProxyResumedSession(input: {
@@ -125,6 +127,7 @@ export function claimApiProxyResumedSession(input: {
     translateAnthropic: resolved.context.translateAnthropic,
     exchangeBody: forward.body,
     codec,
+    streamIdleTimeoutMs: resolved.context.streamIdleTimeoutMs,
   };
 }
 
@@ -169,6 +172,14 @@ export async function serveResumedStreamSession(input: {
 
   trace.resumed = true;
   inflight.dispatched();
+  const guardedBody = watchStreamIdle(
+    upstream.body,
+    claim.streamIdleTimeoutMs,
+    (error) => {
+      trace.errorCode = "arriero_proxy_upstream_timeout";
+      trace.errorMessage = `Resumed stream replay: ${error.message}`;
+    },
+  );
   const effectiveCodec = translateAnthropic
     ? translatedAnthropicResumableCodec(claim.exchangeBody)
     : codec;
@@ -188,7 +199,7 @@ export async function serveResumedStreamSession(input: {
   if (!request.stream) {
     const state = createResumableBufferState();
     const outcome = await consumeResumableSse({
-      body: upstream.body,
+      body: guardedBody,
       codec: effectiveCodec,
       state,
       consumerSignal: c.req.raw.signal,
@@ -279,7 +290,7 @@ export async function serveResumedStreamSession(input: {
       observeBodyCompletion(
         tapApiProxyResponsePlanStream(
           input.responsePlan,
-          upstream.body.pipeThrough(translation.transform),
+          guardedBody.pipeThrough(translation.transform),
           upstream.status,
           upstream.headers,
         ),
@@ -315,7 +326,7 @@ export async function serveResumedStreamSession(input: {
     observeBodyCompletion(
       tapApiProxyResponsePlanStream(
         input.responsePlan,
-        upstream.body.pipeThrough(meter.transform),
+        guardedBody.pipeThrough(meter.transform),
         upstream.status,
         upstream.headers,
       ),

@@ -120,6 +120,7 @@ function claimFor(
     translateAnthropic: false,
     exchangeBody: { model: "m", messages: [] },
     codec: openAiResumableCodec,
+    streamIdleTimeoutMs: null,
   };
 }
 

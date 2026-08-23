@@ -199,6 +199,7 @@ export async function executeApiProxyModelSubRequest(input: {
       body: requestBody,
       codec,
       state,
+      idleTimeoutMs: upstream.context.streamIdleTimeoutMs,
       preemptSignal: lease?.preemptSignal ?? neverAbort,
       ...(input.signal ? { consumerSignal: input.signal } : {}),
       ...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),

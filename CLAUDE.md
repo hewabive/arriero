@@ -204,7 +204,9 @@ admin surface and telemetry: `docs/API_PROXY_FOUNDATION.md`.
   managed resumes via the preemption tail (bounded retries) then 502, strict external 502s,
   tolerant accepts but flags the trace; truncated responses are never cached. Malformed SSE
   payloads are counted (`parseChunk` → `"malformed"` ≠ ignorable `null`), logged and recorded in
-  `trace.streamHealth` — never silently dropped.
+  `trace.streamHealth` — never silently dropped. A silent upstream trips a per-read idle watchdog
+  (`watchStreamIdle`, endpoint `streamIdleTimeoutMs` → proxy settings → 300 s default, 0 = off)
+  that errors the stream instead of letting it hold the lease forever.
 - Two resource axes, documented in `docs/RESOURCE_MANAGEMENT.md`: **memory residency** (scheduler
   fit/eviction over the file-backed pools in `config/resources.json`) and **compute contention** (a
   multi-holder per-domain priority gate/lease in `proxy/domain-coordinator.ts`, keyed on the memory

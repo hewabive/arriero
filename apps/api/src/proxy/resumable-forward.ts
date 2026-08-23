@@ -15,6 +15,7 @@ import {
   noteMalformedPayload,
   type ProxyStreamHealth,
 } from "./stream-health.js";
+import { watchStreamIdle } from "./stream-idle.js";
 
 export type ResumableBufferState = {
   text: string;
@@ -236,6 +237,7 @@ export async function runResumableUpstreamAttempt(input: {
   finishSignal?: AbortSignal | undefined;
   cancelSignal?: AbortSignal | undefined;
   fetchImpl?: typeof fetch | undefined;
+  idleTimeoutMs?: number | null | undefined;
   onFirstToken?: ((promptTokens: number | null) => void) | undefined;
   onReasoning?: (() => void) | undefined;
   onReasoningDelta?: ((text: string) => void) | undefined;
@@ -353,7 +355,7 @@ export async function runResumableUpstreamAttempt(input: {
 
   try {
     const ending = await pumpSseFrames(
-      upstream.body,
+      watchStreamIdle(upstream.body, input.idleTimeoutMs ?? null),
       input.codec,
       input.state,
       meta,
@@ -379,6 +381,7 @@ export async function consumeResumableSse(input: {
   consumerSignal?: AbortSignal | undefined;
   finishSignal?: AbortSignal | undefined;
   cancelSignal?: AbortSignal | undefined;
+  idleTimeoutMs?: number | null | undefined;
   onFirstToken?: ((promptTokens: number | null) => void) | undefined;
   onReasoning?: (() => void) | undefined;
   onReasoningDelta?: ((text: string) => void) | undefined;
@@ -420,7 +423,7 @@ export async function consumeResumableSse(input: {
   }
   try {
     const ending = await pumpSseFrames(
-      input.body,
+      watchStreamIdle(input.body, input.idleTimeoutMs ?? null),
       input.codec,
       input.state,
       meta,

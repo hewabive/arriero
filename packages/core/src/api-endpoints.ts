@@ -85,6 +85,12 @@ export const ApiEndpointKindSchema = z.enum([
 
 export const ApiEndpointStreamTerminalSchema = z.enum(["strict", "tolerant"]);
 
+export const ApiProxyStreamIdleTimeoutSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(3_600_000);
+
 const INSTANCE_ENDPOINT_PREFIX = "instance:";
 
 export function instanceEndpointId(instanceId: string): string {
@@ -111,6 +117,7 @@ export const ApiEndpointConfigSchema = z.object({
   modelFilter: ApiEndpointModelFilterSchema.default(null),
   reasoning: ApiProxyReasoningOverrideSchema.nullable().default(null),
   streamTerminal: ApiEndpointStreamTerminalSchema.nullable().default(null),
+  streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().default(null),
   instanceId: z.string().min(1).nullable().default(null),
   nodeId: z.string().min(1).nullable().default(null),
   editable: z.boolean().default(true),
@@ -148,6 +155,7 @@ export const ApiEndpointUpdateSchema = z.object({
   modelFilter: ApiEndpointModelFilterSchema.optional(),
   reasoning: ApiProxyReasoningOverrideSchema.nullable().optional(),
   streamTerminal: ApiEndpointStreamTerminalSchema.nullable().optional(),
+  streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().optional(),
   apiKey: ApiEndpointSecretSchema,
 });
 

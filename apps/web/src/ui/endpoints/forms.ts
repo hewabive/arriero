@@ -25,6 +25,7 @@ export type EndpointDraft = {
   denyPatterns: string;
   reasoning: ApiProxyReasoningOverride | null;
   streamTerminal: ApiEndpointStreamTerminal | null;
+  streamIdleTimeoutSeconds: number | null;
 };
 
 export const emptyEndpointDraft: EndpointDraft = {
@@ -41,6 +42,7 @@ export const emptyEndpointDraft: EndpointDraft = {
   denyPatterns: "",
   reasoning: null,
   streamTerminal: null,
+  streamIdleTimeoutSeconds: null,
 };
 
 function parsePatterns(text: string): string[] {
@@ -76,6 +78,10 @@ export function endpointDraftFromRecord(
     denyPatterns: formatPatterns(endpoint.modelFilter?.deny),
     reasoning: endpoint.reasoning,
     streamTerminal: endpoint.streamTerminal,
+    streamIdleTimeoutSeconds:
+      endpoint.streamIdleTimeoutMs === null
+        ? null
+        : Math.round(endpoint.streamIdleTimeoutMs / 1000),
   };
 }
 
@@ -113,6 +119,10 @@ export function endpointPayload(draft: EndpointDraft): ApiEndpointCreate {
     modelFilter,
     reasoning: draft.reasoning,
     streamTerminal: draft.streamTerminal,
+    streamIdleTimeoutMs:
+      draft.streamIdleTimeoutSeconds === null
+        ? null
+        : draft.streamIdleTimeoutSeconds * 1000,
     ...(apiKey && !envVar ? { apiKey } : {}),
   };
 }

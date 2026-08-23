@@ -693,6 +693,30 @@ test("runResumableUpstreamAttempt reports a truncated Anthropic stream", async (
   assert.equal(state.health.terminal, "eof");
 });
 
+test("runResumableUpstreamAttempt errors when the upstream stream stalls", async () => {
+  const state = createResumableBufferState();
+  const outcome = await runResumableUpstreamAttempt({
+    url: "http://upstream",
+    method: "POST",
+    headers: {},
+    body: {},
+    codec,
+    state,
+    preemptSignal: new AbortController().signal,
+    idleTimeoutMs: 30,
+    fetchImpl: makeFetch([chunkFrame({ content: "before the stall" })], {
+      hang: true,
+    }),
+  });
+
+  assert.equal(outcome.type, "error");
+  assert.match(
+    (outcome as { type: "error"; message: string }).message,
+    /stalled/,
+  );
+  assert.equal(state.text, "before the stall");
+});
+
 test("runResumableForward resumes with the tail after a truncation and records the retry", async () => {
   const state = createResumableBufferState();
   const tails: Array<string | null> = [];

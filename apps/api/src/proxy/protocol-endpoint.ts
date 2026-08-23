@@ -111,6 +111,7 @@ import {
   applyProxyStreamHealth,
   proxyStreamHealthFromState,
 } from "./stream-health.js";
+import { watchStreamIdle } from "./stream-idle.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
 import {
   proxyEngineGates,
@@ -1341,6 +1342,7 @@ export async function serveResolvedTarget(input: {
             body: upstream.body,
             codec: bufferCodec,
             state,
+            idleTimeoutMs: resolved.context.streamIdleTimeoutMs,
             consumerSignal: c.req.raw.signal,
             finishSignal: inflight.finishSignal(),
             cancelSignal: inflight.cancelSignal(),
@@ -1471,6 +1473,15 @@ export async function serveResolvedTarget(input: {
         });
       }
 
+      const streamBody = watchStreamIdle(
+        upstream.body,
+        resolved.context.streamIdleTimeoutMs,
+        (error) => {
+          trace.errorCode = "arriero_proxy_upstream_timeout";
+          trace.errorMessage = `Proxy target ${decision.target.name}: ${error.message}`;
+        },
+      );
+
       const finishStreamResponse = (
         observed: ReadableStream<Uint8Array>,
         status: number,
@@ -1517,7 +1528,7 @@ export async function serveResolvedTarget(input: {
           observeBodyCompletion(
             tapApiProxyResponsePlanStream(
               responsePlan,
-              upstream.body.pipeThrough(translation.transform),
+              streamBody.pipeThrough(translation.transform),
               upstream.status,
               upstream.headers,
             ),
@@ -1535,7 +1546,7 @@ export async function serveResolvedTarget(input: {
           observeBodyCompletion(
             tapApiProxyResponsePlanStream(
               responsePlan,
-              upstream.body,
+              streamBody,
               upstream.status,
               upstream.headers,
             ),
@@ -1570,7 +1581,7 @@ export async function serveResolvedTarget(input: {
         observeBodyCompletion(
           tapApiProxyResponsePlanStream(
             responsePlan,
-            upstream.body.pipeThrough(meter.transform),
+            streamBody.pipeThrough(meter.transform),
             upstream.status,
             upstream.headers,
           ),
@@ -1708,6 +1719,7 @@ export async function serveResolvedTarget(input: {
           interruptSignal: inflight.interruptSignal(),
           finishSignal: inflight.finishSignal(),
           cancelSignal: inflight.cancelSignal(),
+          idleTimeoutMs: resolved.context.streamIdleTimeoutMs,
           onFirstToken: markFirstToken,
           onReasoning: markReasoning,
           onReasoningDelta: markReasoningDelta,

@@ -17,6 +17,8 @@ import type {
   ApiProxyProtocolDiagnostic,
   ApiProxyProtocolOperation,
 } from "./protocol.js";
+import { getApiProxySettings } from "./settings.js";
+import { DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./stream-idle.js";
 import { resolveApiProxyTarget } from "./targets.js";
 import { shouldTranslateAnthropicMessages } from "./translation.js";
 
@@ -29,6 +31,7 @@ export type ApiProxyUpstreamContext = {
   translateAnthropic: boolean;
   stripClientHeaders: string[];
   streamTerminal: ApiEndpointStreamTerminal;
+  streamIdleTimeoutMs: number | null;
 };
 
 function apiEndpointStreamTerminal(
@@ -38,6 +41,16 @@ function apiEndpointStreamTerminal(
     return endpoint.streamTerminal;
   }
   return endpoint?.kind === "external-api" ? "tolerant" : "strict";
+}
+
+function apiEndpointStreamIdleTimeoutMs(
+  endpoint: ApiEndpointRecord | null,
+): number | null {
+  const configured =
+    endpoint?.streamIdleTimeoutMs ??
+    getApiProxySettings().streamIdleTimeoutMs ??
+    DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+  return configured === 0 ? null : configured;
 }
 
 const METRICS_LABEL_HEADER_ARG = "--tokenizer-metrics-custom-labels-header";
@@ -113,6 +126,7 @@ export function resolveApiProxyUpstreamContext(input: {
         ? [renamedMetricsLabelHeader]
         : [],
       streamTerminal: apiEndpointStreamTerminal(endpoint),
+      streamIdleTimeoutMs: apiEndpointStreamIdleTimeoutMs(endpoint),
     },
   };
 }
