@@ -201,6 +201,10 @@ export function registerProxyRoutes(app: Hono) {
     }
   });
 
+  app.get("/api/proxy/inflight", (c) => {
+    return c.json({ data: apiProxyInflight.snapshotList() });
+  });
+
   app.get("/api/proxy/inflight/:id", (c) => {
     const detail = apiProxyInflight.getDetail(c.req.param("id"));
     if (!detail) {

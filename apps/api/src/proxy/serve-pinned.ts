@@ -99,6 +99,9 @@ export async function serveApiProxyPinnedInstance(
     inflight.setModel(modelId);
     inflight.setTarget(target.id);
     inflight.setStream(payload.stream);
+    if (payload.origin) {
+      inflight.setOrigin(payload.origin.inflightId);
+    }
     const response = await serveResolvedTarget({
       c,
       adapter,

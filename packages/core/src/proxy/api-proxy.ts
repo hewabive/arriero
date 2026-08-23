@@ -162,6 +162,10 @@ export const ApiProxyPipelineUpdateSchema = z.object({
 
 export const ApiProxyServeProtocolSchema = z.enum(["openai", "anthropic"]);
 
+const ApiProxyServeOriginSchema = z.object({
+  inflightId: z.string().min(1),
+});
+
 export const ApiProxyServeRequestSchema = z.object({
   instanceId: z.string().min(1),
   protocol: ApiProxyServeProtocolSchema,
@@ -173,6 +177,7 @@ export const ApiProxyServeRequestSchema = z.object({
   preemptible: z.boolean().default(true),
   saveSlotsBeforeUnload: z.boolean().default(false),
   slotIds: ApiProxyTargetSlotIdsSchema.default([]),
+  origin: ApiProxyServeOriginSchema.nullable().default(null),
   body: z.unknown(),
 });
 
@@ -546,6 +551,7 @@ export const ApiProxyInflightToolCallSchema = z.object({
 
 export const ApiProxyInflightRequestSchema = z.object({
   id: z.string(),
+  originId: z.string().nullable().default(null),
   modelId: z.string(),
   sourceId: ApiProxyIdSchema.nullable().default(null),
   sourceName: z.string().nullable().default(null),

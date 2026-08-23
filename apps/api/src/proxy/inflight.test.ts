@@ -46,6 +46,25 @@ test("tracks phase transitions, prompt and completion tokens", () => {
   assert.equal(view.interruptible, false);
 });
 
+test("exposes the delegating origin id in views and the flat snapshot", () => {
+  apiProxyInflight.reset();
+  const handle = apiProxyInflight.begin({
+    modelId: "m",
+    protocol: "openai",
+    targetId: "serve:qwen",
+    stream: true,
+  });
+  assert.equal(only("serve:qwen").originId, null);
+
+  handle.setOrigin("entry-inflight-1");
+  assert.equal(only("serve:qwen").originId, "entry-inflight-1");
+
+  const list = apiProxyInflight.snapshotList();
+  assert.equal(list.length, 1);
+  assert.equal(list[0]?.originId, "entry-inflight-1");
+  apiProxyInflight.reset();
+});
+
 test("splits prefill and thinking when reasoning precedes content", () => {
   let clock = 0;
   const registry = new ApiProxyInflightRegistry({ now: () => clock });

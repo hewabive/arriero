@@ -10,6 +10,7 @@ import { newId } from "../utils/id.js";
 
 type InflightEntry = {
   id: string;
+  originId: string | null;
   targetId: string | null;
   modelId: string;
   sourceId: string | null;
@@ -66,6 +67,7 @@ type ApiProxyInflightRegistryOptions = {
 export type ApiProxyInflightHandle = {
   readonly id: string;
   setModel(modelId: string): void;
+  setOrigin(originId: string): void;
   setSource(sourceId: string, sourceName: string): void;
   setTarget(targetId: string | null): void;
   setStream(stream: boolean): void;
@@ -118,6 +120,7 @@ function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
       : Math.max(0, Math.round(endAt - entry.firstTokenAt));
   return {
     id: entry.id,
+    originId: entry.originId,
     modelId: entry.modelId,
     sourceId: entry.sourceId,
     sourceName: entry.sourceName,
@@ -162,6 +165,7 @@ export class ApiProxyInflightRegistry {
     const startedAt = this.clock();
     const entry: InflightEntry = {
       id: newId(),
+      originId: null,
       targetId: input.targetId ?? null,
       modelId: input.modelId,
       sourceId: null,
@@ -198,6 +202,9 @@ export class ApiProxyInflightRegistry {
       id: entry.id,
       setModel: (modelId) => {
         entry.modelId = modelId;
+      },
+      setOrigin: (originId) => {
+        entry.originId = originId;
       },
       setSource: (sourceId, sourceName) => {
         entry.sourceId = sourceId;
@@ -378,6 +385,12 @@ export class ApiProxyInflightRegistry {
       }
     }
     return byTarget;
+  }
+
+  snapshotList(): ApiProxyInflightRequest[] {
+    const at = this.clock();
+    this.sweepStale(at);
+    return [...this.entries.values()].map((entry) => toView(entry, at));
   }
 
   snapshotByModel(): Map<string, ApiProxyInflightRequest[]> {

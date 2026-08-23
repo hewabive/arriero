@@ -63,6 +63,7 @@ function inflight(
 ): ApiProxyInflightRequest {
   return {
     id: "request",
+    originId: null,
     modelId: "public",
     sourceId: null,
     sourceName: null,
