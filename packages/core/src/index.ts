@@ -39,3 +39,5 @@ export * from "./presets.js";
 export * from "./settings.js";
 export * from "./benchmark.js";
 export * from "./hf.js";
+export * from "./webapp-descriptor.js";
+export * from "./webapp.js";
