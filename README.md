@@ -17,6 +17,8 @@ current qualification record, including exact package hashes and hardware
 restrictions, is
 [docs/qualification/ktransformers/0.7.0-2026-08-18.md](docs/qualification/ktransformers/0.7.0-2026-08-18.md).
 
+Documentation index: [docs/README.md](docs/README.md).
+
 ## Development
 
 ```bash
