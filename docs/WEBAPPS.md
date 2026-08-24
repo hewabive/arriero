@@ -48,7 +48,8 @@ to disk, so there is no config file to drift. The Open WebUI renderer pins deter
 survive a restart by design), wires the proxy (`OPENAI_API_BASE_URL` → this manager's `/v1`, the
 key of the linked request source), sets identity (`DATA_DIR` under `runtime/webapps/<name>`, the
 session secret), and applies policy (`WEBUI_AUTH`, the slim profile that keeps the embedded
-embedding/STT models off — the difference between ~200 MB and ~1 GB idle RSS). `settings.extraEnv`
+embedding/STT models off — they would otherwise be downloaded and loaded into RAM on top of the
+~1.1 GB idle RSS measured for 0.11.0 with the slim profile on). `settings.extraEnv`
 is appended last; reserved keys are rejected at the schema. The model list is never rendered — the
 app discovers it from the proxy's `/v1/models`, so federation reach comes for free.
 

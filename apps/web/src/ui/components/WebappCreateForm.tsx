@@ -179,7 +179,7 @@ export function WebappCreateForm({
           />
           <Switch
             label="Lightweight mode"
-            description="Skips the local embedding and speech models (~200 MB idle instead of 1 GB)"
+            description="Keeps the local embedding and speech models off — no extra downloads or RAM on top of the ~1 GB the app itself uses"
             checked={slim}
             onChange={(event) => setSlim(event.currentTarget.checked)}
           />

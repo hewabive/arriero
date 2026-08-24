@@ -32,7 +32,7 @@ import {
   WebappNameConflictError,
   WebappUpdateBlockedError,
 } from "../webapps/repository.js";
-import { latestWebappRun } from "../webapps/runs-repository.js";
+import { latestWebappRun, type WebappRun } from "../webapps/runs-repository.js";
 import {
   restartWebapp,
   startWebapp,
@@ -60,6 +60,24 @@ function validateWebappRefs(input: {
     return "proxy source not found";
   }
   return null;
+}
+
+function latestRunFallbackState(name: string, latestRun: WebappRun | null) {
+  const fallbackPid = latestRun?.pid ? Number(latestRun.pid) : null;
+  return {
+    name,
+    pid: fallbackPid && Number.isFinite(fallbackPid) ? fallbackPid : null,
+    status: latestRun?.status ?? "stopped",
+    startedAt: latestRun?.startedAt ?? null,
+    stoppedAt: latestRun?.stoppedAt ?? null,
+    exitCode:
+      latestRun?.exitCode === null || latestRun?.exitCode === undefined
+        ? null
+        : Number(latestRun.exitCode),
+    logPath: latestRun?.logPath ?? null,
+    rawLogPath: latestRun?.rawLogPath ?? null,
+    adopted: false,
+  };
 }
 
 function createWebappProxySource(input: WebappCreate): string {
@@ -129,35 +147,17 @@ export function registerWebappRoutes(app: Hono) {
       return c.json({ error: "webapp not found" }, 404);
     }
     const latestRun = latestWebappRun(record.name);
-    const fallbackPid = latestRun?.pid ? Number(latestRun.pid) : null;
-    const stopReason = latestRun?.stopReason ?? null;
-    const state = webappSupervisor.getState(record.name);
+    const state =
+      webappSupervisor.getState(record.name) ??
+      latestRunFallbackState(record.name, latestRun);
     const health =
-      state?.status === "running"
+      state.status === "running"
         ? await requestJsonProbe(
             `http://${webappProbeHost(record.http.host)}:${record.http.port}${webappDescriptor(record.kind).probe.path}`,
           )
         : null;
     return c.json({
-      data: state
-        ? { ...state, stopReason, health }
-        : {
-            name: record.name,
-            pid:
-              fallbackPid && Number.isFinite(fallbackPid) ? fallbackPid : null,
-            status: latestRun?.status ?? "stopped",
-            startedAt: latestRun?.startedAt ?? null,
-            stoppedAt: latestRun?.stoppedAt ?? null,
-            exitCode:
-              latestRun?.exitCode === null || latestRun?.exitCode === undefined
-                ? null
-                : Number(latestRun.exitCode),
-            logPath: latestRun?.logPath ?? null,
-            rawLogPath: latestRun?.rawLogPath ?? null,
-            adopted: false,
-            stopReason,
-            health,
-          },
+      data: { ...state, stopReason: latestRun?.stopReason ?? null, health },
     });
   });
 
@@ -216,7 +216,12 @@ export function registerWebappRoutes(app: Hono) {
       return c.json({ error: "webapp not found" }, 404);
     }
     try {
-      return c.json({ data: await stopWebapp(record.name) });
+      const state = await stopWebapp(record.name);
+      return c.json({
+        data:
+          state ??
+          latestRunFallbackState(record.name, latestWebappRun(record.name)),
+      });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
