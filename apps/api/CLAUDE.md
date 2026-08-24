@@ -57,7 +57,7 @@ logic and tests. Routes for a domain live in `src/routes/<domain>.routes.ts`.
 
 | Domain | What it owns | Depth |
 | --- | --- | --- |
-| `instances` | instance definitions, rename/delete cascades | `docs/CONFIG_FILES.md` |
+| `instances` | instance definitions, rename/delete cascades | `docs/INSTANCES.md` |
 | `process` | supervisor, preflight, reconcile, stale, logs, health summary | `src/process/CLAUDE.md` |
 | `proxy` | the OpenAI/Anthropic-compatible proxy | `src/proxy/CLAUDE.md` |
 | `arguments` | engine argument catalogs, help registry, defaults | `content/CLAUDE.md`, `docs/ARGUMENT_SOURCE_EXTRACTION.md` |

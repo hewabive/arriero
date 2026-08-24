@@ -24,6 +24,7 @@ not before.
 
 | Document | Subject |
 | --- | --- |
+| [INSTANCES](INSTANCES.md) | The instance definition domain: runtime projection, write semantics, endpoint derivation, cross-ref validation |
 | [ENGINE_ADAPTERS](ENGINE_ADAPTERS.md) | The per-kind engine descriptor contract and the new-engine checklist |
 | [ARGUMENT_HELP_WORKFLOW](ARGUMENT_HELP_WORKFLOW.md) | Updating the Russian engineering help for every engine (the single source of truth for the procedure) |
 | [ARGUMENT_SOURCE_EXTRACTION](ARGUMENT_SOURCE_EXTRACTION.md) | Git-only declaration extraction for the Python engines; the `defaultValue` channel |
