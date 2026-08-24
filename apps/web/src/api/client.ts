@@ -22,3 +22,4 @@ export * from "./llama-runtime.js";
 export * from "./logs.js";
 export * from "./benchmark.js";
 export * from "./hf.js";
+export * from "./webapps.js";

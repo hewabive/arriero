@@ -22,6 +22,7 @@ export type AppRoute =
   | "instances"
   | "diagnostics"
   | "processes"
+  | "webapps"
   | "proxy"
   | "models"
   | "downloads"
@@ -94,6 +95,14 @@ const navSections: NavSection[] = [
         title: "Processes",
         description: "Inspect unmanaged llama-server processes",
         keywords: ["pid", "unmanaged", "stale"],
+      },
+      {
+        route: "webapps",
+        label: "Web apps",
+        title: "Web apps",
+        description:
+          "Install and supervise chat UIs wired to the API proxy of this node",
+        keywords: ["open-webui", "chat", "ui", "webapp", "frontend"],
       },
     ],
   },
