@@ -187,6 +187,15 @@ export function EnvironmentCreateForm({
         source: singleWheelSource,
       };
     }
+    if (engine === "open-webui") {
+      return {
+        ...common,
+        engine,
+        variant: "cpu",
+        pythonVersion: pythonVersion.trim() as "3.11" | "3.12",
+        source: singleWheelSource,
+      };
+    }
     return {
       ...common,
       engine,

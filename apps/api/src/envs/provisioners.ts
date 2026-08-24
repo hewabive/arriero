@@ -1,8 +1,10 @@
 import {
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
   ENVIRONMENT_ENGINE_LABELS,
+  type ComputeCapability,
   type EnvironmentEngine,
   type EnvironmentSpec,
+  type InstanceKind,
   type SystemAccelerator,
 } from "@arriero/core";
 import { accessSync, constants, existsSync, readFileSync } from "node:fs";
@@ -31,6 +33,7 @@ export type EnvironmentProvisioner = {
   displayName: string;
   entrypointRelative: string;
   distributions: readonly string[];
+  catalogEngineKind: InstanceKind | null;
   requirements(spec: EnvironmentSpec): string[];
   installOptions(spec: EnvironmentSpec): string[];
   wheelArtifacts(spec: EnvironmentSpec): EnvironmentWheelArtifact[];
@@ -102,13 +105,21 @@ function commonLayoutError(input: {
   return null;
 }
 
-function pythonPackageValidationScript(distribution: string, version: string) {
-  return [
+function pythonPackageValidationScript(
+  distribution: string,
+  version: string,
+  moduleVersionAttribute: boolean,
+) {
+  const module = distribution.replace(/-/g, "_");
+  const lines = [
     "import importlib.metadata as metadata",
-    `import ${distribution}`,
+    `import ${module}`,
     `assert metadata.version('${distribution}') == ${JSON.stringify(version)}`,
-    `assert ${distribution}.__version__ == ${JSON.stringify(version)}`,
-  ].join("; ");
+  ];
+  if (moduleVersionAttribute) {
+    lines.push(`assert ${module}.__version__ == ${JSON.stringify(version)}`);
+  }
+  return lines.join("; ");
 }
 
 function ktransformersValidationScript(version: string) {
@@ -124,15 +135,19 @@ function ktransformersValidationScript(version: string) {
   ].join("; ");
 }
 
-type SingleDistributionEngine = "vllm" | "sglang";
+type SingleDistributionEngine = "vllm" | "sglang" | "open-webui";
 type SingleDistributionSpec = Extract<
   EnvironmentSpec,
   { engine: SingleDistributionEngine }
 >;
 
-function singleDistributionProvisioner(
-  engine: SingleDistributionEngine,
-): EnvironmentProvisioner {
+function singleDistributionProvisioner(options: {
+  engine: SingleDistributionEngine;
+  cuda: ComputeCapability | null;
+  catalogEngineKind: InstanceKind | null;
+  moduleVersionAttribute: boolean;
+}): EnvironmentProvisioner {
+  const { engine, cuda, catalogEngineKind, moduleVersionAttribute } = options;
   const displayName = ENVIRONMENT_ENGINE_LABELS[engine];
   function checkedSpec(spec: EnvironmentSpec): SingleDistributionSpec {
     if (spec.engine !== engine) {
@@ -144,6 +159,7 @@ function singleDistributionProvisioner(
     displayName,
     entrypointRelative: `bin/${engine}`,
     distributions: [engine],
+    catalogEngineKind,
     requirements(spec) {
       const checked = checkedSpec(spec);
       if (checked.source.kind === "wheel") {
@@ -169,7 +185,11 @@ function singleDistributionProvisioner(
       return [
         resolve(finalDir, "bin", "python"),
         "-c",
-        pythonPackageValidationScript(engine, checked.version),
+        pythonPackageValidationScript(
+          engine,
+          checked.version,
+          moduleVersionAttribute,
+        ),
       ];
     },
     validateLayout(spec, finalDir) {
@@ -188,11 +208,14 @@ function singleDistributionProvisioner(
         installed: context.installed,
         rocmDeviceAvailable: context.rocmDeviceAvailable,
         variant: checked.variant,
-        cuda: {
-          engineLabel: this.displayName,
-          minimumComputeCapability:
-            ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY[engine],
-        },
+        ...(cuda
+          ? {
+              cuda: {
+                engineLabel: this.displayName,
+                minimumComputeCapability: cuda,
+              },
+            }
+          : {}),
       });
     },
     catalogName(spec) {
@@ -201,14 +224,32 @@ function singleDistributionProvisioner(
   };
 }
 
-const VLLM_PROVISIONER = singleDistributionProvisioner("vllm");
+const VLLM_PROVISIONER = singleDistributionProvisioner({
+  engine: "vllm",
+  cuda: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.vllm,
+  catalogEngineKind: "vllm",
+  moduleVersionAttribute: true,
+});
 
-const SGLANG_PROVISIONER = singleDistributionProvisioner("sglang");
+const SGLANG_PROVISIONER = singleDistributionProvisioner({
+  engine: "sglang",
+  cuda: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.sglang,
+  catalogEngineKind: "sglang",
+  moduleVersionAttribute: true,
+});
+
+const OPEN_WEBUI_PROVISIONER = singleDistributionProvisioner({
+  engine: "open-webui",
+  cuda: null,
+  catalogEngineKind: null,
+  moduleVersionAttribute: false,
+});
 
 const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   displayName: ENVIRONMENT_ENGINE_LABELS.ktransformers,
   entrypointRelative: "bin/sglang",
   distributions: ["kt-kernel", "sglang-kt"],
+  catalogEngineKind: "ktransformers",
   requirements(spec) {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
@@ -305,6 +346,7 @@ const ENVIRONMENT_PROVISIONERS: Record<
   vllm: VLLM_PROVISIONER,
   sglang: SGLANG_PROVISIONER,
   ktransformers: KTRANSFORMERS_PROVISIONER,
+  "open-webui": OPEN_WEBUI_PROVISIONER,
 };
 
 export function environmentProvisioner(

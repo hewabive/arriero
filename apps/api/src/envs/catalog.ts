@@ -11,8 +11,13 @@ import { environmentProvisioner } from "./provisioners.js";
 import { updateEnvironmentSpec } from "./repository.js";
 
 export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
+  const provisioner = environmentProvisioner(spec.engine);
+  const engineKind = provisioner.catalogEngineKind;
+  if (!engineKind) {
+    return null;
+  }
   const path = environmentEntrypoint(spec);
-  const desiredName = environmentProvisioner(spec.engine).catalogName(spec);
+  const desiredName = provisioner.catalogName(spec);
   const stored = spec.pathCatalogEntryId
     ? getPathCatalogEntry(spec.pathCatalogEntryId)
     : null;
@@ -21,7 +26,7 @@ export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
       ? updatePathCatalogEntry(stored.id, {
           name: desiredName,
           path,
-          engineKind: spec.engine,
+          engineKind,
         })
       : null;
   if (!entry) {
@@ -31,13 +36,13 @@ export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
     entry = byPath
       ? updatePathCatalogEntry(byPath.id, {
           name: desiredName,
-          engineKind: spec.engine,
+          engineKind,
         })
       : createPathCatalogEntry({
           kind: "binary",
           name: desiredName,
           path,
-          engineKind: spec.engine,
+          engineKind,
         });
   }
   if (!entry) {

@@ -128,10 +128,19 @@ export const EnvironmentEngineSchema = z.enum([
   "vllm",
   "sglang",
   "ktransformers",
+  "open-webui",
 ]);
 
+export const CUDA_ENVIRONMENT_ENGINES = [
+  "vllm",
+  "sglang",
+  "ktransformers",
+] as const;
+
+export type CudaEnvironmentEngine = (typeof CUDA_ENVIRONMENT_ENGINES)[number];
+
 export const ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY: Record<
-  z.infer<typeof EnvironmentEngineSchema>,
+  CudaEnvironmentEngine,
   ComputeCapability
 > = {
   vllm: { major: 7, minor: 5 },
@@ -146,6 +155,7 @@ export const ENVIRONMENT_ENGINE_LABELS: Record<
   vllm: "vLLM",
   sglang: "SGLang",
   ktransformers: "KTransformers",
+  "open-webui": "Open WebUI",
 };
 
 const EnvironmentCommonShape = {
@@ -184,6 +194,17 @@ const KTransformersEnvironmentCreateObjectSchema = z.object({
   }),
 });
 
+const OpenWebuiEnvironmentCreateObjectSchema = z.object({
+  ...EnvironmentCommonShape,
+  engine: z.literal("open-webui"),
+  variant: z.literal("cpu").default("cpu"),
+  pythonVersion: z.enum(["3.11", "3.12"]).default("3.12"),
+  source: VllmEnvironmentInstallSourceSchema.default({
+    kind: "pypi",
+    extras: [],
+  }),
+});
+
 function withLegacyVllmEngine(value: unknown) {
   if (
     value &&
@@ -200,6 +221,7 @@ const EnvironmentCreateUnionSchema = z.discriminatedUnion("engine", [
   VllmEnvironmentCreateObjectSchema,
   SglangEnvironmentCreateObjectSchema,
   KTransformersEnvironmentCreateObjectSchema,
+  OpenWebuiEnvironmentCreateObjectSchema,
 ]);
 
 export const EnvironmentCreateSchema = z.preprocess(
@@ -222,6 +244,7 @@ export const EnvironmentSpecSchema = z.preprocess(
     KTransformersEnvironmentCreateObjectSchema.extend(
       EnvironmentSpecMetadataShape,
     ),
+    OpenWebuiEnvironmentCreateObjectSchema.extend(EnvironmentSpecMetadataShape),
   ]),
 );
 
@@ -284,6 +307,7 @@ export const EnvironmentRecordSchema = z.preprocess(
     VllmEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
     SglangEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
     KTransformersEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
+    OpenWebuiEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
   ]),
 );
 

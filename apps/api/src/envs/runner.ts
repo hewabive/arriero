@@ -330,7 +330,9 @@ class EnvironmentRunner {
         );
       }
       const entry = reconcileEnvironmentCatalog(spec);
-      log.write(`# registered in path catalog: ${entry.name}\n`);
+      if (entry) {
+        log.write(`# registered in path catalog: ${entry.name}\n`);
+      }
       updateEnvironmentJob(jobId, {
         status: "succeeded",
         currentStep: null,
