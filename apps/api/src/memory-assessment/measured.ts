@@ -13,6 +13,7 @@ import {
 } from "../process/runtime-memory.js";
 import { listMemoryPools } from "../resources/repository.js";
 import { readTailLines } from "../utils/log-tail.js";
+import { sleep } from "../utils/sleep.js";
 import { compareStrings } from "../utils/sort.js";
 import { assessmentEngine, telemetryToleranceBytes } from "./engines.js";
 import {
@@ -57,10 +58,6 @@ export function measuredComparisonDeltas(
     deltaBytes: entry.observedBytes - entry.expectedBytes,
     toleranceBytes: telemetryToleranceBytes(entry.expectedBytes),
   }));
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function observationTotalBytes(observation: RuntimeMemoryObservation): number {

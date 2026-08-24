@@ -1,8 +1,4 @@
-import type {
-  ApiEndpointRecord,
-  ApiProxyInflightRequest,
-  ApiProxyTargetRecord,
-} from "@arriero/core";
+import type { ApiEndpointRecord, ApiProxyTargetRecord } from "@arriero/core";
 
 import { getInstanceHealthSummary } from "../process/health-summary.js";
 import { listInstances } from "../instances/repository.js";
@@ -55,6 +51,7 @@ export async function getApiProxyRuntimeSnapshot(options?: {
   const targetInstances = instances.filter((instance) =>
     targetInstanceIds.has(instance.name),
   );
+  const activeTargetIds = apiProxyInflight.activeTargetIds();
   const [healthEntries, remote, delegatedInflight] = await Promise.all([
     Promise.all(
       targetInstances.map(
@@ -68,13 +65,11 @@ export async function getApiProxyRuntimeSnapshot(options?: {
       ),
     ),
     collectRemoteTargetHealth({ targets, endpoints, cacheOnly: !diagnostics }),
-    apiProxyInflight.activeCount() > 0
-      ? collectRemoteDelegatedInflight({
-          targets,
-          endpoints,
-          cacheOnly: !diagnostics,
-        })
-      : new Map<string, ApiProxyInflightRequest>(),
+    collectRemoteDelegatedInflight({
+      targets: targets.filter((target) => activeTargetIds.has(target.id)),
+      endpoints,
+      cacheOnly: !diagnostics,
+    }),
   ]);
 
   return {
@@ -151,12 +146,14 @@ async function reconcileRuntimeState(): Promise<void> {
   const targetInstances = instances.filter((instance) =>
     targetInstanceIds.has(instance.name),
   );
+  const activeTargetIds = apiProxyInflight.activeTargetIds();
   await Promise.all([
     refreshResidencyHealth(targetInstances, instances),
     collectRemoteTargetHealth({ targets, endpoints }),
-    apiProxyInflight.activeCount() > 0
-      ? collectRemoteDelegatedInflight({ targets, endpoints })
-      : Promise.resolve(),
+    collectRemoteDelegatedInflight({
+      targets: targets.filter((target) => activeTargetIds.has(target.id)),
+      endpoints,
+    }),
   ]);
 }
 

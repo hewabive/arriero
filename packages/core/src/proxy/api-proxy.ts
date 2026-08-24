@@ -370,6 +370,15 @@ const LegacyApiProxySchedulerActionSchema =
 
 export const apiProxyClientAbortErrorCode = "client-abort";
 
+export const ApiProxyStreamTerminalSchema = z.enum(["done", "finish", "eof"]);
+
+export const ApiProxyTraceStreamHealthSchema = z.object({
+  malformedChunks: z.number().int().min(0).default(0),
+  terminal: ApiProxyStreamTerminalSchema.nullable().default(null),
+  truncated: z.boolean().default(false),
+  truncationRetries: z.number().int().min(0).default(0),
+});
+
 export const ApiProxyRequestTraceSchema = z.object({
   id: z.string(),
   at: z.string(),
@@ -400,15 +409,7 @@ export const ApiProxyRequestTraceSchema = z.object({
     .default([]),
   displacedTargetIds: z.array(ApiProxyIdSchema).default([]),
   usage: ApiProxyTraceUsageSchema.nullable().default(null),
-  streamHealth: z
-    .object({
-      malformedChunks: z.number().int().min(0).default(0),
-      terminal: z.enum(["done", "finish", "eof"]).nullable().default(null),
-      truncated: z.boolean().default(false),
-      truncationRetries: z.number().int().min(0).default(0),
-    })
-    .nullable()
-    .default(null),
+  streamHealth: ApiProxyTraceStreamHealthSchema.nullable().default(null),
   status: z.number().int().min(0).default(0),
   ok: z.boolean().default(false),
   errorCode: z.string().nullable().default(null),
@@ -752,6 +753,12 @@ export type ApiProxySettingsUpdate = z.infer<
   typeof ApiProxySettingsUpdateSchema
 >;
 export type ApiProxyRequestTrace = z.infer<typeof ApiProxyRequestTraceSchema>;
+export type ApiProxyStreamTerminal = z.infer<
+  typeof ApiProxyStreamTerminalSchema
+>;
+export type ApiProxyTraceStreamHealth = z.infer<
+  typeof ApiProxyTraceStreamHealthSchema
+>;
 export type ApiProxyTraceUsage = z.infer<typeof ApiProxyTraceUsageSchema>;
 export type ApiProxyStatsModelEntry = z.infer<
   typeof ApiProxyStatsModelEntrySchema

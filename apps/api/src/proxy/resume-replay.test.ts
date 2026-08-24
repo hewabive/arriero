@@ -96,7 +96,7 @@ function fakeContext(): Context {
 }
 
 function fakeRecorder() {
-  const recorded: (Response | undefined)[] = [];
+  const recorded: (Pick<Response, "status"> | undefined)[] = [];
   const recorder: ProxyTraceRecorder = {
     record: (response) => recorded.push(response),
     markDeferred: () => undefined,

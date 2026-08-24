@@ -2,6 +2,7 @@ import type { Instance, InstanceHealthSummary } from "@arriero/core";
 import { Badge, Tooltip } from "@mantine/core";
 
 import { memoryAssessmentStatusColors } from "./instance-details-helpers";
+import { reasoningTemplateIssueExplanation } from "./reasoning-template-issue";
 
 export function statusColor(status: Instance["status"]) {
   if (status === "running") return "green";
@@ -68,16 +69,12 @@ function InstanceReasoningTemplateBadge(props: {
   }
   return (
     <Tooltip
-      label={
-        issue.strict
-          ? "The chat template takes reasoning_effort and rejects unknown values, but its level ladder was not recognized — reasoning requests can fail with a template error. Set a reasoning override, or see Diagnostics → Reasoning effort."
-          : "The chat template takes reasoning_effort, but its level ladder was not recognized — requested levels may be silently ignored. Set a reasoning override, or see Diagnostics → Reasoning effort."
-      }
+      label={`${reasoningTemplateIssueExplanation(issue)} Set a reasoning override, or see Diagnostics → Reasoning effort.`}
       withArrow
       multiline
       w={340}
     >
-      <Badge color={issue.strict ? "red" : "yellow"} variant="light">
+      <Badge color={issue === "strict" ? "red" : "yellow"} variant="light">
         reasoning template
       </Badge>
     </Tooltip>

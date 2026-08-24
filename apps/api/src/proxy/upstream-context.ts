@@ -1,5 +1,7 @@
 import {
   argString,
+  defaultApiEndpointStreamTerminal,
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   type ApiEndpointRecord,
   type ApiEndpointStreamTerminal,
   type ApiProxyTargetRecord,
@@ -18,7 +20,6 @@ import type {
   ApiProxyProtocolOperation,
 } from "./protocol.js";
 import { getApiProxySettings } from "./settings.js";
-import { DEFAULT_STREAM_IDLE_TIMEOUT_MS } from "./stream-idle.js";
 import { resolveApiProxyTarget } from "./targets.js";
 import { shouldTranslateAnthropicMessages } from "./translation.js";
 
@@ -37,10 +38,10 @@ export type ApiProxyUpstreamContext = {
 function apiEndpointStreamTerminal(
   endpoint: ApiEndpointRecord | null,
 ): ApiEndpointStreamTerminal {
-  if (endpoint?.streamTerminal) {
-    return endpoint.streamTerminal;
-  }
-  return endpoint?.kind === "external-api" ? "tolerant" : "strict";
+  return (
+    endpoint?.streamTerminal ??
+    defaultApiEndpointStreamTerminal(endpoint?.kind ?? "managed-instance")
+  );
 }
 
 function apiEndpointStreamIdleTimeoutMs(

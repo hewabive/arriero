@@ -74,10 +74,14 @@ Two things keep it cheap and must stay that way:
   two selected counter files are read every tick. Re-reading static metadata every tick was the
   single largest avoidable cost.
 - **GPU telemetry is a resident NVML session.** `nvidia/telemetry.ts` initialises NVML once and holds
-  device handles, so a tick is three FFI calls per GPU rather than an `nvidia-smi` process spawn. The
-  3 s accelerator cache means GPU series are stair-stepped relative to the 1 Hz CPU/disk series; if
-  that becomes a problem, lower `acceleratorCacheMs` and re-measure on a host with real GPUs — NVML
-  call latency was never measured here, only reasoned about.
+  device handles, so a tick is a handful of FFI calls per GPU rather than an `nvidia-smi` process
+  spawn. Only fast-changing values ride the 3 s accelerator cache (memory, utilization, temperatures,
+  throttle reasons, current PCIe link); the health facts that move on hardware events — ECC
+  aggregates, remapped rows, retired pages, recovery action, PCIe replay counter — sit behind a
+  separate 30 s cache (`healthCacheMs`), and per-device PCIe maxima are constants read once with the
+  inventory. The 3 s accelerator cache means GPU series are stair-stepped relative to the 1 Hz
+  CPU/disk series; if that becomes a problem, lower `acceleratorCacheMs` and re-measure on a host
+  with real GPUs — NVML call latency was never measured here, only reasoned about.
 
 ## Retention tiers
 

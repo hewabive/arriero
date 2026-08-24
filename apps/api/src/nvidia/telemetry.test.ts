@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { SystemAcceleratorPcie } from "@arriero/core";
+
 import {
   type NvmlBinding,
   type NvmlComputeCapability,
@@ -8,7 +10,8 @@ import {
   type NvmlEccErrors,
   type NvmlGpuRecoveryAction,
   type NvmlMemoryInfo,
-  type NvmlPcieLink,
+  type NvmlPcieCurrentLink,
+  type NvmlPcieMaxLink,
   type NvmlProcessInfo,
   type NvmlRemappedRows,
   type NvmlRetiredPages,
@@ -34,7 +37,7 @@ type FakeDevice = {
   recoveryAction: NvmlGpuRecoveryAction | null;
   memoryTemperatureC: number | null;
   throttleReasons: NvmlThrottleReason[] | null;
-  pcieLink: NvmlPcieLink | null;
+  pcieLink: SystemAcceleratorPcie | null;
   temperatureC: number | null;
   utilizationPercent: number | null;
   uuid: string;
@@ -135,8 +138,42 @@ class FakeNvmlBinding implements NvmlBinding {
     return this.device(handle).throttleReasons;
   }
 
-  devicePcieLink(handle: NvmlDeviceHandle): NvmlPcieLink | null {
-    return this.device(handle).pcieLink;
+  devicePcieCurrentLink(handle: NvmlDeviceHandle): NvmlPcieCurrentLink | null {
+    const link = this.device(handle).pcieLink;
+    if (
+      !link ||
+      (link.currentGeneration === undefined && link.currentWidth === undefined)
+    ) {
+      return null;
+    }
+    return {
+      ...(link.currentGeneration === undefined
+        ? {}
+        : { currentGeneration: link.currentGeneration }),
+      ...(link.currentWidth === undefined
+        ? {}
+        : { currentWidth: link.currentWidth }),
+    };
+  }
+
+  devicePcieMaxLink(handle: NvmlDeviceHandle): NvmlPcieMaxLink | null {
+    const link = this.device(handle).pcieLink;
+    if (
+      !link ||
+      (link.maxGeneration === undefined && link.maxWidth === undefined)
+    ) {
+      return null;
+    }
+    return {
+      ...(link.maxGeneration === undefined
+        ? {}
+        : { maxGeneration: link.maxGeneration }),
+      ...(link.maxWidth === undefined ? {} : { maxWidth: link.maxWidth }),
+    };
+  }
+
+  devicePcieReplayCounter(handle: NvmlDeviceHandle): number | null {
+    return this.device(handle).pcieLink?.replayCounter ?? null;
   }
 
   computeProcesses(handle: NvmlDeviceHandle): NvmlProcessInfo[] {

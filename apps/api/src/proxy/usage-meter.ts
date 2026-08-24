@@ -6,6 +6,7 @@ import type {
 } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
 import {
+  classifyProxyStreamTerminal,
   emptyProxyStreamHealth,
   noteMalformedPayload,
   type ProxyStreamHealth,
@@ -230,7 +231,7 @@ export function createUsageMeterStream(input: {
 
   const health = (): ProxyStreamHealth => ({
     ...streamHealth,
-    terminal: ended ? (sawDone ? "done" : sawFinish ? "finish" : "eof") : null,
+    terminal: ended ? classifyProxyStreamTerminal(sawDone, sawFinish) : null,
   });
 
   const observeFrame = (frame: string): boolean => {

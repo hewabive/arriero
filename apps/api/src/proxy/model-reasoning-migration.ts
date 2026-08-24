@@ -1,30 +1,13 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { instanceIdFromEndpointId } from "@arriero/core";
 
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { readRawArray, writeRawJson } from "../migrations/raw-json.js";
 import { ENDPOINTS_FILE } from "./endpoints.js";
 import { MODELS_FILE, TARGETS_FILE } from "./repository.js";
-
-function readRawArray(path: string): Record<string, unknown>[] | null {
-  if (!existsSync(path)) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
-    return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeRawJson(path: string, value: unknown): void {
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  renameSync(tmp, path);
-}
 
 function modelsPath(): string {
   return resolve(config.proxyConfigDir, MODELS_FILE);
@@ -92,18 +75,19 @@ function moveToInstance(instanceName: string, reasoning: unknown): boolean {
   return true;
 }
 
-function moveToEndpoint(endpointId: string, reasoning: unknown): boolean {
-  const path = resolve(config.proxyConfigDir, ENDPOINTS_FILE);
-  const records = readRawArray(path);
-  const stored = records?.find((record) => record["id"] === endpointId);
-  if (!records || !stored) {
+function moveToEndpoint(
+  endpointRecords: Record<string, unknown>[] | null,
+  endpointId: string,
+  reasoning: unknown,
+): boolean {
+  const stored = endpointRecords?.find((record) => record["id"] === endpointId);
+  if (!stored) {
     return false;
   }
   if (stored["reasoning"] !== undefined && stored["reasoning"] !== null) {
     return false;
   }
   stored["reasoning"] = reasoning;
-  writeRawJson(path, records);
   return true;
 }
 
@@ -122,6 +106,9 @@ export function migrateModelReasoningToUpstreams(): void {
       targetEndpointById.set(target["id"], target["endpointId"]);
     }
   }
+  const endpointsFilePath = resolve(config.proxyConfigDir, ENDPOINTS_FILE);
+  const endpointRecords = readRawArray(endpointsFilePath);
+  let endpointsDirty = false;
 
   for (const record of records) {
     const reasoning = record["reasoning"];
@@ -138,9 +125,13 @@ export function migrateModelReasoningToUpstreams(): void {
       continue;
     }
     const instanceName = instanceIdFromEndpointId(resolved.endpointId);
-    const moved = instanceName
-      ? moveToInstance(instanceName, reasoning)
-      : moveToEndpoint(resolved.endpointId, reasoning);
+    let moved: boolean;
+    if (instanceName) {
+      moved = moveToInstance(instanceName, reasoning);
+    } else {
+      moved = moveToEndpoint(endpointRecords, resolved.endpointId, reasoning);
+      endpointsDirty ||= moved;
+    }
     if (moved) {
       logger.info(
         { modelId, destination: instanceName ?? resolved.endpointId },
@@ -154,6 +145,9 @@ export function migrateModelReasoningToUpstreams(): void {
     }
   }
 
+  if (endpointsDirty && endpointRecords) {
+    writeRawJson(endpointsFilePath, endpointRecords);
+  }
   writeRawJson(
     modelsPath(),
     records.map(({ reasoning: _drop, ...rest }) => rest),

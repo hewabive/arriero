@@ -9,14 +9,13 @@ import {
 
 import { fetchNodeJson } from "../nodes/remote.js";
 import { getNode } from "../nodes/repository.js";
+import { createCachedSingleFlight } from "../utils/cached-single-flight.js";
 
 const CACHE_TTL_MS = 2000;
 const REMOTE_INFLIGHT_TIMEOUT_MS = 4000;
 
-type CacheEntry = { at: number; value: ApiProxyInflightRequest[] };
-
-const cache = new Map<string, CacheEntry>();
-const pending = new Map<string, Promise<ApiProxyInflightRequest[]>>();
+const remoteInflightCache =
+  createCachedSingleFlight<ApiProxyInflightRequest[]>(CACHE_TTL_MS);
 
 async function loadRemoteInflight(
   nodeId: string,
@@ -38,30 +37,13 @@ async function loadRemoteInflight(
 }
 
 function readCachedRemoteInflight(nodeId: string): ApiProxyInflightRequest[] {
-  return cache.get(nodeId)?.value ?? [];
+  return remoteInflightCache.readCached(nodeId) ?? [];
 }
 
 function fetchRemoteInflight(
   nodeId: string,
 ): Promise<ApiProxyInflightRequest[]> {
-  const cached = cache.get(nodeId);
-  if (cached && performance.now() - cached.at < CACHE_TTL_MS) {
-    return Promise.resolve(cached.value);
-  }
-  const existing = pending.get(nodeId);
-  if (existing) {
-    return existing;
-  }
-  const task = loadRemoteInflight(nodeId)
-    .then((value) => {
-      cache.set(nodeId, { at: performance.now(), value });
-      return value;
-    })
-    .finally(() => {
-      pending.delete(nodeId);
-    });
-  pending.set(nodeId, task);
-  return task;
+  return remoteInflightCache.fetch(nodeId, () => loadRemoteInflight(nodeId));
 }
 
 export async function collectRemoteDelegatedInflight(input: {
@@ -98,16 +80,6 @@ export async function collectRemoteDelegatedInflight(input: {
   return byOriginId;
 }
 
-const ACTIVE_PHASE_RANK: Record<ApiProxyInflightPhase, number> = {
-  queued: 0,
-  prefilling: 1,
-  thinking: 2,
-  generating: 3,
-  tool: 4,
-  done: 5,
-  failed: 5,
-};
-
 function mergedPhase(
   local: ApiProxyInflightPhase,
   peer: ApiProxyInflightPhase,
@@ -115,9 +87,7 @@ function mergedPhase(
   if (apiProxyInflightPhaseEnded(local) || apiProxyInflightPhaseEnded(peer)) {
     return local;
   }
-  return ACTIVE_PHASE_RANK[local] <= ACTIVE_PHASE_RANK.prefilling
-    ? peer
-    : local;
+  return local === "queued" || local === "prefilling" ? peer : local;
 }
 
 export function enrichDelegatedInflightView(

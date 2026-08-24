@@ -4,7 +4,6 @@ import {
   Divider,
   Group,
   Modal,
-  NumberInput,
   Select,
   Stack,
   Switch,
@@ -17,6 +16,7 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import { ReasoningOverrideSelect } from "../components/ReasoningOverrideSelect";
 import { SecretInput } from "../components/SecretInput";
 import type { EndpointDraft, EndpointEditor } from "./forms";
+import { StreamIdleTimeoutInput } from "./stream-idle-input";
 
 type EndpointEditorModalProps = {
   editor: EndpointEditor | null;
@@ -121,20 +121,12 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
             })
           }
         />
-        <NumberInput
-          label="Stream idle timeout (seconds)"
+        <StreamIdleTimeoutInput
           description="Abort a stream when the upstream sends nothing for this long. Empty inherits the proxy-wide setting; 0 disables the watchdog for this endpoint."
           placeholder="proxy default"
-          min={0}
-          max={3600}
-          allowDecimal={false}
-          value={draft.streamIdleTimeoutSeconds ?? ""}
-          onChange={(value) =>
-            onDraftChange({
-              ...draft,
-              streamIdleTimeoutSeconds:
-                typeof value === "number" ? value : null,
-            })
+          value={draft.streamIdleTimeoutSeconds}
+          onChange={(streamIdleTimeoutSeconds) =>
+            onDraftChange({ ...draft, streamIdleTimeoutSeconds })
           }
         />
 

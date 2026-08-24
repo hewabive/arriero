@@ -17,6 +17,7 @@ import type {
 import {
   resumableTraceUsage,
   traceDiagnosticResponse,
+  truncatedStreamResponse,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
@@ -33,7 +34,7 @@ import {
 } from "./resumable-forward.js";
 import {
   applyProxyStreamHealth,
-  proxyStreamHealthFromState,
+  markPlanTruncatedOnEof,
 } from "./stream-health.js";
 import { watchStreamIdle } from "./stream-idle.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
@@ -231,28 +232,17 @@ export async function serveResumedStreamSession(input: {
       });
     }
     if (outcome.type === "truncated") {
-      applyProxyStreamHealth({
-        trace,
-        health: proxyStreamHealthFromState(state),
-      });
-      return traceDiagnosticResponse({
+      return truncatedStreamResponse({
         c,
         adapter: input.adapter,
         request,
         trace,
-        diagnostic: {
-          status: 502,
-          code: "arriero_proxy_upstream_error",
-          param: "model",
-          message: `Resumed stream replay ended without a terminal chunk (${state.text.length} chars buffered).`,
-        },
+        state,
+        label: "Resumed stream replay",
       });
     }
     trace.usage = resumableTraceUsage(state);
-    applyProxyStreamHealth({
-      trace,
-      health: proxyStreamHealthFromState(state),
-    });
+    applyProxyStreamHealth({ trace, health: state.health });
     const final = finalFromState(effectiveCodec, state, false);
     const delivered = applyApiProxyResponsePlanText(
       input.responsePlan,
@@ -308,11 +298,7 @@ export async function serveResumedStreamSession(input: {
     codec,
     stripUsageFrames: !includeUsageRequested(request.body),
     stripProgressFrames: !returnProgressRequested(claim.exchangeBody),
-    onStreamEnd: (health) => {
-      if (health.terminal === "eof") {
-        input.responsePlan?.markTruncated();
-      }
-    },
+    onStreamEnd: markPlanTruncatedOnEof(input.responsePlan),
     onFirstToken: (promptTokens) => inflight.firstToken(promptTokens),
     onReasoning: () => inflight.firstReasoning(),
     onReasoningDelta: (text) => inflight.appendReasoning(text),

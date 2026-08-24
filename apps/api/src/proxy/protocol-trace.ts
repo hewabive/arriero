@@ -3,6 +3,7 @@ import {
   type ApiProxyRouteTraceStep,
   type ApiProxySchedulerAction,
   type ApiProxyTraceFile,
+  type ApiProxyTraceStreamHealth,
 } from "@arriero/core";
 import type { Context } from "hono";
 
@@ -14,7 +15,7 @@ import type {
   ApiProxyProtocolOperation,
 } from "./protocol.js";
 import type { ResumableBufferState } from "./resumable-forward.js";
-import type { ProxyStreamTerminal } from "./stream-health.js";
+import { applyProxyStreamHealth } from "./stream-health.js";
 import { apiProxySlotTracker } from "./slot-tracker.js";
 
 export type ProxyTraceAccumulator = {
@@ -49,12 +50,7 @@ export type ProxyTraceAccumulator = {
     prefillMs: number | null;
     promptPerSecond: number | null;
   } | null;
-  streamHealth: {
-    malformedChunks: number;
-    terminal: ProxyStreamTerminal | null;
-    truncated: boolean;
-    truncationRetries: number;
-  } | null;
+  streamHealth: ApiProxyTraceStreamHealth | null;
   status: number;
   ok: boolean;
   errorCode: string | null;
@@ -66,7 +62,7 @@ export type ProxyTraceAccumulator = {
 };
 
 export type ProxyTraceRecorder = {
-  record: (response: Response | undefined) => void;
+  record: (response: Pick<Response, "status"> | undefined) => void;
   markDeferred: () => void;
   freezeDuration: () => void;
   beforeRecord: (hook: () => void) => void;
@@ -142,6 +138,29 @@ export function traceDiagnosticResponse(input: {
     input.c.header(name, value);
   }
   return input.c.json(response.body, response.status);
+}
+
+export function truncatedStreamResponse(input: {
+  c: Context;
+  adapter: ApiProxyProtocolAdapter;
+  request: ApiProxyProtocolModelRequest;
+  trace: ProxyTraceAccumulator;
+  state: ResumableBufferState;
+  label: string;
+}): Response {
+  applyProxyStreamHealth({ trace: input.trace, health: input.state.health });
+  return traceDiagnosticResponse({
+    c: input.c,
+    adapter: input.adapter,
+    request: input.request,
+    trace: input.trace,
+    diagnostic: {
+      status: 502,
+      code: "arriero_proxy_upstream_error",
+      param: "model",
+      message: `${input.label} ended without a terminal chunk (${input.state.text.length} chars buffered).`,
+    },
+  });
 }
 
 export function safeJsonParse(text: string): unknown {

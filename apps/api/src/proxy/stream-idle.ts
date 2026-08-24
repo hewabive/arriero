@@ -1,5 +1,3 @@
-export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
-
 export class StreamIdleTimeoutError extends Error {
   constructor(idleTimeoutMs: number) {
     super(
@@ -20,37 +18,41 @@ export function watchStreamIdle(
   const reader = body.getReader();
   let timer: NodeJS.Timeout | null = null;
   let settled = false;
+  let lastReadAt = 0;
   let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null;
 
-  const disarm = () => {
+  const settle = () => {
+    settled = true;
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
   };
-  const settle = () => {
-    settled = true;
-    disarm();
-  };
-  const arm = () => {
-    disarm();
-    timer = setTimeout(() => {
-      if (settled) {
-        return;
-      }
-      settle();
-      const error = new StreamIdleTimeoutError(idleTimeoutMs);
-      onTimeout?.(error);
-      controllerRef?.error(error);
-      void reader.cancel(error).catch(() => undefined);
-    }, idleTimeoutMs);
+  const schedule = (delayMs: number) => {
+    timer = setTimeout(checkIdle, delayMs);
     timer.unref();
+  };
+  const checkIdle = () => {
+    if (settled) {
+      return;
+    }
+    const idleMs = performance.now() - lastReadAt;
+    if (idleMs < idleTimeoutMs) {
+      schedule(idleTimeoutMs - idleMs);
+      return;
+    }
+    settle();
+    const error = new StreamIdleTimeoutError(idleTimeoutMs);
+    onTimeout?.(error);
+    controllerRef?.error(error);
+    void reader.cancel(error).catch(() => undefined);
   };
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
       controllerRef = controller;
-      arm();
+      lastReadAt = performance.now();
+      schedule(idleTimeoutMs);
     },
     async pull(controller) {
       let result: ReadableStreamReadResult<Uint8Array>;
@@ -71,7 +73,7 @@ export function watchStreamIdle(
         controller.close();
         return;
       }
-      arm();
+      lastReadAt = performance.now();
       controller.enqueue(result.value);
     },
     async cancel(reason) {

@@ -9,6 +9,7 @@ import {
   type NvmlComputeCapability,
   type NvmlDeviceHandle,
   type NvmlGpuRecoveryAction,
+  type NvmlPcieMaxLink,
   NvmlError,
   NVML_ERROR_DRIVER_NOT_LOADED,
   NVML_ERROR_GPU_IS_LOST,
@@ -18,6 +19,7 @@ import {
 } from "./nvml-binding.js";
 
 const ACCELERATOR_CACHE_MS = 3_000;
+const HEALTH_CACHE_MS = 30_000;
 const PROCESS_CACHE_MS = 2_000;
 const RETRY_DELAY_MS = 3_000;
 
@@ -69,6 +71,19 @@ type InventoryDevice = {
   uuid: string;
   pciBusId: string;
   computeCapability: NvmlComputeCapability | null;
+  pcieMax: NvmlPcieMaxLink | null;
+};
+
+type DeviceHealthFacts = {
+  ecc: SystemAcceleratorEcc | null;
+  recoveryAction: NvmlGpuRecoveryAction | null;
+  pcieReplayCounter: number | null;
+};
+
+const emptyHealthFacts: DeviceHealthFacts = {
+  ecc: null,
+  recoveryAction: null,
+  pcieReplayCounter: null,
 };
 
 type TimedCache<T> = {
@@ -80,6 +95,7 @@ type NvidiaTelemetryOptions = {
   bindingFactory?: () => NvmlBinding;
   now?: () => number;
   acceleratorCacheMs?: number;
+  healthCacheMs?: number;
   processCacheMs?: number;
   retryDelayMs?: number;
 };
@@ -97,6 +113,7 @@ export class NvidiaTelemetry {
   private readonly bindingFactory: () => NvmlBinding;
   private readonly now: () => number;
   private readonly acceleratorCacheMs: number;
+  private readonly healthCacheMs: number;
   private readonly processCacheMs: number;
   private readonly retryDelayMs: number;
   private binding: NvmlBinding | null = null;
@@ -105,6 +122,7 @@ export class NvidiaTelemetry {
   private retryAfter = 0;
   private statusValue = initialStatus();
   private acceleratorsCache: TimedCache<NvidiaDeviceSnapshot[]> | null = null;
+  private healthCache: TimedCache<Map<number, DeviceHealthFacts>> | null = null;
   private processesCache: TimedCache<NvidiaComputeProcess[]> | null = null;
 
   constructor(options: NvidiaTelemetryOptions = {}) {
@@ -112,6 +130,7 @@ export class NvidiaTelemetry {
     this.now = options.now ?? Date.now;
     this.acceleratorCacheMs =
       options.acceleratorCacheMs ?? ACCELERATOR_CACHE_MS;
+    this.healthCacheMs = options.healthCacheMs ?? HEALTH_CACHE_MS;
     this.processCacheMs = options.processCacheMs ?? PROCESS_CACHE_MS;
     this.retryDelayMs = options.retryDelayMs ?? RETRY_DELAY_MS;
   }
@@ -125,6 +144,7 @@ export class NvidiaTelemetry {
     this.initialized = false;
     this.binding = null;
     this.inventory = null;
+    this.healthCache = null;
   }
 
   private fail(error: unknown): void {
@@ -192,6 +212,7 @@ export class NvidiaTelemetry {
           uuid: this.binding.deviceUuid(handle),
           pciBusId: this.binding.devicePciBusId(handle),
           computeCapability: this.binding.deviceCudaComputeCapability(handle),
+          pcieMax: this.binding.devicePcieMaxLink(handle),
         });
       }
       this.inventory = inventory;
@@ -214,6 +235,32 @@ export class NvidiaTelemetry {
     return { ...this.statusValue };
   }
 
+  private healthFacts(now: number): Map<number, DeviceHealthFacts> {
+    if (this.healthCache && now < this.healthCache.expiresAt) {
+      return this.healthCache.value;
+    }
+    const value = new Map<number, DeviceHealthFacts>();
+    for (const device of this.inventory!) {
+      const eccErrors = this.binding!.deviceEccErrors(device.handle);
+      const remappedRows = this.binding!.deviceRemappedRows(device.handle);
+      const retiredPages = this.binding!.deviceRetiredPages(device.handle);
+      value.set(device.index, {
+        ecc:
+          eccErrors === null && remappedRows === null && retiredPages === null
+            ? null
+            : {
+                ...(eccErrors ?? {}),
+                ...(remappedRows === null ? {} : { remappedRows }),
+                ...(retiredPages === null ? {} : { retiredPages }),
+              },
+        recoveryAction: this.binding!.deviceRecoveryAction(device.handle),
+        pcieReplayCounter: this.binding!.devicePcieReplayCounter(device.handle),
+      });
+    }
+    this.healthCache = { value, expiresAt: now + this.healthCacheMs };
+    return value;
+  }
+
   accelerators(): NvidiaDeviceSnapshot[] {
     const now = this.now();
     if (this.acceleratorsCache && now < this.acceleratorsCache.expiresAt) {
@@ -224,11 +271,23 @@ export class NvidiaTelemetry {
     }
 
     try {
+      const health = this.healthFacts(now);
       const value = this.inventory!.map((device) => {
         const memory = this.binding!.deviceMemory(device.handle);
-        const eccErrors = this.binding!.deviceEccErrors(device.handle);
-        const remappedRows = this.binding!.deviceRemappedRows(device.handle);
-        const retiredPages = this.binding!.deviceRetiredPages(device.handle);
+        const facts = health.get(device.index) ?? emptyHealthFacts;
+        const pcieCurrent = this.binding!.devicePcieCurrentLink(device.handle);
+        const pcie =
+          pcieCurrent === null &&
+          device.pcieMax === null &&
+          facts.pcieReplayCounter === null
+            ? null
+            : {
+                ...(pcieCurrent ?? {}),
+                ...(device.pcieMax ?? {}),
+                ...(facts.pcieReplayCounter === null
+                  ? {}
+                  : { replayCounter: facts.pcieReplayCounter }),
+              };
         return {
           index: device.index,
           name: device.name,
@@ -243,17 +302,10 @@ export class NvidiaTelemetry {
           memoryTemperatureC: this.binding!.deviceMemoryTemperature(
             device.handle,
           ),
-          ecc:
-            eccErrors === null && remappedRows === null && retiredPages === null
-              ? null
-              : {
-                  ...(eccErrors ?? {}),
-                  ...(remappedRows === null ? {} : { remappedRows }),
-                  ...(retiredPages === null ? {} : { retiredPages }),
-                },
-          recoveryAction: this.binding!.deviceRecoveryAction(device.handle),
+          ecc: facts.ecc,
+          recoveryAction: facts.recoveryAction,
           throttleReasons: this.binding!.deviceThrottleReasons(device.handle),
-          pcie: this.binding!.devicePcieLink(device.handle),
+          pcie,
         };
       });
       this.acceleratorsCache = {
@@ -320,6 +372,7 @@ export class NvidiaTelemetry {
   close(): void {
     this.resetSession();
     this.acceleratorsCache = null;
+    this.healthCache = null;
     this.processesCache = null;
     this.statusValue = initialStatus();
     this.retryAfter = 0;

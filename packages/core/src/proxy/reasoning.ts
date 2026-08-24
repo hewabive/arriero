@@ -63,9 +63,20 @@ export type ApiProxyReasoningProfile = z.infer<
   typeof ApiProxyReasoningProfileSchema
 >;
 
+export const ApiProxyReasoningSourceSchema = z.enum([
+  "instance override",
+  "template",
+  "engine default",
+  "endpoint override",
+]);
+
+export type ApiProxyReasoningSource = z.infer<
+  typeof ApiProxyReasoningSourceSchema
+>;
+
 export const ApiProxyUpstreamReasoningProfileSchema = z.object({
   profile: ApiProxyReasoningProfileSchema,
-  source: z.string(),
+  source: ApiProxyReasoningSourceSchema,
 });
 
 export type ApiProxyUpstreamReasoningProfile = z.infer<

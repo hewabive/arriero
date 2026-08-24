@@ -7,14 +7,13 @@ import {
 
 import { fetchNodeJson } from "../nodes/remote.js";
 import { getNode } from "../nodes/repository.js";
+import { createCachedSingleFlight } from "../utils/cached-single-flight.js";
 
 const CACHE_TTL_MS = 3000;
 const REMOTE_HEALTH_TIMEOUT_MS = 4000;
 
-type CacheEntry = { at: number; value: InstanceHealthSummary | null };
-
-const cache = new Map<string, CacheEntry>();
-const pending = new Map<string, Promise<InstanceHealthSummary | null>>();
+const remoteHealthCache =
+  createCachedSingleFlight<InstanceHealthSummary | null>(CACHE_TTL_MS);
 
 function pairKey(nodeId: string, instanceId: string) {
   return `${nodeId}\u0000${instanceId}`;
@@ -44,32 +43,16 @@ function readCachedRemoteInstanceHealth(
   nodeId: string,
   instanceId: string,
 ): InstanceHealthSummary | null {
-  return cache.get(pairKey(nodeId, instanceId))?.value ?? null;
+  return remoteHealthCache.readCached(pairKey(nodeId, instanceId)) ?? null;
 }
 
 function fetchRemoteInstanceHealth(
   nodeId: string,
   instanceId: string,
 ): Promise<InstanceHealthSummary | null> {
-  const key = pairKey(nodeId, instanceId);
-  const cached = cache.get(key);
-  if (cached && performance.now() - cached.at < CACHE_TTL_MS) {
-    return Promise.resolve(cached.value);
-  }
-  const existing = pending.get(key);
-  if (existing) {
-    return existing;
-  }
-  const task = loadRemoteInstanceHealth(nodeId, instanceId)
-    .then((value) => {
-      cache.set(key, { at: performance.now(), value });
-      return value;
-    })
-    .finally(() => {
-      pending.delete(key);
-    });
-  pending.set(key, task);
-  return task;
+  return remoteHealthCache.fetch(pairKey(nodeId, instanceId), () =>
+    loadRemoteInstanceHealth(nodeId, instanceId),
+  );
 }
 
 export type RemoteTargetHealth = {

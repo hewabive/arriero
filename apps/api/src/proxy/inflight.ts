@@ -368,6 +368,16 @@ export class ApiProxyInflightRegistry {
     return count;
   }
 
+  activeTargetIds(): Set<string> {
+    const targetIds = new Set<string>();
+    for (const entry of this.entries.values()) {
+      if (entry.endedAt === null && entry.targetId !== null) {
+        targetIds.add(entry.targetId);
+      }
+    }
+    return targetIds;
+  }
+
   snapshotByTarget(): Map<string, ApiProxyInflightRequest[]> {
     const at = this.clock();
     this.sweepStale(at);

@@ -40,7 +40,7 @@ import {
 import { tailInstanceLog } from "../process/logs.js";
 import { validateInstanceStartPreflight } from "../process/preflight.js";
 import { latestProcessRun } from "../process/runs-repository.js";
-import { instanceReasoningProfile } from "../proxy/reasoning-request.js";
+import { instanceReasoningProfile } from "../instances/reasoning-profile.js";
 import { stopStaleProcess } from "../process/stale.js";
 import { supervisor } from "../process/supervisor.js";
 

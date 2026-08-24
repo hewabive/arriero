@@ -22,11 +22,10 @@ import { useState } from "react";
 import {
   createApiProxySource,
   deleteApiProxySource,
-  getApiProxySettings,
   listApiProxySources,
-  updateApiProxySettings,
   updateApiProxySource,
 } from "../../api/client";
+import { useApiProxySettings } from "../proxy/use-api-proxy-settings";
 
 type SourceEditor =
   | { mode: "create" }
@@ -78,19 +77,12 @@ export function ApiProxySourcesView() {
   });
   const sources = sourcesQuery.data?.data ?? [];
 
-  const settingsQuery = useQuery({
-    queryKey: ["api-proxy-settings"],
-    queryFn: getApiProxySettings,
-  });
-  const allowAnonymous = settingsQuery.data?.data.allowAnonymous ?? true;
-
-  const settingsMutation = useMutation({
-    mutationFn: updateApiProxySettings,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["api-proxy-settings"] });
-    },
-    onError: notifyFailure("Settings update failed"),
-  });
+  const {
+    query: settingsQuery,
+    mutation: settingsMutation,
+    settings,
+  } = useApiProxySettings(notifyFailure("Settings update failed"));
+  const allowAnonymous = settings?.allowAnonymous ?? true;
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["api-proxy-sources"] });

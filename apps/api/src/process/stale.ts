@@ -1,5 +1,6 @@
 import type { RuntimeState } from "@arriero/core";
 
+import { sleep } from "../utils/sleep.js";
 import { isPidAlive } from "./pid.js";
 import {
   listOpenProcessRuns,
@@ -10,10 +11,6 @@ import {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function waitForExit(pid: number, timeoutMs: number) {

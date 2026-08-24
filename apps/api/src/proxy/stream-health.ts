@@ -1,8 +1,9 @@
+import type { ApiProxyStreamTerminal } from "@arriero/core";
+
 import { logger } from "../logger.js";
 import type { ProxyTraceAccumulator } from "./protocol-trace.js";
-import type { ResumableBufferState } from "./resumable-forward.js";
 
-export type ProxyStreamTerminal = "done" | "finish" | "eof";
+type ProxyStreamTerminal = ApiProxyStreamTerminal;
 
 export type ProxyStreamHealth = {
   malformedChunks: number;
@@ -30,10 +31,21 @@ export function noteMalformedPayload(
   health.malformedSample ??= data.slice(0, MALFORMED_SAMPLE_LIMIT);
 }
 
-export function proxyStreamHealthFromState(
-  state: ResumableBufferState,
-): ProxyStreamHealth {
-  return { ...state.health };
+export function classifyProxyStreamTerminal(
+  sawDone: boolean,
+  sawFinish: boolean,
+): ProxyStreamTerminal {
+  return sawDone ? "done" : sawFinish ? "finish" : "eof";
+}
+
+export function markPlanTruncatedOnEof(
+  responsePlan: { markTruncated: () => void } | null,
+): (health: ProxyStreamHealth) => void {
+  return (health) => {
+    if (health.terminal === "eof") {
+      responsePlan?.markTruncated();
+    }
+  };
 }
 
 function mergedTerminal(

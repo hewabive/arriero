@@ -7,16 +7,13 @@ import {
 
 import { logger } from "../logger.js";
 import { fetchNodeJson } from "../nodes/remote.js";
+import { sleep } from "../utils/sleep.js";
 import type { ProxyTraceAccumulator } from "./protocol-trace.js";
 
 export const delegatedTraceHeader = "x-arriero-trace-id";
 
 const FETCH_TIMEOUT_MS = 4000;
 const RETRY_DELAYS_MS = [400, 900, 1800];
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function withDelegatedTraceHeader(
   response: Response,
@@ -106,6 +103,9 @@ export function mergeDelegatedTrace(
   trace.ttftMs ??= remote.ttftMs;
   trace.errorCode ??= remote.errorCode;
   trace.errorMessage ??= remote.errorMessage;
+  if (trace.streamHealth === null && remote.streamHealth) {
+    trace.streamHealth = { ...remote.streamHealth };
+  }
   if (trace.schedulerActions.length === 0) {
     trace.schedulerActions = remote.schedulerActions.flatMap((action) => {
       const parsed = ApiProxySchedulerActionSchema.safeParse(action);

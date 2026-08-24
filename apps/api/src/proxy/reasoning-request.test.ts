@@ -21,9 +21,11 @@ import { saveCachedModel } from "../models/cache-repository.js";
 import { emptyMetadata } from "../models/scanner.js";
 import { createApiEndpoint } from "./endpoints.js";
 import {
-  applyApiProxyReasoningMapping,
   instanceReasoningTemplateIssue,
   reasoningProfileFromTemplate,
+} from "../instances/reasoning-profile.js";
+import {
+  applyApiProxyReasoningMapping,
   resolveApiProxyUpstreamReasoningProfile,
 } from "./reasoning-request.js";
 
@@ -365,9 +367,7 @@ test("an unrecognized effort template surfaces as a reasoning-template issue", (
       strict: true,
     },
   });
-  assert.deepEqual(instanceReasoningTemplateIssue(strictInstance), {
-    strict: true,
-  });
+  assert.equal(instanceReasoningTemplateIssue(strictInstance), "strict");
 
   const tolerantInstance = seedLlamaInstance({
     modelPath: "tolerant-unknown.gguf",
@@ -379,9 +379,7 @@ test("an unrecognized effort template surfaces as a reasoning-template issue", (
       strict: false,
     },
   });
-  assert.deepEqual(instanceReasoningTemplateIssue(tolerantInstance), {
-    strict: false,
-  });
+  assert.equal(instanceReasoningTemplateIssue(tolerantInstance), "tolerant");
 
   const budgetInstance = seedLlamaInstance({ modelPath: null });
   assert.equal(instanceReasoningTemplateIssue(budgetInstance), null);

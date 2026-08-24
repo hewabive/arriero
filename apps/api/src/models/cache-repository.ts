@@ -91,11 +91,11 @@ function entryFromRow(
 
 export function getCachedModelEntry(path: string): CachedModelEntry | null {
   const row = db
-    .select()
+    .select(modelCacheListColumns)
     .from(modelCache)
     .where(eq(modelCache.path, path))
     .get();
-  return row ? entryFromRow(row, () => row.rawJson) : null;
+  return row ? entryFromRow(row, () => cachedRawJson(path)) : null;
 }
 
 export function listAllCachedModels(): GgufModel[] {

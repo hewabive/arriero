@@ -9,8 +9,11 @@ profile that is **resolved where the upstream is actually known — at the
 forward boundary, after the pipeline picked the target** — so `condition`
 routing and `fusion` panels map each branch against its own instance, and a
 peer node maps delegated requests against its own local instance. Pure logic
-lives in `packages/core/src/proxy/reasoning.ts`; resolution and the mapping
-hook in `apps/api/src/proxy/reasoning-request.ts`; template detection in
+lives in `packages/core/src/proxy/reasoning.ts`; the mapping hook and endpoint
+resolution in `apps/api/src/proxy/reasoning-request.ts`; the instance-resolved
+profile (override → chat-template autodetect → engine default) in
+`apps/api/src/instances/reasoning-profile.ts`, so the process domain reads it
+without depending on the proxy; template detection in
 `apps/api/src/models/chat-template-reasoning.ts`.
 
 ## Canonical directive
@@ -133,7 +136,8 @@ detection works without a re-scan. Extraction is conservative: an
 unconventional template yields `levels: null` → the profile keeps an empty
 ladder and passes canonical levels through unclamped — and that state is
 **deliberately loud**: `InstanceHealthSummary.reasoningTemplateIssue`
-(`{strict}` | null, computed from the same cached `instanceReasoningProfile`)
+(`"strict"` | `"tolerant"` | null, computed from the same cached
+`instanceReasoningProfile`)
 drives a `reasoning template` badge on the instance (red for strict
 templates — requests can fail with a template error; yellow for tolerant
 ones — levels may be silently ignored), lists the instance on the

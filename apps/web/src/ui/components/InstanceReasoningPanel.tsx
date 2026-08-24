@@ -5,11 +5,13 @@ import {
   type ApiProxyReasoningInterface,
   type ApiProxyReasoningLevel,
   type ApiProxyReasoningProfile,
+  type ApiProxyReasoningSource,
 } from "@arriero/core";
 import { Alert, Badge, Group, Stack, Table, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 
 import { getInstanceReasoningProfile } from "../../api/client";
+import { reasoningTemplateIssueExplanation } from "./reasoning-template-issue";
 
 const interfaceLabels: Record<ApiProxyReasoningInterface, string> = {
   "template-effort": "Template effort levels",
@@ -19,7 +21,7 @@ const interfaceLabels: Record<ApiProxyReasoningInterface, string> = {
   none: "Non-reasoning",
 };
 
-function sourceLabel(source: string) {
+function sourceLabel(source: ApiProxyReasoningSource) {
   return source === "template" ? "chat-template autodetect" : source;
 }
 
@@ -72,9 +74,11 @@ function TemplateEffortBlock(props: { profile: ApiProxyReasoningProfile }) {
         title="Template convention not recognized"
         variant="light"
       >
-        {props.profile.strict
-          ? "The chat template takes reasoning_effort and rejects unknown values, but its level ladder could not be extracted — requested levels are sent unchanged and can fail with a template error. Set a reasoning override on the instance, or report the template convention so autodetection can learn it."
-          : "The chat template takes reasoning_effort, but its level ladder could not be extracted — requested levels are sent unchanged and may be silently ignored by the template. Set a reasoning override on the instance, or report the template convention so autodetection can learn it."}
+        {reasoningTemplateIssueExplanation(
+          props.profile.strict ? "strict" : "tolerant",
+        )}{" "}
+        Set a reasoning override on the instance, or report the template
+        convention so autodetection can learn it.
       </Alert>
     );
   }

@@ -67,6 +67,7 @@ import {
   recordTraceWithDeferredTiming,
   resumableTraceUsage,
   traceDiagnosticResponse,
+  truncatedStreamResponse,
   upstreamErrorText,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
@@ -109,7 +110,7 @@ import {
 } from "./resumable-forward.js";
 import {
   applyProxyStreamHealth,
-  proxyStreamHealthFromState,
+  markPlanTruncatedOnEof,
 } from "./stream-health.js";
 import { watchStreamIdle } from "./stream-idle.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
@@ -737,9 +738,10 @@ async function delegateRemoteTarget(input: {
     });
     const remoteTraceId = upstream.headers.get(delegatedTraceHeader);
     headers.delete(delegatedTraceHeader);
-    const recordWithDelegatedTrace = (response: Response | undefined) => {
+    const recordWithDelegatedTrace = (status: number | undefined) => {
+      const result = status === undefined ? undefined : { status };
       if (!remoteTraceId) {
-        recorder.record(response);
+        recorder.record(result);
         return;
       }
       recorder.freezeDuration();
@@ -747,27 +749,27 @@ async function delegateRemoteTarget(input: {
         node,
         traceId: remoteTraceId,
         trace,
-        record: () => recorder.record(response),
+        record: () => recorder.record(result),
       });
+    };
+    const respond = (body: BodyInit | null) => {
+      recorder.markDeferred();
+      const response = new Response(body, {
+        status: upstream.status,
+        headers,
+      });
+      recordWithDelegatedTrace(response.status);
+      return response;
     };
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => "");
       if (text) {
         trace.errorMessage = upstreamErrorText(text);
       }
-      recorder.markDeferred();
-      const response = new Response(text, {
-        status: upstream.status,
-        headers,
-      });
-      recordWithDelegatedTrace(response);
-      return response;
+      return respond(text);
     }
     if (!upstream.body) {
-      recorder.markDeferred();
-      const response = new Response(null, { status: upstream.status, headers });
-      recordWithDelegatedTrace(response);
-      return response;
+      return respond(null);
     }
 
     if (!request.stream) {
@@ -790,13 +792,7 @@ async function delegateRemoteTarget(input: {
         contentType: headers.get("content-type") ?? "application/json",
         isSse: false,
       });
-      recorder.markDeferred();
-      const response = new Response(delivered, {
-        status: upstream.status,
-        headers,
-      });
-      recordWithDelegatedTrace(response);
-      return response;
+      return respond(delivered);
     }
 
     if (!streamMeter) {
@@ -809,7 +805,7 @@ async function delegateRemoteTarget(input: {
             upstream.status,
             headers,
           ),
-          () => recordWithDelegatedTrace(upstream),
+          () => recordWithDelegatedTrace(upstream.status),
         ),
         streamOwnerKey,
         {
@@ -825,11 +821,7 @@ async function delegateRemoteTarget(input: {
       codec: streamMeter.codec,
       stripUsageFrames: streamMeter.strip,
       stripProgressFrames,
-      onStreamEnd: (health) => {
-        if (health.terminal === "eof") {
-          responsePlan?.markTruncated();
-        }
-      },
+      onStreamEnd: markPlanTruncatedOnEof(responsePlan),
       onFirstToken: markFirstToken,
       onReasoning: () => inflight.firstReasoning(),
       onReasoningDelta: (text) => inflight.appendReasoning(text),
@@ -848,7 +840,7 @@ async function delegateRemoteTarget(input: {
           prefillMs: usage.prefillMs,
           promptPerSecond: usage.promptPerSecond,
         };
-        recordWithDelegatedTrace(metered);
+        recordWithDelegatedTrace(metered?.status);
       },
     });
     recorder.markDeferred();
@@ -1377,30 +1369,19 @@ export async function serveResolvedTarget(input: {
           }
           if (outcome.type === "truncated") {
             if (resolved.context.streamTerminal === "strict") {
-              applyProxyStreamHealth({
-                trace,
-                health: proxyStreamHealthFromState(state),
-              });
-              return traceDiagnosticResponse({
+              return truncatedStreamResponse({
                 c,
                 adapter,
                 request: route.request,
                 trace,
-                diagnostic: {
-                  status: 502,
-                  code: "arriero_proxy_upstream_error",
-                  param: "model",
-                  message: `Proxy target ${decision.target.name} stream ended without a terminal chunk (${state.text.length} chars buffered).`,
-                },
+                state,
+                label: `Proxy target ${decision.target.name} stream`,
               });
             }
             responsePlan?.markTruncated();
           }
           trace.usage = resumableTraceUsage(state);
-          applyProxyStreamHealth({
-            trace,
-            health: proxyStreamHealthFromState(state),
-          });
+          applyProxyStreamHealth({ trace, health: state.health });
           const task = resolveSlot();
           const final = finalFromState(bufferCodec, state, false);
           const delivered = applyApiProxyResponsePlanText(
@@ -1562,11 +1543,7 @@ export async function serveResolvedTarget(input: {
         codec: streamMeter.codec,
         stripUsageFrames: streamMeter.strip,
         stripProgressFrames: injectPrefillProgress,
-        onStreamEnd: (health) => {
-          if (health.terminal === "eof") {
-            responsePlan?.markTruncated();
-          }
-        },
+        onStreamEnd: markPlanTruncatedOnEof(responsePlan),
         onFirstToken: markFirstToken,
         onReasoning: markReasoning,
         onReasoningDelta: markReasoningDelta,
@@ -1760,10 +1737,7 @@ export async function serveResolvedTarget(input: {
     });
 
     trace.usage = resumableTraceUsage(state);
-    applyProxyStreamHealth({
-      trace,
-      health: proxyStreamHealthFromState(state),
-    });
+    applyProxyStreamHealth({ trace, health: state.health });
     if (state.health.terminal === "eof") {
       responsePlan?.markTruncated();
     }

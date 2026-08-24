@@ -10,7 +10,7 @@ import {
 
 import { engineProbe } from "./engine-probe.js";
 import { evaluateInstanceMemoryAssessment } from "../memory-assessment/service.js";
-import { instanceReasoningTemplateIssue } from "../proxy/reasoning-request.js";
+import { instanceReasoningTemplateIssue } from "../instances/reasoning-profile.js";
 import {
   hasLaunchSnapshotDrift,
   parseLaunchSnapshot,

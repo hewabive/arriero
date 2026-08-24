@@ -163,16 +163,17 @@ without touching the stream wire format:
   response completes, the entry fetches that trace from the peer
   (`GET /api/proxy/traces/:id`, retrying while the peer's deferred slot-timing
   record settles) and merges the owning-node-only fields — slot id, cache
-  origin, queue time, scheduler actions, translation flags, server-measured
-  usage timings — into its own trace before recording. An older peer sends no
-  header ⇒ the entry records its shallow trace as before.
+  origin, queue time, scheduler actions, translation flags, stream health,
+  server-measured usage timings — into its own trace before recording. An older
+  peer sends no header ⇒ the entry records its shallow trace as before.
 - **Live inflight enrichment** (`proxy/remote-inflight.ts`): the serve payload's
   `origin` carries the entry's inflight id plus the resolved request source
   (which the owning node stamps into its own trace and in-flight entry, so the
   peer's Request history attributes delegated calls instead of showing them
   anonymous). The owning node lists its registry at `GET /api/proxy/inflight`;
-  the entry's runtime-snapshot assembly fans out to nodes owning remote targets
-  (2 s TTL cache, refreshed by the reconcile loop while requests are active) and
+  the entry's runtime-snapshot assembly fans out only to nodes owning a remote
+  target that currently holds a live local request (2 s TTL cache, refreshed by
+  the reconcile loop while those requests run) and
   enriches its own inflight views by origin id — prefill progress tokens,
   lease-queue wait, server-side prefill timing — while stream-observed phases
   and an ended local state always win. Proxy load cards show remote requests at

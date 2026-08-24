@@ -91,6 +91,14 @@ export const ApiProxyStreamIdleTimeoutSchema = z
   .min(0)
   .max(3_600_000);
 
+export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
+
+export function defaultApiEndpointStreamTerminal(
+  kind: z.infer<typeof ApiEndpointKindSchema>,
+): z.infer<typeof ApiEndpointStreamTerminalSchema> {
+  return kind === "external-api" ? "tolerant" : "strict";
+}
+
 const INSTANCE_ENDPOINT_PREFIX = "instance:";
 
 export function instanceEndpointId(instanceId: string): string {

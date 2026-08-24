@@ -11,6 +11,7 @@ import type {
 } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
 import {
+  classifyProxyStreamTerminal,
   emptyProxyStreamHealth,
   noteMalformedPayload,
   type ProxyStreamHealth,
@@ -45,7 +46,6 @@ export type ResumableUpstreamOutcome =
 
 export type ResumableTruncationPolicy = {
   mode: "resume" | "error" | "accept";
-  maxRetries?: number | undefined;
 };
 
 const DEFAULT_TRUNCATION_RETRIES = 2;
@@ -212,16 +212,12 @@ function classifyStreamEnding(
   meta: FrameMeta,
   state: ResumableBufferState,
 ): "completed" | "truncated" {
-  if (ending === "done") {
-    state.health.terminal = "done";
-    return "completed";
-  }
-  if (meta.finishSeen) {
-    state.health.terminal = "finish";
-    return "completed";
-  }
-  state.health.terminal = "eof";
-  return "truncated";
+  const terminal = classifyProxyStreamTerminal(
+    ending === "done",
+    meta.finishSeen,
+  );
+  state.health.terminal = terminal;
+  return terminal === "eof" ? "truncated" : "completed";
 }
 
 export async function runResumableUpstreamAttempt(input: {
@@ -516,8 +512,7 @@ export async function runResumableForward(input: {
       }
       if (
         truncation.mode === "error" ||
-        truncationRetries >=
-          (truncation.maxRetries ?? DEFAULT_TRUNCATION_RETRIES)
+        truncationRetries >= DEFAULT_TRUNCATION_RETRIES
       ) {
         return input.onError(
           `upstream stream ended without a terminal chunk (${input.state.text.length} chars buffered, ${truncationRetries} resume retries)`,

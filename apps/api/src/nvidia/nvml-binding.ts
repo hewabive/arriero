@@ -1,6 +1,10 @@
 import koffi, { type LibraryHandle } from "koffi";
 import {
+  type SystemAcceleratorEcc,
+  type SystemAcceleratorPcie,
   type SystemAcceleratorRecoveryAction,
+  type SystemAcceleratorRemappedRows,
+  type SystemAcceleratorRetiredPages,
   type SystemAcceleratorThrottleReason,
 } from "@arriero/core";
 
@@ -92,35 +96,28 @@ export type NvmlComputeCapability = {
   minor: number;
 };
 
-export type NvmlEccErrors = {
-  corrected?: number;
-  uncorrected?: number;
-};
+export type NvmlEccErrors = Pick<
+  SystemAcceleratorEcc,
+  "corrected" | "uncorrected"
+>;
 
-export type NvmlRemappedRows = {
-  corrected: number;
-  uncorrected: number;
-  pending: boolean;
-  failure: boolean;
-};
+export type NvmlRemappedRows = SystemAcceleratorRemappedRows;
 
 export type NvmlGpuRecoveryAction = SystemAcceleratorRecoveryAction;
 
 export type NvmlThrottleReason = SystemAcceleratorThrottleReason;
 
-export type NvmlRetiredPages = {
-  corrected?: number;
-  uncorrected?: number;
-  pending: boolean | null;
-};
+export type NvmlRetiredPages = SystemAcceleratorRetiredPages;
 
-export type NvmlPcieLink = {
-  currentGeneration?: number;
-  currentWidth?: number;
-  maxGeneration?: number;
-  maxWidth?: number;
-  replayCounter?: number;
-};
+export type NvmlPcieCurrentLink = Pick<
+  SystemAcceleratorPcie,
+  "currentGeneration" | "currentWidth"
+>;
+
+export type NvmlPcieMaxLink = Pick<
+  SystemAcceleratorPcie,
+  "maxGeneration" | "maxWidth"
+>;
 
 export interface NvmlBinding {
   initialize(): void;
@@ -143,7 +140,9 @@ export interface NvmlBinding {
   deviceRecoveryAction(device: NvmlDeviceHandle): NvmlGpuRecoveryAction | null;
   deviceMemoryTemperature(device: NvmlDeviceHandle): number | null;
   deviceThrottleReasons(device: NvmlDeviceHandle): NvmlThrottleReason[] | null;
-  devicePcieLink(device: NvmlDeviceHandle): NvmlPcieLink | null;
+  devicePcieCurrentLink(device: NvmlDeviceHandle): NvmlPcieCurrentLink | null;
+  devicePcieMaxLink(device: NvmlDeviceHandle): NvmlPcieMaxLink | null;
+  devicePcieReplayCounter(device: NvmlDeviceHandle): number | null;
   computeProcesses(device: NvmlDeviceHandle): NvmlProcessInfo[];
 }
 
@@ -211,6 +210,21 @@ const THROTTLE_REASON_BITS: ReadonlyArray<
   [NVML_CLOCKS_EVENT_REASON_SW_THERMAL_SLOWDOWN, "sw-thermal"],
   [NVML_CLOCKS_EVENT_REASON_SW_POWER_CAP, "sw-power-cap"],
 ];
+
+function compactRecord<K extends string>(
+  entries: Record<K, number | null>,
+): { [P in K]?: number } | null {
+  const result: { [P in K]?: number } = {};
+  let seen = false;
+  for (const key of Object.keys(entries) as K[]) {
+    const value = entries[key];
+    if (value !== null) {
+      result[key] = value;
+      seen = true;
+    }
+  }
+  return seen ? result : null;
+}
 
 function libraryCandidates(platform = process.platform): string[] {
   if (platform === "linux") {
@@ -557,13 +571,11 @@ class KoffiNvmlBinding implements NvmlBinding {
   }
 
   deviceTemperature(device: NvmlDeviceHandle): number | null {
-    const temperature = [0];
-    const code = this.getDeviceTemperature(device, 0, temperature);
-    if (code === NVML_ERROR_NOT_SUPPORTED) {
-      return null;
-    }
-    this.check("nvmlDeviceGetTemperature", code);
-    return temperature[0] ?? null;
+    return this.readDeviceUint(
+      "nvmlDeviceGetTemperature",
+      (target, output) => this.getDeviceTemperature(target, 0, output),
+      device,
+    );
   }
 
   private readAggregateEcc(
@@ -585,21 +597,16 @@ class KoffiNvmlBinding implements NvmlBinding {
   }
 
   deviceEccErrors(device: NvmlDeviceHandle): NvmlEccErrors | null {
-    const corrected = this.readAggregateEcc(
-      device,
-      NVML_MEMORY_ERROR_TYPE_CORRECTED,
-    );
-    const uncorrected = this.readAggregateEcc(
-      device,
-      NVML_MEMORY_ERROR_TYPE_UNCORRECTED,
-    );
-    if (corrected === null && uncorrected === null) {
-      return null;
-    }
-    return {
-      ...(corrected === null ? {} : { corrected }),
-      ...(uncorrected === null ? {} : { uncorrected }),
-    };
+    return compactRecord({
+      corrected: this.readAggregateEcc(
+        device,
+        NVML_MEMORY_ERROR_TYPE_CORRECTED,
+      ),
+      uncorrected: this.readAggregateEcc(
+        device,
+        NVML_MEMORY_ERROR_TYPE_UNCORRECTED,
+      ),
+    });
   }
 
   deviceRemappedRows(device: NvmlDeviceHandle): NvmlRemappedRows | null {
@@ -690,22 +697,20 @@ class KoffiNvmlBinding implements NvmlBinding {
   }
 
   deviceRetiredPages(device: NvmlDeviceHandle): NvmlRetiredPages | null {
-    const corrected = this.readRetiredPageCount(
-      device,
-      NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
-    );
-    const uncorrected = this.readRetiredPageCount(
-      device,
-      NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR,
-    );
-    if (corrected === null && uncorrected === null) {
+    const counts = compactRecord({
+      corrected: this.readRetiredPageCount(
+        device,
+        NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
+      ),
+      uncorrected: this.readRetiredPageCount(
+        device,
+        NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR,
+      ),
+    });
+    if (counts === null) {
       return null;
     }
-    return {
-      ...(corrected === null ? {} : { corrected }),
-      ...(uncorrected === null ? {} : { uncorrected }),
-      pending: this.readRetiredPagesPending(device),
-    };
+    return { ...counts, pending: this.readRetiredPagesPending(device) };
   }
 
   deviceThrottleReasons(device: NvmlDeviceHandle): NvmlThrottleReason[] | null {
@@ -742,48 +747,42 @@ class KoffiNvmlBinding implements NvmlBinding {
     return output[0] ?? null;
   }
 
-  devicePcieLink(device: NvmlDeviceHandle): NvmlPcieLink | null {
-    const currentGeneration = this.readDeviceUint(
-      "nvmlDeviceGetCurrPcieLinkGeneration",
-      this.getCurrPcieLinkGeneration,
-      device,
-    );
-    const currentWidth = this.readDeviceUint(
-      "nvmlDeviceGetCurrPcieLinkWidth",
-      this.getCurrPcieLinkWidth,
-      device,
-    );
-    const maxGeneration = this.readDeviceUint(
-      "nvmlDeviceGetMaxPcieLinkGeneration",
-      this.getMaxPcieLinkGeneration,
-      device,
-    );
-    const maxWidth = this.readDeviceUint(
-      "nvmlDeviceGetMaxPcieLinkWidth",
-      this.getMaxPcieLinkWidth,
-      device,
-    );
-    const replayCounter = this.readDeviceUint(
+  devicePcieCurrentLink(device: NvmlDeviceHandle): NvmlPcieCurrentLink | null {
+    return compactRecord({
+      currentGeneration: this.readDeviceUint(
+        "nvmlDeviceGetCurrPcieLinkGeneration",
+        this.getCurrPcieLinkGeneration,
+        device,
+      ),
+      currentWidth: this.readDeviceUint(
+        "nvmlDeviceGetCurrPcieLinkWidth",
+        this.getCurrPcieLinkWidth,
+        device,
+      ),
+    });
+  }
+
+  devicePcieMaxLink(device: NvmlDeviceHandle): NvmlPcieMaxLink | null {
+    return compactRecord({
+      maxGeneration: this.readDeviceUint(
+        "nvmlDeviceGetMaxPcieLinkGeneration",
+        this.getMaxPcieLinkGeneration,
+        device,
+      ),
+      maxWidth: this.readDeviceUint(
+        "nvmlDeviceGetMaxPcieLinkWidth",
+        this.getMaxPcieLinkWidth,
+        device,
+      ),
+    });
+  }
+
+  devicePcieReplayCounter(device: NvmlDeviceHandle): number | null {
+    return this.readDeviceUint(
       "nvmlDeviceGetPcieReplayCounter",
       this.getPcieReplayCounter,
       device,
     );
-    if (
-      currentGeneration === null &&
-      currentWidth === null &&
-      maxGeneration === null &&
-      maxWidth === null &&
-      replayCounter === null
-    ) {
-      return null;
-    }
-    return {
-      ...(currentGeneration === null ? {} : { currentGeneration }),
-      ...(currentWidth === null ? {} : { currentWidth }),
-      ...(maxGeneration === null ? {} : { maxGeneration }),
-      ...(maxWidth === null ? {} : { maxWidth }),
-      ...(replayCounter === null ? {} : { replayCounter }),
-    };
   }
 
   computeProcesses(device: NvmlDeviceHandle): NvmlProcessInfo[] {

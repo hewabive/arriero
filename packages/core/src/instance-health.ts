@@ -121,9 +121,7 @@ export const NumaPlacementSchema = z.object({
   interleaveNodeCount: z.number().int().min(1),
 });
 
-export const ReasoningTemplateIssueSchema = z.object({
-  strict: z.boolean(),
-});
+export const ReasoningTemplateIssueSchema = z.enum(["strict", "tolerant"]);
 
 export const InstanceHealthSummarySchema = z.object({
   instanceId: z.string(),
