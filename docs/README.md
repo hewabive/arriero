@@ -56,6 +56,12 @@ not before.
 | [SYSTEM_METRICS](SYSTEM_METRICS.md) | The 1 Hz recorder, persistence buckets, event-loop stall verdicts |
 | [BENCHMARK](BENCHMARK.md) | Engine-agnostic inference-speed benchmark |
 
+## Web UI
+
+| Document | Subject |
+| --- | --- |
+| [WEB](WEB.md) | The web app shell: providers, hash routing and navigation, typed fetch layer, node scoping, polling and streams, UI version guard |
+
 ## Configuration, deployment, fleet
 
 | Document | Subject |
