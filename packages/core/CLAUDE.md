@@ -9,6 +9,9 @@ Keep it free of runtime concerns: no I/O, no api-only helpers. Pure derivations 
 are welcome and belong here rather than being duplicated (the resource ledger `buildResourceLedger` /
 `checkDrawAdmission`, `impliedInstanceModelId`, `argumentDefaultsForKind`).
 
+Per-`WebappKind` specifics hang off `webappDescriptor` (`src/webapp-descriptor.ts`) the same way as
+the engine descriptor below — contract in `docs/WEBAPPS.md`.
+
 Per-`InstanceKind` engine specifics hang off `engineDescriptor` (`src/engine-descriptor.ts`):
 probe / log-parser / preflight / estimator / arg-catalog-parser / argv-builder ids, `nativeApi`
 gating the web llama panels, and the proxy capability flags gating slot-save, stream-resume,

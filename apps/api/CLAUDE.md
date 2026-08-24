@@ -62,7 +62,7 @@ logic and tests. Routes for a domain live in `src/routes/<domain>.routes.ts`.
 | `proxy` | the OpenAI/Anthropic-compatible proxy | `src/proxy/CLAUDE.md` |
 | `arguments` | engine argument catalogs, help registry, defaults | `content/CLAUDE.md`, `docs/ARGUMENT_SOURCE_EXTRACTION.md` |
 | `build` | llama.cpp CMake builds | `docs/BUILD.md` |
-| `envs` | immutable uv-managed Python engine environments | `docs/ENVIRONMENTS.md` |
+| `envs` | immutable uv-managed Python environments (engines + webapps) | `docs/ENVIRONMENTS.md` |
 | `jobs` | background-job kernel: stores, step transitions, pgid-killing exec, active-job registry, single shutdown path, log tail | `docs/BACKGROUND_JOBS.md` |
 | `models` | gguf/safetensors scanning and caches; parsing runs in a single lazy worker thread and is **never** on a request path | `docs/GGUF_PARSING.md`, `docs/SAFETENSORS_PARSING.md`, `docs/GGUF_QUANTIZATION_LABEL.md` |
 | `hf` | HuggingFace Hub browser and download jobs | `docs/HF_DOWNLOADS.md` |
@@ -72,6 +72,7 @@ logic and tests. Routes for a domain live in `src/routes/<domain>.routes.ts`.
 | `nvidia` | NVML telemetry over a koffi FFI binding — **the only GPU-memory authority** — plus per-GPU health facts (ECC / row-remap / page-retirement, throttle reasons, PCIe link, recovery action, VRAM temp) surfaced as optional `SystemAccelerator` fields and web health badges | — |
 | `numa` | topology/capability/cgroup/launch for per-instance pinning | `docs/NUMA_PINNING.md` |
 | `benchmark` | engine-agnostic inference-speed benchmark | `docs/BENCHMARK.md` |
+| `webapps` | managed third-party chat web UIs: adapter-driven install/config/supervision, proxy wiring | `docs/WEBAPPS.md` |
 | `nodes` | fleet registry and reverse-proxy transport | `docs/FEDERATION.md` |
 | `sources` | engine source checkouts and drift report | `docs/SOURCE_REPOSITORIES.md` |
 | `update` | manager version/run-mode and the UI self-update runner | `docs/SELF_UPDATE.md` |

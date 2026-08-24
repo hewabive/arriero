@@ -1,7 +1,8 @@
-# Python engine environments
+# Python environments
 
-The Environments domain provisions immutable Python-engine installations. It is
-separate from the llama.cpp CMake Build domain. Engine-specific package, entrypoint,
+The Environments domain provisions immutable Python installations — the inference
+engines, plus non-engine applications such as Open WebUI (`docs/WEBAPPS.md`). It is
+separate from the llama.cpp CMake Build domain. Per-application package, entrypoint,
 validation, availability, and catalog behavior is selected through the API-side
 provisioner registry; orchestration remains shared.
 
@@ -139,6 +140,13 @@ The KTransformers provisioner installs a matched pair in one transaction:
   distributions, both exact pins in `freeze.txt`, and a minimal
   `kt_kernel_ext.CPUInfer(1)` construction;
 - catalog tag/name: `ktransformers` / `KTransformers <version> [<id>]`.
+
+The Open WebUI provisioner installs `open-webui[extras]==version` (or one wheel) the
+same way, entrypoint `bin/open-webui`, validation `import open_webui` plus the exact
+metadata version, CPU-only variant. It sets `catalogEngineKind: null`, so **no
+path-catalog entry is generated** — instances cannot select the environment, and
+webapps reference the spec id directly. Deletion is additionally refused while a
+webapp references the spec.
 
 KTransformers wheel artifacts may be listed in any order; the provisioner normalizes
 installation order to `kt-kernel`, then `sglang-kt`. A missing or duplicate root is

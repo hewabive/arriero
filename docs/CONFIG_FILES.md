@@ -38,6 +38,17 @@ instance — the dead closure over targets/pipelines/models from `web/src/ui/pro
 shared with the rename panel; pipelines with other live targets survive and are surfaced as
 warnings.
 
+## `webapps/<name>.json` — managed web-UI definitions
+
+Store: `webapps/config-files.ts` (file-per-webapp on the directory store), CRUD in
+`webapps/repository.ts`. Body = `WebappConfigRecord`: kind, `envSpecId` (the managed Python
+environment holding the app), host/port, `proxySourceId`, `autostart`, and the kind-discriminated
+`settings`. **Identity = `name`** (the filename, same charset as instances) — it keys
+`webapp_runs.webappId`, the supervisor map and `runtime/webapps/<name>`. Rename is refused while a
+run is active and cascades to runs, the `.secrets.json` key and the data directory. The rendered
+process environment is never stored — it is rebuilt from this record on every start
+(`docs/WEBAPPS.md`).
+
 ## `presets/<name>.ini` — `--models-preset` files
 
 The `presets` domain reads/parses and writes **raw INI verbatim**, atomically, with an mtime
@@ -98,4 +109,5 @@ preferred. `sources` = request labeling plus an optional auth gate: an inbound
 (`apiProxyRequestGate`) runs pre-body-read in `proxy/protocol-endpoint.ts` and on `GET /v1/models`,
 shaped per facade by the adapter `authError` (`docs/API_PROXY_FOUNDATION.md` § Request sources).
 Default `allowAnonymous:true` keeps labeling-only passthrough. Source keys live in `.secrets.json`
-keyed `source:<id>`.
+keyed `source:<id>`; webapp session secrets live there too, keyed `webapp:<name>`
+(`docs/WEBAPPS.md`).

@@ -30,7 +30,7 @@ not before.
 | [ARGUMENT_SOURCE_EXTRACTION](ARGUMENT_SOURCE_EXTRACTION.md) | Git-only declaration extraction for the Python engines; the `defaultValue` channel |
 | [CASE_PHANTOM_HELP_ARGS](CASE_PHANTOM_HELP_ARGS.md) | Worked example of the help-block verification step |
 | [BUILD](BUILD.md) | llama.cpp CMake builds and binary publication |
-| [ENVIRONMENTS](ENVIRONMENTS.md) | Immutable uv-managed Python engine environments |
+| [ENVIRONMENTS](ENVIRONMENTS.md) | Immutable uv-managed Python environments |
 | [SOURCE_REPOSITORIES](SOURCE_REPOSITORIES.md) | Engine source checkouts, per-source tracking policy, drift report |
 | [VLLM_OPERATIONS](VLLM_OPERATIONS.md) · [SGLANG_OPERATIONS](SGLANG_OPERATIONS.md) · [KTRANSFORMERS_OPERATIONS](KTRANSFORMERS_OPERATIONS.md) | Per-engine qualified profiles and release gates |
 | [BACKGROUND_JOBS](BACKGROUND_JOBS.md) | The job kernel shared by build / envs / update / sources |
@@ -61,6 +61,7 @@ not before.
 | Document | Subject |
 | --- | --- |
 | [WEB](WEB.md) | The web app shell: providers, hash routing and navigation, typed fetch layer, node scoping, polling and streams, UI version guard |
+| [WEBAPPS](WEBAPPS.md) | Managed third-party chat web UIs: adapter contract, env-based install, render-on-start, supervision, proxy wiring |
 
 ## Configuration, deployment, fleet
 
