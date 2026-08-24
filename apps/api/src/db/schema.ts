@@ -1,4 +1,4 @@
-import type { ProcessStopReason } from "@arriero/core";
+import type { ProcessStopReason, WebappStopReason } from "@arriero/core";
 import {
   integer,
   primaryKey,
@@ -19,6 +19,21 @@ export const processRuns = sqliteTable("process_runs", {
   launchSnapshot: text("launch_snapshot"),
   adopted: text("adopted"),
   stopReason: text("stop_reason").$type<ProcessStopReason>(),
+});
+
+export const webappRuns = sqliteTable("webapp_runs", {
+  id: text("id").primaryKey(),
+  webappId: text("webapp_id").notNull(),
+  pid: text("pid"),
+  status: text("status").notNull(),
+  startedAt: text("started_at").notNull(),
+  stoppedAt: text("stopped_at"),
+  exitCode: text("exit_code"),
+  logPath: text("log_path").notNull(),
+  rawLogPath: text("raw_log_path"),
+  launchSnapshot: text("launch_snapshot"),
+  adopted: text("adopted"),
+  stopReason: text("stop_reason").$type<WebappStopReason>(),
 });
 
 export const modelCache = sqliteTable("model_cache", {

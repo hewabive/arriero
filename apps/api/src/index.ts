@@ -38,6 +38,11 @@ import { listInstances } from "./instances/repository.js";
 import { failInterruptedBenchmarkRuns } from "./benchmark/repository.js";
 import { reconcileProcessRuns } from "./process/reconcile.js";
 import { pruneProcessRunHistory } from "./process/runs-repository.js";
+import { listQuarantinedWebappNames } from "./webapps/config-files.js";
+import { reconcileWebappRuns } from "./webapps/reconcile.js";
+import { pruneWebappRunHistory } from "./webapps/runs-repository.js";
+import { autostartWebapps } from "./webapps/service.js";
+import { webappSupervisor } from "./webapps/supervisor.js";
 import {
   ensureResourcePoolsScaffold,
   refreshAutoCapacities,
@@ -135,6 +140,14 @@ const reconciliation = bootStep("reconcile process runs", () =>
   ),
 );
 const prunedProcessRuns = pruneProcessRunHistory();
+const webappReconciliation = bootStep("reconcile webapp runs", () =>
+  reconcileWebappRuns(new Set(listQuarantinedWebappNames())),
+);
+const prunedWebappRuns = pruneWebappRunHistory();
+const autostartedWebapps = await autostartWebapps().catch((error) => {
+  logger.error({ error }, "boot step failed: autostart webapps");
+  return null;
+});
 const failedBenchmarkRuns = bootStep("fail interrupted benchmark runs", () =>
   failInterruptedBenchmarkRuns(),
 );
@@ -186,6 +199,9 @@ const server = serve(
         untrackedMachineState,
         reconciliation,
         prunedProcessRuns,
+        webappReconciliation,
+        prunedWebappRuns,
+        autostartedWebapps,
         failedBenchmarkRuns,
         prunedTraceHistory,
         seededStatsTraces,
@@ -312,6 +328,13 @@ async function shutdown(signal: NodeJS.Signals) {
       logger.info(
         { result },
         "managed llama-server processes stopped during shutdown",
+      );
+      const webappResult = await webappSupervisor.shutdownAll(
+        config.shutdown.timeoutMs,
+      );
+      logger.info(
+        { result: webappResult },
+        "managed webapp processes stopped during shutdown",
       );
     } else {
       logger.info(

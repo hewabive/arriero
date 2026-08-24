@@ -8,6 +8,7 @@ import {
 import { existsSync } from "node:fs";
 
 import { listInstances } from "../instances/repository.js";
+import { listWebappRecords } from "../webapps/config-files.js";
 import { deletePathCatalogEntry } from "../path-catalog/repository.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
 import {
@@ -87,6 +88,11 @@ export function listEnvironments() {
   });
 }
 
+export function getEnvironmentRecord(id: string): EnvironmentRecord | null {
+  const spec = getEnvironmentSpec(id);
+  return spec ? toRecord(spec) : null;
+}
+
 function assertCanStart(): string {
   const uv = probeUv();
   if (uv.error !== null) throw new Error(uv.error);
@@ -132,6 +138,9 @@ export function deleteEnvironment(id: string) {
     )
   ) {
     throw new Error("environment is used by an instance");
+  }
+  if (listWebappRecords().some((webapp) => webapp.envSpecId === spec.id)) {
+    throw new Error("environment is used by a webapp");
   }
   discardEnvironmentDirectory(
     assertEnvironmentPath(environmentDirectory(spec)),

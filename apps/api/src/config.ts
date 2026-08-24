@@ -82,6 +82,7 @@ const vllmCacheDir = managedPath(
 );
 const modelsDir = managedPath("MODELS_DIR", resolve(runtimeDir, "models"));
 const slotsDir = managedPath("SLOTS_DIR", resolve(runtimeDir, "slots"));
+const webappsDir = managedPath("WEBAPPS_DIR", resolve(runtimeDir, "webapps"));
 
 if (testRoot !== null) {
   for (const [name, path] of Object.entries(isolatedPaths)) {
@@ -121,6 +122,8 @@ export const config = {
   vllmCacheDir,
   modelsDir,
   slotsDir,
+  webappsDir,
+  webappsConfigDir: resolve(configDir, "webapps"),
   logs: {
     filterRoutineProbeRequests: managerEnv("FILTER_PROBE_LOGS") !== "false",
   },
@@ -173,3 +176,6 @@ mkdirSync(config.pythonDir, { recursive: true });
 mkdirSync(config.uvCacheDir, { recursive: true });
 mkdirSync(config.vllmCacheDir, { recursive: true });
 mkdirSync(config.modelsDir, { recursive: true });
+mkdirSync(config.webappsDir, { recursive: true });
+mkdirSync(config.webappsConfigDir, { recursive: true });
+mkdirSync(resolve(config.logsDir, "webapps"), { recursive: true });

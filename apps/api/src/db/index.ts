@@ -61,6 +61,23 @@ export function migrate() {
   ensureColumn("process_runs", "stop_reason", "TEXT");
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS webapp_runs (
+      id TEXT PRIMARY KEY NOT NULL,
+      webapp_id TEXT NOT NULL,
+      pid TEXT,
+      status TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      stopped_at TEXT,
+      exit_code TEXT,
+      log_path TEXT NOT NULL,
+      raw_log_path TEXT,
+      launch_snapshot TEXT,
+      adopted TEXT,
+      stop_reason TEXT
+    )
+  `);
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS model_cache (
       path TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
