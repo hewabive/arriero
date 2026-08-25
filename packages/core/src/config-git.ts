@@ -43,6 +43,10 @@ export const ConfigGitStatusSchema = z.object({
   error: z.string().nullable(),
 });
 
+export const ConfigGitBackupsSchema = z.object({
+  backups: z.array(z.string()).default([]),
+});
+
 export const ConfigGitDirtySummarySchema = z.object({
   isGitRepo: z.boolean(),
   dirty: z.boolean(),
@@ -325,6 +329,7 @@ export const ConfigGitCommitDetailSchema = ConfigGitCommitSchema.extend({
 export type ConfigGitFileStatus = z.infer<typeof ConfigGitFileStatusSchema>;
 export type ConfigGitBranch = z.infer<typeof ConfigGitBranchSchema>;
 export type ConfigGitStatus = z.infer<typeof ConfigGitStatusSchema>;
+export type ConfigGitBackups = z.infer<typeof ConfigGitBackupsSchema>;
 export type ConfigGitDirtySummary = z.infer<typeof ConfigGitDirtySummarySchema>;
 export type ConfigGitDiff = z.infer<typeof ConfigGitDiffSchema>;
 export type ConfigGitCommit = z.infer<typeof ConfigGitCommitSchema>;

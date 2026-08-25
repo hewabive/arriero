@@ -1,5 +1,6 @@
 import type {
   ConfigDoctorReport,
+  ConfigGitBackups,
   ConfigGitCheckoutCommit,
   ConfigGitClone,
   ConfigGitCommit,
@@ -112,4 +113,11 @@ export function restoreConfigFiles(input: ConfigGitRestoreFiles) {
 
 export function commitConfigChanges(input: ConfigGitCommitInput) {
   return mutate("/api/config-git/commit", input);
+}
+
+export function deleteConfigBackup(name: string) {
+  return nodeRequest<{ data: ConfigGitBackups }>(
+    `/api/config-git/backups/${encodeURIComponent(name)}`,
+    { method: "DELETE" },
+  );
 }

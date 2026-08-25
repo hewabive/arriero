@@ -3,6 +3,7 @@ import {
   ConfigGitCommitSchema,
   ConfigGitDiffSchema,
   ConfigGitStatusSchema,
+  type ConfigGitBackups,
   type ConfigGitBranch,
   type ConfigGitCommit,
   type ConfigGitCommitDetail,
@@ -12,10 +13,11 @@ import {
   type ConfigGitFileStatus,
   type ConfigGitStatus,
 } from "@arriero/core";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
+import { traceBlockingSection } from "../system/event-loop.js";
 import { assertSafeConfigRelativePath } from "./paths.js";
 import {
   isExactGitRepository,
@@ -23,7 +25,10 @@ import {
   runGit,
   tryGit,
 } from "./process.js";
-import { getActiveConfigGitOperation } from "./state.js";
+import {
+  getActiveConfigGitOperation,
+  withConfigGitOperation,
+} from "./state.js";
 
 const DIFF_LIMIT = 512 * 1024;
 
@@ -132,6 +137,25 @@ function listConfigBackups(): string[] {
   } catch {
     return [];
   }
+}
+
+export async function deleteConfigBackup(
+  name: string,
+): Promise<ConfigGitBackups> {
+  return withConfigGitOperation(`delete backup ${name}`, async () => {
+    const prefix = `${basename(config.configDir)}.backup-`;
+    if (!name.startsWith(prefix) || !/^\d+$/.test(name.slice(prefix.length))) {
+      throw new Error(`not a config backup name: ${name}`);
+    }
+    const path = resolve(dirname(config.configDir), name);
+    if (!listConfigBackups().includes(path)) {
+      throw new Error(`config backup not found: ${name}`);
+    }
+    traceBlockingSection("config-git:rm-backup", () =>
+      rmSync(path, { recursive: true, force: true }),
+    );
+    return { backups: listConfigBackups() };
+  });
 }
 
 function hasUnpushedCommits(

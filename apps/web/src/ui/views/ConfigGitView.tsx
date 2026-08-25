@@ -34,6 +34,7 @@ import {
   cloneConfigRepository,
   commitConfigChanges,
   createConfigBranch,
+  deleteConfigBackup,
   fetchConfigRepository,
   getConfigState,
   reloadConfigFromDisk,
@@ -1261,19 +1262,81 @@ function StoreFilesAlert({
   );
 }
 
+function backupName(path: string): string {
+  return path.split("/").pop() ?? path;
+}
+
 function BackupList({ paths }: { paths: string[] }) {
+  const queryClient = useQueryClient();
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: deleteConfigBackup,
+    onSuccess: async (_result, name) => {
+      await queryClient.invalidateQueries({ queryKey: ["config-git-status"] });
+      setPendingPath(null);
+      notifications.show({
+        title: "Configuration backup",
+        message: `Deleted ${name}.`,
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        color: "red",
+        title: "Backup deletion failed",
+        message: (error as Error).message,
+      });
+    },
+  });
   return (
     <Card withBorder radius="md" padding="md">
       <Stack gap={4}>
         <Text fw={600}>Replaced configuration backups</Text>
         <Text size="sm" c="dimmed">
-          Left in place by earlier replacements. Remove them manually once they
-          are no longer needed.
+          Left in place by earlier replacements. Delete them once they are no
+          longer needed.
         </Text>
         {paths.map((path) => (
-          <Code key={path}>{path}</Code>
+          <Group key={path} justify="space-between" wrap="nowrap" gap="xs">
+            <Code>{path}</Code>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              color="red"
+              onClick={() => setPendingPath(path)}
+            >
+              Delete
+            </Button>
+          </Group>
         ))}
       </Stack>
+      <Modal
+        opened={pendingPath !== null}
+        onClose={() => setPendingPath(null)}
+        title="Delete configuration backup"
+      >
+        <Stack gap="sm">
+          <Text size="sm">
+            The backup directory will be permanently removed:
+          </Text>
+          <Code>{pendingPath}</Code>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setPendingPath(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={deleteMutation.isPending}
+              onClick={() => {
+                if (pendingPath) {
+                  deleteMutation.mutate(backupName(pendingPath));
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Card>
   );
 }

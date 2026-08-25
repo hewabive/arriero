@@ -27,6 +27,7 @@ import {
   switchConfigBranch,
 } from "../config-git/operations.js";
 import {
+  deleteConfigBackup,
   getConfigGitCommit,
   getConfigGitDiff,
   getConfigGitDirtySummary,
@@ -201,6 +202,14 @@ export function registerConfigGitRoutes(app: Hono) {
   app.post("/api/config-git/push", async (c) => {
     try {
       return c.json({ data: await pushConfigRepository() });
+    } catch (error) {
+      return failure(c, error);
+    }
+  });
+
+  app.delete("/api/config-git/backups/:name", async (c) => {
+    try {
+      return c.json({ data: await deleteConfigBackup(c.req.param("name")) });
     } catch (error) {
       return failure(c, error);
     }

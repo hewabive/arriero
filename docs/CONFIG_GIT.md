@@ -40,7 +40,9 @@ cross-file references and pipeline graphs are validated, tracked secret files
 and symlinks are rejected, and only then is it moved into place. The replaced
 directory is retained as `<configDir>.backup-<timestamp>` so it can be
 recovered manually; those backups are listed in `status.backups` and are never
-deleted automatically. An existing local `.secrets.json` and the machine-local
+deleted automatically — the Configuration page offers per-backup deletion
+(`DELETE /api/config-git/backups/:name`), refused while another config-git
+operation is running. An existing local `.secrets.json` and the machine-local
 files below are copied into the new working tree (machine files only when the
 remote does not track them) and excluded through `.git/info/exclude` even when
 the remote does not provide a `.gitignore`.

@@ -55,5 +55,6 @@ traces page surfaces the active value via `facets.retentionDays`.
 ## Deliberately not auto-deleted
 
 Benchmark artifacts (`data/benchmarks/<runId>/`, removed with their run), config backups
-(`data/config.backup-*`), models, source checkouts, Python environments and build trees are
-operator-owned data — retention never touches them.
+(`data/config.backup-*`, deletable one by one from the Configuration page — `docs/CONFIG_GIT.md`),
+models, source checkouts, Python environments and build trees are operator-owned data — retention
+never touches them.
