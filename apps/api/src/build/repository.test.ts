@@ -1,6 +1,8 @@
 import { strict as assert } from "node:assert";
+import { statSync } from "node:fs";
 import test from "node:test";
 
+import { config } from "../config.js";
 import { listPathCatalogEntries } from "../path-catalog/repository.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { withSourceRepositoryOperation } from "../sources/state.js";
@@ -106,4 +108,11 @@ test("registerBuiltBinaryInCatalog disambiguates colliding names", () => {
   assert.equal(a.name, "llama-cli");
   assert.notEqual(a.name, b.name);
   assert.notEqual(a.id, b.id);
+});
+
+test("saving unchanged build settings does not rewrite settings.json", () => {
+  saveBuildSettings(getBuildSettings());
+  const before = statSync(config.settingsFile).mtimeMs;
+  saveBuildSettings(getBuildSettings());
+  assert.equal(statSync(config.settingsFile).mtimeMs, before);
 });

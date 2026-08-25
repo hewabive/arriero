@@ -9,6 +9,7 @@ import {
   type PathCatalogEntry,
 } from "@arriero/core";
 import { basename, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { createJobStore } from "../jobs/store.js";
 import { newId } from "../utils/id.js";
 
@@ -80,13 +81,14 @@ export function saveBuildSettings(input: BuildSettings): BuildSettings {
   if (resolve(parsed.repoPath) !== resolve(getLlamaSourceSettings().repoPath)) {
     saveLlamaSourceSettings({ repoPath: parsed.repoPath });
   }
-  writeSettings({
-    ...readSettings(),
-    build: {
-      ...readSettings().build,
-      ...StoredBuildSectionSchema.parse(parsed),
-    },
-  });
+  const settings = readSettings();
+  const nextBuild = {
+    ...settings.build,
+    ...StoredBuildSectionSchema.parse(parsed),
+  };
+  if (!isDeepStrictEqual(settings.build, nextBuild)) {
+    writeSettings({ ...settings, build: nextBuild });
+  }
   return getBuildSettings();
 }
 

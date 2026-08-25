@@ -5,6 +5,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { resolve } from "node:path";
@@ -33,6 +34,7 @@ import { LLAMA_CPP_SOURCE_ID } from "./registry.js";
 import {
   getSourceRepositorySpec,
   getSourceRepositoryStatus,
+  saveSourceRepositoryOrigin,
 } from "./repository.js";
 
 function resetSettings(value: unknown = {}) {
@@ -366,4 +368,12 @@ test("pull fast-forwards a branch-tracking source", async () => {
   assert.equal(pulled.status.currentCommit, nextCommit);
   assert.equal(pulled.status.branch, "main");
   assert.equal(pulled.status.tracking, "branch");
+});
+
+test("saving an unchanged origin does not rewrite settings.json", () => {
+  resetSettings(managedSettings());
+  const spec = getSourceRepositorySpec(LLAMA_CPP_SOURCE_ID);
+  const before = statSync(config.settingsFile).mtimeMs;
+  saveSourceRepositoryOrigin(LLAMA_CPP_SOURCE_ID, spec.originUrl);
+  assert.equal(statSync(config.settingsFile).mtimeMs, before);
 });

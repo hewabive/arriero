@@ -6,6 +6,7 @@ import {
 } from "@arriero/core";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import { config } from "../config.js";
 import { redactGitOutput, runGit, tryGit } from "../git/process.js";
@@ -114,11 +115,17 @@ function saveSourceRepositorySpec(
   const existing = (current.sourceRepositories ?? []).find(
     (item) => item.id === normalized.id,
   );
+  const merged = { ...existing, ...normalized };
+  const dropsLegacyKey =
+    normalized.id === LLAMA_CPP_SOURCE_ID && current.llamaSource !== undefined;
+  if (existing && !dropsLegacyKey && isDeepStrictEqual(existing, merged)) {
+    return getSourceRepositorySpec(normalized.id);
+  }
   const repositories = [
     ...(current.sourceRepositories ?? []).filter(
       (item) => item.id !== normalized.id,
     ),
-    { ...existing, ...normalized },
+    merged,
   ].sort((left, right) => left.id.localeCompare(right.id));
   const next =
     normalized.id === LLAMA_CPP_SOURCE_ID

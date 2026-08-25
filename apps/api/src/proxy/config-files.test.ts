@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, test } from "node:test";
+import { z } from "zod";
 
 import { config } from "../config.js";
-import { resetConfigFilesCache, readSecret } from "./config-files.js";
+import {
+  readCollection,
+  readSecret,
+  resetConfigFilesCache,
+  writeCollection,
+} from "./config-files.js";
 import {
   createApiProxyModel,
   createApiProxyQuickRoute,
@@ -168,4 +175,17 @@ test("endpoint api key is stored in secrets, never in endpoints.json", () => {
   assert.ok(!rawEndpoints.includes('"apiKey"'));
   assert.equal(readSecret(endpoint.id), "sk-secret-value");
   assert.equal(getExternalApiEndpoint(endpoint.id)?.authConfigured, true);
+});
+
+test("an empty collection write does not materialize a missing file", () => {
+  const schema = z.object({ id: z.string() });
+  const path = resolve(config.proxyConfigDir, "empty-guard-test.json");
+  writeCollection("empty-guard-test.json", schema, []);
+  assert.equal(existsSync(path), false);
+  assert.deepEqual(readCollection("empty-guard-test.json", schema), []);
+  writeCollection("empty-guard-test.json", schema, [{ id: "a" }]);
+  assert.equal(existsSync(path), true);
+  writeCollection("empty-guard-test.json", schema, []);
+  assert.equal(existsSync(path), true);
+  assert.deepEqual(readCollection("empty-guard-test.json", schema), []);
 });

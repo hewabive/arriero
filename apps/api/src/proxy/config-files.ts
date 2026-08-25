@@ -46,7 +46,12 @@ export function writeCollection<T>(
   schema: z.ZodType<T>,
   records: T[],
 ): void {
-  storeFor<T[]>(fileName, z.array(schema), []).write(records);
+  const store = storeFor<T[]>(fileName, z.array(schema), []);
+  if (records.length === 0 && !existsSync(store.path)) {
+    store.replaceCachedValue(records);
+    return;
+  }
+  store.write(records);
 }
 
 export function readObjectFile<T>(fileName: string, schema: z.ZodType<T>): T {
