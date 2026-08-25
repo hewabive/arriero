@@ -47,14 +47,15 @@ the remote does not provide a `.gitignore`.
 
 ## Machine-local files
 
-`path-catalog.json` and `envs-state.json` describe state of the current
-machine, not portable configuration: catalog entries are rewritten
-automatically by build completion and by the environment reconciler, and
+`path-catalog.json`, `envs-state.json` and `machine.json` describe state of
+the current machine, not portable configuration: catalog entries are rewritten
+automatically by build completion and by the environment reconciler,
 `envs-state.json` maps environment specs to the ids of their generated catalog
-entries plus the local timestamps. Both files are therefore gitignored
-(`config-git/machine-state.ts` owns the list) and keep their
-`createdAt`/`updatedAt` fields — unlike tracked files, whose provenance is the
-commit history.
+entries plus the local timestamps, and `machine.json` holds this host's
+identity (`selfNodeId` for a shared `nodes.json` — `docs/FEDERATION.md`). All
+three are gitignored (`config-git/machine-state.ts` owns the list); the first
+two keep their `createdAt`/`updatedAt` fields — unlike tracked files, whose
+provenance is the commit history.
 
 `envs.json` is the opposite since the machine-state split
 (`docs/ENVIRONMENTS.md`): it holds only host-independent environment specs and

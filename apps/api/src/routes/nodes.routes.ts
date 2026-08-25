@@ -1,11 +1,13 @@
 import {
   FleetNodeCreateSchema,
   FleetNodeUpdateSchema,
+  FleetSelfUpdateSchema,
   type FleetNode,
   type FleetNodeView,
 } from "@arriero/core";
 import type { Hono } from "hono";
 
+import { getSelfNodeId, updateMachineState } from "../machine/store.js";
 import {
   createNode,
   deleteNode,
@@ -20,7 +22,16 @@ import { forwardToNode } from "../nodes/remote.js";
 import { listRpcWorkerCandidates } from "../nodes/rpc-worker-catalog.js";
 
 function toView(node: FleetNode): FleetNodeView {
-  return { ...node, hasToken: nodeHasToken(node.id) };
+  return {
+    ...node,
+    hasToken: nodeHasToken(node.id),
+    self: node.id === getSelfNodeId(),
+  };
+}
+
+function resolvedSelfNodeId(): string | null {
+  const raw = getSelfNodeId();
+  return raw && getNode(raw) ? raw : null;
 }
 
 export function registerNodeRoutes(app: Hono) {
@@ -38,6 +49,22 @@ export function registerNodeRoutes(app: Hono) {
 
   app.get("/api/fleet/rpc-workers", async (c) => {
     return c.json({ data: await listRpcWorkerCandidates() });
+  });
+
+  app.get("/api/fleet/self", (c) => {
+    return c.json({ data: { selfNodeId: resolvedSelfNodeId() } });
+  });
+
+  app.put("/api/fleet/self", async (c) => {
+    const parsed = FleetSelfUpdateSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    if (parsed.data.nodeId && !getNode(parsed.data.nodeId)) {
+      return c.json({ error: "node not found" }, 404);
+    }
+    updateMachineState({ selfNodeId: parsed.data.nodeId });
+    return c.json({ data: { selfNodeId: parsed.data.nodeId } });
   });
 
   app.get("/api/nodes", (c) => {
@@ -73,6 +100,9 @@ export function registerNodeRoutes(app: Hono) {
     const node = getNode(c.req.param("id"));
     if (!node) {
       return c.json({ error: "node not found" }, 404);
+    }
+    if (node.id === getSelfNodeId()) {
+      return c.json({ error: "node is this host; use the direct API" }, 409);
     }
     if (!node.enabled) {
       return c.json({ error: "node is disabled" }, 409);

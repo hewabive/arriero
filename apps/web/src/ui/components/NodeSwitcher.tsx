@@ -16,7 +16,7 @@ export function NodeSwitcher() {
   });
 
   const nodes = nodesQuery.data?.data ?? [];
-  const enabledNodes = nodes.filter((node) => node.enabled);
+  const enabledNodes = nodes.filter((node) => node.enabled && !node.self);
 
   useEffect(() => {
     const list = nodesQuery.data?.data;
@@ -25,7 +25,9 @@ export function NodeSwitcher() {
     }
     if (
       activeNodeId !== SELF_NODE_ID &&
-      !list.some((node) => node.enabled && node.id === activeNodeId)
+      !list.some(
+        (node) => node.enabled && !node.self && node.id === activeNodeId,
+      )
     ) {
       setActiveNode(SELF_NODE_ID);
     }

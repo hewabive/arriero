@@ -3,11 +3,13 @@ import test from "node:test";
 
 import type { FleetNode } from "@arriero/core";
 
+import { getSelfNodeId, updateMachineState } from "../machine/store.js";
 import {
   createNode,
   deleteNode,
   getNode,
   listNodes,
+  listPeerNodes,
   nodeToken,
   resetNodesCache,
   updateNode,
@@ -122,4 +124,28 @@ test("federation capabilities advertise creatable KTransformers support", () => 
     true,
   );
   assert.equal(capabilities.unknownInstanceKindsTolerated, true);
+});
+
+test("a node marked as this machine leaves the peer fan-out until unmarked", () => {
+  resetNodesCache();
+  const node = createNode({
+    name: "self-candidate",
+    baseUrl: "http://10.0.0.9:8787",
+    enabled: true,
+  });
+
+  updateMachineState({ selfNodeId: node.id });
+  assert.equal(getSelfNodeId(), node.id);
+  assert.ok(listNodes().some((item) => item.id === node.id));
+  assert.equal(
+    listPeerNodes().some((item) => item.id === node.id),
+    false,
+  );
+
+  updateMachineState({ selfNodeId: null });
+  assert.ok(listPeerNodes().some((item) => item.id === node.id));
+
+  updateMachineState({ selfNodeId: node.id });
+  deleteNode(node.id);
+  assert.equal(getSelfNodeId(), null);
 });

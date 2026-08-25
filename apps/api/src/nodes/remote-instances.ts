@@ -1,7 +1,7 @@
 import { InstanceSchema, type FleetNode, type Instance } from "@arriero/core";
 
 import { fetchNodeJson } from "./remote.js";
-import { listNodes } from "./repository.js";
+import { listPeerNodes } from "./repository.js";
 
 export function parseRemoteInstances(payload: unknown): Instance[] {
   if (!Array.isArray(payload)) {
@@ -27,7 +27,7 @@ export async function listRemoteInstancesByNode(): Promise<
   { node: FleetNode; instances: Instance[] }[]
 > {
   return Promise.all(
-    listNodes()
+    listPeerNodes()
       .filter((node) => node.enabled)
       .map(async (node) => ({
         node,

@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { config } from "../config.js";
 import { createJsonFileStore } from "../config-store/file-store.js";
+import { getSelfNodeId, updateMachineState } from "../machine/store.js";
 import { readSecret, setSecret } from "../proxy/config-files.js";
 import { newId } from "../utils/id.js";
 
@@ -52,6 +53,11 @@ function secretKey(id: string): string {
 
 export function listNodes(): FleetNode[] {
   return [...load()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export function listPeerNodes(): FleetNode[] {
+  const selfNodeId = getSelfNodeId();
+  return listNodes().filter((node) => node.id !== selfNodeId);
 }
 
 export function getNode(id: string): FleetNode | null {
@@ -115,6 +121,9 @@ export function deleteNode(id: string): boolean {
   }
   persist(next);
   setSecret(secretKey(id), null);
+  if (getSelfNodeId() === id) {
+    updateMachineState({ selfNodeId: null });
+  }
   return true;
 }
 

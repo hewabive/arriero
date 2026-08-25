@@ -129,15 +129,23 @@ test("tree operations preserve untracked machine-state files", async () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     },
   ]);
+  const machinePath = resolve(config.configDir, "machine.json");
+  writeJson(machinePath, { selfNodeId: "node-1" });
 
   const detached = await checkoutConfigCommit({ commit: legacyHead });
   assert.equal(detached.status.detached, true);
   assert.equal(JSON.parse(readFileSync(catalogPath, "utf8")).length, 0);
+  assert.deepEqual(JSON.parse(readFileSync(machinePath, "utf8")), {
+    selfNodeId: "node-1",
+  });
 
   const back = await switchConfigBranch({ branch: "main" });
   assert.equal(back.status.dirty, false);
   assert.ok(existsSync(catalogPath));
   assert.equal(git(["ls-files", "--", "path-catalog.json"]), "");
+  assert.deepEqual(JSON.parse(readFileSync(machinePath, "utf8")), {
+    selfNodeId: "node-1",
+  });
 });
 
 test("leaving a tree that tracks envs.json preserves the local copy", async () => {

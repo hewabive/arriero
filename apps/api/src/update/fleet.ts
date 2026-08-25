@@ -8,7 +8,7 @@ import {
 import { execFileSync } from "node:child_process";
 import { hostname } from "node:os";
 
-import { listNodes } from "../nodes/repository.js";
+import { listPeerNodes } from "../nodes/repository.js";
 import { fetchNodeJson } from "../nodes/remote.js";
 import { updateAdapter } from "./adapter.js";
 import { appVersionWithRuntimeInfo } from "./restart.js";
@@ -90,7 +90,7 @@ export async function updateFleet(): Promise<UpdateFleet> {
   );
 
   const peers = await Promise.all(
-    listNodes().map(async (node) => {
+    listPeerNodes().map(async (node) => {
       const base = {
         nodeId: node.id,
         nodeName: node.name,

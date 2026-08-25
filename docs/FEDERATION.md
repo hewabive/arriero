@@ -50,6 +50,15 @@ This is CQRS-shaped: an **aggregated read model** + a **node-routed write model*
   `{ id, name, baseUrl, enabled }`. Bearer tokens live in `.secrets.json`
   (`node:<id>`), never in `nodes.json` — same rule as endpoint/source secrets.
 - The local machine is the implicit **self** node.
+- When `nodes.json` is shared between hosts through the config-git origin, the
+  list legitimately contains an entry for the local machine too. The
+  machine-local `config/machine.json` (`machine/store.ts`) records that entry's
+  id as `selfNodeId` — set from the Nodes page ("This machine") or
+  `PUT /api/fleet/self` — and every peer fan-out (`listPeerNodes()`: fleet
+  system/resources, remote instances, rpc-worker catalog, fleet update) skips
+  it, while the reverse proxy refuses to forward to it with 409. Deleting the
+  node clears the mark; a dangling id degrades to null. The server never
+  auto-matches by base URL — the operator marks the entry explicitly.
 - **Topology is symmetric**: every node has its own `nodes.json`; the node whose
   address you open is the de-facto primary for that session. There is no
   hardcoded primary in code.

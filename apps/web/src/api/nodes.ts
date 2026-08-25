@@ -3,6 +3,7 @@ import type {
   FleetNodeUpdate,
   FleetNodeView,
   FleetResourcesEntry,
+  FleetSelf,
 } from "@arriero/core";
 
 import { request } from "./http.js";
@@ -28,6 +29,13 @@ export async function updateNode(id: string, input: FleetNodeUpdate) {
 export async function deleteNode(id: string) {
   return request<{ data: { deleted: boolean } }>(`/api/nodes/${id}`, {
     method: "DELETE",
+  });
+}
+
+export async function setFleetSelf(nodeId: string | null) {
+  return request<{ data: FleetSelf }>("/api/fleet/self", {
+    method: "PUT",
+    body: JSON.stringify({ nodeId }),
   });
 }
 

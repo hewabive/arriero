@@ -43,6 +43,7 @@ import {
   getUpdateFleet,
   listNodes,
   restartNode,
+  setFleetSelf,
   startNodeUpdate,
   updateNode,
 } from "../../api/client";
@@ -122,6 +123,13 @@ function reachability(
   registryNode: FleetNodeView,
   fleetNode: UpdateFleetNode | null,
 ): { color: string; label: string; tooltip: string | null } {
+  if (registryNode.self) {
+    return {
+      color: "blue",
+      label: "this machine",
+      tooltip: "excluded from peer fan-out; requests use the direct API",
+    };
+  }
   if (!registryNode.enabled) {
     return { color: "gray", label: "disabled", tooltip: null };
   }
@@ -236,6 +244,14 @@ export function NodesView() {
       notifications.show({ title: "Node removed", message: "" });
     },
     onError: (error) => reportError("Remove node failed", error),
+  });
+
+  const markSelfMutation = useMutation({
+    mutationFn: (nodeId: string | null) => setFleetSelf(nodeId),
+    onSuccess: async () => {
+      await invalidate();
+    },
+    onError: (error) => reportError("Mark node failed", error),
   });
 
   const busy = createMutation.isPending || updateMutation.isPending;
@@ -427,6 +443,7 @@ export function NodesView() {
             onDismiss={dismissJob}
             onEdit={null}
             onDelete={null}
+            onMarkSelf={null}
             deletePending={false}
           />
         ) : (
@@ -445,6 +462,7 @@ export function NodesView() {
             onDismiss={dismissJob}
             onEdit={openEdit}
             onDelete={(id) => deleteMutation.mutate(id)}
+            onMarkSelf={(nodeId) => markSelfMutation.mutate(nodeId)}
             deletePending={
               deleteMutation.isPending && deleteMutation.variables === node.id
             }
@@ -542,6 +560,7 @@ function NodeCard({
   onDismiss,
   onEdit,
   onDelete,
+  onMarkSelf,
   deletePending,
 }: {
   registryNode: FleetNodeView | null;
@@ -552,6 +571,7 @@ function NodeCard({
   onDismiss: (nodeId: string) => void;
   onEdit: ((node: FleetNodeView) => void) | null;
   onDelete: ((id: string) => void) | null;
+  onMarkSelf: ((nodeId: string | null) => void) | null;
   deletePending: boolean;
 }) {
   const [logsOpen, logs] = useDisclosure(false);
@@ -848,6 +868,27 @@ function NodeCard({
               </Tooltip>
             ))}
 
+          {registryNode && onMarkSelf && (
+            <Tooltip
+              label={
+                registryNode.self
+                  ? "Stop treating this entry as the local machine"
+                  : "Treat this entry as the local machine; it leaves the peer fan-out"
+              }
+              multiline
+              maw={320}
+            >
+              <Button
+                size="xs"
+                variant="subtle"
+                onClick={() =>
+                  onMarkSelf(registryNode.self ? null : registryNode.id)
+                }
+              >
+                {registryNode.self ? "Unmark this machine" : "This machine"}
+              </Button>
+            </Tooltip>
+          )}
           {registryNode && onEdit && (
             <ActionIcon
               aria-label="Edit node"

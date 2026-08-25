@@ -12,7 +12,7 @@ import { hostname } from "node:os";
 import { currentResourceLedger } from "../resources/ledger.js";
 import { listMemoryPoolsWithStatus } from "../resources/repository.js";
 import { getSystemResources } from "../system/resources.js";
-import { listNodes } from "./repository.js";
+import { listPeerNodes } from "./repository.js";
 import { fetchNodeJson } from "./remote.js";
 
 type FleetEntry<T> = {
@@ -82,7 +82,7 @@ function localResourcesPayload(): FleetResourcesPayload {
 export async function fleetSystem(): Promise<FleetSystemEntry[]> {
   const self = selfEntry<SystemResources>(() => getSystemResources());
   const peers = await Promise.all(
-    listNodes().map((node) =>
+    listPeerNodes().map((node) =>
       peerEntry(node, "system/resources", (raw) =>
         SystemResourcesSchema.parse(raw),
       ),
@@ -94,7 +94,7 @@ export async function fleetSystem(): Promise<FleetSystemEntry[]> {
 export async function fleetResources(): Promise<FleetResourcesEntry[]> {
   const self = selfEntry<FleetResourcesPayload>(localResourcesPayload);
   const peers = await Promise.all(
-    listNodes().map((node) =>
+    listPeerNodes().map((node) =>
       peerEntry(node, "resources", (raw) =>
         FleetResourcesPayloadSchema.parse(raw),
       ),

@@ -33,8 +33,19 @@ export type FleetNodeUpdate = z.infer<typeof FleetNodeUpdateSchema>;
 
 export const FleetNodeViewSchema = FleetNodeSchema.extend({
   hasToken: z.boolean(),
+  self: z.boolean().default(false),
 });
 export type FleetNodeView = z.infer<typeof FleetNodeViewSchema>;
+
+export const FleetSelfSchema = z.object({
+  selfNodeId: FleetNodeIdSchema.nullable(),
+});
+export type FleetSelf = z.infer<typeof FleetSelfSchema>;
+
+export const FleetSelfUpdateSchema = z.object({
+  nodeId: FleetNodeIdSchema.nullable(),
+});
+export type FleetSelfUpdate = z.infer<typeof FleetSelfUpdateSchema>;
 
 export const FederationCapabilitiesSchema = z.object({
   protocolVersion: z.number().int().positive(),
