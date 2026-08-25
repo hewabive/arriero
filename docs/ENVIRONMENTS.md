@@ -27,6 +27,12 @@ Status is derived rather than persisted:
 After a manager restart job history is intentionally lost; abandoned `.staging`
 directories are swept and the durable spec becomes `missing`, ready for rebuild.
 
+Rebuild refuses only an actually `installed` environment (final entrypoint present
+and the layout valid). Any leftover final directory — a crashed finalize, a tree
+copied from another machine, a layout that no longer validates — is trash-renamed
+away before the install starts, so a `missing`-with-leftovers spec is always
+recoverable through the same rebuild action.
+
 Installation state is separate from hardware availability. For vLLM, an installed CPU
 variant is `usable`, CUDA requires an NVIDIA device visible through NVML, and ROCm
 requires `/dev/kfd`. KTransformers is usable only on Linux x86-64 with Python 3.11 or

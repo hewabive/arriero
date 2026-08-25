@@ -114,9 +114,13 @@ export function rebuildEnvironment(id: string) {
   const spec = getEnvironmentSpec(id);
   if (!spec) return null;
   const uv = assertCanStart();
-  if (existsSync(environmentDirectory(spec))) {
+  if (
+    existsSync(environmentEntrypoint(spec)) &&
+    !environmentLayoutError(spec)
+  ) {
     throw new Error("environment is already installed");
   }
+  discardDirectory(assertEnvironmentPath(environmentDirectory(spec)));
   return {
     environment: toRecord(spec),
     job: environmentRunner.start(spec, uv),
