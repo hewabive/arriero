@@ -7,7 +7,10 @@ Supervision of managed engine instances: preflight, launch, adoption, health sum
 - Instances are launched directly as child processes (`child_process.spawn`, `detached`, own pgid) by
   `supervisor.ts` — **`systemd` is not involved**. Children write stdout/stderr straight to the
   `.raw.log` file fd (no pipes, so they survive manager death without EPIPE); the supervisor tails
-  the raw file (`raw-log-tail.ts`) to build the filtered log and emit `log` events.
+  the raw file (`raw-log-tail.ts`) to build the filtered log and emit `log` events. The per-child
+  mechanics — spawn-to-fd, log tails, SIGTERM→SIGKILL escalation, exit waiters, adopted-pid polling —
+  live in `supervised-child.ts`, shared with the `webapps` domain: a change there affects both
+  supervisors.
 - Managed processes **survive manager restarts by default**: on startup `reconcile.ts` re-adopts each
   open `process_runs` row whose PID is alive and whose `/proc/<pid>/cmdline` matches the per-run
   launch snapshot (`launch-snapshot.ts`). An adopted runtime is controlled by PID — no child handle,

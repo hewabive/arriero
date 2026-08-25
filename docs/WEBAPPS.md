@@ -56,10 +56,10 @@ app discovers it from the proxy's `/v1/models`, so federation reach comes for fr
 
 ## Supervision
 
-`webapps/supervisor.ts` follows the process-domain model with the engine-specific layers removed:
-detached spawn with its own pgid, stdout/stderr straight to a raw-log fd, `RawLogTail` building the
-filtered log (probe-noise grammar from the descriptor), SIGTERM → SIGKILL stop escalation against
-the process group. Children survive manager restarts; `webapps/reconcile.ts` re-adopts open `webapp_runs` rows
+`webapps/supervisor.ts` is a thin facade over `process/supervised-child.ts` — the child-lifecycle
+kernel both it and the instance supervisor run on: detached spawn with its own pgid, stdout/stderr
+straight to a raw-log fd, `RawLogTail` building the filtered log (probe-noise grammar from the
+descriptor), SIGTERM → SIGKILL stop escalation against the process group. Children survive manager restarts; `webapps/reconcile.ts` re-adopts open `webapp_runs` rows
 by pid + `/proc/<pid>/cmdline` match against the launch snapshot, defers quarantined definitions,
 and marks unmatched live pids `stale` (`webapps/stale.ts` stops those). `ARRIERO_STOP_MANAGED_ON_EXIT`
 applies to webapps too. After reconcile, boot starts every `autostart: true` webapp that has no
