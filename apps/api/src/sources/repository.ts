@@ -111,11 +111,14 @@ function saveSourceRepositorySpec(
         : parsed.location,
   });
   const current = readSettings();
+  const existing = (current.sourceRepositories ?? []).find(
+    (item) => item.id === normalized.id,
+  );
   const repositories = [
     ...(current.sourceRepositories ?? []).filter(
       (item) => item.id !== normalized.id,
     ),
-    normalized,
+    { ...existing, ...normalized },
   ].sort((left, right) => left.id.localeCompare(right.id));
   const next =
     normalized.id === LLAMA_CPP_SOURCE_ID

@@ -159,6 +159,9 @@ export function getModelScanSettings(): ModelScanSettings {
 export function saveModelScanSettings(
   input: ModelScanSettings,
 ): ModelScanSettings {
-  writeSettings({ ...readSettings(), modelScan: input });
+  writeSettings({
+    ...readSettings(),
+    modelScan: { ...readSettings().modelScan, ...input },
+  });
   return input;
 }

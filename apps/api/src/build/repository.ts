@@ -26,6 +26,8 @@ import {
   updatePathCatalogEntry,
 } from "../path-catalog/repository.js";
 
+const StoredBuildSectionSchema = BuildSettingsSchema.omit({ repoPath: true });
+
 function normalizeBuildsBaseDir(value: string): string {
   const resolved = resolve(value);
   if (resolved === resolve(config.buildsDir, "build")) {
@@ -80,7 +82,10 @@ export function saveBuildSettings(input: BuildSettings): BuildSettings {
   }
   writeSettings({
     ...readSettings(),
-    build: { ...parsed },
+    build: {
+      ...readSettings().build,
+      ...StoredBuildSectionSchema.parse(parsed),
+    },
   });
   return getBuildSettings();
 }

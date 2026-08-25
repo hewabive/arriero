@@ -10,6 +10,7 @@ import {
   type Instance,
   instanceEndpointId,
   instanceIdFromEndpointId,
+  stripLegacyConfigTimestamps,
 } from "@arriero/core";
 import { z } from "zod";
 import { newId } from "../utils/id.js";
@@ -29,7 +30,7 @@ import { apiVersionBaseUrl } from "./targets.js";
 
 export const ENDPOINTS_FILE = "endpoints.json";
 
-export const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
+const StoredEndpointBaseSchema = ApiEndpointRecordSchema.pick({
   id: true,
   name: true,
   enabled: true,
@@ -45,7 +46,12 @@ export const StoredEndpointSchema = ApiEndpointRecordSchema.pick({
   streamIdleTimeoutMs: true,
 });
 
-type StoredEndpoint = z.infer<typeof StoredEndpointSchema>;
+type StoredEndpoint = z.infer<typeof StoredEndpointBaseSchema>;
+
+export const StoredEndpointSchema: z.ZodType<StoredEndpoint> = z.preprocess(
+  stripLegacyConfigTimestamps,
+  StoredEndpointBaseSchema.catchall(z.unknown()),
+);
 
 export const managerProxyEndpointId = "manager-proxy";
 const REMOTE_ENDPOINT_PREFIX = "remote:";
@@ -349,6 +355,7 @@ export function updateApiEndpoint(
   }
   const parsed = ApiEndpointUpdateSchema.parse(input);
   const next = StoredEndpointSchema.parse({
+    ...current,
     id: current.id,
     name: parsed.name ?? current.name,
     enabled: parsed.enabled ?? current.enabled,

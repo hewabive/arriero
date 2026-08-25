@@ -12,7 +12,14 @@ import type { z } from "zod";
 import { config } from "../config.js";
 import { sqlite } from "../db/index.js";
 import { writeCollection, setSecret } from "./config-files.js";
-import { MODELS_FILE, PIPELINES_FILE, TARGETS_FILE } from "./repository.js";
+import {
+  MODELS_FILE,
+  PIPELINES_FILE,
+  StoredApiProxyModelSchema,
+  StoredApiProxyPipelineSchema,
+  StoredApiProxyTargetSchema,
+  TARGETS_FILE,
+} from "./repository.js";
 import { ENDPOINTS_FILE, StoredEndpointSchema } from "./endpoints.js";
 
 function tableExists(name: string): boolean {
@@ -74,7 +81,7 @@ function exportIfAbsent<T>(
 }
 
 function exportTargets() {
-  exportIfAbsent(TARGETS_FILE, ApiProxyTargetRecordSchema, () =>
+  exportIfAbsent(TARGETS_FILE, StoredApiProxyTargetSchema, () =>
     (sqlite.prepare("SELECT * FROM api_proxy_targets").all() as any[]).map(
       (row) =>
         ApiProxyTargetRecordSchema.parse({
@@ -96,7 +103,7 @@ function exportTargets() {
 }
 
 function exportModels() {
-  exportIfAbsent(MODELS_FILE, ApiProxyModelRecordSchema, () =>
+  exportIfAbsent(MODELS_FILE, StoredApiProxyModelSchema, () =>
     (sqlite.prepare("SELECT * FROM api_proxy_models").all() as any[]).map(
       (row) =>
         ApiProxyModelRecordSchema.parse({
@@ -116,7 +123,7 @@ function exportModels() {
 }
 
 function exportPipelines() {
-  exportIfAbsent(PIPELINES_FILE, ApiProxyPipelineRecordSchema, () =>
+  exportIfAbsent(PIPELINES_FILE, StoredApiProxyPipelineSchema, () =>
     (sqlite.prepare("SELECT * FROM api_proxy_pipelines").all() as any[]).map(
       (row) =>
         ApiProxyPipelineRecordSchema.parse(

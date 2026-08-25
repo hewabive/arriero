@@ -17,7 +17,7 @@ export function savePackageRegistriesSettings(
   const parsed = PackageRegistriesSettingsSchema.parse(input);
   writeSettings({
     ...readSettings(),
-    registries: parsed,
+    registries: { ...readSettings().registries, ...parsed },
   });
   return parsed;
 }

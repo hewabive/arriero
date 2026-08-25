@@ -1,10 +1,11 @@
 import {
   ArgumentDefaultsSchema,
+  stripLegacyConfigTimestamps,
   type ArgumentDefault,
   type ArgumentDefaults,
 } from "@arriero/core";
 import { copyFileSync, existsSync, writeFileSync } from "node:fs";
-import type { z } from "zod";
+import { z } from "zod";
 
 import { config } from "../config.js";
 import {
@@ -32,10 +33,13 @@ function ensureFile() {
   );
 }
 
-const StoredArgumentDefaultsSchema = ArgumentDefaultsSchema.pick({
-  instance: true,
-  engines: true,
-});
+const StoredArgumentDefaultsSchema = z.preprocess(
+  stripLegacyConfigTimestamps,
+  ArgumentDefaultsSchema.pick({
+    instance: true,
+    engines: true,
+  }).catchall(z.unknown()),
+);
 
 const store = createJsonFileStore<z.infer<typeof StoredArgumentDefaultsSchema>>(
   {
@@ -96,6 +100,7 @@ export function saveArgumentDefaults(
 ): ArgumentDefaults {
   const parsed = ArgumentDefaultsSchema.parse(input);
   store.write({
+    ...store.read(),
     instance: normalizeDefaults(parsed.instance),
     engines: normalizeEngineDefaults(parsed.engines),
   });

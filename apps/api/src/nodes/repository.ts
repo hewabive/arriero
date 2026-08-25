@@ -1,5 +1,6 @@
 import {
   FleetNodeSchema,
+  stripLegacyConfigTimestamps,
   type FleetNode,
   type FleetNodeCreate,
   type FleetNodeUpdate,
@@ -15,10 +16,15 @@ import { newId } from "../utils/id.js";
 export const NODES_FILE = resolve(config.configDir, "nodes.json");
 const SECRET_PREFIX = "node:";
 
+const StoredFleetNodeSchema: z.ZodType<FleetNode> = z.preprocess(
+  stripLegacyConfigTimestamps,
+  FleetNodeSchema.catchall(z.unknown()),
+);
+
 const store = createJsonFileStore<FleetNode[]>({
   id: "nodes",
   path: NODES_FILE,
-  schema: z.array(FleetNodeSchema),
+  schema: z.array(StoredFleetNodeSchema),
   missing: () => [],
   portablePaths: false,
   cache: "process",

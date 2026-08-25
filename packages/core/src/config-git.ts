@@ -164,6 +164,23 @@ export type ConfigGitPortableFileKind =
   | "preset"
   | `proxy-${ConfigGitProxyCollection}`;
 
+const LEGACY_CONFIG_TIMESTAMP_KEYS = ["createdAt", "updatedAt"] as const;
+
+export function stripLegacyConfigTimestamps(value: unknown): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  if (LEGACY_CONFIG_TIMESTAMP_KEYS.every((key) => !(key in record))) {
+    return value;
+  }
+  const rest = { ...record };
+  for (const key of LEGACY_CONFIG_TIMESTAMP_KEYS) {
+    delete rest[key];
+  }
+  return rest;
+}
+
 const configGitInstancePathPattern = /^instances\/[A-Za-z0-9._-]+\.json$/;
 const configGitPresetPathPattern = /^presets\/[A-Za-z0-9._-]+\.ini$/;
 const configGitProxyPathPattern = new RegExp(

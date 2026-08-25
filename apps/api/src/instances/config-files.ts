@@ -1,7 +1,10 @@
 import { basename } from "node:path";
 
+import { z } from "zod";
+
 import {
   InstanceConfigRecordSchema,
+  stripLegacyConfigTimestamps,
   type InstanceConfigRecord,
   type RpcWorkerRef,
 } from "@arriero/core";
@@ -12,10 +15,16 @@ import { compareStrings } from "../utils/sort.js";
 
 const instancesDir = config.instancesDir;
 
+const StoredInstanceRecordSchema: z.ZodType<InstanceConfigRecord> =
+  z.preprocess(
+    stripLegacyConfigTimestamps,
+    InstanceConfigRecordSchema.catchall(z.unknown()),
+  );
+
 const store = createJsonDirectoryStore<InstanceConfigRecord>({
   id: "instances",
   dir: instancesDir,
-  schema: InstanceConfigRecordSchema,
+  schema: StoredInstanceRecordSchema,
   key: (record) => record.name,
   portablePaths: true,
 });
@@ -40,7 +49,7 @@ export function writeInstanceRecord(
   record: InstanceConfigRecord,
   previousName?: string,
 ): void {
-  const parsed = InstanceConfigRecordSchema.parse(record);
+  const parsed = StoredInstanceRecordSchema.parse(record);
   const validated = {
     ...parsed,
     args: sortedRecord(parsed.args),

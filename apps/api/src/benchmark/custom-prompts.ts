@@ -10,10 +10,13 @@ import {
 import { createJsonFileStore } from "../config-store/file-store.js";
 import { config } from "../config.js";
 
+const StoredBenchmarkPromptSchema: z.ZodType<BenchmarkPrompt> =
+  BenchmarkPromptSchema.catchall(z.unknown());
+
 const store = createJsonFileStore<BenchmarkPrompt[]>({
   id: "benchmark:prompts",
   path: resolve(config.configDir, "benchmark", "prompts.json"),
-  schema: z.array(BenchmarkPromptSchema),
+  schema: z.array(StoredBenchmarkPromptSchema),
   missing: () => [],
   portablePaths: false,
   cache: "process",
@@ -40,7 +43,7 @@ export function updateCustomBenchmarkPrompt(
   if (!current) {
     return null;
   }
-  const next = BenchmarkPromptSchema.parse({ ...current, ...update });
+  const next = StoredBenchmarkPromptSchema.parse({ ...current, ...update });
   store.write(prompts.map((entry) => (entry.id === id ? next : entry)));
   return next;
 }

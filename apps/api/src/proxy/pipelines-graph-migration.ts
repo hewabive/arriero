@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import { writeCollection } from "./config-files.js";
-import { PIPELINES_FILE } from "./repository.js";
+import { PIPELINES_FILE, StoredApiProxyPipelineSchema } from "./repository.js";
 
 function readRawPipelines(): unknown[] | null {
   const path = resolve(config.proxyConfigDir, PIPELINES_FILE);
@@ -45,5 +45,5 @@ export function migratePipelinesToGraphFormat(): void {
   const upgraded = raw.map((record) =>
     ApiProxyPipelineRecordSchema.parse(upgradeLegacyApiProxyPipeline(record)),
   );
-  writeCollection(PIPELINES_FILE, ApiProxyPipelineRecordSchema, upgraded);
+  writeCollection(PIPELINES_FILE, StoredApiProxyPipelineSchema, upgraded);
 }

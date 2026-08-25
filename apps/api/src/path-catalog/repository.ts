@@ -14,10 +14,13 @@ import { newId } from "../utils/id.js";
 
 export const PATH_CATALOG_FILE = resolve(config.configDir, "path-catalog.json");
 
+const StoredPathCatalogEntrySchema: z.ZodType<PathCatalogEntry> =
+  PathCatalogEntrySchema.catchall(z.unknown());
+
 const store = createJsonFileStore<PathCatalogEntry[]>({
   id: "path-catalog",
   path: PATH_CATALOG_FILE,
-  schema: z.array(PathCatalogEntrySchema),
+  schema: z.array(StoredPathCatalogEntrySchema),
   missing: () => [],
   portablePaths: true,
   cache: "process",

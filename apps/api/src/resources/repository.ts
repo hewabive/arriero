@@ -1,5 +1,6 @@
 import {
   MemoryPoolSchema,
+  stripLegacyConfigTimestamps,
   type MemoryPool,
   type MemoryPoolUpdate,
   type MemoryPoolView,
@@ -23,10 +24,15 @@ export const RESOURCES_FILE = resolve(config.configDir, "resources.json");
 const GIB = 1024 ** 3;
 const HOST_RESERVE_RATIO = 0.15;
 
+const StoredMemoryPoolSchema: z.ZodType<MemoryPool> = z.preprocess(
+  stripLegacyConfigTimestamps,
+  MemoryPoolSchema.catchall(z.unknown()),
+);
+
 const store = createJsonFileStore<MemoryPool[]>({
   id: "resources",
   path: RESOURCES_FILE,
-  schema: z.array(MemoryPoolSchema),
+  schema: z.array(StoredMemoryPoolSchema),
   missing: () => [],
   portablePaths: false,
   cache: "process",

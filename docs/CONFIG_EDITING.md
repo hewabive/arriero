@@ -34,6 +34,19 @@ primitive — `config-store/file-store.ts` for single files, `config-store/direc
    instance file is quarantined while its cmdline still matches the launch snapshot. Fixing the
    files and POSTing reload recovers live; a restart is never required for recovery.
 
+6. **Unknown keys survive read-modify-write.** Every persisted shape is parsed through a stored
+   variant that accepts unknown keys (`.catchall(z.unknown())`; request schemas stay strict), and
+   update flows merge onto the stored record instead of rebuilding it field-by-field. A file
+   written by newer code therefore keeps its newer sections and fields when older code edits it —
+   the forward-compatibility floor for a config tree shared between hosts through one git origin
+   (`CONFIG_GIT.md`). A shape old code cannot parse at all still fails loudly (quarantine, refused
+   pull), never a silent stripped rewrite. The boundary is record/section level: unknown keys
+   inside nested strict shapes (pipeline nodes, webapp settings variants) do not ride along. The
+   one deliberate exception: legacy `createdAt`/`updatedAt` keys are removed at the same boundary
+   (`stripLegacyConfigTimestamps` in core) — tracked config files carry no timestamps
+   (`CONFIG_FILES.md`), so those keys are always a stale marker for `normalizeConfigFiles()`, not
+   forward data.
+
 Errors are typed (`config-store/errors.ts`) and mapped centrally in `http-errors.ts`: quarantined
 read → 503 `{ error: { message, configFile } }`, write conflict → 409, malformed request body →
 400.
@@ -79,6 +92,8 @@ read → 503 `{ error: { message, configFile } }`, write conflict → 409, malfo
 | `resources` | `resources.json` | no |
 | `nodes` | `nodes.json` | no |
 | `environments` | `envs.json` (machine state) | no |
+| `webapps` | `webapps/*.json` (per-file quarantine) | no |
+| `benchmark:prompts` | `benchmark/prompts.json` | no |
 
 `resources` additionally refreshes `autoCapacity` pool capacities in memory only (never dirtying
 git) via `replaceCachedValue` — the one sanctioned case where applied state deliberately diverges

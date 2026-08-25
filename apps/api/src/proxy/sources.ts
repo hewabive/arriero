@@ -2,6 +2,7 @@ import {
   ApiProxySourceCreateSchema,
   ApiProxySourceRecordSchema,
   ApiProxySourceUpdateSchema,
+  stripLegacyConfigTimestamps,
   type ApiProxySourceCreate,
   type ApiProxySourceRecord,
   type ApiProxySourceUpdate,
@@ -21,7 +22,7 @@ import { getApiProxySettings } from "./settings.js";
 
 export const SOURCES_FILE = "sources.json";
 
-export const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
+const StoredSourceBaseSchema = ApiProxySourceRecordSchema.pick({
   id: true,
   name: true,
   enabled: true,
@@ -29,7 +30,12 @@ export const StoredSourceSchema = ApiProxySourceRecordSchema.pick({
   blockedMessage: true,
 });
 
-type StoredSource = z.infer<typeof StoredSourceSchema>;
+type StoredSource = z.infer<typeof StoredSourceBaseSchema>;
+
+export const StoredSourceSchema: z.ZodType<StoredSource> = z.preprocess(
+  stripLegacyConfigTimestamps,
+  StoredSourceBaseSchema.catchall(z.unknown()),
+);
 
 function sourceSecretId(id: string) {
   return `source:${id}`;
@@ -120,6 +126,7 @@ export function updateApiProxySource(
   }
   const parsed = ApiProxySourceUpdateSchema.parse(input);
   const next = StoredSourceSchema.parse({
+    ...current,
     id: current.id,
     name: parsed.name ?? current.name,
     enabled: parsed.enabled ?? current.enabled,

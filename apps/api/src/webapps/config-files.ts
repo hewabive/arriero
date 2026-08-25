@@ -1,5 +1,7 @@
 import { basename } from "node:path";
 
+import { z } from "zod";
+
 import {
   WebappConfigRecordSchema,
   type WebappConfigRecord,
@@ -9,10 +11,13 @@ import { config } from "../config.js";
 import { createJsonDirectoryStore } from "../config-store/directory-store.js";
 import { compareStrings } from "../utils/sort.js";
 
+const StoredWebappRecordSchema: z.ZodType<WebappConfigRecord> =
+  WebappConfigRecordSchema.catchall(z.unknown());
+
 const store = createJsonDirectoryStore<WebappConfigRecord>({
   id: "webapps",
   dir: config.webappsConfigDir,
-  schema: WebappConfigRecordSchema,
+  schema: StoredWebappRecordSchema,
   key: (record) => record.name,
   portablePaths: false,
 });
@@ -43,7 +48,7 @@ export function writeWebappRecord(
   record: WebappConfigRecord,
   previousName?: string,
 ): void {
-  const parsed = WebappConfigRecordSchema.parse(record);
+  const parsed = StoredWebappRecordSchema.parse(record);
   store.write(sortedExtraEnv(parsed), previousName);
 }
 

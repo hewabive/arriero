@@ -19,7 +19,7 @@ export function saveEnvironmentRepositorySettings(
   const parsed = EnvironmentRepositorySettingsSchema.parse(input);
   writeSettings({
     ...readSettings(),
-    environments: parsed,
+    environments: { ...readSettings().environments, ...parsed },
   });
   return parsed;
 }

@@ -17,7 +17,7 @@ export function saveHfDownloadSettings(
   const parsed = HfDownloadSettingsSchema.parse(input);
   writeSettings({
     ...readSettings(),
-    downloads: parsed,
+    downloads: { ...readSettings().downloads, ...parsed },
   });
   return parsed;
 }

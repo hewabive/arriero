@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { BuildSettingsSchema } from "./build.js";
+import { stripLegacyConfigTimestamps } from "./config-git.js";
 import { EnvironmentRepositorySettingsSchema } from "./environments.js";
 import { HfDownloadSettingsSchema } from "./hf.js";
 import { LlamaSourceSettingsSchema } from "./llama.js";
@@ -10,14 +11,33 @@ import { SourceRepositorySpecSchema } from "./sources.js";
 
 export const AppSettingsFileSchema = z
   .object({
-    modelScan: ModelScanSettingsSchema.optional(),
-    sourceRepositories: z.array(SourceRepositorySpecSchema).optional(),
-    llamaSource: LlamaSourceSettingsSchema.optional(),
-    build: BuildSettingsSchema.omit({ repoPath: true }).optional(),
-    environments: EnvironmentRepositorySettingsSchema.optional(),
-    registries: PackageRegistriesSettingsSchema.optional(),
-    downloads: HfDownloadSettingsSchema.optional(),
+    modelScan: ModelScanSettingsSchema.catchall(z.unknown()).optional(),
+    sourceRepositories: z
+      .array(
+        z.preprocess(
+          stripLegacyConfigTimestamps,
+          SourceRepositorySpecSchema.catchall(z.unknown()),
+        ),
+      )
+      .optional(),
+    llamaSource: z
+      .preprocess(
+        stripLegacyConfigTimestamps,
+        LlamaSourceSettingsSchema.catchall(z.unknown()),
+      )
+      .optional(),
+    build: BuildSettingsSchema.omit({ repoPath: true })
+      .catchall(z.unknown())
+      .optional(),
+    environments: EnvironmentRepositorySettingsSchema.catchall(
+      z.unknown(),
+    ).optional(),
+    registries: PackageRegistriesSettingsSchema.catchall(
+      z.unknown(),
+    ).optional(),
+    downloads: HfDownloadSettingsSchema.catchall(z.unknown()).optional(),
   })
+  .catchall(z.unknown())
   .default({});
 
 export type AppSettingsFile = z.infer<typeof AppSettingsFileSchema>;

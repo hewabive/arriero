@@ -4,13 +4,17 @@ import {
   type ApiProxySettings,
   type ApiProxySettingsUpdate,
 } from "@arriero/core";
+import { z } from "zod";
 
 import { readObjectFile, writeObjectFile } from "./config-files.js";
 
 const SETTINGS_FILE = "settings.json";
 
+const StoredApiProxySettingsSchema: z.ZodType<ApiProxySettings> =
+  ApiProxySettingsSchema.catchall(z.unknown());
+
 export function getApiProxySettings(): ApiProxySettings {
-  return readObjectFile(SETTINGS_FILE, ApiProxySettingsSchema);
+  return readObjectFile(SETTINGS_FILE, StoredApiProxySettingsSchema);
 }
 
 export function updateApiProxySettings(
@@ -19,12 +23,13 @@ export function updateApiProxySettings(
   const parsed = ApiProxySettingsUpdateSchema.parse(input);
   const current = getApiProxySettings();
   const next: ApiProxySettings = {
+    ...current,
     allowAnonymous: parsed.allowAnonymous ?? current.allowAnonymous,
     streamIdleTimeoutMs:
       parsed.streamIdleTimeoutMs !== undefined
         ? parsed.streamIdleTimeoutMs
         : current.streamIdleTimeoutMs,
   };
-  writeObjectFile(SETTINGS_FILE, ApiProxySettingsSchema, next);
+  writeObjectFile(SETTINGS_FILE, StoredApiProxySettingsSchema, next);
   return next;
 }

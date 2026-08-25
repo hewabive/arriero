@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import { writeCollection } from "./config-files.js";
-import { MODELS_FILE } from "./repository.js";
+import { MODELS_FILE, StoredApiProxyModelSchema } from "./repository.js";
 
 function readRawModels(): Record<string, unknown>[] | null {
   const path = resolve(config.proxyConfigDir, MODELS_FILE);
@@ -44,5 +44,5 @@ export function migrateModelVisibility(): void {
         : record,
     ),
   );
-  writeCollection(MODELS_FILE, ApiProxyModelRecordSchema, upgraded);
+  writeCollection(MODELS_FILE, StoredApiProxyModelSchema, upgraded);
 }
