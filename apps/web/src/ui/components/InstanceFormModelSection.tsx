@@ -49,6 +49,8 @@ export function InstanceFormModelSection({
                 }
                 searchable
                 clearable
+                floatingHeight="viewport"
+                loading={fm.scanned.coldLoading}
                 value={fm.selectedModelPath}
                 onChange={fm.applyModelSelection}
                 data={fm.modelOptions}
@@ -193,6 +195,7 @@ export function InstanceFormModelSection({
               }
               searchable
               clearable
+              loading={fm.presetsQuery.isFetching}
               value={fm.selectedPresetName}
               onChange={(value) => fm.applyPresetSelection(value)}
               data={fm.presetOptions}

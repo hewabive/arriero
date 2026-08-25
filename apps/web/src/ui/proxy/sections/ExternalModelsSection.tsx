@@ -7,6 +7,7 @@ import type {
 import {
   ActionIcon,
   Code,
+  EmptyState,
   Group,
   Paper,
   Stack,
@@ -186,9 +187,11 @@ export function ExternalModelsSection(props: ExternalModelsSectionProps) {
               {props.models.length === 0 && (
                 <Table.Tr>
                   <Table.Td colSpan={7}>
-                    <Text c="dimmed" ta="center" py="lg">
-                      No external models configured
-                    </Text>
+                    <EmptyState
+                      size="sm"
+                      title="No external models configured"
+                      py="lg"
+                    />
                   </Table.Td>
                 </Table.Tr>
               )}

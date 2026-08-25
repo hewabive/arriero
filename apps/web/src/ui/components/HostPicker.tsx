@@ -106,6 +106,7 @@ export function HostPicker(props: {
             ? "Loading interfaces..."
             : "No hosts found"
         }
+        loading={interfacesQuery.isFetching}
       />
       {selectValue === customHostSelectValue && (
         <TextInput

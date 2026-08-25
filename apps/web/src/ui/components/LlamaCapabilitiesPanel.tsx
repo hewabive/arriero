@@ -6,6 +6,7 @@ import type {
 import {
   Badge,
   Button,
+  EmptyState,
   Group,
   Paper,
   SimpleGrid,
@@ -109,7 +110,7 @@ export function LlamaCapabilitiesPanel(props: {
         </Text>
       )}
 
-      <SimpleGrid cols={{ base: 2, md: 5 }} spacing="xs" mb="xs">
+      <SimpleGrid minColWidth="8rem" autoFlow="auto-fit" spacing="xs" mb="xs">
         {categoryCounts(capabilities).map((item) => (
           <Paper key={item.category} withBorder p="xs" radius="sm">
             <Text fw={600} size="xs">
@@ -183,9 +184,11 @@ export function LlamaCapabilitiesPanel(props: {
             {capabilities.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={5}>
-                  <Text c="dimmed" ta="center">
-                    No capability data yet
-                  </Text>
+                  <EmptyState
+                    size="sm"
+                    title="No capability data yet"
+                    py="sm"
+                  />
                 </Table.Td>
               </Table.Tr>
             )}

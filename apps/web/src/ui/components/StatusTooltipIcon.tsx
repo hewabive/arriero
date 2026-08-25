@@ -10,7 +10,7 @@ export function StatusTooltipIcon(props: { status: TooltipIconStatus }) {
   const { status } = props;
   if (status.state === "loading") {
     return (
-      <Tooltip label={status.label}>
+      <Tooltip label={status.label} multiline maw={360}>
         <Loader size={16} />
       </Tooltip>
     );
@@ -18,7 +18,7 @@ export function StatusTooltipIcon(props: { status: TooltipIconStatus }) {
 
   const ok = status.state === "ok";
   return (
-    <Tooltip label={status.label}>
+    <Tooltip label={status.label} multiline maw={360} interactive>
       <ThemeIcon
         color={ok ? "green" : status.state === "idle" ? "gray" : "red"}
         radius="xl"

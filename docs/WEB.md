@@ -1,6 +1,6 @@
 # Web UI
 
-`apps/web` is a single-page React 19 + Vite application: Mantine 8 components, TanStack Query 5 for
+`apps/web` is a single-page React 19 + Vite application: Mantine 9 components, TanStack Query 5 for
 server state, `@xyflow/react` for the pipeline canvas, hash routing with no router library. It
 renders the admin surface for every API domain plus the public status page. This document maps the
 shell and the cross-cutting plumbing; per-view logic lives with the view, and the always-loaded rules
@@ -9,8 +9,9 @@ are `apps/web/CLAUDE.md`.
 ## Shell and providers
 
 `src/main.tsx` mounts, under `React.StrictMode`: `QueryClientProvider` (one default `QueryClient`) →
-`NodeProvider` (node scoping, below) → `MantineProvider` (`defaultColorScheme="dark"`; the
-`createTheme` owns the heading scale and component-wide defaults such as `Tooltip` opening on
+`NodeProvider` (node scoping, below) → `MantineProvider` (`defaultColorScheme="dark"` and
+`deduplicateInlineStyles` for React 19 style hoisting; the `createTheme` owns the heading scale and
+component-wide defaults such as `Tooltip` opening on
 hover/focus/touch) → a root error boundary that renders a reload screen on any uncaught render error
 → `Notifications`. `src/styles.css` is the only global stylesheet — a small set of layout and
 text-wrapping helpers on Mantine CSS variables; everything else styles through Mantine props.

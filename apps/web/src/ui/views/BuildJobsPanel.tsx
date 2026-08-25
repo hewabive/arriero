@@ -2,6 +2,7 @@ import {
   Badge,
   Box,
   Code,
+  EmptyState,
   Group,
   Paper,
   ScrollArea,
@@ -81,9 +82,7 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
             ))}
             {jobs.length === 0 && (
               <Paper withBorder p="md" radius="sm">
-                <Text c="dimmed" ta="center">
-                  No build jobs yet
-                </Text>
+                <EmptyState size="sm" title="No build jobs yet" />
               </Paper>
             )}
           </Stack>
@@ -128,6 +127,7 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
                           multiline
                           maw={420}
                           withArrow
+                          interactive
                         >
                           <Text
                             c="red"
@@ -163,9 +163,7 @@ export function BuildJobsPanel({ fm }: { fm: BuildViewController }) {
                 {jobs.length === 0 && (
                   <Table.Tr>
                     <Table.Td colSpan={4}>
-                      <Text c="dimmed" ta="center" py="lg">
-                        No build jobs yet
-                      </Text>
+                      <EmptyState size="sm" title="No build jobs yet" py="lg" />
                     </Table.Td>
                   </Table.Tr>
                 )}

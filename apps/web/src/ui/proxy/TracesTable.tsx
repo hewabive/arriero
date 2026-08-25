@@ -96,6 +96,7 @@ function RouteTraceCell(props: { trace: ApiProxyRequestTrace }) {
       multiline
       maw={480}
       withArrow
+      interactive
       label={
         <Stack gap={2}>
           {props.trace.routeTrace.map((step, index) => (
@@ -133,6 +134,7 @@ function SchedulerActionsCell(props: { trace: ApiProxyRequestTrace }) {
       multiline
       maw={480}
       withArrow
+      interactive
       label={
         <Stack gap={2}>
           {schedulerActions.map((action, index) => (
@@ -466,7 +468,7 @@ const TraceRow = memo(function TraceRow(props: {
         </Badge>
       </Table.Td>
       <Table.Td>
-        <Tooltip label={trace.routePath}>
+        <Tooltip label={trace.routePath} multiline maw={480} interactive>
           <Text size="xs">{formatTraceEndpoint(trace.endpoint)}</Text>
         </Tooltip>
       </Table.Td>

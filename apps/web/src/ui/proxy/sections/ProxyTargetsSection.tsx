@@ -8,6 +8,7 @@ import {
   Badge,
   Box,
   Code,
+  EmptyState,
   Group,
   Loader,
   Paper,
@@ -202,9 +203,11 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
               {props.targets.length === 0 && (
                 <Table.Tr>
                   <Table.Td colSpan={8}>
-                    <Text c="dimmed" ta="center" py="lg">
-                      No proxy targets configured
-                    </Text>
+                    <EmptyState
+                      size="sm"
+                      title="No proxy targets configured"
+                      py="lg"
+                    />
                   </Table.Td>
                 </Table.Tr>
               )}

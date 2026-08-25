@@ -1,5 +1,13 @@
 import type { ArgumentDefault, ArgumentOption } from "@arriero/core";
-import { Code, Group, Paper, Stack, Table, Text, Tooltip } from "@mantine/core";
+import {
+  Code,
+  EmptyState,
+  Group,
+  Paper,
+  Stack,
+  Table,
+  Tooltip,
+} from "@mantine/core";
 import { Star } from "lucide-react";
 
 import { useNarrowScreen } from "../hooks/use-narrow-screen";
@@ -57,11 +65,14 @@ export function ArgumentReferenceList({ fm }: { fm: ArgumentsViewController }) {
             ))}
             {fm.filteredOptions.length === 0 && (
               <Paper withBorder p="md" radius="sm">
-                <Text c="dimmed" ta="center">
-                  {fm.argsCatalogQuery.isFetching
-                    ? "Loading arguments..."
-                    : "No matching arguments found"}
-                </Text>
+                <EmptyState
+                  size="sm"
+                  title={
+                    fm.argsCatalogQuery.isFetching
+                      ? "Loading arguments..."
+                      : "No matching arguments found"
+                  }
+                />
               </Paper>
             )}
           </Stack>
@@ -104,11 +115,15 @@ export function ArgumentReferenceList({ fm }: { fm: ArgumentsViewController }) {
                 {fm.filteredOptions.length === 0 && (
                   <Table.Tr>
                     <Table.Td>
-                      <Text c="dimmed" ta="center" py="lg">
-                        {fm.argsCatalogQuery.isFetching
-                          ? "Loading arguments..."
-                          : "No matching arguments found"}
-                      </Text>
+                      <EmptyState
+                        size="sm"
+                        title={
+                          fm.argsCatalogQuery.isFetching
+                            ? "Loading arguments..."
+                            : "No matching arguments found"
+                        }
+                        py="lg"
+                      />
                     </Table.Td>
                   </Table.Tr>
                 )}

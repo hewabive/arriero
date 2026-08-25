@@ -47,7 +47,13 @@ export function UsedByCell(props: { refs: ProxyUsageRef[] | undefined }) {
           );
         return (
           <Fragment key={`${ref.kind}-${ref.id}`}>
-            {tooltip ? <Tooltip label={tooltip}>{badge}</Tooltip> : badge}
+            {tooltip ? (
+              <Tooltip label={tooltip} multiline maw={360} interactive>
+                {badge}
+              </Tooltip>
+            ) : (
+              badge
+            )}
           </Fragment>
         );
       })}

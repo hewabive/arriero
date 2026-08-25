@@ -98,6 +98,7 @@ export function BuildSettingsForm({ fm }: { fm: BuildViewController }) {
             }
             value={fm.gitRef}
             searchable
+            floatingHeight="viewport"
             disabled={
               !fm.settingsReady ||
               !fm.sourceStatusMatchesForm ||

@@ -117,7 +117,14 @@ export function InstanceTypeCell(props: {
       </Tooltip>
       <Group className="instance-type-chips" gap={4}>
         {chips.map((chip) => (
-          <Tooltip key={chip.key} label={chip.tooltip} withArrow>
+          <Tooltip
+            key={chip.key}
+            label={chip.tooltip}
+            withArrow
+            multiline
+            maw={360}
+            interactive
+          >
             <Badge variant="default" size="xs" tt="none">
               {chip.label}
             </Badge>

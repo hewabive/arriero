@@ -185,6 +185,7 @@ export function PresetsView() {
               presetsQuery.isFetching ? "Loading presets..." : "Select a preset"
             }
             searchable
+            loading={presetsQuery.isFetching}
             value={selectedName}
             onChange={setSelectedName}
             data={presets.map((item) => ({

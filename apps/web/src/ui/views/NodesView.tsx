@@ -14,6 +14,7 @@ import {
   Card,
   Code,
   Collapse,
+  EmptyState,
   Group,
   Loader,
   Modal,
@@ -470,7 +471,7 @@ export function NodesView() {
         ))}
         {registryNodes.length === 0 && (
           <Paper withBorder p="lg" radius="sm">
-            <Text c="dimmed">No peer nodes registered yet.</Text>
+            <EmptyState size="sm" title="No peer nodes registered yet" />
           </Paper>
         )}
       </Stack>
@@ -734,7 +735,12 @@ function NodeCard({
               )}
               {state &&
                 (state.tooltip ? (
-                  <Tooltip label={state.tooltip} multiline maw={320}>
+                  <Tooltip
+                    label={state.tooltip}
+                    multiline
+                    maw={320}
+                    interactive
+                  >
                     {reachBadge}
                   </Tooltip>
                 ) : (

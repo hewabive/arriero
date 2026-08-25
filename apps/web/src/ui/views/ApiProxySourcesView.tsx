@@ -3,6 +3,7 @@ import {
   ActionIcon,
   Badge,
   Button,
+  EmptyState,
   Group,
   Modal,
   Paper,
@@ -272,9 +273,7 @@ export function ApiProxySourcesView() {
             {sources.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={5}>
-                  <Text size="sm" c="dimmed">
-                    No sources yet.
-                  </Text>
+                  <EmptyState size="sm" title="No sources yet" py="sm" />
                 </Table.Td>
               </Table.Tr>
             )}

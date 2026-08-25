@@ -72,7 +72,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <NodeProvider>
-        <MantineProvider theme={theme} defaultColorScheme="dark">
+        <MantineProvider
+          theme={theme}
+          defaultColorScheme="dark"
+          deduplicateInlineStyles
+        >
           <RootErrorBoundary>
             <Notifications position="top-right" />
             <App />

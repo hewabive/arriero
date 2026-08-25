@@ -84,6 +84,8 @@ export function InstanceFormSpecSection({
                   }
                   searchable
                   clearable
+                  floatingHeight="viewport"
+                  loading={fm.scanned.coldLoading}
                   value={fm.specDraftModelValue || null}
                   onChange={fm.applySpecDraftModel}
                   data={fm.draftModelOptions}

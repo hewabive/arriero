@@ -74,6 +74,8 @@ export function ArgumentPicker(props: {
       }
       searchable
       clearable
+      floatingHeight="viewport"
+      loading={props.isFetching ?? false}
       value={value}
       onChange={(next) => {
         if (!next) {

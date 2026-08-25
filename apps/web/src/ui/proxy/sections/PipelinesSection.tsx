@@ -5,6 +5,7 @@ import type {
 import {
   ActionIcon,
   Badge,
+  EmptyState,
   Group,
   Paper,
   Stack,
@@ -144,9 +145,11 @@ export function PipelinesSection(props: PipelinesSectionProps) {
               {props.pipelines.length === 0 && (
                 <Table.Tr>
                   <Table.Td colSpan={5}>
-                    <Text c="dimmed" ta="center" py="lg">
-                      No pipelines configured
-                    </Text>
+                    <EmptyState
+                      size="sm"
+                      title="No pipelines configured"
+                      py="lg"
+                    />
                   </Table.Td>
                 </Table.Tr>
               )}

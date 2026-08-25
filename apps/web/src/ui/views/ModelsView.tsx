@@ -7,6 +7,7 @@ import {
   Button,
   Collapse,
   Divider,
+  EmptyState,
   Group,
   Modal,
   NumberInput,
@@ -686,9 +687,7 @@ export function ModelsView(props: {
             })}
             {filteredModels.length === 0 && (
               <Paper withBorder p="md" radius="sm">
-                <Text c="dimmed" ta="center">
-                  {emptyMessage}
-                </Text>
+                <EmptyState size="sm" title={emptyMessage} />
               </Paper>
             )}
           </Stack>
@@ -801,9 +800,7 @@ export function ModelsView(props: {
                 {filteredModels.length === 0 && (
                   <Table.Tr>
                     <Table.Td colSpan={11}>
-                      <Text c="dimmed" ta="center" py="lg">
-                        {emptyMessage}
-                      </Text>
+                      <EmptyState size="sm" title={emptyMessage} py="lg" />
                     </Table.Td>
                   </Table.Tr>
                 )}

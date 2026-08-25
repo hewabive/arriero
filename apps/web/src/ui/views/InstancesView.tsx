@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   Code,
+  EmptyState,
   Group,
   Modal,
   Paper,
@@ -490,9 +491,7 @@ export function InstancesView(props: {
           ))}
           {props.instances.length === 0 && (
             <Paper withBorder p="md" radius="sm">
-              <Text c="dimmed" ta="center">
-                No instances yet
-              </Text>
+              <EmptyState size="sm" title="No instances yet" />
             </Paper>
           )}
         </Stack>
@@ -567,9 +566,7 @@ export function InstancesView(props: {
               {props.instances.length === 0 && (
                 <Table.Tr>
                   <Table.Td colSpan={7}>
-                    <Text c="dimmed" ta="center" py="lg">
-                      No instances yet
-                    </Text>
+                    <EmptyState size="sm" title="No instances yet" py="lg" />
                   </Table.Td>
                 </Table.Tr>
               )}

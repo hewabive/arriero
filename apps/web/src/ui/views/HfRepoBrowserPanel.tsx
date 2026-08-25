@@ -506,6 +506,7 @@ function BrowseResults(props: {
           onChange={props.onDestDirChange}
           placeholder={destCheck?.dir ?? "models directory"}
           w={380}
+          loading={destQuery.isFetching}
         />
         <Button
           leftSection={<Download size={14} />}

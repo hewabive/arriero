@@ -54,7 +54,7 @@ export function useEndpointModelCatalog(includeManagerProxy = false) {
     () => buildEndpointSelectData(groups),
     [groups],
   );
-  return { groups, endpointSelectData };
+  return { groups, endpointSelectData, isFetching: query.isFetching };
 }
 
 export function useEndpointModelOptions(input: {

@@ -1,5 +1,14 @@
 import type { PublicProxyModel } from "@arriero/core";
-import { Alert, Badge, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import {
+  Alert,
+  Badge,
+  EmptyState,
+  Group,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
@@ -105,9 +114,7 @@ export function PublicStatusView() {
             ))}
             {status?.models.items.length === 0 && (
               <Paper withBorder p="md" radius="sm" w="100%">
-                <Text c="dimmed" ta="center">
-                  No published models
-                </Text>
+                <EmptyState size="sm" title="No published models" />
               </Paper>
             )}
           </Group>

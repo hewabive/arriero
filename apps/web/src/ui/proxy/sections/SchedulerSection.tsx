@@ -2,6 +2,7 @@ import type { ApiProxyPlanPreview, ApiProxyTargetRecord } from "@arriero/core";
 import {
   Badge,
   Button,
+  EmptyState,
   Group,
   Paper,
   Stack,
@@ -71,9 +72,7 @@ function SchedulerActionTable(props: {
           {props.actions.length === 0 && (
             <Table.Tr>
               <Table.Td colSpan={4}>
-                <Text c="dimmed" ta="center" py="sm">
-                  {props.emptyText}
-                </Text>
+                <EmptyState size="sm" title={props.emptyText} py="sm" />
               </Table.Td>
             </Table.Tr>
           )}

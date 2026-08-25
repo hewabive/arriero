@@ -86,7 +86,7 @@ export function InstanceFormArgumentsSection({
             }}
           />
         </Box>
-        <Tooltip label={fm.argsCatalogTooltip}>
+        <Tooltip label={fm.argsCatalogTooltip} multiline maw={420} interactive>
           <ActionIcon
             aria-label="Reload arguments from binary help"
             variant="subtle"

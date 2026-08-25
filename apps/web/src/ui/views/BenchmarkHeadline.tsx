@@ -65,7 +65,7 @@ export function BenchmarkHeadline({
     return null;
   }
   return (
-    <SimpleGrid cols={{ base: 2, xs: 3, md: 6 }} spacing="xs">
+    <SimpleGrid minColWidth="9rem" autoFlow="auto-fit" spacing="xs">
       <Stat
         label="Decode total"
         value={formatRate(headline.decodeTokensPerSecond)}

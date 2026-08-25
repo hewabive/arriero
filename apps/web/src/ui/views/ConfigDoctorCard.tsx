@@ -125,6 +125,7 @@ export function ConfigDoctorCard() {
                     disabled={!finding.remediation}
                     multiline
                     maw={360}
+                    interactive
                   >
                     <Text size="sm">{finding.summary}</Text>
                   </Tooltip>

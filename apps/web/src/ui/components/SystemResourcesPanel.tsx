@@ -541,7 +541,7 @@ export function SystemResourcesPanel(props: {
                 </Badge>
               }
             >
-              <SimpleGrid cols={{ base: 4, sm: 8, md: 12 }} spacing={4}>
+              <SimpleGrid minColWidth="4rem" spacing={4}>
                 {cpu.cores.map((core) => (
                   <Stack key={core.id} gap={2}>
                     <Progress

@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Code,
+  EmptyState,
   Group,
   Modal,
   Paper,
@@ -184,9 +185,10 @@ export function ProcessesView() {
               ))}
               {processes.length === 0 && (
                 <Paper withBorder p="md" radius="sm">
-                  <Text c="dimmed" ta="center">
-                    No llama-server processes found
-                  </Text>
+                  <EmptyState
+                    size="sm"
+                    title="No llama-server processes found"
+                  />
                 </Paper>
               )}
             </Stack>
@@ -231,9 +233,11 @@ export function ProcessesView() {
                   {processes.length === 0 && (
                     <Table.Tr>
                       <Table.Td colSpan={5}>
-                        <Text c="dimmed" ta="center" py="lg">
-                          No llama-server processes found
-                        </Text>
+                        <EmptyState
+                          size="sm"
+                          title="No llama-server processes found"
+                          py="lg"
+                        />
                       </Table.Td>
                     </Table.Tr>
                   )}

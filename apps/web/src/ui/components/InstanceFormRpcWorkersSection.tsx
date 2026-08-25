@@ -49,6 +49,7 @@ export function InstanceFormRpcWorkersSection({
           }
           searchable
           clearable
+          loading={fm.rpcWorkerCandidatesQuery.isFetching}
           data={fm.rpcWorkerOptions}
           value={fm.selectedRpcWorkerValues}
           onChange={fm.applyRpcWorkers}

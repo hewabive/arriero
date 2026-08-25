@@ -8,6 +8,7 @@ import type {
 import {
   Badge,
   Button,
+  EmptyState,
   Group,
   Modal,
   NumberInput,
@@ -369,9 +370,7 @@ export function ResourcesView() {
             </Stack>
           ) : (
             <Paper withBorder p="lg" radius="sm">
-              <Text c="dimmed" ta="center">
-                No memory pools on this node
-              </Text>
+              <EmptyState size="sm" title="No memory pools on this node" />
             </Paper>
           )
         ) : (
@@ -439,9 +438,10 @@ export function ResourcesView() {
 
       {entries.length === 0 ? (
         <Paper withBorder p="lg" radius="sm">
-          <Text c="dimmed" ta="center">
-            {fleetQuery.isFetching ? "Loading resources..." : "No nodes"}
-          </Text>
+          <EmptyState
+            size="sm"
+            title={fleetQuery.isFetching ? "Loading resources..." : "No nodes"}
+          />
         </Paper>
       ) : (
         entries.map(renderNode)

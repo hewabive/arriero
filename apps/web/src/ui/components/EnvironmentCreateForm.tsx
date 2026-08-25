@@ -469,6 +469,7 @@ export function EnvironmentCreateForm({
               data={versionOptions}
               filter={substringOptionsFilter}
               limit={40}
+              floatingHeight="viewport"
               renderOption={({ option }) => {
                 const entry = versionByValue.get(option.value);
                 const reason = entry?.missingDistributions.length

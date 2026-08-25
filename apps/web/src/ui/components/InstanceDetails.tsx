@@ -9,6 +9,7 @@ import {
   Badge,
   Button,
   Code,
+  DataList,
   Group,
   Paper,
   ScrollArea,
@@ -509,28 +510,65 @@ export function InstanceDetails(props: {
                   <Text fw={600} size="sm">
                     Runtime
                   </Text>
-                  <Text size="sm">PID: {runtime?.pid ?? "-"}</Text>
-                  <Text size="sm">
-                    Started: {formatLocalDateTime(runtime?.startedAt)}
-                  </Text>
-                  <Text size="sm">Exit code: {runtime?.exitCode ?? "-"}</Text>
-                  <Text size="sm" lineClamp={2}>
-                    Log: {runtime?.logPath ?? "-"}
-                  </Text>
-                  <Text size="sm" lineClamp={2}>
-                    Raw log: {runtime?.rawLogPath ?? "-"}
-                  </Text>
+                  <DataList size="sm" gap={4}>
+                    <DataList.Item>
+                      <DataList.ItemLabel>PID</DataList.ItemLabel>
+                      <DataList.ItemValue>
+                        {runtime?.pid ?? "-"}
+                      </DataList.ItemValue>
+                    </DataList.Item>
+                    <DataList.Item>
+                      <DataList.ItemLabel>Started</DataList.ItemLabel>
+                      <DataList.ItemValue>
+                        {formatLocalDateTime(runtime?.startedAt)}
+                      </DataList.ItemValue>
+                    </DataList.Item>
+                    <DataList.Item>
+                      <DataList.ItemLabel>Exit code</DataList.ItemLabel>
+                      <DataList.ItemValue>
+                        {runtime?.exitCode ?? "-"}
+                      </DataList.ItemValue>
+                    </DataList.Item>
+                    <DataList.Item>
+                      <DataList.ItemLabel>Log</DataList.ItemLabel>
+                      <DataList.ItemValue>
+                        <Text size="sm" lineClamp={2}>
+                          {runtime?.logPath ?? "-"}
+                        </Text>
+                      </DataList.ItemValue>
+                    </DataList.Item>
+                    <DataList.Item>
+                      <DataList.ItemLabel>Raw log</DataList.ItemLabel>
+                      <DataList.ItemValue>
+                        <Text size="sm" lineClamp={2}>
+                          {runtime?.rawLogPath ?? "-"}
+                        </Text>
+                      </DataList.ItemValue>
+                    </DataList.Item>
+                  </DataList>
                 </Stack>
                 <Stack gap={4}>
                   <Text fw={600} size="sm">
                     {engine?.displayName ?? "server"}
                   </Text>
-                  <Text size="sm">Base URL: {llama?.baseUrl || "-"}</Text>
-                  {summary.map(([label, value]) => (
-                    <Text key={label} size="sm" lineClamp={2}>
-                      {label}: {String(value)}
-                    </Text>
-                  ))}
+                  <DataList size="sm" gap={4}>
+                    <DataList.Item>
+                      <DataList.ItemLabel>Base URL</DataList.ItemLabel>
+                      <DataList.ItemValue>
+                        {llama?.baseUrl || "-"}
+                      </DataList.ItemValue>
+                    </DataList.Item>
+                    {summary.map(([label, value]) => (
+                      <DataList.Item key={label}>
+                        <DataList.ItemLabel>{label}</DataList.ItemLabel>
+                        <DataList.ItemValue>
+                          <Text size="sm" lineClamp={2}>
+                            {String(value)}
+                          </Text>
+                        </DataList.ItemValue>
+                      </DataList.Item>
+                    ))}
+                  </DataList>
                 </Stack>
               </SimpleGrid>
             </Accordion.Panel>

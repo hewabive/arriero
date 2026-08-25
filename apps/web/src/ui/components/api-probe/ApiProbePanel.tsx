@@ -359,7 +359,7 @@ export function ApiProbePanel(props: {
             label="Model"
             value={model ?? ""}
             filter={substringOptionsFilter}
-            maxDropdownHeight={360}
+            floatingHeight="viewport"
             openOnFocus
             withAsterisk={modelRequired}
             error={modelRequired && !model ? "Model is required" : undefined}

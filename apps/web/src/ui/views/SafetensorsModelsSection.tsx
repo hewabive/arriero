@@ -5,6 +5,7 @@ import {
   Button,
   Collapse,
   Divider,
+  EmptyState,
   Group,
   Paper,
   Stack,
@@ -290,9 +291,7 @@ export function SafetensorsModelsSection(props: {
           })}
           {filtered.length === 0 && (
             <Paper withBorder p="md" radius="sm">
-              <Text c="dimmed" ta="center">
-                No matching safetensors models
-              </Text>
+              <EmptyState size="sm" title="No matching safetensors models" />
             </Paper>
           )}
         </Stack>
@@ -407,9 +406,11 @@ export function SafetensorsModelsSection(props: {
               {filtered.length === 0 && (
                 <Table.Tr>
                   <Table.Td colSpan={11}>
-                    <Text c="dimmed" ta="center" py="lg">
-                      No matching safetensors models
-                    </Text>
+                    <EmptyState
+                      size="sm"
+                      title="No matching safetensors models"
+                      py="lg"
+                    />
                   </Table.Td>
                 </Table.Tr>
               )}

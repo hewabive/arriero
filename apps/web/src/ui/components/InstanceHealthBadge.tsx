@@ -52,6 +52,7 @@ function InstanceNumaSkewBadge(props: {
       withArrow
       multiline
       w={320}
+      interactive
     >
       <Badge color="orange" variant="light">
         numa skew {placement.maxNodeSharePct}%
@@ -73,6 +74,7 @@ function InstanceReasoningTemplateBadge(props: {
       withArrow
       multiline
       w={340}
+      interactive
     >
       <Badge color={issue === "strict" ? "red" : "yellow"} variant="light">
         reasoning template
@@ -103,6 +105,7 @@ function InstanceMemoryAssessmentBadge(props: {
       withArrow
       multiline
       w={360}
+      interactive
     >
       <Badge
         color={memoryAssessmentStatusColors[assessment.status]}

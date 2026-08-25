@@ -93,6 +93,7 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
                 : "Select a binary from the catalog"
             }
             searchable
+            loading={fm.pathCatalogQuery.isFetching}
             value={fm.selectedBinaryPathRefId}
             onChange={fm.applyBinaryPathRef}
             data={fm.binaryCatalogOptions}

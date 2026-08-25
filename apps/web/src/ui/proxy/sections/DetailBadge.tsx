@@ -18,7 +18,7 @@ export function DetailBadge({
     );
   }
   return (
-    <Tooltip label={detail} multiline maw={420} withArrow>
+    <Tooltip label={detail} multiline maw={420} withArrow interactive>
       <Badge color={color} variant="light" style={{ cursor: "help" }}>
         {label}
       </Badge>

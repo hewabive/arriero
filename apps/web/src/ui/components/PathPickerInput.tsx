@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Code,
+  EmptyState,
   Group,
   Modal,
   Paper,
@@ -140,6 +141,7 @@ export function PathPickerInput(props: {
   w?: number | string;
   "aria-label"?: string;
   onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
+  loading?: boolean;
 }) {
   const filter = props.filter ?? "any";
   const [opened, setOpened] = useState(false);
@@ -225,6 +227,8 @@ export function PathPickerInput(props: {
         required={props.required ?? false}
         disabled={props.disabled ?? false}
         onChange={(event) => props.onChange(event.currentTarget.value)}
+        loading={props.loading ?? false}
+        loadingPosition="left"
         {...optionalInputProps}
         rightSection={
           <Tooltip label="Browse filesystem">
@@ -436,9 +440,7 @@ export function PathPickerInput(props: {
 
               {!directoryQuery.isFetching && visibleEntries.length === 0 && (
                 <Paper withBorder p="md" radius="sm">
-                  <Text c="dimmed" ta="center">
-                    No matching entries
-                  </Text>
+                  <EmptyState size="sm" title="No matching entries" />
                 </Paper>
               )}
             </Stack>

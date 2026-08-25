@@ -31,7 +31,7 @@ type EndpointModelPickerProps = {
 };
 
 export function EndpointModelPicker(props: EndpointModelPickerProps) {
-  const { groups, endpointSelectData } = useEndpointModelCatalog(
+  const { groups, endpointSelectData, isFetching } = useEndpointModelCatalog(
     props.includeManagerProxy ?? false,
   );
   const selectedGroup = groups.find(
@@ -60,7 +60,8 @@ export function EndpointModelPicker(props: EndpointModelPickerProps) {
         disabled={props.disabled ?? false}
         placeholder="Select an endpoint"
         nothingFoundMessage="No endpoints — add an instance or external API first"
-        maxDropdownHeight={360}
+        floatingHeight="viewport"
+        loading={isFetching}
         onChange={selectEndpoint}
       />
       {selectedGroup?.modelSource === "implied" ? (
@@ -86,7 +87,7 @@ export function EndpointModelPicker(props: EndpointModelPickerProps) {
           }
           rightSection={<StatusTooltipIcon status={status} />}
           rightSectionPointerEvents="all"
-          maxDropdownHeight={360}
+          floatingHeight="viewport"
           onChange={(model) =>
             props.onChange(
               { endpointId: props.value.endpointId, model },

@@ -40,6 +40,7 @@ async function checkUiVersionOnce(): Promise<void> {
     title: "UI is out of date",
     color: "blue",
     autoClose: false,
+    priority: 10,
     message: (
       <Button
         size="compact-sm"
