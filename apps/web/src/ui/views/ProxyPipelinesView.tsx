@@ -14,7 +14,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   createApiProxyPipeline,
@@ -23,6 +23,7 @@ import {
   updateApiProxyModel,
   updateApiProxyPipeline,
 } from "../../api/client";
+import { prefetchPipelineCanvas } from "../proxy/canvas/lazy";
 import { useProxyConfig } from "../proxy/data";
 import {
   emptyPipelineDraft,
@@ -46,6 +47,10 @@ export function ProxyPipelinesView({
   subpath,
   setSubpath,
 }: ProxyPipelinesViewProps) {
+  useEffect(() => {
+    prefetchPipelineCanvas();
+  }, []);
+
   const {
     proxyQuery,
     models,

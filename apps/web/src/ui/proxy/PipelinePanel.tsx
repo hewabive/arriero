@@ -22,7 +22,7 @@ import {
 import { ArrowLeft, Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 
-import { PipelineCanvas } from "./canvas/PipelineCanvas";
+import { LazyPipelineCanvas } from "./canvas/lazy";
 import type { PipelineDraft, PipelineNodeDraft } from "./forms";
 import {
   addNodeToDraft,
@@ -151,7 +151,7 @@ export function PipelinePanel(props: PipelinePanelProps) {
         </Group>
 
         {view === "canvas" && (
-          <PipelineCanvas
+          <LazyPipelineCanvas
             ctx={ctx}
             onDraftChange={props.onDraftChange}
             explainTrace={props.explainTrace}
