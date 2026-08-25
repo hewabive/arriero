@@ -1,5 +1,6 @@
 import {
   engineDescriptor,
+  probeReachableHost,
   type Instance,
   type InstanceArgValue,
   type EndpointProbe,
@@ -39,13 +40,6 @@ function asPort(
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultPort;
 }
 
-function probeHost(host: string): string {
-  if (host === "0.0.0.0" || host === "::") {
-    return "127.0.0.1";
-  }
-  return host;
-}
-
 type HttpEndpointInstance = Pick<Instance, "kind" | "args">;
 
 function apiPrefix(instance: HttpEndpointInstance): string {
@@ -69,7 +63,7 @@ export function instanceBaseUrl(instance: HttpEndpointInstance): string {
     firstArg(instance.args, http.portArgKeys),
     http.defaultPort,
   );
-  const host = probeHost(rawHost);
+  const host = probeReachableHost(rawHost);
 
   if (host.endsWith(".sock")) {
     return "";
@@ -81,7 +75,7 @@ export function instanceBaseUrl(instance: HttpEndpointInstance): string {
 export function rpcWorkerEndpoint(
   instance: Pick<Instance, "args">,
 ): { host: string; port: number } | null {
-  const host = probeHost(
+  const host = probeReachableHost(
     asString(
       firstArg(instance.args, RPC_HTTP.hostArgKeys),
       RPC_HTTP.defaultHost,

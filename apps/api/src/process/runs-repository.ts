@@ -4,28 +4,21 @@ import { newId } from "../utils/id.js";
 
 import { db } from "../db/index.js";
 import { processRuns } from "../db/schema.js";
+import { buildRunPredicates } from "./run-predicates.js";
 
 export type ProcessRun = typeof processRuns.$inferSelect;
 export type { ProcessStopReason } from "@arriero/core";
 
-const RETAINED_CLOSED_RUNS_PER_INSTANCE = 20;
-
-const OPEN_RUN_STATUSES = ["starting", "running", "stopping", "stale"];
-
-const openRunStatusList = sql.join(
-  OPEN_RUN_STATUSES.map((status) => sql`${status}`),
-  sql`, `,
-);
-
-const openRunPredicate = sql`${processRuns.stoppedAt} IS NULL AND ${processRuns.status} IN (${openRunStatusList})`;
-
-const prunableClosedRunPredicate = sql`NOT (${openRunPredicate}) AND ${processRuns.id} NOT IN (
-  SELECT id FROM ${processRuns} AS retained
-  WHERE retained.instance_id = ${processRuns.instanceId}
-    AND NOT (retained.stopped_at IS NULL AND retained.status IN (${openRunStatusList}))
-  ORDER BY retained.started_at DESC
-  LIMIT ${RETAINED_CLOSED_RUNS_PER_INSTANCE}
-)`;
+const {
+  openRun: openRunPredicate,
+  prunableClosedRun: prunableClosedRunPredicate,
+} = buildRunPredicates(processRuns, {
+  id: processRuns.id,
+  owner: processRuns.instanceId,
+  status: processRuns.status,
+  startedAt: processRuns.startedAt,
+  stoppedAt: processRuns.stoppedAt,
+});
 
 export function createProcessRun(input: {
   instanceId: string;

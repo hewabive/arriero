@@ -39,6 +39,7 @@ import { failInterruptedBenchmarkRuns } from "./benchmark/repository.js";
 import { reconcileProcessRuns } from "./process/reconcile.js";
 import { pruneProcessRunHistory } from "./process/runs-repository.js";
 import { listQuarantinedWebappNames } from "./webapps/config-files.js";
+import { sweepWebappLeftovers } from "./webapps/paths.js";
 import { reconcileWebappRuns } from "./webapps/reconcile.js";
 import { pruneWebappRunHistory } from "./webapps/runs-repository.js";
 import { autostartWebapps } from "./webapps/service.js";
@@ -144,10 +145,9 @@ const webappReconciliation = bootStep("reconcile webapp runs", () =>
   reconcileWebappRuns(new Set(listQuarantinedWebappNames())),
 );
 const prunedWebappRuns = pruneWebappRunHistory();
-const autostartedWebapps = await autostartWebapps().catch((error) => {
-  logger.error({ error }, "boot step failed: autostart webapps");
-  return null;
-});
+const sweptWebappTrash = bootStep("sweep webapp data leftovers", () =>
+  sweepWebappLeftovers(),
+);
 const failedBenchmarkRuns = bootStep("fail interrupted benchmark runs", () =>
   failInterruptedBenchmarkRuns(),
 );
@@ -201,7 +201,7 @@ const server = serve(
         prunedProcessRuns,
         webappReconciliation,
         prunedWebappRuns,
-        autostartedWebapps,
+        sweptWebappTrash,
         failedBenchmarkRuns,
         prunedTraceHistory,
         seededStatsTraces,
@@ -219,6 +219,16 @@ const server = serve(
     );
   },
 );
+
+void autostartWebapps()
+  .then((autostarted) => {
+    if (autostarted.started > 0 || autostarted.failed > 0) {
+      logger.info({ autostarted }, "webapp autostart finished");
+    }
+  })
+  .catch((error) => {
+    logger.error({ error }, "webapp autostart failed");
+  });
 
 const stopApiProxyIdleMaintenance = startApiProxyIdleMaintenanceLoop({
   onError: (error) =>

@@ -30,7 +30,7 @@ import {
   filterRoutineProbeLogChunk,
   probeRequestLogGrammar,
 } from "./log-filter.js";
-import { instanceLogPaths } from "./log-paths.js";
+import { runLogPaths } from "./log-paths.js";
 import {
   buildLaunchSnapshot,
   managedSlotSavePath,
@@ -213,7 +213,11 @@ export class ProcessSupervisor extends EventEmitter {
     ]);
 
     const startedAt = nowIso();
-    const { logPath, rawLogPath } = instanceLogPaths(instance.name, Date.now());
+    const { logPath, rawLogPath } = runLogPaths(
+      config.logsDir,
+      instance.name,
+      Date.now(),
+    );
     const filteredStream = createWriteStream(logPath, { flags: "a" });
     filteredStream.on("error", () => undefined);
     filteredStream.write(

@@ -177,7 +177,7 @@ function bindErrorMessage(host: string, port: number, error: Error) {
   return `Unable to bind ${host}:${port}: ${error.message}`;
 }
 
-function checkListenAvailable(host: string, port: number) {
+export function checkListenAvailable(host: string, port: number) {
   return new Promise<string | null>((resolve) => {
     const server = createServer();
     let settled = false;

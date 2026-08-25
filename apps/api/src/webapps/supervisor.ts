@@ -1,4 +1,10 @@
-import type { WebappRuntimeStatus, WebappStopReason } from "@arriero/core";
+import {
+  webappDescriptor,
+  type WebappKind,
+  type WebappLogGrammar,
+  type WebappRuntimeStatus,
+  type WebappStopReason,
+} from "@arriero/core";
 import { spawn, type ChildProcess } from "node:child_process";
 import {
   appendFileSync,
@@ -13,15 +19,17 @@ import { config } from "../config.js";
 import { filterRoutineProbeLogChunk } from "../process/log-filter.js";
 import { isPidAlive } from "../process/pid.js";
 import { RawLogTail } from "../process/raw-log-tail.js";
+import { runLogPaths } from "../process/log-paths.js";
 import {
   createWebappRun,
   updateWebappRun,
   type WebappRun,
 } from "./runs-repository.js";
-import { webappLogPaths } from "./paths.js";
+import { webappLogsDir } from "./paths.js";
 
 type WebappLaunchPlan = {
   name: string;
+  kind: WebappKind;
   binaryPath: string;
   args: string[];
   cwd: string;
@@ -93,7 +101,11 @@ class WebappSupervisor {
     }
 
     const startedAt = nowIso();
-    const { logPath, rawLogPath } = webappLogPaths(plan.name, Date.now());
+    const { logPath, rawLogPath } = runLogPaths(
+      webappLogsDir(),
+      plan.name,
+      Date.now(),
+    );
     const filteredStream = createWriteStream(logPath, { flags: "a" });
     filteredStream.on("error", () => undefined);
     filteredStream.write(
@@ -152,7 +164,12 @@ class WebappSupervisor {
     };
 
     this.processes.set(plan.name, runtime);
-    runtime.tail = this.startTail(runtime, rawLogPath, tailStartOffset);
+    runtime.tail = this.startTail(
+      runtime,
+      rawLogPath,
+      tailStartOffset,
+      webappDescriptor(plan.kind).logGrammar,
+    );
 
     child.on("spawn", () => {
       if (this.isTerminal(runtime)) {
@@ -184,7 +201,12 @@ class WebappSupervisor {
     return this.getState(plan.name)!;
   }
 
-  adopt(name: string, run: WebappRun, pid: number): WebappRuntimeState {
+  adopt(
+    record: { name: string; kind: WebappKind },
+    run: WebappRun,
+    pid: number,
+  ): WebappRuntimeState {
+    const name = record.name;
     const current = this.processes.get(name);
     if (current && !this.isTerminal(current)) {
       return this.getState(name)!;
@@ -222,7 +244,12 @@ class WebappSupervisor {
       } catch {
         tailStartOffset = 0;
       }
-      runtime.tail = this.startTail(runtime, run.rawLogPath, tailStartOffset);
+      runtime.tail = this.startTail(
+        runtime,
+        run.rawLogPath,
+        tailStartOffset,
+        webappDescriptor(record.kind).logGrammar,
+      );
     }
 
     runtime.adoptedExitPoll = setInterval(() => {
@@ -310,13 +337,14 @@ class WebappSupervisor {
     runtime: WebappRuntime,
     rawLogPath: string,
     startOffset: number,
+    grammar: WebappLogGrammar,
   ) {
     const tail = new RawLogTail({
       path: rawLogPath,
       startOffset,
       onLines: (chunk) => {
         const filtered = config.logs.filterRoutineProbeRequests
-          ? filterRoutineProbeLogChunk(chunk, undefined, "uvicorn")
+          ? filterRoutineProbeLogChunk(chunk, undefined, grammar)
           : chunk;
         if (filtered) {
           this.writeFiltered(runtime, filtered);

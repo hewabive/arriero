@@ -137,7 +137,7 @@ function sameNuma(left: InstanceNuma | null, right: InstanceNuma | null) {
   );
 }
 
-function sameStringArray(left: string[], right: string[]) {
+export function sameStringArray(left: string[], right: string[]) {
   return (
     left.length === right.length &&
     left.every((value, index) => value === right[index])

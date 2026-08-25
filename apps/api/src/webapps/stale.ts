@@ -1,38 +1,22 @@
 import type { WebappStopReason } from "@arriero/core";
 
-import { isPidAlive } from "../process/pid.js";
-import { sleep } from "../utils/sleep.js";
+import { isPidAlive, parsePidText } from "../process/pid.js";
+import { escalateStaleStop } from "../process/stale.js";
 import {
   listOpenWebappRuns,
   updateWebappRun,
   type WebappRun,
 } from "./runs-repository.js";
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
-async function waitForExit(pid: number, timeoutMs: number) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (!isPidAlive(pid)) {
-      return true;
-    }
-    await sleep(100);
-  }
-  return !isPidAlive(pid);
-}
-
 function liveStaleWebappRun(
   name: string,
 ): { run: WebappRun; pid: number } | null {
   for (const run of listOpenWebappRuns()) {
-    const pid = run.pid ? Number(run.pid) : null;
+    const pid = parsePidText(run.pid);
     if (
       run.webappId === name &&
       run.status === "stale" &&
       pid &&
-      Number.isFinite(pid) &&
       isPidAlive(pid)
     ) {
       return { run, pid };
@@ -52,28 +36,20 @@ export async function stopStaleWebapp(
   }
   const { run, pid } = stale;
 
-  try {
-    process.kill(pid, "SIGTERM");
-  } catch (error) {
-    throw new Error((error as Error).message);
-  }
-
-  updateWebappRun(run.id, { status: "stopping", stopReason: reason });
-
-  if (!(await waitForExit(pid, timeoutMs))) {
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {}
-    if (!(await waitForExit(pid, 1_000))) {
-      updateWebappRun(run.id, { status: "stale", stopReason: null });
-      throw new Error(`unable to stop stale webapp process pid=${pid}`);
-    }
-  }
+  const stoppedAt = await escalateStaleStop({
+    pid,
+    timeoutMs,
+    markStopping: () =>
+      updateWebappRun(run.id, { status: "stopping", stopReason: reason }),
+    markStale: () =>
+      updateWebappRun(run.id, { status: "stale", stopReason: null }),
+    label: "webapp process",
+  });
 
   updateWebappRun(run.id, {
     pid: null,
     status: "exited",
-    stoppedAt: nowIso(),
+    stoppedAt,
     exitCode: null,
     stopReason: reason,
   });

@@ -3,6 +3,8 @@ import {
   isActiveProcessStatus,
   webappDescriptor,
   WebappConfigRecordSchema,
+  WebappRuntimeStatusSchema,
+  type EnvironmentRecord,
   type Webapp,
   type WebappConfigRecord,
   type WebappCreate,
@@ -11,9 +13,11 @@ import {
 import { existsSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { config } from "../config.js";
 import { getEnvironmentRecord } from "../envs/service.js";
 import { logger } from "../logger.js";
+import { runLogFilePattern } from "../process/log-paths.js";
+import { parsePidText } from "../process/pid.js";
+import { discardDirectory } from "../utils/discard.js";
 import {
   getWebappRecord,
   listWebappRecords,
@@ -21,17 +25,14 @@ import {
   writeWebappRecord,
 } from "./config-files.js";
 import { hasWebappLaunchDrift, parseWebappLaunchSnapshot } from "./launch.js";
-import {
-  discardWebappDirectory,
-  webappDataDir,
-  webappLogFilePattern,
-} from "./paths.js";
+import { webappDataDir, webappLogsDir } from "./paths.js";
 import {
   deleteWebappRuns,
   latestWebappRun,
   listWebappRunLogPaths,
   openWebappRun,
   renameWebappRuns,
+  type WebappRun,
 } from "./runs-repository.js";
 import { deleteWebappSecret, renameWebappSecret } from "./secrets.js";
 import { webappSupervisor } from "./supervisor.js";
@@ -80,25 +81,13 @@ function assertWebappFieldChangeAllowed(name: string, field: string): void {
   }
 }
 
-function latestStatus(name: string): Pick<Webapp, "status" | "pid"> {
-  const latestRun = latestWebappRun(name);
-  const knownStatuses = new Set<Webapp["status"]>([
-    "stopped",
-    "starting",
-    "running",
-    "stopping",
-    "exited",
-    "stale",
-    "error",
-  ]);
-  const status =
-    latestRun && knownStatuses.has(latestRun.status as Webapp["status"])
-      ? (latestRun.status as Webapp["status"])
-      : "stopped";
-  const pid = latestRun?.pid ? Number(latestRun.pid) : null;
+function latestStatus(
+  latestRun: WebappRun | null,
+): Pick<Webapp, "status" | "pid"> {
+  const parsed = WebappRuntimeStatusSchema.safeParse(latestRun?.status);
   return {
-    status,
-    pid: pid && Number.isFinite(pid) ? pid : null,
+    status: parsed.success ? parsed.data : "stopped",
+    pid: latestRun ? parsePidText(latestRun.pid) : null,
   };
 }
 
@@ -106,24 +95,29 @@ function detectConfigDrift(
   record: WebappConfigRecord,
   status: Webapp["status"],
   entrypoint: string | null,
+  latestRun: WebappRun | null,
 ): boolean {
   if (!entrypoint || !isActiveProcessStatus(status)) {
     return false;
   }
-  const snapshot = parseWebappLaunchSnapshot(
-    latestWebappRun(record.name)?.launchSnapshot,
-  );
+  const snapshot = parseWebappLaunchSnapshot(latestRun?.launchSnapshot);
   if (!snapshot) {
     return false;
   }
   return hasWebappLaunchDrift(record, entrypoint, snapshot);
 }
 
-function toWebapp(record: WebappConfigRecord): Webapp {
+function toWebapp(
+  record: WebappConfigRecord,
+  environmentFor: (
+    envSpecId: string,
+  ) => EnvironmentRecord | null = getEnvironmentRecord,
+): Webapp {
   const runtime = webappSupervisor.getState(record.name);
-  const durable = latestStatus(record.name);
+  const latestRun = latestWebappRun(record.name);
+  const durable = latestStatus(latestRun);
   const status = runtime?.status ?? durable.status;
-  const environment = getEnvironmentRecord(record.envSpecId);
+  const environment = environmentFor(record.envSpecId);
 
   return {
     ...record,
@@ -135,12 +129,22 @@ function toWebapp(record: WebappConfigRecord): Webapp {
       record,
       status,
       environment?.entrypoint ?? null,
+      latestRun,
     ),
   };
 }
 
 export function listWebapps(): Webapp[] {
-  return listWebappRecords().map(toWebapp);
+  const environments = new Map<string, EnvironmentRecord | null>();
+  const environmentFor = (envSpecId: string) => {
+    let environment = environments.get(envSpecId);
+    if (environment === undefined) {
+      environment = getEnvironmentRecord(envSpecId);
+      environments.set(envSpecId, environment);
+    }
+    return environment;
+  };
+  return listWebappRecords().map((record) => toWebapp(record, environmentFor));
 }
 
 export function getWebapp(name: string): Webapp | null {
@@ -239,8 +243,8 @@ export function updateWebapp(name: string, input: WebappUpdate): Webapp | null {
 
 function removeLogFiles(name: string, recordedPaths: string[]): void {
   const paths = new Set(recordedPaths);
-  const filePattern = webappLogFilePattern(name);
-  const logsDir = resolve(config.logsDir, "webapps");
+  const filePattern = runLogFilePattern(name);
+  const logsDir = webappLogsDir();
   if (existsSync(logsDir)) {
     for (const entry of readdirSync(logsDir)) {
       if (filePattern.test(entry)) {
@@ -265,7 +269,7 @@ export function deleteWebapp(name: string): boolean {
     deleteWebappSecret(name);
     removeLogFiles(name, recordedLogPaths);
     try {
-      discardWebappDirectory(resolve(config.webappsDir, name));
+      discardDirectory(webappDataDir(name));
     } catch (error) {
       logger.warn(
         { err: error, name },

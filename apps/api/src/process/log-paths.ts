@@ -1,12 +1,11 @@
 import { resolve } from "node:path";
 
-import { config } from "../config.js";
-
-export function instanceLogPaths(
-  instanceName: string,
+export function runLogPaths(
+  dir: string,
+  name: string,
   startedAtMs: number,
 ): { logPath: string; rawLogPath: string } {
-  const base = resolve(config.logsDir, `${instanceName}-${startedAtMs}`);
+  const base = resolve(dir, `${name}-${startedAtMs}`);
   return { logPath: `${base}.log`, rawLogPath: `${base}.raw.log` };
 }
 
@@ -14,6 +13,6 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function instanceLogFilePattern(instanceName: string): RegExp {
-  return new RegExp(`^${escapeRegExp(instanceName)}-\\d+\\.(?:raw\\.)?log$`);
+export function runLogFilePattern(name: string): RegExp {
+  return new RegExp(`^${escapeRegExp(name)}-\\d+\\.(?:raw\\.)?log$`);
 }

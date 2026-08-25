@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { instanceLogFilePattern } from "../process/log-paths.js";
+import { runLogFilePattern } from "../process/log-paths.js";
 import { traceBlockingSection } from "../system/event-loop.js";
 import { rewriteLocalRpcWorkerRefs } from "./config-files.js";
 
@@ -23,7 +23,7 @@ function removeSlotsDir(name: string): void {
 
 function removeLogFiles(name: string, recordedPaths: string[]): void {
   const paths = new Set(recordedPaths);
-  const filePattern = instanceLogFilePattern(name);
+  const filePattern = runLogFilePattern(name);
   if (existsSync(config.logsDir)) {
     for (const entry of readdirSync(config.logsDir)) {
       if (filePattern.test(entry)) {

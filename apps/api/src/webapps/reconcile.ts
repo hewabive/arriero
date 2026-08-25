@@ -1,6 +1,8 @@
-import { readFileSync } from "node:fs";
-
-import { isPidAlive } from "../process/pid.js";
+import {
+  isPidAlive,
+  parsePidText,
+  processCommandMatchesBinary,
+} from "../process/pid.js";
 import { listWebappRecords } from "./config-files.js";
 import { parseWebappLaunchSnapshot } from "./launch.js";
 import { listOpenWebappRuns, updateWebappRun } from "./runs-repository.js";
@@ -8,17 +10,6 @@ import { webappSupervisor } from "./supervisor.js";
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function processCommandMatchesBinary(pid: number, binaryPath: string) {
-  try {
-    const argv = readFileSync(`/proc/${pid}/cmdline`, "utf8")
-      .split("\0")
-      .filter(Boolean);
-    return argv.includes(binaryPath);
-  } catch {
-    return false;
-  }
 }
 
 export function reconcileWebappRuns(quarantinedWebappNames?: Set<string>) {
@@ -33,8 +24,8 @@ export function reconcileWebappRuns(quarantinedWebappNames?: Set<string>) {
   };
 
   for (const run of runs) {
-    const pid = run.pid ? Number(run.pid) : null;
-    if (!pid || !Number.isFinite(pid) || !isPidAlive(pid)) {
+    const pid = parsePidText(run.pid);
+    if (!pid || !isPidAlive(pid)) {
       updateWebappRun(run.id, {
         pid: null,
         status: "exited",
@@ -61,7 +52,7 @@ export function reconcileWebappRuns(quarantinedWebappNames?: Set<string>) {
       snapshot?.binaryPath &&
       processCommandMatchesBinary(pid, snapshot.binaryPath)
     ) {
-      webappSupervisor.adopt(record.name, run, pid);
+      webappSupervisor.adopt(record, run, pid);
       summary.adopted += 1;
       continue;
     }

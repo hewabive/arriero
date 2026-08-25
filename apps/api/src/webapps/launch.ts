@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
-
 import { webappDescriptor, type WebappConfigRecord } from "@arriero/core";
 
+import { sameStringArray } from "../process/launch-snapshot.js";
+import { canonicalJsonDigest } from "../utils/canonical-json.js";
 import { renderWebappEnvironment } from "./render.js";
 import { webappDataDir } from "./paths.js";
 
@@ -12,13 +12,6 @@ export type WebappLaunchSnapshot = {
   envSpecId: string;
   renderHash: string;
 };
-
-function webappRenderHash(env: Record<string, string>): string {
-  const canonical = Object.entries(env).sort(([left], [right]) =>
-    left < right ? -1 : left > right ? 1 : 0,
-  );
-  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
-}
 
 export function buildWebappLaunchSnapshot(
   record: WebappConfigRecord,
@@ -38,7 +31,7 @@ export function buildWebappLaunchSnapshot(
       ],
       cwd: webappDataDir(record.name),
       envSpecId: record.envSpecId,
-      renderHash: webappRenderHash(env),
+      renderHash: canonicalJsonDigest(env),
     },
     env,
   };
@@ -77,13 +70,6 @@ export function parseWebappLaunchSnapshot(
   } catch {
     return null;
   }
-}
-
-function sameStringArray(left: string[], right: string[]): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
 }
 
 export function hasWebappLaunchDrift(

@@ -1,7 +1,8 @@
 import type { EnvironmentSpec } from "@arriero/core";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 
 import { config } from "../config.js";
+import { assertPathWithinRoot } from "../utils/path-guard.js";
 import { environmentProvisioner } from "./provisioners.js";
 
 function slug(value: string) {
@@ -39,10 +40,5 @@ export function environmentEntrypoint(
 }
 
 export function assertEnvironmentPath(path: string) {
-  const root = resolve(config.envsDir);
-  const resolved = resolve(path);
-  if (resolved === root || !resolved.startsWith(`${root}${sep}`)) {
-    throw new Error(`environment path escapes ${root}`);
-  }
-  return resolved;
+  return assertPathWithinRoot(config.envsDir, path, "environment");
 }

@@ -1,5 +1,5 @@
 import type {
-  EnvironmentCreate,
+  EnvironmentCreateInput,
   EnvironmentEngine,
   EnvironmentIndexVersions,
   EnvironmentJob,
@@ -34,7 +34,7 @@ export function updateEnvironmentRepositorySettings(
   );
 }
 
-export function createEnvironment(input: EnvironmentCreate) {
+export function createEnvironment(input: EnvironmentCreateInput) {
   return request<{ data: EnvironmentJobStartResult }>("/api/environments", {
     method: "POST",
     body: JSON.stringify(input),

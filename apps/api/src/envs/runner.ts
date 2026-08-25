@@ -23,7 +23,7 @@ import { runLoggedCommand } from "../jobs/exec.js";
 import { registerActiveJob } from "../jobs/registry.js";
 import { markJobStep } from "../jobs/steps.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
-import { discardEnvironmentDirectory } from "./discard.js";
+import { discardDirectory } from "../utils/discard.js";
 import {
   environmentDirectory,
   environmentEntrypoint,
@@ -276,7 +276,7 @@ class EnvironmentRunner {
   private async run(spec: EnvironmentSpec, jobId: string) {
     const staging = environmentStagingDirectory(spec);
     const finalDir = environmentDirectory(spec);
-    discardEnvironmentDirectory(staging);
+    discardDirectory(staging);
     const log = createWriteStream(getEnvironmentJob(jobId)!.logPath, {
       flags: "a",
     });
@@ -348,8 +348,8 @@ class EnvironmentRunner {
       if (runningStep) {
         this.mark(jobId, runningStep.name, "failed", activeExitCode);
       }
-      discardEnvironmentDirectory(staging);
-      if (finalized) discardEnvironmentDirectory(finalDir);
+      discardDirectory(staging);
+      if (finalized) discardDirectory(finalDir);
       log.write(`\n# error: ${(error as Error).message}\n`);
       updateEnvironmentJob(jobId, {
         status: canceled ? "canceled" : "failed",

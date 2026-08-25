@@ -1,19 +1,17 @@
+import type { EnvironmentEngine } from "./environments.js";
+
 export const WEBAPP_KINDS = ["open-webui"] as const;
 
 export type WebappKind = (typeof WEBAPP_KINDS)[number];
 
 export type WebappConfigRenderId = "open-webui";
 
-export type WebappInstallDescriptor = {
-  kind: "python-env";
-  distribution: string;
-  entrypointRelative: string;
-};
+export type WebappLogGrammar = "uvicorn";
 
 export type WebappDescriptor = {
   id: WebappKind;
   displayName: string;
-  install: WebappInstallDescriptor;
+  environmentEngine: EnvironmentEngine;
   http: { defaultHost: string; defaultPort: number };
   launch: {
     argvPrefix: readonly string[];
@@ -22,6 +20,7 @@ export type WebappDescriptor = {
   };
   probe: { path: string };
   configRender: WebappConfigRenderId;
+  logGrammar: WebappLogGrammar;
   reservedEnvKeys: readonly string[];
   upgradeBackupFiles: readonly string[];
   installFootprintNote: string | null;
@@ -31,11 +30,7 @@ const WEBAPP_DESCRIPTORS: Record<WebappKind, WebappDescriptor> = {
   "open-webui": {
     id: "open-webui",
     displayName: "Open WebUI",
-    install: {
-      kind: "python-env",
-      distribution: "open-webui",
-      entrypointRelative: "bin/open-webui",
-    },
+    environmentEngine: "open-webui",
     http: { defaultHost: "127.0.0.1", defaultPort: 3000 },
     launch: {
       argvPrefix: ["serve"],
@@ -44,6 +39,7 @@ const WEBAPP_DESCRIPTORS: Record<WebappKind, WebappDescriptor> = {
     },
     probe: { path: "/health" },
     configRender: "open-webui",
+    logGrammar: "uvicorn",
     reservedEnvKeys: [
       "AUDIO_STT_ENGINE",
       "DATA_DIR",

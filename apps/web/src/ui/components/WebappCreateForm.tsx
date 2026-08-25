@@ -1,4 +1,6 @@
 import {
+  OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
+  WEBAPP_NAME_PATTERN,
   webappDescriptor,
   type EnvironmentRecord,
   type WebappCreate,
@@ -58,8 +60,12 @@ export function WebappCreateForm({
   const [createProxySource, setCreateProxySource] = useState(true);
 
   const versionsQuery = useQuery({
-    queryKey: ["webapp-index-versions", "open-webui"],
-    queryFn: () => listEnvironmentIndexVersions("open-webui", "3.12"),
+    queryKey: ["webapp-index-versions", OPEN_WEBUI.environmentEngine],
+    queryFn: () =>
+      listEnvironmentIndexVersions(
+        OPEN_WEBUI.environmentEngine,
+        OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
+      ),
     enabled: envMode === "install",
     staleTime: 120_000,
   });
@@ -76,7 +82,7 @@ export function WebappCreateForm({
     label: `${environment.version} (${environment.status})`,
   }));
 
-  const nameValid = /^[A-Za-z0-9._-]+$/.test(name);
+  const nameValid = WEBAPP_NAME_PATTERN.test(name);
   const envValid =
     envMode === "existing" ? Boolean(envSpecId) : Boolean(version.trim());
   const canSubmit = nameValid && envValid && port >= 1 && port <= 65535;

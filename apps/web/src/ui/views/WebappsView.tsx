@@ -35,27 +35,19 @@ import {
   stopWebapp,
   updateWebapp,
 } from "../../api/client";
+import { statusColor } from "../components/InstanceHealthBadge";
 import {
   WebappCreateForm,
   type WebappCreateSubmit,
 } from "../components/WebappCreateForm";
 import { WebappEditModal } from "../components/WebappEditModal";
+import { browserReachableHost, urlHost } from "../utils/instance-url";
 import { countLabel } from "../utils/plural";
 
-const WILDCARD_HOSTS = new Set(["0.0.0.0", "::", "[::]"]);
+const OPEN_WEBUI_ENGINE = webappDescriptor("open-webui").environmentEngine;
 
 function webappUrl(webapp: Webapp): string {
-  const host = WILDCARD_HOSTS.has(webapp.http.host)
-    ? window.location.hostname
-    : webapp.http.host;
-  return `http://${host}:${webapp.http.port}/`;
-}
-
-function statusColor(status: Webapp["status"]): string {
-  if (status === "running") return "green";
-  if (status === "starting" || status === "stopping") return "blue";
-  if (status === "error" || status === "stale") return "red";
-  return "gray";
+  return `http://${urlHost(browserReachableHost(webapp.http.host))}:${webapp.http.port}/`;
 }
 
 function envStatusColor(status: Webapp["envStatus"]): string {
@@ -81,11 +73,10 @@ export function WebappsView() {
   const environmentsQuery = useQuery({
     queryKey: ["environments"],
     queryFn: listEnvironments,
-    refetchInterval: 5_000,
   });
   const webapps = webappsQuery.data?.data ?? [];
   const openWebuiEnvironments = (environmentsQuery.data?.data ?? []).filter(
-    (environment) => environment.engine === "open-webui",
+    (environment) => environment.engine === OPEN_WEBUI_ENGINE,
   );
 
   const selected =
@@ -132,11 +123,8 @@ export function WebappsView() {
           ? submit.env.envSpecId
           : (
               await createEnvironment({
-                engine: "open-webui",
+                engine: OPEN_WEBUI_ENGINE,
                 version: submit.env.version,
-                variant: "cpu",
-                pythonVersion: "3.12",
-                source: { kind: "pypi", extras: [] },
               })
             ).data.environment.id;
       return createWebapp({ ...submit.input, envSpecId });
@@ -166,21 +154,20 @@ export function WebappsView() {
     onError: mutationErrorNotification("Web app update failed"),
   });
 
-  const startMutation = useMutation({
-    mutationFn: startWebapp,
-    onSuccess: refresh,
-    onError: mutationErrorNotification("Start failed"),
-  });
-  const stopMutation = useMutation({
-    mutationFn: stopWebapp,
-    onSuccess: refresh,
-    onError: mutationErrorNotification("Stop failed"),
-  });
-  const restartMutation = useMutation({
-    mutationFn: restartWebapp,
-    onSuccess: refresh,
-    onError: mutationErrorNotification("Restart failed"),
-  });
+  function useWebappAction(
+    action: (name: string) => Promise<unknown>,
+    errorTitle: string,
+  ) {
+    return useMutation({
+      mutationFn: action,
+      onSuccess: refresh,
+      onError: mutationErrorNotification(errorTitle),
+    });
+  }
+
+  const startMutation = useWebappAction(startWebapp, "Start failed");
+  const stopMutation = useWebappAction(stopWebapp, "Stop failed");
+  const restartMutation = useWebappAction(restartWebapp, "Restart failed");
   const deleteMutation = useMutation({
     mutationFn: (input: { name: string; deleteProxySource: boolean }) =>
       deleteWebapp(input.name, input.deleteProxySource),

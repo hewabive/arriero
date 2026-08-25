@@ -1,17 +1,13 @@
 import type { RuntimeState } from "@arriero/core";
 
 import { sleep } from "../utils/sleep.js";
-import { isPidAlive } from "./pid.js";
+import { isPidAlive, parsePidText } from "./pid.js";
 import {
   listOpenProcessRuns,
   type ProcessRun,
   type ProcessStopReason,
   updateProcessRun,
 } from "./runs-repository.js";
-
-function nowIso() {
-  return new Date().toISOString();
-}
 
 async function waitForExit(pid: number, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;
@@ -24,16 +20,38 @@ async function waitForExit(pid: number, timeoutMs: number) {
   return !isPidAlive(pid);
 }
 
+export async function escalateStaleStop(input: {
+  pid: number;
+  timeoutMs: number;
+  markStopping: () => void;
+  markStale: () => void;
+  label: string;
+}): Promise<string> {
+  process.kill(input.pid, "SIGTERM");
+  input.markStopping();
+
+  if (!(await waitForExit(input.pid, input.timeoutMs))) {
+    try {
+      process.kill(input.pid, "SIGKILL");
+    } catch {}
+    if (!(await waitForExit(input.pid, 1_000))) {
+      input.markStale();
+      throw new Error(`unable to stop stale ${input.label} pid=${input.pid}`);
+    }
+  }
+
+  return new Date().toISOString();
+}
+
 export function liveStaleProcessRun(
   instanceId: string,
 ): { run: ProcessRun; pid: number } | null {
   for (const run of listOpenProcessRuns()) {
-    const pid = run.pid ? Number(run.pid) : null;
+    const pid = parsePidText(run.pid);
     if (
       run.instanceId === instanceId &&
       run.status === "stale" &&
       pid &&
-      Number.isFinite(pid) &&
       isPidAlive(pid)
     ) {
       return { run, pid };
@@ -53,25 +71,16 @@ export async function stopStaleProcess(
   }
   const { run, pid } = stale;
 
-  try {
-    process.kill(pid, "SIGTERM");
-  } catch (error) {
-    throw new Error((error as Error).message);
-  }
+  const stoppedAt = await escalateStaleStop({
+    pid,
+    timeoutMs,
+    markStopping: () =>
+      updateProcessRun(run.id, { status: "stopping", stopReason: reason }),
+    markStale: () =>
+      updateProcessRun(run.id, { status: "stale", stopReason: null }),
+    label: "process",
+  });
 
-  updateProcessRun(run.id, { status: "stopping", stopReason: reason });
-
-  if (!(await waitForExit(pid, timeoutMs))) {
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {}
-    if (!(await waitForExit(pid, 1_000))) {
-      updateProcessRun(run.id, { status: "stale", stopReason: null });
-      throw new Error(`unable to stop stale process pid=${pid}`);
-    }
-  }
-
-  const stoppedAt = nowIso();
   updateProcessRun(run.id, {
     pid: null,
     status: "exited",

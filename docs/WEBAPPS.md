@@ -10,13 +10,14 @@ first supported kind.
 
 `webappDescriptor(kind)` (`packages/core/src/webapp-descriptor.ts`) is the per-kind contract,
 mirroring `engineDescriptor`: a `Record<WebappKind, WebappDescriptor>` whose exhaustiveness makes
-the compiler point at every spot a new kind must fill in. A descriptor declares the install channel
-(`python-env` — distribution and entrypoint inside a managed environment), default host/port, the
-launch argv shape, the health-probe path, the config-render id (implemented api-side in
-`webapps/render.ts`), the env keys the renderer owns (`reservedEnvKeys` — rejected in user
-`extraEnv` by a core schema refinement), the files to back up before a version switch, and an
-install footprint note surfaced by the create form. `install.kind` is a discriminated slot: future
-kinds may install from a source build or a released binary without reshaping the record.
+the compiler point at every spot a new kind must fill in. A descriptor declares the environment
+engine that hosts the kind (`environmentEngine` — create validation and the web environment pickers
+derive the kind↔engine link from it rather than comparing the two id strings), default host/port,
+the launch argv shape, the health-probe path, the config-render id (implemented api-side in
+`webapps/render.ts`), the probe-noise log grammar (`logGrammar`, applied by the supervisor's
+filtered-log tail), the env keys the renderer owns (`reservedEnvKeys` — rejected in user `extraEnv`
+by a core schema refinement), the files to back up before a version switch, and an install
+footprint note surfaced by the create form.
 
 ## Installation rides the environments domain
 
@@ -57,8 +58,8 @@ app discovers it from the proxy's `/v1/models`, so federation reach comes for fr
 
 `webapps/supervisor.ts` follows the process-domain model with the engine-specific layers removed:
 detached spawn with its own pgid, stdout/stderr straight to a raw-log fd, `RawLogTail` building the
-filtered log (uvicorn probe-noise grammar), SIGTERM → SIGKILL stop escalation against the process
-group. Children survive manager restarts; `webapps/reconcile.ts` re-adopts open `webapp_runs` rows
+filtered log (probe-noise grammar from the descriptor), SIGTERM → SIGKILL stop escalation against
+the process group. Children survive manager restarts; `webapps/reconcile.ts` re-adopts open `webapp_runs` rows
 by pid + `/proc/<pid>/cmdline` match against the launch snapshot, defers quarantined definitions,
 and marks unmatched live pids `stale` (`webapps/stale.ts` stops those). `ARRIERO_STOP_MANAGED_ON_EXIT`
 applies to webapps too. After reconcile, boot starts every `autostart: true` webapp that has no
@@ -78,8 +79,9 @@ Creating a webapp offers (default on) creating an API-proxy **request source** n
 generated key lands in `.secrets.json`, the renderer hands it to the app, and from then on the
 chat's traffic is labeled in traces and stats, can be blocked by disabling the source, and keeps
 working under `allowAnonymous: false`. Deleting the webapp offers deleting the source. Start
-preflight (`webapps/preflight.ts`) errors on a missing/uninstalled environment or an occupied port
-and warns when the app listens on a wildcard host with authentication disabled.
+preflight (`webapps/preflight.ts`) errors on a missing/uninstalled environment or a host:port that
+cannot be bound (the same bind probe instance preflight uses) and warns when the app listens on a
+wildcard host with authentication disabled.
 
 ## Surfaces
 
@@ -90,6 +92,6 @@ per webapp, `stopReason ⊂ {operator, shutdown, delete, stale, crash}`.
 
 ## Out of scope, deliberately
 
-Source-build and binary install channels (chat-ui, llumen — the descriptor slot exists, no
-implementation), federation visibility of peer webapps, RSS accounting in memory pools, and any
-reverse-proxy/subpath facade.
+Source-build and binary install channels (chat-ui, llumen — an install-channel descriptor slot gets
+added together with the first non-PyPI kind), federation visibility of peer webapps, RSS accounting
+in memory pools, and any reverse-proxy/subpath facade.

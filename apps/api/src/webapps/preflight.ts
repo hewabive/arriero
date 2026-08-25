@@ -1,35 +1,11 @@
-import type {
-  EnvironmentRecord,
-  WebappConfigRecord,
-  WebappPreflightIssue,
+import {
+  isWildcardHost,
+  type EnvironmentRecord,
+  type WebappConfigRecord,
+  type WebappPreflightIssue,
 } from "@arriero/core";
-import { createConnection } from "node:net";
 
-const PORT_PROBE_TIMEOUT_MS = 400;
-
-const WILDCARD_HOSTS = new Set(["0.0.0.0", "::", "[::]"]);
-
-export function webappProbeHost(host: string): string {
-  return WILDCARD_HOSTS.has(host) ? "127.0.0.1" : host;
-}
-
-function portInUse(host: string, port: number): Promise<boolean> {
-  return new Promise((resolveDone) => {
-    const socket = createConnection({ host, port });
-    let settled = false;
-    const finish = (result: boolean) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      socket.destroy();
-      resolveDone(result);
-    };
-    socket.once("connect", () => finish(true));
-    socket.once("error", () => finish(false));
-    socket.setTimeout(PORT_PROBE_TIMEOUT_MS, () => finish(false));
-  });
-}
+import { checkListenAvailable } from "../process/preflight.js";
 
 export async function checkWebappStartPreflight(
   record: WebappConfigRecord,
@@ -59,18 +35,17 @@ export async function checkWebappStartPreflight(
     });
   }
 
-  if (
-    (options.checkPort ?? true) &&
-    (await portInUse(webappProbeHost(record.http.host), record.http.port))
-  ) {
-    issues.push({
-      level: "error",
-      field: "http.port",
-      message: `port ${record.http.port} is already accepting connections`,
-    });
+  if (options.checkPort ?? true) {
+    const bindError = await checkListenAvailable(
+      record.http.host,
+      record.http.port,
+    );
+    if (bindError) {
+      issues.push({ level: "error", field: "http.port", message: bindError });
+    }
   }
 
-  if (WILDCARD_HOSTS.has(record.http.host) && !record.settings.auth) {
+  if (isWildcardHost(record.http.host) && !record.settings.auth) {
     issues.push({
       level: "warning",
       field: "http.host",

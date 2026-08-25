@@ -131,13 +131,7 @@ export const EnvironmentEngineSchema = z.enum([
   "open-webui",
 ]);
 
-export const CUDA_ENVIRONMENT_ENGINES = [
-  "vllm",
-  "sglang",
-  "ktransformers",
-] as const;
-
-export type CudaEnvironmentEngine = (typeof CUDA_ENVIRONMENT_ENGINES)[number];
+export type CudaEnvironmentEngine = "vllm" | "sglang" | "ktransformers";
 
 export const ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY: Record<
   CudaEnvironmentEngine,
@@ -194,11 +188,15 @@ const KTransformersEnvironmentCreateObjectSchema = z.object({
   }),
 });
 
+export const OPEN_WEBUI_DEFAULT_PYTHON_VERSION = "3.12";
+
 const OpenWebuiEnvironmentCreateObjectSchema = z.object({
   ...EnvironmentCommonShape,
   engine: z.literal("open-webui"),
   variant: z.literal("cpu").default("cpu"),
-  pythonVersion: z.enum(["3.11", "3.12"]).default("3.12"),
+  pythonVersion: z
+    .enum(["3.11", "3.12"])
+    .default(OPEN_WEBUI_DEFAULT_PYTHON_VERSION),
   source: VllmEnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],
@@ -371,6 +369,9 @@ export type EnvironmentRepositorySettings = z.infer<
   typeof EnvironmentRepositorySettingsSchema
 >;
 export type EnvironmentCreate = z.infer<typeof EnvironmentCreateSchema>;
+export type EnvironmentCreateInput = z.input<
+  typeof EnvironmentCreateUnionSchema
+>;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
 export type EnvironmentStatus = z.infer<typeof EnvironmentStatusSchema>;
 export type PackageIndexFile = z.infer<typeof PackageIndexFileSchema>;

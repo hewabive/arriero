@@ -85,6 +85,7 @@ export async function startWebapp(
   );
   return webappSupervisor.launch({
     name,
+    kind: record.kind,
     binaryPath: snapshot.binaryPath,
     args: snapshot.cliArgs,
     cwd: snapshot.cwd,
@@ -103,6 +104,12 @@ export async function stopWebapp(
   }
   await stopStaleWebapp(name, "operator", timeoutMs);
   return webappSupervisor.getState(name) ?? null;
+}
+
+export async function stopWebappForDelete(name: string): Promise<void> {
+  webappSupervisor.stop(name, "delete", 2_000);
+  await webappSupervisor.waitForStopped(name, 2_500);
+  await stopStaleWebapp(name, "delete", 2_000);
 }
 
 export async function restartWebapp(

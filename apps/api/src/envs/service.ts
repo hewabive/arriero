@@ -11,10 +11,8 @@ import { listInstances } from "../instances/repository.js";
 import { listWebappRecords } from "../webapps/config-files.js";
 import { deletePathCatalogEntry } from "../path-catalog/repository.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
-import {
-  discardEnvironmentDirectory,
-  sweepEnvironmentLeftovers,
-} from "./discard.js";
+import { discardDirectory } from "../utils/discard.js";
+import { sweepEnvironmentLeftovers } from "./discard.js";
 import {
   assertEnvironmentPath,
   environmentDirectory,
@@ -142,12 +140,8 @@ export function deleteEnvironment(id: string) {
   if (listWebappRecords().some((webapp) => webapp.envSpecId === spec.id)) {
     throw new Error("environment is used by a webapp");
   }
-  discardEnvironmentDirectory(
-    assertEnvironmentPath(environmentDirectory(spec)),
-  );
-  discardEnvironmentDirectory(
-    assertEnvironmentPath(environmentStagingDirectory(spec)),
-  );
+  discardDirectory(assertEnvironmentPath(environmentDirectory(spec)));
+  discardDirectory(assertEnvironmentPath(environmentStagingDirectory(spec)));
   if (spec.pathCatalogEntryId) deletePathCatalogEntry(spec.pathCatalogEntryId);
   return deleteEnvironmentSpec(id);
 }

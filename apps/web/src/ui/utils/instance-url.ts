@@ -1,4 +1,8 @@
-import type { Instance, InstanceHealthSummary } from "@arriero/core";
+import {
+  isWildcardHost,
+  type Instance,
+  type InstanceHealthSummary,
+} from "@arriero/core";
 
 function argString(args: Instance["args"], key: string) {
   const value = args[key];
@@ -17,18 +21,16 @@ function apiPrefixFromArgs(args: Instance["args"]) {
   return normalized.replace(/\/$/, "");
 }
 
-function browserReachableHost(host: string) {
-  if (host === "0.0.0.0" || host === "::") {
+export function browserReachableHost(host: string) {
+  if (isWildcardHost(host)) {
     const pageHost =
       typeof window === "undefined" ? "" : window.location.hostname;
-    return pageHost && pageHost !== "0.0.0.0" && pageHost !== "::"
-      ? pageHost
-      : "127.0.0.1";
+    return pageHost && !isWildcardHost(pageHost) ? pageHost : "127.0.0.1";
   }
   return host;
 }
 
-function urlHost(host: string) {
+export function urlHost(host: string) {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 

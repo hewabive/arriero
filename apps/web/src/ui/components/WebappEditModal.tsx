@@ -1,4 +1,10 @@
-import type { EnvironmentRecord, Webapp, WebappUpdate } from "@arriero/core";
+import {
+  isWildcardHost,
+  WEBAPP_NAME_PATTERN,
+  type EnvironmentRecord,
+  type Webapp,
+  type WebappUpdate,
+} from "@arriero/core";
 import {
   Button,
   Group,
@@ -50,9 +56,8 @@ export function WebappEditModal({
   onSave: (input: WebappUpdate) => void;
   onClose: () => void;
 }) {
-  const customHost = !["127.0.0.1", "0.0.0.0", "::", "[::]"].includes(
-    webapp.http.host,
-  );
+  const customHost =
+    webapp.http.host !== "127.0.0.1" && !isWildcardHost(webapp.http.host);
   const [name, setName] = useState(webapp.name);
   const [envSpecId, setEnvSpecId] = useState<string | null>(webapp.envSpecId);
   const [port, setPort] = useState<number>(webapp.http.port);
@@ -81,7 +86,7 @@ export function WebappEditModal({
 
   const parsedExtraEnv = parseExtraEnv(extraEnvText);
   const extraEnvError = "error" in parsedExtraEnv ? parsedExtraEnv.error : null;
-  const nameValid = /^[A-Za-z0-9._-]+$/.test(name);
+  const nameValid = WEBAPP_NAME_PATTERN.test(name);
 
   function submit() {
     if ("error" in parsedExtraEnv) {

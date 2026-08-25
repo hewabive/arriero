@@ -8,11 +8,9 @@ import {
   type WebappKind,
 } from "./webapp-descriptor.js";
 
-const WebappNameSchema = z
-  .string()
-  .min(1)
-  .max(80)
-  .regex(/^[A-Za-z0-9._-]+$/);
+export const WEBAPP_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+const WebappNameSchema = z.string().min(1).max(80).regex(WEBAPP_NAME_PATTERN);
 
 export const WebappKindSchema = z.enum(WEBAPP_KINDS);
 

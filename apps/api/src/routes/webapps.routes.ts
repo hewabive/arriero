@@ -1,4 +1,5 @@
 import {
+  probeReachableHost,
   webappDescriptor,
   WebappCreateSchema,
   WebappUpdateSchema,
@@ -16,12 +17,10 @@ import {
   deleteApiProxySource,
   getApiProxySource,
 } from "../proxy/sources.js";
+import { parsePidText } from "../process/pid.js";
 import { getWebappRecord } from "../webapps/config-files.js";
 import { tailWebappLog } from "../webapps/logs.js";
-import {
-  webappProbeHost,
-  checkWebappStartPreflight,
-} from "../webapps/preflight.js";
+import { checkWebappStartPreflight } from "../webapps/preflight.js";
 import {
   createWebapp,
   deleteWebapp,
@@ -37,9 +36,9 @@ import {
   restartWebapp,
   startWebapp,
   stopWebapp,
+  stopWebappForDelete,
   WebappStartBlockedError,
 } from "../webapps/service.js";
-import { stopStaleWebapp } from "../webapps/stale.js";
 import { webappSupervisor } from "../webapps/supervisor.js";
 
 function validateWebappRefs(input: {
@@ -52,7 +51,8 @@ function validateWebappRefs(input: {
     if (!environment) {
       return "environment spec not found";
     }
-    if (environment.engine !== input.kind) {
+    const expectedEngine = webappDescriptor(input.kind).environmentEngine;
+    if (environment.engine !== expectedEngine) {
       return `environment engine ${environment.engine} does not match webapp kind ${input.kind}`;
     }
   }
@@ -63,10 +63,9 @@ function validateWebappRefs(input: {
 }
 
 function latestRunFallbackState(name: string, latestRun: WebappRun | null) {
-  const fallbackPid = latestRun?.pid ? Number(latestRun.pid) : null;
   return {
     name,
-    pid: fallbackPid && Number.isFinite(fallbackPid) ? fallbackPid : null,
+    pid: latestRun ? parsePidText(latestRun.pid) : null,
     status: latestRun?.status ?? "stopped",
     startedAt: latestRun?.startedAt ?? null,
     stoppedAt: latestRun?.stoppedAt ?? null,
@@ -102,12 +101,6 @@ export function registerWebappRoutes(app: Hono) {
     const refError = validateWebappRefs(parsed.data);
     if (refError) {
       return c.json({ error: refError }, 400);
-    }
-    if (getWebappRecord(parsed.data.name)) {
-      return c.json(
-        { error: `webapp name already exists: ${parsed.data.name}` },
-        409,
-      );
     }
     let proxySourceId: string | null = null;
     if (parsed.data.createProxySource) {
@@ -153,7 +146,7 @@ export function registerWebappRoutes(app: Hono) {
     const health =
       state.status === "running"
         ? await requestJsonProbe(
-            `http://${webappProbeHost(record.http.host)}:${record.http.port}${webappDescriptor(record.kind).probe.path}`,
+            `http://${probeReachableHost(record.http.host)}:${record.http.port}${webappDescriptor(record.kind).probe.path}`,
           )
         : null;
     return c.json({
@@ -281,10 +274,8 @@ export function registerWebappRoutes(app: Hono) {
   app.delete("/api/webapps/:id", async (c) => {
     const id = c.req.param("id");
     const record = getWebappRecord(id);
-    webappSupervisor.stop(id, "delete", 2_000);
-    await webappSupervisor.waitForStopped(id, 2_500);
     try {
-      await stopStaleWebapp(id, "delete", 2_000);
+      await stopWebappForDelete(id);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }

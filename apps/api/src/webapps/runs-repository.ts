@@ -3,28 +3,21 @@ import { desc, eq, sql } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { webappRuns } from "../db/schema.js";
+import { buildRunPredicates } from "../process/run-predicates.js";
 import { newId } from "../utils/id.js";
 
 export type WebappRun = typeof webappRuns.$inferSelect;
 
-const RETAINED_CLOSED_RUNS_PER_WEBAPP = 20;
-
-const OPEN_RUN_STATUSES = ["starting", "running", "stopping", "stale"];
-
-const openRunStatusList = sql.join(
-  OPEN_RUN_STATUSES.map((status) => sql`${status}`),
-  sql`, `,
-);
-
-const openRunPredicate = sql`${webappRuns.stoppedAt} IS NULL AND ${webappRuns.status} IN (${openRunStatusList})`;
-
-const prunableClosedRunPredicate = sql`NOT (${openRunPredicate}) AND ${webappRuns.id} NOT IN (
-  SELECT id FROM ${webappRuns} AS retained
-  WHERE retained.webapp_id = ${webappRuns.webappId}
-    AND NOT (retained.stopped_at IS NULL AND retained.status IN (${openRunStatusList}))
-  ORDER BY retained.started_at DESC
-  LIMIT ${RETAINED_CLOSED_RUNS_PER_WEBAPP}
-)`;
+const {
+  openRun: openRunPredicate,
+  prunableClosedRun: prunableClosedRunPredicate,
+} = buildRunPredicates(webappRuns, {
+  id: webappRuns.id,
+  owner: webappRuns.webappId,
+  status: webappRuns.status,
+  startedAt: webappRuns.startedAt,
+  stoppedAt: webappRuns.stoppedAt,
+});
 
 export function createWebappRun(input: {
   webappId: string;
