@@ -275,11 +275,18 @@ export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
   keyConfigured: z.boolean().default(false),
 });
 
+export const ApiProxyTraceRetentionDaysSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(3650);
+
 export const ApiProxySettingsSchema = z.object({
   allowAnonymous: z.boolean().default(true),
   anonymousBlockedMessage: ApiProxyBlockedMessageSchema.default(""),
   unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.default(""),
   streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().default(null),
+  traceRetentionDays: ApiProxyTraceRetentionDaysSchema.default(30),
 });
 
 export const ApiProxySettingsUpdateSchema = z.object({
@@ -287,6 +294,7 @@ export const ApiProxySettingsUpdateSchema = z.object({
   anonymousBlockedMessage: ApiProxyBlockedMessageSchema.optional(),
   unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.optional(),
   streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().optional(),
+  traceRetentionDays: ApiProxyTraceRetentionDaysSchema.optional(),
 });
 
 export const ApiProxyTraceUsageSchema = z.object({

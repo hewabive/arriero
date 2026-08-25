@@ -96,8 +96,9 @@ reconciled on listing, pruned at boot, and a dangling or absent entry self-heals
 
 ## `settings.json` — host-wide settings sections
 
-Sections `modelScan` / `sourceRepositories` / `build` / `environments` / `registries`
-(`settings/store.ts`). Portable source specs store adapter, origin and location policy; managed
+Sections `modelScan` / `sourceRepositories` / `build` / `environments` / `registries` / `downloads`
+/ `logs` (`settings/store.ts`). The `logs` section is the retention policy for `runtime/logs/`
+(`docs/LOG_RETENTION.md`). Portable source specs store adapter, origin and location policy; managed
 paths derive from `config.sourcesDir`. The `build` section holds host-independent intent only —
 the physical-host knobs `native` and `parallelJobs` live in the machine-local `machine.json`
 (`docs/BUILD.md`), and the file schema strips them if a legacy or foreign tree reintroduces them. `registries.npmRegistryUrl` is the host-wide npm registry
@@ -139,7 +140,7 @@ deletable via API/UI only while orphaned and unreferenced. See `docs/RESOURCE_MA
 Low-level store `proxy/config-files.ts`; CRUD in `proxy/repository.ts`, `proxy/endpoints.ts`,
 `proxy/sources.ts`, `proxy/settings.ts`. Aggregate-per-type arrays, except `settings.json` which is a
 single object (`allowAnonymous`, the `anonymousBlockedMessage` / `unknownKeyBlockedMessage` rejection
-texts, `streamIdleTimeoutMs`). In-memory cache + write-through; external edits apply on restart.
+texts, `streamIdleTimeoutMs`, the trace-history `traceRetentionDays` — `docs/LOG_RETENTION.md`). In-memory cache + write-through; external edits apply on restart.
 
 API keys live in `config/.secrets.json` (gitignored), never in `endpoints.json`; env-var auth stays
 preferred. `sources` = request labeling plus an optional auth gate: an inbound

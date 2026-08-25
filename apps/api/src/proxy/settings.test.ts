@@ -18,7 +18,19 @@ test("defaults to allowing anonymous requests", () => {
     anonymousBlockedMessage: "",
     unknownKeyBlockedMessage: "",
     streamIdleTimeoutMs: null,
+    traceRetentionDays: 30,
   });
+});
+
+test("persists the trace retention independently of other fields", () => {
+  updateApiProxySettings({ traceRetentionDays: 7 });
+  assert.equal(getApiProxySettings().traceRetentionDays, 7);
+
+  updateApiProxySettings({ allowAnonymous: false });
+  assert.equal(getApiProxySettings().traceRetentionDays, 7);
+
+  resetConfigFilesCache();
+  assert.equal(getApiProxySettings().traceRetentionDays, 7);
 });
 
 test("persists rejection messages independently of other fields", () => {

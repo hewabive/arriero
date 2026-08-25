@@ -34,6 +34,7 @@ import { startMemoryAssessmentAutoLoop } from "./memory-assessment/auto-assess.j
 import { pruneMissingCachedModels } from "./models/cache-repository.js";
 import { pruneMissingCachedSafetensorsModels } from "./models/safetensors-cache-repository.js";
 import { listQuarantinedInstanceNames } from "./instances/config-files.js";
+import { pruneManagedLogs, startLogRetentionLoop } from "./logs/retention.js";
 import { listInstances } from "./instances/repository.js";
 import { failInterruptedBenchmarkRuns } from "./benchmark/repository.js";
 import { reconcileProcessRuns } from "./process/reconcile.js";
@@ -146,6 +147,9 @@ const failedBenchmarkRuns = bootStep("fail interrupted benchmark runs", () =>
   failInterruptedBenchmarkRuns(),
 );
 const prunedTraceHistory = pruneApiProxyTraceHistory();
+const prunedManagedLogs = bootStep("prune managed logs", () =>
+  pruneManagedLogs(),
+);
 const seededStatsTraces = apiProxyStats.seedFromHistory();
 const pendingResume = bootStep("adopt pending stream sessions", () =>
   apiProxyPendingResume.adopt(),
@@ -198,6 +202,7 @@ const server = serve(
         sweptWebappTrash,
         failedBenchmarkRuns,
         prunedTraceHistory,
+        prunedManagedLogs,
         seededStatsTraces,
         systemMetricsPersistence,
         prunedArgumentCatalogs,
@@ -241,6 +246,10 @@ const stopApiProxyTraceRetention = startApiProxyTraceRetentionLoop({
 const stopSystemMetricsRetention = startSystemMetricsRetentionLoop({
   onError: (error) =>
     logger.error({ error }, "system metrics retention prune failed"),
+});
+
+const stopLogRetention = startLogRetentionLoop({
+  onError: (error) => logger.error({ error }, "log retention prune failed"),
 });
 
 const stopMemoryAssessmentAuto = startMemoryAssessmentAutoLoop({
@@ -313,6 +322,7 @@ async function shutdown(signal: NodeJS.Signals) {
     stopApiProxyRuntimeReconcile();
     stopApiProxyTraceRetention();
     stopSystemMetricsRetention();
+    stopLogRetention();
     stopMemoryAssessmentAuto();
     systemMetricsRecorder.stop();
     await closeServer();

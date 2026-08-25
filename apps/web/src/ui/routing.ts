@@ -18,6 +18,7 @@ export type AppRoute =
   | "login"
   | "nodes"
   | "config-git"
+  | "maintenance"
   | "dashboard"
   | "instances"
   | "diagnostics"
@@ -340,6 +341,14 @@ const navSections: NavSection[] = [
         description:
           "Version this node's portable configuration, review file state and apply edits from disk",
         keywords: ["git", "config", "commit", "reload"],
+      },
+      {
+        route: "maintenance",
+        label: "Maintenance",
+        title: "Maintenance",
+        description:
+          "Disk usage of managed logs and proxy request history, with retention settings",
+        keywords: ["logs", "retention", "disk", "prune", "cleanup", "storage"],
       },
     ],
   },

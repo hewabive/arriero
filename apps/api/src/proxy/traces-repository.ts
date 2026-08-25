@@ -26,14 +26,18 @@ import { parsePersistedJson } from "../db/persisted-json.js";
 import { startRetentionLoop } from "../db/retention.js";
 import { proxyRequestTraces } from "../db/schema.js";
 import { pruneApiProxyRequestFiles } from "./request-files.js";
+import { getApiProxySettings } from "./settings.js";
 
-const TRACE_RETENTION_DAYS = 30;
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 500;
 
+function traceRetentionDays(): number {
+  return getApiProxySettings().traceRetentionDays;
+}
+
 function retentionCutoff(now: Date): string {
   return new Date(
-    now.getTime() - TRACE_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+    now.getTime() - traceRetentionDays() * 24 * 60 * 60 * 1000,
   ).toISOString();
 }
 
@@ -238,7 +242,7 @@ function fileKindFacets(): ApiProxyTraceFacet[] {
 
 export function getApiProxyTraceFacets(): ApiProxyTraceFacets {
   return {
-    retentionDays: TRACE_RETENTION_DAYS,
+    retentionDays: traceRetentionDays(),
     models: columnFacets(proxyRequestTraces.modelId),
     sources: columnFacets(proxyRequestTraces.sourceId, {
       skipNull: true,

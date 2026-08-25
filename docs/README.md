@@ -73,6 +73,7 @@ not before.
 | [CONFIG_DOCTOR](CONFIG_DOCTOR.md) | Host readiness: what this host cannot satisfy from the tracked config |
 | [PORTABLE_PATHS](PORTABLE_PATHS.md) | `${ARRIERO_*}` placeholders and startup normalization |
 | [RUNTIME_LAYOUT](RUNTIME_LAYOUT.md) | `data/` and `runtime/` contents, DB tables, environment variables |
+| [LOG_RETENTION](LOG_RETENTION.md) | Retention of managed logs and proxy request history; protections and knobs |
 | [MIGRATIONS](MIGRATIONS.md) | Inventory of one-shot data migrations (Russian) |
 | [PREREQUISITES](PREREQUISITES.md) | Host-tooling registry, probe primitive, gated installer |
 | [SELF_UPDATE](SELF_UPDATE.md) | The UI update runner and the copyable update kit |

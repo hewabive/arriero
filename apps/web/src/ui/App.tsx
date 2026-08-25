@@ -58,6 +58,7 @@ import { DiagnosticsView } from "./views/DiagnosticsView";
 import { EnvironmentsView } from "./views/EnvironmentsView";
 import { InstancesView } from "./views/InstancesView";
 import { LoginView } from "./views/LoginView";
+import { MaintenanceView } from "./views/MaintenanceView";
 import { HfDownloadsView } from "./views/HfDownloadsView";
 import { ModelsView } from "./views/ModelsView";
 import { NodesView } from "./views/NodesView";
@@ -458,6 +459,8 @@ export function App() {
           {canUseAdmin && route === "nodes" && <NodesView />}
 
           {canUseAdmin && route === "config-git" && <ConfigGitView />}
+
+          {canUseAdmin && route === "maintenance" && <MaintenanceView />}
 
           {canUseAdmin && route === "build" && <BuildView />}
 

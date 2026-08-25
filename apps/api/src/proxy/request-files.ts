@@ -10,6 +10,7 @@ import {
   readdirSync,
   rmSync,
   rmdirSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { resolve, sep } from "node:path";
@@ -120,6 +121,40 @@ export function pruneApiProxyRequestFiles(cutoffIso: string): number {
     } catch {}
   }
   return removed;
+}
+
+export function apiProxyRequestFilesUsage(): {
+  requestDirs: number;
+  bytes: number;
+} {
+  let requestDirs = 0;
+  let bytes = 0;
+  for (const modelEntry of readDirectoryEntries(requestFilesRoot)) {
+    if (!modelEntry.isDirectory()) {
+      continue;
+    }
+    const modelDir = resolve(requestFilesRoot, modelEntry.name);
+    for (const requestEntry of readDirectoryEntries(modelDir)) {
+      if (!requestEntry.isDirectory()) {
+        continue;
+      }
+      requestDirs += 1;
+      const requestDir = resolve(modelDir, requestEntry.name);
+      for (const fileEntry of readDirectoryEntries(requestDir)) {
+        if (!fileEntry.isFile()) {
+          continue;
+        }
+        try {
+          bytes += statSync(resolve(requestDir, fileEntry.name)).size;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+            throw error;
+          }
+        }
+      }
+    }
+  }
+  return { requestDirs, bytes };
 }
 
 export function readApiProxyRequestFile(

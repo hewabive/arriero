@@ -3,7 +3,10 @@ import { desc, eq, sql } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { webappRuns } from "../db/schema.js";
-import { buildRunPredicates } from "../process/run-predicates.js";
+import {
+  buildRunPredicates,
+  collectProtectedRunLogPaths,
+} from "../process/run-predicates.js";
 import { newId } from "../utils/id.js";
 
 export type WebappRun = typeof webappRuns.$inferSelect;
@@ -139,6 +142,21 @@ export function listWebappRunLogPaths(webappId: string): string[] {
       Boolean(path),
     ),
   );
+}
+
+export function listProtectedWebappRunLogPaths(): string[] {
+  const rows = db
+    .select({
+      owner: webappRuns.webappId,
+      status: webappRuns.status,
+      startedAt: webappRuns.startedAt,
+      stoppedAt: webappRuns.stoppedAt,
+      logPath: webappRuns.logPath,
+      rawLogPath: webappRuns.rawLogPath,
+    })
+    .from(webappRuns)
+    .all();
+  return collectProtectedRunLogPaths(rows);
 }
 
 export function deleteWebappRuns(webappId: string): { deleted: number } {

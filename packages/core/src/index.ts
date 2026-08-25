@@ -21,6 +21,7 @@ export * from "./proxy/api-proxy.js";
 export * from "./instance-health.js";
 export * from "./filesystem.js";
 export * from "./jobs.js";
+export * from "./logs.js";
 export * from "./sources.js";
 export * from "./build.js";
 export * from "./environments.js";

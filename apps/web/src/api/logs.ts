@@ -1,4 +1,10 @@
-import type { InstanceLogSummary, LogTail } from "@arriero/core";
+import type {
+  InstanceLogSummary,
+  LogPruneResult,
+  LogRetentionSettings,
+  LogStorageUsage,
+  LogTail,
+} from "@arriero/core";
 
 import { activeNodeScopedPath, apiBase } from "./base.js";
 import { nodeRequest as request } from "./http.js";
@@ -21,4 +27,25 @@ export async function getInstanceStatusSummary(id: string) {
 
 export function instanceEventsUrl(id: string) {
   return `${apiBase}${activeNodeScopedPath(`/api/instances/${id}/events`)}`;
+}
+
+export async function getLogRetentionSettings() {
+  return request<{ data: LogRetentionSettings }>("/api/logs/settings");
+}
+
+export async function updateLogRetentionSettings(input: LogRetentionSettings) {
+  return request<{ data: LogRetentionSettings }>("/api/logs/settings", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getLogStorageUsage() {
+  return request<{ data: LogStorageUsage }>("/api/logs/usage");
+}
+
+export async function pruneLogStorage() {
+  return request<{ data: LogPruneResult }>("/api/logs/prune", {
+    method: "POST",
+  });
 }

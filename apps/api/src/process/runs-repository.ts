@@ -4,7 +4,10 @@ import { newId } from "../utils/id.js";
 
 import { db } from "../db/index.js";
 import { processRuns } from "../db/schema.js";
-import { buildRunPredicates } from "./run-predicates.js";
+import {
+  buildRunPredicates,
+  collectProtectedRunLogPaths,
+} from "./run-predicates.js";
 
 export type ProcessRun = typeof processRuns.$inferSelect;
 export type { ProcessStopReason } from "@arriero/core";
@@ -91,6 +94,21 @@ export function listProcessRunLogPaths(instanceId: string): string[] {
       Boolean(path),
     ),
   );
+}
+
+export function listProtectedProcessRunLogPaths(): string[] {
+  const rows = db
+    .select({
+      owner: processRuns.instanceId,
+      status: processRuns.status,
+      startedAt: processRuns.startedAt,
+      stoppedAt: processRuns.stoppedAt,
+      logPath: processRuns.logPath,
+      rawLogPath: processRuns.rawLogPath,
+    })
+    .from(processRuns)
+    .all();
+  return collectProtectedRunLogPaths(rows);
 }
 
 export function deleteProcessRunsForInstance(instanceId: string): {

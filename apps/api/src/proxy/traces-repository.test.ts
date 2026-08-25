@@ -12,6 +12,7 @@ import type {
 import { config } from "../config.js";
 import { sqlite } from "../db/index.js";
 import { saveApiProxyRequestFile } from "./request-files.js";
+import { updateApiProxySettings } from "./settings.js";
 import {
   clearApiProxyTraceHistory,
   countApiProxyTraces,
@@ -432,4 +433,22 @@ test("prune drops traces past retention together with their capture artifacts", 
   assert.equal(existsSync(resolve(filesRoot, oldFile.path)), false);
   assert.equal(existsSync(resolve(filesRoot, "model-old")), false);
   assert.equal(existsSync(resolve(filesRoot, freshFile.path)), true);
+});
+
+test("prune honors the configured trace retention", () => {
+  updateApiProxySettings({ traceRetentionDays: 5 });
+  try {
+    insertApiProxyTrace(trace({ id: "older", at: daysBefore(10) }));
+    insertApiProxyTrace(trace({ id: "newer", at: daysBefore(1) }));
+    assert.equal(getApiProxyTraceFacets().retentionDays, 5);
+
+    const pruned = pruneApiProxyTraceHistory(NOW);
+    assert.equal(pruned.prunedTraces, 1);
+    assert.deepEqual(
+      listApiProxyTraces().map((entry) => entry.id),
+      ["newer"],
+    );
+  } finally {
+    updateApiProxySettings({ traceRetentionDays: 30 });
+  }
 });

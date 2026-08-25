@@ -5,6 +5,7 @@ import { storedConfigSchema, stripKeys } from "./config-git.js";
 import { EnvironmentRepositorySettingsSchema } from "./environments.js";
 import { HfDownloadSettingsSchema } from "./hf.js";
 import { LlamaSourceSettingsSchema } from "./llama.js";
+import { LogRetentionSettingsSchema } from "./logs.js";
 import { ModelScanSettingsSchema } from "./models.js";
 import { PackageRegistriesSettingsSchema } from "./registries.js";
 import { SourceRepositorySpecSchema } from "./sources.js";
@@ -39,6 +40,7 @@ export const AppSettingsFileSchema = z
       z.unknown(),
     ).optional(),
     downloads: HfDownloadSettingsSchema.catchall(z.unknown()).optional(),
+    logs: LogRetentionSettingsSchema.catchall(z.unknown()).optional(),
   })
   .catchall(z.unknown())
   .default({});

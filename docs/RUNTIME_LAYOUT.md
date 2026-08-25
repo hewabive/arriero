@@ -11,7 +11,7 @@ configuration is a separate tree — `docs/CONFIG_FILES.md`.
 | --- | --- | --- |
 | `process_runs` | `process/runs-repository.ts` | last 20 closed runs + open runs per instance |
 | `webapp_runs` | `webapps/runs-repository.ts` | last 20 closed runs + open runs per webapp; the launch snapshot stores a hash of the rendered environment, not the values (`docs/WEBAPPS.md`) |
-| `proxy_request_traces` | `proxy/traces-repository.ts` | 30-day retention; the prune also deletes `data/proxy-requests/` artifacts past the cutoff, and boot reseeds the in-memory hourly stats. Browsable with full filters + facets at `#/proxy/traces` |
+| `proxy_request_traces` | `proxy/traces-repository.ts` | retention per proxy `traceRetentionDays` (default 30 days, `docs/LOG_RETENTION.md`); the prune also deletes `data/proxy-requests/` artifacts past the cutoff, and boot reseeds the in-memory hourly stats. Browsable with full filters + facets at `#/proxy/traces` |
 | `system_metrics_history` | `system/metrics-repository.ts` | closed hour/day/month buckets upserted per bucket, reseeded into the recorder at boot, month backfilled from day rows; hour kept for its 1 h span, day/month 30 days (`docs/SYSTEM_METRICS.md` § Persistence) |
 | `memory_assessments` | `memory-assessment/repository.ts` | one receipt per instance, analytical or measured; renamed and deleted with the instance. Machine-local evidence, deliberately not in portable config |
 | `benchmark_runs` | `benchmark/repository.ts` | the serving source for benchmark history |
@@ -33,14 +33,16 @@ Other entries under `data/`:
   `capture-request`. One directory per request,
   `<model>/<timestamp>-<traceId>/<NN>-<kind>.json` (inbound proxy model id, sanitized); metadata
   lands in `trace.files`, content is served by `GET /api/proxy/request-file?path=`
-  (`proxy/request-files.ts`). Pruned with the 30-day trace retention, by directory timestamp.
+  (`proxy/request-files.ts`). Pruned with the trace retention, by directory timestamp.
 - `data/proxy-pending-resume.json` — SSE stream sessions persisted on SIGTERM
   (`docs/STREAM_RESUME.md`).
 
 ## `runtime/` — processes, models, sources, builds
 
 - `runtime/logs/` — managed-process stdout/stderr, `<instance>-<timestamp>.log` (filtered) next to
-  `.raw.log` (verbatim); webapp logs use the same naming under `runtime/logs/webapps/`.
+  `.raw.log` (verbatim); webapp logs use the same naming under `runtime/logs/webapps/`; build, env
+  and self-update job logs land here too. Pruned by age and an optional total-size cap
+  (`docs/LOG_RETENTION.md`), operated from `#/maintenance`.
 - `runtime/webapps/<name>/` — per-webapp data directory (`config.webappsDir`, override
   `ARRIERO_WEBAPPS_DIR`), handed to the app as its state root (`docs/WEBAPPS.md`); removed with the
   webapp via a trash-rename.

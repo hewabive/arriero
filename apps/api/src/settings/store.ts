@@ -45,7 +45,8 @@ type MergeableSettingsSection =
   | "modelScan"
   | "environments"
   | "registries"
-  | "downloads";
+  | "downloads"
+  | "logs";
 
 export function updateSettingsSection<K extends MergeableSettingsSection>(
   key: K,

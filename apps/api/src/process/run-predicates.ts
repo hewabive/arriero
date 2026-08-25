@@ -10,6 +10,47 @@ const openRunStatusList = sql.join(
   sql`, `,
 );
 
+export function collectProtectedRunLogPaths(
+  rows: Array<{
+    owner: string;
+    status: string;
+    startedAt: string;
+    stoppedAt: string | null;
+    logPath: string | null;
+    rawLogPath: string | null;
+  }>,
+): string[] {
+  const paths = new Set<string>();
+  const latestByOwner = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    const isOpen =
+      row.stoppedAt === null && OPEN_RUN_STATUSES.includes(row.status);
+    if (isOpen) {
+      addRunLogPaths(paths, row);
+    }
+    const latest = latestByOwner.get(row.owner);
+    if (!latest || row.startedAt > latest.startedAt) {
+      latestByOwner.set(row.owner, row);
+    }
+  }
+  for (const row of latestByOwner.values()) {
+    addRunLogPaths(paths, row);
+  }
+  return [...paths];
+}
+
+function addRunLogPaths(
+  paths: Set<string>,
+  row: { logPath: string | null; rawLogPath: string | null },
+): void {
+  if (row.logPath) {
+    paths.add(row.logPath);
+  }
+  if (row.rawLogPath) {
+    paths.add(row.rawLogPath);
+  }
+}
+
 export function buildRunPredicates(
   table: SQLiteTable,
   columns: {
