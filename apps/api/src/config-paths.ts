@@ -33,7 +33,7 @@ function containingRoot(value: string): PortableRoot | null {
     if (value !== root.dir && !value.startsWith(`${root.dir}${sep}`)) {
       continue;
     }
-    if (!best || root.dir.length < best.dir.length) {
+    if (!best || root.dir.length > best.dir.length) {
       best = root;
     }
   }
@@ -86,9 +86,27 @@ export function fromPortableConfig<T>(value: T): T {
   return mapStrings(value, fromPortablePath) as T;
 }
 
+function stalePortablePlaceholder(value: string): boolean {
+  const root = portableRoots().find((item) =>
+    value.startsWith(placeholder(item.token)),
+  );
+  if (!root) {
+    return false;
+  }
+  const rest = value.slice(placeholder(root.token).length);
+  if (rest.includes("${")) {
+    return false;
+  }
+  const expanded = fromPortablePath(value);
+  if (!expanded.startsWith(sep)) {
+    return false;
+  }
+  return toPortablePath(expanded) !== value;
+}
+
 export function hasPortablePathCandidate(value: unknown): boolean {
   if (typeof value === "string") {
-    return toPortablePath(value) !== value;
+    return toPortablePath(value) !== value || stalePortablePlaceholder(value);
   }
   if (Array.isArray(value)) {
     return value.some((item) => hasPortablePathCandidate(item));

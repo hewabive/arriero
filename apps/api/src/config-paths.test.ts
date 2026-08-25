@@ -25,18 +25,27 @@ test("replaces a managed root prefix with its placeholder", () => {
   const binary = resolve(config.buildsDir, "master/bin/llama-server");
   assert.equal(
     toPortablePath(binary),
-    "${ARRIERO_RUNTIME_DIR}/builds/master/bin/llama-server",
+    "${ARRIERO_BUILDS_DIR}/master/bin/llama-server",
   );
 });
 
-test("prefers the broadest root that still contains the path", () => {
+test("prefers the narrowest root that contains the path", () => {
   withRootDir(dirname(config.runtimeDir), () => {
     const binary = resolve(config.buildsDir, "master/bin/llama-server");
     assert.equal(
       toPortablePath(binary),
-      "${ARRIERO_HOME}/runtime/builds/master/bin/llama-server",
+      "${ARRIERO_BUILDS_DIR}/master/bin/llama-server",
+    );
+    assert.equal(
+      toPortablePath(resolve(config.runtimeDir, "python/cpython")),
+      "${ARRIERO_RUNTIME_DIR}/python/cpython",
     );
   });
+});
+
+test("collapses a path equal to a managed root", () => {
+  assert.equal(toPortablePath(config.modelsDir), "${ARRIERO_MODELS_DIR}");
+  assert.equal(fromPortablePath("${ARRIERO_MODELS_DIR}"), config.modelsDir);
 });
 
 test("leaves paths outside every managed root untouched", () => {
@@ -70,16 +79,13 @@ test("maps every string leaf of a config tree", () => {
   const portable = toPortableConfig(record);
   assert.equal(
     portable.binaryPath,
-    "${ARRIERO_RUNTIME_DIR}/builds/master/bin/llama-server",
+    "${ARRIERO_BUILDS_DIR}/master/bin/llama-server",
   );
-  assert.equal(
-    portable.args["--model"],
-    "${ARRIERO_RUNTIME_DIR}/models/m.gguf",
-  );
+  assert.equal(portable.args["--model"], "${ARRIERO_MODELS_DIR}/m.gguf");
   assert.equal(portable.args["--port"], 5190);
   assert.equal(
     portable.env.LD_LIBRARY_PATH,
-    "${ARRIERO_RUNTIME_DIR}/builds/master/lib",
+    "${ARRIERO_BUILDS_DIR}/master/lib",
   );
   assert.equal(portable.positionalArgs[0], "${ARRIERO_RUNTIME_DIR}/extra.txt");
   assert.deepEqual(fromPortableConfig(portable), record);
@@ -100,4 +106,29 @@ test("detects config trees that still carry managed absolute paths", () => {
     hasPortablePathCandidate({ a: [{ b: "/opt/m.gguf" }], c: 1, d: null }),
     false,
   );
+});
+
+test("detects leading placeholders that are no longer canonical", () => {
+  assert.equal(
+    hasPortablePathCandidate("${ARRIERO_RUNTIME_DIR}/models/m.gguf"),
+    true,
+  );
+  assert.equal(
+    toPortablePath(fromPortablePath("${ARRIERO_RUNTIME_DIR}/models/m.gguf")),
+    "${ARRIERO_MODELS_DIR}/m.gguf",
+  );
+  assert.equal(hasPortablePathCandidate("${ARRIERO_MODELS_DIR}/m.gguf"), false);
+  assert.equal(
+    hasPortablePathCandidate(
+      "LD_LIBRARY_PATH=${ARRIERO_RUNTIME_DIR}/models/lib:/usr/lib",
+    ),
+    false,
+  );
+  assert.equal(
+    hasPortablePathCandidate(
+      "${ARRIERO_RUNTIME_DIR}/models/a:${ARRIERO_RUNTIME_DIR}/models/b",
+    ),
+    false,
+  );
+  assert.equal(hasPortablePathCandidate("${FUTURE_ROOT}/m.gguf"), false);
 });

@@ -81,7 +81,7 @@ test("write stores placeholders and read returns absolute paths", () => {
   const absolute = resolve(config.runtimeDir, "builds/master/bin/llama-server");
   store.write({ path: absolute, count: 1 });
   const raw = readFileSync(store.path, "utf8");
-  assert.match(raw, /\$\{ARRIERO_RUNTIME_DIR\}/);
+  assert.match(raw, /\$\{ARRIERO_BUILDS_DIR\}/);
   assert.equal(raw.includes(config.runtimeDir), false);
   store.reset();
   assert.equal(store.read().path, absolute);

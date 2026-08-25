@@ -27,12 +27,16 @@ the web UI keep working with absolute paths.
 | `${ARRIERO_SLOTS_DIR}` | `slotsDir` | `ARRIERO_SLOTS_DIR` |
 
 Selection rule (`apps/api/src/config-paths.ts`): among the roots that contain the
-path, the **broadest** one wins. With the default layout everything under the
-application directory collapses to `${ARRIERO_HOME}/…`; a root relocated outside
-the application directory (say `ARRIERO_MODELS_DIR=/mnt/models`) contributes its
-own placeholder instead. A path under no managed root — `/mnt/nvme/gguf/…`, a
-system binary — stays absolute verbatim, because it does not move with the
-application.
+path, the **narrowest** one wins — a model file serializes as
+`${ARRIERO_MODELS_DIR}/…`, a built binary as `${ARRIERO_BUILDS_DIR}/…`, never as
+their `${ARRIERO_HOME}/runtime/…` spelling. Every root is independently
+overridable, and the defaults nest under the application directory, so the
+narrow placeholder expands correctly both on a host that only sets
+`ARRIERO_HOME` and on a host that relocates that one root
+(`ARRIERO_MODELS_DIR=/mnt/models` — the case a broad placeholder silently
+ignores). Ties keep declaration order. A path under no managed root —
+`/mnt/nvme/gguf/…`, a system binary — stays absolute verbatim, because it does
+not move with the application.
 
 Placeholders are expanded anywhere inside a value, so hand-written entries such
 as `LD_LIBRARY_PATH=${ARRIERO_HOME}/lib:/usr/lib` work. Writing only ever
@@ -71,9 +75,15 @@ Deliberately **not** covered:
 
 `normalizeConfigFiles()` (`apps/api/src/config-normalize.ts`) runs once per boot
 from `apps/api/src/index.ts`: it scans the files above for absolute paths under
-a managed root — and every tracked config file for legacy
+a managed root and for leading placeholders that are no longer canonical under
+the selection rule (`${ARRIERO_HOME}/runtime/models/…` written before the
+narrowest-root rule) — and every tracked config file for legacy
 `createdAt`/`updatedAt` keys — and, for each stale file, re-reads it through its
-store (Zod-validated) and writes it back through the same store. Files without
+store (Zod-validated) and writes it back through the same store. Only values
+that consist of one leading placeholder are canonicalized; a placeholder in the
+middle of a value (`LD_LIBRARY_PATH=${ARRIERO_HOME}/lib:/usr/lib`) or several
+placeholders in one value are left untouched, because the write path can only
+produce a placeholder at the start of a value. Files without
 a stale marker are not touched, so the config Git tree stays clean. The
 rewritten file names land in the startup log as `normalizedConfigFiles`.
 The same pass also runs after every successful `POST /api/config/reload`
@@ -115,3 +125,9 @@ them into placeholders.
 A config root managed through `docs/CONFIG_GIT.md` becomes portable across
 machines the same way, as long as each machine keeps its own `ARRIERO_*`
 overrides.
+
+When a selection-rule change makes existing placeholders non-canonical, every
+host's next boot rewrites the same files to the same content. On a shared
+origin, commit that one-time rewrite from **one** host and pull it everywhere
+else: two hosts committing the identical rewrite independently produce
+diverged histories that the fast-forward-only pull refuses.

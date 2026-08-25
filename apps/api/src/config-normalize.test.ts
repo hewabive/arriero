@@ -99,7 +99,7 @@ test("rewrites stored absolute paths as placeholders and keeps reads absolute", 
   const instanceRaw = readFileSync(instanceFile, "utf8");
   assert.match(
     instanceRaw,
-    /"binaryPath": "\$\{ARRIERO_RUNTIME_DIR\}\/builds\/master\/bin\/llama-server"/,
+    /"binaryPath": "\$\{ARRIERO_BUILDS_DIR\}\/master\/bin\/llama-server"/,
   );
   assert.equal(instanceRaw.includes(config.runtimeDir), false);
   assert.equal(
@@ -137,7 +137,7 @@ test("strips legacy createdAt/updatedAt from tracked config files", (t) => {
   writeJson(instanceFile, {
     name: "demo",
     kind: "llama-server",
-    binaryPath: "${ARRIERO_RUNTIME_DIR}/builds/master/bin/llama-server",
+    binaryPath: "${ARRIERO_BUILDS_DIR}/master/bin/llama-server",
     args: {},
     env: {},
     createdAt: "2026-07-01T00:00:00.000Z",
@@ -164,7 +164,7 @@ test("strips legacy createdAt/updatedAt from tracked config files", (t) => {
       id: "01",
       kind: "binary",
       name: "llama-server",
-      path: "${ARRIERO_RUNTIME_DIR}/builds/master/bin/llama-server",
+      path: "${ARRIERO_BUILDS_DIR}/master/bin/llama-server",
       createdAt: "2026-07-01T00:00:00.000Z",
       updatedAt: "2026-07-01T00:00:00.000Z",
     },
@@ -186,6 +186,40 @@ test("strips legacy createdAt/updatedAt from tracked config files", (t) => {
     assert.equal(raw.includes("updatedAt"), false, path);
   }
   assert.match(readFileSync(PATH_CATALOG_FILE, "utf8"), /"createdAt"/);
+});
+
+test("rewrites placeholders that are no longer canonical", (t) => {
+  t.after(cleanup);
+  writeJson(config.settingsFile, {
+    modelScan: {
+      directory: "${ARRIERO_RUNTIME_DIR}/models",
+      maxDepth: 4,
+    },
+  });
+  writeJson(instanceFile, {
+    name: "demo",
+    kind: "llama-server",
+    binaryPath: "${ARRIERO_RUNTIME_DIR}/builds/master/bin/llama-server",
+    args: {},
+    env: {},
+  });
+  resetInstancesCache();
+  resetSettingsCache();
+
+  assert.deepEqual(normalizeConfigFiles().sort(), [
+    "instances/demo.json",
+    "settings.json",
+  ]);
+  assert.deepEqual(normalizeConfigFiles(), []);
+
+  assert.match(
+    readFileSync(instanceFile, "utf8"),
+    /"binaryPath": "\$\{ARRIERO_BUILDS_DIR\}\/master\/bin\/llama-server"/,
+  );
+  assert.match(
+    readFileSync(config.settingsFile, "utf8"),
+    /"directory": "\$\{ARRIERO_MODELS_DIR\}"/,
+  );
 });
 
 test("leaves absolute paths in non-portable files untouched", (t) => {
