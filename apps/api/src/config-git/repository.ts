@@ -125,9 +125,19 @@ async function remoteBranches(path: string): Promise<string[]> {
     .map((name) => name.replace(/^origin\//, ""));
 }
 
+const CONFIG_BACKUP_INFIX = ".backup-";
+
+export function configBackupPath(stampMs: number): string {
+  return `${config.configDir}${CONFIG_BACKUP_INFIX}${stampMs}`;
+}
+
+function configBackupNamePrefix(): string {
+  return `${basename(config.configDir)}${CONFIG_BACKUP_INFIX}`;
+}
+
 function listConfigBackups(): string[] {
   const parent = dirname(config.configDir);
-  const prefix = `${basename(config.configDir)}.backup-`;
+  const prefix = configBackupNamePrefix();
   try {
     return readdirSync(parent, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix))
@@ -143,7 +153,7 @@ export async function deleteConfigBackup(
   name: string,
 ): Promise<ConfigGitBackups> {
   return withConfigGitOperation(`delete backup ${name}`, async () => {
-    const prefix = `${basename(config.configDir)}.backup-`;
+    const prefix = configBackupNamePrefix();
     if (!name.startsWith(prefix) || !/^\d+$/.test(name.slice(prefix.length))) {
       throw new Error(`not a config backup name: ${name}`);
     }

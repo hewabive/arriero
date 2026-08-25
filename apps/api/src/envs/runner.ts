@@ -5,10 +5,7 @@ import type {
   EnvironmentRepositorySettings,
   EnvironmentSpec,
 } from "@arriero/core";
-import { packageIndexInstallOptions } from "@arriero/core";
-import { createHash } from "node:crypto";
 import {
-  createReadStream,
   createWriteStream,
   existsSync,
   renameSync,
@@ -16,19 +13,13 @@ import {
   type WriteStream,
 } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { config } from "../config.js";
 import { runLoggedCommand } from "../jobs/exec.js";
 import { registerActiveJob } from "../jobs/registry.js";
 import { markJobStep } from "../jobs/steps.js";
+import { environmentLogFileName } from "../logs/log-names.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
-import {
-  chatUiJobSteps,
-  checkedChatUiSpec,
-  patchChatUiManifest,
-} from "./chat-ui.js";
-import type { NodeSourceTools } from "./node-tools.js";
 import { discardDirectory } from "../utils/discard.js";
 import {
   environmentDirectory,
@@ -36,7 +27,10 @@ import {
   environmentStagingDirectory,
 } from "./paths.js";
 import { environmentLayoutError } from "./validation.js";
-import { environmentProvisioner } from "./provisioners.js";
+import {
+  environmentProvisioner,
+  type EnvironmentTooling,
+} from "./provisioners.js";
 import {
   createEnvironmentJob,
   environmentJobs,
@@ -44,11 +38,6 @@ import {
   updateEnvironmentJob,
 } from "./repository.js";
 import { getEnvironmentRepositorySettings } from "./settings.js";
-
-type LocalWheelArtifact = {
-  path: string;
-  sha256: string;
-};
 
 const UV_ENVIRONMENT_PASSTHROUGH = new Set([
   "UV_CREDENTIALS_DIR",
@@ -90,137 +79,20 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function localWheelArtifacts(spec: EnvironmentSpec): LocalWheelArtifact[] {
-  const sources = environmentProvisioner(spec.engine).wheelArtifacts(spec);
-  return sources.flatMap((artifact) => {
-    if (!artifact.sha256 || new URL(artifact.url).protocol !== "file:") {
-      return [];
-    }
-    return [
-      {
-        path: fileURLToPath(artifact.url),
-        sha256: artifact.sha256.toLowerCase(),
-      },
-    ];
-  });
-}
-
-function sha256File(path: string) {
-  return new Promise<string>((resolveHash, reject) => {
-    const hash = createHash("sha256");
-    const input = createReadStream(path);
-    input.on("error", reject);
-    input.on("data", (chunk) => hash.update(chunk));
-    input.on("end", () => resolveHash(hash.digest("hex")));
-  });
-}
-
-async function verifyLocalWheelArtifacts(
-  spec: EnvironmentSpec,
-  log: WriteStream,
-) {
-  for (const artifact of localWheelArtifacts(spec)) {
-    const actual = await sha256File(artifact.path);
-    if (actual !== artifact.sha256) {
-      throw new Error(
-        `wheel SHA-256 mismatch for ${artifact.path}: expected ${artifact.sha256}, got ${actual}`,
-      );
-    }
-    log.write(`# verified SHA-256 ${actual}  ${artifact.path}\n`);
-  }
-}
-
-export type EnvironmentTooling =
-  | { kind: "uv"; uv: string }
-  | ({ kind: "node-source" } & NodeSourceTools);
-
 export function environmentJobSteps(
   spec: EnvironmentSpec,
   tools: EnvironmentTooling,
   repositories: EnvironmentRepositorySettings,
 ): EnvironmentJobStep[] {
-  if (spec.engine === "chat-ui") {
-    if (tools.kind !== "node-source") {
-      throw new Error("Chat UI environments install with git and npm");
-    }
-    return chatUiJobSteps(checkedChatUiSpec(spec), tools, {
+  return environmentProvisioner(spec.engine).jobSteps(
+    spec,
+    tools,
+    {
       staging: environmentStagingDirectory(spec),
       final: environmentDirectory(spec),
-    });
-  }
-  if (tools.kind !== "uv") {
-    throw new Error(`${spec.engine} environments install with uv`);
-  }
-  const uv = tools.uv;
-  const staging = environmentStagingDirectory(spec);
-  const final = environmentDirectory(spec);
-  const python = resolve(staging, "bin", "python");
-  const provisioner = environmentProvisioner(spec.engine);
-  const install = [
-    uv,
-    "pip",
-    "install",
-    "--no-config",
-    "--python",
-    python,
-    ...provisioner.requirements(spec),
-    ...packageIndexInstallOptions(repositories.packageIndexUrl),
-    ...provisioner.installOptions(spec),
-  ];
-  const step = (
-    name: EnvironmentJobStepName,
-    command: string[],
-  ): EnvironmentJobStep => ({
-    name,
-    command,
-    status: "pending",
-    startedAt: null,
-    finishedAt: null,
-    exitCode: null,
-  });
-  return [
-    step(
-      "python-install",
-      repositories.pythonMirrorUrl
-        ? [
-            uv,
-            "python",
-            "install",
-            "--no-config",
-            "--mirror",
-            repositories.pythonMirrorUrl,
-            spec.pythonVersion,
-          ]
-        : [uv, "python", "install", "--no-config", spec.pythonVersion],
-    ),
-    step("venv-create", [
-      uv,
-      "venv",
-      "--no-config",
-      "--relocatable",
-      "--managed-python",
-      "--no-python-downloads",
-      "--python",
-      spec.pythonVersion,
-      staging,
-    ]),
-    ...(localWheelArtifacts(spec).length
-      ? [step("artifact-verify", ["verify-local-wheel-sha256"])]
-      : []),
-    step("package-install", install),
-    step("freeze", [
-      uv,
-      "pip",
-      "list",
-      "--no-config",
-      "--format",
-      "freeze",
-      "--python",
-      python,
-    ]),
-    step("finalize", ["finalize-environment", staging, final]),
-    step("validate", provisioner.validationCommand(spec, final)),
-  ];
+    },
+    repositories,
+  );
 }
 
 type Running = {
@@ -252,7 +124,10 @@ class EnvironmentRunner {
     const job = createEnvironmentJob({
       environmentId: spec.id,
       steps: environmentJobSteps(spec, tools, repositories),
-      logPath: resolve(config.logsDir, `env-${spec.id}-${Date.now()}.log`),
+      logPath: resolve(
+        config.logsDir,
+        environmentLogFileName(spec.id, Date.now()),
+      ),
     });
     let resolveDone!: () => void;
     const done = new Promise<void>((resolvePromise) => {
@@ -314,11 +189,8 @@ class EnvironmentRunner {
         log.write(`$ ${planned.command.join(" ")}\n`);
         let output = "";
         let exitCode = 0;
-        if (planned.name === "artifact-verify") {
-          await verifyLocalWheelArtifacts(spec, log);
-        } else if (planned.name === "manifest-patch") {
-          patchChatUiManifest(staging, log);
-        } else if (planned.name === "finalize") {
+        const inProcessStep = provisioner.inProcessSteps[planned.name];
+        if (planned.name === "finalize") {
           provisioner.prepareFinalize(spec, staging);
           const stagingEntrypoint = resolve(
             staging,
@@ -331,6 +203,8 @@ class EnvironmentRunner {
           }
           renameSync(staging, finalDir);
           finalized = true;
+        } else if (inProcessStep) {
+          await inProcessStep({ spec, stagingDir: staging, log });
         } else {
           const result = await this.runCommand(planned.command, log);
           output = result.stdout;

@@ -51,6 +51,7 @@ import {
 import { reloadPortableConfigCaches } from "./reload.js";
 import {
   assertConfigGitRepository,
+  configBackupPath,
   getConfigGitStatus,
   parseFileStatuses,
   resolveConfigGitCommit,
@@ -368,7 +369,7 @@ export function cloneConfigRepository(
         }
       }
       await ensureLocalExclude(staging);
-      backupPath = `${config.configDir}.backup-${Date.now()}`;
+      backupPath = configBackupPath(Date.now());
       if (existsSync(config.configDir))
         renameSync(config.configDir, backupPath);
       try {

@@ -1,4 +1,7 @@
-import { EnvironmentSpecSchema } from "@arriero/core";
+import {
+  environmentInstallChannel,
+  EnvironmentSpecSchema,
+} from "@arriero/core";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
@@ -229,7 +232,7 @@ test("chat-ui layout validation demands entrypoint, bundle and commit freeze", (
 
 test("chat-ui provisioner is a node-source channel outside the path catalog", () => {
   const provisioner = environmentProvisioner("chat-ui");
-  assert.equal(provisioner.tooling, "node-source");
+  assert.equal(environmentInstallChannel("chat-ui"), "node-source");
   assert.equal(provisioner.catalogEngineKind, null);
   assert.equal(provisioner.entrypointRelative, "bin/chat-ui");
   assert.deepEqual(provisioner.requirements(chatUiSpec()), []);

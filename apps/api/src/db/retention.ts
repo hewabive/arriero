@@ -6,7 +6,7 @@ export function startRetentionLoop(
 ): () => void {
   const timer = setInterval(() => {
     try {
-      prune();
+      Promise.resolve(prune()).catch((error) => options.onError?.(error));
     } catch (error) {
       options.onError?.(error);
     }

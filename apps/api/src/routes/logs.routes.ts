@@ -26,16 +26,17 @@ export function registerLogRoutes(app: Hono) {
     return c.json({ data: saveLogRetentionSettings(parsed.data) });
   });
 
-  app.get("/api/logs/usage", (c) => {
-    const usage: LogStorageUsage = {
-      ...getLogUsage(),
-      proxyRequests: apiProxyRequestFilesUsage(),
-    };
+  app.get("/api/logs/usage", async (c) => {
+    const [logs, proxyRequests] = await Promise.all([
+      getLogUsage(),
+      apiProxyRequestFilesUsage(),
+    ]);
+    const usage: LogStorageUsage = { ...logs, proxyRequests };
     return c.json({ data: usage });
   });
 
-  app.post("/api/logs/prune", (c) => {
-    const logs = pruneManagedLogs();
+  app.post("/api/logs/prune", async (c) => {
+    const logs = await pruneManagedLogs();
     const traces = pruneApiProxyTraceHistory();
     const result: LogPruneResult = {
       deletedFiles: logs.deletedFiles,

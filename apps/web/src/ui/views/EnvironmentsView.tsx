@@ -197,9 +197,9 @@ export function EnvironmentsView() {
                     </Badge>
                   </Group>
                   <Text size="xs" c="dimmed">
-                    {environment.engine === "chat-ui"
-                      ? "Node source build"
-                      : `Python ${environment.pythonVersion}`}
+                    {"pythonVersion" in environment
+                      ? `Python ${environment.pythonVersion}`
+                      : "Node source build"}
                     {environment.createdAt
                       ? ` · ${formatLocalDateTime(environment.createdAt)}`
                       : ""}

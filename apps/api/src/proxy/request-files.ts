@@ -10,12 +10,13 @@ import {
   readdirSync,
   rmSync,
   rmdirSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
 import { config } from "../config.js";
+import { statSizeOrNull } from "../utils/stat.js";
 
 const requestFilesRoot = resolve(config.dataDir, "proxy-requests");
 
@@ -123,33 +124,40 @@ export function pruneApiProxyRequestFiles(cutoffIso: string): number {
   return removed;
 }
 
-export function apiProxyRequestFilesUsage(): {
+async function readDirectoryEntriesAsync(path: string) {
+  try {
+    return await readdir(path, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+export async function apiProxyRequestFilesUsage(): Promise<{
   requestDirs: number;
   bytes: number;
-} {
+}> {
   let requestDirs = 0;
   let bytes = 0;
-  for (const modelEntry of readDirectoryEntries(requestFilesRoot)) {
+  for (const modelEntry of await readDirectoryEntriesAsync(requestFilesRoot)) {
     if (!modelEntry.isDirectory()) {
       continue;
     }
     const modelDir = resolve(requestFilesRoot, modelEntry.name);
-    for (const requestEntry of readDirectoryEntries(modelDir)) {
+    for (const requestEntry of await readDirectoryEntriesAsync(modelDir)) {
       if (!requestEntry.isDirectory()) {
         continue;
       }
       requestDirs += 1;
       const requestDir = resolve(modelDir, requestEntry.name);
-      for (const fileEntry of readDirectoryEntries(requestDir)) {
-        if (!fileEntry.isFile()) {
-          continue;
-        }
-        try {
-          bytes += statSync(resolve(requestDir, fileEntry.name)).size;
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-            throw error;
-          }
+      const entries = await readDirectoryEntriesAsync(requestDir);
+      const sizes = await Promise.all(
+        entries
+          .filter((entry) => entry.isFile())
+          .map((entry) => statSizeOrNull(resolve(requestDir, entry.name))),
+      );
+      for (const size of sizes) {
+        if (size !== null) {
+          bytes += size;
         }
       }
     }

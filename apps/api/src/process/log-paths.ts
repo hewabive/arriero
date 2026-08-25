@@ -16,3 +16,8 @@ function escapeRegExp(value: string): string {
 export function runLogFilePattern(name: string): RegExp {
   return new RegExp(`^${escapeRegExp(name)}-\\d+\\.(?:raw\\.)?log$`);
 }
+
+export function runLogFileTimestampMs(fileName: string): number | null {
+  const match = /^.+-(\d{13})\.(?:raw\.)?log$/.exec(fileName);
+  return match?.[1] ? Number(match[1]) : null;
+}

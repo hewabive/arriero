@@ -68,6 +68,18 @@ function bootStep<T>(name: string, run: () => T): T | null {
   }
 }
 
+async function bootStepAsync<T>(
+  name: string,
+  run: () => Promise<T>,
+): Promise<T | null> {
+  try {
+    return await run();
+  } catch (error) {
+    logger.error({ error }, `boot step failed: ${name}`);
+    return null;
+  }
+}
+
 const repairedPathDirectories = augmentProcessPath();
 if (repairedPathDirectories.length > 0) {
   logger.info(
@@ -147,7 +159,7 @@ const failedBenchmarkRuns = bootStep("fail interrupted benchmark runs", () =>
   failInterruptedBenchmarkRuns(),
 );
 const prunedTraceHistory = pruneApiProxyTraceHistory();
-const prunedManagedLogs = bootStep("prune managed logs", () =>
+const prunedManagedLogs = await bootStepAsync("prune managed logs", () =>
   pruneManagedLogs(),
 );
 const seededStatsTraces = apiProxyStats.seedFromHistory();

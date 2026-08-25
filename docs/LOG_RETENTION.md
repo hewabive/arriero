@@ -33,7 +33,12 @@ A file is never deleted when any of these hold:
 
 Category attribution (instance / webapp / build / env / update / other) is derived from the
 filename; protection is derived from the log paths recorded in the run rows, so an instance whose
-name collides with a job prefix is still protected correctly. Files of older retained closed runs
+name collides with a job prefix is still protected correctly. The filename grammar has one owner
+per family so creators and the retention classifier cannot drift: run-log names are composed and
+matched in `process/log-paths.ts`, build/env job-log names in `logs/log-names.ts` (which also holds
+the classifier patterns). The `update-<ts>.log` creation site alone stays a literal in
+`update/runner.ts` — that file is byte-frozen by the update-kit contract (`docs/SELF_UPDATE.md`),
+which is also what keeps its name stable. Files of older retained closed runs
 are deleted once past retention; the run row survives and the log tail reports the file as
 unreadable instead of failing. Instance/webapp deletion still removes its log files immediately
 (`instances/delete-cleanup.ts`), independent of retention.

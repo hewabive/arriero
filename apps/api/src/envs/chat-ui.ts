@@ -1,8 +1,6 @@
 import type { EnvironmentJobStep, EnvironmentSpec } from "@arriero/core";
 import {
-  accessSync,
   chmodSync,
-  constants,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -11,7 +9,9 @@ import {
 import { resolve } from "node:path";
 
 import type { CommandLog } from "../jobs/exec.js";
+import { executableError } from "../utils/executable.js";
 import type { NodeSourceTools } from "./node-tools.js";
+import { pendingJobStep } from "./steps.js";
 
 export const CHAT_UI_ENTRYPOINT_RELATIVE = "bin/chat-ui";
 
@@ -31,24 +31,7 @@ export function checkedChatUiSpec(
   return spec;
 }
 
-function step(
-  name: EnvironmentJobStep["name"],
-  command: string[],
-): EnvironmentJobStep {
-  return {
-    name,
-    command,
-    status: "pending",
-    startedAt: null,
-    finishedAt: null,
-    exitCode: null,
-  };
-}
-
-export function chatUiValidationCommand(
-  spec: ChatUiEnvironmentSpec,
-  finalDir: string,
-): string[] {
+export function chatUiValidationCommand(finalDir: string): string[] {
   const required = [
     resolve(finalDir, "build", "index.js"),
     resolve(finalDir, "build", "handler.js"),
@@ -73,7 +56,7 @@ export function chatUiJobSteps(
 ): EnvironmentJobStep[] {
   const { staging, final } = directories;
   return [
-    step("source-clone", [
+    pendingJobStep("source-clone", [
       tools.git,
       "clone",
       "--depth",
@@ -83,15 +66,15 @@ export function chatUiJobSteps(
       spec.source.url,
       staging,
     ]),
-    step("modules-install", [
+    pendingJobStep("modules-install", [
       tools.npm,
       "--prefix",
       staging,
       "ci",
       "--ignore-scripts",
     ]),
-    step("manifest-patch", ["patch-chat-ui-manifest", staging]),
-    step("app-build", [
+    pendingJobStep("manifest-patch", ["patch-chat-ui-manifest", staging]),
+    pendingJobStep("app-build", [
       "env",
       "NODE_OPTIONS=--max-old-space-size=2048",
       tools.npm,
@@ -100,7 +83,7 @@ export function chatUiJobSteps(
       "run",
       "build",
     ]),
-    step("modules-prune", [
+    pendingJobStep("modules-prune", [
       tools.npm,
       "--prefix",
       staging,
@@ -108,9 +91,9 @@ export function chatUiJobSteps(
       "--omit=dev",
       "--ignore-scripts",
     ]),
-    step("freeze", [tools.git, "-C", staging, "rev-parse", "HEAD"]),
-    step("finalize", ["finalize-environment", staging, final]),
-    step("validate", chatUiValidationCommand(spec, final)),
+    pendingJobStep("freeze", [tools.git, "-C", staging, "rev-parse", "HEAD"]),
+    pendingJobStep("finalize", ["finalize-environment", staging, final]),
+    pendingJobStep("validate", chatUiValidationCommand(final)),
   ];
 }
 
@@ -185,16 +168,6 @@ export function writeChatUiLauncher(stagingDir: string): void {
   const launcher = resolve(binDir, "chat-ui");
   writeFileSync(launcher, chatUiLauncherSource(process.execPath), "utf8");
   chmodSync(launcher, 0o755);
-}
-
-function executableError(path: string, description: string): string | null {
-  if (!existsSync(path)) return `${description} is missing: ${path}`;
-  try {
-    accessSync(path, constants.X_OK);
-    return null;
-  } catch {
-    return `${description} is not executable: ${path}`;
-  }
 }
 
 export function chatUiLayoutError(finalDir: string): string | null {

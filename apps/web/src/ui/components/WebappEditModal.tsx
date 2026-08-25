@@ -102,19 +102,18 @@ export function WebappEditModal({
         port,
       },
       autostart,
-      settings:
-        webapp.settings.type === "open-webui"
-          ? {
-              type: "open-webui",
-              auth,
-              slim,
-              defaultModels,
-              extraEnv: parsedExtraEnv.env,
-            }
-          : {
-              type: "chat-ui",
-              extraEnv: parsedExtraEnv.env,
-            },
+      settings: openWebuiSettings
+        ? {
+            type: "open-webui",
+            auth,
+            slim,
+            defaultModels,
+            extraEnv: parsedExtraEnv.env,
+          }
+        : {
+            type: "chat-ui",
+            extraEnv: parsedExtraEnv.env,
+          },
     });
   }
 

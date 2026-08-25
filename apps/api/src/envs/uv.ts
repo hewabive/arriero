@@ -1,27 +1,10 @@
 import type { UvToolStatus } from "@arriero/core";
-import { execFileSync } from "node:child_process";
 
-import { traceBlockingSection } from "../system/event-loop.js";
-import { findExecutableInPath } from "../system/tool-probe.js";
+import { findExecutableInPath, readVersionSync } from "../system/tool-probe.js";
 
 export type UvProbe =
   | { path: string; version: string; error: null }
   | { path: string | null; version: string | null; error: string };
-
-function readUvVersion(path: string): string | null {
-  try {
-    return traceBlockingSection(
-      "uv:version",
-      () =>
-        execFileSync(path, ["--version"], {
-          encoding: "utf8",
-          timeout: 2_000,
-        }).trim() || null,
-    );
-  } catch {
-    return null;
-  }
-}
 
 export function probeUv(pathValue = process.env.PATH): UvProbe {
   const path = findExecutableInPath("uv", pathValue);
@@ -32,7 +15,7 @@ export function probeUv(pathValue = process.env.PATH): UvProbe {
       error: "uv was not found on PATH",
     };
   }
-  const version = readUvVersion(path);
+  const version = readVersionSync(path, "uv");
   if (!version) {
     return {
       path,

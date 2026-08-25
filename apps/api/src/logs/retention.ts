@@ -1,14 +1,20 @@
-import type { LogFileCategory, LogStorageUsage } from "@arriero/core";
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  LOG_FILE_CATEGORIES,
+  type LogFileCategory,
+  type LogStorageUsage,
+} from "@arriero/core";
+import { readdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { config } from "../config.js";
 import { startRetentionLoop } from "../db/retention.js";
+import { runLogFileTimestampMs } from "../process/log-paths.js";
 import { listProtectedProcessRunLogPaths } from "../process/runs-repository.js";
 import { getLogRetentionSettings } from "../settings/logs.js";
-import { traceBlockingSection } from "../system/event-loop.js";
+import { statSizeOrNull } from "../utils/stat.js";
 import { webappLogsDir } from "../webapps/paths.js";
 import { listProtectedWebappRunLogPaths } from "../webapps/runs-repository.js";
+import { JOB_LOG_PATTERNS } from "./log-names.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_FILE_AGE_MS = DAY_MS;
@@ -23,17 +29,6 @@ type ManagedLogFile = {
 
 type DatedLogFile = ManagedLogFile & { timestampMs: number };
 
-const JOB_LOG_PATTERNS: Array<{
-  category: LogFileCategory;
-  pattern: RegExp;
-}> = [
-  { category: "build", pattern: /^build-(\d{13})\.log$/ },
-  { category: "update", pattern: /^update-(\d{13})\.log$/ },
-  { category: "env", pattern: /^env-.+-(\d{13})\.log$/ },
-];
-
-const RUN_LOG_PATTERN = /^.+-(\d{13})\.(?:raw\.)?log$/;
-
 function classifyLogFile(
   name: string,
   runCategory: LogFileCategory,
@@ -47,60 +42,58 @@ function classifyLogFile(
       }
     }
   }
-  const match = RUN_LOG_PATTERN.exec(name);
-  if (match?.[1]) {
-    return { category: runCategory, timestampMs: Number(match[1]) };
+  const timestampMs = runLogFileTimestampMs(name);
+  if (timestampMs !== null) {
+    return { category: runCategory, timestampMs };
   }
   return { category: "other", timestampMs: null };
 }
 
-function statSizeOrNull(path: string): number | null {
-  try {
-    return statSync(path).size;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return null;
-    }
-    throw error;
-  }
-}
-
-function scanDir(
+async function scanDir(
   dir: string,
   runCategory: LogFileCategory,
   withJobLogs: boolean,
-): ManagedLogFile[] {
-  if (!existsSync(dir)) {
-    return [];
-  }
-  const files: ManagedLogFile[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isFile()) {
-      continue;
+): Promise<ManagedLogFile[]> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
     }
-    const path = resolve(dir, entry.name);
-    const bytes = statSizeOrNull(path);
-    if (bytes === null) {
-      continue;
-    }
-    files.push({
-      path,
-      bytes,
-      ...classifyLogFile(entry.name, runCategory, withJobLogs),
-    });
+    throw error;
   }
-  return files;
+  const files = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map(async (entry): Promise<ManagedLogFile | null> => {
+        const path = resolve(dir, entry.name);
+        const bytes = await statSizeOrNull(path);
+        if (bytes === null) {
+          return null;
+        }
+        return {
+          path,
+          bytes,
+          ...classifyLogFile(entry.name, runCategory, withJobLogs),
+        };
+      }),
+  );
+  return files.filter((file): file is ManagedLogFile => file !== null);
 }
 
-function scanManagedLogFiles(): ManagedLogFile[] {
-  return [
-    ...scanDir(config.logsDir, "instance", true),
-    ...scanDir(webappLogsDir(), "webapp", false),
-  ];
+async function scanManagedLogFiles(): Promise<ManagedLogFile[]> {
+  const [managed, webapp] = await Promise.all([
+    scanDir(config.logsDir, "instance", true),
+    scanDir(webappLogsDir(), "webapp", false),
+  ]);
+  return [...managed, ...webapp];
 }
 
-export function getLogUsage(): Omit<LogStorageUsage, "proxyRequests"> {
-  const files = scanManagedLogFiles();
+export async function getLogUsage(): Promise<
+  Omit<LogStorageUsage, "proxyRequests">
+> {
+  const files = await scanManagedLogFiles();
   const byCategory = new Map<
     LogFileCategory,
     { files: number; bytes: number }
@@ -124,30 +117,32 @@ export function getLogUsage(): Omit<LogStorageUsage, "proxyRequests"> {
     totalFiles: files.length,
     totalBytes,
     oldestFileAt: oldestMs === null ? null : new Date(oldestMs).toISOString(),
-    categories: [...byCategory.entries()].map(([category, bucket]) => ({
-      category,
-      ...bucket,
-    })),
+    categories: LOG_FILE_CATEGORIES.flatMap((category) => {
+      const bucket = byCategory.get(category);
+      return bucket ? [{ category, ...bucket }] : [];
+    }),
   };
 }
 
-export function pruneManagedLogs(now = new Date()): {
+export async function pruneManagedLogs(now = new Date()): Promise<{
   deletedFiles: number;
   freedBytes: number;
-} {
+}> {
   const settings = getLogRetentionSettings();
-  const files = scanManagedLogFiles();
+  const files = await scanManagedLogFiles();
   const protectedPaths = new Set([
     ...listProtectedProcessRunLogPaths(),
     ...listProtectedWebappRunLogPaths(),
   ]);
   const minAgeCutoffMs = now.getTime() - MIN_FILE_AGE_MS;
   const ageCutoffMs = now.getTime() - settings.retentionDays * DAY_MS;
+  const capBytes =
+    settings.maxTotalMb === null ? Infinity : settings.maxTotalMb * MB;
 
   const deletable: DatedLogFile[] = [];
-  let totalBytes = 0;
+  let remainingBytes = 0;
   for (const file of files) {
-    totalBytes += file.bytes;
+    remainingBytes += file.bytes;
     if (
       file.timestampMs === null ||
       file.timestampMs >= minAgeCutoffMs ||
@@ -157,40 +152,20 @@ export function pruneManagedLogs(now = new Date()): {
     }
     deletable.push({ ...file, timestampMs: file.timestampMs });
   }
+  deletable.sort((a, b) => a.timestampMs - b.timestampMs);
 
-  const toDelete = new Map<string, DatedLogFile>();
-  for (const file of deletable) {
-    if (file.timestampMs < ageCutoffMs) {
-      toDelete.set(file.path, file);
-    }
-  }
-
-  if (settings.maxTotalMb !== null) {
-    const capBytes = settings.maxTotalMb * MB;
-    let remainingBytes = totalBytes;
-    for (const file of toDelete.values()) {
-      remainingBytes -= file.bytes;
-    }
-    const candidates = deletable
-      .filter((file) => !toDelete.has(file.path))
-      .sort((a, b) => a.timestampMs - b.timestampMs);
-    for (const file of candidates) {
-      if (remainingBytes <= capBytes) {
-        break;
-      }
-      toDelete.set(file.path, file);
-      remainingBytes -= file.bytes;
-    }
-  }
-
+  let deletedFiles = 0;
   let freedBytes = 0;
-  traceBlockingSection("logs:retention-prune", () => {
-    for (const file of toDelete.values()) {
-      rmSync(file.path, { force: true });
-      freedBytes += file.bytes;
+  for (const file of deletable) {
+    if (file.timestampMs >= ageCutoffMs && remainingBytes <= capBytes) {
+      break;
     }
-  });
-  return { deletedFiles: toDelete.size, freedBytes };
+    await rm(file.path, { force: true });
+    deletedFiles += 1;
+    freedBytes += file.bytes;
+    remainingBytes -= file.bytes;
+  }
+  return { deletedFiles, freedBytes };
 }
 
 export function startLogRetentionLoop(options: {

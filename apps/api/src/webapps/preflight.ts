@@ -1,5 +1,6 @@
 import {
   isWildcardHost,
+  webappDescriptor,
   type EnvironmentRecord,
   type WebappConfigRecord,
   type WebappPreflightIssue,
@@ -46,15 +47,15 @@ export async function checkWebappStartPreflight(
     }
   }
 
+  const descriptor = webappDescriptor(record.kind);
   if (
-    record.kind === "chat-ui" &&
+    descriptor.modelListRefresh === "startup" &&
     !listApiProxyModels().some((model) => model.visible)
   ) {
     issues.push({
       level: "warning",
       field: "kind",
-      message:
-        "the API proxy publishes no models — Chat UI reads the model list once at startup, so restart it after a model appears",
+      message: `the API proxy publishes no models — ${descriptor.displayName} reads the model list once at startup, so restart it after a model appears`,
     });
   }
 
@@ -64,10 +65,9 @@ export async function checkWebappStartPreflight(
     issues.push({
       level: "warning",
       field: "http.host",
-      message:
-        record.settings.type === "chat-ui"
-          ? "the UI listens on all interfaces and Chat UI has no built-in sign-in — anyone on the network gets full access"
-          : "the UI listens on all interfaces with authentication disabled — anyone on the network gets full access",
+      message: descriptor.builtInSignIn
+        ? "the UI listens on all interfaces with authentication disabled — anyone on the network gets full access"
+        : `the UI listens on all interfaces and ${descriptor.displayName} has no built-in sign-in — anyone on the network gets full access`,
     });
   }
 

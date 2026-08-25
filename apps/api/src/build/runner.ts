@@ -17,6 +17,7 @@ import { config } from "../config.js";
 import { runLoggedCommand } from "../jobs/exec.js";
 import { registerActiveJob } from "../jobs/registry.js";
 import { markJobStep } from "../jobs/steps.js";
+import { buildLogFileName } from "../logs/log-names.js";
 import { listLlamaSourceRefs } from "../llama/source-repository.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getActiveSourceRepositoryOperation } from "../sources/state.js";
@@ -153,7 +154,7 @@ class LlamaBuildRunner {
       steps,
       currentStep: null,
       startedAt: nowIso(),
-      logPath: resolve(config.logsDir, `build-${Date.now()}.log`),
+      logPath: resolve(config.logsDir, buildLogFileName(Date.now())),
     });
 
     this.running = {

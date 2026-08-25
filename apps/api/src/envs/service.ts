@@ -1,4 +1,5 @@
 import {
+  environmentInstallChannel,
   EnvironmentCreateSchema,
   EnvironmentRecordSchema,
   type EnvironmentCreate,
@@ -29,7 +30,8 @@ import {
   pruneEnvironmentMachineState,
 } from "./repository.js";
 import { probeNodeSourceTools } from "./node-tools.js";
-import { environmentRunner, type EnvironmentTooling } from "./runner.js";
+import type { EnvironmentTooling } from "./provisioners.js";
+import { environmentRunner } from "./runner.js";
 import { probeUv } from "./uv.js";
 import { environmentLayoutError } from "./validation.js";
 import { rocmDeviceAvailable } from "./availability.js";
@@ -98,7 +100,7 @@ function assertCanStart(engine: EnvironmentSpec["engine"]): EnvironmentTooling {
   if (environmentRunner.activeEnvironmentId()) {
     throw new Error("another environment installation is already running");
   }
-  if (environmentProvisioner(engine).tooling === "node-source") {
+  if (environmentInstallChannel(engine) === "node-source") {
     const probe = probeNodeSourceTools();
     if (probe.error !== null) throw new Error(probe.error);
     return { kind: "node-source", ...probe.tools };

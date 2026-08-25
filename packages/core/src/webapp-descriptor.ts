@@ -1,4 +1,8 @@
-import type { EnvironmentEngine } from "./environments.js";
+import {
+  CHAT_UI_DEFAULT_VERSION,
+  type EnvironmentCreateInput,
+  type EnvironmentEngine,
+} from "./environments.js";
 
 export const WEBAPP_KINDS = ["open-webui", "chat-ui"] as const;
 
@@ -12,6 +16,9 @@ export type WebappDescriptor = {
   id: WebappKind;
   displayName: string;
   environmentEngine: EnvironmentEngine;
+  defaultInstallVersion: string;
+  builtInSignIn: boolean;
+  modelListRefresh: "live" | "startup";
   http: { defaultHost: string; defaultPort: number };
   launch: {
     argvPrefix: readonly string[];
@@ -32,6 +39,9 @@ const WEBAPP_DESCRIPTORS: Record<WebappKind, WebappDescriptor> = {
     id: "open-webui",
     displayName: "Open WebUI",
     environmentEngine: "open-webui",
+    defaultInstallVersion: "",
+    builtInSignIn: true,
+    modelListRefresh: "live",
     http: { defaultHost: "127.0.0.1", defaultPort: 3000 },
     launch: {
       argvPrefix: ["serve"],
@@ -66,6 +76,9 @@ const WEBAPP_DESCRIPTORS: Record<WebappKind, WebappDescriptor> = {
     id: "chat-ui",
     displayName: "Chat UI",
     environmentEngine: "chat-ui",
+    defaultInstallVersion: CHAT_UI_DEFAULT_VERSION,
+    builtInSignIn: false,
+    modelListRefresh: "startup",
     http: { defaultHost: "127.0.0.1", defaultPort: 3001 },
     launch: {
       argvPrefix: [],
@@ -93,4 +106,19 @@ const WEBAPP_DESCRIPTORS: Record<WebappKind, WebappDescriptor> = {
 
 export function webappDescriptor(kind: WebappKind): WebappDescriptor {
   return WEBAPP_DESCRIPTORS[kind];
+}
+
+const WEBAPP_ENVIRONMENT_CREATE_INPUTS: Record<
+  WebappKind,
+  (version: string) => EnvironmentCreateInput
+> = {
+  "open-webui": (version) => ({ engine: "open-webui", version }),
+  "chat-ui": (version) => ({ engine: "chat-ui", version }),
+};
+
+export function webappEnvironmentCreateInput(
+  kind: WebappKind,
+  version: string,
+): EnvironmentCreateInput {
+  return WEBAPP_ENVIRONMENT_CREATE_INPUTS[kind](version);
 }

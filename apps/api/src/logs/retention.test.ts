@@ -77,7 +77,7 @@ beforeEach(() => {
   db.delete(webappRuns).run();
 });
 
-test("age prune deletes expired files but keeps protected, recent and unclassified ones", () => {
+test("age prune deletes expired files but keeps protected, recent and unclassified ones", async () => {
   saveLogRetentionSettings({ retentionDays: 30, maxTotalMb: null });
   const old = msBefore(40);
   const mid = msBefore(10);
@@ -118,7 +118,7 @@ test("age prune deletes expired files but keeps protected, recent and unclassifi
     logPath: wOpen,
   });
 
-  const result = pruneManagedLogs(NOW);
+  const result = await pruneManagedLogs(NOW);
 
   assert.equal(result.deletedFiles, 5);
   assert.equal(result.freedBytes, 50);
@@ -130,13 +130,13 @@ test("age prune deletes expired files but keeps protected, recent and unclassifi
   }
 });
 
-test("size cap deletes the oldest deletable files until under the cap", () => {
+test("size cap deletes the oldest deletable files until under the cap", async () => {
   saveLogRetentionSettings({ retentionDays: 3650, maxTotalMb: 16 });
   const d10 = writeLog(config.logsDir, `delta-${msBefore(10)}.log`, 10 * MB);
   const d5 = writeLog(config.logsDir, `delta-${msBefore(5)}.log`, 5 * MB);
   const d2 = writeLog(config.logsDir, `delta-${msBefore(2)}.log`, 4 * MB);
 
-  const result = pruneManagedLogs(NOW);
+  const result = await pruneManagedLogs(NOW);
 
   assert.equal(result.deletedFiles, 1);
   assert.equal(result.freedBytes, 10 * MB);
@@ -145,7 +145,7 @@ test("size cap deletes the oldest deletable files until under the cap", () => {
   assert.equal(existsSync(d2), true);
 });
 
-test("size cap skips protected files and moves to the next oldest", () => {
+test("size cap skips protected files and moves to the next oldest", async () => {
   saveLogRetentionSettings({ retentionDays: 3650, maxTotalMb: 16 });
   const e10 = writeLog(config.logsDir, `eps-${msBefore(10)}.log`, 10 * MB);
   const e5 = writeLog(config.logsDir, `eps-${msBefore(5)}.log`, 5 * MB);
@@ -159,7 +159,7 @@ test("size cap skips protected files and moves to the next oldest", () => {
     logPath: e10,
   });
 
-  const result = pruneManagedLogs(NOW);
+  const result = await pruneManagedLogs(NOW);
 
   assert.equal(result.deletedFiles, 1);
   assert.equal(existsSync(e10), true);
@@ -167,7 +167,7 @@ test("size cap skips protected files and moves to the next oldest", () => {
   assert.equal(existsSync(e2), true);
 });
 
-test("files younger than a day are never deleted, even over the cap", () => {
+test("files younger than a day are never deleted, even over the cap", async () => {
   saveLogRetentionSettings({ retentionDays: 1, maxTotalMb: 16 });
   const young = writeLog(
     config.logsDir,
@@ -175,13 +175,13 @@ test("files younger than a day are never deleted, even over the cap", () => {
     20 * MB,
   );
 
-  const result = pruneManagedLogs(NOW);
+  const result = await pruneManagedLogs(NOW);
 
   assert.equal(result.deletedFiles, 0);
   assert.equal(existsSync(young), true);
 });
 
-test("usage aggregates files per category with the oldest timestamp", () => {
+test("usage aggregates files per category with the oldest timestamp", async () => {
   const old = msBefore(12);
   writeLog(config.logsDir, `alpha-${old}.log`, 100);
   writeLog(config.logsDir, `alpha-${msBefore(3)}.raw.log`, 40);
@@ -189,7 +189,7 @@ test("usage aggregates files per category with the oldest timestamp", () => {
   writeLog(config.logsDir, "notes.txt", 7);
   writeLog(webappLogsDir(), `chat-${msBefore(4)}.log`, 20);
 
-  const usage = getLogUsage();
+  const usage = await getLogUsage();
 
   assert.equal(usage.totalFiles, 5);
   assert.equal(usage.totalBytes, 197);

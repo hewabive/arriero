@@ -1,4 +1,4 @@
-import { LOG_FILE_CATEGORIES, type LogFileCategory } from "@arriero/core";
+import type { LogFileCategory } from "@arriero/core";
 import {
   Button,
   Group,
@@ -22,6 +22,7 @@ import {
 import { useApiProxySettings } from "../proxy/use-api-proxy-settings";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import { formatLocalDateTime } from "../utils/time";
 
 const CATEGORY_LABELS: Record<LogFileCategory, string> = {
   instance: "Instance runs",
@@ -37,6 +38,7 @@ function LogStorageCard() {
   const usageQuery = useQuery({
     queryKey: ["log-storage-usage"],
     queryFn: getLogStorageUsage,
+    staleTime: 120_000,
   });
   const settingsQuery = useQuery({
     queryKey: ["log-retention-settings"],
@@ -90,13 +92,6 @@ function LogStorageCard() {
       }),
   });
 
-  const categories = usage
-    ? [...usage.categories].sort(
-        (a, b) =>
-          LOG_FILE_CATEGORIES.indexOf(a.category) -
-          LOG_FILE_CATEGORIES.indexOf(b.category),
-      )
-    : [];
   const effectiveRetentionDays = retentionDays ?? settings?.retentionDays ?? 30;
   const effectiveMaxTotal = maxTotalMb ?? settings?.maxTotalMb ?? "off";
   const effectiveMaxTotalValue =
@@ -131,7 +126,7 @@ function LogStorageCard() {
         {usage && (
           <Table verticalSpacing={4}>
             <Table.Tbody>
-              {categories.map((entry) => (
+              {usage.categories.map((entry) => (
                 <Table.Tr key={entry.category}>
                   <Table.Td>{CATEGORY_LABELS[entry.category]}</Table.Td>
                   <Table.Td>{countLabel(entry.files, "file")}</Table.Td>
@@ -150,7 +145,7 @@ function LogStorageCard() {
         )}
         {usage?.oldestFileAt && (
           <Text size="sm" c="dimmed">
-            Oldest log file: {new Date(usage.oldestFileAt).toLocaleString()}
+            Oldest log file: {formatLocalDateTime(usage.oldestFileAt)}
           </Text>
         )}
         <Group align="flex-end" gap="sm" wrap="wrap">
@@ -196,6 +191,7 @@ function ProxyHistoryCard() {
   const usageQuery = useQuery({
     queryKey: ["log-storage-usage"],
     queryFn: getLogStorageUsage,
+    staleTime: 120_000,
   });
   const proxyRequests = usageQuery.data?.data.proxyRequests ?? null;
   const { query, mutation, settings } = useApiProxySettings((error) =>

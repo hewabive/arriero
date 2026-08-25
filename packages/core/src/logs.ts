@@ -13,8 +13,10 @@ export const LogFileCategorySchema = z.enum(LOG_FILE_CATEGORIES);
 
 export type LogFileCategory = z.infer<typeof LogFileCategorySchema>;
 
+export const RetentionDaysSchema = z.number().int().min(1).max(3650);
+
 export const LogRetentionSettingsSchema = z.object({
-  retentionDays: z.number().int().min(1).max(3650).default(30),
+  retentionDays: RetentionDaysSchema.default(30),
   maxTotalMb: z.number().int().min(16).max(1_048_576).nullable().default(null),
 });
 

@@ -6,6 +6,7 @@ import {
   ApiEndpointRecordSchema,
   ApiProxyStreamIdleTimeoutSchema,
 } from "../api-endpoints.js";
+import { RetentionDaysSchema } from "../logs.js";
 import { InstanceMemoryDrawSchema } from "../memory-assessment.js";
 import { MemoryPoolKindSchema } from "../resources.js";
 import {
@@ -275,11 +276,7 @@ export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
   keyConfigured: z.boolean().default(false),
 });
 
-export const ApiProxyTraceRetentionDaysSchema = z
-  .number()
-  .int()
-  .min(1)
-  .max(3650);
+export const ApiProxyTraceRetentionDaysSchema = RetentionDaysSchema;
 
 export const ApiProxySettingsSchema = z.object({
   allowAnonymous: z.boolean().default(true),

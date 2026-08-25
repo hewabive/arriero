@@ -1,5 +1,5 @@
 import {
-  CHAT_UI_DEFAULT_VERSION,
+  environmentInstallChannel,
   OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
   WEBAPP_KINDS,
   WEBAPP_NAME_PATTERN,
@@ -63,10 +63,14 @@ export function WebappCreateForm({
   onSubmit: (submit: WebappCreateSubmit) => void;
 }) {
   const [kind, setKind] = useState<WebappKind>("open-webui");
+  const environmentsFor = (target: WebappKind) =>
+    environments.filter(
+      (environment) =>
+        environment.engine === webappDescriptor(target).environmentEngine,
+    );
   const descriptor = webappDescriptor(kind);
-  const kindEnvironments = environments.filter(
-    (environment) => environment.engine === descriptor.environmentEngine,
-  );
+  const channel = environmentInstallChannel(descriptor.environmentEngine);
+  const kindEnvironments = environmentsFor(kind);
 
   const [name, setName] = useState("open-webui");
   const [envMode, setEnvMode] = useState<"existing" | "install">(
@@ -85,9 +89,7 @@ export function WebappCreateForm({
 
   function switchKind(next: WebappKind) {
     const nextDescriptor = webappDescriptor(next);
-    const nextEnvironments = environments.filter(
-      (environment) => environment.engine === nextDescriptor.environmentEngine,
-    );
+    const nextEnvironments = environmentsFor(next);
     setKind(next);
     if (name === kind) {
       setName(next);
@@ -97,7 +99,7 @@ export function WebappCreateForm({
     }
     setEnvMode(nextEnvironments.length > 0 ? "existing" : "install");
     setEnvSpecId(nextEnvironments[0]?.id ?? null);
-    setVersion(next === "chat-ui" ? CHAT_UI_DEFAULT_VERSION : "");
+    setVersion(nextDescriptor.defaultInstallVersion);
   }
 
   const versionsQuery = useQuery({
@@ -107,7 +109,7 @@ export function WebappCreateForm({
         descriptor.environmentEngine,
         OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
       ),
-    enabled: envMode === "install" && kind === "open-webui",
+    enabled: envMode === "install" && channel === "uv",
     staleTime: 120_000,
   });
   const versionOptions = useMemo(
@@ -127,7 +129,7 @@ export function WebappCreateForm({
   const envValid =
     envMode === "existing" ? Boolean(envSpecId) : Boolean(version.trim());
   const canSubmit = nameValid && envValid && port >= 1 && port <= 65535;
-  const openWithoutAuth = lan && (kind === "chat-ui" || !auth);
+  const openWithoutAuth = lan && (!descriptor.builtInSignIn || !auth);
 
   function submit() {
     const input: Omit<WebappCreate, "envSpecId"> = {
@@ -202,7 +204,7 @@ export function WebappCreateForm({
               onChange={setEnvSpecId}
               style={{ flex: 1 }}
             />
-          ) : kind === "chat-ui" ? (
+          ) : channel === "node-source" ? (
             <TextInput
               label="Git ref"
               description="Tag or branch of huggingface/chat-ui; built from source"
@@ -264,9 +266,9 @@ export function WebappCreateForm({
         </Group>
         {openWithoutAuth && (
           <Alert color="orange" icon={<TriangleAlert size={16} />}>
-            {kind === "chat-ui"
-              ? "Chat UI has no built-in sign-in — it will be reachable from the whole network."
-              : "The UI will be reachable from the whole network without sign-in."}
+            {descriptor.builtInSignIn
+              ? "The UI will be reachable from the whole network without sign-in."
+              : `${descriptor.displayName} has no built-in sign-in — it will be reachable from the whole network.`}
           </Alert>
         )}
         <Group justify="space-between">

@@ -13,14 +13,20 @@ in the proxy endpoint catalog — it is a *client* of the proxy, not an upstream
 mirroring `engineDescriptor`: a `Record<WebappKind, WebappDescriptor>` whose exhaustiveness makes
 the compiler point at every spot a new kind must fill in. A descriptor declares the environment
 engine that hosts the kind (`environmentEngine` — create validation and the web environment pickers
-derive the kind↔engine link from it rather than comparing the two id strings), default host/port,
-the launch argv shape (always `--host`/`--port` flags — Chat UI's generated launcher translates
-them into the `HOST`/`PORT` variables its server reads), the health-probe path, the config-render
-id (implemented api-side in `webapps/render.ts`), the probe-noise log grammar (`logGrammar`,
-`uvicorn` or `pino`, applied by the supervisor's filtered-log tail), whether the kind needs a
-manager-issued session secret (`sessionSecret`), the env keys the renderer owns (`reservedEnvKeys`
-— rejected in user `extraEnv` by a core schema refinement), the files or directories to back up
-before a version switch, and an install footprint note surfaced by the create form.
+derive the kind↔engine link from it rather than comparing the two id strings; the engine's install
+channel comes from `environmentInstallChannel(engine)` in core, and the env-spec a new install
+needs comes from `webappEnvironmentCreateInput(kind, version)`), the version the create form
+pre-fills for a fresh install (`defaultInstallVersion`), whether the app ships its own sign-in
+(`builtInSignIn` — drives the open-LAN warnings in preflight and the create form) and whether it
+re-reads the proxy model list live or only at startup (`modelListRefresh` — drives the
+empty-catalog restart warning), default host/port, the launch argv shape (always `--host`/`--port`
+flags — Chat UI's generated launcher translates them into the `HOST`/`PORT` variables its server
+reads), the health-probe path, the config-render id (implemented api-side in `webapps/render.ts`),
+the probe-noise log grammar (`logGrammar`, `uvicorn` or `pino`, applied by the supervisor's
+filtered-log tail), whether the kind needs a manager-issued session secret (`sessionSecret`), the
+env keys the renderer owns (`reservedEnvKeys` — rejected in user `extraEnv` by a core schema
+refinement), the files or directories to back up before a version switch, and an install footprint
+note surfaced by the create form.
 
 ## Installation rides the environments domain
 

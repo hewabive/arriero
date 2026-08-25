@@ -1,27 +1,37 @@
 import {
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
   ENVIRONMENT_ENGINE_LABELS,
+  packageIndexInstallOptions,
   type ComputeCapability,
   type EnvironmentEngine,
+  type EnvironmentJobStep,
+  type EnvironmentRepositorySettings,
   type EnvironmentSpec,
   type InstanceKind,
   type SystemAccelerator,
 } from "@arriero/core";
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { CommandLog } from "../jobs/exec.js";
+import { executableError } from "../utils/executable.js";
 import {
   environmentAvailability,
   type EnvironmentAvailability,
 } from "./availability.js";
 import {
   CHAT_UI_ENTRYPOINT_RELATIVE,
+  chatUiJobSteps,
   chatUiLayoutError,
   chatUiValidationCommand,
   checkedChatUiSpec,
+  patchChatUiManifest,
   writeChatUiLauncher,
 } from "./chat-ui.js";
+import type { NodeSourceTools } from "./node-tools.js";
+import { pendingJobStep } from "./steps.js";
 
 type EnvironmentAvailabilityContext = {
   accelerators: SystemAccelerator[];
@@ -36,15 +46,38 @@ type EnvironmentWheelArtifact = {
   sha256: string | null;
 };
 
+export type EnvironmentTooling =
+  | { kind: "uv"; uv: string }
+  | ({ kind: "node-source" } & NodeSourceTools);
+
+type EnvironmentJobDirectories = { staging: string; final: string };
+
+type EnvironmentInProcessStepContext = {
+  spec: EnvironmentSpec;
+  stagingDir: string;
+  log: CommandLog;
+};
+
 export type EnvironmentProvisioner = {
   displayName: string;
-  tooling: "uv" | "node-source";
   entrypointRelative: string;
   distributions: readonly string[];
   catalogEngineKind: InstanceKind | null;
   requirements(spec: EnvironmentSpec): string[];
   installOptions(spec: EnvironmentSpec): string[];
   wheelArtifacts(spec: EnvironmentSpec): EnvironmentWheelArtifact[];
+  jobSteps(
+    spec: EnvironmentSpec,
+    tools: EnvironmentTooling,
+    directories: EnvironmentJobDirectories,
+    repositories: EnvironmentRepositorySettings,
+  ): EnvironmentJobStep[];
+  inProcessSteps: Partial<
+    Record<
+      EnvironmentJobStep["name"],
+      (context: EnvironmentInProcessStepContext) => Promise<void> | void
+    >
+  >;
   validationCommand(spec: EnvironmentSpec, finalDir: string): string[];
   validateLayout(spec: EnvironmentSpec, finalDir: string): string | null;
   prepareFinalize(spec: EnvironmentSpec, stagingDir: string): void;
@@ -60,15 +93,130 @@ function wheelRequirement(url: string, sha256: string | null) {
   return `${url}${sha256 ? `#sha256=${sha256}` : ""}`;
 }
 
-function executableError(path: string, description: string) {
-  if (!existsSync(path)) return `${description} is missing: ${path}`;
-  try {
-    accessSync(path, constants.X_OK);
-    return null;
-  } catch {
-    return `${description} is not executable: ${path}`;
+function localWheelArtifacts(
+  provisioner: EnvironmentProvisioner,
+  spec: EnvironmentSpec,
+) {
+  return provisioner.wheelArtifacts(spec).flatMap((artifact) => {
+    if (!artifact.sha256 || new URL(artifact.url).protocol !== "file:") {
+      return [];
+    }
+    return [
+      {
+        path: fileURLToPath(artifact.url),
+        sha256: artifact.sha256.toLowerCase(),
+      },
+    ];
+  });
+}
+
+function sha256File(path: string) {
+  return new Promise<string>((resolveHash, reject) => {
+    const hash = createHash("sha256");
+    const input = createReadStream(path);
+    input.on("error", reject);
+    input.on("data", (chunk) => hash.update(chunk));
+    input.on("end", () => resolveHash(hash.digest("hex")));
+  });
+}
+
+async function verifyLocalWheelArtifacts(
+  provisioner: EnvironmentProvisioner,
+  spec: EnvironmentSpec,
+  log: CommandLog,
+) {
+  for (const artifact of localWheelArtifacts(provisioner, spec)) {
+    const actual = await sha256File(artifact.path);
+    if (actual !== artifact.sha256) {
+      throw new Error(
+        `wheel SHA-256 mismatch for ${artifact.path}: expected ${artifact.sha256}, got ${actual}`,
+      );
+    }
+    log.write(`# verified SHA-256 ${actual}  ${artifact.path}\n`);
   }
 }
+
+function checkedUvSpec(spec: EnvironmentSpec) {
+  if (spec.engine === "chat-ui") {
+    throw new Error("Chat UI environments install with git and npm");
+  }
+  return spec;
+}
+
+function uvJobSteps(
+  provisioner: EnvironmentProvisioner,
+  spec: EnvironmentSpec,
+  tools: EnvironmentTooling,
+  directories: EnvironmentJobDirectories,
+  repositories: EnvironmentRepositorySettings,
+): EnvironmentJobStep[] {
+  if (tools.kind !== "uv") {
+    throw new Error(`${spec.engine} environments install with uv`);
+  }
+  const pythonVersion = checkedUvSpec(spec).pythonVersion;
+  const uv = tools.uv;
+  const { staging, final } = directories;
+  const python = resolve(staging, "bin", "python");
+  const install = [
+    uv,
+    "pip",
+    "install",
+    "--no-config",
+    "--python",
+    python,
+    ...provisioner.requirements(spec),
+    ...packageIndexInstallOptions(repositories.packageIndexUrl),
+    ...provisioner.installOptions(spec),
+  ];
+  return [
+    pendingJobStep(
+      "python-install",
+      repositories.pythonMirrorUrl
+        ? [
+            uv,
+            "python",
+            "install",
+            "--no-config",
+            "--mirror",
+            repositories.pythonMirrorUrl,
+            pythonVersion,
+          ]
+        : [uv, "python", "install", "--no-config", pythonVersion],
+    ),
+    pendingJobStep("venv-create", [
+      uv,
+      "venv",
+      "--no-config",
+      "--relocatable",
+      "--managed-python",
+      "--no-python-downloads",
+      "--python",
+      pythonVersion,
+      staging,
+    ]),
+    ...(localWheelArtifacts(provisioner, spec).length
+      ? [pendingJobStep("artifact-verify", ["verify-local-wheel-sha256"])]
+      : []),
+    pendingJobStep("package-install", install),
+    pendingJobStep("freeze", [
+      uv,
+      "pip",
+      "list",
+      "--no-config",
+      "--format",
+      "freeze",
+      "--python",
+      python,
+    ]),
+    pendingJobStep("finalize", ["finalize-environment", staging, final]),
+    pendingJobStep("validate", provisioner.validationCommand(spec, final)),
+  ];
+}
+
+const UV_IN_PROCESS_STEPS: EnvironmentProvisioner["inProcessSteps"] = {
+  "artifact-verify": ({ spec, log }) =>
+    verifyLocalWheelArtifacts(environmentProvisioner(spec.engine), spec, log),
+};
 
 function commonLayoutError(input: {
   finalDir: string;
@@ -166,10 +314,13 @@ function singleDistributionProvisioner(options: {
   }
   return {
     displayName,
-    tooling: "uv",
     entrypointRelative: `bin/${engine}`,
     distributions: [engine],
     catalogEngineKind,
+    jobSteps(spec, tools, directories, repositories) {
+      return uvJobSteps(this, spec, tools, directories, repositories);
+    },
+    inProcessSteps: UV_IN_PROCESS_STEPS,
     requirements(spec) {
       const checked = checkedSpec(spec);
       if (checked.source.kind === "wheel") {
@@ -258,10 +409,13 @@ const OPEN_WEBUI_PROVISIONER = singleDistributionProvisioner({
 
 const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   displayName: ENVIRONMENT_ENGINE_LABELS.ktransformers,
-  tooling: "uv",
   entrypointRelative: "bin/sglang",
   distributions: ["kt-kernel", "sglang-kt"],
   catalogEngineKind: "ktransformers",
+  jobSteps(spec, tools, directories, repositories) {
+    return uvJobSteps(this, spec, tools, directories, repositories);
+  },
+  inProcessSteps: UV_IN_PROCESS_STEPS,
   requirements(spec) {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
@@ -354,7 +508,6 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
 
 const CHAT_UI_PROVISIONER: EnvironmentProvisioner = {
   displayName: ENVIRONMENT_ENGINE_LABELS["chat-ui"],
-  tooling: "node-source",
   entrypointRelative: CHAT_UI_ENTRYPOINT_RELATIVE,
   distributions: [],
   catalogEngineKind: null,
@@ -367,8 +520,20 @@ const CHAT_UI_PROVISIONER: EnvironmentProvisioner = {
   wheelArtifacts() {
     return [];
   },
+  jobSteps(spec, tools, directories) {
+    if (tools.kind !== "node-source") {
+      throw new Error("Chat UI environments install with git and npm");
+    }
+    return chatUiJobSteps(checkedChatUiSpec(spec), tools, directories);
+  },
+  inProcessSteps: {
+    "manifest-patch": ({ stagingDir, log }) => {
+      patchChatUiManifest(stagingDir, log);
+    },
+  },
   validationCommand(spec, finalDir) {
-    return chatUiValidationCommand(checkedChatUiSpec(spec), finalDir);
+    checkedChatUiSpec(spec);
+    return chatUiValidationCommand(finalDir);
   },
   validateLayout(spec, finalDir) {
     checkedChatUiSpec(spec);

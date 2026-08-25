@@ -171,6 +171,25 @@ export const ENVIRONMENT_ENGINE_LABELS: Record<
   "chat-ui": "Chat UI",
 };
 
+export type EnvironmentInstallChannel = "uv" | "node-source";
+
+const ENVIRONMENT_ENGINE_CHANNELS: Record<
+  z.infer<typeof EnvironmentEngineSchema>,
+  EnvironmentInstallChannel
+> = {
+  vllm: "uv",
+  sglang: "uv",
+  ktransformers: "uv",
+  "open-webui": "uv",
+  "chat-ui": "node-source",
+};
+
+export function environmentInstallChannel(
+  engine: z.infer<typeof EnvironmentEngineSchema>,
+): EnvironmentInstallChannel {
+  return ENVIRONMENT_ENGINE_CHANNELS[engine];
+}
+
 const EnvironmentCommonShape = {
   version: EnvironmentVersionSchema,
 };

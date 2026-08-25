@@ -3,11 +3,14 @@
 The Environments domain provisions immutable application installations — the Python
 inference engines, plus non-engine web apps such as Open WebUI and Chat UI
 (`docs/WEBAPPS.md`). It is separate from the llama.cpp CMake Build domain.
-Per-application package, entrypoint, validation, availability, and catalog behavior is
-selected through the API-side provisioner registry; orchestration remains shared. Each
-provisioner declares its install channel via `tooling`: `uv` (Python venvs, everything
-below unless said otherwise) or `node-source` (Chat UI — a git checkout built with the
-host `git`/`npm`, run on the manager's own Node; see the Chat UI section).
+Per-application package, entrypoint, validation, availability, catalog behavior, the
+job-step plan (`jobSteps`) and any steps executed inside the manager process
+(`inProcessSteps`, e.g. wheel-hash verification or the Chat UI manifest patch) are
+selected through the API-side provisioner registry (`envs/provisioners.ts`); the runner
+only walks the plan. The engine→channel map lives in core
+(`environmentInstallChannel`): `uv` (Python venvs, everything below unless said
+otherwise) or `node-source` (Chat UI — a git checkout built with the host `git`/`npm`,
+run on the manager's own Node; see the Chat UI section).
 
 ## Desired state and runtime state
 

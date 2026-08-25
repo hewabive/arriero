@@ -1,7 +1,9 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { delimiter, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
+
+import { traceBlockingSection } from "./event-loop.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -47,6 +49,21 @@ export function resolveExecutable(
     return existsSync(candidate) ? candidate : null;
   }
   return findExecutableInPath(value, env.PATH);
+}
+
+export function readVersionSync(path: string, label: string): string | null {
+  try {
+    return traceBlockingSection(
+      `${label}:version`,
+      () =>
+        execFileSync(path, ["--version"], {
+          encoding: "utf8",
+          timeout: 5_000,
+        }).trim() || null,
+    );
+  } catch {
+    return null;
+  }
 }
 
 function firstLine(output: string): string | null {

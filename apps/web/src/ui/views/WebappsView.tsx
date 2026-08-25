@@ -1,5 +1,6 @@
 import {
   webappDescriptor,
+  webappEnvironmentCreateInput,
   type Webapp,
   type WebappUpdate,
 } from "@arriero/core";
@@ -119,9 +120,10 @@ export function WebappsView() {
           ? submit.env.envSpecId
           : (
               await createEnvironment(
-                submit.input.kind === "chat-ui"
-                  ? { engine: "chat-ui", version: submit.env.version }
-                  : { engine: "open-webui", version: submit.env.version },
+                webappEnvironmentCreateInput(
+                  submit.input.kind,
+                  submit.env.version,
+                ),
               )
             ).data.environment.id;
       return createWebapp({ ...submit.input, envSpecId });
