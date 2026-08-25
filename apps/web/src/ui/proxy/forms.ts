@@ -61,6 +61,7 @@ export type ModelDraft = {
   enabled: boolean;
   ownedBy: string;
   routeToValue: string | null;
+  upstreamModel: string;
   description: string;
   blockedMessage: string;
 };
@@ -226,6 +227,11 @@ export type PipelineDraft = {
 export const unboundTargetValue = "__unbound__";
 const routeToTargetPrefix = "target:";
 const routeToPipelinePrefix = "pipeline:";
+export const routeToEndpointPrefix = "endpoint:";
+
+export function isEndpointRouteValue(value: string | null): boolean {
+  return value !== null && value.startsWith(routeToEndpointPrefix);
+}
 
 export const emptyTargetDraft: TargetDraft = {
   name: "",
@@ -245,6 +251,7 @@ export const emptyModelDraft: ModelDraft = {
   enabled: true,
   ownedBy: "arriero",
   routeToValue: null,
+  upstreamModel: "",
   description: "",
   blockedMessage: "",
 };
@@ -513,13 +520,19 @@ function slotIdsText(value: number[]) {
 }
 
 function routeToValue(routeTo: ApiProxyRouteTo | null | undefined) {
-  if (!routeTo || routeTo.type === "endpoint") {
+  if (!routeTo) {
     return null;
+  }
+  if (routeTo.type === "endpoint") {
+    return `${routeToEndpointPrefix}${routeTo.endpointId}`;
   }
   return `${routeTo.type}:${routeTo.id}`;
 }
 
-function routeToFromValue(value: string | null): ApiProxyRouteTo | null {
+function routeToFromValue(
+  value: string | null,
+  upstreamModel: string | null,
+): ApiProxyRouteTo | null {
   if (!value || value === unboundTargetValue) {
     return null;
   }
@@ -528,6 +541,13 @@ function routeToFromValue(value: string | null): ApiProxyRouteTo | null {
   }
   if (value.startsWith(routeToPipelinePrefix)) {
     return { type: "pipeline", id: value.slice(routeToPipelinePrefix.length) };
+  }
+  if (value.startsWith(routeToEndpointPrefix)) {
+    return {
+      type: "endpoint",
+      endpointId: value.slice(routeToEndpointPrefix.length),
+      upstreamModel,
+    };
   }
   return null;
 }
@@ -585,6 +605,10 @@ export function modelDraftFromRecord(model: ApiProxyModelRecord): ModelDraft {
       model.routeTo ??
         (model.targetId ? { type: "target", id: model.targetId } : null),
     ),
+    upstreamModel:
+      model.routeTo?.type === "endpoint"
+        ? (model.routeTo.upstreamModel ?? "")
+        : "",
     description: model.description ?? "",
     blockedMessage: model.blockedMessage,
   };
@@ -1144,7 +1168,10 @@ export function targetPayload(draft: TargetDraft): ApiProxyTargetCreate {
 }
 
 export function modelPayload(draft: ModelDraft): ApiProxyModelCreate {
-  const routeTo = routeToFromValue(draft.routeToValue);
+  const routeTo = routeToFromValue(
+    draft.routeToValue,
+    draft.upstreamModel.trim() || null,
+  );
   return {
     modelId: draft.modelId.trim(),
     visible: draft.visible,

@@ -19,7 +19,7 @@ import type {
   TargetDraft,
   TargetEditor,
 } from "./forms";
-import { unboundTargetValue } from "./forms";
+import { isEndpointRouteValue, unboundTargetValue } from "./forms";
 import type { SelectOption } from "./sections/index";
 import {
   EndpointModelPicker,
@@ -94,6 +94,17 @@ export function ModelEditorModal(props: ModelEditorModalProps) {
             })
           }
         />
+        {isEndpointRouteValue(props.draft.routeToValue) && (
+          <TextInput
+            label="Upstream model"
+            description="Model id sent to the endpoint; empty forwards the public model id unchanged"
+            value={props.draft.upstreamModel}
+            onChange={(event) => {
+              const upstreamModel = event.currentTarget.value;
+              props.onDraftChange({ ...props.draft, upstreamModel });
+            }}
+          />
+        )}
         <TextInput
           label="Description"
           value={props.draft.description}

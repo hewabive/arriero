@@ -1,4 +1,5 @@
 import type {
+  ApiEndpointRecord,
   ApiProxyModelRecord,
   ApiProxyPipelineRecord,
   ApiProxyTargetRecord,
@@ -23,6 +24,7 @@ type ExternalModelsSectionProps = {
   models: ApiProxyModelRecord[];
   pipelineById: Map<string, ApiProxyPipelineRecord>;
   targetById: Map<string, ApiProxyTargetRecord>;
+  endpointById: Map<string, ApiEndpointRecord>;
   deletePending: boolean;
   createPipelinePending: boolean;
   togglePendingId: string | null;
@@ -109,6 +111,7 @@ export function ExternalModelsSection(props: ExternalModelsSectionProps) {
                             : null),
                         props.targetById,
                         props.pipelineById,
+                        props.endpointById,
                       )}
                     </Table.Td>
                     <Table.Td>{model.ownedBy}</Table.Td>
@@ -201,6 +204,7 @@ function routeToLabel(
   routeTo: ApiProxyModelRecord["routeTo"],
   targetById: Map<string, ApiProxyTargetRecord>,
   pipelineById: Map<string, ApiProxyPipelineRecord>,
+  endpointById: Map<string, ApiEndpointRecord>,
 ) {
   if (!routeTo) {
     return (
@@ -213,7 +217,11 @@ function routeToLabel(
     return targetById.get(routeTo.id)?.name ?? routeTo.id;
   }
   if (routeTo.type === "endpoint") {
-    return `endpoint · ${routeTo.upstreamModel ?? routeTo.endpointId}`;
+    const name =
+      endpointById.get(routeTo.endpointId)?.name ?? routeTo.endpointId;
+    return routeTo.upstreamModel
+      ? `endpoint · ${name} → ${routeTo.upstreamModel}`
+      : `endpoint · ${name}`;
   }
   return pipelineById.get(routeTo.id)?.name ?? routeTo.id;
 }

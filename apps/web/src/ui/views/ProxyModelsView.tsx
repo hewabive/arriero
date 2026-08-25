@@ -24,6 +24,7 @@ import {
   modelDraftFromRecord,
   modelPayload,
   quickRoutePayload,
+  routeToEndpointPrefix,
   unboundTargetValue,
   type ModelDraft,
   type ModelEditor,
@@ -47,8 +48,16 @@ function suggestPipelineName(modelId: string, taken: Set<string>): string {
 }
 
 export function ProxyModelsView() {
-  const { models, pipelines, targets, pipelineById, targetById, invalidate } =
-    useProxyConfig();
+  const {
+    models,
+    pipelines,
+    targets,
+    endpoints,
+    endpointById,
+    pipelineById,
+    targetById,
+    invalidate,
+  } = useProxyConfig();
 
   const [modelEditor, setModelEditor] = useState<ModelEditor | null>(null);
   const [modelDraft, setModelDraft] = useState<ModelDraft>(emptyModelDraft);
@@ -65,6 +74,10 @@ export function ProxyModelsView() {
     ...targets.map((target) => ({
       value: `target:${target.id}`,
       label: `Target: ${target.name}`,
+    })),
+    ...endpoints.map((endpoint) => ({
+      value: `${routeToEndpointPrefix}${endpoint.id}`,
+      label: `Endpoint: ${endpoint.name}`,
     })),
   ];
 
@@ -290,6 +303,7 @@ export function ProxyModelsView() {
         models={models}
         pipelineById={pipelineById}
         targetById={targetById}
+        endpointById={endpointById}
         deletePending={deleteModelMutation.isPending}
         createPipelinePending={createPipelineForModelMutation.isPending}
         togglePendingId={togglePendingId}
