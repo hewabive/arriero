@@ -47,29 +47,43 @@ the remote does not provide a `.gitignore`.
 
 ## Machine-local files
 
-`path-catalog.json`, `envs.json` and `envs-state.json` describe state of the current machine, not
-portable configuration: catalog entries are rewritten automatically by build
-completion and by the environment reconciler at startup, and environment specs
-carry ids of local catalog entries. Both files are therefore gitignored
+`path-catalog.json` and `envs-state.json` describe state of the current
+machine, not portable configuration: catalog entries are rewritten
+automatically by build completion and by the environment reconciler, and
+`envs-state.json` maps environment specs to the ids of their generated catalog
+entries plus the local timestamps. Both files are therefore gitignored
 (`config-git/machine-state.ts` owns the list) and keep their
 `createdAt`/`updatedAt` fields — unlike tracked files, whose provenance is the
 commit history.
 
-The startup normalizer `untrackMachineStateFiles()` appends the missing
-`.gitignore` entries and, when a legacy repository still tracks these files,
-stages their removal with `git rm --cached`. The staged deletion is visible on
-the Configuration Git page and lands in the next commit; branch-changing
-operations are blocked by the dirty tree until then. Because the files are
-ignored afterwards, routine builds and restarts no longer dirty the tree.
+`envs.json` is the opposite since the machine-state split
+(`docs/ENVIRONMENTS.md`): it holds only host-independent environment specs and
+is a tracked portable file — validated, restorable, carried through the shared
+origin. On a freshly cloned host every spec reports `missing`; one rebuild per
+spec recreates the environment at the identical
+`<envsDir>/<engine>-<version>-<id12>` directory, because the directory name
+derives from the tracked spec — so instance `binaryPath` placeholders resolve
+without manual rebinding.
+
+The startup normalizer `untrackMachineStateFiles()` reconciles the ignore
+lists both ways: it appends the missing `.gitignore` entries, removes the
+stale `envs.json` line left by pre-split versions (the file then surfaces as
+an ordinary committable change), and, when a legacy repository still tracks
+the machine files, stages their removal with `git rm --cached`. The staged
+deletion is visible on the Configuration Git page and lands in the next
+commit; branch-changing operations are blocked by the dirty tree until then.
 
 Tree-changing operations (`pull`, `switch`, `branches`, `checkout`) snapshot
-the machine-local files before running git and write them back afterwards when
-the new HEAD does not track them. Checking out a legacy commit that still
-tracks these files materializes the committed (stale) copies instead — the
-catalog regenerates at the next build or startup, and instances fall back to
-their inline `binaryPath`. Cross-file validation deliberately does not check
-`binaryPathRefId`/`pathCatalogEntryId` against the catalog: those ids are
-machine-local and dangling references degrade gracefully at runtime.
+the machine-local files — and `envs.json` — before running git and write each
+back afterwards when the new HEAD does not track it, so adopting a tree that
+predates the split (or never carried specs) keeps the local spec set as an
+untracked file. A HEAD that does track a file wins: checking out a legacy
+commit materializes its committed copies — the catalog regenerates at the next
+build or startup, the normalizer strips resurrected machine fields out of
+`envs.json`, and instances fall back to their inline `binaryPath`. Cross-file
+validation deliberately does not check `binaryPathRefId`/`pathCatalogEntryId`
+against the catalog: those ids are machine-local and dangling references
+degrade gracefully at runtime.
 
 ## Origin
 

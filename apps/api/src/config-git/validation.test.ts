@@ -267,3 +267,50 @@ test("validateConfigRoot rejects symlinks and broken resource references", () =>
     ),
   );
 });
+
+test("validateConfigBlob accepts portable and pre-split envs.json, not envs-state.json", () => {
+  assert.deepEqual(
+    validateConfigBlob(
+      "envs.json",
+      JSON.stringify([
+        {
+          engine: "vllm",
+          version: "0.24.0",
+          variant: "cuda",
+          pythonVersion: "3.12",
+          source: { kind: "pypi", extras: [] },
+          id: "portable-spec",
+        },
+      ]),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    validateConfigBlob(
+      "envs.json",
+      JSON.stringify([
+        {
+          engine: "sglang",
+          version: "0.5.17",
+          variant: "cuda",
+          pythonVersion: "3.12",
+          source: { kind: "pypi", extras: ["all"] },
+          id: "legacy-spec",
+          pathCatalogEntryId: "catalog-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ]),
+    ),
+    [],
+  );
+  assert.match(
+    validateConfigBlob("envs.json", JSON.stringify([{ id: "broken" }]))[0]
+      ?.message ?? "",
+    /Invalid/i,
+  );
+  assert.match(
+    validateConfigBlob("envs-state.json", "[]")[0]?.message ?? "",
+    /not a restorable/,
+  );
+});

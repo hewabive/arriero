@@ -58,6 +58,20 @@ Identity = filename; instances link a preset through the `--models-preset` arg, 
 A router instance (preset, no `--model`) is launchable and observable but is **not** a per-model
 proxy target.
 
+## `envs.json` — Python environment specs
+
+Store: `envs/repository.ts` (aggregate array + in-memory cache), CRUD through the
+Environments domain (`docs/ENVIRONMENTS.md`). Each spec is host-independent intent:
+engine, exact version, runtime variant, Python request, install source. **Identity =
+`id`** (uuidv7), and it is load-bearing: the runtime directory
+`<envsDir>/<engine>-<version>-<first 12 alnum of id>` and the generated path-catalog
+entry name derive from it — which is what makes a cloned spec rebuild at the
+byte-identical path on another host. Wheel `file:` URLs are stored verbatim and are a
+host-local requirement (identical path or shared mount on every host). The
+machine-local companion `envs-state.json` (same repository, gitignored) maps spec ids
+to their generated path-catalog entry ids and keeps the local timestamps; it is
+reconciled on listing, pruned at boot, and a dangling or absent entry self-heals.
+
 ## `settings.json` — host-wide settings sections
 
 Sections `modelScan` / `sourceRepositories` / `build` / `environments` / `registries`

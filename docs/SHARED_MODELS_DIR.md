@@ -14,7 +14,7 @@ arriero designed to be shareable across hosts; everything else must stay host-lo
 - **Never share** `ARRIERO_HOME` (or any of `data/`, `runtime/`, `config/`) between live managers:
   the SQLite DB runs in WAL mode, which corrupts under multi-host access; process supervision
   re-adopts and kills by local PID (`process/reconcile.ts`, `process/stale.ts`);
-  `path-catalog.json`/`envs.json` are machine state; startup persists resource pools for locally
+  `path-catalog.json`/`envs-state.json` are machine state; startup persists resource pools for locally
   detected GPUs. A fleet gets one UI via the `nodes` domain (`docs/FEDERATION.md`) and shared
   configuration via config-git (`docs/CONFIG_GIT.md`), not via a shared mount.
 

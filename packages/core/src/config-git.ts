@@ -160,6 +160,7 @@ export type ConfigGitPortableFileKind =
   | "argument-defaults"
   | "resources"
   | "nodes"
+  | "environments"
   | "instance"
   | "preset"
   | `proxy-${ConfigGitProxyCollection}`;
@@ -199,6 +200,8 @@ export function classifyConfigGitPath(
       return "resources";
     case "nodes.json":
       return "nodes";
+    case "envs.json":
+      return "environments";
     default:
       break;
   }

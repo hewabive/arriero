@@ -72,20 +72,26 @@ beforeEach(() => {
   git(["commit", "-m", "initial"]);
 });
 
-test("untrackMachineStateFiles stages removal once and keeps worktree files", async () => {
+test("untrackMachineStateFiles stages removal once and keeps envs.json tracked", async () => {
+  writeFileSync(
+    resolve(config.configDir, ".gitignore"),
+    ".secrets.json\n*.tmp\nenvs.json\n",
+    "utf8",
+  );
   const untracked = await untrackMachineStateFiles();
-  assert.deepEqual(untracked.sort(), ["envs.json", "path-catalog.json"]);
+  assert.deepEqual(untracked.sort(), ["path-catalog.json"]);
 
   const gitignore = readFileSync(
     resolve(config.configDir, ".gitignore"),
     "utf8",
   );
   assert.ok(gitignore.includes("path-catalog.json"));
-  assert.ok(gitignore.includes("envs.json"));
+  assert.ok(gitignore.includes("envs-state.json"));
+  assert.equal(gitignore.split("\n").includes("envs.json"), false);
 
   const status = git(["status", "--porcelain"]);
-  assert.match(status, /D {2}envs\.json/);
   assert.match(status, /D {2}path-catalog\.json/);
+  assert.doesNotMatch(status, /D {2}envs\.json/);
   assert.ok(existsSync(resolve(config.configDir, "path-catalog.json")));
 
   assert.deepEqual(await untrackMachineStateFiles(), []);
@@ -97,7 +103,8 @@ test("untrackMachineStateFiles stages removal once and keeps worktree files", as
     paths: null,
   });
   assert.equal(committed.status.dirty, false);
-  assert.equal(git(["ls-files", "--", "path-catalog.json", "envs.json"]), "");
+  assert.equal(git(["ls-files", "--", "path-catalog.json"]), "");
+  assert.equal(git(["ls-files", "--", "envs.json"]), "envs.json");
   assert.ok(existsSync(resolve(config.configDir, "envs.json")));
 });
 
@@ -131,6 +138,48 @@ test("tree operations preserve untracked machine-state files", async () => {
   assert.equal(back.status.dirty, false);
   assert.ok(existsSync(catalogPath));
   assert.equal(git(["ls-files", "--", "path-catalog.json"]), "");
+});
+
+test("leaving a tree that tracks envs.json preserves the local copy", async () => {
+  await untrackMachineStateFiles();
+  await commitConfigChanges({
+    message: "untrack machine state",
+    authorName: null,
+    authorEmail: null,
+    paths: null,
+  });
+  const specs = [
+    {
+      engine: "vllm",
+      version: "0.24.0",
+      variant: "cuda",
+      pythonVersion: "3.12",
+      source: { kind: "pypi", extras: [] },
+      id: "spec-preserved",
+    },
+  ];
+  writeJson(resolve(config.configDir, "envs.json"), specs);
+  await commitConfigChanges({
+    message: "add spec",
+    authorName: null,
+    authorEmail: null,
+    paths: null,
+  });
+  const specCommit = git(["rev-parse", "HEAD"]);
+  git(["rm", "-q", "envs.json"]);
+  git(["commit", "-m", "drop specs"]);
+  const dropCommit = git(["rev-parse", "HEAD"]);
+
+  const detached = await checkoutConfigCommit({ commit: specCommit });
+  assert.equal(detached.status.detached, true);
+  assert.ok(existsSync(resolve(config.configDir, "envs.json")));
+
+  await checkoutConfigCommit({ commit: dropCommit });
+  assert.equal(git(["ls-files", "--", "envs.json"]), "");
+  assert.deepEqual(
+    JSON.parse(readFileSync(resolve(config.configDir, "envs.json"), "utf8")),
+    specs,
+  );
 });
 
 test("commitConfigChanges records portable changes and exposes them in log", async () => {

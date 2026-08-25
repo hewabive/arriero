@@ -63,10 +63,14 @@ Deliberately **not** covered:
 
 - `config/presets/*.ini` — `llama-server` owns and rewrites the same file and
   does not understand placeholders; preset model paths stay absolute.
-- `config/proxy/*.json`, `config/envs.json`, `config/nodes.json`,
-  `config/resources.json` — they carry URLs, ids and free-form user text
-  (pipeline patterns, prompts), not filesystem paths. Rewriting free-form text
-  is the one way a placeholder could corrupt data.
+- `config/proxy/*.json`, `config/nodes.json`, `config/resources.json` — they
+  carry URLs, ids and free-form user text (pipeline patterns, prompts), not
+  filesystem paths. Rewriting free-form text is the one way a placeholder
+  could corrupt data.
+- `config/envs.json` — its only path-like values are wheel `file:` URLs, and a
+  placeholder cannot be mapped inside a URL (writing only ever collapses a
+  leading `/`-prefixed path), so they stay verbatim as a documented host-local
+  requirement.
 - `data/arriero.db` and the rest of `data/` / `runtime/` — runtime state and
   rebuildable caches keyed by absolute path (argument catalogs, model cache,
   launch snapshots). A move invalidates them and they refill on the next scan.

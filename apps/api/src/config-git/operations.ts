@@ -36,7 +36,7 @@ import { atomicWriteFile } from "../utils/atomic-write.js";
 import { ConfigBusyError, assertNoBlockingBackgroundWork } from "./busy.js";
 import {
   CONFIG_GITIGNORE_CONTENT,
-  MACHINE_STATE_CONFIG_FILES,
+  TREE_CHANGE_PRESERVED_FILES,
   ensureLocalExclude,
   withMachineStatePreserved,
 } from "./machine-state.js";
@@ -354,7 +354,7 @@ export function cloneConfigRepository(
       if (existsSync(config.secretsFile)) {
         copyFileSync(config.secretsFile, resolve(staging, ".secrets.json"));
       }
-      for (const name of MACHINE_STATE_CONFIG_FILES) {
+      for (const name of TREE_CHANGE_PRESERVED_FILES) {
         const source = resolve(config.configDir, name);
         const destination = resolve(staging, name);
         if (existsSync(source) && !existsSync(destination)) {

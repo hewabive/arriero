@@ -5,6 +5,7 @@ import {
   ApiProxyTargetRecordSchema,
   AppSettingsFileSchema,
   ArgumentDefaultsSchema,
+  EnvironmentSpecSchema,
   FleetNodeSchema,
   InstanceConfigRecordSchema,
   MemoryPoolSchema,
@@ -147,6 +148,7 @@ const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
   "argument-defaults": ArgumentDefaultsSchema,
   resources: z.array(MemoryPoolSchema),
   nodes: z.array(FleetNodeSchema),
+  environments: z.array(EnvironmentSpecSchema),
   "proxy-targets": z.array(ApiProxyTargetRecordSchema),
   "proxy-models": z.array(ApiProxyModelRecordSchema),
   "proxy-pipelines": z.array(ApiProxyPipelineRecordSchema),
@@ -156,6 +158,9 @@ const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
 };
 
 function portableJsonFilePath(kind: PortableJsonKind): string {
+  if (kind === "environments") {
+    return "envs.json";
+  }
   return kind.startsWith("proxy-")
     ? `proxy/${kind.slice("proxy-".length)}.json`
     : `${kind}.json`;
