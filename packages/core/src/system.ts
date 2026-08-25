@@ -334,12 +334,9 @@ export const EventLoopReportSchema = z.object({
   slowSections: z.array(EventLoopBlockingSectionSchema),
 });
 
-export const SystemMetricsWindowSchema = z.enum([
-  "live",
-  "hour",
-  "day",
-  "month",
-]);
+export const SYSTEM_METRICS_WINDOWS = ["live", "hour", "day", "month"] as const;
+
+export const SystemMetricsWindowSchema = z.enum(SYSTEM_METRICS_WINDOWS);
 
 export const SystemMetricsCoarseWindowSchema =
   SystemMetricsWindowSchema.exclude(["live"]);

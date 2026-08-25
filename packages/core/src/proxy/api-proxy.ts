@@ -331,11 +331,11 @@ export const ApiProxyRouteExplainResultSchema = z.object({
   transformedBody: z.unknown(),
 });
 
-export const ApiProxyTraceCacheOutcomeSchema = z.enum([
-  "hit",
-  "store",
-  "coalesced",
-]);
+const API_PROXY_TRACE_CACHE_OUTCOMES = ["hit", "store", "coalesced"] as const;
+
+export const ApiProxyTraceCacheOutcomeSchema = z.enum(
+  API_PROXY_TRACE_CACHE_OUTCOMES,
+);
 
 export const ApiProxySchedulerActionTypeSchema = z.enum([
   "start-instance",
@@ -502,10 +502,23 @@ const traceQueryBooleanSchema = z
   .enum(["true", "false"])
   .transform((value) => value === "true");
 
-export const ApiProxyTraceCacheFilterSchema = z.enum([
-  ...ApiProxyTraceCacheOutcomeSchema.options,
+const API_PROXY_TRACE_CACHE_FILTERS = [
+  ...API_PROXY_TRACE_CACHE_OUTCOMES,
   "none",
-]);
+] as const;
+
+export const ApiProxyTraceCacheFilterSchema = z.enum(
+  API_PROXY_TRACE_CACHE_FILTERS,
+);
+
+export function isApiProxyTraceCacheFilter(
+  value: string | null | undefined,
+): value is ApiProxyTraceCacheFilter {
+  return (
+    value != null &&
+    (API_PROXY_TRACE_CACHE_FILTERS as readonly string[]).includes(value)
+  );
+}
 
 export const ApiProxyTraceListFilterSchema = z.object({
   limit: z.coerce.number().int().positive().optional(),

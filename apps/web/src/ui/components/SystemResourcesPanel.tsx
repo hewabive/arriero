@@ -1,5 +1,5 @@
 import {
-  SystemMetricsWindowSchema,
+  SYSTEM_METRICS_WINDOWS,
   type EventLoopReport,
   type EventLoopStall,
   type SystemAccelerator,
@@ -334,7 +334,7 @@ const WINDOW_LABELS: Record<SystemMetricsWindow, string> = {
   month: "30 days",
 };
 
-const WINDOW_OPTIONS = SystemMetricsWindowSchema.options.map((value) => ({
+const WINDOW_OPTIONS = SYSTEM_METRICS_WINDOWS.map((value) => ({
   value,
   label: WINDOW_LABELS[value],
 }));

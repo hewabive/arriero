@@ -1,5 +1,5 @@
 import {
-  ApiProxyTraceCacheFilterSchema,
+  isApiProxyTraceCacheFilter,
   type ApiProxyTraceCacheFilter,
   type ApiProxyTraceFacet,
   type ApiProxyTraceListQuery,
@@ -148,9 +148,8 @@ function buildHistoryQuery(filters: TraceFilterState): ApiProxyTraceListQuery {
   if (filters.errorCode) {
     query.errorCode = filters.errorCode;
   }
-  const cache = ApiProxyTraceCacheFilterSchema.safeParse(filters.cache);
-  if (cache.success) {
-    query.cache = cache.data;
+  if (isApiProxyTraceCacheFilter(filters.cache)) {
+    query.cache = filters.cache;
   }
   if (filters.stream === "stream") {
     query.stream = true;
