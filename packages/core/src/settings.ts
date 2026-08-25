@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { BuildSettingsSchema } from "./build.js";
-import { stripLegacyConfigTimestamps } from "./config-git.js";
+import { storedConfigSchema, stripKeys } from "./config-git.js";
 import { EnvironmentRepositorySettingsSchema } from "./environments.js";
 import { HfDownloadSettingsSchema } from "./hf.js";
 import { LlamaSourceSettingsSchema } from "./llama.js";
@@ -9,40 +9,19 @@ import { ModelScanSettingsSchema } from "./models.js";
 import { PackageRegistriesSettingsSchema } from "./registries.js";
 import { SourceRepositorySpecSchema } from "./sources.js";
 
-const BUILD_HOST_FACT_KEYS = ["native", "parallelJobs"] as const;
+export const BUILD_HOST_FACT_KEYS = ["native", "parallelJobs"] as const;
 
 function stripBuildHostFacts(value: unknown): unknown {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return value;
-  }
-  const record = value as Record<string, unknown>;
-  if (BUILD_HOST_FACT_KEYS.every((key) => !(key in record))) {
-    return value;
-  }
-  const rest = { ...record };
-  for (const key of BUILD_HOST_FACT_KEYS) {
-    delete rest[key];
-  }
-  return rest;
+  return stripKeys(value, BUILD_HOST_FACT_KEYS);
 }
 
 export const AppSettingsFileSchema = z
   .object({
     modelScan: ModelScanSettingsSchema.catchall(z.unknown()).optional(),
     sourceRepositories: z
-      .array(
-        z.preprocess(
-          stripLegacyConfigTimestamps,
-          SourceRepositorySpecSchema.catchall(z.unknown()),
-        ),
-      )
+      .array(storedConfigSchema(SourceRepositorySpecSchema))
       .optional(),
-    llamaSource: z
-      .preprocess(
-        stripLegacyConfigTimestamps,
-        LlamaSourceSettingsSchema.catchall(z.unknown()),
-      )
-      .optional(),
+    llamaSource: storedConfigSchema(LlamaSourceSettingsSchema).optional(),
     build: z
       .preprocess(
         stripBuildHostFacts,

@@ -13,6 +13,7 @@ import { config } from "../config.js";
 import { createJsonFileStore } from "../config-store/file-store.js";
 import { logger } from "../logger.js";
 import { newId } from "../utils/id.js";
+import { compareStrings } from "../utils/sort.js";
 import { listHfDownloads } from "./downloads.js";
 import { defaultHfDestDir } from "./paths.js";
 
@@ -34,8 +35,8 @@ function load(): ModelRequirement[] {
 function persist(requirements: ModelRequirement[]) {
   const sorted = [...requirements].sort(
     (left, right) =>
-      left.repoId.localeCompare(right.repoId) ||
-      left.id.localeCompare(right.id),
+      compareStrings(left.repoId, right.repoId) ||
+      compareStrings(left.id, right.id),
   );
   store.write(sorted);
 }

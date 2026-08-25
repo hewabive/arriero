@@ -3,7 +3,7 @@ import {
   type PackageRegistriesSettings,
 } from "@arriero/core";
 
-import { readSettings, writeSettings } from "./store.js";
+import { readSettings, updateSettingsSection } from "./store.js";
 
 const DEFAULT_REGISTRIES_SETTINGS = PackageRegistriesSettingsSchema.parse({});
 
@@ -15,9 +15,6 @@ export function savePackageRegistriesSettings(
   input: PackageRegistriesSettings,
 ): PackageRegistriesSettings {
   const parsed = PackageRegistriesSettingsSchema.parse(input);
-  writeSettings({
-    ...readSettings(),
-    registries: { ...readSettings().registries, ...parsed },
-  });
+  updateSettingsSection("registries", parsed);
   return parsed;
 }

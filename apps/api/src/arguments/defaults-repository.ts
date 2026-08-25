@@ -1,6 +1,6 @@
 import {
   ArgumentDefaultsSchema,
-  stripLegacyConfigTimestamps,
+  storedConfigSchema,
   type ArgumentDefault,
   type ArgumentDefaults,
 } from "@arriero/core";
@@ -33,12 +33,11 @@ function ensureFile() {
   );
 }
 
-const StoredArgumentDefaultsSchema = z.preprocess(
-  stripLegacyConfigTimestamps,
+const StoredArgumentDefaultsSchema = storedConfigSchema(
   ArgumentDefaultsSchema.pick({
     instance: true,
     engines: true,
-  }).catchall(z.unknown()),
+  }),
 );
 
 const store = createJsonFileStore<z.infer<typeof StoredArgumentDefaultsSchema>>(

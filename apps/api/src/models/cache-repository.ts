@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { config } from "../config.js";
 import { db } from "../db/index.js";
 import { modelCache } from "../db/schema.js";
-import { readSettings, writeSettings } from "../settings/store.js";
+import { readSettings, updateSettingsSection } from "../settings/store.js";
 import { deriveCacheRowMetadata, parseCacheJson } from "./cache-row.js";
 import {
   deriveGgufMetadata,
@@ -159,9 +159,6 @@ export function getModelScanSettings(): ModelScanSettings {
 export function saveModelScanSettings(
   input: ModelScanSettings,
 ): ModelScanSettings {
-  writeSettings({
-    ...readSettings(),
-    modelScan: { ...readSettings().modelScan, ...input },
-  });
+  updateSettingsSection("modelScan", input);
   return input;
 }

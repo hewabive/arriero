@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import {
   InstanceConfigRecordSchema,
-  stripLegacyConfigTimestamps,
+  storedConfigSchema,
   type InstanceConfigRecord,
   type RpcWorkerRef,
 } from "@arriero/core";
@@ -16,10 +16,7 @@ import { compareStrings } from "../utils/sort.js";
 const instancesDir = config.instancesDir;
 
 const StoredInstanceRecordSchema: z.ZodType<InstanceConfigRecord> =
-  z.preprocess(
-    stripLegacyConfigTimestamps,
-    InstanceConfigRecordSchema.catchall(z.unknown()),
-  );
+  storedConfigSchema(InstanceConfigRecordSchema);
 
 const store = createJsonDirectoryStore<InstanceConfigRecord>({
   id: "instances",

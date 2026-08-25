@@ -41,6 +41,20 @@ export function writeSettings(next: AppSettingsFile): AppSettingsFile {
   return parsed;
 }
 
+type MergeableSettingsSection =
+  | "modelScan"
+  | "environments"
+  | "registries"
+  | "downloads";
+
+export function updateSettingsSection<K extends MergeableSettingsSection>(
+  key: K,
+  value: NonNullable<AppSettingsFile[K]>,
+): void {
+  const settings = readSettings();
+  writeSettings({ ...settings, [key]: { ...settings[key], ...value } });
+}
+
 export function resetSettingsCache() {
   store.reset();
 }

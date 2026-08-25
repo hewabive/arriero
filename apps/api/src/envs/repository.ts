@@ -1,4 +1,5 @@
 import {
+  ENVIRONMENT_MACHINE_STATE_KEYS,
   EnvironmentMachineStateSchema,
   EnvironmentSpecSchema,
   type EnvironmentCreate,
@@ -17,6 +18,7 @@ import { createJsonFileStore } from "../config-store/file-store.js";
 import { createJobStore } from "../jobs/store.js";
 import { isPathWithin } from "../path-utils.js";
 import { newId } from "../utils/id.js";
+import { sortedByKey } from "../utils/sort.js";
 import { environmentDirectory } from "./paths.js";
 
 export const ENVIRONMENTS_FILE = resolve(config.configDir, "envs.json");
@@ -57,8 +59,7 @@ function load() {
 }
 
 function persist(specs: EnvironmentSpec[]) {
-  const sorted = [...specs].sort((a, b) => a.id.localeCompare(b.id));
-  store.write(sorted);
+  store.write(sortedByKey(specs, (spec) => spec.id));
 }
 
 function loadState() {
@@ -66,8 +67,19 @@ function loadState() {
 }
 
 function persistState(entries: EnvironmentMachineStateEntry[]) {
-  const sorted = [...entries].sort((a, b) => a.envId.localeCompare(b.envId));
-  stateStore.write(sorted);
+  stateStore.write(sortedByKey(entries, (entry) => entry.envId));
+}
+
+export function environmentRowsHaveMachineKeys(json: unknown): boolean {
+  return (
+    Array.isArray(json) &&
+    json.some(
+      (row) =>
+        typeof row === "object" &&
+        row !== null &&
+        ENVIRONMENT_MACHINE_STATE_KEYS.some((key) => key in row),
+    )
+  );
 }
 
 export function getEnvironmentMachineState(
@@ -145,11 +157,7 @@ export function deleteEnvironmentSpec(id: string) {
   const next = load().filter((spec) => spec.id !== id);
   if (next.length === load().length) return false;
   persist(next);
-  const entries = loadState();
-  const remaining = entries.filter((entry) => entry.envId !== id);
-  if (remaining.length !== entries.length) {
-    persistState(remaining);
-  }
+  pruneEnvironmentMachineState();
   return true;
 }
 

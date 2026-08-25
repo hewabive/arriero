@@ -13,8 +13,10 @@ import { z } from "zod";
 
 import { config } from "../config.js";
 import { createJsonFileStore } from "../config-store/file-store.js";
+import { readSystemMemory } from "../system/memory.js";
 import {
   getKnownGpuInventory,
+  getSystemAccelerators,
   getSystemResources,
   type GpuInventory,
 } from "../system/resources.js";
@@ -24,20 +26,20 @@ export const RESOURCES_FILE = resolve(config.configDir, "resources.json");
 const GIB = 1024 ** 3;
 const HOST_RESERVE_RATIO = 0.15;
 
+export function poolDeclarationCarriesAutoCapacityValue(row: unknown): boolean {
+  if (typeof row !== "object" || row === null || Array.isArray(row)) {
+    return false;
+  }
+  const record = row as { autoCapacity?: unknown; capacityBytes?: unknown };
+  return record.autoCapacity !== false && record.capacityBytes != null;
+}
+
 function normalizeStoredPoolDeclaration(value: unknown): unknown {
   const stripped = stripLegacyConfigTimestamps(value);
-  if (
-    typeof stripped !== "object" ||
-    stripped === null ||
-    Array.isArray(stripped)
-  ) {
+  if (!poolDeclarationCarriesAutoCapacityValue(stripped)) {
     return stripped;
   }
-  const record = stripped as Record<string, unknown>;
-  if (record.autoCapacity === false || record.capacityBytes == null) {
-    return stripped;
-  }
-  return { ...record, capacityBytes: null };
+  return { ...(stripped as Record<string, unknown>), capacityBytes: null };
 }
 
 const StoredPoolDeclarationSchema: z.ZodType<MemoryPoolDeclaration> =
@@ -141,9 +143,15 @@ export function isMemoryPoolOrphaned(
   );
 }
 
+type DetectedCapacity = Pick<SystemResources, "memory" | "accelerators">;
+
+function detectCapacity(): DetectedCapacity {
+  return { memory: readSystemMemory(), accelerators: getSystemAccelerators() };
+}
+
 function effectiveCapacityBytes(
   declaration: MemoryPoolDeclaration,
-  detected: SystemResources,
+  detected: DetectedCapacity,
   inventory: GpuInventory,
 ): number {
   if (!declaration.autoCapacity) {
@@ -163,9 +171,10 @@ function effectiveCapacityBytes(
   return accelerator?.totalMemoryBytes ?? 0;
 }
 
-export function listMemoryPools(): MemoryPool[] {
-  const detected = getSystemResources();
-  const inventory = getKnownGpuInventory();
+export function listMemoryPools(
+  detected: DetectedCapacity = detectCapacity(),
+  inventory: GpuInventory = getKnownGpuInventory(),
+): MemoryPool[] {
   return listDeclaredMemoryPools().map((declaration) => ({
     ...declaration,
     capacityBytes: effectiveCapacityBytes(declaration, detected, inventory),
@@ -174,15 +183,18 @@ export function listMemoryPools(): MemoryPool[] {
 
 export function listMemoryPoolsWithStatus(
   inventory: GpuInventory = getKnownGpuInventory(),
+  detected: DetectedCapacity = detectCapacity(),
 ): MemoryPoolView[] {
-  return listMemoryPools().map((pool) => ({
+  return listMemoryPools(detected, inventory).map((pool) => ({
     ...pool,
     orphaned: isMemoryPoolOrphaned(pool, inventory),
   }));
 }
 
 export function listUndeclaredAccelerators(
-  detected: SystemResources = getSystemResources(),
+  detected: Pick<SystemResources, "accelerators"> = {
+    accelerators: getSystemAccelerators(),
+  },
 ): SystemResources["accelerators"] {
   const declaredRefs = new Set(
     load()

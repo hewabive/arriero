@@ -1,4 +1,4 @@
-import type { ModelRequirementStatus } from "@arriero/core";
+import { isHfCommitSha, type ModelRequirementStatus } from "@arriero/core";
 import {
   ActionIcon,
   Badge,
@@ -23,8 +23,6 @@ import {
 } from "../../api/client";
 import { countLabel } from "../utils/plural";
 
-const SHA_PATTERN = /^[0-9a-f]{40}$/i;
-
 function stateColor(state: ModelRequirementStatus["state"]): string {
   switch (state) {
     case "satisfied":
@@ -37,7 +35,7 @@ function stateColor(state: ModelRequirementStatus["state"]): string {
 }
 
 function revisionLabel(revision: string): string {
-  return SHA_PATTERN.test(revision) ? revision.slice(0, 8) : revision;
+  return isHfCommitSha(revision) ? revision.slice(0, 8) : revision;
 }
 
 export function HfRequirementsCard() {

@@ -10,7 +10,7 @@ import {
   ApiProxyTargetCreateSchema,
   ApiProxyTargetRecordSchema,
   ApiProxyTargetUpdateSchema,
-  stripLegacyConfigTimestamps,
+  storedConfigSchema,
   type ApiProxyConfig,
   type ApiProxyModelCreate,
   type ApiProxyModelRecord,
@@ -47,20 +47,11 @@ export const MODELS_FILE = "models.json";
 export const PIPELINES_FILE = "pipelines.json";
 
 export const StoredApiProxyTargetSchema: z.ZodType<ApiProxyTargetRecord> =
-  z.preprocess(
-    stripLegacyConfigTimestamps,
-    ApiProxyTargetRecordSchema.catchall(z.unknown()),
-  );
+  storedConfigSchema(ApiProxyTargetRecordSchema);
 export const StoredApiProxyModelSchema: z.ZodType<ApiProxyModelRecord> =
-  z.preprocess(
-    stripLegacyConfigTimestamps,
-    ApiProxyModelRecordSchema.catchall(z.unknown()),
-  );
+  storedConfigSchema(ApiProxyModelRecordSchema);
 export const StoredApiProxyPipelineSchema: z.ZodType<ApiProxyPipelineRecord> =
-  z.preprocess(
-    stripLegacyConfigTimestamps,
-    ApiProxyPipelineRecordSchema.catchall(z.unknown()),
-  );
+  storedConfigSchema(ApiProxyPipelineRecordSchema);
 
 function readTargets(): ApiProxyTargetRecord[] {
   return readCollection(TARGETS_FILE, StoredApiProxyTargetSchema);
@@ -248,9 +239,8 @@ export function updateApiProxyTarget(
     id: current.id,
   });
   assertUniqueTargetName(records, merged.name, id);
-  const next = StoredApiProxyTargetSchema.parse(merged);
-  persistTargets(records.map((target) => (target.id === id ? next : target)));
-  return next;
+  persistTargets(records.map((target) => (target.id === id ? merged : target)));
+  return merged;
 }
 
 export function deleteApiProxyTarget(id: string): boolean {
@@ -332,9 +322,8 @@ export function updateApiProxyModel(
     id: current.id,
   });
   assertUniqueModelId(records, merged.modelId, id);
-  const next = StoredApiProxyModelSchema.parse(merged);
-  persistModels(records.map((model) => (model.id === id ? next : model)));
-  return next;
+  persistModels(records.map((model) => (model.id === id ? merged : model)));
+  return merged;
 }
 
 export function deleteApiProxyModel(id: string): boolean {
@@ -376,11 +365,10 @@ export function updateApiProxyPipeline(
     id: current.id,
   });
   assertUniquePipelineName(records, merged.name, id);
-  const next = StoredApiProxyPipelineSchema.parse(merged);
   persistPipelines(
-    records.map((pipeline) => (pipeline.id === id ? next : pipeline)),
+    records.map((pipeline) => (pipeline.id === id ? merged : pipeline)),
   );
-  return next;
+  return merged;
 }
 
 export function deleteApiProxyPipeline(id: string): boolean {

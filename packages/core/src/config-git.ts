@@ -173,20 +173,71 @@ export type ConfigGitPortableFileKind =
 
 const LEGACY_CONFIG_TIMESTAMP_KEYS = ["createdAt", "updatedAt"] as const;
 
-export function stripLegacyConfigTimestamps(value: unknown): unknown {
+export function stripKeys(value: unknown, keys: readonly string[]): unknown {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return value;
   }
   const record = value as Record<string, unknown>;
-  if (LEGACY_CONFIG_TIMESTAMP_KEYS.every((key) => !(key in record))) {
+  if (keys.every((key) => !(key in record))) {
     return value;
   }
   const rest = { ...record };
-  for (const key of LEGACY_CONFIG_TIMESTAMP_KEYS) {
+  for (const key of keys) {
     delete rest[key];
   }
   return rest;
 }
+
+export function stripLegacyConfigTimestamps(value: unknown): unknown {
+  return stripKeys(value, LEGACY_CONFIG_TIMESTAMP_KEYS);
+}
+
+export function storedConfigSchema<Shape extends z.ZodRawShape>(
+  schema: z.ZodObject<Shape>,
+) {
+  return z.preprocess(
+    stripLegacyConfigTimestamps,
+    schema.catchall(z.unknown()),
+  );
+}
+
+export type ConfigGitPortableJsonKind = Exclude<
+  ConfigGitPortableFileKind,
+  "instance" | "preset" | "webapp"
+>;
+
+const CONFIG_GIT_SINGLE_FILE_PATHS: Record<
+  Exclude<ConfigGitPortableJsonKind, `proxy-${ConfigGitProxyCollection}`>,
+  string
+> = {
+  settings: "settings.json",
+  "argument-defaults": "argument-defaults.json",
+  resources: "resources.json",
+  nodes: "nodes.json",
+  environments: "envs.json",
+  models: "models.json",
+  "benchmark-prompts": "benchmark/prompts.json",
+};
+
+export function configGitPortableFilePath(
+  kind: ConfigGitPortableJsonKind,
+): string {
+  if (kind.startsWith("proxy-")) {
+    return `proxy/${kind.slice("proxy-".length)}.json`;
+  }
+  return CONFIG_GIT_SINGLE_FILE_PATHS[
+    kind as keyof typeof CONFIG_GIT_SINGLE_FILE_PATHS
+  ];
+}
+
+const configGitSingleFileKindByPath = new Map(
+  (
+    Object.entries(CONFIG_GIT_SINGLE_FILE_PATHS) as [
+      ConfigGitPortableFileKind,
+      string,
+    ][]
+  ).map(([kind, path]) => [path, kind]),
+);
 
 const configGitInstancePathPattern = /^instances\/[A-Za-z0-9._-]+\.json$/;
 const configGitPresetPathPattern = /^presets\/[A-Za-z0-9._-]+\.ini$/;
@@ -198,23 +249,9 @@ const configGitProxyPathPattern = new RegExp(
 export function classifyConfigGitPath(
   path: string,
 ): ConfigGitPortableFileKind | null {
-  switch (path) {
-    case "settings.json":
-      return "settings";
-    case "argument-defaults.json":
-      return "argument-defaults";
-    case "resources.json":
-      return "resources";
-    case "nodes.json":
-      return "nodes";
-    case "envs.json":
-      return "environments";
-    case "models.json":
-      return "models";
-    case "benchmark/prompts.json":
-      return "benchmark-prompts";
-    default:
-      break;
+  const singleFileKind = configGitSingleFileKindByPath.get(path);
+  if (singleFileKind) {
+    return singleFileKind;
   }
   if (configGitInstancePathPattern.test(path)) {
     return "instance";

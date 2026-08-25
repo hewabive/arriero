@@ -1,3 +1,4 @@
+import { BUILD_HOST_FACT_KEYS } from "@arriero/core";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
@@ -10,13 +11,13 @@ import { config } from "./config.js";
 import { hasPortablePathCandidate } from "./config-paths.js";
 import {
   ENVIRONMENTS_FILE,
+  environmentRowsHaveMachineKeys,
   rewriteEnvironmentsFile,
 } from "./envs/repository.js";
 import {
   MODEL_REQUIREMENTS_FILE,
   rewriteModelRequirementsFile,
 } from "./hf/requirements.js";
-import { environmentRowsHaveMachineKeys } from "./envs/state-split-migration.js";
 import { logger } from "./logger.js";
 import {
   getInstanceRecord,
@@ -38,6 +39,7 @@ import {
 import { SOURCES_FILE, rewriteStoredSources } from "./proxy/sources.js";
 import {
   RESOURCES_FILE,
+  poolDeclarationCarriesAutoCapacityValue,
   rewriteResourcePoolsFile,
 } from "./resources/repository.js";
 import { readSettings, writeSettings } from "./settings/store.js";
@@ -67,14 +69,7 @@ function collectionHasTimestampKeys(json: unknown): boolean {
 
 function poolDeclarationsCarryAutoCapacityValues(json: unknown): boolean {
   return (
-    Array.isArray(json) &&
-    json.some(
-      (row) =>
-        typeof row === "object" &&
-        row !== null &&
-        (row as { autoCapacity?: unknown }).autoCapacity !== false &&
-        (row as { capacityBytes?: unknown }).capacityBytes != null,
-    )
+    Array.isArray(json) && json.some(poolDeclarationCarriesAutoCapacityValue)
   );
 }
 
@@ -86,7 +81,7 @@ function settingsBuildSectionHasHostFacts(json: unknown): boolean {
   return (
     typeof build === "object" &&
     build !== null &&
-    (Object.hasOwn(build, "native") || Object.hasOwn(build, "parallelJobs"))
+    BUILD_HOST_FACT_KEYS.some((key) => Object.hasOwn(build, key))
   );
 }
 

@@ -1,10 +1,10 @@
 import {
-  SGLANG_MODEL_ARG_KEYS,
+  argString,
+  sglangModelArg,
   type ConfigDoctorCheck,
   type ConfigDoctorFinding,
   type ConfigDoctorReport,
   type Instance,
-  type InstanceArgs,
 } from "@arriero/core";
 import { existsSync } from "node:fs";
 
@@ -26,7 +26,6 @@ import { listPresets, readPreset } from "../presets/repository.js";
 import {
   apiEndpointAuthHeaders,
   listApiEndpointCatalog,
-  managerProxyEndpointId,
 } from "../proxy/endpoints.js";
 import { getApiProxySettings } from "../proxy/settings.js";
 import { getApiProxySourceKey, listApiProxySources } from "../proxy/sources.js";
@@ -36,16 +35,6 @@ import {
   type GpuInventory,
 } from "../system/resources.js";
 import { listWebappRecords } from "../webapps/config-files.js";
-
-function argString(args: InstanceArgs, keys: readonly string[]): string | null {
-  for (const key of keys) {
-    const value = args[key];
-    if (typeof value === "string" && value.length > 0) {
-      return value;
-    }
-  }
-  return null;
-}
 
 function instanceModelPaths(instance: Instance): string[] {
   const values: (string | null | undefined)[] = [];
@@ -57,7 +46,7 @@ function instanceModelPaths(instance: Instance): string[] {
   } else if (instance.kind === "vllm") {
     values.push(instance.positionalArgs?.[0]);
   } else if (instance.kind === "sglang") {
-    values.push(argString(instance.args, SGLANG_MODEL_ARG_KEYS));
+    values.push(sglangModelArg(instance));
   }
   if (instance.engineConfig?.type === "ktransformers") {
     values.push(instance.engineConfig.model, instance.engineConfig.cpuWeights);
@@ -68,13 +57,14 @@ function instanceModelPaths(instance: Instance): string[] {
   );
 }
 
-function instanceBinaryFindings(): ConfigDoctorFinding[] {
-  const findings: ConfigDoctorFinding[] = [];
-  for (const instance of listInstances()) {
+type DoctorFinding = Omit<ConfigDoctorFinding, "checkId">;
+
+function instanceBinaryFindings(instances: Instance[]): DoctorFinding[] {
+  const findings: DoctorFinding[] = [];
+  for (const instance of instances) {
     const configPath = `instances/${instance.name}.json`;
     if (!instance.binaryPath || !existsSync(instance.binaryPath)) {
       findings.push({
-        checkId: "instance-binaries",
         severity: "error",
         summary: `${instance.name}: binary is missing on this host`,
         detail: instance.binaryPath || "no binary path resolves",
@@ -89,7 +79,6 @@ function instanceBinaryFindings(): ConfigDoctorFinding[] {
       !getPathCatalogEntry(instance.binaryPathRefId)
     ) {
       findings.push({
-        checkId: "instance-binaries",
         severity: "info",
         summary: `${instance.name}: catalog reference is stale, using the inline path`,
         detail: instance.binaryPath,
@@ -102,11 +91,10 @@ function instanceBinaryFindings(): ConfigDoctorFinding[] {
   return findings;
 }
 
-function environmentFindings(): ConfigDoctorFinding[] {
+function environmentFindings(): DoctorFinding[] {
   return listEnvironments()
     .filter((environment) => environment.status !== "installed")
     .map((environment) => ({
-      checkId: "environments",
       severity: "warning" as const,
       summary: `${environment.engine} ${environment.version} is ${environment.status} on this host`,
       detail: environment.error,
@@ -115,12 +103,11 @@ function environmentFindings(): ConfigDoctorFinding[] {
     }));
 }
 
-async function modelRequirementFindings(): Promise<ConfigDoctorFinding[]> {
-  const findings: ConfigDoctorFinding[] = [];
+async function modelRequirementFindings(): Promise<DoctorFinding[]> {
+  const findings: DoctorFinding[] = [];
   for (const status of await listModelRequirementStatuses()) {
     if (status.state !== "satisfied") {
       findings.push({
-        checkId: "model-requirements",
         severity: "warning",
         summary: `${status.requirement.repoId} is ${status.state} on this host`,
         detail:
@@ -132,7 +119,6 @@ async function modelRequirementFindings(): Promise<ConfigDoctorFinding[]> {
       });
     } else if (status.revisionMatch === false) {
       findings.push({
-        checkId: "model-requirements",
         severity: "info",
         summary: `${status.requirement.repoId}: downloaded revision differs from the required ${status.requirement.revision.slice(0, 8)}`,
         detail: null,
@@ -144,13 +130,12 @@ async function modelRequirementFindings(): Promise<ConfigDoctorFinding[]> {
   return findings;
 }
 
-function instanceModelPathFindings(): ConfigDoctorFinding[] {
-  const findings: ConfigDoctorFinding[] = [];
-  for (const instance of listInstances()) {
+function instanceModelPathFindings(instances: Instance[]): DoctorFinding[] {
+  const findings: DoctorFinding[] = [];
+  for (const instance of instances) {
     for (const path of instanceModelPaths(instance)) {
       if (!existsSync(path)) {
         findings.push({
-          checkId: "instance-model-paths",
           severity: "error",
           summary: `${instance.name}: model file is missing on this host`,
           detail: path,
@@ -166,8 +151,9 @@ function instanceModelPathFindings(): ConfigDoctorFinding[] {
 
 export function doctorResourcePoolFindings(
   inventory: GpuInventory = getKnownGpuInventory(),
-): ConfigDoctorFinding[] {
-  const findings: ConfigDoctorFinding[] = [];
+  instances: Instance[] = listInstances(),
+): DoctorFinding[] {
+  const findings: DoctorFinding[] = [];
   const orphaned = listMemoryPoolsWithStatus(inventory).filter(
     (pool) => pool.orphaned,
   );
@@ -175,7 +161,7 @@ export function doctorResourcePoolFindings(
     return findings;
   }
   const draws = new Map<string, string[]>();
-  for (const instance of listInstances()) {
+  for (const instance of instances) {
     for (const draw of instance.memory) {
       draws.set(draw.poolId, [
         ...(draws.get(draw.poolId) ?? []),
@@ -186,7 +172,6 @@ export function doctorResourcePoolFindings(
   for (const pool of orphaned) {
     const holders = draws.get(pool.id) ?? [];
     findings.push({
-      checkId: "resource-pools",
       severity: holders.length > 0 ? "warning" : "info",
       summary:
         holders.length > 0
@@ -203,13 +188,12 @@ export function doctorResourcePoolFindings(
   return findings;
 }
 
-function proxyCredentialFindings(): ConfigDoctorFinding[] {
-  const findings: ConfigDoctorFinding[] = [];
+function proxyCredentialFindings(instances: Instance[]): DoctorFinding[] {
+  const findings: DoctorFinding[] = [];
   const sources = listApiProxySources();
   for (const source of sources) {
     if (!source.keyConfigured) {
       findings.push({
-        checkId: "proxy-credentials",
         severity: "warning",
         summary: `request source "${source.name}" has no API key on this host`,
         detail: null,
@@ -224,7 +208,6 @@ function proxyCredentialFindings(): ConfigDoctorFinding[] {
     !sources.some((source) => source.keyConfigured)
   ) {
     findings.push({
-      checkId: "proxy-credentials",
       severity: "error",
       summary:
         "anonymous access is off and no request source has a key: every proxy request will get 401",
@@ -234,18 +217,13 @@ function proxyCredentialFindings(): ConfigDoctorFinding[] {
         "Enter at least one source key or enable anonymous access temporarily.",
     });
   }
-  for (const endpoint of listApiEndpointCatalog(listInstances())) {
-    if (
-      endpoint.id === managerProxyEndpointId ||
-      endpoint.id.startsWith("instance:") ||
-      endpoint.id.startsWith("remote:")
-    ) {
+  for (const endpoint of listApiEndpointCatalog(instances)) {
+    if (endpoint.kind !== "external-api") {
       continue;
     }
     const auth = apiEndpointAuthHeaders(endpoint.id);
     if (!auth.ok) {
       findings.push({
-        checkId: "proxy-credentials",
         severity: "error",
         summary: auth.error,
         detail: null,
@@ -255,7 +233,6 @@ function proxyCredentialFindings(): ConfigDoctorFinding[] {
       });
     } else if (!endpoint.authConfigured) {
       findings.push({
-        checkId: "proxy-credentials",
         severity: "info",
         summary: `endpoint "${endpoint.name}" sends no credentials from this host`,
         detail: null,
@@ -268,7 +245,6 @@ function proxyCredentialFindings(): ConfigDoctorFinding[] {
   for (const webapp of listWebappRecords()) {
     if (webapp.proxySourceId && !getApiProxySourceKey(webapp.proxySourceId)) {
       findings.push({
-        checkId: "proxy-credentials",
         severity: "warning",
         summary: `webapp "${webapp.name}": its proxy source has no key on this host`,
         detail: null,
@@ -281,11 +257,10 @@ function proxyCredentialFindings(): ConfigDoctorFinding[] {
   return findings;
 }
 
-function nodeTokenFindings(): ConfigDoctorFinding[] {
+function nodeTokenFindings(): DoctorFinding[] {
   return listPeerNodes()
     .filter((node) => node.enabled && !nodeHasToken(node.id))
     .map((node) => ({
-      checkId: "node-tokens",
       severity: "warning" as const,
       summary: `peer node "${node.name}" has no token on this host`,
       detail: null,
@@ -295,13 +270,12 @@ function nodeTokenFindings(): ConfigDoctorFinding[] {
     }));
 }
 
-function hfTokenFindings(): ConfigDoctorFinding[] {
+function hfTokenFindings(): DoctorFinding[] {
   if (listModelRequirements().length === 0 || hfTokenConfigured()) {
     return [];
   }
   return [
     {
-      checkId: "hf-token",
       severity: "info",
       summary:
         "model requirements exist but no Hugging Face token is stored on this host",
@@ -313,8 +287,8 @@ function hfTokenFindings(): ConfigDoctorFinding[] {
   ];
 }
 
-function presetFindings(): ConfigDoctorFinding[] {
-  const findings: ConfigDoctorFinding[] = [];
+function presetFindings(): DoctorFinding[] {
+  const findings: DoctorFinding[] = [];
   for (const summary of listPresets()) {
     const document = readPreset(summary.name);
     if (!document) {
@@ -324,7 +298,6 @@ function presetFindings(): ConfigDoctorFinding[] {
       for (const path of [entry.modelPath, entry.mmprojPath]) {
         if (path && path.startsWith("/") && !existsSync(path)) {
           findings.push({
-            checkId: "presets",
             severity: "warning",
             summary: `preset ${summary.name}: ${entry.name} points at a missing file`,
             detail: path,
@@ -342,7 +315,7 @@ function presetFindings(): ConfigDoctorFinding[] {
 type DoctorCheckDefinition = {
   id: string;
   title: string;
-  run: () => ConfigDoctorFinding[] | Promise<ConfigDoctorFinding[]>;
+  run: (instances: Instance[]) => DoctorFinding[] | Promise<DoctorFinding[]>;
 };
 
 const CHECKS: DoctorCheckDefinition[] = [
@@ -369,7 +342,8 @@ const CHECKS: DoctorCheckDefinition[] = [
   {
     id: "resource-pools",
     title: "Memory pools",
-    run: doctorResourcePoolFindings,
+    run: (instances) =>
+      doctorResourcePoolFindings(getKnownGpuInventory(), instances),
   },
   {
     id: "proxy-credentials",
@@ -382,10 +356,14 @@ const CHECKS: DoctorCheckDefinition[] = [
 ];
 
 export async function getConfigDoctorReport(): Promise<ConfigDoctorReport> {
+  const instances = listInstances();
   const checks: ConfigDoctorCheck[] = [];
   for (const definition of CHECKS) {
     try {
-      const findings = await definition.run();
+      const findings = (await definition.run(instances)).map((finding) => ({
+        ...finding,
+        checkId: definition.id,
+      }));
       checks.push({
         id: definition.id,
         title: definition.title,
@@ -415,4 +393,15 @@ export async function getConfigDoctorReport(): Promise<ConfigDoctorReport> {
       infos: all.filter((finding) => finding.severity === "info").length,
     },
   };
+}
+
+export async function getConfigDoctorReportOrNull(
+  context: Record<string, unknown> = {},
+): Promise<ConfigDoctorReport | null> {
+  try {
+    return await getConfigDoctorReport();
+  } catch (error) {
+    logger.warn({ ...context, error }, "config doctor report failed");
+    return null;
+  }
 }

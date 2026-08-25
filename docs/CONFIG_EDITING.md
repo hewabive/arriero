@@ -97,6 +97,6 @@ read → 503 `{ error: { message, configFile } }`, write conflict → 409, malfo
 | `webapps` | `webapps/*.json` (per-file quarantine) | no |
 | `benchmark:prompts` | `benchmark/prompts.json` | no |
 
-`resources` additionally refreshes `autoCapacity` pool capacities in memory only (never dirtying
-git) via `replaceCachedValue` — the one sanctioned case where applied state deliberately diverges
-from disk.
+The one remaining `replaceCachedValue` caller is `proxy/config-files.ts:writeCollection`: writing
+an empty collection when the file does not exist updates the cache only, so a fresh tree is not
+littered with empty `proxy/*.json` files.

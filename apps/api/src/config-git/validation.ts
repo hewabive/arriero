@@ -14,10 +14,11 @@ import {
   WebappConfigRecordSchema,
   classifyConfigGitPath,
   configGitInstanceName,
+  configGitPortableFilePath,
   configGitWebappName,
   engineDescriptor,
   instanceIdFromEndpointId,
-  type ConfigGitPortableFileKind,
+  type ConfigGitPortableJsonKind,
   type ConfigGitValidation,
   type ConfigGitValidationIssue,
   type InstanceConfigRecord,
@@ -82,31 +83,18 @@ function readJson(
   );
 }
 
-function instanceNameIssue(
+function nameMismatchIssue(
+  noun: "instance" | "webapp",
   displayPath: string,
   fileName: string,
-  record: InstanceConfigRecord,
+  record: InstanceConfigRecord | WebappConfigRecord,
 ): ConfigGitValidationIssue | null {
   if (record.name === fileName) {
     return null;
   }
   return {
     path: displayPath,
-    message: `instance name "${record.name}" does not match file name "${fileName}"`,
-  };
-}
-
-function webappNameIssue(
-  displayPath: string,
-  fileName: string,
-  record: WebappConfigRecord,
-): ConfigGitValidationIssue | null {
-  if (record.name === fileName) {
-    return null;
-  }
-  return {
-    path: displayPath,
-    message: `webapp name "${record.name}" does not match file name "${fileName}"`,
+    message: `${noun} name "${record.name}" does not match file name "${fileName}"`,
   };
 }
 
@@ -122,11 +110,6 @@ function presetContentIssues(
     .filter((item) => item.severity === "error")
     .map((diagnostic) => ({ path: displayPath, message: diagnostic.message }));
 }
-
-type PortableJsonKind = Exclude<
-  ConfigGitPortableFileKind,
-  "instance" | "preset" | "webapp"
->;
 
 type EndpointRefResolution =
   | "manager"
@@ -162,7 +145,7 @@ function createEndpointRefResolver(context: {
   };
 }
 
-const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
+const portableJsonSchemas: Record<ConfigGitPortableJsonKind, z.ZodType> = {
   settings: AppSettingsFileSchema,
   "argument-defaults": ArgumentDefaultsSchema,
   resources: z.array(MemoryPoolDeclarationSchema),
@@ -177,18 +160,6 @@ const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
   "proxy-sources": z.array(StoredSourceSchema),
   "proxy-settings": ApiProxySettingsSchema,
 };
-
-function portableJsonFilePath(kind: PortableJsonKind): string {
-  if (kind === "environments") {
-    return "envs.json";
-  }
-  if (kind === "benchmark-prompts") {
-    return "benchmark/prompts.json";
-  }
-  return kind.startsWith("proxy-")
-    ? `proxy/${kind.slice("proxy-".length)}.json`
-    : `${kind}.json`;
-}
 
 export function validateConfigBlob(
   path: string,
@@ -211,7 +182,7 @@ export function validateConfigBlob(
     ) as InstanceConfigRecord | null;
     const fileName = configGitInstanceName(path);
     if (record && fileName !== null) {
-      const nameIssue = instanceNameIssue(path, fileName, record);
+      const nameIssue = nameMismatchIssue("instance", path, fileName, record);
       if (nameIssue) issues.push(nameIssue);
     }
     return issues;
@@ -225,7 +196,7 @@ export function validateConfigBlob(
     ) as WebappConfigRecord | null;
     const fileName = configGitWebappName(path);
     if (record && fileName !== null) {
-      const nameIssue = webappNameIssue(path, fileName, record);
+      const nameIssue = nameMismatchIssue("webapp", path, fileName, record);
       if (nameIssue) issues.push(nameIssue);
     }
     return issues;
@@ -273,7 +244,8 @@ function validateInstances(
     ) as InstanceConfigRecord | null;
     if (!record) continue;
     const fileName = entry.name.slice(0, -".json".length);
-    const nameIssue = instanceNameIssue(
+    const nameIssue = nameMismatchIssue(
+      "instance",
       issuePath(root, path),
       fileName,
       record,
@@ -302,7 +274,12 @@ function validateWebapps(
     ) as WebappConfigRecord | null;
     if (!record) continue;
     const fileName = entry.name.slice(0, -".json".length);
-    const nameIssue = webappNameIssue(issuePath(root, path), fileName, record);
+    const nameIssue = nameMismatchIssue(
+      "webapp",
+      issuePath(root, path),
+      fileName,
+      record,
+    );
     if (nameIssue) issues.push(nameIssue);
     webapps.push(record);
   }
@@ -334,12 +311,12 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
 
   rejectSymlinks(root, root, issues);
   const portableJsonEntries = Object.entries(portableJsonSchemas) as [
-    PortableJsonKind,
+    ConfigGitPortableJsonKind,
     z.ZodType,
   ][];
   const recognizedPaths = [
     ...portableJsonEntries
-      .map(([kind]) => portableJsonFilePath(kind))
+      .map(([kind]) => configGitPortableFilePath(kind))
       .filter((path) => !path.startsWith("proxy/")),
     ...Object.keys(MACHINE_STATE_FILE_SCHEMAS),
     "instances",
@@ -353,11 +330,11 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
       message: "repository contains no recognized configuration files",
     });
   }
-  const parsed: Partial<Record<PortableJsonKind, unknown>> = {};
+  const parsed: Partial<Record<ConfigGitPortableJsonKind, unknown>> = {};
   for (const [kind, schema] of portableJsonEntries) {
     parsed[kind] = readJson(
       root,
-      resolve(root, portableJsonFilePath(kind)),
+      resolve(root, configGitPortableFilePath(kind)),
       schema,
       issues,
     );

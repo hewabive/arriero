@@ -1,30 +1,17 @@
-import { EnvironmentMachineStateSchema } from "@arriero/core";
+import {
+  ENVIRONMENT_MACHINE_STATE_KEYS,
+  EnvironmentMachineStateSchema,
+  stripKeys,
+} from "@arriero/core";
 import { existsSync } from "node:fs";
 
 import { readRawArray, writeRawJson } from "../migrations/raw-json.js";
 import {
   ENVIRONMENTS_FILE,
   ENVIRONMENTS_STATE_FILE,
+  environmentRowsHaveMachineKeys,
   resetEnvironmentRepository,
 } from "./repository.js";
-
-const ENVIRONMENT_MACHINE_STATE_KEYS = [
-  "pathCatalogEntryId",
-  "createdAt",
-  "updatedAt",
-] as const;
-
-export function environmentRowsHaveMachineKeys(json: unknown): boolean {
-  return (
-    Array.isArray(json) &&
-    json.some(
-      (row) =>
-        typeof row === "object" &&
-        row !== null &&
-        ENVIRONMENT_MACHINE_STATE_KEYS.some((key) => key in row),
-    )
-  );
-}
 
 function envsFileHasMachineKeys(): boolean {
   return environmentRowsHaveMachineKeys(readRawArray(ENVIRONMENTS_FILE));
@@ -62,13 +49,9 @@ export function splitEnvironmentMachineState(): void {
       EnvironmentMachineStateSchema.parse(entries),
     );
   }
-  const portable = rows.map((row) => {
-    const rest = { ...row };
-    for (const key of ENVIRONMENT_MACHINE_STATE_KEYS) {
-      delete rest[key];
-    }
-    return rest;
-  });
+  const portable = rows.map((row) =>
+    stripKeys(row, ENVIRONMENT_MACHINE_STATE_KEYS),
+  );
   writeRawJson(ENVIRONMENTS_FILE, portable);
   resetEnvironmentRepository();
 }

@@ -3,7 +3,7 @@ import {
   type HfDownloadSettings,
 } from "@arriero/core";
 
-import { readSettings, writeSettings } from "./store.js";
+import { readSettings, updateSettingsSection } from "./store.js";
 
 const DEFAULT_HF_DOWNLOAD_SETTINGS = HfDownloadSettingsSchema.parse({});
 
@@ -15,9 +15,6 @@ export function saveHfDownloadSettings(
   input: HfDownloadSettings,
 ): HfDownloadSettings {
   const parsed = HfDownloadSettingsSchema.parse(input);
-  writeSettings({
-    ...readSettings(),
-    downloads: { ...readSettings().downloads, ...parsed },
-  });
+  updateSettingsSection("downloads", parsed);
   return parsed;
 }

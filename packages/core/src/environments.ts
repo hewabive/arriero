@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { BuildJobStepStatusSchema } from "./build.js";
+import { stripKeys } from "./config-git.js";
 import { BackgroundJobStatusSchema } from "./jobs.js";
 import { credentialFreeUrlSchema } from "./registries.js";
 import type { ComputeCapability } from "./system.js";
@@ -231,32 +232,20 @@ const EnvironmentSpecMetadataShape = {
   id: z.string().min(1),
 };
 
-const LEGACY_ENVIRONMENT_SPEC_KEYS = [
+export const ENVIRONMENT_MACHINE_STATE_KEYS = [
   "pathCatalogEntryId",
   "createdAt",
   "updatedAt",
+] as const;
+
+const LEGACY_ENVIRONMENT_SPEC_KEYS = [
+  ...ENVIRONMENT_MACHINE_STATE_KEYS,
   "pythonProvisioning",
   "pythonMirrorUrl",
 ] as const;
 
 function normalizeStoredEnvironmentSpec(value: unknown) {
-  const withEngine = withLegacyVllmEngine(value);
-  if (
-    !withEngine ||
-    typeof withEngine !== "object" ||
-    Array.isArray(withEngine)
-  ) {
-    return withEngine;
-  }
-  const record = withEngine as Record<string, unknown>;
-  if (LEGACY_ENVIRONMENT_SPEC_KEYS.every((key) => !(key in record))) {
-    return withEngine;
-  }
-  const rest = { ...record };
-  for (const key of LEGACY_ENVIRONMENT_SPEC_KEYS) {
-    delete rest[key];
-  }
-  return rest;
+  return stripKeys(withLegacyVllmEngine(value), LEGACY_ENVIRONMENT_SPEC_KEYS);
 }
 
 export const EnvironmentSpecSchema = z.preprocess(

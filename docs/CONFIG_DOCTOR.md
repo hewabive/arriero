@@ -30,9 +30,9 @@ one covers config-vs-host.
 | `hf-token` | `hf/token.ts` + requirements | requirements exist, no token → info |
 | `presets` | `presets/repository.ts` documents | absolute model/mmproj path missing → warning |
 
-A check that throws is reported as `skipped` (and logged), never fails the report; the report
-itself is wrapped the same way at its call sites, so a git operation can never be blocked by the
-doctor.
+A check that throws is reported as `skipped` (and logged), never fails the report; embedding call
+sites fetch the report via `getConfigDoctorReportOrNull`, which swallows and logs a total failure,
+so a git operation can never be blocked by the doctor.
 
 ## Surfaces
 

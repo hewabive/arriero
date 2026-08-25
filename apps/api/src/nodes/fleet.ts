@@ -14,7 +14,10 @@ import {
   listMemoryPoolsWithStatus,
   listUndeclaredAccelerators,
 } from "../resources/repository.js";
-import { getSystemResources } from "../system/resources.js";
+import {
+  getKnownGpuInventory,
+  getSystemResources,
+} from "../system/resources.js";
 import { listPeerNodes } from "./repository.js";
 import { fetchNodeJson } from "./remote.js";
 
@@ -75,11 +78,12 @@ async function peerEntry<T>(
 }
 
 function localResourcesPayload(): FleetResourcesPayload {
+  const detected = getSystemResources();
   return {
-    pools: listMemoryPoolsWithStatus(),
+    pools: listMemoryPoolsWithStatus(getKnownGpuInventory(), detected),
     ledger: currentResourceLedger(),
-    detected: getSystemResources(),
-    undeclared: listUndeclaredAccelerators(),
+    detected,
+    undeclared: listUndeclaredAccelerators(detected),
   };
 }
 

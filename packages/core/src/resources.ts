@@ -17,16 +17,9 @@ export const MemoryPoolSchema = z.object({
   autoCapacity: z.boolean().default(true),
 });
 
-export const MemoryPoolDeclarationSchema = z
-  .object({
-    id: MemoryPoolIdSchema,
-    name: z.string().min(1).max(120),
-    kind: MemoryPoolKindSchema,
-    capacityBytes: z.number().int().nonnegative().nullable().default(null),
-    reservedBytes: z.number().int().nonnegative().default(0),
-    deviceRef: z.string().min(1).nullable().default(null),
-    autoCapacity: z.boolean().default(true),
-  })
+export const MemoryPoolDeclarationSchema = MemoryPoolSchema.extend({
+  capacityBytes: z.number().int().nonnegative().nullable().default(null),
+})
   .catchall(z.unknown())
   .superRefine((pool, ctx) => {
     if (!pool.autoCapacity && pool.capacityBytes === null) {

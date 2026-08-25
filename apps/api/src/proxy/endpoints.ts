@@ -10,7 +10,7 @@ import {
   type Instance,
   instanceEndpointId,
   instanceIdFromEndpointId,
-  stripLegacyConfigTimestamps,
+  storedConfigSchema,
 } from "@arriero/core";
 import { z } from "zod";
 import { newId } from "../utils/id.js";
@@ -48,10 +48,8 @@ const StoredEndpointBaseSchema = ApiEndpointRecordSchema.pick({
 
 type StoredEndpoint = z.infer<typeof StoredEndpointBaseSchema>;
 
-export const StoredEndpointSchema: z.ZodType<StoredEndpoint> = z.preprocess(
-  stripLegacyConfigTimestamps,
-  StoredEndpointBaseSchema.catchall(z.unknown()),
-);
+export const StoredEndpointSchema: z.ZodType<StoredEndpoint> =
+  storedConfigSchema(StoredEndpointBaseSchema);
 
 export const managerProxyEndpointId = "manager-proxy";
 const REMOTE_ENDPOINT_PREFIX = "remote:";

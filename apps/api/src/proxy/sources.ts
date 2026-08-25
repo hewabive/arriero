@@ -2,7 +2,7 @@ import {
   ApiProxySourceCreateSchema,
   ApiProxySourceRecordSchema,
   ApiProxySourceUpdateSchema,
-  stripLegacyConfigTimestamps,
+  storedConfigSchema,
   type ApiProxySourceCreate,
   type ApiProxySourceRecord,
   type ApiProxySourceUpdate,
@@ -32,9 +32,8 @@ const StoredSourceBaseSchema = ApiProxySourceRecordSchema.pick({
 
 type StoredSource = z.infer<typeof StoredSourceBaseSchema>;
 
-export const StoredSourceSchema: z.ZodType<StoredSource> = z.preprocess(
-  stripLegacyConfigTimestamps,
-  StoredSourceBaseSchema.catchall(z.unknown()),
+export const StoredSourceSchema: z.ZodType<StoredSource> = storedConfigSchema(
+  StoredSourceBaseSchema,
 );
 
 function sourceSecretId(id: string) {

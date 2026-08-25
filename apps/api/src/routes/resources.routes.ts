@@ -19,12 +19,13 @@ import {
 
 export function registerResourceRoutes(app: Hono) {
   app.get("/api/resources", (c) => {
+    const detected = getSystemResources();
     return c.json({
       data: {
-        pools: listMemoryPoolsWithStatus(),
+        pools: listMemoryPoolsWithStatus(getKnownGpuInventory(), detected),
         ledger: currentResourceLedger(),
-        detected: getSystemResources(),
-        undeclared: listUndeclaredAccelerators(),
+        detected,
+        undeclared: listUndeclaredAccelerators(detected),
       },
     });
   });
