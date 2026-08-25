@@ -161,8 +161,10 @@ export type ConfigGitPortableFileKind =
   | "resources"
   | "nodes"
   | "environments"
+  | "benchmark-prompts"
   | "instance"
   | "preset"
+  | "webapp"
   | `proxy-${ConfigGitProxyCollection}`;
 
 const LEGACY_CONFIG_TIMESTAMP_KEYS = ["createdAt", "updatedAt"] as const;
@@ -184,6 +186,7 @@ export function stripLegacyConfigTimestamps(value: unknown): unknown {
 
 const configGitInstancePathPattern = /^instances\/[A-Za-z0-9._-]+\.json$/;
 const configGitPresetPathPattern = /^presets\/[A-Za-z0-9._-]+\.ini$/;
+const configGitWebappPathPattern = /^webapps\/[A-Za-z0-9._-]+\.json$/;
 const configGitProxyPathPattern = new RegExp(
   `^proxy/(${CONFIG_GIT_PROXY_COLLECTIONS.join("|")})\\.json$`,
 );
@@ -202,6 +205,8 @@ export function classifyConfigGitPath(
       return "nodes";
     case "envs.json":
       return "environments";
+    case "benchmark/prompts.json":
+      return "benchmark-prompts";
     default:
       break;
   }
@@ -210,6 +215,9 @@ export function classifyConfigGitPath(
   }
   if (configGitPresetPathPattern.test(path)) {
     return "preset";
+  }
+  if (configGitWebappPathPattern.test(path)) {
+    return "webapp";
   }
   const proxy = configGitProxyPathPattern.exec(path);
   if (proxy) {
@@ -223,6 +231,13 @@ export function configGitInstanceName(path: string): string | null {
     return null;
   }
   return path.slice("instances/".length, -".json".length);
+}
+
+export function configGitWebappName(path: string): string | null {
+  if (classifyConfigGitPath(path) !== "webapp") {
+    return null;
+  }
+  return path.slice("webapps/".length, -".json".length);
 }
 
 export function isPlainRelativeConfigGitPath(path: string): boolean {

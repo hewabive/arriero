@@ -5,18 +5,22 @@ import {
   ApiProxyTargetRecordSchema,
   AppSettingsFileSchema,
   ArgumentDefaultsSchema,
+  BenchmarkPromptSchema,
   EnvironmentSpecSchema,
   FleetNodeSchema,
   InstanceConfigRecordSchema,
-  MemoryPoolSchema,
+  MemoryPoolDeclarationSchema,
+  WebappConfigRecordSchema,
   classifyConfigGitPath,
   configGitInstanceName,
+  configGitWebappName,
   engineDescriptor,
   instanceIdFromEndpointId,
   type ConfigGitPortableFileKind,
   type ConfigGitValidation,
   type ConfigGitValidationIssue,
   type InstanceConfigRecord,
+  type WebappConfigRecord,
 } from "@arriero/core";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -91,6 +95,20 @@ function instanceNameIssue(
   };
 }
 
+function webappNameIssue(
+  displayPath: string,
+  fileName: string,
+  record: WebappConfigRecord,
+): ConfigGitValidationIssue | null {
+  if (record.name === fileName) {
+    return null;
+  }
+  return {
+    path: displayPath,
+    message: `webapp name "${record.name}" does not match file name "${fileName}"`,
+  };
+}
+
 function presetContentIssues(
   displayPath: string,
   content: string,
@@ -106,7 +124,7 @@ function presetContentIssues(
 
 type PortableJsonKind = Exclude<
   ConfigGitPortableFileKind,
-  "instance" | "preset"
+  "instance" | "preset" | "webapp"
 >;
 
 type EndpointRefResolution =
@@ -146,9 +164,10 @@ function createEndpointRefResolver(context: {
 const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
   settings: AppSettingsFileSchema,
   "argument-defaults": ArgumentDefaultsSchema,
-  resources: z.array(MemoryPoolSchema),
+  resources: z.array(MemoryPoolDeclarationSchema),
   nodes: z.array(FleetNodeSchema),
   environments: z.array(EnvironmentSpecSchema),
+  "benchmark-prompts": z.array(BenchmarkPromptSchema),
   "proxy-targets": z.array(ApiProxyTargetRecordSchema),
   "proxy-models": z.array(ApiProxyModelRecordSchema),
   "proxy-pipelines": z.array(ApiProxyPipelineRecordSchema),
@@ -160,6 +179,9 @@ const portableJsonSchemas: Record<PortableJsonKind, z.ZodType> = {
 function portableJsonFilePath(kind: PortableJsonKind): string {
   if (kind === "environments") {
     return "envs.json";
+  }
+  if (kind === "benchmark-prompts") {
+    return "benchmark/prompts.json";
   }
   return kind.startsWith("proxy-")
     ? `proxy/${kind.slice("proxy-".length)}.json`
@@ -188,6 +210,20 @@ export function validateConfigBlob(
     const fileName = configGitInstanceName(path);
     if (record && fileName !== null) {
       const nameIssue = instanceNameIssue(path, fileName, record);
+      if (nameIssue) issues.push(nameIssue);
+    }
+    return issues;
+  }
+  if (kind === "webapp") {
+    const record = jsonContentIssues(
+      path,
+      content,
+      WebappConfigRecordSchema,
+      issues,
+    ) as WebappConfigRecord | null;
+    const fileName = configGitWebappName(path);
+    if (record && fileName !== null) {
+      const nameIssue = webappNameIssue(path, fileName, record);
       if (nameIssue) issues.push(nameIssue);
     }
     return issues;
@@ -246,6 +282,31 @@ function validateInstances(
   return instances;
 }
 
+function validateWebapps(
+  root: string,
+  issues: ConfigGitValidationIssue[],
+): WebappConfigRecord[] {
+  const directory = resolve(root, "webapps");
+  if (!existsSync(directory)) return [];
+  const webapps: WebappConfigRecord[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    const path = resolve(directory, entry.name);
+    const record = readJson(
+      root,
+      path,
+      WebappConfigRecordSchema,
+      issues,
+    ) as WebappConfigRecord | null;
+    if (!record) continue;
+    const fileName = entry.name.slice(0, -".json".length);
+    const nameIssue = webappNameIssue(issuePath(root, path), fileName, record);
+    if (nameIssue) issues.push(nameIssue);
+    webapps.push(record);
+  }
+  return webapps;
+}
+
 function validatePresets(root: string, issues: ConfigGitValidationIssue[]) {
   const directory = resolve(root, "presets");
   if (!existsSync(directory)) return;
@@ -282,6 +343,7 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
     "instances",
     "presets",
     "proxy",
+    "webapps",
   ];
   if (!recognizedPaths.some((path) => existsSync(resolve(root, path)))) {
     issues.push({
@@ -302,10 +364,13 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
     readJson(root, resolve(root, name), schema, issues);
   }
   const instances = validateInstances(root, issues);
+  const webapps = validateWebapps(root, issues);
   validatePresets(root, issues);
 
   const resources =
-    (parsed.resources as z.infer<typeof MemoryPoolSchema>[] | null) ?? [];
+    (parsed.resources as
+      | z.infer<typeof MemoryPoolDeclarationSchema>[]
+      | null) ?? [];
   const targets =
     (parsed["proxy-targets"] as
       | z.infer<typeof ApiProxyTargetRecordSchema>[]
@@ -324,6 +389,37 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
           message: `references missing resource pool "${draw.poolId}"`,
         });
       }
+    }
+  }
+
+  const environmentSpecs = parsed.environments as
+    | z.infer<typeof EnvironmentSpecSchema>[]
+    | null;
+  const envSpecIds = environmentSpecs
+    ? new Set(environmentSpecs.map((item) => item.id))
+    : null;
+  const proxySourceIds = new Set(
+    (
+      (parsed["proxy-sources"] as
+        | z.infer<typeof StoredSourceSchema>[]
+        | null) ?? []
+    ).map((item) => item.id),
+  );
+  for (const webapp of webapps) {
+    if (
+      webapp.proxySourceId !== null &&
+      !proxySourceIds.has(webapp.proxySourceId)
+    ) {
+      issues.push({
+        path: `webapps/${webapp.name}.json`,
+        message: `references missing proxy source "${webapp.proxySourceId}"`,
+      });
+    }
+    if (envSpecIds && !envSpecIds.has(webapp.envSpecId)) {
+      issues.push({
+        path: `webapps/${webapp.name}.json`,
+        message: `references missing environment spec "${webapp.envSpecId}"`,
+      });
     }
   }
 

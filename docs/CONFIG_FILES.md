@@ -43,11 +43,19 @@ warnings.
 Store: `webapps/config-files.ts` (file-per-webapp on the directory store), CRUD in
 `webapps/repository.ts`. Body = `WebappConfigRecord`: kind, `envSpecId` (the managed Python
 environment holding the app), host/port, `proxySourceId`, `autostart`, and the kind-discriminated
-`settings`. **Identity = `name`** (the filename, same charset as instances) — it keys
+`settings`. Tree validation checks each file's schema, the name/filename match, and that
+`envSpecId` / `proxySourceId` resolve against `envs.json` / `proxy/sources.json`; per-file restore
+works like any other portable kind. **Identity = `name`** (the filename, same charset as instances) — it keys
 `webapp_runs.webappId`, the supervisor map and `runtime/webapps/<name>`. Rename is refused while a
 run is active and cascades to runs, the `.secrets.json` key and the data directory. The rendered
 process environment is never stored — it is rebuilt from this record on every start
 (`docs/WEBAPPS.md`).
+
+## `benchmark/prompts.json` — custom benchmark prompts
+
+Store `benchmark/custom-prompts.ts` (config-store id `benchmark:prompts`), aggregate array of
+`BenchmarkPrompt` records, **identity = `id`**. Validated and restorable like every portable kind;
+details in `docs/BENCHMARK.md`.
 
 ## `presets/<name>.ini` — `--models-preset` files
 

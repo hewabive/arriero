@@ -314,3 +314,152 @@ test("validateConfigBlob accepts portable and pre-split envs.json, not envs-stat
     /not a restorable/,
   );
 });
+
+const webappFixture = {
+  name: "chat",
+  kind: "open-webui",
+  envSpecId: "env-1",
+  http: { host: "127.0.0.1", port: 3000 },
+  proxySourceId: null,
+  autostart: false,
+  settings: { type: "open-webui" },
+};
+
+test("validateConfigRoot checks webapp files and their references", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-webapps-"));
+  mkdirSync(resolve(root, "webapps"));
+  writeJson(resolve(root, "resources.json"), []);
+  writeJson(resolve(root, "webapps", "chat.json"), webappFixture);
+
+  assert.deepEqual(validateConfigRoot(root), { valid: true, issues: [] });
+
+  writeJson(resolve(root, "envs.json"), []);
+  const missingSpec = validateConfigRoot(root);
+  assert.equal(missingSpec.valid, false);
+  assert.match(
+    missingSpec.issues[0]?.message ?? "",
+    /missing environment spec "env-1"/,
+  );
+
+  writeJson(resolve(root, "envs.json"), [
+    {
+      engine: "open-webui",
+      version: "0.11.0",
+      pythonVersion: "3.12",
+      source: { kind: "pypi", extras: [] },
+      id: "env-1",
+    },
+  ]);
+  assert.deepEqual(validateConfigRoot(root), { valid: true, issues: [] });
+
+  writeJson(resolve(root, "webapps", "chat.json"), {
+    ...webappFixture,
+    proxySourceId: "src-1",
+  });
+  const missingSource = validateConfigRoot(root);
+  assert.equal(missingSource.valid, false);
+  assert.match(
+    missingSource.issues[0]?.message ?? "",
+    /missing proxy source "src-1"/,
+  );
+
+  writeJson(resolve(root, "webapps", "chat.json"), {
+    ...webappFixture,
+    name: "other",
+  });
+  const nameMismatch = validateConfigRoot(root);
+  assert.equal(nameMismatch.valid, false);
+  assert.match(
+    nameMismatch.issues[0]?.message ?? "",
+    /does not match file name/,
+  );
+});
+
+test("validateConfigBlob covers webapp files and benchmark prompts", () => {
+  assert.deepEqual(
+    validateConfigBlob("webapps/chat.json", JSON.stringify(webappFixture)),
+    [],
+  );
+  assert.match(
+    validateConfigBlob(
+      "webapps/chat.json",
+      JSON.stringify({ ...webappFixture, name: "other" }),
+    )[0]?.message ?? "",
+    /does not match file name/,
+  );
+  assert.deepEqual(
+    validateConfigBlob(
+      "benchmark/prompts.json",
+      JSON.stringify([
+        {
+          id: "p1",
+          title: "Prompt",
+          topic: "test",
+          language: "en",
+          prefillClass: "short",
+          maxTokens: 64,
+          messages: [{ role: "user", content: "hi" }],
+        },
+      ]),
+    ),
+    [],
+  );
+  assert.match(
+    validateConfigBlob("benchmark/prompts.json", "{}")[0]?.message ?? "",
+    /Invalid/i,
+  );
+});
+
+test("validateConfigRoot accepts pool declarations with derived capacity", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "llama-config-pools-"));
+  mkdirSync(resolve(root, "instances"));
+  writeJson(resolve(root, "resources.json"), [
+    {
+      id: "gpu0",
+      name: "GPU 0",
+      kind: "gpu",
+      capacityBytes: null,
+      reservedBytes: 0,
+      deviceRef: "0",
+      autoCapacity: true,
+    },
+    {
+      id: "host",
+      name: "Host RAM",
+      kind: "host",
+      capacityBytes: 8_000_000_000,
+      reservedBytes: 0,
+      deviceRef: null,
+      autoCapacity: false,
+    },
+  ]);
+  writeJson(resolve(root, "instances", "worker.json"), {
+    name: "worker",
+    kind: "llama-server",
+    binaryPath: "/bin/false",
+    args: {},
+    env: {},
+    memory: [{ poolId: "gpu0", bytes: 1024 }],
+    rpcWorkers: [],
+  });
+
+  assert.deepEqual(validateConfigRoot(root), { valid: true, issues: [] });
+
+  writeJson(resolve(root, "resources.json"), [
+    {
+      id: "gpu0",
+      name: "GPU 0",
+      kind: "gpu",
+      capacityBytes: null,
+      reservedBytes: 0,
+      deviceRef: "0",
+      autoCapacity: false,
+    },
+  ]);
+  const invalid = validateConfigRoot(root);
+  assert.equal(invalid.valid, false);
+  assert.match(
+    invalid.issues[0]?.message ?? "",
+    /manual pools must declare capacityBytes/,
+  );
+});

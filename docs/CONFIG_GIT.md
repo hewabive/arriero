@@ -177,10 +177,12 @@ The operation never runs `git checkout`. Each blob is read with
 schema via `validateConfigBlob` (a pre-migration blob shape is rejected, e.g.
 `numaNode` from before migration 0008), and only then written atomically. The
 allowlist is `classifyConfigGitPath` in `@arriero/core`: `settings.json`,
-`argument-defaults.json`, `resources.json`, `nodes.json`, `instances/*.json`,
-`presets/*.ini` and `proxy/*.json`; machine-local files, `.gitignore` and
+`argument-defaults.json`, `resources.json`, `nodes.json`, `envs.json`,
+`benchmark/prompts.json`, `instances/*.json`, `presets/*.ini`,
+`webapps/*.json` and `proxy/*.json`; machine-local files, `.gitignore` and
 sensitive paths are not restorable. After all files are written the whole root
-is re-validated (`validateConfigRoot`: pool references, pipeline graph) — on
+is re-validated (`validateConfigRoot`: pool references, pipeline graph, webapp
+references) — on
 failure every written file is rolled back to its previous content and the
 operation fails, so a partial restore can never leave dangling cross-file
 references undetected. On success the portable-config caches reload and
