@@ -38,6 +38,10 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
   const { draft, onDraftChange } = props;
   const hasEnvVar = draft.apiKeyEnvVar.trim().length > 0;
   const hasApiKey = draft.apiKey.trim().length > 0;
+  const hasStoredKey =
+    props.editor?.mode === "edit" &&
+    props.editor.endpoint.authConfigured &&
+    !props.editor.endpoint.apiKeyEnvVar;
 
   const setHeader = (index: number, patch: { name?: string; value?: string }) =>
     onDraftChange({
@@ -140,11 +144,13 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
         <Group grow align="flex-start">
           <SecretInput
             label="API key"
-            disabled={hasEnvVar}
+            disabled={hasEnvVar || draft.clearApiKey}
             placeholder={
-              props.editor?.mode === "edit"
-                ? "Leave blank to keep current key"
-                : "sk-..."
+              draft.clearApiKey
+                ? "Stored key will be removed on save"
+                : props.editor?.mode === "edit"
+                  ? "Leave blank to keep current key"
+                  : "sk-..."
             }
             value={draft.apiKey}
             onChange={(event) =>
@@ -161,6 +167,24 @@ export function EndpointEditorModal(props: EndpointEditorModalProps) {
             }
           />
         </Group>
+        {hasStoredKey && (
+          <Group>
+            <Button
+              size="compact-xs"
+              variant="light"
+              color={draft.clearApiKey ? "gray" : "red"}
+              onClick={() =>
+                onDraftChange({
+                  ...draft,
+                  clearApiKey: !draft.clearApiKey,
+                  apiKey: "",
+                })
+              }
+            >
+              {draft.clearApiKey ? "Keep stored key" : "Clear stored key"}
+            </Button>
+          </Group>
+        )}
         <TextInput
           label="Auth header override (optional)"
           placeholder="x-api-key"

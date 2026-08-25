@@ -22,6 +22,7 @@ export type EndpointDraft = {
   baseUrl: string;
   profile: "openai" | "llama-native" | "anthropic";
   apiKey: string;
+  clearApiKey: boolean;
   apiKeyEnvVar: string;
   authHeaderName: string;
   extraHeaders: EndpointHeaderDraft[];
@@ -39,6 +40,7 @@ export const emptyEndpointDraft: EndpointDraft = {
   baseUrl: "",
   profile: "openai",
   apiKey: "",
+  clearApiKey: false,
   apiKeyEnvVar: "",
   authHeaderName: "",
   extraHeaders: [],
@@ -70,6 +72,7 @@ export function endpointDraftFromRecord(
     baseUrl: endpoint.baseUrl,
     profile: endpoint.profile,
     apiKey: "",
+    clearApiKey: false,
     apiKeyEnvVar: endpoint.apiKeyEnvVar ?? "",
     authHeaderName: endpoint.authHeaderName ?? "",
     extraHeaders: Object.entries(endpoint.extraHeaders).map(
@@ -126,6 +129,10 @@ export function endpointPayload(draft: EndpointDraft): ApiEndpointCreate {
     streamIdleTimeoutMs: streamIdleMsFromSeconds(
       draft.streamIdleTimeoutSeconds,
     ),
-    ...(apiKey && !envVar ? { apiKey } : {}),
+    ...(apiKey && !envVar
+      ? { apiKey }
+      : draft.clearApiKey && !envVar
+        ? { apiKey: "" }
+        : {}),
   };
 }

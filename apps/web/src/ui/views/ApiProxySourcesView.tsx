@@ -34,6 +34,7 @@ type SourceEditor =
 type SourceDraft = {
   name: string;
   apiKey: string;
+  clearApiKey: boolean;
   note: string;
   enabled: boolean;
   blockedMessage: string;
@@ -42,6 +43,7 @@ type SourceDraft = {
 const emptyDraft: SourceDraft = {
   name: "",
   apiKey: "",
+  clearApiKey: false,
   note: "",
   enabled: true,
   blockedMessage: "",
@@ -51,6 +53,7 @@ function draftFromRecord(source: ApiProxySourceRecord): SourceDraft {
   return {
     name: source.name,
     apiKey: "",
+    clearApiKey: false,
     note: source.note,
     enabled: source.enabled,
     blockedMessage: source.blockedMessage,
@@ -158,7 +161,9 @@ export function ApiProxySourcesView() {
         note: draft.note,
         blockedMessage: draft.blockedMessage,
       };
-      if (draft.apiKey.trim()) {
+      if (draft.clearApiKey) {
+        input.apiKey = "";
+      } else if (draft.apiKey.trim()) {
         input.apiKey = draft.apiKey.trim();
       }
       updateMutation.mutate({ id: editor.source.id, input });
@@ -291,15 +296,18 @@ export function ApiProxySourcesView() {
           />
           <TextInput
             label="API key"
+            disabled={draft.clearApiKey}
             description={
               editor?.mode === "edit"
                 ? "Leave blank to keep the current key."
                 : "Clients send this as Authorization: Bearer <key> or x-api-key."
             }
             placeholder={
-              editor?.mode === "edit" && editor.source.keyConfigured
-                ? "•••••••• (unchanged)"
-                : "sk-…"
+              draft.clearApiKey
+                ? "Key will be removed on save"
+                : editor?.mode === "edit" && editor.source.keyConfigured
+                  ? "•••••••• (unchanged)"
+                  : "sk-…"
             }
             value={draft.apiKey}
             onChange={(event) => {
@@ -308,12 +316,34 @@ export function ApiProxySourcesView() {
             }}
             rightSection={
               <Tooltip label="Generate">
-                <ActionIcon variant="subtle" onClick={generateKey}>
+                <ActionIcon
+                  variant="subtle"
+                  disabled={draft.clearApiKey}
+                  onClick={generateKey}
+                >
                   <RefreshCw size={16} />
                 </ActionIcon>
               </Tooltip>
             }
           />
+          {editor?.mode === "edit" && editor.source.keyConfigured && (
+            <Group>
+              <Button
+                size="compact-xs"
+                variant="light"
+                color={draft.clearApiKey ? "gray" : "red"}
+                onClick={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    clearApiKey: !current.clearApiKey,
+                    apiKey: "",
+                  }))
+                }
+              >
+                {draft.clearApiKey ? "Keep current key" : "Clear key"}
+              </Button>
+            </Group>
+          )}
           <Textarea
             label="Note"
             autosize
