@@ -53,6 +53,7 @@ import {
 import {
   apiProxyOperationSpec,
   resolveApiProxyProtocolModelRequest,
+  type ApiProxyOperationBodyMode,
   type ApiProxyProtocolAdapter,
   type ApiProxyProtocolDiagnostic,
   type ApiProxyProtocolModelRequest,
@@ -154,6 +155,21 @@ async function safeJsonBody(c: Context) {
   } catch {
     return null;
   }
+}
+
+const operationBodyReaders: Record<
+  ApiProxyOperationBodyMode,
+  (c: Context) => Promise<unknown>
+> = {
+  json: safeJsonBody,
+};
+
+function readOperationBody(
+  c: Context,
+  operation: ApiProxyProtocolOperation,
+): Promise<unknown> {
+  const bodyMode = apiProxyOperationSpec(operation)?.bodyMode ?? "json";
+  return operationBodyReaders[bodyMode](c);
 }
 
 type StreamUsageMeter = {
@@ -315,7 +331,7 @@ async function proxyProtocolEndpointInner(
   recorder: ProxyTraceRecorder,
   inflight: ApiProxyInflightHandle,
 ): Promise<Response> {
-  const body = await safeJsonBody(c);
+  const body = await readOperationBody(c, operation);
   if (body && typeof body === "object" && "model" in body) {
     const model = (body as { model?: unknown }).model;
     if (typeof model === "string") {

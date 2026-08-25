@@ -172,9 +172,12 @@ export type ApiProxyResponseShape =
   | "openai-responses"
   | "openai-chat";
 
+export type ApiProxyOperationBodyMode = "json";
+
 type ApiProxyOperationSpec = {
   protocol: ApiProxyProtocolId;
   upstreamPath: string;
+  bodyMode: ApiProxyOperationBodyMode;
   responseShape: ApiProxyResponseShape;
   resumable: boolean;
   promptProgress: boolean;
@@ -187,6 +190,7 @@ const apiProxyOperationSpecs = {
   "chat.completions": {
     protocol: "openai",
     upstreamPath: "/v1/chat/completions",
+    bodyMode: "json",
     responseShape: "openai-chat",
     resumable: true,
     promptProgress: true,
@@ -197,6 +201,7 @@ const apiProxyOperationSpecs = {
   completions: {
     protocol: "openai",
     upstreamPath: "/v1/completions",
+    bodyMode: "json",
     responseShape: "openai-chat",
     resumable: false,
     promptProgress: false,
@@ -207,6 +212,7 @@ const apiProxyOperationSpecs = {
   embeddings: {
     protocol: "openai",
     upstreamPath: "/v1/embeddings",
+    bodyMode: "json",
     responseShape: "openai-chat",
     resumable: false,
     promptProgress: false,
@@ -217,6 +223,7 @@ const apiProxyOperationSpecs = {
   rerank: {
     protocol: "openai",
     upstreamPath: "/v1/rerank",
+    bodyMode: "json",
     responseShape: "openai-chat",
     resumable: false,
     promptProgress: false,
@@ -227,6 +234,7 @@ const apiProxyOperationSpecs = {
   responses: {
     protocol: "openai",
     upstreamPath: "/v1/responses",
+    bodyMode: "json",
     responseShape: "openai-responses",
     resumable: false,
     promptProgress: false,
@@ -237,6 +245,7 @@ const apiProxyOperationSpecs = {
   messages: {
     protocol: "anthropic",
     upstreamPath: "/v1/messages",
+    bodyMode: "json",
     responseShape: "anthropic",
     resumable: true,
     promptProgress: false,
@@ -247,6 +256,7 @@ const apiProxyOperationSpecs = {
   "messages.count_tokens": {
     protocol: "anthropic",
     upstreamPath: "/v1/messages/count_tokens",
+    bodyMode: "json",
     responseShape: "anthropic",
     resumable: false,
     promptProgress: false,
