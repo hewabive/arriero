@@ -8,6 +8,10 @@ import {
 } from "../config-relocation.js";
 import { sqlite } from "../db/index.js";
 import {
+  envsStateSplitApplied,
+  splitEnvironmentMachineState,
+} from "../envs/state-split-migration.js";
+import {
   instanceConfigsHaveLegacyNumaNode,
   migrateInstanceNumaNodeToNuma,
 } from "../instances/numa-migration.js";
@@ -151,6 +155,15 @@ export const migrations: Migration[] = [
     isApplied: () => !modelsFileHasReasoningOverrides(),
     apply: () => {
       migrateModelReasoningToUpstreams();
+    },
+  },
+  {
+    id: "0013-split-envs-machine-state",
+    describe:
+      "config/envs.json machine fields (pathCatalogEntryId, timestamps) → config/envs-state.json",
+    isApplied: () => envsStateSplitApplied(),
+    apply: () => {
+      splitEnvironmentMachineState();
     },
   },
 ];

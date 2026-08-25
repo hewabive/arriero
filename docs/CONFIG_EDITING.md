@@ -92,6 +92,7 @@ read → 503 `{ error: { message, configFile } }`, write conflict → 409, malfo
 | `resources` | `resources.json` | no |
 | `nodes` | `nodes.json` | no |
 | `environments` | `envs.json` (machine state) | no |
+| `environments-state` | `envs-state.json` (machine state) | no |
 | `webapps` | `webapps/*.json` (per-file quarantine) | no |
 | `benchmark:prompts` | `benchmark/prompts.json` | no |
 

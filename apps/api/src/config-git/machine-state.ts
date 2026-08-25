@@ -1,4 +1,8 @@
-import { EnvironmentSpecSchema, PathCatalogEntrySchema } from "@arriero/core";
+import {
+  EnvironmentMachineStateSchema,
+  EnvironmentSpecSchema,
+  PathCatalogEntrySchema,
+} from "@arriero/core";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { z } from "zod";
@@ -10,6 +14,7 @@ import { atomicWriteFile } from "../utils/atomic-write.js";
 export const MACHINE_STATE_FILE_SCHEMAS: Record<string, z.ZodType> = {
   "path-catalog.json": z.array(PathCatalogEntrySchema),
   "envs.json": z.array(EnvironmentSpecSchema),
+  "envs-state.json": EnvironmentMachineStateSchema,
 };
 
 export const MACHINE_STATE_CONFIG_FILES = Object.keys(

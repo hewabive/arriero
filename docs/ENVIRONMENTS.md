@@ -11,7 +11,11 @@ provisioner registry; orchestration remains shared.
 Portable specs live in `data/config/envs.json`. Runtime environments live under
 `runtime/envs/` (override with `ARRIERO_ENVS_DIR`) and are safe to delete and rebuild.
 A spec records the engine/version, runtime variant (`cuda`, `cpu`, or `rocm`), Python
-request, application install source, and the id of its generated path-catalog entry.
+request, and the application install source. Machine-local companions — the id of the
+generated path-catalog entry and the local timestamps — live in
+`data/config/envs-state.json`, reconciled at startup and on environment listing, so
+the spec file itself carries only host-independent intent and is never written on a
+read path.
 Repository infrastructure is deliberately not copied into each spec; the node-wide
 environment repository profile lives in `data/config/settings.json`.
 

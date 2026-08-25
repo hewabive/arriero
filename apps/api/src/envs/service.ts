@@ -22,9 +22,11 @@ import {
 import {
   createEnvironmentSpec,
   deleteEnvironmentSpec,
+  getEnvironmentMachineState,
   getEnvironmentSpec,
   listEnvironmentJobs,
   listEnvironmentSpecs,
+  pruneEnvironmentMachineState,
 } from "./repository.js";
 import { environmentRunner } from "./runner.js";
 import { probeUv } from "./uv.js";
@@ -65,6 +67,7 @@ function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
   });
   return EnvironmentRecordSchema.parse({
     ...spec,
+    createdAt: getEnvironmentMachineState(spec.id)?.createdAt ?? null,
     status,
     path,
     entrypoint,
@@ -80,7 +83,6 @@ export function listEnvironments() {
       !environmentLayoutError(spec)
     ) {
       reconcileEnvironmentCatalog(spec);
-      return toRecord(getEnvironmentSpec(spec.id) ?? spec);
     }
     return toRecord(spec);
   });
@@ -133,10 +135,12 @@ export function deleteEnvironment(id: string) {
   if (environmentRunner.activeEnvironmentId() === id) {
     throw new Error("environment installation is running");
   }
+  const pathCatalogEntryId =
+    getEnvironmentMachineState(spec.id)?.pathCatalogEntryId ?? null;
   if (
-    spec.pathCatalogEntryId &&
+    pathCatalogEntryId &&
     listInstances().some(
-      (instance) => instance.binaryPathRefId === spec.pathCatalogEntryId,
+      (instance) => instance.binaryPathRefId === pathCatalogEntryId,
     )
   ) {
     throw new Error("environment is used by an instance");
@@ -146,12 +150,13 @@ export function deleteEnvironment(id: string) {
   }
   discardDirectory(assertEnvironmentPath(environmentDirectory(spec)));
   discardDirectory(assertEnvironmentPath(environmentStagingDirectory(spec)));
-  if (spec.pathCatalogEntryId) deletePathCatalogEntry(spec.pathCatalogEntryId);
+  if (pathCatalogEntryId) deletePathCatalogEntry(pathCatalogEntryId);
   return deleteEnvironmentSpec(id);
 }
 
 export function initializeEnvironments() {
   const swept = sweepEnvironmentLeftovers();
+  pruneEnvironmentMachineState();
   const records = listEnvironments();
   const installed = records.filter(
     (item) => item.status === "installed",

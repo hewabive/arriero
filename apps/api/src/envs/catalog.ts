@@ -8,7 +8,10 @@ import {
 } from "../path-catalog/repository.js";
 import { environmentEntrypoint } from "./paths.js";
 import { environmentProvisioner } from "./provisioners.js";
-import { updateEnvironmentSpec } from "./repository.js";
+import {
+  getEnvironmentMachineState,
+  setEnvironmentPathCatalogEntryId,
+} from "./repository.js";
 
 export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
   const provisioner = environmentProvisioner(spec.engine);
@@ -18,9 +21,9 @@ export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
   }
   const path = environmentEntrypoint(spec);
   const desiredName = provisioner.catalogName(spec);
-  const stored = spec.pathCatalogEntryId
-    ? getPathCatalogEntry(spec.pathCatalogEntryId)
-    : null;
+  const storedEntryId =
+    getEnvironmentMachineState(spec.id)?.pathCatalogEntryId ?? null;
+  const stored = storedEntryId ? getPathCatalogEntry(storedEntryId) : null;
   let entry =
     stored?.kind === "binary"
       ? updatePathCatalogEntry(stored.id, {
@@ -48,8 +51,8 @@ export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
   if (!entry) {
     throw new Error("failed to reconcile environment path-catalog entry");
   }
-  if (entry && entry.id !== spec.pathCatalogEntryId) {
-    updateEnvironmentSpec(spec.id, { pathCatalogEntryId: entry.id });
+  if (entry.id !== storedEntryId) {
+    setEnvironmentPathCatalogEntryId(spec.id, entry.id);
   }
   return entry;
 }

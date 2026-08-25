@@ -197,8 +197,10 @@ export function EnvironmentsView() {
                     </Badge>
                   </Group>
                   <Text size="xs" c="dimmed">
-                    Python {environment.pythonVersion} ·{" "}
-                    {formatLocalDateTime(environment.createdAt)}
+                    Python {environment.pythonVersion}
+                    {environment.createdAt
+                      ? ` · ${formatLocalDateTime(environment.createdAt)}`
+                      : ""}
                   </Text>
                   {environment.availabilityReason && (
                     <Text c="orange" size="xs">

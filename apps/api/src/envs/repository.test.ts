@@ -4,16 +4,24 @@ import test from "node:test";
 
 import {
   ENVIRONMENTS_FILE,
+  ENVIRONMENTS_STATE_FILE,
   createEnvironmentSpec,
   deleteEnvironmentSpec,
+  getEnvironmentMachineState,
   getEnvironmentSpec,
+  pruneEnvironmentMachineState,
   resetEnvironmentRepository,
-  updateEnvironmentSpec,
+  setEnvironmentPathCatalogEntryId,
 } from "./repository.js";
 
-test("environment specs persist desired state and catalog ownership", () => {
+function resetEnvironmentFiles() {
   rmSync(ENVIRONMENTS_FILE, { force: true });
+  rmSync(ENVIRONMENTS_STATE_FILE, { force: true });
   resetEnvironmentRepository();
+}
+
+test("environment specs persist portable desired state, machine state lives aside", () => {
+  resetEnvironmentFiles();
   const created = createEnvironmentSpec({
     engine: "vllm",
     version: "0.24.0",
@@ -24,25 +32,36 @@ test("environment specs persist desired state and catalog ownership", () => {
       extras: [],
     },
   });
-  assert.equal(created.pathCatalogEntryId, null);
   assert.equal(getEnvironmentSpec(created.id)?.version, "0.24.0");
+  const specsRaw = readFileSync(ENVIRONMENTS_FILE, "utf8");
+  assert.equal(specsRaw.includes("pathCatalogEntryId"), false);
+  assert.equal(specsRaw.includes("createdAt"), false);
+  assert.equal(
+    getEnvironmentMachineState(created.id)?.pathCatalogEntryId,
+    null,
+  );
+  assert.ok(getEnvironmentMachineState(created.id)?.createdAt);
 
-  const updated = updateEnvironmentSpec(created.id, {
-    pathCatalogEntryId: "catalog-vllm",
-  });
-  assert.equal(updated?.pathCatalogEntryId, "catalog-vllm");
-
+  setEnvironmentPathCatalogEntryId(created.id, "catalog-vllm");
   resetEnvironmentRepository();
   assert.equal(
-    getEnvironmentSpec(created.id)?.pathCatalogEntryId,
+    getEnvironmentMachineState(created.id)?.pathCatalogEntryId,
     "catalog-vllm",
   );
   assert.equal(deleteEnvironmentSpec(created.id), true);
+  assert.equal(getEnvironmentMachineState(created.id), null);
+});
+
+test("prune drops machine-state entries whose spec is gone", () => {
+  resetEnvironmentFiles();
+  setEnvironmentPathCatalogEntryId("orphan-env", "catalog-orphan");
+  assert.ok(getEnvironmentMachineState("orphan-env"));
+  pruneEnvironmentMachineState();
+  assert.equal(getEnvironmentMachineState("orphan-env"), null);
 });
 
 test("KTransformers desired state persists its matched source pair", () => {
-  rmSync(ENVIRONMENTS_FILE, { force: true });
-  resetEnvironmentRepository();
+  resetEnvironmentFiles();
   const created = createEnvironmentSpec({
     engine: "ktransformers",
     version: "0.6.3.post1",
@@ -55,8 +74,8 @@ test("KTransformers desired state persists its matched source pair", () => {
   assert.equal(deleteEnvironmentSpec(created.id), true);
 });
 
-test("legacy environment rows without engine normalize to vLLM in memory", () => {
-  rmSync(ENVIRONMENTS_FILE, { force: true });
+test("legacy environment rows normalize to portable specs in memory", () => {
+  resetEnvironmentFiles();
   writeFileSync(
     ENVIRONMENTS_FILE,
     `${JSON.stringify([
@@ -80,6 +99,8 @@ test("legacy environment rows without engine normalize to vLLM in memory", () =>
   assert.equal(normalized?.engine, "vllm");
   assert.equal("pythonProvisioning" in normalized!, false);
   assert.equal("pythonMirrorUrl" in normalized!, false);
+  assert.equal("pathCatalogEntryId" in normalized!, false);
+  assert.equal("createdAt" in normalized!, false);
   assert.equal("indexUrl" in normalized!.source, false);
   assert.equal(deleteEnvironmentSpec("legacy-vllm"), true);
 });

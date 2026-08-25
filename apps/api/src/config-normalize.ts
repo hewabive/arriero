@@ -7,6 +7,11 @@ import {
 } from "./arguments/defaults-repository.js";
 import { config } from "./config.js";
 import { hasPortablePathCandidate } from "./config-paths.js";
+import {
+  ENVIRONMENTS_FILE,
+  rewriteEnvironmentsFile,
+} from "./envs/repository.js";
+import { environmentRowsHaveMachineKeys } from "./envs/state-split-migration.js";
 import { logger } from "./logger.js";
 import {
   getInstanceRecord,
@@ -146,6 +151,11 @@ export function normalizeConfigFiles(): string[] {
     ],
     [NODES_FILE, collectionCheck, rewriteNodesFile],
     [RESOURCES_FILE, collectionCheck, rewriteResourcePoolsFile],
+    [
+      ENVIRONMENTS_FILE,
+      { portable: false, extraStale: environmentRowsHaveMachineKeys },
+      rewriteEnvironmentsFile,
+    ],
   ];
   for (const [path, check, rewrite] of singleFileRewrites) {
     normalize(path, check, rewrite);

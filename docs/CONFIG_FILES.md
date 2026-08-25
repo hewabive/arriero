@@ -10,7 +10,7 @@ rebuildable caches (`docs/RUNTIME_LAYOUT.md`). One configurable root, `data/conf
 (`ARRIERO_CONFIG_DIR`). JSON files seed from the git-tracked repo-root `config/*.json` (not
 `data/config/`); a malformed file is loudly quarantined, never silently defaulted; runtime-computed
 defaults fill absent sections. Tracked config files carry **no timestamps** — provenance is
-config-git commit history; `path-catalog.json` and `envs.json` are gitignored machine state and the
+config-git commit history; `path-catalog.json` and `envs-state.json` are gitignored machine state and the
 only files that keep `createdAt`/`updatedAt`.
 
 ## `instances/<name>.json` — instance definitions

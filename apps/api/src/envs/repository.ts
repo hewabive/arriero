@@ -1,10 +1,12 @@
 import {
+  EnvironmentMachineStateSchema,
   EnvironmentSpecSchema,
   type EnvironmentCreate,
   type EnvironmentJob,
   type EnvironmentJobStatus,
   type EnvironmentJobStep,
   type EnvironmentJobStepName,
+  type EnvironmentMachineStateEntry,
   type EnvironmentSpec,
 } from "@arriero/core";
 import { resolve } from "node:path";
@@ -18,12 +20,25 @@ import { newId } from "../utils/id.js";
 import { environmentDirectory } from "./paths.js";
 
 export const ENVIRONMENTS_FILE = resolve(config.configDir, "envs.json");
+export const ENVIRONMENTS_STATE_FILE = resolve(
+  config.configDir,
+  "envs-state.json",
+);
 const ENVIRONMENT_JOB_HISTORY_LIMIT = 20;
 
 const store = createJsonFileStore<EnvironmentSpec[]>({
   id: "environments",
   path: ENVIRONMENTS_FILE,
   schema: z.array(EnvironmentSpecSchema),
+  missing: () => [],
+  portablePaths: false,
+  cache: "process",
+});
+
+const stateStore = createJsonFileStore<EnvironmentMachineStateEntry[]>({
+  id: "environments-state",
+  path: ENVIRONMENTS_STATE_FILE,
+  schema: EnvironmentMachineStateSchema,
   missing: () => [],
   portablePaths: false,
   cache: "process",
@@ -42,10 +57,62 @@ function load() {
 }
 
 function persist(specs: EnvironmentSpec[]) {
-  const sorted = [...specs].sort((a, b) =>
-    a.createdAt.localeCompare(b.createdAt),
-  );
+  const sorted = [...specs].sort((a, b) => a.id.localeCompare(b.id));
   store.write(sorted);
+}
+
+function loadState() {
+  return stateStore.read();
+}
+
+function persistState(entries: EnvironmentMachineStateEntry[]) {
+  const sorted = [...entries].sort((a, b) => a.envId.localeCompare(b.envId));
+  stateStore.write(sorted);
+}
+
+export function getEnvironmentMachineState(
+  envId: string,
+): EnvironmentMachineStateEntry | null {
+  return loadState().find((entry) => entry.envId === envId) ?? null;
+}
+
+export function setEnvironmentPathCatalogEntryId(
+  envId: string,
+  pathCatalogEntryId: string | null,
+): void {
+  const timestamp = nowIso();
+  const entries = loadState();
+  const current = entries.find((entry) => entry.envId === envId);
+  if (current) {
+    if (current.pathCatalogEntryId === pathCatalogEntryId) {
+      return;
+    }
+    persistState(
+      entries.map((entry) =>
+        entry.envId === envId
+          ? { ...entry, pathCatalogEntryId, updatedAt: timestamp }
+          : entry,
+      ),
+    );
+    return;
+  }
+  persistState([
+    ...entries,
+    { envId, pathCatalogEntryId, createdAt: timestamp, updatedAt: timestamp },
+  ]);
+}
+
+export function pruneEnvironmentMachineState(): void {
+  const specIds = new Set(load().map((spec) => spec.id));
+  const entries = loadState();
+  const next = entries.filter((entry) => specIds.has(entry.envId));
+  if (next.length !== entries.length) {
+    persistState(next);
+  }
+}
+
+export function rewriteEnvironmentsFile(): void {
+  persist(load());
 }
 
 export function listEnvironmentSpecs() {
@@ -65,37 +132,24 @@ export function environmentSpecForBinaryPath(binaryPath: string) {
 }
 
 export function createEnvironmentSpec(input: EnvironmentCreate) {
-  const timestamp = nowIso();
   const spec = EnvironmentSpecSchema.parse({
     ...input,
     id: newId(),
-    pathCatalogEntryId: null,
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
   persist([...load(), spec]);
+  setEnvironmentPathCatalogEntryId(spec.id, null);
   return spec;
-}
-
-export function updateEnvironmentSpec(
-  id: string,
-  patch: Partial<Pick<EnvironmentSpec, "pathCatalogEntryId">>,
-) {
-  const current = getEnvironmentSpec(id);
-  if (!current) return null;
-  const next = EnvironmentSpecSchema.parse({
-    ...current,
-    ...patch,
-    updatedAt: nowIso(),
-  });
-  persist(load().map((spec) => (spec.id === id ? next : spec)));
-  return next;
 }
 
 export function deleteEnvironmentSpec(id: string) {
   const next = load().filter((spec) => spec.id !== id);
   if (next.length === load().length) return false;
   persist(next);
+  const entries = loadState();
+  const remaining = entries.filter((entry) => entry.envId !== id);
+  if (remaining.length !== entries.length) {
+    persistState(remaining);
+  }
   return true;
 }
 
@@ -140,5 +194,6 @@ export function listEnvironmentJobs(limit = 20) {
 
 export function resetEnvironmentRepository() {
   store.reset();
+  stateStore.reset();
   environmentJobs.clear();
 }

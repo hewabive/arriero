@@ -47,7 +47,7 @@ the remote does not provide a `.gitignore`.
 
 ## Machine-local files
 
-`path-catalog.json` and `envs.json` describe state of the current machine, not
+`path-catalog.json`, `envs.json` and `envs-state.json` describe state of the current machine, not
 portable configuration: catalog entries are rewritten automatically by build
 completion and by the environment reconciler at startup, and environment specs
 carry ids of local catalog entries. Both files are therefore gitignored

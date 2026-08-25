@@ -229,21 +229,63 @@ export const EnvironmentCreateSchema = z.preprocess(
 
 const EnvironmentSpecMetadataShape = {
   id: z.string().min(1),
-  pathCatalogEntryId: z.string().min(1).nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
 };
 
+const LEGACY_ENVIRONMENT_SPEC_KEYS = [
+  "pathCatalogEntryId",
+  "createdAt",
+  "updatedAt",
+  "pythonProvisioning",
+  "pythonMirrorUrl",
+] as const;
+
+function normalizeStoredEnvironmentSpec(value: unknown) {
+  const withEngine = withLegacyVllmEngine(value);
+  if (
+    !withEngine ||
+    typeof withEngine !== "object" ||
+    Array.isArray(withEngine)
+  ) {
+    return withEngine;
+  }
+  const record = withEngine as Record<string, unknown>;
+  if (LEGACY_ENVIRONMENT_SPEC_KEYS.every((key) => !(key in record))) {
+    return withEngine;
+  }
+  const rest = { ...record };
+  for (const key of LEGACY_ENVIRONMENT_SPEC_KEYS) {
+    delete rest[key];
+  }
+  return rest;
+}
+
 export const EnvironmentSpecSchema = z.preprocess(
-  withLegacyVllmEngine,
+  normalizeStoredEnvironmentSpec,
   z.discriminatedUnion("engine", [
-    VllmEnvironmentCreateObjectSchema.extend(EnvironmentSpecMetadataShape),
-    SglangEnvironmentCreateObjectSchema.extend(EnvironmentSpecMetadataShape),
+    VllmEnvironmentCreateObjectSchema.extend(
+      EnvironmentSpecMetadataShape,
+    ).catchall(z.unknown()),
+    SglangEnvironmentCreateObjectSchema.extend(
+      EnvironmentSpecMetadataShape,
+    ).catchall(z.unknown()),
     KTransformersEnvironmentCreateObjectSchema.extend(
       EnvironmentSpecMetadataShape,
-    ),
-    OpenWebuiEnvironmentCreateObjectSchema.extend(EnvironmentSpecMetadataShape),
+    ).catchall(z.unknown()),
+    OpenWebuiEnvironmentCreateObjectSchema.extend(
+      EnvironmentSpecMetadataShape,
+    ).catchall(z.unknown()),
   ]),
+);
+
+export const EnvironmentMachineStateEntrySchema = z.object({
+  envId: z.string().min(1),
+  pathCatalogEntryId: z.string().min(1).nullable().default(null),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const EnvironmentMachineStateSchema = z.array(
+  EnvironmentMachineStateEntrySchema,
 );
 
 export function packageIndexInstallOptions(indexUrl: string | null) {
@@ -291,6 +333,7 @@ export const EnvironmentStatusSchema = z.enum([
 
 const EnvironmentRecordShape = {
   ...EnvironmentSpecMetadataShape,
+  createdAt: z.string().nullable().default(null),
   status: EnvironmentStatusSchema,
   availability: z.enum(["not-installed", "usable", "unavailable"]),
   availabilityReason: z.string().nullable(),
@@ -373,6 +416,9 @@ export type EnvironmentCreateInput = z.input<
   typeof EnvironmentCreateUnionSchema
 >;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
+export type EnvironmentMachineStateEntry = z.infer<
+  typeof EnvironmentMachineStateEntrySchema
+>;
 export type EnvironmentStatus = z.infer<typeof EnvironmentStatusSchema>;
 export type PackageIndexFile = z.infer<typeof PackageIndexFileSchema>;
 export type PackageIndexVersion = z.infer<typeof PackageIndexVersionSchema>;
