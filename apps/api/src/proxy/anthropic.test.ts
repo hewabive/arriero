@@ -147,7 +147,6 @@ test("anthropicProtocolAdapter keeps a disabled source out of the login flow", (
     anthropicProtocolAdapter.authError({
       status: 423,
       code: "arriero_proxy_source_disabled",
-      errorClass: "permission",
       message: "Contact the administrator.",
     }),
     {
@@ -157,6 +156,26 @@ test("anthropicProtocolAdapter keeps a disabled source out of the login flow", (
         error: {
           type: "permission_error",
           message: "Contact the administrator.",
+        },
+      },
+    },
+  );
+});
+
+test("anthropicProtocolAdapter keeps a denied anonymous caller out of the login flow", () => {
+  assert.deepEqual(
+    anthropicProtocolAdapter.authError({
+      status: 423,
+      code: "arriero_proxy_source_required",
+      message: "Ask the admin for a key.",
+    }),
+    {
+      status: 423,
+      body: {
+        type: "error",
+        error: {
+          type: "permission_error",
+          message: "Ask the admin for a key.",
         },
       },
     },

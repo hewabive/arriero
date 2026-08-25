@@ -3,6 +3,7 @@ import {
   ApiProxySourceRecordSchema,
   ApiProxySourceUpdateSchema,
   storedConfigSchema,
+  type ApiProxySettings,
   type ApiProxySourceCreate,
   type ApiProxySourceRecord,
   type ApiProxySourceUpdate,
@@ -217,9 +218,14 @@ export function resolveApiProxyRequestSource(
   return { kind: "unknown" };
 }
 
+export type ApiProxyRequestSourcePolicy = Pick<
+  ApiProxySettings,
+  "allowAnonymous" | "anonymousBlockedMessage" | "unknownKeyBlockedMessage"
+>;
+
 export function apiProxyRequestSourceRejection(
   resolution: RequestSourceResolution,
-  allowAnonymous: boolean,
+  policy: ApiProxyRequestSourcePolicy,
 ): ApiProxyAuthDiagnostic | null {
   if (resolution.kind === "source") {
     if (resolution.enabled) {
@@ -228,28 +234,28 @@ export function apiProxyRequestSourceRejection(
     return {
       status: 423,
       code: "arriero_proxy_source_disabled",
-      errorClass: "permission",
       message:
         resolution.blockedMessage ||
         `Source ${resolution.name} is disabled by the administrator.`,
     };
   }
-  if (allowAnonymous) {
+  if (policy.allowAnonymous) {
     return null;
   }
   return resolution.kind === "anonymous"
     ? {
-        status: 401,
+        status: 423,
         code: "arriero_proxy_source_required",
-        errorClass: "authentication",
         message:
+          policy.anonymousBlockedMessage ||
           "Anonymous requests are disabled. Provide a source API key via Authorization: Bearer or x-api-key.",
       }
     : {
-        status: 401,
+        status: 423,
         code: "invalid_api_key",
-        errorClass: "authentication",
-        message: "Unknown API key. Requests must use a configured source key.",
+        message:
+          policy.unknownKeyBlockedMessage ||
+          "Unknown API key. Requests must use a configured source key.",
       };
 }
 
@@ -264,7 +270,7 @@ export function apiProxyRequestGate(headers: Headers): {
     resolution,
     rejection: apiProxyRequestSourceRejection(
       resolution,
-      getApiProxySettings().allowAnonymous,
+      getApiProxySettings(),
     ),
   };
 }

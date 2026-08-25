@@ -25,6 +25,10 @@ export function updateApiProxySettings(
   const next: ApiProxySettings = {
     ...current,
     allowAnonymous: parsed.allowAnonymous ?? current.allowAnonymous,
+    anonymousBlockedMessage:
+      parsed.anonymousBlockedMessage ?? current.anonymousBlockedMessage,
+    unknownKeyBlockedMessage:
+      parsed.unknownKeyBlockedMessage ?? current.unknownKeyBlockedMessage,
     streamIdleTimeoutMs:
       parsed.streamIdleTimeoutMs !== undefined
         ? parsed.streamIdleTimeoutMs

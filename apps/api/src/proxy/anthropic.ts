@@ -15,7 +15,6 @@ import {
 export type AnthropicErrorType =
   | "invalid_request_error"
   | "not_found_error"
-  | "authentication_error"
   | "permission_error"
   | "conflict_error"
   | "api_error";
@@ -374,10 +373,7 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
     status: diagnostic.status,
     body: anthropicError({
       message: diagnostic.message,
-      type:
-        diagnostic.errorClass === "permission"
-          ? "permission_error"
-          : "authentication_error",
+      type: "permission_error",
     }),
   }),
   upstreamPath: (operation) => upstreamPaths[operation.endpoint] ?? null,

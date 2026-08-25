@@ -55,9 +55,8 @@ type ApiProxyAuthDiagnosticCode =
   | "invalid_api_key";
 
 export type ApiProxyAuthDiagnostic = {
-  status: 401 | 423;
+  status: 423;
   code: ApiProxyAuthDiagnosticCode;
-  errorClass: "permission" | "authentication";
   message: string;
 };
 

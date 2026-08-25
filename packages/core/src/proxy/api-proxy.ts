@@ -277,11 +277,15 @@ export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
 
 export const ApiProxySettingsSchema = z.object({
   allowAnonymous: z.boolean().default(true),
+  anonymousBlockedMessage: ApiProxyBlockedMessageSchema.default(""),
+  unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.default(""),
   streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().default(null),
 });
 
 export const ApiProxySettingsUpdateSchema = z.object({
   allowAnonymous: z.boolean().optional(),
+  anonymousBlockedMessage: ApiProxyBlockedMessageSchema.optional(),
+  unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.optional(),
   streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().optional(),
 });
 

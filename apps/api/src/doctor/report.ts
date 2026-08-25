@@ -210,7 +210,7 @@ function proxyCredentialFindings(instances: Instance[]): DoctorFinding[] {
     findings.push({
       severity: "error",
       summary:
-        "anonymous access is off and no request source has a key: every proxy request will get 401",
+        "anonymous access is off and no request source has a key: every proxy request will get 423",
       detail: null,
       configPath: "proxy/settings.json",
       remediation:

@@ -15,8 +15,21 @@ beforeEach(() => {
 test("defaults to allowing anonymous requests", () => {
   assert.deepEqual(getApiProxySettings(), {
     allowAnonymous: true,
+    anonymousBlockedMessage: "",
+    unknownKeyBlockedMessage: "",
     streamIdleTimeoutMs: null,
   });
+});
+
+test("persists rejection messages independently of other fields", () => {
+  updateApiProxySettings({ anonymousBlockedMessage: "Ask for a key." });
+  updateApiProxySettings({ unknownKeyBlockedMessage: "Key not registered." });
+  updateApiProxySettings({ allowAnonymous: false });
+
+  resetConfigFilesCache();
+  const settings = getApiProxySettings();
+  assert.equal(settings.anonymousBlockedMessage, "Ask for a key.");
+  assert.equal(settings.unknownKeyBlockedMessage, "Key not registered.");
 });
 
 test("persists the stream idle timeout independently of other fields", () => {

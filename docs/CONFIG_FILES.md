@@ -138,14 +138,15 @@ deletable via API/UI only while orphaned and unreferenced. See `docs/RESOURCE_MA
 
 Low-level store `proxy/config-files.ts`; CRUD in `proxy/repository.ts`, `proxy/endpoints.ts`,
 `proxy/sources.ts`, `proxy/settings.ts`. Aggregate-per-type arrays, except `settings.json` which is a
-single object (currently `allowAnonymous`). In-memory cache + write-through; external edits apply on
-restart.
+single object (`allowAnonymous`, the `anonymousBlockedMessage` / `unknownKeyBlockedMessage` rejection
+texts, `streamIdleTimeoutMs`). In-memory cache + write-through; external edits apply on restart.
 
 API keys live in `config/.secrets.json` (gitignored), never in `endpoints.json`; env-var auth stays
 preferred. `sources` = request labeling plus an optional auth gate: an inbound
 `Authorization: Bearer` / `x-api-key` is resolved (`resolveApiProxyRequestSource`) to stamp
 `trace.sourceId` / `sourceName`. A disabled source's key is always rejected `423` with its
-`blockedMessage`; with `allowAnonymous:false` unknown or missing keys get `401`. The gate
+`blockedMessage`; with `allowAnonymous:false` unknown or missing keys get `423` too, with the
+settings-level rejection texts. The gate
 (`apiProxyRequestGate`) runs pre-body-read in `proxy/protocol-endpoint.ts` and on `GET /v1/models`,
 shaped per facade by the adapter `authError` (`docs/API_PROXY_FOUNDATION.md` § Request sources).
 Default `allowAnonymous:true` keeps labeling-only passthrough. Source keys live in `.secrets.json`

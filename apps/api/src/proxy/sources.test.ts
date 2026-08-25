@@ -73,6 +73,14 @@ test("a disabled source still resolves, carrying its blocked message", () => {
   });
 });
 
+function policy(allowAnonymous: boolean) {
+  return {
+    allowAnonymous,
+    anonymousBlockedMessage: "",
+    unknownKeyBlockedMessage: "",
+  };
+}
+
 test("rejection: disabled source gets 423 regardless of anonymous policy", () => {
   const resolution = {
     kind: "source",
@@ -84,7 +92,7 @@ test("rejection: disabled source gets 423 regardless of anonymous policy", () =>
   for (const allowAnonymous of [true, false]) {
     const rejection = apiProxyRequestSourceRejection(
       resolution,
-      allowAnonymous,
+      policy(allowAnonymous),
     );
     assert.equal(rejection?.status, 423);
     assert.equal(rejection?.code, "arriero_proxy_source_disabled");
@@ -95,7 +103,7 @@ test("rejection: disabled source gets 423 regardless of anonymous policy", () =>
 test("rejection: disabled source without a custom message gets the default", () => {
   const rejection = apiProxyRequestSourceRejection(
     { kind: "source", id: "x", name: "a", enabled: false, blockedMessage: "" },
-    true,
+    policy(true),
   );
   assert.equal(rejection?.status, 423);
   assert.match(rejection?.message ?? "", /disabled by the administrator/);
@@ -103,30 +111,54 @@ test("rejection: disabled source without a custom message gets the default", () 
 
 test("rejection: anonymous and unknown pass when anonymous is allowed", () => {
   assert.equal(
-    apiProxyRequestSourceRejection({ kind: "anonymous" }, true),
+    apiProxyRequestSourceRejection({ kind: "anonymous" }, policy(true)),
     null,
   );
-  assert.equal(apiProxyRequestSourceRejection({ kind: "unknown" }, true), null);
+  assert.equal(
+    apiProxyRequestSourceRejection({ kind: "unknown" }, policy(true)),
+    null,
+  );
   assert.equal(
     apiProxyRequestSourceRejection(
       { kind: "source", id: "x", name: "a", enabled: true, blockedMessage: "" },
-      false,
+      policy(false),
     ),
     null,
   );
 });
 
-test("rejection: anonymous and unknown get 401 when anonymous is denied", () => {
+test("rejection: anonymous and unknown get 423 when anonymous is denied", () => {
   const anonymous = apiProxyRequestSourceRejection(
     { kind: "anonymous" },
-    false,
+    policy(false),
   );
-  assert.equal(anonymous?.status, 401);
+  assert.equal(anonymous?.status, 423);
   assert.equal(anonymous?.code, "arriero_proxy_source_required");
+  assert.match(anonymous?.message ?? "", /Anonymous requests are disabled/);
 
-  const unknown = apiProxyRequestSourceRejection({ kind: "unknown" }, false);
-  assert.equal(unknown?.status, 401);
+  const unknown = apiProxyRequestSourceRejection(
+    { kind: "unknown" },
+    policy(false),
+  );
+  assert.equal(unknown?.status, 423);
   assert.equal(unknown?.code, "invalid_api_key");
+  assert.match(unknown?.message ?? "", /Unknown API key/);
+});
+
+test("rejection: anonymous and unknown carry the admin-set messages", () => {
+  const denied = {
+    allowAnonymous: false,
+    anonymousBlockedMessage: "Ask the admin for a key.",
+    unknownKeyBlockedMessage: "This key is not registered.",
+  };
+  assert.equal(
+    apiProxyRequestSourceRejection({ kind: "anonymous" }, denied)?.message,
+    "Ask the admin for a key.",
+  );
+  assert.equal(
+    apiProxyRequestSourceRejection({ kind: "unknown" }, denied)?.message,
+    "This key is not registered.",
+  );
 });
 
 test("rejects assigning a key already used by another source", () => {

@@ -69,6 +69,38 @@ function notifyFailure(title: string) {
     });
 }
 
+function RejectionMessageInput({
+  label,
+  description,
+  value,
+  disabled,
+  onSave,
+}: {
+  label: string;
+  description: string;
+  value: string;
+  disabled: boolean;
+  onSave: (value: string) => void;
+}) {
+  return (
+    <Textarea
+      key={value}
+      label={label}
+      description={description}
+      autosize
+      minRows={1}
+      defaultValue={value}
+      disabled={disabled}
+      onBlur={(event) => {
+        const next = event.currentTarget.value.trim();
+        if (next !== value) {
+          onSave(next);
+        }
+      }}
+    />
+  );
+}
+
 export function ApiProxySourcesView() {
   const queryClient = useQueryClient();
   const [editor, setEditor] = useState<SourceEditor | null>(null);
@@ -189,7 +221,7 @@ export function ApiProxySourcesView() {
             description={`${
               allowAnonymous
                 ? "Unknown or missing keys pass through as anonymous — sources only label requests."
-                : "Requests without a configured source key are rejected with 401."
+                : "Requests without a configured source key are rejected with 423."
             } Disabled sources are always rejected.`}
             checked={allowAnonymous}
             disabled={settingsQuery.isPending || settingsMutation.isPending}
@@ -202,6 +234,29 @@ export function ApiProxySourcesView() {
             New source
           </Button>
         </Group>
+
+        {!allowAnonymous && (
+          <Group grow mb="sm" align="flex-start">
+            <RejectionMessageInput
+              label="Anonymous rejection message"
+              description="Returned to requests that send no API key. Empty uses a default message."
+              value={settings?.anonymousBlockedMessage ?? ""}
+              disabled={settingsMutation.isPending}
+              onSave={(anonymousBlockedMessage) =>
+                settingsMutation.mutate({ anonymousBlockedMessage })
+              }
+            />
+            <RejectionMessageInput
+              label="Unknown key rejection message"
+              description="Returned to requests whose key matches no source. Empty uses a default message."
+              value={settings?.unknownKeyBlockedMessage ?? ""}
+              disabled={settingsMutation.isPending}
+              onSave={(unknownKeyBlockedMessage) =>
+                settingsMutation.mutate({ unknownKeyBlockedMessage })
+              }
+            />
+          </Group>
+        )}
 
         <Table striped withTableBorder fz="sm">
           <Table.Thead>
