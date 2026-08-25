@@ -61,6 +61,19 @@ function collectionHasTimestampKeys(json: unknown): boolean {
   return Array.isArray(json) && json.some(hasTimestampKeys);
 }
 
+function poolDeclarationsCarryAutoCapacityValues(json: unknown): boolean {
+  return (
+    Array.isArray(json) &&
+    json.some(
+      (row) =>
+        typeof row === "object" &&
+        row !== null &&
+        (row as { autoCapacity?: unknown }).autoCapacity !== false &&
+        (row as { capacityBytes?: unknown }).capacityBytes != null,
+    )
+  );
+}
+
 function settingsBuildSectionHasHostFacts(json: unknown): boolean {
   if (typeof json !== "object" || json === null) {
     return false;
@@ -171,7 +184,16 @@ export function normalizeConfigFiles(): string[] {
       rewriteStoredSources,
     ],
     [NODES_FILE, collectionCheck, rewriteNodesFile],
-    [RESOURCES_FILE, collectionCheck, rewriteResourcePoolsFile],
+    [
+      RESOURCES_FILE,
+      {
+        portable: false,
+        extraStale: (json) =>
+          collectionHasTimestampKeys(json) ||
+          poolDeclarationsCarryAutoCapacityValues(json),
+      },
+      rewriteResourcePoolsFile,
+    ],
     [
       ENVIRONMENTS_FILE,
       { portable: false, extraStale: environmentRowsHaveMachineKeys },

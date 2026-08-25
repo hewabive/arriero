@@ -98,7 +98,7 @@ This is deliberately **not** a registry migration (`docs/MIGRATIONS.md`).
 Migrations are one-shot and removable — their legacy marker never comes back
 once applied. An absolute path can: hand-editing a config file, or restoring one
 from a backup, reintroduces it. So the pass is standing housekeeping, in the
-same class as `refreshAutoCapacities()` or `sweepSourceCloneStaging()`, and both
+same class as `sweepEnvironmentLeftovers()` or `sweepSourceCloneStaging()`, and both
 forms stay readable forever — expansion is a no-op on an absolute path.
 
 It is not wired into `reloadPortableConfigCaches()` (config Git init/clone/pull).

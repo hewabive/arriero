@@ -363,6 +363,7 @@ test("KTransformers memory shortfalls are blocking", async () => {
             requestedBytes: 32_000,
             availableBytes: 1_000,
             deficitBytes: 31_000,
+            missing: false,
           },
         ],
       },

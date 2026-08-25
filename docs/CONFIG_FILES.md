@@ -101,14 +101,16 @@ reconciler rewrite it.
 
 ## `resources.json` — memory pools
 
-`resources/repository.ts`, kinds `gpu` / `host`. `budget = capacityBytes − reservedBytes`; instances
+`resources/repository.ts`, kinds `gpu` / `host`. The file holds **declarations**: identity,
+`reservedBytes` intent, and `capacityBytes` only for manual pools — an `autoCapacity` pool stores
+`null` and resolves its effective capacity from detected hardware at read time, which keeps the
+tracked file host-neutral for a shared origin. `budget = capacityBytes − reservedBytes`; instances
 declare a per-pool `memory` draw. The pure ledger `buildResourceLedger` / `checkDrawAdmission` in
 core is shared by manual-start admission and the proxy eviction planner. Scaffolded from detected
-hardware on first run. `autoCapacity` pools re-sync in memory at startup without dirtying git, and
-**startup is the only path that persists pools** for newly detected GPUs — config reload and
-config-git tree operations use `syncAutoCapacitiesInMemory` and never write. A gpu pool whose device
-disappeared gets a derived (never persisted) `orphaned` flag and is deletable via API/UI only while
-orphaned and unreferenced by instance draws. See `docs/RESOURCE_MANAGEMENT.md`.
+hardware on first run; a GPU detected later joins only through the explicit "Declare pool" action
+(`POST /api/resources/pools`) — runtime never writes this file on its own. A gpu pool whose device
+disappeared gets a derived (never persisted) `orphaned` flag, contributes zero budget, and is
+deletable via API/UI only while orphaned and unreferenced. See `docs/RESOURCE_MANAGEMENT.md`.
 
 ## `proxy/{targets,models,pipelines,endpoints,sources,settings}.json`
 

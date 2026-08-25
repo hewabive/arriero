@@ -1,7 +1,7 @@
 import type {
   MemoryEstimate,
   MemoryEstimateRequest,
-  MemoryPool,
+  MemoryPoolDeclaration,
   MemoryPoolUpdate,
   MemoryPoolView,
   ResourceLedger,
@@ -15,6 +15,7 @@ export type ResourcesSnapshot = {
   pools: MemoryPoolView[];
   ledger: ResourceLedger;
   detected: SystemResources;
+  undeclared: SystemResources["accelerators"];
 };
 
 export async function getResources() {
@@ -26,11 +27,21 @@ export async function updateMemoryPool(
   input: MemoryPoolUpdate,
   nodeId?: string,
 ) {
-  return request<{ data: MemoryPool }>(
+  return request<{ data: MemoryPoolDeclaration }>(
     nodeScopedPath(nodeId, `/api/resources/pools/${id}`),
     {
       method: "PUT",
       body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function declareGpuPool(deviceRef: string, nodeId?: string) {
+  return request<{ data: MemoryPoolDeclaration }>(
+    nodeScopedPath(nodeId, "/api/resources/pools"),
+    {
+      method: "POST",
+      body: JSON.stringify({ deviceRef }),
     },
   );
 }

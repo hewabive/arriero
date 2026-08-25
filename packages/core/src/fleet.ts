@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { MemoryPoolViewSchema, ResourceLedgerSchema } from "./resources.js";
-import { SystemResourcesSchema } from "./system.js";
+import { SystemAcceleratorSchema, SystemResourcesSchema } from "./system.js";
 
 export const FleetNodeIdSchema = z.string().regex(/^[A-Za-z0-9._-]+$/);
 export const FleetNodeNameSchema = z.string().trim().min(1).max(80);
@@ -75,6 +75,7 @@ export const FleetResourcesPayloadSchema = z.object({
   pools: z.array(MemoryPoolViewSchema),
   ledger: ResourceLedgerSchema,
   detected: SystemResourcesSchema,
+  undeclared: z.array(SystemAcceleratorSchema).default([]),
 });
 export type FleetResourcesPayload = z.infer<typeof FleetResourcesPayloadSchema>;
 

@@ -27,6 +27,7 @@ import { Cpu, MemoryStick, Pencil, Save, Server, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import {
+  declareGpuPool,
   deleteMemoryPool,
   getFleetResources,
   listInstances,
@@ -140,15 +141,19 @@ export function ResourcesView() {
         input.id,
         {
           name: input.draft.name.trim(),
-          capacityBytes: Math.max(
-            0,
-            Math.round(Number(input.draft.capacityGib) * GIB),
-          ),
           reservedBytes: Math.max(
             0,
             Math.round(Number(input.draft.reservedGib) * GIB),
           ),
           autoCapacity: input.draft.autoCapacity,
+          ...(input.draft.autoCapacity
+            ? {}
+            : {
+                capacityBytes: Math.max(
+                  0,
+                  Math.round(Number(input.draft.capacityGib) * GIB),
+                ),
+              }),
         },
         input.nodeId,
       ),
@@ -162,6 +167,22 @@ export function ResourcesView() {
       notifications.show({
         color: "red",
         title: "Pool update failed",
+        message: (error as Error).message,
+      }),
+  });
+
+  const declareMutation = useMutation({
+    mutationFn: (input: { deviceRef: string; nodeId: string }) =>
+      declareGpuPool(input.deviceRef, input.nodeId),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["fleet-resources"] });
+      await queryClient.invalidateQueries({ queryKey: ["resources"] });
+      notifications.show({ title: "Pool declared", message: result.data.name });
+    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        title: "Pool declare failed",
         message: (error as Error).message,
       }),
   });
@@ -361,6 +382,38 @@ export function ResourcesView() {
           </Paper>
         )}
 
+        {entry.ok && (entry.data?.undeclared ?? []).length > 0 && (
+          <Paper withBorder p="md" radius="sm">
+            <Text fw={600}>Undeclared GPUs</Text>
+            <Text size="xs" c="dimmed">
+              Detected on this node but not declared as pools; declare one to
+              budget memory on it.
+            </Text>
+            <Stack gap="xs" mt="sm">
+              {(entry.data?.undeclared ?? []).map((accelerator) => (
+                <Group key={accelerator.id} justify="space-between" wrap="wrap">
+                  <Text size="sm">
+                    {accelerator.name} · device {accelerator.id}
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    loading={declareMutation.isPending}
+                    onClick={() =>
+                      declareMutation.mutate({
+                        deviceRef: accelerator.id,
+                        nodeId: entry.nodeId,
+                      })
+                    }
+                  >
+                    Declare pool
+                  </Button>
+                </Group>
+              ))}
+            </Stack>
+          </Paper>
+        )}
+
         {detected && detected.numa.nodes.length > 1 && (
           <NumaTopologyPanel resources={detected} />
         )}
@@ -413,7 +466,7 @@ export function ResourcesView() {
               }}
             />
             <Switch
-              label="Auto capacity (re-sync from detected hardware on startup)"
+              label="Auto capacity (derived from detected hardware)"
               checked={draft.autoCapacity}
               onChange={(event) => {
                 const checked = event.currentTarget.checked;
@@ -426,7 +479,7 @@ export function ResourcesView() {
               label="Capacity (GiB)"
               description={
                 draft.autoCapacity
-                  ? "Auto capacity is on; this value is overwritten on next startup"
+                  ? "Auto capacity is on; the value is read from hardware"
                   : undefined
               }
               min={0}

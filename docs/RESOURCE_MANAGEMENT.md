@@ -27,32 +27,33 @@ populates one pool per detected GPU (VRAM) plus a single aggregate `host` pool
 carve-out for the OS, games, and headroom.
 
 Pools live in file-backed config `data/config/resources.json`
-(`apps/api/src/resources/repository.ts`, in-memory cache + atomic write-through).
-They are **not** seeded from repo-root `config/*.json` because capacities are
-machine-specific (same rule as `path-catalog`). On first run
-`ensureResourcePoolsScaffold()` generates defaults from `system/resources.ts`
-(NVIDIA NVML + `/proc/meminfo`); `refreshAutoCapacities()` re-syncs capacity for
-pools with `autoCapacity` on every startup and shows drift otherwise. A GPU
-detected after the initial scaffold is added to `resources.json` at startup, so
-instances can reference it without leaving portable configuration dangling;
-capacity-only refreshes remain in memory to avoid routine Git churn. Startup is
-the **only** path that adopts and persists new GPU pools: config reload
-(`POST /api/config/reload`) and every config-git tree operation go through
-`reloadPortableConfigCaches()` → `syncAutoCapacitiesInMemory()`, which re-syncs
-capacities in memory and never writes — a restore/reset/clone must leave the
-tree exactly as git produced it, not dirty it with derived machine state.
+(`apps/api/src/resources/repository.ts`, in-memory cache + atomic write-through)
+as **declarations**, not measurements: a tracked pool carries its identity
+(`id`, `kind`, `deviceRef`), the operator's `reservedBytes` intent, and either
+`autoCapacity: true` with `capacityBytes: null` or a manual `capacityBytes`.
+The effective capacity of an `autoCapacity` pool is resolved from detected
+hardware (`system/resources.ts`: NVIDIA NVML + `/proc/meminfo`) at **read
+time** (`listMemoryPools()`), so the tracked file is host-neutral — the same
+tree serves similar hosts through one config-git origin, and nothing at runtime
+writes capacities back. On first run `ensureResourcePoolsScaffold()` declares
+one pool per detected GPU plus the `host` pool; a GPU detected later is
+surfaced as *undeclared* (`GET /api/resources` → `undeclared`, the "Declare
+pool" button on `#/resources`, `POST /api/resources/pools`) and joins
+`resources.json` only through that explicit action — runtime never dirties the
+tracked tree on its own. A legacy stored capacity on an auto pool is nulled by
+the store's read normalization and the boot normalizer rewrites the file once.
 
-A gpu pool whose `deviceRef` no longer matches a detected device keeps its
-last-known capacity and is surfaced with a derived `orphaned` flag
-(`listMemoryPoolsWithStatus`). The flag is computed at the API read boundary,
-never persisted, and set only when NVML reports the device list authoritatively
-(`ready`/`no-devices` states) — a driver failure must not mark live pools
-orphaned. Orphaned pools deliberately keep participating in the ledger
-unchanged; the flag is informational. `DELETE /api/resources/pools/:id` (and
-the Delete button on `#/resources`) removes a pool only when it is orphaned and
-no instance declares a draw on it — pools for present hardware are re-created
-by `refreshAutoCapacities()` on the next startup, so deleting them is refused
-rather than silently undone.
+A gpu pool whose `deviceRef` no longer matches a detected device is surfaced
+with a derived `orphaned` flag (`listMemoryPoolsWithStatus`) and resolves to
+**zero effective capacity** — an absent device contributes no budget, so
+admission and the proxy eviction planner never schedule against phantom
+memory; a draw on a *missing* pool is reported as such by preflight
+("not declared in resources.json on this host"). The flag is computed at the
+API read boundary, never persisted, and set only when NVML reports the device
+list authoritatively (`ready`/`no-devices` states) — a driver failure must not
+mark live pools orphaned. `DELETE /api/resources/pools/:id` (and the Delete
+button on `#/resources`) removes a pool only when it is orphaned and no
+instance declares a draw on it.
 
 The API loads `libnvidia-ml.so.1` through Koffi and keeps one NVML session for
 the lifetime of the process. Static device identity is read once, live GPU

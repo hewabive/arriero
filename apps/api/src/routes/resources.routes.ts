@@ -1,13 +1,15 @@
-import { MemoryPoolUpdateSchema } from "@arriero/core";
+import { MemoryPoolDeclareSchema, MemoryPoolUpdateSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
 import { listInstances } from "../instances/repository.js";
 import { currentResourceLedger } from "../resources/ledger.js";
 import {
+  declareGpuPool,
   deleteMemoryPool,
   getMemoryPool,
   isMemoryPoolOrphaned,
   listMemoryPoolsWithStatus,
+  listUndeclaredAccelerators,
   updateMemoryPool,
 } from "../resources/repository.js";
 import {
@@ -22,8 +24,21 @@ export function registerResourceRoutes(app: Hono) {
         pools: listMemoryPoolsWithStatus(),
         ledger: currentResourceLedger(),
         detected: getSystemResources(),
+        undeclared: listUndeclaredAccelerators(),
       },
     });
+  });
+
+  app.post("/api/resources/pools", async (c) => {
+    const parsed = MemoryPoolDeclareSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    const declared = declareGpuPool(parsed.data.deviceRef);
+    if (!declared) {
+      return c.json({ error: "no detected gpu with that device ref" }, 404);
+    }
+    return c.json({ data: declared }, 201);
   });
 
   app.put("/api/resources/pools/:id", async (c) => {
@@ -31,7 +46,25 @@ export function registerResourceRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    const pool = updateMemoryPool(c.req.param("id"), parsed.data);
+    const id = c.req.param("id");
+    const current = getMemoryPool(id);
+    if (!current) {
+      return c.json({ error: "memory pool not found" }, 404);
+    }
+    const nextAuto = parsed.data.autoCapacity ?? current.autoCapacity;
+    if (nextAuto && parsed.data.capacityBytes !== undefined) {
+      return c.json(
+        { error: "capacity is derived from hardware for auto pools" },
+        400,
+      );
+    }
+    if (
+      !nextAuto &&
+      (parsed.data.capacityBytes ?? current.capacityBytes) === null
+    ) {
+      return c.json({ error: "manual pools must declare capacityBytes" }, 400);
+    }
+    const pool = updateMemoryPool(id, parsed.data);
     if (!pool) {
       return c.json({ error: "memory pool not found" }, 404);
     }

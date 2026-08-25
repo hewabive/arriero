@@ -17,6 +17,31 @@ export const MemoryPoolSchema = z.object({
   autoCapacity: z.boolean().default(true),
 });
 
+export const MemoryPoolDeclarationSchema = z
+  .object({
+    id: MemoryPoolIdSchema,
+    name: z.string().min(1).max(120),
+    kind: MemoryPoolKindSchema,
+    capacityBytes: z.number().int().nonnegative().nullable().default(null),
+    reservedBytes: z.number().int().nonnegative().default(0),
+    deviceRef: z.string().min(1).nullable().default(null),
+    autoCapacity: z.boolean().default(true),
+  })
+  .catchall(z.unknown())
+  .superRefine((pool, ctx) => {
+    if (!pool.autoCapacity && pool.capacityBytes === null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["capacityBytes"],
+        message: "manual pools must declare capacityBytes",
+      });
+    }
+  });
+
+export const MemoryPoolDeclareSchema = z.object({
+  deviceRef: z.string().min(1),
+});
+
 export const MemoryPoolViewSchema = MemoryPoolSchema.extend({
   orphaned: z.boolean().default(false),
 });
@@ -48,6 +73,7 @@ export const ResourceAdmissionShortfallSchema = z.object({
   requestedBytes: z.number().int().nonnegative(),
   availableBytes: z.number().int().nonnegative(),
   deficitBytes: z.number().int(),
+  missing: z.boolean().default(false),
 });
 
 export const ResourceAdmissionSchema = z.object({
@@ -108,6 +134,7 @@ export function checkDrawAdmission(
         requestedBytes,
         availableBytes,
         deficitBytes: requestedBytes - availableBytes,
+        missing: !pool,
       });
     }
   }
@@ -116,6 +143,8 @@ export function checkDrawAdmission(
 
 export type MemoryPoolKind = z.infer<typeof MemoryPoolKindSchema>;
 export type MemoryPool = z.infer<typeof MemoryPoolSchema>;
+export type MemoryPoolDeclaration = z.infer<typeof MemoryPoolDeclarationSchema>;
+export type MemoryPoolDeclare = z.infer<typeof MemoryPoolDeclareSchema>;
 export type MemoryPoolView = z.infer<typeof MemoryPoolViewSchema>;
 export type MemoryPoolUpdate = z.infer<typeof MemoryPoolUpdateSchema>;
 export type ResourcePoolUsage = z.infer<typeof ResourcePoolUsageSchema>;

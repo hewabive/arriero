@@ -107,6 +107,7 @@ test("checkDrawAdmission reports a deficit when a draw exceeds availability", ()
       requestedBytes: 7 * GIB,
       availableBytes: 6 * GIB,
       deficitBytes: 1 * GIB,
+      missing: false,
     },
   ]);
 });
@@ -123,6 +124,7 @@ test("checkDrawAdmission treats an unknown pool as a full deficit", () => {
       requestedBytes: 2 * GIB,
       availableBytes: 0,
       deficitBytes: 2 * GIB,
+      missing: true,
     },
   ]);
 });

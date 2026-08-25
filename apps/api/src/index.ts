@@ -44,10 +44,7 @@ import { reconcileWebappRuns } from "./webapps/reconcile.js";
 import { pruneWebappRunHistory } from "./webapps/runs-repository.js";
 import { autostartWebapps } from "./webapps/service.js";
 import { webappSupervisor } from "./webapps/supervisor.js";
-import {
-  ensureResourcePoolsScaffold,
-  refreshAutoCapacities,
-} from "./resources/repository.js";
+import { ensureResourcePoolsScaffold } from "./resources/repository.js";
 import { augmentProcessPath } from "./system/path-repair.js";
 import { sweepSourceCloneStaging } from "./sources/operations.js";
 import { shutdownActiveJobs } from "./jobs/registry.js";
@@ -116,9 +113,6 @@ eventLoopMonitor.onStall((stall) =>
 systemMetricsRecorder.start();
 const seededResourcePools = bootStep("scaffold resource pools", () =>
   ensureResourcePoolsScaffold(),
-);
-const refreshedResourcePools = bootStep("refresh pool auto capacities", () =>
-  refreshAutoCapacities(),
 );
 const environments = bootStep("initialize environments", () =>
   initializeEnvironments(),
@@ -210,7 +204,6 @@ const server = serve(
         prunedModelCache,
         prunedSafetensorsCache,
         seededResourcePools,
-        refreshedResourcePools,
         environments,
         sweptSourceCloneStaging,
         hfDownloadQueue,

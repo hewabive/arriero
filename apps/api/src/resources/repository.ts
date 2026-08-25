@@ -1,7 +1,8 @@
 import {
-  MemoryPoolSchema,
+  MemoryPoolDeclarationSchema,
   stripLegacyConfigTimestamps,
   type MemoryPool,
+  type MemoryPoolDeclaration,
   type MemoryPoolUpdate,
   type MemoryPoolView,
   type SystemResources,
@@ -10,7 +11,6 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
-import { logger } from "../logger.js";
 import { config } from "../config.js";
 import { createJsonFileStore } from "../config-store/file-store.js";
 import {
@@ -24,21 +24,35 @@ export const RESOURCES_FILE = resolve(config.configDir, "resources.json");
 const GIB = 1024 ** 3;
 const HOST_RESERVE_RATIO = 0.15;
 
-const StoredMemoryPoolSchema: z.ZodType<MemoryPool> = z.preprocess(
-  stripLegacyConfigTimestamps,
-  MemoryPoolSchema.catchall(z.unknown()),
-);
+function normalizeStoredPoolDeclaration(value: unknown): unknown {
+  const stripped = stripLegacyConfigTimestamps(value);
+  if (
+    typeof stripped !== "object" ||
+    stripped === null ||
+    Array.isArray(stripped)
+  ) {
+    return stripped;
+  }
+  const record = stripped as Record<string, unknown>;
+  if (record.autoCapacity === false || record.capacityBytes == null) {
+    return stripped;
+  }
+  return { ...record, capacityBytes: null };
+}
 
-const store = createJsonFileStore<MemoryPool[]>({
+const StoredPoolDeclarationSchema: z.ZodType<MemoryPoolDeclaration> =
+  z.preprocess(normalizeStoredPoolDeclaration, MemoryPoolDeclarationSchema);
+
+const store = createJsonFileStore<MemoryPoolDeclaration[]>({
   id: "resources",
   path: RESOURCES_FILE,
-  schema: z.array(StoredMemoryPoolSchema),
+  schema: z.array(StoredPoolDeclarationSchema),
   missing: () => [],
   portablePaths: false,
   cache: "process",
 });
 
-function load(): MemoryPool[] {
+function load(): MemoryPoolDeclaration[] {
   return store.read();
 }
 
@@ -46,24 +60,14 @@ export function rewriteResourcePoolsFile(): void {
   persist(load());
 }
 
-function persist(pools: MemoryPool[]) {
-  store.write(pools);
+function persist(pools: MemoryPoolDeclaration[]) {
+  store.write(sortPools(pools));
 }
 
-function sortPools(pools: MemoryPool[]): MemoryPool[] {
+function sortPools<T extends { kind: string; id: string }>(pools: T[]): T[] {
   return [...pools].sort(
     (left, right) =>
       left.kind.localeCompare(right.kind) || left.id.localeCompare(right.id),
-  );
-}
-
-function logUnknownAcceleratorCapacity(accelerator: {
-  id: string;
-  name: string;
-}): void {
-  logger.warn(
-    { deviceRef: accelerator.id, name: accelerator.name },
-    "no memory pool scaffolded for gpu: its total memory could not be read",
   );
 }
 
@@ -71,48 +75,44 @@ function floorToGib(bytes: number): number {
   return Math.floor(bytes / GIB) * GIB;
 }
 
-function gpuPoolFromAccelerator(
-  accelerator: SystemResources["accelerators"][number],
-  id: string,
-): MemoryPool | null {
-  if (accelerator.totalMemoryBytes === null) {
-    logUnknownAcceleratorCapacity(accelerator);
-    return null;
+function uniquePoolId(baseId: string, taken: Set<string>): string {
+  let id = baseId;
+  let suffix = 2;
+  while (taken.has(id)) {
+    id = `${baseId}-${suffix}`;
+    suffix += 1;
   }
-  return {
-    id,
-    name: accelerator.name,
-    kind: "gpu",
-    capacityBytes: accelerator.totalMemoryBytes,
-    reservedBytes: 0,
-    deviceRef: accelerator.id,
-    autoCapacity: true,
-  };
+  return id;
 }
 
 function defaultPoolsFromHardware(
-  detected: SystemResources = getSystemResources(),
-): MemoryPool[] {
-  const pools: MemoryPool[] = [];
+  detected: SystemResources,
+): MemoryPoolDeclaration[] {
+  const pools: MemoryPoolDeclaration[] = [];
   for (const accelerator of detected.accelerators) {
     if (accelerator.kind !== "gpu") {
       continue;
     }
-    const pool = gpuPoolFromAccelerator(accelerator, `gpu${accelerator.id}`);
-    if (pool) {
-      pools.push(pool);
-    }
+    pools.push({
+      id: `gpu${accelerator.id}`,
+      name: accelerator.name,
+      kind: "gpu",
+      capacityBytes: null,
+      reservedBytes: 0,
+      deviceRef: accelerator.id,
+      autoCapacity: true,
+    });
   }
   pools.push({
     id: "host",
     name: "Host RAM",
     kind: "host",
-    capacityBytes: detected.memory.totalBytes,
+    capacityBytes: null,
     reservedBytes: floorToGib(detected.memory.totalBytes * HOST_RESERVE_RATIO),
     deviceRef: null,
     autoCapacity: true,
   });
-  return sortPools(pools);
+  return pools;
 }
 
 export function ensureResourcePoolsScaffold(
@@ -125,88 +125,12 @@ export function ensureResourcePoolsScaffold(
   return true;
 }
 
-function syncAutoCapacities(
-  detected: SystemResources,
-  adoptNewGpuPools: boolean,
-): boolean {
-  const pools = load();
-  const acceleratorById = new Map(
-    detected.accelerators.map((accelerator) => [accelerator.id, accelerator]),
-  );
-  let changed = false;
-  const next = pools.map((pool) => {
-    if (!pool.autoCapacity) {
-      return pool;
-    }
-    let capacityBytes: number | null = null;
-    if (pool.kind === "host") {
-      capacityBytes = detected.memory.totalBytes;
-    } else if (pool.deviceRef) {
-      capacityBytes =
-        acceleratorById.get(pool.deviceRef)?.totalMemoryBytes ?? null;
-    }
-    if (capacityBytes === null || capacityBytes === pool.capacityBytes) {
-      return pool;
-    }
-    changed = true;
-    return { ...pool, capacityBytes };
-  });
-  if (adoptNewGpuPools) {
-    const knownDeviceRefs = new Set(
-      next
-        .filter((pool) => pool.kind === "gpu" && pool.deviceRef)
-        .map((pool) => pool.deviceRef),
-    );
-    const knownIds = new Set(next.map((pool) => pool.id));
-    for (const accelerator of detected.accelerators) {
-      if (accelerator.kind !== "gpu" || knownDeviceRefs.has(accelerator.id)) {
-        continue;
-      }
-      const baseId = `gpu${accelerator.id}`;
-      let id = baseId;
-      let suffix = 2;
-      while (knownIds.has(id)) {
-        id = `${baseId}-${suffix}`;
-        suffix += 1;
-      }
-      const pool = gpuPoolFromAccelerator(accelerator, id);
-      if (!pool) {
-        continue;
-      }
-      next.push(pool);
-      knownDeviceRefs.add(accelerator.id);
-      knownIds.add(id);
-      changed = true;
-    }
-    if (next.length > pools.length) {
-      persist(sortPools(next));
-      return changed;
-    }
-  }
-  if (changed) {
-    store.replaceCachedValue(next);
-  }
-  return changed;
-}
-
-export function refreshAutoCapacities(
-  detected: SystemResources = getSystemResources(),
-): boolean {
-  return syncAutoCapacities(detected, true);
-}
-
-export function syncAutoCapacitiesInMemory(
-  detected: SystemResources = getSystemResources(),
-): boolean {
-  return syncAutoCapacities(detected, false);
-}
-
-export function listMemoryPools(): MemoryPool[] {
+export function listDeclaredMemoryPools(): MemoryPoolDeclaration[] {
   return sortPools(load());
 }
 
 export function isMemoryPoolOrphaned(
-  pool: MemoryPool,
+  pool: Pick<MemoryPoolDeclaration, "kind" | "deviceRef">,
   inventory: GpuInventory,
 ): boolean {
   return (
@@ -215,6 +139,37 @@ export function isMemoryPoolOrphaned(
     inventory.authoritative &&
     !inventory.deviceRefs.has(pool.deviceRef)
   );
+}
+
+function effectiveCapacityBytes(
+  declaration: MemoryPoolDeclaration,
+  detected: SystemResources,
+  inventory: GpuInventory,
+): number {
+  if (!declaration.autoCapacity) {
+    return declaration.capacityBytes ?? 0;
+  }
+  if (declaration.kind === "host") {
+    return detected.memory.totalBytes;
+  }
+  if (isMemoryPoolOrphaned(declaration, inventory)) {
+    return 0;
+  }
+  const accelerator = declaration.deviceRef
+    ? detected.accelerators.find(
+        (candidate) => candidate.id === declaration.deviceRef,
+      )
+    : undefined;
+  return accelerator?.totalMemoryBytes ?? 0;
+}
+
+export function listMemoryPools(): MemoryPool[] {
+  const detected = getSystemResources();
+  const inventory = getKnownGpuInventory();
+  return listDeclaredMemoryPools().map((declaration) => ({
+    ...declaration,
+    capacityBytes: effectiveCapacityBytes(declaration, detected, inventory),
+  }));
 }
 
 export function listMemoryPoolsWithStatus(
@@ -226,32 +181,75 @@ export function listMemoryPoolsWithStatus(
   }));
 }
 
-export function getMemoryPool(id: string): MemoryPool | null {
+export function listUndeclaredAccelerators(
+  detected: SystemResources = getSystemResources(),
+): SystemResources["accelerators"] {
+  const declaredRefs = new Set(
+    load()
+      .filter((pool) => pool.kind === "gpu" && pool.deviceRef)
+      .map((pool) => pool.deviceRef),
+  );
+  return detected.accelerators.filter(
+    (accelerator) =>
+      accelerator.kind === "gpu" && !declaredRefs.has(accelerator.id),
+  );
+}
+
+export function declareGpuPool(
+  deviceRef: string,
+): MemoryPoolDeclaration | null {
+  const detected = getSystemResources();
+  const accelerator = detected.accelerators.find(
+    (candidate) => candidate.kind === "gpu" && candidate.id === deviceRef,
+  );
+  if (!accelerator) {
+    return null;
+  }
+  const pools = load();
+  const existing = pools.find(
+    (pool) => pool.kind === "gpu" && pool.deviceRef === deviceRef,
+  );
+  if (existing) {
+    return existing;
+  }
+  const declaration = MemoryPoolDeclarationSchema.parse({
+    id: uniquePoolId(`gpu${deviceRef}`, new Set(pools.map((pool) => pool.id))),
+    name: accelerator.name,
+    kind: "gpu",
+    capacityBytes: null,
+    reservedBytes: 0,
+    deviceRef,
+    autoCapacity: true,
+  });
+  persist([...pools, declaration]);
+  return declaration;
+}
+
+export function getMemoryPool(id: string): MemoryPoolDeclaration | null {
   return load().find((pool) => pool.id === id) ?? null;
 }
 
 export function updateMemoryPool(
   id: string,
   input: MemoryPoolUpdate,
-): MemoryPool | null {
+): MemoryPoolDeclaration | null {
   const pools = load();
   const current = pools.find((pool) => pool.id === id);
   if (!current) {
     return null;
   }
-  const updated: MemoryPool = {
+  const nextAuto = input.autoCapacity ?? current.autoCapacity;
+  const updated = MemoryPoolDeclarationSchema.parse({
     ...current,
     ...(input.name !== undefined ? { name: input.name } : {}),
-    ...(input.capacityBytes !== undefined
-      ? { capacityBytes: input.capacityBytes }
-      : {}),
     ...(input.reservedBytes !== undefined
       ? { reservedBytes: input.reservedBytes }
       : {}),
-    ...(input.autoCapacity !== undefined
-      ? { autoCapacity: input.autoCapacity }
-      : {}),
-  };
+    autoCapacity: nextAuto,
+    capacityBytes: nextAuto
+      ? null
+      : (input.capacityBytes ?? current.capacityBytes),
+  });
   persist(pools.map((pool) => (pool.id === id ? updated : pool)));
   return updated;
 }

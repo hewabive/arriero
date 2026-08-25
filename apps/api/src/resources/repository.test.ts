@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { beforeEach, test } from "node:test";
 
 import { getSystemResources } from "../system/resources.js";
 import {
   RESOURCES_FILE,
+  declareGpuPool,
   deleteMemoryPool,
   ensureResourcePoolsScaffold,
   getMemoryPool,
+  listDeclaredMemoryPools,
   listMemoryPools,
   listMemoryPoolsWithStatus,
-  refreshAutoCapacities,
+  listUndeclaredAccelerators,
   resetResourcePoolsCache,
-  syncAutoCapacitiesInMemory,
   updateMemoryPool,
 } from "./repository.js";
 
@@ -21,22 +22,74 @@ beforeEach(() => {
   rmSync(RESOURCES_FILE, { force: true });
 });
 
-test("scaffold seeds a host pool and is idempotent once the file exists", () => {
+function testGpu(deviceRef: string) {
+  return {
+    id: deviceRef,
+    name: "Test NVIDIA GPU",
+    vendor: "NVIDIA" as const,
+    kind: "gpu" as const,
+    totalMemoryBytes: 24_000,
+    availableMemoryBytes: 23_000,
+    memoryUsedRatio: 1 / 24,
+    utilizationPercent: 0,
+    temperatureC: null,
+    numaNode: 0,
+    computeCapability: null,
+    source: "nvml" as const,
+  };
+}
+
+function scaffoldWithGpu(deviceRef: string) {
+  const initial = getSystemResources();
+  ensureResourcePoolsScaffold({
+    ...initial,
+    accelerators: [testGpu(deviceRef)],
+  });
+}
+
+test("scaffold declares pools with derived capacity and is idempotent", () => {
   assert.equal(ensureResourcePoolsScaffold(), true);
-  const host = getMemoryPool("host");
-  assert.ok(host, "expected a host pool to be seeded");
-  assert.equal(host?.kind, "host");
-  assert.ok(host && host.capacityBytes > 0);
+  const declaration = getMemoryPool("host");
+  assert.ok(declaration, "expected a host pool to be declared");
+  assert.equal(declaration?.kind, "host");
+  assert.equal(declaration?.capacityBytes, null);
+  assert.equal(
+    readFileSync(RESOURCES_FILE, "utf8").includes('"createdAt"'),
+    false,
+  );
+  const effective = listMemoryPools().find((pool) => pool.id === "host");
+  assert.equal(
+    effective?.capacityBytes,
+    getSystemResources().memory.totalBytes,
+  );
   assert.equal(ensureResourcePoolsScaffold(), false);
 });
 
-test("updateMemoryPool changes the reserve and leaves other fields intact", () => {
+test("updateMemoryPool changes the reserve and keeps auto capacity derived", () => {
   ensureResourcePoolsScaffold();
-  const before = getMemoryPool("host");
   const updated = updateMemoryPool("host", { reservedBytes: 1234567 });
   assert.equal(updated?.reservedBytes, 1234567);
-  assert.equal(updated?.capacityBytes, before?.capacityBytes);
+  assert.equal(updated?.capacityBytes, null);
   assert.equal(getMemoryPool("host")?.reservedBytes, 1234567);
+});
+
+test("updateMemoryPool switches to manual capacity and back", () => {
+  ensureResourcePoolsScaffold();
+  const manual = updateMemoryPool("host", {
+    autoCapacity: false,
+    capacityBytes: 4_000_000,
+  });
+  assert.equal(manual?.capacityBytes, 4_000_000);
+  assert.equal(
+    listMemoryPools().find((pool) => pool.id === "host")?.capacityBytes,
+    4_000_000,
+  );
+  const auto = updateMemoryPool("host", { autoCapacity: true });
+  assert.equal(auto?.capacityBytes, null);
+  assert.equal(
+    listMemoryPools().find((pool) => pool.id === "host")?.capacityBytes,
+    getSystemResources().memory.totalBytes,
+  );
 });
 
 test("updateMemoryPool returns null for an unknown pool", () => {
@@ -44,129 +97,63 @@ test("updateMemoryPool returns null for an unknown pool", () => {
   assert.equal(updateMemoryPool("nope", { reservedBytes: 1 }), null);
 });
 
-test("refreshAutoCapacities only retargets pools with autoCapacity enabled", () => {
+test("legacy auto pools with stored capacities normalize to null on read", () => {
   ensureResourcePoolsScaffold();
-  const detectedTotal = getSystemResources().memory.totalBytes;
-
-  updateMemoryPool("host", { capacityBytes: 1 });
-  const storedBeforeRefresh = readFileSync(RESOURCES_FILE, "utf8");
-  assert.equal(refreshAutoCapacities(), true);
-  assert.equal(getMemoryPool("host")?.capacityBytes, detectedTotal);
-  assert.equal(readFileSync(RESOURCES_FILE, "utf8"), storedBeforeRefresh);
-
-  updateMemoryPool("host", { capacityBytes: 1, autoCapacity: false });
-  assert.equal(refreshAutoCapacities(), false);
-  assert.equal(getMemoryPool("host")?.capacityBytes, 1);
-});
-
-test("refreshAutoCapacities persists a GPU detected after the scaffold was created", () => {
-  const initial = getSystemResources();
-  ensureResourcePoolsScaffold({ ...initial, accelerators: [] });
-  assert.equal(
-    listMemoryPools().some((pool) => pool.kind === "gpu"),
-    false,
+  const raw = JSON.parse(readFileSync(RESOURCES_FILE, "utf8")) as Record<
+    string,
+    unknown
+  >[];
+  const withLegacy = raw.map((pool) =>
+    pool.id === "host" ? { ...pool, capacityBytes: 12345 } : pool,
   );
-  const detectedGpu = {
-    id: "7",
-    name: "Late NVIDIA GPU",
-    vendor: "NVIDIA" as const,
-    kind: "gpu" as const,
-    totalMemoryBytes: 24_000,
-    availableMemoryBytes: 23_000,
-    memoryUsedRatio: 1 / 24,
-    utilizationPercent: 0,
-    temperatureC: null,
-    numaNode: 0,
-    computeCapability: null,
-    source: "nvml" as const,
-  };
-  assert.equal(
-    refreshAutoCapacities({
-      ...initial,
-      accelerators: [detectedGpu],
-    }),
-    true,
+  writeFileSync(
+    RESOURCES_FILE,
+    `${JSON.stringify(withLegacy, null, 2)}\n`,
+    "utf8",
   );
-  assert.deepEqual(
-    listMemoryPools()
-      .filter((pool) => pool.kind === "gpu")
-      .map((pool) => ({
-        id: pool.id,
-        deviceRef: pool.deviceRef,
-        capacityBytes: pool.capacityBytes,
-      })),
-    [{ id: "gpu7", deviceRef: "7", capacityBytes: 24_000 }],
-  );
-  const stored = JSON.parse(readFileSync(RESOURCES_FILE, "utf8")) as Array<{
-    id: string;
-    deviceRef: string | null;
-    capacityBytes: number;
-  }>;
-  assert.deepEqual(
-    stored
-      .filter((pool) => pool.id === "gpu7")
-      .map((pool) => ({
-        id: pool.id,
-        deviceRef: pool.deviceRef,
-        capacityBytes: pool.capacityBytes,
-      })),
-    [{ id: "gpu7", deviceRef: "7", capacityBytes: 24_000 }],
-  );
-
   resetResourcePoolsCache();
-  assert.equal(getMemoryPool("gpu7")?.deviceRef, "7");
+  assert.equal(getMemoryPool("host")?.capacityBytes, null);
+  assert.equal(
+    listMemoryPools().find((pool) => pool.id === "host")?.capacityBytes,
+    getSystemResources().memory.totalBytes,
+  );
 });
 
-test("syncAutoCapacitiesInMemory never adopts pools or touches the file", () => {
+test("a gpu pool without its device resolves to zero capacity", () => {
+  scaffoldWithGpu("7");
+  const effective = listMemoryPools().find((pool) => pool.id === "gpu7");
+  assert.equal(effective?.capacityBytes, 0);
+});
+
+test("declareGpuPool adopts only a detected device and is idempotent", () => {
+  ensureResourcePoolsScaffold();
+  assert.equal(declareGpuPool("42"), null);
+  assert.equal(
+    listDeclaredMemoryPools().some((pool) => pool.kind === "gpu"),
+    getSystemResources().accelerators.some((item) => item.kind === "gpu"),
+  );
+});
+
+test("listUndeclaredAccelerators reports detected gpus without declarations", () => {
   const initial = getSystemResources();
   ensureResourcePoolsScaffold({ ...initial, accelerators: [] });
-  updateMemoryPool("host", { capacityBytes: 1 });
-  const stored = readFileSync(RESOURCES_FILE, "utf8");
-  const detectedGpu = {
-    id: "7",
-    name: "Late NVIDIA GPU",
-    vendor: "NVIDIA" as const,
-    kind: "gpu" as const,
-    totalMemoryBytes: 24_000,
-    availableMemoryBytes: 23_000,
-    memoryUsedRatio: 1 / 24,
-    utilizationPercent: 0,
-    temperatureC: null,
-    numaNode: 0,
-    computeCapability: null,
-    source: "nvml" as const,
-  };
-  assert.equal(
-    syncAutoCapacitiesInMemory({ ...initial, accelerators: [detectedGpu] }),
-    true,
-  );
-  assert.equal(getMemoryPool("host")?.capacityBytes, initial.memory.totalBytes);
-  assert.equal(getMemoryPool("gpu7"), null);
-  assert.equal(readFileSync(RESOURCES_FILE, "utf8"), stored);
-});
-
-function scaffoldWithGpu(deviceRef: string) {
-  const initial = getSystemResources();
-  ensureResourcePoolsScaffold({
+  const undeclared = listUndeclaredAccelerators({
     ...initial,
-    accelerators: [
-      {
-        id: deviceRef,
-        name: "Test NVIDIA GPU",
-        vendor: "NVIDIA" as const,
-        kind: "gpu" as const,
-        totalMemoryBytes: 24_000,
-        availableMemoryBytes: 23_000,
-        memoryUsedRatio: 1 / 24,
-        utilizationPercent: 0,
-        temperatureC: null,
-        numaNode: 0,
-        computeCapability: null,
-        source: "nvml" as const,
-      },
-    ],
+    accelerators: [testGpu("7")],
   });
-}
+  assert.deepEqual(
+    undeclared.map((item) => item.id),
+    ["7"],
+  );
+  scaffoldWithGpu("7");
+  rmSync(RESOURCES_FILE, { force: true });
+  resetResourcePoolsCache();
+  ensureResourcePoolsScaffold({ ...initial, accelerators: [testGpu("7")] });
+  assert.deepEqual(
+    listUndeclaredAccelerators({ ...initial, accelerators: [testGpu("7")] }),
+    [],
+  );
+});
 
 test("listMemoryPoolsWithStatus flags a gpu pool whose device is gone", () => {
   scaffoldWithGpu("0");
@@ -175,19 +162,8 @@ test("listMemoryPoolsWithStatus flags a gpu pool whose device is gone", () => {
     deviceRefs: new Set(),
   });
   assert.equal(pools.find((pool) => pool.id === "gpu0")?.orphaned, true);
+  assert.equal(pools.find((pool) => pool.id === "gpu0")?.capacityBytes, 0);
   assert.equal(pools.find((pool) => pool.id === "host")?.orphaned, false);
-});
-
-test("listMemoryPoolsWithStatus keeps pools intact when the device is present", () => {
-  scaffoldWithGpu("0");
-  const pools = listMemoryPoolsWithStatus({
-    authoritative: true,
-    deviceRefs: new Set(["0"]),
-  });
-  assert.equal(
-    pools.every((pool) => pool.orphaned === false),
-    true,
-  );
 });
 
 test("listMemoryPoolsWithStatus never flags pools without an authoritative inventory", () => {

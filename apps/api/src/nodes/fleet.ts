@@ -10,7 +10,10 @@ import {
 import { hostname } from "node:os";
 
 import { currentResourceLedger } from "../resources/ledger.js";
-import { listMemoryPoolsWithStatus } from "../resources/repository.js";
+import {
+  listMemoryPoolsWithStatus,
+  listUndeclaredAccelerators,
+} from "../resources/repository.js";
 import { getSystemResources } from "../system/resources.js";
 import { listPeerNodes } from "./repository.js";
 import { fetchNodeJson } from "./remote.js";
@@ -76,6 +79,7 @@ function localResourcesPayload(): FleetResourcesPayload {
     pools: listMemoryPoolsWithStatus(),
     ledger: currentResourceLedger(),
     detected: getSystemResources(),
+    undeclared: listUndeclaredAccelerators(),
   };
 }
 

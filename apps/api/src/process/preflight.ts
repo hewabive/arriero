@@ -338,6 +338,14 @@ function validateMemoryCapacity(
   const engine = engineDescriptor(instance.kind);
   const strict = engine.admission === "strict";
   for (const shortfall of admission.shortfalls) {
+    if (shortfall.missing) {
+      issues.push({
+        level: "error",
+        field: "memory",
+        message: `Memory pool ${shortfall.poolId} is not declared in resources.json on this host. Declare the pool or remove the draw.`,
+      });
+      continue;
+    }
     const deficitGib = (shortfall.deficitBytes / 1024 ** 3).toFixed(1);
     const freeGib = (shortfall.availableBytes / 1024 ** 3).toFixed(1);
     issues.push({
