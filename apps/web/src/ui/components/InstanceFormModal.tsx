@@ -25,6 +25,7 @@ import { InstanceFormNumaSection } from "./InstanceFormNumaSection";
 import { InstanceFormPreflightSection } from "./InstanceFormPreflightSection";
 import { InstanceFormRenameSection } from "./InstanceFormRenameSection";
 import { InstanceFormRpcWorkersSection } from "./InstanceFormRpcWorkersSection";
+import { InstanceFormSchedulingSection } from "./InstanceFormSchedulingSection";
 import { InstanceFormSpecSection } from "./InstanceFormSpecSection";
 import { InstanceFormWorkerEndpointSection } from "./InstanceFormWorkerEndpointSection";
 import { ReasoningOverrideSelect } from "./ReasoningOverrideSelect";
@@ -104,6 +105,16 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
                 Path catalog page or create a managed environment.
               </Text>
             )}
+          <TextInput
+            label="Working directory"
+            description="Optional override for the process working directory; empty runs in the binary's folder"
+            placeholder="/path/to/workdir"
+            value={fm.cwd}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              fm.setCwd(value);
+            }}
+          />
           {fm.modelSource === "free-text" && fm.kind !== "ktransformers" && (
             <>
               <Autocomplete
@@ -140,6 +151,7 @@ export function InstanceFormModal(props: InstanceFormModalProps) {
           <InstanceFormCudaSection fm={fm} />
           <InstanceFormNumaSection fm={fm} />
           <InstanceFormMemorySection fm={fm} />
+          <InstanceFormSchedulingSection fm={fm} />
           {!fm.isWorker && (
             <ReasoningOverrideSelect
               value={fm.reasoning}

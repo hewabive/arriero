@@ -153,7 +153,7 @@ export const InstanceUpdateSchema = z
   .object({
     name: InstanceNameSchema.optional(),
     binaryPathRefId: PathCatalogIdSchema.optional(),
-    cwd: InstancePathSchema.optional(),
+    cwd: InstancePathSchema.nullable().optional(),
     args: InstanceArgsSchema.optional(),
     positionalArgs: z.array(z.string()).optional(),
     env: InstanceEnvSchema.optional(),

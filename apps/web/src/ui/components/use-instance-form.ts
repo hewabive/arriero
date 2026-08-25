@@ -184,6 +184,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     useState("");
   const [evictionPolicy, setEvictionPolicy] =
     useState<InstanceEvictionPolicy>("preemptible");
+  const [cwd, setCwd] = useState("");
   const [kind, setKind] = useState<InstanceKind>("llama-server");
   const [rpcWorkers, setRpcWorkers] = useState<RpcWorkerRef[]>([]);
   const [launchMode, setLaunchMode] = useState<LaunchMode>("model");
@@ -748,6 +749,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         seedInstance.scheduling?.evictionPolicy ??
           engineDescriptor(seedInstance.kind).defaultEvictionPolicy,
       );
+      setCwd(seedInstance.cwd ?? "");
       setRpcWorkers(seedInstance.rpcWorkers);
       setSelectedBinaryPathRefId(seedInstance.binaryPathRefId);
       setSelectedModelPath(modelPath);
@@ -804,6 +806,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       setKTransformersMethod("FP8");
       setKTransformersServedModelName("");
       setEvictionPolicy(engineDescriptor(seedKind).defaultEvictionPolicy);
+      setCwd("");
       setRpcWorkers([]);
       setSelectedBinaryPathRefId(null);
       setSelectedModelPath(modelPath);
@@ -890,6 +893,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     const env = parseEnvJson(values.envJson);
     const memory = memoryDrawsFromRows(memoryRows);
     const scheduling = { evictionPolicy };
+    const cwdValue = cwd.trim();
 
     if (kind === "rpc-worker") {
       const workerRows = argRows.filter((row) =>
@@ -906,6 +910,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         env,
         memory,
         scheduling,
+        ...(cwdValue ? { cwd: cwdValue } : {}),
         ...(numa ? { numa } : {}),
         ...(reasoning ? { reasoning } : {}),
       };
@@ -935,6 +940,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         env,
         memory,
         scheduling,
+        ...(cwdValue ? { cwd: cwdValue } : {}),
         ...(numa ? { numa } : {}),
         ...(reasoning ? { reasoning } : {}),
       };
@@ -967,6 +973,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
             : {}),
         },
         scheduling,
+        ...(cwdValue ? { cwd: cwdValue } : {}),
         ...(numa ? { numa } : {}),
         ...(reasoning ? { reasoning } : {}),
       };
@@ -1007,6 +1014,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       env,
       memory,
       scheduling,
+      ...(cwdValue ? { cwd: cwdValue } : {}),
       ...(numa ? { numa } : {}),
       ...(reasoning ? { reasoning } : {}),
     };
@@ -1601,7 +1609,10 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   const mutation = useMutation({
     mutationFn: async (input: InstanceCreate | InstanceUpdate) => {
       if (props.instance) {
-        return updateInstance(props.instance.name, input);
+        return updateInstance(
+          props.instance.name,
+          input.cwd === undefined ? { ...input, cwd: null } : input,
+        );
       }
       return createInstance(input as InstanceCreate);
     },
@@ -1889,6 +1900,8 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     setKTransformersServedModelName,
     evictionPolicy,
     setEvictionPolicy,
+    cwd,
+    setCwd,
     rpcWorkerOptions,
     selectedRpcWorkerValues,
     selectedRpcWorkers,

@@ -1,7 +1,4 @@
-import type {
-  InstanceEvictionPolicy,
-  KTransformersMethod,
-} from "@arriero/core";
+import type { KTransformersMethod } from "@arriero/core";
 import {
   Autocomplete,
   Paper,
@@ -22,15 +19,6 @@ const METHODS: KTransformersMethod[] = [
   "FP8_PERCHANNEL",
   "BF16",
   "LLAMAFILE",
-];
-
-const EVICTION_POLICIES: Array<{
-  value: InstanceEvictionPolicy;
-  label: string;
-}> = [
-  { value: "idle-only", label: "Idle only (recommended)" },
-  { value: "never", label: "Never evict" },
-  { value: "preemptible", label: "Preemptible" },
 ];
 
 export function InstanceFormKTransformersSection({
@@ -90,17 +78,6 @@ export function InstanceFormKTransformersSection({
             }
           />
         </SimpleGrid>
-        <Select
-          label="Eviction policy"
-          description="Idle-only drains active requests before a competing target can stop this process"
-          data={EVICTION_POLICIES}
-          value={fm.evictionPolicy}
-          onChange={(value) =>
-            fm.setEvictionPolicy(
-              (value ?? "idle-only") as InstanceEvictionPolicy,
-            )
-          }
-        />
         {fm.cudaAccelerators.length === 0 && (
           <Text c="red" size="xs">
             No supported NVIDIA GPU was detected. The configuration can be saved

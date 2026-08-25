@@ -115,6 +115,29 @@ test("updateInstance preserves positionalArgs when the patch omits them", () => 
   assert.deepEqual(cleared?.positionalArgs, []);
 });
 
+test("updateInstance keeps cwd when omitted and clears it on null", () => {
+  const name = uniqueName("cwd");
+  createInstance({
+    name,
+    kind: "llama-server",
+    rpcWorkers: [],
+    binaryPathRefId: binaryRefId,
+    cwd: "/srv/llama-work",
+    args: {},
+    env: {},
+    memory: [],
+  });
+
+  const kept = updateInstance(name, { args: { "--port": 8080 } });
+  assert.equal(kept?.cwd, "/srv/llama-work");
+
+  const replaced = updateInstance(name, { cwd: "/srv/other" });
+  assert.equal(replaced?.cwd, "/srv/other");
+
+  const cleared = updateInstance(name, { cwd: null });
+  assert.equal(cleared?.cwd, undefined);
+});
+
 test("getInstance/listInstances read back from files", () => {
   const name = uniqueName("inst");
   const created = createInstance({

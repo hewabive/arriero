@@ -172,7 +172,8 @@ export function updateInstance(
 
   const nextRefId = input.binaryPathRefId ?? current.binaryPathRefId;
   const binaryRef = nextRefId ? getPathCatalogEntry(nextRefId) : null;
-  const nextCwd = input.cwd ?? current.cwd;
+  const nextCwd =
+    input.cwd === undefined ? current.cwd : (input.cwd ?? undefined);
 
   const nextPositionalArgs = input.positionalArgs ?? current.positionalArgs;
 
