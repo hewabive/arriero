@@ -224,6 +224,7 @@ export const HfDownloadDeleteSchema = z.object({
   dir: z.string().min(1),
   paths: z.array(z.string().min(1)).min(1).max(2_000).optional(),
   verifyUpstream: z.boolean().optional(),
+  removeRequirement: z.boolean().optional(),
 });
 
 export const HfDownloadDeleteBlockedSchema = z.object({

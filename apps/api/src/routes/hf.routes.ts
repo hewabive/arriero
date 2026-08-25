@@ -7,6 +7,7 @@ import {
   HfDownloadStartSchema,
   HfTokenUpdateSchema,
   HfUpdateCheckRequestSchema,
+  ModelRequirementCreateSchema,
   parseHfRepoInput,
 } from "@arriero/core";
 import type { Context, Hono } from "hono";
@@ -34,6 +35,13 @@ import {
   listHfDownloads,
   verifyHfDownloadRedownloadable,
 } from "../hf/downloads.js";
+import {
+  captureModelRequirement,
+  deleteModelRequirement,
+  listModelRequirementStatuses,
+  removeModelRequirementForDeletedDownload,
+  upsertModelRequirement,
+} from "../hf/requirements.js";
 import {
   defaultHfDestDir,
   hfDestCheck,
@@ -143,10 +151,29 @@ export function registerHfRoutes(app: Hono) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
     try {
-      return c.json({ data: await enqueueHfDownload(parsed.data) }, 201);
+      const job = await enqueueHfDownload(parsed.data);
+      captureModelRequirement(job);
+      return c.json({ data: job }, 201);
     } catch (error) {
       return hfErrorResponse(c, error);
     }
+  });
+
+  app.get("/api/hf/requirements", async (c) => {
+    return c.json({ data: await listModelRequirementStatuses() });
+  });
+
+  app.post("/api/hf/requirements", async (c) => {
+    const parsed = ModelRequirementCreateSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    return c.json({ data: upsertModelRequirement(parsed.data) }, 201);
+  });
+
+  app.delete("/api/hf/requirements/:id", (c) => {
+    const deleted = deleteModelRequirement(c.req.param("id"));
+    return c.json({ data: { deleted } }, deleted ? 200 : 404);
   });
 
   app.post("/api/hf/downloads/check", async (c) => {
@@ -168,6 +195,9 @@ export function registerHfRoutes(app: Hono) {
         await verifyHfDownloadRedownloadable(dir, paths);
       }
       deleteHfDownload(dir, paths);
+      if (parsed.data.removeRequirement) {
+        removeModelRequirementForDeletedDownload(dir, paths ?? null);
+      }
       return c.json({ data: { deleted: true } });
     } catch (error) {
       if (error instanceof HfDownloadNotFoundError) {

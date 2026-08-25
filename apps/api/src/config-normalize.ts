@@ -12,6 +12,10 @@ import {
   ENVIRONMENTS_FILE,
   rewriteEnvironmentsFile,
 } from "./envs/repository.js";
+import {
+  MODEL_REQUIREMENTS_FILE,
+  rewriteModelRequirementsFile,
+} from "./hf/requirements.js";
 import { environmentRowsHaveMachineKeys } from "./envs/state-split-migration.js";
 import { logger } from "./logger.js";
 import {
@@ -199,6 +203,7 @@ export function normalizeConfigFiles(): string[] {
       { portable: false, extraStale: environmentRowsHaveMachineKeys },
       rewriteEnvironmentsFile,
     ],
+    [MODEL_REQUIREMENTS_FILE, { portable: true }, rewriteModelRequirementsFile],
   ];
   for (const [path, check, rewrite] of singleFileRewrites) {
     normalize(path, check, rewrite);

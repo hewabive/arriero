@@ -161,6 +161,7 @@ export type ConfigGitPortableFileKind =
   | "resources"
   | "nodes"
   | "environments"
+  | "models"
   | "benchmark-prompts"
   | "instance"
   | "preset"
@@ -205,6 +206,8 @@ export function classifyConfigGitPath(
       return "nodes";
     case "envs.json":
       return "environments";
+    case "models.json":
+      return "models";
     case "benchmark/prompts.json":
       return "benchmark-prompts";
     default:

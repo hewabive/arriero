@@ -23,7 +23,11 @@ the generic per-directory checkbox tree.
 
 ## Download queue
 
-`POST /api/hf/downloads` **enqueues** a job; the queue (`apps/api/src/hf/download-queue.ts`) runs
+`POST /api/hf/downloads` **enqueues** a job and captures a declarative *model requirement* into the
+tracked `config/models.json` (`hf/requirements.ts`, `docs/CONFIG_FILES.md`): the repo id, the
+pinned revision sha and the requested file list, deduplicated by repo and destination — so a
+config tree cloned onto another host carries which models it needs, not just filesystem paths.
+The queue (`apps/api/src/hf/download-queue.ts`) runs
 **strictly sequentially** — one active job, FIFO with manual reorder, duplicate enqueues for the
 same repo allowed (the on-disk skip fast-path dedupes at execution). The scheduler `pump()` is the
 only place a job starts, so there is no start-time race; the active job registers in the jobs

@@ -34,6 +34,7 @@ export * from "./system.js";
 export * from "./prerequisites.js";
 export * from "./fleet.js";
 export * from "./machine.js";
+export * from "./model-requirements.js";
 export * from "./public-status.js";
 export * from "./models.js";
 export * from "./presets.js";

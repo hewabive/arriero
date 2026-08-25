@@ -51,6 +51,20 @@ run is active and cascades to runs, the `.secrets.json` key and the data directo
 process environment is never stored — it is rebuilt from this record on every start
 (`docs/WEBAPPS.md`).
 
+## `models.json` — declarative model requirements
+
+Store `hf/requirements.ts` (config-store id `model-requirements`, portable paths on), aggregate
+array of `ModelRequirement` records: `{id, repoId, revision, paths, destDir}` — the same shape the
+download queue accepts, so a requirement is directly enqueueable. **Identity = `id`** (uuidv7);
+records are deduplicated by `(repoId, destDir)`, `destDir: null` meaning the default
+`<models dir>/<owner>/<repo>` destination. A requirement is captured automatically when a download
+is enqueued (`POST /api/hf/downloads` — the pinned revision sha and the requested file list), and
+managed via `GET`/`POST /api/hf/requirements` and `DELETE /api/hf/requirements/:id`; deleting a
+downloaded repo removes or trims the matching requirement only with the explicit
+`removeRequirement` flag, because freeing space on one host does not mean the fleet stopped
+needing the model. Satisfaction (`satisfied`/`partial`/`missing` + revision match) is derived per
+host from the on-disk download manifests, never stored.
+
 ## `benchmark/prompts.json` — custom benchmark prompts
 
 Store `benchmark/custom-prompts.ts` (config-store id `benchmark:prompts`), aggregate array of
