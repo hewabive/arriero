@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   Cpu,
   FlaskConical,
   Globe,
@@ -97,14 +98,6 @@ const navSections: NavSection[] = [
         description: "Inspect unmanaged llama-server processes",
         keywords: ["pid", "unmanaged", "stale"],
       },
-      {
-        route: "webapps",
-        label: "Web apps",
-        title: "Web apps",
-        description:
-          "Install and supervise chat UIs wired to the API proxy of this node",
-        keywords: ["open-webui", "chat", "ui", "webapp", "frontend"],
-      },
     ],
   },
   {
@@ -189,6 +182,21 @@ const navSections: NavSection[] = [
         description:
           "Memory pools and capacity budgets for instance scheduling",
         keywords: ["resources", "vram", "capacity", "eviction"],
+      },
+    ],
+  },
+  {
+    id: "webapps",
+    label: "Web apps",
+    icon: AppWindow,
+    items: [
+      {
+        route: "webapps",
+        label: "Web apps",
+        title: "Web apps",
+        description:
+          "Install and supervise chat UIs wired to the API proxy of this node",
+        keywords: ["open-webui", "chat", "ui", "webapp", "frontend"],
       },
     ],
   },
