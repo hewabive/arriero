@@ -9,6 +9,23 @@ import { ModelScanSettingsSchema } from "./models.js";
 import { PackageRegistriesSettingsSchema } from "./registries.js";
 import { SourceRepositorySpecSchema } from "./sources.js";
 
+const BUILD_HOST_FACT_KEYS = ["native", "parallelJobs"] as const;
+
+function stripBuildHostFacts(value: unknown): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  if (BUILD_HOST_FACT_KEYS.every((key) => !(key in record))) {
+    return value;
+  }
+  const rest = { ...record };
+  for (const key of BUILD_HOST_FACT_KEYS) {
+    delete rest[key];
+  }
+  return rest;
+}
+
 export const AppSettingsFileSchema = z
   .object({
     modelScan: ModelScanSettingsSchema.catchall(z.unknown()).optional(),
@@ -26,8 +43,15 @@ export const AppSettingsFileSchema = z
         LlamaSourceSettingsSchema.catchall(z.unknown()),
       )
       .optional(),
-    build: BuildSettingsSchema.omit({ repoPath: true })
-      .catchall(z.unknown())
+    build: z
+      .preprocess(
+        stripBuildHostFacts,
+        BuildSettingsSchema.omit({
+          repoPath: true,
+          native: true,
+          parallelJobs: true,
+        }).catchall(z.unknown()),
+      )
       .optional(),
     environments: EnvironmentRepositorySettingsSchema.catchall(
       z.unknown(),

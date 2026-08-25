@@ -9,6 +9,7 @@ import {
 } from "./arguments/defaults-repository.js";
 import { config } from "./config.js";
 import { normalizeConfigFiles } from "./config-normalize.js";
+import { resetAllConfigStores } from "./config-store/registry.js";
 import {
   listInstanceRecords,
   resetInstancesCache,
@@ -279,4 +280,51 @@ test("survives an application directory rename", (t) => {
     readSettings().build?.buildDir,
     resolve(movedRuntimeDir, "builds"),
   );
+});
+
+test("moves build host facts to machine.json once and strips them on reappearance", (t) => {
+  const machineFile = resolve(config.configDir, "machine.json");
+  t.after(() => {
+    cleanup();
+    rmSync(machineFile, { force: true });
+    resetAllConfigStores();
+  });
+  rmSync(machineFile, { force: true });
+  resetAllConfigStores();
+
+  const legacyBuild = {
+    buildDir: config.buildsDir,
+    buildType: "Release",
+    cuda: false,
+    native: false,
+    extraCmakeArgs: [],
+    target: "llama-server",
+    parallelJobs: 7,
+  };
+  writeJson(config.settingsFile, { build: legacyBuild });
+  resetSettingsCache();
+
+  assert.ok(normalizeConfigFiles().includes("settings.json"));
+  const stripped = JSON.parse(
+    readFileSync(config.settingsFile, "utf8"),
+  ) as Record<string, Record<string, unknown>>;
+  assert.equal("native" in (stripped.build ?? {}), false);
+  assert.equal("parallelJobs" in (stripped.build ?? {}), false);
+  const machine = JSON.parse(readFileSync(machineFile, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  assert.deepEqual(machine.build, { native: false, parallelJobs: 7 });
+  assert.deepEqual(normalizeConfigFiles(), []);
+
+  writeJson(config.settingsFile, {
+    build: { ...legacyBuild, native: true, parallelJobs: 2 },
+  });
+  resetSettingsCache();
+  assert.ok(normalizeConfigFiles().includes("settings.json"));
+  const machineAfter = JSON.parse(readFileSync(machineFile, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  assert.deepEqual(machineAfter.build, { native: false, parallelJobs: 7 });
 });

@@ -5,6 +5,7 @@ import {
   getArgumentDefaults,
   saveArgumentDefaults,
 } from "./arguments/defaults-repository.js";
+import { seedBuildHostFactsFromLegacySettings } from "./build/repository.js";
 import { config } from "./config.js";
 import { hasPortablePathCandidate } from "./config-paths.js";
 import {
@@ -58,6 +59,18 @@ function hasTimestampKeys(value: unknown): boolean {
 
 function collectionHasTimestampKeys(json: unknown): boolean {
   return Array.isArray(json) && json.some(hasTimestampKeys);
+}
+
+function settingsBuildSectionHasHostFacts(json: unknown): boolean {
+  if (typeof json !== "object" || json === null) {
+    return false;
+  }
+  const build = (json as { build?: unknown }).build;
+  return (
+    typeof build === "object" &&
+    build !== null &&
+    (Object.hasOwn(build, "native") || Object.hasOwn(build, "parallelJobs"))
+  );
 }
 
 function settingsHasTimestampKeys(json: unknown): boolean {
@@ -126,8 +139,16 @@ export function normalizeConfigFiles(): string[] {
   const singleFileRewrites: [string, StaleCheck, () => void][] = [
     [
       config.settingsFile,
-      { portable: true, extraStale: settingsHasTimestampKeys },
-      () => writeSettings(readSettings()),
+      {
+        portable: true,
+        extraStale: (json) =>
+          settingsHasTimestampKeys(json) ||
+          settingsBuildSectionHasHostFacts(json),
+      },
+      () => {
+        seedBuildHostFactsFromLegacySettings();
+        writeSettings(readSettings());
+      },
     ],
     [
       config.argumentDefaultsFile,

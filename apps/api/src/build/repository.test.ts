@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import { config } from "../config.js";
@@ -115,4 +116,23 @@ test("saving unchanged build settings does not rewrite settings.json", () => {
   const before = statSync(config.settingsFile).mtimeMs;
   saveBuildSettings(getBuildSettings());
   assert.equal(statSync(config.settingsFile).mtimeMs, before);
+});
+
+test("build host facts land in machine.json, not settings.json", () => {
+  const settings = getBuildSettings();
+  saveBuildSettings({ ...settings, native: false, parallelJobs: 3 });
+  const raw = JSON.parse(readFileSync(config.settingsFile, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  const build = raw.build as Record<string, unknown>;
+  assert.equal("native" in build, false);
+  assert.equal("parallelJobs" in build, false);
+  const machine = JSON.parse(
+    readFileSync(resolve(config.configDir, "machine.json"), "utf8"),
+  ) as Record<string, unknown>;
+  assert.deepEqual(machine.build, { native: false, parallelJobs: 3 });
+  const loaded = getBuildSettings();
+  assert.equal(loaded.native, false);
+  assert.equal(loaded.parallelJobs, 3);
 });

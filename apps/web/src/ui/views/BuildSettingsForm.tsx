@@ -169,7 +169,7 @@ export function BuildSettingsForm({ fm }: { fm: BuildViewController }) {
         <NumberInput
           label="Parallel jobs"
           placeholder="all cores"
-          description="Compiler processes to run at once; empty means every CPU core."
+          description="Compiler processes to run at once; empty means every CPU core. Stored for this machine only."
           min={1}
           max={256}
           value={fm.parallelJobs}
@@ -362,7 +362,7 @@ export function BuildSettingsForm({ fm }: { fm: BuildViewController }) {
           />
           <BuildSwitch
             label="Native CPU"
-            tooltip="Configures GGML_NATIVE=ON; the binary may be optimized for this CPU and less portable."
+            tooltip="Configures GGML_NATIVE=ON; the binary may be optimized for this CPU and less portable. Stored for this machine only."
             checked={fm.native}
             disabled={!fm.settingsReady}
             onChange={(value) => fm.setFormField("native", value)}

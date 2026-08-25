@@ -8,12 +8,14 @@ import {
   type BuildSettings,
   type PathCatalogEntry,
 } from "@arriero/core";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { createJobStore } from "../jobs/store.js";
 import { newId } from "../utils/id.js";
 
 import { config } from "../config.js";
+import { getMachineState, updateMachineState } from "../machine/store.js";
 import { isCudaToolkitAvailable } from "./cuda.js";
 import {
   getLlamaSourceSettings,
@@ -27,7 +29,11 @@ import {
   updatePathCatalogEntry,
 } from "../path-catalog/repository.js";
 
-const StoredBuildSectionSchema = BuildSettingsSchema.omit({ repoPath: true });
+const StoredBuildSectionSchema = BuildSettingsSchema.omit({
+  repoPath: true,
+  native: true,
+  parallelJobs: true,
+});
 
 function normalizeBuildsBaseDir(value: string): string {
   const resolved = resolve(value);
@@ -62,16 +68,18 @@ function defaultSettings(
 
 export function getBuildSettings(): BuildSettings {
   const sourceSettings = getLlamaSourceSettings();
+  const base = defaultSettings(sourceSettings.repoPath);
   const stored = readSettings().build;
-  const settings = stored
-    ? BuildSettingsSchema.parse({
-        ...stored,
-        repoPath: sourceSettings.repoPath,
-      })
-    : defaultSettings(sourceSettings.repoPath);
+  const machine = getMachineState().build;
+  const settings = BuildSettingsSchema.parse({
+    ...base,
+    ...(stored ?? {}),
+    native: machine.native ?? base.native,
+    parallelJobs: machine.parallelJobs ?? base.parallelJobs,
+    repoPath: sourceSettings.repoPath,
+  });
   return {
     ...settings,
-    repoPath: sourceSettings.repoPath,
     buildDir: normalizeBuildsBaseDir(settings.buildDir),
   };
 }
@@ -81,6 +89,9 @@ export function saveBuildSettings(input: BuildSettings): BuildSettings {
   if (resolve(parsed.repoPath) !== resolve(getLlamaSourceSettings().repoPath)) {
     saveLlamaSourceSettings({ repoPath: parsed.repoPath });
   }
+  updateMachineState({
+    build: { native: parsed.native, parallelJobs: parsed.parallelJobs },
+  });
   const settings = readSettings();
   const nextBuild = {
     ...settings.build,
@@ -90,6 +101,44 @@ export function saveBuildSettings(input: BuildSettings): BuildSettings {
     writeSettings({ ...settings, build: nextBuild });
   }
   return getBuildSettings();
+}
+
+export function seedBuildHostFactsFromLegacySettings(): void {
+  if (!existsSync(config.settingsFile)) {
+    return;
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(config.settingsFile, "utf8"));
+  } catch {
+    return;
+  }
+  const build =
+    raw && typeof raw === "object"
+      ? ((raw as Record<string, unknown>).build as
+          | Record<string, unknown>
+          | undefined)
+      : undefined;
+  if (!build || typeof build !== "object") {
+    return;
+  }
+  const machine = getMachineState().build;
+  const patch: { native?: boolean; parallelJobs?: number } = {};
+  if (machine.native === null && typeof build.native === "boolean") {
+    patch.native = build.native;
+  }
+  if (
+    machine.parallelJobs === null &&
+    typeof build.parallelJobs === "number" &&
+    Number.isInteger(build.parallelJobs) &&
+    build.parallelJobs > 0
+  ) {
+    patch.parallelJobs = build.parallelJobs;
+  }
+  if (Object.keys(patch).length === 0) {
+    return;
+  }
+  updateMachineState({ build: { ...machine, ...patch } });
 }
 
 function uniqueBinaryName(desired: string, excludeId: string | null): string {

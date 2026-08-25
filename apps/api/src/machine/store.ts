@@ -14,6 +14,10 @@ const store = createJsonFileStore<MachineLocalState>({
   cache: "process",
 });
 
+export function getMachineState(): MachineLocalState {
+  return store.read();
+}
+
 export function updateMachineState(
   patch: Partial<MachineLocalState>,
 ): MachineLocalState {

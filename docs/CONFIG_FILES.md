@@ -76,7 +76,9 @@ reconciled on listing, pruned at boot, and a dangling or absent entry self-heals
 
 Sections `modelScan` / `sourceRepositories` / `build` / `environments` / `registries`
 (`settings/store.ts`). Portable source specs store adapter, origin and location policy; managed
-paths derive from `config.sourcesDir`. `registries.npmRegistryUrl` is the host-wide npm registry
+paths derive from `config.sourcesDir`. The `build` section holds host-independent intent only —
+the physical-host knobs `native` and `parallelJobs` live in the machine-local `machine.json`
+(`docs/BUILD.md`), and the file schema strips them if a legacy or foreign tree reintroduces them. `registries.npmRegistryUrl` is the host-wide npm registry
 (`GET/PUT /api/registries`), applied as `npm ci --registry` in the llama.cpp `ui-install` build step
 — the npm analog of the environments PyPI index, meant for any future npm-based build.
 `defaultBinaryPath()` (`arguments/catalog.ts`) is exposed at `GET /api/build/default-binary` and

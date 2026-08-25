@@ -16,7 +16,12 @@ so a source build never dirties the checkout that argument-docs sync and the Bui
 
 `BuildSettings.buildDir` is the **base** directory. The runner builds each ref into
 `buildDir/<slug(ref)>`, so different branches keep separate trees and do not overwrite each other's
-binary.
+binary. The stored `settings.json` build section carries only host-independent intent, so a config
+tree shared through one git origin (`docs/CONFIG_GIT.md`) reproduces the same
+`${ARRIERO_BUILDS_DIR}/<slug>/bin/<target>` layout on every host that builds the same ref. Two
+knobs are physical-host facts and live in the machine-local `config/machine.json` instead:
+`native` (`-march=native`) and `parallelJobs`. `getBuildSettings` composes both sources; the Build
+form saves them transparently, and the boot normalizer moves legacy in-file values aside once.
 
 ## Ref selection
 
