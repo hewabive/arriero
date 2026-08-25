@@ -95,6 +95,10 @@ The external protocol surfaces are public and intentionally separate from admin 
 - The same POST endpoints are also available under `/v1/*`.
 - `POST /proxy/anthropic/v1/messages` and `POST /v1/messages` validate the `model` field and return Anthropic-shaped errors.
 
+### Operation specs
+
+Every facade route registers an operation `{protocol, endpoint, routePath}`. Everything the proxy decides per operation kind — upstream path, response shape, prefill-resume eligibility, stream usage metering, prompt-progress injection, Anthropic→OpenAI translatability, count-tokens response scaling — lives in one declarative table, `apiProxyOperationSpecs` in `proxy/protocol.ts`, read through `apiProxyOperationSpec(operation)`. The lookup is protocol-guarded and returns `null` for an endpoint it does not know (a version-skewed federation peer can send one via `/api/proxy/serve`); an unknown operation keeps flowing down the plain forward path until the missing upstream path answers `501 not_implemented`. Adding an operation kind — a future `images.generations` included — is a table row plus a route registration, never a scattered `operation.endpoint ===` branch.
+
 Generation endpoints run the full readiness plan for managed targets — start, load, wait, and where the plan calls for it evict or preempt a competitor — then forward. External API targets skip management and forward directly:
 
 - `/v1/chat/completions`

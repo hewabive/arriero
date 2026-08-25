@@ -172,15 +172,111 @@ export type ApiProxyResponseShape =
   | "openai-responses"
   | "openai-chat";
 
+type ApiProxyOperationSpec = {
+  protocol: ApiProxyProtocolId;
+  upstreamPath: string;
+  responseShape: ApiProxyResponseShape;
+  resumable: boolean;
+  promptProgress: boolean;
+  usageMeter: "resumable" | "responses" | null;
+  translatesToOpenAiChat: boolean;
+  countTokensResponse: boolean;
+};
+
+const apiProxyOperationSpecs = {
+  "chat.completions": {
+    protocol: "openai",
+    upstreamPath: "/v1/chat/completions",
+    responseShape: "openai-chat",
+    resumable: true,
+    promptProgress: true,
+    usageMeter: "resumable",
+    translatesToOpenAiChat: false,
+    countTokensResponse: false,
+  },
+  completions: {
+    protocol: "openai",
+    upstreamPath: "/v1/completions",
+    responseShape: "openai-chat",
+    resumable: false,
+    promptProgress: false,
+    usageMeter: null,
+    translatesToOpenAiChat: false,
+    countTokensResponse: false,
+  },
+  embeddings: {
+    protocol: "openai",
+    upstreamPath: "/v1/embeddings",
+    responseShape: "openai-chat",
+    resumable: false,
+    promptProgress: false,
+    usageMeter: null,
+    translatesToOpenAiChat: false,
+    countTokensResponse: false,
+  },
+  rerank: {
+    protocol: "openai",
+    upstreamPath: "/v1/rerank",
+    responseShape: "openai-chat",
+    resumable: false,
+    promptProgress: false,
+    usageMeter: null,
+    translatesToOpenAiChat: false,
+    countTokensResponse: false,
+  },
+  responses: {
+    protocol: "openai",
+    upstreamPath: "/v1/responses",
+    responseShape: "openai-responses",
+    resumable: false,
+    promptProgress: false,
+    usageMeter: "responses",
+    translatesToOpenAiChat: false,
+    countTokensResponse: false,
+  },
+  messages: {
+    protocol: "anthropic",
+    upstreamPath: "/v1/messages",
+    responseShape: "anthropic",
+    resumable: true,
+    promptProgress: false,
+    usageMeter: "resumable",
+    translatesToOpenAiChat: true,
+    countTokensResponse: false,
+  },
+  "messages.count_tokens": {
+    protocol: "anthropic",
+    upstreamPath: "/v1/messages/count_tokens",
+    responseShape: "anthropic",
+    resumable: false,
+    promptProgress: false,
+    usageMeter: null,
+    translatesToOpenAiChat: false,
+    countTokensResponse: true,
+  },
+} satisfies Record<string, ApiProxyOperationSpec>;
+
+export type ApiProxyEndpointName = keyof typeof apiProxyOperationSpecs;
+
+export function apiProxyOperationSpec(
+  operation: Pick<ApiProxyProtocolOperation, "protocol" | "endpoint">,
+): ApiProxyOperationSpec | null {
+  if (!Object.hasOwn(apiProxyOperationSpecs, operation.endpoint)) {
+    return null;
+  }
+  const spec =
+    apiProxyOperationSpecs[operation.endpoint as ApiProxyEndpointName];
+  return spec.protocol === operation.protocol ? spec : null;
+}
+
 export function apiProxyResponseShape(
   operation: ApiProxyProtocolOperation,
 ): ApiProxyResponseShape {
-  if (operation.protocol === "anthropic") {
-    return "anthropic";
+  const spec = apiProxyOperationSpec(operation);
+  if (spec) {
+    return spec.responseShape;
   }
-  return operation.endpoint === "responses"
-    ? "openai-responses"
-    : "openai-chat";
+  return operation.protocol === "anthropic" ? "anthropic" : "openai-chat";
 }
 
 export function bodyRequestsStreaming(body: unknown) {

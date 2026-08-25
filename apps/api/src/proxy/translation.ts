@@ -11,10 +11,11 @@ import {
 
 import { numberOrNull } from "./json.js";
 import { openAiResumableCodec } from "./openai.js";
-import type {
-  ApiProxyProtocolId,
-  ApiProxyProtocolOperation,
-  ApiProxyResumableCodec,
+import {
+  apiProxyOperationSpec,
+  type ApiProxyProtocolId,
+  type ApiProxyProtocolOperation,
+  type ApiProxyResumableCodec,
 } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
 import {
@@ -39,8 +40,7 @@ export function shouldTranslateAnthropicMessages(
   upstreamProfile: ApiLabProbeProfile,
 ): boolean {
   return (
-    operation.protocol === "anthropic" &&
-    operation.endpoint === "messages" &&
+    (apiProxyOperationSpec(operation)?.translatesToOpenAiChat ?? false) &&
     upstreamProfile !== "anthropic"
   );
 }

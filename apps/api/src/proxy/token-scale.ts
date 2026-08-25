@@ -1,7 +1,10 @@
 import { scaleApiProxyResponseTokenCount } from "@arriero/core";
 
 import { isRecord } from "./json.js";
-import type { ApiProxyProtocolOperation } from "./protocol.js";
+import {
+  apiProxyOperationSpec,
+  type ApiProxyProtocolOperation,
+} from "./protocol.js";
 import {
   createApiProxySseTransform,
   mutateApiProxyJsonText,
@@ -101,7 +104,7 @@ function scaleResponseObject(
   };
   visit(value);
 
-  if (operation.endpoint === "messages.count_tokens") {
+  if (apiProxyOperationSpec(operation)?.countTokensResponse) {
     const inputTokens = value.input_tokens;
     if (typeof inputTokens === "number") {
       const scaled = scaleApiProxyResponseTokenCount(inputTokens, factor);

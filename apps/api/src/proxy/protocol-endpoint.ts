@@ -51,6 +51,7 @@ import {
   type ApiProxyRouteChainResult,
 } from "./pipeline.js";
 import {
+  apiProxyOperationSpec,
   resolveApiProxyProtocolModelRequest,
   type ApiProxyProtocolAdapter,
   type ApiProxyProtocolDiagnostic,
@@ -155,8 +156,6 @@ async function safeJsonBody(c: Context) {
   }
 }
 
-const resumableEndpoints = new Set(["chat.completions", "messages"]);
-
 type StreamUsageMeter = {
   codec: Pick<ApiProxyResumableCodec, "parseChunk">;
   inject: boolean;
@@ -172,7 +171,8 @@ function resolveStreamUsageMeter(
   adapter: ApiProxyProtocolAdapter,
   body: unknown,
 ): StreamUsageMeter | null {
-  if (adapter.resumable && resumableEndpoints.has(operation.endpoint)) {
+  const usageMeter = apiProxyOperationSpec(operation)?.usageMeter ?? null;
+  if (usageMeter === "resumable" && adapter.resumable) {
     const isOpenAi = operation.protocol === "openai";
     return {
       codec: adapter.resumable,
@@ -180,7 +180,7 @@ function resolveStreamUsageMeter(
       strip: isOpenAi && !includeUsageRequested(body),
     };
   }
-  if (operation.protocol === "openai" && operation.endpoint === "responses") {
+  if (usageMeter === "responses") {
     return { codec: openAiResponsesUsageCodec, inject: false, strip: false };
   }
   return null;
@@ -661,9 +661,9 @@ export function delegateServeRequestBody(
   if (streamMeter?.inject) {
     body = withIncludeUsage(body);
   }
+  const spec = apiProxyOperationSpec(operation);
   const wantsPrefill =
-    operation.endpoint === "chat.completions" ||
-    operation.endpoint === "messages";
+    spec !== null && (spec.promptProgress || spec.translatesToOpenAiChat);
   if (wantsPrefill && !returnProgressRequested(body)) {
     body = withReturnProgress(body);
   }
@@ -690,10 +690,11 @@ async function delegateRemoteTarget(input: {
   const responsePlan = input.responsePlan ?? null;
   const streamOwnerKey = input.streamOwnerKey ?? null;
 
+  const operationSpec = apiProxyOperationSpec(operation);
   const wantsPrefill =
     request.stream &&
-    (operation.endpoint === "chat.completions" ||
-      operation.endpoint === "messages");
+    operationSpec !== null &&
+    (operationSpec.promptProgress || operationSpec.translatesToOpenAiChat);
   const streamMeter = request.stream
     ? resolveStreamUsageMeter(operation, adapter, request.body)
     : null;
@@ -938,6 +939,7 @@ export async function serveResolvedTarget(input: {
   responsePlan?: ApiProxyResponsePlanExecutor | null | undefined;
 }): Promise<Response> {
   const { c, adapter, operation, trace, recorder, inflight } = input;
+  const operationSpec = apiProxyOperationSpec(operation);
   const extraTarget = input.extraTarget ?? null;
   const responsePlan = input.responsePlan ?? null;
   const streamOwnerKey = input.streamOwnerKey ?? null;
@@ -1218,7 +1220,8 @@ export async function serveResolvedTarget(input: {
       instanceId !== null &&
       !translateAnthropic &&
       adapter.resumable &&
-      resumableEndpoints.has(operation.endpoint) &&
+      operationSpec !== null &&
+      operationSpec.resumable &&
       !requestBreaksStreamReconstruction(route.request.body)
         ? adapter.resumable
         : null;
@@ -1229,7 +1232,9 @@ export async function serveResolvedTarget(input: {
       engine.sseTimings &&
       (translateAnthropic
         ? route.request.stream
-        : streamMeter !== null && operation.endpoint === "chat.completions");
+        : streamMeter !== null &&
+          operationSpec !== null &&
+          operationSpec.promptProgress);
     const injectPrefillProgress =
       wantsPrefillProgress && !returnProgressRequested(upstreamRequestBody);
     let forwardBody: unknown;
@@ -1265,7 +1270,8 @@ export async function serveResolvedTarget(input: {
     const streamSession =
       instanceId !== null &&
       engine.streamResume &&
-      resumableEndpoints.has(operation.endpoint) &&
+      operationSpec !== null &&
+      operationSpec.resumable &&
       (route.request.stream || bufferCodec !== null)
         ? apiProxyStreamSessions.register({
             inflightId: inflight.id,
@@ -1785,7 +1791,8 @@ export async function serveResolvedTarget(input: {
     candidateEngine.streamResume &&
     leasePreemptible &&
     adapter.resumable &&
-    resumableEndpoints.has(operation.endpoint) &&
+    operationSpec !== null &&
+    operationSpec.resumable &&
     resumableUpstreamPath
   ) {
     const codec = adapter.resumable;

@@ -8,11 +8,12 @@ import {
   type ApiProxyPendingResumeEntry,
   type ApiProxyPendingResumeStore,
 } from "./pending-resume.js";
-import type {
-  ApiProxyProtocolAdapter,
-  ApiProxyProtocolModelRequest,
-  ApiProxyProtocolOperation,
-  ApiProxyResumableCodec,
+import {
+  apiProxyOperationSpec,
+  type ApiProxyProtocolAdapter,
+  type ApiProxyProtocolModelRequest,
+  type ApiProxyProtocolOperation,
+  type ApiProxyResumableCodec,
 } from "./protocol.js";
 import {
   resumableTraceUsage,
@@ -56,8 +57,6 @@ import {
   type ProxyUsageCounts,
 } from "./usage-meter.js";
 
-const replayableEndpoints = new Set(["chat.completions", "messages"]);
-
 export type ApiProxyResumeClaim = {
   entry: ApiProxyPendingResumeEntry;
   baseUrl: string;
@@ -80,7 +79,7 @@ export function claimApiProxyResumedSession(input: {
   if (store.size() === 0) {
     return null;
   }
-  if (!replayableEndpoints.has(input.operation.endpoint)) {
+  if (!apiProxyOperationSpec(input.operation)?.resumable) {
     return null;
   }
   const codec = input.adapter.resumable;

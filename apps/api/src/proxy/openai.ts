@@ -4,6 +4,7 @@ import type {
 } from "@arriero/core";
 import { asObject } from "./json.js";
 import {
+  apiProxyOperationSpec,
   modelIdFromBody,
   type ApiProxyProtocolAdapter,
   type ApiProxyProtocolOperation,
@@ -77,14 +78,6 @@ export function notImplementedResponse(modelId: string, endpoint: string) {
 function endpointLabel(operation: ApiProxyProtocolOperation) {
   return operation.routePath || operation.endpoint;
 }
-
-const upstreamPaths: Record<string, string> = {
-  "chat.completions": "/v1/chat/completions",
-  completions: "/v1/completions",
-  embeddings: "/v1/embeddings",
-  rerank: "/v1/rerank",
-  responses: "/v1/responses",
-};
 
 export const openAiResumableCodec: ApiProxyResumableCodec = {
   upstreamBody(originalBody, tail) {
@@ -359,7 +352,8 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
       code: diagnostic.code,
     }),
   }),
-  upstreamPath: (operation) => upstreamPaths[operation.endpoint] ?? null,
+  upstreamPath: (operation) =>
+    apiProxyOperationSpec(operation)?.upstreamPath ?? null,
   notImplemented: (request) => ({
     status: 501,
     body: notImplementedResponse(

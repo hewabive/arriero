@@ -1,5 +1,6 @@
 import { asObject } from "./json.js";
 import {
+  apiProxyOperationSpec,
   modelIdFromBody,
   type ApiProxyProtocolAdapter,
   type ApiProxyProtocolOperation,
@@ -35,11 +36,6 @@ export function anthropicError(input: {
 function endpointLabel(operation: ApiProxyProtocolOperation) {
   return operation.routePath || operation.endpoint;
 }
-
-const upstreamPaths: Record<string, string> = {
-  messages: "/v1/messages",
-  "messages.count_tokens": "/v1/messages/count_tokens",
-};
 
 function parseToolInput(args: string): unknown {
   if (!args.trim()) {
@@ -376,7 +372,8 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
       type: "permission_error",
     }),
   }),
-  upstreamPath: (operation) => upstreamPaths[operation.endpoint] ?? null,
+  upstreamPath: (operation) =>
+    apiProxyOperationSpec(operation)?.upstreamPath ?? null,
   notImplemented: (request) => ({
     status: 501,
     body: anthropicError({

@@ -15,6 +15,10 @@ OpenAI/Anthropic-compatible facades. Overview, admin surface and telemetry:
   (`pipeline.ts`) → gateway decision (`gateway.ts`) → acquire domain lease → execute plan → forward
   (`forwarder.ts`) or resumable. Protocol adapters (`openai.ts`, `anthropic.ts`, `protocol.ts`) shape
   errors per public API.
+- **Per-operation behavior is a table row, not a branch**: upstream path, response shape,
+  resumability, usage metering and translation come from `protocol.ts:apiProxyOperationSpecs` via
+  `apiProxyOperationSpec` (`docs/API_PROXY_FOUNDATION.md` § Operation specs). Never branch on
+  `operation.endpoint` at a call site.
 - **External providers collapse the target layer**: an endpoint-routed or passthrough model resolves
   to a synthetic, non-persisted `ApiProxyTargetRecord` (`external-target.ts`) so the
   gateway/lease/forwarder path stays uniform. Targets persist only for managed instances

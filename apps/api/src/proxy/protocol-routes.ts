@@ -6,6 +6,7 @@ import { openAiModelsList, openAiProtocolAdapter } from "./openai.js";
 import { listPublicProxyModels } from "./passthrough.js";
 import { proxyProtocolEndpoint } from "./protocol-endpoint.js";
 import type {
+  ApiProxyEndpointName,
   ApiProxyProtocolOperation,
   ApiProxyProtocolTransport,
 } from "./protocol.js";
@@ -13,7 +14,7 @@ import { apiProxyRequestGate } from "./sources.js";
 
 function protocolOperation(input: {
   protocol: ApiProxyProtocolOperation["protocol"];
-  endpoint: string;
+  endpoint: ApiProxyEndpointName;
   routePath: string;
   transport?: ApiProxyProtocolTransport;
 }): ApiProxyProtocolOperation {
