@@ -264,7 +264,7 @@ export function SafetensorsModelsSection(props: {
                       ctx {model.metadata.contextLength ?? "-"}
                     </Badge>
                   </Group>
-                  <Collapse in={isOpen}>
+                  <Collapse expanded={isOpen}>
                     {isOpen && <SafetensorsDetailPanel model={model} />}
                   </Collapse>
                   <Group gap="xs">

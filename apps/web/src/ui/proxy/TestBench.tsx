@@ -263,7 +263,7 @@ export function TestBench(props: TestBenchProps) {
                 >
                   {showBody ? "Hide transformed body" : "Show transformed body"}
                 </Button>
-                <Collapse in={showBody}>
+                <Collapse expanded={showBody}>
                   <Code block style={{ whiteSpace: "pre-wrap" }}>
                     {JSON.stringify(result.transformedBody, null, 2)}
                   </Code>

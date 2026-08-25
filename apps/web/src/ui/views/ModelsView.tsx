@@ -660,7 +660,7 @@ export function ModelsView(props: {
                         ctx {model.metadata.contextLength ?? "-"}
                       </Badge>
                     </Group>
-                    <Collapse in={isOpen}>
+                    <Collapse expanded={isOpen}>
                       {isOpen && <ModelDetailPanel model={model} />}
                     </Collapse>
                     <Group gap="xs">

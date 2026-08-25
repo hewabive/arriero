@@ -215,7 +215,7 @@ export function HfQueueJobCard(props: {
           />
         )}
 
-        <Collapse in={detailsOpened}>
+        <Collapse expanded={detailsOpened}>
           <Stack gap="xs">
             <ScrollArea.Autosize mah={260} type="auto" offsetScrollbars>
               <Stack gap={3}>

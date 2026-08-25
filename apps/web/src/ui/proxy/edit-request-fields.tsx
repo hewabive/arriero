@@ -513,7 +513,7 @@ export function EditRequestFields(props: {
               >
                 {showResult ? "Hide edited body" : "Show edited body"}
               </Button>
-              <Collapse in={showResult}>
+              <Collapse expanded={showResult}>
                 <Code block style={{ whiteSpace: "pre-wrap" }}>
                   {JSON.stringify(preview.body, null, 2)}
                 </Code>

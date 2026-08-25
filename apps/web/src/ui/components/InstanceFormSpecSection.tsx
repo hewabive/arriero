@@ -34,7 +34,7 @@ export function InstanceFormSpecSection({
           onChange={(event) => fm.applySpecEnabled(event.currentTarget.checked)}
           label="Speculative decoding (draft model)"
         />
-        <Collapse in={fm.specEnabled}>
+        <Collapse expanded={fm.specEnabled}>
           <Stack gap="xs">
             {fm.specTypeOptions.length > 0 ? (
               <TouchSelect
@@ -132,7 +132,7 @@ export function InstanceFormSpecSection({
             >
               Advanced
             </Button>
-            <Collapse in={fm.specAdvancedOpen}>
+            <Collapse expanded={fm.specAdvancedOpen}>
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
                 <NumberInput
                   label="draft-n-max"

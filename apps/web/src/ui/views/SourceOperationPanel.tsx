@@ -98,7 +98,7 @@ export function SourceOperationPanel(props: {
           </Group>
         </Group>
 
-        <Collapse in={detailsOpened}>
+        <Collapse expanded={detailsOpened}>
           <Stack gap="xs">
             {job.progress !== null && (
               <Progress

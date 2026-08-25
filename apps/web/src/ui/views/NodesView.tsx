@@ -933,7 +933,7 @@ function NodeCard({
               />
             </Group>
           </Group>
-          <Collapse in={detailsOpened}>
+          <Collapse expanded={detailsOpened}>
             <Stack gap={6}>
               {applied && (
                 <Text size="sm" c="teal">
@@ -982,7 +982,7 @@ function NodeCard({
                   </Button>
                 )}
               </Group>
-              <Collapse in={logsOpen}>
+              <Collapse expanded={logsOpen}>
                 <ScrollArea h={220} type="auto" offsetScrollbars>
                   <Stack gap={2}>
                     {logsQuery.data?.data.lines.map((line, index) => (

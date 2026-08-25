@@ -176,7 +176,7 @@ export function InstallRunPanel(props: {
             />
           </Group>
         </Group>
-        <Collapse in={detailsOpened}>
+        <Collapse expanded={detailsOpened}>
           <Stack gap="xs">
             <Code
               block

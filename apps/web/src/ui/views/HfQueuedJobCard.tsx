@@ -107,7 +107,7 @@ export function HfQueuedJobCard(props: {
           </Group>
         </Group>
 
-        <Collapse in={detailsOpened}>
+        <Collapse expanded={detailsOpened}>
           <ScrollArea.Autosize mah={220} type="auto" offsetScrollbars>
             <Stack gap={3}>
               {job.files.map((file) => (

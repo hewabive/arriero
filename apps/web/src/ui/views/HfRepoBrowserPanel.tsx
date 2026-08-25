@@ -149,7 +149,7 @@ export function HfRepoBrowserPanel(props: {
                 {countLabel(browse.files.length, "file")}
               </Text>
             </Group>
-            <Collapse in={resultsOpened}>
+            <Collapse expanded={resultsOpened}>
               <BrowseResults
                 key={`${browse.repoId}@${browse.commitSha}`}
                 browse={browse}
@@ -414,7 +414,7 @@ function BrowseResults(props: {
             Clear
           </Button>
         </Group>
-        <Collapse in={allFilesOpened}>
+        <Collapse expanded={allFilesOpened}>
           <ScrollArea.Autosize mah={360} type="auto" offsetScrollbars>
             <Stack gap={2}>
               {dirGroups.map((group) => {
@@ -456,7 +456,7 @@ function BrowseResults(props: {
                         </Text>
                       </Group>
                     )}
-                    <Collapse in={expanded}>
+                    <Collapse expanded={expanded}>
                       <Stack gap={2} pl={group.dir === "" ? 0 : 28}>
                         {group.files.map((file) => (
                           <Checkbox

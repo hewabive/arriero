@@ -134,7 +134,7 @@ export const HfQueuePanel = forwardRef<
                 </Button>
               )}
             </Group>
-            <Collapse in={historyOpened}>
+            <Collapse expanded={historyOpened}>
               <Stack gap="xs">
                 {history.map((job) => (
                   <HfQueueJobCard
