@@ -86,6 +86,11 @@ validation deliberately does not check `binaryPathRefId`/`pathCatalogEntryId`
 against the catalog: those ids are machine-local and dangling references
 degrade gracefully at runtime.
 
+Every mutation result additionally carries a **host-readiness report**
+(`docs/CONFIG_DOCTOR.md`): after a clone or pull the same response says which
+binaries, environments, models and secrets this host still lacks — advisory,
+never blocking the operation.
+
 ## Origin
 
 Setting an origin removes and re-adds the remote, which drops the previous

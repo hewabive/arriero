@@ -16,6 +16,7 @@ import {
 
 import {
   checkForUpdate,
+  getConfigDoctorReport,
   getConfigState,
   getEventLoopReport,
   getPrerequisiteReport,
@@ -57,6 +58,11 @@ export function AttentionSignalsCard() {
     queryKey: ["config-state"],
     queryFn: getConfigState,
     refetchInterval: 30_000,
+  });
+  const doctorQuery = useQuery({
+    queryKey: ["config-doctor"],
+    queryFn: getConfigDoctorReport,
+    refetchInterval: 60_000,
   });
   const sourceReposQuery = useQuery({
     queryKey: ["source-repositories"],
@@ -158,6 +164,25 @@ export function AttentionSignalsCard() {
       key: "config-dirty",
       severity: "warning",
       message: "Configuration edited on disk — reload to apply",
+      detail: null,
+      hash: "/config-git",
+    });
+  }
+
+  const doctorSummary = doctorQuery.data?.data.summary;
+  if (doctorSummary && doctorSummary.errors > 0) {
+    items.push({
+      key: "config-doctor-errors",
+      severity: "error",
+      message: `Configuration references ${countLabel(doctorSummary.errors, "thing")} this host cannot satisfy`,
+      detail: null,
+      hash: "/config-git",
+    });
+  } else if (doctorSummary && doctorSummary.warnings > 0) {
+    items.push({
+      key: "config-doctor-warnings",
+      severity: "warning",
+      message: `Host readiness: ${countLabel(doctorSummary.warnings, "warning")}`,
       detail: null,
       hash: "/config-git",
     });

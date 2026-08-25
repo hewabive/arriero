@@ -52,6 +52,7 @@ import {
 } from "../../api/client";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
+import { ConfigDoctorCard } from "./ConfigDoctorCard";
 
 type MutationResponse = { data: ConfigGitMutationResult };
 
@@ -66,6 +67,13 @@ function useConfigMutation<T>(
   return useMutation({
     mutationFn,
     onSuccess: async (result, input) => {
+      if (result.data.doctor) {
+        queryClient.setQueryData(["config-doctor"], {
+          data: result.data.doctor,
+        });
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ["config-doctor"] });
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["config-git-status"] }),
         queryClient.invalidateQueries({ queryKey: ["config-git-diff"] }),
@@ -548,6 +556,7 @@ export function ConfigGitView() {
           </Stack>
         </Alert>
       )}
+      <ConfigDoctorCard />
       <Card withBorder radius="md" padding="md">
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start" wrap="wrap">

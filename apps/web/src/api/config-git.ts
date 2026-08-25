@@ -1,4 +1,5 @@
 import type {
+  ConfigDoctorReport,
   ConfigGitCheckoutCommit,
   ConfigGitClone,
   ConfigGitCommit,
@@ -31,6 +32,10 @@ export function getConfigGitValidation() {
   return nodeRequest<{ data: ConfigGitValidation }>(
     "/api/config-git/validation",
   );
+}
+
+export function getConfigDoctorReport() {
+  return nodeRequest<{ data: ConfigDoctorReport }>("/api/config-git/doctor");
 }
 
 export function getConfigGitDiff(path?: string) {

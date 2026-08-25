@@ -70,6 +70,7 @@ not before.
 | [CONFIG_FILES](CONFIG_FILES.md) | What each portable config file holds; identity rules and cascades |
 | [CONFIG_EDITING](CONFIG_EDITING.md) | The staged read/write contract: reload, quarantine, write conflicts |
 | [CONFIG_GIT](CONFIG_GIT.md) | Managing the config root as a git repository |
+| [CONFIG_DOCTOR](CONFIG_DOCTOR.md) | Host readiness: what this host cannot satisfy from the tracked config |
 | [PORTABLE_PATHS](PORTABLE_PATHS.md) | `${ARRIERO_*}` placeholders and startup normalization |
 | [RUNTIME_LAYOUT](RUNTIME_LAYOUT.md) | `data/` and `runtime/` contents, DB tables, environment variables |
 | [MIGRATIONS](MIGRATIONS.md) | Inventory of one-shot data migrations (Russian) |
