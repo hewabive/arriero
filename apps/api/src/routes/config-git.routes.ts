@@ -35,6 +35,7 @@ import {
 } from "../config-git/repository.js";
 import { validateConfigRoot } from "../config-git/validation.js";
 import { config } from "../config.js";
+import { getConfigDoctorReport } from "../doctor/report.js";
 
 async function input(c: Context) {
   return c.req.json().catch(() => ({}));
@@ -58,6 +59,10 @@ export function registerConfigGitRoutes(app: Hono) {
 
   app.get("/api/config-git/validation", (c) => {
     return c.json({ data: validateConfigRoot(config.configDir) });
+  });
+
+  app.get("/api/config-git/doctor", async (c) => {
+    return c.json({ data: await getConfigDoctorReport() });
   });
 
   app.get("/api/config-git/diff", async (c) => {

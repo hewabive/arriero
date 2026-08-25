@@ -51,7 +51,7 @@ function resolveInstancePathRefs(instance: Instance): Instance {
 
   return {
     ...instance,
-    binaryPath: binaryRef?.path ?? "",
+    binaryPath: binaryRef?.path ?? instance.binaryPath,
   };
 }
 

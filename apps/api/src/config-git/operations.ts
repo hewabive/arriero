@@ -31,6 +31,8 @@ import { dirname, resolve } from "node:path";
 
 import { config } from "../config.js";
 import { normalizeConfigFiles } from "../config-normalize.js";
+import { getConfigDoctorReport } from "../doctor/report.js";
+import { logger } from "../logger.js";
 import { supervisor } from "../process/supervisor.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
 import { ConfigBusyError, assertNoBlockingBackgroundWork } from "./busy.js";
@@ -200,12 +202,19 @@ async function mutation(
 ): Promise<ConfigGitMutationResult> {
   const result = await withConfigGitOperation(operation, work);
   const validation = result.validation ?? validateConfigRoot(config.configDir);
+  let doctor = null;
+  try {
+    doctor = await getConfigDoctorReport();
+  } catch (error) {
+    logger.warn({ error, operation }, "config doctor report failed");
+  }
   return {
     operation,
     output: result.output,
     backupPath: result.backupPath ?? null,
     status: await getConfigGitStatus(),
     validation,
+    doctor,
   };
 }
 

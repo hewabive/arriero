@@ -32,6 +32,7 @@ export * from "./arguments.js";
 export * from "./engine-args.js";
 export * from "./system.js";
 export * from "./prerequisites.js";
+export * from "./doctor.js";
 export * from "./fleet.js";
 export * from "./machine.js";
 export * from "./model-requirements.js";

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { ConfigDoctorReportSchema } from "./doctor.js";
+
 export const ConfigGitFileStatusSchema = z.object({
   path: z.string(),
   origPath: z.string().nullable().default(null),
@@ -79,6 +81,7 @@ export const ConfigGitMutationResultSchema = z.object({
   backupPath: z.string().nullable().default(null),
   status: ConfigGitStatusSchema,
   validation: ConfigGitValidationSchema,
+  doctor: ConfigDoctorReportSchema.nullable().default(null),
 });
 
 export const ConfigGitCloneSchema = z.object({

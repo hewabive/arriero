@@ -14,8 +14,8 @@ export function registerConfigRoutes(app: Hono) {
     });
   });
 
-  app.post("/api/config/reload", (c) => {
-    const result = applyConfigFromDisk();
+  app.post("/api/config/reload", async (c) => {
+    const result = await applyConfigFromDisk();
     if (!result.applied) {
       return c.json(
         { error: "configuration on disk is invalid", data: result },

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ConfigGitValidationIssueSchema } from "./config-git.js";
+import { ConfigDoctorReportSchema } from "./doctor.js";
 
 export const ConfigStoreCacheModeSchema = z.enum(["process", "per-read"]);
 export type ConfigStoreCacheMode = z.infer<typeof ConfigStoreCacheModeSchema>;
@@ -27,5 +28,6 @@ export const ConfigReloadResultSchema = z.object({
   applied: z.boolean(),
   issues: z.array(ConfigGitValidationIssueSchema),
   normalizedFiles: z.array(z.string()),
+  doctor: ConfigDoctorReportSchema.nullable().default(null),
 });
 export type ConfigReloadResult = z.infer<typeof ConfigReloadResultSchema>;
