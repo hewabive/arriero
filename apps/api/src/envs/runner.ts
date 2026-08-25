@@ -23,6 +23,12 @@ import { runLoggedCommand } from "../jobs/exec.js";
 import { registerActiveJob } from "../jobs/registry.js";
 import { markJobStep } from "../jobs/steps.js";
 import { reconcileEnvironmentCatalog } from "./catalog.js";
+import {
+  chatUiJobSteps,
+  checkedChatUiSpec,
+  patchChatUiManifest,
+} from "./chat-ui.js";
+import type { NodeSourceTools } from "./node-tools.js";
 import { discardDirectory } from "../utils/discard.js";
 import {
   environmentDirectory,
@@ -124,11 +130,28 @@ async function verifyLocalWheelArtifacts(
   }
 }
 
+export type EnvironmentTooling =
+  | { kind: "uv"; uv: string }
+  | ({ kind: "node-source" } & NodeSourceTools);
+
 export function environmentJobSteps(
   spec: EnvironmentSpec,
-  uv: string,
+  tools: EnvironmentTooling,
   repositories: EnvironmentRepositorySettings,
 ): EnvironmentJobStep[] {
+  if (spec.engine === "chat-ui") {
+    if (tools.kind !== "node-source") {
+      throw new Error("Chat UI environments install with git and npm");
+    }
+    return chatUiJobSteps(checkedChatUiSpec(spec), tools, {
+      staging: environmentStagingDirectory(spec),
+      final: environmentDirectory(spec),
+    });
+  }
+  if (tools.kind !== "uv") {
+    throw new Error(`${spec.engine} environments install with uv`);
+  }
+  const uv = tools.uv;
   const staging = environmentStagingDirectory(spec);
   const final = environmentDirectory(spec);
   const python = resolve(staging, "bin", "python");
@@ -215,7 +238,7 @@ class EnvironmentRunner {
     return this.running?.environmentId ?? null;
   }
 
-  start(spec: EnvironmentSpec, uv: string): EnvironmentJob {
+  start(spec: EnvironmentSpec, tools: EnvironmentTooling): EnvironmentJob {
     if (
       this.running &&
       getEnvironmentJob(this.running.jobId)?.status === "running"
@@ -228,7 +251,7 @@ class EnvironmentRunner {
       throw new Error("environment is already installed");
     const job = createEnvironmentJob({
       environmentId: spec.id,
-      steps: environmentJobSteps(spec, uv, repositories),
+      steps: environmentJobSteps(spec, tools, repositories),
       logPath: resolve(config.logsDir, `env-${spec.id}-${Date.now()}.log`),
     });
     let resolveDone!: () => void;
@@ -293,7 +316,10 @@ class EnvironmentRunner {
         let exitCode = 0;
         if (planned.name === "artifact-verify") {
           await verifyLocalWheelArtifacts(spec, log);
+        } else if (planned.name === "manifest-patch") {
+          patchChatUiManifest(staging, log);
         } else if (planned.name === "finalize") {
+          provisioner.prepareFinalize(spec, staging);
           const stagingEntrypoint = resolve(
             staging,
             provisioner.entrypointRelative,

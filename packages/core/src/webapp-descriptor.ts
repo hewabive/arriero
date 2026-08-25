@@ -1,12 +1,12 @@
 import type { EnvironmentEngine } from "./environments.js";
 
-export const WEBAPP_KINDS = ["open-webui"] as const;
+export const WEBAPP_KINDS = ["open-webui", "chat-ui"] as const;
 
 export type WebappKind = (typeof WEBAPP_KINDS)[number];
 
-export type WebappConfigRenderId = "open-webui";
+export type WebappConfigRenderId = "open-webui" | "chat-ui";
 
-export type WebappLogGrammar = "uvicorn";
+export type WebappLogGrammar = "uvicorn" | "pino";
 
 export type WebappDescriptor = {
   id: WebappKind;
@@ -21,6 +21,7 @@ export type WebappDescriptor = {
   probe: { path: string };
   configRender: WebappConfigRenderId;
   logGrammar: WebappLogGrammar;
+  sessionSecret: boolean;
   reservedEnvKeys: readonly string[];
   upgradeBackupFiles: readonly string[];
   installFootprintNote: string | null;
@@ -40,6 +41,7 @@ const WEBAPP_DESCRIPTORS: Record<WebappKind, WebappDescriptor> = {
     probe: { path: "/health" },
     configRender: "open-webui",
     logGrammar: "uvicorn",
+    sessionSecret: true,
     reservedEnvKeys: [
       "AUDIO_STT_ENGINE",
       "DATA_DIR",
@@ -59,6 +61,33 @@ const WEBAPP_DESCRIPTORS: Record<WebappKind, WebappDescriptor> = {
     upgradeBackupFiles: ["webui.db"],
     installFootprintNote:
       "the open-webui package installs a 5-7 GB virtual environment",
+  },
+  "chat-ui": {
+    id: "chat-ui",
+    displayName: "Chat UI",
+    environmentEngine: "chat-ui",
+    http: { defaultHost: "127.0.0.1", defaultPort: 3001 },
+    launch: {
+      argvPrefix: [],
+      hostFlag: "--host",
+      portFlag: "--port",
+    },
+    probe: { path: "/healthcheck" },
+    configRender: "chat-ui",
+    logGrammar: "pino",
+    sessionSecret: false,
+    reservedEnvKeys: [
+      "ENABLE_CONFIG_MANAGER",
+      "HOST",
+      "MONGOMS_DOWNLOAD_DIR",
+      "MONGO_STORAGE_PATH",
+      "OPENAI_API_KEY",
+      "OPENAI_BASE_URL",
+      "PORT",
+    ],
+    upgradeBackupFiles: ["db"],
+    installFootprintNote:
+      "the source build takes ~600 MB on disk; the first start downloads an ~80 MB embedded MongoDB",
   },
 };
 

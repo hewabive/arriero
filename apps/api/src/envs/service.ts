@@ -28,7 +28,8 @@ import {
   listEnvironmentSpecs,
   pruneEnvironmentMachineState,
 } from "./repository.js";
-import { environmentRunner } from "./runner.js";
+import { probeNodeSourceTools } from "./node-tools.js";
+import { environmentRunner, type EnvironmentTooling } from "./runner.js";
 import { probeUv } from "./uv.js";
 import { environmentLayoutError } from "./validation.js";
 import { rocmDeviceAvailable } from "./availability.js";
@@ -93,29 +94,34 @@ export function getEnvironmentRecord(id: string): EnvironmentRecord | null {
   return spec ? toRecord(spec) : null;
 }
 
-function assertCanStart(): string {
-  const uv = probeUv();
-  if (uv.error !== null) throw new Error(uv.error);
+function assertCanStart(engine: EnvironmentSpec["engine"]): EnvironmentTooling {
   if (environmentRunner.activeEnvironmentId()) {
     throw new Error("another environment installation is already running");
   }
-  return uv.path;
+  if (environmentProvisioner(engine).tooling === "node-source") {
+    const probe = probeNodeSourceTools();
+    if (probe.error !== null) throw new Error(probe.error);
+    return { kind: "node-source", ...probe.tools };
+  }
+  const uv = probeUv();
+  if (uv.error !== null) throw new Error(uv.error);
+  return { kind: "uv", uv: uv.path };
 }
 
 export function createEnvironment(input: EnvironmentCreate) {
   const parsed = EnvironmentCreateSchema.parse(input);
-  const uv = assertCanStart();
+  const tools = assertCanStart(parsed.engine);
   const spec = createEnvironmentSpec(parsed);
   return {
     environment: toRecord(spec),
-    job: environmentRunner.start(spec, uv),
+    job: environmentRunner.start(spec, tools),
   };
 }
 
 export function rebuildEnvironment(id: string) {
   const spec = getEnvironmentSpec(id);
   if (!spec) return null;
-  const uv = assertCanStart();
+  const tools = assertCanStart(spec.engine);
   if (
     existsSync(environmentEntrypoint(spec)) &&
     !environmentLayoutError(spec)
@@ -125,7 +131,7 @@ export function rebuildEnvironment(id: string) {
   discardDirectory(assertEnvironmentPath(environmentDirectory(spec)));
   return {
     environment: toRecord(spec),
-    job: environmentRunner.start(spec, uv),
+    job: environmentRunner.start(spec, tools),
   };
 }
 

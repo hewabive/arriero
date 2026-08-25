@@ -1,9 +1,13 @@
 import {
+  CHAT_UI_DEFAULT_VERSION,
   OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
+  WEBAPP_KINDS,
   WEBAPP_NAME_PATTERN,
   webappDescriptor,
   type EnvironmentRecord,
   type WebappCreate,
+  type WebappKind,
+  type WebappSettings,
 } from "@arriero/core";
 import {
   Alert,
@@ -26,14 +30,28 @@ import { useMemo, useState } from "react";
 
 import { listEnvironmentIndexVersions } from "../../api/client";
 
-const OPEN_WEBUI = webappDescriptor("open-webui");
-
 export type WebappCreateSubmit = {
   input: Omit<WebappCreate, "envSpecId">;
   env:
     | { kind: "existing"; envSpecId: string }
     | { kind: "install"; version: string };
 };
+
+function defaultSettings(
+  kind: WebappKind,
+  options: { auth: boolean; slim: boolean },
+): WebappSettings {
+  if (kind === "chat-ui") {
+    return { type: "chat-ui", extraEnv: {} };
+  }
+  return {
+    type: "open-webui",
+    auth: options.auth,
+    slim: options.slim,
+    defaultModels: [],
+    extraEnv: {},
+  };
+}
 
 export function WebappCreateForm({
   environments,
@@ -44,29 +62,52 @@ export function WebappCreateForm({
   submitting: boolean;
   onSubmit: (submit: WebappCreateSubmit) => void;
 }) {
+  const [kind, setKind] = useState<WebappKind>("open-webui");
+  const descriptor = webappDescriptor(kind);
+  const kindEnvironments = environments.filter(
+    (environment) => environment.engine === descriptor.environmentEngine,
+  );
+
   const [name, setName] = useState("open-webui");
   const [envMode, setEnvMode] = useState<"existing" | "install">(
-    environments.length > 0 ? "existing" : "install",
+    kindEnvironments.length > 0 ? "existing" : "install",
   );
   const [envSpecId, setEnvSpecId] = useState<string | null>(
-    environments[0]?.id ?? null,
+    kindEnvironments[0]?.id ?? null,
   );
   const [version, setVersion] = useState("");
-  const [port, setPort] = useState<number>(OPEN_WEBUI.http.defaultPort);
+  const [port, setPort] = useState<number>(descriptor.http.defaultPort);
   const [lan, setLan] = useState(false);
   const [auth, setAuth] = useState(true);
   const [slim, setSlim] = useState(true);
   const [autostart, setAutostart] = useState(false);
   const [createProxySource, setCreateProxySource] = useState(true);
 
+  function switchKind(next: WebappKind) {
+    const nextDescriptor = webappDescriptor(next);
+    const nextEnvironments = environments.filter(
+      (environment) => environment.engine === nextDescriptor.environmentEngine,
+    );
+    setKind(next);
+    if (name === kind) {
+      setName(next);
+    }
+    if (port === descriptor.http.defaultPort) {
+      setPort(nextDescriptor.http.defaultPort);
+    }
+    setEnvMode(nextEnvironments.length > 0 ? "existing" : "install");
+    setEnvSpecId(nextEnvironments[0]?.id ?? null);
+    setVersion(next === "chat-ui" ? CHAT_UI_DEFAULT_VERSION : "");
+  }
+
   const versionsQuery = useQuery({
-    queryKey: ["webapp-index-versions", OPEN_WEBUI.environmentEngine],
+    queryKey: ["webapp-index-versions", descriptor.environmentEngine],
     queryFn: () =>
       listEnvironmentIndexVersions(
-        OPEN_WEBUI.environmentEngine,
+        descriptor.environmentEngine,
         OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
       ),
-    enabled: envMode === "install",
+    enabled: envMode === "install" && kind === "open-webui",
     staleTime: 120_000,
   });
   const versionOptions = useMemo(
@@ -77,7 +118,7 @@ export function WebappCreateForm({
     [versionsQuery.data],
   );
 
-  const environmentOptions = environments.map((environment) => ({
+  const environmentOptions = kindEnvironments.map((environment) => ({
     value: environment.id,
     label: `${environment.version} (${environment.status})`,
   }));
@@ -86,21 +127,16 @@ export function WebappCreateForm({
   const envValid =
     envMode === "existing" ? Boolean(envSpecId) : Boolean(version.trim());
   const canSubmit = nameValid && envValid && port >= 1 && port <= 65535;
+  const openWithoutAuth = lan && (kind === "chat-ui" || !auth);
 
   function submit() {
     const input: Omit<WebappCreate, "envSpecId"> = {
       name,
-      kind: "open-webui",
+      kind,
       http: { host: lan ? "0.0.0.0" : "127.0.0.1", port },
       autostart,
       createProxySource,
-      settings: {
-        type: "open-webui",
-        auth,
-        slim,
-        defaultModels: [],
-        extraEnv: {},
-      },
+      settings: defaultSettings(kind, { auth, slim }),
     };
     onSubmit({
       input,
@@ -114,7 +150,17 @@ export function WebappCreateForm({
   return (
     <Paper withBorder p="md">
       <Stack gap="sm">
-        <Title order={4}>Add {OPEN_WEBUI.displayName}</Title>
+        <Group justify="space-between" align="baseline">
+          <Title order={4}>Add {descriptor.displayName}</Title>
+          <SegmentedControl
+            value={kind}
+            onChange={(value) => switchKind(value as WebappKind)}
+            data={WEBAPP_KINDS.map((entry) => ({
+              value: entry,
+              label: webappDescriptor(entry).displayName,
+            }))}
+          />
+        </Group>
         <Group grow align="flex-end">
           <TextInput
             label="Name"
@@ -142,7 +188,7 @@ export function WebappCreateForm({
               {
                 value: "existing",
                 label: "Existing environment",
-                disabled: environments.length === 0,
+                disabled: kindEnvironments.length === 0,
               },
               { value: "install", label: "Install new" },
             ]}
@@ -154,6 +200,14 @@ export function WebappCreateForm({
               data={environmentOptions}
               value={envSpecId}
               onChange={setEnvSpecId}
+              style={{ flex: 1 }}
+            />
+          ) : kind === "chat-ui" ? (
+            <TextInput
+              label="Git ref"
+              description="Tag or branch of huggingface/chat-ui; built from source"
+              value={version}
+              onChange={(event) => setVersion(event.currentTarget.value)}
               style={{ flex: 1 }}
             />
           ) : (
@@ -178,17 +232,21 @@ export function WebappCreateForm({
             checked={lan}
             onChange={(event) => setLan(event.currentTarget.checked)}
           />
-          <Switch
-            label="Require sign-in"
-            checked={auth}
-            onChange={(event) => setAuth(event.currentTarget.checked)}
-          />
-          <Switch
-            label="Lightweight mode"
-            description="Keeps the local embedding and speech models off — no extra downloads or RAM on top of the ~1 GB the app itself uses"
-            checked={slim}
-            onChange={(event) => setSlim(event.currentTarget.checked)}
-          />
+          {kind === "open-webui" && (
+            <>
+              <Switch
+                label="Require sign-in"
+                checked={auth}
+                onChange={(event) => setAuth(event.currentTarget.checked)}
+              />
+              <Switch
+                label="Lightweight mode"
+                description="Keeps the local embedding and speech models off — no extra downloads or RAM on top of the ~1 GB the app itself uses"
+                checked={slim}
+                onChange={(event) => setSlim(event.currentTarget.checked)}
+              />
+            </>
+          )}
         </Group>
         <Group gap="lg">
           <Switch
@@ -204,15 +262,17 @@ export function WebappCreateForm({
             }
           />
         </Group>
-        {lan && !auth && (
+        {openWithoutAuth && (
           <Alert color="orange" icon={<TriangleAlert size={16} />}>
-            The UI will be reachable from the whole network without sign-in.
+            {kind === "chat-ui"
+              ? "Chat UI has no built-in sign-in — it will be reachable from the whole network."
+              : "The UI will be reachable from the whole network without sign-in."}
           </Alert>
         )}
         <Group justify="space-between">
-          {OPEN_WEBUI.installFootprintNote ? (
+          {descriptor.installFootprintNote ? (
             <Text size="xs" c="dimmed">
-              Note: {OPEN_WEBUI.installFootprintNote}.
+              Note: {descriptor.installFootprintNote}.
             </Text>
           ) : (
             <span />

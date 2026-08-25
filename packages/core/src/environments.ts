@@ -120,9 +120,25 @@ export const KTransformersEnvironmentInstallSourceSchema = z.discriminatedUnion(
   ],
 );
 
+export const CHAT_UI_REPOSITORY_URL = "https://github.com/huggingface/chat-ui";
+
+export const CHAT_UI_DEFAULT_VERSION = "v0.10.0";
+
+const EnvironmentGitUrlSchema = credentialFreeUrlSchema(
+  "git repository URL",
+  ["http:", "https:"],
+  "HTTP or HTTPS",
+);
+
+export const ChatUiEnvironmentInstallSourceSchema = z.object({
+  kind: z.literal("git"),
+  url: EnvironmentGitUrlSchema.default(CHAT_UI_REPOSITORY_URL),
+});
+
 export const EnvironmentInstallSourceSchema = z.union([
   VllmEnvironmentInstallSourceSchema,
   KTransformersEnvironmentInstallSourceSchema,
+  ChatUiEnvironmentInstallSourceSchema,
 ]);
 
 export const EnvironmentEngineSchema = z.enum([
@@ -130,6 +146,7 @@ export const EnvironmentEngineSchema = z.enum([
   "sglang",
   "ktransformers",
   "open-webui",
+  "chat-ui",
 ]);
 
 export type CudaEnvironmentEngine = "vllm" | "sglang" | "ktransformers";
@@ -151,6 +168,7 @@ export const ENVIRONMENT_ENGINE_LABELS: Record<
   sglang: "SGLang",
   ktransformers: "KTransformers",
   "open-webui": "Open WebUI",
+  "chat-ui": "Chat UI",
 };
 
 const EnvironmentCommonShape = {
@@ -204,6 +222,16 @@ const OpenWebuiEnvironmentCreateObjectSchema = z.object({
   }),
 });
 
+const ChatUiEnvironmentCreateObjectSchema = z.object({
+  ...EnvironmentCommonShape,
+  engine: z.literal("chat-ui"),
+  variant: z.literal("cpu").default("cpu"),
+  source: ChatUiEnvironmentInstallSourceSchema.default({
+    kind: "git",
+    url: CHAT_UI_REPOSITORY_URL,
+  }),
+});
+
 function withLegacyVllmEngine(value: unknown) {
   if (
     value &&
@@ -221,6 +249,7 @@ const EnvironmentCreateUnionSchema = z.discriminatedUnion("engine", [
   SglangEnvironmentCreateObjectSchema,
   KTransformersEnvironmentCreateObjectSchema,
   OpenWebuiEnvironmentCreateObjectSchema,
+  ChatUiEnvironmentCreateObjectSchema,
 ]);
 
 export const EnvironmentCreateSchema = z.preprocess(
@@ -261,6 +290,9 @@ export const EnvironmentSpecSchema = z.preprocess(
       EnvironmentSpecMetadataShape,
     ).catchall(z.unknown()),
     OpenWebuiEnvironmentCreateObjectSchema.extend(
+      EnvironmentSpecMetadataShape,
+    ).catchall(z.unknown()),
+    ChatUiEnvironmentCreateObjectSchema.extend(
       EnvironmentSpecMetadataShape,
     ).catchall(z.unknown()),
   ]),
@@ -338,6 +370,7 @@ export const EnvironmentRecordSchema = z.preprocess(
     SglangEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
     KTransformersEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
     OpenWebuiEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
+    ChatUiEnvironmentCreateObjectSchema.extend(EnvironmentRecordShape),
   ]),
 );
 
@@ -347,6 +380,11 @@ export const EnvironmentJobStepNameSchema = z.enum([
   "venv-create",
   "artifact-verify",
   "package-install",
+  "source-clone",
+  "modules-install",
+  "manifest-patch",
+  "app-build",
+  "modules-prune",
   "freeze",
   "finalize",
   "validate",
@@ -395,6 +433,9 @@ export type KTransformersWheelArtifact = z.infer<
 >;
 export type KTransformersEnvironmentInstallSource = z.infer<
   typeof KTransformersEnvironmentInstallSourceSchema
+>;
+export type ChatUiEnvironmentInstallSource = z.infer<
+  typeof ChatUiEnvironmentInstallSourceSchema
 >;
 export type EnvironmentEngine = z.infer<typeof EnvironmentEngineSchema>;
 export type EnvironmentRepositorySettings = z.infer<

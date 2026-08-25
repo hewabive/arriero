@@ -42,5 +42,5 @@ session. See `docs/NUMA_PINNING.md`.
 - `process_runs` keeps the last 20 closed runs plus open runs per instance
   (`runs-repository.ts`). Every close records a `stopReason` — `operator` / `eviction` / `idle` /
   `shutdown` / `delete` / `stale` / `crash`, owned by core `process.ts:ProcessStopReason`.
-- The filtered log strips routine `/health`, `/props`, `/slots` and `/v1/models` probes;
-  `ARRIERO_FILTER_PROBE_LOGS=false` disables filtering.
+- The filtered log strips routine `/health`, `/healthcheck`, `/props`, `/slots` and `/v1/models`
+  probes; `ARRIERO_FILTER_PROBE_LOGS=false` disables filtering.

@@ -58,16 +58,18 @@ export function WebappEditModal({
 }) {
   const customHost =
     webapp.http.host !== "127.0.0.1" && !isWildcardHost(webapp.http.host);
+  const openWebuiSettings =
+    webapp.settings.type === "open-webui" ? webapp.settings : null;
   const [name, setName] = useState(webapp.name);
   const [envSpecId, setEnvSpecId] = useState<string | null>(webapp.envSpecId);
   const [port, setPort] = useState<number>(webapp.http.port);
   const [host, setHost] = useState(webapp.http.host);
   const [lan, setLan] = useState(webapp.http.host !== "127.0.0.1");
-  const [auth, setAuth] = useState(webapp.settings.auth);
-  const [slim, setSlim] = useState(webapp.settings.slim);
+  const [auth, setAuth] = useState(openWebuiSettings?.auth ?? true);
+  const [slim, setSlim] = useState(openWebuiSettings?.slim ?? true);
   const [autostart, setAutostart] = useState(webapp.autostart);
   const [defaultModels, setDefaultModels] = useState<string[]>(
-    webapp.settings.defaultModels,
+    openWebuiSettings?.defaultModels ?? [],
   );
   const [extraEnvText, setExtraEnvText] = useState(
     extraEnvToLines(webapp.settings.extraEnv),
@@ -100,13 +102,19 @@ export function WebappEditModal({
         port,
       },
       autostart,
-      settings: {
-        type: "open-webui",
-        auth,
-        slim,
-        defaultModels,
-        extraEnv: parsedExtraEnv.env,
-      },
+      settings:
+        webapp.settings.type === "open-webui"
+          ? {
+              type: "open-webui",
+              auth,
+              slim,
+              defaultModels,
+              extraEnv: parsedExtraEnv.env,
+            }
+          : {
+              type: "chat-ui",
+              extraEnv: parsedExtraEnv.env,
+            },
     });
   }
 
@@ -153,28 +161,34 @@ export function WebappEditModal({
               onChange={(event) => setLan(event.currentTarget.checked)}
             />
           )}
-          <Switch
-            label="Require sign-in"
-            checked={auth}
-            onChange={(event) => setAuth(event.currentTarget.checked)}
-          />
-          <Switch
-            label="Lightweight mode"
-            checked={slim}
-            onChange={(event) => setSlim(event.currentTarget.checked)}
-          />
+          {openWebuiSettings && (
+            <>
+              <Switch
+                label="Require sign-in"
+                checked={auth}
+                onChange={(event) => setAuth(event.currentTarget.checked)}
+              />
+              <Switch
+                label="Lightweight mode"
+                checked={slim}
+                onChange={(event) => setSlim(event.currentTarget.checked)}
+              />
+            </>
+          )}
           <Switch
             label="Start with the manager"
             checked={autostart}
             onChange={(event) => setAutostart(event.currentTarget.checked)}
           />
         </Group>
-        <TagsInput
-          label="Default models"
-          description="Model IDs preselected for new chats; leave empty to let the app pick"
-          value={defaultModels}
-          onChange={setDefaultModels}
-        />
+        {openWebuiSettings && (
+          <TagsInput
+            label="Default models"
+            description="Model IDs preselected for new chats; leave empty to let the app pick"
+            value={defaultModels}
+            onChange={setDefaultModels}
+          />
+        )}
         <Textarea
           label="Extra environment variables"
           description="One KEY=VALUE per line; keys owned by the adapter are rejected"

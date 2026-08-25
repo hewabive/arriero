@@ -41,8 +41,9 @@ warnings.
 ## `webapps/<name>.json` — managed web-UI definitions
 
 Store: `webapps/config-files.ts` (file-per-webapp on the directory store), CRUD in
-`webapps/repository.ts`. Body = `WebappConfigRecord`: kind, `envSpecId` (the managed Python
-environment holding the app), host/port, `proxySourceId`, `autostart`, and the kind-discriminated
+`webapps/repository.ts`. Body = `WebappConfigRecord`: kind, `envSpecId` (the managed environment
+holding the app — a Python venv or a Node source build), host/port, `proxySourceId`, `autostart`,
+and the kind-discriminated
 `settings`. Tree validation checks each file's schema, the name/filename match, and that
 `envSpecId` / `proxySourceId` resolve against `envs.json` / `proxy/sources.json`; per-file restore
 works like any other portable kind. **Identity = `name`** (the filename, same charset as instances) — it keys

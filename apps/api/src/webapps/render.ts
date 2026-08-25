@@ -4,6 +4,8 @@ import {
   type WebappConfigRenderId,
 } from "@arriero/core";
 
+import { resolve } from "node:path";
+
 import { config } from "../config.js";
 import { getApiProxySourceKey } from "../proxy/sources.js";
 import { webappDataDir } from "./paths.js";
@@ -28,6 +30,9 @@ function proxyApiKey(record: WebappConfigRecord): string {
 
 function renderOpenWebui(record: WebappConfigRecord): Record<string, string> {
   const settings = record.settings;
+  if (settings.type !== "open-webui") {
+    throw new Error(`unexpected settings type ${settings.type}`);
+  }
   return {
     DATA_DIR: webappDataDir(record.name),
     ENABLE_PERSISTENT_CONFIG: "False",
@@ -46,11 +51,29 @@ function renderOpenWebui(record: WebappConfigRecord): Record<string, string> {
   };
 }
 
+function renderChatUi(record: WebappConfigRecord): Record<string, string> {
+  const settings = record.settings;
+  if (settings.type !== "chat-ui") {
+    throw new Error(`unexpected settings type ${settings.type}`);
+  }
+  const dataDir = webappDataDir(record.name);
+  return {
+    COOKIE_SECURE: "false",
+    ENABLE_CONFIG_MANAGER: "false",
+    MONGOMS_DOWNLOAD_DIR: resolve(dataDir, "mongodb-binaries"),
+    MONGO_STORAGE_PATH: resolve(dataDir, "db"),
+    OPENAI_API_KEY: proxyApiKey(record),
+    OPENAI_BASE_URL: proxyBaseUrl(),
+    ...settings.extraEnv,
+  };
+}
+
 const WEBAPP_ENVIRONMENT_RENDERERS: Record<
   WebappConfigRenderId,
   WebappEnvironmentRenderer
 > = {
   "open-webui": renderOpenWebui,
+  "chat-ui": renderChatUi,
 };
 
 export function renderWebappEnvironment(

@@ -27,8 +27,14 @@ export const OpenWebuiSettingsSchema = z.object({
   extraEnv: z.record(z.string().min(1), z.string()).default({}),
 });
 
+export const ChatUiSettingsSchema = z.object({
+  type: z.literal("chat-ui"),
+  extraEnv: z.record(z.string().min(1), z.string()).default({}),
+});
+
 export const WebappSettingsSchema = z.discriminatedUnion("type", [
   OpenWebuiSettingsSchema,
+  ChatUiSettingsSchema,
 ]);
 
 export function defaultWebappSettings(
@@ -149,6 +155,7 @@ export const WebappStopReasonSchema = ProcessStopReasonSchema.extract([
 
 export type WebappHttp = z.infer<typeof WebappHttpSchema>;
 export type OpenWebuiSettings = z.infer<typeof OpenWebuiSettingsSchema>;
+export type ChatUiSettings = z.infer<typeof ChatUiSettingsSchema>;
 export type WebappSettings = z.infer<typeof WebappSettingsSchema>;
 export type WebappConfigRecord = z.infer<typeof WebappConfigRecordSchema>;
 export type WebappCreate = z.infer<typeof WebappCreateSchema>;

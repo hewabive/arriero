@@ -30,7 +30,7 @@ not before.
 | [ARGUMENT_SOURCE_EXTRACTION](ARGUMENT_SOURCE_EXTRACTION.md) | Git-only declaration extraction for the Python engines; the `defaultValue` channel |
 | [CASE_PHANTOM_HELP_ARGS](CASE_PHANTOM_HELP_ARGS.md) | Worked example of the help-block verification step |
 | [BUILD](BUILD.md) | llama.cpp CMake builds and binary publication |
-| [ENVIRONMENTS](ENVIRONMENTS.md) | Immutable uv-managed Python environments |
+| [ENVIRONMENTS](ENVIRONMENTS.md) | Immutable application environments (uv Python venvs, node-source builds) |
 | [SOURCE_REPOSITORIES](SOURCE_REPOSITORIES.md) | Engine source checkouts, per-source tracking policy, drift report |
 | [VLLM_OPERATIONS](VLLM_OPERATIONS.md) · [SGLANG_OPERATIONS](SGLANG_OPERATIONS.md) · [KTRANSFORMERS_OPERATIONS](KTRANSFORMERS_OPERATIONS.md) | Per-engine qualified profiles and release gates |
 | [BACKGROUND_JOBS](BACKGROUND_JOBS.md) | The job kernel shared by build / envs / update / sources |

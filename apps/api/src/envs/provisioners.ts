@@ -15,6 +15,13 @@ import {
   environmentAvailability,
   type EnvironmentAvailability,
 } from "./availability.js";
+import {
+  CHAT_UI_ENTRYPOINT_RELATIVE,
+  chatUiLayoutError,
+  chatUiValidationCommand,
+  checkedChatUiSpec,
+  writeChatUiLauncher,
+} from "./chat-ui.js";
 
 type EnvironmentAvailabilityContext = {
   accelerators: SystemAccelerator[];
@@ -31,6 +38,7 @@ type EnvironmentWheelArtifact = {
 
 export type EnvironmentProvisioner = {
   displayName: string;
+  tooling: "uv" | "node-source";
   entrypointRelative: string;
   distributions: readonly string[];
   catalogEngineKind: InstanceKind | null;
@@ -39,6 +47,7 @@ export type EnvironmentProvisioner = {
   wheelArtifacts(spec: EnvironmentSpec): EnvironmentWheelArtifact[];
   validationCommand(spec: EnvironmentSpec, finalDir: string): string[];
   validateLayout(spec: EnvironmentSpec, finalDir: string): string | null;
+  prepareFinalize(spec: EnvironmentSpec, stagingDir: string): void;
   availability(
     spec: EnvironmentSpec,
     context: EnvironmentAvailabilityContext,
@@ -157,6 +166,7 @@ function singleDistributionProvisioner(options: {
   }
   return {
     displayName,
+    tooling: "uv",
     entrypointRelative: `bin/${engine}`,
     distributions: [engine],
     catalogEngineKind,
@@ -201,6 +211,7 @@ function singleDistributionProvisioner(options: {
         freezePins: [`${engine}==${checked.version}`],
       });
     },
+    prepareFinalize() {},
     availability(spec, context) {
       const checked = checkedSpec(spec);
       return environmentAvailability({
@@ -247,6 +258,7 @@ const OPEN_WEBUI_PROVISIONER = singleDistributionProvisioner({
 
 const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   displayName: ENVIRONMENT_ENGINE_LABELS.ktransformers,
+  tooling: "uv",
   entrypointRelative: "bin/sglang",
   distributions: ["kt-kernel", "sglang-kt"],
   catalogEngineKind: "ktransformers",
@@ -301,6 +313,7 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       freezePins: [`kt-kernel==${spec.version}`, `sglang-kt==${spec.version}`],
     });
   },
+  prepareFinalize() {},
   availability(spec, context) {
     if (spec.engine !== "ktransformers") {
       throw new Error("KTransformers provisioner kind mismatch");
@@ -339,6 +352,46 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   },
 };
 
+const CHAT_UI_PROVISIONER: EnvironmentProvisioner = {
+  displayName: ENVIRONMENT_ENGINE_LABELS["chat-ui"],
+  tooling: "node-source",
+  entrypointRelative: CHAT_UI_ENTRYPOINT_RELATIVE,
+  distributions: [],
+  catalogEngineKind: null,
+  requirements() {
+    return [];
+  },
+  installOptions() {
+    return [];
+  },
+  wheelArtifacts() {
+    return [];
+  },
+  validationCommand(spec, finalDir) {
+    return chatUiValidationCommand(checkedChatUiSpec(spec), finalDir);
+  },
+  validateLayout(spec, finalDir) {
+    checkedChatUiSpec(spec);
+    return chatUiLayoutError(finalDir);
+  },
+  prepareFinalize(spec, stagingDir) {
+    checkedChatUiSpec(spec);
+    writeChatUiLauncher(stagingDir);
+  },
+  availability(spec, context) {
+    const checked = checkedChatUiSpec(spec);
+    return environmentAvailability({
+      accelerators: context.accelerators,
+      installed: context.installed,
+      rocmDeviceAvailable: context.rocmDeviceAvailable,
+      variant: checked.variant,
+    });
+  },
+  catalogName(spec) {
+    return `chat-ui ${spec.version} [${spec.id.slice(0, 8)}]`.slice(0, 80);
+  },
+};
+
 const ENVIRONMENT_PROVISIONERS: Record<
   EnvironmentEngine,
   EnvironmentProvisioner
@@ -347,6 +400,7 @@ const ENVIRONMENT_PROVISIONERS: Record<
   sglang: SGLANG_PROVISIONER,
   ktransformers: KTRANSFORMERS_PROVISIONER,
   "open-webui": OPEN_WEBUI_PROVISIONER,
+  "chat-ui": CHAT_UI_PROVISIONER,
 };
 
 export function environmentProvisioner(

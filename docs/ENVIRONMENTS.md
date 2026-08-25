@@ -1,10 +1,13 @@
-# Python environments
+# Application environments
 
-The Environments domain provisions immutable Python installations — the inference
-engines, plus non-engine applications such as Open WebUI (`docs/WEBAPPS.md`). It is
-separate from the llama.cpp CMake Build domain. Per-application package, entrypoint,
-validation, availability, and catalog behavior is selected through the API-side
-provisioner registry; orchestration remains shared.
+The Environments domain provisions immutable application installations — the Python
+inference engines, plus non-engine web apps such as Open WebUI and Chat UI
+(`docs/WEBAPPS.md`). It is separate from the llama.cpp CMake Build domain.
+Per-application package, entrypoint, validation, availability, and catalog behavior is
+selected through the API-side provisioner registry; orchestration remains shared. Each
+provisioner declares its install channel via `tooling`: `uv` (Python venvs, everything
+below unless said otherwise) or `node-source` (Chat UI — a git checkout built with the
+host `git`/`npm`, run on the manager's own Node; see the Chat UI section).
 
 ## Desired state and runtime state
 
@@ -157,6 +160,21 @@ metadata version, CPU-only variant. It sets `catalogEngineKind: null`, so **no
 path-catalog entry is generated** — instances cannot select the environment, and
 webapps reference the spec id directly. Deletion is additionally refused while a
 webapp references the spec.
+
+The Chat UI provisioner (`envs/chat-ui.ts`) is the `node-source` channel: the spec's
+`version` is a git tag or branch of `huggingface/chat-ui` (`source.url` may point at a
+fork), and instead of uv the runner probes `git` and `npm` on PATH
+(`envs/node-tools.ts`). The step plan — shallow clone, `npm ci --ignore-scripts`, the
+`mongodb-memory-server` manifest patch, `npm run build`, `npm prune --omit=dev`,
+freeze — records the resolved commit hash in `freeze.txt` (the freeze pin of this
+channel; a branch build is reproducible only through it), and finalize writes the
+`bin/chat-ui` launcher whose shebang is the manager's own Node binary. Validation and
+layout checks assert the server bundle, the launcher and the patched manifest instead
+of a venv layout; the rationale for the manifest patch lives in `docs/WEBAPPS.md`.
+Like Open WebUI it is CPU-only, outside the path catalog, and guarded against
+deletion while referenced. The repository profile below does not apply to this
+channel: the clone URL comes from the spec and npm resolves from its default
+registry.
 
 KTransformers wheel artifacts may be listed in any order; the provisioner normalizes
 installation order to `kt-kernel`, then `sglang-kt`. A missing or duplicate root is

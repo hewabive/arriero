@@ -74,7 +74,8 @@ export function EnvironmentCreateForm({
   submitting: boolean;
   onSubmit: (input: EnvironmentCreate) => void;
 }) {
-  const [engine, setEngine] = useState<EnvironmentEngine>("vllm");
+  const [engine, setEngine] =
+    useState<Exclude<EnvironmentEngine, "chat-ui">>("vllm");
   const [pythonVersion, setPythonVersion] = useState("3.12");
   const [variant, setVariant] = useState<"cuda" | "cpu" | "rocm">("cuda");
   const [sourceKind, setSourceKind] = useState<"pypi" | "wheel">("pypi");
@@ -313,7 +314,7 @@ export function EnvironmentCreateForm({
             fullWidth
             value={engine}
             onChange={(value) => {
-              const next = value as EnvironmentEngine;
+              const next = value as Exclude<EnvironmentEngine, "chat-ui">;
               setEngine(next);
               setVersion("");
               if (next === "ktransformers") {

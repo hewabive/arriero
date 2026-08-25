@@ -112,9 +112,11 @@ function installCommand(
   environment: EnvironmentSpec,
   repositories = ONLINE_REPOSITORIES,
 ) {
-  return environmentJobSteps(environment, "uv", repositories).find(
-    (step) => step.name === "package-install",
-  )!.command;
+  return environmentJobSteps(
+    environment,
+    { kind: "uv", uv: "uv" },
+    repositories,
+  ).find((step) => step.name === "package-install")!.command;
 }
 
 function indexFlags(command: string[]) {
@@ -133,7 +135,7 @@ test("pypi environment plan pins Python, version, extras and index", () => {
       kind: "pypi",
       extras: ["audio"],
     }),
-    "/usr/bin/uv",
+    { kind: "uv", uv: "/usr/bin/uv" },
     repositorySettings({ packageIndexUrl }),
   );
   assert.deepEqual(
@@ -198,7 +200,7 @@ test("SGLang pypi plan installs one root with extras and validates the import", 
   const packageIndexUrl = "https://packages.example/simple";
   const steps = environmentJobSteps(
     sglangSpec({ kind: "pypi", extras: ["all"] }),
-    "uv",
+    { kind: "uv", uv: "uv" },
     repositorySettings({ packageIndexUrl }),
   );
   const install = steps.find((step) => step.name === "package-install")!;
@@ -217,7 +219,7 @@ test("SGLang wheel plan carries hash and torch backend", () => {
       sha256: hash,
       torchBackend: "cu128",
     }),
-    "uv",
+    { kind: "uv", uv: "uv" },
     repositorySettings({}),
   );
   const command = steps.find(
@@ -236,7 +238,7 @@ test("wheel environment plan carries hash and torch backend", () => {
       sha256: hash,
       torchBackend: "cpu",
     }),
-    "uv",
+    { kind: "uv", uv: "uv" },
     repositorySettings({
       packageIndexUrl: "https://packages.example/simple",
     }),
@@ -253,7 +255,7 @@ test("runtime mirror environment plan uses the configured Python mirror", () => 
   const mirror = "file:///srv/python-mirror";
   const steps = environmentJobSteps(
     spec({ kind: "pypi", extras: [] }),
-    "uv",
+    { kind: "uv", uv: "uv" },
     repositorySettings({
       packageIndexUrl: "https://packages.example/simple",
       pythonMirrorUrl: mirror,
@@ -291,7 +293,7 @@ test("KTransformers PyPI plan installs both matched roots in one transaction", (
     ktransformersSpec({
       kind: "pypi",
     }),
-    "/usr/bin/uv",
+    { kind: "uv", uv: "/usr/bin/uv" },
     repositorySettings({
       packageIndexUrl: "https://packages.example/simple",
     }),
@@ -328,7 +330,7 @@ test("KTransformers wheel plan orders both roots and carries hashes", () => {
       ],
       torchBackend: "cu128",
     }),
-    "uv",
+    { kind: "uv", uv: "uv" },
     repositorySettings({
       packageIndexUrl: "https://packages.example/simple",
     }),
@@ -400,7 +402,7 @@ test("local wheel hash mismatch fails before package installation", async () => 
   const previousPath = process.env.PATH;
   process.env.PATH = `${fakeBin}${delimiter}${previousPath ?? ""}`;
   try {
-    const started = environmentRunner.start(environment, uv);
+    const started = environmentRunner.start(environment, { kind: "uv", uv });
     let job = getEnvironmentJob(started.id);
     for (
       let attempt = 0;
@@ -501,7 +503,7 @@ test("failed matched-root install removes KTransformers staging transaction", as
   const previousPath = process.env.PATH;
   process.env.PATH = `${fakeBin}${delimiter}${previousPath ?? ""}`;
   try {
-    const started = environmentRunner.start(environment, uv);
+    const started = environmentRunner.start(environment, { kind: "uv", uv });
     let job = getEnvironmentJob(started.id);
     for (
       let attempt = 0;
@@ -558,7 +560,7 @@ test("canceling KTransformers install removes staging and publishes nothing", as
   const previousPath = process.env.PATH;
   process.env.PATH = `${fakeBin}${delimiter}${previousPath ?? ""}`;
   try {
-    const started = environmentRunner.start(environment, uv);
+    const started = environmentRunner.start(environment, { kind: "uv", uv });
     let job = getEnvironmentJob(started.id);
     for (
       let attempt = 0;

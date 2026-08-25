@@ -44,8 +44,6 @@ import { WebappEditModal } from "../components/WebappEditModal";
 import { browserReachableHost, urlHost } from "../utils/instance-url";
 import { countLabel } from "../utils/plural";
 
-const OPEN_WEBUI_ENGINE = webappDescriptor("open-webui").environmentEngine;
-
 function webappUrl(webapp: Webapp): string {
   return `http://${urlHost(browserReachableHost(webapp.http.host))}:${webapp.http.port}/`;
 }
@@ -75,9 +73,7 @@ export function WebappsView() {
     queryFn: listEnvironments,
   });
   const webapps = webappsQuery.data?.data ?? [];
-  const openWebuiEnvironments = (environmentsQuery.data?.data ?? []).filter(
-    (environment) => environment.engine === OPEN_WEBUI_ENGINE,
-  );
+  const environments = environmentsQuery.data?.data ?? [];
 
   const selected =
     webapps.find((webapp) => webapp.name === selectedName) ??
@@ -122,10 +118,11 @@ export function WebappsView() {
         submit.env.kind === "existing"
           ? submit.env.envSpecId
           : (
-              await createEnvironment({
-                engine: OPEN_WEBUI_ENGINE,
-                version: submit.env.version,
-              })
+              await createEnvironment(
+                submit.input.kind === "chat-ui"
+                  ? { engine: "chat-ui", version: submit.env.version }
+                  : { engine: "open-webui", version: submit.env.version },
+              )
             ).data.environment.id;
       return createWebapp({ ...submit.input, envSpecId });
     },
@@ -186,7 +183,7 @@ export function WebappsView() {
   return (
     <Stack gap="md">
       <WebappCreateForm
-        environments={openWebuiEnvironments}
+        environments={environments}
         submitting={createMutation.isPending}
         onSubmit={(submit) => createMutation.mutate(submit)}
       />
@@ -338,7 +335,11 @@ export function WebappsView() {
       {editing && (
         <WebappEditModal
           webapp={editing}
-          environments={openWebuiEnvironments}
+          environments={environments.filter(
+            (environment) =>
+              environment.engine ===
+              webappDescriptor(editing.kind).environmentEngine,
+          )}
           saving={updateMutation.isPending}
           onSave={(update) =>
             updateMutation.mutate({ name: editing.name, update })

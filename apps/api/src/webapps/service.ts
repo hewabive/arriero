@@ -4,7 +4,7 @@ import {
   type WebappConfigRecord,
   type WebappPreflightIssue,
 } from "@arriero/core";
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { getEnvironmentRecord } from "../envs/service.js";
@@ -49,7 +49,7 @@ function backupBeforeEnvSwitch(record: WebappConfigRecord): void {
       continue;
     }
     const backup = `${source}.bak-${suffix}`;
-    copyFileSync(source, backup);
+    cpSync(source, backup, { recursive: true });
     logger.info(
       { webapp: record.name, source, backup },
       "webapp environment changed; backed up data file before start",
@@ -75,7 +75,9 @@ export async function startWebapp(
     throw new WebappStartBlockedError(issues);
   }
 
-  ensureWebappSecretKey(name);
+  if (webappDescriptor(record.kind).sessionSecret) {
+    ensureWebappSecretKey(name);
+  }
   mkdirSync(webappDataDir(name), { recursive: true });
   backupBeforeEnvSwitch(record);
 

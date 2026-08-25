@@ -177,3 +177,56 @@ test("does not drop partial request lines without a newline", () => {
 
   assert.equal(filterRoutineProbeLogChunk(chunk, localAddresses), chunk);
 });
+
+test("pino grammar filters healthcheck probes and keeps user requests", () => {
+  const probeLine = JSON.stringify({
+    level: 30,
+    message: "Request completed",
+    url: "/healthcheck",
+    ip: "127.0.0.1",
+    status_code: 200,
+  });
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(probeLine, localAddresses, "pino"),
+    true,
+  );
+  const userLine = JSON.stringify({
+    level: 30,
+    message: "Request completed",
+    url: "/conversation",
+    ip: "127.0.0.1",
+    status_code: 200,
+  });
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(userLine, localAddresses, "pino"),
+    false,
+  );
+  const remoteLine = JSON.stringify({
+    level: 30,
+    message: "Request completed",
+    url: "/healthcheck",
+    ip: "203.0.113.10",
+    status_code: 200,
+  });
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(remoteLine, localAddresses, "pino"),
+    false,
+  );
+  assert.equal(
+    isRoutineManagerProbeRequestLogLine(
+      "No MongoDB URL found, using in-memory server",
+      localAddresses,
+      "pino",
+    ),
+    false,
+  );
+});
+
+test("pino grammar skips the llama side-effect filter", () => {
+  const chunk = "I  srv  update_slots: all slots are idle\n";
+  assert.equal(
+    filterRoutineProbeLogChunk(chunk, localAddresses, "pino"),
+    chunk,
+  );
+  assert.equal(filterRoutineProbeLogChunk(chunk, localAddresses), "");
+});

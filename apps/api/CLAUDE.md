@@ -62,7 +62,7 @@ logic and tests. Routes for a domain live in `src/routes/<domain>.routes.ts`.
 | `proxy` | the OpenAI/Anthropic-compatible proxy | `src/proxy/CLAUDE.md` |
 | `arguments` | engine argument catalogs, help registry, defaults | `content/CLAUDE.md`, `docs/ARGUMENT_SOURCE_EXTRACTION.md` |
 | `build` | llama.cpp CMake builds | `docs/BUILD.md` |
-| `envs` | immutable uv-managed Python environments (engines + webapps) | `docs/ENVIRONMENTS.md` |
+| `envs` | immutable application environments: uv Python venvs (engines, Open WebUI) + node-source builds (Chat UI) | `docs/ENVIRONMENTS.md` |
 | `jobs` | background-job kernel: stores, step transitions, pgid-killing exec, active-job registry, single shutdown path, log tail | `docs/BACKGROUND_JOBS.md` |
 | `logs` | usage and retention of the managed log files under `runtime/logs/` | `docs/LOG_RETENTION.md` |
 | `models` | gguf/safetensors scanning and caches; parsing runs in a single lazy worker thread and is **never** on a request path | `docs/GGUF_PARSING.md`, `docs/SAFETENSORS_PARSING.md`, `docs/GGUF_QUANTIZATION_LABEL.md` |

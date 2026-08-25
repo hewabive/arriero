@@ -52,6 +52,55 @@ test("open-webui render honours settings toggles and extraEnv", () => {
   assert.equal(env.WEBUI_NAME, "Home LLM");
 });
 
+test("chat-ui render wires the proxy and keeps the embedded MongoDB local", () => {
+  const env = renderWebappEnvironment(
+    record({
+      name: "chat",
+      kind: "chat-ui",
+      http: { host: "127.0.0.1", port: 3001 },
+      settings: { type: "chat-ui" },
+    }),
+  );
+  assert.equal(env.OPENAI_BASE_URL, `http://127.0.0.1:${config.port}/v1`);
+  assert.equal(env.ENABLE_CONFIG_MANAGER, "false");
+  assert.equal(env.COOKIE_SECURE, "false");
+  assert.ok(env.MONGO_STORAGE_PATH?.endsWith("/chat/db"));
+  assert.ok(env.MONGOMS_DOWNLOAD_DIR?.endsWith("/chat/mongodb-binaries"));
+  assert.equal("MODELS" in env, false);
+  assert.equal("MONGODB_URL" in env, false);
+});
+
+test("chat-ui render appends extraEnv, including an external MongoDB", () => {
+  const env = renderWebappEnvironment(
+    record({
+      name: "chat",
+      kind: "chat-ui",
+      settings: {
+        type: "chat-ui",
+        extraEnv: {
+          MONGODB_URL: "mongodb://127.0.0.1:27017",
+          PUBLIC_APP_NAME: "Home Chat",
+        },
+      },
+    }),
+  );
+  assert.equal(env.MONGODB_URL, "mongodb://127.0.0.1:27017");
+  assert.equal(env.PUBLIC_APP_NAME, "Home Chat");
+});
+
+test("chat-ui launch snapshot carries only host and port flags", () => {
+  const { snapshot } = buildWebappLaunchSnapshot(
+    record({
+      name: "chat",
+      kind: "chat-ui",
+      http: { host: "127.0.0.1", port: 3001 },
+      settings: { type: "chat-ui" },
+    }),
+    "/envs/chat-ui/bin/chat-ui",
+  );
+  assert.deepEqual(snapshot.cliArgs, ["--host", "127.0.0.1", "--port", "3001"]);
+});
+
 test("launch snapshot round-trips and detects drift", () => {
   const entrypoint = "/envs/open-webui/bin/open-webui";
   const base = record();

@@ -3,6 +3,7 @@ import { networkInterfaces } from "node:os";
 
 const ROUTINE_MANAGER_PROBE_ENDPOINT_SUFFIXES = [
   "/health",
+  "/healthcheck",
   "/v1/health",
   "/props",
   "/metrics",
@@ -98,7 +99,37 @@ function uvicornProbeRequestLogLine(line: string): ProbeRequestLogLine | null {
   };
 }
 
-export type ProbeRequestLogGrammar = "llama" | "uvicorn";
+function pinoProbeRequestLogLine(line: string): ProbeRequestLogLine | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("{")) {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+  const entry = parsed as Record<string, unknown>;
+  if (
+    entry.message !== "Request completed" ||
+    typeof entry.url !== "string" ||
+    typeof entry.status_code !== "number"
+  ) {
+    return null;
+  }
+  return {
+    method: "GET",
+    path: entry.url,
+    remoteAddress: typeof entry.ip === "string" ? entry.ip : "",
+    status: entry.status_code,
+  };
+}
+
+export type ProbeRequestLogGrammar = "llama" | "uvicorn" | "pino";
 
 export function probeRequestLogGrammar(
   kind: InstanceKind,
@@ -115,6 +146,9 @@ function probeRequestLogLine(
   }
   if (grammar === "uvicorn") {
     return uvicornProbeRequestLogLine(line);
+  }
+  if (grammar === "pino") {
+    return pinoProbeRequestLogLine(line);
   }
   return llamaProbeRequestLogLine(line) ?? uvicornProbeRequestLogLine(line);
 }
@@ -162,7 +196,8 @@ function isRoutineManagerProbeLogLine(
 ) {
   return (
     isRoutineManagerProbeRequestLogLine(line, localAddresses, grammar) ||
-    (grammar !== "uvicorn" && isRoutineManagerProbeSideEffectLogLine(line))
+    ((grammar === undefined || grammar === "llama") &&
+      isRoutineManagerProbeSideEffectLogLine(line))
   );
 }
 
