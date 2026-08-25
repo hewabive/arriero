@@ -39,6 +39,7 @@ export function HfRepoDeleteModal(props: {
   const { repo, request } = props;
   const queryClient = useQueryClient();
   const [verifyUpstream, setVerifyUpstream] = useState(true);
+  const [removeRequirement, setRemoveRequirement] = useState(false);
   const orphanOnly =
     request !== null &&
     request.paths !== null &&
@@ -49,6 +50,7 @@ export function HfRepoDeleteModal(props: {
     mutationFn: deleteHfDownload,
     onSuccess: (_result, input) => {
       void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] });
+      void queryClient.invalidateQueries({ queryKey: ["hf-requirements"] });
       void queryClient.invalidateQueries({ queryKey: ["models"] });
       notifications.show({
         title: input.paths ? "Files deleted" : "Download deleted",
@@ -73,6 +75,7 @@ export function HfRepoDeleteModal(props: {
   useEffect(() => {
     if (request) {
       setVerifyUpstream(true);
+      setRemoveRequirement(false);
       deleteMutation.reset();
     }
   }, [request]);
@@ -161,6 +164,16 @@ export function HfRepoDeleteModal(props: {
             />
           )
         )}
+        {!orphanOnly && (
+          <Checkbox
+            checked={removeRequirement}
+            onChange={(event) =>
+              setRemoveRequirement(event.currentTarget.checked)
+            }
+            label="Also drop the model requirement"
+            description="Removes the matching entry from the tracked models.json; leave off when other hosts still need the model."
+          />
+        )}
         <Group justify="flex-end" gap="sm">
           <Button variant="default" onClick={props.onClose}>
             Cancel
@@ -177,6 +190,7 @@ export function HfRepoDeleteModal(props: {
                 ...(request.paths ? { paths: request.paths } : {}),
                 verifyUpstream:
                   verifyError || orphanOnly ? false : verifyUpstream,
+                removeRequirement: !orphanOnly && removeRequirement,
               });
             }}
           >

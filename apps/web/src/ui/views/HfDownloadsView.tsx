@@ -21,6 +21,7 @@ import {
 } from "../../api/client";
 import { SecretInput } from "../components/SecretInput";
 import { HfDownloadedReposPanel } from "./HfDownloadedReposPanel";
+import { HfRequirementsCard } from "./HfRequirementsCard";
 import { HfQueuePanel } from "./HfQueuePanel";
 import { HfRepoBrowserPanel } from "./HfRepoBrowserPanel";
 import { useHfJobsSync } from "./use-hf-queue";
@@ -225,6 +226,7 @@ export function HfDownloadsView() {
       <HfRepoBrowserPanel onEnqueued={handleEnqueued} />
       <HfQueuePanel ref={queuePanelRef} highlightJobId={highlightJobId} />
       <HfDownloadedReposPanel />
+      <HfRequirementsCard />
       <HfDownloadSettingsCard />
       <HfTokenCard />
     </Stack>

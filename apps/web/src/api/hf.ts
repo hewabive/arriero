@@ -9,9 +9,29 @@ import type {
   HfRepoBrowse,
   HfTokenStatus,
   HfUpdateCheck,
+  ModelRequirement,
+  ModelRequirementCreate,
+  ModelRequirementStatus,
 } from "@arriero/core";
 
 import { buildQuery, nodeRequest as request } from "./http.js";
+
+export function listModelRequirements() {
+  return request<{ data: ModelRequirementStatus[] }>("/api/hf/requirements");
+}
+
+export function createModelRequirement(input: ModelRequirementCreate) {
+  return request<{ data: ModelRequirement }>("/api/hf/requirements", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteModelRequirement(id: string) {
+  return request<{ data: { deleted: boolean } }>(`/api/hf/requirements/${id}`, {
+    method: "DELETE",
+  });
+}
 
 export function getHfTokenStatus() {
   return request<{ data: HfTokenStatus }>("/api/hf/token");
