@@ -1,5 +1,5 @@
 import type { ProcessStopReason } from "@arriero/core";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { newId } from "../utils/id.js";
 
 import { db } from "../db/index.js";
@@ -169,6 +169,27 @@ export function latestProcessRun(instanceId: string): ProcessRun | null {
       .limit(1)
       .get() ?? null
   );
+}
+
+export function latestProcessRunsByInstance(
+  instanceIds: string[],
+): Map<string, ProcessRun> {
+  const latest = new Map<string, ProcessRun>();
+  if (instanceIds.length === 0) {
+    return latest;
+  }
+  const rows = db
+    .select()
+    .from(processRuns)
+    .where(inArray(processRuns.instanceId, instanceIds))
+    .orderBy(desc(processRuns.startedAt))
+    .all();
+  for (const row of rows) {
+    if (!latest.has(row.instanceId)) {
+      latest.set(row.instanceId, row);
+    }
+  }
+  return latest;
 }
 
 export function listOpenProcessRuns(): ProcessRun[] {

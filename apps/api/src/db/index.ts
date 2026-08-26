@@ -59,6 +59,9 @@ export function migrate() {
   ensureColumn("process_runs", "launch_snapshot", "TEXT");
   ensureColumn("process_runs", "adopted", "TEXT");
   ensureColumn("process_runs", "stop_reason", "TEXT");
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS process_runs_instance_started ON process_runs (instance_id, started_at)`,
+  );
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS webapp_runs (
@@ -76,6 +79,9 @@ export function migrate() {
       stop_reason TEXT
     )
   `);
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS webapp_runs_webapp_started ON webapp_runs (webapp_id, started_at)`,
+  );
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS model_cache (

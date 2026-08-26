@@ -10,7 +10,9 @@ import { deleteMemoryAssessmentState } from "../memory-assessment/instance-casca
 import {
   deleteProcessRunsForInstance,
   latestProcessRun,
+  latestProcessRunsByInstance,
   listProcessRunLogPaths,
+  type ProcessRun,
 } from "../process/runs-repository.js";
 import { supervisor } from "../process/supervisor.js";
 import {
@@ -47,8 +49,9 @@ function validateRecord(record: InstanceConfigRecord): InstanceConfigRecord {
   return parsed.data;
 }
 
-function latestStatus(id: string): Pick<Instance, "status" | "pid"> {
-  const latestRun = latestProcessRun(id);
+function latestStatus(
+  latestRun: ProcessRun | null,
+): Pick<Instance, "status" | "pid"> {
   const knownStatuses = new Set<Instance["status"]>([
     "stopped",
     "starting",
@@ -79,9 +82,18 @@ function resolveBinaryPath(record: InstanceConfigRecord): string {
   return record.binaryPath;
 }
 
-function toInstance(record: InstanceConfigRecord): Instance {
+function toInstance(
+  record: InstanceConfigRecord,
+  prefetchedRun?: ProcessRun | null,
+): Instance {
   const processState = supervisor.getState(record.name);
-  const durableState = latestStatus(record.name);
+  let durable: Pick<Instance, "status" | "pid"> | null = null;
+  const durableState = () =>
+    (durable ??= latestStatus(
+      prefetchedRun !== undefined
+        ? prefetchedRun
+        : latestProcessRun(record.name),
+    ));
 
   return {
     name: record.name,
@@ -104,13 +116,19 @@ function toInstance(record: InstanceConfigRecord): Instance {
     scheduling: record.scheduling ?? {
       evictionPolicy: engineDescriptor(record.kind).defaultEvictionPolicy,
     },
-    status: processState?.status ?? durableState.status,
-    pid: processState?.pid ?? durableState.pid,
+    status: processState?.status ?? durableState().status,
+    pid: processState?.pid ?? durableState().pid,
   };
 }
 
 export function listInstances(): Instance[] {
-  return listInstanceRecords().map(toInstance);
+  const records = listInstanceRecords();
+  const latestRuns = latestProcessRunsByInstance(
+    records.map((record) => record.name),
+  );
+  return records.map((record) =>
+    toInstance(record, latestRuns.get(record.name) ?? null),
+  );
 }
 
 export function getInstance(name: string): Instance | null {
