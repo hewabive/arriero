@@ -146,17 +146,20 @@ export function launchModeFromArgs(args: Instance["args"]): LaunchMode {
   return "model";
 }
 
-export const RPC_WORKER_DEFAULT_PORT = 50052;
+export const RPC_WORKER_DEFAULT_PORT =
+  engineDescriptor("rpc-worker").http.defaultPort;
 
 export function instancePort(instance: Instance) {
-  const port = Number(instance.args["--port"] ?? 8080);
+  const port = Number(
+    instance.args["--port"] ?? engineDescriptor(instance.kind).http.defaultPort,
+  );
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
 }
 
 export function nextAvailablePort(
   instances: Instance[],
   currentName?: string,
-  startPort = 8080,
+  startPort = engineDescriptor("llama-server").http.defaultPort,
 ) {
   const used = new Set(
     instances

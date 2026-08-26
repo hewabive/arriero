@@ -31,6 +31,48 @@ export function stripGgufSuffix(value: string): string {
 
 export const SGLANG_MODEL_ARG_KEYS = ["--model-path", "--model"] as const;
 
+export const MMPROJ_ARG_KEYS: readonly string[] = ["--mmproj", "-mm"];
+
+export const DRAFT_MODEL_ARG_KEYS: readonly string[] = [
+  "--spec-draft-model",
+  "-md",
+  "--model-draft",
+];
+
+function firstKeyString(
+  source: InstanceModelSource,
+  keys: readonly string[],
+): string | null {
+  for (const key of keys) {
+    const value = stringArg(source, key);
+    if (value) {
+      return value;
+    }
+  }
+  return null;
+}
+
+export function instanceModelPaths(source: InstanceModelSource): string[] {
+  const values: Array<string | null | undefined> = [];
+  if (source.kind === "llama-server") {
+    values.push(firstKeyString(source, ["--model", "-m"]));
+    for (const key of [...MMPROJ_ARG_KEYS, ...DRAFT_MODEL_ARG_KEYS]) {
+      values.push(stringArg(source, key));
+    }
+  } else if (source.kind === "vllm") {
+    values.push(source.positionalArgs?.find((item) => item.trim())?.trim());
+  } else if (source.kind === "sglang") {
+    values.push(sglangModelArg(source));
+  }
+  if (source.engineConfig?.type === "ktransformers") {
+    values.push(source.engineConfig.model, source.engineConfig.cpuWeights);
+  }
+  return values.filter(
+    (value): value is string =>
+      typeof value === "string" && value.startsWith("/"),
+  );
+}
+
 export function sglangModelArg(source: InstanceModelSource): string | null {
   for (const key of SGLANG_MODEL_ARG_KEYS) {
     const value = stringArg(source, key);

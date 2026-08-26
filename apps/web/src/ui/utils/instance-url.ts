@@ -1,25 +1,9 @@
 import {
+  instanceHttpAddress,
   isWildcardHost,
   type Instance,
   type InstanceHealthSummary,
 } from "@arriero/core";
-
-function argString(args: Instance["args"], key: string) {
-  const value = args[key];
-  if (value === undefined || value === null || Array.isArray(value)) {
-    return "";
-  }
-  return String(value);
-}
-
-function apiPrefixFromArgs(args: Instance["args"]) {
-  const raw = argString(args, "--api-prefix").trim();
-  if (!raw) {
-    return "";
-  }
-  const normalized = raw.startsWith("/") ? raw : `/${raw}`;
-  return normalized.replace(/\/$/, "");
-}
 
 export function browserReachableHost(host: string) {
   if (isWildcardHost(host)) {
@@ -34,19 +18,12 @@ export function urlHost(host: string) {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
-function instancePort(instance: Instance) {
-  const port = Number(instance.args["--port"] ?? 8080);
-  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
-}
-
 export function llamaServerWebUrl(instance: Instance) {
-  const rawHost = argString(instance.args, "--host") || "127.0.0.1";
-  if (rawHost.endsWith(".sock")) {
+  const address = instanceHttpAddress(instance);
+  if (!address) {
     return null;
   }
-
-  const port = instancePort(instance) ?? 8080;
-  return `http://${urlHost(browserReachableHost(rawHost))}:${port}${apiPrefixFromArgs(instance.args)}`;
+  return `http://${urlHost(browserReachableHost(address.host))}:${address.port}${address.prefix}`;
 }
 
 export function canOpenLlamaWebUi(

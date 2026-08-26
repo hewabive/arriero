@@ -1,6 +1,5 @@
 import {
-  argString,
-  sglangModelArg,
+  instanceModelPaths,
   type ConfigDoctorCheck,
   type ConfigDoctorFinding,
   type ConfigDoctorReport,
@@ -16,10 +15,6 @@ import {
 } from "../hf/requirements.js";
 import { listInstances } from "../instances/repository.js";
 import { logger } from "../logger.js";
-import {
-  DRAFT_MODEL_ARG_KEYS,
-  MMPROJ_ARG_KEYS,
-} from "../memory-estimate/service.js";
 import { listPeerNodes, nodeHasToken } from "../nodes/repository.js";
 import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { listPresets, readPreset } from "../presets/repository.js";
@@ -35,27 +30,6 @@ import {
   type GpuInventory,
 } from "../system/resources.js";
 import { listWebappRecords } from "../webapps/config-files.js";
-
-function instanceModelPaths(instance: Instance): string[] {
-  const values: (string | null | undefined)[] = [];
-  if (instance.kind === "llama-server") {
-    values.push(argString(instance.args, ["--model", "-m"]));
-    for (const key of [...MMPROJ_ARG_KEYS, ...DRAFT_MODEL_ARG_KEYS]) {
-      values.push(argString(instance.args, [key]));
-    }
-  } else if (instance.kind === "vllm") {
-    values.push(instance.positionalArgs?.[0]);
-  } else if (instance.kind === "sglang") {
-    values.push(sglangModelArg(instance));
-  }
-  if (instance.engineConfig?.type === "ktransformers") {
-    values.push(instance.engineConfig.model, instance.engineConfig.cpuWeights);
-  }
-  return values.filter(
-    (value): value is string =>
-      typeof value === "string" && value.startsWith("/"),
-  );
-}
 
 type DoctorFinding = Omit<ConfigDoctorFinding, "checkId">;
 

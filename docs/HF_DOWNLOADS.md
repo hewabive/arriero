@@ -15,7 +15,7 @@ what the user sees is exactly what a download pins. The tree is fetched without 
 (1000 entries/page, `Link: rel="next"` pagination, capped at 10 pages → `truncated: true`).
 
 GGUF grouping (`apps/api/src/hf/grouping.ts`) is server-side: multi-part splits
-(`-00001-of-00003.gguf`, reusing `parseSplitInfo` from `apps/api/src/models/split.ts`) collapse
+(`-00001-of-00003.gguf`, reusing `parseSplitInfo` from `packages/core/src/gguf-split.ts`) collapse
 into one variant with aggregate size and a `complete` flag; the quant label comes from the
 filename or — for per-quant-subfolder repos — the immediate parent directory name; `mmproj` files
 are a separate kind. Repos without GGUF files get `ggufVariants: null` and the UI falls back to

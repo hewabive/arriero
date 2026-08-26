@@ -1,6 +1,6 @@
 import type { HfGgufVariant, HfTreeFile } from "@arriero/core";
 
-import { parseSplitInfo } from "../models/split.js";
+import { parseSplitInfo } from "@arriero/core";
 
 type HfGroupableFile = Pick<HfTreeFile, "path" | "size">;
 

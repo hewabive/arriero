@@ -1,94 +1,32 @@
 import {
-  engineDescriptor,
+  instanceHttpAddress,
   probeReachableHost,
   type Instance,
-  type InstanceArgValue,
+  type InstanceHttpSource,
   type EndpointProbe,
 } from "@arriero/core";
 
-const RPC_HTTP = engineDescriptor("rpc-worker").http;
 const PROBE_TIMEOUT_MS = 1_500;
 
-function firstArg(
-  args: Instance["args"],
-  keys: readonly string[],
-): InstanceArgValue | undefined {
-  for (const key of keys) {
-    if (args[key] !== undefined) {
-      return args[key];
-    }
-  }
-  return undefined;
-}
-
-function asString(
-  value: InstanceArgValue | undefined,
-  fallback: string,
-): string {
-  if (value === undefined || value === null || Array.isArray(value)) {
-    return fallback;
-  }
-  return String(value);
-}
-
-function asPort(
-  value: InstanceArgValue | undefined,
-  defaultPort = 8080,
-): number {
-  const raw = asString(value, String(defaultPort));
-  const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultPort;
-}
-
-type HttpEndpointInstance = Pick<Instance, "kind" | "args">;
-
-function apiPrefix(instance: HttpEndpointInstance): string {
-  const http = engineDescriptor(instance.kind ?? "llama-server").http;
-  const raw = asString(firstArg(instance.args, http.apiPrefixArgKeys), "");
-  if (!raw) {
+export function instanceBaseUrl(instance: InstanceHttpSource): string {
+  const address = instanceHttpAddress(instance);
+  if (!address) {
     return "";
   }
-  return raw.startsWith("/")
-    ? raw.replace(/\/$/, "")
-    : `/${raw.replace(/\/$/, "")}`;
-}
-
-export function instanceBaseUrl(instance: HttpEndpointInstance): string {
-  const http = engineDescriptor(instance.kind ?? "llama-server").http;
-  const rawHost = asString(
-    firstArg(instance.args, http.hostArgKeys),
-    http.defaultHost,
-  );
-  const port = asPort(
-    firstArg(instance.args, http.portArgKeys),
-    http.defaultPort,
-  );
-  const host = probeReachableHost(rawHost);
-
-  if (host.endsWith(".sock")) {
-    return "";
-  }
-
-  return `http://${host}:${port}${apiPrefix(instance)}`;
+  return `http://${probeReachableHost(address.host)}:${address.port}${address.prefix}`;
 }
 
 export function rpcWorkerEndpoint(
   instance: Pick<Instance, "args">,
 ): { host: string; port: number } | null {
-  const host = probeReachableHost(
-    asString(
-      firstArg(instance.args, RPC_HTTP.hostArgKeys),
-      RPC_HTTP.defaultHost,
-    ),
-  );
-  if (host.endsWith(".sock")) {
+  const address = instanceHttpAddress({
+    kind: "rpc-worker",
+    args: instance.args,
+  });
+  if (!address) {
     return null;
   }
-  const port = asPort(
-    firstArg(instance.args, RPC_HTTP.portArgKeys),
-    RPC_HTTP.defaultPort,
-  );
-  return { host, port };
+  return { host: probeReachableHost(address.host), port: address.port };
 }
 
 export async function requestJsonProbe(

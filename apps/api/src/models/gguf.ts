@@ -17,7 +17,7 @@ import {
   fileIdentityFromStats,
   type ModelFileIdentity,
 } from "./file-identity.js";
-import { parseSplitInfo, splitShardName } from "./split.js";
+import { parseSplitInfo, splitShardName } from "@arriero/core";
 
 type GgufScalar = string | number | boolean | null;
 type GgufValue = GgufScalar | GgufScalar[];

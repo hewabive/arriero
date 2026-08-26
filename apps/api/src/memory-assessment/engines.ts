@@ -1,5 +1,7 @@
 import {
   engineDescriptor,
+  DRAFT_MODEL_ARG_KEYS,
+  MMPROJ_ARG_KEYS,
   type EngineAssessmentFingerprintId,
   type InstanceKind,
   type InstanceMemoryLayout,
@@ -14,8 +16,6 @@ import {
   poolsForEstimate,
   resolveLlamaArgumentEnvironment,
   resolveModelPath,
-  DRAFT_MODEL_ARG_KEYS,
-  MMPROJ_ARG_KEYS,
   type MemoryEstimateContext,
 } from "../memory-estimate/service.js";
 import { resolveGgufShardPaths } from "../models/gguf.js";

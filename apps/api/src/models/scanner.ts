@@ -36,7 +36,7 @@ import {
   safetensorsMissingShardNames,
   type SafetensorsRawFacts,
 } from "./safetensors.js";
-import { parseSplitInfo, splitShardName, type SplitInfo } from "./split.js";
+import { parseSplitInfo, splitShardName, type SplitInfo } from "@arriero/core";
 
 export const IGNORED_DIRS = new Set([
   ".git",

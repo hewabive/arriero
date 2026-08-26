@@ -53,7 +53,7 @@ positive slot count leaves KV non-unified unless
   per-tensor sum reproduces the on-disk file size
   to within the GGUF metadata/alignment overhead (~0.4–1.4%). **Multi-part
   (split) GGUFs** are read across every shard: `readGgufModelTensorTable`
-  detects a `…-00001-of-000NN.gguf` path (`models/split.ts`), enumerates the
+  detects a `…-00001-of-000NN.gguf` path (core `gguf-split.ts`), enumerates the
   sibling shards and sums their tensor tables (metadata still comes from shard 1).
   Reading only the first shard would undercount weights and per-layer KV — for a
   4-shard model the tensor sum jumps from ~14.8 GiB to the full ~46 GiB,

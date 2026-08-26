@@ -1,6 +1,6 @@
 import { basename, dirname, join } from "node:path";
 
-import { parseSplitInfo, splitShardName } from "../models/split.js";
+import { parseSplitInfo, splitShardName } from "@arriero/core";
 import { parseLaunchSnapshot } from "../process/launch-snapshot.js";
 import { listLiveOpenProcessRuns } from "../process/live-runs.js";
 

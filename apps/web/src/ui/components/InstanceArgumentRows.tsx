@@ -1,4 +1,8 @@
-import type { Instance, ArgumentOption } from "@arriero/core";
+import {
+  engineDescriptor,
+  type Instance,
+  type ArgumentOption,
+} from "@arriero/core";
 import { ActionIcon, Group, Select, TextInput, Tooltip } from "@mantine/core";
 import { Trash2 } from "lucide-react";
 
@@ -15,12 +19,27 @@ export type ArgRow = {
   valueType: "string" | "number" | "boolean" | "flag" | "list" | "null";
 };
 
+const llamaServerHttp = engineDescriptor("llama-server").http;
+
 const defaultArgRows: ArgRow[] = [
-  { id: "host", key: "--host", value: "127.0.0.1", valueType: "string" },
-  { id: "port", key: "--port", value: "8080", valueType: "number" },
+  {
+    id: "host",
+    key: "--host",
+    value: llamaServerHttp.defaultHost,
+    valueType: "string",
+  },
+  {
+    id: "port",
+    key: "--port",
+    value: String(llamaServerHttp.defaultPort),
+    valueType: "number",
+  },
 ];
 
-export function defaultRows(modelPath?: string, port = 8080): ArgRow[] {
+export function defaultRows(
+  modelPath?: string,
+  port = llamaServerHttp.defaultPort,
+): ArgRow[] {
   const baseRows = defaultArgRows.map((row) =>
     row.key === "--port" ? { ...row, value: String(port) } : { ...row },
   );

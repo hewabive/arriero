@@ -2,6 +2,7 @@ import type {
   ApiProxyEditRequestOperation,
   ApiProxyOutputLimitConfig,
 } from "./pipeline-nodes.js";
+import { escapeRegExp } from "../text.js";
 
 export function apiProxyOutputLimitEditOperations(
   config: ApiProxyOutputLimitConfig,
@@ -57,10 +58,6 @@ export function apiProxyRequestToolName(tool: unknown): string | null {
   return typeof record.name === "string" && record.name ? record.name : null;
 }
 
-function escapeToolNamePattern(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 export function apiProxyToolNameMatcher(
   pattern: string,
 ): (name: string) => boolean {
@@ -68,7 +65,7 @@ export function apiProxyToolNameMatcher(
     return (name) => name === pattern;
   }
   const regex = new RegExp(
-    `^${pattern.split("*").map(escapeToolNamePattern).join(".*")}$`,
+    `^${pattern.split("*").map(escapeRegExp).join(".*")}$`,
   );
   return (name) => regex.test(name);
 }

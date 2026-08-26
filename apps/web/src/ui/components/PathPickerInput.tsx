@@ -1,4 +1,4 @@
-import type { FileSystemEntry } from "@arriero/core";
+import { parseSplitInfo, type FileSystemEntry } from "@arriero/core";
 import {
   ActionIcon,
   Badge,
@@ -82,14 +82,8 @@ function pathSegments(path: string) {
 }
 
 function isNonPrimaryGgufShard(name: string) {
-  const match = /-(?<index>\d+)-of-(?<count>\d+)\.gguf$/i.exec(name);
-  if (!match) {
-    return false;
-  }
-
-  const index = Number(match.groups?.index);
-  const count = Number(match.groups?.count);
-  return count > 1 && index > 1 && index <= count;
+  const split = parseSplitInfo(name);
+  return split !== null && split.index > 1;
 }
 
 function isSelectableEntry(
