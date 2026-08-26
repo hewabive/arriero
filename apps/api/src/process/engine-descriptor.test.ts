@@ -89,7 +89,7 @@ test("sglang descriptor declares the upstream SGLang lifecycle contract", () => 
   assert.equal(descriptor.logs.parser, "sglang");
   assert.equal(descriptor.estimator, "none");
   assert.equal(descriptor.resourceProfile, "sglang-args");
-  assert.equal(descriptor.processTree, "all-descendants");
+  assert.equal(descriptor.processTree.policy, "all-descendants");
   assert.equal(descriptor.concurrency, "sglang-max-running-requests");
   assert.equal(descriptor.admission, "confirmable");
   assert.equal(descriptor.defaultEvictionPolicy, "preemptible");
@@ -133,7 +133,7 @@ test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () =>
   assert.equal(descriptor.logs.parser, "sglang");
   assert.equal(descriptor.estimator, "none");
   assert.equal(descriptor.resourceProfile, "ktransformers-hybrid");
-  assert.equal(descriptor.processTree, "all-descendants");
+  assert.equal(descriptor.processTree.policy, "all-descendants");
   assert.equal(descriptor.concurrency, "sglang-max-running-requests");
   assert.equal(descriptor.defaultEvictionPolicy, "idle-only");
   assert.equal(descriptor.form.creatable, true);

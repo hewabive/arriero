@@ -1,4 +1,8 @@
-import { engineDescriptor, type InstanceKind } from "@arriero/core";
+import {
+  engineDescriptor,
+  type EngineLogParserId,
+  type InstanceKind,
+} from "@arriero/core";
 import { networkInterfaces } from "node:os";
 
 const ROUTINE_MANAGER_PROBE_ENDPOINT_SUFFIXES = [
@@ -131,10 +135,19 @@ function pinoProbeRequestLogLine(line: string): ProbeRequestLogLine | null {
 
 export type ProbeRequestLogGrammar = "llama" | "uvicorn" | "pino";
 
+const PROBE_GRAMMAR_BY_LOG_PARSER: Record<
+  EngineLogParserId,
+  ProbeRequestLogGrammar
+> = {
+  llama: "llama",
+  vllm: "uvicorn",
+  sglang: "uvicorn",
+};
+
 export function probeRequestLogGrammar(
   kind: InstanceKind,
 ): ProbeRequestLogGrammar {
-  return engineDescriptor(kind).logs.parser === "llama" ? "llama" : "uvicorn";
+  return PROBE_GRAMMAR_BY_LOG_PARSER[engineDescriptor(kind).logs.parser];
 }
 
 function probeRequestLogLine(

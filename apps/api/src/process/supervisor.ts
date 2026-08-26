@@ -47,7 +47,7 @@ export function managedSignalPid(
   platform: NodeJS.Platform = process.platform,
 ) {
   return platform !== "win32" &&
-    engineDescriptor(kind).processTree === "all-descendants"
+    engineDescriptor(kind).processTree.policy === "all-descendants"
     ? -pid
     : pid;
 }

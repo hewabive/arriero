@@ -6,6 +6,8 @@ import type {
   RuntimeState,
 } from "@arriero/core";
 
+import { statSync } from "node:fs";
+
 import {
   emptyMemoryLayout,
   engineLogParser,
@@ -13,11 +15,42 @@ import {
   pendingLoadProgress,
   type EngineLogParseResult,
 } from "./log-parsers/index.js";
-import { latestProcessRun } from "./runs-repository.js";
+import { latestProcessRun, type ProcessRun } from "./runs-repository.js";
 import { getRuntimeMemoryLayout } from "./runtime-memory.js";
 import { readTailLines } from "../utils/log-tail.js";
 
 const MAX_SUMMARY_LINES = 1_000;
+
+type ParsedLogTail = {
+  size: number;
+  mtimeMs: number;
+  lines: string[];
+  parsed: EngineLogParseResult;
+};
+
+const parsedLogTails = new Map<string, ParsedLogTail>();
+const PARSED_LOG_TAIL_LIMIT = 64;
+
+function parseLogTail(
+  logPath: string,
+  kind: InstanceKind,
+  cudaDevicesDisabled: boolean,
+): ParsedLogTail {
+  const stat = statSync(logPath);
+  const key = `${logPath}\0${kind}\0${cudaDevicesDisabled}`;
+  const cached = parsedLogTails.get(key);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    return cached;
+  }
+  const { lines } = readTailLines(logPath, MAX_SUMMARY_LINES);
+  const parsed = engineLogParser(kind).parse({ lines, cudaDevicesDisabled });
+  if (parsedLogTails.size >= PARSED_LOG_TAIL_LIMIT) {
+    parsedLogTails.clear();
+  }
+  const entry = { size: stat.size, mtimeMs: stat.mtimeMs, lines, parsed };
+  parsedLogTails.set(key, entry);
+  return entry;
+}
 
 const runtimeStatuses = new Set<RuntimeState["status"]>([
   "stopped",
@@ -99,10 +132,16 @@ export async function summarizeInstanceLog(input: {
   runtime: RuntimeState | undefined;
   cudaDevicesDisabled?: boolean;
 }): Promise<InstanceLogSummary> {
-  const latestRun = latestProcessRun(input.instanceId);
+  let latestRun: ProcessRun | null | undefined;
+  const resolveLatestRun = () => {
+    if (latestRun === undefined) {
+      latestRun = latestProcessRun(input.instanceId);
+    }
+    return latestRun;
+  };
   const runtime =
-    input.runtime ?? runtimeFromLatestRun(input.instanceId, latestRun);
-  const logPath = runtime?.logPath ?? latestRun?.logPath ?? null;
+    input.runtime ?? runtimeFromLatestRun(input.instanceId, resolveLatestRun());
+  const logPath = runtime?.logPath ?? resolveLatestRun()?.logPath ?? null;
 
   if (!logPath) {
     return {
@@ -125,11 +164,11 @@ export async function summarizeInstanceLog(input: {
   }
 
   try {
-    const { lines } = readTailLines(logPath, MAX_SUMMARY_LINES);
-    const parsed = engineLogParser(input.kind).parse({
-      lines,
-      cudaDevicesDisabled: input.cudaDevicesDisabled ?? false,
-    });
+    const { lines, parsed } = parseLogTail(
+      logPath,
+      input.kind,
+      input.cudaDevicesDisabled ?? false,
+    );
     const memoryLayout = await resolveMemoryLayout({
       parsed,
       lines,

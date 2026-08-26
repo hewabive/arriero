@@ -92,12 +92,16 @@ function parsePositivePid(value: string | undefined) {
   return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
 
-function isLikelyLlamaServer(processInfo: ProcessInfo) {
+function matchesDescendantNames(
+  names: readonly string[],
+  processInfo: Pick<ProcessInfo, "command" | "args">,
+) {
   const commandName = basename(processInfo.command).toLowerCase();
-  const firstArg = basename(processInfo.args.trim().split(/\s+/)[0] ?? "");
-  return (
-    commandName.includes("llama-server") ||
-    firstArg.toLowerCase().includes("llama-server")
+  const firstArg = basename(
+    processInfo.args.trim().split(/\s+/)[0] ?? "",
+  ).toLowerCase();
+  return names.some(
+    (name) => commandName.includes(name) || firstArg.includes(name),
   );
 }
 
@@ -105,10 +109,10 @@ export function isManagedDescendant(
   kind: InstanceKind,
   processInfo: Pick<ProcessInfo, "command" | "args">,
 ) {
-  const policy = engineDescriptor(kind).processTree;
-  if (policy === "all-descendants") return true;
-  if (policy === "root-only") return false;
-  return isLikelyLlamaServer({ ...processInfo, pid: 0, ppid: null });
+  const tree = engineDescriptor(kind).processTree;
+  if (tree.policy === "all-descendants") return true;
+  if (tree.policy === "root-only") return false;
+  return matchesDescendantNames(tree.descendantNames, processInfo);
 }
 
 export function parsePsOutput(stdout: string): ProcessInfo[] {
@@ -399,7 +403,15 @@ async function candidatePids(input: {
     candidates.add(rootPid);
   }
 
-  const ports = runtimeMayBeActive ? extractRouterChildPorts(input.lines) : [];
+  const tree = engineDescriptor(input.kind).processTree;
+  const routerChildNames =
+    tree.policy === "named-descendants" && tree.routerChildPortsFromLogs
+      ? tree.descendantNames
+      : null;
+  const ports =
+    runtimeMayBeActive && routerChildNames
+      ? extractRouterChildPorts(input.lines)
+      : [];
   const processes = cachedProcessTable();
   if (processes.length === 0) {
     return [...candidates];
@@ -418,9 +430,9 @@ async function candidatePids(input: {
       continue;
     }
     if (
+      routerChildNames &&
       ports.some((port) => argsContainPort(processInfo.args, port)) &&
-      input.kind === "llama-server" &&
-      isLikelyLlamaServer(processInfo)
+      matchesDescendantNames(routerChildNames, processInfo)
     ) {
       candidates.add(processInfo.pid);
     }
@@ -552,6 +564,7 @@ export async function getRuntimeMemoryLayout(input: {
     ]),
   );
   const entries: InstanceMemoryPlacement[] = [];
+  const contributingPids = new Set<number>();
   for (const [pid, bytes] of gpuBytesByPid) {
     const command = commandByPid.get(pid);
     const suffix = command ? ` (${basename(command)})` : "";
@@ -562,6 +575,7 @@ export async function getRuntimeMemoryLayout(input: {
     placement.otherBytes = bytes;
     placement.totalBytes = bytes;
     entries.push(placement);
+    contributingPids.add(pid);
   }
 
   for (const usage of sample.processMemory) {
@@ -573,6 +587,7 @@ export async function getRuntimeMemoryLayout(input: {
       placement.otherBytes = usage.anonBytes;
       placement.totalBytes = usage.anonBytes;
       entries.push(placement);
+      contributingPids.add(usage.pid);
     }
     if (usage.fileBytes > 0) {
       const placement = emptyMemoryPlacement(
@@ -582,6 +597,7 @@ export async function getRuntimeMemoryLayout(input: {
       placement.otherBytes = usage.fileBytes;
       placement.totalBytes = usage.fileBytes;
       entries.push(placement);
+      contributingPids.add(usage.pid);
     }
   }
 
@@ -589,18 +605,9 @@ export async function getRuntimeMemoryLayout(input: {
     return null;
   }
 
-  const contributingPids = [
-    ...new Set(
-      entries
-        .map((entry) => /\bpid\s+(\d+)\b/i.exec(entry.label)?.[1])
-        .map((pid) => (pid ? Number(pid) : null))
-        .filter((pid): pid is number => pid !== null),
-    ),
-  ].sort((left, right) => left - right);
-
   return layoutFromEntries({
     entries,
     baseLayout: input.baseLayout,
-    processIds: contributingPids,
+    processIds: [...contributingPids].sort((left, right) => left - right),
   });
 }

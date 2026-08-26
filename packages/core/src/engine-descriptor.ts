@@ -35,10 +35,14 @@ export type EngineAssessmentFingerprintId =
   | "llama-binary-gguf"
   | "python-env"
   | "none";
-export type EngineProcessTreePolicy =
-  | "root-only"
-  | "named-descendants"
-  | "all-descendants";
+export type EngineProcessTree =
+  | { policy: "root-only" }
+  | { policy: "all-descendants" }
+  | {
+      policy: "named-descendants";
+      descendantNames: readonly string[];
+      routerChildPortsFromLogs: boolean;
+    };
 export type EngineConcurrencyId =
   | "none"
   | "llama-parallel"
@@ -90,7 +94,7 @@ export type EngineDescriptor = {
     measuredBaseline: boolean;
   };
   resourceProfile: EngineResourceProfileId;
-  processTree: EngineProcessTreePolicy;
+  processTree: EngineProcessTree;
   concurrency: EngineConcurrencyId;
   admission: EngineAdmissionPolicy;
   defaultEvictionPolicy: EngineEvictionPolicy;
@@ -132,7 +136,11 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     benchmarkServerMetrics: "none",
     assessment: { fingerprint: "llama-binary-gguf", measuredBaseline: true },
     resourceProfile: "llama-args",
-    processTree: "named-descendants",
+    processTree: {
+      policy: "named-descendants",
+      descendantNames: ["llama-server"],
+      routerChildPortsFromLogs: true,
+    },
     concurrency: "llama-parallel",
     admission: "confirmable",
     defaultEvictionPolicy: "preemptible",
@@ -169,7 +177,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     benchmarkServerMetrics: "none",
     assessment: { fingerprint: "none", measuredBaseline: false },
     resourceProfile: "rpc-device-args",
-    processTree: "root-only",
+    processTree: { policy: "root-only" },
     concurrency: "none",
     admission: "confirmable",
     defaultEvictionPolicy: "never",
@@ -210,7 +218,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     benchmarkServerMetrics: "vllm-prometheus",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "vllm-args",
-    processTree: "all-descendants",
+    processTree: { policy: "all-descendants" },
     concurrency: "vllm-sequences",
     admission: "confirmable",
     defaultEvictionPolicy: "preemptible",
@@ -252,7 +260,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     benchmarkServerMetrics: "none",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "sglang-args",
-    processTree: "all-descendants",
+    processTree: { policy: "all-descendants" },
     concurrency: "sglang-max-running-requests",
     admission: "confirmable",
     defaultEvictionPolicy: "preemptible",
@@ -294,7 +302,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     benchmarkServerMetrics: "none",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "ktransformers-hybrid",
-    processTree: "all-descendants",
+    processTree: { policy: "all-descendants" },
     concurrency: "sglang-max-running-requests",
     admission: "strict",
     defaultEvictionPolicy: "idle-only",

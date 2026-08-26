@@ -34,7 +34,7 @@ for plugging in a new engine.
 | `benchmarkServerMetrics` | Benchmark server-side prefill-timing source | `none` (SSE timings) | `none` | `vllm-prometheus` | `none` | `none` |
 | `assessment` | Memory-assessment fingerprint id + measured-baseline capture | `llama-binary-gguf`, measured | `none` | `python-env`, measured | `python-env`, measured | `python-env`, measured |
 | `resourceProfile` | Resource-profile strategy | `llama-args` | `rpc-device-args` | `vllm-args` | `sglang-args` | `ktransformers-hybrid` |
-| `processTree` | Runtime process ownership | named descendants | root only | all descendants | all descendants | all descendants |
+| `processTree` | Runtime process ownership: `policy`, plus `descendantNames` and `routerChildPortsFromLogs` for `named-descendants` | named descendants (`llama-server`, router ports from logs) | root only | all descendants | all descendants | all descendants |
 | `concurrency` | Request-limit parser | llama parallel | none | vLLM sequences | SGLang max running requests | SGLang max running requests |
 | `admission` | Memory-shortfall policy: `confirmable` warns and allows force-start, `strict` errors and refuses force | `confirmable` | `confirmable` | `confirmable` | `confirmable` | `strict` |
 | `defaultEvictionPolicy` | Persisted scheduling default | `preemptible` | `never` | `preemptible` | `preemptible` | `idle-only` |
