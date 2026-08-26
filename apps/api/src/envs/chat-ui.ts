@@ -1,4 +1,8 @@
-import type { EnvironmentJobStep, EnvironmentSpec } from "@arriero/core";
+import {
+  npmRegistryInstallOptions,
+  type EnvironmentJobStep,
+  type EnvironmentSpec,
+} from "@arriero/core";
 import {
   chmodSync,
   existsSync,
@@ -53,6 +57,7 @@ export function chatUiJobSteps(
   spec: ChatUiEnvironmentSpec,
   tools: NodeSourceTools,
   directories: { staging: string; final: string },
+  npmRegistryUrl: string | null,
 ): EnvironmentJobStep[] {
   const { staging, final } = directories;
   return [
@@ -72,6 +77,7 @@ export function chatUiJobSteps(
       staging,
       "ci",
       "--ignore-scripts",
+      ...npmRegistryInstallOptions(npmRegistryUrl),
     ]),
     pendingJobStep("manifest-patch", ["patch-chat-ui-manifest", staging]),
     pendingJobStep("app-build", [

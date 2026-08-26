@@ -1,4 +1,8 @@
-import { webappDescriptor, type WebappConfigRecord } from "@arriero/core";
+import {
+  webappDescriptor,
+  type WebappConfigRecord,
+  type WebappDriftField,
+} from "@arriero/core";
 
 import { sameStringArray } from "../process/launch-snapshot.js";
 import { canonicalJsonDigest } from "../utils/canonical-json.js";
@@ -72,17 +76,27 @@ export function parseWebappLaunchSnapshot(
   }
 }
 
-export function hasWebappLaunchDrift(
+export function webappLaunchDriftFields(
   record: WebappConfigRecord,
   entrypoint: string,
   snapshot: WebappLaunchSnapshot,
-): boolean {
+): WebappDriftField[] {
   const current = buildWebappLaunchSnapshot(record, entrypoint).snapshot;
-  return (
-    current.binaryPath !== snapshot.binaryPath ||
-    current.cwd !== snapshot.cwd ||
+  const fields: WebappDriftField[] = [];
+  if (
     current.envSpecId !== snapshot.envSpecId ||
-    current.renderHash !== snapshot.renderHash ||
-    !sameStringArray(current.cliArgs, snapshot.cliArgs)
-  );
+    current.binaryPath !== snapshot.binaryPath
+  ) {
+    fields.push("environment");
+  }
+  if (!sameStringArray(current.cliArgs, snapshot.cliArgs)) {
+    fields.push("arguments");
+  }
+  if (current.cwd !== snapshot.cwd) {
+    fields.push("data-dir");
+  }
+  if (current.renderHash !== snapshot.renderHash) {
+    fields.push("rendered-env");
+  }
+  return fields;
 }

@@ -124,12 +124,19 @@ export const WebappEnvStatusSchema = z.enum([
   ...EnvironmentStatusSchema.options,
 ]);
 
+export const WebappDriftFieldSchema = z.enum([
+  "environment",
+  "arguments",
+  "data-dir",
+  "rendered-env",
+]);
+
 export const WebappSchema = WebappConfigRecordBaseSchema.extend({
   status: WebappRuntimeStatusSchema,
   pid: z.number().int().positive().nullable(),
   envStatus: WebappEnvStatusSchema,
   envVersion: z.string().nullable(),
-  configDrift: z.boolean(),
+  configDrift: z.array(WebappDriftFieldSchema),
 }).superRefine(validateWebappFields);
 
 export const WebappPreflightIssueSchema = z.object({
@@ -196,3 +203,4 @@ export type WebappLogTail = z.infer<typeof WebappLogTailSchema>;
 export type WebappStopReason = z.infer<typeof WebappStopReasonSchema>;
 export type WebappRuntime = z.infer<typeof WebappRuntimeSchema>;
 export type WebappRunInfo = z.infer<typeof WebappRunInfoSchema>;
+export type WebappDriftField = z.infer<typeof WebappDriftFieldSchema>;

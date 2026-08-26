@@ -24,7 +24,10 @@ import {
   removeWebappRecord,
   writeWebappRecord,
 } from "./config-files.js";
-import { hasWebappLaunchDrift, parseWebappLaunchSnapshot } from "./launch.js";
+import {
+  parseWebappLaunchSnapshot,
+  webappLaunchDriftFields,
+} from "./launch.js";
 import { webappDataDir, webappLogsDir } from "./paths.js";
 import {
   deleteWebappRuns,
@@ -96,15 +99,15 @@ function detectConfigDrift(
   status: Webapp["status"],
   entrypoint: string | null,
   latestRun: WebappRun | null,
-): boolean {
+): Webapp["configDrift"] {
   if (!entrypoint || !isActiveProcessStatus(status)) {
-    return false;
+    return [];
   }
   const snapshot = parseWebappLaunchSnapshot(latestRun?.launchSnapshot);
   if (!snapshot) {
-    return false;
+    return [];
   }
-  return hasWebappLaunchDrift(record, entrypoint, snapshot);
+  return webappLaunchDriftFields(record, entrypoint, snapshot);
 }
 
 function toWebapp(

@@ -16,7 +16,6 @@ import {
   Table,
   Text,
   Title,
-  Tooltip,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -32,6 +31,7 @@ import {
   envStatusColor,
   envVersionLabel,
   WebappActionButtons,
+  WebappConfigDriftBadge,
 } from "./WebappActionButtons";
 import { useWebappActions } from "./use-webapp-actions";
 import { formatLocalDateTime } from "../utils/time";
@@ -110,11 +110,7 @@ export function WebappDetails({
                   ? envVersionLabel(webapp.envVersion)
                   : `env ${webapp.envStatus}`}
               </Badge>
-              {webapp.configDrift && (
-                <Tooltip label="The definition changed since launch; restart to apply">
-                  <Badge color="yellow">config drift</Badge>
-                </Tooltip>
-              )}
+              <WebappConfigDriftBadge webapp={webapp} />
               {webapp.autostart && <Badge variant="light">autostart</Badge>}
             </Group>
             <Text size="xs" c="dimmed">

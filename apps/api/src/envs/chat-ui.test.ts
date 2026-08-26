@@ -46,10 +46,15 @@ function chatUiSpec(overrides: Record<string, unknown> = {}) {
 test("chat-ui job plan clones the tag, builds with npm and freezes the commit", () => {
   const spec = chatUiSpec();
   const staging = environmentStagingDirectory(spec);
-  const steps = chatUiJobSteps(spec, TOOLS, {
-    staging,
-    final: environmentDirectory(spec),
-  });
+  const steps = chatUiJobSteps(
+    spec,
+    TOOLS,
+    {
+      staging,
+      final: environmentDirectory(spec),
+    },
+    null,
+  );
   assert.deepEqual(
     steps.map((step) => step.name),
     [
@@ -98,11 +103,40 @@ test("chat-ui custom repository URL reaches the clone command", () => {
   const spec = chatUiSpec({
     source: { kind: "git", url: "https://example.com/fork/chat-ui" },
   });
-  const clone = chatUiJobSteps(spec, TOOLS, {
-    staging: environmentStagingDirectory(spec),
-    final: environmentDirectory(spec),
-  })[0]!.command;
+  const clone = chatUiJobSteps(
+    spec,
+    TOOLS,
+    {
+      staging: environmentStagingDirectory(spec),
+      final: environmentDirectory(spec),
+    },
+    null,
+  )[0]!.command;
   assert.ok(clone.includes("https://example.com/fork/chat-ui"));
+});
+
+test("chat-ui modules install honours the configured npm registry", () => {
+  const spec = chatUiSpec();
+  const staging = environmentStagingDirectory(spec);
+  const steps = chatUiJobSteps(
+    spec,
+    TOOLS,
+    {
+      staging,
+      final: environmentDirectory(spec),
+    },
+    "https://npm.example/registry",
+  );
+  assert.deepEqual(steps[1]!.command, [
+    "/usr/bin/npm",
+    "--prefix",
+    staging,
+    "ci",
+    "--ignore-scripts",
+    "--registry",
+    "https://npm.example/registry",
+  ]);
+  assert.equal(steps[4]!.command.includes("--registry"), false);
 });
 
 test("chat-ui manifest patch moves mongodb-memory-server to dependencies", () => {

@@ -112,7 +112,9 @@ wake a webapp.
 
 The launch snapshot (`webapps/launch.ts`) stores argv, cwd, `envSpecId` and a **hash** of the
 rendered environment — never the values, which contain secrets. Drift between the stored snapshot
-and a re-render of the current record surfaces as `configDrift` on the served `Webapp`. When the
+and a re-render of the current record surfaces as `configDrift` on the served `Webapp` — a list of
+the drifted aspects (`environment`, `arguments`, `data-dir`, `rendered-env`; empty means in sync),
+which the web drift badge unfolds in its tooltip. When the
 snapshot's `envSpecId` differs from the record's at start, the descriptor's `upgradeBackupFiles`
 (files or directories — `webui.db` for Open WebUI, the `db` MongoDB directory for Chat UI) are
 copied aside (`<name>.bak-<oldEnv>`) before the new version boots — automatic insurance against

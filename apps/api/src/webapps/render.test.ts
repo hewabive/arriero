@@ -5,7 +5,7 @@ import test from "node:test";
 import { config } from "../config.js";
 import {
   buildWebappLaunchSnapshot,
-  hasWebappLaunchDrift,
+  webappLaunchDriftFields,
   parseWebappLaunchSnapshot,
   serializeWebappLaunchSnapshot,
 } from "./launch.js";
@@ -118,29 +118,36 @@ test("launch snapshot round-trips and detects drift", () => {
   );
   assert.deepEqual(parsed, snapshot);
 
-  assert.equal(hasWebappLaunchDrift(base, entrypoint, snapshot), false);
-  assert.equal(
-    hasWebappLaunchDrift(
+  assert.deepEqual(webappLaunchDriftFields(base, entrypoint, snapshot), []);
+  assert.deepEqual(
+    webappLaunchDriftFields(
       record({ http: { host: "127.0.0.1", port: 3001 } }),
       entrypoint,
       snapshot,
     ),
-    true,
+    ["arguments"],
   );
-  assert.equal(
-    hasWebappLaunchDrift(
+  assert.deepEqual(
+    webappLaunchDriftFields(
       record({ settings: { type: "open-webui", auth: false } }),
       entrypoint,
       snapshot,
     ),
-    true,
+    ["rendered-env"],
   );
-  assert.equal(
-    hasWebappLaunchDrift(
+  assert.deepEqual(
+    webappLaunchDriftFields(
       record({ envSpecId: "env-spec-other" }),
       entrypoint,
       snapshot,
     ),
-    true,
+    ["environment"],
+  );
+  assert.deepEqual(
+    webappLaunchDriftFields(base, "/envs/open-webui-next/bin/open-webui", {
+      ...snapshot,
+      cwd: "/elsewhere",
+    }),
+    ["environment", "data-dir"],
   );
 });

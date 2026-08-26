@@ -1,9 +1,30 @@
-import { type Webapp } from "@arriero/core";
-import { Button } from "@mantine/core";
+import { type Webapp, type WebappDriftField } from "@arriero/core";
+import { Badge, Button, Tooltip } from "@mantine/core";
 import { ExternalLink } from "lucide-react";
 
 import { browserReachableHost, urlHost } from "../utils/instance-url";
 import { type WebappActions } from "./use-webapp-actions";
+
+const DRIFT_FIELD_LABELS: Record<WebappDriftField, string> = {
+  environment: "environment",
+  arguments: "host/port",
+  "data-dir": "data directory",
+  "rendered-env": "rendered env",
+};
+
+export function WebappConfigDriftBadge({ webapp }: { webapp: Webapp }) {
+  if (webapp.configDrift.length === 0) {
+    return null;
+  }
+  const changed = webapp.configDrift
+    .map((field) => DRIFT_FIELD_LABELS[field])
+    .join(", ");
+  return (
+    <Tooltip label={`Changed since launch: ${changed}; restart to apply`}>
+      <Badge color="yellow">config drift</Badge>
+    </Tooltip>
+  );
+}
 
 function webappUrl(webapp: Webapp): string {
   return `http://${urlHost(browserReachableHost(webapp.http.host))}:${webapp.http.port}/`;

@@ -175,9 +175,10 @@ channel; a branch build is reproducible only through it), and finalize writes th
 layout checks assert the server bundle, the launcher and the patched manifest instead
 of a venv layout; the rationale for the manifest patch lives in `docs/WEBAPPS.md`.
 Like Open WebUI it is CPU-only, outside the path catalog, and guarded against
-deletion while referenced. The repository profile below does not apply to this
-channel: the clone URL comes from the spec and npm resolves from its default
-registry.
+deletion while referenced. The Python repository profile below does not apply to
+this channel — the clone URL comes from the spec — but `npm ci` does honour the
+host-level npm registry (`/api/registries`), the same setting the llama.cpp UI
+build step uses.
 
 KTransformers wheel artifacts may be listed in any order; the provisioner normalizes
 installation order to `kt-kernel`, then `sglang-kt`. A missing or duplicate root is

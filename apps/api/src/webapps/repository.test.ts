@@ -48,7 +48,7 @@ test("createWebapp writes a file with descriptor defaults and no runtime fields"
   assert.equal(created.settings.slim, true);
   assert.equal(created.status, "stopped");
   assert.equal(created.envStatus, "missing-spec");
-  assert.equal(created.configDrift, false);
+  assert.deepEqual(created.configDrift, []);
 
   const filePath = resolve(config.webappsConfigDir, `${name}.json`);
   assert.ok(existsSync(filePath));

@@ -16,6 +16,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { CommandLog } from "../jobs/exec.js";
+import { getPackageRegistriesSettings } from "../settings/registries.js";
 import { executableError } from "../utils/executable.js";
 import {
   environmentAvailability,
@@ -524,7 +525,12 @@ const CHAT_UI_PROVISIONER: EnvironmentProvisioner = {
     if (tools.kind !== "node-source") {
       throw new Error("Chat UI environments install with git and npm");
     }
-    return chatUiJobSteps(checkedChatUiSpec(spec), tools, directories);
+    return chatUiJobSteps(
+      checkedChatUiSpec(spec),
+      tools,
+      directories,
+      getPackageRegistriesSettings().npmRegistryUrl,
+    );
   },
   inProcessSteps: {
     "manifest-patch": ({ stagingDir, log }) => {
