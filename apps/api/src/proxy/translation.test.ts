@@ -52,47 +52,70 @@ test("translation applies to anthropic messages on non-anthropic upstreams", () 
   );
 });
 
-test("forward body uses llama-server dialect with filtered named tool_choice", () => {
-  const body = translateAnthropicForwardBody({
-    model: "m",
-    max_tokens: 16,
-    messages: [{ role: "user", content: "hi" }],
-    tools: [
-      { name: "a", input_schema: { type: "object" } },
-      { name: "b", input_schema: { type: "object" } },
-    ],
-    tool_choice: { type: "tool", name: "b" },
-  }).body as Record<string, unknown>;
+const namedToolChoiceRequest = {
+  model: "m",
+  max_tokens: 16,
+  messages: [{ role: "user", content: "hi" }],
+  tools: [
+    { name: "a", input_schema: { type: "object" } },
+    { name: "b", input_schema: { type: "object" } },
+  ],
+  tool_choice: { type: "tool", name: "b" },
+};
+
+test("llama-server dialect filters named tool_choice", () => {
+  const body = translateAnthropicForwardBody(
+    namedToolChoiceRequest,
+    "llama-server",
+  ).body as Record<string, unknown>;
   assert.equal(body.tool_choice, "required");
   assert.equal((body.tools as unknown[]).length, 1);
 });
 
+test("openai-compatible dialect keeps named tool_choice native", () => {
+  const body = translateAnthropicForwardBody(
+    namedToolChoiceRequest,
+    "openai-compatible",
+  ).body as Record<string, unknown>;
+  assert.deepEqual(body.tool_choice, {
+    type: "function",
+    function: { name: "b" },
+  });
+  assert.equal((body.tools as unknown[]).length, 2);
+});
+
 test("forward body no longer strips attribution (moved to strip-attribution node)", () => {
-  const body = translateAnthropicForwardBody({
-    model: "m",
-    max_tokens: 16,
-    system: [
-      {
-        type: "text",
-        text: "x-anthropic-billing-header: cc_version=2.1.37; cc_entrypoint=cli; cch=14f72;",
-      },
-      { type: "text", text: "You are X." },
-    ],
-    messages: [{ role: "user", content: "hi" }],
-  }).body as Record<string, unknown>;
+  const body = translateAnthropicForwardBody(
+    {
+      model: "m",
+      max_tokens: 16,
+      system: [
+        {
+          type: "text",
+          text: "x-anthropic-billing-header: cc_version=2.1.37; cc_entrypoint=cli; cch=14f72;",
+        },
+        { type: "text", text: "You are X." },
+      ],
+      messages: [{ role: "user", content: "hi" }],
+    },
+    "llama-server",
+  ).body as Record<string, unknown>;
   const messages = body.messages as Record<string, unknown>[];
   assert.equal(messages[0]?.role, "system");
   assert.match(messages[0]?.content as string, /x-anthropic-billing-header/);
 });
 
 test("forward body maps adaptive thinking and output_config effort to llama fields", () => {
-  const { body, warnings } = translateAnthropicForwardBody({
-    model: "m",
-    max_tokens: 16,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium" },
-    messages: [{ role: "user", content: "hi" }],
-  });
+  const { body, warnings } = translateAnthropicForwardBody(
+    {
+      model: "m",
+      max_tokens: 16,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "medium" },
+      messages: [{ role: "user", content: "hi" }],
+    },
+    "llama-server",
+  );
   const record = body as Record<string, unknown>;
   assert.equal(record.reasoning_effort, "medium");
   assert.deepEqual(record.chat_template_kwargs, { enable_thinking: true });
@@ -400,12 +423,15 @@ const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 test("translated resumable codec builds openai upstream body with prefill tail", () => {
   const codec = translatedAnthropicResumableCodec(
-    translateAnthropicForwardBody({
-      model: "claude-x",
-      max_tokens: 32,
-      messages: [{ role: "user", content: "hi" }],
-      stream: true,
-    }).body,
+    translateAnthropicForwardBody(
+      {
+        model: "claude-x",
+        max_tokens: 32,
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      },
+      "llama-server",
+    ).body,
   );
   const resumed = codec.upstreamBody(null, "AB") as Record<string, unknown>;
   const messages = resumed.messages as Array<Record<string, unknown>>;
@@ -417,11 +443,14 @@ test("translated resumable codec builds openai upstream body with prefill tail",
 
 test("translated resumable codec maps openai finish reasons in final response", () => {
   const codec = translatedAnthropicResumableCodec(
-    translateAnthropicForwardBody({
-      model: "claude-x",
-      max_tokens: 32,
-      messages: [{ role: "user", content: "hi" }],
-    }).body,
+    translateAnthropicForwardBody(
+      {
+        model: "claude-x",
+        max_tokens: 32,
+        messages: [{ role: "user", content: "hi" }],
+      },
+      "llama-server",
+    ).body,
   );
   const final = codec.finalResponse({
     text: "Hello",
@@ -441,12 +470,15 @@ test("translated resumable codec maps openai finish reasons in final response", 
 
 test("translated resumable codec replays distinct tool_use blocks per tool call", () => {
   const codec = translatedAnthropicResumableCodec(
-    translateAnthropicForwardBody({
-      model: "claude-x",
-      max_tokens: 32,
-      messages: [{ role: "user", content: "hi" }],
-      stream: true,
-    }).body,
+    translateAnthropicForwardBody(
+      {
+        model: "claude-x",
+        max_tokens: 32,
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      },
+      "llama-server",
+    ).body,
   );
   const final = codec.finalResponse({
     text: "",
@@ -471,12 +503,15 @@ test("translated resumable codec replays distinct tool_use blocks per tool call"
 
 test("translated resumable codec survives preemption and resumes openai frames", async () => {
   const codec = translatedAnthropicResumableCodec(
-    translateAnthropicForwardBody({
-      model: "claude-x",
-      max_tokens: 32,
-      messages: [{ role: "user", content: "count" }],
-      stream: true,
-    }).body,
+    translateAnthropicForwardBody(
+      {
+        model: "claude-x",
+        max_tokens: 32,
+        messages: [{ role: "user", content: "count" }],
+        stream: true,
+      },
+      "llama-server",
+    ).body,
   );
   const state = createResumableBufferState();
   const preempt = new AbortController();

@@ -161,6 +161,7 @@ export async function executeApiProxyModelSubRequest(input: {
 
     const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
+      translationDialect: upstream.context.translationDialect,
       operation: input.operation,
       path: upstreamPath,
       body: input.body,

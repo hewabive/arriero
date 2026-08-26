@@ -7,6 +7,7 @@ import {
   stripApiProxyReasoningFields,
   type ApiProxyRouteTraceStep,
   type ApiProxyUpstreamReasoningProfile,
+  type EngineTranslationDialectId,
 } from "@arriero/core";
 
 import { instanceReasoningProfile } from "../instances/reasoning-profile.js";
@@ -52,6 +53,7 @@ export type ApiProxyUpstreamRequest = {
 
 export function prepareApiProxyUpstreamRequest(input: {
   translate: boolean;
+  translationDialect: EngineTranslationDialectId;
   operation: ApiProxyProtocolOperation;
   path: string;
   body: unknown;
@@ -62,6 +64,7 @@ export function prepareApiProxyUpstreamRequest(input: {
 }): ApiProxyUpstreamRequest {
   const exchange = prepareUpstreamExchange({
     translate: input.translate,
+    translationDialect: input.translationDialect,
     operation: input.operation,
     path: input.path,
     body: input.body,

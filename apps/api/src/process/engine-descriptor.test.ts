@@ -26,6 +26,7 @@ test("llama-server descriptor enables the full llama feature set", () => {
     true,
     true,
     true,
+    "llama-server",
   ]);
 });
 
@@ -47,6 +48,7 @@ test("rpc-worker descriptor opts out of inference-server features", () => {
     false,
     false,
     false,
+    "llama-server",
   ]);
 });
 
@@ -68,6 +70,7 @@ test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () =
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    translationDialect: "openai-compatible",
   });
 });
 
@@ -104,6 +107,7 @@ test("sglang descriptor declares the upstream SGLang lifecycle contract", () => 
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    translationDialect: "openai-compatible",
   });
 });
 
@@ -144,5 +148,6 @@ test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () =>
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    translationDialect: "openai-compatible",
   });
 });

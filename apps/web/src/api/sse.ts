@@ -1,4 +1,4 @@
-import type { ApiProbeRequest } from "@arriero/core";
+import { createSseFrameBuffer, type ApiProbeRequest } from "@arriero/core";
 
 type ApiProbeStreamMeta = {
   kind: ApiProbeRequest["kind"];
@@ -97,24 +97,18 @@ export async function readApiProbeStream(
   }
 
   const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  const frames = createSseFrameBuffer();
 
   while (true) {
     const chunk = await reader.read();
     if (chunk.done) break;
-    buffer += decoder.decode(chunk.value, { stream: true });
-
-    let separator = buffer.match(/\r?\n\r?\n/);
-    while (separator && separator.index !== undefined) {
-      const block = buffer.slice(0, separator.index);
-      buffer = buffer.slice(separator.index + separator[0].length);
+    for (const block of frames.push(chunk.value)) {
       dispatchApiProbeStreamEvent(block, callbacks);
-      separator = buffer.match(/\r?\n\r?\n/);
     }
   }
 
-  if (buffer.trim()) {
-    dispatchApiProbeStreamEvent(buffer, callbacks);
+  const tail = frames.flush();
+  if (tail !== null) {
+    dispatchApiProbeStreamEvent(tail, callbacks);
   }
 }

@@ -15,6 +15,7 @@ export * from "./instance.js";
 export * from "./instance-http.js";
 export * from "./instance-model.js";
 export * from "./gguf-split.js";
+export * from "./sse.js";
 export * from "./text.js";
 export * from "./path-catalog.js";
 export * from "./process.js";

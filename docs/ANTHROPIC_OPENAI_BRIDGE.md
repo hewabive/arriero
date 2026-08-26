@@ -38,6 +38,30 @@ Translation is active when both hold:
 Anthropic-profile external endpoints get verbatim pass-through to their own
 `/v1/messages` — that is the only untranslated path.
 `messages.count_tokens` always forwards natively (llama.cpp implements it).
+
+## Translation dialects
+
+The options handed to `translateAnthropicRequest` are a property of the
+resolved upstream, not a global constant. `translation.ts` holds one options
+preset per `EngineTranslationDialectId`
+(`packages/core/src/engine-descriptor.ts`):
+
+- `llama-server` — `namedToolChoice: "filter"` (llama-server rejects named
+  tool choice) + `enableThinkingKwargField: "enable_thinking"`;
+- `openai-compatible` — native named tool choice, same thinking kwarg. The
+  translated thinking fields stay in every dialect: they double as the
+  carrier the reasoning mapping extracts its directive from
+  (`docs/API_PROXY_REASONING.md`).
+
+`resolveApiProxyUpstreamContext` (`apps/api/src/proxy/upstream-context.ts`)
+resolves the dialect into the upstream context: a managed instance reads its
+engine descriptor's `proxy.translationDialect` (llama-server →
+`llama-server`; vLLM / SGLang / KTransformers → `openai-compatible`); an
+external endpoint maps `profile: "llama-native"` to `llama-server` and the
+other profiles to `openai-compatible`; a fleet peer's remote-instance
+endpoint stays on `llama-server`, because the peer's OpenAI facade may front
+a llama-server that rejects named tool choice and the filtered form works on
+every engine.
 Traces record `translated: true` and the UI protocol badge shows
 `anthropic → openai`.
 
@@ -153,4 +177,5 @@ I/O (no fetch, no streams — strings/objects in, events out) so it remains
 publishable as a standalone package. llama.cpp-specific knobs enter only
 through options (`reasoningField`, `thinkingBudgetField`,
 `reasoningEffortField`, `namedToolChoice`, `passthroughKeys`); the
-llama-server preset lives in `apps/api/src/proxy/translation.ts`.
+per-dialect presets live in `apps/api/src/proxy/translation.ts` (§
+Translation dialects above).

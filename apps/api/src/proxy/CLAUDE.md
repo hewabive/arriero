@@ -89,7 +89,10 @@ badge and the dashboard attention card. Details: `docs/API_PROXY_REASONING.md`.
 
 Inbound Anthropic `messages` to non-anthropic-profile upstreams is **always** translated to OpenAI
 chat completions via the sans-IO workspace package `packages/anthropic-openai-bridge`, wired in
-`translation.ts`; anthropic-profile endpoints pass through verbatim. Claude Code's
+`translation.ts`; anthropic-profile endpoints pass through verbatim. The bridge options are a
+per-upstream dialect resolved into the upstream context (engine descriptor `proxy.translationDialect`
+for managed instances, endpoint profile otherwise — `docs/ANTHROPIC_OPENAI_BRIDGE.md` § Translation
+dialects). Claude Code's
 `x-anthropic-billing-header` / `cch` attribution churns the llama.cpp KV prefix cache, and stripping
 it is **not** automatic — it is the placeable `strip-attribution` node
 (`attribution.ts:sanitizeClaudeCodeAttribution`), inserted where needed, e.g. before a cache node.

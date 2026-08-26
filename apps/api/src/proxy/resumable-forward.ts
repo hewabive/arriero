@@ -1,3 +1,5 @@
+import { createSseFrameBuffer } from "@arriero/core";
+
 import {
   CLIENT_ABORT_STATUS,
   describeFetchError,
@@ -9,7 +11,7 @@ import type {
   ApiProxyResumableStreamChunk,
   ApiProxyResumableToolCall,
 } from "./protocol.js";
-import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
+import { sseDataPayloads } from "./sse.js";
 import {
   classifyProxyStreamTerminal,
   emptyProxyStreamHealth,

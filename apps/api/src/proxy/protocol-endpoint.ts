@@ -1159,10 +1159,12 @@ export async function serveResolvedTarget(input: {
       engine,
       authHeaders,
       translateAnthropic,
+      translationDialect,
       stripClientHeaders,
     } = resolved.context;
     const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
+      translationDialect,
       operation,
       path: upstreamPath,
       body: route.request.body,
@@ -1540,9 +1542,11 @@ export async function serveResolvedTarget(input: {
       engine,
       authHeaders,
       translateAnthropic,
+      translationDialect,
     } = resolved.context;
     const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
+      translationDialect,
       operation,
       path: upstreamPath,
       body: route.request.body,

@@ -23,7 +23,7 @@ for plugging in a new engine.
 | --- | --- | --- | --- | --- | --- | --- |
 | `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` | `vLLM` | `SGLang` | `KTransformers (SGLang-KT)` |
 | `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` | 30000, `--host`/`--port` | 30000, `--host`/`--port` |
-| `proxy` | Capability booleans consumed by the proxy (below) | all `true` | all `false` | serve + lease only | serve + lease only | serve + lease only |
+| `proxy` | Capability booleans + translation dialect consumed by the proxy (below) | all `true`, `llama-server` dialect | all `false`, `llama-server` dialect | serve + lease, `openai-compatible` dialect | serve + lease, `openai-compatible` dialect | serve + lease, `openai-compatible` dialect |
 | `probe` | Probe implementation id, whether `/health`-style HTTP health exists, optional slow-cold-start `httpTimeoutMs` | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` | `openai-http`, `httpHealth: true`, 15 s | `openai-http`, `httpHealth: true`, 15 s |
 | `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` | `none` | `none` |
 | `launch` | Slot-path injection, argv builder, fixed prefix/module | slot path, `flag-map`, `[]` | no slot path, `flag-map`, `[]` | no slot path, `flag-map`, `["serve"]` | no slot path, `argparse-flags`, sibling Python module `sglang.launch_server` | no slot path, `argparse-flags`, sibling Python module `sglang.launch_server` |
@@ -71,6 +71,7 @@ unknown instance kinds per record, while local persisted schemas remain strict.
 - `slotSave` — KV-slot save/restore (`POST /slots/:id?action=save|restore`) for preemption; without it no `save-slot`/`restore-slot` actions are planned, and the web target editor hides the slot fields (`ProxyTargetsView` resolves the draft's endpoint → instance kind → this flag).
 - `streamResume` — server-side stream sessions (`x-conversation-id`, `/v1/stream?conv_id=<id>`), see `docs/STREAM_RESUME.md`.
 - `sseTimings` — llama.cpp SSE extensions (`timings`, `prompt_progress` via `return_progress`) powering live TTFT/prefill metrics and slot correlation.
+- `translationDialect` — not a boolean and not part of `proxyEngineGates`: the Anthropic→OpenAI request-options preset the proxy uses when translating to this engine (`docs/ANTHROPIC_OPENAI_BRIDGE.md` § Translation dialects). `llama-server` filters named tool choice; `openai-compatible` passes it natively.
 
 Scheduler-side gating is documented in `docs/API_PROXY_FOUNDATION.md` § Engine capability gating.
 

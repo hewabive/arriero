@@ -103,6 +103,7 @@ export function claimApiProxyResumedSession(input: {
   }
   const forward = prepareApiProxyUpstreamRequest({
     translate: resolved.context.translateAnthropic,
+    translationDialect: resolved.context.translationDialect,
     operation: input.operation,
     path: upstreamPath,
     body: input.request.body,

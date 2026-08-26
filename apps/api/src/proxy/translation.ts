@@ -1,4 +1,8 @@
-import type { ApiLabProbeProfile } from "@arriero/core";
+import {
+  createSseFrameBuffer,
+  type ApiLabProbeProfile,
+  type EngineTranslationDialectId,
+} from "@arriero/core";
 import {
   createAnthropicSseEmitter,
   serializeAnthropicSseEvents,
@@ -7,6 +11,7 @@ import {
   translateOpenAiResponse,
   type AnthropicSsePushResult,
   type AnthropicStreamEvent,
+  type AnthropicToOpenAiRequestOptions,
 } from "@arriero/anthropic-openai-bridge";
 
 import { numberOrNull } from "./json.js";
@@ -17,7 +22,7 @@ import {
   type ApiProxyProtocolOperation,
   type ApiProxyResumableCodec,
 } from "./protocol.js";
-import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
+import { sseDataPayloads } from "./sse.js";
 import type { ProxyStreamObserver } from "./stream-observer.js";
 import { openaiCachedTokens, type ProxyUsageCounts } from "./usage-meter.js";
 import {
@@ -25,9 +30,18 @@ import {
   isLlamaContextOverflow,
 } from "./context-overflow.js";
 
-const llamaServerRequestOptions = {
-  namedToolChoice: "filter" as const,
-  enableThinkingKwargField: "enable_thinking",
+const translationDialectRequestOptions: Record<
+  EngineTranslationDialectId,
+  AnthropicToOpenAiRequestOptions
+> = {
+  "llama-server": {
+    namedToolChoice: "filter",
+    enableThinkingKwargField: "enable_thinking",
+  },
+  "openai-compatible": {
+    namedToolChoice: "native",
+    enableThinkingKwargField: "enable_thinking",
+  },
 };
 
 const translatedUpstreamPath = "/v1/chat/completions";
@@ -42,11 +56,17 @@ export function shouldTranslateAnthropicMessages(
   );
 }
 
-export function translateAnthropicForwardBody(body: unknown): {
+export function translateAnthropicForwardBody(
+  body: unknown,
+  dialect: EngineTranslationDialectId,
+): {
   body: unknown;
   warnings: string[];
 } {
-  return translateAnthropicRequest(body, llamaServerRequestOptions);
+  return translateAnthropicRequest(
+    body,
+    translationDialectRequestOptions[dialect],
+  );
 }
 
 export type UpstreamExchange = {
@@ -59,6 +79,7 @@ export type UpstreamExchange = {
 
 export function prepareUpstreamExchange(input: {
   translate: boolean;
+  translationDialect: EngineTranslationDialectId;
   operation: ApiProxyProtocolOperation;
   path: string;
   body: unknown;
@@ -73,7 +94,10 @@ export function prepareUpstreamExchange(input: {
       warnings: [],
     };
   }
-  const translated = translateAnthropicForwardBody(input.body);
+  const translated = translateAnthropicForwardBody(
+    input.body,
+    input.translationDialect,
+  );
   return {
     protocol: "openai",
     path: translatedUpstreamPath,

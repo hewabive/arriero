@@ -1,6 +1,8 @@
+import { createSseFrameBuffer } from "@arriero/core";
+
 import { asObject, numberOrNull } from "./json.js";
 import type { ApiProxyProtocolId, ApiProxyResumableCodec } from "./protocol.js";
-import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
+import { sseDataPayloads } from "./sse.js";
 import {
   classifyProxyStreamTerminal,
   emptyProxyStreamHealth,

@@ -1,10 +1,12 @@
 import {
   argString,
   defaultApiEndpointStreamTerminal,
+  engineDescriptor,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   type ApiEndpointRecord,
   type ApiEndpointStreamTerminal,
   type ApiProxyTargetRecord,
+  type EngineTranslationDialectId,
   type Instance,
 } from "@arriero/core";
 
@@ -30,6 +32,7 @@ export type ApiProxyUpstreamContext = {
   engine: ProxyEngineGates;
   authHeaders: Record<string, string>;
   translateAnthropic: boolean;
+  translationDialect: EngineTranslationDialectId;
   stripClientHeaders: string[];
   streamTerminal: ApiEndpointStreamTerminal;
   streamIdleTimeoutMs: number | null;
@@ -42,6 +45,19 @@ function apiEndpointStreamTerminal(
     endpoint?.streamTerminal ??
     defaultApiEndpointStreamTerminal(endpoint?.kind ?? "managed-instance")
   );
+}
+
+function upstreamTranslationDialect(
+  endpoint: ApiEndpointRecord | null,
+  instance: Instance | null,
+): EngineTranslationDialectId {
+  if (instance) {
+    return engineDescriptor(instance.kind).proxy.translationDialect;
+  }
+  if (!endpoint || endpoint.nodeId || endpoint.profile === "llama-native") {
+    return "llama-server";
+  }
+  return "openai-compatible";
 }
 
 function apiEndpointStreamIdleTimeoutMs(
@@ -123,6 +139,10 @@ export function resolveApiProxyUpstreamContext(input: {
       engine: proxyEngineGates(targetResolution.instance),
       authHeaders: auth.headers,
       translateAnthropic,
+      translationDialect: upstreamTranslationDialect(
+        endpoint,
+        targetResolution.instance,
+      ),
       stripClientHeaders: renamedMetricsLabelHeader
         ? [renamedMetricsLabelHeader]
         : [],

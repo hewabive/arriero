@@ -48,6 +48,7 @@ export type EngineConcurrencyId =
   | "llama-parallel"
   | "vllm-sequences"
   | "sglang-max-running-requests";
+export type EngineTranslationDialectId = "llama-server" | "openai-compatible";
 export type EngineEvictionPolicy = "never" | "idle-only" | "preemptible";
 export type EngineAdmissionPolicy = "confirmable" | "strict";
 
@@ -67,6 +68,7 @@ export type EngineProxyCapabilities = {
   slotSave: boolean;
   streamResume: boolean;
   sseTimings: boolean;
+  translationDialect: EngineTranslationDialectId;
 };
 
 export type EngineDescriptor = {
@@ -123,6 +125,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: true,
       streamResume: true,
       sseTimings: true,
+      translationDialect: "llama-server",
     },
     probe: { id: "llama-http", httpHealth: true },
     nativeApi: "llama",
@@ -164,6 +167,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      translationDialect: "llama-server",
     },
     probe: { id: "tcp-accept", httpHealth: false },
     nativeApi: "none",
@@ -201,6 +205,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      translationDialect: "openai-compatible",
     },
     probe: { id: "openai-http", httpHealth: true },
     nativeApi: "none",
@@ -242,6 +247,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      translationDialect: "openai-compatible",
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
     nativeApi: "none",
@@ -284,6 +290,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      translationDialect: "openai-compatible",
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
     nativeApi: "none",
