@@ -32,10 +32,23 @@ function lineOf(text, index) {
   return text.slice(0, index).split("\n").length;
 }
 
+const trackedFilesByBasename = new Map();
+for (const file of trackedFiles) {
+  const name = file.slice(file.lastIndexOf("/") + 1);
+  const bucket = trackedFilesByBasename.get(name);
+  if (bucket) {
+    bucket.push(file);
+  } else {
+    trackedFilesByBasename.set(name, [file]);
+  }
+}
+
 function matchesBySuffix(rawClaim) {
   const claim = rawClaim.replace(/^\.\//, "");
   const suffix = claim.startsWith("/") ? claim : `/${claim}`;
-  return trackedFiles.filter((file) => file === claim || file.endsWith(suffix));
+  const candidates =
+    trackedFilesByBasename.get(claim.slice(claim.lastIndexOf("/") + 1)) ?? [];
+  return candidates.filter((file) => file === claim || file.endsWith(suffix));
 }
 
 function isCheckablePath(claim) {
