@@ -1,9 +1,5 @@
 import { asObject, numberOrNull } from "./json.js";
-import type {
-  ApiProxyProtocolId,
-  ApiProxyResumableCodec,
-  ApiProxyResumableToolCallDelta,
-} from "./protocol.js";
+import type { ApiProxyProtocolId, ApiProxyResumableCodec } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
 import {
   classifyProxyStreamTerminal,
@@ -11,12 +7,14 @@ import {
   noteMalformedPayload,
   type ProxyStreamHealth,
 } from "./stream-health.js";
+import {
+  createProxyChunkObserver,
+  emptyProxyStreamUsageTally,
+  type ProxyStreamObserver,
+  type ProxyStreamUsageTally,
+} from "./stream-observer.js";
 
-export type ProxyUsageCounts = {
-  promptTokens: number | null;
-  cacheReadTokens: number | null;
-  cacheCreationTokens: number | null;
-  completionTokens: number;
+export type ProxyUsageCounts = ProxyStreamUsageTally & {
   genMs: number;
   prefillMs: number | null;
   promptPerSecond: number | null;
@@ -180,49 +178,27 @@ export type UsageMeterStream = {
   health: () => ProxyStreamHealth;
 };
 
-export type ProxyPrefillProgress = {
-  total: number;
-  processed: number;
-  cache: number;
-};
-
-export function createUsageMeterStream(input: {
-  codec: Pick<ApiProxyResumableCodec, "parseChunk">;
-  stripUsageFrames: boolean;
-  stripProgressFrames?: boolean;
-  onComplete: (usage: ProxyUsageCounts) => void;
-  onStreamEnd?: (health: ProxyStreamHealth) => void;
-  onFirstToken?: (promptTokens: number | null) => void;
-  onReasoning?: () => void;
-  onReasoningDelta?: (text: string) => void;
-  onAnswerDelta?: (text: string) => void;
-  onToolCall?: (delta: ApiProxyResumableToolCallDelta) => void;
-  onProgress?: (completionTokens: number) => void;
-  onPrefillProgress?: (progress: ProxyPrefillProgress) => void;
-}): UsageMeterStream {
+export function createUsageMeterStream(
+  input: {
+    codec: Pick<ApiProxyResumableCodec, "parseChunk">;
+    stripUsageFrames: boolean;
+    stripProgressFrames?: boolean;
+    onComplete: (usage: ProxyUsageCounts) => void;
+    onStreamEnd?: (health: ProxyStreamHealth) => void;
+  } & ProxyStreamObserver,
+): UsageMeterStream {
   const {
     codec,
     stripUsageFrames,
     stripProgressFrames = false,
     onComplete,
     onStreamEnd,
-    onFirstToken,
-    onReasoning,
-    onReasoningDelta,
-    onAnswerDelta,
-    onToolCall,
-    onProgress,
-    onPrefillProgress,
   } = input;
   const encoder = new TextEncoder();
   const frames = createSseFrameBuffer();
-  let promptTokens: number | null = null;
-  let cacheReadTokens: number | null = null;
-  let cacheCreationTokens: number | null = null;
-  let completionTokens = 0;
+  const usage = emptyProxyStreamUsageTally();
+  const observeChunk = createProxyChunkObserver(input, usage);
   let upstreamGenMs: number | null = null;
-  let firstTokenSeen = false;
-  let reasoningSeen = false;
   let done = false;
   let sawDone = false;
   let sawFinish = false;
@@ -255,67 +231,18 @@ export function createUsageMeterStream(input: {
       if (typeof chunk.genMs === "number") {
         upstreamGenMs = chunk.genMs;
       }
-      if (chunk.promptProgress) {
-        onPrefillProgress?.(chunk.promptProgress);
-        if (
-          stripProgressFrames &&
-          chunk.text === "" &&
-          !chunk.toolCall &&
-          chunk.finishReason === null &&
-          !chunk.usage
-        ) {
-          keep = false;
-        }
+      const bareCarrier =
+        chunk.text === "" && !chunk.toolCall && chunk.finishReason === null;
+      if (
+        (stripProgressFrames &&
+          chunk.promptProgress &&
+          bareCarrier &&
+          !chunk.usage) ||
+        (stripUsageFrames && chunk.usage && bareCarrier)
+      ) {
+        keep = false;
       }
-      if (chunk.usage) {
-        if (typeof chunk.usage.completionTokens === "number") {
-          completionTokens += chunk.usage.completionTokens;
-        }
-        if (
-          promptTokens === null &&
-          typeof chunk.usage.promptTokens === "number"
-        ) {
-          promptTokens = chunk.usage.promptTokens;
-        }
-        if (
-          cacheReadTokens === null &&
-          typeof chunk.usage.cacheReadTokens === "number"
-        ) {
-          cacheReadTokens = chunk.usage.cacheReadTokens;
-        }
-        if (
-          cacheCreationTokens === null &&
-          typeof chunk.usage.cacheCreationTokens === "number"
-        ) {
-          cacheCreationTokens = chunk.usage.cacheCreationTokens;
-        }
-        if (
-          stripUsageFrames &&
-          chunk.text === "" &&
-          !chunk.toolCall &&
-          chunk.finishReason === null
-        ) {
-          keep = false;
-        }
-      }
-      if (chunk.reasoning) {
-        if (!reasoningSeen) {
-          reasoningSeen = true;
-          onReasoning?.();
-        }
-        onReasoningDelta?.(chunk.reasoning);
-      }
-      if (chunk.text !== "") {
-        onAnswerDelta?.(chunk.text);
-      }
-      if (!firstTokenSeen && (chunk.text !== "" || chunk.toolCall)) {
-        firstTokenSeen = true;
-        onFirstToken?.(promptTokens);
-      }
-      onProgress?.(completionTokens);
-      if (chunk.toolCall) {
-        onToolCall?.(chunk.toolCall);
-      }
+      observeChunk(chunk);
     }
     return keep;
   };
@@ -326,10 +253,7 @@ export function createUsageMeterStream(input: {
     }
     done = true;
     onComplete({
-      promptTokens,
-      cacheReadTokens,
-      cacheCreationTokens,
-      completionTokens,
+      ...usage,
       genMs: upstreamGenMs !== null ? Math.round(upstreamGenMs) : 0,
       prefillMs: null,
       promptPerSecond: null,

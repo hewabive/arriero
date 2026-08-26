@@ -39,6 +39,7 @@ import {
   markPlanTruncatedOnEof,
 } from "./stream-health.js";
 import { watchStreamIdle } from "./stream-idle.js";
+import { inflightStreamObserver } from "./stream-observer.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import {
   apiProxyStreamResumeKey,
@@ -186,6 +187,7 @@ export async function serveResumedStreamSession(input: {
   const applyUsage = (usage: ProxyUsageCounts) => {
     trace.usage = traceUsageFromCounts(usage);
   };
+  const observer = inflightStreamObserver(inflight);
 
   if (!request.stream) {
     const state = createResumableBufferState();
@@ -196,12 +198,7 @@ export async function serveResumedStreamSession(input: {
       consumerSignal: c.req.raw.signal,
       finishSignal: inflight.finishSignal(),
       cancelSignal: inflight.cancelSignal(),
-      onFirstToken: (promptTokens) => inflight.firstToken(promptTokens),
-      onReasoning: () => inflight.firstReasoning(),
-      onReasoningDelta: (text) => inflight.appendReasoning(text),
-      onAnswerDelta: (text) => inflight.appendAnswer(text),
-      onToolCall: (delta) => inflight.appendToolCall(delta),
-      onProgress: (tokens) => inflight.setCompletionTokens(tokens),
+      ...observer,
     });
     store.finish(entry, { evict: true });
     if (outcome.type === "consumer-gone" || outcome.type === "cancelled") {
@@ -258,11 +255,7 @@ export async function serveResumedStreamSession(input: {
 
   if (translateAnthropic) {
     const translation = createAnthropicTranslationStream({
-      onFirstToken: (promptTokens) => inflight.firstToken(promptTokens),
-      onReasoning: () => inflight.firstReasoning(),
-      onReasoningDelta: (text) => inflight.appendReasoning(text),
-      onAnswerDelta: (text) => inflight.appendAnswer(text),
-      onProgress: (tokens) => inflight.setCompletionTokens(tokens),
+      ...observer,
       onComplete: onStreamComplete,
     });
     recorder.markDeferred();
@@ -289,12 +282,7 @@ export async function serveResumedStreamSession(input: {
     stripUsageFrames: !includeUsageRequested(request.body),
     stripProgressFrames: !returnProgressRequested(claim.exchangeBody),
     onStreamEnd: markPlanTruncatedOnEof(input.responsePlan),
-    onFirstToken: (promptTokens) => inflight.firstToken(promptTokens),
-    onReasoning: () => inflight.firstReasoning(),
-    onReasoningDelta: (text) => inflight.appendReasoning(text),
-    onAnswerDelta: (text) => inflight.appendAnswer(text),
-    onToolCall: (delta) => inflight.appendToolCall(delta),
-    onProgress: (tokens) => inflight.setCompletionTokens(tokens),
+    ...observer,
     onComplete: onStreamComplete,
   });
   recorder.markDeferred();

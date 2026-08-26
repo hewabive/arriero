@@ -115,6 +115,7 @@ import {
   markPlanTruncatedOnEof,
 } from "./stream-health.js";
 import { watchStreamIdle } from "./stream-idle.js";
+import { inflightStreamObserver } from "./stream-observer.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
 import {
   proxyEngineGates,
@@ -732,6 +733,9 @@ async function delegateRemoteTarget(input: {
     }
     inflight.firstToken(promptTokens);
   };
+  const observer = inflightStreamObserver(inflight, {
+    onFirstToken: markFirstToken,
+  });
   const stripProgressFrames =
     wantsPrefill && !returnProgressRequested(request.body);
 
@@ -820,13 +824,7 @@ async function delegateRemoteTarget(input: {
       stripUsageFrames: streamMeter.strip,
       stripProgressFrames,
       onStreamEnd: markPlanTruncatedOnEof(responsePlan),
-      onFirstToken: markFirstToken,
-      onReasoning: () => inflight.firstReasoning(),
-      onReasoningDelta: (text) => inflight.appendReasoning(text),
-      onAnswerDelta: (text) => inflight.appendAnswer(text),
-      onProgress: (completionTokens) =>
-        inflight.setCompletionTokens(completionTokens),
-      onPrefillProgress: (progress) => inflight.setPrefillProgress(progress),
+      ...observer,
       onComplete: (usage) => {
         trace.usage = traceUsageFromCounts(usage);
         recordWithDelegatedTrace(metered?.status);
@@ -1083,33 +1081,9 @@ export async function serveResolvedTarget(input: {
     }
     inflight.firstToken(promptTokens);
   };
-  const markReasoning = () => {
-    inflight.firstReasoning();
-  };
-  const markReasoningDelta = (text: string) => {
-    inflight.appendReasoning(text);
-  };
-  const markAnswerDelta = (text: string) => {
-    inflight.appendAnswer(text);
-  };
-  const markToolCall = (delta: {
-    index: number;
-    id?: string | undefined;
-    name?: string | undefined;
-    arguments?: string | undefined;
-  }) => {
-    inflight.appendToolCall(delta);
-  };
-  const markProgress = (completionTokens: number) => {
-    inflight.setCompletionTokens(completionTokens);
-  };
-  const markPrefillProgress = (progress: {
-    total: number;
-    processed: number;
-    cache: number;
-  }) => {
-    inflight.setPrefillProgress(progress);
-  };
+  const observer = inflightStreamObserver(inflight, {
+    onFirstToken: markFirstToken,
+  });
 
   const makeTargetReady = (
     initialPreview: Awaited<ReturnType<typeof getApiProxyPlanPreview>>,
@@ -1332,13 +1306,7 @@ export async function serveResolvedTarget(input: {
             consumerSignal: c.req.raw.signal,
             finishSignal: inflight.finishSignal(),
             cancelSignal: inflight.cancelSignal(),
-            onFirstToken: markFirstToken,
-            onReasoning: markReasoning,
-            onReasoningDelta: markReasoningDelta,
-            onAnswerDelta: markAnswerDelta,
-            onToolCall: markToolCall,
-            onProgress: markProgress,
-            onPrefillProgress: markPrefillProgress,
+            ...observer,
           });
           if (
             outcome.type === "consumer-gone" ||
@@ -1472,12 +1440,7 @@ export async function serveResolvedTarget(input: {
 
       if (translateAnthropic) {
         const translation = createAnthropicTranslationStream({
-          onFirstToken: markFirstToken,
-          onReasoning: markReasoning,
-          onReasoningDelta: markReasoningDelta,
-          onAnswerDelta: markAnswerDelta,
-          onProgress: markProgress,
-          onPrefillProgress: markPrefillProgress,
+          ...observer,
           onComplete: onStreamComplete,
         });
         recorder.markDeferred();
@@ -1520,13 +1483,7 @@ export async function serveResolvedTarget(input: {
         stripUsageFrames: streamMeter.strip,
         stripProgressFrames: injectPrefillProgress,
         onStreamEnd: markPlanTruncatedOnEof(responsePlan),
-        onFirstToken: markFirstToken,
-        onReasoning: markReasoning,
-        onReasoningDelta: markReasoningDelta,
-        onAnswerDelta: markAnswerDelta,
-        onToolCall: markToolCall,
-        onProgress: markProgress,
-        onPrefillProgress: markPrefillProgress,
+        ...observer,
         onComplete: onStreamComplete,
       });
       recorder.markDeferred();
@@ -1673,13 +1630,7 @@ export async function serveResolvedTarget(input: {
           finishSignal: inflight.finishSignal(),
           cancelSignal: inflight.cancelSignal(),
           idleTimeoutMs: resolved.context.streamIdleTimeoutMs,
-          onFirstToken: markFirstToken,
-          onReasoning: markReasoning,
-          onReasoningDelta: markReasoningDelta,
-          onAnswerDelta: markAnswerDelta,
-          onToolCall: markToolCall,
-          onProgress: markProgress,
-          onPrefillProgress: markPrefillProgress,
+          ...observer,
         });
       },
       state,

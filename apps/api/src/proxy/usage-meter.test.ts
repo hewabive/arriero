@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { anthropicResumableCodec } from "./anthropic.js";
 import { openAiResponsesUsageCodec, openAiResumableCodec } from "./openai.js";
+import type { ProxyPrefillProgress } from "./stream-observer.js";
 import {
   createUsageMeterStream,
   includeUsageRequested,
@@ -11,7 +12,6 @@ import {
   usageFromNonStreamBody,
   withIncludeUsage,
   withReturnProgress,
-  type ProxyPrefillProgress,
   type ProxyUsageCounts,
 } from "./usage-meter.js";
 

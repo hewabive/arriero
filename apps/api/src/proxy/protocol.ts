@@ -106,7 +106,7 @@ type ApiProxyResumablePromptProgress = {
   processed: number;
 };
 
-type ApiProxyResumableStreamChunk = {
+export type ApiProxyResumableStreamChunk = {
   text: string;
   finishReason: string | null;
   id: string | null;

@@ -18,11 +18,8 @@ import {
   type ApiProxyResumableCodec,
 } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
-import {
-  openaiCachedTokens,
-  type ProxyPrefillProgress,
-  type ProxyUsageCounts,
-} from "./usage-meter.js";
+import type { ProxyStreamObserver } from "./stream-observer.js";
+import { openaiCachedTokens, type ProxyUsageCounts } from "./usage-meter.js";
 import {
   contextOverflowMessage,
   isLlamaContextOverflow,
@@ -157,13 +154,7 @@ export function anthropicForwardHeaders(headers: Headers): Headers {
   return filtered;
 }
 
-export type AnthropicTranslationStreamCallbacks = {
-  onFirstToken?: ((promptTokens: number | null) => void) | undefined;
-  onReasoning?: (() => void) | undefined;
-  onReasoningDelta?: ((text: string) => void) | undefined;
-  onAnswerDelta?: ((text: string) => void) | undefined;
-  onProgress?: ((completionTokens: number) => void) | undefined;
-  onPrefillProgress?: ((progress: ProxyPrefillProgress) => void) | undefined;
+export type AnthropicTranslationStreamCallbacks = ProxyStreamObserver & {
   onComplete?: ((usage: ProxyUsageCounts) => void) | undefined;
 };
 

@@ -6,8 +6,8 @@ import {
 import type {
   ApiProxyResumableCodec,
   ApiProxyResumableFinalResponse,
+  ApiProxyResumableStreamChunk,
   ApiProxyResumableToolCall,
-  ApiProxyResumableToolCallDelta,
 } from "./protocol.js";
 import { createSseFrameBuffer, sseDataPayloads } from "./sse.js";
 import {
@@ -17,6 +17,10 @@ import {
   type ProxyStreamHealth,
 } from "./stream-health.js";
 import { watchStreamIdle } from "./stream-idle.js";
+import {
+  createProxyChunkObserver,
+  type ProxyStreamObserver,
+} from "./stream-observer.js";
 
 export type ResumableBufferState = {
   text: string;
@@ -70,19 +74,20 @@ export function createResumableBufferState(): ResumableBufferState {
 
 type FrameMeta = {
   upstreamGenMs: number | null;
-  firstTokenSeen: boolean;
-  reasoningSeen: boolean;
   finishSeen: boolean;
-  onFirstToken?: ((promptTokens: number | null) => void) | undefined;
-  onReasoning?: (() => void) | undefined;
-  onReasoningDelta?: ((text: string) => void) | undefined;
-  onAnswerDelta?: ((text: string) => void) | undefined;
-  onToolCall?: ((delta: ApiProxyResumableToolCallDelta) => void) | undefined;
-  onProgress?: ((completionTokens: number) => void) | undefined;
-  onPrefillProgress?:
-    | ((progress: { total: number; processed: number; cache: number }) => void)
-    | undefined;
+  observeChunk: (chunk: ApiProxyResumableStreamChunk) => void;
 };
+
+function createFrameMeta(
+  observer: ProxyStreamObserver,
+  state: ResumableBufferState,
+): FrameMeta {
+  return {
+    upstreamGenMs: null,
+    finishSeen: false,
+    observeChunk: createProxyChunkObserver(observer, state),
+  };
+}
 
 function applyFrame(
   frame: string,
@@ -103,12 +108,8 @@ function applyFrame(
       continue;
     }
     state.text += chunk.text;
-    if (chunk.text !== "") {
-      meta.onAnswerDelta?.(chunk.text);
-    }
     if (chunk.reasoning) {
       state.reasoningText += chunk.reasoning;
-      meta.onReasoningDelta?.(chunk.reasoning);
     }
     if (chunk.id) {
       state.id = chunk.id;
@@ -122,9 +123,6 @@ function applyFrame(
     }
     if (typeof chunk.genMs === "number") {
       meta.upstreamGenMs = chunk.genMs;
-    }
-    if (chunk.promptProgress) {
-      meta.onPrefillProgress?.(chunk.promptProgress);
     }
     if (chunk.phase === "tool") {
       state.inToolPhase = true;
@@ -142,41 +140,7 @@ function applyFrame(
         arguments: existing.arguments + (chunk.toolCall.arguments ?? ""),
       };
     }
-    if (chunk.usage) {
-      if (typeof chunk.usage.completionTokens === "number") {
-        state.completionTokens += chunk.usage.completionTokens;
-      }
-      if (
-        state.promptTokens === null &&
-        typeof chunk.usage.promptTokens === "number"
-      ) {
-        state.promptTokens = chunk.usage.promptTokens;
-      }
-      if (
-        state.cacheReadTokens === null &&
-        typeof chunk.usage.cacheReadTokens === "number"
-      ) {
-        state.cacheReadTokens = chunk.usage.cacheReadTokens;
-      }
-      if (
-        state.cacheCreationTokens === null &&
-        typeof chunk.usage.cacheCreationTokens === "number"
-      ) {
-        state.cacheCreationTokens = chunk.usage.cacheCreationTokens;
-      }
-    }
-    if (!meta.reasoningSeen && chunk.reasoning) {
-      meta.reasoningSeen = true;
-      meta.onReasoning?.();
-    }
-    if (!meta.firstTokenSeen && (chunk.text !== "" || chunk.toolCall)) {
-      meta.firstTokenSeen = true;
-      meta.onFirstToken?.(state.promptTokens);
-    }
-    meta.onProgress?.(state.completionTokens);
-    if (chunk.toolCall) {
-      meta.onToolCall?.(chunk.toolCall);
-    }
+    meta.observeChunk(chunk);
   }
   return null;
 }
@@ -220,30 +184,23 @@ function classifyStreamEnding(
   return terminal === "eof" ? "truncated" : "completed";
 }
 
-export async function runResumableUpstreamAttempt(input: {
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  body: unknown;
-  codec: ApiProxyResumableCodec;
-  state: ResumableBufferState;
-  preemptSignal: AbortSignal;
-  consumerSignal?: AbortSignal | undefined;
-  interruptSignal?: AbortSignal | undefined;
-  finishSignal?: AbortSignal | undefined;
-  cancelSignal?: AbortSignal | undefined;
-  fetchImpl?: typeof fetch | undefined;
-  idleTimeoutMs?: number | null | undefined;
-  onFirstToken?: ((promptTokens: number | null) => void) | undefined;
-  onReasoning?: (() => void) | undefined;
-  onReasoningDelta?: ((text: string) => void) | undefined;
-  onAnswerDelta?: ((text: string) => void) | undefined;
-  onToolCall?: ((delta: ApiProxyResumableToolCallDelta) => void) | undefined;
-  onProgress?: ((completionTokens: number) => void) | undefined;
-  onPrefillProgress?:
-    | ((progress: { total: number; processed: number; cache: number }) => void)
-    | undefined;
-}): Promise<ResumableUpstreamOutcome> {
+export async function runResumableUpstreamAttempt(
+  input: {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    body: unknown;
+    codec: ApiProxyResumableCodec;
+    state: ResumableBufferState;
+    preemptSignal: AbortSignal;
+    consumerSignal?: AbortSignal | undefined;
+    interruptSignal?: AbortSignal | undefined;
+    finishSignal?: AbortSignal | undefined;
+    cancelSignal?: AbortSignal | undefined;
+    fetchImpl?: typeof fetch | undefined;
+    idleTimeoutMs?: number | null | undefined;
+  } & ProxyStreamObserver,
+): Promise<ResumableUpstreamOutcome> {
   const {
     preemptSignal,
     consumerSignal,
@@ -268,19 +225,7 @@ export async function runResumableUpstreamAttempt(input: {
   }
 
   const fetchImpl = input.fetchImpl ?? proxyUpstreamFetch;
-  const meta: FrameMeta = {
-    upstreamGenMs: null,
-    firstTokenSeen: false,
-    reasoningSeen: false,
-    finishSeen: false,
-    onFirstToken: input.onFirstToken,
-    onReasoning: input.onReasoning,
-    onReasoningDelta: input.onReasoningDelta,
-    onAnswerDelta: input.onAnswerDelta,
-    onToolCall: input.onToolCall,
-    onProgress: input.onProgress,
-    onPrefillProgress: input.onPrefillProgress,
-  };
+  const meta = createFrameMeta(input, input.state);
   const controller = new AbortController();
   const onPreempt = () => {
     if (!input.state.inToolPhase) {
@@ -370,37 +315,18 @@ export type ConsumeResumableSseOutcome =
   | { type: "consumer-gone" }
   | { type: "error"; message: string };
 
-export async function consumeResumableSse(input: {
-  body: ReadableStream<Uint8Array>;
-  codec: ApiProxyResumableCodec;
-  state: ResumableBufferState;
-  consumerSignal?: AbortSignal | undefined;
-  finishSignal?: AbortSignal | undefined;
-  cancelSignal?: AbortSignal | undefined;
-  idleTimeoutMs?: number | null | undefined;
-  onFirstToken?: ((promptTokens: number | null) => void) | undefined;
-  onReasoning?: (() => void) | undefined;
-  onReasoningDelta?: ((text: string) => void) | undefined;
-  onAnswerDelta?: ((text: string) => void) | undefined;
-  onToolCall?: ((delta: ApiProxyResumableToolCallDelta) => void) | undefined;
-  onProgress?: ((completionTokens: number) => void) | undefined;
-  onPrefillProgress?:
-    | ((progress: { total: number; processed: number; cache: number }) => void)
-    | undefined;
-}): Promise<ConsumeResumableSseOutcome> {
-  const meta: FrameMeta = {
-    upstreamGenMs: null,
-    firstTokenSeen: false,
-    reasoningSeen: false,
-    finishSeen: false,
-    onFirstToken: input.onFirstToken,
-    onReasoning: input.onReasoning,
-    onReasoningDelta: input.onReasoningDelta,
-    onAnswerDelta: input.onAnswerDelta,
-    onToolCall: input.onToolCall,
-    onProgress: input.onProgress,
-    onPrefillProgress: input.onPrefillProgress,
-  };
+export async function consumeResumableSse(
+  input: {
+    body: ReadableStream<Uint8Array>;
+    codec: ApiProxyResumableCodec;
+    state: ResumableBufferState;
+    consumerSignal?: AbortSignal | undefined;
+    finishSignal?: AbortSignal | undefined;
+    cancelSignal?: AbortSignal | undefined;
+    idleTimeoutMs?: number | null | undefined;
+  } & ProxyStreamObserver,
+): Promise<ConsumeResumableSseOutcome> {
+  const meta = createFrameMeta(input, input.state);
   const classifyStop = (): ConsumeResumableSseOutcome | null => {
     if (input.consumerSignal?.aborted) {
       return { type: "consumer-gone" };
