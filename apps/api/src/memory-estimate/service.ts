@@ -11,6 +11,8 @@ import {
   parseCudaVisibleDevices,
   parseDeviceTokens,
   splitCsvItems,
+  DRAFT_MODEL_ARG_KEYS,
+  MMPROJ_ARG_KEYS,
   MemoryEstimateSchema,
   VLLM_TENSOR_PARALLEL_KEYS,
   type CudaVisibleDevices,
@@ -200,7 +202,7 @@ function resolveMemoryEstimateContext(
 
 function resolveExistingPath(
   args: MemoryEstimateArgs,
-  keys: string[],
+  keys: readonly string[],
 ): string | null {
   for (const key of keys) {
     const value = args[key];
@@ -357,13 +359,6 @@ function hasArg(args: MemoryEstimateArgs, key: string): boolean {
   return argRaw(args, [key]) !== undefined;
 }
 
-export const MMPROJ_ARG_KEYS = ["--mmproj", "-mm"];
-export const DRAFT_MODEL_ARG_KEYS = [
-  "--spec-draft-model",
-  "-md",
-  "--model-draft",
-];
-
 function configuredKey(
   args: MemoryEstimateArgs,
   keys: readonly string[],
@@ -453,29 +448,26 @@ export async function estimateMemory(
   if ("error" in context) {
     return { ok: false, reason: context.error };
   }
-  const { kind, env } = context;
-  const invalidRawBoolean =
-    kind === "llama-server"
-      ? invalidFlagStyleBooleanArgument(context.args)
-      : null;
+  return ENGINE_ESTIMATORS[engineDescriptor(context.kind).estimator](
+    context,
+    context.args,
+  );
+}
+
+async function estimateGgufMemory(
+  context: MemoryEstimateContext,
+  rawArgs: MemoryEstimateArgs,
+): Promise<MemoryEstimateResolution> {
+  const { env, rpcWorkers } = context;
+
+  const invalidRawBoolean = invalidFlagStyleBooleanArgument(rawArgs);
   if (invalidRawBoolean) {
     return {
       ok: false,
       reason: `${invalidRawBoolean} is a flag-style boolean in the current llama-server. Arriero's argv launcher accepts true (emit the selected alias) or false (omit it); use the negative alias to disable it.`,
     };
   }
-  const args =
-    kind === "llama-server"
-      ? resolveLlamaArgumentEnvironment(context.args, env)
-      : context.args;
-  return ENGINE_ESTIMATORS[engineDescriptor(kind).estimator](context, args);
-}
-
-async function estimateGgufMemory(
-  context: MemoryEstimateContext,
-  args: MemoryEstimateArgs,
-): Promise<MemoryEstimateResolution> {
-  const { env, rpcWorkers } = context;
+  const args = resolveLlamaArgumentEnvironment(rawArgs, env);
 
   const removedArgument = REMOVED_LLAMA_ARGUMENT_GROUPS.map((keys) =>
     configuredKey(args, keys),

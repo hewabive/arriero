@@ -488,6 +488,12 @@ function visibleGpuPools(
     : allGpu;
 }
 
+function resourceProfile(
+  input: Omit<InstanceResourceProfile, "usesHost">,
+): InstanceResourceProfile {
+  return { ...input, usesHost: input.cpuReason !== null };
+}
+
 function declaredGpuPools(
   context: ResourceProfileContext,
 ): InstanceResourceGpuPool[] {
@@ -502,24 +508,22 @@ function declaredDrawsProfile(
 ): InstanceResourceProfile | null {
   const { baseSignals, gpuDraws, hostDraw } = context;
   if (gpuDraws.length > 0) {
-    return {
+    return resourceProfile({
       placement: hostDraw ? "hybrid" : "gpu",
       gpuPools: declaredGpuPools(context),
-      usesHost: hostDraw,
       cpuReason: hostDraw ? "Host memory draw declared" : null,
       confidence: "declared",
       signals: { ...baseSignals, source: "declared-draws" },
-    };
+    });
   }
   if (hostDraw) {
-    return {
+    return resourceProfile({
       placement: "cpu",
       gpuPools: [],
-      usesHost: true,
       cpuReason: "Host-only memory draw declared",
       confidence: "declared",
       signals: { ...baseSignals, source: "declared-draws" },
-    };
+    });
   }
   return null;
 }
@@ -540,10 +544,9 @@ function deriveKtransformersHybridProfile(
     deviceTokens,
     allGpu,
   ).slice(0, tensorParallel);
-  return {
+  return resourceProfile({
     placement: "hybrid",
     gpuPools: gpuDraws.length > 0 ? declaredGpuPools(context) : selected,
-    usesHost: true,
     cpuReason: "KTransformers keeps expert weights and CPU workers on host",
     confidence: gpuDraws.length > 0 && hostDraw ? "declared" : "args",
     signals: {
@@ -555,7 +558,7 @@ function deriveKtransformersHybridProfile(
             ? "cuda-visible-devices"
             : "device-arg",
     },
-  };
+  });
 }
 
 function deriveRpcDeviceArgsProfile(
@@ -567,7 +570,7 @@ function deriveRpcDeviceArgsProfile(
     const visible = allGpu.filter(
       (pool) => pool.deviceRef !== null && cudaIndices.includes(pool.deviceRef),
     );
-    return {
+    return resourceProfile({
       placement: "gpu",
       gpuPools: gpuEntries(
         visible,
@@ -575,30 +578,27 @@ function deriveRpcDeviceArgsProfile(
         deviceTokens,
         allGpu,
       ),
-      usesHost: false,
       cpuReason: null,
       confidence: "args",
       signals: { ...baseSignals, source: "device-arg" },
-    };
+    });
   }
   if (deviceTokens.some((token) => token.toLowerCase() === "cpu")) {
-    return {
+    return resourceProfile({
       placement: "cpu",
       gpuPools: [],
-      usesHost: true,
       cpuReason: "RPC worker on CPU backend",
       confidence: "args",
       signals: { ...baseSignals, source: "device-arg" },
-    };
+    });
   }
-  return {
+  return resourceProfile({
     placement: "unknown",
     gpuPools: [],
-    usesHost: false,
     cpuReason: null,
     confidence: "none",
     signals: { ...baseSignals, source: "none" },
-  };
+  });
 }
 
 function pythonGpuArgsProfileDeriver(
@@ -611,10 +611,9 @@ function pythonGpuArgsProfileDeriver(
       cuda.mode === "none" ||
       deviceTokens.some((token) => token.toLowerCase() === "cpu");
     if (cpu) {
-      return {
+      return resourceProfile({
         placement: "cpu",
         gpuPools: [],
-        usesHost: true,
         cpuReason:
           cuda.mode === "none"
             ? "GPU disabled (CUDA_VISIBLE_DEVICES)"
@@ -624,14 +623,14 @@ function pythonGpuArgsProfileDeriver(
           ...baseSignals,
           source: cuda.mode === "none" ? "cuda-visible-devices" : "device-arg",
         },
-      };
+      });
     }
     const visible = visibleGpuPools(allGpu, cuda);
     const tensorParallel = Math.max(
       1,
       Math.floor(argNumber(input.args, tensorParallelKeys) ?? 1),
     );
-    return {
+    return resourceProfile({
       placement: "gpu",
       gpuPools: gpuEntries(
         visible.slice(0, tensorParallel),
@@ -639,14 +638,13 @@ function pythonGpuArgsProfileDeriver(
         deviceTokens,
         allGpu,
       ).slice(0, tensorParallel),
-      usesHost: false,
       cpuReason: null,
       confidence: "args",
       signals: {
         ...baseSignals,
         source: cuda.mode === "list" ? "cuda-visible-devices" : "device-arg",
       },
-    };
+    });
   };
 }
 
@@ -702,14 +700,13 @@ function deriveLlamaArgsProfile(
   } = context;
 
   if (cuda.mode === "none") {
-    return {
+    return resourceProfile({
       placement: "cpu",
       gpuPools: [],
-      usesHost: true,
       cpuReason: "GPU disabled (CUDA_VISIBLE_DEVICES)",
       confidence: blockCount !== null ? "args+model" : "args",
       signals: { ...baseSignals, source: "cuda-visible-devices" },
-    };
+    });
   }
 
   const offloads =
@@ -720,17 +717,16 @@ function deriveLlamaArgsProfile(
       gpuRequest.kind === "count"
         ? "No GPU offload (-ngl 0)"
         : "No GPU offload configured";
-    return {
+    return resourceProfile({
       placement: "cpu",
       gpuPools: [],
-      usesHost: true,
       cpuReason,
       confidence: blockCount !== null ? "args+model" : "args",
       signals: {
         ...baseSignals,
         source: gpuRequest.kind === "none" ? "none" : "n-gpu-layers",
       },
-    };
+    });
   }
 
   const cudaIndices = cudaTokenIndices(deviceTokens);
@@ -767,54 +763,31 @@ function deriveLlamaArgsProfile(
     const fullOffload = gpuLayers >= layerAll;
     const expertHostLayers = expertOffloadLayerCount(input.args, layerAll);
     const moeOnHost = (modelHasMoe ?? false) && expertHostLayers > 0;
-    let placement: InstanceResourcePlacement;
-    let usesHost: boolean;
-    let cpuReason: string | null;
-    if (fullOffload && !moeOnHost) {
-      placement = "gpu";
-      usesHost = false;
-      cpuReason = null;
-    } else if (fullOffload && moeOnHost) {
-      placement = "hybrid";
-      usesHost = true;
-      cpuReason = "MoE experts on host (--cpu-moe)";
-    } else {
-      placement = "hybrid";
-      usesHost = true;
-      cpuReason = `${layerAll - gpuLayers} of ${layerAll} layers on host`;
-    }
-    return {
-      placement,
+    const cpuReason = fullOffload
+      ? moeOnHost
+        ? "MoE experts on host (--cpu-moe)"
+        : null
+      : `${layerAll - gpuLayers} of ${layerAll} layers on host`;
+    return resourceProfile({
+      placement: cpuReason === null ? "gpu" : "hybrid",
       gpuPools: entries,
-      usesHost,
       cpuReason,
       confidence: "args+model",
       signals: { ...baseSignals, source, nGpuLayersCoversModel: fullOffload },
-    };
+    });
   }
 
-  let placement: InstanceResourcePlacement;
-  let usesHost: boolean;
-  let cpuReason: string | null;
-  if (cpuMoe !== null) {
-    placement = "hybrid";
-    usesHost = true;
-    cpuReason = "MoE experts on host (--cpu-moe)";
-  } else if (gpuRequest.kind === "all") {
-    placement = "gpu";
-    usesHost = false;
-    cpuReason = null;
-  } else {
-    placement = "hybrid";
-    usesHost = true;
-    cpuReason = "Partial GPU offload (model layers unknown)";
-  }
-  return {
-    placement,
+  const cpuReason =
+    cpuMoe !== null
+      ? "MoE experts on host (--cpu-moe)"
+      : gpuRequest.kind === "all"
+        ? null
+        : "Partial GPU offload (model layers unknown)";
+  return resourceProfile({
+    placement: cpuReason === null ? "gpu" : "hybrid",
     gpuPools: entries,
-    usesHost,
     cpuReason,
     confidence: "args",
     signals: { ...baseSignals, source },
-  };
+  });
 }

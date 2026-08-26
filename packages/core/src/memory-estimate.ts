@@ -327,6 +327,31 @@ type Placement = {
   accelerationDisabled: boolean;
 };
 
+function deviceForWeightTensor(
+  name: string,
+  placement: Placement,
+  layerAll: number,
+): string {
+  const layer = tensorLayerIndex(name);
+  if (INPUT_TENSOR_PATTERN.test(name)) {
+    return placement.hostPoolId;
+  }
+  if (
+    layer !== null &&
+    EXPERT_PATTERN.test(name) &&
+    layer < placement.expertHostLayers
+  ) {
+    return placement.hostPoolId;
+  }
+  if (layer !== null) {
+    return placement.layerDevice(layer);
+  }
+  if (OUTPUT_TENSOR_PATTERN.test(name)) {
+    return placement.layerDevice(layerAll - 1);
+  }
+  return placement.hostPoolId;
+}
+
 function buildPlacement(
   input: MemoryEstimateInput,
   context: ResolvedContextParams,
@@ -534,30 +559,11 @@ function accumulateModel(
   const placement = buildPlacement(model, context);
   const layerAll = (model.hparams.blockCount ?? 0) + 1;
 
-  const weightDevice = (tensor: GgufTensorInfo): string => {
-    const layer = tensorLayerIndex(tensor.name);
-    if (INPUT_TENSOR_PATTERN.test(tensor.name)) {
-      return placement.hostPoolId;
-    }
-    if (
-      layer !== null &&
-      EXPERT_PATTERN.test(tensor.name) &&
-      layer < placement.expertHostLayers
-    ) {
-      return placement.hostPoolId;
-    }
-    if (layer !== null) {
-      return placement.layerDevice(layer);
-    }
-    if (OUTPUT_TENSOR_PATTERN.test(tensor.name)) {
-      return placement.layerDevice(layerAll - 1);
-    }
-    return placement.hostPoolId;
-  };
-
   let weightsBytes = 0;
   for (const tensor of model.tensors.tensors) {
-    ensure(weightDevice(tensor)).weightsBytes += tensor.bytes;
+    ensure(
+      deviceForWeightTensor(tensor.name, placement, layerAll),
+    ).weightsBytes += tensor.bytes;
     weightsBytes += tensor.bytes;
   }
 
@@ -706,6 +712,10 @@ export function estimateInstanceMemory(
   const { context, placement, kv } = main;
   const usesMtp = hasSpeculativeType(input.args, "draft-mtp");
   let estimateIncomplete = false;
+  const incomplete = (message: string) => {
+    estimateIncomplete = true;
+    warnings.push(message);
+  };
 
   const mtpHparams =
     input.draft && (input.draft.hparams.nextnPredictLayers ?? 0) > 0
@@ -713,8 +723,7 @@ export function estimateInstanceMemory(
       : input.hparams;
   const mtpArchitecture = mtpHparams.architecture?.toLowerCase() ?? "";
   if (usesMtp && UNQUALIFIED_MTP_ARCHITECTURES.has(mtpArchitecture)) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       `${mtpArchitecture} uses a family-specific MTP graph/cache layout; ordinary NextN weights and KV are included, but its complete MTP compute reservation is not hardware-qualified.`,
     );
   }
@@ -732,14 +741,12 @@ export function estimateInstanceMemory(
     fitEnabled &&
     argRaw(input.args, ["--ctx-size", "-c", "--context-size"]) === undefined
   ) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "--fit is enabled with an unset context size, so current free memory can reduce the model-default context at startup; set --ctx-size explicitly or use --fit off for a reproducible footprint.",
     );
   }
   if (gpuPools.length > 0 && gpuLayersAuto && fitEnabled) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "--fit is enabled with automatic GPU layers, so current free device memory can reduce GPU layers or move MoE tensors at startup; set --fit off and the placement arguments explicitly for an assessable footprint.",
     );
   }
@@ -749,14 +756,12 @@ export function estimateInstanceMemory(
     splitMode !== "none" &&
     argRaw(input.args, ["--tensor-split", "-ts"]) === undefined
   ) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "Multiple GPUs are selected without --tensor-split; current llama.cpp divides layers in proportion to free device memory, while the estimate cannot know that startup-time split.",
     );
   }
   if (gpuPools.length > 1 && placement.usesGpu && splitMode === "layer") {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "Multi-GPU layer placement for weights and KV is modeled, but llama.cpp scheduler scratch and pipeline-parallel buffers are backend-dependent across devices; per-pool compute memory is incomplete.",
     );
   }
@@ -770,29 +775,25 @@ export function estimateInstanceMemory(
     flashAttnIsAuto(input.args) &&
     !flashModeForcedByArgs
   ) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "--flash-attn is auto, so current llama.cpp probes the actual backend graph and may enable or disable Flash Attention at startup; use an explicit on/off mode for reproducible compute placement and buffer sizes.",
     );
   }
 
   const sleepIdleSeconds = argNumber(input.args, ["--sleep-idle-seconds"]);
   if (sleepIdleSeconds !== null && sleepIdleSeconds > 0) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "--sleep-idle-seconds unloads the model, contexts, draft, and multimodal projector while idle; the displayed footprint describes the awake state, not the sleeping state.",
     );
   }
 
   if (argRaw(input.args, ["--override-kv"]) !== undefined) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "--override-kv can replace memory-defining model metadata after GGUF inspection; the resulting geometry is not modeled.",
     );
   }
   if (argFlag(input.args, ["--no-host"]) === true) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "--no-host changes the backend buffer types used for host tensors; their placement and repacked size are not modeled.",
     );
   }
@@ -803,8 +804,7 @@ export function estimateInstanceMemory(
     true,
   );
   if (repackDisabled) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "Weight repacking is disabled, but the estimator does not model backend-specific original-versus-repacked buffer sizes.",
     );
   }
@@ -827,18 +827,15 @@ export function estimateInstanceMemory(
 
   const architecture = input.hparams.architecture?.toLowerCase() ?? "";
   if (architecture === "minimax-m3") {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "MiniMax M3 uses an MSA indexer-key cache in addition to attention KV; the indexer cache is not modeled.",
     );
   } else if (architecture === "glm-dsa" || architecture === "deepseek32") {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "This architecture uses a DSA indexer cache in addition to MLA KV; the indexer cache is not modeled.",
     );
   } else if (architecture === "deepseek4") {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "DeepSeek V4 uses a dedicated DSV4 memory implementation; its indexer and recurrent/checkpoint state are not modeled.",
     );
   }
@@ -864,8 +861,7 @@ export function estimateInstanceMemory(
     );
   }
   if (hasSpeculativeType(input.args, "ngram-cache")) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "ngram-cache lookup maps are loaded and updated from request history/files; their dynamic host memory is not statically bounded by the model or launch arguments.",
     );
   }
@@ -882,14 +878,12 @@ export function estimateInstanceMemory(
   }
 
   if (splitModeRaw && !["layer", "none"].includes(splitMode)) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       `--split-mode ${splitModeRaw} is configured, but its per-row/per-tensor backend placement is not modeled; per-pool placement is incomplete.`,
     );
   }
   if (argRaw(input.args, ["--override-tensor", "-ot"]) !== undefined) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "--override-tensor can change individual tensor backends; those placement overrides are not modeled.",
     );
   }
@@ -897,8 +891,7 @@ export function estimateInstanceMemory(
     (input.rpcWorkerCount ?? 0) > 0 ||
     argRaw(input.args, ["--rpc"]) !== undefined
   ) {
-    estimateIncomplete = true;
-    warnings.push(
+    incomplete(
       "RPC devices are configured, but remote tensor placement, remote device overhead, and client-side staging are not modeled; the displayed pool draws cover local pools only.",
     );
   }
@@ -937,8 +930,7 @@ export function estimateInstanceMemory(
       draftGpuLayersDefault,
     );
     if (gpuPools.length > 0 && draftGpuLayersAuto && fitEnabled) {
-      estimateIncomplete = true;
-      warnings.push(
+      incomplete(
         "--fit is enabled with automatic draft GPU layers, so current free device memory can change draft placement at startup; set --spec-draft-ngl explicitly or use --fit off.",
       );
     }
@@ -984,8 +976,7 @@ export function estimateInstanceMemory(
         "Gemma 4 assistant reuses the target context's global/SWA KV layers; no duplicate persistent KV buffer is added.",
       );
     } else if (usesMtp && !draftIsMtp) {
-      estimateIncomplete = true;
-      warnings.push(
+      incomplete(
         "draft-mtp is configured, but the draft GGUF has no nextn_predict_layers metadata; its context was treated as an ordinary draft model.",
       );
     }
@@ -996,8 +987,7 @@ export function estimateInstanceMemory(
       );
     }
     if (hasSpeculativeType(input.args, "draft-eagle3")) {
-      estimateIncomplete = true;
-      warnings.push(
+      incomplete(
         "Eagle3 extracted-target-feature, verification-state, and speculative sampler buffers are not modeled; draft weights/KV/ordinary compute alone are incomplete.",
       );
     }
@@ -1010,8 +1000,7 @@ export function estimateInstanceMemory(
       argRaw(input.args, ["--spec-draft-device", "-devd", "--device-draft"]) !==
       undefined
     ) {
-      estimateIncomplete = true;
-      warnings.push(
+      incomplete(
         "A separate draft device list is configured, but draft placement currently reuses the target model's device pools.",
       );
     }
@@ -1022,8 +1011,7 @@ export function estimateInstanceMemory(
         "--override-tensor-draft",
       ]) !== undefined
     ) {
-      estimateIncomplete = true;
-      warnings.push(
+      incomplete(
         "Draft tensor backend overrides are configured but not modeled.",
       );
     }
@@ -1033,8 +1021,7 @@ export function estimateInstanceMemory(
   if (usesMtp && !input.draft) {
     const nextnLayers = input.hparams.nextnPredictLayers ?? 0;
     if (nextnLayers <= 0) {
-      estimateIncomplete = true;
-      warnings.push(
+      incomplete(
         "draft-mtp is configured without a separate draft model, but the target GGUF has no MTP layers (nextn_predict_layers); llama.cpp will reject this context.",
       );
     } else {
@@ -1086,8 +1073,7 @@ export function estimateInstanceMemory(
         warnings.push(`MTP context: ${warning}`);
       }
       if (mtpKv.kvLayerCount === 0) {
-        estimateIncomplete = true;
-        warnings.push(
+        incomplete(
           "MTP layers were declared but their attention KV geometry was not found; the built-in MTP estimate is incomplete.",
         );
       }
@@ -1097,30 +1083,15 @@ export function estimateInstanceMemory(
   let loraBytesTotal = 0;
   if (input.loras && input.loras.length > 0) {
     const layerAll = (input.hparams.blockCount ?? 0) + 1;
-    const loraDevice = (tensor: GgufTensorInfo): string => {
-      const baseName = tensor.name.replace(/\.lora_[ab]$/, "");
-      const layer = tensorLayerIndex(baseName);
-      if (INPUT_TENSOR_PATTERN.test(baseName)) {
-        return placement.hostPoolId;
-      }
-      if (
-        layer !== null &&
-        EXPERT_PATTERN.test(baseName) &&
-        layer < placement.expertHostLayers
-      ) {
-        return placement.hostPoolId;
-      }
-      if (layer !== null) {
-        return placement.layerDevice(layer);
-      }
-      if (OUTPUT_TENSOR_PATTERN.test(baseName)) {
-        return placement.layerDevice(layerAll - 1);
-      }
-      return placement.hostPoolId;
-    };
     for (const lora of input.loras) {
       for (const tensor of lora.tensors.tensors) {
-        ensure(loraDevice(tensor)).weightsBytes += tensor.bytes;
+        ensure(
+          deviceForWeightTensor(
+            tensor.name.replace(/\.lora_[ab]$/, ""),
+            placement,
+            layerAll,
+          ),
+        ).weightsBytes += tensor.bytes;
         loraBytesTotal += tensor.bytes;
       }
     }
@@ -1391,6 +1362,23 @@ function recurrentStateBytesPerLayer(
   return (nEmbdR + nEmbdS) * F32_BYTES * nSeqMax;
 }
 
+function emptyKvEstimate(overrides: Partial<KvEstimate> = {}): KvEstimate {
+  return {
+    bytesByLayer: new Map(),
+    totalBytes: 0,
+    kvLayerCount: 0,
+    recurrentLayerCount: 0,
+    recurrentBytes: 0,
+    recurrentModeled: false,
+    mla: false,
+    mlaModeled: false,
+    swa: false,
+    recurrent: false,
+    cacheless: false,
+    ...overrides,
+  };
+}
+
 function estimateKvCache(
   input: MemoryEstimateInput,
   context: ResolvedContextParams,
@@ -1398,19 +1386,10 @@ function estimateKvCache(
   contextLayerMode: ContextLayerMode = "main",
 ): KvEstimate {
   if (contextLayerMode === "shared-target-kv") {
-    return {
-      bytesByLayer: new Map(),
-      totalBytes: 0,
-      kvLayerCount: 0,
-      recurrentLayerCount: 0,
-      recurrentBytes: 0,
-      recurrentModeled: false,
-      mla: false,
+    return emptyKvEstimate({
       mlaModeled: true,
       swa: input.hparams.slidingWindow !== null,
-      recurrent: false,
-      cacheless: false,
-    };
+    });
   }
   if (isCachelessModel(input)) {
     warnings.push(
@@ -1418,19 +1397,7 @@ function estimateKvCache(
         ? "Cacheless diffusion decoder: llama.cpp allocates no persistent KV cache, but its vocabulary-logits and activation buffers are included."
         : "Non-causal encoder/classifier: llama.cpp allocates no persistent KV cache; compute is estimated from the activation width.",
     );
-    return {
-      bytesByLayer: new Map(),
-      totalBytes: 0,
-      kvLayerCount: 0,
-      recurrentLayerCount: 0,
-      recurrentBytes: 0,
-      recurrentModeled: false,
-      mla: false,
-      mlaModeled: false,
-      swa: false,
-      recurrent: false,
-      cacheless: true,
-    };
+    return emptyKvEstimate({ cacheless: true });
   }
 
   const kBy = new Map<number, number>();
