@@ -32,6 +32,7 @@ import {
   startBenchmarkRun,
   waitForBenchmarkRun,
 } from "../benchmark/runner.js";
+import { parseJsonBody } from "./validation.js";
 
 const RunListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -64,24 +65,18 @@ export function registerBenchmarkRoutes(app: Hono) {
   });
 
   app.post("/api/benchmark/prompts", async (c) => {
-    const parsed = BenchmarkPromptCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, BenchmarkPromptCreateSchema);
     try {
-      return c.json({ data: createBenchmarkPrompt(parsed.data) }, 201);
+      return c.json({ data: createBenchmarkPrompt(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, errorStatus(error));
     }
   });
 
   app.put("/api/benchmark/prompts/:id", async (c) => {
-    const parsed = BenchmarkPromptUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, BenchmarkPromptUpdateSchema);
     try {
-      const updated = updateBenchmarkPrompt(c.req.param("id"), parsed.data);
+      const updated = updateBenchmarkPrompt(c.req.param("id"), body);
       if (!updated) {
         return c.json({ error: "benchmark prompt not found" }, 404);
       }
@@ -117,12 +112,9 @@ export function registerBenchmarkRoutes(app: Hono) {
   });
 
   app.post("/api/benchmark/runs", async (c) => {
-    const parsed = BenchmarkScenarioSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, BenchmarkScenarioSchema);
     try {
-      return c.json({ data: startBenchmarkRun(parsed.data) }, 201);
+      return c.json({ data: startBenchmarkRun(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, errorStatus(error));
     }

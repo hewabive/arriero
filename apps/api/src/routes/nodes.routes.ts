@@ -20,6 +20,7 @@ import { fleetResources, fleetSystem } from "../nodes/fleet.js";
 import { localFederationCapabilities } from "../nodes/capabilities.js";
 import { forwardToNode } from "../nodes/remote.js";
 import { listRpcWorkerCandidates } from "../nodes/rpc-worker-catalog.js";
+import { parseJsonBody } from "./validation.js";
 
 function toView(node: FleetNode): FleetNodeView {
   return {
@@ -56,15 +57,12 @@ export function registerNodeRoutes(app: Hono) {
   });
 
   app.put("/api/fleet/self", async (c) => {
-    const parsed = FleetSelfUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    if (parsed.data.nodeId && !getNode(parsed.data.nodeId)) {
+    const body = await parseJsonBody(c, FleetSelfUpdateSchema);
+    if (body.nodeId && !getNode(body.nodeId)) {
       return c.json({ error: "node not found" }, 404);
     }
-    updateMachineState({ selfNodeId: parsed.data.nodeId });
-    return c.json({ data: { selfNodeId: parsed.data.nodeId } });
+    updateMachineState({ selfNodeId: body.nodeId });
+    return c.json({ data: { selfNodeId: body.nodeId } });
   });
 
   app.get("/api/nodes", (c) => {
@@ -72,19 +70,13 @@ export function registerNodeRoutes(app: Hono) {
   });
 
   app.post("/api/nodes", async (c) => {
-    const parsed = FleetNodeCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: toView(createNode(parsed.data)) }, 201);
+    const body = await parseJsonBody(c, FleetNodeCreateSchema);
+    return c.json({ data: toView(createNode(body)) }, 201);
   });
 
   app.patch("/api/nodes/:id", async (c) => {
-    const parsed = FleetNodeUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const node = updateNode(c.req.param("id"), parsed.data);
+    const body = await parseJsonBody(c, FleetNodeUpdateSchema);
+    const node = updateNode(c.req.param("id"), body);
     if (!node) {
       return c.json({ error: "node not found" }, 404);
     }

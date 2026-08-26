@@ -20,6 +20,7 @@ import {
   listEnvironments,
   rebuildEnvironment,
 } from "../envs/service.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerEnvironmentRoutes(app: Hono) {
   app.get("/api/environments", (c) => c.json({ data: listEnvironments() }));
@@ -29,12 +30,7 @@ export function registerEnvironmentRoutes(app: Hono) {
   );
 
   app.put("/api/environments/settings", async (c) => {
-    const parsed = EnvironmentRepositorySettingsSchema.safeParse(
-      await c.req.json(),
-    );
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, EnvironmentRepositorySettingsSchema);
     if (environmentRunner.activeEnvironmentId()) {
       return c.json(
         {
@@ -44,14 +40,13 @@ export function registerEnvironmentRoutes(app: Hono) {
         409,
       );
     }
-    return c.json({ data: saveEnvironmentRepositorySettings(parsed.data) });
+    return c.json({ data: saveEnvironmentRepositorySettings(body) });
   });
 
   app.post("/api/environments", async (c) => {
-    const parsed = EnvironmentCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+    const body = await parseJsonBody(c, EnvironmentCreateSchema);
     try {
-      return c.json({ data: createEnvironment(parsed.data) }, 201);
+      return c.json({ data: createEnvironment(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }

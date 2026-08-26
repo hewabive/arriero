@@ -5,6 +5,7 @@ import {
   getPackageRegistriesSettings,
   savePackageRegistriesSettings,
 } from "../settings/registries.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerRegistryRoutes(app: Hono) {
   app.get("/api/registries", (c) =>
@@ -12,12 +13,7 @@ export function registerRegistryRoutes(app: Hono) {
   );
 
   app.put("/api/registries", async (c) => {
-    const parsed = PackageRegistriesSettingsSchema.safeParse(
-      await c.req.json(),
-    );
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: savePackageRegistriesSettings(parsed.data) });
+    const body = await parseJsonBody(c, PackageRegistriesSettingsSchema);
+    return c.json({ data: savePackageRegistriesSettings(body) });
   });
 }

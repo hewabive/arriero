@@ -8,6 +8,7 @@ import {
   readPreset,
   writePreset,
 } from "../presets/repository.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerPresetRoutes(app: Hono) {
   app.get("/api/presets", (c) => {
@@ -15,11 +16,8 @@ export function registerPresetRoutes(app: Hono) {
   });
 
   app.post("/api/presets", async (c) => {
-    const parsed = ModelPresetCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const result = createPreset(parsed.data);
+    const body = await parseJsonBody(c, ModelPresetCreateSchema);
+    const result = createPreset(body);
     if (result.kind === "exists") {
       return c.json({ error: "preset already exists" }, 409);
     }
@@ -35,11 +33,8 @@ export function registerPresetRoutes(app: Hono) {
   });
 
   app.put("/api/presets/:name", async (c) => {
-    const parsed = ModelPresetWriteSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const result = writePreset(c.req.param("name"), parsed.data);
+    const body = await parseJsonBody(c, ModelPresetWriteSchema);
+    const result = writePreset(c.req.param("name"), body);
     if (result.kind === "not-found") {
       return c.json({ error: "preset not found" }, 404);
     }

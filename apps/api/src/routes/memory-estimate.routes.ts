@@ -3,14 +3,12 @@ import type { Hono } from "hono";
 
 import { createMemoryAssessment } from "../memory-assessment/service.js";
 import { estimateMemory } from "../memory-estimate/service.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerMemoryEstimateRoutes(app: Hono) {
   app.post("/api/memory-estimate", async (c) => {
-    const parsed = MemoryEstimateRequestSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const result = await estimateMemory(parsed.data);
+    const body = await parseJsonBody(c, MemoryEstimateRequestSchema);
+    const result = await estimateMemory(body);
     if (!result.ok) {
       return c.json({ error: result.reason }, 422);
     }

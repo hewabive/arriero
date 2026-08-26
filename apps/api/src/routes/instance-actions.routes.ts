@@ -23,6 +23,7 @@ import {
 } from "../process/managed-lifecycle.js";
 import { supervisor } from "../process/supervisor.js";
 import { formatGib } from "../utils/format.js";
+import { parseJsonBody } from "./validation.js";
 
 function formatAdmissionError(admission: ResourceAdmission): string {
   const parts = admission.shortfalls.map(
@@ -34,14 +35,9 @@ function formatAdmissionError(admission: ResourceAdmission): string {
 
 export function registerInstanceActionRoutes(app: Hono) {
   app.post("/api/instances/actions", async (c) => {
-    const parsed = InstanceBulkActionRequestSchema.safeParse(
-      await c.req.json(),
-    );
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, InstanceBulkActionRequestSchema);
 
-    const { action, instanceIds } = parsed.data;
+    const { action, instanceIds } = body;
     const allInstances = listInstances();
     const instancesById = new Map(
       allInstances.map((instance) => [instance.name, instance]),

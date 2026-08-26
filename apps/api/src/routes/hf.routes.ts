@@ -53,6 +53,7 @@ import {
   getHfDownloadSettings,
   saveHfDownloadSettings,
 } from "../settings/downloads.js";
+import { parseJsonBody } from "./validation.js";
 
 const HF_ERROR_STATUS: Record<HfErrorKind, 403 | 404 | 429 | 502> = {
   unauthorized: 403,
@@ -92,11 +93,8 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.put("/api/hf/token", async (c) => {
-    const parsed = HfTokenUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    setHfToken(parsed.data.token);
+    const body = await parseJsonBody(c, HfTokenUpdateSchema);
+    setHfToken(body.token);
     return c.json({ data: { tokenConfigured: hfTokenConfigured() } });
   });
 
@@ -146,12 +144,9 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.post("/api/hf/downloads", async (c) => {
-    const parsed = HfDownloadStartSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, HfDownloadStartSchema);
     try {
-      const job = await enqueueHfDownload(parsed.data);
+      const job = await enqueueHfDownload(body);
       captureModelRequirement(job);
       return c.json({ data: job }, 201);
     } catch (error) {
@@ -164,11 +159,8 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.post("/api/hf/requirements", async (c) => {
-    const parsed = ModelRequirementCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: upsertModelRequirement(parsed.data) }, 201);
+    const body = await parseJsonBody(c, ModelRequirementCreateSchema);
+    return c.json({ data: upsertModelRequirement(body) }, 201);
   });
 
   app.delete("/api/hf/requirements/:id", (c) => {
@@ -177,25 +169,19 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.post("/api/hf/downloads/check", async (c) => {
-    const parsed = HfUpdateCheckRequestSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: await runHfUpdateChecks(parsed.data.dirs) });
+    const body = await parseJsonBody(c, HfUpdateCheckRequestSchema);
+    return c.json({ data: await runHfUpdateChecks(body.dirs) });
   });
 
   app.post("/api/hf/downloads/delete", async (c) => {
-    const parsed = HfDownloadDeleteSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const { dir, paths, verifyUpstream } = parsed.data;
+    const body = await parseJsonBody(c, HfDownloadDeleteSchema);
+    const { dir, paths, verifyUpstream } = body;
     try {
       if (verifyUpstream) {
         await verifyHfDownloadRedownloadable(dir, paths);
       }
       deleteHfDownload(dir, paths);
-      if (parsed.data.removeRequirement) {
+      if (body.removeRequirement) {
         removeModelRequirementForDeletedDownload(dir, paths ?? null);
       }
       return c.json({ data: { deleted: true } });
@@ -221,11 +207,8 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.put("/api/hf/download-settings", async (c) => {
-    const parsed = HfDownloadSettingsSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: saveHfDownloadSettings(parsed.data) });
+    const body = await parseJsonBody(c, HfDownloadSettingsSchema);
+    return c.json({ data: saveHfDownloadSettings(body) });
   });
 
   app.get("/api/hf/queue", (c) => {
@@ -233,11 +216,8 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.post("/api/hf/queue/reorder", async (c) => {
-    const parsed = HfDownloadQueueReorderSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return queueMutationResponse(c, reorderHfDownloadQueue(parsed.data.ids));
+    const body = await parseJsonBody(c, HfDownloadQueueReorderSchema);
+    return queueMutationResponse(c, reorderHfDownloadQueue(body.ids));
   });
 
   app.delete("/api/hf/queue/history", (c) => {
@@ -275,13 +255,10 @@ export function registerHfRoutes(app: Hono) {
   });
 
   app.post("/api/hf/queue/:id/files/skip", async (c) => {
-    const parsed = HfDownloadFileSkipSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, HfDownloadFileSkipSchema);
     return queueMutationResponse(
       c,
-      skipHfDownloadFiles(c.req.param("id"), parsed.data.paths),
+      skipHfDownloadFiles(c.req.param("id"), body.paths),
     );
   });
 }

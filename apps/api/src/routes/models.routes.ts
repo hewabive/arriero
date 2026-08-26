@@ -6,6 +6,7 @@ import {
   saveModelScanSettings,
 } from "../models/cache-repository.js";
 import { getModelScanView, startModelScan } from "../models/scan-runner.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerModelRoutes(app: Hono) {
   app.get("/api/models", (c) => {
@@ -27,10 +28,7 @@ export function registerModelRoutes(app: Hono) {
   });
 
   app.put("/api/model-scan-settings", async (c) => {
-    const parsed = ModelScanSettingsSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: saveModelScanSettings(parsed.data) });
+    const body = await parseJsonBody(c, ModelScanSettingsSchema);
+    return c.json({ data: saveModelScanSettings(body) });
   });
 }

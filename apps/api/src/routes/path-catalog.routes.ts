@@ -12,6 +12,7 @@ import {
   listPathCatalogEntries,
   updatePathCatalogEntry,
 } from "../path-catalog/repository.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerPathCatalogRoutes(app: Hono) {
   app.get("/api/path-catalog", (c) => {
@@ -27,24 +28,18 @@ export function registerPathCatalogRoutes(app: Hono) {
   });
 
   app.post("/api/path-catalog", async (c) => {
-    const parsed = PathCatalogCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, PathCatalogCreateSchema);
     try {
-      return c.json({ data: createPathCatalogEntry(parsed.data) }, 201);
+      return c.json({ data: createPathCatalogEntry(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.patch("/api/path-catalog/:id", async (c) => {
-    const parsed = PathCatalogUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, PathCatalogUpdateSchema);
     try {
-      const entry = updatePathCatalogEntry(c.req.param("id"), parsed.data);
+      const entry = updatePathCatalogEntry(c.req.param("id"), body);
       if (!entry) {
         return c.json({ error: "path catalog entry not found" }, 404);
       }

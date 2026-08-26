@@ -37,6 +37,7 @@ import {
   updateApiProxyPipeline,
   updateApiProxyTarget,
 } from "../proxy/repository.js";
+import { parseJsonBody } from "./validation.js";
 
 function validateApiProxyTargetRefs(input: {
   endpointId?: string | undefined;
@@ -135,34 +136,28 @@ function pipelineRefersToTarget(pipeline: ApiProxyPipelineRecord, id: string) {
 
 export function registerProxyTargetRoutes(app: Hono) {
   app.post("/api/proxy/models", async (c) => {
-    const parsed = ApiProxyModelCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateApiProxyModelRefs(parsed.data);
+    const body = await parseJsonBody(c, ApiProxyModelCreateSchema);
+    const refError = validateApiProxyModelRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
 
     try {
-      return c.json({ data: createApiProxyModel(parsed.data) }, 201);
+      return c.json({ data: createApiProxyModel(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.patch("/api/proxy/models/:id", async (c) => {
-    const parsed = ApiProxyModelUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateApiProxyModelRefs(parsed.data);
+    const body = await parseJsonBody(c, ApiProxyModelUpdateSchema);
+    const refError = validateApiProxyModelRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
 
     try {
-      const model = updateApiProxyModel(c.req.param("id"), parsed.data);
+      const model = updateApiProxyModel(c.req.param("id"), body);
       if (!model) {
         return c.json({ error: "proxy model not found" }, 404);
       }
@@ -182,42 +177,35 @@ export function registerProxyTargetRoutes(app: Hono) {
   });
 
   app.post("/api/proxy/pipelines", async (c) => {
-    const parsed = ApiProxyPipelineCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiProxyPipelineCreateSchema);
     const graphError = validateApiProxyPipelineGraphInput({
       id: null,
-      name: parsed.data.name,
-      entry: parsed.data.entry,
-      nodes: parsed.data.nodes,
+      name: body.name,
+      entry: body.entry,
+      nodes: body.nodes,
     });
     if (graphError) {
       return c.json({ error: graphError }, 400);
     }
 
     try {
-      return c.json({ data: createApiProxyPipeline(parsed.data) }, 201);
+      return c.json({ data: createApiProxyPipeline(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.patch("/api/proxy/pipelines/:id", async (c) => {
-    const parsed = ApiProxyPipelineUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiProxyPipelineUpdateSchema);
     const current = getApiProxyPipeline(c.req.param("id"));
     if (!current) {
       return c.json({ error: "proxy pipeline not found" }, 404);
     }
     const candidate = {
       id: current.id,
-      name: parsed.data.name ?? current.name,
-      entry:
-        parsed.data.entry !== undefined ? parsed.data.entry : current.entry,
-      nodes: parsed.data.nodes ?? current.nodes,
+      name: body.name ?? current.name,
+      entry: body.entry !== undefined ? body.entry : current.entry,
+      nodes: body.nodes ?? current.nodes,
     };
     const graphError = validateApiProxyPipelineGraphInput(candidate);
     if (graphError) {
@@ -233,7 +221,7 @@ export function registerProxyTargetRoutes(app: Hono) {
     }
 
     try {
-      const pipeline = updateApiProxyPipeline(current.id, parsed.data);
+      const pipeline = updateApiProxyPipeline(current.id, body);
       if (!pipeline) {
         return c.json({ error: "proxy pipeline not found" }, 404);
       }
@@ -265,61 +253,52 @@ export function registerProxyTargetRoutes(app: Hono) {
   });
 
   app.post("/api/proxy/quick-route", async (c) => {
-    const parsed = ApiProxyQuickRouteCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateApiProxyTargetRefs(parsed.data);
+    const body = await parseJsonBody(c, ApiProxyQuickRouteCreateSchema);
+    const refError = validateApiProxyTargetRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
-    const modelError = validateApiProxyTargetModel(parsed.data);
+    const modelError = validateApiProxyTargetModel(body);
     if (modelError) {
       return c.json({ error: modelError }, 400);
     }
 
     try {
-      return c.json({ data: createApiProxyQuickRoute(parsed.data) }, 201);
+      return c.json({ data: createApiProxyQuickRoute(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.post("/api/proxy/targets", async (c) => {
-    const parsed = ApiProxyTargetCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateApiProxyTargetRefs(parsed.data);
+    const body = await parseJsonBody(c, ApiProxyTargetCreateSchema);
+    const refError = validateApiProxyTargetRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
-    const modelError = validateApiProxyTargetModel(parsed.data);
+    const modelError = validateApiProxyTargetModel(body);
     if (modelError) {
       return c.json({ error: modelError }, 400);
     }
 
     try {
-      return c.json({ data: createApiProxyTarget(parsed.data) }, 201);
+      return c.json({ data: createApiProxyTarget(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.patch("/api/proxy/targets/:id", async (c) => {
-    const parsed = ApiProxyTargetUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateApiProxyTargetRefs(parsed.data);
+    const body = await parseJsonBody(c, ApiProxyTargetUpdateSchema);
+    const refError = validateApiProxyTargetRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
-    if ("model" in parsed.data) {
+    if ("model" in body) {
       const existing = getApiProxyTarget(c.req.param("id"));
       const modelError = validateApiProxyTargetModel({
-        endpointId: parsed.data.endpointId ?? existing?.endpointId,
-        model: parsed.data.model,
+        endpointId: body.endpointId ?? existing?.endpointId,
+        model: body.model,
       });
       if (modelError) {
         return c.json({ error: modelError }, 400);
@@ -327,7 +306,7 @@ export function registerProxyTargetRoutes(app: Hono) {
     }
 
     try {
-      const target = updateApiProxyTarget(c.req.param("id"), parsed.data);
+      const target = updateApiProxyTarget(c.req.param("id"), body);
       if (!target) {
         return c.json({ error: "proxy target not found" }, 404);
       }

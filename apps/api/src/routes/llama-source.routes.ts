@@ -16,6 +16,7 @@ import { startSourceRepositoryPull } from "../sources/jobs.js";
 import { LLAMA_CPP_SOURCE_ID } from "../sources/registry.js";
 import { getLlamaSourceSyncReport } from "../llama/source-sync.js";
 import { sourceRepositoryFailure } from "./source-repositories.routes.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerLlamaSourceRoutes(app: Hono) {
   app.get("/api/llama-source/settings", (c) => {
@@ -23,12 +24,7 @@ export function registerLlamaSourceRoutes(app: Hono) {
   });
 
   app.put("/api/llama-source/settings", async (c) => {
-    const parsed = LlamaSourceSettingsUpdateSchema.safeParse(
-      await c.req.json(),
-    );
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, LlamaSourceSettingsUpdateSchema);
     if (buildRunner.isRunning()) {
       return c.json(
         {
@@ -38,7 +34,7 @@ export function registerLlamaSourceRoutes(app: Hono) {
       );
     }
     try {
-      return c.json({ data: saveLlamaSourceSettings(parsed.data) });
+      return c.json({ data: saveLlamaSourceSettings(body) });
     } catch (error) {
       const message = (error as Error).message;
       return c.json(
@@ -65,15 +61,12 @@ export function registerLlamaSourceRoutes(app: Hono) {
   });
 
   app.post("/api/llama-source/checkout", async (c) => {
-    const parsed = LlamaSourceCheckoutSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, LlamaSourceCheckoutSchema);
     if (buildRunner.isRunning()) {
       return c.json({ error: "cannot checkout while a build is running" }, 409);
     }
     try {
-      return c.json({ data: await checkoutLlamaSourceRef(parsed.data.ref) });
+      return c.json({ data: await checkoutLlamaSourceRef(body.ref) });
     } catch (error) {
       const message = (error as Error).message;
       return c.json(

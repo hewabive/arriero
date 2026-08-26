@@ -1,6 +1,7 @@
 import {
   ApiLabProbeProfileSchema,
   ApiLabProbeTargetRequestSchema,
+  isStreamingApiProbeKind,
   type ApiLabProbeProfile,
 } from "@arriero/core";
 import type { Hono } from "hono";
@@ -9,10 +10,7 @@ import {
   apiLabProbeTargetFromBaseUrl,
   requestApiLabProbeBaseUrl,
 } from "../api-lab/probe.js";
-import {
-  isStreamingProbeKind,
-  streamApiProbeTarget,
-} from "../api-lab/stream.js";
+import { streamApiProbeTarget } from "../api-lab/stream.js";
 import { listInstances } from "../instances/repository.js";
 import { requestJsonProbe } from "../instances/endpoint.js";
 import {
@@ -25,6 +23,7 @@ import {
   normalizeHttpBaseUrl,
   stripV1BaseUrl,
 } from "../proxy/targets.js";
+import { parseJsonBody } from "./validation.js";
 
 function normalizeApiLabBaseUrl(profile: ApiLabProbeProfile, value: string) {
   const baseUrl = normalizeHttpBaseUrl(value);
@@ -139,24 +138,21 @@ export function registerLabRoutes(app: Hono) {
   });
 
   app.post("/api/lab/probe", async (c) => {
-    const parsed = ApiLabProbeTargetRequestSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiLabProbeTargetRequestSchema);
 
     try {
-      const profile = parsed.data.profile;
+      const profile = body.profile;
       const target = resolveApiLabEndpoint({
         profile,
-        baseUrl: parsed.data.baseUrl,
-        endpointId: parsed.data.endpointId,
-        sourceId: parsed.data.sourceId,
-        apiKey: parsed.data.apiKey,
+        baseUrl: body.baseUrl,
+        endpointId: body.endpointId,
+        sourceId: body.sourceId,
+        apiKey: body.apiKey,
       });
       const data = await requestApiLabProbeBaseUrl(
         profile,
         target.baseUrl,
-        parsed.data.probe,
+        body.probe,
         target.headers,
       );
       return c.json({ data });
@@ -166,11 +162,8 @@ export function registerLabRoutes(app: Hono) {
   });
 
   app.post("/api/lab/probe/stream", async (c) => {
-    const parsed = ApiLabProbeTargetRequestSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    if (!isStreamingProbeKind(parsed.data.probe.kind)) {
+    const body = await parseJsonBody(c, ApiLabProbeTargetRequestSchema);
+    if (!isStreamingApiProbeKind(body.probe.kind)) {
       return c.json(
         { error: "streaming is only supported for generation probes" },
         400,
@@ -181,16 +174,16 @@ export function registerLabRoutes(app: Hono) {
     let target: ReturnType<typeof apiLabProbeTargetFromBaseUrl>;
     try {
       resolved = resolveApiLabEndpoint({
-        profile: parsed.data.profile,
-        baseUrl: parsed.data.baseUrl,
-        endpointId: parsed.data.endpointId,
-        sourceId: parsed.data.sourceId,
-        apiKey: parsed.data.apiKey,
+        profile: body.profile,
+        baseUrl: body.baseUrl,
+        endpointId: body.endpointId,
+        sourceId: body.sourceId,
+        apiKey: body.apiKey,
       });
       target = apiLabProbeTargetFromBaseUrl(
-        parsed.data.profile,
+        body.profile,
         resolved.baseUrl,
-        parsed.data.probe,
+        body.probe,
         {
           stream: true,
         },
@@ -200,7 +193,7 @@ export function registerLabRoutes(app: Hono) {
     }
 
     return streamApiProbeTarget(c, {
-      request: parsed.data.probe,
+      request: body.probe,
       headers: resolved.headers,
       target,
     });

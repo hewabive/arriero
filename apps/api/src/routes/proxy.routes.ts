@@ -46,6 +46,7 @@ import {
   listApiProxyTraces,
 } from "../proxy/traces-repository.js";
 import { buildApiProxyTargetModelCatalog } from "../proxy/target-models.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerProxyRoutes(app: Hono) {
   app.post("/api/proxy/serve", async (c) => {
@@ -144,11 +145,8 @@ export function registerProxyRoutes(app: Hono) {
   });
 
   app.patch("/api/proxy/settings", async (c) => {
-    const parsed = ApiProxySettingsUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: updateApiProxySettings(parsed.data) });
+    const body = await parseJsonBody(c, ApiProxySettingsUpdateSchema);
+    return c.json({ data: updateApiProxySettings(body) });
   });
 
   app.get("/api/proxy/sources", (c) => {
@@ -156,24 +154,18 @@ export function registerProxyRoutes(app: Hono) {
   });
 
   app.post("/api/proxy/sources", async (c) => {
-    const parsed = ApiProxySourceCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiProxySourceCreateSchema);
     try {
-      return c.json({ data: createApiProxySource(parsed.data) }, 201);
+      return c.json({ data: createApiProxySource(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.patch("/api/proxy/sources/:id", async (c) => {
-    const parsed = ApiProxySourceUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiProxySourceUpdateSchema);
     try {
-      const source = updateApiProxySource(c.req.param("id"), parsed.data);
+      const source = updateApiProxySource(c.req.param("id"), body);
       if (!source) {
         return c.json({ error: "proxy source not found" }, 404);
       }
@@ -229,29 +221,19 @@ export function registerProxyRoutes(app: Hono) {
   });
 
   app.post("/api/proxy/route-explain", async (c) => {
-    const parsed = ApiProxyRouteExplainRequestSchema.safeParse(
-      await c.req.json(),
-    );
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiProxyRouteExplainRequestSchema);
     try {
-      return c.json({ data: await explainApiProxyRoute(parsed.data) });
+      return c.json({ data: await explainApiProxyRoute(body) });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.post("/api/proxy/plan", async (c) => {
-    const parsed = ApiProxyPlanPreviewRequestSchema.safeParse(
-      await c.req.json(),
-    );
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiProxyPlanPreviewRequestSchema);
 
     try {
-      return c.json({ data: await getApiProxyPlanPreview(parsed.data) });
+      return c.json({ data: await getApiProxyPlanPreview(body) });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }

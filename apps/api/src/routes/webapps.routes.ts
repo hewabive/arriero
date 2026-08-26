@@ -45,6 +45,7 @@ import {
   WebappStartBlockedError,
 } from "../webapps/service.js";
 import { webappSupervisor } from "../webapps/supervisor.js";
+import { parseJsonBody } from "./validation.js";
 
 function validateWebappRefs(input: {
   kind: WebappKind;
@@ -114,24 +115,21 @@ export function registerWebappRoutes(app: Hono) {
   app.get("/api/webapps", (c) => c.json({ data: listWebapps() }));
 
   app.post("/api/webapps", async (c) => {
-    const parsed = WebappCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateWebappRefs(parsed.data);
+    const body = await parseJsonBody(c, WebappCreateSchema);
+    const refError = validateWebappRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
     let proxySourceId: string | null = null;
-    if (parsed.data.createProxySource) {
+    if (body.createProxySource) {
       try {
-        proxySourceId = createWebappProxySource(parsed.data);
+        proxySourceId = createWebappProxySource(body);
       } catch (error) {
         return c.json({ error: (error as Error).message }, 400);
       }
     }
     try {
-      return c.json({ data: createWebapp(parsed.data, proxySourceId) }, 201);
+      return c.json({ data: createWebapp(body, proxySourceId) }, 201);
     } catch (error) {
       if (proxySourceId) {
         deleteApiProxySource(proxySourceId);
@@ -270,23 +268,20 @@ export function registerWebappRoutes(app: Hono) {
   });
 
   app.patch("/api/webapps/:id", async (c) => {
-    const parsed = WebappUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, WebappUpdateSchema);
     const current = getWebappRecord(c.req.param("id"));
     if (!current) {
       return c.json({ error: "webapp not found" }, 404);
     }
     const refError = validateWebappRefs({
       kind: current.kind,
-      ...(parsed.data as WebappUpdate),
+      ...(body as WebappUpdate),
     });
     if (refError) {
       return c.json({ error: refError }, 400);
     }
     try {
-      const webapp = updateWebapp(current.name, parsed.data);
+      const webapp = updateWebapp(current.name, body);
       if (!webapp) {
         return c.json({ error: "webapp not found" }, 404);
       }

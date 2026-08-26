@@ -25,6 +25,7 @@ import {
   listEngineHelpSourceAdapters,
 } from "../arguments/help-source-adapters.js";
 import { readArgumentEngineeringDoc } from "../arguments/docs.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerArgumentRoutes(app: Hono) {
   app.get("/api/llama-args", async (c) => {
@@ -167,10 +168,7 @@ export function registerArgumentRoutes(app: Hono) {
   });
 
   app.put("/api/llama-args/defaults", async (c) => {
-    const parsed = ArgumentDefaultsSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: saveArgumentDefaults(parsed.data) });
+    const body = await parseJsonBody(c, ArgumentDefaultsSchema);
+    return c.json({ data: saveArgumentDefaults(body) });
   });
 }

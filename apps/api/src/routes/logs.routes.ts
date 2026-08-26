@@ -12,6 +12,7 @@ import {
   getLogRetentionSettings,
   saveLogRetentionSettings,
 } from "../settings/logs.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerLogRoutes(app: Hono) {
   app.get("/api/logs/settings", (c) =>
@@ -19,11 +20,8 @@ export function registerLogRoutes(app: Hono) {
   );
 
   app.put("/api/logs/settings", async (c) => {
-    const parsed = LogRetentionSettingsSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    return c.json({ data: saveLogRetentionSettings(parsed.data) });
+    const body = await parseJsonBody(c, LogRetentionSettingsSchema);
+    return c.json({ data: saveLogRetentionSettings(body) });
   });
 
   app.get("/api/logs/usage", async (c) => {

@@ -14,6 +14,7 @@ import {
 } from "../proxy/endpoints.js";
 import { listApiProxyTargets } from "../proxy/repository.js";
 import { isManagerProxyBaseUrl } from "../proxy/targets.js";
+import { parseJsonBody } from "./validation.js";
 
 function validateApiEndpointRefs(input: { baseUrl?: string | undefined }) {
   if (input.baseUrl && isManagerProxyBaseUrl(input.baseUrl)) {
@@ -28,34 +29,28 @@ export function registerEndpointRoutes(app: Hono) {
   });
 
   app.post("/api/endpoints", async (c) => {
-    const parsed = ApiEndpointCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateApiEndpointRefs(parsed.data);
+    const body = await parseJsonBody(c, ApiEndpointCreateSchema);
+    const refError = validateApiEndpointRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
 
     try {
-      return c.json({ data: createApiEndpoint(parsed.data) }, 201);
+      return c.json({ data: createApiEndpoint(body) }, 201);
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
   });
 
   app.patch("/api/endpoints/:id", async (c) => {
-    const parsed = ApiEndpointUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateApiEndpointRefs(parsed.data);
+    const body = await parseJsonBody(c, ApiEndpointUpdateSchema);
+    const refError = validateApiEndpointRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
 
     try {
-      const endpoint = updateApiEndpoint(c.req.param("id"), parsed.data);
+      const endpoint = updateApiEndpoint(c.req.param("id"), body);
       if (!endpoint) {
         return c.json({ error: "API endpoint not found" }, 404);
       }

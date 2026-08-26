@@ -13,6 +13,7 @@ import {
 } from "../build/repository.js";
 import { buildRunner } from "../build/runner.js";
 import { listPathCatalogEntries } from "../path-catalog/repository.js";
+import { parseJsonBody } from "./validation.js";
 
 export function registerBuildRoutes(app: Hono) {
   app.get("/api/build/default-binary", (c) => {
@@ -30,13 +31,10 @@ export function registerBuildRoutes(app: Hono) {
   });
 
   app.put("/api/build/settings", async (c) => {
-    const parsed = BuildSettingsSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, BuildSettingsSchema);
     if (
       buildRunner.isRunning() &&
-      resolve(parsed.data.repoPath) !== resolve(getBuildSettings().repoPath)
+      resolve(body.repoPath) !== resolve(getBuildSettings().repoPath)
     ) {
       return c.json(
         {
@@ -46,7 +44,7 @@ export function registerBuildRoutes(app: Hono) {
       );
     }
     try {
-      return c.json({ data: saveBuildSettings(parsed.data) });
+      return c.json({ data: saveBuildSettings(body) });
     } catch (error) {
       const message = (error as Error).message;
       return c.json(
@@ -70,13 +68,10 @@ export function registerBuildRoutes(app: Hono) {
   });
 
   app.post("/api/build/jobs", async (c) => {
-    const parsed = BuildJobStartSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, BuildJobStartSchema);
 
     try {
-      return c.json({ data: await buildRunner.start(parsed.data) }, 201);
+      return c.json({ data: await buildRunner.start(body) }, 201);
     } catch (error) {
       const message = (error as Error).message;
       return c.json(

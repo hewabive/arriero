@@ -16,8 +16,9 @@ being reachable.
 
 ## Route conventions (`src/routes/*.routes.ts`)
 
-- Every mutating handler parses the body with a core Zod schema via `safeParse` and returns
-  `{ error: parsed.error.flatten() }` with 400 on failure; success returns `{ data }`.
+- Every mutating handler parses the body with a core Zod schema via
+  `parseJsonBody(c, Schema)` (`src/routes/validation.ts`), which returns the parsed data or throws a
+  400 `{ error: <flattened zod error> }`; success responses return `{ data }`.
 - Cross-entity reference checks (e.g. `validateApiProxyTargetRefs`) run **after** schema parsing and
   return a plain string error.
 - `/api/*` is gated by `requireAdmin`. The public proxy facades (`/v1/*`, `/proxy/v1/*`,

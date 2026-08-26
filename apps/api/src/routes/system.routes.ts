@@ -15,6 +15,7 @@ import {
 import { getPublicStatus } from "../public-status.js";
 import { listNetworkInterfaceAddresses } from "../system/network.js";
 import { getSystemResourcesWithStorage } from "../system/resources.js";
+import { parseJsonBody } from "./validation.js";
 
 const SYSTEM_METRICS_STREAM_BACKLOG = 300;
 
@@ -93,14 +94,11 @@ export function registerSystemRoutes(app: Hono) {
       return c.json({ error: "invalid pid" }, 400);
     }
 
-    const parsed = ExternalProcessKillSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ExternalProcessKillSchema);
 
     try {
       return c.json({
-        data: await killExternalLlamaProcess(pid, parsed.data.force),
+        data: await killExternalLlamaProcess(pid, body.force),
       });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);

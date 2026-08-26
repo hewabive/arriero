@@ -43,6 +43,7 @@ import { latestProcessRun } from "../process/runs-repository.js";
 import { instanceReasoningProfile } from "../instances/reasoning-profile.js";
 import { stopStaleProcess } from "../process/stale.js";
 import { supervisor } from "../process/supervisor.js";
+import { parseJsonBody } from "./validation.js";
 
 function resolveInstancePathRefs(instance: Instance): Instance {
   const binaryRef = instance.binaryPathRefId
@@ -115,16 +116,13 @@ export function registerInstanceRoutes(app: Hono) {
   });
 
   app.post("/api/instances", async (c) => {
-    const parsed = InstanceCreateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateInstanceRefs(parsed.data);
+    const body = await parseJsonBody(c, InstanceCreateSchema);
+    const refError = validateInstanceRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
     try {
-      return c.json({ data: createInstance(parsed.data) }, 201);
+      return c.json({ data: createInstance(body) }, 201);
     } catch (error) {
       if (error instanceof InstanceNameConflictError) {
         return c.json({ error: error.message }, 409);
@@ -137,16 +135,13 @@ export function registerInstanceRoutes(app: Hono) {
   });
 
   app.post("/api/instances/preflight", async (c) => {
-    const parsed = InstancePreflightPreviewSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const refError = validateInstanceRefs(parsed.data);
+    const body = await parseJsonBody(c, InstancePreflightPreviewSchema);
+    const refError = validateInstanceRefs(body);
     if (refError) {
       return c.json({ error: refError }, 400);
     }
 
-    const preview = parsed.data;
+    const preview = body;
     const instance = resolveInstancePathRefs({
       ...preview,
       name: preview.name ?? "preview",
@@ -248,18 +243,10 @@ export function registerInstanceRoutes(app: Hono) {
     if (!instance) {
       return c.json({ error: "instance not found" }, 404);
     }
-    const parsed = MemoryAssessmentBindRequestSchema.safeParse(
-      await c.req.json(),
-    );
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, MemoryAssessmentBindRequestSchema);
     try {
       return c.json({
-        data: bindMemoryAssessmentToInstance(
-          parsed.data.assessmentId,
-          instance.name,
-        ),
+        data: bindMemoryAssessmentToInstance(body.assessmentId, instance.name),
       });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 409);
@@ -332,20 +319,17 @@ export function registerInstanceRoutes(app: Hono) {
   });
 
   app.patch("/api/instances/:id", async (c) => {
-    const parsed = InstanceUpdateSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, InstanceUpdateSchema);
     const current = getInstance(c.req.param("id"));
     const refError = validateInstanceRefs({
-      ...parsed.data,
+      ...body,
       kind: current?.kind,
     });
     if (refError) {
       return c.json({ error: refError }, 400);
     }
     try {
-      const instance = updateInstance(c.req.param("id"), parsed.data);
+      const instance = updateInstance(c.req.param("id"), body);
       if (!instance) {
         return c.json({ error: "instance not found" }, 404);
       }

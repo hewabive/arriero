@@ -1,15 +1,13 @@
 import {
   ApiProbeRequestSchema,
+  isStreamingApiProbeKind,
   LlamaModelActionRequestSchema,
   LlamaSlotActionRequestSchema,
   type EndpointProbe,
 } from "@arriero/core";
 import type { Hono } from "hono";
 
-import {
-  isStreamingProbeKind,
-  streamApiProbeTarget,
-} from "../api-lab/stream.js";
+import { streamApiProbeTarget } from "../api-lab/stream.js";
 import { getInstance } from "../instances/repository.js";
 import {
   instanceApiProbeTarget,
@@ -20,6 +18,7 @@ import {
   requestLlamaModelAction,
   requestLlamaSlotAction,
 } from "../llama/probe.js";
+import { parseJsonBody } from "./validation.js";
 
 function llamaActionHttpStatus(probe: EndpointProbe) {
   if (probe.status && probe.status >= 400 && probe.status < 500) {
@@ -55,10 +54,7 @@ export function registerInstanceLlamaRoutes(app: Hono) {
   });
 
   app.post("/api/instances/:id/llama/probe", async (c) => {
-    const parsed = ApiProbeRequestSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, ApiProbeRequestSchema);
 
     const instance = getInstance(c.req.param("id"));
     if (!instance) {
@@ -66,7 +62,7 @@ export function registerInstanceLlamaRoutes(app: Hono) {
     }
 
     try {
-      const data = await requestInstanceApiProbe(instance, parsed.data);
+      const data = await requestInstanceApiProbe(instance, body);
       return c.json({ data });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
@@ -74,11 +70,8 @@ export function registerInstanceLlamaRoutes(app: Hono) {
   });
 
   app.post("/api/instances/:id/llama/probe/stream", async (c) => {
-    const parsed = ApiProbeRequestSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    if (!isStreamingProbeKind(parsed.data.kind)) {
+    const body = await parseJsonBody(c, ApiProbeRequestSchema);
+    if (!isStreamingApiProbeKind(body.kind)) {
       return c.json(
         { error: "streaming is only supported for generation probes" },
         400,
@@ -92,13 +85,13 @@ export function registerInstanceLlamaRoutes(app: Hono) {
 
     let target: ReturnType<typeof instanceApiProbeTarget>;
     try {
-      target = instanceApiProbeTarget(instance, parsed.data, { stream: true });
+      target = instanceApiProbeTarget(instance, body, { stream: true });
     } catch (error) {
       return c.json({ error: (error as Error).message }, 400);
     }
 
     return streamApiProbeTarget(c, {
-      request: parsed.data,
+      request: body,
       target,
     });
   });
@@ -129,10 +122,7 @@ export function registerInstanceLlamaRoutes(app: Hono) {
       return c.json({ error: "unsupported model action" }, 404);
     }
 
-    const parsed = LlamaModelActionRequestSchema.safeParse(await c.req.json());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
+    const body = await parseJsonBody(c, LlamaModelActionRequestSchema);
 
     const instance = getInstance(c.req.param("id"));
     if (!instance) {
@@ -143,7 +133,7 @@ export function registerInstanceLlamaRoutes(app: Hono) {
       const result = await requestLlamaModelAction(
         instance,
         action,
-        parsed.data.model,
+        body.model,
       );
       if (!result.response.ok) {
         return c.json(
