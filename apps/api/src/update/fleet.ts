@@ -5,25 +5,32 @@ import {
   type UpdateFleetNode,
   type UpdateUpstream,
 } from "@arriero/core";
-import { execFileSync } from "node:child_process";
 import { hostname } from "node:os";
 
+import { tryGitSync } from "../git/process.js";
 import { listPeerNodes } from "../nodes/repository.js";
 import { fetchNodeJson } from "../nodes/remote.js";
 import { updateAdapter } from "./adapter.js";
 import { appVersionWithRuntimeInfo } from "./restart.js";
 
+const APP_VERSION_TTL_MS = 30_000;
+const COMMITS_BEHIND_CACHE_LIMIT = 256;
+
+let appVersionCache: { value: AppVersion; expiresAt: number } | null = null;
+const commitsBehindCache = new Map<string, number>();
+
 function tryGit(args: string[]): string | null {
-  try {
-    const output = execFileSync("git", args, {
-      cwd: updateAdapter.rootDir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    return output || null;
-  } catch {
-    return null;
+  return tryGitSync(updateAdapter.rootDir, args);
+}
+
+function cachedAppVersion(): AppVersion {
+  const now = Date.now();
+  if (appVersionCache && appVersionCache.expiresAt > now) {
+    return appVersionCache.value;
   }
+  const value = appVersionWithRuntimeInfo();
+  appVersionCache = { value, expiresAt: now + APP_VERSION_TTL_MS };
+  return value;
 }
 
 function currentUpstream(version: AppVersion): UpdateUpstream | null {
@@ -50,9 +57,21 @@ function commitsBehind(
   if (commit === upstreamCommit) {
     return 0;
   }
-  const count = tryGit(["rev-list", "--count", `${commit}..${upstreamCommit}`]);
+  const range = `${commit}..${upstreamCommit}`;
+  const cached = commitsBehindCache.get(range);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const count = tryGit(["rev-list", "--count", range]);
   const parsed = count !== null ? Number(count) : Number.NaN;
-  return Number.isFinite(parsed) ? parsed : null;
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  if (commitsBehindCache.size >= COMMITS_BEHIND_CACHE_LIMIT) {
+    commitsBehindCache.clear();
+  }
+  commitsBehindCache.set(range, parsed);
+  return parsed;
 }
 
 function nodeEntry(
@@ -78,7 +97,7 @@ function nodeEntry(
 }
 
 export async function updateFleet(): Promise<UpdateFleet> {
-  const selfVersion = appVersionWithRuntimeInfo();
+  const selfVersion = cachedAppVersion();
   const upstream = currentUpstream(selfVersion);
   const upstreamCommit = upstream?.commit ?? null;
 

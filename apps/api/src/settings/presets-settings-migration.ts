@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { config } from "../config.js";
+import { writeRawJson } from "../migrations/raw-json.js";
 
 const filePath = config.settingsFile;
 
@@ -30,7 +31,5 @@ export function dropPresetsSettingsSection(): void {
     return;
   }
   delete raw.presets;
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
-  renameSync(tmp, filePath);
+  writeRawJson(filePath, raw);
 }

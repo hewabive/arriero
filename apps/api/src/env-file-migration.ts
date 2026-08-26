@@ -9,6 +9,8 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { errorMessage } from "./utils/error-message.js";
+
 const currentPrefix = "ARRIERO_";
 const legacyPrefix = "LLAMA_MANAGER_";
 const declarationPattern =
@@ -93,7 +95,7 @@ export function applyLegacyEnvFileMigration(path: string) {
   try {
     result = migrateLegacyEnvFile(path);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = errorMessage(error);
     process.emitWarning(
       `${path}: could not rename legacy ${legacyPrefix}* entries (${reason}); they are still read as a deprecated fallback`,
     );

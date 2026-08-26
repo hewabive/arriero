@@ -1,8 +1,9 @@
 import { ApiProxyModelRecordSchema } from "@arriero/core";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { config } from "../config.js";
+import { readRawArray } from "../migrations/raw-json.js";
 import { writeCollection } from "./config-files.js";
 import { MODELS_FILE, StoredApiProxyModelSchema } from "./repository.js";
 
@@ -11,11 +12,11 @@ function readRawModels(): Record<string, unknown>[] | null {
   if (!existsSync(path)) {
     return null;
   }
-  const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  if (!Array.isArray(parsed)) {
+  const parsed = readRawArray(path);
+  if (parsed === null) {
     throw new Error(`Invalid config in ${path}: expected an array`);
   }
-  return parsed as Record<string, unknown>[];
+  return parsed;
 }
 
 function isLegacyModelRecord(value: unknown): value is Record<string, unknown> {

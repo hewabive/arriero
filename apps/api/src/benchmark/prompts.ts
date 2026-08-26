@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
@@ -11,8 +11,8 @@ import {
 } from "@arriero/core";
 
 import { config } from "../config.js";
-import { logger } from "../logger.js";
 import { newId } from "../utils/id.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 import { BenchmarkConflictError } from "./errors.js";
 import {
   createCustomBenchmarkPrompt,
@@ -32,27 +32,6 @@ const BUILTIN_CACHE_TTL_MS = 5_000;
 let builtinCache: { prompts: BenchmarkPrompt[]; expiresAt: number } | null =
   null;
 
-function readBuiltinPromptFile(filePath: string): BenchmarkPrompt | null {
-  try {
-    const parsed = BenchmarkPromptSchema.safeParse(
-      JSON.parse(readFileSync(filePath, "utf8")),
-    );
-    if (parsed.success) {
-      return parsed.data;
-    }
-    logger.warn(
-      { filePath, issues: parsed.error.issues },
-      "invalid builtin benchmark prompt",
-    );
-  } catch (error) {
-    logger.warn(
-      { filePath, error: (error as Error).message },
-      "unreadable builtin benchmark prompt",
-    );
-  }
-  return null;
-}
-
 function readBuiltinPrompts(): BenchmarkPrompt[] {
   if (!existsSync(benchmarkPromptsDirectory)) {
     return [];
@@ -65,7 +44,11 @@ function readBuiltinPrompts(): BenchmarkPrompt[] {
     const topicDir = resolve(benchmarkPromptsDirectory, topicEntry.name);
     for (const fileEntry of readdirSync(topicDir, { withFileTypes: true })) {
       if (!fileEntry.isFile() || !fileEntry.name.endsWith(".json")) continue;
-      const prompt = readBuiltinPromptFile(resolve(topicDir, fileEntry.name));
+      const prompt = readValidatedJsonFile(
+        resolve(topicDir, fileEntry.name),
+        BenchmarkPromptSchema,
+        "builtin benchmark prompt",
+      );
       if (prompt) {
         prompts.push(prompt);
       }

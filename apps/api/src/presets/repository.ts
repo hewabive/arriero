@@ -6,17 +6,15 @@ import type {
 } from "@arriero/core";
 import {
   existsSync,
-  mkdirSync,
   readFileSync,
   readdirSync,
-  renameSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from "node:fs";
 import { resolve } from "node:path";
 
 import { config } from "../config.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
 import { parseModelPresetIni, renderModelPresetFile } from "./ini.js";
 import { presetFileHasErrors, validatePresetStructure } from "./validate.js";
 
@@ -107,9 +105,7 @@ export function writePreset(
     return { kind: "conflict", document: documentFromName(name) };
   }
 
-  const tmpPath = `${path}.tmp`;
-  writeFileSync(tmpPath, input.content, "utf8");
-  renameSync(tmpPath, path);
+  atomicWriteFile(path, input.content);
 
   return { kind: "ok", document: documentFromName(name) };
 }
@@ -123,8 +119,7 @@ export function createPreset(input: { name: string }): CreatePresetResult {
   if (existsSync(path)) {
     return { kind: "exists" };
   }
-  mkdirSync(presetsDir, { recursive: true });
-  writeFileSync(path, renderModelPresetFile(emptyFile()), "utf8");
+  atomicWriteFile(path, renderModelPresetFile(emptyFile()));
   return { kind: "ok", document: documentFromName(input.name) };
 }
 

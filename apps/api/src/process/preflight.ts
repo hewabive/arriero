@@ -13,6 +13,7 @@ import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname } from "node:path";
 
+import { formatGib } from "../utils/format.js";
 import { validateLlamaServerPreflight } from "./preflight-llama.js";
 import { validateKTransformersPreflight } from "./preflight-ktransformers.js";
 import { validateSglangPreflight } from "./preflight-sglang.js";
@@ -346,14 +347,14 @@ function validateMemoryCapacity(
       });
       continue;
     }
-    const deficitGib = (shortfall.deficitBytes / 1024 ** 3).toFixed(1);
-    const freeGib = (shortfall.availableBytes / 1024 ** 3).toFixed(1);
+    const deficit = formatGib(shortfall.deficitBytes);
+    const free = formatGib(shortfall.availableBytes);
     issues.push({
       level: strict ? "error" : "warning",
       field: "memory",
       message: strict
-        ? `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. ${engine.displayName} strict admission cannot be overridden.`
-        : `Memory pool ${shortfall.poolId} is over budget: needs ${deficitGib} GiB more than the ${freeGib} GiB free. Starting will require confirmation.`,
+        ? `Memory pool ${shortfall.poolId} is over budget: needs ${deficit} more than the ${free} free. ${engine.displayName} strict admission cannot be overridden.`
+        : `Memory pool ${shortfall.poolId} is over budget: needs ${deficit} more than the ${free} free. Starting will require confirmation.`,
     });
   }
 }

@@ -4,6 +4,7 @@ import type {
 } from "@arriero/core";
 
 import { logger } from "../logger.js";
+import { sleep } from "../utils/sleep.js";
 
 export type PrometheusHistogramTotals = {
   sumSeconds: number;
@@ -28,10 +29,6 @@ export const VLLM_PREFILL_METRIC = "vllm:request_prefill_time_seconds";
 
 const SETTLE_ATTEMPTS = 5;
 const SETTLE_DELAY_MS = 60;
-
-function defaultDelay(ms: number): Promise<void> {
-  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
-}
 
 function parseSampleLine(line: string): { name: string; value: number } | null {
   const trimmed = line.trim();
@@ -96,7 +93,7 @@ function timingsFromDelta(
 function vllmPrometheusSource(
   input: BenchmarkServerMetricsInput,
 ): BenchmarkServerMetricsSource {
-  const delay = input.delay ?? defaultDelay;
+  const delay = input.delay ?? sleep;
   const scrape = async (): Promise<PrometheusHistogramTotals | null> => {
     try {
       const response = await input.fetchImpl(`${input.baseUrl}/metrics`, {

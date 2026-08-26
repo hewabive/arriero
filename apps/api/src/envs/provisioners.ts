@@ -408,6 +408,15 @@ const OPEN_WEBUI_PROVISIONER = singleDistributionProvisioner({
   moduleVersionAttribute: false,
 });
 
+type KtransformersSpec = Extract<EnvironmentSpec, { engine: "ktransformers" }>;
+
+function checkedKtransformersSpec(spec: EnvironmentSpec): KtransformersSpec {
+  if (spec.engine !== "ktransformers") {
+    throw new Error("KTransformers provisioner kind mismatch");
+  }
+  return spec;
+}
+
 const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   displayName: ENVIRONMENT_ENGINE_LABELS.ktransformers,
   entrypointRelative: "bin/sglang",
@@ -418,13 +427,11 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   },
   inProcessSteps: UV_IN_PROCESS_STEPS,
   requirements(spec) {
-    if (spec.engine !== "ktransformers") {
-      throw new Error("KTransformers provisioner kind mismatch");
+    const checked = checkedKtransformersSpec(spec);
+    if (checked.source.kind === "pypi") {
+      return [`kt-kernel==${checked.version}`, `sglang-kt==${checked.version}`];
     }
-    if (spec.source.kind === "pypi") {
-      return [`kt-kernel==${spec.version}`, `sglang-kt==${spec.version}`];
-    }
-    const source = spec.source;
+    const source = checked.source;
     return (["kt-kernel", "sglang-kt"] as const).map((distribution) => {
       const artifact = source.artifacts.find(
         (candidate) => candidate.distribution === distribution,
@@ -434,45 +441,38 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
     });
   },
   installOptions(spec) {
-    if (spec.engine !== "ktransformers") {
-      throw new Error("KTransformers provisioner kind mismatch");
-    }
-    return spec.source.kind === "wheels" && spec.source.torchBackend
-      ? ["--torch-backend", spec.source.torchBackend]
+    const checked = checkedKtransformersSpec(spec);
+    return checked.source.kind === "wheels" && checked.source.torchBackend
+      ? ["--torch-backend", checked.source.torchBackend]
       : [];
   },
   wheelArtifacts(spec) {
-    if (spec.engine !== "ktransformers") {
-      throw new Error("KTransformers provisioner kind mismatch");
-    }
-    return spec.source.kind === "wheels" ? spec.source.artifacts : [];
+    const checked = checkedKtransformersSpec(spec);
+    return checked.source.kind === "wheels" ? checked.source.artifacts : [];
   },
   validationCommand(spec, finalDir) {
-    if (spec.engine !== "ktransformers") {
-      throw new Error("KTransformers provisioner kind mismatch");
-    }
+    const checked = checkedKtransformersSpec(spec);
     return [
       resolve(finalDir, "bin", "python"),
       "-c",
-      ktransformersValidationScript(spec.version),
+      ktransformersValidationScript(checked.version),
     ];
   },
   validateLayout(spec, finalDir) {
-    if (spec.engine !== "ktransformers") {
-      throw new Error("KTransformers provisioner kind mismatch");
-    }
+    const checked = checkedKtransformersSpec(spec);
     return commonLayoutError({
       finalDir,
       entrypointRelative: this.entrypointRelative,
       entrypointDescription: "KTransformers SGLang entrypoint",
-      freezePins: [`kt-kernel==${spec.version}`, `sglang-kt==${spec.version}`],
+      freezePins: [
+        `kt-kernel==${checked.version}`,
+        `sglang-kt==${checked.version}`,
+      ],
     });
   },
   prepareFinalize() {},
   availability(spec, context) {
-    if (spec.engine !== "ktransformers") {
-      throw new Error("KTransformers provisioner kind mismatch");
-    }
+    const checked = checkedKtransformersSpec(spec);
     const platform = context.platform ?? process.platform;
     const arch = context.arch ?? process.arch;
     if (platform !== "linux" || arch !== "x64") {
@@ -481,7 +481,7 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
         availabilityReason: "KTransformers requires Linux x86-64",
       };
     }
-    if (spec.pythonVersion !== "3.11" && spec.pythonVersion !== "3.12") {
+    if (checked.pythonVersion !== "3.11" && checked.pythonVersion !== "3.12") {
       return {
         availability: "unavailable",
         availabilityReason: "KTransformers requires Python 3.11 or 3.12",
@@ -491,7 +491,7 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       accelerators: context.accelerators,
       installed: context.installed,
       rocmDeviceAvailable: context.rocmDeviceAvailable,
-      variant: spec.variant,
+      variant: checked.variant,
       cuda: {
         engineLabel: this.displayName,
         minimumComputeCapability:

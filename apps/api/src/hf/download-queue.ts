@@ -1,4 +1,5 @@
 import type {
+  HfDownloadPauseReason,
   HfDownloadQueueJob,
   HfDownloadQueueState,
   HfDownloadStart,
@@ -407,6 +408,31 @@ async function executeJob(
   return { ...result, downloadedModelFile };
 }
 
+function pauseDecision(
+  job: HfQueueJob,
+  input: { aborted: boolean; stalled: string | null },
+): { reason: HfDownloadPauseReason; message: string } | null {
+  if (input.aborted) {
+    if (job.cancelRequested) {
+      return null;
+    }
+    if (job.pauseRequested) {
+      return { reason: "manual", message: "Paused by user." };
+    }
+    if (slowEtaTrigger !== null) {
+      return { reason: "slow-eta", message: `Paused: ${slowEtaTrigger}.` };
+    }
+    return null;
+  }
+  if (input.stalled !== null) {
+    return {
+      reason: "network",
+      message: `Paused: no download progress (${input.stalled}).`,
+    };
+  }
+  return null;
+}
+
 function finalizeJob(
   job: HfQueueJob,
   input: {
@@ -439,25 +465,13 @@ function finalizeJob(
     persist();
     return "requeued";
   }
-  const pauseReason =
-    input.aborted && job.pauseRequested && !job.cancelRequested
-      ? "manual"
-      : input.aborted && slowEtaTrigger !== null && !job.cancelRequested
-        ? "slow-eta"
-        : !input.aborted && input.stalled !== null
-          ? "network"
-          : null;
-  if (pauseReason !== null) {
+  const pause = pauseDecision(job, input);
+  if (pause !== null) {
     job.status = "paused";
-    job.pauseReason = pauseReason;
+    job.pauseReason = pause.reason;
     job.pauseRequested = false;
     job.error = null;
-    job.message =
-      pauseReason === "network"
-        ? `Paused: no download progress (${input.stalled}).`
-        : pauseReason === "slow-eta"
-          ? `Paused: ${slowEtaTrigger}.`
-          : "Paused by user.";
+    job.message = pause.message;
     for (const file of job.files) {
       if (file.status === "downloading") {
         file.status = "pending";

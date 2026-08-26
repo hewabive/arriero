@@ -1,15 +1,10 @@
-import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { writeRawJson } from "../migrations/raw-json.js";
 
 const LegacyNumaNodeSchema = z.number().int().min(0);
 
@@ -53,8 +48,6 @@ export function migrateInstanceNumaNodeToNuma(): void {
     const node = LegacyNumaNodeSchema.parse(record!.numaNode);
     delete record!.numaNode;
     record!.numa = { mode: "bind", node };
-    const tmp = `${path}.${process.pid}.tmp`;
-    writeFileSync(tmp, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-    renameSync(tmp, path);
+    writeRawJson(path, record);
   }
 }

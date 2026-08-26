@@ -1,8 +1,10 @@
 import { ArgumentOptionSchema } from "@arriero/core";
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 
+import { logger } from "../logger.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
 import { type binaryStat } from "./binary-discovery.js";
 import { fillMissingDefaultValues } from "./help-parser.js";
 import { type CachedArgumentCatalog } from "./repository.js";
@@ -92,10 +94,8 @@ export function writeArgumentCatalogSidecar(catalog: CachedArgumentCatalog) {
     options: catalog.options,
   };
   try {
-    const tmp = `${path}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(payload), "utf8");
-    renameSync(tmp, path);
-  } catch {
-    return;
+    atomicWriteFile(path, JSON.stringify(payload));
+  } catch (error) {
+    logger.debug({ path, err: error }, "argument catalog sidecar write failed");
   }
 }

@@ -15,6 +15,7 @@ import { open, type FileHandle } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { logger } from "../logger.js";
+import { errorMessage } from "../utils/error-message.js";
 import {
   hfErrorFromResponse,
   hfRequestHeaders,
@@ -130,7 +131,7 @@ function isEnospc(error: unknown): boolean {
 }
 
 function streamErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   const cause = error instanceof Error ? error.cause : undefined;
   return cause instanceof Error ? `${message}: ${cause.message}` : message;
 }
@@ -808,7 +809,7 @@ export async function runHfTransfer(
             ctx.events.onFileCanceled(file.path);
             return;
           }
-          if (isTransientError(error) && !isEnospc(error)) {
+          if (isTransientError(error)) {
             ctx.events.onTransportError();
             if (reportedBytes > bytesBefore) {
               attempt = 1;

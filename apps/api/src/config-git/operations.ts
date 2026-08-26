@@ -448,13 +448,29 @@ export function pullConfigRepository(): Promise<ConfigGitMutationResult> {
   });
 }
 
-export function switchConfigBranch(
-  input: ConfigGitSwitch,
+function validatedTreeSwitch(
+  operation: string,
+  prepare: () => Promise<{ commit: string; switchArgs: string[] }>,
 ): Promise<ConfigGitMutationResult> {
-  return mutation("switch", async () => {
+  return mutation(operation, async () => {
     assertConfigContentCanChange();
     await assertPreparedRepository();
     await assertClean();
+    const { commit, switchArgs } = await prepare();
+    const validation = await validateCommit(commit);
+    assertValid(validation);
+    const result = await withMachineStatePreserved(config.configDir, () =>
+      runGit(config.configDir, switchArgs),
+    );
+    reloadPortableConfigCaches();
+    return { output: gitOutput(result), validation };
+  });
+}
+
+export function switchConfigBranch(
+  input: ConfigGitSwitch,
+): Promise<ConfigGitMutationResult> {
+  return validatedTreeSwitch("switch", async () => {
     await assertBranchName(input.branch);
     const local = await tryGit(config.configDir, [
       "show-ref",
@@ -470,59 +486,32 @@ export function switchConfigBranch(
     const commit = await resolveConfigGitCommit(
       local ? input.branch : `origin/${input.branch}`,
     );
-    const validation = await validateCommit(commit);
-    assertValid(validation);
-    const result = await withMachineStatePreserved(config.configDir, () =>
-      local
-        ? runGit(config.configDir, ["switch", input.branch])
-        : runGit(config.configDir, [
-            "switch",
-            "--track",
-            "-c",
-            input.branch,
-            `origin/${input.branch}`,
-          ]),
-    );
-    reloadPortableConfigCaches();
-    return { output: gitOutput(result), validation };
+    return {
+      commit,
+      switchArgs: local
+        ? ["switch", input.branch]
+        : ["switch", "--track", "-c", input.branch, `origin/${input.branch}`],
+    };
   });
 }
 
 export function createConfigBranch(
   input: ConfigGitCreateBranch,
 ): Promise<ConfigGitMutationResult> {
-  return mutation("create-branch", async () => {
-    assertConfigContentCanChange();
-    await assertPreparedRepository();
-    await assertClean();
+  return validatedTreeSwitch("create-branch", async () => {
     await assertBranchName(input.branch);
     const startPoint = input.startPoint ?? "HEAD";
     const commit = await resolveConfigGitCommit(startPoint);
-    const validation = await validateCommit(commit);
-    assertValid(validation);
-    const result = await withMachineStatePreserved(config.configDir, () =>
-      runGit(config.configDir, ["switch", "-c", input.branch, commit]),
-    );
-    reloadPortableConfigCaches();
-    return { output: gitOutput(result), validation };
+    return { commit, switchArgs: ["switch", "-c", input.branch, commit] };
   });
 }
 
 export function checkoutConfigCommit(
   input: ConfigGitCheckoutCommit,
 ): Promise<ConfigGitMutationResult> {
-  return mutation("checkout-commit", async () => {
-    assertConfigContentCanChange();
-    await assertPreparedRepository();
-    await assertClean();
+  return validatedTreeSwitch("checkout-commit", async () => {
     const hash = await resolveConfigGitCommit(input.commit);
-    const validation = await validateCommit(hash);
-    assertValid(validation);
-    const result = await withMachineStatePreserved(config.configDir, () =>
-      runGit(config.configDir, ["switch", "--detach", hash]),
-    );
-    reloadPortableConfigCaches();
-    return { output: gitOutput(result), validation };
+    return { commit: hash, switchArgs: ["switch", "--detach", hash] };
   });
 }
 

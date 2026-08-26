@@ -1,15 +1,10 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 import { apiProxyForwardUrl } from "./forwarder.js";
 import { proxyUpstreamFetch } from "./http.js";
 import {
@@ -60,13 +55,6 @@ type ApiProxyPendingResumeStoreOptions = {
   claimWindowMs?: number;
 };
 
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
-
 export class ApiProxyPendingResumeStore {
   private pending: PendingRecord[] = [];
   private readonly claimed = new Map<string, ApiProxyPendingResumeEntry>();
@@ -103,7 +91,7 @@ export class ApiProxyPendingResumeStore {
       rmSync(this.file, { force: true });
       return 0;
     }
-    atomicWrite(
+    atomicWriteFile(
       this.file,
       `${JSON.stringify(
         {
@@ -122,15 +110,11 @@ export class ApiProxyPendingResumeStore {
     if (!existsSync(this.file)) {
       return { adopted: 0, verified: Promise.resolve() };
     }
-    let parsed: z.infer<typeof PendingResumeFileSchema> | null = null;
-    try {
-      const result = PendingResumeFileSchema.safeParse(
-        JSON.parse(readFileSync(this.file, "utf8")),
-      );
-      parsed = result.success ? result.data : null;
-    } catch {
-      parsed = null;
-    }
+    const parsed = readValidatedJsonFile(
+      this.file,
+      PendingResumeFileSchema,
+      "proxy pending-resume state",
+    );
     rmSync(this.file, { force: true });
     if (!parsed || parsed.entries.length === 0) {
       return { adopted: 0, verified: Promise.resolve() };

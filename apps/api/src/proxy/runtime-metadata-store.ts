@@ -2,17 +2,12 @@ import {
   ApiProxyRuntimeMetadataRecordSchema,
   type ApiProxyRuntimeMetadataRecord,
 } from "@arriero/core";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
+import { atomicWriteFile } from "../utils/atomic-write.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 
 export const RUNTIME_METADATA_FILE = resolve(
   config.dataDir,
@@ -25,39 +20,25 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function atomicWrite(path: string, text: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
-}
-
 function load(): Map<string, ApiProxyRuntimeMetadataRecord> {
   if (cache) {
     return cache;
   }
   const map = new Map<string, ApiProxyRuntimeMetadataRecord>();
-  if (existsSync(RUNTIME_METADATA_FILE)) {
-    try {
-      const parsed = z
-        .array(ApiProxyRuntimeMetadataRecordSchema)
-        .safeParse(JSON.parse(readFileSync(RUNTIME_METADATA_FILE, "utf8")));
-      if (parsed.success) {
-        for (const record of parsed.data) {
-          map.set(record.targetId, record);
-        }
-      }
-    } catch {
-      cache = map;
-      return map;
-    }
+  const records = readValidatedJsonFile(
+    RUNTIME_METADATA_FILE,
+    z.array(ApiProxyRuntimeMetadataRecordSchema),
+    "proxy runtime metadata",
+  );
+  for (const record of records ?? []) {
+    map.set(record.targetId, record);
   }
   cache = map;
   return map;
 }
 
 function persist(map: Map<string, ApiProxyRuntimeMetadataRecord>) {
-  atomicWrite(
+  atomicWriteFile(
     RUNTIME_METADATA_FILE,
     `${JSON.stringify([...map.values()], null, 2)}\n`,
   );

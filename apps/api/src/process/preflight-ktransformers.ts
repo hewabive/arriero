@@ -18,6 +18,7 @@ import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { getSystemResources } from "../system/resources.js";
+import { formatGib } from "../utils/format.js";
 import { numaIsApplicable, readNumaTopology } from "../numa/topology.js";
 import { listMemoryPools } from "../resources/repository.js";
 import { nvidiaGpuAccelerators } from "./preflight-cuda.js";
@@ -718,7 +719,7 @@ function validateOperationalWarnings(
       issues,
       "warning",
       "memory",
-      `Host swap is enabled (${(swapTotal / 1024 ** 3).toFixed(1)} GiB); swapping CPU expert weights can severely degrade KTransformers`,
+      `Host swap is enabled (${formatGib(swapTotal)}); swapping CPU expert weights can severely degrade KTransformers`,
     );
   }
   const availableHost =
@@ -737,7 +738,7 @@ function validateOperationalWarnings(
       issues,
       "warning",
       "memory",
-      `Declared host-memory draw exceeds currently available RAM by ${((declaredHostBytes - availableHost) / 1024 ** 3).toFixed(1)} GiB`,
+      `Declared host-memory draw exceeds currently available RAM by ${formatGib(declaredHostBytes - availableHost)}`,
     );
   }
 }

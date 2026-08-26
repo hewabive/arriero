@@ -1,12 +1,12 @@
 import type { BuildSettings } from "@arriero/core";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
 import { runGit } from "../git/process.js";
-import { logger } from "../logger.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 import { uiDirectory } from "./plan.js";
 
 export const UI_BUILD_STATE_FILE = resolve(
@@ -28,24 +28,12 @@ function load(): Map<string, string> {
   if (cache) {
     return cache;
   }
-  const map = new Map<string, string>();
-  if (existsSync(UI_BUILD_STATE_FILE)) {
-    try {
-      const parsed = UiBuildStateSchema.safeParse(
-        JSON.parse(readFileSync(UI_BUILD_STATE_FILE, "utf8")),
-      );
-      if (parsed.success) {
-        for (const [repoPath, treeHash] of Object.entries(parsed.data)) {
-          map.set(repoPath, treeHash);
-        }
-      }
-    } catch (error) {
-      logger.warn(
-        { err: error, file: UI_BUILD_STATE_FILE },
-        "failed to read UI build state; UI rebuild skip disabled until the next successful build",
-      );
-    }
-  }
+  const stored = readValidatedJsonFile(
+    UI_BUILD_STATE_FILE,
+    UiBuildStateSchema,
+    "UI build state",
+  );
+  const map = new Map(Object.entries(stored ?? {}));
   cache = map;
   return map;
 }

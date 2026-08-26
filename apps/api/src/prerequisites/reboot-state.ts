@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
 import { config } from "../config.js";
 import { readSysString } from "../system/sysfs.js";
 import { atomicWriteFile } from "../utils/atomic-write.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
 
 const BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id";
 
@@ -63,20 +64,12 @@ export class PrerequisiteRebootState {
   }
 
   private load(): Map<string, RebootMarker> {
-    if (!existsSync(this.path)) {
-      return new Map();
-    }
-    try {
-      const parsed = z
-        .array(RebootMarkerSchema)
-        .safeParse(JSON.parse(readFileSync(this.path, "utf8")));
-      if (!parsed.success) {
-        return new Map();
-      }
-      return new Map(parsed.data.map((marker) => [marker.checkId, marker]));
-    } catch {
-      return new Map();
-    }
+    const markers = readValidatedJsonFile(
+      this.path,
+      z.array(RebootMarkerSchema),
+      "prerequisite reboot state",
+    );
+    return new Map((markers ?? []).map((marker) => [marker.checkId, marker]));
   }
 
   private persist(markers: Map<string, RebootMarker>): void {

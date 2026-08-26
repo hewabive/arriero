@@ -8,6 +8,8 @@ import {
   type SystemAcceleratorThrottleReason,
 } from "@arriero/core";
 
+import { errorMessage } from "../utils/error-message.js";
+
 export const NVML_ERROR_NOT_SUPPORTED = 3;
 export const NVML_ERROR_NO_PERMISSION = 4;
 const NVML_ERROR_INSUFFICIENT_SIZE = 7;
@@ -247,7 +249,7 @@ function loadLibrary(platform = process.platform): LibraryHandle {
     try {
       return koffi.load(candidate);
     } catch (error) {
-      failures.push(error instanceof Error ? error.message : String(error));
+      failures.push(errorMessage(error));
     }
   }
   throw new NvmlLibraryError(

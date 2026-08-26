@@ -17,6 +17,7 @@ import {
   NVML_ERROR_NOT_SUPPORTED,
   NvmlLibraryError,
 } from "./nvml-binding.js";
+import { errorMessage } from "../utils/error-message.js";
 
 const ACCELERATOR_CACHE_MS = 3_000;
 const HEALTH_CACHE_MS = 30_000;
@@ -162,7 +163,7 @@ export class NvidiaTelemetry {
     }
     this.statusValue = {
       state,
-      detail: error instanceof Error ? error.message : String(error),
+      detail: errorMessage(error),
       driverVersion: null,
       deviceCount: 0,
     };
