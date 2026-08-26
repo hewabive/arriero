@@ -3,6 +3,7 @@ import { z } from "zod";
 import { INSTANCE_KINDS, type InstanceKind } from "./engine-descriptor.js";
 import { InstanceMemoryDrawSchema } from "./memory-assessment.js";
 import { ApiProxyReasoningOverrideSchema } from "./proxy/reasoning.js";
+import { updateSchemaFrom } from "./schema-update.js";
 
 export const InstanceArgValueSchema = z.union([
   z.string(),
@@ -149,20 +150,11 @@ export const InstancePreflightPreviewSchema = InstanceCreateBaseSchema.extend({
   name: InstanceNameSchema.optional(),
 }).superRefine(validateInstanceEngineFields);
 
-export const InstanceUpdateSchema = z
-  .object({
-    name: InstanceNameSchema.optional(),
-    binaryPathRefId: PathCatalogIdSchema.optional(),
+export const InstanceUpdateSchema = updateSchemaFrom(
+  InstanceCreateBaseSchema.omit({ kind: true }),
+)
+  .extend({
     cwd: InstancePathSchema.nullable().optional(),
-    args: InstanceArgsSchema.optional(),
-    positionalArgs: z.array(z.string()).optional(),
-    env: InstanceEnvSchema.optional(),
-    memory: z.array(InstanceMemoryDrawSchema).optional(),
-    rpcWorkers: z.array(RpcWorkerRefSchema).optional(),
-    numa: InstanceNumaSchema.optional(),
-    reasoning: ApiProxyReasoningOverrideSchema.optional(),
-    engineConfig: InstanceEngineConfigSchema.optional(),
-    scheduling: InstanceSchedulingPolicySchema.optional(),
   })
   .superRefine((input, ctx) => {
     if (input.engineConfig?.type !== "ktransformers") {

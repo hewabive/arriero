@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { EndpointProbeSchema } from "./llama.js";
 import { ApiProxyReasoningOverrideSchema } from "./proxy/reasoning.js";
+import { updateSchemaFrom } from "./schema-update.js";
 
 export const ApiLabProbeProfileSchema = z.enum([
   "openai",
@@ -151,19 +152,15 @@ export const ApiEndpointCreateSchema = ApiEndpointConfigSchema.omit({
     }
   });
 
-export const ApiEndpointUpdateSchema = z.object({
-  name: ApiEndpointNameSchema.optional(),
-  enabled: z.boolean().optional(),
-  baseUrl: ApiEndpointBaseUrlSchema.optional(),
-  profile: ApiLabProbeProfileSchema.optional(),
-  apiKeyEnvVar: ApiEndpointEnvVarSchema.optional(),
-  authHeaderName: ApiEndpointHeaderNameSchema.optional(),
-  extraHeaders: ApiEndpointExtraHeadersSchema.optional(),
-  passthrough: z.boolean().optional(),
-  modelFilter: ApiEndpointModelFilterSchema.optional(),
-  reasoning: ApiProxyReasoningOverrideSchema.nullable().optional(),
-  streamTerminal: ApiEndpointStreamTerminalSchema.nullable().optional(),
-  streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().optional(),
+export const ApiEndpointUpdateSchema = updateSchemaFrom(
+  ApiEndpointConfigSchema.omit({
+    id: true,
+    kind: true,
+    instanceId: true,
+    nodeId: true,
+    editable: true,
+  }),
+).extend({
   apiKey: ApiEndpointSecretSchema,
 });
 

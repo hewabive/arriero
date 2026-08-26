@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { type InstanceKind } from "./engine-descriptor.js";
 import { InstanceKindSchema } from "./instance.js";
+import { updateSchemaFrom } from "./schema-update.js";
 
 export const PathCatalogKindSchema = z.enum(["binary", "models-dir"]);
 
@@ -22,9 +23,9 @@ export const PathCatalogCreateSchema = z.object({
   engineKind: InstanceKindSchema.optional(),
 });
 
-export const PathCatalogUpdateSchema = z.object({
-  name: z.string().min(1).max(80).optional(),
-  path: z.string().min(1).optional(),
+export const PathCatalogUpdateSchema = updateSchemaFrom(
+  PathCatalogCreateSchema.omit({ kind: true }),
+).extend({
   engineKind: InstanceKindSchema.nullable().optional(),
 });
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { EnvironmentStatusSchema } from "./environments.js";
 import { EndpointProbeSchema } from "./llama.js";
 import { ProcessStopReasonSchema } from "./process.js";
+import { updateSchemaFrom } from "./schema-update.js";
 import {
   WEBAPP_KINDS,
   webappDescriptor,
@@ -100,14 +101,9 @@ export const WebappCreateSchema = z
     }
   });
 
-export const WebappUpdateSchema = z.object({
-  name: WebappNameSchema.optional(),
-  envSpecId: z.string().min(1).optional(),
-  http: WebappHttpSchema.optional(),
-  proxySourceId: z.string().min(1).nullable().optional(),
-  autostart: z.boolean().optional(),
-  settings: WebappSettingsSchema.optional(),
-});
+export const WebappUpdateSchema = updateSchemaFrom(
+  WebappConfigRecordBaseSchema.omit({ kind: true }),
+);
 
 export const WebappRuntimeStatusSchema = z.enum([
   "stopped",

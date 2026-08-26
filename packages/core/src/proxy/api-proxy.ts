@@ -9,6 +9,7 @@ import {
 import { RetentionDaysSchema } from "../logs.js";
 import { InstanceMemoryDrawSchema } from "../memory-assessment.js";
 import { MemoryPoolKindSchema } from "../resources.js";
+import { updateSchemaFrom } from "../schema-update.js";
 import {
   ApiProxyIdSchema,
   ApiProxyNodePortSchema,
@@ -120,17 +121,9 @@ export const ApiProxyTargetCreateSchema = ApiProxyTargetRecordSchema.omit({
   id: true,
 });
 
-export const ApiProxyTargetUpdateSchema = z.object({
-  name: ApiProxyTargetNameSchema.optional(),
-  endpointId: ApiEndpointIdSchema.optional(),
-  model: ApiProxyTargetModelSchema.optional(),
-  role: ApiProxyTargetRoleSchema.optional(),
-  priority: ApiProxyTargetPrioritySchema.optional(),
-  preemptible: z.boolean().optional(),
-  saveSlotsBeforeUnload: z.boolean().optional(),
-  slotIds: ApiProxyTargetSlotIdsSchema.optional(),
-  idleUnloadMs: ApiProxyTargetIdleMsSchema.optional(),
-});
+export const ApiProxyTargetUpdateSchema = updateSchemaFrom(
+  ApiProxyTargetRecordSchema.omit({ id: true }),
+);
 
 export const ApiProxyModelCreateSchema = ApiProxyModelRecordSchema.omit({
   id: true,
@@ -141,22 +134,14 @@ export const ApiProxyPipelineCreateSchema =
     id: true,
   });
 
-export const ApiProxyModelUpdateSchema = z.object({
-  modelId: ApiProxyModelIdSchema.optional(),
-  visible: z.boolean().optional(),
-  enabled: z.boolean().optional(),
-  ownedBy: ApiProxyModelOwnerSchema.optional(),
-  targetId: ApiProxyIdSchema.nullable().optional(),
-  routeTo: ApiProxyRouteToSchema.nullable().optional(),
-  description: ApiProxyModelDescriptionSchema.optional(),
-  blockedMessage: ApiProxyBlockedMessageSchema.optional(),
-});
+export const ApiProxyModelUpdateSchema = updateSchemaFrom(
+  ApiProxyModelRecordSchema.omit({ id: true }),
+);
 
-export const ApiProxyPipelineUpdateSchema = z.object({
-  name: ApiProxyPipelineNameSchema.optional(),
-  enabled: z.boolean().optional(),
+export const ApiProxyPipelineUpdateSchema = updateSchemaFrom(
+  ApiProxyPipelineConfigBaseSchema.omit({ id: true }),
+).extend({
   entry: ApiProxyPortRefSchema.nullable().optional(),
-  nodes: z.array(ApiProxyPipelineNodeSchema).max(200).optional(),
 });
 
 export const ApiProxyServeProtocolSchema = z.enum(["openai", "anthropic"]);
@@ -264,11 +249,9 @@ export const ApiProxySourceCreateSchema = ApiProxySourceConfigSchema.omit({
   apiKey: ApiProxySourceKeySchema,
 });
 
-export const ApiProxySourceUpdateSchema = z.object({
-  name: ApiProxySourceNameSchema.optional(),
-  enabled: z.boolean().optional(),
-  note: z.string().trim().max(400).optional(),
-  blockedMessage: ApiProxyBlockedMessageSchema.optional(),
+export const ApiProxySourceUpdateSchema = updateSchemaFrom(
+  ApiProxySourceConfigSchema.omit({ id: true }),
+).extend({
   apiKey: ApiProxySourceKeySchema,
 });
 
@@ -286,13 +269,9 @@ export const ApiProxySettingsSchema = z.object({
   traceRetentionDays: ApiProxyTraceRetentionDaysSchema.default(30),
 });
 
-export const ApiProxySettingsUpdateSchema = z.object({
-  allowAnonymous: z.boolean().optional(),
-  anonymousBlockedMessage: ApiProxyBlockedMessageSchema.optional(),
-  unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.optional(),
-  streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().optional(),
-  traceRetentionDays: ApiProxyTraceRetentionDaysSchema.optional(),
-});
+export const ApiProxySettingsUpdateSchema = updateSchemaFrom(
+  ApiProxySettingsSchema,
+);
 
 export const ApiProxyTraceUsageSchema = z.object({
   promptTokens: z.number().int().min(0).nullable().default(null),

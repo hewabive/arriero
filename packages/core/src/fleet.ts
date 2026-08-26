@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { MemoryPoolViewSchema, ResourceLedgerSchema } from "./resources.js";
+import { updateSchemaFrom } from "./schema-update.js";
 import { SystemAcceleratorSchema, SystemResourcesSchema } from "./system.js";
 
 export const FleetNodeIdSchema = z.string().regex(/^[A-Za-z0-9._-]+$/);
@@ -15,18 +16,14 @@ export const FleetNodeSchema = z.object({
 });
 export type FleetNode = z.infer<typeof FleetNodeSchema>;
 
-export const FleetNodeCreateSchema = z.object({
-  name: FleetNodeNameSchema,
-  baseUrl: FleetNodeBaseUrlSchema,
-  enabled: z.boolean().default(true),
+export const FleetNodeCreateSchema = FleetNodeSchema.omit({ id: true }).extend({
   token: z.string().min(1).optional(),
 });
 export type FleetNodeCreate = z.infer<typeof FleetNodeCreateSchema>;
 
-export const FleetNodeUpdateSchema = z.object({
-  name: FleetNodeNameSchema.optional(),
-  baseUrl: FleetNodeBaseUrlSchema.optional(),
-  enabled: z.boolean().optional(),
+export const FleetNodeUpdateSchema = updateSchemaFrom(
+  FleetNodeSchema.omit({ id: true }),
+).extend({
   token: z.string().optional(),
 });
 export type FleetNodeUpdate = z.infer<typeof FleetNodeUpdateSchema>;

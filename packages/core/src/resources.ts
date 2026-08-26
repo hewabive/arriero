@@ -4,6 +4,7 @@ import {
   MemoryPoolIdSchema,
   type InstanceMemoryDraw,
 } from "./memory-assessment.js";
+import { updateSchemaFrom } from "./schema-update.js";
 
 export const MemoryPoolKindSchema = z.enum(["gpu", "host"]);
 
@@ -39,12 +40,9 @@ export const MemoryPoolViewSchema = MemoryPoolSchema.extend({
   orphaned: z.boolean().default(false),
 });
 
-export const MemoryPoolUpdateSchema = z.object({
-  name: z.string().min(1).max(120).optional(),
-  capacityBytes: z.number().int().nonnegative().optional(),
-  reservedBytes: z.number().int().nonnegative().optional(),
-  autoCapacity: z.boolean().optional(),
-});
+export const MemoryPoolUpdateSchema = updateSchemaFrom(
+  MemoryPoolSchema.omit({ id: true, kind: true, deviceRef: true }),
+);
 
 export const ResourcePoolUsageSchema = z.object({
   poolId: MemoryPoolIdSchema,
