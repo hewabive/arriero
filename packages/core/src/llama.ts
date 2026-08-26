@@ -17,15 +17,6 @@ export const LlamaModelDiagnosticsSchema = z.object({
   loraAdapters: EndpointProbeSchema,
 });
 
-export const LlamaProbeSchema = z.object({
-  baseUrl: z.string(),
-  health: EndpointProbeSchema,
-  props: EndpointProbeSchema,
-  slots: EndpointProbeSchema,
-  models: EndpointProbeSchema,
-  modelDiagnostics: z.record(z.string(), LlamaModelDiagnosticsSchema),
-});
-
 export const LlamaCapabilityStatusSchema = z.enum([
   "available",
   "unsupported",
@@ -123,7 +114,6 @@ export const LlamaSourceRefsSchema = z.object({
 
 export type EndpointProbe = z.infer<typeof EndpointProbeSchema>;
 export type LlamaModelDiagnostics = z.infer<typeof LlamaModelDiagnosticsSchema>;
-export type LlamaProbe = z.infer<typeof LlamaProbeSchema>;
 export type LlamaCapabilityStatus = z.infer<typeof LlamaCapabilityStatusSchema>;
 export type LlamaCapabilityCategory = z.infer<
   typeof LlamaCapabilityCategorySchema

@@ -142,11 +142,9 @@ function health(
       issues: [],
       checkedAt: "2026-05-30T10:00:00.000Z",
     },
-    llama: {
+    probe: {
       baseUrl: "http://127.0.0.1:8080",
       health: healthEndpoint,
-      props: endpoint({}),
-      slots,
       models: endpoint({
         data: [
           {
@@ -157,7 +155,11 @@ function health(
           },
         ],
       }),
-      modelDiagnostics: {},
+      llama: {
+        props: endpoint({}),
+        slots,
+        modelDiagnostics: {},
+      },
     },
     logSummary: {
       instanceId: "instance-a",

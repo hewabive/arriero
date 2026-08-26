@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { LlamaProbeSchema } from "./llama.js";
+import { EndpointProbeSchema, LlamaModelDiagnosticsSchema } from "./llama.js";
 import { MemoryAssessmentSummarySchema } from "./memory-assessment.js";
 import {
   ProcessPreflightIssueSchema,
@@ -82,6 +82,19 @@ export const InstanceLogSummarySchema = z.object({
   updatedAt: z.string(),
 });
 
+export const InstanceProbeLlamaSchema = z.object({
+  props: EndpointProbeSchema,
+  slots: EndpointProbeSchema,
+  modelDiagnostics: z.record(z.string(), LlamaModelDiagnosticsSchema),
+});
+
+export const InstanceProbeSchema = z.object({
+  baseUrl: z.string(),
+  health: EndpointProbeSchema,
+  models: EndpointProbeSchema.nullable(),
+  llama: InstanceProbeLlamaSchema.nullable(),
+});
+
 export const InstanceHealthSummaryStatusSchema = z.enum([
   "stopped",
   "invalid",
@@ -130,7 +143,7 @@ export const InstanceHealthSummarySchema = z.object({
   actions: InstanceHealthActionsSchema,
   runtime: RuntimeStateSchema,
   preflight: ProcessPreflightResultSchema,
-  llama: LlamaProbeSchema,
+  probe: InstanceProbeSchema,
   logSummary: InstanceLogSummarySchema,
   promptCache: PromptCacheStateSchema.nullable().default(null),
   configDrift: z.boolean().default(false),
@@ -184,6 +197,8 @@ export type InstanceMemoryLayoutSource = z.infer<
 >;
 export type InstanceMemoryLayout = z.infer<typeof InstanceMemoryLayoutSchema>;
 export type InstanceLogSummary = z.infer<typeof InstanceLogSummarySchema>;
+export type InstanceProbeLlama = z.infer<typeof InstanceProbeLlamaSchema>;
+export type InstanceProbe = z.infer<typeof InstanceProbeSchema>;
 export type InstanceHealthSummaryStatus = z.infer<
   typeof InstanceHealthSummaryStatusSchema
 >;

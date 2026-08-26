@@ -1,14 +1,14 @@
 import {
   engineDescriptor,
   type EngineProbeId,
-  type EndpointProbe,
   type Instance,
   type InstanceKind,
-  type LlamaProbe,
+  type InstanceProbe,
 } from "@arriero/core";
 
 import {
   offlineLlamaProbe,
+  offlineRpcWorkerProbe,
   probeLlamaServer,
   probeRpcWorker,
 } from "../llama/probe.js";
@@ -16,37 +16,28 @@ import { probeJson, requestJsonProbe } from "../instances/endpoint.js";
 import { runtimeInstanceBaseUrl } from "./runtime-endpoint.js";
 
 export type EngineProbeRunner = {
-  probe: (instance: Instance) => Promise<LlamaProbe>;
-  offline: (instance: Instance, error: string) => LlamaProbe;
+  probe: (instance: Instance) => Promise<InstanceProbe>;
+  offline: (instance: Instance, error: string) => InstanceProbe;
 };
 
-function notApplicable(error: string): EndpointProbe {
-  return { ok: false, url: "", status: null, latencyMs: 0, error };
-}
-
-function offlineOpenAiProbe(instance: Instance, error: string): LlamaProbe {
+function offlineOpenAiProbe(instance: Instance, error: string): InstanceProbe {
   const baseUrl = runtimeInstanceBaseUrl(instance);
-  const failed = (path: string): EndpointProbe => ({
+  const failed = (path: string) => ({
     ok: false,
     url: baseUrl ? `${baseUrl}${path}` : "",
     status: null,
     latencyMs: 0,
     error,
   });
-  const unavailable = notApplicable(
-    "not applicable for OpenAI-compatible engine",
-  );
   return {
     baseUrl,
     health: failed("/health"),
-    props: unavailable,
-    slots: unavailable,
     models: failed("/v1/models"),
-    modelDiagnostics: {},
+    llama: null,
   };
 }
 
-async function probeOpenAiHttp(instance: Instance): Promise<LlamaProbe> {
+async function probeOpenAiHttp(instance: Instance): Promise<InstanceProbe> {
   const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     return offlineOpenAiProbe(instance, "HTTP endpoint is not configured.");
@@ -56,9 +47,6 @@ async function probeOpenAiHttp(instance: Instance): Promise<LlamaProbe> {
     timeoutMs !== undefined
       ? (url: string) => requestJsonProbe(url, { timeoutMs })
       : probeJson;
-  const unavailable = notApplicable(
-    "not applicable for OpenAI-compatible engine",
-  );
   const [health, models] = await Promise.all([
     probe(`${baseUrl}/health`),
     probe(`${baseUrl}/v1/models`),
@@ -66,16 +54,14 @@ async function probeOpenAiHttp(instance: Instance): Promise<LlamaProbe> {
   return {
     baseUrl,
     health,
-    props: unavailable,
-    slots: unavailable,
     models,
-    modelDiagnostics: {},
+    llama: null,
   };
 }
 
 const ENGINE_PROBES: Record<EngineProbeId, EngineProbeRunner> = {
   "llama-http": { probe: probeLlamaServer, offline: offlineLlamaProbe },
-  "tcp-accept": { probe: probeRpcWorker, offline: offlineLlamaProbe },
+  "tcp-accept": { probe: probeRpcWorker, offline: offlineRpcWorkerProbe },
   "openai-http": { probe: probeOpenAiHttp, offline: offlineOpenAiProbe },
 };
 

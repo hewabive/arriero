@@ -4,7 +4,6 @@ import {
   type InstanceLoadProgress,
   type EndpointProbe,
   type LlamaModelActionName,
-  type LlamaProbe,
   type LlamaSlotActionName,
   type MemoryAssessmentStatus,
 } from "@arriero/core";
@@ -120,9 +119,9 @@ export function slowestProbe(
 }
 
 export function propsSummary(
-  probe: LlamaProbe | undefined,
+  probe: EndpointProbe | undefined,
 ): Array<[string, unknown]> {
-  const body = probe?.props.body;
+  const body = probe?.body;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return [];
   }

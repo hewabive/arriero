@@ -3,8 +3,8 @@ import type {
   ApiProbeResult,
   Instance,
   EndpointProbe,
+  InstanceProbe,
   LlamaModelDiagnostics,
-  LlamaProbe,
 } from "@arriero/core";
 
 import { connect } from "node:net";
@@ -50,17 +50,19 @@ function failedEndpoint(url: string, error: string): EndpointProbe {
 export function offlineLlamaProbe(
   instance: Instance,
   error: string,
-): LlamaProbe {
+): InstanceProbe {
   const baseUrl = runtimeInstanceBaseUrl(instance);
   const endpoint = (path: string): EndpointProbe =>
     failedEndpoint(baseUrl ? `${baseUrl}${path}` : "", error);
   return {
     baseUrl,
     health: endpoint(LLAMA_PROBE_PATHS.health),
-    props: endpoint(LLAMA_PROBE_PATHS.props),
-    slots: endpoint(LLAMA_PROBE_PATHS.slots),
     models: endpoint(LLAMA_PROBE_PATHS.models),
-    modelDiagnostics: {},
+    llama: {
+      props: endpoint(LLAMA_PROBE_PATHS.props),
+      slots: endpoint(LLAMA_PROBE_PATHS.slots),
+      modelDiagnostics: {},
+    },
   };
 }
 
@@ -177,50 +179,48 @@ function probeTcpAccept(
   });
 }
 
-export async function probeRpcWorker(instance: Instance): Promise<LlamaProbe> {
-  const notApplicable = failedEndpoint("", "not applicable for rpc-server");
+export function offlineRpcWorkerProbe(
+  instance: Instance,
+  error: string,
+): InstanceProbe {
+  const endpoint = runtimeRpcWorkerEndpoint(instance);
+  const url = endpoint ? `tcp://${endpoint.host}:${endpoint.port}` : "";
+  return {
+    baseUrl: url,
+    health: failedEndpoint(url, error),
+    models: null,
+    llama: null,
+  };
+}
+
+export async function probeRpcWorker(
+  instance: Instance,
+): Promise<InstanceProbe> {
   const endpoint = runtimeRpcWorkerEndpoint(instance);
   if (!endpoint) {
-    return {
-      baseUrl: "",
-      health: failedEndpoint(
-        "",
-        "rpc-server endpoint is not configured (--host/--port)",
-      ),
-      props: notApplicable,
-      slots: notApplicable,
-      models: notApplicable,
-      modelDiagnostics: {},
-    };
+    return offlineRpcWorkerProbe(
+      instance,
+      "rpc-server endpoint is not configured (--host/--port)",
+    );
   }
   const url = `tcp://${endpoint.host}:${endpoint.port}`;
   return {
     baseUrl: url,
     health: await probeTcpAccept(endpoint.host, endpoint.port, url),
-    props: notApplicable,
-    slots: notApplicable,
-    models: notApplicable,
-    modelDiagnostics: {},
+    models: null,
+    llama: null,
   };
 }
 
 export async function probeLlamaServer(
   instance: Instance,
-): Promise<LlamaProbe> {
+): Promise<InstanceProbe> {
   const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
-    const unsupported = failedEndpoint(
-      "",
+    return offlineLlamaProbe(
+      instance,
       "UNIX socket probing is not implemented yet",
     );
-    return {
-      baseUrl,
-      health: unsupported,
-      props: unsupported,
-      slots: unsupported,
-      models: unsupported,
-      modelDiagnostics: {},
-    };
   }
 
   const [health, props, slots, models] = await Promise.all([
@@ -237,9 +237,7 @@ export async function probeLlamaServer(
   return {
     baseUrl,
     health,
-    props,
-    slots,
     models,
-    modelDiagnostics,
+    llama: { props, slots, modelDiagnostics },
   };
 }

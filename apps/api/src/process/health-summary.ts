@@ -143,16 +143,13 @@ export function deriveStatus(input: {
   swapBytes: number | null;
   numaPlacement: NumaPlacement | null;
 }): { status: InstanceHealthSummaryStatus; reason: string } {
-  const legacyReadinessName = input.engine.httpHealth
-    ? input.engine.displayName
-    : "llama-server";
   if (input.runtime.status === "stale") {
     if (input.healthOk) {
       return {
         status: "stale",
         reason: input.runtime.pid
-          ? `Process pid=${input.runtime.pid} is unmanaged, but ${legacyReadinessName} health is OK.`
-          : `Last run is unmanaged, but ${legacyReadinessName} health is OK.`,
+          ? `Process pid=${input.runtime.pid} is unmanaged, but ${input.engine.displayName} health is OK.`
+          : `Last run is unmanaged, but ${input.engine.displayName} health is OK.`,
       };
     }
     return {
@@ -213,7 +210,7 @@ export function deriveStatus(input: {
   if (input.runtime.status === "starting") {
     return {
       status: "starting",
-      reason: `Process was started and the API is waiting for ${legacyReadinessName} readiness.`,
+      reason: `Process was started and the API is waiting for ${input.engine.displayName} readiness.`,
     };
   }
 
@@ -335,12 +332,12 @@ export async function getInstanceHealthSummary(
   const descriptor = engineDescriptor(instance.kind);
   const probeRunner = engineProbe(instance.kind);
   const shouldProbe = probeableStatuses.has(runtime.status);
-  const probe = !shouldProbe
+  const probePromise = !shouldProbe
     ? Promise.resolve(probeRunner.offline(instance, "Instance is not running."))
     : probeRunner.probe(instance);
-  const [preflight, llama, logSummary, swapBytes] = await Promise.all([
+  const [preflight, probe, logSummary, swapBytes] = await Promise.all([
     preflightPromise,
-    probe,
+    probePromise,
     summarizeInstanceLog({
       instanceId: instance.name,
       kind: instance.kind,
@@ -358,7 +355,7 @@ export async function getInstanceHealthSummary(
   const numaPlacement =
     instance.numa?.mode === "interleave" &&
     runtime.status === "running" &&
-    llama.health.ok
+    probe.health.ok
       ? await getInstanceNumaPlacement({
           instance,
           runtime,
@@ -374,8 +371,8 @@ export async function getInstanceHealthSummary(
     preflightOk: preflight.ok,
     preflightErrors,
     preflightWarnings,
-    healthOk: llama.health.ok,
-    healthStatus: llama.health.status,
+    healthOk: probe.health.ok,
+    healthStatus: probe.health.status,
     logReady: logSummary.ready,
     logErrors: logSummary.errors.length,
     logErrorTail: logSummary.errors,
@@ -398,7 +395,7 @@ export async function getInstanceHealthSummary(
     actions: actionsFor(runtime, preflight.ok),
     runtime,
     preflight,
-    llama,
+    probe,
     logSummary,
     promptCache: promptCacheTracker.get(instance.name),
     configDrift,

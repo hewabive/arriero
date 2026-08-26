@@ -182,7 +182,9 @@ export function InstanceDetails(props: {
   const health = props.health ?? healthQuery.data?.data;
   const runtime = health?.runtime ?? runtimeQuery.data?.data;
   const preflight = health?.preflight ?? preflightQuery.data?.data;
-  const llama = health?.llama ?? llamaQuery.data?.data;
+  const probe = health?.probe ?? llamaQuery.data?.data;
+  const llama = probe?.llama ?? undefined;
+  const modelsProbe = probe?.models ?? undefined;
   const logTail = logsQuery.data?.data;
   const statusSummary = health?.logSummary ?? statusSummaryQuery.data?.data;
   const errorLineSet = new Set(statusSummary?.errors ?? []);
@@ -197,7 +199,7 @@ export function InstanceDetails(props: {
     borderLeft: "3px solid var(--mantine-color-yellow-6)",
     background: "var(--mantine-color-yellow-light)",
   };
-  const summary = useMemo(() => propsSummary(llama), [llama]);
+  const summary = useMemo(() => propsSummary(llama?.props), [llama]);
   const showLaunchMonitor = Boolean(
     props.launchMonitor || isStartupStatus(health?.status),
   );
@@ -313,10 +315,10 @@ export function InstanceDetails(props: {
   const webUiDisabled = !canOpenLlamaWebUi(health, webUiUrl);
   const rootSlotRows = slotRowsFromProbe(llama?.slots);
   const slowestLlamaProbe = slowestProbe([
-    ["health", llama?.health],
+    ["health", probe?.health],
     ["props", llama?.props],
     ["slots", llama?.slots],
-    ["v1/models", llama?.models],
+    ["v1/models", modelsProbe],
   ]);
   const pendingSlotAction = slotActionMutation.isPending
     ? (slotActionMutation.variables ?? null)
@@ -388,10 +390,10 @@ export function InstanceDetails(props: {
           </Stack>
           {hasLlamaApi && (
             <Group gap="xs" mt="sm">
-              <ProbePill title="health" probe={llama?.health} />
+              <ProbePill title="health" probe={probe?.health} />
               <ProbePill title="props" probe={llama?.props} />
               <ProbePill title="slots" probe={llama?.slots} />
-              <ProbePill title="v1/models" probe={llama?.models} />
+              <ProbePill title="v1/models" probe={modelsProbe} />
             </Group>
           )}
           {(health || (hasLlamaApi && slowestLlamaProbe)) && (
@@ -458,7 +460,7 @@ export function InstanceDetails(props: {
           <>
             <SectionLabel>Models</SectionLabel>
             <V1ModelsPanel
-              probe={llama?.models}
+              probe={modelsProbe}
               modelDiagnostics={llama?.modelDiagnostics ?? {}}
               statusSummary={statusSummary}
               onReload={() => reloadModelsMutation.mutate()}
@@ -538,7 +540,7 @@ export function InstanceDetails(props: {
                     <DataList.Item>
                       <DataList.ItemLabel>Base URL</DataList.ItemLabel>
                       <DataList.ItemValue>
-                        {llama?.baseUrl || "-"}
+                        {probe?.baseUrl || "-"}
                       </DataList.ItemValue>
                     </DataList.Item>
                     {summary.map(([label, value]) => (
@@ -665,7 +667,7 @@ export function InstanceDetails(props: {
             <Accordion.Panel>
               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
                 <Text size="sm" lineClamp={1}>
-                  URL: {statusSummary?.listeningUrl ?? llama?.baseUrl ?? "-"}
+                  URL: {statusSummary?.listeningUrl ?? probe?.baseUrl ?? "-"}
                 </Text>
                 <Text size="sm" lineClamp={1}>
                   Model:{" "}

@@ -5,12 +5,12 @@ import type {
   ApiProbeRequest,
   ApiProbeResult,
   EndpointProbe,
+  InstanceProbe,
   LlamaModelActionName,
   LlamaModelActionResult,
   LlamaSlotActionName,
   LlamaSlotActionRequest,
   LlamaSlotActionResult,
-  LlamaProbe,
 } from "@arriero/core";
 
 import { activeNodeScopedPath, apiBase } from "./base.js";
@@ -18,7 +18,7 @@ import { formatApiErrorValue, nodeRequest as request } from "./http.js";
 import { readApiProbeStream, type ApiProbeStreamCallbacks } from "./sse.js";
 
 export async function getLlamaProbe(id: string) {
-  return request<{ data: LlamaProbe }>(`/api/instances/${id}/llama`);
+  return request<{ data: InstanceProbe }>(`/api/instances/${id}/llama`);
 }
 
 export async function getLlamaCapabilities(id: string, force = false) {

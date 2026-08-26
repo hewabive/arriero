@@ -55,7 +55,8 @@ test("KTransformers readiness follows HTTP health 503 to 200", async () => {
     const healthy = await engineProbe("ktransformers").probe(instance);
     assert.equal(healthy.health.ok, true);
     assert.equal(healthy.health.status, 200);
-    assert.deepEqual(healthy.models.body, { data: [{ id: "kt-model" }] });
+    assert.deepEqual(healthy.models?.body, { data: [{ id: "kt-model" }] });
+    assert.equal(healthy.llama, null);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

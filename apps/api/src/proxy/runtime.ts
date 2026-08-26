@@ -38,7 +38,10 @@ function activeRequestsFromSlots(probe: EndpointProbe | undefined) {
     .length;
 }
 
-function modelStatusFromProbe(probe: EndpointProbe | undefined, model: string) {
+function modelStatusFromProbe(
+  probe: EndpointProbe | null | undefined,
+  model: string,
+) {
   const body = asObject(probe?.body);
   const data = Array.isArray(body?.data) ? body.data : [];
   const match = data
@@ -62,7 +65,10 @@ function modelScopedSlots(
   health: InstanceHealthSummary | undefined,
   model: string,
 ) {
-  return health?.llama.modelDiagnostics[model]?.slots ?? health?.llama.slots;
+  return (
+    health?.probe.llama?.modelDiagnostics[model]?.slots ??
+    health?.probe.llama?.slots
+  );
 }
 
 function modelRuntimeState(modelStatus: string | null): ApiProxyModelState {
@@ -99,10 +105,10 @@ function processRuntimeState(
     return "loading";
   }
   if (health.status === "stale") {
-    if (health.llama.health.ok) {
+    if (health.probe.health.ok) {
       return "ready";
     }
-    if (health.llama.health.status === 503) {
+    if (health.probe.health.status === 503) {
       return "loading";
     }
     return "stopped";
@@ -145,7 +151,7 @@ function stateFromHealth(
     const slots = modelScopedSlots(health, target.model);
     const activeRequests = activeRequestsFromSlots(slots);
     const state = modelRuntimeState(
-      modelStatusFromProbe(health.llama.models, target.model),
+      modelStatusFromProbe(health.probe.models, target.model),
     );
     return {
       state,
@@ -154,7 +160,7 @@ function stateFromHealth(
     };
   }
 
-  const activeRequests = activeRequestsFromSlots(health.llama.slots);
+  const activeRequests = activeRequestsFromSlots(health.probe.llama?.slots);
   const state = processRuntimeState(health);
   return {
     state,
