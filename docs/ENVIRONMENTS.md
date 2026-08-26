@@ -3,14 +3,20 @@
 The Environments domain provisions immutable application installations — the Python
 inference engines, plus non-engine web apps such as Open WebUI and Chat UI
 (`docs/WEBAPPS.md`). It is separate from the llama.cpp CMake Build domain.
-Per-application package, entrypoint, validation, availability, catalog behavior, the
-job-step plan (`jobSteps`) and any steps executed inside the manager process
+Per-application entrypoint, validation, availability, catalog naming, the job-step
+plan (`jobSteps`) and any steps executed inside the manager process
 (`inProcessSteps`, e.g. wheel-hash verification or the Chat UI manifest patch) are
 selected through the API-side provisioner registry (`envs/provisioners.ts`); the runner
-only walks the plan. The engine→channel map lives in core
-(`environmentInstallChannel`): `uv` (Python venvs, everything below unless said
-otherwise) or `node-source` (Chat UI — a git checkout built with the host `git`/`npm`,
-run on the manager's own Node; see the Chat UI section).
+only walks the plan. The contract facts both sides share — display name, install
+channel, accelerator variants, allowed Python versions, PyPI distribution names,
+default extras, the path-catalog engine-kind tag, and the create-form presentation —
+hang off `environmentDescriptor` in core (`environment-descriptor.ts`), which also
+derives the PyPI requirement pins (`environmentPypiRequirements`) used by the
+provisioners, the freeze validation, and the web form's planned-command preview. The
+engine→channel map lives in core (`environmentInstallChannel`): `uv` (Python venvs,
+everything below unless said otherwise) or `node-source` (Chat UI — a git checkout
+built with the host `git`/`npm`, run on the manager's own Node; see the Chat UI
+section).
 
 ## Desired state and runtime state
 
@@ -159,7 +165,7 @@ The KTransformers provisioner installs a matched pair in one transaction:
 
 The Open WebUI provisioner installs `open-webui[extras]==version` (or one wheel) the
 same way, entrypoint `bin/open-webui`, validation `import open_webui` plus the exact
-metadata version, CPU-only variant. It sets `catalogEngineKind: null`, so **no
+metadata version, CPU-only variant. Its descriptor sets `instanceKind: null`, so **no
 path-catalog entry is generated** — instances cannot select the environment, and
 webapps reference the spec id directly. Deletion is additionally refused while a
 webapp references the spec.
@@ -214,8 +220,8 @@ it is runtime state, not portable configuration.
 
 `GET /api/environments/index-versions?engine=&pythonVersion=` reads the Simple API
 selected by the site profile and returns versions newest first. An absent site index
-means uv's default package index. Distribution names come from the provisioner registry,
-so vLLM queries `vllm`, SGLang queries `sglang`, and KTransformers queries both
+means uv's default package index. Distribution names come from the core environment
+descriptor, so vLLM queries `vllm`, SGLang queries `sglang`, and KTransformers queries both
 `kt-kernel` and `sglang-kt`; a
 version published for only one matched root is returned with `missingDistributions`
 instead of being hidden.

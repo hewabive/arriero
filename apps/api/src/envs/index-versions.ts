@@ -1,8 +1,9 @@
-import type {
-  EnvironmentEngine,
-  EnvironmentIndexVersions,
-  PackageIndexFile,
-  PackageIndexVersion,
+import {
+  environmentDescriptor,
+  type EnvironmentEngine,
+  type EnvironmentIndexVersions,
+  type PackageIndexFile,
+  type PackageIndexVersion,
 } from "@arriero/core";
 
 import {
@@ -18,7 +19,6 @@ import {
   type IndexDistributionResult,
   type IndexFileEntry,
 } from "./package-index.js";
-import { environmentProvisioner } from "./provisioners.js";
 
 const SIMPLE_ACCEPT =
   "application/vnd.pypi.simple.v1+json;q=1, application/vnd.pypi.simple.v1+html;q=0.2, text/html;q=0.1";
@@ -126,7 +126,7 @@ export async function resolveEnvironmentIndexVersions(input: {
   fetcher?: IndexDistributionFetcher;
 }): Promise<EnvironmentIndexVersions> {
   const indexUrl = input.indexUrl?.trim() || PUBLIC_PACKAGE_INDEX_URL;
-  const distributions = [...environmentProvisioner(input.engine).distributions];
+  const distributions = [...environmentDescriptor(input.engine).distributions];
   const fetcher =
     input.fetcher ?? ((url: string) => fetchIndexDistribution(url));
   const base = {

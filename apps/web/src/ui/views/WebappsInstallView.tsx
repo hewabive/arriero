@@ -1,7 +1,7 @@
 import {
   CHAT_UI_REPOSITORY_URL,
+  ENVIRONMENT_DEFAULT_PYTHON_VERSION,
   ENVIRONMENT_ENGINE_LABELS,
-  OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
   packageIndexInstallOptions,
   WEBAPP_KINDS,
   webappDescriptor,
@@ -98,12 +98,12 @@ export function WebappsInstallView({
       "environment-index-versions",
       descriptor.environmentEngine,
       packageIndexUrl,
-      OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
+      ENVIRONMENT_DEFAULT_PYTHON_VERSION,
     ],
     queryFn: () =>
       listEnvironmentIndexVersions(
         descriptor.environmentEngine,
-        OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
+        ENVIRONMENT_DEFAULT_PYTHON_VERSION,
       ),
     enabled: channel === "uv",
     staleTime: 120_000,

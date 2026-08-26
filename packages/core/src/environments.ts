@@ -149,6 +149,18 @@ export const EnvironmentEngineSchema = z.enum([
   "chat-ui",
 ]);
 
+export const ENVIRONMENT_VARIANTS = ["cuda", "cpu", "rocm"] as const;
+
+export type EnvironmentVariant = (typeof ENVIRONMENT_VARIANTS)[number];
+
+export const ENVIRONMENT_DEFAULT_PYTHON_VERSION = "3.12";
+
+export const KTRANSFORMERS_PYTHON_VERSIONS = ["3.11", "3.12"] as const;
+
+export const OPEN_WEBUI_PYTHON_VERSIONS = ["3.11", "3.12"] as const;
+
+export const SGLANG_DEFAULT_EXTRAS = ["all"] as const;
+
 export type CudaEnvironmentEngine = "vllm" | "sglang" | "ktransformers";
 
 export const ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY: Record<
@@ -197,8 +209,10 @@ const EnvironmentCommonShape = {
 const VllmEnvironmentCreateObjectSchema = z.object({
   ...EnvironmentCommonShape,
   engine: z.literal("vllm"),
-  variant: z.enum(["cuda", "cpu", "rocm"]).default("cuda"),
-  pythonVersion: PythonVersionSchema.default("3.12"),
+  variant: z.enum(ENVIRONMENT_VARIANTS).default("cuda"),
+  pythonVersion: PythonVersionSchema.default(
+    ENVIRONMENT_DEFAULT_PYTHON_VERSION,
+  ),
   source: VllmEnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],
@@ -209,10 +223,12 @@ const SglangEnvironmentCreateObjectSchema = z.object({
   ...EnvironmentCommonShape,
   engine: z.literal("sglang"),
   variant: z.literal("cuda").default("cuda"),
-  pythonVersion: PythonVersionSchema.default("3.12"),
+  pythonVersion: PythonVersionSchema.default(
+    ENVIRONMENT_DEFAULT_PYTHON_VERSION,
+  ),
   source: VllmEnvironmentInstallSourceSchema.default({
     kind: "pypi",
-    extras: ["all"],
+    extras: [...SGLANG_DEFAULT_EXTRAS],
   }),
 });
 
@@ -220,21 +236,21 @@ const KTransformersEnvironmentCreateObjectSchema = z.object({
   ...EnvironmentCommonShape,
   engine: z.literal("ktransformers"),
   variant: z.literal("cuda").default("cuda"),
-  pythonVersion: z.enum(["3.11", "3.12"]).default("3.12"),
+  pythonVersion: z
+    .enum(KTRANSFORMERS_PYTHON_VERSIONS)
+    .default(ENVIRONMENT_DEFAULT_PYTHON_VERSION),
   source: KTransformersEnvironmentInstallSourceSchema.default({
     kind: "pypi",
   }),
 });
-
-export const OPEN_WEBUI_DEFAULT_PYTHON_VERSION = "3.12";
 
 const OpenWebuiEnvironmentCreateObjectSchema = z.object({
   ...EnvironmentCommonShape,
   engine: z.literal("open-webui"),
   variant: z.literal("cpu").default("cpu"),
   pythonVersion: z
-    .enum(["3.11", "3.12"])
-    .default(OPEN_WEBUI_DEFAULT_PYTHON_VERSION),
+    .enum(OPEN_WEBUI_PYTHON_VERSIONS)
+    .default(ENVIRONMENT_DEFAULT_PYTHON_VERSION),
   source: VllmEnvironmentInstallSourceSchema.default({
     kind: "pypi",
     extras: [],

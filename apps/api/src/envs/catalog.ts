@@ -1,4 +1,4 @@
-import type { EnvironmentSpec } from "@arriero/core";
+import { environmentDescriptor, type EnvironmentSpec } from "@arriero/core";
 
 import {
   createPathCatalogEntry,
@@ -14,13 +14,12 @@ import {
 } from "./repository.js";
 
 export function reconcileEnvironmentCatalog(spec: EnvironmentSpec) {
-  const provisioner = environmentProvisioner(spec.engine);
-  const engineKind = provisioner.catalogEngineKind;
+  const engineKind = environmentDescriptor(spec.engine).instanceKind;
   if (!engineKind) {
     return null;
   }
   const path = environmentEntrypoint(spec);
-  const desiredName = provisioner.catalogName(spec);
+  const desiredName = environmentProvisioner(spec.engine).catalogName(spec);
   const storedEntryId =
     getEnvironmentMachineState(spec.id)?.pathCatalogEntryId ?? null;
   const stored = storedEntryId ? getPathCatalogEntry(storedEntryId) : null;

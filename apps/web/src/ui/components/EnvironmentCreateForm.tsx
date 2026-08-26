@@ -2,11 +2,16 @@ import type {
   EnvironmentCreate,
   EnvironmentEngine,
   EnvironmentRepositorySettings,
+  EnvironmentVariant,
   PackageIndexVersion,
   UvToolStatus,
 } from "@arriero/core";
 import {
-  ENVIRONMENT_ENGINE_LABELS,
+  ENVIRONMENT_DEFAULT_PYTHON_VERSION,
+  ENVIRONMENT_VARIANT_LABELS,
+  EnvironmentEngineSchema,
+  environmentDescriptor,
+  environmentPypiRequirements,
   packageIndexInstallOptions,
 } from "@arriero/core";
 import {
@@ -31,6 +36,13 @@ import { useMemo, useState } from "react";
 import { listEnvironmentIndexVersions } from "../../api/client";
 import { substringOptionsFilter, TouchAutocomplete } from "./TouchCombobox";
 import { countLabel } from "../utils/plural";
+
+const CREATE_ENGINE_OPTIONS = EnvironmentEngineSchema.options.flatMap(
+  (option) => {
+    const create = environmentDescriptor(option).create;
+    return create ? [{ value: option, label: create.label }] : [];
+  },
+);
 
 function sectionHeading(step: number, title: string, hint?: string) {
   return (
@@ -76,8 +88,10 @@ export function EnvironmentCreateForm({
 }) {
   const [engine, setEngine] =
     useState<Exclude<EnvironmentEngine, "chat-ui">>("vllm");
-  const [pythonVersion, setPythonVersion] = useState("3.12");
-  const [variant, setVariant] = useState<"cuda" | "cpu" | "rocm">("cuda");
+  const [pythonVersion, setPythonVersion] = useState(
+    ENVIRONMENT_DEFAULT_PYTHON_VERSION,
+  );
+  const [variant, setVariant] = useState<EnvironmentVariant>("cuda");
   const [sourceKind, setSourceKind] = useState<"pypi" | "wheel">("pypi");
   const [version, setVersion] = useState("");
   const [showPreReleases, setShowPreReleases] = useState(false);
@@ -88,6 +102,16 @@ export function EnvironmentCreateForm({
   const [sglangWheelSha256, setSglangWheelSha256] = useState("");
   const [torchBackend, setTorchBackend] = useState("");
   const [debouncedPythonVersion] = useDebouncedValue(pythonVersion.trim(), 400);
+
+  const descriptor = environmentDescriptor(engine);
+  const createFacts = descriptor.create;
+  const distributionPair =
+    descriptor.distributions.length > 1
+      ? {
+          primary: descriptor.distributions[0] ?? "",
+          secondary: descriptor.distributions[1] ?? "",
+        }
+      : null;
 
   const versionsQuery = useQuery({
     queryKey: [
@@ -219,24 +243,25 @@ export function EnvironmentCreateForm({
   ]);
 
   const plannedCommand = useMemo(() => {
+    const paired = environmentDescriptor(engine).distributions.length > 1;
     const options = packageIndexInstallOptions(repositories.packageIndexUrl);
     if (torchBackend.trim() && sourceKind === "wheel") {
       options.push("--torch-backend", torchBackend.trim());
     }
     const pin = version.trim() || "<version>";
-    const extrasSuffix = extras.trim()
-      ? `[${extras
+    const extrasList = paired
+      ? []
+      : extras
           .split(",")
           .map((item) => item.trim())
-          .filter(Boolean)
-          .join(",")}]`
-      : "";
+          .filter(Boolean);
     const roots =
       sourceKind === "wheel"
-        ? [wheelUrl.trim() || "<wheel url>"]
-        : engine === "ktransformers"
-          ? [`kt-kernel==${pin}`, `sglang-kt==${pin}`]
-          : [`${engine}${extrasSuffix}==${pin}`];
+        ? [
+            wheelUrl.trim() || "<wheel url>",
+            ...(paired ? [sglangWheelUrl.trim() || "<wheel url>"] : []),
+          ]
+        : environmentPypiRequirements(engine, pin, extrasList);
     return ["uv pip install", ...options, ...roots].join(" ");
   }, [
     repositories.packageIndexUrl,
@@ -246,6 +271,7 @@ export function EnvironmentCreateForm({
     engine,
     extras,
     wheelUrl,
+    sglangWheelUrl,
   ]);
 
   const indexStatus = () => {
@@ -294,7 +320,7 @@ export function EnvironmentCreateForm({
     Boolean(pythonVersion.trim()) &&
     (sourceKind === "pypi" ||
       (Boolean(wheelUrl.trim()) &&
-        (engine !== "ktransformers" || Boolean(sglangWheelUrl.trim()))));
+        (!distributionPair || Boolean(sglangWheelUrl.trim()))));
 
   return (
     <Paper withBorder p="md">
@@ -315,64 +341,70 @@ export function EnvironmentCreateForm({
             value={engine}
             onChange={(value) => {
               const next = value as Exclude<EnvironmentEngine, "chat-ui">;
+              const nextDescriptor = environmentDescriptor(next);
               setEngine(next);
               setVersion("");
-              if (next === "ktransformers") {
-                setVariant("cuda");
-                if (!["3.11", "3.12"].includes(pythonVersion)) {
-                  setPythonVersion("3.12");
-                }
+              setExtras(nextDescriptor.defaultExtras.join(","));
+              if (!nextDescriptor.variants.includes(variant)) {
+                setVariant(nextDescriptor.variants[0] ?? "cuda");
               }
-              if (next === "sglang") {
-                setVariant("cuda");
-                setExtras("all");
-              }
-              if (next === "vllm") {
-                setExtras("");
+              const python = nextDescriptor.python;
+              if (python?.versions) {
+                const trimmed = pythonVersion.trim();
+                setPythonVersion(
+                  python.versions.includes(trimmed)
+                    ? trimmed
+                    : python.defaultVersion,
+                );
               }
             }}
-            data={[
-              { label: ENVIRONMENT_ENGINE_LABELS.vllm, value: "vllm" },
-              { label: ENVIRONMENT_ENGINE_LABELS.sglang, value: "sglang" },
-              {
-                label: `${ENVIRONMENT_ENGINE_LABELS.ktransformers} (SGLang-KT)`,
-                value: "ktransformers",
-              },
-            ]}
+            data={CREATE_ENGINE_OPTIONS}
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput
-              label="Python version"
-              required
-              value={pythonVersion}
-              onChange={(event) => setPythonVersion(event.currentTarget.value)}
-            />
+            {descriptor.python?.versions ? (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Python version
+                </Text>
+                <SegmentedControl
+                  value={pythonVersion}
+                  onChange={setPythonVersion}
+                  data={[...descriptor.python.versions]}
+                />
+              </Stack>
+            ) : (
+              <TextInput
+                label="Python version"
+                required
+                value={pythonVersion}
+                onChange={(event) =>
+                  setPythonVersion(event.currentTarget.value)
+                }
+              />
+            )}
             <Stack gap={4}>
               <Text size="sm" fw={500}>
                 Accelerator variant
               </Text>
-              {engine === "vllm" ? (
+              {descriptor.variants.length > 1 ? (
                 <SegmentedControl
                   value={variant}
-                  onChange={(value) =>
-                    setVariant(value as "cuda" | "cpu" | "rocm")
-                  }
-                  data={[
-                    { label: "CUDA", value: "cuda" },
-                    { label: "CPU", value: "cpu" },
-                    { label: "ROCm", value: "rocm" },
-                  ]}
+                  onChange={(value) => setVariant(value as EnvironmentVariant)}
+                  data={descriptor.variants.map((option) => ({
+                    label: ENVIRONMENT_VARIANT_LABELS[option],
+                    value: option,
+                  }))}
                 />
               ) : (
-                <Badge variant="light">CUDA</Badge>
+                <Badge variant="light">
+                  {ENVIRONMENT_VARIANT_LABELS[descriptor.variants[0] ?? "cuda"]}
+                </Badge>
               )}
             </Stack>
           </SimpleGrid>
-          {engine === "ktransformers" && (
+          {createFacts?.note && (
             <Text size="xs" c="dimmed">
-              KTransformers requires Linux x86-64, Python 3.11/3.12, and an
-              NVIDIA CUDA GPU. kt-kernel and sglang-kt are installed at this
-              exact shared version.
+              {createFacts.note}
             </Text>
           )}
         </Stack>
@@ -398,8 +430,8 @@ export function EnvironmentCreateForm({
             <Stack gap="sm">
               <TextInput
                 label={
-                  engine === "ktransformers"
-                    ? "kt-kernel wheel URL"
+                  distributionPair
+                    ? `${distributionPair.primary} wheel URL`
                     : "Wheel URL"
                 }
                 required
@@ -409,7 +441,9 @@ export function EnvironmentCreateForm({
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <TextInput
                   label={
-                    engine === "ktransformers" ? "kt-kernel SHA-256" : "SHA-256"
+                    distributionPair
+                      ? `${distributionPair.primary} SHA-256`
+                      : "SHA-256"
                   }
                   value={wheelSha256}
                   onChange={(event) =>
@@ -425,10 +459,10 @@ export function EnvironmentCreateForm({
                   }
                 />
               </SimpleGrid>
-              {engine === "ktransformers" && (
+              {distributionPair && (
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <TextInput
-                    label="sglang-kt wheel URL"
+                    label={`${distributionPair.secondary} wheel URL`}
                     required
                     value={sglangWheelUrl}
                     onChange={(event) =>
@@ -436,7 +470,7 @@ export function EnvironmentCreateForm({
                     }
                   />
                   <TextInput
-                    label="sglang-kt SHA-256"
+                    label={`${distributionPair.secondary} SHA-256`}
                     value={sglangWheelSha256}
                     onChange={(event) =>
                       setSglangWheelSha256(event.currentTarget.value)
@@ -462,9 +496,9 @@ export function EnvironmentCreateForm({
             <TouchAutocomplete
               style={{ flex: 1 }}
               label={
-                engine === "ktransformers"
+                distributionPair
                   ? "Matched pair version"
-                  : `${ENVIRONMENT_ENGINE_LABELS[engine]} version`
+                  : `${descriptor.displayName} version`
               }
               required
               data={versionOptions}
@@ -496,13 +530,7 @@ export function EnvironmentCreateForm({
               }}
               value={version}
               onChange={setVersion}
-              placeholder={
-                engine === "vllm"
-                  ? "0.26.0"
-                  : engine === "sglang"
-                    ? "0.5.17"
-                    : "0.6.3.post1"
-              }
+              placeholder={createFacts?.versionPlaceholder}
               description={
                 sourceKind === "wheel"
                   ? "Must match the version inside the wheel; it is verified after install"
@@ -549,7 +577,7 @@ export function EnvironmentCreateForm({
               fail unless the index is stale or the release is hidden.
             </Text>
           )}
-          {engine !== "ktransformers" && sourceKind === "pypi" && (
+          {!distributionPair && sourceKind === "pypi" && (
             <TextInput
               label="Extras"
               description="Comma-separated"

@@ -15,7 +15,9 @@ re-applies record defaults to omitted fields, turning a partial update into a re
 deviations (e.g. a nullable-to-clear field, an extra `apiKey`) go in an `.extend()` on top.
 
 Per-`WebappKind` specifics hang off `webappDescriptor` (`src/webapp-descriptor.ts`) the same way as
-the engine descriptor below — contract in `docs/WEBAPPS.md`.
+the engine descriptor below — contract in `docs/WEBAPPS.md`. Per-`EnvironmentEngine` specifics
+(variants, Python versions, distributions, create-form facts) hang off `environmentDescriptor`
+(`src/environment-descriptor.ts`) — contract in `docs/ENVIRONMENTS.md`.
 
 Per-`InstanceKind` engine specifics hang off `engineDescriptor` (`src/engine-descriptor.ts`):
 probe / log-parser / preflight / estimator / arg-catalog-parser / argv-builder ids, `nativeApi`

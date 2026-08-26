@@ -1,4 +1,4 @@
-import { EnvironmentSpecSchema } from "@arriero/core";
+import { environmentDescriptor, EnvironmentSpecSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -20,7 +20,7 @@ function openWebuiSpec(source?: unknown) {
 test("open-webui provisioner installs the pinned PyPI distribution", () => {
   const provisioner = environmentProvisioner("open-webui");
   assert.equal(provisioner.entrypointRelative, "bin/open-webui");
-  assert.equal(provisioner.catalogEngineKind, null);
+  assert.equal(environmentDescriptor("open-webui").instanceKind, null);
   assert.deepEqual(provisioner.requirements(openWebuiSpec()), [
     "open-webui==0.11.0",
   ]);

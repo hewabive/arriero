@@ -1,13 +1,14 @@
 import {
   ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY,
-  ENVIRONMENT_ENGINE_LABELS,
+  environmentDescriptor,
+  environmentPypiRequirements,
+  KTRANSFORMERS_PYTHON_VERSIONS,
   packageIndexInstallOptions,
   type ComputeCapability,
   type EnvironmentEngine,
   type EnvironmentJobStep,
   type EnvironmentRepositorySettings,
   type EnvironmentSpec,
-  type InstanceKind,
   type SystemAccelerator,
 } from "@arriero/core";
 import { createHash } from "node:crypto";
@@ -62,8 +63,6 @@ type EnvironmentInProcessStepContext = {
 export type EnvironmentProvisioner = {
   displayName: string;
   entrypointRelative: string;
-  distributions: readonly string[];
-  catalogEngineKind: InstanceKind | null;
   requirements(spec: EnvironmentSpec): string[];
   installOptions(spec: EnvironmentSpec): string[];
   wheelArtifacts(spec: EnvironmentSpec): EnvironmentWheelArtifact[];
@@ -302,11 +301,10 @@ type SingleDistributionSpec = Extract<
 function singleDistributionProvisioner(options: {
   engine: SingleDistributionEngine;
   cuda: ComputeCapability | null;
-  catalogEngineKind: InstanceKind | null;
   moduleVersionAttribute: boolean;
 }): EnvironmentProvisioner {
-  const { engine, cuda, catalogEngineKind, moduleVersionAttribute } = options;
-  const displayName = ENVIRONMENT_ENGINE_LABELS[engine];
+  const { engine, cuda, moduleVersionAttribute } = options;
+  const displayName = environmentDescriptor(engine).displayName;
   function checkedSpec(spec: EnvironmentSpec): SingleDistributionSpec {
     if (spec.engine !== engine) {
       throw new Error(`${displayName} provisioner kind mismatch`);
@@ -316,8 +314,6 @@ function singleDistributionProvisioner(options: {
   return {
     displayName,
     entrypointRelative: `bin/${engine}`,
-    distributions: [engine],
-    catalogEngineKind,
     jobSteps(spec, tools, directories, repositories) {
       return uvJobSteps(this, spec, tools, directories, repositories);
     },
@@ -327,10 +323,11 @@ function singleDistributionProvisioner(options: {
       if (checked.source.kind === "wheel") {
         return [wheelRequirement(checked.source.url, checked.source.sha256)];
       }
-      const extras = checked.source.extras.length
-        ? `[${checked.source.extras.join(",")}]`
-        : "";
-      return [`${engine}${extras}==${checked.version}`];
+      return environmentPypiRequirements(
+        engine,
+        checked.version,
+        checked.source.extras,
+      );
     },
     installOptions(spec) {
       const checked = checkedSpec(spec);
@@ -360,7 +357,7 @@ function singleDistributionProvisioner(options: {
         finalDir,
         entrypointRelative: this.entrypointRelative,
         entrypointDescription: `${displayName} entrypoint`,
-        freezePins: [`${engine}==${checked.version}`],
+        freezePins: environmentPypiRequirements(engine, checked.version, []),
       });
     },
     prepareFinalize() {},
@@ -390,21 +387,18 @@ function singleDistributionProvisioner(options: {
 const VLLM_PROVISIONER = singleDistributionProvisioner({
   engine: "vllm",
   cuda: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.vllm,
-  catalogEngineKind: "vllm",
   moduleVersionAttribute: true,
 });
 
 const SGLANG_PROVISIONER = singleDistributionProvisioner({
   engine: "sglang",
   cuda: ENGINE_MINIMUM_CUDA_COMPUTE_CAPABILITY.sglang,
-  catalogEngineKind: "sglang",
   moduleVersionAttribute: true,
 });
 
 const OPEN_WEBUI_PROVISIONER = singleDistributionProvisioner({
   engine: "open-webui",
   cuda: null,
-  catalogEngineKind: null,
   moduleVersionAttribute: false,
 });
 
@@ -418,10 +412,8 @@ function checkedKtransformersSpec(spec: EnvironmentSpec): KtransformersSpec {
 }
 
 const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
-  displayName: ENVIRONMENT_ENGINE_LABELS.ktransformers,
+  displayName: environmentDescriptor("ktransformers").displayName,
   entrypointRelative: "bin/sglang",
-  distributions: ["kt-kernel", "sglang-kt"],
-  catalogEngineKind: "ktransformers",
   jobSteps(spec, tools, directories, repositories) {
     return uvJobSteps(this, spec, tools, directories, repositories);
   },
@@ -429,16 +421,18 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
   requirements(spec) {
     const checked = checkedKtransformersSpec(spec);
     if (checked.source.kind === "pypi") {
-      return [`kt-kernel==${checked.version}`, `sglang-kt==${checked.version}`];
+      return environmentPypiRequirements("ktransformers", checked.version, []);
     }
     const source = checked.source;
-    return (["kt-kernel", "sglang-kt"] as const).map((distribution) => {
-      const artifact = source.artifacts.find(
-        (candidate) => candidate.distribution === distribution,
-      );
-      if (!artifact) throw new Error(`${distribution} wheel is missing`);
-      return wheelRequirement(artifact.url, artifact.sha256);
-    });
+    return environmentDescriptor("ktransformers").distributions.map(
+      (distribution) => {
+        const artifact = source.artifacts.find(
+          (candidate) => candidate.distribution === distribution,
+        );
+        if (!artifact) throw new Error(`${distribution} wheel is missing`);
+        return wheelRequirement(artifact.url, artifact.sha256);
+      },
+    );
   },
   installOptions(spec) {
     const checked = checkedKtransformersSpec(spec);
@@ -464,10 +458,11 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
       finalDir,
       entrypointRelative: this.entrypointRelative,
       entrypointDescription: "KTransformers SGLang entrypoint",
-      freezePins: [
-        `kt-kernel==${checked.version}`,
-        `sglang-kt==${checked.version}`,
-      ],
+      freezePins: environmentPypiRequirements(
+        "ktransformers",
+        checked.version,
+        [],
+      ),
     });
   },
   prepareFinalize() {},
@@ -481,10 +476,10 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
         availabilityReason: "KTransformers requires Linux x86-64",
       };
     }
-    if (checked.pythonVersion !== "3.11" && checked.pythonVersion !== "3.12") {
+    if (!KTRANSFORMERS_PYTHON_VERSIONS.includes(checked.pythonVersion)) {
       return {
         availability: "unavailable",
-        availabilityReason: "KTransformers requires Python 3.11 or 3.12",
+        availabilityReason: `KTransformers requires Python ${KTRANSFORMERS_PYTHON_VERSIONS.join(" or ")}`,
       };
     }
     return environmentAvailability({
@@ -508,10 +503,8 @@ const KTRANSFORMERS_PROVISIONER: EnvironmentProvisioner = {
 };
 
 const CHAT_UI_PROVISIONER: EnvironmentProvisioner = {
-  displayName: ENVIRONMENT_ENGINE_LABELS["chat-ui"],
+  displayName: environmentDescriptor("chat-ui").displayName,
   entrypointRelative: CHAT_UI_ENTRYPOINT_RELATIVE,
-  distributions: [],
-  catalogEngineKind: null,
   requirements() {
     return [];
   },
