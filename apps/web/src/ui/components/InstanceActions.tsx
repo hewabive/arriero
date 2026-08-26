@@ -48,6 +48,7 @@ import {
   llamaWebUiTooltip,
   openUrlInNewTab,
 } from "../utils/instance-url";
+import { invalidateInstanceQueries } from "../utils/instance-queries";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
 
@@ -148,27 +149,7 @@ export function InstanceActions(props: {
       } else {
         props.onLaunchStopped(props.instance);
       }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["instances"] }),
-        queryClient.invalidateQueries({
-          queryKey: ["instances-health-summary"],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["instance-health-summary", props.instance.name],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["instance-runtime", props.instance.name],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["instance-llama", props.instance.name],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["instance-status-summary", props.instance.name],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["instance-logs", props.instance.name],
-        }),
-      ]);
+      await invalidateInstanceQueries(queryClient, props.instance.name);
     },
     onError: (error, variables) => {
       if (
@@ -232,16 +213,7 @@ export function InstanceActions(props: {
     onSuccess: async (failures) => {
       setDeleteConfirmOpened(false);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["instances"] }),
-        queryClient.invalidateQueries({
-          queryKey: ["instances-health-summary"],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["instance-resource-profiles"],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["instance-health-summary", props.instance.name],
-        }),
+        invalidateInstanceQueries(queryClient, props.instance.name),
         queryClient.invalidateQueries({ queryKey: ["api-proxy-config"] }),
         queryClient.invalidateQueries({
           queryKey: ["api-proxy-target-models"],

@@ -46,6 +46,7 @@ import {
   llamaWebUiTooltip,
   openUrlInNewTab,
 } from "../utils/instance-url";
+import { invalidateInstanceQueries } from "../utils/instance-queries";
 import type { LaunchMonitor } from "../utils/launch";
 import { formatLocalDateTime } from "../utils/time";
 import {
@@ -201,26 +202,8 @@ export function InstanceDetails(props: {
     props.launchMonitor || isStartupStatus(health?.status),
   );
 
-  const invalidateInstanceRuntime = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["instances"] }),
-      queryClient.invalidateQueries({
-        queryKey: ["instances-health-summary"],
-      }),
-      queryClient.invalidateQueries({
-        queryKey: ["instance-health-summary", id],
-      }),
-      queryClient.invalidateQueries({ queryKey: ["instance-runtime", id] }),
-      queryClient.invalidateQueries({ queryKey: ["instance-llama", id] }),
-      queryClient.invalidateQueries({
-        queryKey: ["instance-llama-capabilities", id],
-      }),
-      queryClient.invalidateQueries({
-        queryKey: ["instance-status-summary", id],
-      }),
-      queryClient.invalidateQueries({ queryKey: ["instance-logs", id] }),
-    ]);
-  };
+  const invalidateInstanceRuntime = () =>
+    invalidateInstanceQueries(queryClient, id!);
 
   const monitorStopMutation = useMutation({
     mutationFn: () => instanceAction(id!, "stop"),

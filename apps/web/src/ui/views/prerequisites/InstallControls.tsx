@@ -28,6 +28,7 @@ import {
   JobPanelControls,
   useJobPanelCollapse,
 } from "../../components/JobPanelControls";
+import { backgroundJobStatusColor } from "../../utils/job-status";
 import { formatLocalDateTime } from "../../utils/time";
 
 export type PrerequisiteInstallControls = {
@@ -134,12 +135,6 @@ export function CommandBlock(props: {
   );
 }
 
-function installRunStatusColor(status: PrerequisiteInstallRun["status"]) {
-  if (status === "running") return "blue";
-  if (status === "succeeded") return "green";
-  return "red";
-}
-
 export function InstallRunPanel(props: {
   run: PrerequisiteInstallRun;
   onDismiss: () => void;
@@ -155,7 +150,7 @@ export function InstallRunPanel(props: {
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
           <Group gap="xs" wrap="wrap">
-            <Badge color={installRunStatusColor(run.status)}>
+            <Badge color={backgroundJobStatusColor(run.status)}>
               {run.status}
             </Badge>
             {run.status === "running" && <Loader size="xs" />}

@@ -1,6 +1,5 @@
 import type { ApiProxyPlanPreviewRequest } from "@arriero/core";
 import { Stack } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -9,6 +8,7 @@ import { useProxyConfig } from "../proxy/data";
 import { SchedulerSection } from "../proxy/sections/index";
 import { Topology } from "../proxy/Topology";
 import { navigateProxy } from "../routing";
+import { notifyError } from "../utils/notify";
 
 export function ProxyTopologyView() {
   const { models, pipelines, targets, targetById } = useProxyConfig();
@@ -21,12 +21,7 @@ export function ProxyTopologyView() {
 
   const planPreviewMutation = useMutation({
     mutationFn: previewApiProxyPlan,
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Plan check failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Plan check failed"),
   });
   const planPreview = planPreviewMutation.data?.data;
 

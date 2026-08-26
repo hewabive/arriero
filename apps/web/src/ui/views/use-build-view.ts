@@ -28,6 +28,7 @@ import {
   slugifyRef,
 } from "./build-view-helpers";
 import { useSourceRepositoryOperation } from "./use-source-repository-operation";
+import { notifyError } from "../utils/notify";
 
 export function useBuildView() {
   const queryClient = useQueryClient();
@@ -208,13 +209,7 @@ export function useBuildView() {
       });
       notifications.show({ title: "Build settings saved", message: buildDir });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Settings save failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Settings save failed"),
   });
 
   const startMutation = useMutation({
@@ -242,13 +237,7 @@ export function useBuildView() {
         message: result.data.id,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Build start failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Build start failed"),
   });
 
   const checkoutMutation = useMutation({
@@ -286,13 +275,7 @@ export function useBuildView() {
         message: "Progress is shown in Source activity.",
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Pull failed to start",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Pull failed to start"),
   });
 
   const cloneMutation = useMutation({
@@ -305,13 +288,7 @@ export function useBuildView() {
         message: sourceStatus?.repoPath ?? repoPath,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Clone failed to start",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Clone failed to start"),
   });
 
   const cloneNeeded = sourceStatus?.exists !== true;
@@ -335,13 +312,7 @@ export function useBuildView() {
         message: "Stop signal sent",
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Cancel failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Cancel failed"),
   });
 
   return {

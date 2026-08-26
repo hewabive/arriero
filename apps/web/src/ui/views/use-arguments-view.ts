@@ -31,6 +31,7 @@ import {
   upsertDefault,
   validateArgumentDefault,
 } from "./arguments-view-helpers";
+import { notifyError } from "../utils/notify";
 
 export function useArgumentsView(engineId?: string) {
   const queryClient = useQueryClient();
@@ -231,13 +232,7 @@ export function useArgumentsView(engineId?: string) {
         message: selectedOption?.primaryName,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Default arguments save failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Default arguments save failed"),
   });
 
   function selectArgument(option: ArgumentOption) {
@@ -256,13 +251,7 @@ export function useArgumentsView(engineId?: string) {
           message: selectedOption.primaryName,
         }),
       )
-      .catch((error: unknown) =>
-        notifications.show({
-          color: "red",
-          title: "Copy failed",
-          message: (error as Error).message,
-        }),
-      );
+      .catch(notifyError("Copy failed"));
   }
 
   function saveInstanceDefault(

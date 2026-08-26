@@ -30,8 +30,8 @@ import { WebappEditModal } from "../components/WebappEditModal";
 import {
   useInvalidateWebapps,
   useWebappActions,
-  webappErrorNotification,
 } from "../components/use-webapp-actions";
+import { notifyError } from "../utils/notify";
 import { countLabel } from "../utils/plural";
 
 export function WebappsListView({
@@ -64,7 +64,7 @@ export function WebappsListView({
       await invalidate();
       setEditing(null);
     },
-    onError: webappErrorNotification("Web app update failed"),
+    onError: notifyError("Web app update failed"),
   });
 
   const deleteMutation = useMutation({
@@ -75,7 +75,7 @@ export function WebappsListView({
       await queryClient.invalidateQueries({ queryKey: ["environments"] });
       setDeleting(null);
     },
-    onError: webappErrorNotification("Delete failed"),
+    onError: notifyError("Delete failed"),
   });
 
   return (

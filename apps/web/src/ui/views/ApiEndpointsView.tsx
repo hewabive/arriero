@@ -27,14 +27,11 @@ import {
   streamIdleSecondsFromMs,
 } from "../endpoints/stream-idle-input";
 import { useApiProxySettings } from "../proxy/use-api-proxy-settings";
+import { notifyError } from "../utils/notify";
 
 function StreamIdleTimeoutSetting() {
-  const { query, mutation, settings } = useApiProxySettings((error) =>
-    notifications.show({
-      color: "red",
-      title: "Settings update failed",
-      message: (error as Error).message,
-    }),
+  const { query, mutation, settings } = useApiProxySettings(
+    notifyError("Settings update failed"),
   );
   const stored = settings?.streamIdleTimeoutMs ?? null;
   const [draft, setDraft] = useState<number | null | undefined>(undefined);
@@ -122,12 +119,7 @@ export function ApiEndpointsView() {
         message: "Endpoint is available for proxy targets and API Lab.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "API endpoint save failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("API endpoint save failed"),
   });
   const updateEndpointMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: ApiEndpointUpdate }) =>
@@ -140,12 +132,7 @@ export function ApiEndpointsView() {
         message: "Configuration was saved.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "API endpoint update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("API endpoint update failed"),
   });
   const deleteEndpointMutation = useMutation({
     mutationFn: deleteApiEndpoint,
@@ -156,12 +143,7 @@ export function ApiEndpointsView() {
         message: "Endpoint was removed.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "API endpoint delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("API endpoint delete failed"),
   });
 
   function openCreateEndpoint() {

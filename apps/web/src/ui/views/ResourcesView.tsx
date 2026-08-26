@@ -38,6 +38,7 @@ import { NumaTopologyPanel } from "../components/NumaTopologyPanel";
 import { formatBytes } from "../utils/models";
 import { formatMemoryPoolName } from "../utils/pools";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 const GIB = 1024 ** 3;
 
@@ -128,12 +129,7 @@ export function ResourcesView() {
         message: result.data.deleted,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Pool delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Pool delete failed"),
   });
 
   const updateMutation = useMutation({
@@ -164,12 +160,7 @@ export function ResourcesView() {
       await queryClient.invalidateQueries({ queryKey: ["resources"] });
       notifications.show({ title: "Pool updated", message: result.data.name });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Pool update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Pool update failed"),
   });
 
   const declareMutation = useMutation({
@@ -180,12 +171,7 @@ export function ResourcesView() {
       await queryClient.invalidateQueries({ queryKey: ["resources"] });
       notifications.show({ title: "Pool declared", message: result.data.name });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Pool declare failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Pool declare failed"),
   });
 
   function openEdit(pool: MemoryPool, nodeId: string) {

@@ -1,5 +1,4 @@
 import type { SourceRepositoryOperationJob } from "@arriero/core";
-import { notifications } from "@mantine/notifications";
 import {
   useMutation,
   useQuery,
@@ -12,6 +11,7 @@ import {
   cancelSourceRepositoryOperation,
   getSourceRepositoryOperation,
 } from "../../api/client";
+import { notifyError } from "../utils/notify";
 
 export function sourceOperationQueryKey(sourceId: string) {
   return ["source-repository-operation", sourceId] as const;
@@ -73,13 +73,7 @@ export function useSourceRepositoryOperation(sourceId: string) {
   const cancelMutation = useMutation({
     mutationFn: () => cancelSourceRepositoryOperation(sourceId),
     onSuccess: (response) => setJob(response.data),
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Cancel failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Cancel failed"),
   });
 
   return {

@@ -40,6 +40,7 @@ import {
 import type { LaunchMonitor } from "../utils/launch";
 import { pathBaseName } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 const HIDDEN_ARG_KEYS = new Set(["--host", "--port"]);
 
@@ -268,13 +269,7 @@ function BulkActionsToolbar(props: {
         message: bulkResultMessage(result.data),
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Bulk action failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Bulk action failed"),
   });
 
   const counts = {

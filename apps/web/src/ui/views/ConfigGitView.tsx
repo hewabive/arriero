@@ -54,6 +54,7 @@ import {
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
 import { ConfigDoctorCard } from "./ConfigDoctorCard";
+import { notifyError } from "../utils/notify";
 
 type MutationResponse = { data: ConfigGitMutationResult };
 
@@ -809,21 +810,11 @@ export function ConfigGitView() {
         <Card withBorder radius="md" padding="md">
           <Stack gap="sm">
             <Text fw={600}>Diff</Text>
-            {diff?.truncated && (
-              <Alert color="yellow">Diff output was truncated.</Alert>
-            )}
-            <Tabs defaultValue="unstaged">
-              <Tabs.List>
-                <Tabs.Tab value="unstaged">Unstaged</Tabs.Tab>
-                <Tabs.Tab value="staged">Staged</Tabs.Tab>
-              </Tabs.List>
-              <Tabs.Panel value="unstaged" pt="sm">
-                <DiffText value={diff?.unstaged ?? ""} />
-              </Tabs.Panel>
-              <Tabs.Panel value="staged" pt="sm">
-                <DiffText value={diff?.staged ?? ""} />
-              </Tabs.Panel>
-            </Tabs>
+            <DiffTabs
+              truncated={diff?.truncated ?? false}
+              unstaged={diff?.unstaged ?? ""}
+              staged={diff?.staged ?? ""}
+            />
           </Stack>
         </Card>
       </SimpleGrid>
@@ -1037,21 +1028,11 @@ export function ConfigGitView() {
         centered
       >
         <Stack gap="sm">
-          {fileDiffQuery.data?.data.truncated && (
-            <Alert color="yellow">Diff output was truncated.</Alert>
-          )}
-          <Tabs defaultValue="unstaged">
-            <Tabs.List>
-              <Tabs.Tab value="unstaged">Unstaged</Tabs.Tab>
-              <Tabs.Tab value="staged">Staged</Tabs.Tab>
-            </Tabs.List>
-            <Tabs.Panel value="unstaged" pt="sm">
-              <DiffText value={fileDiffQuery.data?.data.unstaged ?? ""} />
-            </Tabs.Panel>
-            <Tabs.Panel value="staged" pt="sm">
-              <DiffText value={fileDiffQuery.data?.data.staged ?? ""} />
-            </Tabs.Panel>
-          </Tabs>
+          <DiffTabs
+            truncated={fileDiffQuery.data?.data.truncated ?? false}
+            unstaged={fileDiffQuery.data?.data.unstaged ?? ""}
+            staged={fileDiffQuery.data?.data.staged ?? ""}
+          />
         </Stack>
       </Modal>
 
@@ -1279,13 +1260,7 @@ function BackupList({ paths }: { paths: string[] }) {
         message: `Deleted ${name}.`,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Backup deletion failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Backup deletion failed"),
   });
   return (
     <Card withBorder radius="md" padding="md">
@@ -1346,5 +1321,33 @@ function DiffText({ value }: { value: string }) {
     <ScrollArea.Autosize mah={520}>
       <Code block>{value || "No diff."}</Code>
     </ScrollArea.Autosize>
+  );
+}
+
+function DiffTabs({
+  truncated,
+  unstaged,
+  staged,
+}: {
+  truncated: boolean;
+  unstaged: string;
+  staged: string;
+}) {
+  return (
+    <>
+      {truncated && <Alert color="yellow">Diff output was truncated.</Alert>}
+      <Tabs defaultValue="unstaged">
+        <Tabs.List>
+          <Tabs.Tab value="unstaged">Unstaged</Tabs.Tab>
+          <Tabs.Tab value="staged">Staged</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="unstaged" pt="sm">
+          <DiffText value={unstaged} />
+        </Tabs.Panel>
+        <Tabs.Panel value="staged" pt="sm">
+          <DiffText value={staged} />
+        </Tabs.Panel>
+      </Tabs>
+    </>
   );
 }

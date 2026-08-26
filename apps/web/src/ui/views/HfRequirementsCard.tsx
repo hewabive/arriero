@@ -11,7 +11,6 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 
@@ -22,6 +21,7 @@ import {
   listModelRequirements,
 } from "../../api/client";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 function stateColor(state: ModelRequirementStatus["state"]): string {
   switch (state) {
@@ -75,23 +75,13 @@ export function HfRequirementsCard() {
         destDir: repo.dir,
       }),
     onSuccess: invalidate,
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Track requirement failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Track requirement failed"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteModelRequirement(id),
     onSuccess: invalidate,
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Delete requirement failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Delete requirement failed"),
   });
 
   return (

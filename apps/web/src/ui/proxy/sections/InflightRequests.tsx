@@ -35,6 +35,7 @@ import {
   inflightPrefillPercent,
   inflightTimings,
 } from "../display";
+import { notifyError } from "../../utils/notify";
 
 function InflightAction(props: {
   tooltip: string;
@@ -135,13 +136,7 @@ function InflightInterruptButton({
         queryClient.invalidateQueries({ queryKey: ["api-proxy-inflight", id] }),
       ]);
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Interrupt failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Interrupt failed"),
   });
   return (
     <InflightAction
@@ -239,13 +234,7 @@ function InflightStopButton({
         queryClient.invalidateQueries({ queryKey: ["api-proxy-inflight", id] }),
       ]);
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: `${meta.label} failed`,
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError(`${meta.label} failed`),
   });
   return (
     <InflightAction

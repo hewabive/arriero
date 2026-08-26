@@ -7,11 +7,11 @@ import {
   Stack,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LockKeyhole } from "lucide-react";
 
 import { loginAdmin } from "../../api/client";
+import { notifyError } from "../utils/notify";
 
 export function LoginView() {
   const queryClient = useQueryClient();
@@ -30,13 +30,7 @@ export function LoginView() {
         queryKey: ["instances-health-summary"],
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Login failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Login failed"),
   });
 
   return (

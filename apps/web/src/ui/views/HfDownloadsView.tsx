@@ -25,6 +25,7 @@ import { HfRequirementsCard } from "./HfRequirementsCard";
 import { HfQueuePanel } from "./HfQueuePanel";
 import { HfRepoBrowserPanel } from "./HfRepoBrowserPanel";
 import { useHfJobsSync } from "./use-hf-queue";
+import { notifyError } from "../utils/notify";
 
 const MIB = 1024 * 1024;
 
@@ -46,12 +47,7 @@ function HfTokenCard() {
         message: token ? "Token saved." : "Token removed.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "HuggingFace token",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("HuggingFace token"),
   });
 
   return (
@@ -119,12 +115,7 @@ function HfDownloadSettingsCard() {
         message: "Settings saved.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Download settings",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Download settings"),
   });
   if (!settings) {
     return null;

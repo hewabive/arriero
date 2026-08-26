@@ -27,6 +27,7 @@ import {
   updateApiProxySource,
 } from "../../api/client";
 import { useApiProxySettings } from "../proxy/use-api-proxy-settings";
+import { notifyError } from "../utils/notify";
 
 type SourceEditor =
   | { mode: "create" }
@@ -59,15 +60,6 @@ function draftFromRecord(source: ApiProxySourceRecord): SourceDraft {
     enabled: source.enabled,
     blockedMessage: source.blockedMessage,
   };
-}
-
-function notifyFailure(title: string) {
-  return (error: unknown) =>
-    notifications.show({
-      color: "red",
-      title,
-      message: (error as Error).message,
-    });
 }
 
 function RejectionMessageInput({
@@ -117,7 +109,7 @@ export function ApiProxySourcesView() {
     query: settingsQuery,
     mutation: settingsMutation,
     settings,
-  } = useApiProxySettings(notifyFailure("Settings update failed"));
+  } = useApiProxySettings(notifyError("Settings update failed"));
   const allowAnonymous = settings?.allowAnonymous ?? true;
 
   const invalidate = () =>
@@ -138,7 +130,7 @@ export function ApiProxySourcesView() {
         message: "Requests with this key will be labeled with the source.",
       });
     },
-    onError: notifyFailure("Source save failed"),
+    onError: notifyError("Source save failed"),
   });
 
   const updateMutation = useMutation({
@@ -149,14 +141,14 @@ export function ApiProxySourcesView() {
       closeEditor();
       notifications.show({ title: "Source updated", message: "Saved." });
     },
-    onError: notifyFailure("Source update failed"),
+    onError: notifyError("Source update failed"),
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       updateApiProxySource(id, { enabled }),
     onSuccess: invalidate,
-    onError: notifyFailure("Source update failed"),
+    onError: notifyError("Source update failed"),
   });
 
   const deleteMutation = useMutation({
@@ -165,7 +157,7 @@ export function ApiProxySourcesView() {
       await invalidate();
       notifications.show({ title: "Source deleted", message: "Removed." });
     },
-    onError: notifyFailure("Source delete failed"),
+    onError: notifyError("Source delete failed"),
   });
 
   function openCreate() {

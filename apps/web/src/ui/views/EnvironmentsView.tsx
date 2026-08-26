@@ -30,6 +30,7 @@ import {
 import { EnvironmentCreateForm } from "../components/EnvironmentCreateForm";
 import { EnvironmentRepositorySettingsForm } from "../components/EnvironmentRepositorySettingsForm";
 import { formatLocalDateTime } from "../utils/time";
+import { notifyError } from "../utils/notify";
 
 function statusColor(status: string) {
   if (status === "installed" || status === "succeeded") return "green";
@@ -90,32 +91,17 @@ export function EnvironmentsView() {
         message: `${ENVIRONMENT_ENGINE_LABELS[input.engine]} ${input.version}`,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Install failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Install failed"),
   });
   const rebuildMutation = useMutation({
     mutationFn: rebuildEnvironment,
     onSuccess: refresh,
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Rebuild failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Rebuild failed"),
   });
   const deleteMutation = useMutation({
     mutationFn: deleteEnvironment,
     onSuccess: refresh,
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Delete failed"),
   });
   const cancelMutation = useMutation({
     mutationFn: cancelEnvironmentJob,
@@ -132,12 +118,7 @@ export function EnvironmentsView() {
         message: "New installs and rebuilds will use the updated site profile.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Repository settings failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Repository settings failed"),
   });
 
   const repositories = repositoriesQuery.data?.data;

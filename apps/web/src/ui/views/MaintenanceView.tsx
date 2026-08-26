@@ -23,6 +23,7 @@ import { useApiProxySettings } from "../proxy/use-api-proxy-settings";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
+import { notifyError } from "../utils/notify";
 
 const CATEGORY_LABELS: Record<LogFileCategory, string> = {
   instance: "Instance runs",
@@ -59,12 +60,7 @@ function LogStorageCard() {
         message: "Settings saved.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Log retention",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Log retention"),
   });
   const pruneMutation = useMutation({
     mutationFn: pruneLogStorage,
@@ -84,12 +80,7 @@ function LogStorageCard() {
         )} pruned.`,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Prune failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Prune failed"),
   });
 
   const effectiveRetentionDays = retentionDays ?? settings?.retentionDays ?? 30;
@@ -194,12 +185,8 @@ function ProxyHistoryCard() {
     staleTime: 120_000,
   });
   const proxyRequests = usageQuery.data?.data.proxyRequests ?? null;
-  const { query, mutation, settings } = useApiProxySettings((error) =>
-    notifications.show({
-      color: "red",
-      title: "Proxy settings",
-      message: (error as Error).message,
-    }),
+  const { query, mutation, settings } = useApiProxySettings(
+    notifyError("Proxy settings"),
   );
   const [draft, setDraft] = useState<number | null>(null);
   const effective = draft ?? settings?.traceRetentionDays ?? 30;

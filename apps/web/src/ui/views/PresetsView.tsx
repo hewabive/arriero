@@ -25,6 +25,7 @@ import {
 import { TouchSelect } from "../components/TouchCombobox";
 import { NewPresetModal } from "./presets/NewPresetModal";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
 
@@ -127,13 +128,7 @@ export function PresetsView() {
         message: result.data.path,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Preset create failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Preset create failed"),
   });
 
   function reloadFromDisk() {

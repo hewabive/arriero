@@ -6,11 +6,11 @@ import type {
   ModelScanState,
   SafetensorsModel,
 } from "@arriero/core";
-import { notifications } from "@mantine/notifications";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
 import { scanModels, startModelScan } from "../../api/client";
+import { notifyError } from "../utils/notify";
 
 const SCAN_POLL_MS = 1000;
 const ERROR_POLL_MS = 5000;
@@ -75,13 +75,7 @@ export function useScannedModels(options?: {
           );
           void queryClient.invalidateQueries({ queryKey: ["models"] });
         })
-        .catch((error: unknown) => {
-          notifications.show({
-            color: "red",
-            title: "Model scan failed",
-            message: (error as Error).message,
-          });
-        });
+        .catch(notifyError("Model scan failed"));
     },
     [queryClient],
   );

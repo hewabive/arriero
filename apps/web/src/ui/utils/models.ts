@@ -4,7 +4,7 @@ import {
   type SafetensorsModel,
 } from "@arriero/core";
 
-export function formatBytes(bytes: number) {
+export function formatBytes(bytes: number, digits?: number) {
   const units = ["B", "KiB", "MiB", "GiB", "TiB"];
   let value = bytes;
   let unitIndex = 0;
@@ -12,7 +12,7 @@ export function formatBytes(bytes: number) {
     value /= 1024;
     unitIndex += 1;
   }
-  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  return `${value.toFixed(digits ?? (unitIndex === 0 ? 0 : 1))} ${units[unitIndex]}`;
 }
 
 export function formatBytesPerSecond(value: number | null | undefined) {

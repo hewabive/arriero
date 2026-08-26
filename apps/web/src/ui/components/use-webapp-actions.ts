@@ -1,4 +1,3 @@
-import { notifications } from "@mantine/notifications";
 import {
   useMutation,
   useQueryClient,
@@ -6,15 +5,7 @@ import {
 } from "@tanstack/react-query";
 
 import { restartWebapp, startWebapp, stopWebapp } from "../../api/client";
-
-export function webappErrorNotification(title: string) {
-  return (error: unknown) =>
-    notifications.show({
-      color: "red",
-      title,
-      message: (error as Error).message,
-    });
-}
+import { notifyError } from "../utils/notify";
 
 export function useInvalidateWebapps() {
   const queryClient = useQueryClient();
@@ -36,17 +27,17 @@ export function useWebappActions(): WebappActions {
   const start = useMutation({
     mutationFn: startWebapp,
     onSuccess: invalidate,
-    onError: webappErrorNotification("Start failed"),
+    onError: notifyError("Start failed"),
   });
   const stop = useMutation({
     mutationFn: stopWebapp,
     onSuccess: invalidate,
-    onError: webappErrorNotification("Stop failed"),
+    onError: notifyError("Stop failed"),
   });
   const restart = useMutation({
     mutationFn: restartWebapp,
     onSuccess: invalidate,
-    onError: webappErrorNotification("Restart failed"),
+    onError: notifyError("Restart failed"),
   });
   return {
     start,

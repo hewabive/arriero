@@ -25,6 +25,7 @@ import {
   listExternalLlamaProcesses,
 } from "../../api/client";
 import { useNarrowScreen } from "../hooks/use-narrow-screen";
+import { notifyError } from "../utils/notify";
 
 type KillIntent = {
   process: ExternalLlamaProcess;
@@ -124,13 +125,7 @@ export function ProcessesView() {
         message: `${result.data.signal} -> pid ${result.data.pid}`,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Kill failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Kill failed"),
   });
 
   return (

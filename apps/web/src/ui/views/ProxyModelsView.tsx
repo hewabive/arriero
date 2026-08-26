@@ -34,6 +34,7 @@ import { ModelEditorModal, QuickRouteModal } from "../proxy/editors";
 import { ExternalModelsSection } from "../proxy/sections/index";
 import { navigateProxy } from "../routing";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 function suggestPipelineName(modelId: string, taken: Set<string>): string {
   const base = modelId.slice(0, 72) || "route";
@@ -101,12 +102,7 @@ export function ProxyModelsView() {
         message: "External model entry was saved.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Proxy model save failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Proxy model save failed"),
   });
   const updateModelMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: ApiProxyModelCreate }) =>
@@ -119,12 +115,7 @@ export function ProxyModelsView() {
         message: "External model entry was saved.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Proxy model update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Proxy model update failed"),
   });
   const deleteModelMutation = useMutation({
     mutationFn: deleteApiProxyModel,
@@ -135,12 +126,7 @@ export function ProxyModelsView() {
         message: "External model entry was removed.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Proxy model delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Proxy model delete failed"),
   });
   const toggleModelMutation = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: ApiProxyModelUpdate }) =>
@@ -148,12 +134,7 @@ export function ProxyModelsView() {
     onSuccess: async () => {
       await invalidate();
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Proxy model update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Proxy model update failed"),
   });
   const disableAllMutation = useMutation({
     mutationFn: async () => {
@@ -172,12 +153,7 @@ export function ProxyModelsView() {
         message: `${countLabel(count, "model")} stopped serving.`,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Disable all failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Disable all failed"),
   });
   const quickRouteMutation = useMutation({
     mutationFn: createApiProxyQuickRoute,
@@ -189,12 +165,7 @@ export function ProxyModelsView() {
         message: `Model ${result.data.model.modelId} now routes to target ${result.data.target.name}.`,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Quick route failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Quick route failed"),
   });
   const createPipelineForModelMutation = useMutation({
     mutationFn: async (model: ApiProxyModelRecord) => {
@@ -223,12 +194,7 @@ export function ProxyModelsView() {
         message: `Pipeline "${pipeline.name}" was inserted between the model and its target.`,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Pipeline insert failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Pipeline insert failed"),
   });
 
   function saveModel() {

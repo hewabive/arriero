@@ -56,6 +56,7 @@ import { SecretInput } from "../components/SecretInput";
 import { forceReloadUi } from "../utils/reload";
 import { formatLocalDateTime } from "../utils/time";
 import { useAutoUpdateCheck } from "../utils/use-auto-update-check";
+import { notifyError } from "../utils/notify";
 
 const SELF_RELOAD_DELAY_MS = 1500;
 const RESTART_POLL_MS = 1500;
@@ -652,12 +653,7 @@ function NodeCard({
   const restartMutation = useMutation({
     mutationFn: () => restartNode(nodeId),
     onSuccess: (result) => setRestartMark(result.data.startedAt ?? ""),
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: `Restart of ${nodeLabel} failed`,
-        message: (error as Error).message,
-      }),
+    onError: notifyError(`Restart of ${nodeLabel} failed`),
   });
 
   const restartPoll = useQuery({

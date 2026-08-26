@@ -39,6 +39,7 @@ import { countLabel } from "../utils/plural";
 import { hfFileLocalBadge } from "./HfBadges";
 import { HfVariantCheckbox } from "./HfVariantCheckbox";
 import { useHfQueueQuery } from "./use-hf-queue";
+import { notifyError } from "../utils/notify";
 
 const DEST_CHECK_DEBOUNCE_MS = 350;
 
@@ -261,12 +262,7 @@ function BrowseResults(props: {
       void queryClient.invalidateQueries({ queryKey: ["hf-queue"] });
       props.onEnqueued(result.data);
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Download",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Download"),
   });
 
   function togglePaths(paths: readonly string[], checked: boolean) {

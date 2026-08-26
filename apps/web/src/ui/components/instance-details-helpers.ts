@@ -1,13 +1,15 @@
-import type {
-  InstanceHealthSummary,
-  InstanceLoadProgress,
-  EndpointProbe,
-  LlamaModelActionName,
-  LlamaProbe,
-  LlamaSlotActionName,
-  MemoryAssessmentStatus,
+import {
+  escapeRegExp,
+  type InstanceHealthSummary,
+  type InstanceLoadProgress,
+  type EndpointProbe,
+  type LlamaModelActionName,
+  type LlamaProbe,
+  type LlamaSlotActionName,
+  type MemoryAssessmentStatus,
 } from "@arriero/core";
 
+import { formatBytes as formatBytesText } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
 
 export const memoryAssessmentStatusColors: Record<
@@ -203,14 +205,7 @@ export function formatCompactCount(value: number | null) {
 
 export function formatBytes(value: number | null) {
   if (value === null) return null;
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-  let scaled = value;
-  let unit = 0;
-  while (Math.abs(scaled) >= 1024 && unit < units.length - 1) {
-    scaled /= 1024;
-    unit += 1;
-  }
-  return `${scaled.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
+  return formatBytesText(value, Math.abs(value) < 1024 ? 0 : 2);
 }
 
 function modelMetaFromRecord(value: unknown): V1ModelMeta | null {
@@ -240,10 +235,6 @@ function stringArray(value: unknown) {
         : null,
     )
     .filter((item): item is string => Boolean(item));
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function valueFromArgv(args: string[], names: string[]) {

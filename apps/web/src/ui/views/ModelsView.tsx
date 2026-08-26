@@ -62,6 +62,7 @@ import {
 } from "../utils/models";
 import { countLabel } from "../utils/plural";
 import { SafetensorsModelsSection } from "./SafetensorsModelsSection";
+import { notifyError } from "../utils/notify";
 
 function rootSourceLabel(root: ModelScanRoot) {
   if (root.source === "settings") {
@@ -327,13 +328,7 @@ export function ModelsView(props: {
         message: directory,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Settings save failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Settings save failed"),
   });
   const addDirMutation = useMutation({
     mutationFn: () =>
@@ -352,13 +347,7 @@ export function ModelsView(props: {
         message: result.data.name,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Model directory add failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Model directory add failed"),
   });
   const removeDirMutation = useMutation({
     mutationFn: deletePathCatalogEntry,
@@ -366,13 +355,7 @@ export function ModelsView(props: {
       await queryClient.invalidateQueries({ queryKey: ["path-catalog"] });
       scanned.rescan();
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Model directory remove failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Model directory remove failed"),
   });
   const settingsDirectory = settingsQuery.data?.data.directory;
   const settingsMaxDepth = settingsQuery.data?.data.maxDepth;

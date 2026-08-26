@@ -54,6 +54,7 @@ import {
   sourceOperationQueryKey,
   useSourceRepositoryOperation,
 } from "./use-source-repository-operation";
+import { notifyError } from "../utils/notify";
 
 function checkStatusColor(status: SourceSyncSection["status"]) {
   if (status === "in-sync") return "green";
@@ -368,13 +369,7 @@ function SourceRepositoryPanel({
         message: repository.repoPath,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Clone failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Clone failed"),
   });
 
   const settingsMutation = useMutation({
@@ -387,13 +382,7 @@ function SourceRepositoryPanel({
         message: response.data.status.spec.originUrl,
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Origin update failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Origin update failed"),
   });
 
   const pullMutation = useMutation({
@@ -405,13 +394,7 @@ function SourceRepositoryPanel({
         message: "Progress is shown below.",
       });
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Pull failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Pull failed"),
   });
 
   const busy =

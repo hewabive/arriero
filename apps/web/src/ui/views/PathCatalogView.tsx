@@ -40,6 +40,7 @@ import { PathPickerInput } from "../components/PathPickerInput";
 import { pathBaseName } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 type Draft = {
   name: string;
@@ -188,12 +189,7 @@ export function PathCatalogView() {
         message: result.data.name,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Path catalog create failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Path catalog create failed"),
   });
 
   const updateMutation = useMutation({
@@ -207,12 +203,7 @@ export function PathCatalogView() {
         message: result.data.name,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Path catalog save failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Path catalog save failed"),
   });
 
   const deleteMutation = useMutation({
@@ -224,12 +215,7 @@ export function PathCatalogView() {
         message: "Entry removed",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Path catalog delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Path catalog delete failed"),
   });
 
   function openCreate(kind: PathCatalogKind) {
@@ -282,13 +268,7 @@ export function PathCatalogView() {
           message: entry.name,
         }),
       )
-      .catch((error: unknown) =>
-        notifications.show({
-          color: "red",
-          title: "Copy failed",
-          message: (error as Error).message,
-        }),
-      );
+      .catch(notifyError("Copy failed"));
   }
 
   function renderEntry(entry: PathCatalogEntry) {

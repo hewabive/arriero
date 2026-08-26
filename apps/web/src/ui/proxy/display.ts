@@ -7,10 +7,7 @@ import {
 
 import { formatLocalDateTime } from "../utils/time";
 import { countLabel } from "../utils/plural";
-
-function formatMs(ms: number) {
-  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
-}
+import { formatDurationMs } from "../views/benchmark-format";
 
 export function inflightPhaseColor(phase: ApiProxyInflightRequest["phase"]) {
   switch (phase) {
@@ -83,16 +80,16 @@ export function inflightLabel(req: ApiProxyInflightRequest): string {
 export function inflightTimings(req: ApiProxyInflightRequest): string {
   const parts: string[] = [];
   if (req.waitingMs > 0) {
-    parts.push(`wait ${formatMs(req.waitingMs)}`);
+    parts.push(`wait ${formatDurationMs(req.waitingMs)}`);
   }
   if (req.prefillMs !== null) {
-    parts.push(`prefill ${formatMs(req.prefillMs)}`);
+    parts.push(`prefill ${formatDurationMs(req.prefillMs)}`);
   }
   if (req.thinkingMs !== null) {
-    parts.push(`think ${formatMs(req.thinkingMs)}`);
+    parts.push(`think ${formatDurationMs(req.thinkingMs)}`);
   }
   if (req.generatingMs !== null) {
-    parts.push(`gen ${formatMs(req.generatingMs)}`);
+    parts.push(`gen ${formatDurationMs(req.generatingMs)}`);
   }
   return parts.join(" · ");
 }

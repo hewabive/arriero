@@ -27,10 +27,8 @@ import { TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { createWebapp } from "../../api/client";
-import {
-  useInvalidateWebapps,
-  webappErrorNotification,
-} from "./use-webapp-actions";
+import { notifyError } from "../utils/notify";
+import { useInvalidateWebapps } from "./use-webapp-actions";
 
 function defaultSettings(
   kind: WebappKind,
@@ -118,7 +116,7 @@ export function WebappCreateModal({
       onCreated(result.data);
       onClose();
     },
-    onError: webappErrorNotification("Web app creation failed"),
+    onError: notifyError("Web app creation failed"),
   });
 
   const environmentOptions = kindEnvironments.map((environment) => ({

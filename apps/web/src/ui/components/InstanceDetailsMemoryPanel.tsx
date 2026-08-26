@@ -31,6 +31,7 @@ import {
   formatBytes,
   memoryAssessmentStatusColors,
 } from "./instance-details-helpers";
+import { notifyError } from "../utils/notify";
 
 function formatMemoryBytes(value: number) {
   return value > 0 ? (formatBytes(value) ?? "-") : "-";
@@ -129,13 +130,7 @@ export function MemoryLayoutPanel(props: {
       });
       await invalidateAssessment();
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Baseline capture failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Baseline capture failed"),
   });
   const applyBaselineMutation = useMutation({
     mutationFn: () =>
@@ -148,13 +143,7 @@ export function MemoryLayoutPanel(props: {
       });
       await invalidateAssessment();
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Applying draws failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Applying draws failed"),
   });
   const entries = layout?.entries ?? [];
   const hasRuntimeEntries = layout && layout.totalBytes > 0 ? layout : null;
@@ -183,13 +172,7 @@ export function MemoryLayoutPanel(props: {
       anchor.click();
       URL.revokeObjectURL(url);
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Report export failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Report export failed"),
   });
   return (
     <Paper withBorder p="sm" radius="sm">

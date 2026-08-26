@@ -35,6 +35,7 @@ import { PipelinePanel } from "../proxy/PipelinePanel";
 import { PipelinesSection } from "../proxy/sections/index";
 import { TestBench } from "../proxy/TestBench";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 const newPipelineSubpath = "new";
 
@@ -88,12 +89,7 @@ export function ProxyPipelinesView({
         message: "Pipeline was created.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Pipeline save failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Pipeline save failed"),
   });
   const updatePipelineMutation = useMutation({
     mutationFn: ({
@@ -110,12 +106,7 @@ export function ProxyPipelinesView({
         message: "Pipeline configuration was saved.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Pipeline update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Pipeline update failed"),
   });
   const deletePipelineMutation = useMutation({
     mutationFn: deleteApiProxyPipeline,
@@ -126,12 +117,7 @@ export function ProxyPipelinesView({
         message: "Pipeline was removed.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Pipeline delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Pipeline delete failed"),
   });
 
   async function applyStagedModelBindings(pipelineId: string) {

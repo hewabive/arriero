@@ -9,7 +9,6 @@ import {
   Title,
   UnstyledButton,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
@@ -28,6 +27,7 @@ import {
 } from "./HfBadges";
 import { HfRepoDetailModal } from "./HfRepoDetailModal";
 import { hfRepoJobStateForDir, useHfQueueQuery } from "./use-hf-queue";
+import { notifyError } from "../utils/notify";
 
 function repoDiskBytes(repo: HfDownloadedRepo): number {
   return repo.files.reduce(
@@ -136,12 +136,7 @@ export function HfDownloadedReposPanel() {
     mutationFn: (dirs: string[]) => checkHfUpdates(dirs),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] }),
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Update check",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Update check"),
   });
 
   const resumeMutation = useMutation({
@@ -157,12 +152,7 @@ export function HfDownloadedReposPanel() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["hf-queue"] });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Resume download",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Resume download"),
   });
 
   return (

@@ -47,10 +47,8 @@ import {
   substringOptionsFilter,
   TouchAutocomplete,
 } from "../components/TouchCombobox";
-import {
-  useInvalidateWebapps,
-  webappErrorNotification,
-} from "../components/use-webapp-actions";
+import { useInvalidateWebapps } from "../components/use-webapp-actions";
+import { notifyError } from "../utils/notify";
 import { backgroundJobStatusColor } from "../utils/job-status";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
@@ -192,17 +190,17 @@ export function WebappsInstallView({
         message: `${descriptor.displayName} ${version.trim()} — watch the install job panel`,
       });
     },
-    onError: webappErrorNotification("Install failed"),
+    onError: notifyError("Install failed"),
   });
   const rebuildMutation = useMutation({
     mutationFn: rebuildEnvironment,
     onSuccess: refresh,
-    onError: webappErrorNotification("Rebuild failed"),
+    onError: notifyError("Rebuild failed"),
   });
   const deleteMutation = useMutation({
     mutationFn: deleteEnvironment,
     onSuccess: refresh,
-    onError: webappErrorNotification("Delete failed"),
+    onError: notifyError("Delete failed"),
   });
   const cancelMutation = useMutation({
     mutationFn: cancelEnvironmentJob,

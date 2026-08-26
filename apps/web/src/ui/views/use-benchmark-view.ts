@@ -17,15 +17,7 @@ import {
   listInstances,
   startBenchmarkRun,
 } from "../../api/client";
-
-function notifyError(title: string) {
-  return (error: unknown) =>
-    notifications.show({
-      color: "red",
-      title,
-      message: (error as Error).message,
-    });
-}
+import { notifyError } from "../utils/notify";
 
 export function useBenchmarkView() {
   const queryClient = useQueryClient();

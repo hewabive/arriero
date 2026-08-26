@@ -37,6 +37,7 @@ import {
   hfRepoJobStateForDir,
   useHfQueue,
 } from "./use-hf-queue";
+import { notifyError } from "../utils/notify";
 
 export function HfRepoDetailModal(props: {
   repo: HfDownloadedRepo | null;
@@ -131,12 +132,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
     mutationFn: () => checkHfUpdates([repo.dir]),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] }),
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Update check",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Update check"),
   });
 
   const downloadMutation = useMutation({
@@ -158,12 +154,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
         message: `${result.data.repoId}: ${countLabel(result.data.files.length, "file")}, ${formatBytes(result.data.totalBytes)}`,
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Download",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Download"),
   });
 
   function togglePaths(paths: readonly string[], checked: boolean) {

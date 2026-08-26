@@ -27,6 +27,7 @@ import {
 import { TargetEditorModal } from "../proxy/editors";
 import { ProxyTargetsSection } from "../proxy/sections/index";
 import { countLabel } from "../utils/plural";
+import { notifyError } from "../utils/notify";
 
 export function ProxyTargetsView() {
   const { targets, endpointById, proxyUsage, invalidate } = useProxyConfig();
@@ -89,12 +90,7 @@ export function ProxyTargetsView() {
         message: "Target is ready to receive routed requests.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Proxy target save failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Proxy target save failed"),
   });
   const updateTargetMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: ApiProxyTargetCreate }) =>
@@ -107,12 +103,7 @@ export function ProxyTargetsView() {
         message: "Configuration was saved.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Proxy target update failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Proxy target update failed"),
   });
   const deleteTargetMutation = useMutation({
     mutationFn: deleteApiProxyTarget,
@@ -123,12 +114,7 @@ export function ProxyTargetsView() {
         message: "Configuration was removed.",
       });
     },
-    onError: (error) =>
-      notifications.show({
-        color: "red",
-        title: "Proxy target delete failed",
-        message: (error as Error).message,
-      }),
+    onError: notifyError("Proxy target delete failed"),
   });
 
   function saveTarget() {
