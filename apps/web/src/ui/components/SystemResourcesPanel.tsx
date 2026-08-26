@@ -28,7 +28,7 @@ import {
 } from "@mantine/core";
 import { useMemo, type ReactNode } from "react";
 
-import { formatBytesPerSecond } from "../utils/models";
+import { formatBytes, formatBytesPerSecond } from "../utils/models";
 import { formatAcceleratorName } from "../utils/pools";
 import { formatLocalClock } from "../utils/time";
 import { formatDurationMs } from "../views/benchmark-format";
@@ -36,29 +36,29 @@ import { MetricCard } from "./MetricCard";
 import {
   MetricChart,
   MetricHoverProvider,
+  type MetricDomain,
   type MetricSeries,
 } from "./MetricChart";
 import { countLabel } from "../utils/plural";
 
-const bytesFormatter = new Intl.NumberFormat("en", {
-  maximumFractionDigits: 1,
-});
-
 const DEVICE_CHART_HEIGHT = 92;
 
-function formatBytes(value: number | null | undefined) {
+const PERCENT_DOMAIN: MetricDomain = { kind: "fixed", max: 100 };
+const LAG_DOMAIN: MetricDomain = { kind: "auto", minimumMax: 100 };
+const THROUGHPUT_DOMAIN: MetricDomain = {
+  kind: "auto",
+  minimumMax: 1024 * 1024,
+};
+const NETWORK_THROUGHPUT_DOMAIN: MetricDomain = {
+  kind: "auto",
+  minimumMax: 128 * 1024,
+};
+
+function formatOptionalBytes(value: number | null | undefined) {
   if (value === undefined || value === null) {
     return "-";
   }
-
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-  let size = value;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  return `${bytesFormatter.format(size)} ${units[unitIndex]}`;
+  return formatBytes(value);
 }
 
 function formatPercent(value: number | null | undefined) {
@@ -339,11 +339,185 @@ const WINDOW_OPTIONS = SYSTEM_METRICS_WINDOWS.map((value) => ({
   label: WINDOW_LABELS[value],
 }));
 
-function seriesFrom(
+type SeriesValues = (number | null)[];
+
+type ChartSeriesIndex = {
+  cpu: MetricSeries[];
+  memory: MetricSeries[];
+  eventLoopLag: MetricSeries[];
+  gpuLoad: (id: string) => MetricSeries[];
+  gpuVram: (id: string) => MetricSeries[];
+  diskUtil: (name: string) => MetricSeries[];
+  diskThroughput: (name: string) => MetricSeries[];
+  networkThroughput: (name: string) => MetricSeries[];
+  rdmaTraffic: (device: string, port: number) => MetricSeries[];
+};
+
+function mapEntry<T>(map: Map<string, T>, key: string, create: () => T): T {
+  let entry = map.get(key);
+  if (!entry) {
+    entry = create();
+    map.set(key, entry);
+  }
+  return entry;
+}
+
+function buildChartSeriesIndex(
   samples: SystemMetricsSample[],
-  pick: (sample: SystemMetricsSample) => number | null | undefined,
-): (number | null)[] {
-  return samples.map((sample) => pick(sample) ?? null);
+): ChartSeriesIndex {
+  const filled = (): SeriesValues =>
+    new Array<number | null>(samples.length).fill(null);
+  const cpuValues = filled();
+  const memoryValues = filled();
+  const lagValues = filled();
+  const gpuValues = new Map<
+    string,
+    { load: SeriesValues; vram: SeriesValues }
+  >();
+  const diskValues = new Map<
+    string,
+    { util: SeriesValues; read: SeriesValues; write: SeriesValues }
+  >();
+  const networkValues = new Map<
+    string,
+    { rx: SeriesValues; tx: SeriesValues }
+  >();
+  const rdmaValues = new Map<
+    string,
+    { receive: SeriesValues; transmit: SeriesValues }
+  >();
+
+  samples.forEach((sample, index) => {
+    cpuValues[index] = sample.cpuPercent;
+    memoryValues[index] = sample.memoryUsedBytes;
+    lagValues[index] = sample.eventLoopMaxLagMs;
+    for (const gpu of sample.gpus) {
+      const entry = mapEntry(gpuValues, gpu.id, () => ({
+        load: filled(),
+        vram: filled(),
+      }));
+      entry.load[index] = gpu.utilizationPercent;
+      entry.vram[index] = gpu.memoryUsedBytes;
+    }
+    for (const device of sample.disks) {
+      const entry = mapEntry(diskValues, device.name, () => ({
+        util: filled(),
+        read: filled(),
+        write: filled(),
+      }));
+      entry.util[index] = device.utilPercent;
+      entry.read[index] = device.readBytesPerSec;
+      entry.write[index] = device.writeBytesPerSec;
+    }
+    for (const item of sample.network) {
+      const entry = mapEntry(networkValues, item.name, () => ({
+        rx: filled(),
+        tx: filled(),
+      }));
+      entry.rx[index] = item.rxBytesPerSec;
+      entry.tx[index] = item.txBytesPerSec;
+    }
+    if (sample.rdma) {
+      const entry = mapEntry(
+        rdmaValues,
+        `${sample.rdma.device}:${sample.rdma.port}`,
+        () => ({ receive: filled(), transmit: filled() }),
+      );
+      entry.receive[index] = sample.rdma.receiveBytesPerSec;
+      entry.transmit[index] = sample.rdma.transmitBytesPerSec;
+    }
+  });
+
+  const seriesCache = new Map<string, MetricSeries[]>();
+  const cached = (key: string, build: () => MetricSeries[]) =>
+    mapEntry(seriesCache, key, build);
+
+  return {
+    cpu: [{ id: "cpu", label: "Total", tone: "cpu", values: cpuValues }],
+    memory: [
+      { id: "memory", label: "Used", tone: "memory", values: memoryValues },
+    ],
+    eventLoopLag: [
+      {
+        id: "event-loop-lag",
+        label: "Max lag",
+        tone: "outbound",
+        values: lagValues,
+      },
+    ],
+    gpuLoad: (id) =>
+      cached(`gpu-load:${id}`, () => [
+        {
+          id: `gpu-${id}-load`,
+          label: "Load",
+          tone: "gpuLoad",
+          values: gpuValues.get(id)?.load ?? filled(),
+        },
+      ]),
+    gpuVram: (id) =>
+      cached(`gpu-vram:${id}`, () => [
+        {
+          id: `gpu-${id}-vram`,
+          label: "Used",
+          tone: "gpuMemory",
+          values: gpuValues.get(id)?.vram ?? filled(),
+        },
+      ]),
+    diskUtil: (name) =>
+      cached(`disk-util:${name}`, () => [
+        {
+          id: `${name}-util`,
+          label: "Active",
+          tone: "cpu",
+          values: diskValues.get(name)?.util ?? filled(),
+        },
+      ]),
+    diskThroughput: (name) =>
+      cached(`disk-io:${name}`, () => [
+        {
+          id: `${name}-read`,
+          label: "Read",
+          tone: "inbound",
+          values: diskValues.get(name)?.read ?? filled(),
+        },
+        {
+          id: `${name}-write`,
+          label: "Write",
+          tone: "outbound",
+          values: diskValues.get(name)?.write ?? filled(),
+        },
+      ]),
+    networkThroughput: (name) =>
+      cached(`net:${name}`, () => [
+        {
+          id: `${name}-rx`,
+          label: "In",
+          tone: "inbound",
+          values: networkValues.get(name)?.rx ?? filled(),
+        },
+        {
+          id: `${name}-tx`,
+          label: "Out",
+          tone: "outbound",
+          values: networkValues.get(name)?.tx ?? filled(),
+        },
+      ]),
+    rdmaTraffic: (device, port) =>
+      cached(`rdma:${device}:${port}`, () => [
+        {
+          id: `${device}-${port}-receive`,
+          label: "Receive",
+          tone: "inbound",
+          values: rdmaValues.get(`${device}:${port}`)?.receive ?? filled(),
+        },
+        {
+          id: `${device}-${port}-transmit`,
+          label: "Transmit",
+          tone: "outbound",
+          values: rdmaValues.get(`${device}:${port}`)?.transmit ?? filled(),
+        },
+      ]),
+  };
 }
 
 export function SystemResourcesPanel(props: {
@@ -373,6 +547,7 @@ export function SystemResourcesPanel(props: {
     }),
     [samples, props.windowMs, props.intervalMs],
   );
+  const chartSeries = useMemo(() => buildChartSeriesIndex(samples), [samples]);
 
   return (
     <MetricHoverProvider>
@@ -423,16 +598,9 @@ export function SystemResourcesPanel(props: {
                 title="CPU"
                 headline={formatPercent(cpu?.usagePercent)}
                 axis={axis}
-                domain={{ kind: "fixed", max: 100 }}
+                domain={PERCENT_DOMAIN}
                 formatValue={formatPercent}
-                series={[
-                  {
-                    id: "cpu",
-                    label: "Total",
-                    tone: "cpu",
-                    values: seriesFrom(samples, (sample) => sample.cpuPercent),
-                  },
-                ]}
+                series={chartSeries.cpu}
               />
             </MetricCard>
 
@@ -441,39 +609,29 @@ export function SystemResourcesPanel(props: {
                 <SimpleGrid cols={3} spacing="xs">
                   <ResourceMetric
                     label="Used"
-                    value={formatBytes(memory?.usedBytes)}
+                    value={formatOptionalBytes(memory?.usedBytes)}
                   />
                   <ResourceMetric
                     label="Available"
-                    value={formatBytes(memory?.availableBytes)}
+                    value={formatOptionalBytes(memory?.availableBytes)}
                   />
                   <ResourceMetric
                     label="Total"
-                    value={formatBytes(memory?.totalBytes)}
+                    value={formatOptionalBytes(memory?.totalBytes)}
                   />
                 </SimpleGrid>
               }
             >
               <MetricChart
                 title="Memory"
-                headline={`${formatBytes(memory?.usedBytes)} / ${formatBytes(memory?.totalBytes)}`}
+                headline={`${formatOptionalBytes(memory?.usedBytes)} / ${formatOptionalBytes(memory?.totalBytes)}`}
                 axis={axis}
                 domain={{
                   kind: "fixed",
                   max: memory?.totalBytes ?? latest?.memoryTotalBytes ?? 1,
                 }}
-                formatValue={formatBytes}
-                series={[
-                  {
-                    id: "memory",
-                    label: "Used",
-                    tone: "memory",
-                    values: seriesFrom(
-                      samples,
-                      (sample) => sample.memoryUsedBytes,
-                    ),
-                  },
-                ]}
+                formatValue={formatOptionalBytes}
+                series={chartSeries.memory}
               />
             </MetricCard>
           </SimpleGrid>
@@ -515,20 +673,10 @@ export function SystemResourcesPanel(props: {
               title="Longest blockage"
               headline={formatMs(latest?.eventLoopMaxLagMs)}
               axis={axis}
-              domain={{ kind: "auto", minimumMax: 100 }}
+              domain={LAG_DOMAIN}
               formatValue={formatMs}
               height={DEVICE_CHART_HEIGHT}
-              series={[
-                {
-                  id: "event-loop-lag",
-                  label: "Max lag",
-                  tone: "outbound",
-                  values: seriesFrom(
-                    samples,
-                    (sample) => sample.eventLoopMaxLagMs,
-                  ),
-                },
-              ]}
+              series={chartSeries.eventLoopLag}
             />
           </MetricCard>
 
@@ -582,8 +730,6 @@ export function SystemResourcesPanel(props: {
             ) : (
               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
                 {accelerators.map((accelerator) => {
-                  const gpuAt = (sample: SystemMetricsSample) =>
-                    sample.gpus.find((entry) => entry.id === accelerator.id);
                   const usedBytes =
                     accelerator.totalMemoryBytes === null
                       ? null
@@ -633,46 +779,26 @@ export function SystemResourcesPanel(props: {
                         title="GPU load"
                         headline={formatPercent(accelerator.utilizationPercent)}
                         axis={axis}
-                        domain={{ kind: "fixed", max: 100 }}
+                        domain={PERCENT_DOMAIN}
                         formatValue={formatPercent}
                         height={DEVICE_CHART_HEIGHT}
-                        series={[
-                          {
-                            id: `gpu-${accelerator.id}-load`,
-                            label: "Load",
-                            tone: "gpuLoad",
-                            values: seriesFrom(
-                              samples,
-                              (sample) => gpuAt(sample)?.utilizationPercent,
-                            ),
-                          },
-                        ]}
+                        series={chartSeries.gpuLoad(accelerator.id)}
                       />
                       <MetricChart
                         title="VRAM"
                         headline={
                           accelerator.totalMemoryBytes === null
                             ? "memory unknown"
-                            : `${formatBytes(usedBytes)} / ${formatBytes(accelerator.totalMemoryBytes)}`
+                            : `${formatOptionalBytes(usedBytes)} / ${formatOptionalBytes(accelerator.totalMemoryBytes)}`
                         }
                         axis={axis}
                         domain={{
                           kind: "fixed",
                           max: accelerator.totalMemoryBytes ?? 1,
                         }}
-                        formatValue={formatBytes}
+                        formatValue={formatOptionalBytes}
                         height={DEVICE_CHART_HEIGHT}
-                        series={[
-                          {
-                            id: `gpu-${accelerator.id}-vram`,
-                            label: "Used",
-                            tone: "gpuMemory",
-                            values: seriesFrom(
-                              samples,
-                              (sample) => gpuAt(sample)?.memoryUsedBytes,
-                            ),
-                          },
-                        ]}
+                        series={chartSeries.gpuVram(accelerator.id)}
                       />
                     </MetricCard>
                   );
@@ -725,30 +851,6 @@ export function SystemResourcesPanel(props: {
                 ) : (
                   <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
                     {disk.devices.map((device) => {
-                      const diskAt = (sample: SystemMetricsSample) =>
-                        sample.disks.find(
-                          (entry) => entry.name === device.name,
-                        );
-                      const throughput: MetricSeries[] = [
-                        {
-                          id: `${device.name}-read`,
-                          label: "Read",
-                          tone: "inbound",
-                          values: seriesFrom(
-                            samples,
-                            (sample) => diskAt(sample)?.readBytesPerSec,
-                          ),
-                        },
-                        {
-                          id: `${device.name}-write`,
-                          label: "Write",
-                          tone: "outbound",
-                          values: seriesFrom(
-                            samples,
-                            (sample) => diskAt(sample)?.writeBytesPerSec,
-                          ),
-                        },
-                      ];
                       const counters =
                         device.readIops !== null ||
                         device.avgReadLatencyMs !== null;
@@ -760,7 +862,7 @@ export function SystemResourcesPanel(props: {
                             <>
                               {device.sizeBytes !== null && (
                                 <Badge variant="light" color="gray">
-                                  {formatBytes(device.sizeBytes)}
+                                  {formatOptionalBytes(device.sizeBytes)}
                                 </Badge>
                               )}
                               <Badge variant="light">
@@ -787,29 +889,19 @@ export function SystemResourcesPanel(props: {
                             title="Active time"
                             headline={formatPercent(device.utilPercent)}
                             axis={axis}
-                            domain={{ kind: "fixed", max: 100 }}
+                            domain={PERCENT_DOMAIN}
                             formatValue={formatPercent}
                             height={DEVICE_CHART_HEIGHT}
-                            series={[
-                              {
-                                id: `${device.name}-util`,
-                                label: "Active",
-                                tone: "cpu",
-                                values: seriesFrom(
-                                  samples,
-                                  (sample) => diskAt(sample)?.utilPercent,
-                                ),
-                              },
-                            ]}
+                            series={chartSeries.diskUtil(device.name)}
                           />
                           <MetricChart
                             title="Transfer rate"
                             headline={`${formatBytesPerSecond(device.readBytesPerSec)} · ${formatBytesPerSecond(device.writeBytesPerSec)}`}
                             axis={axis}
-                            domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
+                            domain={THROUGHPUT_DOMAIN}
                             formatValue={formatBytesPerSecond}
                             height={DEVICE_CHART_HEIGHT}
-                            series={throughput}
+                            series={chartSeries.diskThroughput(device.name)}
                           />
                         </MetricCard>
                       );
@@ -926,12 +1018,12 @@ export function SystemResourcesPanel(props: {
                               </Table.Td>
                               <Table.Td ta="right">
                                 <Text size="sm">
-                                  {formatBytes(filesystem.freeBytes)}
+                                  {formatOptionalBytes(filesystem.freeBytes)}
                                 </Text>
                               </Table.Td>
                               <Table.Td ta="right">
                                 <Text size="sm" fw={600}>
-                                  {formatBytes(filesystem.totalBytes)}
+                                  {formatOptionalBytes(filesystem.totalBytes)}
                                 </Text>
                               </Table.Td>
                             </Table.Tr>
@@ -978,33 +1070,10 @@ export function SystemResourcesPanel(props: {
                       title="Receive / transmit"
                       headline={`${formatBytesPerSecond(rdma.receiveBytesPerSec)} · ${formatBytesPerSecond(rdma.transmitBytesPerSec)}`}
                       axis={axis}
-                      domain={{ kind: "auto", minimumMax: 1024 * 1024 }}
+                      domain={THROUGHPUT_DOMAIN}
                       formatValue={formatBytesPerSecond}
                       height={DEVICE_CHART_HEIGHT}
-                      series={[
-                        {
-                          id: `${rdma.device}-${rdma.port}-receive`,
-                          label: "Receive",
-                          tone: "inbound",
-                          values: seriesFrom(samples, (sample) =>
-                            sample.rdma?.device === rdma.device &&
-                            sample.rdma.port === rdma.port
-                              ? sample.rdma.receiveBytesPerSec
-                              : null,
-                          ),
-                        },
-                        {
-                          id: `${rdma.device}-${rdma.port}-transmit`,
-                          label: "Transmit",
-                          tone: "outbound",
-                          values: seriesFrom(samples, (sample) =>
-                            sample.rdma?.device === rdma.device &&
-                            sample.rdma.port === rdma.port
-                              ? sample.rdma.transmitBytesPerSec
-                              : null,
-                          ),
-                        },
-                      ]}
+                      series={chartSeries.rdmaTraffic(rdma.device, rdma.port)}
                     />
                   </MetricCard>
                 </SimpleGrid>
@@ -1041,8 +1110,6 @@ export function SystemResourcesPanel(props: {
                 />
                 <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
                   {network.interfaces.map((entry) => {
-                    const netAt = (sample: SystemMetricsSample) =>
-                      sample.network.find((item) => item.name === entry.name);
                     return (
                       <MetricCard
                         key={entry.name}
@@ -1067,29 +1134,10 @@ export function SystemResourcesPanel(props: {
                           title="Throughput"
                           headline={`${formatBytesPerSecond(entry.rxBytesPerSec)} · ${formatBytesPerSecond(entry.txBytesPerSec)}`}
                           axis={axis}
-                          domain={{ kind: "auto", minimumMax: 128 * 1024 }}
+                          domain={NETWORK_THROUGHPUT_DOMAIN}
                           formatValue={formatBytesPerSecond}
                           height={DEVICE_CHART_HEIGHT}
-                          series={[
-                            {
-                              id: `${entry.name}-rx`,
-                              label: "In",
-                              tone: "inbound",
-                              values: seriesFrom(
-                                samples,
-                                (sample) => netAt(sample)?.rxBytesPerSec,
-                              ),
-                            },
-                            {
-                              id: `${entry.name}-tx`,
-                              label: "Out",
-                              tone: "outbound",
-                              values: seriesFrom(
-                                samples,
-                                (sample) => netAt(sample)?.txBytesPerSec,
-                              ),
-                            },
-                          ]}
+                          series={chartSeries.networkThroughput(entry.name)}
                         />
                       </MetricCard>
                     );

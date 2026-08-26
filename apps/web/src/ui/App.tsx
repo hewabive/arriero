@@ -15,7 +15,6 @@ import {
   useMantineColorScheme,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, Moon, RefreshCw, Search, ServerOff, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -72,6 +71,7 @@ import { SourceSyncView } from "./views/SourceSyncView";
 import { SystemResourcesView } from "./views/SystemResourcesView";
 import { WebappsSection } from "./views/WebappsSection";
 import { useUiVersionGuard } from "./use-ui-version-guard";
+import { notifyError } from "./utils/notify";
 
 export function App() {
   useUiVersionGuard();
@@ -264,13 +264,7 @@ export function App() {
       setLaunchMonitor(null);
       setRoute("status");
     },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        title: "Logout failed",
-        message: (error as Error).message,
-      });
-    },
+    onError: notifyError("Logout failed"),
   });
 
   return (
@@ -534,28 +528,32 @@ export function App() {
         />
       )}
 
-      <InstanceFormModal
-        opened={canUseAdmin && createOpened}
-        instances={instances}
-        initialModel={initialModel}
-        onSaved={(instance) => setSelectedId(instance.name)}
-        onLaunchStarted={startLaunchMonitor}
-        onClose={() => {
-          setCreateOpened(false);
-          setInitialModel(null);
-        }}
-      />
-      <InstanceFormModal
-        opened={canUseAdmin && Boolean(formSeed)}
-        instances={instances}
-        instance={formSeed?.mode === "edit" ? formSeed.instance : null}
-        duplicateFrom={
-          formSeed?.mode === "duplicate" ? formSeed.instance : null
-        }
-        onSaved={(instance) => setSelectedId(instance.name)}
-        onLaunchStarted={startLaunchMonitor}
-        onClose={() => setFormSeed(null)}
-      />
+      {canUseAdmin && createOpened && (
+        <InstanceFormModal
+          opened
+          instances={instances}
+          initialModel={initialModel}
+          onSaved={(instance) => setSelectedId(instance.name)}
+          onLaunchStarted={startLaunchMonitor}
+          onClose={() => {
+            setCreateOpened(false);
+            setInitialModel(null);
+          }}
+        />
+      )}
+      {canUseAdmin && formSeed && (
+        <InstanceFormModal
+          opened
+          instances={instances}
+          instance={formSeed.mode === "edit" ? formSeed.instance : null}
+          duplicateFrom={
+            formSeed.mode === "duplicate" ? formSeed.instance : null
+          }
+          onSaved={(instance) => setSelectedId(instance.name)}
+          onLaunchStarted={startLaunchMonitor}
+          onClose={() => setFormSeed(null)}
+        />
+      )}
     </AppShell>
   );
 }

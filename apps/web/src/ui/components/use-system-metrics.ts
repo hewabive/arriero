@@ -13,6 +13,11 @@ function mergeSamples(
   live: SystemMetricsSample[],
   capacity: number,
 ): SystemMetricsSample[] {
+  const lastHistory = history[history.length - 1];
+  const firstLive = live[0];
+  if (!lastHistory || !firstLive || firstLive.at > lastHistory.at) {
+    return [...history, ...live].slice(-capacity);
+  }
   const byTime = new Map<number, SystemMetricsSample>();
   for (const sample of history) {
     byTime.set(sample.at, sample);
@@ -41,16 +46,45 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
     }
 
     const limit = SYSTEM_METRICS_TIERS[window].capacity;
-    const source = new EventSource(systemMetricsStreamUrl());
     const handler = (event: MessageEvent<string>) => {
       const sample = JSON.parse(event.data) as SystemMetricsSample;
-      setLive((previous) => [...previous, sample].slice(-limit));
+      setLive((previous) => {
+        const last = previous[previous.length - 1];
+        if (last && sample.at <= last.at) {
+          return previous;
+        }
+        return [...previous, sample].slice(-limit);
+      });
     };
-    source.addEventListener("sample", handler as EventListener);
-
-    return () => {
+    let source: EventSource | null = null;
+    const open = () => {
+      if (source) {
+        return;
+      }
+      source = new EventSource(systemMetricsStreamUrl());
+      source.addEventListener("sample", handler as EventListener);
+    };
+    const close = () => {
+      if (!source) {
+        return;
+      }
       source.removeEventListener("sample", handler as EventListener);
       source.close();
+      source = null;
+    };
+    const syncVisibility = () => {
+      if (document.hidden) {
+        close();
+      } else {
+        open();
+      }
+    };
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", syncVisibility);
+      close();
     };
   }, [window]);
 

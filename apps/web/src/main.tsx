@@ -11,7 +11,11 @@ import ReactDOM from "react-dom/client";
 import { App } from "./ui/App";
 import { NodeProvider } from "./ui/NodeContext";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 5_000, refetchOnWindowFocus: false },
+  },
+});
 
 const theme = createTheme({
   headings: {
