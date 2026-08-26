@@ -508,6 +508,10 @@ function numberOrNull(value: number | "") {
   return value === "" ? null : value;
 }
 
+function numberOr(value: number | "", fallback: number): number {
+  return value === "" ? fallback : value;
+}
+
 function slotIdsFromText(value: string) {
   return value
     .split(",")
@@ -924,8 +928,7 @@ function reasoningConfigFromDraft(
 ): ApiProxyReasoningConfig {
   return {
     effort: draft.reasoningEffort,
-    customBudgetTokens:
-      draft.reasoningCustomBudget === "" ? -1 : draft.reasoningCustomBudget,
+    customBudgetTokens: numberOr(draft.reasoningCustomBudget, -1),
   };
 }
 
@@ -933,10 +936,7 @@ function outputLimitConfigFromDraft(
   draft: PipelineNodeDraftOf<"output-limit">,
 ): ApiProxyOutputLimitConfig {
   return {
-    maxTokens:
-      draft.outputLimitMax === ""
-        ? outputLimitDefaults.maxTokens
-        : draft.outputLimitMax,
+    maxTokens: numberOr(draft.outputLimitMax, outputLimitDefaults.maxTokens),
     mode: draft.outputLimitMode,
   };
 }
@@ -947,7 +947,7 @@ function predicateFromDraft(
   if (draft.predicateType === "token-estimate") {
     return {
       type: "token-estimate",
-      minTokens: draft.minTokens === "" ? 1 : draft.minTokens,
+      minTokens: numberOr(draft.minTokens, 1),
     };
   }
   if (draft.predicateType === "source") {
@@ -960,6 +960,10 @@ function predicateFromDraft(
     regex: draft.regex,
     caseSensitive: draft.caseSensitive,
   };
+}
+
+function nextPorts(value: PortValue): { next: ApiProxyPortRef | null } {
+  return { next: portRefFromValue(value) };
 }
 
 function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
@@ -986,7 +990,7 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
               replace: rule.replace,
             })),
         },
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "capture-request":
       return {
@@ -996,69 +1000,66 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
           request: draft.captureRequest,
           response: draft.captureResponse,
         },
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "edit-request":
       return {
         ...base,
         type: "edit-request",
         config: { operations: editOperationsFromDrafts(draft.editOperations) },
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "reasoning":
       return {
         ...base,
         type: "reasoning",
         config: reasoningConfigFromDraft(draft),
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "output-limit":
       return {
         ...base,
         type: "output-limit",
         config: outputLimitConfigFromDraft(draft),
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "context-limit":
       return {
         ...base,
         type: "context-limit",
         config: {
-          thresholdTokens:
-            draft.contextLimitThreshold === ""
-              ? contextLimitDefaults.thresholdTokens
-              : draft.contextLimitThreshold,
+          thresholdTokens: numberOr(
+            draft.contextLimitThreshold,
+            contextLimitDefaults.thresholdTokens,
+          ),
         },
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "token-scale":
       return {
         ...base,
         type: "token-scale",
         config: {
-          factor:
-            draft.tokenScaleFactor === ""
-              ? tokenScaleDefaults.factor
-              : draft.tokenScaleFactor,
+          factor: numberOr(draft.tokenScaleFactor, tokenScaleDefaults.factor),
         },
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "strip-attribution":
       return {
         ...base,
         type: "strip-attribution",
         config: {},
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "cache":
       return {
         ...base,
         type: "cache",
         config: {
-          ttlSeconds: draft.cacheTtlSeconds === "" ? 0 : draft.cacheTtlSeconds,
+          ttlSeconds: numberOr(draft.cacheTtlSeconds, 0),
           namespace: draft.cacheNamespace.trim(),
         },
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "loop-guard":
       return {
@@ -1069,35 +1070,35 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
           answer: draft.loopGuardAnswer,
           reasoning: draft.loopGuardReasoning,
           toolArguments: draft.loopGuardToolArguments,
-          minSpanChars:
-            draft.loopGuardMinSpanChars === ""
-              ? loopGuardDefaults.minSpanChars
-              : draft.loopGuardMinSpanChars,
-          noveltyThreshold:
-            draft.loopGuardNoveltyThreshold === ""
-              ? loopGuardDefaults.noveltyThreshold
-              : draft.loopGuardNoveltyThreshold,
-          compressionThreshold:
-            draft.loopGuardCompressionThreshold === ""
-              ? loopGuardDefaults.compressionThreshold
-              : draft.loopGuardCompressionThreshold,
-          entropyThreshold:
-            draft.loopGuardEntropyThreshold === ""
-              ? loopGuardDefaults.entropyThreshold
-              : draft.loopGuardEntropyThreshold,
-          periodMinRepeats:
-            draft.loopGuardPeriodMinRepeats === ""
-              ? loopGuardDefaults.periodMinRepeats
-              : draft.loopGuardPeriodMinRepeats,
-          nearMissRatio:
-            draft.loopGuardNearMissRatio === ""
-              ? loopGuardDefaults.nearMissRatio
-              : draft.loopGuardNearMissRatio,
+          minSpanChars: numberOr(
+            draft.loopGuardMinSpanChars,
+            loopGuardDefaults.minSpanChars,
+          ),
+          noveltyThreshold: numberOr(
+            draft.loopGuardNoveltyThreshold,
+            loopGuardDefaults.noveltyThreshold,
+          ),
+          compressionThreshold: numberOr(
+            draft.loopGuardCompressionThreshold,
+            loopGuardDefaults.compressionThreshold,
+          ),
+          entropyThreshold: numberOr(
+            draft.loopGuardEntropyThreshold,
+            loopGuardDefaults.entropyThreshold,
+          ),
+          periodMinRepeats: numberOr(
+            draft.loopGuardPeriodMinRepeats,
+            loopGuardDefaults.periodMinRepeats,
+          ),
+          nearMissRatio: numberOr(
+            draft.loopGuardNearMissRatio,
+            loopGuardDefaults.nearMissRatio,
+          ),
           captureTrigger: draft.loopGuardCaptureTrigger,
           captureNearMiss: draft.loopGuardCaptureNearMiss,
           markerText: draft.loopGuardMarkerText,
         },
-        ports: { next: portRefFromValue(draft.portNext) },
+        ports: nextPorts(draft.portNext),
       };
     case "condition":
       return {
@@ -1140,7 +1141,7 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         config: {
           synthesizerPrompt: draft.fusionSynthesizerPrompt,
           answersTemplate: draft.fusionAnswersTemplate,
-          minQuorum: draft.fusionMinQuorum === "" ? 1 : draft.fusionMinQuorum,
+          minQuorum: numberOr(draft.fusionMinQuorum, 1),
         },
         ports: {
           panel,
@@ -1159,7 +1160,7 @@ export function targetPayload(draft: TargetDraft): ApiProxyTargetCreate {
     endpointId: draft.endpointId ?? "",
     model: draft.model.trim() || null,
     role: draft.role,
-    priority: draft.priority === "" ? 100 : draft.priority,
+    priority: numberOr(draft.priority, 100),
     preemptible: draft.preemptible,
     saveSlotsBeforeUnload: draft.saveSlotsBeforeUnload,
     slotIds: slotIdsFromText(draft.slotIds),

@@ -61,6 +61,7 @@ import {
   runProxyCascade,
 } from "../proxy/instance-refs";
 import { createUiId } from "../utils/id";
+import { invalidateInstanceQueries } from "../utils/instance-queries";
 import { formatMemoryPoolName } from "../utils/pools";
 import {
   compareModelTitles,
@@ -496,22 +497,29 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     [scanned.safetensors],
   );
 
-  const modelOptions = useMemo(() => {
-    const options = selectableModels.map((model) => ({
-      value: model.path,
-      label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
-    }));
-    if (
-      selectedModelPath &&
-      !options.some((option) => option.value === selectedModelPath)
-    ) {
-      options.push({
-        value: selectedModelPath,
-        label: `${pathBaseName(selectedModelPath)} · custom path`,
-      });
-    }
-    return options;
-  }, [selectableModels, selectedModelPath]);
+  const selectableModelOptions = useMemo(
+    () =>
+      selectableModels.map((model) => ({
+        value: model.path,
+        label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
+      })),
+    [selectableModels],
+  );
+  const optionsWithCustom = (selectedPath: string | null) =>
+    selectedPath &&
+    !selectableModelOptions.some((option) => option.value === selectedPath)
+      ? [
+          ...selectableModelOptions,
+          {
+            value: selectedPath,
+            label: `${pathBaseName(selectedPath)} · custom path`,
+          },
+        ]
+      : selectableModelOptions;
+  const modelOptions = useMemo(
+    () => optionsWithCustom(selectedModelPath),
+    [selectableModelOptions, selectedModelPath],
+  );
   const binaryCatalogEntries = useMemo(
     () =>
       (pathCatalogQuery.data?.data ?? []).filter(
@@ -588,22 +596,10 @@ export function useInstanceForm(props: InstanceFormModalProps) {
           draftArch: draftModel.metadata.architecture ?? "unknown",
         }
       : null;
-  const draftModelOptions = useMemo(() => {
-    const options = selectableModels.map((model) => ({
-      value: model.path,
-      label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
-    }));
-    if (
-      specDraftModelValue &&
-      !options.some((option) => option.value === specDraftModelValue)
-    ) {
-      options.push({
-        value: specDraftModelValue,
-        label: `${pathBaseName(specDraftModelValue)} · custom path`,
-      });
-    }
-    return options;
-  }, [selectableModels, specDraftModelValue]);
+  const draftModelOptions = useMemo(
+    () => optionsWithCustom(specDraftModelValue),
+    [selectableModelOptions, specDraftModelValue],
+  );
   const portRawValue = rowValue(argRows, "--port");
   const portValue = portRawValue === "" ? "" : Number(portRawValue);
   const threadsRawValue = rowValue(argRows, "--threads");
@@ -890,29 +886,29 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         : numaMode === "interleave"
           ? ({ mode: "interleave", nodes: numaInterleaveNodes } as const)
           : undefined;
-    const env = parseEnvJson(values.envJson);
-    const memory = memoryDrawsFromRows(memoryRows);
-    const scheduling = { evictionPolicy };
     const cwdValue = cwd.trim();
+    const common = {
+      name: values.name,
+      kind,
+      rpcWorkers: [] as RpcWorkerRef[],
+      binaryPathRefId: selectedBinaryPathRefId,
+      env: parseEnvJson(values.envJson),
+      memory: memoryDrawsFromRows(memoryRows),
+      scheduling: { evictionPolicy },
+      ...(cwdValue ? { cwd: cwdValue } : {}),
+      ...(numa ? { numa } : {}),
+      ...(reasoning ? { reasoning } : {}),
+    };
 
     if (kind === "rpc-worker") {
       const workerRows = argRows.filter((row) =>
         RPC_WORKER_ARG_KEYS.has(row.key),
       );
       return {
-        name: values.name,
-        kind,
-        rpcWorkers: [],
-        binaryPathRefId: selectedBinaryPathRefId,
+        ...common,
         args: InstanceArgsSchema.parse(
           rowsToArgsWithCatalog(workerRows, knownArgByName),
         ),
-        env,
-        memory,
-        scheduling,
-        ...(cwdValue ? { cwd: cwdValue } : {}),
-        ...(numa ? { numa } : {}),
-        ...(reasoning ? { reasoning } : {}),
       };
     }
 
@@ -925,10 +921,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         throw new Error("Set a Hugging Face model id or local model path");
       }
       return {
-        name: values.name,
-        kind,
-        rpcWorkers: [],
-        binaryPathRefId: selectedBinaryPathRefId,
+        ...common,
         ...(kind === "vllm"
           ? { positionalArgs: [model], args }
           : {
@@ -937,12 +930,6 @@ export function useInstanceForm(props: InstanceFormModalProps) {
                 [SGLANG_MODEL_ARG_KEYS[0]]: model,
               }),
             }),
-        env,
-        memory,
-        scheduling,
-        ...(cwdValue ? { cwd: cwdValue } : {}),
-        ...(numa ? { numa } : {}),
-        ...(reasoning ? { reasoning } : {}),
       };
     }
 
@@ -956,13 +943,8 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         throw new Error("Set the KTransformers CPU weights path");
       }
       return {
-        name: values.name,
-        kind,
-        rpcWorkers: [],
-        binaryPathRefId: selectedBinaryPathRefId,
+        ...common,
         args,
-        env,
-        memory,
         engineConfig: {
           type: "ktransformers",
           model,
@@ -972,10 +954,6 @@ export function useInstanceForm(props: InstanceFormModalProps) {
             ? { servedModelName: ktransformersServedModelName.trim() }
             : {}),
         },
-        scheduling,
-        ...(cwdValue ? { cwd: cwdValue } : {}),
-        ...(numa ? { numa } : {}),
-        ...(reasoning ? { reasoning } : {}),
       };
     }
 
@@ -1006,17 +984,9 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       );
     }
     return {
-      name: values.name,
-      kind,
+      ...common,
       rpcWorkers,
-      binaryPathRefId: selectedBinaryPathRefId,
       args: llamaArgs,
-      env,
-      memory,
-      scheduling,
-      ...(cwdValue ? { cwd: cwdValue } : {}),
-      ...(numa ? { numa } : {}),
-      ...(reasoning ? { reasoning } : {}),
     };
   }
 
@@ -1462,63 +1432,41 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     setArgRows((rows) => upsertArgRow(rows, flag, "", "flag"));
   }
 
-  function applyRemoteRepo(value: string) {
+  function applySpecArg(
+    key: string,
+    value: string,
+    valueType: ArgRow["valueType"],
+  ) {
     const trimmed = value.trim();
     setArgRows((rows) =>
       trimmed
-        ? upsertArgRow(rows, "--hf-repo", trimmed, "string")
-        : removeArgRow(rows, "--hf-repo"),
+        ? upsertArgRow(rows, key, trimmed, valueType)
+        : removeArgRow(rows, key),
     );
-    const name = instanceNameFromHfRepo(trimmed);
+  }
+
+  function applyRemoteRepo(value: string) {
+    applySpecArg("--hf-repo", value, "string");
+    const name = instanceNameFromHfRepo(value.trim());
     if (name && nameFollowsModelSource(form.values.name)) {
       followName(name);
     }
   }
 
-  function applyRemoteFile(value: string) {
-    const trimmed = value.trim();
-    setArgRows((rows) =>
-      trimmed
-        ? upsertArgRow(rows, "--hf-file", trimmed, "string")
-        : removeArgRow(rows, "--hf-file"),
-    );
-  }
+  const applyRemoteFile = (value: string) =>
+    applySpecArg("--hf-file", value, "string");
 
-  function applyRemoteUrl(value: string) {
-    const trimmed = value.trim();
-    setArgRows((rows) =>
-      trimmed
-        ? upsertArgRow(rows, "--model-url", trimmed, "string")
-        : removeArgRow(rows, "--model-url"),
-    );
-  }
+  const applyRemoteUrl = (value: string) =>
+    applySpecArg("--model-url", value, "string");
 
-  function applyRemoteDestination(value: string) {
-    const trimmed = value.trim();
-    setArgRows((rows) =>
-      trimmed
-        ? upsertArgRow(rows, "--model", trimmed, "string")
-        : removeArgRow(rows, "--model"),
-    );
-  }
+  const applyRemoteDestination = (value: string) =>
+    applySpecArg("--model", value, "string");
 
-  function applyMmprojSelection(value: string | null) {
-    const trimmed = (value ?? "").trim();
-    setArgRows((rows) =>
-      trimmed
-        ? upsertArgRow(rows, "--mmproj", trimmed, "string")
-        : removeArgRow(rows, "--mmproj"),
-    );
-  }
+  const applyMmprojSelection = (value: string | null) =>
+    applySpecArg("--mmproj", value ?? "", "string");
 
-  function applyMmprojUrl(value: string) {
-    const trimmed = value.trim();
-    setArgRows((rows) =>
-      trimmed
-        ? upsertArgRow(rows, "--mmproj-url", trimmed, "string")
-        : removeArgRow(rows, "--mmproj-url"),
-    );
-  }
+  const applyMmprojUrl = (value: string) =>
+    applySpecArg("--mmproj-url", value, "string");
 
   function applyRemoteSource(source: RemoteSource) {
     setRemoteSource(source);
@@ -1546,35 +1494,11 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     );
   }
 
-  function applySpecDraftModel(value: string | null) {
-    const trimmed = (value ?? "").trim();
-    setArgRows((rows) =>
-      trimmed
-        ? upsertArgRow(rows, SPEC_DRAFT_MODEL_KEY, trimmed, "string")
-        : removeArgRow(rows, SPEC_DRAFT_MODEL_KEY),
-    );
-  }
+  const applySpecDraftModel = (value: string | null) =>
+    applySpecArg(SPEC_DRAFT_MODEL_KEY, value ?? "", "string");
 
-  function applySpecDraftHf(value: string) {
-    const trimmed = value.trim();
-    setArgRows((rows) =>
-      trimmed
-        ? upsertArgRow(rows, SPEC_DRAFT_HF_KEY, trimmed, "string")
-        : removeArgRow(rows, SPEC_DRAFT_HF_KEY),
-    );
-  }
-
-  function applySpecArg(
-    key: string,
-    value: string,
-    valueType: ArgRow["valueType"],
-  ) {
-    setArgRows((rows) =>
-      value.trim()
-        ? upsertArgRow(rows, key, value, valueType)
-        : removeArgRow(rows, key),
-    );
-  }
+  const applySpecDraftHf = (value: string) =>
+    applySpecArg(SPEC_DRAFT_HF_KEY, value, "string");
 
   function applyHfToken(value: string) {
     updateEnvironment((env) => {
@@ -1585,25 +1509,6 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       }
       return env;
     });
-  }
-
-  async function invalidateSavedInstance(id: string) {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["instances"] }),
-      queryClient.invalidateQueries({ queryKey: ["instances-health-summary"] }),
-      queryClient.invalidateQueries({
-        queryKey: ["instance-resource-profiles"],
-      }),
-      queryClient.invalidateQueries({
-        queryKey: ["instance-health-summary", id],
-      }),
-      queryClient.invalidateQueries({ queryKey: ["instance-runtime", id] }),
-      queryClient.invalidateQueries({ queryKey: ["instance-llama", id] }),
-      queryClient.invalidateQueries({
-        queryKey: ["instance-status-summary", id],
-      }),
-      queryClient.invalidateQueries({ queryKey: ["instance-logs", id] }),
-    ]);
   }
 
   const mutation = useMutation({
@@ -1714,7 +1619,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         };
       }
 
-      await invalidateSavedInstance(created.name);
+      await invalidateInstanceQueries(queryClient, created.name);
       props.onClose();
       form.reset();
       setArgRows(defaultRows());
