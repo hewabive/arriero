@@ -195,8 +195,26 @@ const navSections: NavSection[] = [
         label: "Web apps",
         title: "Web apps",
         description:
-          "Install and supervise chat UIs wired to the API proxy of this node",
+          "Chat UIs supervised by this node and wired to its API proxy",
         keywords: ["open-webui", "chat", "ui", "webapp", "frontend"],
+      },
+      {
+        route: "webapps",
+        subpath: "diagnostics",
+        label: "Diagnostics",
+        title: "Web app diagnostics",
+        description:
+          "Runtime state, health probe, preflight, run history and logs for one web app",
+        keywords: ["webapp", "logs", "probe", "health", "runs", "preflight"],
+      },
+      {
+        route: "webapps",
+        subpath: "install",
+        label: "Install",
+        title: "Install web apps",
+        description:
+          "Install Open WebUI from PyPI or build Chat UI from source, and manage the installed runtimes",
+        keywords: ["open-webui", "chat-ui", "install", "version", "upgrade"],
       },
     ],
   },

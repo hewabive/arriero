@@ -1,10 +1,9 @@
 import {
-  environmentInstallChannel,
-  OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
   WEBAPP_KINDS,
   WEBAPP_NAME_PATTERN,
   webappDescriptor,
   type EnvironmentRecord,
+  type Webapp,
   type WebappCreate,
   type WebappKind,
   type WebappSettings,
@@ -14,28 +13,24 @@ import {
   Button,
   Checkbox,
   Group,
+  Modal,
   NumberInput,
-  Paper,
   SegmentedControl,
   Select,
   Stack,
   Switch,
-  Text,
   TextInput,
-  Title,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
+import { useMutation } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { listEnvironmentIndexVersions } from "../../api/client";
-
-export type WebappCreateSubmit = {
-  input: Omit<WebappCreate, "envSpecId">;
-  env:
-    | { kind: "existing"; envSpecId: string }
-    | { kind: "install"; version: string };
-};
+import { createWebapp } from "../../api/client";
+import {
+  useInvalidateWebapps,
+  webappErrorNotification,
+} from "./use-webapp-actions";
 
 function defaultSettings(
   kind: WebappKind,
@@ -53,15 +48,29 @@ function defaultSettings(
   };
 }
 
-export function WebappCreateForm({
+function preferredEnvironment(
+  environments: EnvironmentRecord[],
+): string | null {
+  return (
+    environments.find((environment) => environment.status === "installed")
+      ?.id ??
+    environments[0]?.id ??
+    null
+  );
+}
+
+export function WebappCreateModal({
   environments,
-  submitting,
-  onSubmit,
+  onCreated,
+  onOpenInstall,
+  onClose,
 }: {
   environments: EnvironmentRecord[];
-  submitting: boolean;
-  onSubmit: (submit: WebappCreateSubmit) => void;
+  onCreated: (webapp: Webapp) => void;
+  onOpenInstall: () => void;
+  onClose: () => void;
 }) {
+  const invalidate = useInvalidateWebapps();
   const [kind, setKind] = useState<WebappKind>("open-webui");
   const environmentsFor = (target: WebappKind) =>
     environments.filter(
@@ -69,17 +78,12 @@ export function WebappCreateForm({
         environment.engine === webappDescriptor(target).environmentEngine,
     );
   const descriptor = webappDescriptor(kind);
-  const channel = environmentInstallChannel(descriptor.environmentEngine);
   const kindEnvironments = environmentsFor(kind);
 
   const [name, setName] = useState("open-webui");
-  const [envMode, setEnvMode] = useState<"existing" | "install">(
-    kindEnvironments.length > 0 ? "existing" : "install",
-  );
   const [envSpecId, setEnvSpecId] = useState<string | null>(
-    kindEnvironments[0]?.id ?? null,
+    preferredEnvironment(kindEnvironments),
   );
-  const [version, setVersion] = useState("");
   const [port, setPort] = useState<number>(descriptor.http.defaultPort);
   const [lan, setLan] = useState(false);
   const [auth, setAuth] = useState(true);
@@ -97,28 +101,25 @@ export function WebappCreateForm({
     if (port === descriptor.http.defaultPort) {
       setPort(nextDescriptor.http.defaultPort);
     }
-    setEnvMode(nextEnvironments.length > 0 ? "existing" : "install");
-    setEnvSpecId(nextEnvironments[0]?.id ?? null);
-    setVersion(nextDescriptor.defaultInstallVersion);
+    setEnvSpecId(preferredEnvironment(nextEnvironments));
   }
 
-  const versionsQuery = useQuery({
-    queryKey: ["webapp-index-versions", descriptor.environmentEngine],
-    queryFn: () =>
-      listEnvironmentIndexVersions(
-        descriptor.environmentEngine,
-        OPEN_WEBUI_DEFAULT_PYTHON_VERSION,
-      ),
-    enabled: envMode === "install" && channel === "uv",
-    staleTime: 120_000,
+  const createMutation = useMutation({
+    mutationFn: (input: WebappCreate) => createWebapp(input),
+    onSuccess: async (result) => {
+      await invalidate();
+      notifications.show({
+        title: "Web app added",
+        message:
+          result.data.envStatus === "installed"
+            ? `${result.data.name} is ready to start`
+            : `${result.data.name} can start once its environment is installed`,
+      });
+      onCreated(result.data);
+      onClose();
+    },
+    onError: webappErrorNotification("Web app creation failed"),
   });
-  const versionOptions = useMemo(
-    () =>
-      (versionsQuery.data?.data.versions ?? [])
-        .filter((entry) => !entry.preRelease)
-        .map((entry) => ({ value: entry.version, label: entry.version })),
-    [versionsQuery.data],
-  );
 
   const environmentOptions = kindEnvironments.map((environment) => ({
     value: environment.id,
@@ -126,43 +127,34 @@ export function WebappCreateForm({
   }));
 
   const nameValid = WEBAPP_NAME_PATTERN.test(name);
-  const envValid =
-    envMode === "existing" ? Boolean(envSpecId) : Boolean(version.trim());
-  const canSubmit = nameValid && envValid && port >= 1 && port <= 65535;
+  const canSubmit =
+    nameValid && Boolean(envSpecId) && port >= 1 && port <= 65535;
   const openWithoutAuth = lan && (!descriptor.builtInSignIn || !auth);
 
   function submit() {
-    const input: Omit<WebappCreate, "envSpecId"> = {
+    createMutation.mutate({
       name,
       kind,
+      envSpecId: envSpecId!,
       http: { host: lan ? "0.0.0.0" : "127.0.0.1", port },
       autostart,
       createProxySource,
       settings: defaultSettings(kind, { auth, slim }),
-    };
-    onSubmit({
-      input,
-      env:
-        envMode === "existing"
-          ? { kind: "existing", envSpecId: envSpecId! }
-          : { kind: "install", version: version.trim() },
     });
   }
 
   return (
-    <Paper withBorder p="md">
+    <Modal opened onClose={onClose} title="Add web app" size="lg">
       <Stack gap="sm">
-        <Group justify="space-between" align="baseline">
-          <Title order={4}>Add {descriptor.displayName}</Title>
-          <SegmentedControl
-            value={kind}
-            onChange={(value) => switchKind(value as WebappKind)}
-            data={WEBAPP_KINDS.map((entry) => ({
-              value: entry,
-              label: webappDescriptor(entry).displayName,
-            }))}
-          />
-        </Group>
+        <SegmentedControl
+          fullWidth
+          value={kind}
+          onChange={(value) => switchKind(value as WebappKind)}
+          data={WEBAPP_KINDS.map((entry) => ({
+            value: entry,
+            label: webappDescriptor(entry).displayName,
+          }))}
+        />
         <Group grow align="flex-end">
           <TextInput
             label="Name"
@@ -182,52 +174,25 @@ export function WebappCreateForm({
             onChange={(value) => setPort(typeof value === "number" ? value : 0)}
           />
         </Group>
-        <Group align="flex-end">
-          <SegmentedControl
-            value={envMode}
-            onChange={(value) => setEnvMode(value as "existing" | "install")}
-            data={[
-              {
-                value: "existing",
-                label: "Existing environment",
-                disabled: kindEnvironments.length === 0,
-              },
-              { value: "install", label: "Install new" },
-            ]}
+        {kindEnvironments.length > 0 ? (
+          <Select
+            label="Environment"
+            description={`An installed ${descriptor.displayName} runtime this app runs on`}
+            placeholder="Pick an installed environment"
+            data={environmentOptions}
+            value={envSpecId}
+            onChange={setEnvSpecId}
           />
-          {envMode === "existing" ? (
-            <Select
-              label="Environment"
-              placeholder="Pick an installed environment"
-              data={environmentOptions}
-              value={envSpecId}
-              onChange={setEnvSpecId}
-              style={{ flex: 1 }}
-            />
-          ) : channel === "node-source" ? (
-            <TextInput
-              label="Git ref"
-              description="Tag or branch of huggingface/chat-ui; built from source"
-              value={version}
-              onChange={(event) => setVersion(event.currentTarget.value)}
-              style={{ flex: 1 }}
-            />
-          ) : (
-            <Select
-              label="Version"
-              placeholder={
-                versionsQuery.isFetching
-                  ? "Loading versions…"
-                  : "Pick a version"
-              }
-              searchable
-              data={versionOptions}
-              value={version || null}
-              onChange={(value) => setVersion(value ?? "")}
-              style={{ flex: 1 }}
-            />
-          )}
-        </Group>
+        ) : (
+          <Alert color="blue">
+            <Group justify="space-between" align="center">
+              No {descriptor.displayName} runtime is installed on this node yet.
+              <Button size="xs" variant="light" onClick={onOpenInstall}>
+                Open the Install tab
+              </Button>
+            </Group>
+          </Alert>
+        )}
         <Group gap="lg">
           <Switch
             label="LAN access (listen on 0.0.0.0)"
@@ -271,19 +236,19 @@ export function WebappCreateForm({
               : `${descriptor.displayName} has no built-in sign-in — it will be reachable from the whole network.`}
           </Alert>
         )}
-        <Group justify="space-between">
-          {descriptor.installFootprintNote ? (
-            <Text size="xs" c="dimmed">
-              Note: {descriptor.installFootprintNote}.
-            </Text>
-          ) : (
-            <span />
-          )}
-          <Button disabled={!canSubmit} loading={submitting} onClick={submit}>
-            {envMode === "install" ? "Install and add" : "Add web app"}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSubmit}
+            loading={createMutation.isPending}
+            onClick={submit}
+          >
+            Add web app
           </Button>
         </Group>
       </Stack>
-    </Paper>
+    </Modal>
   );
 }

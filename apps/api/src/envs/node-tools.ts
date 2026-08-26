@@ -1,3 +1,5 @@
+import type { NodeSourceToolStatus } from "@arriero/core";
+
 import { findExecutableInPath, readVersionSync } from "../system/tool-probe.js";
 
 export type NodeSourceTools = { git: string; npm: string; node: string };
@@ -27,4 +29,13 @@ export function probeNodeSourceTools(
     tools: { git: tools.git!, npm: tools.npm!, node: process.execPath },
     error: null,
   };
+}
+
+let cachedStatus: NodeSourceToolStatus | null = null;
+
+export function nodeSourceToolStatus(): NodeSourceToolStatus {
+  if (cachedStatus) return cachedStatus;
+  const probe = probeNodeSourceTools();
+  cachedStatus = { available: probe.error === null, reason: probe.error };
+  return cachedStatus;
 }

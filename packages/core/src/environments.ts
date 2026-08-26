@@ -441,6 +441,20 @@ export const UvToolStatusSchema = z.object({
   reason: z.string().nullable(),
 });
 
+export const NodeSourceToolStatusSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable(),
+});
+
+export const EnvironmentSourceRefsSchema = z.object({
+  engine: EnvironmentEngineSchema,
+  url: z.string(),
+  status: z.enum(["ok", "unreachable"]),
+  message: z.string().nullable(),
+  tags: z.array(z.string()),
+  branches: z.array(z.string()),
+});
+
 export type EnvironmentInstallSource = z.infer<
   typeof EnvironmentInstallSourceSchema
 >;
@@ -486,3 +500,5 @@ export type EnvironmentJobStep = z.infer<typeof EnvironmentJobStepSchema>;
 export type EnvironmentJob = z.infer<typeof EnvironmentJobSchema>;
 export type EnvironmentLogTail = z.infer<typeof EnvironmentLogTailSchema>;
 export type UvToolStatus = z.infer<typeof UvToolStatusSchema>;
+export type NodeSourceToolStatus = z.infer<typeof NodeSourceToolStatusSchema>;
+export type EnvironmentSourceRefs = z.infer<typeof EnvironmentSourceRefsSchema>;

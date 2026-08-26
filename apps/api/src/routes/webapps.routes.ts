@@ -5,6 +5,7 @@ import {
   WebappUpdateSchema,
   type WebappCreate,
   type WebappKind,
+  type WebappRunInfo,
   type WebappUpdate,
 } from "@arriero/core";
 import type { Hono } from "hono";
@@ -31,7 +32,11 @@ import {
   WebappNameConflictError,
   WebappUpdateBlockedError,
 } from "../webapps/repository.js";
-import { latestWebappRun, type WebappRun } from "../webapps/runs-repository.js";
+import {
+  latestWebappRun,
+  listWebappRuns,
+  type WebappRun,
+} from "../webapps/runs-repository.js";
 import {
   restartWebapp,
   startWebapp,
@@ -76,6 +81,21 @@ function latestRunFallbackState(name: string, latestRun: WebappRun | null) {
     logPath: latestRun?.logPath ?? null,
     rawLogPath: latestRun?.rawLogPath ?? null,
     adopted: false,
+  };
+}
+
+function toWebappRunInfo(run: WebappRun): WebappRunInfo {
+  return {
+    id: run.id,
+    pid: parsePidText(run.pid),
+    status: run.status as WebappRunInfo["status"],
+    startedAt: run.startedAt,
+    stoppedAt: run.stoppedAt,
+    exitCode: run.exitCode === null ? null : Number(run.exitCode),
+    adopted: run.adopted === "true",
+    stopReason: run.stopReason ?? null,
+    logPath: run.logPath,
+    rawLogPath: run.rawLogPath,
   };
 }
 
@@ -151,6 +171,20 @@ export function registerWebappRoutes(app: Hono) {
         : null;
     return c.json({
       data: { ...state, stopReason: latestRun?.stopReason ?? null, health },
+    });
+  });
+
+  app.get("/api/webapps/:id/runs", (c) => {
+    const record = getWebappRecord(c.req.param("id"));
+    if (!record) {
+      return c.json({ error: "webapp not found" }, 404);
+    }
+    const limit = Number(c.req.query("limit") ?? "20");
+    return c.json({
+      data: listWebappRuns(
+        record.name,
+        Number.isFinite(limit) ? limit : 20,
+      ).map(toWebappRunInfo),
     });
   });
 

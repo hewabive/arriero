@@ -6,6 +6,7 @@ import type {
   EnvironmentLogTail,
   EnvironmentRecord,
   EnvironmentRepositorySettings,
+  EnvironmentSourceRefs,
 } from "@arriero/core";
 
 import { nodeRequest as request } from "./http.js";
@@ -62,6 +63,12 @@ export function listEnvironmentIndexVersions(
   if (pythonVersion) query.set("pythonVersion", pythonVersion);
   return request<{ data: EnvironmentIndexVersions }>(
     `/api/environments/index-versions?${query.toString()}`,
+  );
+}
+
+export function getEnvironmentSourceRefs(engine: EnvironmentEngine) {
+  return request<{ data: EnvironmentSourceRefs }>(
+    `/api/environments/source-refs?engine=${engine}`,
   );
 }
 

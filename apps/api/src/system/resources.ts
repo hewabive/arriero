@@ -13,6 +13,7 @@ import { clampRatio } from "./clamp.js";
 import { readSystemMemory } from "./memory.js";
 import { systemMetricsRecorder } from "./metrics-history.js";
 import { getStorageResources } from "./storage-space.js";
+import { nodeSourceToolStatus } from "../envs/node-tools.js";
 import { uvToolStatus } from "../envs/uv.js";
 
 export function nvidiaDevicesToAccelerators(
@@ -81,7 +82,7 @@ export function getSystemResources(): SystemResources {
       bind: detectNumaBind(),
       interleave: detectNumaInterleave(),
     },
-    tools: { uv: uvToolStatus() },
+    tools: { uv: uvToolStatus(), nodeSource: nodeSourceToolStatus() },
   };
 }
 

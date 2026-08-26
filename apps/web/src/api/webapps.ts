@@ -3,6 +3,8 @@ import type {
   WebappCreate,
   WebappLogTail,
   WebappPreflightIssue,
+  WebappRunInfo,
+  WebappRuntime,
   WebappUpdate,
 } from "@arriero/core";
 
@@ -50,6 +52,16 @@ export function restartWebapp(name: string) {
   return request<{ data: unknown }>(`/api/webapps/${name}/restart`, {
     method: "POST",
   });
+}
+
+export function getWebappRuntime(name: string) {
+  return request<{ data: WebappRuntime }>(`/api/webapps/${name}/runtime`);
+}
+
+export function listWebappRuns(name: string, limit = 20) {
+  return request<{ data: WebappRunInfo[] }>(
+    `/api/webapps/${name}/runs?limit=${limit}`,
+  );
 }
 
 export function getWebappPreflight(name: string) {

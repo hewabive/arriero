@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { EnvironmentStatusSchema } from "./environments.js";
+import { EndpointProbeSchema } from "./llama.js";
 import { ProcessStopReasonSchema } from "./process.js";
 import {
   WEBAPP_KINDS,
@@ -153,6 +154,33 @@ export const WebappStopReasonSchema = ProcessStopReasonSchema.extract([
   "crash",
 ]);
 
+export const WebappRuntimeSchema = z.object({
+  name: z.string(),
+  pid: z.number().int().nullable(),
+  status: WebappRuntimeStatusSchema,
+  startedAt: z.string().nullable(),
+  stoppedAt: z.string().nullable(),
+  exitCode: z.number().int().nullable(),
+  logPath: z.string().nullable(),
+  rawLogPath: z.string().nullable(),
+  adopted: z.boolean(),
+  stopReason: WebappStopReasonSchema.nullable(),
+  health: EndpointProbeSchema.nullable(),
+});
+
+export const WebappRunInfoSchema = z.object({
+  id: z.string(),
+  pid: z.number().int().nullable(),
+  status: WebappRuntimeStatusSchema,
+  startedAt: z.string(),
+  stoppedAt: z.string().nullable(),
+  exitCode: z.number().int().nullable(),
+  adopted: z.boolean(),
+  stopReason: WebappStopReasonSchema.nullable(),
+  logPath: z.string().nullable(),
+  rawLogPath: z.string().nullable(),
+});
+
 export type WebappHttp = z.infer<typeof WebappHttpSchema>;
 export type OpenWebuiSettings = z.infer<typeof OpenWebuiSettingsSchema>;
 export type ChatUiSettings = z.infer<typeof ChatUiSettingsSchema>;
@@ -166,3 +194,5 @@ export type Webapp = z.infer<typeof WebappSchema>;
 export type WebappPreflightIssue = z.infer<typeof WebappPreflightIssueSchema>;
 export type WebappLogTail = z.infer<typeof WebappLogTailSchema>;
 export type WebappStopReason = z.infer<typeof WebappStopReasonSchema>;
+export type WebappRuntime = z.infer<typeof WebappRuntimeSchema>;
+export type WebappRunInfo = z.infer<typeof WebappRunInfoSchema>;

@@ -6,6 +6,7 @@ import {
 import type { Hono } from "hono";
 
 import { resolveEnvironmentIndexVersions } from "../envs/index-versions.js";
+import { resolveEnvironmentSourceRefs } from "../envs/source-refs.js";
 import { tailEnvironmentLog } from "../envs/logs.js";
 import { getEnvironmentJob, listEnvironmentJobs } from "../envs/repository.js";
 import { environmentRunner } from "../envs/runner.js";
@@ -86,6 +87,19 @@ export function registerEnvironmentRoutes(app: Hono) {
         pythonVersion: c.req.query("pythonVersion") ?? null,
       }),
     });
+  });
+
+  app.get("/api/environments/source-refs", async (c) => {
+    const engine = EnvironmentEngineSchema.safeParse(c.req.query("engine"));
+    if (!engine.success) return c.json({ error: engine.error.flatten() }, 400);
+    const refs = await resolveEnvironmentSourceRefs(engine.data);
+    if (!refs) {
+      return c.json(
+        { error: `${engine.data} does not install from a git source` },
+        400,
+      );
+    }
+    return c.json({ data: refs });
   });
 
   app.get("/api/environments/jobs", (c) => {

@@ -119,6 +119,16 @@ export function latestWebappRun(webappId: string): WebappRun | null {
   );
 }
 
+export function listWebappRuns(webappId: string, limit: number): WebappRun[] {
+  return db
+    .select()
+    .from(webappRuns)
+    .where(eq(webappRuns.webappId, webappId))
+    .orderBy(desc(webappRuns.startedAt))
+    .limit(limit)
+    .all();
+}
+
 export function listOpenWebappRuns(): WebappRun[] {
   return db
     .select()

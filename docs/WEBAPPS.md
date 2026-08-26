@@ -15,9 +15,9 @@ the compiler point at every spot a new kind must fill in. A descriptor declares 
 engine that hosts the kind (`environmentEngine` — create validation and the web environment pickers
 derive the kind↔engine link from it rather than comparing the two id strings; the engine's install
 channel comes from `environmentInstallChannel(engine)` in core, and the env-spec a new install
-needs comes from `webappEnvironmentCreateInput(kind, version)`), the version the create form
+needs comes from `webappEnvironmentCreateInput(kind, version)`), the version the install form
 pre-fills for a fresh install (`defaultInstallVersion`), whether the app ships its own sign-in
-(`builtInSignIn` — drives the open-LAN warnings in preflight and the create form) and whether it
+(`builtInSignIn` — drives the open-LAN warnings in preflight and the create modal) and whether it
 re-reads the proxy model list live or only at startup (`modelListRefresh` — drives the
 empty-catalog restart warning), default host/port, the launch argv shape (always `--host`/`--port`
 flags — Chat UI's generated launcher translates them into the `HOST`/`PORT` variables its server
@@ -26,7 +26,7 @@ the probe-noise log grammar (`logGrammar`, `uvicorn` or `pino`, applied by the s
 filtered-log tail), whether the kind needs a manager-issued session secret (`sessionSecret`), the
 env keys the renderer owns (`reservedEnvKeys` — rejected in user `extraEnv` by a core schema
 refinement), the files or directories to back up before a version switch, and an install footprint
-note surfaced by the create form.
+note surfaced by the install form.
 
 ## Installation rides the environments domain
 
@@ -130,10 +130,24 @@ wildcard host without sign-in, plus the Chat UI empty-catalog warning above.
 
 ## Surfaces
 
-`/api/webapps*` (CRUD, start/stop/restart, runtime + live health probe, preflight, log tail) and
-the web **Web apps** page (create form with a kind switch and inline environment install —
-PyPI-version picker for Open WebUI, git-ref input for Chat UI — status/env/drift badges, Open link,
-logs). Runs live in the `webapp_runs` table (`docs/RUNTIME_LAYOUT.md`), last 20 closed per webapp,
+`/api/webapps*` (CRUD, start/stop/restart, runtime + live health probe, preflight, log tail with
+`source=filtered|raw`, run history at `GET /api/webapps/:id/runs`) and the web **Web apps**
+section — three tabs mirroring the instances layout:
+
+- **Web apps** (`#/webapps`): the installed list with status/env/drift badges, Open link and
+  actions. Creating a definition is a modal that only picks an already-installed runtime
+  (`envSpecId`) and points at the Install tab when none exists — installation itself never
+  happens from the create flow.
+- **Diagnostics** (`#/webapps/diagnostics`): one selected app in depth — the live health probe,
+  preflight errors and warnings, the environment record, runtime facts (pid, exit code, stop
+  reason, adoption, log paths), run history and the filtered/raw log tail.
+- **Install** (`#/webapps/install`): runtime management in the engine culture — version pickers
+  (the PyPI index lookup for Open WebUI, the `source-refs` tags/branches lookup for Chat UI —
+  `docs/ENVIRONMENTS.md`), a planned-commands preview, the installed-runtime list with
+  rebuild/delete (delete blocked while a webapp references the runtime), and the environment
+  job inline: step badges, log tail, cancel.
+
+Runs live in the `webapp_runs` table (`docs/RUNTIME_LAYOUT.md`), last 20 closed per webapp,
 `stopReason ⊂ {operator, shutdown, delete, stale, crash}`.
 
 ## Out of scope, deliberately

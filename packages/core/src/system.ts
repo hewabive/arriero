@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { UvToolStatusSchema } from "./environments.js";
+import {
+  NodeSourceToolStatusSchema,
+  UvToolStatusSchema,
+} from "./environments.js";
 
 export const NetworkInterfaceAddressSchema = z.object({
   name: z.string(),
@@ -254,7 +257,12 @@ export const SystemResourcesSchema = z.object({
   cpu: SystemCpuActivitySchema.nullable().default(null),
   network: SystemNetworkActivitySchema.nullable().default(null),
   numa: NumaCapabilitiesSchema,
-  tools: z.object({ uv: UvToolStatusSchema }).optional(),
+  tools: z
+    .object({
+      uv: UvToolStatusSchema,
+      nodeSource: NodeSourceToolStatusSchema.optional(),
+    })
+    .optional(),
 });
 
 export const SystemMetricsGpuSampleSchema = z.object({

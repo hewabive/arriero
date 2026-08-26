@@ -229,6 +229,13 @@ The create form is ordered as engine/Python/variant → application source kind 
 remains available when an index is stale or unreachable. Lookup status distinguishes
 `empty`, `not-found`, `auth-required`, and `unreachable`.
 
+The node-source counterpart is `GET /api/environments/source-refs?engine=`: a
+server-side `git ls-remote --tags --heads` against the engine's fixed upstream
+repository (`chat-ui` → `huggingface/chat-ui`), returning tags newest first
+(numeric-aware ordering) plus branches. It feeds the web Install pickers the same way
+`index-versions` does for the uv channel; a failed lookup comes back as `unreachable`
+with the redacted git error, and manual ref entry stays available.
+
 ## Ownership and deletion
 
 Final directories are derived from the stable spec id and are root-confined. The

@@ -70,7 +70,7 @@ import { ProxySection } from "./views/ProxySection";
 import { PublicStatusView } from "./views/PublicStatusView";
 import { SourceSyncView } from "./views/SourceSyncView";
 import { SystemResourcesView } from "./views/SystemResourcesView";
-import { WebappsView } from "./views/WebappsView";
+import { WebappsSection } from "./views/WebappsSection";
 import { useUiVersionGuard } from "./use-ui-version-guard";
 
 export function App() {
@@ -518,7 +518,7 @@ export function App() {
 
           {canUseAdmin && route === "processes" && <ProcessesView />}
 
-          {canUseAdmin && route === "webapps" && <WebappsView />}
+          {canUseAdmin && route === "webapps" && <WebappsSection />}
 
           {canUseAdmin && route === "system" && <SystemResourcesView />}
 
