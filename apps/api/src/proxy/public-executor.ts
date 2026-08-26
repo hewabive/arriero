@@ -5,6 +5,7 @@ import type {
   Instance,
 } from "@arriero/core";
 
+import { sleep as defaultSleep } from "../utils/sleep.js";
 import type { ApiProxyProtocolDiagnostic } from "./protocol.js";
 
 const supportedActionTypes = new Set<ApiProxySchedulerAction["type"]>([
@@ -16,7 +17,6 @@ const supportedActionTypes = new Set<ApiProxySchedulerAction["type"]>([
   "stop-instance",
   "save-slot",
   "restore-slot",
-  "route-request",
 ]);
 
 const instanceWaitActionTypes = new Set<ApiProxySchedulerAction["type"]>([
@@ -224,10 +224,7 @@ export async function executeApiProxyPublicMvpPlan(
   input: ApiProxyPublicExecutorInput,
 ): Promise<ApiProxyPublicExecutorResult> {
   const options = { ...defaultOptions, ...input.options };
-  const sleep =
-    input.sleep ??
-    ((ms: number) =>
-      new Promise<void>((resolveDone) => setTimeout(resolveDone, ms)));
+  const sleep = input.sleep ?? defaultSleep;
   let preview = input.initialPreview;
   const startedInstanceIds = new Set<string>();
 
@@ -254,10 +251,6 @@ export async function executeApiProxyPublicMvpPlan(
 
     if (!supportedActionTypes.has(action.type)) {
       return { ok: false, diagnostic: unsupportedDiagnostic(action) };
-    }
-
-    if (action.type === "route-request") {
-      return { ok: true, preview };
     }
 
     if (!action.instanceId) {

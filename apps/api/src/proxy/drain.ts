@@ -1,3 +1,5 @@
+import type { ApiProxyProtocolAdapter } from "./protocol.js";
+
 let draining = false;
 
 export function beginApiProxyDrain(): void {
@@ -8,21 +10,8 @@ export function isApiProxyDraining(): boolean {
   return draining;
 }
 
-export function apiProxyDrainBody(protocol: "openai" | "anthropic"): unknown {
-  const message =
-    "arriero is restarting to apply an update; retry in a few seconds.";
-  if (protocol === "anthropic") {
-    return {
-      type: "error",
-      error: { type: "overloaded_error", message },
-    };
-  }
-  return {
-    error: {
-      message,
-      type: "server_error",
-      code: "arriero_restarting",
-      param: null,
-    },
-  };
+export function apiProxyDrainBody(adapter: ApiProxyProtocolAdapter): unknown {
+  return adapter.unavailableError(
+    "arriero is restarting to apply an update; retry in a few seconds.",
+  );
 }

@@ -7,7 +7,7 @@ import type {
   ApiProxyTargetRecord,
 } from "@arriero/core";
 
-import { anthropicProtocolAdapter } from "./anthropic.js";
+import { adapterForProtocol } from "./protocol-adapters.js";
 import { buildDomainAdmissionDecider } from "./domain-admission.js";
 import {
   computeDomainCoordinator,
@@ -20,7 +20,6 @@ import {
 } from "./idle-maintenance.js";
 import { requestComputeDomains } from "./resource-domains.js";
 import { asObject, isRecord } from "./json.js";
-import { openAiProtocolAdapter } from "./openai.js";
 import {
   resolveApiProxyRouteChain,
   type ApiProxyCacheLookup,
@@ -30,7 +29,6 @@ import {
 } from "./pipeline.js";
 import {
   bodyRequestsStreaming,
-  type ApiProxyProtocolAdapter,
   type ApiProxyProtocolDiagnostic,
   type ApiProxyProtocolModelRequest,
   type ApiProxyProtocolOperation,
@@ -59,14 +57,6 @@ import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
 const maxFusionDepth = 3;
 
 const neverAbort = new AbortController().signal;
-
-function adapterForProtocol(
-  protocol: ApiProxyProtocolOperation["protocol"],
-): ApiProxyProtocolAdapter {
-  return protocol === "anthropic"
-    ? anthropicProtocolAdapter
-    : openAiProtocolAdapter;
-}
 
 export type ApiProxyModelSubRequestResult =
   | {

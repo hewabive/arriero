@@ -18,6 +18,7 @@ import {
 import {
   resumableTraceUsage,
   traceDiagnosticResponse,
+  traceUsageFromCounts,
   truncatedStreamResponse,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
@@ -51,7 +52,6 @@ import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
 import {
   createUsageMeterStream,
   includeUsageRequested,
-  ratePerSecondFromUsage,
   requestBreaksStreamReconstruction,
   returnProgressRequested,
   type ProxyUsageCounts,
@@ -184,16 +184,7 @@ export async function serveResumedStreamSession(input: {
     ? translatedAnthropicResumableCodec(claim.exchangeBody)
     : codec;
   const applyUsage = (usage: ProxyUsageCounts) => {
-    trace.usage = {
-      promptTokens: usage.promptTokens,
-      cacheReadTokens: usage.cacheReadTokens,
-      cacheCreationTokens: usage.cacheCreationTokens,
-      completionTokens: usage.completionTokens,
-      genMs: Math.round(usage.genMs),
-      ratePerSecond: ratePerSecondFromUsage(usage),
-      prefillMs: usage.prefillMs,
-      promptPerSecond: usage.promptPerSecond,
-    };
+    trace.usage = traceUsageFromCounts(usage);
   };
 
   if (!request.stream) {

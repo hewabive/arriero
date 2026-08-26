@@ -6,25 +6,15 @@ import {
 import type { Context } from "hono";
 
 import { getInstance } from "../instances/repository.js";
-import { anthropicProtocolAdapter } from "./anthropic.js";
+import { adapterForProtocol } from "./protocol-adapters.js";
 import { withDelegatedTraceHeader } from "./delegated-trace.js";
 import { instanceEndpointId } from "./endpoints.js";
 import type { ApiProxyInflightHandle } from "./inflight.js";
-import { openAiProtocolAdapter } from "./openai.js";
 import { runWithProxyTrace, serveResolvedTarget } from "./protocol-endpoint.js";
 import type {
-  ApiProxyProtocolAdapter,
   ApiProxyProtocolModelRequest,
   ApiProxyProtocolOperation,
 } from "./protocol.js";
-
-function adapterForProtocol(
-  protocol: ApiProxyServeRequest["protocol"],
-): ApiProxyProtocolAdapter {
-  return protocol === "anthropic"
-    ? anthropicProtocolAdapter
-    : openAiProtocolAdapter;
-}
 
 function serveOperation(
   protocol: ApiProxyServeRequest["protocol"],

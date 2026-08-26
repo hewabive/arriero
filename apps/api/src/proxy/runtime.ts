@@ -1,5 +1,4 @@
 import {
-  ApiProxyRuntimeSnapshotSchema,
   apiProxyInflightPhaseEnded,
   type ApiEndpointRecord,
   type ApiProxyInflightRequest,
@@ -13,6 +12,7 @@ import {
   type EndpointProbe,
 } from "@arriero/core";
 
+import { asObject } from "./json.js";
 import { resolveApiProxyTarget } from "./targets.js";
 
 type RuntimeTracker = {
@@ -23,30 +23,13 @@ type RuntimeTracker = {
 
 const runtimeTrackers = new Map<string, RuntimeTracker>();
 
-function objectRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function numberValue(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
 function slotRecords(probe: EndpointProbe | undefined) {
   if (!probe?.ok || !Array.isArray(probe.body)) {
     return [];
   }
 
   return probe.body
-    .map((slot) => objectRecord(slot))
+    .map((slot) => asObject(slot))
     .filter((slot): slot is Record<string, unknown> => Boolean(slot));
 }
 
@@ -56,16 +39,16 @@ function activeRequestsFromSlots(probe: EndpointProbe | undefined) {
 }
 
 function modelStatusFromProbe(probe: EndpointProbe | undefined, model: string) {
-  const body = objectRecord(probe?.body);
+  const body = asObject(probe?.body);
   const data = Array.isArray(body?.data) ? body.data : [];
   const match = data
-    .map((item) => objectRecord(item))
+    .map((item) => asObject(item))
     .find((record) => record?.id === model);
   if (!match) {
     return null;
   }
 
-  const status = objectRecord(match.status);
+  const status = asObject(match.status);
   if (status?.failed === true) {
     return "failed";
   }
@@ -388,7 +371,7 @@ export function buildApiProxyRuntimeSnapshot(input: {
     }
   }
 
-  return ApiProxyRuntimeSnapshotSchema.parse({
+  return {
     checkedAt: input.checkedAt,
     targets: input.targets.map((target) => {
       const resolution = resolutionByTargetId.get(target.id);
@@ -414,7 +397,7 @@ export function buildApiProxyRuntimeSnapshot(input: {
         checkedAt: input.checkedAt,
       });
     }),
-  });
+  };
 }
 
 export function resetApiProxyRuntimeTrackers() {

@@ -311,6 +311,15 @@ export async function resolveApiProxyRouteChain(input: {
   const estimateTokens = () =>
     (tokenEstimate ??= estimateRequestTokens(state.request.body));
 
+  const applyBody = (body: unknown) => {
+    state.request = {
+      ...state.request,
+      body,
+      stream: bodyRequestsStreaming(body),
+    };
+    tokenEstimate = null;
+  };
+
   const callStack: CallFrame[] = [];
   let currentPipeline: ApiProxyPipelineRecord | null =
     input.entry?.pipeline ?? null;
@@ -442,13 +451,8 @@ export async function resolveApiProxyRouteChain(input: {
           ? replaceRequestText(state.request.body, node.config.rules)
           : { value: state.request.body, count: 0 };
         if (replacement.count > 0) {
-          state.request = {
-            ...state.request,
-            body: replacement.value,
-            stream: bodyRequestsStreaming(replacement.value),
-          };
+          applyBody(replacement.value);
           state.textReplacementCount += replacement.count;
-          tokenEstimate = null;
         }
         if (node.config.response) {
           state.responseEffects.push({
@@ -479,12 +483,7 @@ export async function resolveApiProxyRouteChain(input: {
           node.config.operations,
         );
         if (edit.changed) {
-          state.request = {
-            ...state.request,
-            body: edit.body,
-            stream: bodyRequestsStreaming(edit.body),
-          };
-          tokenEstimate = null;
+          applyBody(edit.body);
         }
         state.routeTrace.push(
           nodeStep(pipeline, node, {
@@ -516,12 +515,7 @@ export async function resolveApiProxyRouteChain(input: {
         }
         const edit = applyApiProxyRequestEdits(state.request.body, operations);
         if (edit.changed) {
-          state.request = {
-            ...state.request,
-            body: edit.body,
-            stream: bodyRequestsStreaming(edit.body),
-          };
-          tokenEstimate = null;
+          applyBody(edit.body);
         }
         state.routeTrace.push(
           nodeStep(pipeline, node, {
@@ -539,12 +533,7 @@ export async function resolveApiProxyRouteChain(input: {
         );
         const edit = applyApiProxyRequestEdits(state.request.body, operations);
         if (edit.changed) {
-          state.request = {
-            ...state.request,
-            body: edit.body,
-            stream: bodyRequestsStreaming(edit.body),
-          };
-          tokenEstimate = null;
+          applyBody(edit.body);
         }
         state.routeTrace.push(
           nodeStep(pipeline, node, {
@@ -616,12 +605,7 @@ export async function resolveApiProxyRouteChain(input: {
         const sanitized = sanitizeClaudeCodeAttribution(state.request.body);
         const changed = sanitized !== state.request.body;
         if (changed) {
-          state.request = {
-            ...state.request,
-            body: sanitized,
-            stream: bodyRequestsStreaming(sanitized),
-          };
-          tokenEstimate = null;
+          applyBody(sanitized);
         }
         state.routeTrace.push(
           nodeStep(pipeline, node, {
@@ -654,144 +638,103 @@ export async function resolveApiProxyRouteChain(input: {
           break;
         }
         const cached = input.lookupCache ? await input.lookupCache(key) : null;
-
-        if (state.request.stream) {
-          if (cached && cached.isSse) {
-            state.routeTrace.push(
-              nodeStep(pipeline, node, { port: "hit", detail: "cache hit" }),
-            );
-            return {
-              ok: true,
-              kind: "response",
-              source: "store",
-              request: state.request,
-              response: {
-                status: cached.status,
-                contentType: cached.contentType,
-                body: cached.body,
-              },
-              cacheKey: key,
-              textReplacementCount: state.textReplacementCount,
-              responseEffects: state.responseEffects,
-              routeTrace: state.routeTrace,
-            };
-          }
-          const subscription = input.findBroadcast
-            ? input.findBroadcast(key)
-            : null;
-          if (subscription) {
-            state.routeTrace.push(
-              nodeStep(pipeline, node, {
-                port: "hit",
-                detail: "stream fan-out",
-              }),
-            );
-            return {
-              ok: true,
-              kind: "response",
-              source: "coalesced",
-              request: state.request,
-              response: {
-                status: 200,
-                contentType: subscription.contentType,
-                body: subscription.body,
-              },
-              cacheKey: key,
-              textReplacementCount: state.textReplacementCount,
-              responseEffects: state.responseEffects,
-              routeTrace: state.routeTrace,
-            };
-          }
-          if (input.registerBroadcast) {
-            input.registerBroadcast(key);
-          }
-          state.responseEffects.push({
-            type: "cache-store",
-            key,
-            ttlSeconds: node.config.ttlSeconds,
-          });
+        const servedFromCache = (
+          source: "store" | "coalesced",
+          response: ApiProxyResponseResult,
+          detail: string,
+        ) => {
           state.routeTrace.push(
-            nodeStep(pipeline, node, {
-              port: "next",
-              detail: "stream cache miss (owner)",
-            }),
-          );
-          ref = node.ports.next;
-          break;
-        }
-
-        if (cached && !cached.isSse) {
-          state.routeTrace.push(
-            nodeStep(pipeline, node, { port: "hit", detail: "cache hit" }),
+            nodeStep(pipeline, node, { port: "hit", detail }),
           );
           return {
-            ok: true,
-            kind: "response",
-            source: "store",
+            ok: true as const,
+            kind: "response" as const,
+            source,
             request: state.request,
-            response: {
-              status: cached.status,
-              contentType: cached.contentType,
-              body: cached.body,
-            },
+            response,
             cacheKey: key,
             textReplacementCount: state.textReplacementCount,
             responseEffects: state.responseEffects,
             routeTrace: state.routeTrace,
           };
-        }
-        const pending = input.findInFlight ? input.findInFlight(key) : null;
-        if (pending) {
-          const coalesced = await pending;
-          if (coalesced) {
-            state.routeTrace.push(
-              nodeStep(pipeline, node, {
-                port: "hit",
-                detail: "cache coalesced",
-              }),
-            );
-            return {
-              ok: true,
-              kind: "response",
-              source: "coalesced",
-              request: state.request,
-              response: {
-                status: coalesced.status,
-                contentType: coalesced.contentType,
-                body: coalesced.body,
-              },
-              cacheKey: key,
-              textReplacementCount: state.textReplacementCount,
-              responseEffects: state.responseEffects,
-              routeTrace: state.routeTrace,
-            };
-          }
+        };
+        const ownCacheMiss = (detail: string) => {
           state.responseEffects.push({
             type: "cache-store",
             key,
             ttlSeconds: node.config.ttlSeconds,
           });
           state.routeTrace.push(
-            nodeStep(pipeline, node, {
-              port: "next",
-              detail: "cache miss (coalesce fallthrough)",
-            }),
+            nodeStep(pipeline, node, { port: "next", detail }),
           );
           ref = node.ports.next;
+        };
+
+        if (state.request.stream) {
+          if (cached && cached.isSse) {
+            return servedFromCache(
+              "store",
+              {
+                status: cached.status,
+                contentType: cached.contentType,
+                body: cached.body,
+              },
+              "cache hit",
+            );
+          }
+          const subscription = input.findBroadcast
+            ? input.findBroadcast(key)
+            : null;
+          if (subscription) {
+            return servedFromCache(
+              "coalesced",
+              {
+                status: 200,
+                contentType: subscription.contentType,
+                body: subscription.body,
+              },
+              "stream fan-out",
+            );
+          }
+          if (input.registerBroadcast) {
+            input.registerBroadcast(key);
+          }
+          ownCacheMiss("stream cache miss (owner)");
+          break;
+        }
+
+        if (cached && !cached.isSse) {
+          return servedFromCache(
+            "store",
+            {
+              status: cached.status,
+              contentType: cached.contentType,
+              body: cached.body,
+            },
+            "cache hit",
+          );
+        }
+        const pending = input.findInFlight ? input.findInFlight(key) : null;
+        if (pending) {
+          const coalesced = await pending;
+          if (coalesced) {
+            return servedFromCache(
+              "coalesced",
+              {
+                status: coalesced.status,
+                contentType: coalesced.contentType,
+                body: coalesced.body,
+              },
+              "cache coalesced",
+            );
+          }
+          ownCacheMiss("cache miss (coalesce fallthrough)");
           break;
         }
         if (input.registerOwner) {
           input.registerOwner(key);
         }
-        state.responseEffects.push({
-          type: "cache-store",
-          key,
-          ttlSeconds: node.config.ttlSeconds,
-        });
-        state.routeTrace.push(
-          nodeStep(pipeline, node, { port: "next", detail: "cache miss" }),
-        );
-        ref = node.ports.next;
+        ownCacheMiss("cache miss");
         break;
       }
       case "capture-request": {

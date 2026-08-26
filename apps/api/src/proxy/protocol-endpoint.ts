@@ -1,5 +1,4 @@
 import {
-  ApiProxyRequestTraceSchema,
   type ApiProxyServeRequest,
   type ApiProxyTargetRecord,
   type FleetNode,
@@ -69,6 +68,7 @@ import {
   recordTraceWithDeferredTiming,
   resumableTraceUsage,
   traceDiagnosticResponse,
+  traceUsageFromCounts,
   truncatedStreamResponse,
   upstreamErrorText,
   type ProxyTraceAccumulator,
@@ -140,7 +140,6 @@ import {
 import {
   createUsageMeterStream,
   includeUsageRequested,
-  ratePerSecondFromUsage,
   requestBreaksStreamReconstruction,
   returnProgressRequested,
   usageFromNonStreamBody,
@@ -263,7 +262,7 @@ export async function runWithProxyTrace(
       trace.ok = response ? response.status < 400 : false;
       inflight.end(trace.ok);
       apiProxyStreamSessions.release(inflight.id);
-      apiProxyStats.record(ApiProxyRequestTraceSchema.parse(trace));
+      apiProxyStats.record({ ...trace });
     },
     markDeferred() {
       deferred = true;
@@ -298,7 +297,7 @@ export async function proxyProtocolEndpoint(
 ) {
   if (isApiProxyDraining()) {
     c.header("retry-after", "5");
-    return c.json(apiProxyDrainBody(operation.protocol), 503);
+    return c.json(apiProxyDrainBody(adapter), 503);
   }
   return runWithProxyTrace(operation, async ({ trace, recorder, inflight }) => {
     const { resolution, rejection } = apiProxyRequestGate(c.req.raw.headers);
@@ -447,16 +446,7 @@ async function proxyProtocolEndpointInner(
     if (typeof responseBody === "string") {
       const usage = usageFromNonStreamBody(operation.protocol, responseBody);
       if (usage) {
-        trace.usage = {
-          promptTokens: usage.promptTokens,
-          cacheReadTokens: usage.cacheReadTokens,
-          cacheCreationTokens: usage.cacheCreationTokens,
-          completionTokens: usage.completionTokens,
-          genMs: usage.genMs,
-          ratePerSecond: ratePerSecondFromUsage(usage),
-          prefillMs: usage.prefillMs,
-          promptPerSecond: usage.promptPerSecond,
-        };
+        trace.usage = traceUsageFromCounts(usage);
       }
       return new Response(
         applyApiProxyResponsePlanText(responsePlan, responseBody, metadata),
@@ -793,16 +783,7 @@ async function delegateRemoteTarget(input: {
       const text = await upstream.text();
       const usage = usageFromNonStreamBody(operation.protocol, text);
       if (usage) {
-        trace.usage = {
-          promptTokens: usage.promptTokens,
-          cacheReadTokens: usage.cacheReadTokens,
-          cacheCreationTokens: usage.cacheCreationTokens,
-          completionTokens: usage.completionTokens,
-          genMs: usage.genMs,
-          ratePerSecond: ratePerSecondFromUsage(usage),
-          prefillMs: usage.prefillMs,
-          promptPerSecond: usage.promptPerSecond,
-        };
+        trace.usage = traceUsageFromCounts(usage);
       }
       const delivered = applyApiProxyResponsePlanText(responsePlan, text, {
         status: upstream.status,
@@ -847,16 +828,7 @@ async function delegateRemoteTarget(input: {
         inflight.setCompletionTokens(completionTokens),
       onPrefillProgress: (progress) => inflight.setPrefillProgress(progress),
       onComplete: (usage) => {
-        trace.usage = {
-          promptTokens: usage.promptTokens,
-          cacheReadTokens: usage.cacheReadTokens,
-          cacheCreationTokens: usage.cacheCreationTokens,
-          completionTokens: usage.completionTokens,
-          genMs: Math.round(usage.genMs),
-          ratePerSecond: ratePerSecondFromUsage(usage),
-          prefillMs: usage.prefillMs,
-          promptPerSecond: usage.promptPerSecond,
-        };
+        trace.usage = traceUsageFromCounts(usage);
         recordWithDelegatedTrace(metered?.status);
       },
     });
@@ -1429,16 +1401,7 @@ export async function serveResolvedTarget(input: {
         const text = await upstream.text();
         const usage = usageFromNonStreamBody(forward.protocol, text);
         if (usage) {
-          trace.usage = {
-            promptTokens: usage.promptTokens,
-            cacheReadTokens: usage.cacheReadTokens,
-            cacheCreationTokens: usage.cacheCreationTokens,
-            completionTokens: usage.completionTokens,
-            genMs: usage.genMs,
-            ratePerSecond: ratePerSecondFromUsage(usage),
-            prefillMs: usage.prefillMs,
-            promptPerSecond: usage.promptPerSecond,
-          };
+          trace.usage = traceUsageFromCounts(usage);
         }
         const task = resolveSlot();
         const translatedText = translateAnthropic
@@ -1500,16 +1463,7 @@ export async function serveResolvedTarget(input: {
       let metered: Response | undefined;
       const onStreamComplete = (usage: ProxyUsageCounts) => {
         recorder.freezeDuration();
-        trace.usage = {
-          promptTokens: usage.promptTokens,
-          cacheReadTokens: usage.cacheReadTokens,
-          cacheCreationTokens: usage.cacheCreationTokens,
-          completionTokens: usage.completionTokens,
-          genMs: Math.round(usage.genMs),
-          ratePerSecond: ratePerSecondFromUsage(usage),
-          prefillMs: usage.prefillMs,
-          promptPerSecond: usage.promptPerSecond,
-        };
+        trace.usage = traceUsageFromCounts(usage);
         const task = resolveSlot();
         void applyServerGenerationTiming(trace, instanceId, task).finally(() =>
           recorder.record(metered),

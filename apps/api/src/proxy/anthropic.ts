@@ -1,4 +1,5 @@
 import { asObject } from "./json.js";
+import { apiProxySseEventFrame } from "./response-codec.js";
 import {
   apiProxyOperationSpec,
   modelIdFromBody,
@@ -18,6 +19,7 @@ export type AnthropicErrorType =
   | "not_found_error"
   | "permission_error"
   | "conflict_error"
+  | "overloaded_error"
   | "api_error";
 
 export function anthropicError(input: {
@@ -213,8 +215,7 @@ export const anthropicResumableCodec: ApiProxyResumableCodec = {
         : [{ type: "text", text: "" }];
 
     if (wantsStream) {
-      const event = (type: string, payload: unknown) =>
-        `event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`;
+      const event = apiProxySseEventFrame;
       let body = event("message_start", {
         type: "message_start",
         message: {
@@ -372,6 +373,8 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
       type: "permission_error",
     }),
   }),
+  unavailableError: (message) =>
+    anthropicError({ message, type: "overloaded_error" }),
   upstreamPath: (operation) =>
     apiProxyOperationSpec(operation)?.upstreamPath ?? null,
   notImplemented: (request) => ({

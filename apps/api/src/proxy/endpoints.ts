@@ -351,46 +351,21 @@ export function updateApiEndpoint(
   if (!current) {
     return null;
   }
-  const parsed = ApiEndpointUpdateSchema.parse(input);
+  const { apiKey, ...changes } = ApiEndpointUpdateSchema.parse(input);
   const next = StoredEndpointSchema.parse({
     ...current,
+    ...Object.fromEntries(
+      Object.entries(changes).filter(([, value]) => value !== undefined),
+    ),
     id: current.id,
-    name: parsed.name ?? current.name,
-    enabled: parsed.enabled ?? current.enabled,
-    baseUrl: parsed.baseUrl ?? current.baseUrl,
-    profile: parsed.profile ?? current.profile,
-    apiKeyEnvVar:
-      parsed.apiKeyEnvVar !== undefined
-        ? parsed.apiKeyEnvVar
-        : current.apiKeyEnvVar,
-    authHeaderName:
-      parsed.authHeaderName !== undefined
-        ? parsed.authHeaderName
-        : current.authHeaderName,
-    extraHeaders: parsed.extraHeaders ?? current.extraHeaders,
-    passthrough: parsed.passthrough ?? current.passthrough,
-    modelFilter:
-      parsed.modelFilter !== undefined
-        ? parsed.modelFilter
-        : current.modelFilter,
-    reasoning:
-      parsed.reasoning !== undefined ? parsed.reasoning : current.reasoning,
-    streamTerminal:
-      parsed.streamTerminal !== undefined
-        ? parsed.streamTerminal
-        : current.streamTerminal,
-    streamIdleTimeoutMs:
-      parsed.streamIdleTimeoutMs !== undefined
-        ? parsed.streamIdleTimeoutMs
-        : current.streamIdleTimeoutMs,
   });
   assertUniqueName(records, next.name, id);
   persistEndpoints(records.map((item) => (item.id === id ? next : item)));
 
   if (next.apiKeyEnvVar) {
     setSecret(id, null);
-  } else if (parsed.apiKey !== undefined) {
-    setSecret(id, parsed.apiKey || null);
+  } else if (apiKey !== undefined) {
+    setSecret(id, apiKey || null);
   }
 
   return getExternalApiEndpoint(id);

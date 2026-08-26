@@ -15,6 +15,10 @@ import type {
   ApiProxyProtocolOperation,
 } from "./protocol.js";
 import type { ResumableBufferState } from "./resumable-forward.js";
+import {
+  ratePerSecondFromUsage,
+  type ProxyUsageCounts,
+} from "./usage-meter.js";
 import { applyProxyStreamHealth } from "./stream-health.js";
 import { apiProxySlotTracker } from "./slot-tracker.js";
 
@@ -248,6 +252,21 @@ export function recordTraceWithDeferredTiming(input: {
     input.task,
   ).finally(() => input.recorder.record(input.response));
   return input.response;
+}
+
+export function traceUsageFromCounts(
+  usage: ProxyUsageCounts,
+): NonNullable<ProxyTraceAccumulator["usage"]> {
+  return {
+    promptTokens: usage.promptTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheCreationTokens: usage.cacheCreationTokens,
+    completionTokens: usage.completionTokens,
+    genMs: Math.round(usage.genMs),
+    ratePerSecond: ratePerSecondFromUsage(usage),
+    prefillMs: usage.prefillMs,
+    promptPerSecond: usage.promptPerSecond,
+  };
 }
 
 export function resumableTraceUsage(

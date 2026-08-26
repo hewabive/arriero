@@ -161,6 +161,7 @@ export type ApiProxyProtocolAdapter = {
     diagnostic: ApiProxyProtocolDiagnostic,
   ) => ApiProxyProtocolResponse;
   authError: (diagnostic: ApiProxyAuthDiagnostic) => ApiProxyProtocolResponse;
+  unavailableError: (message: string) => unknown;
   upstreamPath: (operation: ApiProxyProtocolOperation) => string | null;
   notImplemented: (
     request: ApiProxyProtocolModelRequest,

@@ -1,5 +1,4 @@
 import {
-  ApiProxyPlanPreviewSchema,
   type ApiProxyPlanPreview,
   type ApiProxySchedulerAction,
   type ApiProxySchedulerPlanRequest,
@@ -118,11 +117,11 @@ export async function buildApiProxyPlanContext(input: {
       ? planApiProxyRequest(request)
       : planApiProxyIdleMaintenance(request);
 
-  const preview = ApiProxyPlanPreviewSchema.parse({
+  const preview: ApiProxyPlanPreview = {
     checkedAt: runtime.snapshot.checkedAt,
     runtime: runtime.snapshot,
     plan,
-  });
+  };
   return { request, runtime, preview };
 }
 

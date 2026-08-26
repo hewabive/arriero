@@ -352,6 +352,13 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
       code: diagnostic.code,
     }),
   }),
+  unavailableError: (message) =>
+    openAiError({
+      message,
+      type: "server_error",
+      code: "arriero_restarting",
+      param: null,
+    }),
   upstreamPath: (operation) =>
     apiProxyOperationSpec(operation)?.upstreamPath ?? null,
   notImplemented: (request) => ({
