@@ -177,6 +177,17 @@ export const ApiLabProbeKindsByProfile = {
   anthropic: ["chat", ...AnthropicApiProbeKindSchema.options],
 } as const;
 
+const STREAMING_API_PROBE_KINDS: ReadonlySet<string> = new Set([
+  "chat",
+  "completion",
+  "responses",
+  "infill",
+]);
+
+export function isStreamingApiProbeKind(kind: string): boolean {
+  return STREAMING_API_PROBE_KINDS.has(kind);
+}
+
 export const ApiProbeRequestSchema = z
   .object({
     kind: ApiProbeKindSchema,
@@ -284,9 +295,20 @@ export type ApiEndpointModelFilter = z.infer<
   typeof ApiEndpointModelFilterSchema
 >;
 
+const modelPatternRegExps = new Map<string, RegExp>();
+
 function apiEndpointModelPatternToRegExp(pattern: string): RegExp {
+  const cached = modelPatternRegExps.get(pattern);
+  if (cached) {
+    return cached;
+  }
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^${escaped.replace(/\*/g, ".*")}$`, "i");
+  const regExp = new RegExp(`^${escaped.replace(/\*/g, ".*")}$`, "i");
+  if (modelPatternRegExps.size >= 500) {
+    modelPatternRegExps.clear();
+  }
+  modelPatternRegExps.set(pattern, regExp);
+  return regExp;
 }
 
 export function apiEndpointModelFilterAdmits(

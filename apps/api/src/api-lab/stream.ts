@@ -9,15 +9,6 @@ import { consumeSseEvents } from "../proxy/sse.js";
 import { apiLabProbeTargetFromBaseUrl } from "./probe.js";
 import { streamDeltaText, streamFinishReason } from "./sse-parse.js";
 
-export function isStreamingProbeKind(kind: string) {
-  return (
-    kind === "chat" ||
-    kind === "completion" ||
-    kind === "responses" ||
-    kind === "infill"
-  );
-}
-
 async function writeUpstreamStreamEvents(props: {
   stream: Parameters<Parameters<typeof streamSSE>[1]>[0];
   response: Response;
