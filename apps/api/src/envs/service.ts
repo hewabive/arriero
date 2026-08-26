@@ -45,12 +45,25 @@ function latestJob(spec: EnvironmentSpec) {
   );
 }
 
-function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
+type EnvironmentRecordContext = {
+  job: ReturnType<typeof latestJob>;
+  installed: boolean;
+  layoutError: string | null;
+};
+
+function toRecord(
+  spec: EnvironmentSpec,
+  context?: EnvironmentRecordContext,
+): EnvironmentRecord {
   const path = environmentDirectory(spec);
   const entrypoint = environmentEntrypoint(spec);
-  const job = latestJob(spec);
-  const installed = existsSync(entrypoint);
-  const layoutError = installed ? environmentLayoutError(spec) : null;
+  const job = context ? context.job : latestJob(spec);
+  const installed = context ? context.installed : existsSync(entrypoint);
+  const layoutError = context
+    ? context.layoutError
+    : installed
+      ? environmentLayoutError(spec)
+      : null;
   const status =
     job?.status === "running"
       ? "installing"
@@ -80,14 +93,24 @@ function toRecord(spec: EnvironmentSpec): EnvironmentRecord {
 }
 
 export function listEnvironments() {
+  const jobs = listEnvironmentJobs(100);
+  const latestJobByEnvironment = new Map<string, (typeof jobs)[number]>();
+  for (const job of jobs) {
+    if (!latestJobByEnvironment.has(job.environmentId)) {
+      latestJobByEnvironment.set(job.environmentId, job);
+    }
+  }
   return listEnvironmentSpecs().map((spec) => {
-    if (
-      existsSync(environmentEntrypoint(spec)) &&
-      !environmentLayoutError(spec)
-    ) {
+    const installed = existsSync(environmentEntrypoint(spec));
+    const layoutError = installed ? environmentLayoutError(spec) : null;
+    if (installed && !layoutError) {
       reconcileEnvironmentCatalog(spec);
     }
-    return toRecord(spec);
+    return toRecord(spec, {
+      job: latestJobByEnvironment.get(spec.id) ?? null,
+      installed,
+      layoutError,
+    });
   });
 }
 

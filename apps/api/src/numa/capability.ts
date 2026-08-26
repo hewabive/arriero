@@ -32,7 +32,16 @@ export function findDelegatedRootPath(selfCgroupPath: string): string | null {
   return null;
 }
 
+let bindConfirmed = false;
+
 export function detectNumaBind(): boolean {
+  if (!bindConfirmed) {
+    bindConfirmed = detectNumaBindUncached();
+  }
+  return bindConfirmed;
+}
+
+function detectNumaBindUncached(): boolean {
   let self: string | null;
   try {
     readFileSync("/sys/fs/cgroup/cgroup.controllers", "utf8");

@@ -1,6 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
+  createHash,
   createHmac,
   randomBytes,
   scryptSync,
@@ -122,6 +123,35 @@ function bearerToken(c: Context): string | undefined {
   return match?.[1];
 }
 
+const verifiedBearerTokens = new Map<string, number>();
+const BEARER_CACHE_TTL_MS = 5 * 60_000;
+const BEARER_CACHE_LIMIT = 256;
+
+function bearerCacheKey(token: string) {
+  return createHash("sha256")
+    .update(config.auth.passwordHash ?? config.auth.password ?? "")
+    .update("\0")
+    .update(token)
+    .digest("base64url");
+}
+
+function verifyBearerPassword(token: string) {
+  const key = bearerCacheKey(token);
+  const now = Date.now();
+  const cachedUntil = verifiedBearerTokens.get(key);
+  if (cachedUntil !== undefined && cachedUntil > now) {
+    return true;
+  }
+  if (!verifyAdminPassword(token)) {
+    return false;
+  }
+  if (verifiedBearerTokens.size >= BEARER_CACHE_LIMIT) {
+    verifiedBearerTokens.clear();
+  }
+  verifiedBearerTokens.set(key, now + BEARER_CACHE_TTL_MS);
+  return true;
+}
+
 export function isRequestAuthenticated(c: Context) {
   if (verifySessionToken(getCookie(c, cookieName))) {
     return true;
@@ -130,7 +160,7 @@ export function isRequestAuthenticated(c: Context) {
     return false;
   }
   const token = bearerToken(c);
-  return token !== undefined && verifyAdminPassword(token);
+  return token !== undefined && verifyBearerPassword(token);
 }
 
 export function setSessionCookie(c: Context) {

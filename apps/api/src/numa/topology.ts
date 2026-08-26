@@ -29,16 +29,20 @@ export type NodeMeminfo = {
   filePagesBytes: number;
 };
 
-function parseNodeMeminfoField(meminfo: string, key: string): number {
-  const match = new RegExp(`${key}:\\s+(\\d+)\\s+kB`, "i").exec(meminfo);
+const MEM_TOTAL_PATTERN = /MemTotal:\s+(\d+)\s+kB/i;
+const MEM_FREE_PATTERN = /MemFree:\s+(\d+)\s+kB/i;
+const FILE_PAGES_PATTERN = /FilePages:\s+(\d+)\s+kB/i;
+
+function parseNodeMeminfoField(meminfo: string, pattern: RegExp): number {
+  const match = pattern.exec(meminfo);
   return match ? Number(match[1]) * 1024 : 0;
 }
 
 export function parseNodeMeminfo(meminfo: string): NodeMeminfo {
   return {
-    memTotalBytes: parseNodeMeminfoField(meminfo, "MemTotal"),
-    memFreeBytes: parseNodeMeminfoField(meminfo, "MemFree"),
-    filePagesBytes: parseNodeMeminfoField(meminfo, "FilePages"),
+    memTotalBytes: parseNodeMeminfoField(meminfo, MEM_TOTAL_PATTERN),
+    memFreeBytes: parseNodeMeminfoField(meminfo, MEM_FREE_PATTERN),
+    filePagesBytes: parseNodeMeminfoField(meminfo, FILE_PAGES_PATTERN),
   };
 }
 
@@ -53,21 +57,33 @@ export function normalizePciAddress(busId: string): string | null {
   return `${domain}:${match[2]}:${match[3]}.${match[4]}`;
 }
 
+const pciNumaNodes = new Map<string, number | null>();
+
 export function readPciNumaNode(busId: string): number | null {
   const address = normalizePciAddress(busId);
   if (!address) {
     return null;
   }
+  const cached = pciNumaNodes.get(address);
+  if (cached !== undefined) {
+    return cached;
+  }
+  let node: number | null = null;
   try {
     const raw = readFileSync(
       `/sys/bus/pci/devices/${address}/numa_node`,
       "utf8",
     ).trim();
-    const node = Number.parseInt(raw, 10);
-    return Number.isInteger(node) && node >= 0 ? node : null;
+    const parsed = Number.parseInt(raw, 10);
+    node = Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
   } catch {
-    return null;
+    node = null;
   }
+  if (pciNumaNodes.size >= 256) {
+    pciNumaNodes.clear();
+  }
+  pciNumaNodes.set(address, node);
+  return node;
 }
 
 export function numaIsApplicable(topology: NumaNode[]): boolean {

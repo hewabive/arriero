@@ -9,6 +9,7 @@ import {
   lstatSync,
   readdirSync,
   statSync,
+  type Stats,
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, parse, resolve } from "node:path";
@@ -51,18 +52,18 @@ function hasAccess(path: string, mode: number) {
   }
 }
 
+function typeFromStat(stat: Stats) {
+  if (stat.isDirectory()) return "directory";
+  if (stat.isFile()) return "file";
+  return "other";
+}
+
 function entryType(path: string) {
   try {
-    const stat = statSync(path);
-    if (stat.isDirectory()) return "directory";
-    if (stat.isFile()) return "file";
-    return "other";
+    return typeFromStat(statSync(path));
   } catch {
     try {
-      const stat = lstatSync(path);
-      if (stat.isDirectory()) return "directory";
-      if (stat.isFile()) return "file";
-      return "other";
+      return typeFromStat(lstatSync(path));
     } catch {
       return "other";
     }
@@ -74,9 +75,11 @@ function fileEntry(path: string, name: string): FileSystemEntry {
   let modifiedAt: string | null = null;
   let executable = false;
   let readable = false;
+  let type: FileSystemEntry["type"];
 
   try {
     const stat = statSync(path);
+    type = typeFromStat(stat);
     sizeBytes = stat.isFile() ? stat.size : null;
     modifiedAt = nowIsoFromMs(stat.mtimeMs);
     executable =
@@ -84,13 +87,14 @@ function fileEntry(path: string, name: string): FileSystemEntry {
       (!stat.isDirectory() && hasAccess(path, constants.X_OK));
     readable = hasAccess(path, constants.R_OK);
   } catch {
+    type = entryType(path);
     readable = false;
   }
 
   return {
     name,
     path,
-    type: entryType(path),
+    type,
     extension: extname(name).toLowerCase() || null,
     sizeBytes,
     modifiedAt,
