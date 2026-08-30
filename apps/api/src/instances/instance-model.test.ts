@@ -1,4 +1,4 @@
-import { impliedInstanceModelId } from "@arriero/core";
+import { impliedInstanceModelId, stripGgufSuffix } from "@arriero/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -37,4 +37,12 @@ test("sglang model id honours the --model alias", () => {
 
 test("sglang model id is null without a model", () => {
   assert.equal(impliedInstanceModelId({ kind: "sglang", args: {} }), null);
+});
+
+test("GGUF suffix stripping removes a split shard marker", () => {
+  assert.equal(
+    stripGgufSuffix("Qwen3.5-35B-A3B-00001-of-00008.gguf"),
+    "Qwen3.5-35B-A3B",
+  );
+  assert.equal(stripGgufSuffix("Qwen3.5-35B-A3B.gguf"), "Qwen3.5-35B-A3B");
 });

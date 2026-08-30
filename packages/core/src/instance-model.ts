@@ -1,4 +1,5 @@
 import type { Instance } from "./instance.js";
+import { parseSplitInfo } from "./gguf-split.js";
 
 export type InstanceModelSource = Pick<
   Instance,
@@ -26,7 +27,7 @@ function firstStringArg(
 }
 
 export function stripGgufSuffix(value: string): string {
-  return value.replace(/\.gguf$/i, "");
+  return parseSplitInfo(value)?.prefix ?? value.replace(/\.gguf$/i, "");
 }
 
 export const SGLANG_MODEL_ARG_KEYS = ["--model-path", "--model"] as const;

@@ -23,7 +23,7 @@ export function formatBytesPerSecond(value: number | null | undefined) {
 }
 
 function displayNameFromFileName(name: string) {
-  return stripGgufSuffix(name.replace(/-\d+-of-\d+\.gguf$/i, ""));
+  return stripGgufSuffix(name);
 }
 
 export function modelTitle(model: GgufModel) {
