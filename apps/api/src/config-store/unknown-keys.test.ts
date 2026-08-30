@@ -42,6 +42,7 @@ test("settings.json keeps unknown sections and section keys across writes", () =
     file.downloads = { connections: 4, futureKnob: true };
   });
   saveHfDownloadSettings({
+    modelDirectoryId: null,
     connections: 5,
     chunkBytes: 32 * 1024 * 1024,
     maxEtaHours: 24,

@@ -202,6 +202,7 @@ beforeEach(() => {
   resetHfDownloadQueueForTests();
   resetHfUpdateChecksForTests();
   saveHfDownloadSettings({
+    modelDirectoryId: null,
     connections: 1,
     chunkBytes: 4 * 1024 * 1024,
     maxEtaHours: 24,

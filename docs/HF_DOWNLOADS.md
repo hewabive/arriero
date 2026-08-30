@@ -41,8 +41,8 @@ the earliest incomplete file so early files finish first.
 
 Enqueue phase (synchronous in the request, `apps/api/src/hf/download-plan.ts`): sanitize
 repo-relative paths (traversal guard in `apps/api/src/hf/paths.ts`), resolve the destination
-(`<models dir>/<owner>/<repo>` by default, override allowed), pin the revision sha, fetch
-authoritative per-file metadata via `paths-info` (`expand: true`), and check free space with a
+(`<selected models dir>/<owner>/<repo>` by default, custom override allowed), pin the revision sha,
+fetch authoritative per-file metadata via `paths-info` (`expand: true`), and check free space with a
 256 MiB headroom (re-checked hard at job start; partial bytes are counted via
 `partialBytesFor`, never a raw `.part` stat — chunked parts are preallocated sparse at full size).
 
@@ -139,7 +139,9 @@ already on disk for an unfinished file, read via `partialBytesFor`), `orphanPart
 server-grouped GGUF `variants` (the same `grouping.ts` browse uses).
 
 The UI (`apps/web/src/ui/views/`) is one page: the collapsible repository browser
-(`HfRepoBrowserPanel.tsx` — the Download button always enqueues and hints at the queue length),
+(`HfRepoBrowserPanel.tsx` — the Download button always enqueues and hints at the queue length;
+the destination control explicitly switches between a saved model-directory selection and a
+one-off custom path),
 the live queue panel (`HfQueuePanel.tsx` + `HfQueueJobCard.tsx`/`HfQueuedJobCard.tsx`/
 `HfJobFileRow.tsx`, polling `["hf-queue"]` at 1.5 s while anything is active: overall progress,
 client-side EWMA speed + ETA (`ui/utils/byte-rate.ts`), per-file progress bars with per-file
@@ -235,7 +237,7 @@ token is sent as `Authorization: Bearer` and undici drops it on the cross-origin
 | `DELETE /api/hf/queue/:id` | remove a queued job or dismiss a history entry |
 | `POST /api/hf/queue/:id/files/skip` | skip files of the active job / drop files from a queued one |
 | `DELETE /api/hf/queue/history` | clear the finished-job history |
-| `GET/PUT /api/hf/download-settings` | connection count + chunk size + max ETA hours |
+| `GET/PUT /api/hf/download-settings` | default model-directory selection + connection count + chunk size + max ETA hours |
 
 Every mutating queue endpoint returns the full queue state so the UI applies it without a
 follow-up fetch.

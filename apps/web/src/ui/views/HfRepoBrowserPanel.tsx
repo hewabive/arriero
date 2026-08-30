@@ -15,6 +15,8 @@ import {
   Group,
   Paper,
   ScrollArea,
+  SegmentedControl,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -29,8 +31,12 @@ import { useMemo, useState } from "react";
 import {
   browseHfRepo,
   getHfDestCheck,
+  getHfDownloadSettings,
+  getModelScanSettings,
   listHfDownloads,
+  listPathCatalog,
   startHfDownload,
+  updateHfDownloadSettings,
 } from "../../api/client";
 import { PathPickerInput } from "../components/PathPickerInput";
 import { hfLocalFileState, hfLocalVariantState } from "../utils/hf";
@@ -42,8 +48,10 @@ import { useHfQueueQuery } from "./use-hf-queue";
 import { notifyError } from "../utils/notify";
 
 const DEST_CHECK_DEBOUNCE_MS = 350;
+const PRIMARY_MODEL_DIRECTORY = "primary";
 
 type DirGroup = { dir: string; files: HfTreeFile[]; totalBytes: number };
+type DestinationMode = "model-directory" | "custom";
 
 export function HfRepoBrowserPanel(props: {
   onEnqueued?: ((job: HfDownloadQueueJob) => void) | undefined;
@@ -187,8 +195,60 @@ function BrowseResults(props: {
   const [allFilesOpened, setAllFilesOpened] = useState(
     () => browse.ggufVariants === null,
   );
+  const [destinationMode, setDestinationMode] = useState<DestinationMode>(() =>
+    destDir.trim() ? "custom" : "model-directory",
+  );
+  const downloadSettingsQuery = useQuery({
+    queryKey: ["hf-download-settings"],
+    queryFn: getHfDownloadSettings,
+  });
+  const modelScanSettingsQuery = useQuery({
+    queryKey: ["model-scan-settings"],
+    queryFn: getModelScanSettings,
+  });
+  const modelDirectoriesQuery = useQuery({
+    queryKey: ["path-catalog", "models-dir"],
+    queryFn: () => listPathCatalog("models-dir"),
+  });
+  const downloadSettings = downloadSettingsQuery.data?.data ?? null;
+  const modelScanSettings = modelScanSettingsQuery.data?.data ?? null;
+  const modelDirectories = modelDirectoriesQuery.data?.data ?? [];
+  const savedModelDirectoryId = downloadSettings?.modelDirectoryId ?? null;
+  const selectedModelDirectoryMissing =
+    modelDirectoriesQuery.isSuccess &&
+    savedModelDirectoryId !== null &&
+    !modelDirectories.some((entry) => entry.id === savedModelDirectoryId);
+  const modelDirectoryOptions = useMemo(
+    () => [
+      {
+        value: PRIMARY_MODEL_DIRECTORY,
+        label: modelScanSettings
+          ? `Primary — ${modelScanSettings.directory}`
+          : "Primary models directory",
+      },
+      ...modelDirectories.map((entry) => ({
+        value: entry.id,
+        label: `${entry.name} — ${entry.path}`,
+      })),
+      ...(selectedModelDirectoryMissing && savedModelDirectoryId
+        ? [
+            {
+              value: savedModelDirectoryId,
+              label: "Disconnected model directory — using primary",
+            },
+          ]
+        : []),
+    ],
+    [
+      modelDirectories,
+      modelScanSettings,
+      savedModelDirectoryId,
+      selectedModelDirectoryMissing,
+    ],
+  );
+  const customDestDir = destinationMode === "custom" ? destDir.trim() : "";
   const [debouncedDestDir] = useDebouncedValue(
-    destDir.trim(),
+    customDestDir,
     DEST_CHECK_DEBOUNCE_MS,
   );
 
@@ -219,11 +279,19 @@ function BrowseResults(props: {
   }, [browse]);
 
   const destQuery = useQuery({
-    queryKey: ["hf-dest-check", browse.repoId, debouncedDestDir],
+    queryKey: [
+      "hf-dest-check",
+      browse.repoId,
+      destinationMode,
+      debouncedDestDir,
+      savedModelDirectoryId,
+    ],
     queryFn: () =>
       getHfDestCheck(
         debouncedDestDir ? { dir: debouncedDestDir } : { repo: browse.repoId },
       ),
+    enabled:
+      destinationMode === "model-directory" || debouncedDestDir.length > 0,
   });
   const destCheck = destQuery.data?.data ?? null;
 
@@ -255,15 +323,37 @@ function BrowseResults(props: {
         repoId: browse.repoId,
         revision: browse.commitSha,
         paths: [...selection],
-        ...(destDir.trim() ? { destDir: destDir.trim() } : {}),
+        ...(customDestDir ? { destDir: customDestDir } : {}),
       }),
     onSuccess: (result) => {
       setSelection(new Set());
+      if (destinationMode === "custom") {
+        setDestinationMode("model-directory");
+        props.onDestDirChange("");
+      }
       void queryClient.invalidateQueries({ queryKey: ["hf-queue"] });
       props.onEnqueued(result.data);
     },
     onError: notifyError("Download"),
   });
+  const modelDirectoryMutation = useMutation({
+    mutationFn: (modelDirectoryId: string | null) => {
+      if (!downloadSettings) {
+        throw new Error("Download settings are not loaded");
+      }
+      return updateHfDownloadSettings({
+        ...downloadSettings,
+        modelDirectoryId,
+      });
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(["hf-download-settings"], result);
+    },
+    onError: notifyError("Default model directory"),
+  });
+  const displayedModelDirectoryId = modelDirectoryMutation.isPending
+    ? modelDirectoryMutation.variables
+    : savedModelDirectoryId;
 
   function togglePaths(paths: readonly string[], checked: boolean) {
     setSelection((previous) => {
@@ -339,7 +429,10 @@ function BrowseResults(props: {
               <Button
                 size="xs"
                 variant="default"
-                onClick={() => props.onDestDirChange(localRepo.dir)}
+                onClick={() => {
+                  setDestinationMode("custom");
+                  props.onDestDirChange(localRepo.dir);
+                }}
               >
                 Use this directory
               </Button>
@@ -494,25 +587,96 @@ function BrowseResults(props: {
         </Collapse>
       </Stack>
 
-      <Group align="flex-end" gap="sm" wrap="wrap">
-        <PathPickerInput
-          label="Destination"
-          mode="directory"
-          value={destDir}
-          onChange={props.onDestDirChange}
-          placeholder={destCheck?.dir ?? "models directory"}
-          w={380}
-          loading={destQuery.isFetching}
+      <Stack gap={6}>
+        <Text fw={600} size="sm">
+          Destination
+        </Text>
+        <SegmentedControl
+          value={destinationMode}
+          onChange={(value) => setDestinationMode(value as DestinationMode)}
+          data={[
+            { value: "model-directory", label: "Model directory" },
+            { value: "custom", label: "Custom path" },
+          ]}
         />
-        <Button
-          leftSection={<Download size={14} />}
-          onClick={() => startMutation.mutate()}
-          loading={startMutation.isPending}
-          disabled={selection.size === 0 || notEnoughSpace}
-        >
-          {queueAhead > 0 ? "Add to queue" : "Download"}
-        </Button>
-      </Group>
+        <Group align="flex-end" gap="sm" wrap="wrap">
+          {destinationMode === "model-directory" ? (
+            <Select
+              label="Base model directory"
+              data={modelDirectoryOptions}
+              value={
+                modelDirectoriesQuery.isSuccess && displayedModelDirectoryId
+                  ? displayedModelDirectoryId
+                  : PRIMARY_MODEL_DIRECTORY
+              }
+              onChange={(value) => {
+                if (!value) {
+                  return;
+                }
+                modelDirectoryMutation.mutate(
+                  value === PRIMARY_MODEL_DIRECTORY ? null : value,
+                );
+              }}
+              allowDeselect={false}
+              searchable
+              disabled={
+                !downloadSettings ||
+                !modelScanSettings ||
+                !modelDirectoriesQuery.isSuccess ||
+                modelDirectoryMutation.isPending
+              }
+              w={420}
+            />
+          ) : (
+            <PathPickerInput
+              label="Full destination path"
+              mode="directory"
+              value={destDir}
+              onChange={props.onDestDirChange}
+              placeholder="Choose a directory for this repository"
+              w={420}
+              loading={destQuery.isFetching}
+            />
+          )}
+          <Button
+            leftSection={<Download size={14} />}
+            onClick={() => startMutation.mutate()}
+            loading={startMutation.isPending}
+            disabled={
+              selection.size === 0 ||
+              notEnoughSpace ||
+              (destinationMode === "custom" && customDestDir.length === 0)
+            }
+          >
+            {queueAhead > 0 ? "Add to queue" : "Download"}
+          </Button>
+        </Group>
+        {destinationMode === "model-directory" ? (
+          <Text size="xs" c="dimmed">
+            {modelDirectoryMutation.isPending
+              ? "Saving the default model directory…"
+              : "Saved for future downloads."}
+            {destCheck && !modelDirectoryMutation.isPending ? (
+              <>
+                {" "}
+                Repository path: <Code>{destCheck.dir}</Code>
+              </>
+            ) : null}
+          </Text>
+        ) : (
+          <Text size="xs" c="dimmed">
+            {customDestDir
+              ? "This path applies only to this download; the saved model directory is unchanged."
+              : "Choose the full repository directory for this download."}
+          </Text>
+        )}
+        {selectedModelDirectoryMissing && (
+          <Text size="xs" c="orange">
+            The saved model directory is no longer connected. The primary models
+            directory is being used; choose it above to save the fallback.
+          </Text>
+        )}
+      </Stack>
       <Group gap="xs" wrap="wrap">
         <Text size="sm" c={notEnoughSpace ? "red" : "dimmed"}>
           Selected {countLabel(selection.size, "file")} ·{" "}

@@ -175,6 +175,7 @@ function HfDownloadSettingsCard() {
           <Button
             onClick={() =>
               mutation.mutate({
+                modelDirectoryId: settings.modelDirectoryId,
                 connections: effectiveConnections,
                 chunkBytes: effectiveChunkMib * MIB,
                 maxEtaHours: effectiveMaxEtaValue,

@@ -107,6 +107,8 @@ the physical-host knobs `native` and `parallelJobs` live in the machine-local `m
 — the npm analog of the environments PyPI index, meant for any future npm-based build.
 `defaultBinaryPath()` (`arguments/catalog.ts`) is exposed at `GET /api/build/default-binary` and
 pre-selects the binary in the New-instance modal.
+`downloads.modelDirectoryId` references the machine-local `models-dir` path-catalog entry used as
+the default HuggingFace download root; `null` falls back to `modelScan.directory`.
 
 ## `argument-defaults.json` — default args in the New-instance form
 

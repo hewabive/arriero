@@ -6,7 +6,9 @@ import { dirname, join, resolve } from "node:path";
 import { logger } from "../logger.js";
 import { getModelScanSettings } from "../models/cache-repository.js";
 import { listModelScanRoots } from "../models/roots.js";
+import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import { isPathWithin } from "../path-utils.js";
+import { getHfDownloadSettings } from "../settings/downloads.js";
 import { capacityFromStatFs } from "../system/storage-space.js";
 
 export class HfDownloadRequestError extends Error {}
@@ -23,7 +25,15 @@ export function splitHfRepoId(repoId: string): { owner: string; repo: string } {
 
 export function defaultHfDestDir(repoId: string): string {
   const { owner, repo } = splitHfRepoId(repoId);
-  return join(getModelScanSettings().directory, owner, repo);
+  const modelDirectoryId = getHfDownloadSettings().modelDirectoryId;
+  const catalogEntry = modelDirectoryId
+    ? getPathCatalogEntry(modelDirectoryId)
+    : null;
+  const baseDir =
+    catalogEntry?.kind === "models-dir"
+      ? catalogEntry.path
+      : getModelScanSettings().directory;
+  return join(baseDir, owner, repo);
 }
 
 export function sanitizeRepoRelativePath(path: string): string {

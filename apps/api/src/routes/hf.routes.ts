@@ -49,6 +49,7 @@ import {
 } from "../hf/paths.js";
 import { hfTokenConfigured, setHfToken } from "../hf/token.js";
 import { runHfUpdateChecks } from "../hf/update-check.js";
+import { getPathCatalogEntry } from "../path-catalog/repository.js";
 import {
   getHfDownloadSettings,
   saveHfDownloadSettings,
@@ -208,6 +209,12 @@ export function registerHfRoutes(app: Hono) {
 
   app.put("/api/hf/download-settings", async (c) => {
     const body = await parseJsonBody(c, HfDownloadSettingsSchema);
+    if (body.modelDirectoryId) {
+      const entry = getPathCatalogEntry(body.modelDirectoryId);
+      if (entry?.kind !== "models-dir") {
+        return c.json({ error: "model directory not found" }, 400);
+      }
+    }
     return c.json({ data: saveHfDownloadSettings(body) });
   });
 

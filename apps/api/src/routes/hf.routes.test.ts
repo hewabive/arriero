@@ -4,6 +4,7 @@ import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
 
 import { setHfToken } from "../hf/token.js";
+import { createPathCatalogEntry } from "../path-catalog/repository.js";
 import { registerHfRoutes } from "./hf.routes.js";
 
 function appWithRoutes() {
@@ -46,6 +47,51 @@ test("token update rejects a malformed body", async () => {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ token: 42 }),
+  });
+  assert.equal(response.status, 400);
+});
+
+test("download settings persist a selected model directory", async () => {
+  const modelDirectory = createPathCatalogEntry({
+    kind: "models-dir",
+    name: "HF downloads",
+    path: "/mnt/hf-downloads",
+  });
+  const app = appWithRoutes();
+  const updated = await app.request("/api/hf/download-settings", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      modelDirectoryId: modelDirectory.id,
+      connections: 4,
+      chunkBytes: 16 * 1024 * 1024,
+      maxEtaHours: 12,
+    }),
+  });
+  assert.equal(updated.status, 200);
+
+  const loaded = await app.request("/api/hf/download-settings");
+  const payload = (await loaded.json()) as {
+    data: { modelDirectoryId: string | null };
+  };
+  assert.equal(payload.data.modelDirectoryId, modelDirectory.id);
+});
+
+test("download settings reject a path catalog entry of the wrong kind", async () => {
+  const binary = createPathCatalogEntry({
+    kind: "binary",
+    name: "HF settings wrong-kind binary",
+    path: "/opt/bin/llama-server",
+  });
+  const response = await appWithRoutes().request("/api/hf/download-settings", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      modelDirectoryId: binary.id,
+      connections: 4,
+      chunkBytes: 16 * 1024 * 1024,
+      maxEtaHours: 12,
+    }),
   });
   assert.equal(response.status, 400);
 });
