@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { modelCache, safetensorsCache } from "../db/schema.js";
+import { writeHfManifest } from "../hf/manifest.js";
 import { GGUF_PARSER_VERSION } from "./gguf.js";
 import { SAFETENSORS_PARSER_VERSION } from "./safetensors.js";
 import { scanModels, scanModelsFromCache } from "./scanner.js";
@@ -73,6 +74,63 @@ test("scanModels collapses split GGUF shards into a single model", async () => {
       ["alpha-00001-of-00003.gguf", "beta.gguf", "zeta.gguf"],
     );
     assert.equal(result.models[0]?.sizeBytes, 6);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("scanModels associates root mmproj files with nested models in an HF download", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-hf-model-scan-"));
+
+  try {
+    const quantDir = join(dir, "UD-Q4_K_XL");
+    mkdirSync(quantDir);
+    const modelPath = join(quantDir, "model-00001-of-00002.gguf");
+    const mmprojF16 = join(dir, "mmproj-F16.gguf");
+    const mmprojBf16 = join(dir, "mmproj-BF16.gguf");
+    writeFileSync(modelPath, "a");
+    writeFileSync(join(quantDir, "model-00002-of-00002.gguf"), "bb");
+    writeFileSync(mmprojF16, "ccc");
+    writeFileSync(mmprojBf16, "dddd");
+    writeHfManifest(dir, {
+      version: 1,
+      repoId: "unsloth/example-GGUF",
+      revision: "a".repeat(40),
+      downloadedAt: new Date().toISOString(),
+      files: [],
+    });
+
+    const scanned = await scanModels({
+      roots: [root(dir)],
+      refresh: true,
+    });
+    const model = scanned.models.find((entry) => entry.path === modelPath);
+    assert.deepEqual(model?.mmprojPaths, [mmprojBf16, mmprojF16].sort());
+
+    const cached = scanModelsFromCache({ roots: [root(dir)] });
+    const cachedModel = cached.models.find((entry) => entry.path === modelPath);
+    assert.deepEqual(cachedModel?.mmprojPaths, [mmprojBf16, mmprojF16].sort());
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("scanModels does not inherit parent mmproj files outside HF downloads", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-local-model-scan-"));
+
+  try {
+    const modelDir = join(dir, "Q4_K_M");
+    mkdirSync(modelDir);
+    const modelPath = join(modelDir, "model.gguf");
+    writeFileSync(modelPath, "a");
+    writeFileSync(join(dir, "mmproj-F16.gguf"), "bb");
+
+    const scanned = await scanModels({
+      roots: [root(dir)],
+      refresh: true,
+    });
+    const model = scanned.models.find((entry) => entry.path === modelPath);
+    assert.deepEqual(model?.mmprojPaths, []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

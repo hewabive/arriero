@@ -7,6 +7,7 @@ import type {
 import { opendir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 
+import { readHfManifest } from "../hf/manifest.js";
 import { logger } from "../logger.js";
 
 import {
@@ -220,6 +221,69 @@ function compareModelNames(
   );
 }
 
+function hfRepoDirectory(
+  directory: string,
+  roots: readonly string[],
+  cache: Map<string, string | null>,
+): string | null {
+  const resolved = resolve(directory);
+  if (cache.has(resolved)) {
+    return cache.get(resolved) ?? null;
+  }
+  if (!roots.some((root) => withinRoot(resolved, root, Infinity))) {
+    cache.set(resolved, null);
+    return null;
+  }
+  if (readHfManifest(resolved)) {
+    cache.set(resolved, resolved);
+    return resolved;
+  }
+  const parent = dirname(resolved);
+  const repoDirectory =
+    parent === resolved ? null : hfRepoDirectory(parent, roots, cache);
+  cache.set(resolved, repoDirectory);
+  return repoDirectory;
+}
+
+function associateMmprojPaths<
+  Model extends { path: string; directory: string; isMmproj: boolean },
+>(models: readonly Model[], roots: readonly ModelScanRoot[]) {
+  const mmprojByDir = new Map<string, string[]>();
+  for (const model of models) {
+    if (!model.isMmproj) {
+      continue;
+    }
+    const list = mmprojByDir.get(model.directory) ?? [];
+    list.push(model.path);
+    mmprojByDir.set(model.directory, list);
+  }
+
+  const rootPaths = roots
+    .filter((root) => root.exists)
+    .map((root) => resolve(root.path));
+  const repoDirectoryCache = new Map<string, string | null>();
+  const associations = new Map<string, string[]>();
+  for (const model of models) {
+    if (model.isMmproj) {
+      associations.set(model.path, []);
+      continue;
+    }
+    const repoDirectory = hfRepoDirectory(
+      model.directory,
+      rootPaths,
+      repoDirectoryCache,
+    );
+    const candidates = [
+      ...(mmprojByDir.get(model.directory) ?? []),
+      ...(repoDirectory && repoDirectory !== model.directory
+        ? (mmprojByDir.get(repoDirectory) ?? [])
+        : []),
+    ];
+    associations.set(model.path, [...new Set(candidates)].sort());
+  }
+  return associations;
+}
+
 function collapseSplitFiles(files: FoundFile[]): ModelFile[] {
   const splitGroups = new Map<
     string,
@@ -375,14 +439,14 @@ export async function scanModels(input: {
   }
   const total = files.length + safetensorsDirs.size;
 
-  const mmprojByDir = new Map<string, string[]>();
-  for (const file of files) {
-    if (file.name.toLowerCase().includes("mmproj")) {
-      const list = mmprojByDir.get(file.directory) ?? [];
-      list.push(file.path);
-      mmprojByDir.set(file.directory, list);
-    }
-  }
+  const mmprojPathsByModel = associateMmprojPaths(
+    files.map((file) => ({
+      path: file.path,
+      directory: file.directory,
+      isMmproj: file.name.toLowerCase().includes("mmproj"),
+    })),
+    input.roots,
+  );
 
   const models: GgufModel[] = [];
   let cacheHits = 0;
@@ -405,7 +469,7 @@ export async function scanModels(input: {
     }
     const { sizeBytes, modifiedAt } = identity;
     const isMmproj = file.name.toLowerCase().includes("mmproj");
-    const mmprojPaths = isMmproj ? [] : (mmprojByDir.get(file.directory) ?? []);
+    const mmprojPaths = mmprojPathsByModel.get(file.path) ?? [];
     const cached = input.refresh ? null : getCachedModelEntry(file.path);
     const unchanged =
       cached !== null &&
@@ -574,21 +638,12 @@ export function scanModelsFromCache(input: {
     ),
   );
 
-  const mmprojByDir = new Map<string, string[]>();
-  for (const model of scoped) {
-    if (model.isMmproj) {
-      const list = mmprojByDir.get(model.directory) ?? [];
-      list.push(model.path);
-      mmprojByDir.set(model.directory, list);
-    }
-  }
+  const mmprojPathsByModel = associateMmprojPaths(scoped, input.roots);
 
   const models = scoped
     .map((model) => ({
       ...model,
-      mmprojPaths: model.isMmproj
-        ? []
-        : (mmprojByDir.get(model.directory) ?? []),
+      mmprojPaths: mmprojPathsByModel.get(model.path) ?? [],
     }))
     .sort(compareModelNames);
 
