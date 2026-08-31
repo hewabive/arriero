@@ -15,8 +15,6 @@ beforeEach(() => {
   seedPathCatalog([]);
   saveHfDownloadSettings({
     modelDirectoryId: null,
-    connections: 6,
-    chunkBytes: 32 * 1024 * 1024,
     maxEtaHours: 24,
   });
 });
@@ -29,8 +27,6 @@ test("defaultHfDestDir uses the selected model directory", () => {
   });
   saveHfDownloadSettings({
     modelDirectoryId: entry.id,
-    connections: 6,
-    chunkBytes: 32 * 1024 * 1024,
     maxEtaHours: 24,
   });
 
@@ -49,8 +45,6 @@ test("defaultHfDestDir uses the selected model directory", () => {
 test("defaultHfDestDir falls back when the saved directory is unavailable", () => {
   saveHfDownloadSettings({
     modelDirectoryId: "missing-model-directory",
-    connections: 6,
-    chunkBytes: 32 * 1024 * 1024,
     maxEtaHours: 24,
   });
 

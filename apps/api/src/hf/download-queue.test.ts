@@ -203,8 +203,6 @@ beforeEach(() => {
   resetHfUpdateChecksForTests();
   saveHfDownloadSettings({
     modelDirectoryId: null,
-    connections: 1,
-    chunkBytes: 4 * 1024 * 1024,
     maxEtaHours: 24,
   });
   destDir = join(config.runtimeDir, `hf-queue-test-${randomUUID()}`);
@@ -213,7 +211,16 @@ beforeEach(() => {
 const nullFreeBytes = () => Promise.resolve<number | null>(null);
 
 function stubOptions(stub: Stub) {
-  return { fetchImpl: stub.fetchImpl, token: null, freeBytes: nullFreeBytes };
+  return {
+    fetchImpl: stub.fetchImpl,
+    token: null,
+    freeBytes: nullFreeBytes,
+    tuning: {
+      chunkBytes: 4 * 1024 * 1024,
+      initialConnections: 1,
+      maxConnections: 1,
+    },
+  };
 }
 
 async function waitFor(predicate: () => boolean, label: string): Promise<void> {

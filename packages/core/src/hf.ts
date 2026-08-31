@@ -147,13 +147,6 @@ export const HfOrphanPartSchema = z.object({
 
 export const HfDownloadSettingsSchema = z.object({
   modelDirectoryId: z.string().min(1).nullable().default(null),
-  connections: z.number().int().min(1).max(16).default(6),
-  chunkBytes: z
-    .number()
-    .int()
-    .min(4 * 1024 * 1024)
-    .max(512 * 1024 * 1024)
-    .default(32 * 1024 * 1024),
   maxEtaHours: z.number().int().min(1).max(720).nullable().default(24),
 });
 

@@ -31,17 +31,33 @@ import {
   writeHfChunkSidecar,
 } from "./chunk-store.js";
 import type { HfPlannedFile } from "./download-plan.js";
-import { hfDownloadFetch } from "./http.js";
+import {
+  fetchDownloadImpl,
+  hfDownloadRequest,
+  type HfDownloadImpl,
+  type HfDownloadResponse,
+} from "./http.js";
 import type { HfManifestFile } from "./manifest.js";
+import {
+  hfChunkBytes,
+  HfConnectionTuner,
+  hfInitialConnections,
+  hfMaxConnections,
+  type HfTransferTuningOverrides,
+} from "./transfer-tuning.js";
 
 const CHUNK_ATTEMPT_LIMIT = 5;
-const RATE_LIMIT_DELAYS_MS = [30_000, 60_000];
+const RATE_LIMIT_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 240_000];
+const RATE_LIMIT_MAX_DELAY_MS = 300_000;
+const RATE_LIMIT_BUDGET_MS = 600_000;
+const WRITE_BATCH_BYTES = 1024 * 1024;
 
 type HfTransferEvents = {
   onFileStart: (path: string) => void;
   onFileBytes: (path: string, bytes: number) => void;
   onWireBytes: (deltaBytes: number) => void;
   onTransportError: () => void;
+  onConnectionsChange?: ((connections: number) => void) | undefined;
   onFileFinished: (
     file: HfPlannedFile,
     outcome: "succeeded" | "skipped",
@@ -57,8 +73,7 @@ export type HfTransferContext = {
   signal: AbortSignal;
   clientOptions: HfClientOptions;
   manifestEntries: Map<string, HfManifestFile>;
-  connections: number;
-  chunkBytes: number;
+  tuning?: HfTransferTuningOverrides | undefined;
   isFileCanceled: (path: string) => boolean;
   fileAborts: Map<string, () => void>;
   events: HfTransferEvents;
@@ -158,6 +173,9 @@ type DownloadFileContext = {
   file: HfPlannedFile;
   signal: AbortSignal;
   clientOptions: HfClientOptions;
+  downloadImpl: HfDownloadImpl;
+  beforeRequest: () => Promise<number>;
+  onRequestSuccess: (generation: number) => void;
   onBytes: (bytes: number) => void;
   onWireBytes: (deltaBytes: number) => void;
 };
@@ -182,13 +200,12 @@ async function attemptDownload(
   if (offset > 0) {
     headers.range = `bytes=${offset}-`;
   }
-  const fetchImpl = clientOptions.fetchImpl ?? hfDownloadFetch;
-  let response: Response;
+  const requestGeneration = await ctx.beforeRequest();
+  let response: HfDownloadResponse;
   try {
-    response = await fetchImpl(ctx.url, {
+    response = await ctx.downloadImpl(ctx.url, {
       headers,
       signal,
-      redirect: "follow",
     });
   } catch (error) {
     if (signal.aborted) {
@@ -201,6 +218,7 @@ async function attemptDownload(
     );
   }
   if (response.status === 416) {
+    await response.discard();
     if (existsSync(file.partPath)) {
       truncateSync(file.partPath, 0);
     }
@@ -275,6 +293,7 @@ async function attemptDownload(
       `incomplete download of ${file.path}: got ${received} of ${file.size} bytes`,
     );
   }
+  ctx.onRequestSuccess(requestGeneration);
   const hex = hash.digest("hex");
   if (hex !== expectedHex(file)) {
     rmSync(file.partPath, { force: true });
@@ -332,15 +351,42 @@ export async function runHfTransfer(
   ctx: HfTransferContext,
 ): Promise<HfTransferResult> {
   const sleep =
-    ctx.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    ctx.sleep ??
+    ((ms: number) =>
+      new Promise<void>((resolveDone) => {
+        if (ctx.signal.aborted) {
+          resolveDone();
+          return;
+        }
+        const timer = setTimeout(finish, ms);
+        const onAbort = () => finish();
+        function finish() {
+          clearTimeout(timer);
+          ctx.signal.removeEventListener("abort", onAbort);
+          resolveDone();
+        }
+        ctx.signal.addEventListener("abort", onAbort, { once: true });
+        if (ctx.signal.aborted) {
+          finish();
+        }
+      }));
+  const downloadImpl =
+    ctx.clientOptions.downloadImpl ??
+    (ctx.clientOptions.fetchImpl
+      ? fetchDownloadImpl(ctx.clientOptions.fetchImpl)
+      : hfDownloadRequest);
+  const maxConnections = hfMaxConnections(ctx.tuning);
+  const initialConnections = hfInitialConnections(ctx.tuning);
   const engine = {
     failedCount: 0,
     fatalError: null as string | null,
     stalled: null as string | null,
+    done: false,
     progressStamp: 0,
     nextFileIndex: 0,
     opening: false,
     busy: 0,
+    targetConnections: initialConnections,
     openFiles: [] as ChunkedFile[],
     singleQueue: [] as HfPlannedFile[],
     singleControllers: new Set<AbortController>(),
@@ -359,6 +405,90 @@ export async function runHfTransfer(
     return new Promise((resolveWaiter) => {
       engine.wakeWaiters.push(resolveWaiter);
     });
+  }
+
+  const tuner = new HfConnectionTuner({
+    initialConnections,
+    maxConnections,
+    now: ctx.tuning?.now ?? Date.now,
+    onChange: (connections) => {
+      engine.targetConnections = connections;
+      ctx.events.onConnectionsChange?.(connections);
+      wake();
+    },
+  });
+  ctx.events.onConnectionsChange?.(initialConnections);
+
+  let rateLimitAttempts = 0;
+  let rateLimitGeneration = 0;
+  let rateLimitScheduledMs = 0;
+  let rateLimitPause: Promise<boolean> | null = null;
+  let rateLimitExhausted = false;
+
+  async function beforeRequest(): Promise<number> {
+    if (rateLimitPause) {
+      await rateLimitPause;
+    }
+    if (ctx.signal.aborted) {
+      throw ctx.signal.reason ?? new Error("download aborted");
+    }
+    return rateLimitGeneration;
+  }
+
+  async function backoffRateLimit(error: HfHubError): Promise<boolean> {
+    if (rateLimitExhausted) {
+      return false;
+    }
+    if (rateLimitPause) {
+      return rateLimitPause;
+    }
+    const fallback = RATE_LIMIT_DELAYS_MS[rateLimitAttempts];
+    if (fallback === undefined) {
+      rateLimitExhausted = true;
+      return false;
+    }
+    const delay = Math.max(
+      1_000,
+      Math.min(RATE_LIMIT_MAX_DELAY_MS, error.retryAfterMs ?? fallback),
+    );
+    if (rateLimitScheduledMs + delay > RATE_LIMIT_BUDGET_MS) {
+      rateLimitExhausted = true;
+      return false;
+    }
+    rateLimitAttempts += 1;
+    rateLimitGeneration += 1;
+    rateLimitScheduledMs += delay;
+    tuner.recordRateLimit();
+    const pause = (async () => {
+      await sleep(delay);
+      return !ctx.signal.aborted;
+    })();
+    rateLimitPause = pause;
+    try {
+      return await pause;
+    } finally {
+      if (rateLimitPause === pause) {
+        rateLimitPause = null;
+      }
+    }
+  }
+
+  function recordRequestSuccess(generation: number): void {
+    if (rateLimitPause === null && generation === rateLimitGeneration) {
+      rateLimitAttempts = 0;
+      rateLimitScheduledMs = 0;
+      rateLimitExhausted = false;
+    }
+  }
+
+  function recordWireBytes(bytes: number): void {
+    tuner.recordBytes(bytes);
+    ctx.events.onWireBytes(bytes);
+  }
+
+  function recordTransportError(): void {
+    tuner.recordTransportError();
+    ctx.events.onTransportError();
   }
 
   ctx.signal.addEventListener("abort", wake, { once: true });
@@ -514,7 +644,7 @@ export async function runHfTransfer(
 
   async function prepareChunkedFile(file: HfPlannedFile): Promise<ChunkedFile> {
     const expected = expectedHex(file);
-    let chunkBytes = ctx.chunkBytes;
+    let chunkBytes = hfChunkBytes(file.size, ctx.tuning);
     let completed = new Set<number>();
     const partExists = existsSync(file.partPath);
     const partSize = partExists ? statSync(file.partPath).size : -1;
@@ -578,10 +708,10 @@ export async function runHfTransfer(
       ...hfRequestHeaders(ctx.clientOptions),
       range: `bytes=${start + progress.flushed}-${start + size - 1}`,
     };
-    const fetchImpl = ctx.clientOptions.fetchImpl ?? hfDownloadFetch;
-    let response: Response;
+    const requestGeneration = await beforeRequest();
+    let response: HfDownloadResponse;
     try {
-      response = await fetchImpl(url, { headers, signal, redirect: "follow" });
+      response = await downloadImpl(url, { headers, signal });
     } catch (error) {
       if (signal.aborted) {
         throw error;
@@ -593,12 +723,14 @@ export async function runHfTransfer(
       );
     }
     if (response.status === 416) {
+      await response.discard();
       throw new RangeUnsupportedError();
     }
     if (!response.ok) {
       throw await hfErrorFromResponse(response);
     }
     if (response.status !== 206) {
+      await response.discard();
       throw new RangeUnsupportedError();
     }
     if (!response.body) {
@@ -613,9 +745,38 @@ export async function runHfTransfer(
     }
     let received = progress.flushed;
     let position = start + progress.flushed;
-    const body = response.body as unknown as AsyncIterable<Uint8Array>;
+    let bufferedBytes = 0;
+    let buffered: Uint8Array[] = [];
+    const flushBuffered = async () => {
+      if (bufferedBytes === 0) {
+        return;
+      }
+      const batch = Buffer.concat(buffered, bufferedBytes);
+      let offset = 0;
+      while (offset < batch.length) {
+        const result = await state.handle.write(
+          batch,
+          offset,
+          batch.length - offset,
+          position + offset,
+        );
+        if (result.bytesWritten <= 0) {
+          throw new Error(
+            `could not write download chunk for ${state.file.path}`,
+          );
+        }
+        offset += result.bytesWritten;
+      }
+      position += batch.length;
+      progress.flushed += batch.length;
+      engine.progressStamp += 1;
+      state.liveByChunk.set(index, progress.flushed);
+      reportBytes(state);
+      buffered = [];
+      bufferedBytes = 0;
+    };
     try {
-      for await (const chunk of body) {
+      for await (const chunk of response.body) {
         received += chunk.length;
         if (received > size) {
           throw new HfHubError(
@@ -624,21 +785,27 @@ export async function runHfTransfer(
             `server sent more bytes than requested for ${state.file.path}`,
           );
         }
-        await state.handle.write(chunk, 0, chunk.length, position);
-        position += chunk.length;
-        progress.flushed = received;
         if (chunk.length > 0) {
-          engine.progressStamp += 1;
-          ctx.events.onWireBytes(chunk.length);
+          buffered.push(chunk);
+          bufferedBytes += chunk.length;
+          recordWireBytes(chunk.length);
+          if (bufferedBytes >= WRITE_BATCH_BYTES) {
+            await flushBuffered();
+          }
         }
-        state.liveByChunk.set(index, received);
-        reportBytes(state);
       }
+      await flushBuffered();
     } catch (error) {
-      if (signal.aborted) {
-        throw error;
+      let failure = error;
+      try {
+        await flushBuffered();
+      } catch (writeError) {
+        failure = writeError;
       }
-      throw asTransportError(error, state.file.path);
+      if (signal.aborted) {
+        throw failure;
+      }
+      throw asTransportError(failure, state.file.path);
     }
     if (received !== size) {
       throw new HfHubError(
@@ -647,11 +814,11 @@ export async function runHfTransfer(
         `incomplete chunk of ${state.file.path}: got ${received} of ${size} bytes`,
       );
     }
+    recordRequestSuccess(requestGeneration);
   }
 
   async function runChunk(state: ChunkedFile, index: number): Promise<void> {
     let attempt = 0;
-    let rateLimited = 0;
     let reResolved = false;
     let noProgressStamp: number | null = null;
     const progress: ChunkProgress = { flushed: 0 };
@@ -718,15 +885,13 @@ export async function runHfTransfer(
           return;
         }
         if (error instanceof HfHubError && error.kind === "rate-limited") {
-          const delay = RATE_LIMIT_DELAYS_MS[rateLimited];
-          if (delay !== undefined) {
-            rateLimited += 1;
-            await sleep(delay);
+          if (await backoffRateLimit(error)) {
             continue;
           }
-          engine.fatalError = error.message;
-          await settleFailed(state, error.message);
-          abortActiveTransfers();
+          if (ctx.signal.aborted) {
+            return;
+          }
+          declareStall(error.message);
           return;
         }
         if (isEnospc(error)) {
@@ -736,7 +901,7 @@ export async function runHfTransfer(
           return;
         }
         if (isTransientError(error)) {
-          ctx.events.onTransportError();
+          recordTransportError();
           if (progress.flushed > flushedBefore) {
             attempt = 1;
             noProgressStamp = null;
@@ -789,6 +954,9 @@ export async function runHfTransfer(
             file,
             signal: fileController.signal,
             clientOptions: ctx.clientOptions,
+            downloadImpl,
+            beforeRequest,
+            onRequestSuccess: recordRequestSuccess,
             onBytes: (bytes) => {
               const capped = Math.min(bytes, file.size);
               if (capped > reportedBytes) {
@@ -797,7 +965,7 @@ export async function runHfTransfer(
               }
               ctx.events.onFileBytes(file.path, capped);
             },
-            onWireBytes: (deltaBytes) => ctx.events.onWireBytes(deltaBytes),
+            onWireBytes: recordWireBytes,
           });
           ctx.events.onFileFinished(file, outcome);
           return;
@@ -809,8 +977,18 @@ export async function runHfTransfer(
             ctx.events.onFileCanceled(file.path);
             return;
           }
+          if (error instanceof HfHubError && error.kind === "rate-limited") {
+            if (await backoffRateLimit(error)) {
+              continue;
+            }
+            if (ctx.signal.aborted) {
+              return;
+            }
+            declareStall(error.message);
+            return;
+          }
           if (isTransientError(error)) {
-            ctx.events.onTransportError();
+            recordTransportError();
             if (reportedBytes > bytesBefore) {
               attempt = 1;
               noProgressStamp = null;
@@ -831,11 +1009,7 @@ export async function runHfTransfer(
             }
           }
           const message = (error as Error).message;
-          if (
-            isFatalAuthError(error) ||
-            isEnospc(error) ||
-            (error instanceof HfHubError && error.kind === "rate-limited")
-          ) {
+          if (isFatalAuthError(error) || isEnospc(error)) {
             engine.fatalError = message;
             ctx.fileAborts.delete(file.path);
             abortActiveTransfers();
@@ -885,7 +1059,10 @@ export async function runHfTransfer(
         }
       }
       mkdirSync(dirname(file.finalPath), { recursive: true });
-      if (file.size <= ctx.chunkBytes || ctx.connections <= 1) {
+      if (
+        file.size <= hfChunkBytes(file.size, ctx.tuning) ||
+        maxConnections <= 1
+      ) {
         engine.singleQueue.push(file);
         return;
       }
@@ -954,17 +1131,24 @@ export async function runHfTransfer(
     return "done";
   }
 
-  async function worker(): Promise<void> {
+  async function worker(workerIndex: number): Promise<void> {
     for (;;) {
       if (
         ctx.signal.aborted ||
         engine.fatalError !== null ||
-        engine.stalled !== null
+        engine.stalled !== null ||
+        engine.done
       ) {
         return;
       }
+      if (workerIndex >= engine.targetConnections) {
+        await waitForWake();
+        continue;
+      }
       const work = nextWork();
       if (work === "done") {
+        engine.done = true;
+        wake();
         return;
       }
       if (work === "wait") {
@@ -993,8 +1177,9 @@ export async function runHfTransfer(
   }
 
   try {
-    const workerCount = Math.max(1, Math.min(ctx.connections, 16));
-    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    await Promise.all(
+      Array.from({ length: maxConnections }, (_, index) => worker(index)),
+    );
   } finally {
     ctx.signal.removeEventListener("abort", wake);
     for (const state of [...engine.openFiles]) {

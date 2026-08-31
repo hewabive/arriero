@@ -27,8 +27,6 @@ import { HfRepoBrowserPanel } from "./HfRepoBrowserPanel";
 import { useHfJobsSync } from "./use-hf-queue";
 import { notifyError } from "../utils/notify";
 
-const MIB = 1024 * 1024;
-
 function HfTokenCard() {
   const queryClient = useQueryClient();
   const tokenQuery = useQuery({
@@ -100,15 +98,11 @@ function HfDownloadSettingsCard() {
     queryFn: getHfDownloadSettings,
   });
   const settings = settingsQuery.data?.data ?? null;
-  const [connections, setConnections] = useState<number | null>(null);
-  const [chunkMib, setChunkMib] = useState<number | null>(null);
   const [maxEta, setMaxEta] = useState<number | "off" | null>(null);
   const mutation = useMutation({
     mutationFn: (input: HfDownloadSettings) => updateHfDownloadSettings(input),
     onSuccess: (result) => {
       queryClient.setQueryData(["hf-download-settings"], result);
-      setConnections(null);
-      setChunkMib(null);
       setMaxEta(null);
       notifications.show({
         title: "Download settings",
@@ -120,48 +114,22 @@ function HfDownloadSettingsCard() {
   if (!settings) {
     return null;
   }
-  const effectiveConnections = connections ?? settings.connections;
-  const effectiveChunkMib = chunkMib ?? Math.round(settings.chunkBytes / MIB);
   const effectiveMaxEta = maxEta ?? settings.maxEtaHours ?? "off";
   const effectiveMaxEtaValue =
     effectiveMaxEta === "off" ? null : effectiveMaxEta;
-  const dirty =
-    effectiveConnections !== settings.connections ||
-    effectiveChunkMib !== Math.round(settings.chunkBytes / MIB) ||
-    effectiveMaxEtaValue !== settings.maxEtaHours;
+  const dirty = effectiveMaxEtaValue !== settings.maxEtaHours;
 
   return (
     <Paper withBorder p="md" radius="sm">
       <Stack gap="sm">
         <Title order={4}>Download settings</Title>
         <Text size="sm" c="dimmed">
-          Parallel connections per download. More connections usually download
-          faster and ride out a stuck stream; files smaller than one chunk use a
-          single connection. When a projected finish time exceeds the max ETA,
-          the job pauses instead of grinding for hours — clear the field to
-          switch that off.
+          Connection count and chunk size are tuned automatically for each
+          download. If the projected finish time exceeds the max ETA, the job
+          pauses instead of grinding for hours. Clear the field to switch that
+          safeguard off.
         </Text>
         <Group align="flex-end" gap="sm" wrap="wrap">
-          <NumberInput
-            label="Connections"
-            min={1}
-            max={16}
-            value={effectiveConnections}
-            onChange={(value) =>
-              setConnections(typeof value === "number" ? value : null)
-            }
-            w={140}
-          />
-          <NumberInput
-            label="Chunk size (MiB)"
-            min={4}
-            max={512}
-            value={effectiveChunkMib}
-            onChange={(value) =>
-              setChunkMib(typeof value === "number" ? value : null)
-            }
-            w={160}
-          />
           <NumberInput
             label="Max ETA (hours)"
             min={1}
@@ -176,8 +144,6 @@ function HfDownloadSettingsCard() {
             onClick={() =>
               mutation.mutate({
                 modelDirectoryId: settings.modelDirectoryId,
-                connections: effectiveConnections,
-                chunkBytes: effectiveChunkMib * MIB,
                 maxEtaHours: effectiveMaxEtaValue,
               })
             }

@@ -147,6 +147,20 @@ test("token is sent as a bearer header and omitted when null", async () => {
   assert.equal(anonymousHeaders.authorization, undefined);
 });
 
+test("rate limit errors retain retry timing", async () => {
+  const { fetchImpl } = stubFetch(() =>
+    jsonResponse(
+      { error: "slow down" },
+      { headers: { "retry-after": "7" }, status: 429 },
+    ),
+  );
+  await assert.rejects(
+    fetchHfRepoInfo("owner/repo", "main", { fetchImpl, token: null }),
+    (error: unknown) =>
+      error instanceof HfHubError && error.retryAfterMs === 7_000,
+  );
+});
+
 test("hfResolveUrl encodes repo, revision and path segments", () => {
   assert.equal(
     hfResolveUrl("owner/repo", "refs/pr/1", "sub dir/file.gguf"),

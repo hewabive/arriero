@@ -33,11 +33,13 @@ same repo allowed (the on-disk skip fast-path dedupes at execution). The schedul
 only place a job starts, so there is no start-time race; the active job registers in the jobs
 kernel (registry domain `hf-download`, `entityId = destDir`) purely so `shutdownActiveJobs` can
 abort it. Parallelism lives **inside** a job: the transfer engine
-(`apps/api/src/hf/transfer-engine.ts`) runs N worker connections (the `downloads` settings
-section: `connections` 1–16 default 6, `chunkBytes` default 32 MiB — measured ~1.7× over a single
-connection at 8 on a ~30 MB/s-per-connection CDN path) over a shared task list: large files split
-into ranged chunks, files ≤ one chunk (or with `connections: 1`) stream whole; workers converge on
-the earliest incomplete file so early files finish first.
+(`apps/api/src/hf/transfer-engine.ts`) tunes worker connections automatically from 4 up to 8 over
+a shared task list. It probes one extra connection per 1.5 s measurement window, keeps the probe
+only when aggregate throughput improves by at least 5%, retries a plateau later, and backs off on
+transport errors or rate limits. Large files split into automatically sized 16–128 MiB ranged
+chunks (roughly four chunks per maximum worker); files no larger than one chunk stream whole.
+Workers converge on the earliest incomplete file so early files finish first. The active queue
+card exposes the current connection target, but connection and chunk tuning are not user settings.
 
 Enqueue phase (synchronous in the request, `apps/api/src/hf/download-plan.ts`): sanitize
 repo-relative paths (traversal guard in `apps/api/src/hf/paths.ts`), resolve the destination
@@ -72,18 +74,20 @@ with matching size and manifest oid (or matching content hash) is `skipped`.
 
 Failure policy: transient errors (network, 5xx) retry per chunk with exponential backoff (max
 30 s + jitter); the 5-attempt limit bounds only **consecutive attempts without byte progress** —
-any flushed progress resets the counter. A mid-stream disconnect (undici's raw
-`TypeError: terminated` and friends) is classified as a network error by the body-read wrappers,
-not just fetch-time failures, and a retry resumes where the data stopped: a chunked retry
-re-requests the bounded range from the last byte flushed via the positional file handle, a
-single-stream retry from the flushed `.part` size (the write stream is flushed, not destroyed, on
-error — buffered bytes are never lost, and a stream write error is captured instead of crashing
-the process). All download requests go through a dedicated undici agent
-(`apps/api/src/hf/http.ts`): 30 s to response headers, 45 s body idle timeout, replacing undici's
-300 s defaults so a silently dead connection fails fast while a slow-but-moving stream is never
-cut. A `416`/`200` on a bounded range falls the file back to a single
-stream; `429` gets two long retries (30/60 s) then fails the job; `unauthorized`/`gated` and
-`ENOSPC` fail the job immediately (remaining files → `canceled`); other per-file failures are
+any flushed progress resets the counter. A mid-stream disconnect is classified as a network error
+by the body-read wrappers, not just request-time failures, and a retry resumes where the data
+stopped: a chunked retry re-requests the bounded range from the last byte flushed via the
+positional file handle, a single-stream retry from the flushed `.part` size. Chunked writes batch
+roughly 1 MiB before a positional write; a stream failure flushes valid buffered bytes before the
+retry. All payload requests go through a dedicated raw `node:https` transport
+(`apps/api/src/hf/http.ts`) while metadata requests retain `fetch`: the Node stream keeps the
+socket receive window open on high-RTT paths, with 30 s to response headers and a 45 s body-idle
+timeout. Redirects are HTTPS-only and capped at five; authorization, cookie and proxy credentials
+are stripped when the origin changes. A `416`/`200` on a bounded range falls the file back to a
+single stream. All workers share one `429` cooldown, honor `Retry-After`/HF reset timing, otherwise
+back off for 15/30/60/120/240 s, and reduce parallelism. Exhausting the five-attempt or 10-minute
+budget pauses the resumable job as a network stall instead of failing it. `unauthorized`/`gated`
+and `ENOSPC` fail the job immediately (remaining files → `canceled`); other per-file failures are
 recorded and the job continues.
 
 **Stall pause**: when a chunk (or single stream) exhausts its no-progress attempts, the engine
@@ -216,7 +220,8 @@ locally.
 `PUT /api/hf/token` stores the token in `data/config/.secrets.json` under `hf:token`
 (`apps/api/src/hf/token.ts`); the API accepts a token and only ever returns
 `{ tokenConfigured }` — the value is write-only. Anonymous access works for public repos; the
-token is sent as `Authorization: Bearer` and undici drops it on the cross-origin CDN redirect.
+token is sent as `Authorization: Bearer`; the download transport explicitly removes it on a
+cross-origin CDN redirect.
 
 ## Endpoints
 
@@ -237,7 +242,7 @@ token is sent as `Authorization: Bearer` and undici drops it on the cross-origin
 | `DELETE /api/hf/queue/:id` | remove a queued job or dismiss a history entry |
 | `POST /api/hf/queue/:id/files/skip` | skip files of the active job / drop files from a queued one |
 | `DELETE /api/hf/queue/history` | clear the finished-job history |
-| `GET/PUT /api/hf/download-settings` | default model-directory selection + connection count + chunk size + max ETA hours |
+| `GET/PUT /api/hf/download-settings` | default model-directory selection + max ETA hours |
 
 Every mutating queue endpoint returns the full queue state so the UI applies it without a
 follow-up fetch.

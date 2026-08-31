@@ -63,8 +63,6 @@ test("download settings persist a selected model directory", async () => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       modelDirectoryId: modelDirectory.id,
-      connections: 4,
-      chunkBytes: 16 * 1024 * 1024,
       maxEtaHours: 12,
     }),
   });
@@ -88,8 +86,6 @@ test("download settings reject a path catalog entry of the wrong kind", async ()
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       modelDirectoryId: binary.id,
-      connections: 4,
-      chunkBytes: 16 * 1024 * 1024,
       maxEtaHours: 12,
     }),
   });

@@ -52,6 +52,7 @@ function plannedFile(path: string, content: Buffer): HfPlannedFile {
 type RangeStubOptions = {
   force200?: boolean;
   failuresByRange?: Map<string, number>;
+  failHeaders?: HeadersInit;
   failStatus?: number;
   gatedRanges?: Set<string>;
   corruptRanges?: Set<string>;
@@ -101,9 +102,13 @@ function makeRangeStub(
     const remainingFailures = range ? (failures.get(range) ?? 0) : 0;
     if (range && remainingFailures > 0) {
       failures.set(range, remainingFailures - 1);
-      return new Response("upstream error", {
+      const responseInit: ResponseInit = {
         status: options?.failStatus ?? 500,
-      });
+      };
+      if (options?.failHeaders) {
+        responseInit.headers = options.failHeaders;
+      }
+      return new Response("upstream error", responseInit);
     }
     const bounded = range ? /^bytes=(\d+)-(\d+)$/.exec(range) : null;
     const openEnded = range ? /^bytes=(\d+)-$/.exec(range) : null;
@@ -198,8 +203,11 @@ function startEngine(
     signal: controller.signal,
     clientOptions: { fetchImpl, token: null },
     manifestEntries: options?.manifestEntries ?? new Map(),
-    connections: options?.connections ?? 4,
-    chunkBytes: options?.chunkBytes ?? 10,
+    tuning: {
+      chunkBytes: options?.chunkBytes ?? 10,
+      initialConnections: options?.connections ?? 4,
+      maxConnections: options?.connections ?? 4,
+    },
     isFileCanceled: (path) => options?.canceled?.has(path) ?? false,
     fileAborts,
     events: {
@@ -335,6 +343,49 @@ test("transient chunk errors retry with backoff and succeed", async () => {
   assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
   assert.deepEqual(readFileSync(file.finalPath), content);
   assert.equal(run.sleeps.length, 2);
+});
+
+test("rate limits share retry policy and recover without failing the job", async () => {
+  const content = randomBytes(30);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    failuresByRange: new Map([["bytes=0-9", 2]]),
+    failStatus: 429,
+  });
+  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const result = await run.result;
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
+  assert.deepEqual(run.sleeps, [15_000, 30_000]);
+  assert.deepEqual(readFileSync(file.finalPath), content);
+});
+
+test("retry-after controls rate limit delay", async () => {
+  const content = randomBytes(30);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    failuresByRange: new Map([["bytes=0-9", 1]]),
+    failHeaders: { "retry-after": "42" },
+    failStatus: 429,
+  });
+  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const result = await run.result;
+  assert.deepEqual(result, { failedCount: 0, fatalError: null, stalled: null });
+  assert.deepEqual(run.sleeps, [42_000]);
+});
+
+test("persistent rate limits pause the transfer instead of failing it", async () => {
+  const content = randomBytes(30);
+  const file = plannedFile("model.bin", content);
+  const stub = makeRangeStub(new Map([["model.bin", content]]), {
+    failuresByRange: new Map([["bytes=0-9", 99]]),
+    failStatus: 429,
+  });
+  const run = startEngine([file], stub.fetchImpl, { connections: 2 });
+  const result = await run.result;
+  assert.equal(result.failedCount, 0);
+  assert.equal(result.fatalError, null);
+  assert.notEqual(result.stalled, null);
+  assert.equal(run.statuses.get("model.bin"), "downloading");
 });
 
 test("a mid-stream disconnect is classified and the chunk resumes from the flushed offset", async () => {

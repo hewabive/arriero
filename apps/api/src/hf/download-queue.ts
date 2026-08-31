@@ -43,17 +43,21 @@ import {
   type HfTransferTelemetry,
 } from "./transfer-telemetry.js";
 import { clearHfUpdateCheck, runHfUpdateChecks } from "./update-check.js";
+import type { HfDownloadImpl } from "./http.js";
+import type { HfTransferTuningOverrides } from "./transfer-tuning.js";
 
 const HISTORY_LIMIT = 20;
 const SLOW_ETA_MEASURE_MS = 90_000;
 const SLOW_ETA_CHECK_INTERVAL_MS = 5_000;
 
 export type HfDownloadQueueOptions = {
+  downloadImpl?: HfDownloadImpl | undefined;
   fetchImpl?: typeof fetch | undefined;
   token?: string | null | undefined;
   freeBytes?: FreeBytesImpl | undefined;
   sleep?: ((ms: number) => Promise<void>) | undefined;
   now?: (() => number) | undefined;
+  tuning?: HfTransferTuningOverrides | undefined;
 };
 
 export type HfQueueMutationResult =
@@ -136,6 +140,9 @@ function toClientOptions(
   options: HfDownloadQueueOptions | null,
 ): HfClientOptions {
   const clientOptions: HfClientOptions = {};
+  if (options?.downloadImpl) {
+    clientOptions.downloadImpl = options.downloadImpl;
+  }
   if (options?.fetchImpl) {
     clientOptions.fetchImpl = options.fetchImpl;
   }
@@ -288,7 +295,7 @@ async function executeJob(
   );
   let downloadedModelFile = false;
   const settings = getHfDownloadSettings();
-  currentConnections = settings.connections;
+  currentConnections = null;
   const now = optionsFor(job)?.now ?? Date.now;
   const telemetry = createHfTransferTelemetry(now());
   currentTelemetry = telemetry;
@@ -331,8 +338,7 @@ async function executeJob(
     signal,
     clientOptions,
     manifestEntries,
-    connections: settings.connections,
-    chunkBytes: settings.chunkBytes,
+    tuning: optionsFor(job)?.tuning,
     isFileCanceled: (path) => userCanceledPaths.has(path),
     fileAborts,
     sleep: optionsFor(job)?.sleep,
@@ -360,6 +366,9 @@ async function executeJob(
       },
       onTransportError: () => {
         recordHfTransferReset(telemetry);
+      },
+      onConnectionsChange: (connections) => {
+        currentConnections = connections;
       },
       onFileFinished: (file, outcome) => {
         upsertHfManifestFile(

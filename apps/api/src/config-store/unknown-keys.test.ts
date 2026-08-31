@@ -43,15 +43,13 @@ test("settings.json keeps unknown sections and section keys across writes", () =
   });
   saveHfDownloadSettings({
     modelDirectoryId: null,
-    connections: 5,
-    chunkBytes: 32 * 1024 * 1024,
     maxEtaHours: 24,
   });
   const written = readJson(config.settingsFile);
   assert.deepEqual(written.futureSection, { marker: 1 });
   const downloads = written.downloads as Record<string, unknown>;
   assert.equal(downloads.futureKnob, true);
-  assert.equal(downloads.connections, 5);
+  assert.equal("connections" in downloads, false);
 });
 
 test("build settings never persist repoPath into settings.json", () => {

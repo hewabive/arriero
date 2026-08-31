@@ -5,6 +5,7 @@ import {
 } from "@arriero/core";
 import { z } from "zod";
 
+import type { HfDownloadImpl } from "./http.js";
 import { getHfToken } from "./token.js";
 
 const HF_BASE_URL = "https://huggingface.co";
@@ -22,17 +23,25 @@ export type HfErrorKind =
 
 export class HfHubError extends Error {
   readonly kind: HfErrorKind;
+  readonly retryAfterMs: number | null;
   readonly status: number | null;
 
-  constructor(kind: HfErrorKind, status: number | null, message: string) {
+  constructor(
+    kind: HfErrorKind,
+    status: number | null,
+    message: string,
+    retryAfterMs: number | null = null,
+  ) {
     super(message);
     this.name = "HfHubError";
     this.kind = kind;
+    this.retryAfterMs = retryAfterMs;
     this.status = status;
   }
 }
 
 export type HfClientOptions = {
+  downloadImpl?: HfDownloadImpl | undefined;
   fetchImpl?: typeof fetch | undefined;
   token?: string | null | undefined;
 };
@@ -105,8 +114,27 @@ const HF_ERROR_MESSAGES: Record<Exclude<HfErrorKind, "network">, string> = {
   upstream: "HuggingFace returned an unexpected error",
 };
 
+type HfErrorResponse = Pick<Response, "headers" | "status" | "text">;
+
+function retryAfterMs(response: HfErrorResponse): number | null {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.round(seconds * 1_000);
+    }
+    const at = Date.parse(retryAfter);
+    if (Number.isFinite(at)) {
+      return Math.max(0, at - Date.now());
+    }
+  }
+  const rateLimit = response.headers.get("ratelimit");
+  const reset = /(?:^|;)t=(\d+)/u.exec(rateLimit ?? "");
+  return reset ? Number(reset[1]) * 1_000 : null;
+}
+
 export async function hfErrorFromResponse(
-  response: Response,
+  response: HfErrorResponse,
 ): Promise<HfHubError> {
   const kind: Exclude<HfErrorKind, "network"> =
     response.status === 401
@@ -133,7 +161,12 @@ export async function hfErrorFromResponse(
   const message = detail
     ? `${base}: ${detail.slice(0, MAX_ERROR_DETAIL_LENGTH)}`
     : base;
-  return new HfHubError(kind, response.status, message);
+  return new HfHubError(
+    kind,
+    response.status,
+    message,
+    kind === "rate-limited" ? retryAfterMs(response) : null,
+  );
 }
 
 async function hfFetch(
