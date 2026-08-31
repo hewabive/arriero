@@ -115,7 +115,7 @@ export type ApiProxyResumableStreamChunk = {
   usage?: ApiProxyResumableUsage | undefined;
   genMs?: number | undefined;
   phase?: ApiProxyResumablePhase | undefined;
-  toolCall?: ApiProxyResumableToolCallDelta | undefined;
+  toolCalls?: ApiProxyResumableToolCallDelta[] | undefined;
   promptProgress?: ApiProxyResumablePromptProgress | undefined;
 };
 

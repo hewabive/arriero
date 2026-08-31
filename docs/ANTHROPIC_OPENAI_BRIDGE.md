@@ -147,18 +147,24 @@ or more Anthropic events out):
   lands in `message_delta` (deliberate deviation).
 - thinking blocks close with `signature_delta` (empty signature) before
   `content_block_stop`, as Anthropic SDKs require.
-- `tool_use` `content_block_start` always includes `input: {}`; each OpenAI
-  `tool_calls[].index` opens its own block; argument deltas map to
-  `input_json_delta`.
+- `tool_use` `content_block_start` always includes `input: {}`. OpenAI may
+  interleave deltas for several parallel tool indexes, while Anthropic
+  requires one content block to run from start through stop before another
+  block opens. The bridge therefore buffers arguments per OpenAI tool index
+  and flushes complete `tool_use` blocks in index order; each complete JSON
+  string is emitted as one `input_json_delta`.
 - `message_delta.usage` includes `output_tokens`, cumulative `input_tokens`
   and `cache_read_input_tokens` when known.
 - upstream `{"error": ...}` frames map to Anthropic `error` events; upstream
   HTTP errors map via `translateOpenAiError` (status → Anthropic error type).
-- `prompt_progress` / `timings` / `usage` raw objects are surfaced through
-  `push().extensions` for host telemetry, never as Anthropic events; the
-  proxy's `createAnthropicTranslationStream` meters translated streams from
-  this channel in a single pass instead of stacking a separate usage-meter
-  transform.
+- The proxy inspects the raw OpenAI payload once, before translation, through
+  the same neutral stream inspector used by pass-through and resumable paths.
+  Reasoning, answer text, every parallel tool delta, response id/model,
+  progress, usage, malformed payloads and terminal health consequently reach
+  the in-flight card with identical semantics. An unexpected EOF is recorded
+  as truncation and is not disguised by synthesizing Anthropic terminal
+  events; an operator-requested Finish is terminated before translation and
+  therefore translates to a normal Anthropic close.
 
 ## Resumable path
 

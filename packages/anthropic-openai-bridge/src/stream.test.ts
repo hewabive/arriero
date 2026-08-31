@@ -201,12 +201,7 @@ test("streams tool call with input set to empty object on block start", () => {
     {
       type: "content_block_delta",
       index: 0,
-      delta: { type: "input_json_delta", partial_json: '{"q":' },
-    },
-    {
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "input_json_delta", partial_json: "1}" },
+      delta: { type: "input_json_delta", partial_json: '{"q":1}' },
     },
     { type: "content_block_stop", index: 0 },
   ]);
@@ -286,6 +281,83 @@ test("opens separate blocks for parallel tool calls", () => {
     events.filter((event) => event.type === "content_block_stop").length,
     2,
   );
+});
+
+test("buffers interleaved parallel tool deltas into valid sequential blocks", () => {
+  const emitter = createAnthropicSseEmitter();
+  const events = feed(emitter, [
+    {
+      id: "c",
+      model: "m",
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: "call_a",
+                function: { name: "a", arguments: '{"x":' },
+              },
+              {
+                index: 1,
+                id: "call_b",
+                function: { name: "b", arguments: '{"y":' },
+              },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    },
+    {
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              { index: 1, function: { arguments: "2}" } },
+              { index: 0, function: { arguments: "1}" } },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    },
+    { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
+    "[DONE]",
+  ]);
+
+  const blocks = events.filter(
+    (event) =>
+      event.type === "content_block_start" ||
+      event.type === "content_block_delta" ||
+      event.type === "content_block_stop",
+  );
+  assert.deepEqual(blocks, [
+    {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "tool_use", id: "call_a", name: "a", input: {} },
+    },
+    {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "input_json_delta", partial_json: '{"x":1}' },
+    },
+    { type: "content_block_stop", index: 0 },
+    {
+      type: "content_block_start",
+      index: 1,
+      content_block: { type: "tool_use", id: "call_b", name: "b", input: {} },
+    },
+    {
+      type: "content_block_delta",
+      index: 1,
+      delta: { type: "input_json_delta", partial_json: '{"y":2}' },
+    },
+    { type: "content_block_stop", index: 1 },
+  ]);
 });
 
 test("prompt_progress seeds message_start usage and later frames become pings", () => {

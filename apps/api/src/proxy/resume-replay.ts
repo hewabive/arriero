@@ -197,8 +197,8 @@ export async function serveResumedStreamSession(input: {
       codec: effectiveCodec,
       state,
       consumerSignal: c.req.raw.signal,
-      finishSignal: inflight.finishSignal(),
-      cancelSignal: inflight.cancelSignal(),
+      finishSignal: inflight.controlSignal("finish"),
+      cancelSignal: inflight.controlSignal("cancel"),
       ...observer,
     });
     store.finish(entry, { evict: true });

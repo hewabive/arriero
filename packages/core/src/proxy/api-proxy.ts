@@ -562,6 +562,47 @@ export const ApiProxyInflightToolCallSchema = z.object({
   arguments: z.string(),
 });
 
+export const ApiProxyInflightControlActionSchema = z.enum([
+  "force-answer",
+  "finish",
+  "cancel",
+]);
+
+export const ApiProxyInflightControlUnavailableReasonSchema = z.enum([
+  "not-supported",
+  "not-ready",
+  "too-late",
+  "request-finished",
+]);
+
+export const ApiProxyInflightControlAvailabilitySchema = z.object({
+  available: z.boolean(),
+  reason: ApiProxyInflightControlUnavailableReasonSchema.nullable(),
+});
+
+const unavailableInflightControl = {
+  available: false,
+  reason: "not-supported" as const,
+};
+
+export const ApiProxyInflightControlsSchema = z
+  .object({
+    forceAnswer: ApiProxyInflightControlAvailabilitySchema.default(
+      unavailableInflightControl,
+    ),
+    finish: ApiProxyInflightControlAvailabilitySchema.default(
+      unavailableInflightControl,
+    ),
+    cancel: ApiProxyInflightControlAvailabilitySchema.default(
+      unavailableInflightControl,
+    ),
+  })
+  .default({
+    forceAnswer: unavailableInflightControl,
+    finish: unavailableInflightControl,
+    cancel: unavailableInflightControl,
+  });
+
 export const ApiProxyInflightRequestSchema = z.object({
   id: z.string(),
   originId: z.string().nullable().default(null),
@@ -583,7 +624,7 @@ export const ApiProxyInflightRequestSchema = z.object({
   reasoningChars: z.number().int().min(0).default(0),
   answerChars: z.number().int().min(0).default(0),
   toolCalls: z.number().int().min(0).default(0),
-  interruptible: z.boolean().default(false),
+  controls: ApiProxyInflightControlsSchema,
 });
 
 export const ApiProxyInflightDetailSchema = z.object({
@@ -599,15 +640,19 @@ export const ApiProxyInflightDetailSchema = z.object({
   answerTruncated: z.boolean(),
   toolCalls: z.array(ApiProxyInflightToolCallSchema).default([]),
   completionTokens: z.number().int().min(0),
-  interruptible: z.boolean(),
+  controls: ApiProxyInflightControlsSchema,
 });
 
-export const ApiProxyInflightInterruptResultSchema = z.object({
-  status: z.enum(["ok", "not-found", "not-supported", "not-ready", "too-late"]),
-});
-
-export const ApiProxyInflightStopResultSchema = z.object({
-  status: z.enum(["ok", "not-found"]),
+export const ApiProxyInflightControlResultSchema = z.object({
+  status: z.enum([
+    "ok",
+    "not-found",
+    "not-supported",
+    "not-ready",
+    "too-late",
+    "failed",
+  ]),
+  message: z.string().nullable().default(null),
 });
 
 export const ApiProxyTargetRuntimeSchema = z.object({
@@ -798,11 +843,20 @@ export type ApiProxyInflightDetail = z.infer<
 export type ApiProxyInflightToolCall = z.infer<
   typeof ApiProxyInflightToolCallSchema
 >;
-export type ApiProxyInflightInterruptResult = z.infer<
-  typeof ApiProxyInflightInterruptResultSchema
+export type ApiProxyInflightControlAction = z.infer<
+  typeof ApiProxyInflightControlActionSchema
 >;
-export type ApiProxyInflightStopResult = z.infer<
-  typeof ApiProxyInflightStopResultSchema
+export type ApiProxyInflightControlUnavailableReason = z.infer<
+  typeof ApiProxyInflightControlUnavailableReasonSchema
+>;
+export type ApiProxyInflightControlAvailability = z.infer<
+  typeof ApiProxyInflightControlAvailabilitySchema
+>;
+export type ApiProxyInflightControls = z.infer<
+  typeof ApiProxyInflightControlsSchema
+>;
+export type ApiProxyInflightControlResult = z.infer<
+  typeof ApiProxyInflightControlResultSchema
 >;
 export type ApiProxyTargetRuntime = z.infer<typeof ApiProxyTargetRuntimeSchema>;
 export type ApiProxyTargetPlanInput = z.infer<

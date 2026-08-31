@@ -97,11 +97,13 @@ export const anthropicResumableCodec: ApiProxyResumableCodec = {
           id: null,
           model: null,
           phase: "tool",
-          toolCall: {
-            index: typeof event.index === "number" ? event.index : 0,
-            ...(typeof block.id === "string" ? { id: block.id } : {}),
-            ...(typeof block.name === "string" ? { name: block.name } : {}),
-          },
+          toolCalls: [
+            {
+              index: typeof event.index === "number" ? event.index : 0,
+              ...(typeof block.id === "string" ? { id: block.id } : {}),
+              ...(typeof block.name === "string" ? { name: block.name } : {}),
+            },
+          ],
         };
       }
       return null;
@@ -127,12 +129,14 @@ export const anthropicResumableCodec: ApiProxyResumableCodec = {
           id: null,
           model: null,
           phase: "tool",
-          toolCall: {
-            index: typeof event.index === "number" ? event.index : 0,
-            ...(typeof delta.partial_json === "string"
-              ? { arguments: delta.partial_json }
-              : {}),
-          },
+          toolCalls: [
+            {
+              index: typeof event.index === "number" ? event.index : 0,
+              ...(typeof delta.partial_json === "string"
+                ? { arguments: delta.partial_json }
+                : {}),
+            },
+          ],
         };
       }
       const text =

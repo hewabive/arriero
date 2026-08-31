@@ -3,18 +3,12 @@ import { createSseFrameBuffer } from "@arriero/core";
 import { asObject, numberOrNull } from "./json.js";
 import type { ApiProxyProtocolId, ApiProxyResumableCodec } from "./protocol.js";
 import { sseDataPayloads } from "./sse.js";
-import {
-  classifyProxyStreamTerminal,
-  emptyProxyStreamHealth,
-  noteMalformedPayload,
-  type ProxyStreamHealth,
-} from "./stream-health.js";
-import {
-  createProxyChunkObserver,
-  emptyProxyStreamUsageTally,
-  type ProxyStreamObserver,
-  type ProxyStreamUsageTally,
+import { type ProxyStreamHealth } from "./stream-health.js";
+import type {
+  ProxyStreamObserver,
+  ProxyStreamUsageTally,
 } from "./stream-observer.js";
+import { createProxyStreamInspector } from "./stream-inspector.js";
 
 export type ProxyUsageCounts = ProxyStreamUsageTally & {
   genMs: number;
@@ -198,43 +192,28 @@ export function createUsageMeterStream(
   } = input;
   const encoder = new TextEncoder();
   const frames = createSseFrameBuffer();
-  const usage = emptyProxyStreamUsageTally();
-  const observeChunk = createProxyChunkObserver(input, usage);
-  let upstreamGenMs: number | null = null;
-  let done = false;
-  let sawDone = false;
-  let sawFinish = false;
-  let ended = false;
-  const streamHealth = emptyProxyStreamHealth();
-
-  const health = (): ProxyStreamHealth => ({
-    ...streamHealth,
-    terminal: ended ? classifyProxyStreamTerminal(sawDone, sawFinish) : null,
+  const inspector = createProxyStreamInspector({
+    codec,
+    observer: input,
   });
+  let done = false;
+  let finalHealth: ProxyStreamHealth | null = null;
+
+  const health = (): ProxyStreamHealth =>
+    finalHealth ?? inspector.snapshot().health;
 
   const observeFrame = (frame: string): boolean => {
     let keep = true;
     for (const data of sseDataPayloads(frame)) {
-      const chunk = codec.parseChunk(data);
-      if (chunk === "malformed") {
-        noteMalformedPayload(streamHealth, data);
+      const inspected = inspector.observeData(data);
+      if (inspected.type !== "chunk") {
         continue;
       }
-      if (chunk === "done") {
-        sawDone = true;
-        continue;
-      }
-      if (chunk === null) {
-        continue;
-      }
-      if (chunk.finishReason !== null) {
-        sawFinish = true;
-      }
-      if (typeof chunk.genMs === "number") {
-        upstreamGenMs = chunk.genMs;
-      }
+      const chunk = inspected.chunk;
       const bareCarrier =
-        chunk.text === "" && !chunk.toolCall && chunk.finishReason === null;
+        chunk.text === "" &&
+        (chunk.toolCalls?.length ?? 0) === 0 &&
+        chunk.finishReason === null;
       if (
         (stripProgressFrames &&
           chunk.promptProgress &&
@@ -244,7 +223,6 @@ export function createUsageMeterStream(
       ) {
         keep = false;
       }
-      observeChunk(chunk);
     }
     return keep;
   };
@@ -254,9 +232,14 @@ export function createUsageMeterStream(
       return;
     }
     done = true;
+    const snapshot = inspector.finish();
+    finalHealth = snapshot.health;
     onComplete({
-      ...usage,
-      genMs: upstreamGenMs !== null ? Math.round(upstreamGenMs) : 0,
+      promptTokens: snapshot.promptTokens,
+      cacheReadTokens: snapshot.cacheReadTokens,
+      cacheCreationTokens: snapshot.cacheCreationTokens,
+      completionTokens: snapshot.completionTokens,
+      genMs: snapshot.genMs,
       prefillMs: null,
       promptPerSecond: null,
     });
@@ -283,9 +266,8 @@ export function createUsageMeterStream(
           controller.enqueue(encoder.encode(tail));
         }
       }
-      ended = true;
-      onStreamEnd?.(health());
       finalize();
+      onStreamEnd?.(health());
     },
   });
 

@@ -9,12 +9,9 @@ import {
   translateAnthropicRequest,
   translateOpenAiError,
   translateOpenAiResponse,
-  type AnthropicSsePushResult,
-  type AnthropicStreamEvent,
   type AnthropicToOpenAiRequestOptions,
 } from "@arriero/anthropic-openai-bridge";
 
-import { numberOrNull } from "./json.js";
 import { openAiResumableCodec } from "./openai.js";
 import {
   apiProxyOperationSpec,
@@ -23,8 +20,10 @@ import {
   type ApiProxyResumableCodec,
 } from "./protocol.js";
 import { sseDataPayloads } from "./sse.js";
+import type { ProxyStreamHealth } from "./stream-health.js";
+import { createProxyStreamInspector } from "./stream-inspector.js";
 import type { ProxyStreamObserver } from "./stream-observer.js";
-import { openaiCachedTokens, type ProxyUsageCounts } from "./usage-meter.js";
+import type { ProxyUsageCounts } from "./usage-meter.js";
 import {
   contextOverflowMessage,
   isLlamaContextOverflow,
@@ -180,6 +179,7 @@ export function anthropicForwardHeaders(headers: Headers): Headers {
 
 export type AnthropicTranslationStreamCallbacks = ProxyStreamObserver & {
   onComplete?: ((usage: ProxyUsageCounts) => void) | undefined;
+  onStreamEnd?: ((health: ProxyStreamHealth) => void) | undefined;
 };
 
 export type AnthropicTranslationStream = {
@@ -187,84 +187,26 @@ export type AnthropicTranslationStream = {
   finalize: () => void;
 };
 
-function thinkingStart(event: AnthropicStreamEvent): boolean {
-  return (
-    event.type === "content_block_start" &&
-    event.content_block.type === "thinking"
-  );
-}
-
-function visibleContentStart(event: AnthropicStreamEvent): boolean {
-  return (
-    event.type === "content_block_start" &&
-    event.content_block.type !== "thinking"
-  );
-}
-
 export function createAnthropicTranslationStream(
   callbacks: AnthropicTranslationStreamCallbacks = {},
 ): AnthropicTranslationStream {
   const emitter = createAnthropicSseEmitter();
+  const inspector = createProxyStreamInspector({
+    codec: openAiResumableCodec,
+    observer: callbacks,
+  });
   const encoder = new TextEncoder();
   const frames = createSseFrameBuffer();
-  let promptTokens: number | null = null;
-  let cacheReadTokens: number | null = null;
-  let completionTokens = 0;
-  let genMs: number | null = null;
-  let firstTokenSeen = false;
-  let reasoningSeen = false;
   let done = false;
-
-  const observe = ({ events, extensions }: AnthropicSsePushResult) => {
-    if (extensions.promptProgress) {
-      callbacks.onPrefillProgress?.(extensions.promptProgress);
-    }
-    if (extensions.timings) {
-      const predicted = numberOrNull(extensions.timings.predicted_ms);
-      if (predicted !== null) {
-        genMs = predicted;
-      }
-    }
-    if (extensions.usage) {
-      const completion = numberOrNull(extensions.usage.completion_tokens);
-      if (completion !== null) {
-        completionTokens += completion;
-      }
-      if (promptTokens === null) {
-        promptTokens = numberOrNull(extensions.usage.prompt_tokens);
-      }
-      if (cacheReadTokens === null) {
-        cacheReadTokens = openaiCachedTokens(extensions.usage);
-      }
-    }
-    for (const event of events) {
-      if (event.type !== "content_block_delta") {
-        continue;
-      }
-      if (event.delta.type === "thinking_delta") {
-        callbacks.onReasoningDelta?.(event.delta.thinking);
-      } else if (event.delta.type === "text_delta") {
-        callbacks.onAnswerDelta?.(event.delta.text);
-      }
-    }
-    if (!reasoningSeen && events.some(thinkingStart)) {
-      reasoningSeen = true;
-      callbacks.onReasoning?.();
-    }
-    if (!firstTokenSeen && events.some(visibleContentStart)) {
-      firstTokenSeen = true;
-      callbacks.onFirstToken?.(promptTokens);
-    }
-    callbacks.onProgress?.(completionTokens);
-  };
+  let finalHealth: ProxyStreamHealth | null = null;
 
   const handleFrame = (
     frame: string,
     controller: TransformStreamDefaultController<Uint8Array>,
   ) => {
     for (const data of sseDataPayloads(frame)) {
+      inspector.observeData(data);
       const result = emitter.push(data);
-      observe(result);
       if (result.events.length > 0) {
         controller.enqueue(
           encoder.encode(serializeAnthropicSseEvents(result.events)),
@@ -278,12 +220,15 @@ export function createAnthropicTranslationStream(
       return;
     }
     done = true;
+    const snapshot = inspector.finish();
+    finalHealth = snapshot.health;
+    callbacks.onStreamEnd?.(snapshot.health);
     callbacks.onComplete?.({
-      promptTokens,
-      cacheReadTokens,
-      cacheCreationTokens: null,
-      completionTokens,
-      genMs: genMs !== null ? Math.round(genMs) : 0,
+      promptTokens: snapshot.promptTokens,
+      cacheReadTokens: snapshot.cacheReadTokens,
+      cacheCreationTokens: snapshot.cacheCreationTokens,
+      completionTokens: snapshot.completionTokens,
+      genMs: snapshot.genMs,
       prefillMs: null,
       promptPerSecond: null,
     });
@@ -300,11 +245,11 @@ export function createAnthropicTranslationStream(
       if (tail) {
         handleFrame(tail, controller);
       }
-      const events = emitter.finish();
+      finalize();
+      const events = finalHealth?.terminal === "eof" ? [] : emitter.finish();
       if (events.length > 0) {
         controller.enqueue(encoder.encode(serializeAnthropicSseEvents(events)));
       }
-      finalize();
     },
   });
 

@@ -68,6 +68,7 @@ export type EngineProxyCapabilities = {
   slotSave: boolean;
   streamResume: boolean;
   sseTimings: boolean;
+  reasoningControl: boolean;
   translationDialect: EngineTranslationDialectId;
 };
 
@@ -125,6 +126,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: true,
       streamResume: true,
       sseTimings: true,
+      reasoningControl: true,
       translationDialect: "llama-server",
     },
     probe: { id: "llama-http", httpHealth: true },
@@ -167,6 +169,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      reasoningControl: false,
       translationDialect: "llama-server",
     },
     probe: { id: "tcp-accept", httpHealth: false },
@@ -205,6 +208,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      reasoningControl: false,
       translationDialect: "openai-compatible",
     },
     probe: { id: "openai-http", httpHealth: true },
@@ -247,6 +251,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      reasoningControl: false,
       translationDialect: "openai-compatible",
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
@@ -290,6 +295,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      reasoningControl: false,
       translationDialect: "openai-compatible",
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },

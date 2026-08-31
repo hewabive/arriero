@@ -33,10 +33,13 @@ export type AnthropicSseEmitter = {
   finish: () => AnthropicStreamEvent[];
 };
 
-type OpenBlock =
-  | { kind: "thinking" }
-  | { kind: "text" }
-  | { kind: "tool"; toolIndex: number };
+type OpenBlock = { kind: "thinking" } | { kind: "text" };
+
+type BufferedTool = {
+  id: string;
+  name: string;
+  arguments: string;
+};
 
 export function createAnthropicSseEmitter(
   options: AnthropicSseEmitterOptions = {},
@@ -45,6 +48,7 @@ export function createAnthropicSseEmitter(
   let finished = false;
   let nextIndex = 0;
   let block: OpenBlock | null = null;
+  const bufferedTools = new Map<number, BufferedTool>();
   let sawToolBlock = false;
   let finishReason: string | null = null;
   let promptTokens: number | null = null;
@@ -86,6 +90,27 @@ export function createAnthropicSseEmitter(
     delta: AnthropicContentBlockDelta,
   ) => {
     events.push({ type: "content_block_delta", index: nextIndex - 1, delta });
+  };
+
+  const flushTools = (events: AnthropicStreamEvent[]) => {
+    for (const [toolIndex, tool] of [...bufferedTools].sort(
+      ([left], [right]) => left - right,
+    )) {
+      openBlock(events, {
+        type: "tool_use",
+        id: tool.id || `toolu_${toolIndex}`,
+        name: tool.name,
+        input: {},
+      });
+      if (tool.arguments) {
+        pushDelta(events, {
+          type: "input_json_delta",
+          partial_json: tool.arguments,
+        });
+      }
+      events.push({ type: "content_block_stop", index: nextIndex - 1 });
+    }
+    bufferedTools.clear();
   };
 
   const ensureStarted = (
@@ -130,6 +155,7 @@ export function createAnthropicSseEmitter(
     finished = true;
     const events: AnthropicStreamEvent[] = [];
     closeBlock(events);
+    flushTools(events);
     const inputTokens =
       promptTokens !== null
         ? Math.max(0, promptTokens - (cachedTokens ?? 0))
@@ -239,25 +265,23 @@ export function createAnthropicSseEmitter(
       }
       const toolIndex = numberOrNull(call.index) ?? 0;
       const fn = asObject(call.function);
-      if (block?.kind !== "tool" || block.toolIndex !== toolIndex) {
-        closeBlock(events);
-        openBlock(events, {
-          type: "tool_use",
-          id: asString(call.id) ?? `toolu_${toolIndex}`,
-          name: asString(fn?.name) ?? "",
-          input: {},
-        });
-        block = { kind: "tool", toolIndex };
-        sawToolBlock = true;
-      }
-      const args = asString(fn?.arguments);
-      if (args) {
-        pushDelta(events, { type: "input_json_delta", partial_json: args });
-      }
+      closeBlock(events);
+      const existing = bufferedTools.get(toolIndex) ?? {
+        id: "",
+        name: "",
+        arguments: "",
+      };
+      bufferedTools.set(toolIndex, {
+        id: asString(call.id) ?? existing.id,
+        name: asString(fn?.name) ?? existing.name,
+        arguments: existing.arguments + (asString(fn?.arguments) ?? ""),
+      });
+      sawToolBlock = true;
     }
 
     const text = asString(delta?.content);
     if (text) {
+      flushTools(events);
       if (block?.kind !== "text") {
         closeBlock(events);
         openBlock(events, { type: "text", text: "" });

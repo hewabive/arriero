@@ -24,8 +24,8 @@ import type {
   ApiProxySourceRecord,
   ApiProxySourceUpdate,
   ApiProxyInflightDetail,
-  ApiProxyInflightInterruptResult,
-  ApiProxyInflightStopResult,
+  ApiProxyInflightControlAction,
+  ApiProxyInflightControlResult,
   ApiProxyRuntimeSnapshot,
   ApiProxyStatsSnapshot,
   ApiProxyTraceFacets,
@@ -123,23 +123,12 @@ export async function getApiProxyInflightDetail(id: string) {
   );
 }
 
-export async function interruptApiProxyInflight(id: string) {
-  return request<{ data: ApiProxyInflightInterruptResult }>(
-    `/api/proxy/inflight/${encodeURIComponent(id)}/interrupt`,
-    { method: "POST" },
-  );
-}
-
-export async function finishApiProxyInflight(id: string) {
-  return request<{ data: ApiProxyInflightStopResult }>(
-    `/api/proxy/inflight/${encodeURIComponent(id)}/finish`,
-    { method: "POST" },
-  );
-}
-
-export async function cancelApiProxyInflight(id: string) {
-  return request<{ data: ApiProxyInflightStopResult }>(
-    `/api/proxy/inflight/${encodeURIComponent(id)}/cancel`,
+export async function controlApiProxyInflight(
+  id: string,
+  action: ApiProxyInflightControlAction,
+) {
+  return request<{ data: ApiProxyInflightControlResult }>(
+    `/api/proxy/inflight/${encodeURIComponent(id)}/control/${action}`,
     { method: "POST" },
   );
 }

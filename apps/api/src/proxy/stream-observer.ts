@@ -10,6 +10,9 @@ export type ProxyPrefillProgress = NonNullable<
 
 export type ProxyStreamObserver = {
   onFirstToken?: ((promptTokens: number | null) => void) | undefined;
+  onResponseMetadata?:
+    | ((metadata: { id: string | null; model: string | null }) => void)
+    | undefined;
   onReasoning?: (() => void) | undefined;
   onReasoningDelta?: ((text: string) => void) | undefined;
   onAnswerDelta?: ((text: string) => void) | undefined;
@@ -82,6 +85,9 @@ export function createProxyChunkObserver(
   let firstTokenSeen = false;
   let reasoningSeen = false;
   return (chunk) => {
+    if (chunk.id !== null || chunk.model !== null) {
+      observer.onResponseMetadata?.({ id: chunk.id, model: chunk.model });
+    }
     if (chunk.promptProgress) {
       observer.onPrefillProgress?.(chunk.promptProgress);
     }
@@ -98,13 +104,16 @@ export function createProxyChunkObserver(
     if (chunk.text !== "") {
       observer.onAnswerDelta?.(chunk.text);
     }
-    if (!firstTokenSeen && (chunk.text !== "" || chunk.toolCall)) {
+    if (
+      !firstTokenSeen &&
+      (chunk.text !== "" || (chunk.toolCalls?.length ?? 0) > 0)
+    ) {
       firstTokenSeen = true;
       observer.onFirstToken?.(usage.promptTokens);
     }
     observer.onProgress?.(usage.completionTokens);
-    if (chunk.toolCall) {
-      observer.onToolCall?.(chunk.toolCall);
+    for (const toolCall of chunk.toolCalls ?? []) {
+      observer.onToolCall?.(toolCall);
     }
   };
 }

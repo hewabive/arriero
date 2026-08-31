@@ -32,6 +32,7 @@ test("llama-server instance enables every proxy engine gate", () => {
   assert.equal(gates.slotSave, true);
   assert.equal(gates.streamResume, true);
   assert.equal(gates.sseTimings, true);
+  assert.equal(gates.reasoningControl, true);
 });
 
 test("rpc-worker instance disables every proxy engine gate", () => {
@@ -41,6 +42,7 @@ test("rpc-worker instance disables every proxy engine gate", () => {
   assert.equal(gates.slotSave, false);
   assert.equal(gates.streamResume, false);
   assert.equal(gates.sseTimings, false);
+  assert.equal(gates.reasoningControl, false);
 });
 
 test("no instance (external endpoint) disables every proxy engine gate", () => {
@@ -50,6 +52,7 @@ test("no instance (external endpoint) disables every proxy engine gate", () => {
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    reasoningControl: false,
   });
 });
 
@@ -60,6 +63,7 @@ test("vllm requests leases but opts out of llama lifecycle verbs", () => {
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    reasoningControl: false,
   });
 });
 
@@ -70,6 +74,7 @@ test("KTransformers requests leases without llama lifecycle or stream extensions
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    reasoningControl: false,
   });
 });
 

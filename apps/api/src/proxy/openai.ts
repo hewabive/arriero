@@ -129,19 +129,26 @@ export const openAiResumableCodec: ApiProxyResumableCodec = {
       typeof delta?.reasoning_content === "string"
         ? delta.reasoning_content
         : "";
-    let toolCall: ApiProxyResumableToolCallDelta | undefined;
+    let toolCalls: ApiProxyResumableToolCallDelta[] | undefined;
     let phase: ApiProxyResumablePhase | undefined;
     if (deltaToolCalls && deltaToolCalls.length > 0) {
-      const entry = asObject(deltaToolCalls[0]);
-      const fn = asObject(entry?.function);
-      toolCall = {
-        index: typeof entry?.index === "number" ? entry.index : 0,
-        ...(typeof entry?.id === "string" ? { id: entry.id } : {}),
-        ...(typeof fn?.name === "string" ? { name: fn.name } : {}),
-        ...(typeof fn?.arguments === "string"
-          ? { arguments: fn.arguments }
-          : {}),
-      };
+      toolCalls = deltaToolCalls.flatMap((value, position) => {
+        const entry = asObject(value);
+        if (!entry) {
+          return [];
+        }
+        const fn = asObject(entry.function);
+        return [
+          {
+            index: typeof entry.index === "number" ? entry.index : position,
+            ...(typeof entry.id === "string" ? { id: entry.id } : {}),
+            ...(typeof fn?.name === "string" ? { name: fn.name } : {}),
+            ...(typeof fn?.arguments === "string"
+              ? { arguments: fn.arguments }
+              : {}),
+          },
+        ];
+      });
       phase = "tool";
     } else if (reasoning) {
       phase = "thinking";
@@ -157,7 +164,7 @@ export const openAiResumableCodec: ApiProxyResumableCodec = {
       model: typeof event.model === "string" ? event.model : null,
       ...(reasoning ? { reasoning } : {}),
       ...(phase ? { phase } : {}),
-      ...(toolCall ? { toolCall } : {}),
+      ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
       ...(predictedMs !== null ? { genMs: Math.round(predictedMs) } : {}),
       ...(promptProgress &&
       typeof promptProgress.total === "number" &&

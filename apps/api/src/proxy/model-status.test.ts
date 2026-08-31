@@ -81,7 +81,11 @@ function inflight(
     reasoningChars: 0,
     answerChars: 0,
     toolCalls: 0,
-    interruptible: false,
+    controls: {
+      forceAnswer: { available: false, reason: "not-supported" },
+      finish: { available: false, reason: "not-supported" },
+      cancel: { available: false, reason: "not-supported" },
+    },
   };
 }
 

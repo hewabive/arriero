@@ -1,9 +1,12 @@
 import type {
+  ApiProxyInflightControlAction,
+  ApiProxyInflightControlAvailability,
+  ApiProxyInflightControlResult,
+  ApiProxyInflightControls,
+  ApiProxyInflightControlUnavailableReason,
   ApiProxyInflightDetail,
-  ApiProxyInflightInterruptResult,
   ApiProxyInflightPhase,
   ApiProxyInflightRequest,
-  ApiProxyInflightStopResult,
 } from "@arriero/core";
 
 import { newId } from "../utils/id.js";
@@ -33,10 +36,12 @@ type InflightEntry = {
   answerText: string;
   answerCharsTotal: number;
   toolCalls: { id: string | null; name: string | null; arguments: string }[];
-  interruptible: boolean;
-  interruptController: AbortController | null;
-  finishController: AbortController | null;
-  cancelController: AbortController | null;
+  controlHandlers: Partial<
+    Record<ApiProxyInflightControlAction, ApiProxyInflightControlHandler>
+  >;
+  controlControllers: Partial<
+    Record<ApiProxyInflightControlAction, AbortController>
+  >;
   endedAt: number | null;
 };
 
@@ -54,8 +59,52 @@ function appendCapped(buffer: string, addition: string, cap: number): string {
   return next.length > cap ? next.slice(next.length - cap) : next;
 }
 
-function entryInterruptible(entry: InflightEntry): boolean {
-  return entry.interruptible && entry.phase === "thinking";
+type ApiProxyInflightControlHandler = {
+  unavailableReason?: () => ApiProxyInflightControlUnavailableReason | null;
+  execute: () =>
+    | void
+    | ApiProxyInflightControlResult
+    | Promise<void | ApiProxyInflightControlResult>;
+};
+
+function controlKey(
+  action: ApiProxyInflightControlAction,
+): keyof ApiProxyInflightControls {
+  if (action === "force-answer") {
+    return "forceAnswer";
+  }
+  return action;
+}
+
+function controlAvailability(
+  entry: InflightEntry,
+  action: ApiProxyInflightControlAction,
+): ApiProxyInflightControlAvailability {
+  if (entry.endedAt !== null) {
+    return { available: false, reason: "request-finished" };
+  }
+  const handler = entry.controlHandlers[action];
+  if (!handler) {
+    return { available: false, reason: "not-supported" };
+  }
+  if (action === "force-answer") {
+    if (entry.phase === "queued" || entry.phase === "prefilling") {
+      return { available: false, reason: "not-ready" };
+    }
+    if (entry.phase !== "thinking") {
+      return { available: false, reason: "too-late" };
+    }
+  }
+  const reason = handler.unavailableReason?.() ?? null;
+  return { available: reason === null, reason };
+}
+
+function entryControls(entry: InflightEntry): ApiProxyInflightControls {
+  const controls = {} as ApiProxyInflightControls;
+  for (const action of ["force-answer", "finish", "cancel"] as const) {
+    controls[controlKey(action)] = controlAvailability(entry, action);
+  }
+  return controls;
 }
 
 type ApiProxyInflightRegistryOptions = {
@@ -89,10 +138,11 @@ export type ApiProxyInflightHandle = {
     name?: string | undefined;
     arguments?: string | undefined;
   }): void;
-  setInterruptible(value: boolean): void;
-  interruptSignal(): AbortSignal;
-  finishSignal(): AbortSignal;
-  cancelSignal(): AbortSignal;
+  setControl(
+    action: ApiProxyInflightControlAction,
+    handler: ApiProxyInflightControlHandler | null,
+  ): void;
+  controlSignal(action: ApiProxyInflightControlAction): AbortSignal;
   end(ok?: boolean): void;
 };
 
@@ -139,7 +189,7 @@ function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
     reasoningChars: entry.reasoningCharsTotal,
     answerChars: entry.answerCharsTotal,
     toolCalls: entry.toolCalls.filter(Boolean).length,
-    interruptible: entryInterruptible(entry),
+    controls: entryControls(entry),
   };
 }
 
@@ -188,10 +238,8 @@ export class ApiProxyInflightRegistry {
       answerText: "",
       answerCharsTotal: 0,
       toolCalls: [],
-      interruptible: false,
-      interruptController: null,
-      finishController: null,
-      cancelController: null,
+      controlHandlers: {},
+      controlControllers: {},
       endedAt: null,
     };
     this.entries.set(entry.id, entry);
@@ -312,29 +360,25 @@ export class ApiProxyInflightRegistry {
         }
         touch();
       },
-      setInterruptible: (value) => {
-        entry.interruptible = value;
-      },
-      interruptSignal: () => {
-        if (
-          entry.interruptController === null ||
-          entry.interruptController.signal.aborted
-        ) {
-          entry.interruptController = new AbortController();
+      setControl: (action, handler) => {
+        if (handler) {
+          entry.controlHandlers[action] = handler;
+        } else {
+          delete entry.controlHandlers[action];
         }
-        return entry.interruptController.signal;
       },
-      finishSignal: () => {
-        if (entry.finishController === null) {
-          entry.finishController = new AbortController();
+      controlSignal: (action) => {
+        let controller = entry.controlControllers[action];
+        if (!controller || controller.signal.aborted) {
+          controller = new AbortController();
+          entry.controlControllers[action] = controller;
         }
-        return entry.finishController.signal;
-      },
-      cancelSignal: () => {
-        if (entry.cancelController === null) {
-          entry.cancelController = new AbortController();
-        }
-        return entry.cancelController.signal;
+        entry.controlHandlers[action] = {
+          execute: () => {
+            controller.abort();
+          },
+        };
+        return controller.signal;
       },
       end: (ok = true) => {
         if (entry.endedAt !== null) {
@@ -443,50 +487,41 @@ export class ApiProxyInflightRegistry {
         .filter(Boolean)
         .map((call) => ({ name: call.name, arguments: call.arguments })),
       completionTokens: entry.completionTokens,
-      interruptible: entryInterruptible(entry),
+      controls: entryControls(entry),
     };
   }
 
-  requestForceAnswer(id: string): ApiProxyInflightInterruptResult["status"] {
+  async requestControl(
+    id: string,
+    action: ApiProxyInflightControlAction,
+  ): Promise<ApiProxyInflightControlResult> {
     const entry = this.entries.get(id);
     if (!entry || entry.endedAt !== null) {
-      return "not-found";
+      return { status: "not-found", message: null };
     }
-    if (!entry.interruptible) {
-      return "not-supported";
+    const availability = controlAvailability(entry, action);
+    if (!availability.available) {
+      return {
+        status:
+          availability.reason === "request-finished"
+            ? "not-found"
+            : (availability.reason ?? "not-supported"),
+        message: null,
+      };
     }
-    if (entry.phase !== "thinking") {
-      return entry.phase === "generating" ? "too-late" : "not-ready";
+    const handler = entry.controlHandlers[action];
+    if (!handler) {
+      return { status: "not-supported", message: null };
     }
-    if (entry.interruptController === null) {
-      entry.interruptController = new AbortController();
+    try {
+      const result = await handler.execute();
+      return result ?? { status: "ok", message: null };
+    } catch (error) {
+      return {
+        status: "failed",
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
-    entry.interruptController.abort();
-    return "ok";
-  }
-
-  requestFinish(id: string): ApiProxyInflightStopResult["status"] {
-    const entry = this.entries.get(id);
-    if (!entry || entry.endedAt !== null) {
-      return "not-found";
-    }
-    if (entry.finishController === null) {
-      entry.finishController = new AbortController();
-    }
-    entry.finishController.abort();
-    return "ok";
-  }
-
-  requestCancel(id: string): ApiProxyInflightStopResult["status"] {
-    const entry = this.entries.get(id);
-    if (!entry || entry.endedAt !== null) {
-      return "not-found";
-    }
-    if (entry.cancelController === null) {
-      entry.cancelController = new AbortController();
-    }
-    entry.cancelController.abort();
-    return "ok";
   }
 
   reset(): void {

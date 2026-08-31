@@ -70,7 +70,7 @@ the response text as transformed at its pipeline position. `action`:
   terminates the downstream stream, excludes the response from response-cache
   storage and coalesced fan-out (`settleAbandonedApiProxyCacheEffects` at
   trigger time plus a cacheable veto at flush), and stops the upstream request
-  via `apiProxyInflight.requestFinish` — the llama-server slot frees, external
+  via the registered in-flight `finish` control — the llama-server slot frees, external
   billing stops. There is no retry by design: the partial stream has already
   reached the consumer.
 
@@ -83,7 +83,7 @@ Coverage boundaries:
   is post-hoc there too. An incremental hook in
   `resumable-forward.ts:applyFrame` is the known extension point.
 - Force-answer instead of finish for reasoning-channel loops on managed
-  targets (the existing `reasoning_control` interrupt) is a candidate next
+  targets (the native `reasoning_end` control) is a candidate next
   step once artifact statistics show how often loops live in reasoning.
 
 ## Artifacts and calibration

@@ -374,6 +374,70 @@ test("translation stream fires onReasoning before onFirstToken", async () => {
   assert.deepEqual(order, ["reasoning", "token"]);
 });
 
+test("translation stream observes every parallel tool delta", async () => {
+  const tools: Array<{
+    index: number;
+    id?: string | undefined;
+    name?: string | undefined;
+    arguments?: string | undefined;
+  }> = [];
+  const metadata: Array<{ id: string | null; model: string | null }> = [];
+  const output = await runTransform(
+    [
+      `data: ${JSON.stringify({
+        id: "chatcmpl-tools",
+        model: "m",
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_a",
+                  function: { name: "a", arguments: '{"x":' },
+                },
+                {
+                  index: 1,
+                  id: "call_b",
+                  function: { name: "b", arguments: '{"y":' },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      })}\n\n`,
+      `data: ${JSON.stringify({
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                { index: 1, function: { arguments: "2}" } },
+                { index: 0, function: { arguments: "1}" } },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+      })}\n\ndata: [DONE]\n\n`,
+    ],
+    {
+      onResponseMetadata: (value) => metadata.push(value),
+      onToolCall: (tool) => tools.push(tool),
+    },
+  );
+  assert.deepEqual(metadata, [{ id: "chatcmpl-tools", model: "m" }]);
+  assert.deepEqual(tools, [
+    { index: 0, id: "call_a", name: "a", arguments: '{"x":' },
+    { index: 1, id: "call_b", name: "b", arguments: '{"y":' },
+    { index: 1, arguments: "2}" },
+    { index: 0, arguments: "1}" },
+  ]);
+  assert.equal([...output.matchAll(/"type":"tool_use"/g)].length, 2);
+});
+
 function openAiFrame(input: { content?: string; finish?: string }) {
   return `data: ${JSON.stringify({
     id: "cmpl",
@@ -564,16 +628,20 @@ test("translated resumable codec survives preemption and resumes openai frames",
   assert.match(final.body, /event: message_stop/);
 });
 
-test("translation transform finalizes aborted streams on flush", async () => {
-  const output = await runTransform([
-    `data: ${JSON.stringify({
-      id: "chatcmpl-1",
-      model: "m",
-      choices: [
-        { index: 0, delta: { content: "partial" }, finish_reason: null },
-      ],
-    })}\n\n`,
-  ]);
+test("translation transform reports unexpected EOF without faking a terminal", async () => {
+  const terminals: Array<string | null> = [];
+  const output = await runTransform(
+    [
+      `data: ${JSON.stringify({
+        id: "chatcmpl-1",
+        model: "m",
+        choices: [
+          { index: 0, delta: { content: "partial" }, finish_reason: null },
+        ],
+      })}\n\n`,
+    ],
+    { onStreamEnd: (health) => terminals.push(health.terminal) },
+  );
   const eventNames = [...output.matchAll(/^event: (.+)$/gm)].map(
     (match) => match[1],
   );
@@ -581,8 +649,6 @@ test("translation transform finalizes aborted streams on flush", async () => {
     "message_start",
     "content_block_start",
     "content_block_delta",
-    "content_block_stop",
-    "message_delta",
-    "message_stop",
   ]);
+  assert.deepEqual(terminals, ["eof"]);
 });

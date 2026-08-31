@@ -43,7 +43,10 @@ test("tracks phase transitions, prompt and completion tokens", () => {
   handle.end();
   view = only("t1");
   assert.equal(view.phase, "done");
-  assert.equal(view.interruptible, false);
+  assert.deepEqual(view.controls.forceAnswer, {
+    available: false,
+    reason: "request-finished",
+  });
 });
 
 test("exposes the delegating origin id in views and the flat snapshot", () => {
@@ -227,9 +230,12 @@ test("caps the reasoning buffer and flags truncation", () => {
   handle.end();
 });
 
-test("force-answer interrupt is gated by support and the thinking phase", () => {
+test("force-answer control is gated by support and the thinking phase", async () => {
   apiProxyInflight.reset();
-  assert.equal(apiProxyInflight.requestForceAnswer("nope"), "not-found");
+  assert.equal(
+    (await apiProxyInflight.requestControl("nope", "force-answer")).status,
+    "not-found",
+  );
 
   const handle = apiProxyInflight.begin({
     modelId: "m",
@@ -238,27 +244,63 @@ test("force-answer interrupt is gated by support and the thinking phase", () => 
     stream: true,
   });
   handle.dispatched();
-  assert.equal(apiProxyInflight.requestForceAnswer(handle.id), "not-supported");
+  assert.equal(only("ti").controls.forceAnswer.reason, "not-supported");
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "force-answer")).status,
+    "not-supported",
+  );
 
-  handle.setInterruptible(true);
-  assert.equal(apiProxyInflight.requestForceAnswer(handle.id), "not-ready");
-  assert.equal(only("ti").interruptible, false);
+  const signal = handle.controlSignal("force-answer");
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "force-answer")).status,
+    "not-ready",
+  );
+  assert.equal(only("ti").controls.forceAnswer.available, false);
 
   handle.firstReasoning();
   handle.appendReasoning("R");
-  assert.equal(only("ti").interruptible, true);
+  assert.equal(only("ti").controls.forceAnswer.available, true);
 
-  const signal = handle.interruptSignal();
   assert.equal(signal.aborted, false);
-  assert.equal(apiProxyInflight.requestForceAnswer(handle.id), "ok");
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "force-answer")).status,
+    "ok",
+  );
   assert.equal(signal.aborted, true);
 
-  const rearmed = handle.interruptSignal();
+  const rearmed = handle.controlSignal("force-answer");
   assert.equal(rearmed.aborted, false);
 
   handle.firstToken(5);
-  assert.equal(only("ti").interruptible, false);
-  assert.equal(apiProxyInflight.requestForceAnswer(handle.id), "too-late");
+  assert.equal(only("ti").controls.forceAnswer.available, false);
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "force-answer")).status,
+    "too-late",
+  );
+  handle.end();
+});
+
+test("control handlers expose dynamic readiness and failures", async () => {
+  apiProxyInflight.reset();
+  const handle = apiProxyInflight.begin({
+    modelId: "m",
+    protocol: "openai",
+    targetId: "th",
+    stream: true,
+  });
+  let ready = false;
+  handle.setControl("force-answer", {
+    unavailableReason: () => (ready ? null : "not-ready"),
+    execute: () => ({ status: "failed", message: "upstream rejected" }),
+  });
+  handle.firstReasoning();
+  assert.equal(only("th").controls.forceAnswer.reason, "not-ready");
+  ready = true;
+  assert.equal(only("th").controls.forceAnswer.available, true);
+  assert.deepEqual(
+    await apiProxyInflight.requestControl(handle.id, "force-answer"),
+    { status: "failed", message: "upstream rejected" },
+  );
   handle.end();
 });
 
@@ -292,10 +334,16 @@ test("tracks tool calls and switches to the tool phase", () => {
   handle.end();
 });
 
-test("finish and cancel abort their signals in any phase", () => {
+test("finish and cancel abort their signals in any phase", async () => {
   apiProxyInflight.reset();
-  assert.equal(apiProxyInflight.requestFinish("nope"), "not-found");
-  assert.equal(apiProxyInflight.requestCancel("nope"), "not-found");
+  assert.equal(
+    (await apiProxyInflight.requestControl("nope", "finish")).status,
+    "not-found",
+  );
+  assert.equal(
+    (await apiProxyInflight.requestControl("nope", "cancel")).status,
+    "not-found",
+  );
 
   const handle = apiProxyInflight.begin({
     modelId: "m",
@@ -303,24 +351,36 @@ test("finish and cancel abort their signals in any phase", () => {
     targetId: "ti",
     stream: true,
   });
-  const finishSignal = handle.finishSignal();
-  const cancelSignal = handle.cancelSignal();
+  const finishSignal = handle.controlSignal("finish");
+  const cancelSignal = handle.controlSignal("cancel");
   assert.equal(finishSignal.aborted, false);
   assert.equal(cancelSignal.aborted, false);
 
-  assert.equal(apiProxyInflight.requestFinish(handle.id), "ok");
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "finish")).status,
+    "ok",
+  );
   assert.equal(finishSignal.aborted, true);
   assert.equal(cancelSignal.aborted, false);
 
-  assert.equal(apiProxyInflight.requestCancel(handle.id), "ok");
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "cancel")).status,
+    "ok",
+  );
   assert.equal(cancelSignal.aborted, true);
 
   handle.end();
-  assert.equal(apiProxyInflight.requestFinish(handle.id), "not-found");
-  assert.equal(apiProxyInflight.requestCancel(handle.id), "not-found");
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "finish")).status,
+    "not-found",
+  );
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "cancel")).status,
+    "not-found",
+  );
 });
 
-test("retains ended requests with frozen timings, then sweeps them", () => {
+test("retains ended requests with frozen timings, then sweeps them", async () => {
   let clock = 0;
   const registry = new ApiProxyInflightRegistry({
     now: () => clock,
@@ -348,16 +408,25 @@ test("retains ended requests with frozen timings, then sweeps them", () => {
   const detail = registry.getDetail(handle.id);
   assert.ok(detail);
   assert.equal(detail.answerText, "Hi");
-  assert.equal(registry.requestFinish(handle.id), "not-found");
-  assert.equal(registry.requestCancel(handle.id), "not-found");
-  assert.equal(registry.requestForceAnswer(handle.id), "not-found");
+  assert.equal(
+    (await registry.requestControl(handle.id, "finish")).status,
+    "not-found",
+  );
+  assert.equal(
+    (await registry.requestControl(handle.id, "cancel")).status,
+    "not-found",
+  );
+  assert.equal(
+    (await registry.requestControl(handle.id, "force-answer")).status,
+    "not-found",
+  );
 
   clock = 1700;
   assert.equal(registry.snapshotByTarget().get("te"), undefined);
   assert.equal(registry.getDetail(handle.id), null);
 });
 
-test("end(false) marks the entry failed and blocks further actions", () => {
+test("end(false) marks the entry failed and blocks further actions", async () => {
   apiProxyInflight.reset();
   const handle = apiProxyInflight.begin({
     modelId: "m",
@@ -369,8 +438,14 @@ test("end(false) marks the entry failed and blocks further actions", () => {
   handle.end(false);
   const view = only("tf");
   assert.equal(view.phase, "failed");
-  assert.equal(apiProxyInflight.requestFinish(handle.id), "not-found");
-  assert.equal(apiProxyInflight.requestCancel(handle.id), "not-found");
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "finish")).status,
+    "not-found",
+  );
+  assert.equal(
+    (await apiProxyInflight.requestControl(handle.id, "cancel")).status,
+    "not-found",
+  );
 
   handle.end();
   assert.equal(only("tf").phase, "failed");

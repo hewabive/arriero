@@ -1,7 +1,7 @@
 import {
   apiProxyInflightPhaseEnded,
-  type ApiProxyInflightInterruptResult,
-  type ApiProxyInflightStopResult,
+  type ApiProxyInflightControlAvailability,
+  type ApiProxyInflightControlResult,
   type ApiProxyTargetRuntime,
 } from "@arriero/core";
 import {
@@ -24,10 +24,8 @@ import { Ban, Eye, FastForward, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
-  cancelApiProxyInflight,
-  finishApiProxyInflight,
+  controlApiProxyInflight,
   getApiProxyInflightDetail,
-  interruptApiProxyInflight,
 } from "../../../api/client";
 import {
   inflightLabel,
@@ -94,10 +92,8 @@ function InflightAction(props: {
   );
 }
 
-function interruptStatusMessage(
-  status: ApiProxyInflightInterruptResult["status"],
-): string {
-  switch (status) {
+function interruptStatusMessage(result: ApiProxyInflightControlResult): string {
+  switch (result.status) {
     case "too-late":
       return "Already answering — nothing left to interrupt.";
     case "not-ready":
@@ -106,6 +102,8 @@ function interruptStatusMessage(
       return "This target does not support forced answers.";
     case "not-found":
       return "Request already finished.";
+    case "failed":
+      return result.message ?? "The target rejected the control request.";
     default:
       return "Forcing the model to write its answer…";
   }
@@ -113,23 +111,23 @@ function interruptStatusMessage(
 
 function InflightInterruptButton({
   id,
-  interruptible,
+  control,
   finished,
   full,
 }: {
   id: string;
-  interruptible: boolean;
+  control: ApiProxyInflightControlAvailability;
   finished?: boolean | undefined;
   full?: boolean | undefined;
 }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => interruptApiProxyInflight(id),
+    mutationFn: () => controlApiProxyInflight(id, "force-answer"),
     onSuccess: async (result) => {
       const status = result.data.status;
       notifications.show({
         color: status === "ok" ? "violet" : "yellow",
-        message: interruptStatusMessage(status),
+        message: interruptStatusMessage(result.data),
       });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["api-proxy-runtime"] }),
@@ -143,16 +141,20 @@ function InflightInterruptButton({
       tooltip={
         finished
           ? "Request already finished"
-          : interruptible
+          : control.available
             ? "Interrupt thinking → force answer"
-            : "Force answer — available while the model is thinking"
+            : control.reason === "not-ready"
+              ? "Force answer — waiting for model reasoning"
+              : control.reason === "too-late"
+                ? "Force answer — the model is already answering"
+                : "This target does not support forced answers"
       }
       ariaLabel="Interrupt thinking, force answer"
       color="orange"
       Icon={FastForward}
       fullLabel="Force answer"
       full={full}
-      disabled={!interruptible || finished}
+      disabled={!control.available || finished}
       loading={mutation.isPending}
       onClick={() => mutation.mutate()}
     />
@@ -189,10 +191,13 @@ const STOP_ACTION_META: Record<
 
 function stopStatusMessage(
   action: StopAction,
-  status: ApiProxyInflightStopResult["status"],
+  result: ApiProxyInflightControlResult,
 ): string {
-  if (status === "not-found") {
+  if (result.status === "not-found") {
     return "Request already finished.";
+  }
+  if (result.status !== "ok") {
+    return result.message ?? `The ${action} action is not available.`;
   }
   return STOP_ACTION_META[action].pending;
 }
@@ -200,11 +205,13 @@ function stopStatusMessage(
 function InflightStopButton({
   id,
   action,
+  control,
   finished,
   full,
 }: {
   id: string;
   action: StopAction;
+  control: ApiProxyInflightControlAvailability;
   finished?: boolean | undefined;
   full?: boolean | undefined;
 }) {
@@ -219,15 +226,12 @@ function InflightStopButton({
     return () => window.clearTimeout(timer);
   }, [armed]);
   const mutation = useMutation({
-    mutationFn: () =>
-      action === "finish"
-        ? finishApiProxyInflight(id)
-        : cancelApiProxyInflight(id),
+    mutationFn: () => controlApiProxyInflight(id, action),
     onSuccess: async (result) => {
       const status = result.data.status;
       notifications.show({
         color: status === "ok" ? meta.color : "yellow",
-        message: stopStatusMessage(action, status),
+        message: stopStatusMessage(action, result.data),
       });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["api-proxy-runtime"] }),
@@ -241,16 +245,18 @@ function InflightStopButton({
       tooltip={
         finished
           ? "Request already finished"
-          : armed
-            ? "Click again to confirm"
-            : meta.tooltip
+          : !control.available
+            ? `Action unavailable: ${control.reason ?? "unknown reason"}`
+            : armed
+              ? "Click again to confirm"
+              : meta.tooltip
       }
       ariaLabel={meta.tooltip}
       color={meta.color}
       Icon={meta.Icon}
       fullLabel={armed ? "Confirm cancel" : meta.label}
       full={full}
-      disabled={finished}
+      disabled={finished || !control.available}
       loading={mutation.isPending}
       armed={armed}
       onClick={() => {
@@ -342,19 +348,21 @@ function InflightDetailModal({
             <Group gap="xs" wrap="nowrap">
               <InflightInterruptButton
                 id={detail.id}
-                interruptible={detail.interruptible}
+                control={detail.controls.forceAnswer}
                 finished={finished}
                 full
               />
               <InflightStopButton
                 id={detail.id}
                 action="finish"
+                control={detail.controls.finish}
                 finished={finished}
                 full
               />
               <InflightStopButton
                 id={detail.id}
                 action="cancel"
+                control={detail.controls.cancel}
                 finished={finished}
                 full
               />
@@ -471,17 +479,19 @@ export function InflightRequests({
                   />
                   <InflightInterruptButton
                     id={req.id}
-                    interruptible={req.interruptible}
+                    control={req.controls.forceAnswer}
                     finished={finished}
                   />
                   <InflightStopButton
                     id={req.id}
                     action="finish"
+                    control={req.controls.finish}
                     finished={finished}
                   />
                   <InflightStopButton
                     id={req.id}
                     action="cancel"
+                    control={req.controls.cancel}
                     finished={finished}
                   />
                 </Group>

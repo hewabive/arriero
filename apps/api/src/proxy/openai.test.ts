@@ -213,13 +213,42 @@ test("openAiResumableCodec.parseChunk classifies phases", () => {
     id: null,
     model: null,
     phase: "tool",
-    toolCall: {
-      index: 0,
-      id: "call_1",
-      name: "get_weather",
-      arguments: '{"city":',
-    },
+    toolCalls: [
+      {
+        index: 0,
+        id: "call_1",
+        name: "get_weather",
+        arguments: '{"city":',
+      },
+    ],
   });
+
+  const parallelTools = openAiResumableCodec.parseChunk(
+    JSON.stringify({
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: "call_1",
+                function: { name: "first", arguments: "{}" },
+              },
+              {
+                index: 1,
+                id: "call_2",
+                function: { name: "second", arguments: '{"n":' },
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  );
+  assert.deepEqual((parallelTools as { toolCalls?: unknown }).toolCalls, [
+    { index: 0, id: "call_1", name: "first", arguments: "{}" },
+    { index: 1, id: "call_2", name: "second", arguments: '{"n":' },
+  ]);
 
   const reasoning = openAiResumableCodec.parseChunk(
     JSON.stringify({ choices: [{ delta: { reasoning_content: "hmm" } }] }),

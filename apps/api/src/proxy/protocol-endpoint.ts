@@ -8,6 +8,7 @@ import type { Context } from "hono";
 import { getInstance, listInstances } from "../instances/repository.js";
 import { getNode } from "../nodes/repository.js";
 import { observeBodyCompletion } from "./body-completion.js";
+import { createApiProxyFinishableSseStream } from "./controlled-stream.js";
 import { apiProxyDrainBody, isApiProxyDraining } from "./drain.js";
 import { delegateApiProxyServe } from "./delegate.js";
 import {
@@ -80,6 +81,10 @@ import {
   getApiProxyTarget,
 } from "./repository.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
+import {
+  armApiProxyReasoningControl,
+  attachApiProxyReasoningControl,
+} from "./reasoning-control.js";
 import { saveApiProxyRequestFile } from "./request-files.js";
 import {
   getApiProxyCachedResponse,
@@ -408,7 +413,7 @@ async function proxyProtocolEndpointInner(
       trace,
       operation,
       onEarlyFinish: () => {
-        apiProxyInflight.requestFinish(inflight.id);
+        void apiProxyInflight.requestControl(inflight.id, "finish");
       },
     });
     if (plan) {
@@ -1126,11 +1131,7 @@ export async function serveResolvedTarget(input: {
     );
 
   const respond = async (): Promise<Response> => {
-    const stopSignal = AbortSignal.any([
-      c.req.raw.signal,
-      inflight.finishSignal(),
-      inflight.cancelSignal(),
-    ]);
+    const cancelSignal = inflight.controlSignal("cancel");
     const upstreamPath = adapter.upstreamPath(operation);
     if (!upstreamPath) {
       const response = adapter.notImplemented(route.request);
@@ -1216,6 +1217,33 @@ export async function serveResolvedTarget(input: {
         forwardBody = withReturnProgress(forwardBody);
       }
     }
+    const nativeReasoningControl =
+      engine.reasoningControl &&
+      forward.protocol === "openai" &&
+      forward.path === "/v1/chat/completions" &&
+      (route.request.stream || bufferCodec !== null);
+    const upstreamObserver = nativeReasoningControl
+      ? attachApiProxyReasoningControl({
+          inflight,
+          observer,
+          baseUrl,
+          authHeaders,
+          model: decision.target.model,
+        })
+      : observer;
+    if (nativeReasoningControl) {
+      forwardBody = armApiProxyReasoningControl(forwardBody);
+    }
+    const finishSignal =
+      operationSpec?.resumable === true &&
+      (route.request.stream || bufferCodec !== null)
+        ? inflight.controlSignal("finish")
+        : null;
+    const stopSignal = AbortSignal.any([
+      c.req.raw.signal,
+      cancelSignal,
+      ...(finishSignal !== null && !route.request.stream ? [finishSignal] : []),
+    ]);
 
     const slotSeq =
       instanceId !== null && engine.sseTimings
@@ -1306,9 +1334,9 @@ export async function serveResolvedTarget(input: {
             state,
             idleTimeoutMs: resolved.context.streamIdleTimeoutMs,
             consumerSignal: c.req.raw.signal,
-            finishSignal: inflight.finishSignal(),
-            cancelSignal: inflight.cancelSignal(),
-            ...observer,
+            finishSignal: finishSignal ?? undefined,
+            cancelSignal,
+            ...upstreamObserver,
           });
           if (
             outcome.type === "consumer-gone" ||
@@ -1409,7 +1437,7 @@ export async function serveResolvedTarget(input: {
         });
       }
 
-      const streamBody = watchStreamIdle(
+      const guardedStreamBody = watchStreamIdle(
         upstream.body,
         resolved.context.streamIdleTimeoutMs,
         (error) => {
@@ -1417,6 +1445,13 @@ export async function serveResolvedTarget(input: {
           trace.errorMessage = `Proxy target ${decision.target.name}: ${error.message}`;
         },
       );
+      const streamBody = finishSignal
+        ? createApiProxyFinishableSseStream({
+            body: guardedStreamBody,
+            protocol: forward.protocol,
+            finishSignal,
+          })
+        : guardedStreamBody;
 
       const finishStreamResponse = (
         observed: ReadableStream<Uint8Array>,
@@ -1442,7 +1477,11 @@ export async function serveResolvedTarget(input: {
 
       if (translateAnthropic) {
         const translation = createAnthropicTranslationStream({
-          ...observer,
+          ...upstreamObserver,
+          onStreamEnd: (health) => {
+            markPlanTruncatedOnEof(responsePlan)(health);
+            applyProxyStreamHealth({ trace, health });
+          },
           onComplete: onStreamComplete,
         });
         recorder.markDeferred();
@@ -1485,7 +1524,7 @@ export async function serveResolvedTarget(input: {
         stripUsageFrames: streamMeter.strip,
         stripProgressFrames: injectPrefillProgress,
         onStreamEnd: markPlanTruncatedOnEof(responsePlan),
-        ...observer,
+        ...upstreamObserver,
         onComplete: onStreamComplete,
       });
       recorder.markDeferred();
@@ -1575,7 +1614,19 @@ export async function serveResolvedTarget(input: {
     const forceAnswerSupported =
       instanceId !== null &&
       (operation.protocol === "openai" || translateAnthropic);
-    inflight.setInterruptible(forceAnswerSupported);
+    const nativeReasoningControl =
+      engine.reasoningControl &&
+      forward.protocol === "openai" &&
+      forward.path === "/v1/chat/completions";
+    const upstreamObserver = nativeReasoningControl
+      ? attachApiProxyReasoningControl({
+          inflight,
+          observer,
+          baseUrl,
+          authHeaders,
+          model: decision.target.model,
+        })
+      : observer;
     const buildForceAnswerTail = forceAnswerSupported
       ? (reasoningText: string): string | null =>
           buildThinkForceAnswerTail(reasoningText)
@@ -1589,9 +1640,12 @@ export async function serveResolvedTarget(input: {
       const withModel = decision.target.model
         ? { ...built, model: decision.target.model }
         : built;
-      return injectPrefillProgress
+      const withProgress = injectPrefillProgress
         ? { ...withModel, return_progress: true }
         : withModel;
+      return nativeReasoningControl
+        ? armApiProxyReasoningControl(withProgress)
+        : withProgress;
     };
 
     let readyFromPlanContext = true;
@@ -1630,11 +1684,14 @@ export async function serveResolvedTarget(input: {
           state,
           preemptSignal: heldLease.preemptSignal,
           consumerSignal: c.req.raw.signal,
-          interruptSignal: inflight.interruptSignal(),
-          finishSignal: inflight.finishSignal(),
-          cancelSignal: inflight.cancelSignal(),
+          interruptSignal:
+            forceAnswerSupported && !nativeReasoningControl
+              ? inflight.controlSignal("force-answer")
+              : undefined,
+          finishSignal: inflight.controlSignal("finish"),
+          cancelSignal: inflight.controlSignal("cancel"),
           idleTimeoutMs: resolved.context.streamIdleTimeoutMs,
-          ...observer,
+          ...upstreamObserver,
         });
       },
       state,

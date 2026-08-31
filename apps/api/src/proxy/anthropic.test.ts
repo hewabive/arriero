@@ -242,7 +242,7 @@ test("anthropicResumableCodec.parseChunk reads Anthropic SSE events", () => {
       id: null,
       model: null,
       phase: "tool",
-      toolCall: { index: 1, id: "toolu_1", name: "get_weather" },
+      toolCalls: [{ index: 1, id: "toolu_1", name: "get_weather" }],
     },
   );
 
@@ -260,7 +260,7 @@ test("anthropicResumableCodec.parseChunk reads Anthropic SSE events", () => {
       id: null,
       model: null,
       phase: "tool",
-      toolCall: { index: 1, arguments: '{"city":' },
+      toolCalls: [{ index: 1, arguments: '{"city":' }],
     },
   );
 

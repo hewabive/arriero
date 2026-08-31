@@ -1,4 +1,5 @@
 import {
+  ApiProxyInflightControlActionSchema,
   ApiProxyPlanPreviewRequestSchema,
   ApiProxyRouteExplainRequestSchema,
   ApiProxyServeRequestSchema,
@@ -205,19 +206,42 @@ export function registerProxyRoutes(app: Hono) {
     return c.json({ data: detail });
   });
 
-  app.post("/api/proxy/inflight/:id/interrupt", (c) => {
-    const status = apiProxyInflight.requestForceAnswer(c.req.param("id"));
-    return c.json({ data: { status } });
+  app.post("/api/proxy/inflight/:id/control/:action", async (c) => {
+    const action = ApiProxyInflightControlActionSchema.safeParse(
+      c.req.param("action"),
+    );
+    if (!action.success) {
+      return c.json({ error: "unknown in-flight control" }, 400);
+    }
+    const result = await apiProxyInflight.requestControl(
+      c.req.param("id"),
+      action.data,
+    );
+    return c.json({ data: result });
   });
 
-  app.post("/api/proxy/inflight/:id/finish", (c) => {
-    const status = apiProxyInflight.requestFinish(c.req.param("id"));
-    return c.json({ data: { status } });
+  app.post("/api/proxy/inflight/:id/interrupt", async (c) => {
+    const result = await apiProxyInflight.requestControl(
+      c.req.param("id"),
+      "force-answer",
+    );
+    return c.json({ data: result });
   });
 
-  app.post("/api/proxy/inflight/:id/cancel", (c) => {
-    const status = apiProxyInflight.requestCancel(c.req.param("id"));
-    return c.json({ data: { status } });
+  app.post("/api/proxy/inflight/:id/finish", async (c) => {
+    const result = await apiProxyInflight.requestControl(
+      c.req.param("id"),
+      "finish",
+    );
+    return c.json({ data: result });
+  });
+
+  app.post("/api/proxy/inflight/:id/cancel", async (c) => {
+    const result = await apiProxyInflight.requestControl(
+      c.req.param("id"),
+      "cancel",
+    );
+    return c.json({ data: result });
   });
 
   app.post("/api/proxy/route-explain", async (c) => {
