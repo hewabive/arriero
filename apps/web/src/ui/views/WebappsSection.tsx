@@ -11,7 +11,9 @@ import { WebappsListView } from "./WebappsListView";
 export function WebappsSection() {
   const [subpath, setSubpath] = useHashSubpath("webapps");
   const [selectedName, setSelectedName] = useState<string | null>(null);
-  const [createOpened, setCreateOpened] = useState(false);
+  const [createTarget, setCreateTarget] = useState<{
+    environmentId: string | null;
+  } | null>(null);
 
   const webappsQuery = useQuery({
     queryKey: ["webapps"],
@@ -45,28 +47,33 @@ export function WebappsSection() {
         <WebappsInstallView
           environments={environments}
           webapps={webapps}
-          onAddWebapp={() => setCreateOpened(true)}
+          onAddWebapp={(environmentId) => setCreateTarget({ environmentId })}
         />
       ) : (
         <WebappsListView
           webapps={webapps}
           environments={environments}
-          onCreate={() => setCreateOpened(true)}
+          onCreate={(environmentId) => setCreateTarget({ environmentId })}
+          onOpenInstall={() => setSubpath("install")}
           onOpenDiagnostics={(webapp) => {
             setSelectedName(webapp.name);
             setSubpath("diagnostics");
           }}
         />
       )}
-      {createOpened && (
+      {createTarget && (
         <WebappCreateModal
           environments={environments}
-          onCreated={(webapp) => setSelectedName(webapp.name)}
+          initialEnvironmentId={createTarget.environmentId}
+          onCreated={(webapp) => {
+            setSelectedName(webapp.name);
+            setSubpath("");
+          }}
           onOpenInstall={() => {
-            setCreateOpened(false);
+            setCreateTarget(null);
             setSubpath("install");
           }}
-          onClose={() => setCreateOpened(false)}
+          onClose={() => setCreateTarget(null)}
         />
       )}
     </>

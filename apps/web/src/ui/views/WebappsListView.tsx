@@ -1,4 +1,5 @@
 import {
+  WEBAPP_KINDS,
   webappDescriptor,
   type EnvironmentRecord,
   type Webapp,
@@ -38,11 +39,13 @@ export function WebappsListView({
   webapps,
   environments,
   onCreate,
+  onOpenInstall,
   onOpenDiagnostics,
 }: {
   webapps: Webapp[];
   environments: EnvironmentRecord[];
-  onCreate: () => void;
+  onCreate: (environmentId: string | null) => void;
+  onOpenInstall: () => void;
   onOpenDiagnostics: (webapp: Webapp) => void;
 }) {
   const queryClient = useQueryClient();
@@ -56,6 +59,24 @@ export function WebappsListView({
   const running = webapps.filter(
     (webapp) => webapp.status === "running",
   ).length;
+  const installedRuntimes = environments.filter(
+    (environment) =>
+      environment.status === "installed" &&
+      WEBAPP_KINDS.some(
+        (kind) =>
+          webappDescriptor(kind).environmentEngine === environment.engine,
+      ),
+  );
+  const firstRuntime = installedRuntimes[0] ?? null;
+  const firstRuntimeKind = firstRuntime
+    ? WEBAPP_KINDS.find(
+        (kind) =>
+          webappDescriptor(kind).environmentEngine === firstRuntime.engine,
+      )
+    : null;
+  const firstRuntimeName = firstRuntimeKind
+    ? webappDescriptor(firstRuntimeKind).displayName
+    : null;
 
   const updateMutation = useMutation({
     mutationFn: (input: { name: string; update: WebappUpdate }) =>
@@ -83,12 +104,12 @@ export function WebappsListView({
       <Paper withBorder p="md">
         <Group justify="space-between">
           <div>
-            <Title order={4}>Installed web apps</Title>
+            <Title order={4}>Configured web apps</Title>
             <Text size="sm" c="dimmed">
-              {countLabel(running, "web app")} running of {webapps.length}
+              {`${countLabel(running, "running web app")} · ${countLabel(webapps.length, "configured web app")} · ${countLabel(installedRuntimes.length, "runtime")} installed`}
             </Text>
           </div>
-          <Button onClick={onCreate}>Add web app</Button>
+          <Button onClick={() => onCreate(null)}>Add web app</Button>
         </Group>
       </Paper>
 
@@ -151,10 +172,38 @@ export function WebappsListView({
           </Paper>
         ))}
         {webapps.length === 0 && (
-          <Text c="dimmed">
-            No web apps yet. Add one — it gets wired to this node's API proxy
-            automatically.
-          </Text>
+          <Paper withBorder p="md">
+            <Stack gap="sm">
+              <div>
+                <Text fw={600}>
+                  {firstRuntime
+                    ? "Runtime installed — finish setup"
+                    : "No web apps configured"}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {firstRuntime && firstRuntimeName
+                    ? `${firstRuntimeName} ${firstRuntime.version} is ready. Configure its port, access and API proxy connection before starting it.`
+                    : "Install an Open WebUI or Chat UI runtime, then configure how it should run."}
+                </Text>
+              </div>
+              <Group gap="xs">
+                {firstRuntime && firstRuntimeName ? (
+                  <Button size="sm" onClick={() => onCreate(firstRuntime.id)}>
+                    Configure {firstRuntimeName}
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={onOpenInstall}>
+                    Install a runtime
+                  </Button>
+                )}
+                {firstRuntime && (
+                  <Button size="sm" variant="default" onClick={onOpenInstall}>
+                    Manage runtimes
+                  </Button>
+                )}
+              </Group>
+            </Stack>
+          </Paper>
         )}
       </Stack>
 

@@ -65,7 +65,7 @@ export function WebappsInstallView({
 }: {
   environments: EnvironmentRecord[];
   webapps: Webapp[];
-  onAddWebapp: () => void;
+  onAddWebapp: (environmentId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
   const invalidateWebapps = useInvalidateWebapps();
@@ -411,7 +411,7 @@ export function WebappsInstallView({
         <Stack gap="sm">
           <Group justify="space-between">
             <Title order={4}>Installed runtimes</Title>
-            <Button size="xs" variant="light" onClick={onAddWebapp}>
+            <Button size="xs" variant="light" onClick={() => onAddWebapp(null)}>
               Add web app
             </Button>
           </Group>
@@ -444,6 +444,11 @@ export function WebappsInstallView({
                           used by {name}
                         </Badge>
                       ))}
+                      {users.length === 0 && (
+                        <Badge color="gray" variant="light">
+                          not assigned
+                        </Badge>
+                      )}
                     </Group>
                     <Text size="xs" c="dimmed">
                       {environment.createdAt
@@ -462,6 +467,15 @@ export function WebappsInstallView({
                     )}
                   </div>
                   <Group gap="xs">
+                    {users.length === 0 && (
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => onAddWebapp(environment.id)}
+                      >
+                        Configure app
+                      </Button>
+                    )}
                     {environment.status !== "installed" && (
                       <Button
                         size="xs"

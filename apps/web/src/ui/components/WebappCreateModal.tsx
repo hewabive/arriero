@@ -59,28 +59,39 @@ function preferredEnvironment(
 
 export function WebappCreateModal({
   environments,
+  initialEnvironmentId,
   onCreated,
   onOpenInstall,
   onClose,
 }: {
   environments: EnvironmentRecord[];
+  initialEnvironmentId: string | null;
   onCreated: (webapp: Webapp) => void;
   onOpenInstall: () => void;
   onClose: () => void;
 }) {
   const invalidate = useInvalidateWebapps();
-  const [kind, setKind] = useState<WebappKind>("open-webui");
   const environmentsFor = (target: WebappKind) =>
     environments.filter(
       (environment) =>
         environment.engine === webappDescriptor(target).environmentEngine,
     );
+  const initialEnvironment = environments.find(
+    (environment) => environment.id === initialEnvironmentId,
+  );
+  const initialKind =
+    WEBAPP_KINDS.find(
+      (target) =>
+        webappDescriptor(target).environmentEngine ===
+        initialEnvironment?.engine,
+    ) ?? "open-webui";
+  const [kind, setKind] = useState<WebappKind>(initialKind);
   const descriptor = webappDescriptor(kind);
   const kindEnvironments = environmentsFor(kind);
 
-  const [name, setName] = useState("open-webui");
+  const [name, setName] = useState<string>(initialKind);
   const [envSpecId, setEnvSpecId] = useState<string | null>(
-    preferredEnvironment(kindEnvironments),
+    initialEnvironment?.id ?? preferredEnvironment(kindEnvironments),
   );
   const [port, setPort] = useState<number>(descriptor.http.defaultPort);
   const [lan, setLan] = useState(false);

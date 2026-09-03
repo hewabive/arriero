@@ -136,18 +136,19 @@ wildcard host without sign-in, plus the Chat UI empty-catalog warning above.
 `source=filtered|raw`, run history at `GET /api/webapps/:id/runs`) and the web **Web apps**
 section — three tabs mirroring the instances layout:
 
-- **Web apps** (`#/webapps`): the installed list with status/env/drift badges, Open link and
-  actions. Creating a definition is a modal that only picks an already-installed runtime
-  (`envSpecId`) and points at the Install tab when none exists — installation itself never
-  happens from the create flow.
+- **Web apps** (`#/webapps`): the configured-app list with status/env/drift badges, Open link and
+  actions. Its summary distinguishes configured apps from installed runtimes, and the empty state
+  sends an installed-but-unassigned runtime straight into configuration. Creating a definition is a
+  modal that only picks an already-installed runtime (`envSpecId`) and points at the Install tab when
+  none exists — installation itself never happens from the create flow.
 - **Diagnostics** (`#/webapps/diagnostics`): one selected app in depth — the live health probe,
   preflight errors and warnings, the environment record, runtime facts (pid, exit code, stop
   reason, adoption, log paths), run history and the filtered/raw log tail.
 - **Install** (`#/webapps/install`): runtime management in the engine culture — version pickers
   (the PyPI index lookup for Open WebUI, the `source-refs` tags/branches lookup for Chat UI —
   `docs/ENVIRONMENTS.md`), a planned-commands preview, the installed-runtime list with
-  rebuild/delete (delete blocked while a webapp references the runtime), and the environment
-  job inline: step badges, log tail, cancel.
+  assignment state plus a configuration shortcut, rebuild/delete (delete blocked while a webapp
+  references the runtime), and the environment job inline: step badges, log tail, cancel.
 
 Runs live in the `webapp_runs` table (`docs/RUNTIME_LAYOUT.md`), last 20 closed per webapp,
 `stopReason ⊂ {operator, shutdown, delete, stale, crash}`.
