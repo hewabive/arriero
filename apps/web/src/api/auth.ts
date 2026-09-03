@@ -12,6 +12,10 @@ export async function listInstances() {
   return nodeRequest<{ data: Instance[] }>("/api/instances");
 }
 
+export async function listSelfInstances() {
+  return request<{ data: Instance[] }>("/api/instances");
+}
+
 export async function getPublicStatus() {
   return request<{ data: PublicStatus }>("/api/public/status");
 }

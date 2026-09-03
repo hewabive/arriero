@@ -2,6 +2,7 @@ import type {
   ApiEndpointRecord,
   ApiProxyTargetRecord,
   ApiProxyTargetRuntime,
+  Instance,
 } from "@arriero/core";
 import {
   ActionIcon,
@@ -25,6 +26,10 @@ import {
   runtimeStateColor,
   runtimeStateLabel,
 } from "../display";
+import {
+  effectiveTargetEviction,
+  resolveTargetEvictionContext,
+} from "../eviction-policy";
 import type { SelectOption } from "./types";
 import { DetailBadge } from "./DetailBadge";
 import { InflightRequests } from "./InflightRequests";
@@ -35,6 +40,7 @@ type ProxyTargetsSectionProps = {
   endpointById: Map<string, ApiEndpointRecord>;
   usageByTargetId: Map<string, ProxyUsageRef[]>;
   instanceOptions: SelectOption[];
+  instancesById: ReadonlyMap<string, Instance>;
   runtimeByTargetId: Map<string, ApiProxyTargetRuntime>;
   runtimeRefreshing: boolean;
   deletePending?: boolean;
@@ -73,7 +79,7 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
                 <Table.Th>Endpoint</Table.Th>
                 <Table.Th>Model</Table.Th>
                 <Table.Th>Priority</Table.Th>
-                <Table.Th>Policy</Table.Th>
+                <Table.Th miw={145}>Effective eviction</Table.Th>
                 <Table.Th>Runtime</Table.Th>
                 <Table.Th />
               </Table.Tr>
@@ -82,6 +88,10 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
               {props.targets.map((target) => {
                 const runtime = props.runtimeByTargetId.get(target.id);
                 const endpoint = props.endpointById.get(target.endpointId);
+                const eviction = effectiveTargetEviction(
+                  target.preemptible,
+                  resolveTargetEvictionContext(endpoint, props.instancesById),
+                );
                 return (
                   <Table.Tr key={target.id}>
                     <Table.Td>
@@ -127,10 +137,19 @@ export function ProxyTargetsSection(props: ProxyTargetsSectionProps) {
                     <Table.Td>
                       <Text size="sm">{target.priority}</Text>
                     </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">
-                        {target.preemptible ? "preemptible" : "protected"}
-                      </Text>
+                    <Table.Td miw={145}>
+                      <Stack gap={2} align="flex-start">
+                        <DetailBadge
+                          color={eviction.color}
+                          label={eviction.label}
+                          detail={eviction.detail}
+                        />
+                        <Text c="dimmed" size="xs">
+                          {target.preemptible
+                            ? "uses instance limit"
+                            : "target: protected"}
+                        </Text>
+                      </Stack>
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={2}>

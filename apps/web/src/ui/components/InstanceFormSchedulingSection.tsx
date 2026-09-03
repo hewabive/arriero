@@ -7,9 +7,9 @@ const EVICTION_POLICIES: Array<{
   value: InstanceEvictionPolicy;
   label: string;
 }> = [
-  { value: "idle-only", label: "Idle only" },
-  { value: "never", label: "Never evict" },
-  { value: "preemptible", label: "Preemptible" },
+  { value: "never", label: "Never evict for another request" },
+  { value: "idle-only", label: "Evict only when idle" },
+  { value: "preemptible", label: "Allow active-request interruption" },
 ];
 
 export function InstanceFormSchedulingSection({
@@ -19,8 +19,8 @@ export function InstanceFormSchedulingSection({
 }) {
   return (
     <Select
-      label="Eviction policy"
-      description="Whether the proxy scheduler may stop this process for a competing target: idle-only drains active requests first, preemptible allows immediate takeover, never keeps it running"
+      label="Competing-request eviction limit"
+      description="Instance-wide upper limit. Proxy targets may make eviction stricter, but cannot override this limit. Idle-unload timers are separate."
       data={EVICTION_POLICIES}
       value={fm.evictionPolicy}
       onChange={(value) =>

@@ -20,7 +20,9 @@ import type {
   TargetEditor,
 } from "./forms";
 import { isEndpointRouteValue, unboundTargetValue } from "./forms";
+import type { TargetEvictionContext } from "./eviction-policy";
 import type { SelectOption } from "./sections/index";
+import { TargetEvictionPolicyField } from "./TargetEvictionPolicyField";
 import {
   EndpointModelPicker,
   type EndpointModelSelection,
@@ -165,6 +167,7 @@ type TargetEditorModalProps = {
   draft: TargetDraft;
   busy: boolean;
   slotSaveAvailable: boolean;
+  evictionContext: TargetEvictionContext;
   onClose: () => void;
   onSave: () => void;
   onDraftChange: (draft: TargetDraft) => void;
@@ -245,26 +248,23 @@ export function TargetEditorModal(props: TargetEditorModalProps) {
             }
           />
         </Group>
-        <Group gap="lg" wrap="wrap">
+        <TargetEvictionPolicyField
+          context={props.evictionContext}
+          targetAllowsEviction={props.draft.preemptible}
+          onChange={(preemptible) =>
+            props.onDraftChange({ ...props.draft, preemptible })
+          }
+        />
+        {props.slotSaveAvailable && (
           <Switch
-            label="Preemptible"
-            checked={props.draft.preemptible}
+            label="Save slots before unload"
+            checked={props.draft.saveSlotsBeforeUnload}
             onChange={(event) => {
-              const preemptible = event.currentTarget.checked;
-              props.onDraftChange({ ...props.draft, preemptible });
+              const saveSlotsBeforeUnload = event.currentTarget.checked;
+              props.onDraftChange({ ...props.draft, saveSlotsBeforeUnload });
             }}
           />
-          {props.slotSaveAvailable && (
-            <Switch
-              label="Save slots before unload"
-              checked={props.draft.saveSlotsBeforeUnload}
-              onChange={(event) => {
-                const saveSlotsBeforeUnload = event.currentTarget.checked;
-                props.onDraftChange({ ...props.draft, saveSlotsBeforeUnload });
-              }}
-            />
-          )}
-        </Group>
+        )}
         {props.slotSaveAvailable && (
           <TextInput
             label="Slot IDs"

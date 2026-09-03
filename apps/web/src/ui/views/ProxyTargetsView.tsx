@@ -13,7 +13,7 @@ import {
   createApiProxyTarget,
   deleteApiProxyTarget,
   getApiProxyRuntime,
-  listInstances,
+  listSelfInstances,
   updateApiProxyTarget,
 } from "../../api/client";
 import { useProxyConfig } from "../proxy/data";
@@ -25,6 +25,7 @@ import {
   type TargetEditor,
 } from "../proxy/forms";
 import { TargetEditorModal } from "../proxy/editors";
+import { resolveTargetEvictionContext } from "../proxy/eviction-policy";
 import { ProxyTargetsSection } from "../proxy/sections/index";
 import { countLabel } from "../utils/plural";
 import { notifyError } from "../utils/notify";
@@ -32,8 +33,8 @@ import { notifyError } from "../utils/notify";
 export function ProxyTargetsView() {
   const { targets, endpointById, proxyUsage, invalidate } = useProxyConfig();
   const instancesQuery = useQuery({
-    queryKey: ["instances"],
-    queryFn: listInstances,
+    queryKey: ["instances", "self"],
+    queryFn: listSelfInstances,
     staleTime: 10_000,
   });
   const runtimeQuery = useQuery({
@@ -51,6 +52,16 @@ export function ProxyTargetsView() {
         value: instance.name,
         label: instance.name,
       })),
+    [instancesQuery.data?.data],
+  );
+  const instancesById = useMemo(
+    () =>
+      new Map(
+        (instancesQuery.data?.data ?? []).map((instance) => [
+          instance.name,
+          instance,
+        ]),
+      ),
     [instancesQuery.data?.data],
   );
   const slotSaveAvailable = useMemo(() => {
@@ -152,6 +163,7 @@ export function ProxyTargetsView() {
         endpointById={endpointById}
         usageByTargetId={proxyUsage.byTargetId}
         instanceOptions={instanceOptions}
+        instancesById={instancesById}
         runtimeByTargetId={runtimeByTargetId}
         runtimeRefreshing={runtimeQuery.isFetching}
         deletePending={deleteTargetMutation.isPending}
@@ -167,6 +179,12 @@ export function ProxyTargetsView() {
         draft={targetDraft}
         busy={targetBusy}
         slotSaveAvailable={slotSaveAvailable}
+        evictionContext={resolveTargetEvictionContext(
+          targetDraft.endpointId
+            ? endpointById.get(targetDraft.endpointId)
+            : undefined,
+          instancesById,
+        )}
         onClose={closeTargetEditor}
         onSave={saveTarget}
         onDraftChange={setTargetDraft}
