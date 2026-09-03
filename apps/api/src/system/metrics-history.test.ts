@@ -7,13 +7,24 @@ import { averageSamples, SystemMetricsRecorder } from "./metrics-history.js";
 
 test("averageSamples averages scalars and keeps the newest timestamp", () => {
   const averaged = averageSamples([
-    sample({ at: 1_000, cpuPercent: 20, memoryUsedBytes: 100 }),
-    sample({ at: 2_000, cpuPercent: 40, memoryUsedBytes: 300 }),
+    sample({
+      at: 1_000,
+      cpuPercent: 20,
+      cpuStealPercent: 4,
+      memoryUsedBytes: 100,
+    }),
+    sample({
+      at: 2_000,
+      cpuPercent: 40,
+      cpuStealPercent: 10,
+      memoryUsedBytes: 300,
+    }),
   ]);
 
   assert.ok(averaged);
   assert.equal(averaged.at, 2_000);
   assert.equal(averaged.cpuPercent, 30);
+  assert.equal(averaged.cpuStealPercent, 7);
   assert.equal(averaged.memoryUsedBytes, 200);
 });
 

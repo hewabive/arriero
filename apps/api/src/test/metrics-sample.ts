@@ -6,6 +6,7 @@ export function metricsSampleFixture(
   return {
     at: 0,
     cpuPercent: 0,
+    cpuStealPercent: null,
     memoryUsedBytes: 0,
     memoryTotalBytes: 1_000,
     gpus: [],

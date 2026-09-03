@@ -123,6 +123,9 @@ export function averageSamples(
   return {
     at: last.at,
     cpuPercent: averageNullable(samples.map((sample) => sample.cpuPercent)),
+    cpuStealPercent: averageNullable(
+      samples.map((sample) => sample.cpuStealPercent),
+    ),
     memoryUsedBytes:
       samples.reduce((sum, sample) => sum + sample.memoryUsedBytes, 0) /
       samples.length,
@@ -392,6 +395,7 @@ export class SystemMetricsRecorder {
     const sample: SystemMetricsSample = {
       at,
       cpuPercent: cpu?.usagePercent ?? null,
+      cpuStealPercent: cpu?.stealPercent ?? null,
       memoryUsedBytes: memory.usedBytes,
       memoryTotalBytes: memory.totalBytes,
       gpus: gpuSamples(),

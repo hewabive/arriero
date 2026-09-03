@@ -231,6 +231,10 @@ export const SystemCpuActivitySchema = z.object({
   intervalMs: z.number().nonnegative().nullable(),
 });
 
+export const SystemVirtualizationSchema = z.object({
+  type: z.string().min(1),
+});
+
 export const SystemNetworkInterfaceSchema = z.object({
   name: z.string(),
   rxBytesPerSec: z.number().nonnegative().nullable(),
@@ -255,6 +259,7 @@ export const SystemResourcesSchema = z.object({
   disk: SystemDiskActivitySchema.nullable(),
   storage: SystemStorageResourcesSchema.nullable().default(null),
   cpu: SystemCpuActivitySchema.nullable().default(null),
+  virtualization: SystemVirtualizationSchema.nullable().default(null),
   network: SystemNetworkActivitySchema.nullable().default(null),
   numa: NumaCapabilitiesSchema,
   tools: z
@@ -297,6 +302,7 @@ export const SystemMetricsRdmaSampleSchema = SystemRdmaActivitySchema.pick({
 export const SystemMetricsSampleSchema = z.object({
   at: z.number().int().nonnegative(),
   cpuPercent: z.number().nullable(),
+  cpuStealPercent: z.number().min(0).max(100).nullable().default(null),
   memoryUsedBytes: z.number().nonnegative(),
   memoryTotalBytes: z.number().nonnegative(),
   gpus: z.array(SystemMetricsGpuSampleSchema),
@@ -399,6 +405,7 @@ export type SystemStorageResources = z.infer<
 >;
 export type SystemCpuCore = z.infer<typeof SystemCpuCoreSchema>;
 export type SystemCpuActivity = z.infer<typeof SystemCpuActivitySchema>;
+export type SystemVirtualization = z.infer<typeof SystemVirtualizationSchema>;
 export type SystemNetworkInterface = z.infer<
   typeof SystemNetworkInterfaceSchema
 >;

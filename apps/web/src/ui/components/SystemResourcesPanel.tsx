@@ -11,6 +11,7 @@ import {
   type SystemMetricsSample,
   type SystemMetricsWindow,
   type SystemResources,
+  type SystemCpuActivity,
 } from "@arriero/core";
 import {
   Alert,
@@ -53,6 +54,8 @@ const NETWORK_THROUGHPUT_DOMAIN: MetricDomain = {
   kind: "auto",
   minimumMax: 128 * 1024,
 };
+const CPU_DELIVERY_MIN_DEMAND_PERCENT = 10;
+const CPU_EFFECTIVE_CAPACITY_MIN_DEMAND_PERCENT = 80;
 
 function formatOptionalBytes(value: number | null | undefined) {
   if (value === undefined || value === null) {
@@ -66,6 +69,32 @@ function formatPercent(value: number | null | undefined) {
     return "-";
   }
   return `${Math.round(value)}%`;
+}
+
+function cpuDeliveryEstimate(cpu: SystemCpuActivity) {
+  const grantedPercent = Math.max(
+    0,
+    Math.min(100, cpu.userPercent + cpu.systemPercent),
+  );
+  const demandPercent = grantedPercent + cpu.stealPercent;
+  if (demandPercent < CPU_DELIVERY_MIN_DEMAND_PERCENT) {
+    return null;
+  }
+  const deliveryPercent = (grantedPercent / demandPercent) * 100;
+  return {
+    deliveryPercent,
+    effectiveCpuCount:
+      demandPercent >= CPU_EFFECTIVE_CAPACITY_MIN_DEMAND_PERCENT
+        ? (cpu.cores.length * deliveryPercent) / 100
+        : null,
+  };
+}
+
+function cpuDeliveryColor(percent: number) {
+  if (percent < 50) return "red";
+  if (percent < 80) return "orange";
+  if (percent < 95) return "yellow";
+  return "green";
 }
 
 function formatMs(value: number | null | undefined) {
@@ -368,6 +397,8 @@ function buildChartSeriesIndex(
   const filled = (): SeriesValues =>
     new Array<number | null>(samples.length).fill(null);
   const cpuValues = filled();
+  const cpuGrantedValues = filled();
+  const cpuStealValues = filled();
   const memoryValues = filled();
   const lagValues = filled();
   const gpuValues = new Map<
@@ -389,6 +420,13 @@ function buildChartSeriesIndex(
 
   samples.forEach((sample, index) => {
     cpuValues[index] = sample.cpuPercent;
+    if (sample.cpuPercent !== null && sample.cpuStealPercent !== null) {
+      cpuGrantedValues[index] = Math.max(
+        0,
+        sample.cpuPercent - sample.cpuStealPercent,
+      );
+      cpuStealValues[index] = sample.cpuStealPercent;
+    }
     memoryValues[index] = sample.memoryUsedBytes;
     lagValues[index] = sample.eventLoopMaxLagMs;
     for (const gpu of sample.gpus) {
@@ -433,7 +471,21 @@ function buildChartSeriesIndex(
     mapEntry(seriesCache, key, build);
 
   return {
-    cpu: [{ id: "cpu", label: "Total", tone: "cpu", values: cpuValues }],
+    cpu: [
+      { id: "cpu-demand", label: "Demand", tone: "cpu", values: cpuValues },
+      {
+        id: "cpu-granted",
+        label: "Guest work",
+        tone: "memory",
+        values: cpuGrantedValues,
+      },
+      {
+        id: "cpu-steal",
+        label: "Hypervisor steal",
+        tone: "outbound",
+        values: cpuStealValues,
+      },
+    ],
     memory: [
       { id: "memory", label: "Used", tone: "memory", values: memoryValues },
     ],
@@ -532,6 +584,8 @@ export function SystemResourcesPanel(props: {
 }) {
   const memory = props.resources?.memory;
   const cpu = props.resources?.cpu ?? null;
+  const virtualization = props.resources?.virtualization ?? null;
+  const cpuDelivery = cpu ? cpuDeliveryEstimate(cpu) : null;
   const accelerators = props.resources?.accelerators ?? [];
   const disk = props.resources?.disk ?? null;
   const storage = props.resources?.storage ?? null;
@@ -590,6 +644,35 @@ export function SystemResourcesPanel(props: {
                         ? ` · steal ${formatPercent(cpu.stealPercent)}`
                         : ""}
                     </Text>
+                    {virtualization && (
+                      <Group gap="xs" wrap="wrap">
+                        <Badge variant="light" color="gray" size="sm">
+                          {virtualization.type.toUpperCase()} guest
+                        </Badge>
+                        {cpuDelivery && (
+                          <Tooltip
+                            withArrow
+                            multiline
+                            w={320}
+                            label="Derived from Linux steal time for the current sample. It measures CPU time delivered while the guest requested it; it is not the provider's contractual CPU quota. Effective vCPU capacity is shown only near full demand."
+                          >
+                            <Badge
+                              variant="light"
+                              color={cpuDeliveryColor(
+                                cpuDelivery.deliveryPercent,
+                              )}
+                              size="sm"
+                            >
+                              Hypervisor delivery{" "}
+                              {formatPercent(cpuDelivery.deliveryPercent)}
+                              {cpuDelivery.effectiveCpuCount === null
+                                ? ""
+                                : ` · ~${cpuDelivery.effectiveCpuCount.toFixed(1)} / ${cpu.cores.length} vCPU`}
+                            </Badge>
+                          </Tooltip>
+                        )}
+                      </Group>
+                    )}
                   </Stack>
                 )
               }

@@ -15,6 +15,7 @@ import { systemMetricsRecorder } from "./metrics-history.js";
 import { getStorageResources } from "./storage-space.js";
 import { nodeSourceToolStatus } from "../envs/node-tools.js";
 import { uvToolStatus } from "../envs/uv.js";
+import { detectVirtualization } from "./virtualization.js";
 
 export function nvidiaDevicesToAccelerators(
   devices: NvidiaDeviceSnapshot[],
@@ -76,6 +77,7 @@ export function getSystemResources(): SystemResources {
     disk: sampled.disk,
     storage: null,
     cpu: sampled.cpu,
+    virtualization: detectVirtualization(),
     network: sampled.network,
     numa: {
       nodes: readNumaTopology(),

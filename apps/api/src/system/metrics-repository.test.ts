@@ -132,6 +132,23 @@ test("reads persisted samples written before RDMA metrics existed", () => {
   assert.equal(read[0]?.rdma, null);
 });
 
+test("reads persisted samples written before CPU steal metrics existed", () => {
+  const { cpuStealPercent: _cpuStealPercent, ...legacySample } = sample({
+    at: NOW - 60_000,
+  });
+  db.insert(systemMetricsHistory)
+    .values({
+      window: "day",
+      bucketAt: NOW - 60_000,
+      sampleJson: JSON.stringify(legacySample),
+    })
+    .run();
+
+  const read = readSystemMetricsHistory("day", NOW);
+  assert.equal(read.length, 1);
+  assert.equal(read[0]?.cpuStealPercent, null);
+});
+
 test("seedSystemMetricsRecorder preloads hour and day tiers from the database", () => {
   insertSystemMetricsSample(
     "hour",

@@ -9,7 +9,7 @@
     },
     "apps/api": {
       "ignore": ["src/jobs/store.ts", "src/jobs/exec.ts"],
-      "ignoreBinaries": ["numactl"]
+      "ignoreBinaries": ["numactl", "systemd-detect-virt"]
     },
     "apps/web": {
       "entry": ["src/main.tsx", "index.html", "vite.config.ts"],
