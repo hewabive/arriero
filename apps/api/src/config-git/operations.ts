@@ -43,6 +43,7 @@ import {
 } from "./machine-state.js";
 import {
   assertGitRemoteUrl,
+  getGitAuthorIdentity,
   gitOutput,
   redactGitOutput,
   runGit,
@@ -111,12 +112,12 @@ async function commitIdentityArguments(input: {
   authorName: string | null;
   authorEmail: string | null;
 }): Promise<string[]> {
-  const name =
-    input.authorName ??
-    (await tryGit(config.configDir, ["config", "--get", "user.name"]));
-  const email =
-    input.authorEmail ??
-    (await tryGit(config.configDir, ["config", "--get", "user.email"]));
+  const configured =
+    input.authorName === null || input.authorEmail === null
+      ? await getGitAuthorIdentity(config.configDir)
+      : null;
+  const name = input.authorName ?? configured?.authorName;
+  const email = input.authorEmail ?? configured?.authorEmail;
   return [
     "-c",
     `user.name=${name ?? fallbackAuthorName}`,

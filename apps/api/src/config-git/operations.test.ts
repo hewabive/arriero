@@ -35,6 +35,13 @@ function git(args: string[]) {
   }).trim();
 }
 
+function gitAt(path: string, args: string[]) {
+  return execFileSync("git", args, {
+    cwd: path,
+    encoding: "utf8",
+  }).trim();
+}
+
 function writeJson(path: string, value: unknown) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
@@ -438,5 +445,22 @@ test("status does not adopt a parent repository", async () => {
     assert.equal((await getConfigGitStatus()).isGitRepo, false);
   } finally {
     config.configDir = original;
+  }
+});
+
+test("status exposes the configured author before initialization", async () => {
+  rmSync(resolve(config.configDir, ".git"), { recursive: true, force: true });
+  gitAt(config.dataDir, ["init", "-b", "main"]);
+  gitAt(config.dataDir, ["config", "user.name", "Current User"]);
+  gitAt(config.dataDir, ["config", "user.email", "current@example.com"]);
+
+  try {
+    const status = await getConfigGitStatus();
+
+    assert.equal(status.isGitRepo, false);
+    assert.equal(status.authorName, "Current User");
+    assert.equal(status.authorEmail, "current@example.com");
+  } finally {
+    rmSync(resolve(config.dataDir, ".git"), { recursive: true, force: true });
   }
 });

@@ -20,6 +20,7 @@ import { config } from "../config.js";
 import { traceBlockingSection } from "../system/event-loop.js";
 import { assertSafeConfigRelativePath } from "./paths.js";
 import {
+  getGitAuthorIdentity,
   isExactGitRepository,
   redactGitOutput,
   runGit,
@@ -178,7 +179,10 @@ function hasUnpushedCommits(
   );
 }
 
-function emptyStatus(error: string | null): ConfigGitStatus {
+function emptyStatus(
+  error: string | null,
+  identity: Awaited<ReturnType<typeof getGitAuthorIdentity>>,
+): ConfigGitStatus {
   return ConfigGitStatusSchema.parse({
     configDir: config.configDir,
     exists: existsSync(config.configDir),
@@ -199,8 +203,7 @@ function emptyStatus(error: string | null): ConfigGitStatus {
     branches: [],
     remoteBranches: [],
     backups: listConfigBackups(),
-    authorName: null,
-    authorEmail: null,
+    ...identity,
     activeOperation: getActiveConfigGitOperation(),
     error,
   });
@@ -208,25 +211,19 @@ function emptyStatus(error: string | null): ConfigGitStatus {
 
 export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
   const path = config.configDir;
-  if (!(await isExactGitRepository(path))) return emptyStatus(null);
+  if (!(await isExactGitRepository(path))) {
+    return emptyStatus(null, await getGitAuthorIdentity(path));
+  }
   try {
-    const [
-      head,
-      shortHead,
-      branchRaw,
-      originRaw,
-      statusResult,
-      authorName,
-      authorEmail,
-    ] = await Promise.all([
-      tryGit(path, ["rev-parse", "HEAD"]),
-      tryGit(path, ["rev-parse", "--short", "HEAD"]),
-      tryGit(path, ["branch", "--show-current"]),
-      tryGit(path, ["remote", "get-url", "origin"]),
-      runGit(path, ["status", "--porcelain=v1", "--untracked-files=all"]),
-      tryGit(path, ["config", "--get", "user.name"]),
-      tryGit(path, ["config", "--get", "user.email"]),
-    ]);
+    const [head, shortHead, branchRaw, originRaw, statusResult, identity] =
+      await Promise.all([
+        tryGit(path, ["rev-parse", "HEAD"]),
+        tryGit(path, ["rev-parse", "--short", "HEAD"]),
+        tryGit(path, ["branch", "--show-current"]),
+        tryGit(path, ["remote", "get-url", "origin"]),
+        runGit(path, ["status", "--porcelain=v1", "--untracked-files=all"]),
+        getGitAuthorIdentity(path),
+      ]);
     const branch = branchRaw || null;
     const upstream = branch
       ? await tryGit(path, ["rev-parse", "--abbrev-ref", "@{u}"])
@@ -259,13 +256,15 @@ export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
       branches,
       remoteBranches: remotes,
       backups: listConfigBackups(),
-      authorName,
-      authorEmail,
+      ...identity,
       activeOperation: getActiveConfigGitOperation(),
       error: null,
     });
   } catch (error) {
-    return emptyStatus((error as Error).message);
+    return emptyStatus(
+      (error as Error).message,
+      await getGitAuthorIdentity(path),
+    );
   }
 }
 

@@ -237,6 +237,17 @@ export async function tryGit(
   }
 }
 
+export async function getGitAuthorIdentity(cwd: string): Promise<{
+  authorName: string | null;
+  authorEmail: string | null;
+}> {
+  const [authorName, authorEmail] = await Promise.all([
+    tryGit(cwd, ["config", "--get", "user.name"]),
+    tryGit(cwd, ["config", "--get", "user.email"]),
+  ]);
+  return { authorName, authorEmail };
+}
+
 function syncErrorText(error: unknown): GitResult {
   const value = error as {
     status?: number | null;
