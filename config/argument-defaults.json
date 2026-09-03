@@ -1,5 +1,10 @@
 {
   "instance": [
+    { "key": "--load-mode", "value": "", "valueType": "null" },
+    { "key": "--parallel", "value": "", "valueType": "null" },
+    { "key": "--batch-size", "value": "", "valueType": "null" },
+    { "key": "--ubatch-size", "value": "", "valueType": "null" },
+    { "key": "--cache-ram", "value": "", "valueType": "null" },
     { "key": "--ctx-size", "value": "", "valueType": "null" },
     { "key": "--cache-type-k", "value": "", "valueType": "null" },
     { "key": "--cache-type-v", "value": "", "valueType": "null" },
