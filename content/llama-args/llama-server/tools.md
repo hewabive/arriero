@@ -30,13 +30,13 @@ related:
 ## Оригинальная справка llama.cpp
 
 ```text
-experimental: whether to enable server tools for AI agents - do not enable in untrusted environments (default: no tools)
+experimental: whether to enable built-in tools for AI agents - do not enable in untrusted environments (default: no tools)
 specify "all" to enable all tools
 available tools: read_file, file_glob_search, grep_search, exec_shell_command, write_file, edit_file, get_info
 note: for security reasons, this will limit --cors-origins to localhost by default
 ```
 
-В README эти tools называются «server tools» (переименование из «built-in tools» в PR #27271, чтобы отличать их от browser tools, исполняемых в Web UI); `common/arg.cpp` в текущем чекауте ещё печатает старую формулировку «built-in tools» в `--help`.
+Текущая generated help снова использует название «built-in tools». В коде HTTP-подсистема и логи также встречаются под именем server tools; это один и тот же набор исполняемых сервером инструментов, а не browser tools Web UI.
 
 ## Паспорт аргумента
 

@@ -3,7 +3,7 @@ schema: 1
 engine: vllm
 primaryName: "--mamba-cache-mode"
 title: "--mamba-cache-mode"
-summary: Стратегия сохранения состояния mamba-слоев для prefix caching. Декларативный дефолт none почти всегда переопределяется движком: при включенном prefix caching режим становится all для поддерживающих моделей и align для остальных.
+summary: Стратегия сохранения состояния mamba-слоев для prefix caching. Декларативный дефолт none при включённом prefix caching теперь переопределяется в align; all остаётся явным более дорогим режимом для поддерживающих моделей.
 group: CacheConfig
 related:
   - --enable-prefix-caching
@@ -20,7 +20,7 @@ related:
 
 Prefix caching для attention-слоев тривиален: KV-блок либо посчитан, либо нет. Для mamba-слоев нужно решить, в каких точках последовательности сохранять рекуррентное состояние, чтобы с них можно было продолжить. `--mamba-cache-mode` выбирает эту политику.
 
-Значение по умолчанию (`none`) вводит в заблуждение: реальный режим определяется тем, включен ли prefix caching, и поддерживает ли модель кэширование mamba-состояний.
+Значение по умолчанию (`none`) вводит в заблуждение: поскольку prefix caching по умолчанию включён, реальный автоматический режим для mamba-модели — `align`. Поддержка моделью полного кэширования больше не повышает автоматический выбор до `all`.
 
 ## Оригинальная справка
 
@@ -28,10 +28,10 @@ Prefix caching для attention-слоев тривиален: KV-блок ли�
 The cache strategy for Mamba layers:
 
 - "none": set when prefix caching is disabled.
-- "all": cache the mamba state of all tokens at position i * block_size. This is
-  the default behavior (for models that support it) when prefix caching is enabled.
+- "all": cache the mamba state of all tokens at position i * block_size.
 - "align": only cache the mamba state of the last token of each scheduler step and
-  when the token is at position i * block_size.
+  when the token is at position i * block_size. This is the default when prefix
+  caching is enabled.
 ```
 
 ## Паспорт аргумента
@@ -41,7 +41,7 @@ The cache strategy for Mamba layers:
 - Тип значения: enum (строка)
 - Допустимые значения: `all`, `align`, `none` (тип `MambaCacheMode` в `vllm/config/cache.py`)
 - Значение по умолчанию: `none`
-- Эффективное значение: `MambaModelConfig.verify_and_update_config` меняет его почти всегда. При включенном prefix caching: `none` → `all` для модели с `supports_mamba_prefix_caching`, иначе `align`; явный `all` на модели без поддержки → `align` с предупреждением. При выключенном prefix caching любой режим принудительно становится `none`, тоже с предупреждением
+- Эффективное значение: `MambaModelConfig.verify_and_update_config` меняет его почти всегда. При включённом prefix caching `none` → `align` для любой mamba-модели; явный `all` на модели без поддержки → `align` с предупреждением. При выключенном prefix caching любой режим принудительно становится `none`, тоже с предупреждением
 - Где объявлен: `vllm/config/cache.py:CacheConfig.mamba_cache_mode`
 - Этап применения: сборка `VllmConfig` (переопределение) → выравнивание блоков под backend → построение mamba KV-cache spec → планировщик и forward
 
@@ -49,7 +49,7 @@ The cache strategy for Mamba layers:
 
 **Переопределение.** `MambaModelConfig.verify_and_update_config` (вызывается из `try_verify_and_update_config` в `VllmConfig.__post_init__`) — единственное место, где режим меняется:
 
-- prefix caching включен, режим `none` → `all` для модели с `supports_mamba_prefix_caching`, иначе `align`; warning-строка `Mamba cache mode is set to '<mode>' for <Architecture> by default when prefix caching is enabled`;
+- prefix caching включён, режим `none` → `align`; info-строка `Mamba cache mode is set to 'align' for <Architecture> by default when prefix caching is enabled`;
 - prefix caching включен, режим `all`, но модель не объявляет `supports_mamba_prefix_caching` → `align`, предупреждение `Hybrid or mamba-based model detected without support for prefix caching with Mamba cache 'all' mode: falling back to 'align' mode.`;
 - режим `align` требует chunked prefill: `assert vllm_config.scheduler_config.enable_chunked_prefill, "Chunked prefill is required for mamba cache mode 'align'."`;
 - prefix caching выключен → `none`, предупреждение `Mamba cache mode is set to 'none' when prefix caching is disabled`.
@@ -65,14 +65,14 @@ The cache strategy for Mamba layers:
 ## Значения и формат
 
 - `none` — состояния не кэшируются между запросами; блок совпадает со всей последовательностью (`mamba_block_size = max_model_len`). Единственный режим при выключенном prefix caching.
-- `align` — состояние сохраняется только для последнего токена каждого шага планировщика и только когда он попал на границу блока. Дешево по памяти и по числу записей; дефолт при включенном prefix caching для моделей без `supports_mamba_prefix_caching`.
-- `all` — состояние сохраняется на каждой границе `i × block_size`. Больше точек продолжения (лучше hit rate), дороже по памяти и по записям; требует, чтобы модель объявляла поддержку, и для таких моделей является дефолтом при включенном prefix caching.
+- `align` — состояние сохраняется только для последнего токена каждого шага планировщика и только когда он попал на границу блока. Дешево по памяти и по числу записей; дефолт при включённом prefix caching для всех mamba-моделей.
+- `all` — состояние сохраняется на каждой границе `i × block_size`. Больше точек продолжения (лучше hit rate), дороже по памяти и по записям; требует, чтобы модель объявляла поддержку, и выбирается только явно.
 
 ## Когда использовать
 
-- Оставляйте автоматический выбор. Он корректен для подавляющего большинства случаев: при prefix caching — `all` на поддерживающей модели и `align` на остальных, `none` без него.
-- Явный `align` имеет смысл на модели с `supports_mamba_prefix_caching`, когда дефолтный `all` слишком дорог по памяти (широкие таблицы состояний, крупный блок) и вы готовы отдать часть hit rate.
-- `none` при включенном prefix caching задавать бессмысленно: движок все равно поднимет режим до `all` или `align`.
+- Оставляйте автоматический выбор. Он корректен для подавляющего большинства случаев: `align` при prefix caching, `none` без него.
+- Явный `all` имеет смысл только на модели с `supports_mamba_prefix_caching`, когда больший hit rate оправдывает более дорогие таблицы состояний и записи cache.
+- `none` при включённом prefix caching задавать бессмысленно: движок всё равно поднимет режим до `align`.
 - Не задавайте `all` вместе с `--use-replayssm` — это запрещенная комбинация (см. ниже).
 
 ## Влияние на производительность и память
@@ -98,7 +98,7 @@ The cache strategy for Mamba layers:
 - **Симптом:** задан `all`, в логе `falling back to 'align' mode`. **Причина:** модель не объявляет `supports_mamba_prefix_caching`. **Лечение:** ничего — это ограничение реализации модели.
 - **Симптом:** задан `align`, но prefix caching выключен, и в логе `Mamba cache mode is set to 'none' when prefix caching is disabled`. **Причина:** штатное принудительное понижение. **Лечение:** добавить `--enable-prefix-caching`.
 - **Симптом:** `Chunked MM input is required because we need the flexibility to schedule a multiple of block_size tokens even if they are in the middle of a mm input` на мультимодальной модели. **Причина:** `align` вместе с отключенным chunked MM input. **Лечение:** не отключать chunked MM input.
-- **Проверка итогового режима:** warning-строка `Mamba cache mode is set to '<mode>' for <Architecture> by default when prefix caching is enabled` в логе старта; следом идет info-строка о том, что поддержка prefix caching для mamba-слоев экспериментальна.
+- **Проверка итогового режима:** info-строка `Mamba cache mode is set to 'align' for <Architecture> by default when prefix caching is enabled` в логе старта; следом идёт info-строка о том, что поддержка prefix caching для mamba-слоёв экспериментальна.
 
 ## Примеры
 

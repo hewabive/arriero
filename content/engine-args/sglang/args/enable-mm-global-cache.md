@@ -6,6 +6,7 @@ title: "--enable-mm-global-cache"
 summary: Общий для нескольких узлов кеш эмбеддингов энкодера поверх Mooncake. Работает только на encoder-сервере EPD-развертывания и поднимает 4 ГиБ pinned host-памяти на ранг.
 group: mm
 related:
+  - --mm-global-cache-backend
   - --encoder-only
   - --encoder-transfer-backend
   - --encoder-urls
@@ -40,7 +41,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 
 ## Что меняет в движке
 
-При включенном флаге encoder-воркер создает `EmbeddingCacheController` (`sglang/python/sglang/srt/mem_cache/storage/mooncake_store/embedding_cache_controller.py`) поверх `MooncakeEmbeddingStore` — Mooncake зашит как единственное хранилище, отдельного флага выбора backend'а нет. Контроллер:
+При включенном флаге encoder-воркер создает `EmbeddingCacheController` поверх store, выбранного `--mm-global-cache-backend`. В текущем checkout registry содержит только `mooncake`, поэтому фактическая реализация по-прежнему `MooncakeEmbeddingStore`. Контроллер:
 
 - выделяет пул **закрепленной (pinned) host-памяти** размером 4 ГиБ на ранг (значение по умолчанию `max_pool_size_gb=4.0`, encode-сервер его не переопределяет), деля его в пропорции 80/20 между vision- и audio-пулом (`VISION_POOL_RATIO = 0.8`);
 - нарезает пулы на страницы с целевым размером 256 КиБ и раздает их range-аллокатором, предпочитающим непрерывные пробеги страниц;
@@ -58,6 +59,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 ## Значения и формат
 
 - Флаг без значения; выключить можно только не передавая его.
+- Хранилище выбирает `--mm-global-cache-backend`; сейчас его единственное choices-значение — `mooncake`.
 - Размер host-пула этим аргументом не задается — он зашит в конструкторе контроллера.
 - Никакой валидации «а Mooncake вообще настроен?» на этапе разбора аргументов нет: ошибка придет позже, при импорте и инициализации backend'а.
 
@@ -78,6 +80,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 
 ## Взаимодействие с другими аргументами
 
+- `--mm-global-cache-backend`: выбирает store, который создаётся этим флагом; в текущем checkout доступен только `mooncake`.
 - `--encoder-only`: развертывание, в котором единственно и работает этот флаг.
 - `--encoder-transfer-backend`: ортогонален — про транспорт выхода энкодера, а не про кеш.
 - `--enable-prefix-mm-cache`: локальный L1 на том же энкодере; его размер задает `SGLANG_VLM_CACHE_SIZE_MB` (в encode-сервере читается напрямую из окружения со значением по умолчанию 4096 МиБ).
@@ -107,7 +110,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encod
 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`
-- `sglang/python/sglang/srt/mem_cache/storage/mooncake_store/embedding_cache_controller.py`
+- `sglang/python/sglang/srt/mem_cache/embedding_cache_controller.py`
 - `sglang/python/sglang/srt/mem_cache/storage/mooncake_store/mooncake_embedding_store.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`
 - arriero: `docs/RESOURCE_MANAGEMENT.md`

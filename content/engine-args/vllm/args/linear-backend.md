@@ -20,7 +20,7 @@ related:
 
 Для каждого квантованного linear-слоя vLLM держит список ядер в порядке предпочтения и берёт первое, у которого `is_supported()` и `can_implement(config)` дают «да». `--linear-backend` вставляет перед этим перебором фильтр: остаются только ядра выбранного семейства.
 
-Это ручка сравнительных замеров и обхода багов в конкретном ядре, а не «ускоритель». Большинство значений жёстко привязано к железу (`aiter` — только ROCm, `xpu`/`xpu_woq` — только XPU, `flashinfer_b12x` — только SM120+), а `emulation` в справке прямо помечен как «for testing only».
+Это ручка сравнительных замеров и обхода багов в конкретном ядре, а не «ускоритель». Большинство значений жёстко привязано к железу (`aiter` — только ROCm, `xpu`/`xpu_woq` — только XPU, `flashinfer_b12x` и `b12x` — только SM12x), а `emulation` в справке прямо помечен как «for testing only».
 
 ## Оригинальная справка
 
@@ -34,6 +34,7 @@ Backend for quantized linear layer GEMM kernels. Available options:
 - "flashinfer_trtllm": Use FlashInfer with TensorRT-LLM kernels
 - "flashinfer_cudnn": Use FlashInfer with cuDNN kernels
 - "flashinfer_b12x": Use FlashInfer b12x CuteDSL NVFP4 GEMM (SM120+)
+- "b12x": Use native B12X FP8 and FP4 linear kernels on SM12x
 - "marlin": Use Marlin kernels
 - "triton": Use Triton-based kernels
 - "deep_gemm": Use DeepGEMM kernels
@@ -53,7 +54,7 @@ Backend for quantized linear layer GEMM kernels. Available options:
 - Флаги: `--linear-backend`
 - Группа argparse: `KernelConfig`
 - Тип значения: строка из фиксированного набора (`Literal`), argparse проверяет по `choices`
-- Допустимые значения: `auto`, `cutlass`, `flashinfer_cutlass`, `flashinfer_cutedsl`, `flashinfer_trtllm`, `flashinfer_cudnn`, `flashinfer_b12x`, `marlin`, `humming`, `triton`, `deep_gemm`, `torch`, `aiter`, `machete`, `fbgemm`, `conch`, `exllama`, `emulation`, `xpu`, `xpu_woq`. Обратите внимание: `humming` есть в `choices` и в `_LINEAR_BACKEND_KERNEL_MAP`, но в тексте справки не перечислен
+- Допустимые значения: `auto`, `cutlass`, `flashinfer_cutlass`, `flashinfer_cutedsl`, `flashinfer_trtllm`, `flashinfer_cudnn`, `flashinfer_b12x`, `b12x`, `marlin`, `humming`, `triton`, `deep_gemm`, `torch`, `aiter`, `machete`, `fbgemm`, `conch`, `exllama`, `emulation`, `xpu`, `xpu_woq`. Обратите внимание: `humming` есть в `choices` и в `_LINEAR_BACKEND_KERNEL_MAP`, но в тексте справки не перечислен
 - Значение по умолчанию: `auto`
 - Эффективное значение: `auto` означает «фильтра нет». Явное значение может быть перебито переменной окружения `VLLM_BATCH_INVARIANT=1` для NVFP4-слоёв — там принудительно берётся CUTLASS (или emulation), о чём пишется `VLLM_BATCH_INVARIANT overrides --linear-backend=%s`
 - Где объявлен: `vllm/config/kernel.py:KernelConfig.linear_backend`
@@ -85,6 +86,7 @@ falling back to normal kernel selection for this layer.
 - Платформенные значения на чужой платформе не запрещены парсером: `--linear-backend aiter` на CUDA пройдёт разбор, но ни одного AITer-ядра в списке CUDA не окажется, и вы получите предупреждение об откате на каждом типе слоя.
 - `emulation` разворачивает веса в BF16 и гоняет QDQ по активациям — это диагностический эталон численности, а не рабочий режим.
 - `flashinfer_b12x` — одно ядро `FlashInferB12xNvFp4LinearKernel` (только NVFP4) из библиотеки FlashInfer. Требует CUDA-устройство capability 120+ (SM120/SM121, потребительский и workstation Blackwell) и сборку FlashInfer с `Sm120BlockScaledDenseGemmKernel`, иначе `is_supported()` отказывает с текстом `FlashInfer b12x requires SM120+ and FlashInfer with Sm120BlockScaledDenseGemmKernel`. В автоматический выбор (`auto`) это ядро не входит — в NVFP4-списке кандидатов оно исключено, включить его можно только явным `--linear-backend flashinfer_b12x`.
+- `b12x` — семейство нативных B12X-ядер для tensor/block FP8, MXFP8, MXFP4 и NVFP4. В отличие от `flashinfer_b12x`, это не одно FlashInfer-NVFP4-ядро. Требует CUDA и устройство семейства SM12x; конкретный класс дополнительно проверяет dtype, форму и доступность B12X-модулей.
 - Структурная форма: `--kernel-config '{"linear_backend": "marlin"}'`. Алиаса `-kc` у `--kernel-config` нет.
 - На неквантованной модели аргумент бесполезен: фильтруются только пути квантованных linear-слоёв.
 
@@ -138,4 +140,6 @@ vllm serve /models/Qwen3-4B-FP8 --kernel-config '{"linear_backend": "cutlass"}' 
 - `vllm/vllm/model_executor/layers/quantization/compressed_tensors/compressed_tensors.py`
 - `vllm/vllm/model_executor/warmup/kernel_warmup.py`
 - `vllm/vllm/model_executor/kernels/linear/nvfp4/flashinfer.py`
+- `vllm/vllm/model_executor/kernels/linear/scaled_mm/b12x_block.py`
+- `vllm/vllm/model_executor/kernels/linear/mxfp4/b12x.py`
 - `vllm/vllm/engine/arg_utils.py`

@@ -3,7 +3,7 @@ schema: 1
 engine: vllm
 primaryName: "--enable-log-outputs"
 title: "--enable-log-outputs"
-summary: Пишет сгенерированный моделью текст, идентификаторы токенов и finish reason в лог одной строкой уровня INFO. Требует --enable-log-requests и является самым прямым способом положить содержимое ответов на диск.
+summary: Пишет сгенерированный текст и finish reason на INFO, а идентификаторы токенов — на DEBUG. Требует --enable-log-requests и является самым прямым способом положить содержимое ответов на диск.
 group: Frontend
 related:
   - --enable-log-requests
@@ -16,18 +16,18 @@ related:
 
 ## Кратко
 
-Флаг включает вызовы `RequestLogger.log_outputs(...)` в обслуживающих классах. Текст генерации, идентификаторы сгенерированных токенов и причина завершения пишутся одной строкой на уровне **INFO** — выше INFO ничего не требуется, что и подчеркивает справка.
+Флаг включает вызовы `RequestLogger.log_outputs(...)` в обслуживающих классах. Текст генерации и причина завершения пишутся на **INFO**, а идентификаторы сгенерированных токенов — отдельной строкой на **DEBUG**.
 
 Аргумент нельзя задать в одиночку: `validate_parsed_serve_args` завершает старт с `TypeError: Error: --enable-log-outputs requires --enable-log-requests`.
 
-Это самая заметная точка утечки содержимого в этой группе аргументов: промпты по умолчанию требуют уровня DEBUG, а ответы — нет.
+Это самая заметная точка утечки содержимого в этой группе аргументов: текст ответов виден уже на INFO; промпты и token IDs требуют DEBUG.
 
 ## Оригинальная справка
 
 ```text
-If set to True, log model outputs (generations).
-Requires `--enable-log-requests`. As with `--enable-log-requests`,
-information is only logged at INFO level at maximum.
+If set to True, log model outputs (generations). Requires
+`--enable-log-requests`. Output text and finish reasons are logged at INFO,
+while output token IDs are logged at DEBUG.
 ```
 
 ## Паспорт аргумента
@@ -49,7 +49,7 @@ information is only logged at INFO level at maximum.
 2. **Потоковые дельты** — строка на каждую дельту, дополнительно управляется `--enable-log-deltas`. В строку попадает не только контент, но и содержимое рассуждений (`[reasoning: ...]`) и аргументы вызовов инструментов (`[tool_calls: ...]`).
 3. **Итог потокового ответа** — собранный полный текст с `finish_reason: streaming_complete`; печатается независимо от `--enable-log-deltas`.
 
-Каждая точка дает одну строку на INFO: `Generated response <request_id>[ (streaming delta)| (streaming complete)]: output: <repr>, output_token_ids: [...], finish_reason: ...`. Идентификаторы токенов входят в эту же строку (в итоге потокового ответа их нет — там `output_token_ids: None`); `--max-log-len` обрезает и текст, и список идентификаторов.
+Каждая точка даёт строку INFO вида `Generated response <request_id>[ (streaming delta)| (streaming complete)]: output: <repr>, finish_reason: ...`. Если DEBUG включён, `RequestLogger` отдельно пишет `Generated response ... details: output_token_ids: [...]`. `--max-log-len` обрезает и текст, и список идентификаторов.
 
 Отдельно стоит различать этот флаг и переменную окружения `VLLM_DEBUG_LOG_API_SERVER_RESPONSE`: она включает middleware `log_response`, которое пишет тело HTTP-ответа целиком, и при старте сама предупреждает `CAUTION: Enabling log response in the API Server. This can include sensitive information and should be avoided in production.`
 

@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--bf16-gemm-backend"
 title: "--bf16-gemm-backend"
-summary: Выбирает ядро для неквантованных BF16-линейных слоев. Значимо только на SM100/SM103 (Blackwell): там `auto` включает JIT CuTe DSL TGV GEMM, который сам решает по форме матрицы, брать ли себя или cuBLAS. На всех остальных картах это всегда cuBLAS.
+summary: Выбирает ядро для неквантованных BF16-линейных слоев. На SM10x `auto` включает JIT CuTe DSL TGV GEMM, но в deterministic-режиме принудительно остается на cuBLAS; на прочем железе `auto` также использует cuBLAS.
 group: exec.kernel
 related:
   - --dtype
@@ -11,18 +11,19 @@ related:
   - --fp8-gemm-backend
   - --fp4-gemm-backend
   - --moe-runner-backend
+  - --enable-deterministic-inference
 ---
 
 # --bf16-gemm-backend
 
 ## Кратко
 
-Аргумент касается только **неквантованных** BF16-линейных слоев (`UnquantizedLinearMethod`). Если модель квантована, ее слои идут через свои quant-методы, и этот флаг на них не влияет. На SM100/SM103 (Blackwell) `auto` разворачивается в `cutedsl` — JIT-ядро CuTe DSL TGV, оптимизированное под малые M (декод); на остальных картах и при `torch` линейный слой считает `torch.nn.functional.linear`, то есть cuBLAS.
+Аргумент касается только **неквантованных** BF16-линейных слоев (`UnquantizedLinearMethod`). Если модель квантована, ее слои идут через свои quant-методы, и этот флаг на них не влияет. На SM10x `auto` разворачивается в `cutedsl` — JIT-ядро CuTe DSL TGV, оптимизированное под малые M (decode), — кроме deterministic inference, где выбирается `torch`. На остальных картах и при `torch` линейный слой считает `torch.nn.functional.linear`, то есть cuBLAS.
 
 ## Оригинальная справка
 
 ```text
-Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (default; selects 'cutedsl' on SM100/SM103 (Blackwell), otherwise uses cuBLAS via torch.nn.functional.linear), 'cutedsl' (SGLang JIT CuTe DSL TGV BF16 GEMM on SM10X; dispatches between the CuTe DSL kernel and cuBLAS), 'torch' (always uses cuBLAS via torch.nn.functional.linear, even on SM100/SM103).
+Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (default; selects 'cutedsl' on SM10x GPUs, except deterministic inference selects 'torch'; otherwise uses cuBLAS via torch.nn.functional.linear), 'cutedsl' (SGLang JIT CuTe DSL TGV BF16 GEMM on SM10x; dispatches between the CuTe DSL kernel and cuBLAS), 'torch' (always uses cuBLAS via torch.nn.functional.linear).
 ```
 
 ## Паспорт аргумента
@@ -32,7 +33,7 @@ Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (defaul
 - Тип значения: строка с фиксированным списком
 - Допустимые значения (из `choices`): `auto`, `cutedsl`, `torch` (константа `BF16_GEMM_BACKEND_CHOICES`)
 - Значение по умолчанию: `auto`
-- Эффективное значение: `initialize_bf16_gemm_config` (`sglang/python/sglang/srt/layers/quantization/unquant.py`) превращает `auto` при `is_sm100_supported()` в `cutedsl`; вне SM100/SM103 `auto` остается `auto` и ведет себя как `torch`, потому что `Bf16GemmBackend.is_cutedsl()` ложно и весь диспетчер сводится к `F.linear`
+- Эффективное значение: `initialize_bf16_gemm_config` превращает `auto` при `is_sm100_supported()` в `cutedsl`, либо в `torch`, если включен `--enable-deterministic-inference`; вне SM10x `auto` остается `auto` и ведет себя как `torch`
 - Где объявлен: `ServerArgs.bf16_gemm_backend` (в extract `origin` — `ServerArgs.bf16_gemm_backend`, `cli_name` задан явно), файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
 - Этап применения: разбор CLI → `initialize_bf16_gemm_config` при инициализации планировщика (`scheduler.py`) → каждый вызов `UnquantizedLinearMethod.apply` / `apply_into`
@@ -41,7 +42,7 @@ Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (defaul
 
 Значение публикуется как глобальный `Bf16GemmBackend` и читается через `get_bf16_gemm_backend()`.
 
-- **`cutedsl`.** Единственная проверка — железо, и это отказ на старте планировщика, а не тихий fallback: на карте вне SM100/SM103 летит `ValueError: --bf16-gemm-backend cutedsl requires SM100/SM103 (Blackwell)`. Только после этой проверки подгружаются `cutedsl_bf16_gemm` и предикат `use_cutedsl_bf16_gemm`.
+- **`cutedsl`.** Проверяются и железо, и воспроизводимость. На карте вне SM10x летит `ValueError: --bf16-gemm-backend cutedsl requires an SM10x GPU`; с deterministic inference — `ValueError` о batch-size-dependent ядре. Только после проверок подгружаются `cutedsl_bf16_gemm` и предикат `use_cutedsl_bf16_gemm`.
 - Даже при выбранном `cutedsl` ядро применяется не всегда. `UnquantizedLinearMethod.apply` требует одновременно: CUDA-тензор, bf16 у входа, весов и bias, отсутствие `requires_grad` — и положительный ответ `use_cutedsl_bf16_gemm(m, n, k)`. Этот предикат (`sglang/python/sglang/kernels/ops/gemm/cutedsl_bf16_gemm.py`) — таблица решений, снятая профилировщиком на B300 под захватом CUDA graph: он отсекает `k`, не кратное 8 (требование TMA), отвергает `n < 1024`, `k < 2048`, `k > 6144` и дальше разбирает диапазоны `n` с порогами по `m`. Комментарий прямо говорит: спорные и неизмеренные области отдаются cuBLAS.
 - Под `torch.compile` вызов уходит в непрозрачный custom-op `bf16_gemm_dispatch`, чтобы Dynamo не перекомпилировал ядро на каждый размер батча — решение по форме принимается в рантайме.
 - Есть путь `apply_into` (запись в буфер вызывающей стороны) со своим набором условий и отдельным ядром `cutedsl_bf16_gemm_out`.
@@ -50,8 +51,8 @@ Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (defaul
 
 ## Значения и формат
 
-- `auto` — рекомендуемое. На SM100/SM103 это `cutedsl`, на остальном — cuBLAS.
-- `cutedsl` вне SM100/SM103 — `ValueError` на старте. Никакой деградации до cuBLAS не будет.
+- `auto` — рекомендуемое. На SM10x это `cutedsl`, но при deterministic inference — `torch`; на остальном — cuBLAS.
+- `cutedsl` вне SM10x или вместе с deterministic inference — `ValueError` на старте. Никакой деградации до cuBLAS не будет.
 - `torch` — принудительный cuBLAS; единственный способ отключить CuTe DSL-путь на Blackwell, не меняя ничего другого.
 - Значение вне списка отвергает argparse.
 
@@ -59,7 +60,7 @@ Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (defaul
 
 - `torch`, когда вы подозреваете JIT-ядро CuTe DSL в неверном результате или в регрессии на своих формах и хотите быстро проверить гипотезу.
 - `torch`, если старт на Blackwell упирается в JIT-компиляцию CuTe DSL, а модель у вас все равно квантованная (тогда флаг ничего не стоит).
-- Не задавайте `cutedsl` вручную: на подходящей карте его и так подставит `auto`, а на неподходящей вы получите отказ старта.
+- Не задавайте `cutedsl` вручную: на подходящей карте его и так подставит `auto`, а на неподходящей или в deterministic-режиме вы получите отказ старта.
 - Не ждите эффекта на квантованной модели: там работают `--fp8-gemm-backend` и `--fp4-gemm-backend`.
 
 ## Влияние на производительность и память
@@ -75,10 +76,12 @@ Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (defaul
 - `--quantization`: любая квантизация уводит слои из `UnquantizedLinearMethod`, и флаг перестает работать.
 - `--fp8-gemm-backend` / `--fp4-gemm-backend`: параллельные аргументы для квантованных линейных слоев, инициализируются в том же месте `scheduler.py`.
 - `--moe-runner-backend`: экспертные GEMM живут отдельно и этим флагом не управляются.
+- `--enable-deterministic-inference`: `auto` выбирает `torch`, а явный `cutedsl` запрещен, поскольку решение диспетчера зависит от batch shape.
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** `ValueError: --bf16-gemm-backend cutedsl requires SM100/SM103 (Blackwell)`. **Причина:** значение задано вручную на не-Blackwell карте. **Решение:** `auto` или `torch`.
+- **Симптом:** `ValueError: --bf16-gemm-backend cutedsl requires an SM10x GPU`. **Причина:** значение задано вручную на неподдерживаемой карте. **Решение:** `auto` или `torch`.
+- **Симптом:** ошибка о несовместимости `cutedsl` с `--enable-deterministic-inference`. **Решение:** `auto` или `torch`.
 - **Симптом:** на Blackwell задан `cutedsl`, а прироста нет. **Причина:** формы ваших слоев не проходят предикат `use_cutedsl_bf16_gemm` (обычно `n` или `k` вне измеренного диапазона), либо модель квантована.
 - **Симптом:** на ROCm флаг ничего не меняет. **Причина:** AITER-путь перехватывает неквантованный линейный слой раньше.
 - **Проверка:** дамп `server_args=` при старте показывает заданное значение (разрешение `auto → cutedsl` происходит позже и в дампе не отражается).

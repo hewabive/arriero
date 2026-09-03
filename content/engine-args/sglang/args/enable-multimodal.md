@@ -11,7 +11,7 @@ related:
   - --mm-feature-transport
   - --limit-mm-data-per-request
   - --mm-process-config
-  - --disable-fast-image-processor
+  - --image-processor-backend
   - --cuda-graph-backend-prefill
 ---
 
@@ -90,7 +90,7 @@ Enable the multimodal functionality for the served model. If the model being ser
 ## Взаимодействие с другими аргументами
 
 - `--model-impl`: значение `transformers` снимает черный список — для Gemma 3 / Llama 4 / Step3-VL / Inkling мультимодальность включится автоматически даже без флага.
-- `--mm-attention-backend`, `--mm-feature-transport`, `--mm-process-config`, `--limit-mm-data-per-request`, `--mm-processor-worker-num`, `--mm-io-worker-num`, `--disable-fast-image-processor`: читаются только когда мультимодальный тракт вообще построен.
+- `--mm-attention-backend`, `--mm-feature-transport`, `--mm-process-config`, `--limit-mm-data-per-request`, `--mm-processor-worker-num`, `--mm-io-worker-num`, `--image-processor-backend`: читаются только когда мультимодальный тракт вообще построен.
 - `--cuda-graph-backend-prefill`: мультимодальная модель вне белого списка сама отключает piecewise-захват prefill.
 - `--chunked-prefill-size`: резать prefill мультимодального запроса можно только у архитектур из `is_multimodal_chunked_prefill_supported`.
 - `--language-only` / `--encoder-only`: разнесение энкодера и LM по разным процессам (EPD); там мультимодальность включена на энкодере, а LM-сервер работает с готовыми эмбеддингами.

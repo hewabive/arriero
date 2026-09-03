@@ -8,7 +8,7 @@ group: mm
 related:
   - --limit-mm-data-per-request
   - --enable-multimodal
-  - --disable-fast-image-processor
+  - --image-processor-backend
   - --mm-io-worker-num
   - --mm-processor-worker-num
   - --chunked-prefill-size
@@ -98,7 +98,7 @@ kwargs.setdefault("audio_kwargs", {}).update(self.audio_config)
 
 - `--limit-mm-data-per-request`: количество элементов; вместе с `--mm-process-config` дает верхнюю границу расхода на один запрос.
 - `--chunked-prefill-size`, `--max-prefill-tokens`, `--context-length`: работают уже с развернутым в токены входом; если картинки не ограничены здесь, ограничивать придется там, и отказ будет грубее.
-- `--disable-fast-image-processor`: меняет реализацию image-процессора; набор поддерживаемых `images_kwargs` у быстрой и базовой версии может отличаться.
+- `--image-processor-backend`: меняет реализацию image processor; набор поддерживаемых `images_kwargs` у torchvision- и PIL-версий может отличаться.
 - `--mm-io-worker-num`, `--mm-processor-worker-num`: параллелизм на этапе, который этот конфиг настраивает.
 - `--enable-multimodal`: без построенного мультимодального тракта конфиг не читается.
 

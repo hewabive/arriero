@@ -35,7 +35,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - Флаги: `--linear-attn-prefill-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda` (общий список `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`, расширяемый out-of-tree пакетами)
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion` (общий список `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`, расширяемый out-of-tree пакетами)
 - Значение по умолчанию: `null` — берется `--linear-attn-backend`
 - Эффективное значение: при незаданном значении и выполнении условий `flashinfer_gdn_prefill_default` подставляется `flashinfer`; это записывается в разрешенную конфигурацию через `get_context().override("gdn_backend.sm100_flashinfer_default", …)`
 - Где объявлен: `ServerArgs.linear_attn_prefill_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -74,7 +74,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 ### Что доступно в каждой семье
 
 - **GDN**: `triton`, `cutedsl`, `flashinfer`. Остальное — `ValueError: Unsupported GDN prefill backend: …`. `cutedsl` prefill существует только на SM100+, на SM90 диспетчер откатывается на Triton с сообщением `CuTe DSL GDN prefill is not supported on this GPU (requires SM100+). Falling back to Triton for prefill.`
-- **KDA**: `triton`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`. `flashkda` — специализированное prefill-only ядро (обертка собирает непрерывную копию состояния слота, так что внешнее ядро самого пула не видит). `nvidia_kda` требует SM100, `ptx_kda` — SM103 (GB300); вне их обе откатываются на Triton с записью в лог.
+- **KDA**: `triton`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`, `helion`. `flashkda` — специализированное prefill-only ядро (обертка собирает непрерывную копию состояния слота, так что внешнее ядро самого пула не видит). `helion` подключает `HelionKDAKernel`, требует CUDA и пакет `helion==1.4.0`; его chunk-prefill используется только для KDA. `nvidia_kda` требует SM100, `ptx_kda` — SM103 (GB300); вне их обе откатываются на Triton с записью в лог.
 
 ## Значения и формат
 
@@ -82,11 +82,13 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - Не задан — берется база, но только после того, как отработал автоподбор GDN.
 - `flashkda` осмысленно задавать именно здесь: это его единственная роль. В decode он запрещен явной ошибкой.
 - `flashinfer` для prefill на SM100+ жестко требует CUDA 13+.
+- `helion` формально входит в общий argparse-список, но реализован только для KDA: на GDN значение завершится `ValueError: Unsupported GDN prefill backend`. На KDA без CUDA или пакета Helion старт также завершится ошибкой.
 - На модели без линейного внимания значение принимается и не используется.
 
 ## Когда использовать
 
 - Задавать `flashkda` на KDA-моделях (Kimi Linear, Kimi K3), когда prefill длинный: decode при этом остается на Triton, и стратегия кеша не меняется.
+- Пробовать `helion` только на KDA-модели и только после отдельного измерения TTFT на своей форме chunked prefill: это JIT-зависимый backend, а не переносимый дефолт.
 - Задавать `flashinfer` вручную, если автоподбор не сработал из-за одного невыполненного условия (например, вы задали `--chunked-prefill-size 16384`), но вы уверены в остальных.
 - Не задавать, если вы просто хотите «побыстрее»: на большинстве конфигураций автоподбор уже сделал верный выбор, а ручное значение его отключает.
 - Не переносить значение между машинами разных поколений: `nvidia_kda`/`ptx_kda`/`cutedsl` вне своих SM тихо деградируют до Triton, и «оптимизированный» запуск окажется обычным.
@@ -113,6 +115,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 
 - `ValueError: --linear-attn-prefill-backend flashinfer on SM100+ requires CUDA 13+, got CUDA 12.8` — сборка PyTorch с CUDA 12.
 - `ValueError: Unsupported GDN prefill backend: LinearAttnKernelBackend.FLASHKDA` — KDA-ядро на GDN-модели.
+- `ImportError: The Helion package is required when a KDA backend is set to Helion.` — выбран `helion`, но пакет не установлен; checkout требует `helion==1.4.0`.
 - В логе `PTX KDA prefill needs SM103 (GB300); falling back to Triton extend.` или `NVIDIA KDA prefill needs SM100; falling back to Triton extend.` — значение принято, но ядро не применилось. Это info-строка, а не ошибка.
 - Ожидали автоматический FlashInfer на Blackwell, а его нет — сверьте все десять условий; чаще всего мешает `--chunked-prefill-size` вне диапазона или незаданный `--mamba-ssm-dtype bfloat16`.
 - Что смотреть в логе: `Defaulting SM100 GDN prefill backend to FlashInfer.` (если автоподбор сработал), `Linear attention kernel backend: decode=…, prefill=…, verify=…` и строку диспетчера с реальными классами ядер.
@@ -132,5 +135,6 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`
+- `sglang/python/sglang/srt/layers/attention/linear/kernels/kda_helion.py`
 - `sglang/python/sglang/srt/layers/attention/linear/utils.py`
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`

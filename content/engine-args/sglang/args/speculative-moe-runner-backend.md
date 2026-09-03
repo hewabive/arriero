@@ -31,7 +31,7 @@ Choose the runner backend for MoE in speculative decoding.
 - Флаги: `--speculative-moe-runner-backend`
 - Группа: `spec`
 - Тип значения: строка с фиксированным списком (`MOE_RUNNER_BACKEND_CHOICES`, тот же, что у `--moe-runner-backend`)
-- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`. Список расширяем сторонними платформенными пакетами через `add_moe_runner_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки
+- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`. Список расширяем сторонними платформенными пакетами через `add_moe_runner_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки
 - Значение по умолчанию: `null`
 - Эффективное значение: `_speculative_moe_runner_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`) при `null` копирует **разрешённое** `moe_runner_backend` target-модели; для DeepSeek-семейства с `modelopt_fp4` на ROCm `_deepseek_spec_moe_resolution` может выставить `deep_gemm` (вместе с a2a `deepep`) или `triton`
 - Где объявлен: `ServerArgs.speculative_moe_runner_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -53,6 +53,7 @@ Choose the runner backend for MoE in speculative decoding.
 - Не задан — наследование разрешённого значения target-модели. Это и есть рекомендуемый режим.
 - `auto` — явно попросить quant-метод draft-слоя выбрать ядро самостоятельно. Отличается от «не задан» тем, что не наследует уже принятое решение target-модели.
 - Значение вне списка отвергает argparse. Значение из списка, но несовместимое с форматом весов черновика или с железом, здесь **не** проверяется: все ассерты `_handle_moe_kernel_config` (ограничения `flashinfer_cutlass`/`flashinfer_cutedsl` на `--ep-size`, требования `hpc_ops` к SM90 и FP8, правила для `mxfp8`/`nvfp4_online`) читают только `moe_runner_backend`. Отказ придёт позже — из сборки draft-модели.
+- `megamoe` здесь — нерабочая механическая добавка общего choices-списка: alias-перевод в `--moe-a2a-backend megamoe` существует только для `--moe-runner-backend`. Здесь строка доходит до `MoeRunnerBackend("megamoe")` и завершает старт с `ValueError`; не используйте её для draft-модели.
 
 ## Когда использовать
 

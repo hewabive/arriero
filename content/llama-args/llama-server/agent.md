@@ -32,11 +32,11 @@ related:
 ## Оригинальная справка llama.cpp
 
 ```text
-whether to enable CORS proxy and all server tools - do not enable in untrusted environments (default: disabled)
+whether to enable CORS proxy and all built-in tools - do not enable in untrusted environments (default: disabled)
 note: for security reasons, this will limit --cors-origins to localhost by default
 ```
 
-Формулировка «server tools» появилась в README в PR #27271 (переименование бывших «built-in tools», чтобы отличать их от browser tools Web UI); `common/arg.cpp` в текущем чекауте ещё печатает «built-in tools» в `--help`.
+Текущая generated help называет этот набор «built-in tools». В реализации и логах также используется термин server tools; речь идёт об одних и тех же инструментах, исполняемых процессом `llama-server`, а не browser tools Web UI.
 
 ## Паспорт аргумента
 

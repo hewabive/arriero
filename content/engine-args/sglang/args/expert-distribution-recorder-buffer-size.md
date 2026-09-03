@@ -9,7 +9,7 @@ related:
   - --expert-distribution-recorder-mode
   - --eplb-rebalance-num-iterations
   - --enable-eplb
-  - --enable-expert-distribution-metrics
+  - --expert-balancedness-report-mode
   - --ep-num-redundant-experts
 ---
 
@@ -77,7 +77,7 @@ eplb_rebalance_num_iterations must be greater than expert_distribution_recorder_
 
 - `--eplb-rebalance-num-iterations`: источник дефолта и верхняя граница; проверяется ассертом в `EPLBManager`.
 - `--expert-distribution-recorder-mode`: буфер существует только в режимах `stat` и `stat_approx`.
-- `--enable-eplb`, `--enable-expert-distribution-metrics`: включают рекордер, после чего аргумент начинает что-то значить.
+- `--enable-eplb` и `--expert-balancedness-report-mode` со значением кроме `off` включают рекордер, после чего аргумент начинает что-то значить.
 - `--ep-num-redundant-experts`: увеличивает `num_physical_experts` и тем самым ширину строки буфера.
 
 ## Типовые проблемы и диагностика

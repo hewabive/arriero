@@ -3,11 +3,11 @@ schema: 1
 engine: sglang
 primaryName: "--eplb-min-rebalancing-utilization-threshold"
 title: "--eplb-min-rebalancing-utilization-threshold"
-summary: Порог сбалансированности экспертов, выше которого EPLB пропускает очередную перебалансировку. Значение по умолчанию `1.0` — это не «порог на единице», а выключенная проверка; работает порог только вместе с `--enable-expert-distribution-metrics`.
+summary: Порог сбалансированности экспертов, выше которого EPLB пропускает очередную перебалансировку. Значение по умолчанию `1.0` выключает проверку; для истории balancedness нужен активный `--expert-balancedness-report-mode`.
 group: exec.moe
 related:
   - --enable-eplb
-  - --enable-expert-distribution-metrics
+  - --expert-balancedness-report-mode
   - --eplb-rebalance-num-iterations
   - --expert-distribution-recorder-mode
   - --ep-size
@@ -41,7 +41,7 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 
 Величина считается в `sglang/python/sglang/srt/eplb/expert_distribution.py`. На каждом проходе счетчики физических экспертов сворачиваются по рангам, и `compute_utilization_rate` дает по каждому слою `(mean + 1e-5) / (max + 1e-5)`; берется среднее по слоям. Значения складываются в скользящие окна на 10, 100 и 1000 проходов.
 
-`_StatAccumulator._get_global_average_utilization_rate()` возвращает среднее по окну 1000 — но только при двух условиях: включен `--enable-expert-distribution-metrics` (иначе история вообще не наполняется) и порог не равен `1.0`. Иначе возвращается `None`.
+`_StatAccumulator._get_global_average_utilization_rate()` возвращает среднее по окну 1000 — но только при двух условиях: `--expert-balancedness-report-mode` не равен `off` (иначе история не наполняется) и порог не равен `1.0`. Иначе возвращается `None`.
 
 `EPLBManager._check_rebalance_needed` трактует `None` как «данных нет — перебалансируем». При числовом значении сравнение простое:
 
@@ -62,20 +62,19 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 ## Когда использовать
 
 - Инстанс в проде, перебалансировка стоит заметной паузы, а нагрузка большую часть времени и так ровная: порог 0.9–0.95 уберет бесполезные срабатывания.
-- Хотите видеть, какая сбалансированность у вас на самом деле, — сначала включите `--enable-expert-distribution-metrics` и посмотрите `last_1000_average_balancedness` в строках `[Expert Balancedness]`, и только потом ставьте порог чуть ниже наблюдаемого значения.
-- Не задавайте порог без `--enable-expert-distribution-metrics` (по умолчанию он выключен): история останется пустой, `None` вернется в менеджер, и порог не сработает ни разу — вы получите ровно поведение по умолчанию плюс ложное ощущение, что защита включена.
+- Хотите видеть, какая сбалансированность у вас на самом деле, — сначала включите `--expert-balancedness-report-mode server_log` и посмотрите `last_1000_average_balancedness`, затем ставьте порог чуть ниже наблюдаемого значения.
+- Не задавайте порог при report mode `off`: история останется пустой, `None` вернется в менеджер, и порог не сработает ни разу.
 - Не ставьте порог близко к 1.0 (например, 0.999): проверка станет почти всегда истинной — пропусков вы не получите, а расчет среднего и `broadcast` при каждом дампе останутся включенными.
 
 ## Влияние на производительность и память
 
-- Само сравнение бесплатно. Накопление истории идет на каждом проходе при включенном `--enable-expert-distribution-metrics` независимо от порога; порог, отличный от `1.0`, добавляет расчет среднего по окну и `broadcast` небольшого тензора при каждом дампе.
-- При `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1` порог, отличный от `1.0`, дополнительно возвращает `.item()` в горячий путь (иначе значение переносилось бы вместе с остальными метриками) — то есть отключает именно ту оптимизацию, ради которой эта переменная существует.
+- Само сравнение бесплатно. Накопление истории идет на каждом проходе при активном report mode независимо от порога; порог, отличный от `1.0`, добавляет расчет среднего по окну и `broadcast` небольшого тензора при каждом дампе.
 - На VRAM влияния нет: величина скалярная, история — три deque на CPU.
 - Выигрыш: пропущенная перебалансировка — это отсутствующая пауза на перенос весов.
 
 ## Взаимодействие с другими аргументами
 
-- `--enable-expert-distribution-metrics`: обязателен — без него история не наполняется и порог не работает.
+- `--expert-balancedness-report-mode`: должен отличаться от `off`, иначе история не наполняется и порог не работает.
 - `--enable-eplb`: без него порог не читается.
 - `--eplb-rebalance-num-iterations`: пропуск по порогу не сдвигает период, только пропускает одно срабатывание.
 - `--expert-distribution-recorder-mode`: величина считается только в аккумуляторе режимов `stat`/`stat_approx`.
@@ -83,20 +82,20 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 
 ## Типовые проблемы и диагностика
 
-- Порог задан, но в логе нет ни одной строки `Skipped ep rebalancing` — `--enable-expert-distribution-metrics` не включен, история пуста.
+- Порог задан, но в логе нет ни одной строки `Skipped ep rebalancing` — report mode остался `off`, история пуста.
 - Перебалансировка перестала происходить совсем — порог слишком низкий; сравните его с `last_1000_average_balancedness` из строк `[Expert Balancedness]`.
-- Строки `[Expert Balancedness]` не печатаются, хотя метрики включены, — задана переменная окружения `SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC`, и значение уходит в Prometheus-метрику `sglang:eplb_balancedness`.
+- Строки `[Expert Balancedness]` не печатаются при `prometheus` — это ожидаемо; используйте `server_log` или `both`, если нужен лог.
 - Первые срабатывания после старта не пропускаются, хотя порог задан, — окно 1000 проходов еще не набралось, метод вернул `0` или `None`.
 - Итоговое значение аргумента — в дампе `server_args=` при старте.
 
 ## Примеры
 
 ```bash
-python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-eplb --enable-expert-distribution-metrics --eplb-min-rebalancing-utilization-threshold 0.92
+python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-eplb --expert-balancedness-report-mode server_log --eplb-min-rebalancing-utilization-threshold 0.92
 ```
 
 ```bash
-SGLANG_ENABLE_EPLB_BALANCEDNESS_METRIC=1 python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --enable-expert-distribution-metrics --enable-metrics
+python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 --ep-size 8 --moe-a2a-backend deepep --deepep-mode normal --expert-balancedness-report-mode prometheus --enable-metrics
 ```
 
 ## Источники

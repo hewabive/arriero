@@ -3,18 +3,17 @@ schema: 1
 engine: sglang
 primaryName: "--mm-feature-transport"
 title: "--mm-feature-transport"
-summary: Как признаки мультимодальных данных едут из tokenizer-процесса в scheduler: через RAM хоста и `/dev/shm` или через ограниченный CUDA IPC-пул на GPU. На одноузловом CUDA-развертывании без disaggregation незаданное значение авто-разрешается в `cuda_ipc`, который резервирует фиксированный кусок VRAM на базовой карте; отказаться — явным `cpu`.
+summary: Выбирает перенос мультимодальных признаков через CPU, одноузловой CUDA IPC или CUDA VMM с локальными/FABRIC-хендлами. По умолчанию используется `cpu`; `cuda_vmm` автоматически включается только для проверенной многоузловой конфигурации GB200/GB300 MNNVL с IMEX.
 group: mm
 related:
   - --keep-mm-feature-on-device
   - --tokenizer-worker-num
   - --base-gpu-id
   - --nnodes
+  - --pp-size
   - --disaggregation-mode
   - --encoder-only
   - --encoder-transfer-backend
-  - --dist-init-addr
-  - --enable-multimodal
   - --mem-fraction-static
 ---
 
@@ -22,121 +21,94 @@ related:
 
 ## Кратко
 
-Мультимодальные признаки (`pixel_values` и родня) рождаются в tokenizer-процессе, а нужны в процессе scheduler'а. `--mm-feature-transport` выбирает, как они туда попадают: `cpu` — копия в RAM хоста и передача через сегмент `/dev/shm`; `cuda_ipc` — тензор остается на GPU в **ограниченном** пуле и передается по CUDA IPC-хендлу.
+Мультимодальный процессор создаёт `pixel_values`, `audio_features` и другие признаки в tokenizer-процессе, а scheduler должен получить их без неограниченного роста памяти. `cpu` переносит тензоры через RAM хоста; `cuda_ipc` кладёт их в ограниченный GPU-пул и передаёт обычные CUDA IPC-хендлы внутри одного узла; `cuda_vmm` экспортирует VMM-выделение как локальный POSIX FD или межузловой CUDA FABRIC handle.
 
-Не задан — движок выбирает сам: одноузловое CUDA-развертывание без disaggregation получает `cuda_ipc` (в лог уходит `Multimodal feature transport auto-resolved to cuda_ipc (single-node CUDA). Pass --mm-feature-transport=cpu to opt out.`), все остальное — `cpu`. То есть по умолчанию на типичной одноузловой мультимодальной конфигурации на базовой карте резервируется пул `SGLANG_MM_FEATURE_CACHE_MB` (1024 МиБ). Пул создается только когда у модели есть мультимодальный процессор — чисто текстовые развертывания не платят ничего. Переполненный пул деградирует потензорно в CPU-путь, так что расход HBM ограничен сверху.
+Незаданный флаг теперь обычно означает `cpu`, в том числе на одноузловом CUDA-сервере. Единственный автоматический GPU-путь — `cuda_vmm` для мультимодальной модели на нескольких GB200/GB300 MNNVL-узлах, если доступен IMEX channel и класс модели явно поддерживает этот транспорт.
 
 ## Оригинальная справка
 
 ```text
-Transport multimodal features through CPU memory or a bounded CUDA IPC pool. Unset resolves automatically: single-node CUDA deployments (without disaggregation) use cuda_ipc, everything else uses cpu. CUDA IPC reserves SGLANG_MM_FEATURE_CACHE_MB (default 1024 MiB) on the base GPU and falls back to CPU transport per tensor when the pool is full.
+Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a bounded CUDA VMM pool. Unset uses cpu except for validated multi-node GB200/GB300 MNNVL models, which use cuda_vmm when an IMEX channel is available. Select cuda_ipc explicitly for single-node GPU transport. GPU transports reserve SGLANG_MM_FEATURE_CACHE_MB (default 1024 MiB) on the base GPU and fall back to CPU transport when the pool is full.
 ```
 
 ## Паспорт аргумента
 
 - Флаги: `--mm-feature-transport`
 - Группа: `mm`
-- Тип значения: строка; поле объявлено как `Optional[Literal["cpu", "cuda_ipc"]]`, choices выводятся из `Literal`
-- Допустимые значения: `cpu`, `cuda_ipc`
-- Значение по умолчанию: `null` — «подобрать по развертыванию»
-- Эффективное значение: целиком определяется методом `ServerArgs._handle_multimodal_feature_transport`; после него поле всегда содержит одну из двух строк, а `keep_mm_feature_on_device` принудительно сбрасывается в `False`
-- Где объявлен: `ServerArgs.mm_feature_transport`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный
-- Этап применения: `__post_init__` (до запуска tokenizer-воркеров) → конструирование процессора и выделение GPU-пула → каждый запрос с мультимодальными данными
+- Тип значения: `Optional[Literal["cpu", "cuda_ipc", "cuda_vmm"]]`
+- Допустимые значения: `cpu`, `cuda_ipc`, `cuda_vmm`
+- Значение по умолчанию: `null`; эффективное значение разрешает `ServerArgs._handle_multimodal_feature_transport`
+- Где объявлен: `ServerArgs.mm_feature_transport`
+- Этап применения: `__post_init__` → проверка поддержки модели в `TokenizerManager` → создание bounded pool → упаковка каждого мультимодального запроса
 
 ## Что меняет в движке
 
-### Разрешение значения
+`_handle_multimodal_feature_transport` сначала переводит устаревший `--keep-mm-feature-on-device` и `SGLANG_USE_CUDA_IPC_TRANSPORT` в новую политику. Явный CLI-флаг имеет приоритет над конфликтующей переменной окружения. В `--encoder-only` оба GPU-варианта принудительно становятся `cpu`, потому что выход энкодера управляется `--encoder-transfer-backend`.
 
-`_handle_multimodal_feature_transport` выполняется до старта воркеров и разбирает случаи в следующем порядке:
+При незаданном значении движок выбирает:
 
-1. Задан устаревший `--keep-mm-feature-on-device` — транспорт принудительно становится `cuda_ipc` с предупреждением; явный `--mm-feature-transport cpu` рядом с ним — `ValueError`.
-2. Значение не задано:
-   - выставлена устаревшая переменная `SGLANG_USE_CUDA_IPC_TRANSPORT` — берется `cuda_ipc`/`cpu` по ней, с предупреждением;
-   - `--encoder-only` — `cpu` (выход энкодера едет по `--encoder-transfer-backend`, а не по этому транспорту);
-   - платформа CUDA, `--nnodes 1`, `--disaggregation-mode null` ⇒ `cuda_ipc`, с info-строкой про opt-out;
-   - всё остальное (многоузловое развертывание — IPC-хендлы работают только внутри узла, PD-disaggregation, не-CUDA) ⇒ `cpu`.
-3. Значение задано явно, но конфликтует с устаревшей переменной окружения — печатается предупреждение, побеждает аргумент.
-4. `--encoder-only` вместе с `cuda_ipc` — транспорт принудительно опускается до `cpu` с предупреждением.
+- `cuda_vmm` только для мультимодальной конфигурации без disaggregation, `--nnodes > 1`, GB200/GB300 MNNVL, смонтированного `/dev/nvidia-caps-imex-channels/channel0` и модели с `supports_cuda_vmm_feature_transport = True`;
+- `cpu` во всех остальных случаях, включая обычный одноузловой CUDA-сервер.
 
-Затем жесткие проверки для `cuda_ipc`: требует CUDA (`ValueError: --mm-feature-transport=cuda_ipc requires NVIDIA CUDA.`) и **строго один узел** (`ValueError: --mm-feature-transport=cuda_ipc only supports a single node.`).
+`cuda_ipc` создаёт по пулу на tokenizer-воркер, деля общий `SGLANG_MM_FEATURE_CACHE_MB` между ними. `cuda_vmm` также делит этот бюджет, но пакует тензоры запроса в экспортируемое VMM-выделение. На одном узле оно передаётся как POSIX FD; на нескольких узлах требуется CUDA FABRIC handle. Scheduler материализует VMM-прокси до обработки запроса, чтобы освобождение slice произошло даже при раннем отказе.
 
-В конце метод пишет `envs.SGLANG_USE_CUDA_IPC_TRANSPORT` в `1`/`0` — переменная окружения становится следствием аргумента, а не наоборот. Docstring метода фиксирует и мотив ограниченного пула: он живет на `base_gpu_id` и уменьшает память, доступную весам и KV-кешу, поэтому его бюджет — жесткая константа, не зависящая от трафика.
-
-### Где физически лежат признаки
-
-- **`cpu`.** После вызова процессора все тензоры из `FEATURE_NAMES` (`pixel_values`, `pixel_values_videos`, `audio_features`, `input_features`) переносятся на CPU. Дальше, если развертывание одноузловое, каждый такой тензор оборачивается в `ShmPointerMMData` (`managers/mm_utils.py`): создается отдельный сегмент `/dev/shm`, страницы резервируются `posix_fallocate` (чтобы переполнение tmpfs давало ловимую `OSError: ENOSPC`, а не `SIGBUS` посреди копирования), и в scheduler едет только имя сегмента. При заданном `--dist-init-addr` режим транспорта становится `default`, и тензоры пикулятся прямо в сообщение ZMQ.
-- **`cuda_ipc`.** Каждый tokenizer-воркер создает на `cuda:<base_gpu_id>` свой `MmItemMemoryPool` (`utils/cuda_ipc_transport_utils.py`): общий бюджет `SGLANG_MM_FEATURE_CACHE_MB` (по умолчанию 1024 МиБ) **делится нацело** между воркерами, `total // tokenizer_worker_num` на каждого, — так что число воркеров не умножает резерв. Каждый признак копируется в свободный chunk пула, а в scheduler едет IPC-хендл со смещением; занятые chunk'и перерабатываются по sync-флагу с периодом `SGLANG_MM_ITEM_MEM_POOL_RECYCLE_INTERVAL_SEC` (0.05 с), соседние свободные — сливаются.
-
-### Что происходит при переполнении GPU-пула
-
-Если свободного chunk'а нужного размера нет, тензор едет обычным (CPU) путем. Один раз на процесс печатается предупреждение:
-
-```text
-MmItemMemoryPool has no free chunk large enough for a X MiB tensor (pool size: Y MiB); falling back to non-IPC transport. Consider increasing SGLANG_MM_FEATURE_CACHE_MB.
-```
-
-Это принципиально: пул **ограничен**, поэтому расход HBM не зависит от нагрузки. По той же причине `keep_mm_feature_on_device` принудительно сбрасывается — иначе после промаха пула тензоры оставались бы на устройстве вне пула, и потребление HBM стало бы функцией трафика.
+Если GPU-пул не вмещает признаки, конкретный запрос возвращается к CPU/inline-передаче. Это удерживает VRAM транспорта в фиксированном бюджете.
 
 ## Значения и формат
 
-- Ровно одна строка из двух; argparse отвергает остальное как `invalid choice`.
-- Отсутствие аргумента на одноузловом CUDA-развертывании без disaggregation эквивалентно `cuda_ipc`; на всех остальных — `cpu`. Отказ от пула — только явным `--mm-feature-transport cpu`.
-- `cuda_ipc` несовместим с `--nnodes > 1` и с не-CUDA платформами — это ошибка старта.
-- Размер пула этим аргументом не задается — только переменной `SGLANG_MM_FEATURE_CACHE_MB` (в МиБ, суммарно на узел, а не на воркер).
-- Кеширование pool-хендлов на стороне потребителя включено по умолчанию и отключается `SGLANG_USE_IPC_POOL_HANDLE_CACHE=0`; оно переиспользует отображения существующего пула и **не** резервирует второй пул.
+- `cpu` — перенос через host memory; на локальном пути возможен `/dev/shm`, на распределённом — inline ZMQ.
+- `cuda_ipc` — только NVIDIA CUDA и `--nnodes 1`; выбирать его теперь нужно явно.
+- `cuda_vmm` — только NVIDIA CUDA, `--pp-size 1`, без `SGLANG_RUST_SERVER`; модель должна явно поддерживать транспорт. В checkout это Kimi K2.5, Kimi K3 и Qwen3-VL.
+- Размер обоих GPU-пулов задаёт `SGLANG_MM_FEATURE_CACHE_MB`, по умолчанию 1024 МиБ суммарно для tokenizer-воркеров на `--base-gpu-id` данного узла, а не на каждый воркер.
+- `--mm-feature-transport cuda_vmm` можно задать явно и на одном узле: тогда разрешён POSIX FD вместо FABRIC.
 
 ## Когда использовать
 
-- **`cpu` явно** — тесная карта, где гигабайт пула ощутим для KV-кеша, или желание закрепить поведение в конфиге независимо от политики авто-выбора. Апстрим-рецепты (Kimi-K3) используют оба явных значения именно как фиксацию.
-- **Ничего не задавать или `cuda_ipc` явно** — одноузловое развертывание, VRAM в достатке, признаки крупные (высокое разрешение, видео): исчезают D2H- и H2D-копии на каждый элемент.
-- **Не задавайте `cuda_ipc` вручную** на многоузловом развертывании — это ошибка старта, а не деградация.
-- **Не рассчитывайте** транспортом изменить размер признаков: их объем задают `--mm-process-config` и `--limit-mm-data-per-request`.
+- Оставляйте `cpu`, если карта близка к лимиту: GPU-транспорт отнимает фиксированный бюджет у весов и KV-cache.
+- Выбирайте `cuda_ipc` на одном узле после измерения, когда D2H/H2D-копии крупных изображений или видео заметны в latency, а 1 ГиБ VRAM можно зарезервировать.
+- Выбирайте `cuda_vmm` вручную только для поддерживаемой модели и подходящей CUDA driver/VMM-конфигурации. На многоузловом MNNVL обычно достаточно авторазрешения.
+- Не используйте GPU-транспорт для encoder-only: аргумент не управляет передачей результата энкодера.
 
 ## Влияние на производительность и память
 
-- **VRAM.** `cuda_ipc` резервирует `SGLANG_MM_FEATURE_CACHE_MB` (1 ГиБ по умолчанию) на `--base-gpu-id` — и на одноузловом CUDA он включен по умолчанию у любой мультимодальной модели. Резерв делается до профилирования KV-пула, поэтому он вычитается из `max_total_num_tokens` напрямую. `cpu` не занимает VRAM вообще.
-- **RAM хоста и `/dev/shm`.** При `cpu` каждый признак в полете живет в сегменте `/dev/shm` (по умолчанию tmpfs = половина RAM). Переполнение tmpfs даст ловимую ошибку при создании сегмента, и конкретный тензор откатится на inline-передачу с предупреждением `Failed to allocate shared memory for multimodal feature transport …; falling back to inline transport.`
-- **Латентность.** `cuda_ipc` убирает пару копий D2H/H2D на элемент, что заметно на крупных признаках и почти незаметно на мелких.
-- **Стабильность расхода.** Пул ограничен, промах падает в CPU-путь; поэтому HBM-потребление транспорта постоянно и не зависит от бурста.
+- `cuda_ipc` и `cuda_vmm` убирают промежуточные D2H/H2D-копии, но резервируют до `SGLANG_MM_FEATURE_CACHE_MB` на `--base-gpu-id`; эта VRAM больше не доступна KV-пулу.
+- `cpu` не резервирует VRAM, зато увеличивает трафик host memory и давление на RAM/`/dev/shm`.
+- Число tokenizer-воркеров не умножает бюджет: каждый получает `total // tokenizer_worker_num`, поэтому слишком много воркеров повышает вероятность pool miss.
+- Полный GPU-пул деградирует потензорно в CPU-путь и не растёт вместе с конкурентностью.
 
 ## Взаимодействие с другими аргументами
 
-- `--keep-mm-feature-on-device`: устаревший предшественник; включенным он форсирует `cuda_ipc`, а явный `cpu` рядом с ним — `ValueError`.
-- `--tokenizer-worker-num`: делит бюджет пула, а не умножает его; при большом числе воркеров доля каждого мельчает и промахи учащаются.
-- `--base-gpu-id`: пулы всех tokenizer-воркеров создаются именно на этой карте.
-- `--nnodes`, `--dist-init-addr`: `cuda_ipc` требует одного узла; заданный `--dist-init-addr` переводит CPU-путь из `/dev/shm` в inline-передачу.
-- `--disaggregation-mode`, `--encoder-only`, `--encoder-transfer-backend`: при disaggregation авто-выбор дает `cpu`; в encoder-only режиме выход энкодера едет по `--encoder-transfer-backend`, а `cuda_ipc` принудительно опускается до `cpu`.
-- `--mem-fraction-static`: резерв пула уменьшает то, что достанется KV-кешу.
-- В arriero этот гигабайт по умолчанию входит в фактический VRAM-draw одноузлового мультимодального инстанса и должен быть учтен в `config/resources.json` (`docs/RESOURCE_MANAGEMENT.md`); экономящий VRAM вариант — явный `cpu` в аргументах инстанса.
+- `--keep-mm-feature-on-device` — deprecated-предшественник `cuda_ipc`; конфликтует с явными `cpu` и `cuda_vmm`.
+- `--nnodes`: `cuda_ipc` требует одного узла; многоузловой `cuda_vmm` требует MNNVL/FABRIC и IMEX.
+- `--pp-size`: для `cuda_vmm` допустимо только `1`.
+- `--tokenizer-worker-num` делит общий GPU-бюджет, `--base-gpu-id` выбирает карту-публикатор.
+- `--mem-fraction-static`: GPU-пул создаёт дополнительное давление на VRAM и уменьшает запас для KV-cache.
+- `--encoder-only` / `--encoder-transfer-backend`: первый отключает этот транспорт, второй выбирает реальную передачу encoder output.
 
 ## Типовые проблемы и диагностика
 
-- `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` — многоузловое развертывание.
-- `ValueError: --mm-feature-transport=cuda_ipc requires NVIDIA CUDA.` — не-CUDA платформа.
-- `ValueError: --keep-mm-feature-on-device conflicts with --mm-feature-transport=cpu. Use only --mm-feature-transport=cuda_ipc.` — заданы оба, и они противоречат друг другу.
-- Пропал гигабайт VRAM на карте `--base-gpu-id` у мультимодальной модели — это пул транспорта, включенный авто-выбором. Подтверждение в логе: `Using CUDA IPC for multimodal features: reserving up to 1024 MiB on base GPU 0 across N tokenizer worker(s). This reduces KV cache headroom; a full pool falls back to CPU transport.` и, от каждого процессора, `CUDA IPC multimodal feature pools reserve … MiB total on GPU …`. Лечение — явный `--mm-feature-transport cpu`.
-- `MmItemMemoryPool has no free chunk large enough …` — пул мал для ваших признаков; либо поднимайте `SGLANG_MM_FEATURE_CACHE_MB`, либо уменьшайте `--mm-process-config`, либо переходите на `cpu`.
-- `Failed to allocate shared memory …` — переполнен `/dev/shm`; увеличьте tmpfs или уменьшите число одновременно обрабатываемых элементов.
-- Итоговое значение поля всегда видно в дампе `server_args=` — на него и ориентируйтесь; авто-выбор `cpu` на не подпадающих под `cuda_ipc` конфигурациях проходит без отдельной строки в логе.
+- `--mm-feature-transport=cuda_ipc only supports a single node` — используйте `cpu` или подходящий `cuda_vmm`.
+- `--mm-feature-transport=cuda_vmm does not support pipeline parallelism` — верните `--pp-size 1`.
+- `--mm-feature-transport=cuda_vmm is not supported by model class ...` — модель не имеет явного opt-in; используйте `cpu`/одноузловой `cuda_ipc`.
+- Сообщение о полном пуле означает per-request fallback, а не утечку VRAM. Увеличьте `SGLANG_MM_FEATURE_CACHE_MB` или уменьшите мультимодальный payload.
+- В старте ищите `Using CUDA IPC ...` либо `Using CUDA VMM ... with CUDA FABRIC/POSIX FD sharing`; итоговое значение видно в `server_args=`.
 
 ## Примеры
 
 ```bash
-python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-feature-transport cpu --mem-fraction-static 0.9
+python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-feature-transport cpu
 ```
 
 ```bash
-SGLANG_MM_FEATURE_CACHE_MB=2048 python -m sglang.launch_server --model-path /models/Qwen3-VL-30B-A3B-Instruct --mm-feature-transport cuda_ipc --tokenizer-worker-num 2 --base-gpu-id 0
+SGLANG_MM_FEATURE_CACHE_MB=2048 python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-feature-transport cuda_ipc --tokenizer-worker-num 2
 ```
 
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/cuda_ipc_transport_utils.py`
+- `sglang/python/sglang/srt/utils/cuda_vmm_transport_utils.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
-- `sglang/python/sglang/srt/managers/mm_utils.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
-- `sglang/python/sglang/srt/environ.py`
-- `sglang/docs/cookbook/autoregressive/Moonshotai/Kimi-K3.mdx`
+- `sglang/python/sglang/srt/managers/scheduler.py`
 - arriero: `docs/RESOURCE_MANAGEMENT.md`

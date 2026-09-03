@@ -21,7 +21,7 @@ related:
 
 ## Кратко
 
-Значение решает две вещи сразу: какой класс-загрузчик создаст `get_model_loader()` и какие шаблоны файлов уйдут в `allow_patterns` при скачивании. Большая часть значений (`auto`, `hf`, `safetensors`, `pt`, `npcache`, `mistral`, `fastsafetensors`, `instanttensor`) обслуживается одним `DefaultModelLoader` и различается именно набором файлов и способом их чтения; `bitsandbytes`, `tensorizer`, `runai_streamer`, `sharded_state`, `modelexpress`, `dummy` — отдельные загрузчики.
+Значение решает две вещи сразу: какой класс-загрузчик создаст `get_model_loader()` и какие шаблоны файлов уйдут в `allow_patterns` при скачивании. Большая часть значений (`auto`, `hf`, `safetensors`, `pt`, `npcache`, `mistral`, `fastsafetensors`, `instanttensor`) обслуживается одним `DefaultModelLoader` и различается именно набором файлов и способом их чтения; `tensorizer`, `runai_streamer`, `sharded_state`, `modelexpress`, `dummy` — отдельные загрузчики.
 
 Список допустимых значений в декларации есть, но argparse его **не** проверяет. Тип поля записан как `str | LoadFormats`, а `LoadFormats` вне проверки типов равен обычному `str`, поэтому в runtime аннотация схлопывается в `str` и аргумент получает `type=str` без `choices`. Любая строка проходит разбор CLI и отвергается позже — при создании загрузчика.
 
@@ -48,7 +48,6 @@ The format of the model weights to load.
   Streamer.
 - "runai_streamer_sharded" will load weights from pre-sharded checkpoint
   files using Run:ai Model Streamer.
-- "bitsandbytes" will load the weights using bitsandbytes quantization.
 - "sharded_state" will load weights from pre-sharded checkpoint files,
   supporting efficient loading of tensor-parallel models.
 - "mistral" will load weights from consolidated safetensors files used by
@@ -62,7 +61,7 @@ The format of the model weights to load.
 - Флаги: `--load-format`
 - Группа argparse: `LoadConfig`
 - Тип значения: enum-подобная строка; значение приводится к нижнему регистру валидатором `_lowercase_load_format`
-- Допустимые значения: `auto`, `hf`, `bitsandbytes`, `dummy`, `fastsafetensors`, `instanttensor`, `mistral`, `modelexpress`, `npcache`, `pt`, `runai_streamer`, `runai_streamer_sharded`, `safetensors`, `sharded_state`, `tensorizer`. Список расширяется плагинами через `register_model_loader(...)`; ни argparse, ни валидация pydantic его не проверяют — единственная проверка происходит в `get_model_loader()`
+- Допустимые значения: `auto`, `hf`, `dummy`, `fastsafetensors`, `instanttensor`, `mistral`, `modelexpress`, `npcache`, `pt`, `runai_streamer`, `runai_streamer_sharded`, `safetensors`, `sharded_state`, `tensorizer`. Список расширяется плагинами через `register_model_loader(...)`; ни argparse, ни валидация pydantic его не проверяют — единственная проверка происходит в `get_model_loader()`
 - Значение по умолчанию: `auto`
 - Эффективное значение: `auto` разрешается уже внутри `DefaultModelLoader._prepare_weights` — в `mistral`, если в репозитории есть `consolidated*.safetensors`, иначе в `hf`. Отдельно `DefaultModelLoader.load_weights` может подменить стратегию чтения на `torchao` (это `--safetensors-load-strategy`, а не смена формата)
 - Где объявлен: `vllm/config/load.py:LoadConfig.load_format`
@@ -75,7 +74,6 @@ The format of the model weights to load.
 | Значение | Класс загрузчика |
 | --- | --- |
 | `auto`, `hf`, `safetensors`, `fastsafetensors`, `instanttensor`, `mistral`, `npcache`, `pt` | `DefaultModelLoader` |
-| `bitsandbytes` | `BitsAndBytesModelLoader` |
 | `dummy` | `DummyModelLoader` |
 | `tensorizer` | `TensorizerLoader` |
 | `runai_streamer` | `RunaiModelStreamerLoader` |
@@ -93,7 +91,7 @@ The format of the model weights to load.
 - `dummy` — инициализация случайными весами. Скачивания весов нет, но конфигурация и токенизатор все равно нужны. Используется для профилирования памяти и времени; любой `--model-loader-extra-config` при этом формате отвергается.
 - `sharded_state` и `runai_streamer_sharded` требуют заранее подготовленный пошардированный чекпоинт; шаблон имен настраивается ключом `pattern` в `--model-loader-extra-config` (по умолчанию `model-rank-{rank}-part-{part}.safetensors`).
 - `tensorizer` требует `--model-loader-extra-config '{"tensorizer_config": {...}}'`; ключи `device`, `dtype`, `mode` в нем запрещены.
-- `bitsandbytes` — загрузка через `BitsAndBytesModelLoader`: уже квантованные bnb-чекпойнты (4-битный nf4 и 8-битный) читаются как есть, неквантованные веса квантуются на лету (`quantize_4bit`, nf4). Требует пакет `bitsandbytes>=0.46.1`, иначе `ImportError` с инструкцией. Задавать формат руками обычно не нужно: `--quantization bitsandbytes` (или bnb-`quantization_config` в чекпойнте) сам переключает `load_format` на `bitsandbytes`. С уже квантованным bnb-чекпойнтом tensor parallelism не работает.
+- `bitsandbytes` больше не входит в поставляемый vLLM список: загрузчик и quantization-config перенесены во внешний плагин. Строка снова станет допустимой только если установленный плагин зарегистрирует её через `register_model_loader(...)`; проверяйте `vllm serve --help` и документацию именно этого плагина.
 - `modelexpress` требует установленного пакета `modelexpress`, иначе — `ImportError` с прямой инструкцией.
 - В тексте справки не упомянуты два валидных значения: `hf` (в него разрешается `auto`) и `fastsafetensors`.
 - Неизвестное значение (в том числе опечатка) даст `Load format `<значение>` is not supported` уже после разбора CLI.
@@ -123,7 +121,7 @@ The format of the model weights to load.
 - `--safetensors-load-strategy`: применяется только к обычному safetensors-итератору (`auto`/`hf`/`safetensors`/`mistral`), но не к `fastsafetensors`, `instanttensor` и не к многопоточному режиму.
 - `--pt-load-map-location`: применяется только к `.bin`/`.pt`, то есть к `pt`, `npcache` и к `hf`/`auto`, когда safetensors в репозитории нет.
 - `--use-tqdm-on-load`: включает прогресс-бары загрузки для всех форматов, идущих через общие итераторы.
-- `--quantization`: чтение конфигурации квантизации происходит независимо от формата; для `torchao`-чекпоинтов формат остается safetensors, а меняется стратегия чтения. Исключение — `bitsandbytes`: метод квантизации жестко привязан к своему загрузчику, и `create_load_config` / `create_engine_config` перезаписывают `load_format` на `bitsandbytes` независимо от заданного значения.
+- `--quantization`: чтение конфигурации квантизации происходит независимо от формата; для `torchao`-чекпоинтов формат остаётся safetensors, а меняется стратегия чтения. В stock vLLM больше нет специальной подмены `load_format` для bitsandbytes; такую интеграцию может вернуть только внешний плагин.
 - `--tensor-parallel-size`: обязателен к согласованию с `sharded_state` — число шардов должно соответствовать числу рангов.
 
 ## Типовые проблемы и диагностика
@@ -151,7 +149,6 @@ vllm serve /models/Qwen3-4B --load-format dummy --max-model-len 8192 --max-num-s
 - `vllm/vllm/config/load.py`
 - `vllm/vllm/model_executor/model_loader/__init__.py`
 - `vllm/vllm/model_executor/model_loader/default_loader.py`
-- `vllm/vllm/model_executor/model_loader/bitsandbytes_loader.py`
 - `vllm/vllm/model_executor/model_loader/dummy_loader.py`
 - `vllm/vllm/model_executor/model_loader/sharded_state_loader.py`
 - `vllm/vllm/model_executor/model_loader/tensorizer_loader.py`

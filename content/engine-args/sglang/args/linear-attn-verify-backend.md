@@ -33,7 +33,7 @@ Override the kernel backend for linear attention speculative target-verify. If n
 - Флаги: `--linear-attn-verify-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `nv_cutedsl` — это общий список linear-attn backend'ов **плюс** `nv_cutedsl`, который допустим только здесь. Фактически KDA-диспетчер принимает `triton`, `nv_cutedsl` и `flashinfer`; остальные значения verify-ядра не имеют и отвергаются
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `nv_cutedsl` — это общий список linear-attn backend'ов **плюс** `nv_cutedsl`, который допустим только здесь. Фактически KDA-диспетчер принимает `triton`, `nv_cutedsl` и `flashinfer`; остальные значения verify-ядра не имеют и отвергаются
 - Значение по умолчанию: `null` — следует за decode: `flashinfer`, если decode `flashinfer`, иначе `triton`
 - Эффективное значение: подстановка выполняется в `initialize_linear_attn_config`; `_handle_linear_attn_backend` дополнительно проверяет разрешенное значение на совместимость с типом состояния
 - Где объявлен: `ServerArgs.linear_attn_verify_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -70,7 +70,7 @@ Override the kernel backend for linear attention speculative target-verify. If n
 
 - Значение вне списка отвергает argparse. Список здесь на один элемент длиннее, чем у остальных linear-attn флагов.
 - Не задан — следование за decode; это осмысленный дефолт, менять его стоит только осознанно.
-- `flashkda`, `nvidia_kda`, `ptx_kda`, `cutedsl` формально принимаются argparse, но KDA-диспетчер их отвергает: у них нет verify-ядра.
+- `flashkda`, `nvidia_kda`, `ptx_kda`, `cutedsl`, `helion` формально принимаются argparse, но KDA-диспетчер их отвергает: у них нет verify-ядра. В частности, наличие Helion decode/prefill-ядра не делает `helion` допустимым verify-значением.
 - Без спекулятивного декодирования значение не используется ни в одной семье.
 
 ## Когда использовать

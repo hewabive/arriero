@@ -10,7 +10,7 @@ related:
   - --tokenizer-backend
   - --skip-tokenizer-init
   - --trust-remote-code
-  - --disable-fast-image-processor
+  - --image-processor-backend
   - --enable-dynamic-batch-tokenizer
   - --enable-tokenizer-batch-encode
 ---
@@ -67,7 +67,7 @@ elif tokenizer_mode == "auto":
 - `auto` — быстрый токенизатор, если он есть; иначе `transformers` сам вернет медленный.
 - `slow` — принудительно медленный. Если у модели нет медленной реализации, `transformers` выбросит ошибку; для процессоров SGLang это перехватывает и откатывается на fast, для чистого токенизатора — нет.
 - Других значений argparse не примет: `choices=["auto", "slow"]`.
-- Флаг **не** влияет на выбор реализации image processor'а — за это отвечает отдельный `--disable-fast-image-processor`.
+- Флаг **не** влияет на выбор реализации image processor'а — за это отвечает отдельный `--image-processor-backend`.
 
 ## Когда использовать
 
@@ -89,7 +89,7 @@ elif tokenizer_mode == "auto":
 - `--tokenizer-backend`: ортогональный выбор библиотеки; `fastokens` патчит `transformers` и по смыслу противоположен `slow`.
 - `--skip-tokenizer-init`: токенизатор не загружается, режим не применяется.
 - `--enable-tokenizer-batch-encode` и `--enable-dynamic-batch-tokenizer`: обе оптимизации рассчитаны на батчевый вызов быстрого токенизатора; со `slow` выигрыш пропадает (см. выше).
-- `--disable-fast-image-processor`: отдельный переключатель для image processor'а, с `--tokenizer-mode` не связан.
+- `--image-processor-backend`: отдельный выбор image processor'а, с `--tokenizer-mode` не связан. Legacy `--disable-fast-image-processor` deprecated.
 - `--trust-remote-code`: нужен, если токенизатор модели реализован собственным кодом.
 
 ## Типовые проблемы и диагностика

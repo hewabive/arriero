@@ -10,7 +10,7 @@ related:
   - --tokenizer-worker-num
   - --limit-mm-data-per-request
   - --mm-process-config
-  - --disable-fast-image-processor
+  - --image-processor-backend
   - --enable-multimodal
 ---
 
@@ -99,7 +99,7 @@ else:
 - `--tokenizer-worker-num`: множитель — пул создается в каждом воркере.
 - `--limit-mm-data-per-request`: ограничивает, сколько задач один запрос положит в пул.
 - `--mm-process-config`: ограничивает размер каждой задачи (`max_frames`, `fps`, `max_pixels`), то есть пиковую RAM на элемент.
-- `--disable-fast-image-processor`: влияет на следующий этап (resize/normalize), не на этот.
+- `--image-processor-backend`: влияет на следующий этап (resize/normalize), не на I/O decode.
 - `--enable-multimodal`: без мультимодального тракта пул не создается.
 
 ## Типовые проблемы и диагностика

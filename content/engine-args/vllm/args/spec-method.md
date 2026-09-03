@@ -38,7 +38,7 @@ If using `ngram` method, the related configuration `prompt_lookup_max` and
 - Флаги: `--spec-method`
 - Группа argparse: `VllmConfig`
 - Тип значения: строка из фиксированного списка `choices`
-- Допустимые значения: `choices` в extract перечисляет их полностью — это `get_args(SpeculativeMethod)` из `vllm/config/speculative.py`. Практически рабочих семейств пять: `ngram`/`ngram_gpu`, `suffix`, `draft_model`, `eagle`/`eagle3`, `mtp`; плюс `medusa`, `mlp_speculator`, `dflash`, `dspark`, `extract_hidden_states`, `custom_class`. Все имена вида `*_mtp` (`deepseek_mtp`, `qwen3_next_mtp`, `glm4_moe_mtp`, …) приняты только ради обратной совместимости
+- Допустимые значения: `choices` в extract перечисляет их полностью — это `get_args(SpeculativeMethod)` из `vllm/config/speculative.py`. Практически рабочих семейств пять: `ngram`/`ngram_gpu`, `suffix`, `draft_model`, `eagle`/`eagle3`, `mtp`; плюс `medusa`, `mlp_speculator`, `dflash`, `dspark`, `extract_hidden_states`, `custom_class`. Все имена вида `*_mtp` (`deepseek_mtp`, `dots3_note_mtp`, `bailing_hybrid_v3_mtp`, `qwen3_next_mtp`, …) приняты только ради обратной совместимости
 - Значение по умолчанию: `None` — метод выводится автоматически
 - Эффективное значение: `SpeculativeConfig.__post_init__` почти всегда переписывает заданное значение. Любое `*_mtp` (кроме самого `mtp`) заменяется на `mtp` с предупреждением; `None` превращается в `custom_class` (если `model` похож на `module.Class`), `ngram` (если `model` равен `ngram`/`[ngram]`) или `draft_model`; при `method: "draft_model"` реальный метод может быть уточнен по имени и `model_type` чекпоинта драфтера
 - Где объявлен: `vllm/config/speculative.py:SpeculativeConfig.method`

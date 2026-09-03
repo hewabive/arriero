@@ -30,7 +30,7 @@ Choose the runner backend for MoE.
 - Флаги: `--moe-runner-backend`
 - Группа: `exec.moe`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
+- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
 - Значение по умолчанию: `auto`
 - Эффективное значение: переопределяется в нескольких местах — `_moe_runner_backend_quant_constraints` (правила по `--quantization`), `_cutlass_moe_env_override` (устаревшая переменная `SGLANG_CUTLASS_MOE`), `_handle_a2a_moe` (для `pplx`) и, наконец, сам quant-метод слоя при `auto`
 - Где объявлен: `ServerArgs.moe_runner_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -60,6 +60,7 @@ Choose the runner backend for MoE.
 - `auto` — рекомендуемое значение. Оно означает «пусть решит quant-метод», а не «выбери самое быстрое».
 - `experimental_sgl_trtllm` и `experimental_sgl_marlin` — экспериментальные варианты, разделяющие подготовку весов с `flashinfer_trtllm` и `marlin` соответственно; контракт может меняться.
 - `hpc_ops` — только SM90 (Hopper) и только FP8 blockwise/per-tensor.
+- `megamoe` — совместимый alias, а не отдельный `MoeRunnerBackend`: в начале `__post_init__` он переписывается в `--moe-runner-backend auto --moe-a2a-backend megamoe`. Если a2a был явно задан иначе, он будет перезаписан с warning.
 - Устаревшая переменная окружения `SGLANG_CUTLASS_MOE` продолжает работать и перетирает значение на `cutlass`, печатая рекомендацию использовать этот флаг вместо нее.
 - Значение вне списка отвергает argparse; значение из списка, но неподдерживаемое вашим железом или форматом весов, отвергается ассертом уже после разбора.
 
