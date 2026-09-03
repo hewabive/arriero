@@ -7,6 +7,7 @@ import {
   ggufModelRole,
   ggufPoolingTypeLabel,
   impliedInstanceModelId,
+  isDraftGgufArtifactKind,
   SGLANG_MODEL_ARG_KEYS,
   sglangModelArg,
   stripGgufSuffix,
@@ -160,6 +161,24 @@ function decodeRpcWorkerRef(value: string): RpcWorkerRef {
     nodeId: nodeRaw === "" ? null : nodeRaw,
     instanceName: value.slice(separator + 1),
   };
+}
+
+type ModelOption = { value: string; label: string };
+
+function modelOptionsWithCustom(
+  options: ModelOption[],
+  selectedPath: string | null,
+): ModelOption[] {
+  return selectedPath &&
+    !options.some((option) => option.value === selectedPath)
+    ? [
+        ...options,
+        {
+          value: selectedPath,
+          label: `${pathBaseName(selectedPath)} · custom path`,
+        },
+      ]
+    : options;
 }
 
 export function useInstanceForm(props: InstanceFormModalProps) {
@@ -457,15 +476,29 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       }),
     [visibleArgRows, knownArgByName, defaultKeySet],
   );
-  const selectableModels = useMemo(
+  const primaryModels = useMemo(
     () =>
       scanned.models
-        .filter((model) => !model.isMmproj && !isVocabModel(model))
+        .filter(
+          (model) => model.artifactKind === "model" && !isVocabModel(model),
+        )
+        .sort(compareModelTitles),
+    [scanned.models],
+  );
+  const draftModels = useMemo(
+    () =>
+      scanned.models
+        .filter(
+          (model) =>
+            (model.artifactKind === "model" ||
+              isDraftGgufArtifactKind(model.artifactKind)) &&
+            !isVocabModel(model),
+        )
         .sort(compareModelTitles),
     [scanned.models],
   );
   const selectedModel =
-    selectableModels.find((model) => model.path === selectedModelPath) ?? null;
+    primaryModels.find((model) => model.path === selectedModelPath) ?? null;
   const embeddingHint = useMemo(() => {
     if (!selectedModel) {
       return null;
@@ -499,25 +532,22 @@ export function useInstanceForm(props: InstanceFormModalProps) {
 
   const selectableModelOptions = useMemo(
     () =>
-      selectableModels.map((model) => ({
+      primaryModels.map((model) => ({
         value: model.path,
         label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
       })),
-    [selectableModels],
+    [primaryModels],
   );
-  const optionsWithCustom = (selectedPath: string | null) =>
-    selectedPath &&
-    !selectableModelOptions.some((option) => option.value === selectedPath)
-      ? [
-          ...selectableModelOptions,
-          {
-            value: selectedPath,
-            label: `${pathBaseName(selectedPath)} · custom path`,
-          },
-        ]
-      : selectableModelOptions;
+  const selectableDraftModelOptions = useMemo(
+    () =>
+      draftModels.map((model) => ({
+        value: model.path,
+        label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
+      })),
+    [draftModels],
+  );
   const modelOptions = useMemo(
-    () => optionsWithCustom(selectedModelPath),
+    () => modelOptionsWithCustom(selectableModelOptions, selectedModelPath),
     [selectableModelOptions, selectedModelPath],
   );
   const binaryCatalogEntries = useMemo(
@@ -582,23 +612,27 @@ export function useInstanceForm(props: InstanceFormModalProps) {
     }),
   );
   const draftModel =
-    selectableModels.find((model) => model.path === specDraftModelValue) ??
-    null;
+    draftModels.find((model) => model.path === specDraftModelValue) ?? null;
   const draftVocabHint =
     specSource === "local" && selectedModel && draftModel
       ? {
           ok:
-            selectedModel.metadata.architecture ===
-              draftModel.metadata.architecture &&
             selectedModel.metadata.vocabularySize ===
-              draftModel.metadata.vocabularySize,
+              draftModel.metadata.vocabularySize &&
+            (isDraftGgufArtifactKind(draftModel.artifactKind) ||
+              selectedModel.metadata.architecture ===
+                draftModel.metadata.architecture),
           mainArch: selectedModel.metadata.architecture ?? "unknown",
           draftArch: draftModel.metadata.architecture ?? "unknown",
+          sidecarKind: isDraftGgufArtifactKind(draftModel.artifactKind)
+            ? draftModel.artifactKind
+            : null,
         }
       : null;
   const draftModelOptions = useMemo(
-    () => optionsWithCustom(specDraftModelValue),
-    [selectableModelOptions, specDraftModelValue],
+    () =>
+      modelOptionsWithCustom(selectableDraftModelOptions, specDraftModelValue),
+    [selectableDraftModelOptions, specDraftModelValue],
   );
   const portRawValue = rowValue(argRows, "--port");
   const portValue = portRawValue === "" ? "" : Number(portRawValue);

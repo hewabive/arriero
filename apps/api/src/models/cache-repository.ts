@@ -1,4 +1,9 @@
-import type { GgufMetadata, GgufModel, ModelScanSettings } from "@arriero/core";
+import {
+  classifyGgufArtifactKind,
+  type GgufMetadata,
+  type GgufModel,
+  type ModelScanSettings,
+} from "@arriero/core";
 import { eq, getTableColumns } from "drizzle-orm";
 import { existsSync } from "node:fs";
 
@@ -50,7 +55,7 @@ function modelFromRow(
     directory: row.directory,
     sizeBytes: Number(row.sizeBytes),
     modifiedAt: row.modifiedAt,
-    isMmproj: row.isMmproj === "true",
+    artifactKind: classifyGgufArtifactKind(row.name),
     mmprojPaths,
     metadata,
     ...(row.error ? { error: row.error } : {}),
@@ -113,7 +118,7 @@ export function saveCachedModel(model: GgufModel, facts: GgufRawFacts | null) {
     directory: model.directory,
     sizeBytes: String(model.sizeBytes),
     modifiedAt: model.modifiedAt,
-    isMmproj: String(model.isMmproj),
+    isMmproj: String(model.artifactKind === "mmproj"),
     mmprojPathsJson: JSON.stringify(model.mmprojPaths),
     metadataJson: JSON.stringify(model.metadata),
     parserVersion: GGUF_PARSER_VERSION,

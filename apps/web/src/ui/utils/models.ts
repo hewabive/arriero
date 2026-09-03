@@ -163,6 +163,7 @@ export function modelMatchesSearch(model: GgufModel, query: string) {
       model.metadata.quantization,
       model.metadata.sizeLabel,
       model.metadata.basename,
+      model.artifactKind,
       model.metadata.nextnPredictLayers ? "mtp" : null,
     ],
     query,

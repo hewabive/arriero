@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { GgufArtifactKindSchema } from "./models.js";
+
 const HF_REPO_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/;
 
 export const HfRepoIdSchema = z.string().regex(HF_REPO_ID_PATTERN);
@@ -20,7 +22,10 @@ export const HfTreeFileSchema = z.object({
   lfs: HfLfsInfoSchema.nullable(),
 });
 
-export const HfGgufVariantKindSchema = z.enum(["model", "mmproj", "other"]);
+export const HfGgufVariantKindSchema = z.union([
+  GgufArtifactKindSchema,
+  z.literal("other"),
+]);
 
 export const HfGgufVariantSchema = z.object({
   label: z.string().nullable(),

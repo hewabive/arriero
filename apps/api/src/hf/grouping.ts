@@ -1,6 +1,6 @@
 import type { HfGgufVariant, HfTreeFile } from "@arriero/core";
 
-import { parseSplitInfo } from "@arriero/core";
+import { classifyGgufArtifactKind, parseSplitInfo } from "@arriero/core";
 
 type HfGroupableFile = Pick<HfTreeFile, "path" | "size">;
 
@@ -53,11 +53,8 @@ export function groupHfGgufFiles(
     const stem = split ? split.prefix : name.slice(0, -".gguf".length);
     const key = split ? `${directory}\0${split.prefix}` : file.path;
     const label = quantLabelFromDir(directory) ?? quantLabelFromName(stem);
-    const kind = stem.toLowerCase().includes("mmproj")
-      ? "mmproj"
-      : label
-        ? "model"
-        : "other";
+    const artifactKind = classifyGgufArtifactKind(stem);
+    const kind = artifactKind === "model" && !label ? "other" : artifactKind;
     const existing = drafts.get(key);
     if (existing) {
       existing.files.push(file);
@@ -82,7 +79,12 @@ export function groupHfGgufFiles(
   const kindOrder: Record<HfGgufVariant["kind"], number> = {
     model: 0,
     other: 1,
-    mmproj: 2,
+    "draft-mtp": 2,
+    "draft-eagle3": 3,
+    "draft-dflash": 4,
+    "draft-dspark": 5,
+    mmproj: 6,
+    imatrix: 7,
   };
 
   return [...drafts.values()]

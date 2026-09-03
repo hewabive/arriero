@@ -76,6 +76,20 @@ test("mmproj files are separated by kind", () => {
   );
 });
 
+test("speculative sidecars are separated by mechanism", () => {
+  const variants = groupHfGgufFiles([
+    file("Model-Q4_K_M.gguf"),
+    file("mtp-Model-Q8_0.gguf"),
+    file("eagle3-Model-Q8_0.gguf"),
+    file("dflash-Model-Q8_0.gguf"),
+    file("dspark-Model-Q8_0.gguf"),
+  ]);
+  assert.deepEqual(
+    variants?.map((variant) => variant.kind),
+    ["model", "draft-mtp", "draft-eagle3", "draft-dflash", "draft-dspark"],
+  );
+});
+
 test("gguf without a recognizable quant label lands in other", () => {
   const variants = groupHfGgufFiles([file("adapter.gguf")]);
   assert.equal(variants?.[0]?.kind, "other");

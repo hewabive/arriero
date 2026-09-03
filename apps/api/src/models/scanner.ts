@@ -1,9 +1,11 @@
 import type {
+  GgufArtifactKind,
   GgufMetadata,
   GgufModel,
   ModelScanRoot,
   SafetensorsModel,
 } from "@arriero/core";
+import { classifyGgufArtifactKind } from "@arriero/core";
 import { opendir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 
@@ -246,11 +248,15 @@ function hfRepoDirectory(
 }
 
 function associateMmprojPaths<
-  Model extends { path: string; directory: string; isMmproj: boolean },
+  Model extends {
+    path: string;
+    directory: string;
+    artifactKind: GgufArtifactKind;
+  },
 >(models: readonly Model[], roots: readonly ModelScanRoot[]) {
   const mmprojByDir = new Map<string, string[]>();
   for (const model of models) {
-    if (!model.isMmproj) {
+    if (model.artifactKind !== "mmproj") {
       continue;
     }
     const list = mmprojByDir.get(model.directory) ?? [];
@@ -264,7 +270,7 @@ function associateMmprojPaths<
   const repoDirectoryCache = new Map<string, string | null>();
   const associations = new Map<string, string[]>();
   for (const model of models) {
-    if (model.isMmproj) {
+    if (model.artifactKind !== "model") {
       associations.set(model.path, []);
       continue;
     }
@@ -443,7 +449,7 @@ export async function scanModels(input: {
     files.map((file) => ({
       path: file.path,
       directory: file.directory,
-      isMmproj: file.name.toLowerCase().includes("mmproj"),
+      artifactKind: classifyGgufArtifactKind(file.name),
     })),
     input.roots,
   );
@@ -468,7 +474,7 @@ export async function scanModels(input: {
       continue;
     }
     const { sizeBytes, modifiedAt } = identity;
-    const isMmproj = file.name.toLowerCase().includes("mmproj");
+    const artifactKind = classifyGgufArtifactKind(file.name);
     const mmprojPaths = mmprojPathsByModel.get(file.path) ?? [];
     const cached = input.refresh ? null : getCachedModelEntry(file.path);
     const unchanged =
@@ -511,7 +517,7 @@ export async function scanModels(input: {
       directory: dirname(file.path),
       sizeBytes,
       modifiedAt,
-      isMmproj,
+      artifactKind,
       mmprojPaths,
       metadata,
       ...(error ? { error } : {}),

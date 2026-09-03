@@ -61,7 +61,7 @@ function seedLlamaInstance(input: {
           directory: dir,
           sizeBytes: 0,
           modifiedAt: "2026-08-17T00:00:00.000Z",
-          isMmproj: false,
+          artifactKind: "model",
           mmprojPaths: [],
           metadata: {
             ...emptyMetadata(),

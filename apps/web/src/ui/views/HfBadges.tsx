@@ -106,10 +106,19 @@ export function hfVariantLocalBadge(state: HfLocalVariantState) {
 }
 
 export function hfVariantKindBadge(variant: HfGgufVariant) {
-  if (variant.kind === "mmproj") {
+  const labels: Partial<Record<HfGgufVariant["kind"], string>> = {
+    mmproj: "mmproj",
+    "draft-mtp": "MTP draft",
+    "draft-eagle3": "EAGLE3 draft",
+    "draft-dflash": "DFlash draft",
+    "draft-dspark": "DSpark draft",
+    imatrix: "imatrix",
+  };
+  const label = labels[variant.kind];
+  if (label) {
     return (
       <Badge color="grape" variant="light">
-        mmproj
+        {label}
       </Badge>
     );
   }

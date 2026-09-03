@@ -28,7 +28,7 @@ function model(path: string): GgufModel {
     directory: dirname(path),
     sizeBytes: 1,
     modifiedAt: "2026-05-31T00:00:00.000Z",
-    isMmproj: false,
+    artifactKind: "model",
     mmprojPaths: [],
     metadata: emptyMetadata(),
   };
@@ -81,6 +81,34 @@ test("saveCachedModel refreshes parserVersion on conflict so the cache hits agai
 
     assert.ok(getCachedModelEntry(path)?.model);
     assert.ok(listAllCachedModels().some((m) => m.path === path));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("legacy cache rows derive auxiliary artifact kinds from their filename", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-cache-"));
+  const path = join(dir, "mtp-model.gguf");
+
+  try {
+    const saved = { ...model(path), name: "mtp-model.gguf" };
+    db.insert(modelCache)
+      .values({
+        path,
+        name: saved.name,
+        directory: saved.directory,
+        sizeBytes: String(saved.sizeBytes),
+        modifiedAt: saved.modifiedAt,
+        isMmproj: "false",
+        mmprojPathsJson: "[]",
+        metadataJson: JSON.stringify(saved.metadata),
+        parserVersion: GGUF_PARSER_VERSION,
+        error: null,
+        scannedAt: saved.modifiedAt,
+      })
+      .run();
+
+    assert.equal(getCachedModelEntry(path)?.model?.artifactKind, "draft-mtp");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

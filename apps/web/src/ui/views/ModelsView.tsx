@@ -1,5 +1,9 @@
 import type { GgufModel, ModelScanRoot, SafetensorsModel } from "@arriero/core";
-import { ggufModelRole, ggufPoolingTypeLabel } from "@arriero/core";
+import {
+  ggufModelRole,
+  ggufPoolingTypeLabel,
+  isAuxiliaryGgufArtifactKind,
+} from "@arriero/core";
 import {
   ActionIcon,
   Anchor,
@@ -199,6 +203,9 @@ function TypeBadge(props: { model: GgufModel }) {
 }
 
 function MtpBadge(props: { model: GgufModel }) {
+  if (props.model.artifactKind !== "model") {
+    return null;
+  }
   const mtpLayers = props.model.metadata.nextnPredictLayers;
   if (!mtpLayers) {
     return null;
@@ -208,6 +215,52 @@ function MtpBadge(props: { model: GgufModel }) {
       color="cyan"
       label="MTP"
       tooltip={`${countLabel(mtpLayers, "built-in speculative-decoding layer")} (NextN/MTP)`}
+    />
+  );
+}
+
+function ArtifactKindBadge(props: { model: GgufModel }) {
+  const kind = props.model.artifactKind;
+  if (kind === "model") {
+    return null;
+  }
+  const details = {
+    mmproj: {
+      label: "mmproj",
+      tooltip: "Multimodal projector",
+      color: "grape",
+    },
+    "draft-mtp": {
+      label: "MTP",
+      tooltip: "MTP speculative draft sidecar",
+      color: "cyan",
+    },
+    "draft-eagle3": {
+      label: "EAGLE3",
+      tooltip: "EAGLE3 speculative draft sidecar",
+      color: "cyan",
+    },
+    "draft-dflash": {
+      label: "DFlash",
+      tooltip: "DFlash speculative draft sidecar",
+      color: "cyan",
+    },
+    "draft-dspark": {
+      label: "DSpark",
+      tooltip: "DSpark speculative draft sidecar",
+      color: "cyan",
+    },
+    imatrix: {
+      label: "imatrix",
+      tooltip: "Importance matrix",
+      color: "gray",
+    },
+  }[kind];
+  return (
+    <FeatureBadge
+      color={details.color}
+      label={details.label}
+      tooltip={details.tooltip}
     />
   );
 }
@@ -306,7 +359,7 @@ export function ModelsView(props: {
   const [maxDepth, setMaxDepth] = useState(8);
   const [search, setSearch] = useState("");
   const [hideVocab, setHideVocab] = useState(true);
-  const [hideMmproj, setHideMmproj] = useState(true);
+  const [hideAuxiliary, setHideAuxiliary] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addDirOpen, setAddDirOpen] = useState(false);
   const [dirDraft, setDirDraft] = useState({ name: "", path: "" });
@@ -398,12 +451,12 @@ export function ModelsView(props: {
         if (hideVocab && isVocabModel(model)) {
           return false;
         }
-        if (hideMmproj && model.isMmproj) {
+        if (hideAuxiliary && isAuxiliaryGgufArtifactKind(model.artifactKind)) {
           return false;
         }
         return modelMatchesSearch(model, deferredSearch);
       }),
-    [models, hideVocab, hideMmproj, deferredSearch],
+    [models, hideVocab, hideAuxiliary, deferredSearch],
   );
 
   const modelsByRoot = useMemo(() => {
@@ -585,9 +638,11 @@ export function ModelsView(props: {
               onChange={(event) => setHideVocab(event.currentTarget.checked)}
             />
             <Switch
-              label="Hide mmproj"
-              checked={hideMmproj}
-              onChange={(event) => setHideMmproj(event.currentTarget.checked)}
+              label="Hide auxiliary files"
+              checked={hideAuxiliary}
+              onChange={(event) =>
+                setHideAuxiliary(event.currentTarget.checked)
+              }
             />
             <Badge variant="light">
               {filteredModels.length}/{models.length}
@@ -631,6 +686,7 @@ export function ModelsView(props: {
                         {model.metadata.architecture ?? "unknown arch"}
                       </Badge>
                       <TypeBadge model={model} />
+                      <ArtifactKindBadge model={model} />
                       <MtpBadge model={model} />
                       <RoleBadge model={model} />
                       <Badge variant="outline">{paramsLabel(model)}</Badge>
@@ -658,7 +714,7 @@ export function ModelsView(props: {
                       <Button
                         size="xs"
                         variant="light"
-                        disabled={model.isMmproj}
+                        disabled={model.artifactKind !== "model"}
                         onClick={() => props.onUseModel(model)}
                       >
                         Use in new
@@ -738,6 +794,7 @@ export function ModelsView(props: {
                         <Table.Td>
                           <Group gap={6} wrap="nowrap">
                             <TypeBadge model={model} />
+                            <ArtifactKindBadge model={model} />
                             <MtpBadge model={model} />
                           </Group>
                         </Table.Td>
@@ -753,7 +810,7 @@ export function ModelsView(props: {
                         </Table.Td>
                         <Table.Td>{formatBytes(model.sizeBytes)}</Table.Td>
                         <Table.Td>
-                          {model.isMmproj
+                          {model.artifactKind === "mmproj"
                             ? "projector"
                             : model.mmprojPaths.length || "-"}
                         </Table.Td>
@@ -762,7 +819,7 @@ export function ModelsView(props: {
                             <Button
                               size="xs"
                               variant="light"
-                              disabled={model.isMmproj}
+                              disabled={model.artifactKind !== "model"}
                               onClick={() => props.onUseModel(model)}
                             >
                               Use in new

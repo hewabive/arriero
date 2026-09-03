@@ -114,8 +114,12 @@ export function InstanceFormSpecSection({
             {fm.draftVocabHint && (
               <Text size="xs" c={fm.draftVocabHint.ok ? "green" : "yellow"}>
                 {fm.draftVocabHint.ok
-                  ? `✓ vocab matches the main model (${fm.draftVocabHint.mainArch})`
-                  : `⚠ draft arch (${fm.draftVocabHint.draftArch}) ≠ main (${fm.draftVocabHint.mainArch}) — speculative may fail to start`}
+                  ? fm.draftVocabHint.sidecarKind
+                    ? `✓ ${fm.draftVocabHint.sidecarKind.replace("draft-", "").toUpperCase()} sidecar vocab matches the main model`
+                    : `✓ vocab matches the main model (${fm.draftVocabHint.mainArch})`
+                  : fm.draftVocabHint.sidecarKind
+                    ? `⚠ speculative sidecar vocab differs from the main model — startup may fail`
+                    : `⚠ draft arch (${fm.draftVocabHint.draftArch}) ≠ main (${fm.draftVocabHint.mainArch}) — speculative may fail to start`}
               </Text>
             )}
             <Button

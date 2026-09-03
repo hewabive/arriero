@@ -16,7 +16,18 @@ export function hfVariantTitle(variant: HfGgufVariant): string {
 
 export function hfVariantChipLabel(variant: HfGgufVariant): string {
   const title = hfVariantTitle(variant);
-  return variant.kind === "mmproj" && variant.label ? `mmproj ${title}` : title;
+  if (!variant.label) {
+    return title;
+  }
+  const prefix: Partial<Record<HfGgufVariant["kind"], string>> = {
+    mmproj: "mmproj",
+    "draft-mtp": "MTP",
+    "draft-eagle3": "EAGLE3",
+    "draft-dflash": "DFlash",
+    "draft-dspark": "DSpark",
+    imatrix: "imatrix",
+  };
+  return prefix[variant.kind] ? `${prefix[variant.kind]} ${title}` : title;
 }
 
 export type HfLocalFileState = "current" | "changed" | "absent";

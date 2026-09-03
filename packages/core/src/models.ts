@@ -84,13 +84,56 @@ export const GgufMetadataSchema = z.object({
   imatrixChunks: z.number().nullable(),
 });
 
+export const GgufArtifactKindSchema = z.enum([
+  "model",
+  "mmproj",
+  "draft-mtp",
+  "draft-eagle3",
+  "draft-dflash",
+  "draft-dspark",
+  "imatrix",
+]);
+
+export type GgufArtifactKind = z.infer<typeof GgufArtifactKindSchema>;
+
+export function classifyGgufArtifactKind(pathOrName: string): GgufArtifactKind {
+  const name = pathOrName.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
+  if (name.includes("mmproj")) {
+    return "mmproj";
+  }
+  if (name.includes("mtp-")) {
+    return "draft-mtp";
+  }
+  if (name.includes("eagle3-")) {
+    return "draft-eagle3";
+  }
+  if (name.includes("dflash-")) {
+    return "draft-dflash";
+  }
+  if (name.includes("dspark-")) {
+    return "draft-dspark";
+  }
+  if (name.includes("imatrix")) {
+    return "imatrix";
+  }
+  return "model";
+}
+
+export function isAuxiliaryGgufArtifactKind(kind: GgufArtifactKind): boolean {
+  return kind !== "model";
+}
+
+export function isDraftGgufArtifactKind(kind: GgufArtifactKind): boolean {
+  return kind.startsWith("draft-");
+}
+
 export const GgufModelSchema = z.object({
   name: z.string(),
   path: z.string(),
   directory: z.string(),
   sizeBytes: z.number(),
   modifiedAt: z.string(),
-  isMmproj: z.boolean(),
+  artifactKind: GgufArtifactKindSchema,
   mmprojPaths: z.array(z.string()),
   metadata: GgufMetadataSchema,
   error: z.string().optional(),

@@ -79,6 +79,44 @@ test("scanModels collapses split GGUF shards into a single model", async () => {
   }
 });
 
+test("scanModels classifies auxiliary GGUF artifacts by llama.cpp filename conventions", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-model-artifacts-"));
+
+  try {
+    for (const name of [
+      "model.gguf",
+      "mmproj-F16.gguf",
+      "mtp-model.gguf",
+      "model-mtp-BF16.gguf",
+      "eagle3-model.gguf",
+      "dflash-model.gguf",
+      "dspark-model.gguf",
+      "model-imatrix.gguf",
+    ]) {
+      writeFileSync(join(dir, name), "invalid test fixture");
+    }
+
+    const result = await scanModels({ roots: [root(dir)], refresh: true });
+    assert.deepEqual(
+      Object.fromEntries(
+        result.models.map((model) => [model.name, model.artifactKind]),
+      ),
+      {
+        "dflash-model.gguf": "draft-dflash",
+        "dspark-model.gguf": "draft-dspark",
+        "eagle3-model.gguf": "draft-eagle3",
+        "mmproj-F16.gguf": "mmproj",
+        "model-imatrix.gguf": "imatrix",
+        "model-mtp-BF16.gguf": "draft-mtp",
+        "model.gguf": "model",
+        "mtp-model.gguf": "draft-mtp",
+      },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("scanModels associates root mmproj files with nested models in an HF download", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-hf-model-scan-"));
 
