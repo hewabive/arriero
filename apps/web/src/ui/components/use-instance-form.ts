@@ -1201,7 +1201,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
 
   function applyEstimateAsDraws() {
     if (memoryEstimate) {
-      setMemoryRows(memoryRowsFromDraws(memoryEstimate.estimate.draws));
+      setMemoryRows(memoryRowsFromDraws(memoryEstimate.estimate.draws, "up"));
     }
   }
 

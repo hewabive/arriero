@@ -12,11 +12,13 @@ export type MemoryDraftRow = {
 
 export function memoryRowsFromDraws(
   draws: InstanceMemoryDraw[],
+  rounding: "nearest" | "up" = "nearest",
 ): MemoryDraftRow[] {
+  const round = rounding === "up" ? Math.ceil : Math.round;
   return draws.map((draw) => ({
     id: createUiId(),
     poolId: draw.poolId,
-    gib: Math.round((draw.bytes / MEMORY_GIB) * 100) / 100,
+    gib: round((draw.bytes / MEMORY_GIB) * 100) / 100,
   }));
 }
 
