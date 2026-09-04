@@ -1,4 +1,9 @@
-import type { HfDownloadStart, HfDownloadedRepo } from "@arriero/core";
+import type {
+  HfDownloadIntegrity,
+  HfDownloadIntegrityFile,
+  HfDownloadStart,
+  HfDownloadedRepo,
+} from "@arriero/core";
 import {
   Alert,
   Anchor,
@@ -15,11 +20,20 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
+import {
+  CircleCheck,
+  Download,
+  ExternalLink,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
   browseHfRepo,
+  checkHfDownloadIntegrity,
   checkHfUpdates,
   getHfDestCheck,
   startHfDownload,
@@ -27,6 +41,7 @@ import {
 import { hfDownloadJobStatusColor } from "../utils/job-status";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import { formatLocalDateTime } from "../utils/time";
 import { hfRepoMetaLines, hfRepoStatusBadges } from "./HfBadges";
 import { hfJobPercent, hfJobProgressLine } from "./HfQueueJobCard";
 import { HfRepoDeleteModal, type HfDeleteRequest } from "./HfRepoDeleteModal";
@@ -38,6 +53,71 @@ import {
   useHfQueue,
 } from "./use-hf-queue";
 import { notifyError } from "../utils/notify";
+
+function integrityIssueDetail(file: HfDownloadIntegrityFile): string {
+  if (file.status === "missing") {
+    return `expected ${formatBytes(file.expectedSize)}`;
+  }
+  if (file.status === "size-mismatch") {
+    return `expected ${formatBytes(file.expectedSize)}, found ${formatBytes(file.actualSize ?? 0)}`;
+  }
+  if (file.status === "checksum-mismatch") {
+    return `${file.algorithm === "sha256" ? "SHA-256" : "Git SHA-1"} checksum mismatch`;
+  }
+  return file.error ?? "could not read the file";
+}
+
+function HfIntegrityResult(props: { result: HfDownloadIntegrity }) {
+  const issues = props.result.files.filter(
+    (file) => file.status !== "verified",
+  );
+  const verified = props.result.files.length - issues.length;
+  if (issues.length === 0) {
+    return (
+      <Alert
+        color="green"
+        icon={<CircleCheck size={16} />}
+        title="Integrity verified"
+      >
+        <Text size="sm">
+          {countLabel(verified, "file")} matched the download manifest · checked{" "}
+          {formatLocalDateTime(props.result.checkedAt)}
+        </Text>
+      </Alert>
+    );
+  }
+  return (
+    <Alert
+      color="red"
+      icon={<TriangleAlert size={16} />}
+      title={`${countLabel(issues.length, "integrity issue")} found`}
+    >
+      <Stack gap={6}>
+        <Text size="sm">
+          {countLabel(verified, "file")} verified · checked{" "}
+          {formatLocalDateTime(props.result.checkedAt)}
+        </Text>
+        <ScrollArea.Autosize mah={180} type="auto" offsetScrollbars>
+          <Stack gap={4}>
+            {issues.map((file) => (
+              <Group key={file.path} gap="xs" wrap="wrap">
+                <Text size="xs" fw={500} style={{ overflowWrap: "anywhere" }}>
+                  {file.path}
+                </Text>
+                <Badge color="red" variant="light">
+                  {file.status}
+                </Badge>
+                <Text size="xs" c="dimmed">
+                  {integrityIssueDetail(file)}
+                </Text>
+              </Group>
+            ))}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Stack>
+    </Alert>
+  );
+}
 
 export function HfRepoDetailModal(props: {
   repo: HfDownloadedRepo | null;
@@ -64,6 +144,7 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
   const [deleteRequest, setDeleteRequest] = useState<HfDeleteRequest | null>(
     null,
   );
+  const [integrity, setIntegrity] = useState<HfDownloadIntegrity | null>(null);
 
   const queue = useHfQueue();
   const job = hfQueueJobForDir(queue.state, repo.dir);
@@ -133,6 +214,16 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] }),
     onError: notifyError("Update check"),
+  });
+
+  const integrityMutation = useMutation({
+    mutationFn: () => checkHfDownloadIntegrity(repo.dir),
+    onMutate: () => setIntegrity(null),
+    onSuccess: (result) => {
+      setIntegrity(result.data);
+      void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] });
+    },
+    onError: notifyError("Integrity check"),
   });
 
   const downloadMutation = useMutation({
@@ -248,6 +339,16 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
         >
           Check updates
         </Button>
+        <Button
+          variant="default"
+          size="xs"
+          leftSection={<ShieldCheck size={14} />}
+          loading={integrityMutation.isPending}
+          disabled={busy}
+          onClick={() => integrityMutation.mutate()}
+        >
+          Verify files
+        </Button>
         {repo.update.status === "drift" && updatedPaths.length > 0 && (
           <Button
             size="xs"
@@ -294,6 +395,14 @@ function HfRepoDetailBody(props: { repo: HfDownloadedRepo }) {
           Delete repository
         </Button>
       </Group>
+
+      {integrityMutation.isPending && (
+        <Text size="xs" c="dimmed">
+          Reading every tracked file and comparing it with the download
+          manifest. No Hugging Face connection is used.
+        </Text>
+      )}
+      {integrity && <HfIntegrityResult result={integrity} />}
 
       {browseQuery.isLoading && (
         <Group gap="xs">

@@ -119,6 +119,23 @@ test("download delete rejects unknown dirs and bad bodies", async () => {
   assert.equal(missing.status, 404);
 });
 
+test("integrity check rejects unknown dirs and bad bodies", async () => {
+  const app = appWithRoutes();
+  const bad = await app.request("/api/hf/downloads/integrity", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(bad.status, 400);
+
+  const missing = await app.request("/api/hf/downloads/integrity", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ dir: "/nonexistent/hf/download" }),
+  });
+  assert.equal(missing.status, 404);
+});
+
 test("job endpoints return 404 when nothing is running", async () => {
   const app = appWithRoutes();
   const job = await app.request("/api/hf/jobs/owner/repo");

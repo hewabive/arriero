@@ -231,6 +231,35 @@ export const HfDownloadDeleteBlockedSchema = z.object({
   verification: HfUpdateCheckSchema,
 });
 
+export const HfDownloadIntegrityRequestSchema = z.object({
+  dir: z.string().min(1),
+});
+
+export const HfDownloadIntegrityFileStatusSchema = z.enum([
+  "verified",
+  "missing",
+  "size-mismatch",
+  "checksum-mismatch",
+  "error",
+]);
+
+export const HfDownloadIntegrityFileSchema = z.object({
+  path: z.string().min(1),
+  status: HfDownloadIntegrityFileStatusSchema,
+  expectedSize: z.number().int().nonnegative(),
+  actualSize: z.number().int().nonnegative().nullable(),
+  algorithm: z.enum(["sha256", "git-sha1"]),
+  expectedHash: z.string(),
+  actualHash: z.string().nullable(),
+  error: z.string().nullable(),
+});
+
+export const HfDownloadIntegritySchema = z.object({
+  status: z.enum(["verified", "issues"]),
+  checkedAt: z.string(),
+  files: z.array(HfDownloadIntegrityFileSchema),
+});
+
 export const HfDestCheckSchema = z.object({
   dir: z.string().min(1),
   insideScanRoots: z.boolean(),
@@ -322,4 +351,14 @@ export type HfDownloadDelete = z.infer<typeof HfDownloadDeleteSchema>;
 export type HfDownloadDeleteBlocked = z.infer<
   typeof HfDownloadDeleteBlockedSchema
 >;
+export type HfDownloadIntegrityRequest = z.infer<
+  typeof HfDownloadIntegrityRequestSchema
+>;
+export type HfDownloadIntegrityFileStatus = z.infer<
+  typeof HfDownloadIntegrityFileStatusSchema
+>;
+export type HfDownloadIntegrityFile = z.infer<
+  typeof HfDownloadIntegrityFileSchema
+>;
+export type HfDownloadIntegrity = z.infer<typeof HfDownloadIntegritySchema>;
 export type HfDestCheck = z.infer<typeof HfDestCheckSchema>;

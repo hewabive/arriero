@@ -1,6 +1,7 @@
 import {
   HfDownloadDeleteSchema,
   HfDownloadFileSkipSchema,
+  HfDownloadIntegrityRequestSchema,
   HfDownloadQueueReorderSchema,
   HfDownloadResumeSchema,
   HfDownloadSettingsSchema,
@@ -28,6 +29,7 @@ import {
   type HfQueueMutationResult,
 } from "../hf/download-queue.js";
 import {
+  checkHfDownloadIntegrity,
   deleteHfDownload,
   HfDownloadBusyError,
   HfDownloadNotFoundError,
@@ -172,6 +174,21 @@ export function registerHfRoutes(app: Hono) {
   app.post("/api/hf/downloads/check", async (c) => {
     const body = await parseJsonBody(c, HfUpdateCheckRequestSchema);
     return c.json({ data: await runHfUpdateChecks(body.dirs) });
+  });
+
+  app.post("/api/hf/downloads/integrity", async (c) => {
+    const body = await parseJsonBody(c, HfDownloadIntegrityRequestSchema);
+    try {
+      return c.json({ data: await checkHfDownloadIntegrity(body.dir) });
+    } catch (error) {
+      if (error instanceof HfDownloadNotFoundError) {
+        return c.json({ error: error.message }, 404);
+      }
+      if (error instanceof HfDownloadBusyError) {
+        return c.json({ error: error.message }, 409);
+      }
+      throw error;
+    }
   });
 
   app.post("/api/hf/downloads/delete", async (c) => {

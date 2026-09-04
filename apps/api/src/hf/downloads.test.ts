@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { beforeEach, test } from "node:test";
@@ -8,6 +8,7 @@ import { config } from "../config.js";
 import { registerActiveJob, resetActiveJobs } from "../jobs/registry.js";
 import { saveModelScanSettings } from "../models/cache-repository.js";
 import {
+  checkHfDownloadIntegrity,
   deleteHfDownload,
   HF_DOWNLOAD_JOB_DOMAIN,
   HfDownloadBusyError,
@@ -73,6 +74,18 @@ function upstreamFetch(input: {
   }) as typeof fetch;
 }
 
+function sha256(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function gitBlobSha1(content: string): string {
+  const bytes = Buffer.from(content);
+  return createHash("sha1")
+    .update(`blob ${bytes.length}\0`)
+    .update(bytes)
+    .digest("hex");
+}
+
 beforeEach(() => {
   resetActiveJobs();
   resetHfUpdateChecksForTests();
@@ -126,6 +139,88 @@ test("list reports null variants for a repo without gguf files", async () => {
   seedRepo("owner/plain", [{ path: "config.json", present: true }]);
   const downloads = await listHfDownloads();
   assert.equal(downloads[0]?.variants, null);
+});
+
+test("integrity check verifies hashes and reports missing or damaged files", async () => {
+  const dir = join(scanDir, "owner", "integrity");
+  mkdirSync(dir, { recursive: true });
+  const lfsContent = "valid-lfs-content";
+  const gitContent = "valid-git-content";
+  const damagedContent = "damaged-content";
+  writeFileSync(join(dir, "model.gguf"), lfsContent, "utf8");
+  writeFileSync(join(dir, "config.json"), gitContent, "utf8");
+  writeFileSync(join(dir, "damaged.gguf"), damagedContent, "utf8");
+  writeFileSync(join(dir, "wrong-size.gguf"), "short", "utf8");
+  writeHfManifest(dir, {
+    version: 1,
+    repoId: "owner/integrity",
+    revision: "a".repeat(40),
+    downloadedAt: "2026-08-17T00:00:00.000Z",
+    files: [
+      {
+        path: "model.gguf",
+        size: Buffer.byteLength(lfsContent),
+        oid: "lfs-pointer",
+        lfsOid: sha256(lfsContent),
+        lastCommitId: null,
+        lastCommitDate: null,
+      },
+      {
+        path: "config.json",
+        size: Buffer.byteLength(gitContent),
+        oid: gitBlobSha1(gitContent),
+        lfsOid: null,
+        lastCommitId: null,
+        lastCommitDate: null,
+      },
+      {
+        path: "missing.gguf",
+        size: 10,
+        oid: "missing-pointer",
+        lfsOid: sha256("0123456789"),
+        lastCommitId: null,
+        lastCommitDate: null,
+      },
+      {
+        path: "damaged.gguf",
+        size: Buffer.byteLength(damagedContent),
+        oid: "damaged-pointer",
+        lfsOid: sha256("expected-content"),
+        lastCommitId: null,
+        lastCommitDate: null,
+      },
+      {
+        path: "wrong-size.gguf",
+        size: 20,
+        oid: "wrong-size-pointer",
+        lfsOid: sha256("x".repeat(20)),
+        lastCommitId: null,
+        lastCommitDate: null,
+      },
+    ],
+  });
+
+  const result = await checkHfDownloadIntegrity(dir);
+
+  assert.equal(result.status, "issues");
+  assert.deepEqual(
+    Object.fromEntries(result.files.map((file) => [file.path, file.status])),
+    {
+      "model.gguf": "verified",
+      "config.json": "verified",
+      "missing.gguf": "missing",
+      "damaged.gguf": "checksum-mismatch",
+      "wrong-size.gguf": "size-mismatch",
+    },
+  );
+  assert.equal(
+    result.files.find((file) => file.path === "config.json")?.algorithm,
+    "git-sha1",
+  );
+  assert.equal(
+    result.files.find((file) => file.path === "missing.gguf")?.actualSize,
+    null,
+  );
 });
 
 test("delete removes the repo directory and refuses unknown dirs", async () => {

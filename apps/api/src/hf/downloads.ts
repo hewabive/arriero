@@ -1,11 +1,13 @@
 import type {
+  HfDownloadIntegrity,
+  HfDownloadIntegrityFile,
   HfDownloadedRepo,
   HfDownloadedRepoFile,
   HfOrphanPart,
   HfUpdateCheck,
 } from "@arriero/core";
 import { existsSync, readdirSync, rmSync } from "node:fs";
-import { opendir, readdir } from "node:fs/promises";
+import { lstat, opendir, readdir } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { getActiveJob } from "../jobs/registry.js";
@@ -16,8 +18,10 @@ import { IGNORED_DIRS } from "../models/scanner.js";
 import { isPathWithin } from "../path-utils.js";
 import { startModelScan } from "../models/scan-runner.js";
 import { traceBlockingSection } from "../system/event-loop.js";
+import { errorMessage } from "../utils/error-message.js";
 import { partialBytesFor } from "./chunk-store.js";
 import type { HfClientOptions } from "./client.js";
+import { hashHfContentFile, hfContentHashAlgorithm } from "./content-hash.js";
 import { groupHfGgufFiles } from "./grouping.js";
 import { hfDeleteBlockers, listLiveProcessArgs } from "./in-use.js";
 import {
@@ -240,7 +244,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
   });
 }
 
-function resolveDeletableHfDownload(dir: string): {
+function resolveIdleHfDownload(dir: string): {
   resolved: string;
   manifest: HfManifest;
 } {
@@ -363,7 +367,7 @@ function removeHfOrphanParts(
 }
 
 export function deleteHfDownload(dir: string, paths?: readonly string[]): void {
-  const { resolved, manifest } = resolveDeletableHfDownload(dir);
+  const { resolved, manifest } = resolveIdleHfDownload(dir);
   const targets = paths
     ? splitHfDeleteTargets(resolved, manifest, paths)
     : null;
@@ -404,7 +408,7 @@ export async function verifyHfDownloadRedownloadable(
   paths?: readonly string[],
   options?: HfClientOptions,
 ): Promise<void> {
-  const { resolved, manifest } = resolveDeletableHfDownload(dir);
+  const { resolved, manifest } = resolveIdleHfDownload(dir);
   const targets = paths
     ? new Set(splitHfDeleteTargets(resolved, manifest, paths).manifestPaths)
     : null;
@@ -431,4 +435,113 @@ export async function verifyHfDownloadRedownloadable(
       check,
     );
   }
+}
+
+function integrityResult(
+  file: HfManifest["files"][number],
+  fields: Omit<
+    HfDownloadIntegrityFile,
+    "path" | "expectedSize" | "algorithm" | "expectedHash"
+  >,
+): HfDownloadIntegrityFile {
+  const lfs = file.lfsOid !== null;
+  return {
+    path: file.path,
+    expectedSize: file.size,
+    algorithm: hfContentHashAlgorithm(lfs),
+    expectedHash: file.lfsOid ?? file.oid,
+    ...fields,
+  };
+}
+
+function missingFileError(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === "ENOENT";
+}
+
+async function checkHfManifestFileIntegrity(
+  dir: string,
+  file: HfManifest["files"][number],
+): Promise<HfDownloadIntegrityFile> {
+  let path: string;
+  try {
+    path = resolveWithin(dir, sanitizeRepoRelativePath(file.path));
+  } catch (error) {
+    return integrityResult(file, {
+      status: "error",
+      actualSize: null,
+      actualHash: null,
+      error: errorMessage(error),
+    });
+  }
+  let stats;
+  try {
+    stats = await lstat(path);
+  } catch (error) {
+    if (missingFileError(error)) {
+      return integrityResult(file, {
+        status: "missing",
+        actualSize: null,
+        actualHash: null,
+        error: null,
+      });
+    }
+    return integrityResult(file, {
+      status: "error",
+      actualSize: null,
+      actualHash: null,
+      error: errorMessage(error),
+    });
+  }
+  if (!stats.isFile()) {
+    return integrityResult(file, {
+      status: "error",
+      actualSize: stats.size,
+      actualHash: null,
+      error: "path is not a regular file",
+    });
+  }
+  if (stats.size !== file.size) {
+    return integrityResult(file, {
+      status: "size-mismatch",
+      actualSize: stats.size,
+      actualHash: null,
+      error: null,
+    });
+  }
+  let actualHash: string;
+  try {
+    actualHash = await hashHfContentFile(path, file.size, file.lfsOid !== null);
+  } catch (error) {
+    return integrityResult(file, {
+      status: "error",
+      actualSize: stats.size,
+      actualHash: null,
+      error: errorMessage(error),
+    });
+  }
+  const expectedHash = file.lfsOid ?? file.oid;
+  return integrityResult(file, {
+    status: actualHash === expectedHash ? "verified" : "checksum-mismatch",
+    actualSize: stats.size,
+    actualHash,
+    error: null,
+  });
+}
+
+export async function checkHfDownloadIntegrity(
+  dir: string,
+): Promise<HfDownloadIntegrity> {
+  const { resolved, manifest } = resolveIdleHfDownload(dir);
+  const files: HfDownloadIntegrityFile[] = [];
+  for (const file of manifest.files) {
+    files.push(await checkHfManifestFileIntegrity(resolved, file));
+  }
+  invalidateHfDownloadsCache();
+  return {
+    status: files.every((file) => file.status === "verified")
+      ? "verified"
+      : "issues",
+    checkedAt: new Date().toISOString(),
+    files,
+  };
 }

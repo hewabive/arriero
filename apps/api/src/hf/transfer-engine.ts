@@ -1,5 +1,4 @@
 import { hfManifestOidMatches } from "@arriero/core";
-import { createHash, type Hash } from "node:crypto";
 import { once } from "node:events";
 import {
   createReadStream,
@@ -23,6 +22,7 @@ import {
   HfHubError,
   type HfClientOptions,
 } from "./client.js";
+import { createHfContentHash, hashHfContentFile } from "./content-hash.js";
 import {
   chunkCountFor,
   chunkSizeAt,
@@ -88,32 +88,15 @@ export type HfTransferResult = {
 
 class RangeUnsupportedError extends Error {}
 
-function createContentHash(file: HfPlannedFile): Hash {
-  if (file.lfs) {
-    return createHash("sha256");
-  }
-  const hash = createHash("sha1");
-  hash.update(`blob ${file.size}\0`);
-  return hash;
-}
-
 function expectedHex(file: HfPlannedFile): string {
   return file.lfs ? file.lfs.oid : file.oid;
-}
-
-async function feedFileToHash(path: string, hash: Hash): Promise<void> {
-  for await (const chunk of createReadStream(path)) {
-    hash.update(chunk as Buffer);
-  }
 }
 
 async function hashLocalFile(
   file: HfPlannedFile,
   path: string,
 ): Promise<string> {
-  const hash = createContentHash(file);
-  await feedFileToHash(path, hash);
-  return hash.digest("hex");
+  return hashHfContentFile(path, file.size, file.lfs !== null);
 }
 
 function manifestEntryMatches(
@@ -238,9 +221,11 @@ async function attemptDownload(
       `empty response body for ${file.path}`,
     );
   }
-  const hash = createContentHash(file);
+  const hash = createHfContentHash(file.size, file.lfs !== null);
   if (offset > 0) {
-    await feedFileToHash(file.partPath, hash);
+    for await (const chunk of createReadStream(file.partPath)) {
+      hash.update(chunk as Buffer);
+    }
   }
   let received = offset;
   ctx.onBytes(received);

@@ -1,6 +1,7 @@
 import type {
   HfDestCheck,
   HfDownloadDelete,
+  HfDownloadIntegrity,
   HfDownloadQueueJob,
   HfDownloadQueueState,
   HfDownloadSettings,
@@ -72,6 +73,13 @@ export function checkHfUpdates(dirs: string[]) {
     "/api/hf/downloads/check",
     { method: "POST", body: JSON.stringify({ dirs }) },
   );
+}
+
+export function checkHfDownloadIntegrity(dir: string) {
+  return request<{ data: HfDownloadIntegrity }>("/api/hf/downloads/integrity", {
+    method: "POST",
+    body: JSON.stringify({ dir }),
+  });
 }
 
 export function deleteHfDownload(input: HfDownloadDelete) {

@@ -176,6 +176,12 @@ discovering new repos: an already-downloaded repo shows a banner with its local 
 button to reuse it as the destination. A destination outside every scan root still downloads but
 is not listed (the UI warns).
 
+The repo detail modal also provides an offline **Verify files** action. It reads every file tracked
+by `.arriero-hf.json` sequentially and compares its size and content hash with the manifest: raw
+sha256 against `lfsOid` for LFS files, or Git blob sha1 against `oid` for regular Git files. The
+result distinguishes missing files, size mismatches, checksum mismatches and read errors; it never
+contacts HuggingFace. Verification is refused while a download is active in that directory.
+
 ## Deletion
 
 `POST /api/hf/downloads/delete {dir, paths?, verifyUpstream?}` removes a downloaded repo — whole
@@ -233,6 +239,7 @@ cross-origin CDN redirect.
 | `POST /api/hf/downloads` | enqueue a download job (201; 409 only for insufficient space) |
 | `GET /api/hf/downloads` | downloaded repos from manifest discovery (+ `partialBytes`, `orphanParts`) |
 | `POST /api/hf/downloads/check` | manual update check for up to 50 dirs |
+| `POST /api/hf/downloads/integrity` | offline size and checksum verification against the local manifest |
 | `POST /api/hf/downloads/delete` | delete a repo directory, selected files or orphan parts, optional upstream verify |
 | `GET /api/hf/queue` | queue state: active job with live progress, queued jobs, history |
 | `POST /api/hf/queue/reorder` | reorder queued jobs (`ids` = the complete new order) |
