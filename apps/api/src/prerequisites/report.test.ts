@@ -59,50 +59,58 @@ function context(
   };
 }
 
-test("saved package index reaches individual and aggregate uv installs unchanged", async () => {
-  const previous = getEnvironmentRepositorySettings();
-  const directory = mkdtempSync(join(tmpdir(), "arriero-uv-index-"));
-  const packageIndexUrl =
-    "https://packages.example/simple?q='$(echo injected)`echo injected`&key=value";
-  try {
-    writeFileSync(
-      join(directory, "pipx"),
-      '#!/bin/sh\nprintf \'%s\\n\' "$PIP_INDEX_URL" "$@"\n',
-      { mode: 0o755 },
-    );
-    saveEnvironmentRepositorySettings({ ...previous, packageIndexUrl });
-    const probeContext = prerequisiteProbeContext();
-    assert.equal(probeContext.packageIndexUrl, packageIndexUrl);
-    const definition = findPrerequisiteDefinition("uv");
-    assert.ok(definition);
-    const check = await evaluatePrerequisite(
-      {
-        ...definition,
-        probe: async () => ({ status: "missing", detail: null, version: null }),
-      },
-      { ...probeContext, env: { PATH: directory } },
-    );
-    const command = check.remediation.installCommand;
-    assert.ok(command);
-    assert.equal(buildInstallPlan([check], "apt").allCommand, command);
-    for (const method of ["root", "passwordless-sudo"] as const) {
-      const runner = new PrerequisiteInstallRunner();
-      runner.start(
-        { checkId: "uv" },
-        `PATH=${shellQuote(directory)} ${command}`,
-        method,
+for (const protocol of ["https:", "http:"]) {
+  test(`saved ${protocol} package index reaches individual and aggregate uv installs unchanged`, async () => {
+    const previous = getEnvironmentRepositorySettings();
+    const directory = mkdtempSync(join(tmpdir(), "arriero-uv-index-"));
+    const packageIndexUrl = `${protocol}//packages.example:8080/simple?q='$(echo injected)\`echo injected\`&key=value`;
+    try {
+      writeFileSync(
+        join(directory, "pipx"),
+        '#!/bin/sh\nprintf \'%s\\n\' "$PIP_INDEX_URL" "$PIP_TRUSTED_HOST" "$@"\n',
+        { mode: 0o755 },
       );
-      await runner.waitForCompletion();
-      assert.equal(runner.latest()?.status, "succeeded");
-      assert.equal(runner.latest()?.log, `${packageIndexUrl}\ninstall\nuv\n`);
+      saveEnvironmentRepositorySettings({ ...previous, packageIndexUrl });
+      const probeContext = prerequisiteProbeContext();
+      assert.equal(probeContext.packageIndexUrl, packageIndexUrl);
+      const definition = findPrerequisiteDefinition("uv");
+      assert.ok(definition);
+      const check = await evaluatePrerequisite(
+        {
+          ...definition,
+          probe: async () => ({
+            status: "missing",
+            detail: null,
+            version: null,
+          }),
+        },
+        { ...probeContext, env: { PATH: directory } },
+      );
+      const command = check.remediation.installCommand;
+      assert.ok(command);
+      assert.equal(buildInstallPlan([check], "apt").allCommand, command);
+      for (const method of ["root", "passwordless-sudo"] as const) {
+        const runner = new PrerequisiteInstallRunner();
+        runner.start(
+          { checkId: "uv" },
+          `PATH=${shellQuote(directory)} PIP_TRUSTED_HOST=inherited.example ${command}`,
+          method,
+        );
+        await runner.waitForCompletion();
+        assert.equal(runner.latest()?.status, "succeeded");
+        assert.equal(
+          runner.latest()?.log,
+          `${packageIndexUrl}\n${protocol === "http:" ? "packages.example:8080" : "inherited.example"}\ninstall\nuv\n`,
+        );
+      }
+      saveEnvironmentRepositorySettings({ ...previous, packageIndexUrl: null });
+      assert.equal(prerequisiteProbeContext().packageIndexUrl, null);
+    } finally {
+      saveEnvironmentRepositorySettings(previous);
+      rmSync(directory, { recursive: true, force: true });
     }
-    saveEnvironmentRepositorySettings({ ...previous, packageIndexUrl: null });
-    assert.equal(prerequisiteProbeContext().packageIndexUrl, null);
-  } finally {
-    saveEnvironmentRepositorySettings(previous);
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
+  });
+}
 
 test("numa prerequisites apply only on multi-node hosts", () => {
   for (const id of ["numactl", "cpuset-delegation"]) {

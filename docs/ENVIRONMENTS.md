@@ -206,6 +206,8 @@ plans or locks and does not need to know which system produced an artifact.
 Environment prerequisites also passes `packageIndexUrl` as `PIP_INDEX_URL` when
 installing uv through pipx. The index must include uv and any packages needed by
 pipx’s shared pip bootstrap. The standalone uv installer does not use this index.
+For HTTP indexes, Arriero also sets `PIP_TRUSTED_HOST` to the index's host and port
+for that pipx command. HTTPS indexes do not add a trust override.
 
 Both settings are independent and optional. An absent URL selects uv's default source;
 a configured URL is passed explicitly for every new install and rebuild. Arriero does

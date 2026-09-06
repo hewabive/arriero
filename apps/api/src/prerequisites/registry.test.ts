@@ -65,6 +65,23 @@ test("keeps CUDA out of the aggregated DNF transaction", () => {
 
 const pipxUv = "pipx install uv";
 
+test("trusts only the configured HTTP index host and port", () => {
+  for (const host of [
+    "packages.example",
+    "packages.example:8080",
+    "192.0.2.1:8080",
+    "[2001:db8::1]:8080",
+  ]) {
+    const index = `http://${host}/simple?mirror=local`;
+    const command = `PIP_INDEX_URL='${index}' PIP_TRUSTED_HOST='${host}' pipx install uv`;
+    assert.deepEqual(uvInstallCommands(ubuntu2404, true, index), [command]);
+    assert.deepEqual(uvInstallCommands(ubuntu2404, false, index), [
+      "sudo apt install -y pipx",
+      command,
+    ]);
+  }
+});
+
 test("uses the configured index with existing and bootstrapped pipx", () => {
   const index = "https://packages.example/simple";
   const command = `PIP_INDEX_URL='${index}' pipx install uv`;

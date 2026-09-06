@@ -229,6 +229,8 @@ Runner rules (`install-runner.ts`):
   separate `sudo reboot` command and the delegation script stay copy-paste.
 - A missing `uv` is installed with `pipx install uv`; a configured Python package
   index is passed as `PIP_INDEX_URL`, including for pipx’s shared pip bootstrap.
+  HTTP indexes also set `PIP_TRUSTED_HOST` to that index's host and port so pip
+  accepts the configured source. HTTPS indexes do not add a trust override.
   With no configured index, pipx keeps its default behavior. No minimum uv version is
   enforced. If `pipx` is absent, supported distributions first install their
   `pipx` package. DNF-based RHEL-family hosts use that path too; `pipx` is provided

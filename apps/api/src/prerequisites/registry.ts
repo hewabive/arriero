@@ -346,9 +346,17 @@ export function uvInstallCommands(
   pipxAvailable: boolean,
   packageIndexUrl: string | null = null,
 ): string[] {
-  const pipxInstallCommand = packageIndexUrl
-    ? `PIP_INDEX_URL=${shellQuote(packageIndexUrl)} ${UV_PIPX_INSTALL_COMMAND}`
-    : UV_PIPX_INSTALL_COMMAND;
+  const pipxEnvironment: string[] = [];
+  if (packageIndexUrl) {
+    pipxEnvironment.push(`PIP_INDEX_URL=${shellQuote(packageIndexUrl)}`);
+    const index = new URL(packageIndexUrl);
+    if (index.protocol === "http:") {
+      pipxEnvironment.push(`PIP_TRUSTED_HOST=${shellQuote(index.host)}`);
+    }
+  }
+  const pipxInstallCommand = [...pipxEnvironment, UV_PIPX_INSTALL_COMMAND].join(
+    " ",
+  );
   const packageManager = packageManagerForOsRelease(release);
   if (pipxAvailable) {
     return [pipxInstallCommand];
