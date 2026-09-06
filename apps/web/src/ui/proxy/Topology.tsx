@@ -108,9 +108,9 @@ export function Topology(props: TopologyProps) {
 
   const chains = useMemo(
     () =>
-      props.models.map((model) =>
-        buildModelChain(model, pipelineById, targetById),
-      ),
+      props.models
+        .map((model) => buildModelChain(model, pipelineById, targetById))
+        .sort((a, b) => Number(b.model.enabled) - Number(a.model.enabled)),
     [props.models, pipelineById, targetById],
   );
 
@@ -130,7 +130,12 @@ export function Topology(props: TopologyProps) {
         </Group>
         <Stack gap={6}>
           {chains.map((chain) => (
-            <Group key={chain.model.id} gap="xs" wrap="wrap">
+            <Group
+              key={chain.model.id}
+              gap="xs"
+              wrap="wrap"
+              style={{ opacity: chain.model.enabled ? 1 : 0.5 }}
+            >
               <Code>{chain.model.modelId}</Code>
               <Text c="dimmed" size="sm">
                 →
