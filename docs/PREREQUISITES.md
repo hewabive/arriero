@@ -227,11 +227,14 @@ Runner rules (`install-runner.ts`):
   others. Driver setup is intentionally excluded from the aggregated
   required/recommended command and is runnable only from its own check. Its
   separate `sudo reboot` command and the delegation script stay copy-paste.
-- A missing `uv` is installed with `pipx install uv`; no minimum uv version is
+- A missing `uv` is installed with `pipx install uv`; a configured Python package
+  index is passed as `PIP_INDEX_URL`, including for pipx’s shared pip bootstrap.
+  With no configured index, pipx keeps its default behavior. No minimum uv version is
   enforced. If `pipx` is absent, supported distributions first install their
   `pipx` package. DNF-based RHEL-family hosts use that path too; `pipx` is provided
   by EPEL, which must already be enabled. Other hosts use uv's unversioned official
-  standalone installer with shell-profile modification disabled. The configured
+  standalone installer with shell-profile modification disabled; that installer does
+  not use the Python package index. The configured
   Python mirror must include the runtime archives requested by the installed uv
   version. All user-scoped paths land in `~/.local/bin`, which the following report
   refresh adds to the manager PATH automatically.

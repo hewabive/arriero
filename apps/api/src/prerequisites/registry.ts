@@ -6,6 +6,7 @@ import {
 } from "@arriero/core";
 import { existsSync } from "node:fs";
 
+import { shellQuote } from "../utils/shell.js";
 import { detectNumaBind } from "../numa/capability.js";
 import type { OsRelease } from "../system/os-release.js";
 import {
@@ -35,6 +36,7 @@ export type PrerequisiteUsage = {
 
 export type PrerequisiteProbeContext = {
   env: NodeJS.ProcessEnv;
+  packageIndexUrl: string | null;
   searchDirectories: string[];
   usage: PrerequisiteUsage;
   nvidiaPci: DisplayPciInventory;
@@ -342,22 +344,26 @@ const UV_STANDALONE_INSTALL_COMMAND =
 export function uvInstallCommands(
   release: OsRelease,
   pipxAvailable: boolean,
+  packageIndexUrl: string | null = null,
 ): string[] {
+  const pipxInstallCommand = packageIndexUrl
+    ? `PIP_INDEX_URL=${shellQuote(packageIndexUrl)} ${UV_PIPX_INSTALL_COMMAND}`
+    : UV_PIPX_INSTALL_COMMAND;
   const packageManager = packageManagerForOsRelease(release);
   if (pipxAvailable) {
-    return [UV_PIPX_INSTALL_COMMAND];
+    return [pipxInstallCommand];
   }
   const prefix = installCommandPrefix(packageManager);
   if (prefix) {
     if (packageManager === "pacman") {
-      return [`${prefix} python-pipx`, UV_PIPX_INSTALL_COMMAND];
+      return [`${prefix} python-pipx`, pipxInstallCommand];
     }
     if (
       packageManager === "apt" ||
       packageManager === "apk" ||
       packageManager === "dnf"
     ) {
-      return [`${prefix} pipx`, UV_PIPX_INSTALL_COMMAND];
+      return [`${prefix} pipx`, pipxInstallCommand];
     }
   }
   return [UV_STANDALONE_INSTALL_COMMAND];
@@ -738,6 +744,7 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
       uvInstallCommands(
         release,
         findExecutableInPath("pipx", context.env.PATH) !== null,
+        context.packageIndexUrl,
       ),
     docPath: "docs/ENVIRONMENTS.md",
     note: "The configured Python mirror must cover the installed consumer uv version. On RHEL-family hosts, the pipx package comes from EPEL. User-scoped installers expose uv in ~/.local/bin; Re-check adds that directory to the manager PATH automatically.",

@@ -7,6 +7,7 @@ import type {
 
 import { getBuildSettings } from "../build/repository.js";
 import { rocmDeviceAvailable } from "../envs/availability.js";
+import { getEnvironmentRepositorySettings } from "../envs/settings.js";
 import { listEnvironmentSpecs } from "../envs/repository.js";
 import { listInstances } from "../instances/repository.js";
 import { numaIsApplicable, readNumaTopology } from "../numa/index.js";
@@ -154,6 +155,7 @@ export function prerequisiteProbeContext(): PrerequisiteProbeContext {
   const pci = detectDisplayPciInventories();
   return {
     env: process.env,
+    packageIndexUrl: getEnvironmentRepositorySettings().packageIndexUrl,
     searchDirectories: wellKnownToolDirectories(),
     usage: collectPrerequisiteUsage(),
     nvidiaPci: pci.nvidia,

@@ -65,6 +65,28 @@ test("keeps CUDA out of the aggregated DNF transaction", () => {
 
 const pipxUv = "pipx install uv";
 
+test("uses the configured index with existing and bootstrapped pipx", () => {
+  const index = "https://packages.example/simple";
+  const command = `PIP_INDEX_URL='${index}' pipx install uv`;
+  assert.deepEqual(uvInstallCommands(ubuntu2404, true, index), [command]);
+  for (const release of [
+    ubuntu2404,
+    rocky9,
+    { ...ubuntu2404, id: "arch", idLike: [] },
+  ]) {
+    const defaults = uvInstallCommands(release, false);
+    assert.deepEqual(uvInstallCommands(release, false, index), [
+      defaults[0],
+      command,
+    ]);
+  }
+  const unsupported = { ...ubuntu2404, id: "unknown", idLike: [] };
+  assert.deepEqual(
+    uvInstallCommands(unsupported, false, index),
+    uvInstallCommands(unsupported, false),
+  );
+});
+
 test("bootstraps pipx before uv on Arch and Alpine", () => {
   assert.deepEqual(
     uvInstallCommands(

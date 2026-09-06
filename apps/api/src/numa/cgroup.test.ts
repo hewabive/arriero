@@ -1,11 +1,8 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import {
-  buildPinnedShimArgs,
-  resolveInstancesGroupDir,
-  shellQuote,
-} from "./cgroup.js";
+import { shellQuote } from "../utils/shell.js";
+import { buildPinnedShimArgs, resolveInstancesGroupDir } from "./cgroup.js";
 
 test("shellQuote wraps and escapes single quotes", () => {
   assert.equal(shellQuote("/usr/bin/llama-server"), "'/usr/bin/llama-server'");

@@ -9,6 +9,7 @@ import {
 import { dirname } from "node:path";
 
 import { findDelegatedRootPath, parseSelfCgroupV2Path } from "./capability.js";
+import { shellQuote } from "../utils/shell.js";
 import { managerEnv } from "../manager-env.js";
 
 const CGROUP_ROOT = "/sys/fs/cgroup";
@@ -16,10 +17,6 @@ const INSTANCES_GROUP = "arriero-instances";
 const LEGACY_INSTANCES_GROUP = "llama-manager-instances";
 
 class NumaPinError extends Error {}
-
-export function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
 
 export function buildPinnedShimArgs(
   cgroupProcsPath: string,
