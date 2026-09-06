@@ -32,7 +32,7 @@ Choose the backend for MoE A2A in speculative decoding
 - Флаги: `--speculative-moe-a2a-backend`
 - Группа: `spec`
 - Тип значения: строка с фиксированным списком (`MOE_A2A_BACKEND_CHOICES`, тот же, что у `--moe-a2a-backend`)
-- Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `pplx`, `ascend_tp`
+- Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp`
 - Значение по умолчанию: `null`
 - Эффективное значение: в `__post_init__` остаётся `null`; `initialize_moe_config` при `None` подставляет `moe.a2a_backend` target-модели. Исключение — DeepSeek-семейство с `--quantization modelopt_fp4` на ROCm: `_deepseek_spec_moe_resolution` выставляет `deepep` (вместе с runner `deep_gemm`) при `SGLANG_NVFP4_CKPT_FP8_NEXTN_MOE`, иначе `none` (с runner `triton`)
 - Где объявлен: `ServerArgs.speculative_moe_a2a_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -40,6 +40,8 @@ Choose the backend for MoE A2A in speculative decoding
 - Этап применения: `initialize_moe_config` при инициализации model runner → сборка и прогоны MoE-слоёв черновика внутри `speculative_moe_a2a_backend_context()`
 
 ## Что меняет в движке
+
+Добавлен `deepep_v2` (ElasticBuffer). Топологию задаёт `--deepep-v2-mode direct/hybrid`, независимо от v1 `--deepep-mode`. Для target проверяются архитектуры DeepSeek V3/V4 и Qwen3 MoE, runner `auto` становится `deep_gemm`, EP равен TP; deterministic inference, TBO/SBO и fused shared experts запрещены. Наличие значения в общем списке draft не отменяет проверок и совместимости конкретного draft-пути.
 
 `initialize_moe_config` (`sglang/python/sglang/srt/layers/moe/utils.py`) записывает значение в `moe.speculative_a2a_backend`, а при `None` — копирует туда уже разрешённый `moe.a2a_backend` target-модели.
 
@@ -116,3 +118,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --speculative-algo
 - `sglang/python/sglang/srt/speculative/frozen_kv_mtp_worker_v2.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`
 - `sglang/python/sglang/srt/model_executor/runner/flashinfer_autotune.py`
+
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
+
+- `sglang/python/sglang/srt/layers/moe/token_dispatcher/deepep_v2.py`

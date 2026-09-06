@@ -35,7 +35,7 @@ Override the kernel backend for linear attention decode. If not set, uses --line
 - Флаги: `--linear-attn-decode-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion` (общий список; `helion` — decode только для KDA)
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu` (общий список; `helion` — decode только для KDA)
 - Значение по умолчанию: `null` — берется `--linear-attn-backend`
 - Эффективное значение: `_handle_linear_attn_backend` может записать `flashinfer` (SM100+ и `--mamba-ssm-dtype bfloat16`) либо `triton` (при унаследованном `flashkda`); обе подстановки печатают info-строку
 - Где объявлен: `ServerArgs.linear_attn_decode_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -43,6 +43,8 @@ Override the kernel backend for linear attention decode. If not set, uses --line
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend`) → создание backend'а внимания → каждый decode-шаг линейных слоев
 
 ## Что меняет в движке
+
+`intel_xpu` добавлен в общий список. GDN допускает его для prefill/decode только на Intel XPU: fused SYCL путь обслуживает `XpuGDNAttnBackend.forward_fused_gdn`, а диспетчер держит Triton fallback для остальных вызовов. На другом устройстве возникает `--linear-attn-backend intel_xpu requires Intel XPU`. Это не добавляет XPU-ядро в KDA.
 
 ### Автоподстановка FlashInfer
 

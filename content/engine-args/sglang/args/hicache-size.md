@@ -22,7 +22,7 @@ related:
 ## Оригинальная справка
 
 ```text
-The size of host KV cache memory pool in gigabytes, which will override the hicache_ratio if set.
+The size of host KV cache memory pool in gigabytes. Overrides --hicache-ratio in either host memory mode.
 ```
 
 ## Паспорт аргумента
@@ -38,6 +38,8 @@ The size of host KV cache memory pool in gigabytes, which will override the hica
 - Этап применения: конструктор host-пула (`HostKVCache.__init__`) при инициализации дерева кеша
 
 ## Что меняет в движке
+
+Положительный размер перекрывает ratio и в `cache`, и в `buffer_only`. Во втором случае выделенная RAM — staging для storage, а не постоянный L2; смена режима не снимает аллокацию host pool.
 
 В `HostKVCache.__init__` (`sglang/python/sglang/srt/mem_cache/pool_host/base.py`) значение переводится в число токенов:
 
@@ -110,3 +112,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 - `sglang/docs/docs/advanced_features/hicache_design.mdx`
 - `sglang/docs/docs/advanced_features/hicache_best_practices.mdx`
 - arriero: `docs/RESOURCE_MANAGEMENT.md`
+
+- `sglang/python/sglang/srt/arg_groups/hicache_hook.py`

@@ -23,7 +23,7 @@ related:
 ## Оригинальная справка
 
 ```text
-DSA indexer top-k backend. Options: 'sgl-kernel', 'torch', 'flashinfer'. The 'torch' backend currently requires SGLANG_DSA_FUSE_TOPK=false.
+DSA indexer top-k backend for the target model. Options: 'sgl-kernel', 'torch', 'flashinfer'. The 'torch' backend currently requires SGLANG_DSA_FUSE_TOPK=false.
 ```
 
 ## Паспорт аргумента
@@ -31,7 +31,7 @@ DSA indexer top-k backend. Options: 'sgl-kernel', 'torch', 'flashinfer'. The 'to
 - Флаги: `--dsa-topk-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения (из `choices`): `sgl-kernel`, `torch`, `flashinfer` (константа `DSA_TOPK_BACKEND_CHOICES`, перечисление `DSATopKBackend` в `sglang/python/sglang/srt/layers/attention/dsa/dsa_topk_backend.py`)
+- Допустимые значения (из `choices`): `sgl-kernel`, `torch`, `flashinfer` (choices поля и перечисление `DSATopKBackend` в `sglang/python/sglang/srt/layers/attention/dsa/dsa_topk_backend.py`)
 - Значение по умолчанию: `sgl-kernel`
 - Эффективное значение: `__post_init__` его не трогает. Но в DeepSeek-V4-индексере (`sglang/python/sglang/srt/layers/attention/dsv4/indexer.py`) есть путь, который жестко использует `DSATopKBackend.SGL_KERNEL` независимо от аргумента, а слитый v2-путь дополнительно требует `SGLANG_OPT_USE_TOPK_V2` (по умолчанию включена)
 - Где объявлен: `ServerArgs.dsa_topk_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -39,6 +39,8 @@ DSA indexer top-k backend. Options: 'sgl-kernel', 'torch', 'flashinfer'. The 'to
 - Этап применения: разбор CLI → конструктор `DeepseekSparseAttnBackend` / `DeepseekV4AttnBackend` → построение метаданных индексера на каждом forward → сам отбор top-k
 
 ## Что меняет в движке
+
+Этот параметр теперь явно относится к target model. Draft workers независимо используют `--speculative-dsa-topk-backend` с default `sgl-kernel`; `DSATopKBackend.resolve` выбирает поле по `is_draft_worker`. Смена target больше не задаёт backend draft.
 
 `DSATopKBackend` реализует два метода — `topk_func` (чистый отбор) и `topk_transform` (отбор + перевод индексов в адреса страниц), и они ведут себя по-разному:
 

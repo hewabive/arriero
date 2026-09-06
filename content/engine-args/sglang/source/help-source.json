@@ -5,7 +5,7 @@
   "sourcePaths": [
     "python/sglang/srt/server_args.py"
   ],
-  "hash": "5b247c6f61a05e38e281a13f43f1dbc6e2e399749edff75eb551c004353502b1",
-  "commit": "71de97b264b04dcd514cf904003028aefe9775c8",
-  "updatedAt": "2026-09-03T07:27:16.281Z"
+  "hash": "ae15cc8713a7ba26fb32c93f2ee235c123aa8edd20c6d42080d36249438c7b7d",
+  "commit": "0bcd822377da7b5718e674eaf9c870d349424dd1",
+  "updatedAt": "2026-09-06T11:34:49.924Z"
 }

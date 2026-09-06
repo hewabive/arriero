@@ -56,7 +56,7 @@ Storage backend for KV preserved across PD decode retraction. 'cpu_tensor' uses 
 
 ## Влияние на производительность и память
 
-Оба режима копируют KV между GPU и host и увеличивают latency retraction/resume. `host_pool` заранее резервирует pinned RAM: при незаданном `--hicache-ratio` его размер равен device pool (`1.0`). `cpu_tensor` расходует RAM по мере числа и длины вытесненных запросов и сильнее зависит от поведения allocator'а.
+Оба режима копируют KV между GPU и host и увеличивают latency retraction/resume. `host_pool` заранее резервирует pinned RAM: при незаданном `--hicache-ratio` отдельный backup-only пул получает `0.2` от device pool; при включённом HiCache — `2.0`. Переполнение малого backup-пула может прервать запрос. `cpu_tensor` расходует RAM по мере числа и длины вытесненных запросов и сильнее зависит от поведения allocator'а.
 
 ## Взаимодействие с другими аргументами
 

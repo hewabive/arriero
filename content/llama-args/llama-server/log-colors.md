@@ -63,6 +63,8 @@ Set colored logging ('on', 'off', or 'auto', default: 'auto')
 
 ## Взаимодействие с другими аргументами
 
+- При `--log-jsonl` структурированный вывод обходит цветные префиксы logger; настройка `--log-colors` не возвращает текстовый формат.
+
 - `--verbosity` и `--verbose` определяют, какие сообщения вообще доходят до common logger.
 - `--log-file`, `--log-colors`, `--log-prefix`, `--log-timestamps` управляют форматом и направлением тех сообщений, которые прошли threshold.
 - `--log-disable` останавливает worker и отбрасывает новые записи; для `--log-file` и `--log-colors` порядок особенно важен, потому что эти настройки внутри себя делают pause/resume logger.

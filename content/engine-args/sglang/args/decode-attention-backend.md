@@ -33,7 +33,7 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - Флаги: `--decode-attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
+- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
 - Значение по умолчанию: `null` — фаза decode наследует разрешенный `--attention-backend`
 - Эффективное значение: `attention_backends_of` возвращает `decode_attention_backend or attention_backend`. Само поле дописывается движком при `--device npu` (`ascend`) и для DeepSeek V4 на NPU (`dsv4`)
 - Где объявлен: `ServerArgs.decode_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -41,6 +41,8 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - Этап применения: разбор CLI → `__post_init__` (привязки `--page-size`, проверки KV-dtype и SM) → создание backend'а в model runner → захват decode-графа CUDA → каждый шаг декодирования
 
 ## Что меняет в движке
+
+Новые значения `minicpm_flashattn` и `minicpm_flashinfer` создают `MiniCPMSparseBackend` с `use_flashinfer=False` и `True` соответственно. Это специализированный sparse attention MiniCPM, а не общая замена FlashAttention/FlashInfer для произвольной архитектуры. Наличие этих значений проверяйте в `--help` установленного окружения.
 
 - `_attention_backend_default` записывает значение в общее поле `attention_backend` только тогда, когда prefill и decode заданы одинаково. Если задан только decode, prefill получит автоподбор `_get_default_attn_backend`, и конфигурация станет гибридной.
 - При разных backend'ах создается `HybridAttnBackend` (`sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`) с двумя вложенными backend'ами; он же решает, какая половина обслуживает спекулятивный verify — по `--speculative-attention-mode`.
@@ -104,3 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --decode-atten
 - `sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - `sglang/docs/docs/advanced_features/attention_backend.mdx`
+
+- `sglang/python/sglang/srt/layers/attention/attention_registry.py`
+
+- `sglang/python/sglang/srt/layers/attention/minicpm/backend.py`

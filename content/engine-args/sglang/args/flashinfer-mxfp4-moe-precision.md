@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--flashinfer-mxfp4-moe-precision"
 title: "--flashinfer-mxfp4-moe-precision"
-summary: Выбирает, в каком виде активации попадают в FlashInfer-ядро MXFP4-MoE: квантованными заранее (`default`) или в bf16, чтобы ядро квантовало их само (`bf16`). Читается только методом квантизации MXFP4 с MoE-раннером `flashinfer_mxfp4`.
+summary: Выбирает точность активаций FlashInfer MXFP4 MoE с учётом поколения GPU. На Hopper fp8 включает Humming W4A8, тогда как default и bf16 сохраняют W4A16.
 group: exec.moe
 related:
   - --moe-runner-backend
@@ -15,12 +15,12 @@ related:
 
 ## Кратко
 
-Веса в MXFP4-моделях всегда остаются четырехбитными; аргумент решает судьбу активаций. При `default` SGLang квантует их сам (в MXFP8 или per-token-group FP8, в зависимости от ядра) и передает в FlashInfer уже готовый тензор со шкалами. При `bf16` активации уходят в ядро как есть, и TRT-LLM выполняет квантизацию внутри, конвейеризуя ее с GEMM. Второй вариант в комментарии кода описан как потенциально более быстрый; проверять это надо замером на своей карте.
+Веса остаются MXFP4, а активации и ядро зависят от GPU. На SM90 `fp8` включает Humming W4A8; `default` и `bf16` используют MXFP4 × BF16. На SM120 остаётся MXFP8-путь; на SM100 `fp8` в текущем TRT-LLM forward не обработан и приводит к NotImplementedError.
 
 ## Оригинальная справка
 
 ```text
-Choose the computation precision of flashinfer mxfp4 moe
+Choose the computation precision of flashinfer mxfp4 moe. On SM90, `fp8` selects the Humming-style MXFP4-weight x FP8-activation path introduced by FlashInfer #3738 and requires FlashInfer >= 0.6.18.
 ```
 
 ## Паспорт аргумента
@@ -28,7 +28,7 @@ Choose the computation precision of flashinfer mxfp4 moe
 - Флаги: `--flashinfer-mxfp4-moe-precision`
 - Группа: `exec.moe`
 - Тип значения: перечисление
-- Допустимые значения: `default`, `bf16`
+- Допустимые значения: `default`, `bf16`, `fp8`
 - Значение по умолчанию: `default`
 - Эффективное значение: не переопределяется
 - Где объявлен: `ServerArgs.flashinfer_mxfp4_moe_precision`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -37,19 +37,17 @@ Choose the computation precision of flashinfer mxfp4 moe
 
 ## Что меняет в движке
 
-Значение копируется в поле `Mxfp4MoEMethod.flashinfer_mxfp4_moe_precision` (`sglang/python/sglang/srt/layers/quantization/mxfp4.py`) и в `mxfp4_flashinfer_trtllm_moe.py`, и читается на горячем пути только при активном FlashInfer-пути (`--moe-runner-backend flashinfer_mxfp4`). Тот, в свою очередь, сам выбирает точку входа по поколению карты: SM100 (Blackwell) → `trtllm_fp4_block_scale_moe`, SM120 → `cutlass_fused_moe` с MXFP8-активациями, SM90 (Hopper) → `cutlass_fused_moe` с групповым масштабированием W4 (доступно только в достаточно свежем FlashInfer, иначе `RuntimeError` на старте).
+`Mxfp4MoEMethod` выбирает kernel по GPU и читает precision при активном `flashinfer_mxfp4`.
 
-- `bf16`: проверяется `assert x.dtype == torch.bfloat16`, при необходимости активации дополняются нулями до `hidden_size`, шкала не передается. Квантизацию делает ядро.
-- `default`: активации квантуются заранее — `flashinfer_mxfp8_quantize` в TRT-LLM-пути и `per_token_group_quant` в основном; шкала передается отдельным тензором.
-- Любое другое значение в TRT-LLM-пути дает `NotImplementedError: Unsupported mxfp4 moe precision: <значение>`; argparse до этого не допустит, но ошибка существует для программных вызовов.
+- SM90: `fp8` устанавливает `_use_sm90_humming`, создаёт Humming веса/шкалы и использует mixed-input W4A8. Английская справка требует FlashInfer >= 0.6.18; установленный пакет также должен предоставлять используемые mixed-input helpers. `default` и `bf16` сохраняют W4A16.
+- SM100: `default` предварительно квантует активации, `bf16` передаёт BF16 для внутренней квантизации; `fp8` не входит в эти две forward-ветки и приводит к NotImplementedError, несмотря на комментарий исходника о переносимости настройки между GPU.
+- SM120: используется CUTLASS MXFP8 × MXFP4 путь.
 
-Побочный эффект, о котором легко забыть: в Kimi-K3 (`sglang/python/sglang/srt/models/kimi_k3.py`) слитый путь «маршрутизация + упаковка topk + квантизация» (`route_quant_handoff`) включается только при `default`. С `bf16` эта оптимизация выключается, и слой идет по неслитой цепочке.
+В Kimi K3 слитый route+quant handoff требует `default`; смена precision может убрать эту оптимизацию.
 
 ## Значения и формат
 
-- `default` — квантизация на стороне SGLang. Единственный вариант, при котором работает слитая route+quant-оптимизация K3.
-- `bf16` — активации в bf16 до ядра. Требует, чтобы активации действительно были bf16: иначе ассерт.
-- На путях, где раннер не `flashinfer_mxfp4` (Triton-kernels, Marlin, DeepGEMM), значение не читается вовсе.
+`default` — штатный путь данного GPU. `bf16` на SM100 оставляет активации BF16 до входа в kernel, на SM90 сохраняет W4A16. `fp8` — opt-in Humming W4A8 на SM90; на SM120 не включает Hopper-путь, а на SM100 отвергается в TRT-LLM forward: оставляйте `default` или `bf16`. Вне runner `flashinfer_mxfp4` параметр не управляет другими MoE-реализациями.
 
 ## Когда использовать
 
@@ -60,10 +58,7 @@ Choose the computation precision of flashinfer mxfp4 moe
 
 ## Влияние на производительность и память
 
-- **Latency.** `bf16` убирает отдельный запуск ядра квантизации, но передает в GEMM вдвое больше байт активаций; `default` наоборот. Выигрыш зависит от того, во что упирается слой — в пропускную способность памяти или в запуски ядер.
-- **VRAM.** Разница только в размере промежуточных тензоров активаций одного слоя; веса в обоих случаях MXFP4.
-- **Точность.** Обе ветки квантуют активации, отличается только момент; заметных расхождений в качестве от переключения ожидать не стоит, но численный результат не побитово совпадет.
-- На KV-кеш и коммуникацию аргумент не влияет.
+На Hopper W4A8 меняет точность активаций, их подготовку и временные буферы; веса остаются MXFP4. На SM100 `bf16` переносит квантизацию внутрь kernel. Сравнивайте throughput и качество: численные результаты могут различаться, заранее обещать отсутствие деградации нельзя. KV-cache не меняется.
 
 ## Взаимодействие с другими аргументами
 
@@ -73,10 +68,10 @@ Choose the computation precision of flashinfer mxfp4 moe
 
 ## Типовые проблемы и диагностика
 
-- `AssertionError` на `x.dtype == torch.bfloat16` — выбран `bf16`, а активации приходят в другом типе; проверьте `--dtype` и формат dispatch.
-- `NotImplementedError: Unsupported mxfp4 moe precision: ...` — значение вне перечисления (возможно при программном запуске в обход CLI).
-- `RuntimeError` про отсутствие SM90-ядра MXFP4 в FlashInfer на Hopper — нужен более свежий FlashInfer; к самому аргументу это отношения не имеет.
-- Ожидали ускорения, но его нет — вероятно, раннер не `flashinfer_mxfp4`; сверьтесь с дампом `server_args=`.
+- Ошибка отсутствующего SM90 mixed-input helper — установленный FlashInfer не предоставляет нужный API. Сверьте версию и пакет с текущим checkout.
+- Ошибка dtype при `bf16` — активации не BF16; проверьте `--dtype` и dispatcher.
+- `NotImplementedError` при `fp8` на SM100 — текущий TRT-LLM forward принимает только `default` и `bf16`; используйте одно из этих значений. На SM120 Humming также не включается, но используется отдельный MXFP8 CUTLASS-путь.
+- Изменение latency Kimi K3 может объясняться отключением route+quant handoff при precision, отличном от `default`.
 
 ## Примеры
 

@@ -2,7 +2,7 @@
   "schema": 1,
   "source": "tools/server/README.md",
   "block": "HELP_START..HELP_END",
-  "hash": "1ff43b45e782d1c913545ed7172f51bccb178824b0f640ae20187d3460892517",
-  "llamaCppCommit": "c61b98b875eaa5e654a3f5c73b34c310d2c6ab4c",
-  "updatedAt": "2026-09-03T07:27:03.932Z"
+  "hash": "807e4e4e0a829ec5775cfdad1dd4c2d3c56664683fc5d4628d844a3b03033ff7",
+  "llamaCppCommit": "9e0e220594af405a62835dc3a27495729fd8506b",
+  "updatedAt": "2026-09-06T11:34:47.882Z"
 }

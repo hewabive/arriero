@@ -27,7 +27,7 @@ related:
 ## Оригинальная справка
 
 ```text
-The format of the model weights to load. "auto" will try to load the weights in the safetensors format and fall back to the pytorch bin format if safetensors format is not available. "pt" will load the weights in the pytorch bin format. "safetensors" will load the weights in the safetensors format. "npcache" will load the weights in pytorch format and store a numpy cache to speed up the loading. "dummy" will initialize the weights with random values, which is mainly for profiling."gguf" will load the weights in the gguf format. "bitsandbytes" will load the weights using bitsandbytes quantization."layered" loads weights layer by layer so that one can quantize a layer before loading another to make the peak memory envelope smaller."presharded" performs a normal first-time load (with quantization), then dumps a per-rank/per-tensor sharded checkpoint with content deduplication into <model_path>/presharded/<parallelism+quant subfolder>/. Subsequent runs with the same parallelism+quantization config load directly from this presharded checkpoint and skip re-quantization. The dump directory must be on a shared filesystem across all ranks/nodes. Optional model_loader_extra_config roots: presharded_path (target) and draft_presharded_path (speculative draft); each replaces <model_path>/presharded and still gets a config subfolder appended. Use a writable path when model_path is read-only (e.g. HF cache mounts).
+The format of the model weights to load. "auto" will try to load the weights in the safetensors format and fall back to the pytorch bin format if safetensors format is not available. "pt" will load the weights in the pytorch bin format. "safetensors" will load the weights in the safetensors format. "npcache" will load the weights in pytorch format and store a numpy cache to speed up the loading. "dummy" will initialize the weights with random values, which is mainly for profiling."gguf" will load the weights in the gguf format. "expert_pack" is experimental and loads only the validated DeepSeek-V4-Flash-0731 MXFP4 or text-only Kimi-K3 Q2_K GGUF model with routed experts stored in an SSD expert pack. "bitsandbytes" will load the weights using bitsandbytes quantization."layered" loads weights layer by layer so that one can quantize a layer before loading another to make the peak memory envelope smaller."presharded" performs a normal first-time load (with quantization), then dumps a per-rank/per-tensor sharded checkpoint with content deduplication into <model_path>/presharded/<parallelism+quant subfolder>/. Subsequent runs with the same parallelism+quantization config load directly from this presharded checkpoint and skip re-quantization. The dump directory must be on a shared filesystem across all ranks/nodes. Optional model_loader_extra_config roots: presharded_path (target) and draft_presharded_path (speculative draft); each replaces <model_path>/presharded and still gets a config subfolder appended. Use a writable path when model_path is read-only (e.g. HF cache mounts).
 ```
 
 ## Паспорт аргумента
@@ -35,7 +35,7 @@ The format of the model weights to load. "auto" will try to load the weights in 
 - Флаги: `--load-format`
 - Группа: `model`
 - Тип значения: строка
-- Допустимые значения: `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Внутренний `ipc_cache` намеренно не выведен в CLI; попытка задать его отвергается с подсказкой про `--weight-cache-mode`
+- Допустимые значения: `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `expert_pack`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Внутренний `ipc_cache` намеренно не выведен в CLI; попытка задать его отвергается с подсказкой про `--weight-cache-mode`
 - Значение по умолчанию: `auto`
 - Эффективное значение: `_handle_load_format` переписывает его на `gguf` / `mistral` / `runai_streamer` / `remote` по `--model-path`, а `remote_instance` откатывает обратно в `auto` при неполной конфигурации удаленного загрузчика; кроме того `presharded` и `layered` внутри своих загрузчиков подменяют формат на `auto` для фактического чтения файлов
 - Где объявлен: `ServerArgs.load_format`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -43,6 +43,8 @@ The format of the model weights to load. "auto" will try to load the weights in 
 - Этап применения: `__post_init__` (`_handle_load_format`) → построение `LoadConfig` → `get_model_loader` → чтение весов в каждом воркере
 
 ## Что меняет в движке
+
+`expert_pack` — новый экспериментальный loader с узким контрактом: проверенные DeepSeek-V4-Flash-0731 MXFP4 или text-only Kimi-K3 Q2_K GGUF, routed experts в SSD expert pack. Требуется `pack_path` в `--model-loader-extra-config` либо `SGLANG_EXPERT_PACK_PATH`; `--model-path` должен указывать на проверенный каталог tokenizer/config, для Kimi нужен manifest. Наличие общего choice у draft не подтверждает поддержку произвольного draft-checkpoint. Это перенос экспертных весов в отдельное хранилище с зависимостью latency от SSD, а не универсальный GGUF-loader.
 
 Диспетчер `get_model_loader` выбирает загрузчик в следующем порядке: `dummy` → квантизация AutoRound → ModelOpt (если задан `--modelopt-quant`/`--quantization modelopt_*` или пути ModelOpt-чекпоинтов) → и только потом по значению `--load-format`. То есть ModelOpt-путь перекрывает выбранный формат, кроме `runai_streamer` и `remote_instance`.
 
@@ -120,3 +122,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --load-format 
 - `sglang/python/sglang/srt/utils/runai_utils.py`
 - `sglang/docs/docs/developer_guide/benchmark_and_profiling.mdx`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
+
+- `sglang/python/sglang/srt/model_loader/expert_pack_loader.py`
+
+- `sglang/python/sglang/srt/model_loader/expert_pack_config.py`

@@ -30,7 +30,7 @@ Choose the runner backend for MoE.
 - Флаги: `--moe-runner-backend`
 - Группа: `exec.moe`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
+- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`, `intel_xpu`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
 - Значение по умолчанию: `auto`
 - Эффективное значение: переопределяется в нескольких местах — `_moe_runner_backend_quant_constraints` (правила по `--quantization`), `_cutlass_moe_env_override` (устаревшая переменная `SGLANG_CUTLASS_MOE`), `_handle_a2a_moe` (для `pplx`) и, наконец, сам quant-метод слоя при `auto`
 - Где объявлен: `ServerArgs.moe_runner_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -38,6 +38,8 @@ Choose the runner backend for MoE.
 - Этап применения: `__post_init__` (нормализация и проверки) → `initialize_moe_config` при инициализации model runner → создание `MoeRunner` для каждого MoE-слоя
 
 ## Что меняет в движке
+
+В общий список и `MoeRunnerBackend` добавлен `intel_xpu`. Это платформенный вариант: наличие имени в CLI не означает, что каждый quant-метод или draft поддерживает его. Реальная реализация выбирается методом MoE-слоя и установленными XPU-компонентами; на CUDA не выбирайте его вместо автоматического runner.
 
 Значение публикуется через `initialize_moe_config` (`sglang/python/sglang/srt/layers/moe/utils.py`) как `MoeRunnerBackend` и читается повсеместно через `get_moe_runner_backend()`. Конкретный `MoeRunner` создает quant-метод слоя в `create_moe_runner`, и именно там `auto` превращается в реальное ядро. Примеры из checkout'а:
 

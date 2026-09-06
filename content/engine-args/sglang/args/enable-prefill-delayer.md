@@ -47,7 +47,7 @@ Enable prefill delayer for DP attention to reduce idle time.
 
 Дальше решение принимается по глобальному состоянию:
 
-- **все ранги готовы префиллить** — проверяются два условия задержки. «Слотовое»: `max_running_requests − running_batch < max_prefill_bs`, то есть после prefill'а decode-батч все равно не выйдет на максимум. «Очередное» (опционально, включается только заданием `--prefill-delayer-queue-min-ratio`): очередь короче `min(running_batch * ratio, max_prefill_bs)`, с ограничением по стенным часам `--prefill-delayer-max-delay-ms` (по умолчанию 5000 мс). Если сработало любое — prefill откладывается, но не больше `--prefill-delayer-max-delay-passes` проходов (по умолчанию 30);
+- **все ранги готовы префиллить** — проверяются два условия задержки. «Слотовое»: `max_running_requests − running_batch < max_prefill_bs`, то есть после prefill'а decode-батч все равно не выйдет на максимум. «Очередное» (опционально, включается только заданием `--prefill-delayer-queue-min-ratio`): очередь короче `min(running_batch * ratio, prefill_cap)`, где `prefill_cap` равен заданному `--prefill-max-requests`, иначе наблюдаемому `max_prefill_bs`, с ограничением по стенным часам `--prefill-delayer-max-delay-ms` (по умолчанию 5000 мс). Если сработало любое — prefill откладывается, но не больше `--prefill-delayer-max-delay-passes` проходов (по умолчанию 30);
 - **никто не готов** — решение не важно, prefill разрешается;
 - **часть рангов готова** — prefill откладывается до общего согласия, тоже с ограничением по числу проходов.
 

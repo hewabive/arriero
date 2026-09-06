@@ -89,7 +89,7 @@ Weight cache mode. 'off': normal disk loading. 'daemon': launch weight cache dae
 
 ## Взаимодействие с другими аргументами
 
-- `--weight-cache-socket`: путь к сокету на стороне клиента. Учтите: у самого демона CLI-опции для смены пути **нет**, он всегда биндит `/tmp/sglang_weight_cache_rank{global_rank}.sock`.
+- `--weight-cache-socket`: путь к сокету на стороне клиента. Без явного пути клиент и демон используют `SGLANG_WEIGHT_CACHE_SOCKET_TEMPLATE` с UUID физического GPU (default `/tmp/sglang_weight_cache_{device_uuid}.sock`). Для переноса socket согласуйте шаблон окружения обоих процессов; CLI меняет только клиента.
 - `--weight-cache-timeout`: ожидание готовности демонов; действует только в режиме `daemon`.
 - `--speculative-algorithm`: запрещенная комбинация. `_handle_load_format` поднимает `ValueError`: демон не экспортирует веса драфт-модели.
 - `--load-format`: исходное значение сохраняется как `fallback_load_format` и используется при откате на диск в режиме `client`. Значение `ipc_cache` задать вручную нельзя — `ValueError`.

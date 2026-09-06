@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--reasoning-preserve"
 title: "--reasoning-preserve"
-summary: "Управляет сохранением reasoning trace во всей chat history для совместимых Jinja templates. Без флага действует поведение самого шаблона."
+summary: "Управляет сохранением reasoning trace во всей chat history для совместимых Jinja templates. По умолчанию сохранение включено; отключается отрицательной формой флага."
 category: "Параметры llama-server"
 valueType: "boolean"
 estimation: "normal"
@@ -26,13 +26,14 @@ related:
 
 `--reasoning-preserve` просит совместимый chat template сохранять reasoning/thinking content не только в последнем assistant message, но и глубже в истории диалога. `--no-reasoning-preserve` явно включает очищающее поведение.
 
-Если ни одна форма не передана, llama.cpp не задаёт override и оставляет template default.
+Если ни одна форма не передана и kwarg ещё не задан, разбор аргументов добавляет `preserve_reasoning=true`. Для прежнего очищающего поведения явно задайте `--no-reasoning-preserve`.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-preserve reasoning trace in the full history, not just the last assistant message (default: template default)
+preserve reasoning trace in the full history, not just the last assistant message (default: enabled)
 compatible with certain templates having 'supports_preserve_reasoning' capability
+example: https://docs.z.ai/guides/capabilities/thinking-mode#preserved-thinking
 ```
 
 ## Паспорт аргумента
@@ -41,7 +42,7 @@ compatible with certain templates having 'supports_preserve_reasoning' capabilit
 - Отрицательная форма: `--no-reasoning-preserve`
 - Переменная окружения: `LLAMA_ARG_REASONING_PRESERVE`
 - Хранилище: `common_params::default_template_kwargs["preserve_reasoning"]`
-- Значение по умолчанию: поведение chat template
+- Значение по умолчанию: `enabled` (`preserve_reasoning=true`)
 - Условие эффекта: template capability `supports_preserve_reasoning`
 
 ## Что меняет в llama-server
@@ -50,12 +51,13 @@ compatible with certain templates having 'supports_preserve_reasoning' capabilit
 
 При загрузке server анализирует template capabilities:
 
-- если template умеет сохранять reasoning, но override не включён, лог предлагает `--reasoning-preserve`;
-- если override задан, но capability отсутствует, лог предупреждает, что флаг не имеет эффекта.
+- если template поддерживает сохранение и флаг не указан явно, лог сообщает, что оно включено по умолчанию и может расходовать больше токенов;
+- если сохранение отключено для совместимого template, лог предлагает `--reasoning-preserve`;
+- если положительная форма задана явно, но capability отсутствует, лог предупреждает, что флаг не имеет эффекта. Trace-лог показывает эффективный kwarg или отсутствие поддержки шаблоном.
 
 ## Когда использовать
 
-Включайте только для моделей и шаблонов, которым действительно нужен preserved thinking между ходами. Это может быть частью протокола модели, но увеличивает повторно передаваемую историю и раскрывает reasoning content следующему ходу.
+Оставляйте включённым для моделей и шаблонов, которым нужен preserved thinking между ходами; для удаления reasoning из прошлых ходов задавайте отрицательную форму. Это может быть частью протокола модели, но увеличивает повторно передаваемую историю и раскрывает reasoning content следующему ходу.
 
 Для большинства обычных chat templates оставляйте default. Не используйте флаг как способ «включить reasoning»: генерацией thinking управляют `--reasoning`, модель и template.
 
@@ -100,3 +102,4 @@ llama-server --model /models/reasoning.gguf --no-reasoning-preserve
 - `llama.cpp/common/jinja/caps.cpp`
 - `llama.cpp/tools/server/server-context.cpp`
 - https://github.com/ggml-org/llama.cpp/pull/25105
+- https://github.com/ggml-org/llama.cpp/pull/28174 — включение сохранения по умолчанию и диагностика эффективного значения.

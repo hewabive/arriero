@@ -4,7 +4,7 @@ engine: sglang
 primaryName: "--sampling-backend"
 title: "--sampling-backend"
 summary: Выбирает реализацию top-k / top-p / min-p сэмплирования. Это не только скорость: FlashInfer и PyTorch применяют фильтры по-разному и дают разные распределения, а FlashInfer вообще не поддерживает пер-запросный seed.
-group: exec.kernel
+group: null
 related:
   - --enable-deterministic-inference
   - --device
@@ -27,16 +27,18 @@ Choose the kernels for sampling layers.
 ## Паспорт аргумента
 
 - Флаги: `--sampling-backend`
-- Группа: `exec.kernel`
+- Группа: отсутствует в extract; CLI объявлен отдельно через `add_cli_args`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения (из `choices`): `flashinfer`, `pytorch`, `ascend`. В исходниках это множество `SAMPLING_BACKEND_CHOICES`, в которое дополнительно попадает `token_oracle` при `SGLANG_KV_CANARY_ENABLE_TOKEN_ORACLE=1`, а внешний код может зарегистрировать свой backend через `register_sampler_backend` (`sglang/python/sglang/srt/layers/sampler.py`). Реальный список для вашей сборки — в `--help`
-- Значение по умолчанию: `null` — «подберет движок»
+- Допустимые значения (runtime choices): `flashinfer`, `pytorch`, `ascend`. В исходниках это множество `SAMPLING_BACKEND_CHOICES`, в которое дополнительно попадает `token_oracle` при `SGLANG_KV_CANARY_ENABLE_TOKEN_ORACLE=1`, а внешний код может зарегистрировать свой backend через `register_sampler_backend` (`sglang/python/sglang/srt/layers/sampler.py`). Реальный список для вашей сборки — в `--help`
+- Значение по умолчанию: выражение `ServerArgs.sampling_backend`, которое раскрывается в `None` — «подберет движок»
 - Эффективное значение: `_sampling_backend_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`) подставляет `flashinfer`, если FlashInfer доступен, иначе `pytorch`. Дальше значение может быть перезаписано: `--device cpu` и `--device hpu` жестко ставят `pytorch` (даже поверх явно заданного значения), а `--enable-deterministic-inference` через `_deterministic_sampling_backend` ставит `pytorch` для всего, кроме `ascend`, с логом `Sampling backend is set to pytorch for deterministic inference.`
-- Где объявлен: `ServerArgs.sampling_backend`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный; поле помечено `resolvable=True`
+- Где объявлен: `ServerArgs.add_cli_args` (поле `ServerArgs.sampling_backend` помечено `no_cli=True`), файл — `sglang/python/sglang/srt/server_args.py`
+- Статус: обычный; CLI choices собираются при регистрации parser
 - Этап применения: разбор CLI → платформенные обработчики `__post_init__` → `_handle_sampling_backend` → создание `Sampler` в model runner (`create_sampler`) → каждый шаг сэмплирования
 
 ## Что меняет в движке
+
+В extract `choices: null` отражает локально собранный набор `sampling_backend_choices`, а не отсутствие CLI-проверки. `add_cli_args` копирует `SAMPLING_BACKEND_CHOICES`, добавляет `token_oracle` при включённой переменной окружения и передаёт набор в argparse; произвольное неизвестное имя всё ещё отвергается.
 
 Значение читается в `sglang/python/sglang/srt/layers/sampler.py` и разветвляет `Sampler._sample_from_probs`:
 

@@ -33,7 +33,7 @@ Exclude uvicorn access logs whose request path starts with any of these prefixes
 - Группа: `observability`
 - Тип значения: список строк, `nargs="*"` — допускается и ноль значений
 - Допустимые значения: `choices` нет; произвольные строки-префиксы пути
-- Значение по умолчанию: в extract это выражение `dataclasses.field(default_factory=lambda: list(DEFAULT_UVICORN_ACCESS_LOG_EXCLUDE_PREFIXES))`. Раскрывается в **пустой список**: `DEFAULT_UVICORN_ACCESS_LOG_EXCLUDE_PREFIXES = ()` (`sglang/python/sglang/srt/server_args.py`). Фильтрация выключена
+- Значение по умолчанию: выражение `dataclasses.field(default_factory=list)` создаёт новый пустой список для каждого ServerArgs; фильтрация выключена.
 - Эффективное значение: перед регистрацией список нормализуется — пустые строки выбрасываются, дубликаты убираются с сохранением порядка; если после этого список пуст, фильтр не регистрируется вовсе
 - Где объявлен: `ServerArgs.uvicorn_access_log_exclude_prefixes`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный

@@ -31,7 +31,7 @@ Choose the runner backend for MoE in speculative decoding.
 - Флаги: `--speculative-moe-runner-backend`
 - Группа: `spec`
 - Тип значения: строка с фиксированным списком (`MOE_RUNNER_BACKEND_CHOICES`, тот же, что у `--moe-runner-backend`)
-- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`. Список расширяем сторонними платформенными пакетами через `add_moe_runner_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки
+- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`, `intel_xpu`. Список расширяем сторонними платформенными пакетами через `add_moe_runner_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки
 - Значение по умолчанию: `null`
 - Эффективное значение: `_speculative_moe_runner_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`) при `null` копирует **разрешённое** `moe_runner_backend` target-модели; для DeepSeek-семейства с `modelopt_fp4` на ROCm `_deepseek_spec_moe_resolution` может выставить `deep_gemm` (вместе с a2a `deepep`) или `triton`
 - Где объявлен: `ServerArgs.speculative_moe_runner_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -39,6 +39,8 @@ Choose the runner backend for MoE in speculative decoding.
 - Этап применения: `__post_init__` (подстановка значения по умолчанию) → `initialize_moe_config` при инициализации model runner → сборка и прогоны MoE-слоёв черновика внутри `speculative_moe_backend_context()`
 
 ## Что меняет в движке
+
+В общий список и `MoeRunnerBackend` добавлен `intel_xpu`. Это платформенный вариант: наличие имени в CLI не означает, что каждый quant-метод или draft поддерживает его. Реальная реализация выбирается методом MoE-слоя и установленными XPU-компонентами; на CUDA не выбирайте его вместо автоматического runner.
 
 Порядок в `__post_init__` важен: сначала выполняются `_handle_moe_kernel_config` и `_handle_a2a_moe` — они разрешают и проверяют `--moe-runner-backend` target-модели, — и только потом вызывается `handle_speculative_decoding`, который первым делом прогоняет `_speculative_moe_runner_default`. Поэтому наследуется не то, что вы написали в `--moe-runner-backend`, а то, во что движок его превратил.
 

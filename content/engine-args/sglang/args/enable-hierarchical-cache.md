@@ -66,7 +66,7 @@ Enable hierarchical cache
 ## Значения и формат
 
 - Флаг без аргумента.
-- Размер L2 задается двумя другими аргументами: `--hicache-ratio` (обычный default `2.0`, но `1.0` для host-pool decode retraction) либо `--hicache-size` в гигабайтах, который перекрывает ratio.
+- Размер L2 задается двумя другими аргументами: `--hicache-ratio` (`2.0` для постоянного cache, `1.2` для buffer_only; отдельный host-pool decode backup без HiCache получает `0.2`) либо `--hicache-size` в гигабайтах, который перекрывает ratio.
 - L3 подключается только явным `--hicache-storage-backend`; без него HiCache двухуровневый (L1+L2).
 - `--page-size` — общая для L1/L2/L3 гранулярность. Для storage-backend'ов практический ориентир из апстрим-документации — `--page-size 64`; при `page_size 1` метаданных и IO-операций на тот же объем кратно больше.
 
@@ -95,7 +95,7 @@ Enable hierarchical cache
 - `--enable-int8-mamba-checkpoint`: несовместим, `_handle_int8_mamba_checkpoint` бросает `ValueError` (host-offload путь не понимает int8-чекпойнты).
 - `--dcp-size` > 1: разрешено только для MLA-моделей и только L1/L2 — `--hicache-storage-backend`, спекулятивное декодирование, `--enable-lmcache` и `--enable-hisparse` в этой комбинации отвергаются `NotImplementedError`.
 - `--disaggregation-decode-enable-offload-kvcache`: включает те же нормализации `_handle_hicache` и требует заданного `--hicache-storage-backend`.
-- `--disaggregation-decode-retraction-backup host_pool`: строит зарезервированный HiCache L2 для KV вытесненных decode-запросов даже без этого флага; при незаданном ratio использует `1.0`.
+- `--disaggregation-decode-retraction-backup host_pool`: строит зарезервированный HiCache L2 для KV вытесненных decode-запросов даже без этого флага; при незаданном ratio использует `0.2` без HiCache, либо `2.0` с HiCache.
 - `--optimistic-prefill-attempts`: на prefill-узле PD работает только с L2 и политикой `write_back`; иначе значение молча сбрасывается в 0 с предупреждением.
 - `--dllm-algorithm`: при включенном radix cache гасит HiCache с предупреждением.
 

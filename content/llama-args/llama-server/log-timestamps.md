@@ -60,6 +60,8 @@ Enable timestamps in log messages
 
 ## Взаимодействие с другими аргументами
 
+- При `--log-jsonl` поле `time` содержит микросекунды от создания logger, если timestamps включены; при отключении поле остаётся и равно `0`. Это не Unix timestamp.
+
 - `--verbosity` и `--verbose` определяют, какие сообщения вообще доходят до common logger.
 - `--log-file`, `--log-colors`, `--log-prefix`, `--log-timestamps` управляют форматом и направлением тех сообщений, которые прошли threshold.
 - `--log-disable` останавливает worker и отбрасывает новые записи; для `--log-file` и `--log-colors` порядок особенно важен, потому что эти настройки внутри себя делают pause/resume logger.

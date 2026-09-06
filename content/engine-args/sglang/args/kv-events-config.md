@@ -29,7 +29,7 @@ related:
 ## Оригинальная справка
 
 ```text
-Config in json format for NVIDIA dynamo KV event publishing. Publishing will be enabled if this flag is used.
+Config in json format for NVIDIA dynamo KV event publishing. Publishing will be enabled if this flag is used. Runtime-load publishing for load-aware routers is a separate opt-in; see --load-publish-endpoint.
 ```
 
 ## Паспорт аргумента
@@ -46,6 +46,8 @@ Config in json format for NVIDIA dynamo KV event publishing. Publishing will be 
 
 ## Что меняет в движке
 
+Runtime-load PUB выключен по умолчанию и является отдельным opt-in. Его descriptor публикуется в `kv_events` блока `/server_info`; значение `--load-publish-endpoint` без активного KV publisher приводит к ошибке старта.
+
 ### Кто и что публикует
 
 `SchedulerKvEventsPublisher` (`sglang/python/sglang/srt/managers/scheduler_components/kv_events_publisher.py`) держит публикатор и на каждом шаге забирает накопленные события из дерева префиксов (`tree_cache.take_events()`), заворачивает их в `KVEventBatch` с меткой времени и отправляет.
@@ -58,7 +60,7 @@ Config in json format for NVIDIA dynamo KV event publishing. Publishing will be 
 - `BlockRemoved` — `block_hashes`, `medium`;
 - `AllBlocksCleared`.
 
-Помимо событий кеша публикуется структура `KvMetrics` (число активных слотов, занятость KV, длина очереди, hit rate) через отдельный ZMQ-канал планировщика.
+Публикация runtime-load для маршрутизаторов включается отдельно через `--load-publish-endpoint`; одного `--kv-events-config` недостаточно. `auto` резервирует ещё `dp_size` портов после KV-диапазона, а частота публикации следует `--load-snapshot-publish-interval`.
 
 ### Транспорт
 
@@ -144,3 +146,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/server_args.py`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `docs/RESOURCE_MANAGEMENT.md`
+
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`

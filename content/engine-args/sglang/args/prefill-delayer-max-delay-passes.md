@@ -53,7 +53,7 @@ Maximum forward passes to delay prefill.
 - **части** рангов есть что prefill'ить (`mixed`) — задерживать, пока счетчик задержек меньше `max_delay_passes - 1`, потом выпустить с причиной `wait_timeout`;
 - **всем** есть что prefill'ить (`all`) — проверяются два независимых, складывающихся условия:
   - `slot_condition`: `max_running_requests - running_batch < max_prefill_bs` — свободных слотов меньше, чем типичный размер prefill-батча (без DP attention `max_running_requests` делится на `dp_size` с округлением вверх);
-  - `queue_condition`: включается только заданным `--prefill-delayer-queue-min-ratio`; ждет, пока очередь дорастет до `min(running_batch * ratio, max_prefill_bs)`, но не дольше `--prefill-delayer-max-delay-ms`;
+  - `queue_condition`: включается только заданным `--prefill-delayer-queue-min-ratio`; ждет, пока очередь дорастет до `min(running_batch * ratio, prefill_cap)`, где `prefill_cap` равен заданному `--prefill-max-requests`, иначе наблюдаемому `max_prefill_bs`, но не дольше `--prefill-delayer-max-delay-ms`;
 
   если сработало любое — prefill откладывается, опять же не дольше `max_delay_passes - 1` проходов.
 

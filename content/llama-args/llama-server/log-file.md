@@ -62,6 +62,8 @@ Log to file
 
 ## Взаимодействие с другими аргументами
 
+- При `--log-jsonl` common logger пишет JSONL и в stdout, и в этот файл; формат файла тоже меняется.
+
 - `--verbosity` и `--verbose` определяют, какие сообщения вообще доходят до common logger.
 - `--log-file`, `--log-colors`, `--log-prefix`, `--log-timestamps` управляют форматом и направлением тех сообщений, которые прошли threshold.
 - `--log-disable` останавливает worker и отбрасывает новые записи; для `--log-file` и `--log-colors` порядок особенно важен, потому что эти настройки внутри себя делают pause/resume logger.

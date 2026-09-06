@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--prefill-delayer-queue-min-ratio"
 title: "--prefill-delayer-queue-min-ratio"
-summary: Включает второй, очередной триггер prefill-delayer и задает его порог: prefill откладывается, пока очередь ожидания короче `min(running_batch * ratio, max_prefill_bs)` запросов. Не задан — работает только слотовый триггер.
+summary: Включает второй, очередной триггер prefill-delayer и задает его порог: prefill откладывается, пока очередь ожидания короче `min(running_batch * ratio, prefill_cap)` запросов. Не задан — работает только слотовый триггер.
 group: schedule
 related:
   - --enable-prefill-delayer
@@ -18,12 +18,12 @@ related:
 
 ## Кратко
 
-Аргумент делает две вещи сразу: сам факт того, что он задан, включает очередной (queue-based) триггер задержки, а его значение задает порог. Порог считается в запросах: `queue_min = min(int(running_batch * ratio), max_prefill_bs)`, и пока длина очереди ожидания меньше этого числа, prefill откладывается. Мишень — нагрузка, где decode-запросы заканчиваются по одному и дробят prefill на множество мелких батчей. Полное описание механизма prefill-delayer — в `--prefill-delayer-max-delay-passes`.
+Аргумент делает две вещи сразу: сам факт того, что он задан, включает очередной (queue-based) триггер задержки, а его значение задает порог. Порог считается в запросах: `queue_min = min(int(running_batch * ratio), prefill_cap)`, и пока длина очереди ожидания меньше этого числа, prefill откладывается. Мишень — нагрузка, где decode-запросы заканчиваются по одному и дробят prefill на множество мелких батчей. Полное описание механизма prefill-delayer — в `--prefill-delayer-max-delay-passes`.
 
 ## Оригинальная справка
 
 ```text
-Opt-in to the adaptive queue-based delay trigger (independent of the slot-based one). Delays prefill until the waiting queue reaches min(running_req * ratio, max_prefill_bs) so small fragments batch into a larger prefill. Unset (default) keeps the original slot-only behavior. Typical: 0.1 ~ 0.5.
+Opt-in to the adaptive queue-based delay trigger (independent of the slot-based one). Delays prefill until the waiting queue reaches min(running_req * ratio, prefill_max_requests), falling back to the observed max_prefill_bs when no request limit is set. Unset (default) keeps the original slot-only behavior. Typical: 0.1 ~ 0.5.
 ```
 
 ## Паспорт аргумента
@@ -44,22 +44,22 @@ Opt-in to the adaptive queue-based delay trigger (independent of the slot-based 
 
 ```python
 queue_min_effective = min(int(global_running_batch_max * self._queue_min_ratio),
-                          global_max_prefill_bs_max)
+                          prefill_cap)
 queue_condition = queue_min_effective > 0 and global_waiting_queue_max < queue_min_effective
 ```
 
-Все три величины берутся как максимум по рангам из all-gather'а: размер running-батча, высокая отметка `max_prefill_bs` и длина очереди ожидания. Условие проверяется только при `running_batch > 0` — на пустом сервере задержки не будет.
+Размер running-батча, наблюдаемый `max_prefill_bs` и длина очереди берутся как максимум по рангам. `prefill_cap` равен `--prefill-max-requests`, если он задан, иначе используется наблюдаемый максимум `max_prefill_bs`. Условие проверяется только при `running_batch > 0` — на пустом сервере задержки не будет.
 
-`max_prefill_bs` — не аргумент, а наблюдаемая величина: планировщик поднимает ее до размера последнего собранного prefill-батча (`max(self.max_prefill_bs, len(can_run_list))`) и затухает на 0.998 за проход, что дает период полураспада около 350 проходов. Она играет роль верхней границы порога: ждать очередь длиннее, чем движок реально успевает prefill'ить за раз, бессмысленно.
+`max_prefill_bs` — не аргумент, а наблюдаемая величина: планировщик поднимает ее до размера последнего собранного prefill-батча (`max(self.max_prefill_bs, len(can_run_list))`) и затухает на 0.998 за проход, что дает период полураспада около 350 проходов. Если `--prefill-max-requests` не задан, она играет роль верхней границы порога: ждать очередь длиннее, чем движок реально успевает prefill'ить за раз, бессмысленно.
 
 Условие складывается со слотовым по «или»: задержка происходит, если сработало любое из двух. Ограничивают ее два потолка — `--prefill-delayer-max-delay-passes` (в проходах) и `--prefill-delayer-max-delay-ms` (в миллисекундах, консультируется только этим триггером).
 
 ## Значения и формат
 
-- Дробь от размера running-батча. `0.2` при 50 запущенных запросах дает порог 10 ожидающих запросов (если `max_prefill_bs` не меньше).
+- Дробь от размера running-батча. `0.2` при 50 запущенных запросах дает порог 10 ожидающих запросов (если `prefill_cap` не меньше).
 - `int(...)` округляет вниз, поэтому при малом running-батче порог быстро вырождается в 0, и `queue_min_effective > 0` перестает выполняться — задержки не будет.
 - Значение `0` формально примется, но порог всегда будет нулевым, то есть триггер включится и никогда не сработает. Чтобы выключить его, просто не задавайте аргумент.
-- Большие значения (`> 1`) означают «ждать очередь длиннее, чем running-батч»; практически порог упрется в `max_prefill_bs`.
+- Большие значения (`> 1`) означают «ждать очередь длиннее, чем running-батч»; практически порог упрется в `prefill_cap`.
 - Отрицательные значения не проверяются, но дают отрицательный порог и, соответственно, неработающий триггер.
 
 ## Когда использовать

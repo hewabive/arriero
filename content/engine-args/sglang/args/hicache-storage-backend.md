@@ -33,7 +33,7 @@ The storage backend for hierarchical KV cache. Built-in backends: file, mooncake
 - Флаги: `--hicache-storage-backend`
 - Группа: `memory`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `file`, `mooncake`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`
+- Допустимые значения: `file`, `sim`, `mooncake`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`
 - Значение по умолчанию: `null` — L3 не подключен, HiCache работает как двухуровневый (L1+L2)
 - Эффективное значение: не переопределяется; но выбор backend'а меняет **другие** значения — `mooncake` переписывает `--hicache-mem-layout layer_first`, а `shm` (и `dynamic` с `"allocator": "shm"`) переключает аллокатор host-пула на shared memory
 - Где объявлен: `ServerArgs.hicache_storage_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -41,6 +41,8 @@ The storage backend for hierarchical KV cache. Built-in backends: file, mooncake
 - Этап применения: `__post_init__` (`_handle_hicache`, `_handle_cache_compatibility`) → `HiCacheController.attach_storage_backend` при инициализации дерева кеша
 
 ## Что меняет в движке
+
+Новый `sim` — симулятор storage для измерения производительности: хранит только ключи, не KV-байты, и моделирует задержку/пропускную способность. Для реальных ответов с восстановлением KV он непригоден. Параметры extra config: `sim_write_gbps` (default 5), `sim_read_gbps` (как write), `sim_op_latency_us` (100); неположительная скорость означает бесконечную пропускную способность. Это не backend `simm`.
 
 Имя backend'а превращается в объект через `StorageBackendFactory.create_backend` (`sglang/python/sglang/srt/mem_cache/storage/backend_factory.py`). Все встроенные backend'ы зарегистрированы с **ленивой** загрузкой: модуль импортируется только в момент создания, поэтому недостающая зависимость всплывает на старте сервера в виде `ImportError: Failed to import backend '<name>' from '<module>'`.
 
@@ -125,3 +127,5 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 - `sglang/docs/docs/advanced_features/hicache_design.mdx`
 - `sglang/docs/docs/advanced_features/hicache_best_practices.mdx`
 - `sglang/docs/docs/advanced_features/hicache_storage_runtime_attach_detach.mdx`
+
+- `sglang/python/sglang/srt/mem_cache/storage/sim_storage.py`

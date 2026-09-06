@@ -150,6 +150,8 @@
     "trtllm_mha",
     "dual_chunk_flash_attn",
     "hpc_ops",
+    "minicpm_flashattn",
+    "minicpm_flashinfer",
     "aiter",
     "wave",
     "intel_amx",
@@ -223,10 +225,12 @@
     "--bf16-gemm-backend"
    ],
    "group": "exec.kernel",
-   "help": "Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (default; selects 'cutedsl' on SM10x GPUs, except deterministic inference selects 'torch'; otherwise uses cuBLAS via torch.nn.functional.linear), 'cutedsl' (SGLang JIT CuTe DSL TGV BF16 GEMM on SM10x; dispatches between the CuTe DSL kernel and cuBLAS), 'torch' (always uses cuBLAS via torch.nn.functional.linear).",
+   "help": "Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (default; selects 'cutedsl' on SM10x GPUs, except deterministic inference selects 'torch'; otherwise uses cuBLAS via torch.nn.functional.linear), 'cutedsl' (SGLang JIT CuTe DSL TGV BF16 GEMM on SM10x; dispatches between the allowlisted low-M Split-K kernel, the CuTe DSL kernel, and cuBLAS; set SGLANG_ENABLE_BF16_SPLITK_GEMM=0 to disable Split-K), 'flashinfer_pr4266' (legacy compatibility alias for the optimized CuTe DSL path), 'gemv', 'torch' (always uses cuBLAS via torch.nn.functional.linear).",
    "choices": [
     "auto",
     "cutedsl",
+    "flashinfer_pr4266",
+    "gemv",
     "torch"
    ],
    "type": "str",
@@ -852,6 +856,8 @@
     "trtllm_mha",
     "dual_chunk_flash_attn",
     "hpc_ops",
+    "minicpm_flashattn",
+    "minicpm_flashinfer",
     "aiter",
     "wave",
     "intel_amx",
@@ -1051,6 +1057,26 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.deepep_mode"
+  },
+  {
+   "flags": [
+    "--deepep-v2-mode"
+   ],
+   "group": "exec.moe",
+   "help": "DeepEP v2 ElasticBuffer communication topology, fixed at server init: `direct` (single-node NVLink) or `hybrid` (multi-node scale-out). Layout/grouped-GEMM and the decode CUDA graph are chosen per batch by inference phase, independent of this knob; not equivalent to DeepEP v1 normal/low_latency.",
+   "choices": [
+    "direct",
+    "hybrid"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "direct"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.deepep_v2_mode"
   },
   {
    "flags": [
@@ -1827,7 +1853,7 @@
     "--dsa-topk-backend"
    ],
    "group": "exec.kernel",
-   "help": "DSA indexer top-k backend. Options: 'sgl-kernel', 'torch', 'flashinfer'. The 'torch' backend currently requires SGLANG_DSA_FUSE_TOPK=false.",
+   "help": "DSA indexer top-k backend for the target model. Options: 'sgl-kernel', 'torch', 'flashinfer'. The 'torch' backend currently requires SGLANG_DSA_FUSE_TOPK=false.",
    "choices": [
     "sgl-kernel",
     "torch",
@@ -1842,6 +1868,27 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.dsa_topk_backend"
+  },
+  {
+   "flags": [
+    "--dsv4-prefill-backend"
+   ],
+   "group": "exec.kernel",
+   "help": "DeepSeek-V4 sparse prefill backend. 'auto' and 'flashmla_sparse' use the existing BF16 sparse prefill path; 'flashmla_sparse_q8' enables the Q8KV8 sparse prefill path.",
+   "choices": [
+    "auto",
+    "flashmla_sparse",
+    "flashmla_sparse_q8"
+   ],
+   "type": "str",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "auto"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.dsv4_prefill_backend"
   },
   {
    "flags": [
@@ -2193,6 +2240,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.enable_deepseek_v4_fp4_indexer"
+  },
+  {
+   "flags": [
+    "--enable-dense-mlp-attn-tp"
+   ],
+   "group": "parallel",
+   "help": "Shard dense MLP weights across the attention TP group under DP attention.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.enable_dense_mlp_attn_tp"
   },
   {
    "flags": [
@@ -2575,6 +2639,23 @@
   },
   {
    "flags": [
+    "--enable-layernorm-sp"
+   ],
+   "group": "parallel",
+   "help": "Enable Megatron-style sequence parallelism (arXiv:2205.05198) for the LayerNorm/residual regions under pure tensor parallelism: the row-parallel all-reduce becomes reduce-scatter + all-gather, so LayerNorm runs on sequence-sharded activations with no extra communication volume. Prefill only; Qwen3 dense; requires tp_size > 1 and NVLink/NVSwitch.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.enable_layernorm_sp"
+  },
+  {
+   "flags": [
     "--enable-layerwise-nvtx-marker"
    ],
    "group": "exec.comm",
@@ -2589,6 +2670,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.enable_layerwise_nvtx_marker"
+  },
+  {
+   "flags": [
+    "--enable-lean-attention"
+   ],
+   "group": "exec.kernel",
+   "help": "Enable Lean (Work-Centric) Attention decode kernel for long-context serving. When None (default), uses auto-gate that activates Lean for long contexts and falls back to standard kernel for short contexts. Set to True to force enable, False to force disable.",
+   "choices": null,
+   "type": "bool",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.enable_lean_attention"
   },
   {
    "flags": [
@@ -3181,6 +3279,23 @@
   },
   {
    "flags": [
+    "--enable-shared-experts-attn-tp"
+   ],
+   "group": "parallel",
+   "help": "Shard shared expert weights across the attention TP group when using an expert-parallel all-to-all backend.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.enable_shared_experts_attn_tp"
+  },
+  {
+   "flags": [
     "--enable-single-batch-overlap"
    ],
    "group": "exec.overlap",
@@ -3420,6 +3535,23 @@
   },
   {
    "flags": [
+    "--enable-w4a4-mxfp4-megamoe"
+   ],
+   "group": "exec.moe",
+   "help": "Enable the W4A4 MXFP4 MegaMoE path with DeepGEMM's mxf4xmxf4 MMA type. Use with --moe-a2a-backend megamoe.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.enable_w4a4_mxfp4_megamoe"
+  },
+  {
+   "flags": [
     "--enable-waterfill"
    ],
    "group": "exec.moe",
@@ -3518,8 +3650,8 @@
    "type": "str",
    "optional": false,
    "default": {
-    "kind": "expression",
-    "text": "ENCODER_TRANSFER_BACKEND_CHOICES[0]"
+    "kind": "literal",
+    "value": "auto"
    },
    "action": null,
    "hidden": false,
@@ -3957,10 +4089,11 @@
     "--flashinfer-mxfp4-moe-precision"
    ],
    "group": "exec.moe",
-   "help": "Choose the computation precision of flashinfer mxfp4 moe",
+   "help": "Choose the computation precision of flashinfer mxfp4 moe. On SM90, `fp8` selects the Humming-style MXFP4-weight x FP8-activation path introduced by FlashInfer #3738 and requires FlashInfer >= 0.6.18.",
    "choices": [
     "default",
-    "bf16"
+    "bf16",
+    "fp8"
    ],
    "type": "enum",
    "optional": false,
@@ -4113,6 +4246,23 @@
   },
   {
    "flags": [
+    "--gated-launch-port"
+   ],
+   "group": "parallel",
+   "help": "The port of the gated launch control server. When set, every rank blocks right after the distributed environment is initialized, before any sizable GPU allocation, until `POST /gate/activate` is sent to this port on the host of the first rank. This lets an external orchestrator defer the memory hungry part of startup to a safe window. Defaults to None, which disables the gate.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.gated_launch_port"
+  },
+  {
+   "flags": [
     "--gc-threshold"
    ],
    "group": "device",
@@ -4254,6 +4404,26 @@
   },
   {
    "flags": [
+    "--hicache-host-memory-mode"
+   ],
+   "group": "memory",
+   "help": "Whether host memory is a persistent HiCache tier (cache) or a transient staging buffer between GPU and the storage backend (buffer_only). buffer_only requires --hicache-storage-backend.",
+   "choices": [
+    "cache",
+    "buffer_only"
+   ],
+   "type": "str",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "cache"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.hicache_host_memory_mode"
+  },
+  {
+   "flags": [
     "--hicache-io-backend"
    ],
    "group": "memory",
@@ -4301,7 +4471,7 @@
     "--hicache-ratio"
    ],
    "group": "memory",
-   "help": "The ratio of the size of host KV cache memory pool to the size of device pool. Defaults to 2.0, or 1.0 for host-pool decode retraction.",
+   "help": "The ratio of the size of host KV cache memory pool to the size of device pool. Defaults to 2.0 in cache mode, 1.2 in buffer_only mode, or 0.2 for backup-only host-pool decode retraction.",
    "choices": null,
    "type": "float",
    "optional": true,
@@ -4318,7 +4488,7 @@
     "--hicache-size"
    ],
    "group": "memory",
-   "help": "The size of host KV cache memory pool in gigabytes, which will override the hicache_ratio if set.",
+   "help": "The size of host KV cache memory pool in gigabytes. Overrides --hicache-ratio in either host memory mode.",
    "choices": null,
    "type": "int",
    "optional": false,
@@ -4338,6 +4508,7 @@
    "help": "The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, hf3fs, nixl, aibrix. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).",
    "choices": [
     "file",
+    "sim",
     "mooncake",
     "hf3fs",
     "nixl",
@@ -4398,6 +4569,40 @@
   },
   {
    "flags": [
+    "--hicache-storage-prefetch-retry-max-attempts"
+   ],
+   "group": "memory",
+   "help": "Maximum storage prefetch retries per request when --hicache-storage-prefetch-retry-poll-interval is set.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 4
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.hicache_storage_prefetch_retry_max_attempts"
+  },
+  {
+   "flags": [
+    "--hicache-storage-prefetch-retry-poll-interval"
+   ],
+   "group": "memory",
+   "help": "Scheduling passes a queued request waits after a storage prefetch miss before the availability check is retried (under load the first check can run before the needed backup commits). 0 disables retries.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 0
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.hicache_storage_prefetch_retry_poll_interval"
+  },
+  {
+   "flags": [
     "--hicache-write-policy"
    ],
    "group": "memory",
@@ -4451,6 +4656,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.host"
+  },
+  {
+   "flags": [
+    "--http2-initial-connection-window-size"
+   ],
+   "group": "serving",
+   "help": "Initial connection-level HTTP/2 receive window in bytes (1024 to 2^31 - 1). Only applies with --enable-http2.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "1024 * 1024"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.http2_initial_connection_window_size"
   },
   {
    "flags": [
@@ -4781,7 +5003,7 @@
     "--kv-events-config"
    ],
    "group": "observability",
-   "help": "Config in json format for NVIDIA dynamo KV event publishing. Publishing will be enabled if this flag is used.",
+   "help": "Config in json format for NVIDIA dynamo KV event publishing. Publishing will be enabled if this flag is used. Runtime-load publishing for load-aware routers is a separate opt-in; see --load-publish-endpoint.",
    "choices": null,
    "type": "str",
    "optional": true,
@@ -4857,7 +5079,8 @@
     "flashkda",
     "nvidia_kda",
     "ptx_kda",
-    "helion"
+    "helion",
+    "intel_xpu"
    ],
    "type": "str",
    "optional": false,
@@ -4882,7 +5105,8 @@
     "flashkda",
     "nvidia_kda",
     "ptx_kda",
-    "helion"
+    "helion",
+    "intel_xpu"
    ],
    "type": "str",
    "optional": true,
@@ -4907,7 +5131,8 @@
     "flashkda",
     "nvidia_kda",
     "ptx_kda",
-    "helion"
+    "helion",
+    "intel_xpu"
    ],
    "type": "str",
    "optional": true,
@@ -4933,6 +5158,7 @@
     "nvidia_kda",
     "ptx_kda",
     "helion",
+    "intel_xpu",
     "nv_cutedsl"
    ],
    "type": "str",
@@ -5007,7 +5233,7 @@
     "--load-format"
    ],
    "group": "model",
-   "help": "The format of the model weights to load. \"auto\" will try to load the weights in the safetensors format and fall back to the pytorch bin format if safetensors format is not available. \"pt\" will load the weights in the pytorch bin format. \"safetensors\" will load the weights in the safetensors format. \"npcache\" will load the weights in pytorch format and store a numpy cache to speed up the loading. \"dummy\" will initialize the weights with random values, which is mainly for profiling.\"gguf\" will load the weights in the gguf format. \"bitsandbytes\" will load the weights using bitsandbytes quantization.\"layered\" loads weights layer by layer so that one can quantize a layer before loading another to make the peak memory envelope smaller.\"presharded\" performs a normal first-time load (with quantization), then dumps a per-rank/per-tensor sharded checkpoint with content deduplication into <model_path>/presharded/<parallelism+quant subfolder>/. Subsequent runs with the same parallelism+quantization config load directly from this presharded checkpoint and skip re-quantization. The dump directory must be on a shared filesystem across all ranks/nodes. Optional model_loader_extra_config roots: presharded_path (target) and draft_presharded_path (speculative draft); each replaces <model_path>/presharded and still gets a config subfolder appended. Use a writable path when model_path is read-only (e.g. HF cache mounts).",
+   "help": "The format of the model weights to load. \"auto\" will try to load the weights in the safetensors format and fall back to the pytorch bin format if safetensors format is not available. \"pt\" will load the weights in the pytorch bin format. \"safetensors\" will load the weights in the safetensors format. \"npcache\" will load the weights in pytorch format and store a numpy cache to speed up the loading. \"dummy\" will initialize the weights with random values, which is mainly for profiling.\"gguf\" will load the weights in the gguf format. \"expert_pack\" is experimental and loads only the validated DeepSeek-V4-Flash-0731 MXFP4 or text-only Kimi-K3 Q2_K GGUF model with routed experts stored in an SSD expert pack. \"bitsandbytes\" will load the weights using bitsandbytes quantization.\"layered\" loads weights layer by layer so that one can quantize a layer before loading another to make the peak memory envelope smaller.\"presharded\" performs a normal first-time load (with quantization), then dumps a per-rank/per-tensor sharded checkpoint with content deduplication into <model_path>/presharded/<parallelism+quant subfolder>/. Subsequent runs with the same parallelism+quantization config load directly from this presharded checkpoint and skip re-quantization. The dump directory must be on a shared filesystem across all ranks/nodes. Optional model_loader_extra_config roots: presharded_path (target) and draft_presharded_path (speculative draft); each replaces <model_path>/presharded and still gets a config subfolder appended. Use a writable path when model_path is read-only (e.g. HF cache mounts).",
    "choices": [
     "auto",
     "pt",
@@ -5017,6 +5243,7 @@
     "sharded_state",
     "presharded",
     "gguf",
+    "expert_pack",
     "bitsandbytes",
     "mistral",
     "layered",
@@ -5036,6 +5263,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.load_format"
+  },
+  {
+   "flags": [
+    "--load-publish-endpoint"
+   ],
+   "group": "observability",
+   "help": "Opt in to the runtime-load PUB socket that load-aware routers subscribe to. Off by default (unset or 'off'). Use 'auto' to reserve the dp_size ports packed after the --kv-events-config range, or a wildcard-host TCP address (e.g. tcp://*:6000) to place it explicitly; rank r binds port+r and /server_info advertises the base under the kv_events block. Requires --kv-events-config to describe a publisher (routers discover the base through /server_info); startup fails if this is set without one, is not bindable, or overlaps the KV range. Note: 'auto' reserves 2*dp_size ports from the KV base — space co-hosted engines accordingly. The router-facing update cadence follows --load-snapshot-publish-interval (shared to avoid double-collecting the snapshot), so a large value there also staleness-caps this feed.",
+   "choices": null,
+   "type": "str",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.load_publish_endpoint"
   },
   {
    "flags": [
@@ -6018,6 +6262,7 @@
     "ascend_fuseep",
     "flashinfer",
     "megamoe",
+    "deepep_v2",
     "pplx",
     "ascend_tp"
    ],
@@ -6089,7 +6334,8 @@
     "humming",
     "experimental_sgl_marlin",
     "hpc_ops",
-    "megamoe"
+    "megamoe",
+    "intel_xpu"
    ],
    "type": "str",
    "optional": false,
@@ -6620,6 +6866,8 @@
     "trtllm_mha",
     "dual_chunk_flash_attn",
     "hpc_ops",
+    "minicpm_flashattn",
+    "minicpm_flashinfer",
     "aiter",
     "wave",
     "intel_amx",
@@ -6654,6 +6902,23 @@
    "action": "DeprecatedAliasStoreAction",
    "hidden": false,
    "origin": "ServerArgs.add_cli_args"
+  },
+  {
+   "flags": [
+    "--prefill-decode-interval"
+   ],
+   "group": "schedule",
+   "help": "The number of decode rounds to run after a prefill batch before scheduling the next prefill. In data-parallel attention mode, the interval is synchronized across all DP ranks. Set to 0 to disable.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 0
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.prefill_decode_interval"
   },
   {
    "flags": [
@@ -6711,7 +6976,7 @@
     "--prefill-delayer-queue-min-ratio"
    ],
    "group": "schedule",
-   "help": "Opt-in to the adaptive queue-based delay trigger (independent of the slot-based one). Delays prefill until the waiting queue reaches min(running_req * ratio, max_prefill_bs) so small fragments batch into a larger prefill. Unset (default) keeps the original slot-only behavior. Typical: 0.1 ~ 0.5.",
+   "help": "Opt-in to the adaptive queue-based delay trigger (independent of the slot-based one). Delays prefill until the waiting queue reaches min(running_req * ratio, prefill_max_requests), falling back to the observed max_prefill_bs when no request limit is set. Unset (default) keeps the original slot-only behavior. Typical: 0.1 ~ 0.5.",
    "choices": null,
    "type": "float",
    "optional": true,
@@ -7182,22 +7447,18 @@
    "flags": [
     "--sampling-backend"
    ],
-   "group": "exec.kernel",
+   "group": null,
    "help": "Choose the kernels for sampling layers.",
-   "choices": [
-    "flashinfer",
-    "pytorch",
-    "ascend"
-   ],
+   "choices": null,
    "type": "str",
-   "optional": true,
+   "optional": false,
    "default": {
-    "kind": "literal",
-    "value": null
+    "kind": "expression",
+    "text": "ServerArgs.sampling_backend"
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.sampling_backend"
+   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -7691,6 +7952,7 @@
     "sharded_state",
     "presharded",
     "gguf",
+    "expert_pack",
     "bitsandbytes",
     "mistral",
     "layered",
@@ -7815,6 +8077,27 @@
   },
   {
    "flags": [
+    "--speculative-dsa-topk-backend"
+   ],
+   "group": "spec",
+   "help": "DSA indexer top-k backend for speculative draft workers. Options: 'sgl-kernel', 'torch', 'flashinfer'. The 'torch' backend currently requires SGLANG_DSA_FUSE_TOPK=false.",
+   "choices": [
+    "sgl-kernel",
+    "torch",
+    "flashinfer"
+   ],
+   "type": "str",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "sgl-kernel"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.speculative_dsa_topk_backend"
+  },
+  {
+   "flags": [
     "--speculative-dspark-align-verify-tokens-to-graph-tier"
    ],
    "group": "spec",
@@ -7913,6 +8196,7 @@
     "ascend_fuseep",
     "flashinfer",
     "megamoe",
+    "deepep_v2",
     "pplx",
     "ascend_tp"
    ],
@@ -7949,7 +8233,8 @@
     "humming",
     "experimental_sgl_marlin",
     "hpc_ops",
-    "megamoe"
+    "megamoe",
+    "intel_xpu"
    ],
    "type": "str",
    "optional": true,
@@ -8679,7 +8964,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "dataclasses.field(default_factory=lambda: list(DEFAULT_UVICORN_ACCESS_LOG_EXCLUDE_PREFIXES))"
+    "text": "dataclasses.field(default_factory=list)"
    },
    "action": null,
    "hidden": false,
@@ -8745,7 +9030,7 @@
     "--weight-cache-socket"
    ],
    "group": "model",
-   "help": "Unix socket path for weight cache daemon (client mode).If not set, uses /tmp/sglang_weight_cache_rank{global_rank}.sock",
+   "help": "Unix socket path for weight cache daemon (client mode).If not set, derives the path from SGLANG_WEIGHT_CACHE_SOCKET_TEMPLATE using the caller's physical GPU UUID.",
    "choices": null,
    "type": "str",
    "optional": true,

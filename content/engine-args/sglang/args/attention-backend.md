@@ -36,7 +36,7 @@ Choose the kernels for attention layers.
 - Флаги: `--attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения (из `choices`): `triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`. Список — константа `ATTENTION_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_attention_backend_choices` позволяет out-of-tree платформенным пакетам его расширить, поэтому итоговый набор смотрите в `--help` установленной сборки. `nsa` — устаревший синоним `dsa`, `compressed` — устаревший синоним `dsv4`
+- Допустимые значения (из `choices`): `triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`. Список — константа `ATTENTION_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_attention_backend_choices` позволяет out-of-tree платформенным пакетам его расширить, поэтому итоговый набор смотрите в `--help` установленной сборки. `nsa` — устаревший синоним `dsa`, `compressed` — устаревший синоним `dsv4`
 - Значение по умолчанию: `null` — «подберет движок»
 - Эффективное значение: переписывается на нескольких шагах `__post_init__` — платформенные обработчики (`_handle_hpu_backends`, `_handle_cpu_backends`, `_handle_npu_backends`), модельные переопределения в `_handle_model_specific_adjustments`, детерминированный режим (`_deterministic_attention_backend`), затем `_handle_attention_backend_compatibility` (`_attention_backend_default`, `_attention_backend_fa3_fp8_fallback`, `_attention_backend_platform_fallbacks`, `_attention_backend_dual_chunk`)
 - Где объявлен: `ServerArgs.attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -44,6 +44,8 @@ Choose the kernels for attention layers.
 - Этап применения: разбор CLI → `__post_init__` (подбор и проверки, попутные правки `--page-size`, CUDA graph, radix cache) → создание backend'а в model runner (`ATTENTION_BACKENDS[...]`, там же вторая волна отказов) → захват CUDA graph → каждый forward
 
 ## Что меняет в движке
+
+Новые значения `minicpm_flashattn` и `minicpm_flashinfer` создают `MiniCPMSparseBackend` с `use_flashinfer=False` и `True` соответственно. Это специализированный sparse attention MiniCPM, а не общая замена FlashAttention/FlashInfer для произвольной архитектуры. Наличие этих значений проверяйте в `--help` установленного окружения.
 
 Значение — это ключ в реестре `ATTENTION_BACKENDS` (`sglang/python/sglang/srt/layers/attention/attention_registry.py`). Model runner берет пару `(prefill, decode)` из `attention_backends_of` (`sglang/python/sglang/srt/arg_groups/overrides.py`) и строит backend в `attention_backend_setup.py`:
 
@@ -164,3 +166,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - `sglang/docs/docs/advanced_features/attention_backend.mdx`
 - `sglang/docs/docs/advanced_features/deterministic_inference.mdx`
+
+- `sglang/python/sglang/srt/layers/attention/minicpm/backend.py`

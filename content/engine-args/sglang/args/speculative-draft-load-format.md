@@ -31,7 +31,7 @@ The format of the draft model weights to load. If not specified, will use the sa
 - Флаги: `--speculative-draft-load-format`
 - Группа: `spec`
 - Тип значения: строка (`Optional[str]`)
-- Допустимые значения (из `choices`): `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Список общий с `--load-format` и может расширяться плагинами через `add_load_format_choices`
+- Допустимые значения (из `choices`): `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `expert_pack`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Список общий с `--load-format` и может расширяться плагинами через `add_load_format_choices`
 - Значение по умолчанию: `null` — используется `--load-format`
 - Эффективное значение: `runai_streamer`, если `--speculative-draft-model-path` указывает на объект RunAI-хранилища и аргумент не задан (`_handle_load_format`)
 - Где объявлен: `ServerArgs.speculative_draft_load_format`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -39,6 +39,8 @@ The format of the draft model weights to load. If not specified, will use the sa
 - Этап применения: `__post_init__` (`_handle_load_format`) → `ModelRunner._resolve_draft_load_format` при инициализации draft-воркера → `build_load_config` → загрузка весов
 
 ## Что меняет в движке
+
+`expert_pack` — новый экспериментальный loader с узким контрактом: проверенные DeepSeek-V4-Flash-0731 MXFP4 или text-only Kimi-K3 Q2_K GGUF, routed experts в SSD expert pack. Требуется `pack_path` в `--model-loader-extra-config` либо `SGLANG_EXPERT_PACK_PATH`; `--model-path` должен указывать на проверенный каталог tokenizer/config, для Kimi нужен manifest. Наличие общего choice у draft не подтверждает поддержку произвольного draft-checkpoint. Это перенос экспертных весов в отдельное хранилище с зависимостью latency от SSD, а не универсальный GGUF-loader.
 
 `ModelRunner._resolve_draft_load_format()` возвращает значение только для runner'а с `is_draft_worker=True`; для целевого runner'а это всегда `None`. Дальше:
 
@@ -72,7 +74,7 @@ The format of the draft model weights to load. If not specified, will use the sa
 
 - `--load-format`: значение по умолчанию; после подстановки они уже независимы.
 - `--speculative-draft-model-path`: определяет, откуда читать; RunAI-URI сам включает `runai_streamer`.
-- `--speculative-draft-model-quantization`: ортогональная ось, но некоторые форматы (`gguf`, `bitsandbytes`) фактически несут квантизацию в себе.
+- `--speculative-draft-model-quantization`: ортогональная ось, но некоторые форматы (`gguf`, `expert_pack`, `bitsandbytes`) фактически несут квантизацию в себе.
 - `--download-dir`: куда кладутся скачанные файлы.
 - `--weight-cache-mode`: несовместим со спекулятивным декодированием целиком (`--weight-cache-mode` ≠ `off` + `--speculative-algorithm` = `ValueError`), поэтому IPC-кеш весов для draft'а недоступен.
 
@@ -100,3 +102,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --load
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/docs/docs/advanced_features/model_loading.mdx`
+
+- `sglang/python/sglang/srt/model_loader/expert_pack_loader.py`
+
+- `sglang/python/sglang/srt/model_loader/expert_pack_config.py`

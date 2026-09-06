@@ -37,7 +37,7 @@ The default kernel backend for linear attention (GDN/KDA). Can be overridden per
 - Флаги: `--linear-attn-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion` (константа `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`; out-of-tree пакеты могут расширить список через `add_linear_attn_kernel_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки). Не всякое значение применимо к обеим семьям ядер — см. ниже
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu` (константа `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`; out-of-tree пакеты могут расширить список через `add_linear_attn_kernel_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки). Не всякое значение применимо к обеим семьям ядер — см. ниже
 - Значение по умолчанию: `triton`
 - Эффективное значение: само значение не переписывается, но производные могут: `--linear-attn-decode-backend` автоматически становится `flashinfer` на SM100+ при явном `--mamba-ssm-dtype bfloat16`, а унаследованный из базы `flashkda` в decode заменяется на `triton` с записью в лог
 - Где объявлен: `ServerArgs.linear_attn_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -45,6 +45,8 @@ The default kernel backend for linear attention (GDN/KDA). Can be overridden per
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend`) → создание backend'а внимания (`attention_registry.py`, `initialize_linear_attn_config`) → каждый forward линейных слоев
 
 ## Что меняет в движке
+
+`intel_xpu` добавлен в общий список. GDN допускает его для prefill/decode только на Intel XPU: fused SYCL путь обслуживает `XpuGDNAttnBackend.forward_fused_gdn`, а диспетчер держит Triton fallback для остальных вызовов. На другом устройстве возникает `--linear-attn-backend intel_xpu requires Intel XPU`. Это не добавляет XPU-ядро в KDA.
 
 Значение раскладывается в три роли в `initialize_linear_attn_config` (`sglang/python/sglang/srt/layers/attention/linear/utils.py`):
 
@@ -56,7 +58,7 @@ verify  = linear_attn_verify_backend  or (decode if decode == "flashinfer" else 
 
 Дальше конкретный диспетчер собирает ядра. Наборы допустимых значений у двух семей разные:
 
-- **GDN** (`GDNKernelDispatcher`): decode — `triton`, `cutedsl`, `flashinfer`; prefill — `triton`, `cutedsl`, `flashinfer`. `helion` получает явную ошибку `The Helion linear-attention backend supports KDA only, not GDN`; остальные неподдержанные значения — общий `Unsupported GDN ...`.
+- **GDN** (`GDNKernelDispatcher`): decode — `triton`, `cutedsl`, `flashinfer`, `intel_xpu`; prefill — `triton`, `cutedsl`, `flashinfer`, `intel_xpu`. `helion` получает явную ошибку `The Helion linear-attention backend supports KDA only, not GDN`; остальные неподдержанные значения — общий `Unsupported GDN ...`.
 - **KDA** (`KDAKernelDispatcher`): decode — `triton`, `helion`, `cutedsl`, `flashinfer`; prefill — `triton`, `helion`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`; verify — `triton`, `nv_cutedsl`, `flashinfer`. Helion требует CUDA и пакет `helion==1.4.0`; один `HelionKDAKernel` может обслуживать выбранные decode/prefill-фазы.
 
 Несколько backend'ов деградируют к Triton с записью в лог, а не падают: `cutedsl` prefill вне SM100, `nvidia_kda` вне SM100, `ptx_kda` вне SM103 (GB300).

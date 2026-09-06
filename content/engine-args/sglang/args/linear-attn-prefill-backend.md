@@ -35,7 +35,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - Флаги: `--linear-attn-prefill-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion` (общий список `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`, расширяемый out-of-tree пакетами)
+- Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu` (общий список `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`, расширяемый out-of-tree пакетами)
 - Значение по умолчанию: `null` — берется `--linear-attn-backend`
 - Эффективное значение: при незаданном значении и выполнении условий `flashinfer_gdn_prefill_default` подставляется `flashinfer`; это записывается в разрешенную конфигурацию через `get_context().override("gdn_backend.sm100_flashinfer_default", …)`
 - Где объявлен: `ServerArgs.linear_attn_prefill_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -43,6 +43,8 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend` — проверка CUDA-версии) → создание backend'а внимания (`attention_registry.py`) → каждый prefill/extend линейных слоев
 
 ## Что меняет в движке
+
+`intel_xpu` добавлен в общий список. GDN допускает его для prefill/decode только на Intel XPU: fused SYCL путь обслуживает `XpuGDNAttnBackend.forward_fused_gdn`, а диспетчер держит Triton fallback для остальных вызовов. На другом устройстве возникает `--linear-attn-backend intel_xpu requires Intel XPU`. Это не добавляет XPU-ядро в KDA.
 
 ### Автоподбор FlashInfer для GDN-prefill
 
@@ -74,7 +76,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 ### Что доступно в каждой семье
 
 - **GDN**: `triton`, `cutedsl`, `flashinfer`. Остальное — `ValueError: Unsupported GDN prefill backend: …`. `cutedsl` prefill существует только на SM100+, на SM90 диспетчер откатывается на Triton с сообщением `CuTe DSL GDN prefill is not supported on this GPU (requires SM100+). Falling back to Triton for prefill.`
-- **KDA**: `triton`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`, `helion`. `flashkda` — специализированное prefill-only ядро (обертка собирает непрерывную копию состояния слота, так что внешнее ядро самого пула не видит). `helion` подключает `HelionKDAKernel`, требует CUDA и пакет `helion==1.4.0`; его chunk-prefill используется только для KDA. `nvidia_kda` требует SM100, `ptx_kda` — SM103 (GB300); вне их обе откатываются на Triton с записью в лог.
+- **KDA**: `triton`, `flashkda`, `cutedsl`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu`. `flashkda` — специализированное prefill-only ядро (обертка собирает непрерывную копию состояния слота, так что внешнее ядро самого пула не видит). `helion` подключает `HelionKDAKernel`, требует CUDA и пакет `helion==1.4.0`; его chunk-prefill используется только для KDA. `nvidia_kda` требует SM100, `ptx_kda` — SM103 (GB300); вне их обе откатываются на Triton с записью в лог.
 
 ## Значения и формат
 

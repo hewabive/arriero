@@ -34,7 +34,7 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - Флаги: `--prefill-attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
+- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
 - Значение по умолчанию: `null` — фаза prefill наследует разрешенный `--attention-backend`
 - Эффективное значение: `attention_backends_of` (`sglang/python/sglang/srt/arg_groups/overrides.py`) возвращает `prefill_attention_backend or attention_backend`. Само поле дописывается движком в двух случаях: `--device npu` пишет в него `ascend`, а `_cutedsl_prefill_backend_fill` подставляет `trtllm_mla`, если decode-backend — `cutedsl_mla`, а prefill не задан. Для DeepSeek V4 на NPU `_deepseek_v4_overrides` пишет `dsv4` в оба split-поля
 - Где объявлен: `ServerArgs.prefill_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -42,6 +42,8 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - Этап применения: разбор CLI → `__post_init__` (`_attention_backend_default` и вся цепочка проверок совместимости) → создание backend'а в model runner → forward фазы extend
 
 ## Что меняет в движке
+
+Новые значения `minicpm_flashattn` и `minicpm_flashinfer` создают `MiniCPMSparseBackend` с `use_flashinfer=False` и `True` соответственно. Это специализированный sparse attention MiniCPM, а не общая замена FlashAttention/FlashInfer для произвольной архитектуры. Наличие этих значений проверяйте в `--help` установленного окружения.
 
 Пара `(prefill, decode)` вычисляется в одном месте — `attention_backends_of`, и оттуда расходится по всем проверкам `__post_init__` (`_resolved_attention_backends`) и по `attention_backend_setup.py`.
 
@@ -113,3 +115,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --prefill-atte
 - `sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`
 - `sglang/docs/docs/advanced_features/attention_backend.mdx`
+
+- `sglang/python/sglang/srt/layers/attention/minicpm/backend.py`
