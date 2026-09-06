@@ -1,7 +1,7 @@
 import { UpdateJobStartSchema } from "@arriero/core";
 import type { Hono } from "hono";
 
-import { updateFleet } from "../update/fleet.js";
+import { invalidateAppVersionCache, updateFleet } from "../update/fleet.js";
 import { tailUpdateLog } from "../update/logs.js";
 import { getUpdateJob, latestUpdateJob } from "../update/repository.js";
 import {
@@ -24,6 +24,7 @@ export function registerUpdateRoutes(app: Hono) {
 
   app.post("/api/update/check", async (c) => {
     const { version, fetchError } = await checkForUpdate();
+    invalidateAppVersionCache();
     return c.json({ data: withRuntimeInfo(version), fetchError });
   });
 

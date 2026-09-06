@@ -19,6 +19,10 @@ const COMMITS_BEHIND_CACHE_LIMIT = 256;
 let appVersionCache: { value: AppVersion; expiresAt: number } | null = null;
 const commitsBehindCache = new Map<string, number>();
 
+export function invalidateAppVersionCache(): void {
+  appVersionCache = null;
+}
+
 function tryGit(args: string[]): string | null {
   return tryGitSync(updateAdapter.rootDir, args);
 }
