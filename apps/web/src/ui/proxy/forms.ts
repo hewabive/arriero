@@ -451,21 +451,22 @@ export function addPipelineNodeToDraft(
   };
 }
 
-function clearPipelineNodeDraftPorts(
+function replacePipelineNodeDraftPorts(
   node: PipelineNodeDraft,
-  removedValue: string,
+  previousValue: string,
+  nextValue: PortValue,
 ): PipelineNodeDraft {
-  const clearPort = (value: PortValue) =>
-    value === removedValue ? null : value;
+  const replacePort = (value: PortValue) =>
+    value === previousValue ? nextValue : value;
   if (isSingleNextPipelineNodeDraft(node)) {
-    return { ...node, portNext: clearPort(node.portNext) };
+    return { ...node, portNext: replacePort(node.portNext) };
   }
   switch (node.type) {
     case "condition":
       return {
         ...node,
-        portTrue: clearPort(node.portTrue),
-        portFalse: clearPort(node.portFalse),
+        portTrue: replacePort(node.portTrue),
+        portFalse: replacePort(node.portFalse),
       };
     case "call":
       return {
@@ -473,7 +474,7 @@ function clearPipelineNodeDraftPorts(
         callPorts: Object.fromEntries(
           Object.entries(node.callPorts).map(([port, value]) => [
             port,
-            clearPort(value),
+            replacePort(value),
           ]),
         ),
       };
@@ -482,12 +483,29 @@ function clearPipelineNodeDraftPorts(
     case "fusion":
       return {
         ...node,
-        fusionPanel: node.fusionPanel.map(clearPort),
-        fusionSynthesizer: clearPort(node.fusionSynthesizer),
+        fusionPanel: node.fusionPanel.map(replacePort),
+        fusionSynthesizer: replacePort(node.fusionSynthesizer),
       };
     default:
       return assertNever(node);
   }
+}
+
+export function replaceTargetInDraft(
+  draft: PipelineDraft,
+  previousTargetId: string,
+  nextTargetId: string,
+): PipelineDraft {
+  const previousValue = `target:${previousTargetId}`;
+  const nextValue = `target:${nextTargetId}`;
+  return {
+    ...draft,
+    entryValue:
+      draft.entryValue === previousValue ? nextValue : draft.entryValue,
+    nodes: draft.nodes.map((node) =>
+      replacePipelineNodeDraftPorts(node, previousValue, nextValue),
+    ),
+  };
 }
 
 export function removeNodeFromDraft(
@@ -500,7 +518,7 @@ export function removeNodeFromDraft(
     entryValue: draft.entryValue === removedValue ? null : draft.entryValue,
     nodes: draft.nodes
       .filter((node) => node.id !== nodeId)
-      .map((node) => clearPipelineNodeDraftPorts(node, removedValue)),
+      .map((node) => replacePipelineNodeDraftPorts(node, removedValue, null)),
   };
 }
 

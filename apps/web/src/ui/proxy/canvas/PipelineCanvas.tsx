@@ -58,6 +58,7 @@ import {
   isSingleNextPipelineNodeDraft,
   pipelinePayload,
   removeNodeFromDraft,
+  replaceTargetInDraft,
 } from "../forms";
 import {
   PipelineNodeFields,
@@ -389,6 +390,34 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
 
   const placeTarget = (targetId: string) => placeRef(`target:${targetId}`);
 
+  const replaceTarget = (targetId: string | null) => {
+    if (!targetId || !selectedNodeId?.startsWith("ref:target:")) {
+      return;
+    }
+    const previousTargetId = selectedNodeId.slice("ref:target:".length);
+    if (targetId === previousTargetId) {
+      return;
+    }
+    const previousValue = `target:${previousTargetId}`;
+    const nextValue = `target:${targetId}`;
+    const nextFlowId = refNodeId(nextValue);
+    const position = positionsRef.current.get(selectedNodeId);
+    if (position && !rfNodes.some((node) => node.id === nextFlowId)) {
+      positionsRef.current.set(nextFlowId, position);
+    }
+    positionsRef.current.delete(selectedNodeId);
+    setPlacedRefs((prev) => [
+      ...new Set([
+        ...prev.filter((value) => value !== previousValue),
+        nextValue,
+      ]),
+    ]);
+    setSelectedNodeId(nextFlowId);
+    props.onDraftChange(
+      replaceTargetInDraft(draft, previousTargetId, targetId),
+    );
+  };
+
   const addPipelineNode = (pipelineId: string) =>
     props.onDraftChange(addPipelineNodeToDraft(draft, pipelineId));
 
@@ -497,6 +526,9 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
   const selectedNode =
     draft.nodes.find((node) => node.id === selectedNodeId) ?? null;
   const entrySelected = selectedNodeId === entryNodeId;
+  const selectedTargetId = selectedNodeId?.startsWith("ref:target:")
+    ? selectedNodeId.slice("ref:target:".length)
+    : null;
 
   return (
     <Stack gap="xs">
@@ -725,6 +757,27 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
                     Route complete — every path ends at a target.
                   </Text>
                 ))}
+            </Stack>
+          ) : selectedTargetId !== null ? (
+            <Stack gap="xs">
+              <Badge variant="light" color="teal">
+                Target
+              </Badge>
+              <TouchSelect
+                label="Target"
+                data={props.ctx.targets.map((target) => ({
+                  value: target.id,
+                  label: target.name,
+                }))}
+                value={selectedTargetId}
+                searchable
+                allowDeselect={false}
+                onChange={replaceTarget}
+              />
+              <Text c="dimmed" size="xs">
+                Changing the target redirects all incoming connections to the
+                selected target. Save the pipeline to apply changes.
+              </Text>
             </Stack>
           ) : selectedNode ? (
             <Stack gap="xs">
