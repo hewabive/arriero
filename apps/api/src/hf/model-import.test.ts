@@ -21,6 +21,10 @@ import { setTimeout } from "node:timers/promises";
 import { config } from "../config.js";
 import { saveModelScanSettings } from "../models/cache-repository.js";
 import { saveHfDownloadSettings } from "../settings/downloads.js";
+import {
+  listModelLibraryEntries,
+  deleteModelLibraryEntry,
+} from "./model-library.js";
 import { readHfManifest } from "./manifest.js";
 import {
   startModelImport,
@@ -33,6 +37,8 @@ import {
 import type { ModelImportRequest, ModelImportState } from "@arriero/core";
 
 function fixture() {
+  for (const entry of listModelLibraryEntries())
+    deleteModelLibraryEntry(entry.id);
   const root = join(config.dataDir, `import-${randomUUID()}`);
   const source = join(root, "archive");
   const target = join(root, "library");

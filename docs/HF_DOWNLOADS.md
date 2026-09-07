@@ -250,12 +250,29 @@ Restoration still requires that revision to remain accessible on the Hub.
 The Models page shows a `Managed` marker for model weight files covered by a discovered HF
 manifest and an `Organize` action otherwise (`ModelImportControl.tsx`, `ModelImportDialog.tsx`).
 Managed is registration status, not a fresh checksum check; custom download destinations are
-valid managed locations too. Import targets the current default download directory, using the
-same `<owner>/<repo>` layout.
+valid managed locations too. Hub-discovered imports target the current default download directory,
+using the same `<owner>/<repo>` layout. Matches from Model library use the saved entry’s destination.
 
 Opening Organize restores an existing operation for that source or starts automatic discovery.
 `POST /api/hf/imports` accepts a local path and scope; `repo` is optional and can narrow the search
-with a model name or pin a repository ID/URL. Search terms come from the filename without its
+with a model name or pin a repository ID/URL. Discovery first checks Model library locally
+(`import-library.ts`): pinned file hashes and accepted snapshots are grouped by repository, commit
+and destination. Metadata from different commits is never combined. Each candidate verifies the
+actual source content with SHA-256 for LFS or Git blob SHA-1 for regular files; names and sizes
+alone never establish a match. Incomplete saved metadata can verify a subset, but every model
+weight and required shard being imported must have a matching hash in that revision. Unknown
+non-weight companions in directory imports retain their existing unverified status.
+
+When local candidates match, discovery returns them without contacting the Hub, including neighbor
+projection against the saved paths. Candidate origin and commit are shown in the UI. Selection,
+commit, manifest creation and instance/preset path updates reuse the normal import transaction and
+need no network. Multiple saved copies or revisions remain explicit choices. `searchHf: false`
+disables Hub fallback altogether; no match then reports missing metadata or unmatched content.
+Organize starts in this local-only mode; after a miss it offers Search Hugging Face explicitly.
+Legacy entries containing only paths cannot establish provenance offline. A saved commit is a
+historical version; an offline match makes no claim about current branch contents or availability.
+
+If no saved candidate matches and Hub fallback is enabled (the API default), search terms come from the filename without its
 quantization/shard suffix, the directory name for safetensors, and cached model provenance.
 Available author/base-model hints refine an initial search; name, base-model and unfiltered
 searches broaden it. The Hub search returns `sha` and `siblings`, so candidates containing the

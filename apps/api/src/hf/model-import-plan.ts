@@ -22,6 +22,11 @@ import {
   isInsideScanRoots,
 } from "./paths.js";
 
+export type ImportRepositoryFiles = Pick<
+  HfRepoBrowse,
+  "repoId" | "commitSha" | "files"
+> & { truncated?: boolean };
+
 export type ImportSourceFile = {
   path: string;
   relative: string;
@@ -92,7 +97,8 @@ export async function planModelImport(
   state: ModelImportState,
   options?: HfClientOptions,
   signal?: AbortSignal,
-  remoteOverride?: HfRepoBrowse,
+  remoteOverride?: ImportRepositoryFiles,
+  destOverride?: string,
 ): Promise<ModelImportPlan> {
   const parsed = parseHfRepoInput(input.repo);
   if (!parsed)
@@ -113,7 +119,7 @@ export async function planModelImport(
     throw new HfDownloadRequestError(
       "Individual file import supports GGUF only",
     );
-  const destDir = resolve(defaultHfDestDir(parsed.repoId));
+  const destDir = resolve(destOverride ?? defaultHfDestDir(parsed.repoId));
   if (!isInsideScanRoots(destDir))
     throw new HfDownloadRequestError(
       "Destination must be inside a model scan directory",

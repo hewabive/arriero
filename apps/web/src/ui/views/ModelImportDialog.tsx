@@ -49,6 +49,7 @@ export function ModelImportDialog({
   const [revision, setRevision] = useState("main");
   const [remotePath, setRemotePath] = useState("");
   const [refine, setRefine] = useState(false);
+  const [searchHf, setSearchHf] = useState(false);
   const [keepCompanions, setKeepCompanions] = useState(true);
   const [id, setId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -86,7 +87,7 @@ export function ModelImportDialog({
   const onError = (error: Error) =>
     notifications.show({ color: "red", message: error.message });
   const prepare = useMutation({
-    mutationFn: () =>
+    mutationFn: (allowHf: boolean) =>
       prepareModelImport({
         sourcePath: safetensors
           ? model.path
@@ -97,6 +98,7 @@ export function ModelImportDialog({
         repo,
         revision,
         remotePath,
+        searchHf: allowHf,
       }),
     onSuccess: accept,
     onError,
@@ -144,7 +146,7 @@ export function ModelImportDialog({
         data: previous,
       });
       setId(previous.id);
-    } else prepare.mutate();
+    } else prepare.mutate(searchHf);
   }, [
     history.data,
     history.isFetching,
@@ -190,7 +192,7 @@ export function ModelImportDialog({
   const restart = () => {
     initialized.current = true;
     notified.current = false;
-    prepare.mutate();
+    prepare.mutate(searchHf);
   };
   return (
     <Modal opened onClose={onClose} title="Organize model files" size="xl">
@@ -199,10 +201,23 @@ export function ModelImportDialog({
           {model.path}
         </Text>
         <Text size="sm" c="dimmed">
-          Find matching files on Hugging Face, choose a repository and review
-          what to import. Saved instance and preset paths are updated when files
-          move.
+          Check saved hashes in Model library first, then search Hugging Face if
+          needed. Choose a repository and review what to import. Saved instance
+          and preset paths are updated when files move.
         </Text>
+        <Checkbox
+          label="Search Hugging Face if no library match is found"
+          description="Turn off to search and import using only locally saved repository data."
+          checked={searchHf}
+          disabled={controlsBusy}
+          onChange={(event) => setSearchHf(event.currentTarget.checked)}
+        />
+        {candidate?.origin === "library" && (
+          <Alert color="blue">
+            Verified against saved Model library hashes. No Hugging Face
+            connection is needed to import this revision.
+          </Alert>
+        )}
         {history.isPending && <Text size="sm">Loading previous searches…</Text>}
         {(state?.error || job.error || history.error) && (
           <Alert color="red">
@@ -269,6 +284,12 @@ export function ModelImportDialog({
                     <Stack gap={2}>
                       <Text size="sm" fw={600} className="text-wrap">
                         {entry.repoId}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {entry.revision.slice(0, 12)} ·{" "}
+                        {entry.origin === "library"
+                          ? "Model library"
+                          : "Hugging Face"}
                       </Text>
                       <Text size="xs" c="dimmed">
                         {countLabel(
@@ -533,6 +554,17 @@ export function ModelImportDialog({
           </Stack>
         </Collapse>
         <Group justify="flex-end">
+          {!controlsBusy && state?.status === "failed" && !searchHf && (
+            <Button
+              variant="light"
+              onClick={() => {
+                setSearchHf(true);
+                prepare.mutate(true);
+              }}
+            >
+              Search Hugging Face
+            </Button>
+          )}
           <Button variant="subtle" onClick={onClose}>
             {state?.status === "succeeded" ? "Done" : "Close"}
           </Button>
@@ -548,7 +580,9 @@ export function ModelImportDialog({
           {!busy &&
             (!state || ["failed", "canceled"].includes(state.status)) && (
               <Button onClick={restart} loading={prepare.isPending}>
-                Search for matching files
+                {searchHf
+                  ? "Search for matching files"
+                  : "Search Model library again"}
               </Button>
             )}
         </Group>

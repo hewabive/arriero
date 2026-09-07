@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const ModelImportRequestSchema = z.object({
   sourcePath: z.string().min(1),
+  searchHf: z.boolean().optional(),
   scope: z.enum(["gguf", "directory"]),
   repo: z.string().default(""),
   revision: z.string().default("main"),
@@ -21,6 +22,7 @@ export const ModelImportRelatedFileSchema = ModelImportFileSchema.extend({
   relativePath: z.string(),
 });
 export const ModelImportCandidateSchema = z.object({
+  origin: z.enum(["library", "huggingface"]).optional(),
   id: z.string(),
   repoId: z.string(),
   revision: z.string(),

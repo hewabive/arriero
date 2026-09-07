@@ -1,7 +1,6 @@
 import {
   classifyGgufArtifactKind,
   groupGgufFiles,
-  type HfRepoBrowse,
   type ModelImportRelatedFile,
   type ModelImportState,
 } from "@arriero/core";
@@ -10,6 +9,7 @@ import { basename, dirname, relative, resolve } from "node:path";
 import {
   collectImportFiles,
   type ImportSourceFile,
+  type ImportRepositoryFiles,
   type ModelImportPlan,
 } from "./model-import-plan.js";
 import { matchImportGroup } from "./import-matching.js";
@@ -24,7 +24,7 @@ export type ImportRelatedFile = {
 
 async function projectedPaths(
   plan: ModelImportPlan,
-  remote: HfRepoBrowse,
+  remote: ImportRepositoryFiles,
   state: ModelImportState,
   signal: AbortSignal,
 ): Promise<string[]> {
@@ -148,7 +148,7 @@ async function neighboringPaths(
 
 export async function discoverRelatedFiles(
   plan: ModelImportPlan,
-  remote: HfRepoBrowse,
+  remote: ImportRepositoryFiles,
   state: ModelImportState,
   signal: AbortSignal,
 ): Promise<ImportRelatedFile[]> {

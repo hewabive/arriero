@@ -27,8 +27,10 @@ import {
   planModelImport,
   type ImportSourceFile,
   type ModelImportPlan,
+  type ImportRepositoryFiles,
 } from "./model-import-plan.js";
 import { HfDownloadRequestError } from "./paths.js";
+import { libraryImportRepositories } from "./import-library.js";
 import { getHfToken } from "./token.js";
 
 export type DiscoveredImport = {
@@ -219,6 +221,41 @@ export async function discoverModelImports(
     resolve(input.sourcePath),
     input.scope === "directory",
   );
+  const saved = libraryImportRepositories(input);
+  const local: DiscoveredImport[] = [];
+  state.total = saved.length;
+  for (const repository of saved) {
+    signal.throwIfAborted();
+    state.currentFile = `Checking Model library: ${repository.remote.repoId}`;
+    state.searchedRepositories++;
+    try {
+      local.push(
+        await verifyImportRepository(
+          input,
+          state,
+          options,
+          signal,
+          repository.remote,
+          "library",
+          repository.destDir,
+        ),
+      );
+      state.candidates = local.map((entry) => entry.candidate);
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!(error instanceof HfDownloadRequestError))
+        state.warnings.push(
+          `Could not verify saved repository ${repository.remote.repoId}: ${(error as Error).message}`,
+        );
+    }
+    state.completed++;
+  }
+  if (local.length) return local;
+  if (input.searchHf === false)
+    throw new HfDownloadRequestError(
+      "No matching content with sufficient saved hashes was found in Model library. Enable Hugging Face search to check other repositories or revisions.",
+    );
+  state.completed = 0;
   const repositories = await findRepositories(
     input,
     sources,
@@ -241,37 +278,15 @@ export async function discoverModelImports(
         options,
         signal,
       );
-      const candidateState: ModelImportState = {
-        ...state,
-        files: [],
-        warnings: [],
-        candidates: [],
-        completed: 0,
-      };
-      const plan = await planModelImport(
-        { ...input, repo: repository.repoId, revision: remote.commitSha },
-        candidateState,
+      const discovered = await verifyImportRepository(
+        input,
+        state,
         options,
         signal,
         remote,
+        "huggingface",
       );
-      let related: ImportRelatedFile[] = [];
-      try {
-        related = await discoverRelatedFiles(plan, remote, state, signal);
-      } catch (error) {
-        signal.throwIfAborted();
-        state.warnings.push(
-          `Could not finish checking neighbors in ${dirname(plan.source)}: ${(error as Error).message}`,
-        );
-      }
-      const candidate = {
-        id: randomUUID(),
-        repoId: repository.repoId,
-        revision: remote.commitSha,
-        files: candidateState.files,
-        relatedFiles: related.map((entry) => entry.file),
-      };
-      results.push({ candidate, plan, related });
+      results.push(discovered);
       state.candidates = results.map((result) => result.candidate);
     } catch (error) {
       signal.throwIfAborted();
@@ -288,4 +303,51 @@ export async function discoverModelImports(
       "No matching content found among the checked repositories. Refine the model name or enter a repository URL and revision.",
     );
   return results;
+}
+
+async function verifyImportRepository(
+  input: ModelImportRequest,
+  state: ModelImportState,
+  options: HfClientOptions,
+  signal: AbortSignal,
+  remote: ImportRepositoryFiles,
+  origin: "library" | "huggingface",
+  destDir?: string,
+): Promise<DiscoveredImport> {
+  const candidateState: ModelImportState = {
+    ...state,
+    files: [],
+    warnings: [],
+    candidates: [],
+    completed: 0,
+  };
+  const plan = await planModelImport(
+    { ...input, repo: remote.repoId, revision: remote.commitSha },
+    candidateState,
+    options,
+    signal,
+    remote,
+    destDir,
+  );
+  let related: ImportRelatedFile[] = [];
+  try {
+    related = await discoverRelatedFiles(plan, remote, state, signal);
+  } catch (error) {
+    signal.throwIfAborted();
+    state.warnings.push(
+      `Could not finish checking neighbors in ${dirname(plan.source)}: ${(error as Error).message}`,
+    );
+  }
+  return {
+    candidate: {
+      id: randomUUID(),
+      repoId: remote.repoId,
+      revision: remote.commitSha,
+      origin,
+      files: candidateState.files,
+      relatedFiles: related.map((entry) => entry.file),
+    },
+    plan,
+    related,
+  };
 }
