@@ -12,7 +12,6 @@ import type {
   HfDownloadedRepo,
   HfRepoBrowse,
   HfTokenStatus,
-  HfUpdateCheck,
   ModelLibraryEntry,
   ModelLibraryEntryCreate,
   ModelLibraryEntryStatus,
@@ -69,13 +68,6 @@ export function startHfDownload(input: HfDownloadStart) {
     method: "POST",
     body: JSON.stringify(input),
   });
-}
-
-export function checkHfUpdates(dirs: string[]) {
-  return request<{ data: Record<string, HfUpdateCheck> }>(
-    "/api/hf/downloads/check",
-    { method: "POST", body: JSON.stringify({ dirs }) },
-  );
 }
 
 export function checkHfDownloadIntegrity(dir: string) {

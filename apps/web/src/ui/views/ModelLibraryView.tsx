@@ -37,7 +37,6 @@ import { hfVariantChipLabel } from "../utils/hf";
 import { formatBytes } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
 import { ModelLibraryDialog } from "./ModelLibraryDialog";
-import { HfRepoDetailModal } from "./HfRepoDetailModal";
 import { HfRepoDeleteModal } from "./HfRepoDeleteModal";
 import { useHfJobsSync, useHfQueueQuery } from "./use-hf-queue";
 
@@ -66,12 +65,24 @@ export function ModelLibraryView() {
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [opened, setOpened] = useState<string | null>(null);
-  const [detailDir, setDetailDir] = useState<string | null>(null);
+  const [opened, setOpened] = useState<{
+    id: string | null;
+    dir: string | null;
+  } | null>(null);
   const [deleteDir, setDeleteDir] = useState<string | null>(null);
   const statuses = library.data?.data ?? [];
   const repos = downloads.data?.data ?? [];
-  const active = statuses.find((status) => status.entry.id === opened);
+  const active = opened
+    ? (statuses.find((status) =>
+        opened.id
+          ? status.entry.id === opened.id
+          : status.matchedDir === opened.dir,
+      ) ?? null)
+    : null;
+  const activeRepo = opened
+    ? (repos.find((repo) => repo.dir === (opened.dir ?? active?.matchedDir)) ??
+      null)
+    : null;
   const activeJobs = queue
     ? [
         ...(queue.active ? [queue.active] : []),
@@ -235,7 +246,7 @@ export function ModelLibraryView() {
                   paths: [],
                   destDir: null,
                 });
-                setOpened(result.data.id);
+                setOpened({ id: result.data.id, dir: null });
                 setRepoInput("");
                 setAdding(false);
               });
@@ -488,9 +499,14 @@ export function ModelLibraryView() {
                     <Button
                       size="xs"
                       variant="light"
-                      onClick={() => setOpened(status.entry.id)}
+                      onClick={() =>
+                        setOpened({
+                          id: status.entry.id,
+                          dir: repo?.dir ?? null,
+                        })
+                      }
                     >
-                      Files and changes
+                      Open repository
                     </Button>
                     <Button
                       size="xs"
@@ -541,13 +557,13 @@ export function ModelLibraryView() {
                     Save to library
                   </Button>
                 )}
-                {repo && (
+                {!status && repo && (
                   <Button
                     size="xs"
-                    variant="subtle"
-                    onClick={() => setDetailDir(repo.dir)}
+                    variant="light"
+                    onClick={() => setOpened({ id: null, dir: repo.dir })}
                   >
-                    Manage local files
+                    Open repository
                   </Button>
                 )}
               </Group>
@@ -555,17 +571,14 @@ export function ModelLibraryView() {
           </Paper>
         );
       })}
-      {active && (
+      {opened && (active || activeRepo) && (
         <ModelLibraryDialog
-          key={active.entry.id}
+          key={opened.id ?? opened.dir}
           status={active}
+          repo={activeRepo}
           onClose={() => setOpened(null)}
         />
       )}
-      <HfRepoDetailModal
-        repo={repos.find((repo) => repo.dir === detailDir) ?? null}
-        onClose={() => setDetailDir(null)}
-      />
       {deleteRepo && (
         <HfRepoDeleteModal
           repo={deleteRepo}

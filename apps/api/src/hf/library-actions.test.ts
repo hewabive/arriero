@@ -2,7 +2,7 @@ import { createInstance, getInstance } from "../instances/repository.js";
 import { createPathCatalogEntry } from "../path-catalog/repository.js";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, test } from "node:test";
 import { setTimeout } from "node:timers/promises";
@@ -11,7 +11,7 @@ import { resetAllConfigStores } from "../config-store/registry.js";
 import {
   createLibraryEntry,
   actOnLibraryEntry,
-  expandLibrarySelection,
+  validateLibrarySelection,
 } from "./library-actions.js";
 import { checkLibraryEntry, getLibraryCheck } from "./library-checks.js";
 import {
@@ -25,8 +25,13 @@ import {
 import {
   getHfDownloadQueueState,
   resetHfDownloadQueueForTests,
+  waitForHfDownloadQueueIdleForTests,
 } from "./download-queue.js";
-import { deleteHfDownload, invalidateHfDownloadsCache } from "./downloads.js";
+import {
+  checkHfDownloadIntegrity,
+  deleteHfDownload,
+  invalidateHfDownloadsCache,
+} from "./downloads.js";
 import { saveModelScanSettings } from "../models/cache-repository.js";
 import { saveHfDownloadSettings } from "../settings/downloads.js";
 import { ModelLibraryEntrySchema } from "@arriero/core";
@@ -213,7 +218,7 @@ test("truncated and inaccessible trees never become accepted snapshots", async (
   assert.equal(getLibraryEntry(saved.id).snapshot?.revision, A);
 });
 
-test("file selection expands complete GGUF and safetensors sets and rejects forged paths", () => {
+test("file selection preserves individual shards and support files and rejects forged paths", () => {
   const names = [
     "q8/m-00001-of-00002.gguf",
     "q8/m-00002-of-00002.gguf",
@@ -225,16 +230,24 @@ test("file selection expands complete GGUF and safetensors sets and rejects forg
     revision: A,
     files: names.map((path) => ({ path, size: 1, oid: A, lfsOid: null })),
   };
-  assert.equal(expandLibrarySelection(snapshot, [names[0]!]).length, 2);
-  assert.equal(expandLibrarySelection(snapshot, [names[2]!]).length, 3);
-  assert.throws(() => expandLibrarySelection(snapshot, ["../evil.gguf"]));
+  assert.deepEqual(validateLibrarySelection(snapshot, [names[0]!]), [names[0]]);
+  assert.deepEqual(validateLibrarySelection(snapshot, [names[2]!]), [names[2]]);
+  assert.deepEqual(validateLibrarySelection(snapshot, [names[4]!]), [names[4]]);
+  assert.deepEqual(
+    validateLibrarySelection(snapshot, names),
+    [...names].sort(),
+  );
   assert.throws(
-    () =>
-      expandLibrarySelection(
-        { ...snapshot, files: snapshot.files.slice(0, 1) },
-        [names[0]!],
-      ),
-    /incomplete/,
+    () => validateLibrarySelection(snapshot, ["missing.txt"]),
+    /does not exist/,
+  );
+  assert.throws(() => validateLibrarySelection(snapshot, ["../evil.gguf"]));
+  assert.deepEqual(
+    validateLibrarySelection(
+      { ...snapshot, files: snapshot.files.slice(0, 1) },
+      [names[0]!],
+    ),
+    [names[0]],
   );
 });
 
@@ -343,4 +356,31 @@ test("cloned portable configuration resolves library files and instance paths un
     config.modelsDir = originalRoot;
     resetAllConfigStores();
   }
+});
+
+test("one damaged file can be restored without downloading the rest of the saved installation", async () => {
+  const saved = await entry(["model.gguf", "broken.gguf"]);
+  const download = () =>
+    actOnLibraryEntry(
+      saved.id,
+      { action: "download", revision: A, paths: ["model.gguf"] },
+      options,
+    );
+  await download();
+  await waitForHfDownloadQueueIdleForTests();
+  const path = join(libraryDestDir(saved), "model.gguf");
+  writeFileSync(path, "weights X");
+  const integrity = await checkHfDownloadIntegrity(libraryDestDir(saved));
+  assert.equal(
+    integrity.files.find((file) => file.path === "model.gguf")?.status,
+    "checksum-mismatch",
+  );
+  await download();
+  await waitForHfDownloadQueueIdleForTests();
+  assert.equal(readFileSync(path, "utf8"), "weights A");
+  assert.deepEqual(
+    getHfDownloadQueueState().history[0]?.files.map((file) => file.path),
+    ["model.gguf"],
+  );
+  assert.deepEqual(getLibraryEntry(saved.id).paths, saved.paths);
 });

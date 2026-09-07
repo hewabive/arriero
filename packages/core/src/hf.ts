@@ -184,6 +184,7 @@ export const HfUpdateCheckSchema = z.object({
 });
 
 export const HfDownloadedRepoFileSchema = z.object({
+  integrityFailed: z.boolean().optional(),
   path: z.string().min(1),
   size: z.number().int().nonnegative(),
   oid: z.string().min(1),

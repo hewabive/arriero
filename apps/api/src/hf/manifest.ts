@@ -9,6 +9,7 @@ import { readValidatedJsonFile } from "../utils/json-file.js";
 export const HF_MANIFEST_FILENAME = ".arriero-hf.json";
 
 const HfManifestFileSchema = z.object({
+  integrityFailed: z.boolean().optional(),
   path: z.string().min(1),
   size: z.number().int().nonnegative(),
   oid: z.string().min(1),

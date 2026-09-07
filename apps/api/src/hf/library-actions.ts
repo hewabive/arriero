@@ -1,12 +1,10 @@
 import {
-  groupGgufFiles,
   isHfCommitSha,
   type ModelLibraryAction,
   type ModelLibraryEntryCreate,
   type ModelLibraryEntry,
   type ModelLibrarySnapshot,
 } from "@arriero/core";
-import { posix } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
   checkLibraryEntry,
@@ -24,7 +22,7 @@ import { enqueueHfDownload } from "./download-queue.js";
 import { HfDownloadRequestError, sanitizeRepoRelativePath } from "./paths.js";
 import type { HfClientOptions } from "./client.js";
 
-export function expandLibrarySelection(
+export function validateLibrarySelection(
   snapshot: ModelLibrarySnapshot,
   requested: string[],
 ): string[] {
@@ -35,41 +33,6 @@ export function expandLibrarySelection(
       throw new HfDownloadRequestError(
         `File does not exist at the selected revision: ${path}`,
       );
-  for (const group of groupGgufFiles(snapshot.files, (file) => file.path)) {
-    if (!group.files.some((file) => selected.has(file.path))) continue;
-    if (!group.complete)
-      throw new HfDownloadRequestError(
-        "Repository contains an incomplete GGUF shard group",
-      );
-    group.files.forEach((file) => selected.add(file.path));
-  }
-  const tensorDirs = new Set(
-    [...selected]
-      .filter((path) => path.endsWith(".safetensors"))
-      .map((path) => posix.dirname(path)),
-  );
-  for (const file of snapshot.files)
-    if (
-      tensorDirs.has(posix.dirname(file.path)) &&
-      /\.(?:safetensors|json|txt|model|tiktoken)$/i.test(file.path)
-    )
-      selected.add(file.path);
-  for (const path of selected) {
-    const match = /^(.*-)(\d{5})-of-(\d{5})(\.safetensors)$/.exec(path);
-    if (!match) continue;
-    const count = Number(match[3]);
-    if (count < 1 || count > 2000)
-      throw new HfDownloadRequestError("Invalid safetensors shard count");
-    for (let index = 1; index <= count; index++)
-      if (
-        !selected.has(
-          `${match[1]}${String(index).padStart(5, "0")}-of-${match[3]}${match[4]}`,
-        )
-      )
-        throw new HfDownloadRequestError(
-          `Incomplete safetensors group: ${path}`,
-        );
-  }
   if (selected.size > 2000)
     throw new HfDownloadRequestError("Select at most 2000 files");
   return [...selected].sort();
@@ -84,7 +47,7 @@ export async function createLibraryEntry(
     input.revision,
     options,
   );
-  const paths = expandLibrarySelection(snapshot, input.paths);
+  const paths = validateLibrarySelection(snapshot, input.paths);
   const previous = listModelLibraryEntries();
   const entry = upsertModelLibraryEntry({
     ...input,
@@ -128,7 +91,7 @@ export async function actOnLibraryEntry(
       replaceLibraryEntry(entry, { ...entry, snapshot: check.snapshot });
       return;
     }
-    const paths = expandLibrarySelection(
+    const paths = validateLibrarySelection(
       check.snapshot,
       action.paths ?? entry.paths,
     );
@@ -155,7 +118,7 @@ export async function actOnLibraryEntry(
     action.revision ?? entry.revision,
     options,
   );
-  const paths = expandLibrarySelection(snapshot, action.paths ?? entry.paths);
+  const paths = validateLibrarySelection(snapshot, action.paths ?? entry.paths);
   if (action.action === "select") {
     replaceLibraryEntry(entry, {
       ...entry,

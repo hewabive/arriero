@@ -223,6 +223,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
         oid: file.oid,
         lfsOid: file.lfsOid,
         present,
+        ...(file.integrityFailed ? { integrityFailed: true } : {}),
         partialBytes: present
           ? 0
           : Math.min(partialBytesFor(finalPath), file.size),
@@ -561,6 +562,22 @@ export async function checkHfDownloadIntegrity(
   const files: HfDownloadIntegrityFile[] = [];
   for (const file of manifest.files) {
     files.push(await checkHfManifestFileIntegrity(resolved, file));
+  }
+  const current = readHfManifest(resolved);
+  if (current && JSON.stringify(current) === JSON.stringify(manifest)) {
+    const results = new Map(files.map((file) => [file.path, file]));
+    writeHfManifest(resolved, {
+      ...current,
+      files: current.files.map((file) => ({
+        ...file,
+        integrityFailed: results.get(file.path)?.status !== "verified",
+      })),
+    });
+  } else {
+    logger.warn(
+      { dir: resolved },
+      "download manifest changed during integrity check; results were not persisted",
+    );
   }
   invalidateHfDownloadsCache();
   return {

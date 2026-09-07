@@ -105,6 +105,7 @@ function manifestEntryMatches(
 ): boolean {
   return (
     entry !== null &&
+    !entry.integrityFailed &&
     entry.size === file.size &&
     hfManifestOidMatches(entry, file)
   );

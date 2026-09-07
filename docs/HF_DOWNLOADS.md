@@ -156,31 +156,21 @@ land via `setQueryData` — no refetch; `useHfJobsSync` (`use-hf-queue.ts`) inva
 `["hf-downloads"]`/`["models"]` when a job settles and throttled on per-file completions,
 and `["hf-library"]` when a job settles.
 
-The library card’s **Manage local files** action opens the repo detail modal
-(`HfRepoDetailModal.tsx`), the local management surface: it lazily browses the repo at `main` and joins the tree with the manifest client-side
-(`hfManifestOidMatches`, exported from core; row models in `HfRepoDetailRows.tsx`) into checkbox
-rows per variant and file with `on disk`/partial (`X of Y`)/`changed upstream`/`missing`/
-`not upstream` badges. While its directory has an active or queued job the modal shows the live
-progress strip and per-file rows inline (same components as the queue panel) and download buttons
-enqueue-gate on this directory only — other repos may download meanwhile; delete stays disabled
-until the job is gone. One selection feeds two explicit verbs — `Download N` (the subset absent or
-changed upstream) and `Delete N` (the subset present on disk) — and the header actions are
-`Check updates`, `Download updates` (on drift), `Download all` (every remote file not current,
-sized in the label; an `all files on disk` badge when nothing is left) and `Delete repository`;
-an orphan-parts section lists leftovers with their sizes and deletes them (upstream verification
-skipped for parts). Modal downloads always target the existing directory, so a repo downloaded
-into a custom directory never forks a second copy; free space from `dest-check` gates the download
-buttons. When the upstream listing is unavailable the modal degrades to the manifest — deletion
-keeps working, downloads switch off. The browser panel keeps the same client-side join for
-discovering new repos: an already-downloaded repo shows a banner with its local directory plus a
-button to reuse it as the destination. A destination outside every scan root still downloads but
-is not listed (the UI warns).
+The library card’s **Open repository** action opens `ModelLibraryDialog`, the shared management
+surface described below. The browser panel joins its remote files with local manifests when
+choosing downloads: an already-downloaded repo shows its local directory and a button to reuse
+it as the destination. A destination outside every scan root still downloads but is not listed
+(the UI warns).
 
-The repo detail modal also provides an offline **Verify files** action. It reads every file tracked
+The repository dialog also provides an offline **Verify files** action. It reads every file tracked
 by `.arriero-hf.json` sequentially and compares its size and content hash with the manifest: raw
 sha256 against `lfsOid` for LFS files, or Git blob sha1 against `oid` for regular Git files. The
 result distinguishes missing files, size mismatches, checksum mismatches and read errors; it never
 contacts HuggingFace. Verification is refused while a download is active in that directory.
+Results mark failed files with `integrityFailed` in the local manifest, provided the manifest
+has not changed during verification. This survives reopening the dialog and bypasses the transfer
+engine’s manifest-only skip shortcut: a damaged file is hashed again and downloaded if needed.
+Successful transfers replace the file record and clear the flag.
 
 ## Model library
 
@@ -197,18 +187,33 @@ their existing portability limitations.
 The page searches repositories and filters by saved, on-disk, missing-file or upstream-change
 status. It adds watch-only entries from a repo ID/URL and branch, checks repositories, and
 downloads missing selected files individually or across the library.
-The file dialog downloads a chosen subset without changing shared configuration. Saving a
-selection changes configuration; selecting no files retains a watch-only entry. GGUF shard sets
-expand together. A safetensors selection includes weights and JSON/text/tokenizer support files
-in its directory; conventionally numbered shards must be complete. Files must exist at the
-selected revision and paths must remain inside the repository.
+`ModelLibraryDialog` is the only repository management window, used for saved entries and local
+repositories without a saved entry. `ModelLibraryTree` displays full filenames in their actual
+folders, with compact size, local-state and changes-since-review columns. It joins pinned and latest
+checked paths with saved paths, local manifests, queue files and orphan download parts. Deleted
+remote files remain at their original paths. An unavailable remote tree is unknown, not empty.
+`ModelLibraryFileDetails` shows hashes, per-version metadata and integrity details on demand.
 
-The dialog uses one file list combining the pinned and latest checked trees, including removed
-files. It distinguishes changes since the last review from content differences against the pin;
-acknowledging changes clears only the former. A version selector explicitly controls saving and
-downloading. Search, saved-selection and review-change filters help with large trees. Downloads,
-selection edits and review acknowledgement keep the dialog open. Check timestamps use the shared
-local date/time formatter.
+Checkboxes are a temporary action selection, independent of the saved installation (marked with a
+bookmark). Folder checkboxes select their descendants; under a search or filter they select only
+matching descendants. Search reveals ancestor folders. Select saved, select all matching, clear,
+and filters for local, missing, changed, damaged or selected files operate on this same tree.
+The library API validates exact repo-relative paths; it never adds sibling GGUF shards,
+safetensors weights or support files implicitly. Selecting a folder is the way to select a bundle;
+an individual shard may be restored independently. Saved selections still have a 2000-file bound.
+
+The version selector controls remote availability and downloads; local deletion always targets the
+existing directory. Saved installation actions add or remove the selected paths without touching
+local files. Download selected queues missing, different or damaged selected files at the pinned
+commit. Save and download explicitly adds new paths to the installation first. A latest revision
+must be pinned explicitly before downloading; the preview lists saved paths removed because they
+are absent in the new tree and includes selected remote files. Pinning applies to the entire saved
+installation and neither downloads files nor acknowledges upstream changes.
+
+The same window exposes integrity verification, whole-directory deletion, orphan-part selection,
+per-file queue progress, pause/resume/cancel and skipping selected queued files. Deletion retains
+the existing confirmation and upstream-availability check. Downloads, selection edits and review
+acknowledgement keep the management window open. Check timestamps use the shared local formatter.
 
 `library-checks.ts` compares the entire remote tree against the accepted snapshot, independent
 of local manifests or download outcomes. Changes include added, updated and deleted files;

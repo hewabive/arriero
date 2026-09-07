@@ -19,7 +19,6 @@ import {
   recordRateSample,
   type ByteRate,
 } from "../utils/byte-rate";
-import type { HfRepoJobState } from "./HfBadges";
 
 const QUEUE_QUERY_KEY = ["hf-queue"] as const;
 
@@ -38,16 +37,6 @@ export function hfQueueJobForDir(
     state.paused.find((job) => job.destDir === dir) ??
     null
   );
-}
-
-export function hfRepoJobStateForDir(
-  state: HfDownloadQueueState | null,
-  dir: string,
-): HfRepoJobState {
-  const status = hfQueueJobForDir(state, dir)?.status ?? null;
-  return status === "running" || status === "queued" || status === "paused"
-    ? status
-    : null;
 }
 
 export function useHfQueueQuery() {
