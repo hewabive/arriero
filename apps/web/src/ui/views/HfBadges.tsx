@@ -185,7 +185,12 @@ export function hfRepoMetaLines(repo: HfDownloadedRepo) {
       </Text>
       <Text size="xs" c="dimmed">
         {countLabel(repo.fileCount, "file")} · {formatBytes(repo.totalBytes)} ·
-        downloaded {formatLocalDateTime(repo.downloadedAt)}
+        {repo.acquisition === "imported" ? "imported" : "downloaded"}{" "}
+        {formatLocalDateTime(
+          repo.acquisition === "imported"
+            ? (repo.importedAt ?? repo.downloadedAt)
+            : repo.downloadedAt,
+        )}
         {repo.update.checkedAt
           ? ` · checked ${formatLocalDateTime(repo.update.checkedAt)}`
           : ""}

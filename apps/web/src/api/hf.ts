@@ -1,3 +1,4 @@
+import type { ModelImportRequest, ModelImportState } from "@arriero/core";
 import type {
   HfDestCheck,
   HfDownloadDelete,
@@ -149,5 +150,23 @@ export function updateHfDownloadSettings(input: HfDownloadSettings) {
   return request<{ data: HfDownloadSettings }>("/api/hf/download-settings", {
     method: "PUT",
     body: JSON.stringify(input),
+  });
+}
+
+export function prepareModelImport(input: ModelImportRequest) {
+  return request<{ data: ModelImportState }>("/api/hf/imports", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+export function getModelImport(id: string) {
+  return request<{ data: ModelImportState }>(
+    `/api/hf/imports/${encodeURIComponent(id)}`,
+  );
+}
+export function commitModelImport(id: string) {
+  return request<{ data: ModelImportState }>("/api/hf/imports/commit", {
+    method: "POST",
+    body: JSON.stringify({ id }),
   });
 }

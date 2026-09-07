@@ -1,4 +1,13 @@
 import {
+  ModelImportRequestSchema,
+  ModelImportCommitSchema,
+} from "@arriero/core";
+import {
+  startModelImport,
+  getModelImport,
+  commitModelImport,
+} from "../hf/model-import.js";
+import {
   HfDownloadDeleteSchema,
   HfDownloadFileSkipSchema,
   HfDownloadIntegrityRequestSchema,
@@ -91,6 +100,28 @@ function queueMutationResponse(
 }
 
 export function registerHfRoutes(app: Hono) {
+  app.post("/api/hf/imports", async (c) => {
+    const body = await parseJsonBody(c, ModelImportRequestSchema);
+    try {
+      return c.json({ data: startModelImport(body) }, 202);
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
+  app.get("/api/hf/imports/:id", (c) => {
+    const data = getModelImport(c.req.param("id"));
+    return data
+      ? c.json({ data })
+      : c.json({ error: "Import preview expired; verify again" }, 404);
+  });
+  app.post("/api/hf/imports/commit", async (c) => {
+    const body = await parseJsonBody(c, ModelImportCommitSchema);
+    try {
+      return c.json({ data: commitModelImport(body.id) }, 202);
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
   app.get("/api/hf/token", (c) => {
     return c.json({ data: { tokenConfigured: hfTokenConfigured() } });
   });

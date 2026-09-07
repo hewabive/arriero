@@ -1,3 +1,4 @@
+import { assertNoModelImport } from "./import-lock.js";
 import type { HfDownloadStart, HfLfsInfo } from "@arriero/core";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
@@ -140,6 +141,7 @@ export async function planHfDownload(
         .join(", ")}${missing.length > 5 ? "…" : ""}`,
     );
   }
+  assertNoModelImport(destDir);
   mkdirSync(destDir, { recursive: true });
   const spaceError = await hfDownloadSpaceError(
     planned,

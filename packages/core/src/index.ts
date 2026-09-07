@@ -51,3 +51,4 @@ export * from "./hf.js";
 export * from "./hosts.js";
 export * from "./webapp-descriptor.js";
 export * from "./webapp.js";
+export * from "./model-import.js";

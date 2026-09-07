@@ -22,6 +22,8 @@ const HfManifestSchema = z.object({
   repoId: HfRepoIdSchema,
   revision: z.string().min(1),
   downloadedAt: z.string(),
+  importedAt: z.string().optional(),
+  acquisition: z.enum(["imported", "mixed"]).optional(),
   files: z.array(HfManifestFileSchema),
 });
 
@@ -78,6 +80,9 @@ export function upsertHfManifestFile(
     repoId: header.repoId,
     revision: header.revision,
     downloadedAt: new Date().toISOString(),
+    ...(existing?.importedAt
+      ? { importedAt: existing.importedAt, acquisition: "mixed" as const }
+      : {}),
     files,
   };
   writeHfManifest(dir, manifest);

@@ -191,6 +191,8 @@ export const HfDownloadedRepoFileSchema = z.object({
 });
 
 export const HfDownloadedRepoSchema = z.object({
+  acquisition: z.enum(["imported", "mixed"]).optional(),
+  importedAt: z.string().optional(),
   dir: z.string().min(1),
   repoId: HfRepoIdSchema,
   revision: z.string().min(1),

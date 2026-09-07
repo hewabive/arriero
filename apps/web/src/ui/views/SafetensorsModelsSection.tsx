@@ -1,3 +1,4 @@
+import { ModelImportControl } from "./ModelImportControl";
 import type { SafetensorsModel } from "@arriero/core";
 import {
   ActionIcon,
@@ -230,9 +231,12 @@ export function SafetensorsModelsSection(props: {
               <Paper key={model.path} withBorder p="sm" radius="sm">
                 <Stack gap="xs">
                   <div>
-                    <Text fw={600} size="sm">
-                      {model.name}
-                    </Text>
+                    <Group gap="xs" wrap="nowrap">
+                      <Text fw={600} size="sm">
+                        {model.name}
+                      </Text>
+                      <ModelImportControl model={model} />
+                    </Group>
                     <Text c="dimmed" size="xs" className="text-wrap">
                       {model.path}
                     </Text>
@@ -276,6 +280,7 @@ export function SafetensorsModelsSection(props: {
                     >
                       {isOpen ? "Hide details" : "Details"}
                     </Button>
+                    <ModelImportControl model={model} />
                     <Button
                       size="xs"
                       variant="light"
@@ -336,9 +341,12 @@ export function SafetensorsModelsSection(props: {
                         </ActionIcon>
                       </Table.Td>
                       <Table.Td>
-                        <Text fw={600} size="sm" lineClamp={1}>
-                          {model.name}
-                        </Text>
+                        <Group gap="xs" wrap="nowrap">
+                          <Text fw={600} size="sm" lineClamp={1}>
+                            {model.name}
+                          </Text>
+                          <ModelImportControl model={model} />
+                        </Group>
                         <Text c="dimmed" size="xs" lineClamp={1}>
                           {model.path}
                         </Text>

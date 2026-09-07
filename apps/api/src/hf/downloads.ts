@@ -1,3 +1,4 @@
+import { assertNoModelImport } from "./import-lock.js";
 import type {
   HfDownloadIntegrity,
   HfDownloadIntegrityFile,
@@ -233,6 +234,8 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
       repoId: manifest.repoId,
       revision: manifest.revision,
       downloadedAt: manifest.downloadedAt,
+      ...(manifest.acquisition ? { acquisition: manifest.acquisition } : {}),
+      ...(manifest.importedAt ? { importedAt: manifest.importedAt } : {}),
       fileCount: files.length,
       totalBytes: files.reduce((sum, file) => sum + file.size, 0),
       missingFiles: files.filter((file) => !file.present).length,
@@ -367,6 +370,7 @@ function removeHfOrphanParts(
 }
 
 export function deleteHfDownload(dir: string, paths?: readonly string[]): void {
+  assertNoModelImport(resolve(dir));
   const { resolved, manifest } = resolveIdleHfDownload(dir);
   const targets = paths
     ? splitHfDeleteTargets(resolved, manifest, paths)

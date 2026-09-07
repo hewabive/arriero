@@ -20,9 +20,10 @@ export async function hashHfContentFile(
   path: string,
   size: number,
   lfs: boolean,
+  signal?: AbortSignal,
 ): Promise<string> {
   const hash = createHfContentHash(size, lfs);
-  for await (const chunk of createReadStream(path)) {
+  for await (const chunk of createReadStream(path, signal ? { signal } : {})) {
     hash.update(chunk as Buffer);
   }
   return hash.digest("hex");

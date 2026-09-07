@@ -1,3 +1,4 @@
+import { ModelImportControl } from "./ModelImportControl";
 import type { GgufModel, ModelScanRoot, SafetensorsModel } from "@arriero/core";
 import {
   ggufModelRole,
@@ -669,9 +670,12 @@ export function ModelsView(props: {
                 <Paper key={model.path} withBorder p="sm" radius="sm">
                   <Stack gap="xs">
                     <div>
-                      <Text fw={600} size="sm">
-                        {modelTitle(model)}
-                      </Text>
+                      <Group gap="xs" wrap="nowrap">
+                        <Text fw={600} size="sm">
+                          {modelTitle(model)}
+                        </Text>
+                        <ModelImportControl model={model} />
+                      </Group>
                       <Text c="dimmed" size="xs" className="text-wrap">
                         {model.path}
                       </Text>
@@ -771,9 +775,12 @@ export function ModelsView(props: {
                           </ActionIcon>
                         </Table.Td>
                         <Table.Td>
-                          <Text fw={600} size="sm" lineClamp={1}>
-                            {modelTitle(model)}
-                          </Text>
+                          <Group gap="xs" wrap="nowrap">
+                            <Text fw={600} size="sm" lineClamp={1}>
+                              {modelTitle(model)}
+                            </Text>
+                            <ModelImportControl model={model} />
+                          </Group>
                           <Text c="dimmed" size="xs" lineClamp={1}>
                             {model.path}
                           </Text>

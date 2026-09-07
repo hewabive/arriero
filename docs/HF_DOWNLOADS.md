@@ -182,6 +182,50 @@ sha256 against `lfsOid` for LFS files, or Git blob sha1 against `oid` for regula
 result distinguishes missing files, size mismatches, checksum mismatches and read errors; it never
 contacts HuggingFace. Verification is refused while a download is active in that directory.
 
+## Importing local models
+
+The Models page shows a `Managed` marker for model weight files covered by a discovered HF
+manifest, and an `Import` action otherwise (`ModelImportControl.tsx`). Managed is registration
+status, not a fresh checksum check; custom download destinations are valid managed locations too.
+Import targets the current default download directory, using the same `<owner>/<repo>` layout.
+
+`POST /api/hf/imports` starts background verification from an explicit repository ID/URL and
+revision. `GET /api/hf/imports/:id` exposes progress and the preview; `POST /api/hf/imports/commit`
+accepts that preview's ID. The server retains up to 20 in-memory previews; a restart requires a
+new verification. Jobs participate in the shutdown registry. No global hash search is assumed.
+The repository tree is pinned to its resolved commit; truncated listings are refused. Single GGUF
+files are matched by size and content hash within that repo, including renamed local files; an
+optional repository file path resolves duplicate-content ambiguity. Standard GGUF splits are
+collected and checked as complete groups. Only the selected file/group moves out of a mixed folder.
+For a split, the user may instead select the entire containing directory. Safetensors always uses
+the whole model directory, including configuration, tokenizer and companion files; an optional
+repository subdirectory maps that folder beneath the repo root. Indexed and conventionally named
+safetensors shards must be complete.
+
+Every model weight must match upstream. Directory companion files present upstream must also
+match; companions absent upstream are preserved and explicitly marked local in the preview, and
+are not added to the verified HF manifest or the downloadable requirement. Hashes use SHA256 for
+LFS content and Git blob SHA1 for ordinary Git files, as downloads do. A directory with an existing
+arriero manifest, symbolic links or special files is refused. Files already at their final paths
+can be registered in place. Destination collisions are refused rather than overwritten or merged
+by content. An existing destination manifest must belong to the same repository.
+
+The commit rechecks the source inventory and file identities. It stages hard links on the same
+filesystem, or copies across filesystems, and publishes with exclusive links before writing the
+manifest and updating saved instance and preset paths. Live local instances and overlapping active, queued
+or paused downloads block import; import locks also block download enqueue and library deletion.
+Original files are removed only after publication, manifest creation and reference updates succeed.
+A failure before that point rolls back published files and saved instance updates; if reference
+rollback fails, both copies are retained. Failed source cleanup leaves a warning and duplicate
+originals. A hard process termination can likewise leave staged/published duplicates, but original
+content is retained until a destination copy is registered. External scripts are not rewritten. Managed presets are updated through their ordinary
+mtime-checked store; a running instance using an affected preset blocks import too.
+
+The manifest records `importedAt` and `acquisition: imported` (or `mixed` when adding to an existing
+manifest); `downloadedAt` remains the legacy registration timestamp for schema compatibility.
+The library labels imported entries accordingly. Imported verified files participate in existing
+update checks, integrity checks and model requirements. Import does not fabricate a download job.
+
 ## Deletion
 
 `POST /api/hf/downloads/delete {dir, paths?, verifyUpstream?}` removes a downloaded repo — whole
