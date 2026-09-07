@@ -185,46 +185,96 @@ contacts HuggingFace. Verification is refused while a download is active in that
 ## Importing local models
 
 The Models page shows a `Managed` marker for model weight files covered by a discovered HF
-manifest, and an `Import` action otherwise (`ModelImportControl.tsx`). Managed is registration
-status, not a fresh checksum check; custom download destinations are valid managed locations too.
-Import targets the current default download directory, using the same `<owner>/<repo>` layout.
+manifest and an `Organize` action otherwise (`ModelImportControl.tsx`, `ModelImportDialog.tsx`).
+Managed is registration status, not a fresh checksum check; custom download destinations are
+valid managed locations too. Import targets the current default download directory, using the
+same `<owner>/<repo>` layout.
 
-`POST /api/hf/imports` starts background verification from an explicit repository ID/URL and
-revision. `GET /api/hf/imports/:id` exposes progress and the preview; `POST /api/hf/imports/commit`
-accepts that preview's ID. The server retains up to 20 in-memory previews; a restart requires a
-new verification. Jobs participate in the shutdown registry. No global hash search is assumed.
-The repository tree is pinned to its resolved commit; truncated listings are refused. Single GGUF
-files are matched by size and content hash within that repo, including renamed local files; an
-optional repository file path resolves duplicate-content ambiguity. Standard GGUF splits are
-collected and checked as complete groups. Only the selected file/group moves out of a mixed folder.
-For a split, the user may instead select the entire containing directory. Safetensors always uses
-the whole model directory, including configuration, tokenizer and companion files; an optional
+Opening Organize restores an existing operation for that source or starts automatic discovery.
+`POST /api/hf/imports` accepts a local path and scope; `repo` is optional and can narrow the search
+with a model name or pin a repository ID/URL. Search terms come from the filename without its
+quantization/shard suffix, the directory name for safetensors, and cached model provenance.
+Available author/base-model hints refine an initial search; name, base-model and unfiltered
+searches broaden it. The Hub search returns `sha` and `siblings`, so candidates containing the
+local filenames rank ahead of renamed-file fallbacks. Each query takes at most 30 results and at
+most 30 ranked repository candidates are examined (plus an explicit metadata repository hint).
+Search results and local-neighbor limits are reported as incomplete search, never proof of absence.
+Explicit revisions and URLs are supported; automatic search defaults to current main, not history.
+
+`import-discovery.ts` pins candidate trees and verifies content through `model-import-plan.ts`.
+Multiple repositories with identical content are shown as verified copies, not a claim about
+which one originally supplied the file. A single candidate is selected automatically. Identical
+content at multiple paths within one repo offers a path selector, preferring the local name.
+An explicit repo bypasses the model search. Search requests return names, not file hashes; hashes
+come from the pinned repo trees. Weight bytes are neither uploaded nor downloaded. Repository
+listings are cached for 60 seconds (bounded to 60 entries and scoped to the token), and up to 512
+local content hashes are reused only while device/inode/size/mtime/ctime identity is unchanged.
+429 responses retry twice according to the Hub reset interval, with cancelable waits.
+
+For individual GGUF import, all standard split shards are mandatory. `groupGgufFiles` is the
+shared grouping primitive for discovery, server selection and UI: a single file and a complete
+split set are both importable groups. `import-matching.ts` matches the whole group to one complete
+remote group, never assembling shards from unrelated remote directories. All matching remote
+groups remain available as path alternatives, with incomplete destination selections rejected.
+
+`import-neighbors.ts` first projects the verified repository tree onto local directories. The
+selected file's verified remote paths suggest repository roots up to two levels above its local
+directory; the current directory is also tried for a flattened archive. Up to 2,000 projected
+paths are checked, including deeper paths explicitly present in the remote tree. Every proposed
+file still requires a size/content match; matching directory structure alone is insufficient.
+
+A fallback walk finds renamed files in the current directory, its parent and nearby subdirectories.
+It stays within the configured scan root when the source is inside one; for external sources it
+ascends at most one level. The walk visits at most 64 directories and 2,000 entries, to depth two
+below its root. Hidden paths, symlinks, partial downloads and other standalone weight formats are
+excluded. Directories already holding the destination are skipped when importing from elsewhere.
+Both limits and unexplored deeper directories set the incomplete-search indicator. The combined
+result offers at most 200 matching files, without cutting a split group in half.
+
+This works from either a root-level single GGUF or a shard in a quantization subdirectory, finding
+root companions, sibling quantizations and nested MTP/projector files. Incomplete local groups are
+not offered. Support files require matching basenames as well as content; GGUF groups can be renamed.
+Relative source paths distinguish identically named files in different local directories. Matching
+mmproj/draft/imatrix files are companions; other matching model quants are optional variants.
+Nothing is selected automatically. Companion originals are kept by default: they are copied
+independently, retaining existing references for other models. Turning that option off moves
+companions and updates references. Selected variants move as complete groups. Import locks and
+queue overlap checks cover every selected source directory; file identities and symlink-free
+source paths are rechecked before publication.
+
+Whole-directory scope includes configuration, tokenizer and local companions and is the default
+for safetensors; GGUF users may explicitly choose it for a dedicated model folder. The optional
 repository subdirectory maps that folder beneath the repo root. Indexed and conventionally named
-safetensors shards must be complete.
+safetensors shards must be complete. Every weight must match upstream, as must directory companions
+present upstream; companions absent upstream are retained but not recorded as verified/downloadable
+files. Symbolic links, special files and source directories containing an arriero manifest are
+refused. Destination collisions are refused, and an existing destination manifest must belong to
+the selected repository. Files already at their final paths can be registered in place.
 
-Every model weight must match upstream. Directory companion files present upstream must also
-match; companions absent upstream are preserved and explicitly marked local in the preview, and
-are not added to the verified HF manifest or the downloadable requirement. Hashes use SHA256 for
-LFS content and Git blob SHA1 for ordinary Git files, as downloads do. A directory with an existing
-arriero manifest, symbolic links or special files is refused. Files already at their final paths
-can be registered in place. Destination collisions are refused rather than overwritten or merged
-by content. An existing destination manifest must belong to the same repository.
+`GET /api/hf/imports` lists up to 20 in-memory operations; `GET /api/hf/imports/:id` exposes progress,
+verified candidates, neighboring files, selection and blockers. `POST /api/hf/imports/select`
+changes the selected candidate, neighbor groups, copy policy or verified path alternatives and
+rechecks availability. Search and verification are allowed while models run: live-process and
+destination blockers remain visible on a ready preview. `POST /api/hf/imports/commit` is the explicit
+filesystem action; `POST /api/hf/imports/cancel` aborts a search or an uncommitted import. Closing
+or navigating away from the dialog leaves the background operation available to reopen. A manager
+restart drops previews and requires verification again. Search and import use the shutdown registry.
 
-The commit rechecks the source inventory and file identities. It stages hard links on the same
-filesystem, or copies across filesystems, and publishes with exclusive links before writing the
-manifest and updating saved instance and preset paths. Live local instances and overlapping active, queued
-or paused downloads block import; import locks also block download enqueue and library deletion.
-Original files are removed only after publication, manifest creation and reference updates succeed.
-A failure before that point rolls back published files and saved instance updates; if reference
-rollback fails, both copies are retained. Failed source cleanup leaves a warning and duplicate
-originals. A hard process termination can likewise leave staged/published duplicates, but original
-content is retained until a destination copy is registered. External scripts are not rewritten. Managed presets are updated through their ordinary
-mtime-checked store; a running instance using an affected preset blocks import too.
+Commit rechecks source inventory/identity, destination safety and overlapping downloads. It stages
+hard links for moves on the same filesystem or copies across filesystems; requested companion
+copies always get independent content. Exclusive links publish the staged files before writing the
+manifest and updating saved instance/preset paths. Live local instances (including affected managed
+presets) block moves; active, queued or paused downloads block overlapping destinations. Import locks
+also block download enqueue and library deletion. Originals are removed only after publication,
+manifest creation and reference updates succeed, with another source identity check before unlink.
+Pre-commit failures roll back publication and reference changes; if reference rollback fails,
+both copies remain. Failed source cleanup leaves duplicates and a warning. Hard termination can
+leave staging or published duplicates; source content remains until its destination is registered.
+External scripts are not rewritten.
 
-The manifest records `importedAt` and `acquisition: imported` (or `mixed` when adding to an existing
-manifest); `downloadedAt` remains the legacy registration timestamp for schema compatibility.
-The library labels imported entries accordingly. Imported verified files participate in existing
-update checks, integrity checks and model requirements. Import does not fabricate a download job.
+Manifests record `importedAt` and `acquisition: imported` (or `mixed` when adding to a manifest);
+`downloadedAt` remains the legacy registration timestamp. Verified imported files participate in
+update checks, integrity checks and model requirements; import does not fabricate a download job.
 
 ## Deletion
 

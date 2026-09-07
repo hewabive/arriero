@@ -1,3 +1,10 @@
+import {
+  discoverModelImports,
+  type DiscoveredImport,
+} from "./import-discovery.js";
+import { selectImportPlan } from "./import-selection.js";
+import type { ModelImportSelection } from "@arriero/core";
+import { importFileIdentity } from "./import-content.js";
 import type { ModelPresetDocument } from "@arriero/core";
 import { listPresets, readPreset, writePreset } from "../presets/repository.js";
 import { renderModelPresetFile } from "../presets/ini.js";
@@ -41,8 +48,6 @@ import {
 } from "./manifest.js";
 import {
   collectImportFiles,
-  importFileIdentity,
-  planModelImport,
   type ModelImportPlan,
 } from "./model-import-plan.js";
 import { HfDownloadRequestError } from "./paths.js";
@@ -50,7 +55,12 @@ import { captureModelRequirement } from "./requirements.js";
 
 const jobs = new Map<
   string,
-  { state: ModelImportState; plan: ModelImportPlan | null }
+  {
+    state: ModelImportState;
+    plan: ModelImportPlan | null;
+    candidates: DiscoveredImport[];
+    controller: AbortController;
+  }
 >();
 
 async function assertDestinationPath(path: string): Promise<void> {
@@ -62,12 +72,20 @@ async function assertDestinationPath(path: string): Promise<void> {
     );
 }
 
+function importDirectories(plan: ModelImportPlan): string[] {
+  return [
+    ...new Set([
+      plan.state.destDir,
+      ...(plan.directory
+        ? [plan.source]
+        : plan.files.map((file) => dirname(file.path))),
+    ]),
+  ];
+}
+
 function assertImportIdle(plan: ModelImportPlan): void {
   const queue = getHfDownloadQueueState();
-  const dirs = [
-    plan.state.destDir,
-    plan.directory ? plan.source : dirname(plan.source),
-  ];
+  const dirs = importDirectories(plan);
   if (
     [queue.active, ...queue.queued, ...queue.paused].some(
       (job) =>
@@ -81,10 +99,24 @@ function assertImportIdle(plan: ModelImportPlan): void {
     throw new HfDownloadConflictError(
       "Remove or finish overlapping download jobs before importing",
     );
+  if (
+    !plan.state.files.some(
+      (file) => file.source !== file.destination && !file.keepSource,
+    )
+  )
+    return;
   const blockers = hfDeleteBlockers(
     {
       dir: plan.directory ? plan.source : dirname(plan.source),
-      paths: plan.directory ? null : plan.files.map((file) => file.relative),
+      paths: plan.directory
+        ? null
+        : plan.files
+            .filter(
+              (file) =>
+                !plan.state.files.find((entry) => entry.source === file.path)
+                  ?.keepSource,
+            )
+            .map((file) => file.relative),
     },
     listLiveProcessArgs(),
   );
@@ -107,9 +139,24 @@ function assertImportIdle(plan: ModelImportPlan): void {
     );
 }
 
-async function validatePlan(plan: ModelImportPlan): Promise<HfManifest | null> {
-  assertImportIdle(plan);
-  const current = await collectImportFiles(plan.source, plan.directory);
+async function validatePlan(
+  plan: ModelImportPlan,
+  checkBusy = true,
+): Promise<HfManifest | null> {
+  if (checkBusy) assertImportIdle(plan);
+  const current = plan.directory
+    ? await collectImportFiles(plan.source, true)
+    : await Promise.all(
+        plan.files.map(async (file) => ({
+          ...file,
+          identity: await importFileIdentity(file.path),
+        })),
+      );
+  for (const file of plan.files)
+    if ((await realpath(file.path)) !== file.path)
+      throw new HfDownloadConflictError(
+        `Source now uses a symbolic link: ${file.path}`,
+      );
   if (JSON.stringify(current) !== JSON.stringify(plan.files))
     throw new HfDownloadConflictError(
       "Source changed since verification; check it again",
@@ -137,9 +184,9 @@ async function validatePlan(plan: ModelImportPlan): Promise<HfManifest | null> {
 }
 
 function remapPaths<Value>(input: Value, plan: ModelImportPlan): Value {
-  const mappings = plan.state.files.map(
-    (file) => [file.source, file.destination] as const,
-  );
+  const mappings = plan.state.files
+    .filter((file) => !file.keepSource)
+    .map((file) => [file.source, file.destination] as const);
   if (plan.directory) {
     const first = plan.state.files[0];
     const original = plan.files[0];
@@ -184,10 +231,7 @@ async function executeImport(
   plan: ModelImportPlan,
   signal: AbortSignal,
 ): Promise<void> {
-  const release = lockModelImport([
-    plan.state.destDir,
-    plan.directory ? plan.source : dirname(plan.source),
-  ]);
+  const release = lockModelImport(importDirectories(plan));
   let staging: string | null = null;
   const published: string[] = [];
   const updated: Instance[] = [];
@@ -201,13 +245,16 @@ async function executeImport(
     if (plan.state.files.some((file) => file.source !== file.destination))
       staging = await mkdtemp(join(plan.state.destDir, ".arriero-import-"));
     plan.state.completed = 0;
+    plan.state.total = plan.state.files.length;
     for (const [index, file] of plan.state.files.entries()) {
       signal.throwIfAborted();
       plan.state.currentFile = file.source;
       if (file.source !== file.destination) {
         const staged = join(staging!, String(index));
         try {
-          await link(file.source, staged);
+          if (file.keepSource)
+            await copyFile(file.source, staged, constants.COPYFILE_EXCL);
+          else await link(file.source, staged);
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
           await copyFile(file.source, staged, constants.COPYFILE_EXCL);
@@ -286,8 +333,16 @@ async function executeImport(
       files: plan.manifestFiles,
     });
     for (const file of plan.state.files) {
-      if (file.source === file.destination) continue;
+      if (file.source === file.destination || file.keepSource) continue;
       try {
+        const source = plan.files.find((entry) => entry.path === file.source)!;
+        const identity = await importFileIdentity(file.source);
+        const stable = (value: string) =>
+          value.split(":").slice(0, 4).join(":");
+        if (stable(identity) !== stable(source.identity))
+          throw new Error(
+            "Source changed after publication; original was retained",
+          );
         await unlink(file.source);
       } catch (error) {
         logger.warn(
@@ -371,20 +426,58 @@ function fail(state: ModelImportState, error: unknown): void {
   logger.warn({ err: error, importId: state.id }, "model import failed");
 }
 
+async function prepareSelection(
+  job: {
+    state: ModelImportState;
+    plan: ModelImportPlan | null;
+    candidates: DiscoveredImport[];
+    controller: AbortController;
+  },
+  selection: ModelImportSelection,
+): Promise<ModelImportState> {
+  const candidate = job.candidates.find(
+    (entry) => entry.candidate.id === selection.candidateId,
+  );
+  if (!candidate)
+    throw new HfDownloadRequestError(
+      "Repository candidate is unavailable; search again",
+    );
+  const plan = selectImportPlan(candidate, selection, job.state);
+  job.plan = plan;
+  job.state.currentFile = null;
+  job.state.blockers = [];
+  try {
+    await validatePlan(plan, false);
+  } catch (error) {
+    job.state.blockers.push((error as Error).message);
+  }
+  try {
+    assertImportIdle(plan);
+  } catch (error) {
+    job.state.blockers.push((error as Error).message);
+  }
+  job.state.status = job.controller.signal.aborted ? "canceled" : "ready";
+  return job.state;
+}
+
 export function startModelImport(
   input: ModelImportRequest,
   options?: HfClientOptions,
 ): ModelImportState {
   if (
     [...jobs.values()].some((job) =>
-      ["checking", "importing"].includes(job.state.status),
+      ["searching", "checking", "importing"].includes(job.state.status),
     )
   )
-    throw new HfDownloadConflictError("Another model import is running");
+    throw new HfDownloadConflictError(
+      "Another model import is running; reopen it or cancel it first",
+    );
   if (jobs.size >= 20) jobs.delete(jobs.keys().next().value!);
+  const controller = new AbortController();
   const state: ModelImportState = {
     id: randomUUID(),
-    status: "checking",
+    scope: input.scope,
+    status: input.repo ? "checking" : "searching",
     sourcePath: input.sourcePath,
     destDir: "",
     repoId: "",
@@ -395,21 +488,49 @@ export function startModelImport(
     currentFile: null,
     error: null,
     warnings: [],
+    candidates: [],
+    selectedCandidateId: null,
+    searchedRepositories: 0,
+    searchTruncated: false,
+    blockers: [],
   };
-  const job = { state, plan: null as ModelImportPlan | null };
+  const job = {
+    state,
+    plan: null as ModelImportPlan | null,
+    candidates: [] as DiscoveredImport[],
+    controller,
+  };
   jobs.set(state.id, job);
-  const controller = new AbortController();
-  const completion = planModelImport(input, state, options, controller.signal)
-    .then(async (plan) => {
-      await validatePlan(plan);
-      job.plan = plan;
-      state.status = "ready";
+  const completion = discoverModelImports(
+    input,
+    state,
+    options,
+    controller.signal,
+  )
+    .then(async (candidates) => {
+      controller.signal.throwIfAborted();
+      job.candidates = candidates;
+      state.candidates = candidates.map((entry) => entry.candidate);
       state.currentFile = null;
+      if (candidates.length === 1) {
+        await prepareSelection(job, {
+          id: state.id,
+          candidateId: candidates[0]!.candidate.id,
+          companions: [],
+          destinations: {},
+          keepCompanions: true,
+        });
+      } else state.status = "choosing";
     })
-    .catch((error: unknown) => fail(state, error));
+    .catch((error: unknown) => {
+      if (controller.signal.aborted) {
+        state.status = "canceled";
+        state.currentFile = null;
+      } else fail(state, error);
+    });
   registerActiveJob({
     domain: "model-import",
-    entityId: state.id,
+    entityId: `${state.id}:search`,
     jobId: state.id,
     cancel: () => controller.abort(),
     completion,
@@ -417,8 +538,31 @@ export function startModelImport(
   return state;
 }
 
+export function listModelImports(): ModelImportState[] {
+  return [...jobs.values()].map((job) => job.state).reverse();
+}
 export function getModelImport(id: string): ModelImportState | null {
   return jobs.get(id)?.state ?? null;
+}
+export function selectModelImport(
+  input: ModelImportSelection,
+): Promise<ModelImportState> {
+  const job = jobs.get(input.id);
+  if (!job || !["choosing", "ready"].includes(job.state.status))
+    throw new HfDownloadRequestError("Import is not ready for selection");
+  job.state.status = "checking";
+  return prepareSelection(job, input).catch((error: unknown) => {
+    job.state.status = "choosing";
+    throw error;
+  });
+}
+export function cancelModelImport(id: string): ModelImportState {
+  const job = jobs.get(id);
+  if (!job) throw new HfDownloadRequestError("Import is unavailable");
+  job.controller.abort();
+  if (["choosing", "ready"].includes(job.state.status))
+    job.state.status = "canceled";
+  return job.state;
 }
 export function commitModelImport(id: string): ModelImportState {
   const job = jobs.get(id);
@@ -426,17 +570,25 @@ export function commitModelImport(id: string): ModelImportState {
     throw new HfDownloadRequestError(
       "Import preview is unavailable; verify the source again",
     );
+  assertImportIdle(job.plan);
   job.state.status = "importing";
+  job.state.error = null;
   const controller = new AbortController();
+  job.controller = controller;
   const completion = executeImport(job.plan, controller.signal)
     .then(() => {
       job.state.status = "succeeded";
       job.state.currentFile = null;
     })
-    .catch((error: unknown) => fail(job.state, error));
+    .catch((error: unknown) => {
+      if (controller.signal.aborted) {
+        job.state.status = "canceled";
+        job.state.currentFile = null;
+      } else fail(job.state, error);
+    });
   registerActiveJob({
     domain: "model-import",
-    entityId: job.state.id,
+    entityId: `${job.state.id}:import`,
     jobId: job.state.id,
     cancel: () => controller.abort(),
     completion,

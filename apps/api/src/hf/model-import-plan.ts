@@ -10,7 +10,9 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { isPathWithin } from "../path-utils.js";
 import { browseHfRepo } from "./browse.js";
 import type { HfClientOptions } from "./client.js";
-import { hashHfContentFile } from "./content-hash.js";
+import { matchImportGroup } from "./import-matching.js";
+import { hashImportFile, importFileIdentity } from "./import-content.js";
+import type { HfRepoBrowse } from "@arriero/core";
 import { type HfManifestFile, HF_MANIFEST_FILENAME } from "./manifest.js";
 import {
   defaultHfDestDir,
@@ -33,13 +35,6 @@ export type ModelImportPlan = {
   manifestFiles: HfManifestFile[];
   state: ModelImportState;
 };
-
-export async function importFileIdentity(path: string): Promise<string> {
-  const info = await lstat(path, { bigint: true });
-  if (!info.isFile())
-    throw new HfDownloadRequestError(`Not a regular file: ${path}`);
-  return [info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(":");
-}
 
 export async function collectImportFiles(
   source: string,
@@ -97,6 +92,7 @@ export async function planModelImport(
   state: ModelImportState,
   options?: HfClientOptions,
   signal?: AbortSignal,
+  remoteOverride?: HfRepoBrowse,
 ): Promise<ModelImportPlan> {
   const parsed = parseHfRepoInput(input.repo);
   if (!parsed)
@@ -133,10 +129,12 @@ export async function planModelImport(
   const files = await collectImportFiles(source, directory);
   if (!files.some((file) => /\.(gguf|safetensors)$/i.test(file.path)))
     throw new HfDownloadRequestError("No model weights in this directory");
-  const remote = await browseHfRepo(
-    { repoId: parsed.repoId, revision: parsed.revision ?? input.revision },
-    options,
-  );
+  const remote =
+    remoteOverride ??
+    (await browseHfRepo(
+      { repoId: parsed.repoId, revision: parsed.revision ?? input.revision },
+      options,
+    ));
   if (remote.truncated)
     throw new HfDownloadRequestError(
       "Repository listing is incomplete; import cannot verify this repository",
@@ -151,9 +149,23 @@ export async function planModelImport(
   const remotePath = input.remotePath
     ? sanitizeRepoRelativePath(input.remotePath)
     : "";
+  const groupMatches = directory
+    ? null
+    : await matchImportGroup(
+        files,
+        remote.files.filter(
+          (entry) =>
+            !remotePath ||
+            entry.path === remotePath ||
+            (parseSplitInfo(remotePath) &&
+              parseSplitInfo(entry.path)?.prefix ===
+                parseSplitInfo(remotePath)?.prefix),
+        ),
+        signal,
+      );
   const manifestFiles: HfManifestFile[] = [];
   const destinations = new Set<string>();
-  for (const file of files) {
+  for (const [fileIndex, file] of files.entries()) {
     signal?.throwIfAborted();
     state.currentFile = file.relative;
     let candidates = directory
@@ -162,11 +174,7 @@ export async function planModelImport(
             entry.path ===
             (remotePath ? `${remotePath}/${file.relative}` : file.relative),
         )
-      : remote.files.filter(
-          (entry) =>
-            entry.size === file.size &&
-            entry.path.toLowerCase().endsWith(".gguf"),
-        );
+      : groupMatches![fileIndex]!;
     if (!directory && remotePath) {
       const split = parseSplitInfo(basename(remotePath));
       const localSplit = parseSplitInfo(basename(file.path));
@@ -186,7 +194,7 @@ export async function planModelImport(
       const lfs = candidate.lfs !== null;
       let hash = hashes.get(lfs);
       if (!hash) {
-        hash = await hashHfContentFile(file.path, file.size, lfs, signal);
+        hash = await hashImportFile(file.path, file.size, lfs, signal);
         hashes.set(lfs, hash);
       }
       if (hash === (candidate.lfs?.oid ?? candidate.oid))
@@ -196,10 +204,16 @@ export async function planModelImport(
       throw new HfDownloadRequestError(
         `File changed during verification: ${file.path}`,
       );
-    if (matches.length > 1)
-      throw new HfDownloadRequestError(
-        `Multiple matching repository files for ${file.relative}; specify the repository file path`,
-      );
+    if (directory)
+      matches.sort((a, b) => {
+        const rank = (path: string) =>
+          path === file.relative
+            ? 0
+            : basename(path) === basename(file.path)
+              ? 1
+              : 2;
+        return rank(a.path) - rank(b.path) || a.path.localeCompare(b.path);
+      });
     const matched = matches[0];
     if (
       !matched &&
@@ -233,6 +247,13 @@ export async function planModelImport(
       destination: resolveWithin(destDir, destination),
       size: file.size,
       verified: Boolean(matched),
+      ...(matches.length > 1
+        ? {
+            alternatives: matches.map((match) =>
+              resolveWithin(destDir, match.path),
+            ),
+          }
+        : {}),
     });
     state.completed++;
   }

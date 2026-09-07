@@ -41,6 +41,7 @@ export class HfHubError extends Error {
 }
 
 export type HfClientOptions = {
+  signal?: AbortSignal | undefined;
   downloadImpl?: HfDownloadImpl | undefined;
   fetchImpl?: typeof fetch | undefined;
   token?: string | null | undefined;
@@ -177,7 +178,18 @@ async function hfFetch(
   const fetchImpl = options?.fetchImpl ?? fetch;
   let response: Response;
   try {
-    response = await fetchImpl(url, init);
+    response = await fetchImpl(
+      url,
+      options?.signal
+        ? {
+            ...init,
+            signal: AbortSignal.any([
+              options.signal,
+              AbortSignal.timeout(30000),
+            ]),
+          }
+        : init,
+    );
   } catch (error) {
     throw new HfHubError(
       "network",
@@ -343,4 +355,34 @@ export async function fetchHfPathsInfo(
     }
   }
   return result;
+}
+
+const HfSearchModelSchema = z.object({
+  id: z.string(),
+  sha: z.string(),
+  siblings: z.array(z.object({ rfilename: z.string() })).default([]),
+});
+export type HfSearchModel = z.infer<typeof HfSearchModelSchema>;
+export async function searchHfModels(
+  input: { search: string; author?: string; filters: string[] },
+  options?: HfClientOptions,
+): Promise<{ models: HfSearchModel[]; truncated: boolean }> {
+  const params = new URLSearchParams({
+    search: input.search,
+    sort: "downloads",
+    limit: "30",
+  });
+  if (input.author) params.set("author", input.author);
+  for (const filter of input.filters) params.append("filter", filter);
+  for (const field of ["sha", "siblings"]) params.append("expand", field);
+  const response = await hfFetch(
+    `${HF_BASE_URL}/api/models?${params}`,
+    { headers: hfRequestHeaders(options) },
+    options,
+  );
+  const models = z.array(HfSearchModelSchema).parse(await response.json());
+  return {
+    models,
+    truncated: response.headers.get("link")?.includes('rel="next"') ?? false,
+  };
 }

@@ -1,11 +1,15 @@
 import {
   ModelImportRequestSchema,
   ModelImportCommitSchema,
+  ModelImportSelectionSchema,
 } from "@arriero/core";
 import {
   startModelImport,
   getModelImport,
   commitModelImport,
+  selectModelImport,
+  cancelModelImport,
+  listModelImports,
 } from "../hf/model-import.js";
 import {
   HfDownloadDeleteSchema,
@@ -100,6 +104,23 @@ function queueMutationResponse(
 }
 
 export function registerHfRoutes(app: Hono) {
+  app.get("/api/hf/imports", (c) => c.json({ data: listModelImports() }));
+  app.post("/api/hf/imports/select", async (c) => {
+    const body = await parseJsonBody(c, ModelImportSelectionSchema);
+    try {
+      return c.json({ data: await selectModelImport(body) });
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
+  app.post("/api/hf/imports/cancel", async (c) => {
+    const body = await parseJsonBody(c, ModelImportCommitSchema);
+    try {
+      return c.json({ data: cancelModelImport(body.id) });
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
   app.post("/api/hf/imports", async (c) => {
     const body = await parseJsonBody(c, ModelImportRequestSchema);
     try {

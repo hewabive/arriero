@@ -44,3 +44,34 @@ export function splitShardName(split: SplitInfo, index: number, count: number) {
   const countText = String(count).padStart(split.countWidth, "0");
   return `${split.prefix}-${indexText}-of-${countText}.gguf`;
 }
+
+export function groupGgufFiles<T>(
+  files: readonly T[],
+  pathOf: (file: T) => string,
+): Array<{ files: T[]; complete: boolean }> {
+  const groups = new Map<string, T[]>();
+  for (const file of files) {
+    const path = pathOf(file);
+    const split = parseSplitInfo(path);
+    const key = split ? splitShardName(split, 1, split.count) : path;
+    const group = groups.get(key) ?? [];
+    group.push(file);
+    groups.set(key, group);
+  }
+  return [...groups.values()].map((group) => {
+    group.sort((a, b) =>
+      pathOf(a).localeCompare(pathOf(b), undefined, { numeric: true }),
+    );
+    const split = parseSplitInfo(pathOf(group[0]!));
+    const paths = new Set(group.map(pathOf));
+    const complete =
+      !split ||
+      (paths.size === split.count &&
+        group.length === split.count &&
+        group.every((file) => {
+          const member = parseSplitInfo(pathOf(file))!;
+          return paths.has(splitShardName(split, member.index, split.count));
+        }));
+    return { files: group, complete };
+  });
+}

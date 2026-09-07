@@ -1,3 +1,4 @@
+import type { ModelImportSelection } from "@arriero/core";
 import type { ModelImportRequest, ModelImportState } from "@arriero/core";
 import type {
   HfDestCheck,
@@ -166,6 +167,22 @@ export function getModelImport(id: string) {
 }
 export function commitModelImport(id: string) {
   return request<{ data: ModelImportState }>("/api/hf/imports/commit", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
+}
+
+export function listModelImports() {
+  return request<{ data: ModelImportState[] }>("/api/hf/imports");
+}
+export function selectModelImport(input: ModelImportSelection) {
+  return request<{ data: ModelImportState }>("/api/hf/imports/select", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+export function cancelModelImport(id: string) {
+  return request<{ data: ModelImportState }>("/api/hf/imports/cancel", {
     method: "POST",
     body: JSON.stringify({ id }),
   });
