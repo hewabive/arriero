@@ -10,7 +10,7 @@ import {
   FleetNodeSchema,
   InstanceConfigRecordSchema,
   MemoryPoolDeclarationSchema,
-  ModelRequirementSchema,
+  ModelLibraryEntrySchema,
   WebappConfigRecordSchema,
   classifyConfigGitPath,
   configGitInstanceName,
@@ -151,7 +151,7 @@ const portableJsonSchemas: Record<ConfigGitPortableJsonKind, z.ZodType> = {
   resources: z.array(MemoryPoolDeclarationSchema),
   nodes: z.array(FleetNodeSchema),
   environments: z.array(EnvironmentSpecSchema),
-  models: z.array(ModelRequirementSchema),
+  models: z.array(ModelLibraryEntrySchema),
   "benchmark-prompts": z.array(BenchmarkPromptSchema),
   "proxy-targets": z.array(ApiProxyTargetRecordSchema),
   "proxy-models": z.array(ApiProxyModelRecordSchema),
@@ -371,14 +371,14 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
     }
   }
 
-  const modelRequirements =
-    (parsed.models as z.infer<typeof ModelRequirementSchema>[] | null) ?? [];
+  const modelLibraryEntries =
+    (parsed.models as z.infer<typeof ModelLibraryEntrySchema>[] | null) ?? [];
   const seenRequirementIds = new Set<string>();
-  for (const requirement of modelRequirements) {
+  for (const requirement of modelLibraryEntries) {
     if (seenRequirementIds.has(requirement.id)) {
       issues.push({
         path: "models.json",
-        message: `duplicate model requirement id "${requirement.id}"`,
+        message: `duplicate library entry id "${requirement.id}"`,
       });
     }
     seenRequirementIds.add(requirement.id);

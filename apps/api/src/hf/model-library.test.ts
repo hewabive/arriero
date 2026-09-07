@@ -6,18 +6,18 @@ import { beforeEach, test } from "node:test";
 
 import { getModelScanSettings } from "../models/cache-repository.js";
 import {
-  MODEL_REQUIREMENTS_FILE,
-  captureModelRequirement,
-  deleteModelRequirement,
-  evaluateModelRequirement,
-  listModelRequirements,
-  removeModelRequirementForDeletedDownload,
-  upsertModelRequirement,
-} from "./requirements.js";
+  MODEL_LIBRARY_FILE,
+  captureModelLibraryEntry,
+  deleteModelLibraryEntry,
+  evaluateModelLibraryEntry,
+  listModelLibraryEntries,
+  removeModelLibraryEntryForDeletedDownload,
+  upsertModelLibraryEntry,
+} from "./model-library.js";
 import { resetAllConfigStores } from "../config-store/registry.js";
 
 beforeEach(() => {
-  rmSync(MODEL_REQUIREMENTS_FILE, { force: true });
+  rmSync(MODEL_LIBRARY_FILE, { force: true });
   resetAllConfigStores();
 });
 
@@ -62,24 +62,24 @@ function downloadedRepo(
 const SHA = "a".repeat(40);
 
 test("capture upserts by repo and default dest, unioning paths", () => {
-  captureModelRequirement({
+  captureModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: SHA,
     destDir: repoDir("unsloth/demo"),
     files: [{ path: "a.gguf" }],
   });
-  captureModelRequirement({
+  captureModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: SHA,
     destDir: repoDir("unsloth/demo"),
     files: [{ path: "b.gguf" }, { path: "a.gguf" }],
   });
-  const requirements = listModelRequirements();
+  const requirements = listModelLibraryEntries();
   assert.equal(requirements.length, 1);
   assert.deepEqual(requirements[0]?.paths, ["a.gguf", "b.gguf"]);
   assert.equal(requirements[0]?.destDir, null);
   assert.equal(
-    readFileSync(MODEL_REQUIREMENTS_FILE, "utf8").includes(
+    readFileSync(MODEL_LIBRARY_FILE, "utf8").includes(
       getModelScanSettings().directory,
     ),
     false,
@@ -87,19 +87,19 @@ test("capture upserts by repo and default dest, unioning paths", () => {
 });
 
 test("a non-default destination is stored and keyed separately", () => {
-  upsertModelRequirement({
+  upsertModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: "main",
     paths: ["a.gguf"],
     destDir: "/mnt/elsewhere/demo",
   });
-  upsertModelRequirement({
+  upsertModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: "main",
     paths: ["b.gguf"],
     destDir: null,
   });
-  const requirements = listModelRequirements();
+  const requirements = listModelLibraryEntries();
   assert.equal(requirements.length, 2);
   assert.deepEqual(
     requirements.map((item) => item.destDir).sort(),
@@ -108,16 +108,16 @@ test("a non-default destination is stored and keyed separately", () => {
 });
 
 test("evaluate reports satisfied, partial and missing with revision match", () => {
-  const requirement = upsertModelRequirement({
+  const requirement = upsertModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: SHA,
     paths: ["a.gguf", "b.gguf"],
     destDir: null,
   });
 
-  assert.equal(evaluateModelRequirement(requirement, []).state, "missing");
+  assert.equal(evaluateModelLibraryEntry(requirement, []).state, "missing");
 
-  const partial = evaluateModelRequirement(requirement, [
+  const partial = evaluateModelLibraryEntry(requirement, [
     downloadedRepo("unsloth/demo", SHA, [
       { path: "a.gguf", present: true },
       { path: "b.gguf", present: false },
@@ -127,7 +127,7 @@ test("evaluate reports satisfied, partial and missing with revision match", () =
   assert.deepEqual(partial.missingPaths, ["b.gguf"]);
   assert.equal(partial.revisionMatch, true);
 
-  const satisfied = evaluateModelRequirement(requirement, [
+  const satisfied = evaluateModelLibraryEntry(requirement, [
     downloadedRepo("unsloth/demo", "b".repeat(40), [
       { path: "a.gguf", present: true },
       { path: "b.gguf", present: true },
@@ -136,13 +136,13 @@ test("evaluate reports satisfied, partial and missing with revision match", () =
   assert.equal(satisfied.state, "satisfied");
   assert.equal(satisfied.revisionMatch, false);
 
-  const floating = upsertModelRequirement({
+  const floating = upsertModelLibraryEntry({
     repoId: "unsloth/floating",
     revision: "main",
     paths: ["a.gguf"],
     destDir: null,
   });
-  const status = evaluateModelRequirement(floating, [
+  const status = evaluateModelLibraryEntry(floating, [
     downloadedRepo("unsloth/floating", SHA, [
       { path: "a.gguf", present: true },
     ]),
@@ -151,25 +151,49 @@ test("evaluate reports satisfied, partial and missing with revision match", () =
 });
 
 test("deleting a download removes or trims the matching requirement", () => {
-  upsertModelRequirement({
+  upsertModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: SHA,
     paths: ["a.gguf", "b.gguf"],
     destDir: null,
   });
-  removeModelRequirementForDeletedDownload(repoDir("unsloth/demo"), ["a.gguf"]);
-  assert.deepEqual(listModelRequirements()[0]?.paths, ["b.gguf"]);
-  removeModelRequirementForDeletedDownload(repoDir("unsloth/demo"), null);
-  assert.equal(listModelRequirements().length, 0);
+  removeModelLibraryEntryForDeletedDownload(repoDir("unsloth/demo"), [
+    "a.gguf",
+  ]);
+  assert.deepEqual(listModelLibraryEntries()[0]?.paths, ["b.gguf"]);
+  removeModelLibraryEntryForDeletedDownload(repoDir("unsloth/demo"), null);
+  assert.equal(listModelLibraryEntries().length, 0);
 });
 
-test("deleteModelRequirement removes by id", () => {
-  const created = upsertModelRequirement({
+test("deleteModelLibraryEntry removes by id", () => {
+  const created = upsertModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: "main",
     paths: ["a.gguf"],
     destDir: null,
   });
-  assert.equal(deleteModelRequirement(created.id), true);
-  assert.equal(deleteModelRequirement(created.id), false);
+  assert.equal(deleteModelLibraryEntry(created.id), true);
+  assert.equal(deleteModelLibraryEntry(created.id), false);
+});
+
+test("a repository copy outside the expected location does not satisfy the library entry", () => {
+  const entry = upsertModelLibraryEntry({
+    repoId: "owner/model",
+    revision: SHA,
+    paths: ["model.gguf"],
+    destDir: null,
+  });
+  const copy = downloadedRepo(entry.repoId, SHA, [
+    { path: "model.gguf", present: true },
+  ]);
+  assert.equal(
+    evaluateModelLibraryEntry(entry, [{ ...copy, dir: "/elsewhere/model" }])
+      .state,
+    "missing",
+  );
+  assert.equal(
+    evaluateModelLibraryEntry(entry, [{ ...copy, repoId: "another/model" }])
+      .state,
+    "missing",
+  );
 });

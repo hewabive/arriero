@@ -1,3 +1,4 @@
+import type { ModelLibraryAction, ModelLibrarySnapshot } from "@arriero/core";
 import type { ModelImportSelection } from "@arriero/core";
 import type { ModelImportRequest, ModelImportState } from "@arriero/core";
 import type {
@@ -12,26 +13,26 @@ import type {
   HfRepoBrowse,
   HfTokenStatus,
   HfUpdateCheck,
-  ModelRequirement,
-  ModelRequirementCreate,
-  ModelRequirementStatus,
+  ModelLibraryEntry,
+  ModelLibraryEntryCreate,
+  ModelLibraryEntryStatus,
 } from "@arriero/core";
 
 import { buildQuery, nodeRequest as request } from "./http.js";
 
-export function listModelRequirements() {
-  return request<{ data: ModelRequirementStatus[] }>("/api/hf/requirements");
+export function listModelLibraryEntries() {
+  return request<{ data: ModelLibraryEntryStatus[] }>("/api/hf/library");
 }
 
-export function createModelRequirement(input: ModelRequirementCreate) {
-  return request<{ data: ModelRequirement }>("/api/hf/requirements", {
+export function createModelLibraryEntry(input: ModelLibraryEntryCreate) {
+  return request<{ data: ModelLibraryEntry }>("/api/hf/library", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function deleteModelRequirement(id: string) {
-  return request<{ data: { deleted: boolean } }>(`/api/hf/requirements/${id}`, {
+export function deleteModelLibraryEntry(id: string) {
+  return request<{ data: { deleted: boolean } }>(`/api/hf/library/${id}`, {
     method: "DELETE",
   });
 }
@@ -186,4 +187,16 @@ export function cancelModelImport(id: string) {
     method: "POST",
     body: JSON.stringify({ id }),
   });
+}
+
+export function actOnModelLibraryEntry(id: string, action: ModelLibraryAction) {
+  return request<{ data: boolean }>(`/api/hf/library/${id}/actions`, {
+    method: "POST",
+    body: JSON.stringify(action),
+  });
+}
+export function getModelLibrarySnapshot(id: string) {
+  return request<{ data: ModelLibrarySnapshot }>(
+    `/api/hf/library/${id}/snapshot`,
+  );
 }

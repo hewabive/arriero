@@ -10,9 +10,9 @@ import { existsSync } from "node:fs";
 import { listEnvironments } from "../envs/service.js";
 import { hfTokenConfigured } from "../hf/token.js";
 import {
-  listModelRequirements,
-  listModelRequirementStatuses,
-} from "../hf/requirements.js";
+  listModelLibraryEntries,
+  listModelLibraryEntryStatuses,
+} from "../hf/model-library.js";
 import { listInstances } from "../instances/repository.js";
 import { logger } from "../logger.js";
 import { listPeerNodes, nodeHasToken } from "../nodes/repository.js";
@@ -77,13 +77,13 @@ function environmentFindings(): DoctorFinding[] {
     }));
 }
 
-async function modelRequirementFindings(): Promise<DoctorFinding[]> {
+async function modelLibraryEntryFindings(): Promise<DoctorFinding[]> {
   const findings: DoctorFinding[] = [];
-  for (const status of await listModelRequirementStatuses()) {
-    if (status.state !== "satisfied") {
+  for (const status of await listModelLibraryEntryStatuses()) {
+    if (status.state !== "satisfied" && status.state !== "watching") {
       findings.push({
         severity: "warning",
-        summary: `${status.requirement.repoId} is ${status.state} on this host`,
+        summary: `${status.entry.repoId} is ${status.state} on this host`,
         detail:
           status.missingPaths.length > 0
             ? `missing: ${status.missingPaths.slice(0, 5).join(", ")}${status.missingPaths.length > 5 ? ", …" : ""}`
@@ -94,7 +94,7 @@ async function modelRequirementFindings(): Promise<DoctorFinding[]> {
     } else if (status.revisionMatch === false) {
       findings.push({
         severity: "info",
-        summary: `${status.requirement.repoId}: downloaded revision differs from the required ${status.requirement.revision.slice(0, 8)}`,
+        summary: `${status.entry.repoId}: downloaded revision differs from the required ${status.entry.revision.slice(0, 8)}`,
         detail: null,
         configPath: "models.json",
         remediation: null,
@@ -115,7 +115,7 @@ function instanceModelPathFindings(instances: Instance[]): DoctorFinding[] {
           detail: path,
           configPath: `instances/${instance.name}.json`,
           remediation:
-            "Download the model (see the model requirements on the Downloads page) or fix the path.",
+            "Download the model (see the model library on the Downloads page) or fix the path.",
         });
       }
     }
@@ -245,14 +245,14 @@ function nodeTokenFindings(): DoctorFinding[] {
 }
 
 function hfTokenFindings(): DoctorFinding[] {
-  if (listModelRequirements().length === 0 || hfTokenConfigured()) {
+  if (listModelLibraryEntries().length === 0 || hfTokenConfigured()) {
     return [];
   }
   return [
     {
       severity: "info",
       summary:
-        "model requirements exist but no Hugging Face token is stored on this host",
+        "model library exist but no Hugging Face token is stored on this host",
       detail: null,
       configPath: "models.json",
       remediation:
@@ -304,9 +304,9 @@ const CHECKS: DoctorCheckDefinition[] = [
     run: environmentFindings,
   },
   {
-    id: "model-requirements",
-    title: "Model requirements",
-    run: modelRequirementFindings,
+    id: "model-library",
+    title: "Model library",
+    run: modelLibraryEntryFindings,
   },
   {
     id: "instance-model-paths",

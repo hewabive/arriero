@@ -15,9 +15,9 @@ import {
   rewriteEnvironmentsFile,
 } from "./envs/repository.js";
 import {
-  MODEL_REQUIREMENTS_FILE,
-  rewriteModelRequirementsFile,
-} from "./hf/requirements.js";
+  MODEL_LIBRARY_FILE,
+  rewriteModelLibraryEntriesFile,
+} from "./hf/model-library.js";
 import { logger } from "./logger.js";
 import {
   getInstanceRecord,
@@ -198,7 +198,7 @@ export function normalizeConfigFiles(): string[] {
       { portable: false, extraStale: environmentRowsHaveMachineKeys },
       rewriteEnvironmentsFile,
     ],
-    [MODEL_REQUIREMENTS_FILE, { portable: true }, rewriteModelRequirementsFile],
+    [MODEL_LIBRARY_FILE, { portable: true }, rewriteModelLibraryEntriesFile],
   ];
   for (const [path, check, rewrite] of singleFileRewrites) {
     normalize(path, check, rewrite);

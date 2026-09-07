@@ -1,3 +1,9 @@
+import { ModelLibraryActionSchema } from "@arriero/core";
+import {
+  actOnLibraryEntry,
+  createLibraryEntry,
+  libraryPinnedSnapshot,
+} from "../hf/library-actions.js";
 import {
   ModelImportRequestSchema,
   ModelImportCommitSchema,
@@ -21,7 +27,7 @@ import {
   HfDownloadStartSchema,
   HfTokenUpdateSchema,
   HfUpdateCheckRequestSchema,
-  ModelRequirementCreateSchema,
+  ModelLibraryEntryCreateSchema,
   parseHfRepoInput,
 } from "@arriero/core";
 import type { Context, Hono } from "hono";
@@ -51,12 +57,11 @@ import {
   verifyHfDownloadRedownloadable,
 } from "../hf/downloads.js";
 import {
-  captureModelRequirement,
-  deleteModelRequirement,
-  listModelRequirementStatuses,
-  removeModelRequirementForDeletedDownload,
-  upsertModelRequirement,
-} from "../hf/requirements.js";
+  captureModelLibraryEntry,
+  deleteModelLibraryEntry,
+  listModelLibraryEntryStatuses,
+  removeModelLibraryEntryForDeletedDownload,
+} from "../hf/model-library.js";
 import {
   defaultHfDestDir,
   hfDestCheck,
@@ -202,24 +207,44 @@ export function registerHfRoutes(app: Hono) {
     const body = await parseJsonBody(c, HfDownloadStartSchema);
     try {
       const job = await enqueueHfDownload(body);
-      captureModelRequirement(job);
+      captureModelLibraryEntry(job);
       return c.json({ data: job }, 201);
     } catch (error) {
       return hfErrorResponse(c, error);
     }
   });
 
-  app.get("/api/hf/requirements", async (c) => {
-    return c.json({ data: await listModelRequirementStatuses() });
+  app.get("/api/hf/library", async (c) => {
+    return c.json({ data: await listModelLibraryEntryStatuses() });
   });
 
-  app.post("/api/hf/requirements", async (c) => {
-    const body = await parseJsonBody(c, ModelRequirementCreateSchema);
-    return c.json({ data: upsertModelRequirement(body) }, 201);
+  app.post("/api/hf/library", async (c) => {
+    const body = await parseJsonBody(c, ModelLibraryEntryCreateSchema);
+    try {
+      return c.json({ data: await createLibraryEntry(body) }, 201);
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
   });
 
-  app.delete("/api/hf/requirements/:id", (c) => {
-    const deleted = deleteModelRequirement(c.req.param("id"));
+  app.get("/api/hf/library/:id/snapshot", async (c) => {
+    try {
+      return c.json({ data: await libraryPinnedSnapshot(c.req.param("id")) });
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
+  app.post("/api/hf/library/:id/actions", async (c) => {
+    const body = await parseJsonBody(c, ModelLibraryActionSchema);
+    try {
+      await actOnLibraryEntry(c.req.param("id"), body);
+      return c.json({ data: true });
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
+  app.delete("/api/hf/library/:id", (c) => {
+    const deleted = deleteModelLibraryEntry(c.req.param("id"));
     return c.json({ data: { deleted } }, deleted ? 200 : 404);
   });
 
@@ -251,8 +276,8 @@ export function registerHfRoutes(app: Hono) {
         await verifyHfDownloadRedownloadable(dir, paths);
       }
       deleteHfDownload(dir, paths);
-      if (body.removeRequirement) {
-        removeModelRequirementForDeletedDownload(dir, paths ?? null);
+      if (body.removeLibraryEntry) {
+        removeModelLibraryEntryForDeletedDownload(dir, paths ?? null);
       }
       return c.json({ data: { deleted: true } });
     } catch (error) {

@@ -171,6 +171,8 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
   const files = job.files.map((file) => ({
     path: file.path,
     size: file.size,
+    oid: file.oid,
+    lfsOid: file.lfs?.oid ?? null,
     status: file.status,
     downloadedBytes: Math.min(
       fileBytes(job, file.path, file.downloadedBytes),

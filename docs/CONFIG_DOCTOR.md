@@ -22,7 +22,7 @@ one covers config-vs-host.
 | --- | --- | --- |
 | `instance-binaries` | `instances/repository.ts` resolved records | missing binary → error; dangling `binaryPathRefId` over a live inline path → info (expected after a clone — the catalog is machine-local) |
 | `environments` | `envs/service.ts` records | spec not `installed` → warning |
-| `model-requirements` | `hf/requirements.ts` satisfaction | `missing`/`partial` → warning; satisfied but revision drift → info |
+| `model-library` | `hf/model-library.ts` satisfaction | `missing`/`partial` → warning; satisfied but revision drift → info |
 | `instance-model-paths` | model-bearing args per engine kind | absolute path missing on disk → error |
 | `resource-pools` | `doctorResourcePoolFindings` (injectable inventory) | orphaned pool with instance draws → warning; without → info |
 | `proxy-credentials` | sources `keyConfigured`, `apiEndpointAuthHeaders`, proxy settings, webapp sources | endpoint env var empty → error; `allowAnonymous:false` with zero keyed sources → error; unkeyed source / webapp source → warning; keyless endpoint → info |

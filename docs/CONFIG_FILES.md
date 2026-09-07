@@ -52,19 +52,28 @@ run is active and cascades to runs, the `.secrets.json` key and the data directo
 process environment is never stored — it is rebuilt from this record on every start
 (`docs/WEBAPPS.md`).
 
-## `models.json` — declarative model requirements
+## `models.json` — model library
 
-Store `hf/requirements.ts` (config-store id `model-requirements`, portable paths on), aggregate
-array of `ModelRequirement` records: `{id, repoId, revision, paths, destDir}` — the same shape the
-download queue accepts, so a requirement is directly enqueueable. **Identity = `id`** (uuidv7);
-records are deduplicated by `(repoId, destDir)`, `destDir: null` meaning the default
-`<models dir>/<owner>/<repo>` destination. A requirement is captured automatically when a download
-is enqueued (`POST /api/hf/downloads` — the pinned revision sha and the requested file list), and
-managed via `GET`/`POST /api/hf/requirements` and `DELETE /api/hf/requirements/:id`; deleting a
-downloaded repo removes or trims the matching requirement only with the explicit
-`removeRequirement` flag, because freeing space on one host does not mean the fleet stopped
-needing the model. Satisfaction (`satisfied`/`partial`/`missing` + revision match) is derived per
-host from the on-disk download manifests, never stored.
+Store `hf/model-library.ts` (config-store id `model-library`, portable paths on), aggregate array
+of `ModelLibraryEntry` records. Identity is `id` (uuidv7); entries are deduplicated by
+`(repoId, destDir)`. `destDir: null` means the standard `<models dir>/<owner>/<repo>` location.
+
+`revision`, `paths` and `pinnedFiles` describe the installation pin and saved selection. An empty
+selection follows the repository without requiring a local download. `watchRevision` names the
+branch to follow; `snapshot` is the separately accepted complete tree (revision, paths, sizes,
+Git/LFS content hashes). Reviewing repository changes does not change the installation pin.
+Local presence, last checks and errors are host state and are never written by update checks.
+
+Legacy `{id, repoId, revision, paths, destDir}` entries remain readable with defaults for the new
+fields. Floating legacy revisions must be explicitly pinned by saving a selection before library
+downloads. Automatic download/import capture adds files only at the existing pinned revision;
+a different revision leaves the saved pin and selection intact and logs the conflict.
+
+`GET`/`POST /api/hf/library`, `DELETE /api/hf/library/:id`,
+`GET /api/hf/library/:id/snapshot` and `POST /api/hf/library/:id/actions` expose the library.
+Downloading a subset does not change the shared selection. Deleting installed files preserves
+library entries unless `removeLibraryEntry` is explicitly requested. See `docs/HF_DOWNLOADS.md`
+for selection, restoration and update semantics.
 
 ## `benchmark/prompts.json` — custom benchmark prompts
 

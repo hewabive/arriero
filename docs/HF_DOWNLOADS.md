@@ -23,8 +23,8 @@ the generic per-directory checkbox tree.
 
 ## Download queue
 
-`POST /api/hf/downloads` **enqueues** a job and captures a declarative *model requirement* into the
-tracked `config/models.json` (`hf/requirements.ts`, `docs/CONFIG_FILES.md`): the repo id, the
+`POST /api/hf/downloads` **enqueues** a job and captures a declarative *library entry* into the
+tracked `config/models.json` (`hf/model-library.ts`, `docs/CONFIG_FILES.md`): the repo id, the
 pinned revision sha and the requested file list, deduplicated by repo and destination — so a
 config tree cloned onto another host carries which models it needs, not just filesystem paths.
 The queue (`apps/api/src/hf/download-queue.ts`) runs
@@ -182,6 +182,51 @@ sha256 against `lfsOid` for LFS files, or Git blob sha1 against `oid` for regula
 result distinguishes missing files, size mismatches, checksum mismatches and read errors; it never
 contacts HuggingFace. Verification is refused while a download is active in that directory.
 
+## Model library
+
+The Downloads page hosts `HfModelLibraryCard` and `ModelLibraryDialog`. A repository can be saved
+without downloading any files. The saved installation selection, pinned commit and accepted
+repository snapshot travel with `config/models.json`; no model bytes or credentials enter config
+Git. Standard destinations continue to resolve beneath the local models directory and align with
+instance paths using `${ARRIERO_MODELS_DIR}`. Custom absolute paths and preset INI paths retain
+their existing portability limitations.
+
+The card filters saved repositories, adds watch-only entries from a repo ID/URL and branch,
+checks repositories, and downloads missing selected files individually or across the library.
+The file dialog downloads a chosen subset without changing shared configuration. Saving a
+selection changes configuration; selecting no files retains a watch-only entry. GGUF shard sets
+expand together. A safetensors selection includes weights and JSON/text/tokenizer support files
+in its directory; conventionally numbered shards must be complete. Files must exist at the
+selected revision and paths must remain inside the repository.
+
+`library-checks.ts` compares the entire remote tree against the accepted snapshot, independent
+of local manifests or download outcomes. Changes include added, updated and deleted files;
+commit changes without file changes are still reported as a repository change. Incomplete tree
+listings and access/network errors never become deletion reports or accepted snapshots. The
+existing Hub tree pagination bound applies. Checks use a 60-second request budget and cache
+results in memory (at most 200 entries), scoped to the current entry contents. Restarting clears
+last-check results, but the accepted snapshot is portable and survives. Legacy entries with no
+snapshot use their saved revision as the baseline until a snapshot is accepted explicitly.
+
+Mark changes reviewed accepts the checked tree as the new comparison baseline. Pin this version
+and selection changes the installation commit and validates the chosen files against that tree;
+it does not download weights or implicitly acknowledge changes. Both actions reject stale or
+unavailable check results. Missing files in a newer revision can be explicitly removed through
+the selection preview. The API rechecks the configuration entry before publishing asynchronous
+edits. A legacy floating entry must save a concrete snapshot selection before restoring files.
+
+Local status is derived only from the expected repository and destination: a copy elsewhere does
+not satisfy it. Presence, revision differences and recorded content-hash differences are shown
+separately. Presence is not an integrity audit; the installed repository's Verify files action
+reads actual bytes. A failed download does not remove its saved selection. The queue receives
+pinned paths for restoration and verifies existing content through its normal transfer logic.
+Automatic capture records selected hashes supplied by the queue/import, preserves existing pins,
+and logs rather than repinning when a subsequent acquisition uses another revision.
+
+Deleting weights leaves the entry and snapshots available for restoration. The pre-delete
+availability check checks paths at the recorded manifest revision, rather than current main.
+Restoration still requires that revision to remain accessible on the Hub.
+
 ## Importing local models
 
 The Models page shows a `Managed` marker for model weight files covered by a discovered HF
@@ -274,7 +319,7 @@ External scripts are not rewritten.
 
 Manifests record `importedAt` and `acquisition: imported` (or `mixed` when adding to a manifest);
 `downloadedAt` remains the legacy registration timestamp. Verified imported files participate in
-update checks, integrity checks and model requirements; import does not fabricate a download job.
+update checks, integrity checks and model library; import does not fabricate a download job.
 
 ## Deletion
 

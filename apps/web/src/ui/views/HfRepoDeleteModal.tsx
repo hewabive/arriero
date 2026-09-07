@@ -39,7 +39,7 @@ export function HfRepoDeleteModal(props: {
   const { repo, request } = props;
   const queryClient = useQueryClient();
   const [verifyUpstream, setVerifyUpstream] = useState(true);
-  const [removeRequirement, setRemoveRequirement] = useState(false);
+  const [removeLibraryEntry, setRemoveLibraryEntry] = useState(false);
   const orphanOnly =
     request !== null &&
     request.paths !== null &&
@@ -50,7 +50,7 @@ export function HfRepoDeleteModal(props: {
     mutationFn: deleteHfDownload,
     onSuccess: (_result, input) => {
       void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] });
-      void queryClient.invalidateQueries({ queryKey: ["hf-requirements"] });
+      void queryClient.invalidateQueries({ queryKey: ["hf-library"] });
       void queryClient.invalidateQueries({ queryKey: ["models"] });
       notifications.show({
         title: input.paths ? "Files deleted" : "Download deleted",
@@ -75,7 +75,7 @@ export function HfRepoDeleteModal(props: {
   useEffect(() => {
     if (request) {
       setVerifyUpstream(true);
-      setRemoveRequirement(false);
+      setRemoveLibraryEntry(false);
       deleteMutation.reset();
     }
   }, [request]);
@@ -166,11 +166,11 @@ export function HfRepoDeleteModal(props: {
         )}
         {!orphanOnly && (
           <Checkbox
-            checked={removeRequirement}
+            checked={removeLibraryEntry}
             onChange={(event) =>
-              setRemoveRequirement(event.currentTarget.checked)
+              setRemoveLibraryEntry(event.currentTarget.checked)
             }
-            label="Also drop the model requirement"
+            label="Also drop the library entry"
             description="Removes the matching entry from the tracked models.json; leave off when other hosts still need the model."
           />
         )}
@@ -190,7 +190,7 @@ export function HfRepoDeleteModal(props: {
                 ...(request.paths ? { paths: request.paths } : {}),
                 verifyUpstream:
                   verifyError || orphanOnly ? false : verifyUpstream,
-                removeRequirement: !orphanOnly && removeRequirement,
+                removeLibraryEntry: !orphanOnly && removeLibraryEntry,
               });
             }}
           >

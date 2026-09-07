@@ -21,7 +21,7 @@ import { startModelScan } from "../models/scan-runner.js";
 import { traceBlockingSection } from "../system/event-loop.js";
 import { errorMessage } from "../utils/error-message.js";
 import { partialBytesFor } from "./chunk-store.js";
-import type { HfClientOptions } from "./client.js";
+import { fetchHfPathsInfo, type HfClientOptions } from "./client.js";
 import { hashHfContentFile, hfContentHashAlgorithm } from "./content-hash.js";
 import { groupHfGgufFiles } from "./grouping.js";
 import { hfDeleteBlockers, listLiveProcessArgs } from "./in-use.js";
@@ -40,7 +40,6 @@ import {
   clearHfUpdateCheck,
   getHfUpdateCheck,
   pruneHfUpdateCheckFiles,
-  runHfUpdateChecks,
 } from "./update-check.js";
 
 export const HF_DOWNLOAD_JOB_DOMAIN = "hf-download";
@@ -416,18 +415,41 @@ export async function verifyHfDownloadRedownloadable(
   const targets = paths
     ? new Set(splitHfDeleteTargets(resolved, manifest, paths).manifestPaths)
     : null;
-  const check = (await runHfUpdateChecks([resolved], options))[resolved];
-  if (!check || check.status === "error" || check.status === "unchecked") {
-    throw new HfDownloadVerifyError(
-      `could not verify ${manifest.repoId} on HuggingFace: ${check?.error ?? "no check result"}`,
-      check ?? {
-        status: "error",
-        checkedAt: null,
-        revisionSha: null,
-        error: "no check result",
-        files: [],
-      },
+  const files = manifest.files.filter(
+    (file) => targets === null || targets.has(file.path),
+  );
+  let check: HfUpdateCheck;
+  try {
+    const upstream = await fetchHfPathsInfo(
+      manifest.repoId,
+      manifest.revision,
+      files.map((file) => file.path),
+      false,
+      options,
     );
+    check = {
+      status: "in-sync",
+      checkedAt: new Date().toISOString(),
+      revisionSha: manifest.revision,
+      error: null,
+      files: files.map((file) => ({
+        path: file.path,
+        status: upstream.has(file.path) ? "current" : "deleted",
+      })),
+    };
+  } catch (error) {
+    logger.warn(
+      { err: error, repoId: manifest.repoId },
+      "restoration availability check failed",
+    );
+    const message = `could not verify ${manifest.repoId}@${manifest.revision} on HuggingFace: ${(error as Error).message}`;
+    throw new HfDownloadVerifyError(message, {
+      status: "error",
+      checkedAt: new Date().toISOString(),
+      revisionSha: null,
+      error: message,
+      files: [],
+    });
   }
   const gone = check.files.filter(
     (file) =>

@@ -12,9 +12,9 @@ import {
   deleteEnvironmentSpec,
 } from "../envs/repository.js";
 import {
-  MODEL_REQUIREMENTS_FILE,
-  upsertModelRequirement,
-} from "../hf/requirements.js";
+  MODEL_LIBRARY_FILE,
+  upsertModelLibraryEntry,
+} from "../hf/model-library.js";
 import { writeInstanceRecord } from "../instances/config-files.js";
 import {
   createApiProxySource,
@@ -44,7 +44,7 @@ test("doctor reports what this host cannot satisfy", async (t) => {
     pythonVersion: "3.12",
     source: { kind: "pypi", extras: [] },
   });
-  upsertModelRequirement({
+  upsertModelLibraryEntry({
     repoId: "unsloth/doctor-demo",
     revision: "main",
     paths: ["model.gguf"],
@@ -82,7 +82,7 @@ test("doctor reports what this host cannot satisfy", async (t) => {
     deleteEnvironmentSpec(spec.id);
     rmSync(instanceFile, { force: true });
     rmSync(inlineFile, { force: true });
-    rmSync(MODEL_REQUIREMENTS_FILE, { force: true });
+    rmSync(MODEL_LIBRARY_FILE, { force: true });
     rmSync(ENVIRONMENTS_FILE, { force: true });
     rmSync(ENVIRONMENTS_STATE_FILE, { force: true });
     resetAllConfigStores();
@@ -113,7 +113,7 @@ test("doctor reports what this host cannot satisfy", async (t) => {
     ),
   );
   assert.ok(
-    findings(report, "model-requirements").some((finding) =>
+    findings(report, "model-library").some((finding) =>
       finding.summary.includes("unsloth/doctor-demo"),
     ),
   );

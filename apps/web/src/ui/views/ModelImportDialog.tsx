@@ -161,7 +161,7 @@ export function ModelImportDialog({
       "hf-downloads",
       "instances",
       "presets",
-      "hf-requirements",
+      "hf-library",
     ])
       void queryClient.invalidateQueries({ queryKey: [key] });
   }, [state?.status, queryClient]);

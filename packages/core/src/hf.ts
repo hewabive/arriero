@@ -72,6 +72,8 @@ export const HfDownloadFileStatusSchema = z.enum([
 ]);
 
 export const HfDownloadFileSchema = z.object({
+  oid: z.string().optional(),
+  lfsOid: z.string().nullable().optional(),
   path: z.string().min(1),
   size: z.number().int().nonnegative(),
   status: HfDownloadFileStatusSchema,
@@ -225,7 +227,7 @@ export const HfDownloadDeleteSchema = z.object({
   dir: z.string().min(1),
   paths: z.array(z.string().min(1)).min(1).max(2_000).optional(),
   verifyUpstream: z.boolean().optional(),
-  removeRequirement: z.boolean().optional(),
+  removeLibraryEntry: z.boolean().optional(),
 });
 
 export const HfDownloadDeleteBlockedSchema = z.object({

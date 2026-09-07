@@ -51,7 +51,7 @@ import {
   type ModelImportPlan,
 } from "./model-import-plan.js";
 import { HfDownloadRequestError } from "./paths.js";
-import { captureModelRequirement } from "./requirements.js";
+import { captureModelLibraryEntry } from "./model-library.js";
 
 const jobs = new Map<
   string,
@@ -326,7 +326,7 @@ async function executeImport(
     }
     committed = true;
     clearHfUpdateCheck(plan.state.destDir);
-    captureModelRequirement({
+    captureModelLibraryEntry({
       repoId: plan.state.repoId,
       revision: plan.state.revision,
       destDir: plan.state.destDir,

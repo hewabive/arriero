@@ -41,7 +41,7 @@ export * from "./prerequisites.js";
 export * from "./doctor.js";
 export * from "./fleet.js";
 export * from "./machine.js";
-export * from "./model-requirements.js";
+export * from "./model-library.js";
 export * from "./public-status.js";
 export * from "./models.js";
 export * from "./presets.js";
