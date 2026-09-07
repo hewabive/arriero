@@ -2,8 +2,9 @@
 
 The `hf` domain (`apps/api/src/hf/`) downloads model files from HuggingFace Hub — GGUF quants with
 variant/split-aware selection, or arbitrary repos (safetensors snapshots for the Python engines) —
-and tracks whether the downloaded files were later updated upstream. UI: the Downloads leaf of the
-Models & files section (`apps/web/src/ui/views/HfDownloadsView.tsx`, route `#/downloads`).
+and tracks whether the downloaded files were later updated upstream. UI: the Model library and Downloads leaves of the Models & files section
+(`apps/web/src/ui/views/ModelLibraryView.tsx`, route `#/model-library`;
+`HfDownloadsView.tsx`, route `#/downloads`).
 
 ## Browse
 
@@ -142,22 +143,21 @@ already on disk for an unfinished file, read via `partialBytesFor`), `orphanPart
 `.part.json` leftovers whose final file is not in the manifest, capped bounded walk) and
 server-grouped GGUF `variants` (the same `grouping.ts` browse uses).
 
-The UI (`apps/web/src/ui/views/`) is one page: the collapsible repository browser
+The Downloads page (`apps/web/src/ui/views/`) contains the collapsible repository browser
 (`HfRepoBrowserPanel.tsx` — the Download button always enqueues and hints at the queue length;
 the destination control explicitly switches between a saved model-directory selection and a
 one-off custom path),
 the live queue panel (`HfQueuePanel.tsx` + `HfQueueJobCard.tsx`/`HfQueuedJobCard.tsx`/
 `HfJobFileRow.tsx`, polling `["hf-queue"]` at 1.5 s while anything is active: overall progress,
 client-side EWMA speed + ETA (`ui/utils/byte-rate.ts`), per-file progress bars with per-file
-skip, queued cards with reorder/remove, server-side history with dismiss/clear), the library
-(`HfDownloadedReposPanel.tsx` — a partial repo shows `X of Y on disk` plus a one-click
-**Resume** button that enqueues exactly the missing files into the same directory at the manifest
-revision) and the download-settings + token cards. Queue mutations return the full queue state and
+skip, queued cards with reorder/remove, server-side history with dismiss/clear) and the
+download-settings + token cards. Saved and downloaded repositories share the Model library page. Queue mutations return the full queue state and
 land via `setQueryData` — no refetch; `useHfJobsSync` (`use-hf-queue.ts`) invalidates
-`["hf-downloads"]`/`["models"]` when a job settles and throttled on per-file completions.
+`["hf-downloads"]`/`["models"]` when a job settles and throttled on per-file completions,
+and `["hf-library"]` when a job settles.
 
-Clicking a repo card opens the repo detail modal (`HfRepoDetailModal.tsx`), the one management
-surface: it lazily browses the repo at `main` and joins the tree with the manifest client-side
+The library card’s **Manage local files** action opens the repo detail modal
+(`HfRepoDetailModal.tsx`), the local management surface: it lazily browses the repo at `main` and joins the tree with the manifest client-side
 (`hfManifestOidMatches`, exported from core; row models in `HfRepoDetailRows.tsx`) into checkbox
 rows per variant and file with `on disk`/partial (`X of Y`)/`changed upstream`/`missing`/
 `not upstream` badges. While its directory has an active or queued job the modal shows the live
@@ -184,27 +184,40 @@ contacts HuggingFace. Verification is refused while a download is active in that
 
 ## Model library
 
-The Downloads page hosts `HfModelLibraryCard` and `ModelLibraryDialog`. A repository can be saved
-without downloading any files. The saved installation selection, pinned commit and accepted
+The Model library page (`#/model-library`) hosts `ModelLibraryView` and `ModelLibraryDialog`.
+Saved entries are joined with downloaded repositories by local directory; downloaded repositories
+without a saved entry appear in the same list with a Save to library action. Local management and
+freeing disk space are available from those cards. Downloads remains the Hub browser and queue.
+A repository can be saved without downloading any files. The saved installation selection, pinned commit and accepted
 repository snapshot travel with `config/models.json`; no model bytes or credentials enter config
 Git. Standard destinations continue to resolve beneath the local models directory and align with
 instance paths using `${ARRIERO_MODELS_DIR}`. Custom absolute paths and preset INI paths retain
 their existing portability limitations.
 
-The card filters saved repositories, adds watch-only entries from a repo ID/URL and branch,
-checks repositories, and downloads missing selected files individually or across the library.
+The page searches repositories and filters by saved, on-disk, missing-file or upstream-change
+status. It adds watch-only entries from a repo ID/URL and branch, checks repositories, and
+downloads missing selected files individually or across the library.
 The file dialog downloads a chosen subset without changing shared configuration. Saving a
 selection changes configuration; selecting no files retains a watch-only entry. GGUF shard sets
 expand together. A safetensors selection includes weights and JSON/text/tokenizer support files
 in its directory; conventionally numbered shards must be complete. Files must exist at the
 selected revision and paths must remain inside the repository.
 
+The dialog uses one file list combining the pinned and latest checked trees, including removed
+files. It distinguishes changes since the last review from content differences against the pin;
+acknowledging changes clears only the former. A version selector explicitly controls saving and
+downloading. Search, saved-selection and review-change filters help with large trees. Downloads,
+selection edits and review acknowledgement keep the dialog open. Check timestamps use the shared
+local date/time formatter.
+
 `library-checks.ts` compares the entire remote tree against the accepted snapshot, independent
 of local manifests or download outcomes. Changes include added, updated and deleted files;
 commit changes without file changes are still reported as a repository change. Incomplete tree
 listings and access/network errors never become deletion reports or accepted snapshots. The
 existing Hub tree pagination bound applies. Checks use a 60-second request budget and cache
-results in memory (at most 200 entries), scoped to the current entry contents. Restarting clears
+results in memory (at most 200 entries), scoped to the current entry contents. Explicit selection,
+pin and review edits retain the checked tree when the repository and watched revision stay the
+same, rebasing its comparison against the updated accepted snapshot. Restarting clears
 last-check results, but the accepted snapshot is portable and survives. Legacy entries with no
 snapshot use their saved revision as the baseline until a snapshot is accepted explicitly.
 

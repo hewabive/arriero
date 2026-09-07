@@ -17,7 +17,7 @@ import { newId } from "../utils/id.js";
 import { compareStrings } from "../utils/sort.js";
 import { listHfDownloads } from "./downloads.js";
 import { defaultHfDestDir, HfDownloadRequestError } from "./paths.js";
-import { getLibraryCheck } from "./library-checks.js";
+import { getLibraryCheck, retainLibraryCheck } from "./library-checks.js";
 
 export const MODEL_LIBRARY_FILE = resolve(config.configDir, "models.json");
 
@@ -297,5 +297,6 @@ export function replaceLibraryEntry(
     );
   const parsed = ModelLibraryEntrySchema.parse(next);
   persist(entries.map((item) => (item.id === previous.id ? parsed : item)));
+  retainLibraryCheck(previous, parsed);
   return parsed;
 }

@@ -105,6 +105,7 @@ export function useHfJobsSync(): void {
       seen.set(job.id, { status: job.status, done });
     }
     if (settled) {
+      void queryClient.invalidateQueries({ queryKey: ["hf-library"] });
       void queryClient.invalidateQueries({ queryKey: ["hf-downloads"] });
       void queryClient.invalidateQueries({ queryKey: ["models"] });
     }

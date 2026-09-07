@@ -13,7 +13,7 @@ import {
   actOnLibraryEntry,
   expandLibrarySelection,
 } from "./library-actions.js";
-import { checkLibraryEntry } from "./library-checks.js";
+import { checkLibraryEntry, getLibraryCheck } from "./library-checks.js";
 import {
   getLibraryEntry,
   evaluateModelLibraryEntry,
@@ -157,6 +157,10 @@ test("reviewing changes and updating the installation pin are independent", asyn
   );
   assert.equal(getLibraryEntry(saved.id).revision, A);
   assert.equal(getLibraryEntry(saved.id).snapshot?.revision, B);
+  const retained = getLibraryCheck(getLibraryEntry(saved.id));
+  assert.equal(retained.status, "current");
+  assert.equal(retained.snapshot?.revision, B);
+  assert.deepEqual(retained.changes, []);
   await actOnLibraryEntry(saved.id, { action: "check" }, options);
   await actOnLibraryEntry(
     saved.id,

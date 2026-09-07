@@ -19,7 +19,7 @@ import { formatLocalDateTime } from "../utils/time";
 const CHECK_ROUTES: Record<string, string> = {
   "instance-binaries": "/instances",
   environments: "/environments",
-  "model-library": "/downloads",
+  "model-library": "/model-library",
   "instance-model-paths": "/downloads",
   "resource-pools": "/proxy/resources",
   "proxy-credentials": "/proxy/endpoints",

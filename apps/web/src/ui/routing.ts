@@ -27,6 +27,7 @@ export type AppRoute =
   | "webapps"
   | "proxy"
   | "models"
+  | "model-library"
   | "downloads"
   | "presets"
   | "paths"
@@ -232,11 +233,27 @@ const navSections: NavSection[] = [
         keywords: ["scan", "quantization", "metadata", "gguf", "safetensors"],
       },
       {
+        route: "model-library",
+        label: "Model library",
+        title: "Model library",
+        description:
+          "Manage saved repositories, local model files and upstream changes",
+        keywords: [
+          "huggingface",
+          "hf",
+          "saved",
+          "installed",
+          "restore",
+          "updates",
+          "requirements",
+        ],
+      },
+      {
         route: "downloads",
         label: "Downloads",
         title: "HuggingFace downloads",
         description:
-          "Browse HuggingFace repos, download model files and track upstream updates",
+          "Browse HuggingFace repositories and manage the download queue",
         keywords: [
           "huggingface",
           "hf",

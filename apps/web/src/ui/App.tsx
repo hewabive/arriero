@@ -58,6 +58,7 @@ import { EnvironmentsView } from "./views/EnvironmentsView";
 import { InstancesView } from "./views/InstancesView";
 import { LoginView } from "./views/LoginView";
 import { MaintenanceView } from "./views/MaintenanceView";
+import { ModelLibraryView } from "./views/ModelLibraryView";
 import { HfDownloadsView } from "./views/HfDownloadsView";
 import { ModelsView } from "./views/ModelsView";
 import { NodesView } from "./views/NodesView";
@@ -504,6 +505,7 @@ export function App() {
             />
           )}
 
+          {canUseAdmin && route === "model-library" && <ModelLibraryView />}
           {canUseAdmin && route === "downloads" && <HfDownloadsView />}
 
           {canUseAdmin && route === "presets" && <PresetsView />}

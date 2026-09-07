@@ -50,6 +50,53 @@ export async function fetchLibrarySnapshot(
       .sort((a, b) => a.path.localeCompare(b.path)),
   });
 }
+function compareLibrarySnapshots(
+  baseline: ModelLibrarySnapshot,
+  snapshot: ModelLibrarySnapshot,
+): Pick<ModelLibraryCheck, "status" | "changes"> {
+  const before = new Map(baseline.files.map((file) => [file.path, file]));
+  const after = new Map(snapshot.files.map((file) => [file.path, file]));
+  const changes: ModelLibraryCheck["changes"] = [];
+  for (const file of snapshot.files) {
+    const old = before.get(file.path);
+    if (!old) changes.push({ path: file.path, kind: "added" });
+    else if (
+      old.size !== file.size ||
+      (old.lfsOid ?? old.oid) !== (file.lfsOid ?? file.oid)
+    )
+      changes.push({ path: file.path, kind: "updated" });
+  }
+  for (const file of baseline.files)
+    if (!after.has(file.path))
+      changes.push({ path: file.path, kind: "deleted" });
+  return {
+    status: baseline.revision === snapshot.revision ? "current" : "changed",
+    changes,
+  };
+}
+
+export function retainLibraryCheck(
+  previous: ModelLibraryEntry,
+  next: ModelLibraryEntry,
+): void {
+  const check = getLibraryCheck(previous);
+  if (
+    !check.snapshot ||
+    previous.repoId !== next.repoId ||
+    previous.watchRevision !== next.watchRevision
+  )
+    return;
+  checks.set(next.id, {
+    identity: JSON.stringify(next),
+    check: {
+      ...check,
+      ...(next.snapshot
+        ? compareLibrarySnapshots(next.snapshot, check.snapshot)
+        : {}),
+    },
+  });
+}
+
 export async function checkLibraryEntry(
   entry: ModelLibraryEntry,
   options?: HfClientOptions,
@@ -64,27 +111,11 @@ export async function checkLibraryEntry(
       entry.watchRevision,
       options,
     );
-    const before = new Map(baseline.files.map((file) => [file.path, file]));
-    const after = new Map(snapshot.files.map((file) => [file.path, file]));
-    const changes: ModelLibraryCheck["changes"] = [];
-    for (const file of snapshot.files) {
-      const old = before.get(file.path);
-      if (!old) changes.push({ path: file.path, kind: "added" });
-      else if (
-        old.size !== file.size ||
-        (old.lfsOid ?? old.oid) !== (file.lfsOid ?? file.oid)
-      )
-        changes.push({ path: file.path, kind: "updated" });
-    }
-    for (const file of baseline.files)
-      if (!after.has(file.path))
-        changes.push({ path: file.path, kind: "deleted" });
     check = {
-      status: baseline.revision === snapshot.revision ? "current" : "changed",
+      ...compareLibrarySnapshots(baseline, snapshot),
       checkedAt: new Date().toISOString(),
       error: null,
       snapshot,
-      changes,
     };
   } catch (error) {
     logger.warn(
