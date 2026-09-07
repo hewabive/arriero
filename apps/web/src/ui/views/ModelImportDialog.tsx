@@ -35,6 +35,7 @@ import {
 } from "../../api/hf";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import { FileVerificationProgress } from "../components/FileVerificationProgress";
 
 export function ModelImportDialog({
   model,
@@ -70,7 +71,7 @@ export function ModelImportDialog({
       ["searching", "checking", "importing"].includes(
         query.state.data?.data.status ?? "checking",
       )
-        ? 1000
+        ? 500
         : false,
   });
   const state = job.data?.data;
@@ -239,14 +240,24 @@ export function ModelImportDialog({
           <>
             <Text size="sm">
               {state?.status === "importing"
-                ? "Importing files"
-                : "Searching and verifying content"}
-              : {state?.completed}/{state?.total}
+                ? `Importing files · ${state.completed} of ${countLabel(state.total, "file")}`
+                : state?.total
+                  ? `Checking repositories · ${state.completed} of ${countLabel(state.total, "repository", "repositories")}`
+                  : "Finding candidate repositories…"}
             </Text>
-            <Progress
-              value={state?.total ? (state.completed / state.total) * 100 : 0}
-              animated
-            />
+            {state?.verification ? (
+              <FileVerificationProgress progress={state.verification} />
+            ) : (
+              <Progress
+                aria-label={
+                  state?.status === "importing"
+                    ? "Import progress"
+                    : "Repository search progress"
+                }
+                value={state?.total ? (state.completed / state.total) * 100 : 0}
+                animated
+              />
+            )}
             <Text size="xs" className="text-wrap">
               {state?.currentFile}
             </Text>

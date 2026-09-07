@@ -173,7 +173,14 @@ export async function discoverRelatedFiles(
     try {
       const sources = await collectImportFiles(path, false);
       state.currentFile = `Checking neighboring group: ${relative(dirname(plan.source), path)}`;
-      const matches = await matchImportGroup(sources, remote.files, signal);
+      const matches = await matchImportGroup(
+        sources,
+        remote.files,
+        signal,
+        (progress) => {
+          state.verification = progress;
+        },
+      );
       if (matches.some((files) => !files.length)) continue;
       if (result.length + sources.length > 200) {
         state.searchTruncated = true;

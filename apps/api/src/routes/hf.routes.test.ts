@@ -121,19 +121,30 @@ test("download delete rejects unknown dirs and bad bodies", async () => {
 
 test("integrity check rejects unknown dirs and bad bodies", async () => {
   const app = appWithRoutes();
-  const bad = await app.request("/api/hf/downloads/integrity", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({}),
-  });
-  assert.equal(bad.status, 400);
+  for (const path of [
+    "/api/hf/downloads/integrity",
+    "/api/hf/downloads/integrity/jobs",
+  ]) {
+    const bad = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(bad.status, 400);
 
-  const missing = await app.request("/api/hf/downloads/integrity", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ dir: "/nonexistent/hf/download" }),
-  });
-  assert.equal(missing.status, 404);
+    const missing = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dir: "/nonexistent/hf/download" }),
+    });
+    assert.equal(missing.status, 404);
+  }
+  const empty = await app.request("/api/hf/downloads/integrity/jobs");
+  assert.equal(empty.status, 400);
+  const absent = await app.request(
+    "/api/hf/downloads/integrity/jobs?dir=/nonexistent",
+  );
+  assert.deepEqual(await absent.json(), { data: null });
 });
 
 test("job endpoints return 404 when nothing is running", async () => {

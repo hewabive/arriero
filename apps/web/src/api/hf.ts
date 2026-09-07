@@ -4,7 +4,7 @@ import type { ModelImportRequest, ModelImportState } from "@arriero/core";
 import type {
   HfDestCheck,
   HfDownloadDelete,
-  HfDownloadIntegrity,
+  HfIntegrityJob,
   HfDownloadQueueJob,
   HfDownloadQueueState,
   HfDownloadSettings,
@@ -70,11 +70,24 @@ export function startHfDownload(input: HfDownloadStart) {
   });
 }
 
-export function checkHfDownloadIntegrity(dir: string) {
-  return request<{ data: HfDownloadIntegrity }>("/api/hf/downloads/integrity", {
+export function startHfIntegrityCheck(dir: string) {
+  return request<{ data: HfIntegrityJob }>("/api/hf/downloads/integrity/jobs", {
     method: "POST",
     body: JSON.stringify({ dir }),
   });
+}
+
+export function getHfIntegrityCheck(dir: string) {
+  return request<{ data: HfIntegrityJob | null }>(
+    `/api/hf/downloads/integrity/jobs${buildQuery({ dir })}`,
+  );
+}
+
+export function cancelHfIntegrityCheck(id: string) {
+  return request<{ data: HfIntegrityJob }>(
+    `/api/hf/downloads/integrity/jobs/${encodeURIComponent(id)}/cancel`,
+    { method: "POST" },
+  );
 }
 
 export function deleteHfDownload(input: HfDownloadDelete) {

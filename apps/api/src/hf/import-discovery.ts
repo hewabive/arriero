@@ -328,6 +328,9 @@ async function verifyImportRepository(
     signal,
     remote,
     destDir,
+    (progress) => {
+      state.verification = progress;
+    },
   );
   let related: ImportRelatedFile[] = [];
   try {

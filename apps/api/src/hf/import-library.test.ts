@@ -19,6 +19,7 @@ import {
 } from "./model-library.js";
 import {
   commitModelImport,
+  cancelModelImport,
   getModelImport,
   selectModelImport,
   startModelImport,
@@ -98,6 +99,48 @@ beforeEach(() => {
   saveModelScanSettings({ directory: target, maxDepth: 8 });
   saveHfDownloadSettings({ modelDirectoryId: null, maxEtaHours: null });
   requests = 0;
+});
+
+test("offline discovery exposes in-file progress through the public job and can cancel it", async () => {
+  const content = "x".repeat(16 * 1024 * 1024);
+  const path = join(source, "large.gguf");
+  writeFileSync(path, content);
+  save([metadata("large.gguf", content)]);
+  const job = startModelImport(
+    {
+      sourcePath: path,
+      scope: "gguf",
+      repo: "",
+      revision: "main",
+      remotePath: "",
+      searchHf: false,
+    },
+    offline,
+  );
+  const deadline = Date.now() + 5000;
+  while (
+    !getModelImport(job.id)?.verification?.processedBytes &&
+    Date.now() < deadline
+  ) {
+    assert.ok(
+      ["searching", "checking"].includes(job.status),
+      job.error ?? job.status,
+    );
+    await setTimeout(1);
+  }
+  const progress = getModelImport(job.id)?.verification;
+  assert.equal(progress?.path, path);
+  assert.equal(progress?.totalBytes, content.length);
+  assert.ok(
+    progress &&
+      progress.processedBytes > 0 &&
+      progress.processedBytes < content.length,
+  );
+  cancelModelImport(job.id);
+  assert.equal((await wait(job.id)).status, "canceled");
+  assert.equal(job.verification, null);
+  assert.equal(requests, 0);
+  assert.equal(existsSync(path), true);
 });
 
 test("auto discovery verifies renamed GGUF and neighbors from library hashes and moves files offline", async () => {

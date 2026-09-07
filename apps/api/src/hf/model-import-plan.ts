@@ -11,6 +11,7 @@ import { isPathWithin } from "../path-utils.js";
 import { browseHfRepo } from "./browse.js";
 import type { HfClientOptions } from "./client.js";
 import { matchImportGroup } from "./import-matching.js";
+import type { VerificationObserver } from "./content-hash.js";
 import { hashImportFile, importFileIdentity } from "./import-content.js";
 import type { HfRepoBrowse } from "@arriero/core";
 import { type HfManifestFile, HF_MANIFEST_FILENAME } from "./manifest.js";
@@ -99,6 +100,7 @@ export async function planModelImport(
   signal?: AbortSignal,
   remoteOverride?: ImportRepositoryFiles,
   destOverride?: string,
+  onProgress?: VerificationObserver,
 ): Promise<ModelImportPlan> {
   const parsed = parseHfRepoInput(input.repo);
   if (!parsed)
@@ -168,6 +170,7 @@ export async function planModelImport(
                 parseSplitInfo(remotePath)?.prefix),
         ),
         signal,
+        onProgress,
       );
   const manifestFiles: HfManifestFile[] = [];
   const destinations = new Set<string>();
@@ -200,7 +203,13 @@ export async function planModelImport(
       const lfs = candidate.lfs !== null;
       let hash = hashes.get(lfs);
       if (!hash) {
-        hash = await hashImportFile(file.path, file.size, lfs, signal);
+        hash = await hashImportFile(
+          file.path,
+          file.size,
+          lfs,
+          signal,
+          onProgress,
+        );
         hashes.set(lfs, hash);
       }
       if (hash === (candidate.lfs?.oid ?? candidate.oid))

@@ -22,7 +22,11 @@ import { traceBlockingSection } from "../system/event-loop.js";
 import { errorMessage } from "../utils/error-message.js";
 import { partialBytesFor } from "./chunk-store.js";
 import { fetchHfPathsInfo, type HfClientOptions } from "./client.js";
-import { hashHfContentFile, hfContentHashAlgorithm } from "./content-hash.js";
+import {
+  hashHfContentFile,
+  hfContentHashAlgorithm,
+  type VerificationObserver,
+} from "./content-hash.js";
 import { groupHfGgufFiles } from "./grouping.js";
 import { hfDeleteBlockers, listLiveProcessArgs } from "./in-use.js";
 import {
@@ -247,7 +251,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
   });
 }
 
-function resolveIdleHfDownload(dir: string): {
+export function resolveIdleHfDownload(dir: string): {
   resolved: string;
   manifest: HfManifest;
 } {
@@ -488,6 +492,8 @@ function missingFileError(error: unknown): boolean {
 async function checkHfManifestFileIntegrity(
   dir: string,
   file: HfManifest["files"][number],
+  signal?: AbortSignal,
+  onProgress?: VerificationObserver,
 ): Promise<HfDownloadIntegrityFile> {
   let path: string;
   try {
@@ -537,8 +543,15 @@ async function checkHfManifestFileIntegrity(
   }
   let actualHash: string;
   try {
-    actualHash = await hashHfContentFile(path, file.size, file.lfsOid !== null);
+    actualHash = await hashHfContentFile(
+      path,
+      file.size,
+      file.lfsOid !== null,
+      signal,
+      onProgress,
+    );
   } catch (error) {
+    signal?.throwIfAborted();
     return integrityResult(file, {
       status: "error",
       actualSize: stats.size,
@@ -557,12 +570,28 @@ async function checkHfManifestFileIntegrity(
 
 export async function checkHfDownloadIntegrity(
   dir: string,
+  options: {
+    signal?: AbortSignal;
+    onProgress?: VerificationObserver;
+    onFile?: (file: HfDownloadIntegrityFile) => void;
+  } = {},
 ): Promise<HfDownloadIntegrity> {
   const { resolved, manifest } = resolveIdleHfDownload(dir);
   const files: HfDownloadIntegrityFile[] = [];
   for (const file of manifest.files) {
-    files.push(await checkHfManifestFileIntegrity(resolved, file));
+    options.signal?.throwIfAborted();
+    const result = await checkHfManifestFileIntegrity(
+      resolved,
+      file,
+      options.signal,
+      options.onProgress,
+    );
+    options.signal?.throwIfAborted();
+    files.push(result);
+    options.onProgress?.(null);
+    options.onFile?.(result);
   }
+  options.signal?.throwIfAborted();
   const current = readHfManifest(resolved);
   if (current && JSON.stringify(current) === JSON.stringify(manifest)) {
     const results = new Map(files.map((file) => [file.path, file]));

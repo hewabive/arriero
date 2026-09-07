@@ -1,5 +1,10 @@
 import { ModelLibraryActionSchema } from "@arriero/core";
 import {
+  startHfIntegrityJob,
+  getHfIntegrityJob,
+  cancelHfIntegrityJob,
+} from "../hf/integrity-jobs.js";
+import {
   actOnLibraryEntry,
   createLibraryEntry,
   libraryPinnedSnapshot,
@@ -86,6 +91,10 @@ const HF_ERROR_STATUS: Record<HfErrorKind, 403 | 404 | 429 | 502> = {
 };
 
 function hfErrorResponse(c: Context, error: unknown): Response {
+  if (error instanceof HfDownloadNotFoundError)
+    return c.json({ error: error.message }, 404);
+  if (error instanceof HfDownloadBusyError)
+    return c.json({ error: error.message }, 409);
   if (error instanceof HfHubError) {
     return c.json({ error: error.message }, HF_ERROR_STATUS[error.kind]);
   }
@@ -265,6 +274,27 @@ export function registerHfRoutes(app: Hono) {
         return c.json({ error: error.message }, 409);
       }
       throw error;
+    }
+  });
+
+  app.get("/api/hf/downloads/integrity/jobs", (c) => {
+    const dir = c.req.query("dir");
+    if (!dir) return c.json({ error: "dir is required" }, 400);
+    return c.json({ data: getHfIntegrityJob(dir) });
+  });
+  app.post("/api/hf/downloads/integrity/jobs", async (c) => {
+    const body = await parseJsonBody(c, HfDownloadIntegrityRequestSchema);
+    try {
+      return c.json({ data: startHfIntegrityJob(body.dir) });
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
+  app.post("/api/hf/downloads/integrity/jobs/:id/cancel", (c) => {
+    try {
+      return c.json({ data: cancelHfIntegrityJob(c.req.param("id")) });
+    } catch (error) {
+      return hfErrorResponse(c, error);
     }
   });
 

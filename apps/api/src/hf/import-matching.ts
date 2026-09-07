@@ -2,11 +2,13 @@ import { groupGgufFiles, type HfRepoBrowse } from "@arriero/core";
 import { basename } from "node:path";
 import { hashImportFile } from "./import-content.js";
 import type { ImportSourceFile } from "./model-import-plan.js";
+import type { VerificationObserver } from "./content-hash.js";
 
 export async function matchImportGroup(
   sources: ImportSourceFile[],
   remote: HfRepoBrowse["files"],
   signal?: AbortSignal,
+  onProgress?: VerificationObserver,
 ): Promise<HfRepoBrowse["files"][]> {
   const matches: HfRepoBrowse["files"][] = [];
   const ordered = [...sources].sort((a, b) =>
@@ -35,6 +37,7 @@ export async function matchImportGroup(
           source.size,
           file.lfs !== null,
           signal,
+          onProgress,
         )) !== (file.lfs?.oid ?? file.oid)
       ) {
         matched = false;

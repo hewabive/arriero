@@ -1,5 +1,8 @@
 import { lstat } from "node:fs/promises";
-import { hashHfContentFile } from "./content-hash.js";
+import {
+  hashHfContentFile,
+  type VerificationObserver,
+} from "./content-hash.js";
 import { HfDownloadRequestError } from "./paths.js";
 
 const hashes = new Map<string, { identity: string; hash: string }>();
@@ -14,13 +17,19 @@ export async function hashImportFile(
   size: number,
   lfs: boolean,
   signal?: AbortSignal,
+  onProgress?: VerificationObserver,
 ): Promise<string> {
   signal?.throwIfAborted();
   const identity = await importFileIdentity(path);
   const key = `${path}\0${lfs}`;
   const cached = hashes.get(key);
   if (cached?.identity === identity) return cached.hash;
-  const hash = await hashHfContentFile(path, size, lfs, signal);
+  let hash: string;
+  try {
+    hash = await hashHfContentFile(path, size, lfs, signal, onProgress);
+  } finally {
+    onProgress?.(null);
+  }
   if ((await importFileIdentity(path)) !== identity)
     throw new HfDownloadRequestError(
       `File changed during verification: ${path}`,

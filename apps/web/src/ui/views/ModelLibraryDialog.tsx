@@ -1,6 +1,5 @@
 import {
   isHfCommitSha,
-  type HfDownloadIntegrity,
   type HfDownloadedRepo,
   type ModelLibraryEntryStatus,
 } from "@arriero/core";
@@ -28,7 +27,6 @@ import { useMemo, useState } from "react";
 import {
   actOnModelLibraryEntry,
   browseHfRepo,
-  checkHfDownloadIntegrity,
   createModelLibraryEntry,
   getHfDestCheck,
   getModelLibrarySnapshot,
@@ -43,6 +41,8 @@ import { hfQueueJobForDir, useHfQueue } from "./use-hf-queue";
 import { hfJobPercent, hfJobProgressLine } from "./HfQueueJobCard";
 import { ModelLibraryTree } from "./ModelLibraryTree";
 import { ModelLibraryFileDetails } from "./ModelLibraryFileDetails";
+import { FileVerificationProgress } from "../components/FileVerificationProgress";
+import { useHfIntegrity } from "./use-hf-integrity";
 
 export function ModelLibraryDialog({
   status,
@@ -67,7 +67,8 @@ export function ModelLibraryDialog({
   const [deleteRequest, setDeleteRequest] = useState<HfDeleteRequest | null>(
     null,
   );
-  const [integrity, setIntegrity] = useState<HfDownloadIntegrity | null>(null);
+  const verification = useHfIntegrity(repo?.dir ?? null);
+  const integrity = verification.result;
   const queue = useHfQueue();
   const pinned = useQuery({
     queryKey: ["hf-library-snapshot", entry?.id ?? repo?.dir, revision],
@@ -187,7 +188,7 @@ export function ModelLibraryDialog({
       notifyError("Repository")(error);
     },
   });
-  const busy = mutation.isPending;
+  const busy = mutation.isPending || verification.busy;
   const run = (label: string, operation: () => Promise<unknown>) =>
     mutation.mutate({ label, run: operation });
   const createSaved = (paths: string[]) =>
@@ -208,7 +209,7 @@ export function ModelLibraryDialog({
   };
   const saveAndDownload = async () => {
     const paths = downloads.map((file) => file.path);
-    setIntegrity(null);
+    verification.clear();
     if (entry) {
       if (additions.length) await savePaths(savedPaths);
       await actOnModelLibraryEntry(entry.id, {
@@ -308,15 +309,7 @@ export function ModelLibraryDialog({
                 <Menu.Dropdown>
                   <Menu.Item
                     disabled={!repo || !!job || busy}
-                    onClick={() =>
-                      run("Integrity check completed", async () => {
-                        setIntegrity(null);
-                        const result = await checkHfDownloadIntegrity(
-                          repo!.dir,
-                        );
-                        setIntegrity(result.data);
-                      })
-                    }
+                    onClick={() => verification.start.mutate()}
                   >
                     Verify files
                   </Menu.Item>
@@ -398,9 +391,69 @@ export function ModelLibraryDialog({
             available for management.
           </Alert>
         )}
-        {busy && (
+        {mutation.isPending && (
           <Text size="xs" c="dimmed">
             Working…
+          </Text>
+        )}
+        {verification.busy && (
+          <Stack gap="xs">
+            {verification.job?.verification ? (
+              <FileVerificationProgress
+                progress={verification.job.verification}
+              />
+            ) : (
+              <Text size="sm">Preparing verification…</Text>
+            )}
+            {verification.job && verification.job.totalFiles > 1 && (
+              <Stack gap={3}>
+                <Text size="xs" c="dimmed">
+                  Overall · {verification.job.completedFiles} of{" "}
+                  {countLabel(verification.job.totalFiles, "file")} checked
+                </Text>
+                <Progress
+                  size={3}
+                  aria-label="Repository verification"
+                  value={
+                    verification.job.totalBytes > 0
+                      ? Math.min(
+                          100,
+                          ((verification.job.completedBytes +
+                            (verification.job.verification?.processedBytes ??
+                              0)) /
+                            verification.job.totalBytes) *
+                            100,
+                        )
+                      : 0
+                  }
+                />
+              </Stack>
+            )}
+            <Group gap="xs">
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                disabled={!verification.job}
+                loading={verification.cancel.isPending}
+                onClick={() => verification.cancel.mutate()}
+              >
+                Cancel verification
+              </Button>
+              <Text size="xs" c="dimmed">
+                You can close this window; verification continues in the
+                background.
+              </Text>
+            </Group>
+          </Stack>
+        )}
+        {verification.error && (
+          <Alert color="red" p="xs">
+            {verification.error}
+          </Alert>
+        )}
+        {verification.job?.status === "canceled" && (
+          <Text size="xs" c="dimmed">
+            Verification canceled. No incomplete results were saved.
           </Text>
         )}
         {job && (
@@ -766,7 +819,7 @@ export function ModelLibraryDialog({
           onClose={() => setDeleteRequest(null)}
           onDeleted={() => {
             setDeleteRequest(null);
-            setIntegrity(null);
+            verification.clear();
             setSelection(new Set());
           }}
         />

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FileVerificationProgressSchema } from "./file-verification.js";
 
 export const ModelImportRequestSchema = z.object({
   sourcePath: z.string().min(1),
@@ -62,6 +63,7 @@ export const ModelImportStateSchema = z.object({
   completed: z.number(),
   total: z.number(),
   currentFile: z.string().nullable(),
+  verification: FileVerificationProgressSchema.nullable().optional(),
   error: z.string().nullable(),
   warnings: z.array(z.string()),
   candidates: z.array(ModelImportCandidateSchema),

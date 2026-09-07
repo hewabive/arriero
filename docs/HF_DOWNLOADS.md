@@ -172,6 +172,17 @@ has not changed during verification. This survives reopening the dialog and bypa
 engine’s manifest-only skip shortcut: a damaged file is hashed again and downloaded if needed.
 Successful transfers replace the file record and clear the flag.
 
+The UI starts verification as a background job and polls it every 500 ms while active.
+It shows bytes read within the current file, a percentage, average read/hash speed and an
+approximate ETA for that file. Multi-file checks additionally show an overall byte-weighted
+bar and a completed-file count. Missing and wrong-size files advance the overall assessment
+without pretending their bytes were read. Cancel interrupts the read stream; incomplete checks
+do not persist integrity flags. Closing and reopening the repository dialog reconnects to the
+job. Jobs and detailed results are held in memory (up to 20 directories), not across API restarts.
+Import discovery uses the same per-file progress for both primary weights and neighboring
+files, including offline library matching. It keeps repository discovery counts separate because
+the set of files to hash grows during discovery; cached hashes require no additional read.
+
 ## Model library
 
 The Model library page (`#/model-library`) hosts `ModelLibraryView` and `ModelLibraryDialog`.
@@ -414,6 +425,9 @@ cross-origin CDN redirect.
 | `GET /api/hf/downloads` | downloaded repos from manifest discovery (+ `partialBytes`, `orphanParts`) |
 | `POST /api/hf/downloads/check` | manual update check for up to 50 dirs |
 | `POST /api/hf/downloads/integrity` | offline size and checksum verification against the local manifest |
+| `POST /api/hf/downloads/integrity/jobs` | start or reconnect to an active integrity check (`{dir}`) |
+| `GET /api/hf/downloads/integrity/jobs?dir=` | current or most recent integrity job, progress and result |
+| `POST /api/hf/downloads/integrity/jobs/:id/cancel` | cancel an integrity check without saving partial results |
 | `POST /api/hf/downloads/delete` | delete a repo directory, selected files or orphan parts, optional upstream verify |
 | `GET /api/hf/queue` | queue state: active job with live progress, queued jobs, history |
 | `POST /api/hf/queue/reorder` | reorder queued jobs (`ids` = the complete new order) |

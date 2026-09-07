@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FileVerificationProgressSchema } from "./file-verification.js";
 
 import { GgufArtifactKindSchema } from "./models.js";
 
@@ -264,6 +265,20 @@ export const HfDownloadIntegritySchema = z.object({
   checkedAt: z.string(),
   files: z.array(HfDownloadIntegrityFileSchema),
 });
+
+export const HfIntegrityJobSchema = z.object({
+  id: z.string(),
+  dir: z.string(),
+  status: z.enum(["running", "succeeded", "failed", "canceled"]),
+  completedFiles: z.number(),
+  totalFiles: z.number(),
+  completedBytes: z.number(),
+  totalBytes: z.number(),
+  verification: FileVerificationProgressSchema.nullable(),
+  result: HfDownloadIntegritySchema.nullable(),
+  error: z.string().nullable(),
+});
+export type HfIntegrityJob = z.infer<typeof HfIntegrityJobSchema>;
 
 export const HfDestCheckSchema = z.object({
   dir: z.string().min(1),
