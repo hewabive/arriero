@@ -71,6 +71,7 @@ unknown instance kinds per record, while local persisted schemas remain strict.
 - `slotSave` — KV-slot save/restore (`POST /slots/:id?action=save|restore`) for preemption; without it no `save-slot`/`restore-slot` actions are planned, and the web target editor hides the slot fields (`ProxyTargetsView` resolves the draft's endpoint → instance kind → this flag).
 - `streamResume` — server-side stream sessions (`x-conversation-id`, `/v1/stream?conv_id=<id>`), see `docs/STREAM_RESUME.md`.
 - `sseTimings` — llama.cpp SSE extensions (`timings`, `prompt_progress` via `return_progress`) powering live TTFT/prefill metrics and slot correlation.
+- `tokenCount` — selects the prompt-counting adapter (`llama`, `sglang`, `vllm`, or `none` for rpc-worker and KTransformers). Implemented by `proxy/token-count-adapters.ts`, independently of the boolean `proxyEngineGates`; request preparation, bounds and fallback are documented in `docs/API_PROXY_PIPELINES.md` § Prompt token counting.
 - `translationDialect` — not a boolean and not part of `proxyEngineGates`: the Anthropic→OpenAI request-options preset the proxy uses when translating to this engine (`docs/ANTHROPIC_OPENAI_BRIDGE.md` § Translation dialects). `llama-server` filters named tool choice; `openai-compatible` passes it natively.
 
 Scheduler-side gating is documented in `docs/API_PROXY_FOUNDATION.md` § Engine capability gating.

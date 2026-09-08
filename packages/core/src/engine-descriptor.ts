@@ -48,6 +48,7 @@ export type EngineConcurrencyId =
   | "llama-parallel"
   | "vllm-sequences"
   | "sglang-max-running-requests";
+export type EngineTokenCountId = "llama" | "vllm" | "sglang" | "none";
 export type EngineTranslationDialectId = "llama-server" | "openai-compatible";
 export type EngineEvictionPolicy = "never" | "idle-only" | "preemptible";
 export type EngineAdmissionPolicy = "confirmable" | "strict";
@@ -70,6 +71,7 @@ export type EngineProxyCapabilities = {
   sseTimings: boolean;
   reasoningControl: boolean;
   translationDialect: EngineTranslationDialectId;
+  tokenCount: EngineTokenCountId;
 };
 
 export type EngineDescriptor = {
@@ -128,6 +130,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       sseTimings: true,
       reasoningControl: true,
       translationDialect: "llama-server",
+      tokenCount: "llama",
     },
     probe: { id: "llama-http", httpHealth: true },
     nativeApi: "llama",
@@ -171,6 +174,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       sseTimings: false,
       reasoningControl: false,
       translationDialect: "llama-server",
+      tokenCount: "none",
     },
     probe: { id: "tcp-accept", httpHealth: false },
     nativeApi: "none",
@@ -210,6 +214,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       sseTimings: false,
       reasoningControl: false,
       translationDialect: "openai-compatible",
+      tokenCount: "vllm",
     },
     probe: { id: "openai-http", httpHealth: true },
     nativeApi: "none",
@@ -253,6 +258,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       sseTimings: false,
       reasoningControl: false,
       translationDialect: "openai-compatible",
+      tokenCount: "sglang",
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
     nativeApi: "none",
@@ -297,6 +303,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       sseTimings: false,
       reasoningControl: false,
       translationDialect: "openai-compatible",
+      tokenCount: "none",
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
     nativeApi: "none",

@@ -186,7 +186,7 @@ type ApiProxyOperationSpec = {
   usageMeter: "resumable" | "responses" | null;
   translatesToOpenAiChat: boolean;
   countTokensResponse: boolean;
-  llamaTokenCountPath: string | null;
+  tokenCountRequest: "chat" | null;
 };
 
 const apiProxyOperationSpecs = {
@@ -200,7 +200,7 @@ const apiProxyOperationSpecs = {
     usageMeter: "resumable",
     translatesToOpenAiChat: false,
     countTokensResponse: false,
-    llamaTokenCountPath: "/v1/chat/completions/input_tokens",
+    tokenCountRequest: "chat",
   },
   completions: {
     protocol: "openai",
@@ -212,7 +212,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
-    llamaTokenCountPath: null,
+    tokenCountRequest: null,
   },
   embeddings: {
     protocol: "openai",
@@ -224,7 +224,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
-    llamaTokenCountPath: null,
+    tokenCountRequest: null,
   },
   rerank: {
     protocol: "openai",
@@ -236,7 +236,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
-    llamaTokenCountPath: null,
+    tokenCountRequest: null,
   },
   responses: {
     protocol: "openai",
@@ -248,7 +248,7 @@ const apiProxyOperationSpecs = {
     usageMeter: "responses",
     translatesToOpenAiChat: false,
     countTokensResponse: false,
-    llamaTokenCountPath: null,
+    tokenCountRequest: null,
   },
   messages: {
     protocol: "anthropic",
@@ -260,7 +260,7 @@ const apiProxyOperationSpecs = {
     usageMeter: "resumable",
     translatesToOpenAiChat: true,
     countTokensResponse: false,
-    llamaTokenCountPath: "/v1/chat/completions/input_tokens",
+    tokenCountRequest: "chat",
   },
   "messages.count_tokens": {
     protocol: "anthropic",
@@ -272,7 +272,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: true,
-    llamaTokenCountPath: null,
+    tokenCountRequest: null,
   },
 } satisfies Record<string, ApiProxyOperationSpec>;
 

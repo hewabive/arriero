@@ -269,3 +269,57 @@ test("counting target participates in reference validation and deletion protecti
     /missing target "A"/,
   );
 });
+
+test("confirmed prompt bounds resolve overflow conditions and guards, including equality", async () => {
+  for (const minimumTokens of [100, 101]) {
+    const counter: ApiProxyTokenCounter = async (_, id) => {
+      assert.equal(id, "A");
+      return {
+        ok: true,
+        minimumTokens,
+        detail: `at least ${minimumTokens} tokens for A`,
+      };
+    };
+    const routed = await run(
+      [graph([sizeCondition({ targetId: "A", onUnavailable: "error" })])],
+      counter,
+    );
+    assert.ok(routed.ok && routed.kind === "target");
+    assert.equal(routed.targetId, "B");
+    assert.match(routed.routeTrace.at(-1)?.detail ?? "", /at least.*>= 100/);
+    const guarded = await run(
+      [graph([limit(targetA, { onUnavailable: "error" })])],
+      counter,
+    );
+    assert.ok(!guarded.ok);
+    assert.equal(guarded.diagnostic.code, "arriero_proxy_context_overflow");
+    assert.match(guarded.routeTrace.at(-1)?.detail ?? "", /at least.*rejected/);
+  }
+});
+
+test("a bound below the node threshold follows fallback policy instead of claiming the prompt fits", async () => {
+  const counter: ApiProxyTokenCounter = async () => ({
+    ok: true,
+    minimumTokens: 99,
+    detail: "at least 99 tokens for A",
+  });
+  for (const onUnavailable of ["estimate", "error"] as const) {
+    for (const node of [
+      limit(targetA, { onUnavailable }),
+      sizeCondition({ targetId: "A", onUnavailable }),
+    ]) {
+      const result = await run([graph([node])], counter);
+      assert.equal(result.ok, onUnavailable === "estimate");
+      const detail = result.routeTrace.at(-1)?.detail ?? "";
+      assert.match(detail, /at least 99.*bound does not resolve threshold 100/);
+      if (result.ok) {
+        assert.match(detail, /estimated/);
+      } else {
+        assert.equal(
+          result.diagnostic.code,
+          "arriero_proxy_token_count_unavailable",
+        );
+      }
+    }
+  }
+});

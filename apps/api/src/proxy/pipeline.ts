@@ -29,10 +29,7 @@ import {
   type ApiProxyProtocolModelRequest,
 } from "./protocol.js";
 import { estimateRequestTokens } from "./token-estimate.js";
-import type {
-  ApiProxyTokenCounter,
-  ApiProxyTokenCountResult,
-} from "./token-count.js";
+import type { ApiProxyTokenCounter } from "./token-count.js";
 import { uniqueTokenCountTarget } from "./token-count-target.js";
 
 export type ApiProxyPipelineRecordRequestInput = {
@@ -333,11 +330,15 @@ export async function resolveApiProxyRouteChain(input: {
     input.entry?.pipeline ?? null;
   let visitedNodes = 0;
 
-  const measureTokens = async (
+  const compareTokens = async (
     config: ApiProxyTokenCountConfig | undefined,
     node: ApiProxyPipelineNode,
     pipeline: ApiProxyPipelineRecord,
-  ): Promise<ApiProxyTokenCountResult> => {
+    threshold: number,
+  ): Promise<
+    | { ok: true; atLeast: boolean; detail: string }
+    | { ok: false; reason: string }
+  > => {
     const settings = config ?? defaultApiProxyTokenCountConfig;
     let reason = "local estimation selected";
     if (settings.mode !== "local") {
@@ -358,14 +359,27 @@ export async function resolveApiProxyRouteChain(input: {
                 ? "upstream token counter is unavailable"
                 : "no unique downstream target; select a counting target",
             };
-      if (result.ok) return result;
-      if (settings.onUnavailable === "error") return result;
-      reason = result.reason;
+      if (result.ok) {
+        if ("tokens" in result) {
+          return {
+            ok: true,
+            atLeast: result.tokens >= threshold,
+            detail: result.detail,
+          };
+        }
+        if (result.minimumTokens >= threshold) {
+          return { ok: true, atLeast: true, detail: result.detail };
+        }
+        reason = `${result.detail}; bound does not resolve threshold ${threshold}`;
+      } else {
+        reason = result.reason;
+      }
+      if (settings.onUnavailable === "error") return { ok: false, reason };
     }
     const tokens = estimateTokens();
     return {
       ok: true,
-      tokens,
+      atLeast: tokens >= threshold,
       detail: `estimated ${tokens} tokens · ${reason}`,
     };
   };
@@ -593,10 +607,11 @@ export async function resolveApiProxyRouteChain(input: {
         break;
       }
       case "context-limit": {
-        const count = await measureTokens(
+        const count = await compareTokens(
           node.config.tokenCount,
           node,
           pipeline,
+          node.config.thresholdTokens,
         );
         if (!count.ok) {
           state.routeTrace.push(
@@ -611,7 +626,7 @@ export async function resolveApiProxyRouteChain(input: {
             ),
           );
         }
-        const rejected = count.tokens >= node.config.thresholdTokens;
+        const rejected = count.atLeast;
         state.routeTrace.push(
           nodeStep(pipeline, node, {
             port: rejected ? null : "next",
@@ -860,7 +875,12 @@ export async function resolveApiProxyRouteChain(input: {
         const predicate = node.config.predicate;
         const count =
           predicate.type === "token-estimate"
-            ? await measureTokens(predicate.tokenCount, node, pipeline)
+            ? await compareTokens(
+                predicate.tokenCount,
+                node,
+                pipeline,
+                predicate.minTokens,
+              )
             : null;
         if (count && !count.ok) {
           state.routeTrace.push(
@@ -875,11 +895,13 @@ export async function resolveApiProxyRouteChain(input: {
             ),
           );
         }
-        const outcome = evaluateApiProxyCondition(predicate, {
-          body: state.request.body,
-          sourceId,
-          estimateTokens: count ? () => count.tokens : estimateTokens,
-        });
+        const outcome = count
+          ? { ok: true as const, value: count.atLeast, detail: count.detail }
+          : evaluateApiProxyCondition(predicate, {
+              body: state.request.body,
+              sourceId,
+              estimateTokens,
+            });
         if (!outcome.ok) {
           return fail(
             routeDiagnostic(

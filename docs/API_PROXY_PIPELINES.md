@@ -24,7 +24,8 @@ Source map:
   detection and enforcement (`docs/API_PROXY_LOOP_GUARD.md`).
 - `apps/api/src/proxy/condition.ts` — predicate evaluation.
 - `apps/api/src/proxy/token-estimate.ts` — local token estimator.
-- `apps/api/src/proxy/token-count.ts` — request-scoped llama.cpp prompt counter.
+- `apps/api/src/proxy/token-count.ts` — request-scoped upstream prompt counter.
+- `apps/api/src/proxy/token-count-adapters.ts` — llama.cpp, SGLang and vLLM counting adapters.
 - `apps/api/src/proxy/token-count-target.ts` — downstream counting-target inference.
 - `apps/api/src/proxy/request-text.ts` — request text extraction (scopes).
 - `apps/api/src/proxy/pipeline-validation.ts` — save-time graph validation.
@@ -347,24 +348,60 @@ pipelines, multiple targets, fusion, and traversal-budget exhaustion cannot infe
 target. Fusion branches can count once executing independently, but a guard ahead
 of fusion cannot infer one from its panel or synthesizer.
 
-The first adapter supports text chat requests on managed llama.cpp instances and
-external `llama-native` endpoints, without peer delegation. OpenAI chat and Anthropic
-Messages are prepared through `prepareApiProxyUpstreamRequest`, including our
-Anthropic bridge and per-upstream reasoning mapping, then sent to
-`POST /v1/chat/completions/input_tokens`. The target's model override matches
-forwarding. The server renders its chat template and returns `input_tokens`, without
-generation. Multimodal input and other operations/engines are unavailable in this
-adapter. Old servers without the counting endpoint follow the configured fallback.
+Text chat counting supports managed llama.cpp, SGLang and vLLM instances, plus
+external `llama-native` endpoints, without peer delegation. The engine descriptor's
+`proxy.tokenCount` selects the adapter; a generic external OpenAI profile does not
+identify an engine and is not probed. KTransformers remains unsupported, including
+SGLang-KT releases whose `/tokenize` accepts only a rendered string. Multimodal
+input and operations other than OpenAI Chat Completions and Anthropic Messages
+follow the configured fallback.
 
-Before counting, `GET /props?model=…&autoload=false` must report
-`is_sleeping: false`. The counting POST also uses `autoload=false`. Neither path
-calls arriero's scheduler, starts an instance, or requests a model load. Readiness
-and counting share a 3-second timeout and client cancellation; redirects are not
-followed. **The upstream API has no atomic "do not wake" option:** a model that goes
-to sleep between the readiness GET and counting POST may still be woken by
-llama.cpp. Sleeping or unloaded models observed by the probe are skipped. A strict
-no-wake guarantee for concurrent idle sleep requires upstream support; the GET is
-not a residency lease.
+Requests use `prepareApiProxyUpstreamRequest`, including the same Anthropic bridge,
+translation dialect and per-upstream reasoning mapping as forwarding. The target's
+model override matches forwarding. Each adapter preserves the parameters that
+shape the prompt; SGLang and vLLM probes set `stream: false` and remove
+`stream_options` without changing the original generation request.
+
+| Adapter | Request | Measurement |
+| --- | --- | --- |
+| llama.cpp | `POST /v1/chat/completions/input_tokens?autoload=false` | `input_tokens` |
+| SGLang | `POST /v1/tokenize` with `messages` | `count`, from the chat preparation handler shared with generation |
+| vLLM | `POST /v1/chat/completions/render` | length of `token_ids`, using generation's chat preparation including tools, reasoning and Harmony |
+
+The SGLang adapter targets the chat-capable tokenization API verified in 0.5.19.
+The vLLM render API was verified in 0.28.0. Servers lacking those APIs, a disabled
+or unavailable tokenizer, invalid responses and network failures follow the
+configured fallback. vLLM's simpler `/tokenize` is deliberately not an alternate
+path: its handling of tools, reasoning and Harmony differs from generation.
+
+vLLM render can reject an oversized prompt before returning token IDs. Its known
+HTTP 400 `BadRequestError` with `param: input_tokens` reports an input-token bound.
+The adapter recognizes the full validation-message shape, verifies its arithmetic,
+and retains only the prompt's lower bound, excluding output tokens. It never calls
+this an exact count, even when the message omits "at least": tokenization can stop
+after proving overflow. Unknown message formats remain unavailable. This is
+version-sensitive because vLLM does not expose the bound in a structured field.
+
+A confirmed bound resolves a node only when it is at least that node's threshold:
+`context-limit` rejects, and `token-estimate` selects `true`. A smaller bound cannot
+prove that the prompt fits; it follows `onUnavailable` with an explicit trace.
+Thus an upstream input-plus-output overflow does not automatically imply overflow
+of an arbitrary prompt-only threshold. This also supports routing from A to B
+without knowing the entire oversized prompt's length.
+
+For llama.cpp, `GET /props?model=…&autoload=false` must first report
+`is_sleeping: false`. **The upstream API has no atomic "do not wake" option:** a
+model that goes to sleep between the readiness GET and counting POST may still be
+woken by llama.cpp. Sleeping or unloaded models observed by the probe are skipped.
+The GET is not a residency lease.
+
+SGLang tokenization and vLLM rendering run in their HTTP frontend without generation
+or explicit wake calls; they do not use llama.cpp's readiness probe. A surviving
+frontend/tokenizer may answer while weights are released, but an unavailable
+process is never started for a probe. No adapter calls arriero's scheduler or
+requests a model load. Requests share a 3-second timeout and client cancellation;
+redirects are not followed. Probes bypass the request recorder, so they do not
+create separate Request History entries; upstream access logs may still record them.
 
 Counts (and failed attempts) are memoized within one route request by counting
 target, URL, operation path and prepared body. Changed bodies and other targets

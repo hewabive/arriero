@@ -55,7 +55,7 @@ export function TokenCountFields(props: {
           />
           <Select
             label="When exact counting is unavailable"
-            description="Exact counting supports text chat on available llama.cpp models. The route trace records any fallback."
+            description="Upstream counting supports text chat on llama.cpp, SGLang and vLLM. The route trace records counts, confirmed bounds and fallback."
             value={value.onUnavailable}
             data={[
               { value: "estimate", label: "Use local estimate" },

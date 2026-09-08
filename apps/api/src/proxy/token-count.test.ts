@@ -5,14 +5,50 @@ import {
   ApiEndpointCreateSchema,
   ApiProxyModelRecordSchema,
   ApiProxyTargetCreateSchema,
+  type InstanceKind,
 } from "@arriero/core";
 
 import { config } from "../config.js";
+import { createInstance } from "../instances/repository.js";
+import { instanceTestFixture } from "../instances/test-fixtures.js";
 import { resetConfigFilesCache } from "./config-files.js";
-import { createApiEndpoint } from "./endpoints.js";
+import { createApiEndpoint, instanceEndpointId } from "./endpoints.js";
 import type { ApiProxyProtocolModelRequest } from "./protocol.js";
 import { createApiProxyTarget } from "./repository.js";
 import { createApiProxyTokenCounter } from "./token-count.js";
+
+const { uniqueName, seedBinaryRef, binaryRefId } =
+  instanceTestFixture("token-count");
+
+function managedTarget(kind: InstanceKind) {
+  if (!binaryRefId()) seedBinaryRef();
+  const instance = createInstance({
+    name: uniqueName(kind),
+    kind,
+    binaryPathRefId: binaryRefId(),
+    rpcWorkers: [],
+    args: {},
+    env: {},
+    memory: [],
+    ...(kind === "ktransformers"
+      ? {
+          engineConfig: {
+            type: "ktransformers" as const,
+            model: "test-model",
+            cpuWeights: "/weights",
+            method: "BF16" as const,
+          },
+        }
+      : {}),
+  });
+  return createApiProxyTarget(
+    ApiProxyTargetCreateSchema.parse({
+      name: instance.name,
+      endpointId: instanceEndpointId(instance.name),
+      model: "served-model",
+    }),
+  );
+}
 
 beforeEach(() => {
   rmSync(config.proxyConfigDir, { recursive: true, force: true });
@@ -100,7 +136,7 @@ test("llama counter uses model override, authentication, subpath and autoload=fa
   await counter(input, b.id);
   assert.equal(calls.length, 6);
   const result = await counter(input, a.id);
-  assert.ok(result.ok);
+  assert.ok(result.ok && "tokens" in result);
   assert.equal(result.tokens, 17);
   assert.match(result.detail, /actual-model/);
   assert.equal((input.body as { model: string }).model, "public");
@@ -281,4 +317,254 @@ test("cancellation propagates to the readiness request and does not post", async
   const result = await counter(request(), a.id);
   assert.ok(!result.ok);
   assert.match(result.reason, /cancelled/);
+});
+
+for (const kind of ["sglang", "vllm"] as const) {
+  test(`${kind} counts prepared chat without readiness or generation calls and caches concurrent probes`, async () => {
+    const a = managedTarget(kind);
+    const calls: { url: URL; body: Record<string, unknown> }[] = [];
+    const counter = createApiProxyTokenCounter({
+      fetchImpl: async (url, init) => {
+        assert.equal(init?.method, "POST");
+        assert.equal(init.redirect, "error");
+        assert.ok(init.signal);
+        calls.push({
+          url: new URL(String(url)),
+          body: JSON.parse(String(init.body)),
+        });
+        return Response.json(
+          kind === "sglang" ? { count: 3 } : { token_ids: [1, 7, 12] },
+        );
+      },
+    });
+    const body = {
+      model: "public",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [
+        {
+          type: "function",
+          function: { name: "lookup", parameters: { type: "object" } },
+        },
+      ],
+      tool_choice: "none",
+      reasoning_effort: "high",
+      chat_template_kwargs: { enable_thinking: true },
+      continue_final_message: true,
+      add_generation_prompt: false,
+      max_tokens: 20,
+      stream: true,
+      stream_options: { include_usage: true },
+    };
+    const input = request(body);
+    const [first, second] = await Promise.all([
+      counter(input, a.id),
+      counter(input, a.id),
+    ]);
+    assert.deepEqual(first, second);
+    assert.ok(first.ok && "tokens" in first);
+    assert.equal(first.tokens, 3);
+    assert.equal(calls.length, 1);
+    assert.equal(
+      calls[0]?.url.pathname,
+      kind === "sglang" ? "/v1/tokenize" : "/v1/chat/completions/render",
+    );
+    assert.equal(calls[0]?.url.search, "");
+    const { stream_options, ...expected } = body;
+    assert.deepEqual(calls[0]?.body, {
+      ...expected,
+      model: "served-model",
+      stream: false,
+    });
+    assert.deepEqual(body.stream_options, stream_options);
+    assert.equal(body.stream, true);
+    await counter(request({ ...body, reasoning_effort: "low" }), a.id);
+    assert.equal(calls.length, 2);
+  });
+
+  test(`${kind} counts Anthropic messages after translation using its upstream dialect`, async () => {
+    const a = managedTarget(kind);
+    const counter = createApiProxyTokenCounter({
+      fetchImpl: async (_, init) => {
+        const body = JSON.parse(String(init?.body));
+        assert.equal(body.model, "served-model");
+        assert.equal(body.system, undefined);
+        assert.equal(body.messages[0].role, "system");
+        assert.equal(body.messages[0].content, "instruction");
+        assert.equal(body.tools[0].function.name, "lookup");
+        assert.deepEqual(body.tool_choice, {
+          type: "function",
+          function: { name: "lookup" },
+        });
+        assert.equal(body.stream, false);
+        return Response.json(
+          kind === "sglang" ? { count: 2 } : { token_ids: [1, 2] },
+        );
+      },
+    });
+    const result = await counter(
+      request(
+        {
+          model: "public",
+          system: "instruction",
+          messages: [{ role: "user", content: "hello" }],
+          tools: [{ name: "lookup", input_schema: { type: "object" } }],
+          tool_choice: { type: "tool", name: "lookup" },
+          max_tokens: 20,
+          stream: true,
+        },
+        "anthropic",
+      ),
+      a.id,
+    );
+    assert.ok(result.ok && "tokens" in result);
+    assert.equal(result.tokens, 2);
+  });
+
+  test(`${kind} rejects invalid responses and unavailable endpoints without alternate probes`, async () => {
+    const a = managedTarget(kind);
+    const invalid =
+      kind === "sglang"
+        ? [{ count: -1 }, { count: 1.5 }, { count: "20" }, { count: [20] }, {}]
+        : [
+            { token_ids: null },
+            { token_ids: "20" },
+            { token_ids: [-1] },
+            { token_ids: [1.5] },
+            { token_ids: ["1"] },
+            { count: 20 },
+          ];
+    for (const body of invalid) {
+      const counter = createApiProxyTokenCounter({
+        fetchImpl: async () => Response.json(body),
+      });
+      const result = await counter(request(), a.id);
+      assert.ok(!result.ok);
+      assert.match(result.reason, /invalid/);
+    }
+    for (const status of [404, 501, 503]) {
+      let calls = 0;
+      const counter = createApiProxyTokenCounter({
+        fetchImpl: async () => {
+          calls++;
+          return new Response("unavailable", { status });
+        },
+      });
+      const result = await counter(request(), a.id);
+      assert.ok(!result.ok);
+      assert.match(result.reason, new RegExp(`HTTP ${status}`));
+      assert.equal(calls, 1);
+    }
+  });
+
+  test(`${kind} propagates client cancellation to the counting POST`, async () => {
+    const a = managedTarget(kind);
+    const controller = new AbortController();
+    controller.abort();
+    const counter = createApiProxyTokenCounter({
+      signal: controller.signal,
+      fetchImpl: async (_, init) => {
+        assert.equal(init?.method, "POST");
+        assert.ok(init.signal?.aborted);
+        init.signal.throwIfAborted();
+        assert.fail("must abort");
+      },
+    });
+    const result = await counter(request(), a.id);
+    assert.ok(!result.ok);
+    assert.match(result.reason, /cancelled/);
+  });
+}
+
+function overflowMessage(qualifier = "at least ") {
+  return `This model's maximum context length is 100 tokens. However, you requested 10 output tokens and your prompt contains ${qualifier}91 input tokens, for a total of ${qualifier}101 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=91)`;
+}
+
+test("vLLM overflow retains only a confirmed prompt bound, never the total or a fabricated exact count", async () => {
+  const a = managedTarget("vllm");
+  for (const qualifier of ["at least ", ""]) {
+    const counter = createApiProxyTokenCounter({
+      fetchImpl: async () =>
+        Response.json(
+          {
+            error: {
+              type: "BadRequestError",
+              code: 400,
+              param: "input_tokens",
+              message: overflowMessage(qualifier),
+            },
+          },
+          { status: 400 },
+        ),
+    });
+    const result = await counter(request(), a.id);
+    assert.ok(result.ok && "minimumTokens" in result);
+    assert.equal(result.minimumTokens, 91);
+    assert.equal("tokens" in result, false);
+    assert.match(result.detail, /at least 91.*vLLM/);
+  }
+});
+
+test("vLLM ignores unrelated, inconsistent and unrecognized validation errors", async () => {
+  const a = managedTarget("vllm");
+  const error = {
+    type: "BadRequestError",
+    code: 400,
+    param: "input_tokens",
+    message: overflowMessage(),
+  };
+  for (const changed of [
+    { param: "max_tokens" },
+    { type: "InternalServerError" },
+    { code: 500 },
+    { message: "maximum context length exceeded" },
+    { message: error.message.replace("value=91", "value=99") },
+    {
+      message: error.message.replace(
+        "total of at least 101",
+        "total of at least 100",
+      ),
+    },
+    { message: error.message.replace("length is 100", "length is 200") },
+    { message: error.message.replace("total of at least", "total of") },
+  ]) {
+    const counter = createApiProxyTokenCounter({
+      fetchImpl: async () =>
+        Response.json({ error: { ...error, ...changed } }, { status: 400 }),
+    });
+    const result = await counter(request(), a.id);
+    assert.ok(!result.ok);
+    assert.match(result.reason, /without a recognized prompt bound/);
+  }
+});
+
+test("KTransformers stays unsupported and managed multimodal requests never probe", async () => {
+  const counter = createApiProxyTokenCounter({
+    fetchImpl: async () => assert.fail("must not probe"),
+  });
+  const kt = managedTarget("ktransformers");
+  assert.equal((await counter(request(), kt.id)).ok, false);
+  for (const kind of ["sglang", "vllm"] as const) {
+    const a = managedTarget(kind);
+    assert.equal(
+      (
+        await counter(
+          request({
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: { url: "http://image.local" },
+                  },
+                ],
+              },
+            ],
+          }),
+          a.id,
+        )
+      ).ok,
+      false,
+    );
+  }
 });

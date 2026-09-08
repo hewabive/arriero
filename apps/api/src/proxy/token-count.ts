@@ -11,11 +11,15 @@ import {
 } from "./protocol.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import { getApiProxyTarget } from "./repository.js";
+import {
+  tokenCountAdapters,
+  type ApiProxyTokenMeasurement,
+} from "./token-count-adapters.js";
 import { stripV1BaseUrl } from "./targets.js";
 import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
 
-export type ApiProxyTokenCountResult =
-  | { ok: true; tokens: number; detail: string }
+type ApiProxyTokenCountResult =
+  | ({ ok: true; detail: string } & ApiProxyTokenMeasurement)
   | { ok: false; reason: string };
 
 export type ApiProxyTokenCounter = (
@@ -61,23 +65,25 @@ export function createApiProxyTokenCounter(
     const instance = endpoint?.instanceId
       ? getInstance(endpoint.instanceId)
       : null;
-    if (
-      endpoint?.nodeId ||
-      (instance
-        ? engineDescriptor(instance.kind).nativeApi !== "llama"
-        : endpoint?.profile !== "llama-native")
-    ) {
+    const adapterId = instance
+      ? engineDescriptor(instance.kind).proxy.tokenCount
+      : endpoint?.profile === "llama-native"
+        ? "llama"
+        : "none";
+    if (endpoint?.nodeId || adapterId === "none") {
       return {
         ok: false,
-        reason: `target ${target.name}: token counting requires a llama.cpp endpoint without peer delegation`,
+        reason: `target ${target.name}: upstream token counting is unsupported for this endpoint or peer delegation`,
       };
     }
-    const path = apiProxyOperationSpec(request.operation)?.llamaTokenCountPath;
-    if (!path)
+    const spec = apiProxyOperationSpec(request.operation);
+    if (!spec?.tokenCountRequest)
       return {
         ok: false,
         reason: "operation does not support exact token counting",
       };
+    const adapter = tokenCountAdapters[adapterId];
+    const path = adapter.path;
     const resolved = resolveApiProxyUpstreamContext({
       target,
       operation: request.operation,
@@ -90,7 +96,7 @@ export function createApiProxyTokenCounter(
       translate: context.translateAnthropic,
       translationDialect: context.translationDialect,
       operation: request.operation,
-      path,
+      path: spec.upstreamPath,
       body: request.body,
       headers: new Headers(),
       instanceId: context.instanceId,
@@ -103,10 +109,10 @@ export function createApiProxyTokenCounter(
           "exact token counting currently supports text chat requests only",
       };
     }
-    const body = {
+    const body = adapter.prepareBody({
       ...asObject(forward.body),
       ...(target.model ? { model: target.model } : {}),
-    };
+    });
     const key = JSON.stringify([targetId, context.baseUrl, path, body]);
     let result = cache.get(key);
     if (!result) {
@@ -124,33 +130,39 @@ export function createApiProxyTokenCounter(
         ...context.authHeaders,
         "content-type": "application/json",
       };
-      const query = new URLSearchParams({ autoload: "false" });
-      if (typeof body.model === "string") query.set("model", body.model);
       try {
-        const propsResponse = await fetchImpl(
-          apiProxyForwardUrl(
-            stripV1BaseUrl(context.baseUrl),
-            "/props",
-            query.toString(),
-          ),
-          { headers, signal, redirect: "error" },
-        );
-        if (!propsResponse.ok) {
-          await propsResponse.body?.cancel();
-          return {
-            ok: false,
-            reason: `target ${targetName}: readiness check returned HTTP ${propsResponse.status}`,
-          };
-        }
-        const props = asObject(await propsResponse.json());
-        if (props?.is_sleeping !== false) {
-          return {
-            ok: false,
-            reason: `target ${targetName}: model is sleeping or readiness is unknown`,
-          };
+        if (adapter.llamaReadiness) {
+          const query = new URLSearchParams({ autoload: "false" });
+          if (typeof body.model === "string") query.set("model", body.model);
+          const propsResponse = await fetchImpl(
+            apiProxyForwardUrl(
+              stripV1BaseUrl(context.baseUrl),
+              "/props",
+              query.toString(),
+            ),
+            { headers, signal, redirect: "error" },
+          );
+          if (!propsResponse.ok) {
+            await propsResponse.body?.cancel();
+            return {
+              ok: false,
+              reason: `target ${targetName}: readiness check returned HTTP ${propsResponse.status}`,
+            };
+          }
+          const props = asObject(await propsResponse.json());
+          if (props?.is_sleeping !== false) {
+            return {
+              ok: false,
+              reason: `target ${targetName}: model is sleeping or readiness is unknown`,
+            };
+          }
         }
         const response = await fetchImpl(
-          apiProxyForwardUrl(context.baseUrl, countPath, "autoload=false"),
+          apiProxyForwardUrl(
+            context.baseUrl,
+            countPath,
+            adapter.llamaReadiness ? "autoload=false" : "",
+          ),
           {
             method: "POST",
             headers,
@@ -159,28 +171,31 @@ export function createApiProxyTokenCounter(
             redirect: "error",
           },
         );
-        if (!response.ok) {
+        if (!response.ok && response.status !== adapter.errorStatus) {
           await response.body?.cancel();
           return {
             ok: false,
             reason: `target ${targetName}: token counting returned HTTP ${response.status}`,
           };
         }
-        const tokens = asObject(await response.json())?.input_tokens;
-        if (
-          typeof tokens !== "number" ||
-          !Number.isSafeInteger(tokens) ||
-          tokens < 0
-        ) {
+        const measurement = adapter.read(
+          await response.json(),
+          response.status,
+        );
+        if (!measurement) {
           return {
             ok: false,
-            reason: `target ${targetName}: invalid input_tokens response`,
+            reason: `target ${targetName}: ${response.ok ? `invalid ${adapter.responseField} response` : `token counting returned HTTP ${response.status} without a recognized prompt bound`}`,
           };
         }
+        const description =
+          "tokens" in measurement
+            ? `exact ${measurement.tokens}`
+            : `at least ${measurement.minimumTokens}`;
         return {
           ok: true,
-          tokens,
-          detail: `exact ${tokens} tokens for ${targetName} (${targetId}) · llama.cpp`,
+          ...measurement,
+          detail: `${description} tokens for ${targetName} (${targetId}) · ${adapter.name}`,
         };
       } catch (error) {
         return {
