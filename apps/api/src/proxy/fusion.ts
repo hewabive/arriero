@@ -53,6 +53,7 @@ import { applyProxyStreamHealth } from "./stream-health.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
 import { translatedAnthropicResumableCodec } from "./translation.js";
 import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
+import { createApiProxyTokenCounter } from "./token-count.js";
 
 const maxFusionDepth = 3;
 
@@ -483,6 +484,11 @@ export async function executeApiProxyFusion(input: {
       }
     : undefined;
 
+  const countTokens = createApiProxyTokenCounter({
+    signal: input.signal,
+    fetchImpl: input.fetchImpl,
+  });
+
   const resolveBranch = (
     ref: ApiProxyPortRef,
     request: ApiProxyProtocolModelRequest,
@@ -491,6 +497,7 @@ export async function executeApiProxyFusion(input: {
     resolveApiProxyRouteChain({
       request,
       getPipeline: getApiProxyPipeline,
+      countTokens,
       ...(input.sourceId !== undefined ? { sourceId: input.sourceId } : {}),
       entry: { ref, pipeline: input.pipeline },
       ...(io?.recordRequest ? { recordRequest: io.recordRequest } : {}),

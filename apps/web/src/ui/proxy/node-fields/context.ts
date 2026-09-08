@@ -51,7 +51,7 @@ export const conditionScopeOptions = [
 
 export const predicateTypeOptions = [
   { value: "text-match", label: "Text match" },
-  { value: "token-estimate", label: "Token estimate" },
+  { value: "token-estimate", label: "Prompt tokens" },
   { value: "source", label: "Request source" },
 ];
 

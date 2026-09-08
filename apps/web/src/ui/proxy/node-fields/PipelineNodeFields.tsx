@@ -17,6 +17,7 @@ import { LoopGuardFields } from "./LoopGuardFields";
 import { OutputLimitFields } from "./OutputLimitFields";
 import { PortSelect } from "./PortSelect";
 import { ReasoningFields } from "./ReasoningFields";
+import { TokenCountFields } from "./TokenCountFields";
 import { ReplaceTextFields } from "./ReplaceTextFields";
 
 export function PipelineNodeFields(props: {
@@ -82,8 +83,8 @@ function PipelineNodeConfigFields(props: {
       return (
         <>
           <NumberInput
-            label="Reject at estimated prompt tokens"
-            description="Returns a context-overflow error at or above this local estimate. Set it below the real context size to leave room for generation."
+            label="Reject at prompt tokens"
+            description="Returns a context-overflow error at or above this count. Leave room for output tokens."
             min={1}
             max={100_000_000}
             value={node.contextLimitThreshold}
@@ -93,11 +94,11 @@ function PipelineNodeConfigFields(props: {
               })
             }
           />
-          <Text c="dimmed" size="xs">
-            The estimate covers prompt messages, system text and tools. It is a
-            fast approximation, so keep a safety margin for tokenizer
-            differences and output tokens.
-          </Text>
+          <TokenCountFields
+            value={node.tokenCount}
+            targets={ctx.targets}
+            onChange={(tokenCount) => update({ tokenCount })}
+          />
         </>
       );
     case "token-scale": {

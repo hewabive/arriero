@@ -13,6 +13,7 @@ import {
   getApiProxyPipeline,
   getApiProxyTarget,
 } from "./repository.js";
+import { createApiProxyTokenCounter } from "./token-count.js";
 import { estimateRequestTokens } from "./token-estimate.js";
 
 const explainOperations = {
@@ -85,6 +86,7 @@ export async function explainApiProxyRoute(
       stream: bodyRequestsStreaming(body),
     },
     getPipeline: getApiProxyPipeline,
+    countTokens: createApiProxyTokenCounter(),
     sourceId: input.sourceId,
   });
 

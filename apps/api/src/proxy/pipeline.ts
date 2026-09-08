@@ -7,6 +7,8 @@ import {
   applyApiProxyTextReplacements,
   applyApiProxyRequestEdits,
   assertNever,
+  defaultApiProxyTokenCountConfig,
+  type ApiProxyTokenCountConfig,
   type ApiProxyEditRequestOperation,
   type ApiProxyLoopGuardConfig,
   type ApiProxyPipelineNode,
@@ -27,6 +29,11 @@ import {
   type ApiProxyProtocolModelRequest,
 } from "./protocol.js";
 import { estimateRequestTokens } from "./token-estimate.js";
+import type {
+  ApiProxyTokenCounter,
+  ApiProxyTokenCountResult,
+} from "./token-count.js";
+import { uniqueTokenCountTarget } from "./token-count-target.js";
 
 export type ApiProxyPipelineRecordRequestInput = {
   kind: string;
@@ -277,6 +284,7 @@ export async function resolveApiProxyRouteChain(input: {
   request: ApiProxyProtocolModelRequest;
   getPipeline: (pipelineId: string) => ApiProxyPipelineRecord | null;
   sourceId?: string | null | undefined;
+  countTokens?: ApiProxyTokenCounter | undefined;
   entry?:
     | { ref: ApiProxyPortRef; pipeline: ApiProxyPipelineRecord }
     | undefined;
@@ -324,6 +332,43 @@ export async function resolveApiProxyRouteChain(input: {
   let currentPipeline: ApiProxyPipelineRecord | null =
     input.entry?.pipeline ?? null;
   let visitedNodes = 0;
+
+  const measureTokens = async (
+    config: ApiProxyTokenCountConfig | undefined,
+    node: ApiProxyPipelineNode,
+    pipeline: ApiProxyPipelineRecord,
+  ): Promise<ApiProxyTokenCountResult> => {
+    const settings = config ?? defaultApiProxyTokenCountConfig;
+    let reason = "local estimation selected";
+    if (settings.mode !== "local") {
+      const targetId =
+        settings.targetId ??
+        uniqueTokenCountTarget({
+          node,
+          pipeline,
+          callStack,
+          getPipeline: input.getPipeline,
+        });
+      const result =
+        targetId && input.countTokens
+          ? await input.countTokens(state.request, targetId)
+          : {
+              ok: false as const,
+              reason: targetId
+                ? "upstream token counter is unavailable"
+                : "no unique downstream target; select a counting target",
+            };
+      if (result.ok) return result;
+      if (settings.onUnavailable === "error") return result;
+      reason = result.reason;
+    }
+    const tokens = estimateTokens();
+    return {
+      ok: true,
+      tokens,
+      detail: `estimated ${tokens} tokens · ${reason}`,
+    };
+  };
 
   const fail = (diagnostic: ApiProxyProtocolDiagnostic) => {
     return {
@@ -548,12 +593,29 @@ export async function resolveApiProxyRouteChain(input: {
         break;
       }
       case "context-limit": {
-        const estimatedTokens = estimateTokens();
-        const rejected = estimatedTokens >= node.config.thresholdTokens;
+        const count = await measureTokens(
+          node.config.tokenCount,
+          node,
+          pipeline,
+        );
+        if (!count.ok) {
+          state.routeTrace.push(
+            nodeStep(pipeline, node, { detail: count.reason }),
+          );
+          return fail(
+            routeDiagnostic(
+              503,
+              "arriero_proxy_token_count_unavailable",
+              count.reason,
+              null,
+            ),
+          );
+        }
+        const rejected = count.tokens >= node.config.thresholdTokens;
         state.routeTrace.push(
           nodeStep(pipeline, node, {
             port: rejected ? null : "next",
-            detail: `estimated ${estimatedTokens} / threshold ${node.config.thresholdTokens} tokens${rejected ? " · rejected" : ""}`,
+            detail: `${count.detail} / threshold ${node.config.thresholdTokens} tokens${rejected ? " · rejected" : ""}`,
           }),
         );
         if (rejected) {
@@ -795,10 +857,28 @@ export async function resolveApiProxyRouteChain(input: {
         break;
       }
       case "condition": {
-        const outcome = evaluateApiProxyCondition(node.config.predicate, {
+        const predicate = node.config.predicate;
+        const count =
+          predicate.type === "token-estimate"
+            ? await measureTokens(predicate.tokenCount, node, pipeline)
+            : null;
+        if (count && !count.ok) {
+          state.routeTrace.push(
+            nodeStep(pipeline, node, { detail: count.reason }),
+          );
+          return fail(
+            routeDiagnostic(
+              503,
+              "arriero_proxy_token_count_unavailable",
+              count.reason,
+              null,
+            ),
+          );
+        }
+        const outcome = evaluateApiProxyCondition(predicate, {
           body: state.request.body,
           sourceId,
-          estimateTokens,
+          estimateTokens: count ? () => count.tokens : estimateTokens,
         });
         if (!outcome.ok) {
           return fail(
@@ -811,7 +891,13 @@ export async function resolveApiProxyRouteChain(input: {
         }
         const port = outcome.value ? "true" : "false";
         state.routeTrace.push(
-          nodeStep(pipeline, node, { port, detail: outcome.detail }),
+          nodeStep(pipeline, node, {
+            port,
+            detail:
+              count && predicate.type === "token-estimate"
+                ? `${count.detail} ${outcome.value ? ">=" : "<"} ${predicate.minTokens}`
+                : outcome.detail,
+          }),
         );
         ref = outcome.value ? node.ports.true : node.ports.false;
         break;

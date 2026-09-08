@@ -7,6 +7,7 @@ import {
   predicateTypeOptions,
   type PipelineEditorContext,
 } from "./context";
+import { TokenCountFields } from "./TokenCountFields";
 import { PortSelect } from "./PortSelect";
 
 type ConditionNodeDraft = PipelineNodeDraftOf<"condition">;
@@ -72,15 +73,22 @@ export function ConditionFields(props: {
         </>
       )}
       {node.predicateType === "token-estimate" && (
-        <NumberInput
-          label="Min tokens (estimated)"
-          description="True when the estimated request size is at least this many tokens."
-          min={1}
-          value={node.minTokens}
-          onChange={(value) =>
-            update({ minTokens: typeof value === "number" ? value : "" })
-          }
-        />
+        <>
+          <NumberInput
+            label="Min prompt tokens"
+            description="True when the prompt count for the selected target is at least this many tokens."
+            min={1}
+            value={node.minTokens}
+            onChange={(value) =>
+              update({ minTokens: typeof value === "number" ? value : "" })
+            }
+          />
+          <TokenCountFields
+            value={node.tokenCount}
+            targets={ctx.targets}
+            onChange={(tokenCount) => update({ tokenCount })}
+          />
+        </>
       )}
       {node.predicateType === "source" && (
         <Select

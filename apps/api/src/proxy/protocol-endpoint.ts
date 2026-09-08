@@ -80,6 +80,7 @@ import {
   getApiProxyPipeline,
   getApiProxyTarget,
 } from "./repository.js";
+import { createApiProxyTokenCounter } from "./token-count.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import {
   armApiProxyReasoningControl,
@@ -396,6 +397,7 @@ async function proxyProtocolEndpointInner(
   const routeResult = await resolveApiProxyRouteChain({
     request: resolution.request,
     getPipeline: getApiProxyPipeline,
+    countTokens: createApiProxyTokenCounter({ signal: c.req.raw.signal }),
     sourceId: trace.sourceId,
     lookupCache: getApiProxyCachedResponse,
     findInFlight: findApiProxyInFlight,

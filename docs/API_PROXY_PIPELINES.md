@@ -24,6 +24,8 @@ Source map:
   detection and enforcement (`docs/API_PROXY_LOOP_GUARD.md`).
 - `apps/api/src/proxy/condition.ts` — predicate evaluation.
 - `apps/api/src/proxy/token-estimate.ts` — local token estimator.
+- `apps/api/src/proxy/token-count.ts` — request-scoped llama.cpp prompt counter.
+- `apps/api/src/proxy/token-count-target.ts` — downstream counting-target inference.
 - `apps/api/src/proxy/request-text.ts` — request text extraction (scopes).
 - `apps/api/src/proxy/pipeline-validation.ts` — save-time graph validation.
 - `apps/api/src/proxy/route-explain.ts` — dry-run explain endpoint.
@@ -99,8 +101,8 @@ in the sub-sections below.
 - **`output-limit`** — `maxTokens` + `mode: cap|set`: bounds `max_tokens` on the
   request (see below). (`next`)
 - **`context-limit`** — `thresholdTokens`: rejects a request with a
-  protocol-compatible context-overflow error when the locally estimated prompt
-  size reaches the threshold (see below). (`next`)
+  protocol-compatible context-overflow error when the prompt
+  count reaches the threshold (see below). (`next`)
 - **`token-scale`** — `factor`: divides request token limits and multiplies
   client-visible response usage, while operational metrics stay actual (see
   below). (`next`)
@@ -221,25 +223,18 @@ was already satisfied.
 
 ### Context limit
 
-The `context-limit` node is a preflight guard for context-window headroom. It
-uses the same fast local estimator as the `token-estimate` condition, counting
-message and system text, per-message overhead and serialized tools. When the
-estimate is greater than or equal to `thresholdTokens`, routing stops before a
-target, lease or model generation is started.
+The `context-limit` node compares prompt tokens with `thresholdTokens`. At or above
+that threshold it stops routing with a protocol-compatible HTTP 400 context-overflow
+error. Anthropic clients receive `invalid_request_error: Prompt is too long`, which
+Claude Code can handle by compacting and retrying. Below the threshold it follows
+`next`. Leave room below the actual context window for generated output: this guard
+counts the prompt, not future output.
 
-Anthropic requests receive HTTP 400 with
-`invalid_request_error: Prompt is too long`, which Claude Code recognizes as a
-recoverable context overflow and can answer by compacting and retrying. OpenAI
-requests receive the equivalent HTTP 400 `invalid_request_error`. A request
-below the threshold follows `next` normally. Both the estimate and threshold
-are recorded in `routeTrace`.
-
-The estimator is deliberately approximate and measures prompt tokens, not the
-future generated response. Configure the threshold below the model's real
-context size, leaving enough margin for tokenizer differences and the desired
-output budget. The guard operates on the body as transformed by earlier
-pipeline nodes, so placement controls whether edits and attribution stripping
-affect its estimate.
+Both this node and the `token-estimate` condition accept an optional `tokenCount`
+configuration; see **Prompt token counting** below. Counts reflect the request at
+this node, including earlier body edits. Later changes are not included, so place
+protective guards after prompt-changing nodes. Trace details record the source,
+counting target, count and threshold, or why exact counting was unavailable.
 
 ### Response-side Replace text
 
@@ -315,32 +310,75 @@ usage.
   roles and the Anthropic top-level `system` field), or `full-body`
   (serialized JSON). Conditions see the request **after** any `replace-text`
   nodes earlier on the route — normalize first, then match.
-- `token-estimate` — true when the estimated request size ≥ `minTokens`.
+- `token-estimate` — true when the prompt count ≥ `minTokens`; the persisted
+  predicate name is retained for compatibility. The UI calls it "Prompt tokens".
 - `source` — true when the request's resolved source id (see `proxy/sources.ts`)
   equals `sourceId`; `null` matches anonymous requests.
 
-### Token estimation is local by design
+### Prompt token counting
 
-Resolution runs as a pure pre-pass before the gateway decision and lease
-acquisition (`protocol-endpoint.ts`), so a condition may not depend on live
-GPU state — asking a managed `llama-server` to `/tokenize` could require
-starting it, which is the scheduler's job and would invert the layering (and
-invite pathological swaps: load model A to count tokens for a request that
-then routes to B). Instead `token-estimate.ts` estimates from text alone with
-per-codepoint weights (tokens per character):
+`context-limit.config.tokenCount` and the `token-estimate` predicate's `tokenCount`
+share this configuration. Omission has the same behavior as these defaults:
 
-- whitespace and ASCII alphanumerics: 0.25 (≈4 chars/token)
-- other ASCII: 0.4
-- Cyrillic (U+0400–U+04FF): 0.45 (≈2.2 chars/token)
-- CJK ranges: 1.0
-- everything else: 0.5
+```json
+{
+  "mode": "auto",
+  "targetId": null,
+  "onUnavailable": "estimate"
+}
+```
 
-Counted text: all message contents (string or text parts), Anthropic `system`,
-completion `prompt`, plus serialized `tools`; +4 tokens per message; if the
-body has no messages at all, the serialized body. Accuracy vs a real llama
-tokenizer is ±10–20%, which is fine for routing thresholds — the UI labels the
-field "estimated". The estimate is memoized per resolution and invalidated
-when a `replace-text` node changes the body.
+- `mode: auto` tries upstream counting. `local` always uses the local estimator.
+- `targetId: null` infers the sole downstream target. An explicit ID chooses the
+  model to count for, independently of the eventual generation target. These IDs
+  participate in save-time validation and target deletion protection.
+- `onUnavailable: estimate` falls back visibly; `error` returns HTTP 503 with
+  `arriero_proxy_token_count_unavailable`. An unavailable count is never reported
+  as context overflow or as zero. `local` ignores this fallback policy.
+
+For "too large for A → B", explicitly select A on the condition. Count for A once
+and follow `false` to A or `true` to B; choosing B does not reevaluate the condition.
+Add a guard on B's branch when its own limit must also be checked.
+
+Automatic inference walks outgoing routes without executing nodes. It follows
+pipeline tail jumps, conditions and `call`/`exit` with the current caller stack;
+converging branches to one target are unambiguous. Unwired paths, missing or disabled
+pipelines, multiple targets, fusion, and traversal-budget exhaustion cannot infer a
+target. Fusion branches can count once executing independently, but a guard ahead
+of fusion cannot infer one from its panel or synthesizer.
+
+The first adapter supports text chat requests on managed llama.cpp instances and
+external `llama-native` endpoints, without peer delegation. OpenAI chat and Anthropic
+Messages are prepared through `prepareApiProxyUpstreamRequest`, including our
+Anthropic bridge and per-upstream reasoning mapping, then sent to
+`POST /v1/chat/completions/input_tokens`. The target's model override matches
+forwarding. The server renders its chat template and returns `input_tokens`, without
+generation. Multimodal input and other operations/engines are unavailable in this
+adapter. Old servers without the counting endpoint follow the configured fallback.
+
+Before counting, `GET /props?model=…&autoload=false` must report
+`is_sleeping: false`. The counting POST also uses `autoload=false`. Neither path
+calls arriero's scheduler, starts an instance, or requests a model load. Readiness
+and counting share a 3-second timeout and client cancellation; redirects are not
+followed. **The upstream API has no atomic "do not wake" option:** a model that goes
+to sleep between the readiness GET and counting POST may still be woken by
+llama.cpp. Sleeping or unloaded models observed by the probe are skipped. A strict
+no-wake guarantee for concurrent idle sleep requires upstream support; the GET is
+not a residency lease.
+
+Counts (and failed attempts) are memoized within one route request by counting
+target, URL, operation path and prepared body. Changed bodies and other targets
+have separate entries. The route-explain endpoint uses the same counter; its
+separate `tokenEstimate` summary remains the local estimate of the original body,
+while each route step records the count actually used for that decision.
+
+The local fallback uses per-codepoint weights: whitespace and ASCII alphanumerics
+0.25, other ASCII 0.4, Cyrillic 0.45, CJK 1.0, everything else 0.5. It counts message
+text, Anthropic system text, completion prompt and serialized tool definitions,
+plus four tokens per message; without messages it falls back to serialized JSON.
+It does not reproduce chat templates or cover all structured content, such as
+OpenAI tool-call arguments, and has no guaranteed error bound. Its memo is
+invalidated by prompt-changing nodes.
 
 ## Functions: call and exit
 

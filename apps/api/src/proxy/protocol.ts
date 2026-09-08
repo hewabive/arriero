@@ -33,6 +33,7 @@ type ApiProxyProtocolDiagnosticCode =
   | "arriero_proxy_route_unbound"
   | "arriero_proxy_route_invalid"
   | "arriero_proxy_context_overflow"
+  | "arriero_proxy_token_count_unavailable"
   | "arriero_proxy_action_unsupported"
   | "arriero_proxy_instance_not_found"
   | "arriero_proxy_instance_start_failed"
@@ -185,6 +186,7 @@ type ApiProxyOperationSpec = {
   usageMeter: "resumable" | "responses" | null;
   translatesToOpenAiChat: boolean;
   countTokensResponse: boolean;
+  llamaTokenCountPath: string | null;
 };
 
 const apiProxyOperationSpecs = {
@@ -198,6 +200,7 @@ const apiProxyOperationSpecs = {
     usageMeter: "resumable",
     translatesToOpenAiChat: false,
     countTokensResponse: false,
+    llamaTokenCountPath: "/v1/chat/completions/input_tokens",
   },
   completions: {
     protocol: "openai",
@@ -209,6 +212,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
+    llamaTokenCountPath: null,
   },
   embeddings: {
     protocol: "openai",
@@ -220,6 +224,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
+    llamaTokenCountPath: null,
   },
   rerank: {
     protocol: "openai",
@@ -231,6 +236,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
+    llamaTokenCountPath: null,
   },
   responses: {
     protocol: "openai",
@@ -242,6 +248,7 @@ const apiProxyOperationSpecs = {
     usageMeter: "responses",
     translatesToOpenAiChat: false,
     countTokensResponse: false,
+    llamaTokenCountPath: null,
   },
   messages: {
     protocol: "anthropic",
@@ -253,6 +260,7 @@ const apiProxyOperationSpecs = {
     usageMeter: "resumable",
     translatesToOpenAiChat: true,
     countTokensResponse: false,
+    llamaTokenCountPath: "/v1/chat/completions/input_tokens",
   },
   "messages.count_tokens": {
     protocol: "anthropic",
@@ -264,6 +272,7 @@ const apiProxyOperationSpecs = {
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: true,
+    llamaTokenCountPath: null,
   },
 } satisfies Record<string, ApiProxyOperationSpec>;
 

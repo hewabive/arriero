@@ -112,8 +112,8 @@ export function TestBench(props: TestBenchProps) {
             <Text fw={600}>Route test bench</Text>
           </Group>
           <Text c="dimmed" size="sm">
-            Dry-run a request body through the routing graph — nothing is
-            forwarded, captured or counted.
+            Trace a request through the routing graph. Token guards may query an
+            available upstream for the prompt count; no response is generated.
           </Text>
         </Group>
 
@@ -211,7 +211,9 @@ export function TestBench(props: TestBenchProps) {
                 </Badge>
               )}
               {result.tokenEstimate !== null && (
-                <Badge variant="light">~{result.tokenEstimate} tokens</Badge>
+                <Badge variant="light">
+                  Local estimate: ~{result.tokenEstimate} tokens
+                </Badge>
               )}
               {result.textReplacementCount > 0 && (
                 <Badge variant="light">

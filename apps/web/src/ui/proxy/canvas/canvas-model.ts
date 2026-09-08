@@ -242,7 +242,7 @@ function nodeSummary(
     case "output-limit":
       return `${node.outputLimitMode} max_tokens ${node.outputLimitMax || "?"}`;
     case "context-limit":
-      return `reject ≥ ${node.contextLimitThreshold || "?"} tokens (est.)`;
+      return `reject ≥ ${node.contextLimitThreshold || "?"} tokens`;
     case "token-scale":
       return `visible / real ×${node.tokenScaleFactor || "?"}`;
     case "strip-attribution":
@@ -262,7 +262,7 @@ function nodeSummary(
     }
     case "condition": {
       if (node.predicateType === "token-estimate") {
-        return `≥ ${node.minTokens || "?"} tokens (est.)`;
+        return `≥ ${node.minTokens || "?"} tokens`;
       }
       if (node.predicateType === "source") {
         const source = context.sources.find(

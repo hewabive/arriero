@@ -1156,7 +1156,10 @@ test("condition token-estimate routes long requests separately", async () => {
   assert.equal(long.ok, true);
   if (long.ok && long.kind === "target") {
     assert.equal(long.targetId, "target-true");
-    assert.match(long.routeTrace[1]?.detail ?? "", /~\d+ tokens >= 1000/);
+    assert.match(
+      long.routeTrace[1]?.detail ?? "",
+      /estimated \d+ tokens.*>= 1000/,
+    );
   }
 
   const short = await resolveApiProxyRouteChain({

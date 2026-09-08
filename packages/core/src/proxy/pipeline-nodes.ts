@@ -166,8 +166,22 @@ export type ApiProxyOutputLimitConfig = z.infer<
   typeof ApiProxyOutputLimitConfigSchema
 >;
 
+export const ApiProxyTokenCountConfigSchema = z.object({
+  mode: z.enum(["auto", "local"]).default("auto"),
+  targetId: ApiProxyIdSchema.nullable().default(null),
+  onUnavailable: z.enum(["estimate", "error"]).default("estimate"),
+});
+
+export type ApiProxyTokenCountConfig = z.infer<
+  typeof ApiProxyTokenCountConfigSchema
+>;
+
+export const defaultApiProxyTokenCountConfig =
+  ApiProxyTokenCountConfigSchema.parse({});
+
 export const ApiProxyContextLimitConfigSchema = z.object({
   thresholdTokens: z.number().int().min(1).max(100_000_000).default(160_000),
+  tokenCount: ApiProxyTokenCountConfigSchema.optional(),
 });
 
 export type ApiProxyContextLimitConfig = z.infer<
@@ -213,6 +227,7 @@ export const ApiProxyConditionPredicateSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("token-estimate"),
     minTokens: z.number().int().min(1).max(100_000_000),
+    tokenCount: ApiProxyTokenCountConfigSchema.optional(),
   }),
   z.object({
     type: z.literal("source"),

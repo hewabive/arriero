@@ -12,6 +12,7 @@ import {
   parseApiProxyBodyFieldPath,
 } from "@arriero/core";
 import type {
+  ApiProxyTokenCountConfig,
   ApiProxyConditionPredicate,
   ApiProxyConditionScope,
   ApiProxyEditRequestOperation,
@@ -131,6 +132,7 @@ export type PipelineNodeDraft =
   | (PipelineNodeDraftBase & {
       type: "context-limit";
       contextLimitThreshold: number | "";
+      tokenCount?: ApiProxyTokenCountConfig;
       portNext: PortValue;
     })
   | (PipelineNodeDraftBase & {
@@ -173,6 +175,7 @@ export type PipelineNodeDraft =
       regex: boolean;
       caseSensitive: boolean;
       minTokens: number | "";
+      tokenCount?: ApiProxyTokenCountConfig;
       sourceId: string;
       portTrue: PortValue;
       portFalse: PortValue;
@@ -502,9 +505,21 @@ export function replaceTargetInDraft(
     ...draft,
     entryValue:
       draft.entryValue === previousValue ? nextValue : draft.entryValue,
-    nodes: draft.nodes.map((node) =>
-      replacePipelineNodeDraftPorts(node, previousValue, nextValue),
-    ),
+    nodes: draft.nodes.map((node) => {
+      const replaced = replacePipelineNodeDraftPorts(
+        node,
+        previousValue,
+        nextValue,
+      );
+      return (replaced.type === "condition" ||
+        replaced.type === "context-limit") &&
+        replaced.tokenCount?.targetId === previousTargetId
+        ? {
+            ...replaced,
+            tokenCount: { ...replaced.tokenCount, targetId: nextTargetId },
+          }
+        : replaced;
+    }),
   };
 }
 
@@ -699,6 +714,9 @@ function nodeDraftFromRecord(node: ApiProxyPipelineNode): PipelineNodeDraft {
         ...base,
         type: "context-limit",
         contextLimitThreshold: node.config.thresholdTokens,
+        ...(node.config.tokenCount
+          ? { tokenCount: node.config.tokenCount }
+          : {}),
         portNext: portRefToValue(node.ports.next),
       };
     case "token-scale":
@@ -755,6 +773,9 @@ function nodeDraftFromRecord(node: ApiProxyPipelineNode): PipelineNodeDraft {
           predicate.type === "text-match" ? predicate.caseSensitive : false,
         minTokens:
           predicate.type === "token-estimate" ? predicate.minTokens : "",
+        ...(predicate.type === "token-estimate" && predicate.tokenCount
+          ? { tokenCount: predicate.tokenCount }
+          : {}),
         sourceId: predicate.type === "source" ? (predicate.sourceId ?? "") : "",
         portTrue: portRefToValue(node.ports.true),
         portFalse: portRefToValue(node.ports.false),
@@ -966,6 +987,7 @@ function predicateFromDraft(
     return {
       type: "token-estimate",
       minTokens: numberOr(draft.minTokens, 1),
+      ...(draft.tokenCount ? { tokenCount: draft.tokenCount } : {}),
     };
   }
   if (draft.predicateType === "source") {
@@ -1046,6 +1068,7 @@ function nodeFromDraft(draft: PipelineNodeDraft): ApiProxyPipelineNode {
         ...base,
         type: "context-limit",
         config: {
+          ...(draft.tokenCount ? { tokenCount: draft.tokenCount } : {}),
           thresholdTokens: numberOr(
             draft.contextLimitThreshold,
             contextLimitDefaults.thresholdTokens,

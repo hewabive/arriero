@@ -44,7 +44,8 @@ unmanaged concurrency). Policy is injected via `decide()` (`domain-admission.ts`
 
 ## Pipelines
 
-Node graphs resolved as a pure pre-pass before gateway/lease. Ports reference nodes, targets or
+Node graphs resolve before gateway/lease; token guards may query an available upstream through an
+injected counter, without scheduling model loads. Ports reference nodes, targets or
 pipelines (a pipeline ref is a tail jump); `call` plus named `exit`s give function semantics; loops
 are forbidden (save-time `pipeline-validation.ts` plus runtime budgets). Nodes: `replace-text`,
 `capture-request`, `edit-request`, `reasoning`, `output-limit`, `context-limit`, `token-scale`,

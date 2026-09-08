@@ -42,6 +42,14 @@ export function collectApiProxyPipelineRefs(graph: {
     for (const { ref } of apiProxyPipelineNodePorts(node)) {
       addRef(ref);
     }
+    const tokenCount =
+      node.type === "context-limit"
+        ? node.config.tokenCount
+        : node.type === "condition" &&
+            node.config.predicate.type === "token-estimate"
+          ? node.config.predicate.tokenCount
+          : undefined;
+    if (tokenCount?.targetId) targetIds.add(tokenCount.targetId);
     if (node.type === "call") {
       pipelineIds.add(node.config.pipelineId);
     }
@@ -98,6 +106,11 @@ export function validateApiProxyPipelineGraph(
         return error;
       }
     }
+  }
+
+  for (const targetId of collectApiProxyPipelineRefs(graph).targetIds) {
+    if (!context.hasTarget(targetId))
+      return `token counting references missing target "${targetId}"`;
   }
 
   const nodeCycleError = detectNodeCycle(graph, nodeById);
