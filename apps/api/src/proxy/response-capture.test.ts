@@ -309,13 +309,15 @@ test("response plan does not cache an error body", async () => {
   assert.equal(value.cache, null);
 });
 
-test("response plan skips captures and cache writes for failed responses", () => {
+test("response plan captures failed responses without caching or transforming them", () => {
   const value = trace();
+  value.errorMessage = "nope";
   const writes: string[] = [];
   const sink = createApiProxyResponsePlanExecutor({
     effects: [
-      { type: "capture-response", nodeName: "Success only" },
+      { type: "capture-response", nodeName: "Diagnostics" },
       { type: "cache-store", key: "key-failed", ttlSeconds: 600 },
+      { type: "token-scale", factor: 10 },
     ],
     putCache: (input) => writes.push(input.key),
     trace: value,
@@ -323,15 +325,156 @@ test("response plan skips captures and cache writes for failed responses", () =>
   });
   assert.ok(sink);
 
-  sink.processText('{"error":{"message":"nope"}}', {
+  const body = '{"error":{"message":"nope"},"usage":{"completion_tokens":2}}';
+  const delivered = sink.processText(body, {
     ...jsonResponse,
     status: 502,
   });
   sink.flush();
 
-  assert.deepEqual(value.files, []);
+  assert.equal(delivered, body);
+  assert.equal(value.files.length, 1);
+  assert.deepEqual(
+    readApiProxyRequestFile(value.files[0]!.path)?.data,
+    JSON.parse(body),
+  );
   assert.deepEqual(writes, []);
 });
+
+test("response plan captures non-JSON error bodies verbatim", () => {
+  const value = trace();
+  value.errorMessage = "Bad Gateway";
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "capture-response", nodeName: null }],
+    putCache: () => {},
+    trace: value,
+    operation,
+  });
+  assert.ok(sink);
+  const body = "<html><body>Bad Gateway</body></html>";
+  assert.equal(
+    sink.processText(body, {
+      status: 502,
+      contentType: "text/html",
+      isSse: false,
+    }),
+    body,
+  );
+  sink.flush();
+  assert.equal(value.files.length, 1);
+  assert.equal(readApiProxyRequestFile(value.files[0]!.path)?.data, body);
+});
+
+test("response plan captures a completed SSE error body without caching it", async () => {
+  const value = trace();
+  value.errorMessage = "generation failed";
+  const writes: string[] = [];
+  const sink = createApiProxyResponsePlanExecutor({
+    effects: [
+      { type: "capture-response", nodeName: null },
+      { type: "cache-store", key: "sse-error", ttlSeconds: 600 },
+    ],
+    putCache: (input) => writes.push(input.key),
+    trace: value,
+    operation,
+  });
+  assert.ok(sink);
+  const body =
+    'data: {"error":{"message":"generation failed"}}\n\ndata: [DONE]\n\n';
+  const source = new Response(body).body;
+  assert.ok(source);
+  assert.equal(await new Response(sink.tap(source, sseResponse)).text(), body);
+  sink.flush();
+  assert.equal(value.files.length, 1);
+  assert.equal(readApiProxyRequestFile(value.files[0]!.path)?.data, body);
+  assert.deepEqual(writes, []);
+});
+
+for (const scenario of [
+  {
+    name: "OpenAI done",
+    operation,
+    body: 'data: {"choices":[{"delta":{"content":"Привет"}}]}\r\n\r\ndata: [DONE]\r\n\r\n',
+    complete: true,
+  },
+  {
+    name: "unfinished done frame",
+    operation,
+    body: "data: [DONE]\n",
+    complete: false,
+  },
+  {
+    name: "done text inside content",
+    operation,
+    body: 'data: {"choices":[{"delta":{"content":"[DONE]"}}]}\n\n',
+    complete: false,
+  },
+  {
+    name: "finish reason before the usage tail",
+    operation,
+    body: 'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+    complete: false,
+  },
+  {
+    name: "Anthropic message stop",
+    operation: {
+      ...operation,
+      protocol: "anthropic" as const,
+      endpoint: "messages",
+    },
+    body: 'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+    complete: true,
+  },
+  ...["completed", "failed", "incomplete"].map((ending) => ({
+    name: `Responses ${ending}`,
+    operation: { ...operation, endpoint: "responses" },
+    body: `event: response.${ending}\ndata: {"type":"response.${ending}"}\n\n`,
+    complete: true,
+  })),
+]) {
+  test(`capture after client cancellation handles ${scenario.name}`, async () => {
+    const value = trace();
+    const writes: string[] = [];
+    const plan = createApiProxyResponsePlanExecutor({
+      effects: [
+        { type: "capture-response", nodeName: null },
+        { type: "cache-store", key: "cancelled-sse", ttlSeconds: 600 },
+      ],
+      putCache: (input) => writes.push(input.key),
+      trace: value,
+      operation: scenario.operation,
+    });
+    assert.ok(plan);
+    const bytes = new TextEncoder().encode(scenario.body);
+    let offset = 0;
+    const source = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset < bytes.length) {
+          controller.enqueue(bytes.slice(offset, offset + 7));
+          offset += 7;
+        }
+      },
+    });
+    const reader = plan.tap(source, sseResponse).getReader();
+    for (let received = 0; received < bytes.length; ) {
+      const chunk = await reader.read();
+      assert.equal(chunk.done, false);
+      received += chunk.value!.length;
+    }
+    await reader.cancel();
+    plan.flush();
+    plan.flush();
+
+    assert.equal(value.files.length, scenario.complete ? 1 : 0);
+    if (scenario.complete) {
+      assert.equal(
+        readApiProxyRequestFile(value.files[0]!.path)?.data,
+        scenario.body,
+      );
+    }
+    assert.deepEqual(writes, []);
+  });
+}
 
 test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async () => {
   clearApiProxyBroadcasts();

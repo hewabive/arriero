@@ -485,8 +485,25 @@ the prefix that was visited before the hit; the cached value already includes
 the downstream side of that cache boundary. Non-streaming, buffered,
 resumable, remote, translated, fusion and SSE replies all use the same response
 executor. JSON captures store the parsed body at that stage; SSE captures store
-the complete framed text at that stage. Response effects currently run only
-for successful replies, so upstream error bodies are not persisted.
+the complete framed text at that stage. Capture nodes save successful and failed
+response bodies, including upstream HTTP errors and proxy-generated diagnostics
+after the node was visited. Non-JSON errors are preserved as text; protocol
+translation still precedes capture. This diagnostic recording is independent of
+caching: errors are never cached, and response transformations apply only to
+successful HTTP replies. A failed or cancelled transport that never delivers a
+complete body does not produce a response capture. SSE captures also recognize
+protocol completion before HTTP EOF: OpenAI `[DONE]`, Anthropic `message_stop`,
+and Responses `response.completed` / `response.failed` / `response.incomplete`.
+If the client stops reading after that event, the capture retains the framed
+text already observed at its position. A finish reason alone does not trigger
+this capture fallback because usage and other choices can still follow it.
+Cache writes still require normal stream completion.
+
+Stream completion records usage first, then lets the downstream response effects
+finish, and only then persists the trace. This ordering applies to direct,
+translated, delegated and resumed streams, so the saved trace includes the final
+capture files, cache outcome and stream health even when no server timing lookup
+delays recording.
 
 The executor runs after target metering/observation and protocol translation
 but before client delivery. This is why user transformations cannot rewrite

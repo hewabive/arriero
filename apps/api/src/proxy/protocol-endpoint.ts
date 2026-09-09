@@ -425,13 +425,14 @@ async function proxyProtocolEndpointInner(
   };
 
   if (!routeResult.ok) {
-    createResponsePlan(routeResult.responseEffects);
+    const responsePlan = createResponsePlan(routeResult.responseEffects);
     return traceDiagnosticResponse({
       c,
       adapter,
       request: resolution.request,
       trace,
       diagnostic: routeResult.diagnostic,
+      responsePlan,
     });
   }
 
@@ -546,7 +547,7 @@ async function proxyProtocolEndpointInner(
       ]),
     ];
     if (fusion.kind === "error") {
-      createResponsePlan(routeResult.responseEffects);
+      const responsePlan = createResponsePlan(routeResult.responseEffects);
       trace.textReplacementCount =
         routeResult.textReplacementCount + branchReplacements;
       return traceDiagnosticResponse({
@@ -555,6 +556,7 @@ async function proxyProtocolEndpointInner(
         request: routeResult.request,
         trace,
         diagnostic: fusion.diagnostic,
+        responsePlan,
       });
     }
     if (fusion.kind === "direct") {
@@ -620,6 +622,7 @@ async function proxyProtocolEndpointInner(
           adapter,
           request: route.request,
           trace,
+          responsePlan,
           diagnostic: {
             status: 503,
             code: "arriero_proxy_upstream_unavailable",
@@ -780,11 +783,21 @@ async function delegateRemoteTarget(input: {
       return response;
     };
     if (!upstream.ok) {
-      const text = await upstream.text().catch(() => "");
+      const text = await upstream.text();
+      const usage = usageFromNonStreamBody(operation.protocol, text);
+      if (usage) {
+        trace.usage = traceUsageFromCounts(usage);
+      }
       if (text) {
         trace.errorMessage = upstreamErrorText(text);
       }
-      return respond(text);
+      return respond(
+        applyApiProxyResponsePlanText(responsePlan, text, {
+          status: upstream.status,
+          contentType: headers.get("content-type") ?? "application/json",
+          isSse: false,
+        }),
+      );
     }
     if (!upstream.body) {
       return respond(null);
@@ -833,8 +846,8 @@ async function delegateRemoteTarget(input: {
       onStreamEnd: markPlanTruncatedOnEof(responsePlan),
       ...observer,
       onComplete: (usage) => {
+        recorder.freezeDuration();
         trace.usage = traceUsageFromCounts(usage);
-        recordWithDelegatedTrace(metered?.status);
       },
     });
     recorder.markDeferred();
@@ -849,6 +862,7 @@ async function delegateRemoteTarget(input: {
         () => {
           applyProxyStreamHealth({ trace, health: meter.health() });
           meter.finalize();
+          recordWithDelegatedTrace(upstream.status);
         },
       ),
       streamOwnerKey,
@@ -869,6 +883,7 @@ async function delegateRemoteTarget(input: {
       request,
       trace,
       diagnostic: delegationErrorDiagnostic(target, node, error),
+      responsePlan,
     });
   }
 }
@@ -997,6 +1012,7 @@ export async function serveResolvedTarget(input: {
       request: route.request,
       trace,
       diagnostic: decision.diagnostic,
+      responsePlan,
     });
   }
   trace.targetId = decision.target.id;
@@ -1070,6 +1086,7 @@ export async function serveResolvedTarget(input: {
           param: "model",
           message: `Request for model ${route.request.modelId} was aborted while queued.`,
         },
+        responsePlan,
       });
     }
   }
@@ -1119,6 +1136,7 @@ export async function serveResolvedTarget(input: {
           request: route.request,
           trace,
           diagnostic: resolved.diagnostic,
+          responsePlan,
         }),
       };
     }
@@ -1137,6 +1155,11 @@ export async function serveResolvedTarget(input: {
     const upstreamPath = adapter.upstreamPath(operation);
     if (!upstreamPath) {
       const response = adapter.notImplemented(route.request);
+      responsePlan?.processText(JSON.stringify(response.body), {
+        status: response.status,
+        contentType: "application/json",
+        isSse: false,
+      });
       return c.json(response.body, response.status);
     }
 
@@ -1148,6 +1171,7 @@ export async function serveResolvedTarget(input: {
         request: route.request,
         trace,
         diagnostic: execution.diagnostic,
+        responsePlan,
       });
     }
 
@@ -1311,19 +1335,31 @@ export async function serveResolvedTarget(input: {
       });
 
       if (!upstream.ok || !upstream.body) {
-        const text = await upstream.text().catch(() => "");
+        const text = await upstream.text();
+        const usage = usageFromNonStreamBody(forward.protocol, text);
+        if (usage) {
+          trace.usage = traceUsageFromCounts(usage);
+        }
         if (text) {
           trace.errorMessage = upstreamErrorText(text);
         }
-        if (translateAnthropic) {
-          return new Response(translateOpenAiErrorText(upstream.status, text), {
+        const headers = translateAnthropic
+          ? new Headers({ "content-type": "application/json" })
+          : upstream.headers;
+        const delivered = applyApiProxyResponsePlanText(
+          responsePlan,
+          translateAnthropic
+            ? translateOpenAiErrorText(upstream.status, text)
+            : text,
+          {
             status: upstream.status,
-            headers: { "content-type": "application/json" },
-          });
-        }
-        return new Response(text, {
+            contentType: headers.get("content-type") ?? "application/json",
+            isSse: false,
+          },
+        );
+        return new Response(upstream.body ? delivered : null, {
           status: upstream.status,
-          headers: upstream.headers,
+          headers,
         });
       }
 
@@ -1340,6 +1376,7 @@ export async function serveResolvedTarget(input: {
             cancelSignal,
             ...upstreamObserver,
           });
+          trace.usage = resumableTraceUsage(state);
           if (
             outcome.type === "consumer-gone" ||
             outcome.type === "cancelled"
@@ -1359,6 +1396,7 @@ export async function serveResolvedTarget(input: {
                 param: "model",
                 message: `Proxy target ${decision.target.name} failed to forward request: ${outcome.message}`,
               },
+              responsePlan,
             });
           }
           if (outcome.type === "truncated") {
@@ -1370,11 +1408,11 @@ export async function serveResolvedTarget(input: {
                 trace,
                 state,
                 label: `Proxy target ${decision.target.name} stream`,
+                responsePlan,
               });
             }
             responsePlan?.markTruncated();
           }
-          trace.usage = resumableTraceUsage(state);
           applyProxyStreamHealth({ trace, health: state.health });
           const task = resolveSlot();
           const final = finalFromState(bufferCodec, state, false);
@@ -1471,6 +1509,8 @@ export async function serveResolvedTarget(input: {
       const onStreamComplete = (usage: ProxyUsageCounts) => {
         recorder.freezeDuration();
         trace.usage = traceUsageFromCounts(usage);
+      };
+      const recordStream = () => {
         const task = resolveSlot();
         void applyServerGenerationTiming(trace, instanceId, task).finally(() =>
           recorder.record(metered),
@@ -1495,7 +1535,10 @@ export async function serveResolvedTarget(input: {
               upstream.status,
               upstream.headers,
             ),
-            () => translation.finalize(),
+            () => {
+              translation.finalize();
+              recordStream();
+            },
           ),
           upstream.status,
           upstream.headers,
@@ -1541,6 +1584,7 @@ export async function serveResolvedTarget(input: {
           () => {
             applyProxyStreamHealth({ trace, health: meter.health() });
             meter.finalize();
+            recordStream();
           },
         ),
         upstream.status,
@@ -1563,6 +1607,7 @@ export async function serveResolvedTarget(input: {
           param: "model",
           message: `Proxy target ${decision.target.name} failed to forward request: ${describeFetchError(error)}`,
         },
+        responsePlan,
       });
     }
   };
@@ -1750,7 +1795,9 @@ export async function serveResolvedTarget(input: {
         contentType:
           final.headers["content-type"] ??
           (route.request.stream ? "text/event-stream" : "application/json"),
-        isSse: route.request.stream,
+        isSse:
+          final.headers["content-type"]?.startsWith("text/event-stream") ??
+          route.request.stream,
       },
     );
     return recordTraceWithDeferredTiming({

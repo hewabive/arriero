@@ -201,6 +201,7 @@ export async function serveResumedStreamSession(input: {
       cancelSignal: inflight.controlSignal("cancel"),
       ...observer,
     });
+    trace.usage = resumableTraceUsage(state);
     store.finish(entry, { evict: true });
     if (outcome.type === "consumer-gone" || outcome.type === "cancelled") {
       return new Response(null, { status: CLIENT_ABORT_STATUS });
@@ -217,6 +218,7 @@ export async function serveResumedStreamSession(input: {
           param: "model",
           message: `Resumed stream replay failed: ${outcome.message}`,
         },
+        responsePlan: input.responsePlan,
       });
     }
     if (outcome.type === "truncated") {
@@ -227,9 +229,9 @@ export async function serveResumedStreamSession(input: {
         trace,
         state,
         label: "Resumed stream replay",
+        responsePlan: input.responsePlan,
       });
     }
-    trace.usage = resumableTraceUsage(state);
     applyProxyStreamHealth({ trace, health: state.health });
     const final = finalFromState(effectiveCodec, state, false);
     const delivered = applyApiProxyResponsePlanText(
@@ -251,12 +253,15 @@ export async function serveResumedStreamSession(input: {
   const onStreamComplete = (usage: ProxyUsageCounts) => {
     recorder.freezeDuration();
     applyUsage(usage);
-    recorder.record(metered);
   };
 
   if (translateAnthropic) {
     const translation = createAnthropicTranslationStream({
       ...observer,
+      onStreamEnd: (health) => {
+        markPlanTruncatedOnEof(input.responsePlan)(health);
+        applyProxyStreamHealth({ trace, health });
+      },
       onComplete: onStreamComplete,
     });
     recorder.markDeferred();
@@ -271,6 +276,7 @@ export async function serveResumedStreamSession(input: {
         () => {
           store.finish(entry, { evict: true });
           translation.finalize();
+          recorder.record(metered);
         },
       ),
       { status: upstream.status, headers: upstream.headers },
@@ -299,6 +305,7 @@ export async function serveResumedStreamSession(input: {
         store.finish(entry, { evict: true });
         applyProxyStreamHealth({ trace, health: meter.health() });
         meter.finalize();
+        recorder.record(metered);
       },
     ),
     { status: upstream.status, headers: upstream.headers },

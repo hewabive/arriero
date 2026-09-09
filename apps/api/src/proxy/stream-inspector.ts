@@ -51,7 +51,10 @@ export function createProxyStreamInspector(input: {
     genMs: upstreamGenMs === null ? 0 : Math.round(upstreamGenMs),
     health: {
       ...health,
-      terminal: ended ? classifyProxyStreamTerminal(sawDone, sawFinish) : null,
+      terminal:
+        ended || sawDone || sawFinish
+          ? classifyProxyStreamTerminal(sawDone, sawFinish)
+          : null,
     },
   });
 

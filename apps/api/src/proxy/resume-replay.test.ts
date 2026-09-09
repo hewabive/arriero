@@ -6,15 +6,19 @@ import { test } from "node:test";
 import type { Context } from "hono";
 
 import { ApiProxyInflightRegistry } from "./inflight.js";
-import { openAiResumableCodec } from "./openai.js";
+import { openAiProtocolAdapter, openAiResumableCodec } from "./openai.js";
 import { ApiProxyPendingResumeStore } from "./pending-resume.js";
+import { runWithProxyTrace } from "./protocol-endpoint.js";
 import type { ProxyTraceRecorder } from "./protocol-trace.js";
 import { createProxyTrace } from "./protocol-trace.js";
+import { readApiProxyRequestFile } from "./request-files.js";
+import { createApiProxyResponsePlanExecutor } from "./response-plan.js";
 import {
   serveResumedStreamSession,
   type ApiProxyResumeClaim,
 } from "./resume-replay.js";
 import type { ApiProxyStreamSessionEntry } from "./stream-session.js";
+import { getApiProxyTrace } from "./traces-repository.js";
 
 const operation = {
   protocol: "openai" as const,
@@ -124,6 +128,97 @@ function claimFor(
   };
 }
 
+for (const translated of [false, true]) {
+  for (const cancelAfterTerminal of [false, true]) {
+    test(`stream replay persists its capture before recording, translated=${translated}, cancelAfterTerminal=${cancelAfterTerminal}`, async () => {
+      const { store, cleanup } = await readyStore(["conv-1"]);
+      try {
+        const claim = claimFor(store);
+        assert.ok(claim);
+        claim.translateAnthropic = translated;
+        const responseOperation = translated
+          ? {
+              ...operation,
+              protocol: "anthropic" as const,
+              endpoint: "messages",
+            }
+          : operation;
+        let traceId = "";
+        const response = await runWithProxyTrace(
+          responseOperation,
+          async ({ trace, recorder, inflight }) => {
+            traceId = trace.id;
+            trace.modelId = "model-a";
+            const plan = createApiProxyResponsePlanExecutor({
+              effects: [{ type: "capture-response", nodeName: null }],
+              putCache: () => {},
+              trace,
+              operation: responseOperation,
+            });
+            assert.ok(plan);
+            recorder.beforeRecord(() => plan.flush());
+            const replayed = await serveResumedStreamSession({
+              c: fakeContext(),
+              adapter: { resumable: openAiResumableCodec } as never,
+              request: { modelId: "model-a", stream: true, body: {} } as never,
+              claim,
+              trace,
+              recorder,
+              inflight,
+              responsePlan: plan,
+              store,
+              fetchImpl: async () =>
+                cancelAfterTerminal
+                  ? new Response(
+                      new ReadableStream<Uint8Array>({
+                        start(controller) {
+                          controller.enqueue(
+                            new TextEncoder().encode(replaySse),
+                          );
+                        },
+                      }),
+                      { headers: { "content-type": "text/event-stream" } },
+                    )
+                  : sseResponse(replaySse),
+            });
+            assert.ok(replayed);
+            return replayed;
+          },
+        );
+        let delivered = "";
+        if (cancelAfterTerminal) {
+          assert.ok(response.body);
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          const terminal = translated ? "message_stop" : "[DONE]";
+          while (!delivered.includes(terminal)) {
+            const chunk = await reader.read();
+            assert.equal(chunk.done, false);
+            delivered += decoder.decode(chunk.value, { stream: true });
+          }
+          await reader.cancel();
+        } else {
+          delivered = await response.text();
+        }
+        assert.match(delivered, translated ? /message_stop/ : /\[DONE\]/);
+        const trace = getApiProxyTrace(traceId);
+        assert.ok(trace);
+        assert.equal(trace.usage?.completionTokens, 2);
+        assert.equal(trace.streamHealth?.terminal, "done");
+        assert.equal(trace.streamHealth?.truncated, false);
+        assert.equal(trace.files.length, 1);
+        assert.equal(
+          readApiProxyRequestFile(trace.files[0]!.path)?.data,
+          delivered,
+        );
+        assert.equal(store.size(), 0);
+      } finally {
+        cleanup();
+      }
+    });
+  }
+}
+
 test("non-stream replay rebuilds the buffered response and evicts", async () => {
   const { store, calls, cleanup } = await readyStore(["conv-1"]);
   try {
@@ -162,6 +257,42 @@ test("non-stream replay rebuilds the buffered response and evicts", async () => 
     assert.equal(trace.usage?.completionTokens, 2);
     assert.equal(store.size(), 0);
     assert.equal(calls.filter((call) => call.method === "DELETE").length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a failed buffered replay retains observed token and cache usage", async () => {
+  const { store, cleanup } = await readyStore(["conv-1"]);
+  try {
+    const claim = claimFor(store);
+    assert.ok(claim);
+    const trace = createProxyTrace(operation);
+    const { recorder } = fakeRecorder();
+    const inflight = new ApiProxyInflightRegistry().begin({
+      modelId: "model-a",
+      protocol: "openai",
+    });
+    const body =
+      'data: {"choices":[{"delta":{"content":"partial"}}],"usage":{"prompt_tokens":120,"completion_tokens":7,"prompt_tokens_details":{"cached_tokens":80}}}\n\n';
+    const response = await serveResumedStreamSession({
+      c: fakeContext(),
+      adapter: openAiProtocolAdapter,
+      request: { modelId: "model-a", stream: false, body: {} } as never,
+      claim,
+      trace,
+      recorder,
+      inflight,
+      responsePlan: null,
+      store,
+      fetchImpl: async () => sseResponse(body),
+    });
+    assert.ok(response);
+    assert.equal(response.status, 502);
+    assert.equal(trace.usage?.promptTokens, 120);
+    assert.equal(trace.usage?.completionTokens, 7);
+    assert.equal(trace.usage?.cacheReadTokens, 80);
+    assert.equal(trace.streamHealth?.truncated, true);
   } finally {
     cleanup();
   }

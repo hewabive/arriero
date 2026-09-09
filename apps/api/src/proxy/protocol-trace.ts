@@ -15,6 +15,7 @@ import type {
   ApiProxyProtocolOperation,
 } from "./protocol.js";
 import type { ResumableBufferState } from "./resumable-forward.js";
+import type { ApiProxyResponsePlanExecutor } from "./response-plan.js";
 import {
   ratePerSecondFromUsage,
   type ProxyUsageCounts,
@@ -132,6 +133,7 @@ export function traceDiagnosticResponse(input: {
   request: ApiProxyProtocolModelRequest;
   trace: ProxyTraceAccumulator;
   diagnostic: ApiProxyProtocolDiagnostic;
+  responsePlan?: ApiProxyResponsePlanExecutor | null;
 }): Response {
   applyTraceDiagnostic(input.trace, input.diagnostic);
   const response = input.adapter.diagnosticError(
@@ -141,6 +143,11 @@ export function traceDiagnosticResponse(input: {
   for (const [name, value] of Object.entries(response.headers ?? {})) {
     input.c.header(name, value);
   }
+  input.responsePlan?.processText(JSON.stringify(response.body), {
+    status: response.status,
+    contentType: "application/json",
+    isSse: false,
+  });
   return input.c.json(response.body, response.status);
 }
 
@@ -151,6 +158,7 @@ export function truncatedStreamResponse(input: {
   trace: ProxyTraceAccumulator;
   state: ResumableBufferState;
   label: string;
+  responsePlan?: ApiProxyResponsePlanExecutor | null;
 }): Response {
   applyProxyStreamHealth({ trace: input.trace, health: input.state.health });
   return traceDiagnosticResponse({
@@ -158,6 +166,7 @@ export function truncatedStreamResponse(input: {
     adapter: input.adapter,
     request: input.request,
     trace: input.trace,
+    responsePlan: input.responsePlan ?? null,
     diagnostic: {
       status: 502,
       code: "arriero_proxy_upstream_error",

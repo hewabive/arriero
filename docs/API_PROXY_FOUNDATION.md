@@ -164,6 +164,13 @@ Every request emits an `ApiProxyRequestTrace` recorded by the Observer `proxy/st
 - **Streaming** tees frames as they pass. OpenAI streaming injects `stream_options.include_usage` and strips the synthetic usage chunk again when the client did not ask for it.
 - **Translated Anthropic streams** skip the meter entirely and report telemetry from the bridge emitter's `extensions` side-channel inside the translation transform (`docs/ANTHROPIC_OPENAI_BRIDGE.md`), so their streaming stats are recorded deferred at stream end rather than per frame.
 
+Reported usage is retained independently of HTTP success: JSON error responses
+are metered before protocol translation, and buffered streams keep the counts
+already observed when they fail or are cancelled. Recent requests and request
+history display those token and prompt-cache counts on failed rows too. HTTP
+errors without usage leave those measurements unknown; the proxy does not infer
+them from the request text or the HTTP status.
+
 Two trace fields carry the decision/failure evidence. `schedulerActions` persists the scheduler's full action objects (`type`, `targetId`, `instanceId`, `model`, `slotId`, `reason`) from the admission plan, so "why was this model evicted" survives with the request that caused it. Rows written before 2026-08-08 stored bare action-type strings; the trace schema keeps a legacy string arm that normalizes them on read into action objects whose evidence fields are `null`, and that arm exists only for those old rows — removable after 2026-09-07, the 30-day retention horizon. `errorCode` stores the structured diagnostic code of a failed request — the `arriero_proxy_*` codes from `proxy/protocol.ts` plus the auth-gate codes, assigned at the choke point where a diagnostic becomes the trace's error (`protocol-trace.ts:traceDiagnosticResponse`, with `protocol-trace.ts:applyTraceDiagnostic` for the resumable paths that answer with a rebuilt final body) — or `client-abort` when the client hung up first.
 
 The `cache`-node response store is managed out of band via `GET` / `DELETE /api/proxy/cache` (size / clear); see `docs/API_PROXY_RESPONSE_CACHE.md`.

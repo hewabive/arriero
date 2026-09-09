@@ -79,6 +79,13 @@ cacheability. The hook deliberately does not fire when the client aborts
 mid-stream (the transform flush never runs on cancel), so client aborts are
 not misclassified as upstream truncation.
 
+The inspector exposes an observed done marker or finish reason before HTTP EOF.
+If a client stops reading after `[DONE]`, the trace therefore keeps its terminal
+evidence even though the transform flush does not run. The usage meter reads this
+evidence before finalization, keeping a missing terminal unknown on client
+cancellation. Response captures use their own positional protocol-completion check; see
+[API_PROXY_PIPELINES](API_PROXY_PIPELINES.md#capture-semantics).
+
 ## Malformed payloads
 
 `parseChunk` on both protocol codecs returns `"malformed"` for an SSE `data:`
@@ -92,8 +99,8 @@ warning through the shared logger with the sample — the swallowed-error rule
 applied to stream parsing. A malformed payload never aborts the stream; the
 count is diagnostic.
 
-The sans-IO Anthropic↔OpenAI bridge package keeps its own parsing and is not
-covered by this accounting; the translated streaming path reports no terminal.
+The translated streaming path observes the upstream OpenAI frames before the
+sans-IO Anthropic↔OpenAI bridge and reports their terminal and malformed payloads.
 
 ## Idle timeout
 
@@ -131,5 +138,6 @@ bound.
 traces table at `#/proxy/traces` shows `truncated` (red), `re-stitched`
 (yellow — the stream was cut off but truncation retries completed it) and
 `malformed` (orange) badges in the Stream column; the full object is visible in
-the trace inspector. `streamHealth` stays `null` for flows where nothing was
-measured (non-SSE responses, translated Anthropic streaming).
+the trace inspector. `streamHealth` stays `null` when no terminal, malformed payload
+or retry evidence was observed, including non-SSE responses and usage-meter paths
+cancelled before any terminal or malformed frame.

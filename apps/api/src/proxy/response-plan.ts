@@ -1,4 +1,5 @@
 import { saveApiProxyRequestFile } from "./request-files.js";
+import { asObject } from "./json.js";
 import {
   apiProxyLoopGuardArtifact,
   createApiProxyLoopGuardDetector,
@@ -12,7 +13,11 @@ import type {
   ApiProxyCacheStoreEffect,
   ApiProxyResponseEffect,
 } from "./pipeline.js";
-import type { ApiProxyProtocolOperation } from "./protocol.js";
+import {
+  apiProxyResponseShape,
+  type ApiProxyProtocolOperation,
+  type ApiProxyResponseShape,
+} from "./protocol.js";
 import { safeJsonParse, type ProxyTraceAccumulator } from "./protocol-trace.js";
 import {
   abortApiProxyBroadcast,
@@ -20,6 +25,10 @@ import {
   pushApiProxyBroadcast,
 } from "./response-broadcast.js";
 import { settleApiProxyInFlight } from "./response-coalesce.js";
+import {
+  createApiProxySseFrameBuffer,
+  parseApiProxySseJsonFrame,
+} from "./response-codec.js";
 import {
   createApiProxyResponseReplaceStream,
   replaceApiProxyResponseSseText,
@@ -98,6 +107,24 @@ function isSuccessStatus(metadata: ApiProxyResponseMetadata): boolean {
   return metadata.status >= 200 && metadata.status < 300;
 }
 
+function isResponseTerminalFrame(
+  frame: string,
+  shape: ApiProxyResponseShape,
+): boolean {
+  const parsed = parseApiProxySseJsonFrame(frame);
+  if (shape === "openai-chat") {
+    return parsed.hasDone;
+  }
+  return parsed.payloads.some(({ value }) => {
+    const type = asObject(value)?.type;
+    return shape === "anthropic"
+      ? type === "message_stop"
+      : type === "response.completed" ||
+          type === "response.failed" ||
+          type === "response.incomplete";
+  });
+}
+
 export function createApiProxyResponsePlanExecutor(input: {
   effects: ApiProxyResponseEffect[];
   putCache: ApiProxyResponseCacheWriter;
@@ -135,13 +162,7 @@ export function createApiProxyResponsePlanExecutor(input: {
     const text = state.tapped ? state.streamedText : state.explicitText;
     const complete = !state.tapped || state.streamComplete;
     if (state.effect.type === "capture-response") {
-      if (
-        text === null ||
-        !complete ||
-        meta === null ||
-        !isSuccessStatus(meta) ||
-        Boolean(input.trace.errorMessage)
-      ) {
+      if (text === null || !complete || meta === null) {
         return;
       }
       input.trace.files.push(
@@ -260,11 +281,26 @@ export function createApiProxyResponsePlanExecutor(input: {
           )
         : [];
     const decoder = new TextDecoder();
+    const shape = apiProxyResponseShape(input.operation);
+    const frames =
+      meta?.isSse &&
+      group.some((state) => state.effect.type === "capture-response")
+        ? createApiProxySseFrameBuffer()
+        : null;
     let text = "";
     return stream.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
           text += decoder.decode(chunk, { stream: true });
+          const terminal = frames
+            ?.push(chunk)
+            .some((frame) => isResponseTerminalFrame(frame, shape));
+          for (const state of group) {
+            state.streamedText = text;
+            if (terminal && state.effect.type === "capture-response") {
+              state.streamComplete = true;
+            }
+          }
           for (const key of cacheKeys) {
             pushApiProxyBroadcast(key, chunk);
           }
