@@ -10,11 +10,38 @@ type TokenCountAdapter = {
   name: string;
   path: string;
   llamaReadiness: boolean;
+  supportsRequest: (body: unknown) => boolean;
   prepareBody: (body: Record<string, unknown>) => Record<string, unknown>;
   read: (body: unknown, status: number) => ApiProxyTokenMeasurement | null;
   responseField: string;
   errorStatus: number | null;
 };
+
+function supportsChatRequest(body: unknown, supportsImages = false): boolean {
+  const messages = asObject(body)?.messages;
+  return (
+    Array.isArray(messages) &&
+    messages.every((message) => {
+      const item = asObject(message);
+      if (!item || item.audio != null) return false;
+      const content = item.content;
+      return (
+        content == null ||
+        typeof content === "string" ||
+        (Array.isArray(content) &&
+          content.every((part) => {
+            const block = asObject(part);
+            return (
+              (block?.type === "text" && typeof block.text === "string") ||
+              (supportsImages &&
+                block?.type === "image_url" &&
+                typeof asObject(block.image_url)?.url === "string")
+            );
+          }))
+      );
+    })
+  );
+}
 
 function isTokenNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -66,6 +93,7 @@ export const tokenCountAdapters: Record<
     name: "llama.cpp",
     path: "/v1/chat/completions/input_tokens",
     llamaReadiness: true,
+    supportsRequest: (body) => supportsChatRequest(body, true),
     prepareBody: (body) => body,
     responseField: "input_tokens",
     errorStatus: null,
@@ -78,6 +106,7 @@ export const tokenCountAdapters: Record<
     name: "SGLang",
     path: "/v1/tokenize",
     llamaReadiness: false,
+    supportsRequest: supportsChatRequest,
     prepareBody: nonStreamingBody,
     responseField: "count",
     errorStatus: null,
@@ -90,6 +119,7 @@ export const tokenCountAdapters: Record<
     name: "vLLM",
     path: "/v1/chat/completions/render",
     llamaReadiness: false,
+    supportsRequest: supportsChatRequest,
     prepareBody: nonStreamingBody,
     responseField: "token_ids",
     errorStatus: 400,

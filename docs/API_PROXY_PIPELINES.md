@@ -352,9 +352,11 @@ Text chat counting supports managed llama.cpp, SGLang and vLLM instances, plus
 external `llama-native` endpoints, without peer delegation. The engine descriptor's
 `proxy.tokenCount` selects the adapter; a generic external OpenAI profile does not
 identify an engine and is not probed. KTransformers remains unsupported, including
-SGLang-KT releases whose `/tokenize` accepts only a rendered string. Multimodal
-input and operations other than OpenAI Chat Completions and Anthropic Messages
-follow the configured fallback.
+SGLang-KT releases whose `/tokenize` accepts only a rendered string. The llama.cpp
+adapter also accepts images in OpenAI `image_url` parts, including Anthropic images
+translated by the bridge and screenshots hoisted from tool results. SGLang and vLLM
+counting remain text-only. Other multimodal content and operations other than OpenAI
+Chat Completions and Anthropic Messages follow the configured fallback.
 
 Requests use `prepareApiProxyUpstreamRequest`, including the same Anthropic bridge,
 translation dialect and per-upstream reasoning mapping as forwarding. The target's
@@ -367,6 +369,11 @@ shape the prompt; SGLang and vLLM probes set `stream: false` and remove
 | llama.cpp | `POST /v1/chat/completions/input_tokens?autoload=false` | `input_tokens` |
 | SGLang | `POST /v1/tokenize` with `messages` | `count`, from the chat preparation handler shared with generation |
 | vLLM | `POST /v1/chat/completions/render` | length of `token_ids`, using generation's chat preparation including tools, reasoning and Harmony |
+
+The llama.cpp image path was verified against checkout `9e0e22059`: the counting
+handler applies the chat template and uses `process_mtmd_prompt` in placeholder
+mode to count media tokens without generating a response. A server without the
+endpoint or a compatible multimodal projector follows the configured fallback.
 
 The SGLang adapter targets the chat-capable tokenization API verified in 0.5.19.
 The vLLM render API was verified in 0.28.0. Servers lacking those APIs, a disabled
@@ -412,10 +419,22 @@ while each route step records the count actually used for that decision.
 The local fallback uses per-codepoint weights: whitespace and ASCII alphanumerics
 0.25, other ASCII 0.4, Cyrillic 0.45, CJK 1.0, everything else 0.5. It counts message
 text, Anthropic system text, completion prompt and serialized tool definitions,
-plus four tokens per message; without messages it falls back to serialized JSON.
-It does not reproduce chat templates or cover all structured content, such as
-OpenAI tool-call arguments, and has no guaranteed error bound. Its memo is
-invalidated by prompt-changing nodes.
+plus four tokens per message. Its content traversal includes nested Anthropic
+`tool_result.content`, `thinking`, tool names and serialized `tool_use.input`,
+OpenAI `tool_calls[].function` names and arguments, and `reasoning_content` or
+`reasoning`. Legacy OpenAI `function_call` and `functions` are included too.
+Thinking signatures and image encodings/URLs are excluded from text counting.
+An image-bearing chat request gets a text-only estimate, with the unestimated image
+count explicitly recorded in the route step. No fixed per-image token allowance is
+invented. `onUnavailable: estimate` still uses this incomplete estimate; use `auto`
+with `onUnavailable: error` when unavailable exact counting must stop routing.
+
+Without recognized message content, messages or images, the estimator falls back
+to serialized JSON. It does not reproduce chat templates or cover every protocol
+shape, and has no guaranteed error bound. Its memo is invalidated by prompt-changing
+nodes. Estimator content extraction is separate from `text-match`; condition scopes
+retain their existing message-text semantics and do not gain thinking, tool-call
+arguments or nested Anthropic tool-result text.
 
 ## Functions: call and exit
 

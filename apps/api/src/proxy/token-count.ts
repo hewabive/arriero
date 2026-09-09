@@ -27,28 +27,6 @@ export type ApiProxyTokenCounter = (
   targetId: string,
 ) => Promise<ApiProxyTokenCountResult>;
 
-function isTextChat(body: unknown): boolean {
-  const messages = asObject(body)?.messages;
-  return (
-    Array.isArray(messages) &&
-    messages.every((message) => {
-      const item = asObject(message);
-      if (!item) return false;
-      if (item.audio != null) return false;
-      const content = item.content;
-      return (
-        content == null ||
-        typeof content === "string" ||
-        (Array.isArray(content) &&
-          content.every((part) => {
-            const text = asObject(part);
-            return text?.type === "text" && typeof text.text === "string";
-          }))
-      );
-    })
-  );
-}
-
 export function createApiProxyTokenCounter(
   options: {
     signal?: AbortSignal | undefined;
@@ -102,11 +80,10 @@ export function createApiProxyTokenCounter(
       instanceId: context.instanceId,
       endpointId: context.endpointId,
     });
-    if (!isTextChat(forward.body)) {
+    if (!adapter.supportsRequest(forward.body)) {
       return {
         ok: false,
-        reason:
-          "exact token counting currently supports text chat requests only",
+        reason: `${adapter.name} token counting does not support this chat content`,
       };
     }
     const body = adapter.prepareBody({

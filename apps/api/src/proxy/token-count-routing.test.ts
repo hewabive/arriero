@@ -52,15 +52,21 @@ function sizeCondition(tokenCount?: unknown) {
 function run(
   pipelines: ApiProxyPipelineRecord[],
   countTokens: ApiProxyTokenCounter,
+  body: unknown = {
+    model: "public",
+    messages: [{ role: "user", content: "hello" }],
+  },
+  protocol: "openai" | "anthropic" = "openai",
 ) {
   const request: ApiProxyProtocolModelRequest = {
     operation: {
-      protocol: "openai",
-      endpoint: "chat.completions",
-      routePath: "/v1/chat/completions",
+      protocol,
+      endpoint: protocol === "anthropic" ? "messages" : "chat.completions",
+      routePath:
+        protocol === "anthropic" ? "/v1/messages" : "/v1/chat/completions",
       transport: "http-json",
     },
-    body: { model: "public", messages: [{ role: "user", content: "hello" }] },
+    body,
     modelId: "public",
     model: ApiProxyModelRecordSchema.parse({
       id: "m",
@@ -251,6 +257,124 @@ test("unavailable upstream falls back visibly or returns a separate 503, while l
     },
   );
   assert.ok(local.ok);
+});
+
+test("context limit rejects large agent history when exact counting is unavailable", async () => {
+  const body = {
+    messages: [
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "x".repeat(400_000) },
+          { type: "tool_use", name: "read", input: { path: "/file" } },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            content: [{ type: "text", text: "x".repeat(400_000) }],
+          },
+        ],
+      },
+    ],
+  };
+  const result = await run(
+    [graph([{ ...limit(targetA), config: { thresholdTokens: 200_000 } }])],
+    async () => ({ ok: false, reason: "model is sleeping" }),
+    body,
+    "anthropic",
+  );
+  assert.ok(!result.ok);
+  assert.equal(result.diagnostic.code, "arriero_proxy_context_overflow");
+  assert.match(
+    result.routeTrace.at(-1)?.detail ?? "",
+    /estimated.*model is sleeping.*rejected/,
+  );
+});
+
+test("multimodal guards and conditions expose incomplete fallback estimates and preserve strict mode", async () => {
+  const body = {
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            content: [
+              { type: "text", text: "screenshot" },
+              {
+                type: "image",
+                source: { type: "base64", data: "A".repeat(900_000) },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  for (const mode of ["auto", "local"] as const) {
+    for (const node of [
+      limit(targetA, { mode }),
+      sizeCondition({ mode, targetId: "A" }),
+    ]) {
+      const result = await run(
+        [graph([node])],
+        async () => {
+          assert.equal(mode, "auto");
+          return { ok: false, reason: "token counting returned HTTP 404" };
+        },
+        body,
+        "anthropic",
+      );
+      assert.ok(result.ok && result.kind === "target");
+      assert.equal(result.targetId, "A");
+      assert.match(
+        result.routeTrace.at(-1)?.detail ?? "",
+        /estimated.*text only; images not estimated: 1/,
+      );
+    }
+  }
+  const strict = await run(
+    [graph([limit(targetA, { onUnavailable: "error" })])],
+    async () => ({ ok: false, reason: "token counting returned HTTP 404" }),
+    body,
+    "anthropic",
+  );
+  assert.ok(!strict.ok);
+  assert.equal(strict.diagnostic.status, 503);
+  assert.equal(strict.diagnostic.code, "arriero_proxy_token_count_unavailable");
+});
+
+test("context limit applies a 200000 threshold to the exact multimodal prompt count", async () => {
+  const body = {
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: "data:image/png;base64,AAA" },
+          },
+        ],
+      },
+    ],
+  };
+  const result = await run(
+    [graph([{ ...limit(targetA), config: { thresholdTokens: 200_000 } }])],
+    async (request) => {
+      assert.deepEqual(request.body, body);
+      return { ok: true, tokens: 223_712, detail: "exact 223712 tokens" };
+    },
+    body,
+  );
+  assert.ok(!result.ok);
+  assert.equal(result.diagnostic.code, "arriero_proxy_context_overflow");
+  assert.match(
+    result.routeTrace.at(-1)?.detail ?? "",
+    /exact 223712.*rejected/,
+  );
 });
 
 test("counting target participates in reference validation and deletion protection", () => {

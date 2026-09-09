@@ -44,7 +44,7 @@ export async function explainApiProxyRoute(
     diagnostic: null,
     routeTrace: [],
     textReplacementCount: 0,
-    tokenEstimate: estimateRequestTokens(body),
+    tokenEstimate: estimateRequestTokens(body).tokens,
     transformedBody: null,
   };
 

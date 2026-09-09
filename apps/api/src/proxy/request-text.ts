@@ -100,21 +100,3 @@ export function requestScopeText(
   }
   return "";
 }
-
-export function collectEstimatorTexts(body: unknown): {
-  texts: string[];
-  messageCount: number;
-} {
-  const messages = extractRequestMessages(body);
-  const texts = messages.flatMap((message) => message.texts);
-  if (body && typeof body === "object") {
-    const tools = (body as { tools?: unknown }).tools;
-    if (tools !== undefined) {
-      texts.push(safeStringify(tools));
-    }
-  }
-  if (texts.length === 0 && messages.length === 0) {
-    return { texts: [safeStringify(body)], messageCount: 0 };
-  }
-  return { texts, messageCount: messages.length };
-}

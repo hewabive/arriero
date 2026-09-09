@@ -263,7 +263,113 @@ test("unsupported engines, operations and multimodal requests do not probe upstr
       },
     ],
   };
-  assert.equal((await counter(request(imageBody), a.id)).ok, false);
+  for (const kind of ["sglang", "vllm"] as const) {
+    const result = await counter(request(imageBody), managedTarget(kind).id);
+    assert.ok(!result.ok);
+    assert.match(result.reason, /does not support this chat content/);
+  }
+  for (const content of [
+    [{ type: "image_url", image_url: {} }],
+    [{ type: "input_audio", input_audio: { data: "AAA", format: "wav" } }],
+    [{ type: "unknown", text: "unrecognized" }],
+  ]) {
+    assert.equal(
+      (await counter(request({ messages: [{ role: "user", content }] }), a.id))
+        .ok,
+      false,
+    );
+  }
+});
+
+test("llama counts native images and Anthropic tool-result screenshots with the forwarding translation", async () => {
+  const imageUrl = "data:image/png;base64,AAA";
+  const imagePart = { type: "image_url", image_url: { url: imageUrl } };
+  for (const a of [target(), managedTarget("llama-server")]) {
+    for (const protocol of ["openai", "anthropic"] as const) {
+      const body =
+        protocol === "openai"
+          ? {
+              model: "public",
+              messages: [
+                {
+                  role: "user",
+                  content: [{ type: "text", text: "screenshot" }, imagePart],
+                },
+              ],
+            }
+          : {
+              model: "public",
+              system: "system instruction",
+              messages: [
+                {
+                  role: "assistant",
+                  content: [
+                    { type: "thinking", thinking: "inspect screenshot" },
+                    {
+                      type: "tool_use",
+                      id: "call-1",
+                      name: "screenshot",
+                      input: { page: 1 },
+                    },
+                  ],
+                },
+                {
+                  role: "user",
+                  content: [
+                    {
+                      type: "tool_result",
+                      tool_use_id: "call-1",
+                      content: [
+                        { type: "text", text: "screenshot" },
+                        {
+                          type: "image",
+                          source: {
+                            type: "base64",
+                            media_type: "image/png",
+                            data: "AAA",
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            };
+      const original = structuredClone(body);
+      let posts = 0;
+      const counter = createApiProxyTokenCounter({
+        fetchImpl: async (_, init) => {
+          if (init?.method !== "POST")
+            return Response.json({ is_sleeping: false });
+          posts += 1;
+          const counted = JSON.parse(String(init.body));
+          assert.equal(counted.model, a.model);
+          const messages = counted.messages as Record<string, unknown>[];
+          assert.ok(
+            messages.some(
+              (message) =>
+                Array.isArray(message.content) &&
+                message.content.some(
+                  (part) => JSON.stringify(part) === JSON.stringify(imagePart),
+                ),
+            ),
+          );
+          if (protocol === "anthropic") {
+            assert.equal(messages[0]?.content, "system instruction");
+            assert.equal(messages[1]?.reasoning_content, "inspect screenshot");
+            assert.equal(messages[2]?.role, "tool");
+            assert.equal(messages[2]?.content, "screenshot");
+          }
+          return Response.json({ input_tokens: 223_712 });
+        },
+      });
+      const result = await counter(request(body, protocol), a.id);
+      assert.ok(result.ok && "tokens" in result);
+      assert.equal(result.tokens, 223_712);
+      assert.equal(posts, 1);
+      assert.deepEqual(body, original);
+    }
+  }
 });
 
 test("invalid counts, unsupported endpoint, and network failures return typed unavailable results", async () => {

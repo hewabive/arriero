@@ -312,7 +312,7 @@ export async function resolveApiProxyRouteChain(input: {
     routeTrace: [],
   };
 
-  let tokenEstimate: number | null = null;
+  let tokenEstimate: ReturnType<typeof estimateRequestTokens> | null = null;
   const estimateTokens = () =>
     (tokenEstimate ??= estimateRequestTokens(state.request.body));
 
@@ -376,11 +376,13 @@ export async function resolveApiProxyRouteChain(input: {
       }
       if (settings.onUnavailable === "error") return { ok: false, reason };
     }
-    const tokens = estimateTokens();
+    const { tokens, imageCount } = estimateTokens();
+    const coverage =
+      imageCount > 0 ? ` (text only; images not estimated: ${imageCount})` : "";
     return {
       ok: true,
       atLeast: tokens >= threshold,
-      detail: `estimated ${tokens} tokens · ${reason}`,
+      detail: `estimated ${tokens} tokens${coverage} · ${reason}`,
     };
   };
 
@@ -900,7 +902,7 @@ export async function resolveApiProxyRouteChain(input: {
           : evaluateApiProxyCondition(predicate, {
               body: state.request.body,
               sourceId,
-              estimateTokens,
+              estimateTokens: () => estimateTokens().tokens,
             });
         if (!outcome.ok) {
           return fail(

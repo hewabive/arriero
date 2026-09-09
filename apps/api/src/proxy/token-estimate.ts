@@ -1,4 +1,4 @@
-import { collectEstimatorTexts } from "./request-text.js";
+import { collectEstimatorContent } from "./token-estimate-content.js";
 
 const perMessageOverheadTokens = 4;
 
@@ -40,11 +40,14 @@ export function estimateTextTokens(text: string): number {
   return Math.ceil(total);
 }
 
-export function estimateRequestTokens(body: unknown): number {
-  const { texts, messageCount } = collectEstimatorTexts(body);
+export function estimateRequestTokens(body: unknown): {
+  tokens: number;
+  imageCount: number;
+} {
+  const { texts, messageCount, imageCount } = collectEstimatorContent(body);
   let total = messageCount * perMessageOverheadTokens;
   for (const text of texts) {
     total += estimateTextTokens(text);
   }
-  return Math.ceil(total);
+  return { tokens: Math.ceil(total), imageCount };
 }

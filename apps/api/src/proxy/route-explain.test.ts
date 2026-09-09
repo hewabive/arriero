@@ -92,7 +92,7 @@ test("explain resolves a plain target route with the target name", async () => {
   assert.deepEqual(result.routeTrace, []);
   assert.equal(result.textReplacementCount, 0);
   assert.deepEqual(result.transformedBody, body);
-  assert.equal(result.tokenEstimate, estimateRequestTokens(body));
+  assert.equal(result.tokenEstimate, estimateRequestTokens(body).tokens);
   assert.ok((result.tokenEstimate ?? 0) > 0);
 });
 
@@ -145,7 +145,7 @@ test("explain reports replace-text transformations in the transformed body", asy
     ["enter-pipeline", "replace-text"],
   );
   assert.equal(result.routeTrace[1]?.detail, "request: 1 replacement(s)");
-  assert.equal(result.tokenEstimate, estimateRequestTokens(body));
+  assert.equal(result.tokenEstimate, estimateRequestTokens(body).tokens);
 });
 
 test("explain follows both condition branches", async () => {
