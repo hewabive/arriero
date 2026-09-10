@@ -34,6 +34,7 @@ import {
   CLIENT_ABORT_STATUS,
   describeFetchError,
   fetchErrorCode,
+  isEventStream,
 } from "./http.js";
 import { apiProxyInflight, type ApiProxyInflightHandle } from "./inflight.js";
 import { prepareApiProxyProtocolGatewayRequest } from "./gateway.js";
@@ -120,7 +121,8 @@ import {
   applyProxyStreamHealth,
   markPlanTruncatedOnEof,
 } from "./stream-health.js";
-import { watchStreamIdle } from "./stream-idle.js";
+import { StreamIdleTimeoutError, watchStreamIdle } from "./stream-idle.js";
+import { recoverApiProxySseStream } from "./stream-errors.js";
 import { inflightStreamObserver } from "./stream-observer.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
 import {
@@ -266,7 +268,12 @@ export async function runWithProxyTrace(
       trace.durationMs =
         frozenDurationMs ?? Math.round(performance.now() - started);
       trace.status = response?.status ?? 0;
-      trace.ok = response ? response.status < 400 : false;
+      trace.ok = Boolean(
+        response &&
+        response.status < 400 &&
+        !trace.errorCode &&
+        !trace.errorMessage,
+      );
       inflight.end(trace.ok);
       apiProxyStreamSessions.release(inflight.id);
       apiProxyStats.record({ ...trace });
@@ -1494,11 +1501,43 @@ export async function serveResolvedTarget(input: {
         : guardedStreamBody;
 
       const finishStreamResponse = (
-        observed: ReadableStream<Uint8Array>,
+        body: ReadableStream<Uint8Array>,
         status: number,
         headers: Headers,
+        onSettled: () => void,
         statusText?: string,
       ): Response => {
+        const recovered = isEventStream(headers)
+          ? recoverApiProxySseStream({
+              body,
+              adapter,
+              request: route.request,
+              onError(error) {
+                if (stopSignal.aborted) return null;
+                const diagnostic: ApiProxyProtocolDiagnostic = {
+                  status: error instanceof StreamIdleTimeoutError ? 504 : 502,
+                  code:
+                    error instanceof StreamIdleTimeoutError
+                      ? "arriero_proxy_upstream_timeout"
+                      : "arriero_proxy_upstream_error",
+                  param: "model",
+                  message: `Proxy target ${decision.target.name}: ${describeFetchError(error)}`,
+                };
+                applyTraceDiagnostic(trace, diagnostic);
+                responsePlan?.markTruncated();
+                return diagnostic;
+              },
+            })
+          : body;
+        const observed = observeBodyCompletion(
+          tapApiProxyResponsePlanStream(
+            responsePlan,
+            recovered,
+            status,
+            headers,
+          ),
+          onSettled,
+        );
         const responseInit: ResponseInit = statusText
           ? { status, headers, statusText }
           : { status, headers };
@@ -1528,20 +1567,13 @@ export async function serveResolvedTarget(input: {
         });
         recorder.markDeferred();
         metered = finishStreamResponse(
-          observeBodyCompletion(
-            tapApiProxyResponsePlanStream(
-              responsePlan,
-              streamBody.pipeThrough(translation.transform),
-              upstream.status,
-              upstream.headers,
-            ),
-            () => {
-              translation.finalize();
-              recordStream();
-            },
-          ),
+          streamBody.pipeThrough(translation.transform),
           upstream.status,
           upstream.headers,
+          () => {
+            translation.finalize();
+            recordStream();
+          },
         );
         return metered;
       }
@@ -1549,17 +1581,10 @@ export async function serveResolvedTarget(input: {
       if (!streamMeter) {
         recorder.markDeferred();
         return finishStreamResponse(
-          observeBodyCompletion(
-            tapApiProxyResponsePlanStream(
-              responsePlan,
-              streamBody,
-              upstream.status,
-              upstream.headers,
-            ),
-            () => recorder.record(upstream),
-          ),
+          streamBody,
           upstream.status,
           upstream.headers,
+          () => recorder.record(upstream),
           upstream.statusText,
         );
       }
@@ -1574,21 +1599,14 @@ export async function serveResolvedTarget(input: {
       });
       recorder.markDeferred();
       metered = finishStreamResponse(
-        observeBodyCompletion(
-          tapApiProxyResponsePlanStream(
-            responsePlan,
-            streamBody.pipeThrough(meter.transform),
-            upstream.status,
-            upstream.headers,
-          ),
-          () => {
-            applyProxyStreamHealth({ trace, health: meter.health() });
-            meter.finalize();
-            recordStream();
-          },
-        ),
+        streamBody.pipeThrough(meter.transform),
         upstream.status,
         upstream.headers,
+        () => {
+          applyProxyStreamHealth({ trace, health: meter.health() });
+          meter.finalize();
+          recordStream();
+        },
       );
       return metered;
     } catch (error) {

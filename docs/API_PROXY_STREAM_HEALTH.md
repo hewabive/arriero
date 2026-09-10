@@ -125,11 +125,29 @@ the reason the proxy-wide knob exists.
 Enforcement: resumable attempts and buffered consumption see the stall as an
 error outcome (502 with the stall message — deliberately no truncation-style
 retry: a wedged server would likely wedge again while double-holding the
-lease); pass-through streaming errors the client stream mid-flight and stamps
-the trace with `arriero_proxy_upstream_timeout`; restart replay is watched the
-same way. The delegating node does not watch delegated streams — the owning
-node enforces its own timeout, and undici's transport timeout stays the outer
-bound.
+lease). The live forward path records `arriero_proxy_upstream_timeout` and
+delivers a protocol-shaped SSE error before closing the HTTP body normally.
+Restart replay is watched too. The delegating node does not watch delegated
+streams — the owning node enforces its own timeout, and undici's transport
+timeout stays the outer bound.
+
+## Live transport failures
+
+On the live forward path, `stream-errors.ts` catches stream read failures after
+metering or Anthropic translation and before response effects and final trace
+recording. Chat Completions and Completions receive an OpenAI error followed by
+`[DONE]`; Anthropic Messages and Responses receive an `error` event. Responses
+error sequence numbers follow the last complete event. No success finish or
+synthetic usage is added. Complete frames are retained; an unfinished frame at
+the transport failure is discarded so it cannot swallow the error's framing.
+Clean upstream EOF retains the existing terminal policy.
+
+The HTTP status remains the already-sent status, normally 200. The trace records
+`ok: false`, the error code and message; transport errors use
+`arriero_proxy_upstream_error`. Response captures include the framed error and
+failed responses cannot enter the cache. Synthetic terminal frames do not enter
+the upstream health meter. Client cancellation keeps its cancellation behavior
+and does not generate an upstream-error event. Timeout settings are unchanged.
 
 ## Trace surface
 

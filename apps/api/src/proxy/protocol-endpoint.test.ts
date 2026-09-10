@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, Server } from "node:http";
 import { beforeEach, test, type TestContext } from "node:test";
 
 import { ApiProxyPipelineNodeSchema } from "@arriero/core";
+import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 
 import { config } from "../config.js";
@@ -65,6 +66,8 @@ async function seedCapturedUpstream(
     profile?: "openai" | "anthropic";
     cache?: boolean;
     keepOpen?: boolean;
+    streamIdleTimeoutMs?: number;
+    abortAfterMs?: number;
   } = {},
 ) {
   let requests = 0;
@@ -74,6 +77,10 @@ async function seedCapturedUpstream(
     reply.writeHead(response.status, { "content-type": response.contentType });
     if (options.keepOpen) {
       reply.write(response.body);
+      if (options.abortAfterMs !== undefined) {
+        const timer = setTimeout(() => reply.destroy(), options.abortAfterMs);
+        reply.on("close", () => clearTimeout(timer));
+      }
     } else {
       reply.end(response.body);
     }
@@ -105,6 +112,7 @@ async function seedCapturedUpstream(
       modelFilter: null,
       enabled: true,
       apiKey: "",
+      streamIdleTimeoutMs: options.streamIdleTimeoutMs ?? null,
     });
     endpointId = endpoint.id;
   }
@@ -191,6 +199,132 @@ const completeSse = [
 ]
   .map((frame) => `${frame}\n\n`)
   .join("");
+
+for (const failure of ["idle", "transport"] as const) {
+  for (const route of [
+    "external",
+    "translated",
+    "anthropic",
+    "completions",
+    "responses",
+  ] as const) {
+    test(`${route} sends an SSE error after ${failure} failure and never caches it`, async (t) => {
+      const partial =
+        route === "anthropic"
+          ? 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}\n\n'
+          : route === "responses"
+            ? 'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Hello","sequence_number":7}\n\n'
+            : `${completeSse.split("\n\n")[0]}\n\n`;
+      const upstream = await seedCapturedUpstream(
+        t,
+        {
+          status: 200,
+          contentType: "text/event-stream",
+          body: `${partial}data: {"unfinished":`,
+        },
+        {
+          profile: route === "anthropic" ? "anthropic" : "openai",
+          keepOpen: true,
+          streamIdleTimeoutMs: failure === "idle" ? 150 : 5_000,
+          ...(failure === "transport" ? { abortAfterMs: 150 } : {}),
+        },
+      );
+      const app = buildApp();
+      const protocol =
+        route === "translated" || route === "anthropic"
+          ? "anthropic"
+          : "openai";
+      const path =
+        protocol === "anthropic"
+          ? "/anthropic/v1/messages"
+          : route === "completions"
+            ? "/v1/completions"
+            : route === "responses"
+              ? "/v1/responses"
+              : "/v1/chat/completions";
+      const server = serve({
+        fetch: app.fetch,
+        hostname: "127.0.0.1",
+        port: 0,
+      });
+      assert.ok(server instanceof Server);
+      t.after(() => {
+        server.closeAllConnections();
+        return new Promise<void>((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve())),
+        );
+      });
+      if (!server.listening)
+        await new Promise<void>((resolve) => server.once("listening", resolve));
+      const address = server.address();
+      assert.ok(address && typeof address === "object");
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const response: Response = await fetch(
+          `http://127.0.0.1:${address.port}${path}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              model: "captured-model",
+              messages: [{ role: "user", content: "hi" }],
+              prompt: "hi",
+              max_tokens: 100,
+              stream: true,
+            }),
+          },
+        );
+        assert.equal(response.status, 200);
+        const body = await response.text();
+        assert.match(body, /Hello/);
+        const code =
+          failure === "idle"
+            ? "arriero_proxy_upstream_timeout"
+            : "arriero_proxy_upstream_error";
+        assert.match(body, new RegExp(code));
+        assert.doesNotMatch(
+          body,
+          /unfinished|"finish_reason":"stop"|message_stop/,
+        );
+        if (protocol === "openai" && route !== "responses")
+          assert.ok(body.endsWith("data: [DONE]\n\n"));
+        else assert.match(body, /event: error\n/);
+        const payloads = body
+          .split("\n")
+          .filter((line) => line.startsWith("data: {"))
+          .map(
+            (line) =>
+              JSON.parse(line.slice(6)) as {
+                type?: string;
+                message?: string;
+                sequence_number?: number;
+                error?: { message: string };
+              },
+          );
+        const error =
+          route === "responses"
+            ? payloads.find((payload) => payload.type === "error")
+            : payloads.find((payload) => payload.error)?.error;
+        assert.ok(error);
+        if (route === "responses")
+          assert.equal(payloads.at(-1)?.sequence_number, 8);
+        if (failure === "idle")
+          assert.match(error.message ?? "", /upstream stream stalled/);
+        const trace = listApiProxyTraces()[0];
+        assert.ok(trace);
+        assert.equal(trace.status, 200);
+        assert.equal(trace.ok, false);
+        assert.equal(trace.errorCode, code);
+        assert.equal(trace.cache, null);
+        assert.deepEqual(
+          trace.files.map((file) => file.kind),
+          ["capture-request", "capture-response"],
+        );
+        assert.equal(readApiProxyRequestFile(trace.files[1]!.path)?.data, body);
+      }
+      assert.equal(upstream.requests(), 2);
+    });
+  }
+}
 
 for (const route of ["external", "translated", "delegated"] as const) {
   test(`${route} captures SSE when the client cancels after the terminal before HTTP EOF`, async (t) => {
