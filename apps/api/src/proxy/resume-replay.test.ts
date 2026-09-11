@@ -11,6 +11,7 @@ import { ApiProxyPendingResumeStore } from "./pending-resume.js";
 import { runWithProxyTrace } from "./protocol-endpoint.js";
 import type { ProxyTraceRecorder } from "./protocol-trace.js";
 import { createProxyTrace } from "./protocol-trace.js";
+import { captureApiProxyResponseSse } from "./response-capture.js";
 import { readApiProxyRequestFile } from "./request-files.js";
 import { createApiProxyResponsePlanExecutor } from "./response-plan.js";
 import {
@@ -207,9 +208,9 @@ for (const translated of [false, true]) {
         assert.equal(trace.streamHealth?.terminal, "done");
         assert.equal(trace.streamHealth?.truncated, false);
         assert.equal(trace.files.length, 1);
-        assert.equal(
+        assert.deepEqual(
           readApiProxyRequestFile(trace.files[0]!.path)?.data,
-          delivered,
+          captureApiProxyResponseSse(delivered, responseOperation),
         );
         assert.equal(store.size(), 0);
       } finally {

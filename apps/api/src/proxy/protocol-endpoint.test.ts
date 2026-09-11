@@ -20,6 +20,7 @@ import {
   createApiProxyPipeline,
   createApiProxyTarget,
 } from "./repository.js";
+import { captureApiProxyResponseSse } from "./response-capture.js";
 import { readApiProxyRequestFile } from "./request-files.js";
 import { clearApiProxyResponseCache } from "./response-cache.js";
 import { apiProxyStats } from "./stats.js";
@@ -319,7 +320,15 @@ for (const failure of ["idle", "transport"] as const) {
           trace.files.map((file) => file.kind),
           ["capture-request", "capture-response"],
         );
-        assert.equal(readApiProxyRequestFile(trace.files[1]!.path)?.data, body);
+        assert.deepEqual(
+          readApiProxyRequestFile(trace.files[1]!.path)?.data,
+          captureApiProxyResponseSse(body, {
+            protocol: trace.protocol,
+            endpoint: trace.endpoint,
+            routePath: trace.routePath,
+            transport: "sse",
+          }),
+        );
       }
       assert.equal(upstream.requests(), 2);
     });
@@ -366,9 +375,14 @@ for (const route of ["external", "translated", "delegated"] as const) {
       trace.files.map((file) => file.kind),
       ["capture-request", "capture-response"],
     );
-    assert.equal(
+    assert.deepEqual(
       readApiProxyRequestFile(trace.files[1]!.path)?.data,
-      delivered,
+      captureApiProxyResponseSse(delivered, {
+        protocol: trace.protocol,
+        endpoint: trace.endpoint,
+        routePath: trace.routePath,
+        transport: "sse",
+      }),
     );
   });
 }
@@ -405,9 +419,14 @@ for (const route of ["external", "translated", "delegated"] as const) {
       trace.files.map((file) => file.kind),
       ["capture-request", "capture-response"],
     );
-    assert.equal(
+    assert.deepEqual(
       readApiProxyRequestFile(trace.files[1]!.path)?.data,
-      delivered,
+      captureApiProxyResponseSse(delivered, {
+        protocol: trace.protocol,
+        endpoint: trace.endpoint,
+        routePath: trace.routePath,
+        transport: "sse",
+      }),
     );
     const cached = await postCapturedRequest(app, protocol, true);
     assert.equal(await cached.text(), delivered);

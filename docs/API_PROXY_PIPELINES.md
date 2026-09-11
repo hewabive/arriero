@@ -484,8 +484,14 @@ The same rule applies to cache and Token scale nodes. A cache hit executes only
 the prefix that was visited before the hit; the cached value already includes
 the downstream side of that cache boundary. Non-streaming, buffered,
 resumable, remote, translated, fusion and SSE replies all use the same response
-executor. JSON captures store the parsed body at that stage; SSE captures store
-the complete framed text at that stage. Capture nodes save successful and failed
+executor. JSON captures store the parsed body at that stage; SSE captures assemble
+a readable JSON response at that stage. OpenAI chat/completion chunks are merged
+by choice and tool-call index, including text, reasoning, arguments, logprobs and
+usage. Anthropic events become a message with assembled content blocks and usage;
+Responses terminal events supply the final response object. Streams that cannot
+be assembled retain their decoded payloads in an `events` array, including errors
+and malformed data as text. SSE framing and JSON-string escaping are not part of
+the assembled payload. Capture nodes save successful and failed
 response bodies, including upstream HTTP errors and proxy-generated diagnostics
 after the node was visited. Non-JSON errors are preserved as text; protocol
 translation still precedes capture. This diagnostic recording is independent of
@@ -494,8 +500,8 @@ successful HTTP replies. A failed or cancelled transport that never delivers a
 complete body does not produce a response capture. SSE captures also recognize
 protocol completion before HTTP EOF: OpenAI `[DONE]`, Anthropic `message_stop`,
 and Responses `response.completed` / `response.failed` / `response.incomplete`.
-If the client stops reading after that event, the capture retains the framed
-text already observed at its position. A finish reason alone does not trigger
+If the client stops reading after that event, the capture assembles the events
+already observed at its position. A finish reason alone does not trigger
 this capture fallback because usage and other choices can still follow it.
 Cache writes still require normal stream completion.
 

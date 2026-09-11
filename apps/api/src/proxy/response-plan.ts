@@ -25,6 +25,7 @@ import {
   pushApiProxyBroadcast,
 } from "./response-broadcast.js";
 import { settleApiProxyInFlight } from "./response-coalesce.js";
+import { captureApiProxyResponseSse } from "./response-capture.js";
 import {
   createApiProxySseFrameBuffer,
   parseApiProxySseJsonFrame,
@@ -175,7 +176,9 @@ export function createApiProxyResponsePlanExecutor(input: {
           endpoint: input.operation.endpoint,
           routePath: input.operation.routePath,
           modelId: input.trace.modelId,
-          data: meta.isSse ? text : (safeJsonParse(text) ?? text),
+          data: meta.isSse
+            ? captureApiProxyResponseSse(text, input.operation)
+            : (safeJsonParse(text) ?? text),
         }),
       );
       return;

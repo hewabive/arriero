@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { captureApiProxyResponseSse } from "./response-capture.js";
+import {
+  apiProxySseDataFrame,
+  apiProxySseEventFrame,
+} from "./response-codec.js";
 import { createProxyTrace } from "./protocol-trace.js";
 import { readApiProxyRequestFile } from "./request-files.js";
 import {
@@ -43,6 +48,364 @@ const sseResponse = {
   contentType: "text/event-stream",
   isSse: true,
 };
+
+const chatChunks = [
+  {
+    id: "chat-1",
+    object: "chat.completion.chunk",
+    model: "model",
+    choices: [
+      { index: 1, delta: { content: "Second" } },
+      {
+        index: 0,
+        delta: {
+          role: "assistant",
+          content: "При",
+          reasoning_content: "Think ",
+        },
+        finish_reason: null,
+      },
+    ],
+  },
+  {
+    choices: [
+      {
+        index: 0,
+        delta: {
+          content: "вет 🌍",
+          reasoning_content: "carefully",
+          tool_calls: [
+            {
+              index: 1,
+              id: "call-b",
+              type: "function",
+              function: { name: "second", arguments: "{}" },
+            },
+            {
+              index: 0,
+              id: "call-a",
+              type: "function",
+              function: { name: "lookup", arguments: '{"city":"' },
+            },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    choices: [
+      {
+        index: 0,
+        delta: {
+          content: null,
+          tool_calls: [{ index: 0, function: { arguments: 'Москва"}' } }],
+        },
+        finish_reason: "tool_calls",
+      },
+    ],
+  },
+  {
+    choices: [],
+    usage: { prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 },
+  },
+];
+
+const assembledChat = {
+  id: "chat-1",
+  object: "chat.completion",
+  model: "model",
+  choices: [
+    {
+      index: 0,
+      message: {
+        role: "assistant",
+        content: "Привет 🌍",
+        reasoning_content: "Think carefully",
+        tool_calls: [
+          {
+            id: "call-a",
+            type: "function",
+            function: { name: "lookup", arguments: '{"city":"Москва"}' },
+          },
+          {
+            id: "call-b",
+            type: "function",
+            function: { name: "second", arguments: "{}" },
+          },
+        ],
+      },
+      finish_reason: "tool_calls",
+    },
+    { index: 1, message: { role: "assistant", content: "Second" } },
+  ],
+  usage: { prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 },
+};
+
+for (const streamed of [false, true]) {
+  test(`SSE capture assembles choices, reasoning and tools at each pipeline position, streamed=${streamed}`, async () => {
+    const value = trace();
+    const writes: string[] = [];
+    const plan = createApiProxyResponsePlanExecutor({
+      effects: [
+        { type: "capture-response", nodeName: "Client" },
+        {
+          type: "replace-response-text",
+          rules: [{ enabled: true, find: "Привет", replace: "Hello" }],
+          includeReasoning: false,
+          includeToolArguments: false,
+        },
+        { type: "token-scale", factor: 2 },
+        { type: "capture-response", nodeName: "Target" },
+        { type: "cache-store", key: "readable-capture", ttlSeconds: 600 },
+      ],
+      putCache: ({ body }) => writes.push(body),
+      trace: value,
+      operation,
+    });
+    assert.ok(plan);
+    const body =
+      chatChunks.map(apiProxySseDataFrame).join("") + "data: [DONE]\n\n";
+    let delivered: string;
+    if (streamed) {
+      const bytes = new TextEncoder().encode(body);
+      let offset = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (offset < bytes.length) {
+            controller.enqueue(bytes.slice(offset, offset + 1));
+            offset += 1;
+          } else {
+            controller.close();
+          }
+        },
+      });
+      delivered = await new Response(plan.tap(stream, sseResponse)).text();
+    } else {
+      delivered = plan.processText(body, sseResponse);
+    }
+    plan.flush();
+    assert.match(delivered, /data: \[DONE\]/);
+    assert.deepEqual(writes, [body]);
+    const files = new Map(
+      value.files.map((file) => [
+        file.label,
+        readApiProxyRequestFile(file.path)?.data,
+      ]),
+    );
+    assert.deepEqual(files.get("Target"), assembledChat);
+    const expected = structuredClone(assembledChat);
+    expected.choices[0]!.message.content = "Hello 🌍";
+    expected.usage = {
+      prompt_tokens: 24,
+      completion_tokens: 14,
+      total_tokens: 38,
+    };
+    assert.deepEqual(files.get("Client"), expected);
+  });
+}
+
+test("SSE capture assembles legacy completions and logprobs", () => {
+  const body = [
+    {
+      object: "text_completion",
+      choices: [
+        {
+          index: 0,
+          text: "one ",
+          logprobs: { tokens: ["one"], token_logprobs: [-1], text_offset: [0] },
+        },
+      ],
+    },
+    {
+      choices: [
+        {
+          index: 0,
+          text: "two",
+          logprobs: { tokens: ["two"], token_logprobs: [-2], text_offset: [4] },
+          finish_reason: "stop",
+        },
+      ],
+    },
+  ]
+    .map(apiProxySseDataFrame)
+    .join("");
+  assert.deepEqual(
+    captureApiProxyResponseSse(body, { ...operation, endpoint: "completions" }),
+    {
+      object: "text_completion",
+      choices: [
+        {
+          index: 0,
+          text: "one two",
+          logprobs: {
+            tokens: ["one", "two"],
+            token_logprobs: [-1, -2],
+            text_offset: [0, 4],
+          },
+          finish_reason: "stop",
+        },
+      ],
+    },
+  );
+});
+
+test("Anthropic capture assembles text, thinking, signatures, tool input and usage", () => {
+  const events = [
+    {
+      type: "message_start",
+      message: {
+        id: "msg-1",
+        type: "message",
+        role: "assistant",
+        model: "m",
+        content: [],
+        stop_reason: null,
+        usage: {
+          input_tokens: 10,
+          output_tokens: 0,
+          cache_read_input_tokens: 5,
+        },
+      },
+    },
+    { type: "ping" },
+    {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "thinking", thinking: "Think ", signature: "" },
+    },
+    {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "thinking_delta", thinking: "carefully" },
+    },
+    {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "signature_delta", signature: "signed" },
+    },
+    {
+      type: "content_block_start",
+      index: 1,
+      content_block: { type: "text", text: "При" },
+    },
+    {
+      type: "content_block_delta",
+      index: 1,
+      delta: { type: "text_delta", text: "вет" },
+    },
+    {
+      type: "content_block_delta",
+      index: 1,
+      delta: {
+        type: "citations_delta",
+        citation: { type: "char_location", cited_text: "Привет" },
+      },
+    },
+    {
+      type: "content_block_start",
+      index: 2,
+      content_block: {
+        type: "tool_use",
+        id: "tool-1",
+        name: "search",
+        input: {},
+      },
+    },
+    {
+      type: "content_block_delta",
+      index: 2,
+      delta: { type: "input_json_delta", partial_json: '{"q":' },
+    },
+    {
+      type: "content_block_delta",
+      index: 2,
+      delta: { type: "input_json_delta", partial_json: '"hello"}' },
+    },
+    { type: "content_block_stop", index: 2 },
+    {
+      type: "message_delta",
+      delta: { stop_reason: "tool_use", stop_sequence: null },
+      usage: { output_tokens: 8 },
+    },
+    { type: "message_stop" },
+  ];
+  const body = events
+    .map((event) => apiProxySseEventFrame(event.type, event))
+    .join("");
+  const anthropicOperation = {
+    ...operation,
+    protocol: "anthropic" as const,
+    endpoint: "messages",
+  };
+  assert.deepEqual(captureApiProxyResponseSse(body, anthropicOperation), {
+    id: "msg-1",
+    type: "message",
+    role: "assistant",
+    model: "m",
+    content: [
+      { type: "thinking", thinking: "Think carefully", signature: "signed" },
+      {
+        type: "text",
+        text: "Привет",
+        citations: [{ type: "char_location", cited_text: "Привет" }],
+      },
+      { type: "tool_use", id: "tool-1", name: "search", input: { q: "hello" } },
+    ],
+    stop_reason: "tool_use",
+    stop_sequence: null,
+    usage: { input_tokens: 10, output_tokens: 8, cache_read_input_tokens: 5 },
+  });
+  assert.deepEqual(
+    captureApiProxyResponseSse(
+      body + "event: unknown\ndata: broken\n\n",
+      anthropicOperation,
+    ),
+    {
+      events: [
+        ...events.map((data) => ({ event: data.type, data })),
+        { event: "unknown", data: "broken" },
+      ],
+    },
+  );
+});
+
+for (const status of ["completed", "failed", "incomplete"]) {
+  test(`Responses capture uses the ${status} aggregate without duplicating deltas`, () => {
+    const response = {
+      id: "resp-1",
+      status,
+      output: [
+        { type: "message", content: [{ type: "output_text", text: "Hello" }] },
+      ],
+      usage: { output_tokens: 1 },
+    };
+    const body =
+      apiProxySseEventFrame("response.output_text.delta", {
+        type: "response.output_text.delta",
+        delta: "Hello",
+      }) +
+      apiProxySseEventFrame(`response.${status}`, {
+        type: `response.${status}`,
+        response,
+      });
+    assert.deepEqual(
+      captureApiProxyResponseSse(body, { ...operation, endpoint: "responses" }),
+      response,
+    );
+  });
+}
+
+test("SSE captures support multiline JSON, CRLF and a final unterminated frame", () => {
+  assert.deepEqual(
+    captureApiProxyResponseSse(
+      ': ping\r\n\r\ndata: {"choices": [\r\ndata: {"delta":{"content":"Hello"}}]}',
+      operation,
+    ),
+    {
+      choices: [{ index: 0, message: { role: "assistant", content: "Hello" } }],
+    },
+  );
+});
 
 test("response plan returns null when it has no effects", () => {
   const sink = createApiProxyResponsePlanExecutor({
@@ -386,7 +749,9 @@ test("response plan captures a completed SSE error body without caching it", asy
   assert.equal(await new Response(sink.tap(source, sseResponse)).text(), body);
   sink.flush();
   assert.equal(value.files.length, 1);
-  assert.equal(readApiProxyRequestFile(value.files[0]!.path)?.data, body);
+  assert.deepEqual(readApiProxyRequestFile(value.files[0]!.path)?.data, {
+    error: { message: "generation failed" },
+  });
   assert.deepEqual(writes, []);
 });
 
@@ -467,9 +832,9 @@ for (const scenario of [
 
     assert.equal(value.files.length, scenario.complete ? 1 : 0);
     if (scenario.complete) {
-      assert.equal(
+      assert.deepEqual(
         readApiProxyRequestFile(value.files[0]!.path)?.data,
-        scenario.body,
+        captureApiProxyResponseSse(scenario.body, scenario.operation),
       );
     }
     assert.deepEqual(writes, []);
@@ -538,7 +903,7 @@ test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async
   assert.equal(subscribeApiProxyBroadcast("bkey"), null);
 });
 
-test("response plan streams through tapped chunks and captures the raw text", async () => {
+test("response plan preserves malformed SSE payloads as readable events", async () => {
   const value = trace();
   const sink = createApiProxyResponsePlanExecutor({
     effects: [{ type: "capture-response", nodeName: null }],
@@ -574,7 +939,12 @@ test("response plan streams through tapped chunks and captures the raw text", as
   assert.equal(value.files.length, 1);
   const record = readApiProxyRequestFile(value.files[0]!.path);
   assert.ok(record);
-  assert.equal(record.data, "data: a\n\ndata: b\n\n");
+  assert.deepEqual(record.data, {
+    events: [
+      { event: null, data: "a" },
+      { event: null, data: "b" },
+    ],
+  });
 });
 
 test("flushing a plan that saw no response settles in-flight and aborts the broadcast", async () => {
