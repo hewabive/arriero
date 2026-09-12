@@ -9,8 +9,10 @@ import { Hono } from "hono";
 
 import { config } from "../config.js";
 import { createNode } from "../nodes/repository.js";
+import { getApiProxyActivity } from "./activity.js";
 import { resetConfigFilesCache } from "./config-files.js";
 import { createApiEndpoint, remoteEndpointId } from "./endpoints.js";
+import { apiProxyInflight } from "./inflight.js";
 import {
   registerAnthropicProxyRoutes,
   registerOpenAiProxyRoutes,
@@ -34,6 +36,7 @@ beforeEach(() => {
   rmSync(config.secretsFile, { force: true });
   mkdirSync(config.proxyConfigDir, { recursive: true });
   resetConfigFilesCache();
+  apiProxyInflight.reset();
   apiProxyStats.reset();
   clearApiProxyTraceHistory();
   clearApiProxyResponseCache();
@@ -200,6 +203,46 @@ const completeSse = [
 ]
   .map((frame) => `${frame}\n\n`)
   .join("");
+
+test(
+  "silent live SSE remains visible until client cancellation",
+  { timeout: 10_000 },
+  async (t) => {
+    await seedCapturedUpstream(
+      t,
+      {
+        status: 200,
+        contentType: "text/event-stream",
+        body: `${completeSse.split("\n\n")[0]}\n\n: keepalive\n\n`,
+      },
+      { cache: false, keepOpen: true, streamIdleTimeoutMs: 0 },
+    );
+    const now = performance.now.bind(performance);
+    let elapsed = 0;
+    t.mock.method(performance, "now", () => now() + elapsed);
+    const response = await postCapturedRequest(buildApp(), "openai", true);
+    assert.equal(response.status, 200);
+    assert.ok(response.body);
+    const reader = response.body.getReader();
+    try {
+      assert.equal((await reader.read()).done, false);
+      elapsed = 24 * 60 * 60 * 1000;
+      const model = getApiProxyActivity().models.find(
+        (entry) => entry.modelId === "captured-model",
+      );
+      assert.equal(model?.activeRequests, 1);
+      assert.equal(apiProxyInflight.snapshotList()[0]?.phase, "generating");
+      assert.equal(listApiProxyTraces().length, 0);
+    } finally {
+      await reader.cancel();
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(apiProxyInflight.activeCount(), 0);
+    assert.equal(listApiProxyTraces().length, 1);
+    elapsed += 15_001;
+    assert.deepEqual(apiProxyInflight.snapshotList(), []);
+  },
+);
 
 for (const failure of ["idle", "transport"] as const) {
   for (const route of [

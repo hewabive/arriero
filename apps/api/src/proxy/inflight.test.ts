@@ -451,31 +451,10 @@ test("end(false) marks the entry failed and blocks further actions", async () =>
   assert.equal(only("tf").phase, "failed");
 });
 
-test("sweeps inflight entries with no progress past the stale threshold", () => {
+test("retains silent requests in every active phase until their owner ends them", async () => {
   let clock = 0;
   const registry = new ApiProxyInflightRegistry({
     now: () => clock,
-    staleAfterMs: 1000,
-  });
-  registry.begin({
-    modelId: "m",
-    protocol: "openai",
-    targetId: "stuck",
-    stream: true,
-  });
-
-  clock = 900;
-  assert.equal(registry.snapshotByTarget().get("stuck")?.length, 1);
-
-  clock = 1500;
-  assert.equal(registry.snapshotByTarget().get("stuck"), undefined);
-});
-
-test("keeps inflight entries that show recent progress", () => {
-  let clock = 0;
-  const registry = new ApiProxyInflightRegistry({
-    now: () => clock,
-    staleAfterMs: 1000,
   });
   const handle = registry.begin({
     modelId: "m",
@@ -483,13 +462,40 @@ test("keeps inflight entries that show recent progress", () => {
     targetId: "live",
     stream: true,
   });
+  handle.setControl("cancel", { execute: () => handle.end(false) });
+
+  const assertVisibleAfterSilence = (phase: string) => {
+    clock += 24 * 60 * 60 * 1000;
+    assert.equal(registry.snapshotByTarget().get("live")?.[0]?.phase, phase);
+    assert.equal(registry.snapshotByModel().get("m")?.[0]?.id, handle.id);
+    assert.equal(registry.snapshotList()[0]?.id, handle.id);
+    assert.equal(registry.getDetail(handle.id)?.phase, phase);
+    assert.equal(registry.activeCount(), 1);
+    assert.deepEqual([...registry.activeTargetIds()], ["live"]);
+  };
+
+  assertVisibleAfterSilence("queued");
   handle.dispatched();
+  assertVisibleAfterSilence("prefilling");
+  handle.firstReasoning();
+  assertVisibleAfterSilence("thinking");
+  handle.firstToken(5);
+  handle.appendAnswer("Working");
+  assertVisibleAfterSilence("generating");
+  handle.appendToolCall({ index: 0, name: "bash", arguments: "{}" });
+  assertVisibleAfterSilence("tool");
 
-  clock = 1500;
-  handle.setCompletionTokens(1);
-  clock = 2000;
-  assert.equal(registry.snapshotByTarget().get("live")?.length, 1);
+  assert.equal(
+    (await registry.requestControl(handle.id, "cancel")).status,
+    "ok",
+  );
+  assert.equal(registry.activeCount(), 0);
+  assert.equal(registry.activeTargetIds().size, 0);
+  assert.equal(registry.getDetail(handle.id)?.phase, "failed");
 
-  clock = 3500;
+  clock += 15_001;
   assert.equal(registry.snapshotByTarget().get("live"), undefined);
+  assert.equal(registry.snapshotByModel().size, 0);
+  assert.deepEqual(registry.snapshotList(), []);
+  assert.equal(registry.getDetail(handle.id), null);
 });

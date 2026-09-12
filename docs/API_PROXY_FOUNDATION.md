@@ -158,6 +158,16 @@ These admin endpoints are read-only with respect to llama-server. They do not st
 
 ## Telemetry
 
+In-flight entries follow the request lifecycle, not token progress. A queued
+request or an open response remains visible and controllable through arbitrarily
+long pauses, including agent tool execution and SSE keepalive-only traffic.
+`runWithProxyTrace` ends its entry when the request settles; streaming responses
+defer this until body completion, failure or cancellation. The registry removes
+only ended entries, after a 15-second display retention period. Transport and
+[stream idle timeouts](API_PROXY_STREAM_HEALTH.md#idle-timeout) still terminate
+requests through their normal lifecycle; monitoring does not infer disconnection
+from missing model output.
+
 Every request emits an `ApiProxyRequestTrace` recorded by the Observer `proxy/stats.ts`: in-memory hourly counters keyed off `trace.at` (reseeded at boot from history) plus a persistent trace history in SQLite `proxy_request_traces` (`proxy/traces-repository.ts`) — one row per trace with indexed filter columns (`at`, `model_id`, `source_id`, `target_id`, `ok`, …), a denormalized `file_kinds` JSON array holding the trace's distinct capture-artifact kinds (queried via `json_each`, since `files` itself lives only inside the trace JSON) and the full validated trace as JSON, re-parsed with `safeParse` on read so schema evolution self-heals by dropping incompatible rows. Retention is 30 days, enforced at boot and by an hourly unref'd background loop (`startApiProxyTraceRetentionLoop`, wired in `apps/api/src/index.ts`) so the prune never runs on a request path; the prune pass also deletes `data/proxy-requests/` capture-artifact directories older than the same cutoff (by the timestamp embedded in the directory name, so orphaned artifacts are swept too). Tokens and rate are metered on **both** the resumable path and the plain forwarder, via `proxy/usage-meter.ts`:
 
 - **Non-stream** parses the final JSON. The exception is a managed `chat.completions`/`messages` request whose client asked for non-stream: it still forces `stream:true` upstream and rebuilds the buffered reply (`resumable-forward.ts:consumeResumableSse` + `finalFromState`), so live monitoring (TTFT, thinking, prefill) works. That force is skipped on `n>1`/logprobs and for external or translated targets, where the rebuild would not be faithful.

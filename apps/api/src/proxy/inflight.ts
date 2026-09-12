@@ -25,7 +25,6 @@ type InflightEntry = {
   dispatchedAt: number | null;
   reasoningStartedAt: number | null;
   firstTokenAt: number | null;
-  lastProgressAt: number;
   promptTokens: number | null;
   completionTokens: number;
   prefillTotalTokens: number | null;
@@ -45,7 +44,6 @@ type InflightEntry = {
   endedAt: number | null;
 };
 
-const DEFAULT_INFLIGHT_STALE_AFTER_MS = 90 * 60 * 1000;
 const DEFAULT_INFLIGHT_ENDED_RETAIN_MS = 15 * 1000;
 const REASONING_BUFFER_CAP = 256 * 1024;
 const ANSWER_BUFFER_CAP = 64 * 1024;
@@ -109,7 +107,6 @@ function entryControls(entry: InflightEntry): ApiProxyInflightControls {
 
 type ApiProxyInflightRegistryOptions = {
   now?: () => number;
-  staleAfterMs?: number;
   endedRetainMs?: number;
 };
 
@@ -196,12 +193,10 @@ function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
 export class ApiProxyInflightRegistry {
   private readonly entries = new Map<string, InflightEntry>();
   private readonly clock: () => number;
-  private readonly staleAfterMs: number;
   private readonly endedRetainMs: number;
 
   constructor(options: ApiProxyInflightRegistryOptions = {}) {
     this.clock = options.now ?? (() => performance.now());
-    this.staleAfterMs = options.staleAfterMs ?? DEFAULT_INFLIGHT_STALE_AFTER_MS;
     this.endedRetainMs =
       options.endedRetainMs ?? DEFAULT_INFLIGHT_ENDED_RETAIN_MS;
   }
@@ -227,7 +222,6 @@ export class ApiProxyInflightRegistry {
       dispatchedAt: null,
       reasoningStartedAt: null,
       firstTokenAt: null,
-      lastProgressAt: startedAt,
       promptTokens: null,
       completionTokens: 0,
       prefillTotalTokens: null,
@@ -243,9 +237,6 @@ export class ApiProxyInflightRegistry {
       endedAt: null,
     };
     this.entries.set(entry.id, entry);
-    const touch = () => {
-      entry.lastProgressAt = this.clock();
-    };
     return {
       id: entry.id,
       setModel: (modelId) => {
@@ -271,7 +262,6 @@ export class ApiProxyInflightRegistry {
         if (entry.phase === "queued") {
           entry.phase = "prefilling";
         }
-        touch();
       },
       firstReasoning: () => {
         if (entry.reasoningStartedAt === null) {
@@ -280,7 +270,6 @@ export class ApiProxyInflightRegistry {
         if (entry.phase === "queued" || entry.phase === "prefilling") {
           entry.phase = "thinking";
         }
-        touch();
       },
       firstToken: (promptTokens) => {
         if (entry.firstTokenAt === null) {
@@ -294,7 +283,6 @@ export class ApiProxyInflightRegistry {
         ) {
           entry.promptTokens = promptTokens;
         }
-        touch();
       },
       setPromptTokens: (value) => {
         if (value !== null && entry.promptTokens === null) {
@@ -304,7 +292,6 @@ export class ApiProxyInflightRegistry {
       setCompletionTokens: (value) => {
         if (value > entry.completionTokens) {
           entry.completionTokens = value;
-          touch();
         }
       },
       setPrefillProgress: (progress) => {
@@ -314,7 +301,6 @@ export class ApiProxyInflightRegistry {
         if (entry.promptTokens === null && progress.total > 0) {
           entry.promptTokens = progress.total;
         }
-        touch();
       },
       appendReasoning: (text) => {
         if (text.length === 0) {
@@ -326,7 +312,6 @@ export class ApiProxyInflightRegistry {
           text,
           REASONING_BUFFER_CAP,
         );
-        touch();
       },
       appendAnswer: (text) => {
         if (text.length === 0) {
@@ -338,7 +323,6 @@ export class ApiProxyInflightRegistry {
           text,
           ANSWER_BUFFER_CAP,
         );
-        touch();
       },
       appendToolCall: (delta) => {
         const existing = entry.toolCalls[delta.index] ?? {
@@ -358,7 +342,6 @@ export class ApiProxyInflightRegistry {
         if (entry.phase !== "queued" && entry.phase !== "prefilling") {
           entry.phase = "tool";
         }
-        touch();
       },
       setControl: (action, handler) => {
         if (handler) {
@@ -390,13 +373,9 @@ export class ApiProxyInflightRegistry {
     };
   }
 
-  private sweepStale(at: number): void {
+  private sweepEnded(at: number): void {
     for (const [id, entry] of this.entries) {
-      const expired =
-        entry.endedAt !== null
-          ? at - entry.endedAt > this.endedRetainMs
-          : at - entry.lastProgressAt > this.staleAfterMs;
-      if (expired) {
+      if (entry.endedAt !== null && at - entry.endedAt > this.endedRetainMs) {
         this.entries.delete(id);
       }
     }
@@ -424,7 +403,7 @@ export class ApiProxyInflightRegistry {
 
   snapshotByTarget(): Map<string, ApiProxyInflightRequest[]> {
     const at = this.clock();
-    this.sweepStale(at);
+    this.sweepEnded(at);
     const byTarget = new Map<string, ApiProxyInflightRequest[]>();
     for (const entry of this.entries.values()) {
       if (entry.targetId === null) {
@@ -443,13 +422,13 @@ export class ApiProxyInflightRegistry {
 
   snapshotList(): ApiProxyInflightRequest[] {
     const at = this.clock();
-    this.sweepStale(at);
+    this.sweepEnded(at);
     return [...this.entries.values()].map((entry) => toView(entry, at));
   }
 
   snapshotByModel(): Map<string, ApiProxyInflightRequest[]> {
     const at = this.clock();
-    this.sweepStale(at);
+    this.sweepEnded(at);
     const byModel = new Map<string, ApiProxyInflightRequest[]>();
     for (const entry of this.entries.values()) {
       if (entry.modelId === "") {
