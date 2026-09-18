@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 
 import { readObjectFile, writeObjectFile } from "./config-files.js";
+import { getExternalApiEndpoint } from "./endpoints.js";
 
 const SETTINGS_FILE = "settings.json";
 
@@ -22,6 +23,14 @@ export function updateApiProxySettings(
 ): ApiProxySettings {
   const parsed = ApiProxySettingsUpdateSchema.parse(input);
   const current = getApiProxySettings();
+  if (
+    parsed.agentSessionEndpointId &&
+    !getExternalApiEndpoint(parsed.agentSessionEndpointId)
+  ) {
+    throw new Error(
+      "Agent session API requires an existing external endpoint.",
+    );
+  }
   const next: ApiProxySettings = {
     ...current,
     allowAnonymous: parsed.allowAnonymous ?? current.allowAnonymous,
@@ -34,6 +43,10 @@ export function updateApiProxySettings(
         ? parsed.streamIdleTimeoutMs
         : current.streamIdleTimeoutMs,
     traceRetentionDays: parsed.traceRetentionDays ?? current.traceRetentionDays,
+    agentSessionEndpointId:
+      parsed.agentSessionEndpointId !== undefined
+        ? parsed.agentSessionEndpointId
+        : current.agentSessionEndpointId,
   };
   writeObjectFile(SETTINGS_FILE, StoredApiProxySettingsSchema, next);
   return next;

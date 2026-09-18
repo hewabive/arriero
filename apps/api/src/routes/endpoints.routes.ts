@@ -14,6 +14,7 @@ import {
 } from "../proxy/endpoints.js";
 import { listApiProxyTargets } from "../proxy/repository.js";
 import { isManagerProxyBaseUrl } from "../proxy/targets.js";
+import { getApiProxySettings } from "../proxy/settings.js";
 import { parseJsonBody } from "./validation.js";
 
 function validateApiEndpointRefs(input: { baseUrl?: string | undefined }) {
@@ -65,6 +66,15 @@ export function registerEndpointRoutes(app: Hono) {
     const endpoint = getExternalApiEndpoint(id);
     if (!endpoint) {
       return c.json({ data: { deleted: false } }, 404);
+    }
+    if (getApiProxySettings().agentSessionEndpointId === id) {
+      return c.json(
+        {
+          error:
+            "API endpoint is used by the agent session API; clear that setting first.",
+        },
+        409,
+      );
     }
     const usedBy = listApiProxyTargets().filter(
       (target) => target.endpointId === id,

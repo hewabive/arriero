@@ -13,6 +13,7 @@ import type { Hono } from "hono";
 import { listInstances } from "../instances/repository.js";
 import { getApiProxyActivity } from "../proxy/activity.js";
 import {
+  getExternalApiEndpoint,
   listApiEndpointCatalog,
   listRemoteInstanceEndpoints,
   referencedRemoteEndpoints,
@@ -147,6 +148,15 @@ export function registerProxyRoutes(app: Hono) {
 
   app.patch("/api/proxy/settings", async (c) => {
     const body = await parseJsonBody(c, ApiProxySettingsUpdateSchema);
+    if (
+      body.agentSessionEndpointId &&
+      !getExternalApiEndpoint(body.agentSessionEndpointId)
+    ) {
+      return c.json(
+        { error: "Agent session API requires an existing external endpoint." },
+        400,
+      );
+    }
     return c.json({ data: updateApiProxySettings(body) });
   });
 

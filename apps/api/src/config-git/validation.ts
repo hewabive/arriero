@@ -438,6 +438,20 @@ export function validateConfigRoot(root: string): ConfigGitValidation {
     (parsed["proxy-endpoints"] as
       | z.infer<typeof StoredEndpointSchema>[]
       | null) ?? [];
+  const proxySettings = parsed["proxy-settings"] as z.infer<
+    typeof ApiProxySettingsSchema
+  > | null;
+  if (
+    proxySettings?.agentSessionEndpointId &&
+    !endpoints.some(
+      (endpoint) => endpoint.id === proxySettings.agentSessionEndpointId,
+    )
+  ) {
+    issues.push({
+      path: "proxy/settings.json",
+      message: `agent session API references missing external endpoint "${proxySettings.agentSessionEndpointId}"`,
+    });
+  }
   const nodes =
     (parsed.nodes as z.infer<typeof FleetNodeSchema>[] | null) ?? [];
   const resolveEndpointRef = createEndpointRefResolver({

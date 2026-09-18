@@ -5,6 +5,7 @@ import { beforeEach, test } from "node:test";
 import { config } from "../config.js";
 import { resetConfigFilesCache } from "./config-files.js";
 import { getApiProxySettings, updateApiProxySettings } from "./settings.js";
+import { createApiEndpoint } from "./endpoints.js";
 
 beforeEach(() => {
   rmSync(config.proxyConfigDir, { recursive: true, force: true });
@@ -19,6 +20,7 @@ test("defaults to allowing anonymous requests", () => {
     unknownKeyBlockedMessage: "",
     streamIdleTimeoutMs: null,
     traceRetentionDays: 30,
+    agentSessionEndpointId: null,
   });
 });
 
@@ -67,4 +69,26 @@ test("update without fields keeps the current value", () => {
   updateApiProxySettings({ allowAnonymous: false });
   updateApiProxySettings({});
   assert.equal(getApiProxySettings().allowAnonymous, false);
+});
+
+test("agent session endpoint selection persists, validates references and can be cleared", () => {
+  const endpoint = createApiEndpoint({
+    name: "rag",
+    baseUrl: "http://127.0.0.1:8789/v1",
+  });
+  updateApiProxySettings({ agentSessionEndpointId: endpoint.id });
+  updateApiProxySettings({ allowAnonymous: false });
+  resetConfigFilesCache();
+  assert.equal(getApiProxySettings().agentSessionEndpointId, endpoint.id);
+  assert.throws(
+    () => updateApiProxySettings({ agentSessionEndpointId: "missing" }),
+    /existing external endpoint/,
+  );
+  assert.throws(
+    () => updateApiProxySettings({ agentSessionEndpointId: "manager-proxy" }),
+    /existing external endpoint/,
+  );
+  assert.equal(getApiProxySettings().agentSessionEndpointId, endpoint.id);
+  updateApiProxySettings({ agentSessionEndpointId: null });
+  assert.equal(getApiProxySettings().agentSessionEndpointId, null);
 });

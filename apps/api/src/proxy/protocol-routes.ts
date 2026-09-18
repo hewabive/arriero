@@ -11,6 +11,7 @@ import type {
   ApiProxyProtocolTransport,
 } from "./protocol.js";
 import { apiProxyRequestGate } from "./sources.js";
+import { registerAgentSessionProxyRoutes } from "./agent-sessions.js";
 
 function protocolOperation(input: {
   protocol: ApiProxyProtocolOperation["protocol"];
@@ -27,6 +28,7 @@ function protocolOperation(input: {
 }
 
 export function registerOpenAiProxyRoutes(app: Hono, prefix: string) {
+  registerAgentSessionProxyRoutes(app, prefix);
   app.get(`${prefix}/models`, async (c) => {
     const { rejection } = apiProxyRequestGate(c.req.raw.headers);
     if (rejection) {

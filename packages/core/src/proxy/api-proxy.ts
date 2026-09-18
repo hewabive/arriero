@@ -267,6 +267,7 @@ export const ApiProxySettingsSchema = z.object({
   unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.default(""),
   streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().default(null),
   traceRetentionDays: ApiProxyTraceRetentionDaysSchema.default(30),
+  agentSessionEndpointId: ApiEndpointIdSchema.nullable().default(null),
 });
 
 export const ApiProxySettingsUpdateSchema = updateSchemaFrom(
