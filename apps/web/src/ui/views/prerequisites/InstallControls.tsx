@@ -5,6 +5,7 @@ import type {
 } from "@arriero/core";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Code,
   Collapse,
@@ -17,10 +18,11 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Play } from "lucide-react";
+import { Check, Copy, Play, Square } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import {
+  cancelPrerequisiteInstall,
   getPrerequisiteInstallRun,
   startPrerequisiteInstall,
 } from "../../../api/client";
@@ -34,6 +36,9 @@ import { formatLocalDateTime } from "../../utils/time";
 export type PrerequisiteInstallControls = {
   run: PrerequisiteInstallRun | null;
   startError: Error | null;
+  cancelError: Error | null;
+  cancelling: boolean;
+  cancel: () => void;
   available: boolean;
   busy: boolean;
   start: (request: PrerequisiteInstallStart) => void;
@@ -64,6 +69,15 @@ export function usePrerequisiteInstall(
   });
 
   const runId = run?.id ?? null;
+  const cancelMutation = useMutation({
+    mutationFn: cancelPrerequisiteInstall,
+    onSuccess: (response) => {
+      queryClient.setQueryData(["prerequisites-install-run"], response);
+    },
+    onSettled: () => {
+      void runQuery.refetch();
+    },
+  });
   const runStatus = run?.status ?? null;
   useEffect(() => {
     if (runStatus === "running") {
@@ -79,9 +93,15 @@ export function usePrerequisiteInstall(
   return {
     run,
     startError: mutation.isError ? (mutation.error as Error) : null,
+    cancelError: cancelMutation.isError ? cancelMutation.error : null,
+    cancelling: cancelMutation.isPending,
+    cancel: () => cancelMutation.mutate(),
     available: capability?.available ?? false,
     busy: mutation.isPending || runStatus === "running",
-    start: (request) => mutation.mutate(request),
+    start: (request) => {
+      cancelMutation.reset();
+      mutation.mutate(request);
+    },
   };
 }
 
@@ -137,9 +157,10 @@ export function CommandBlock(props: {
 
 export function InstallRunPanel(props: {
   run: PrerequisiteInstallRun;
+  install: PrerequisiteInstallControls;
   onDismiss: () => void;
 }) {
-  const { run, onDismiss } = props;
+  const { run, install, onDismiss } = props;
   const [detailsOpened, toggleDetails] = useJobPanelCollapse(
     run.id,
     run.status === "succeeded",
@@ -163,6 +184,19 @@ export function InstallRunPanel(props: {
             </Text>
           </Group>
           <Group gap={4} wrap="nowrap">
+            {run.status === "running" && (
+              <Tooltip label="Cancel installation">
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  loading={install.cancelling}
+                  onClick={install.cancel}
+                  aria-label="Cancel installation"
+                >
+                  <Square size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
             <JobPanelControls
               subject="install"
               opened={detailsOpened}
@@ -171,6 +205,11 @@ export function InstallRunPanel(props: {
             />
           </Group>
         </Group>
+        {install.cancelError && (
+          <Alert color="red" title="Could not cancel the installation">
+            {install.cancelError.message}
+          </Alert>
+        )}
         <Collapse expanded={detailsOpened}>
           <Stack gap="xs">
             <Code

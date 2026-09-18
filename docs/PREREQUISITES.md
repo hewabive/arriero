@@ -23,7 +23,7 @@ machine, and a refusal to start long operations that are already doomed.
 | UI install runner           | `apps/api/src/prerequisites/install-runner.ts` |
 | Reboot-required state       | `apps/api/src/prerequisites/reboot-state.ts` |
 | Build fail-fast             | `apps/api/src/build/preflight.ts`           |
-| Routes                      | `GET /api/prerequisites`, `POST …/install`, `GET …/install/latest` |
+| Routes                      | `GET /api/prerequisites`, `POST …/install`, `DELETE …/install`, `GET …/install/latest` |
 | Page                        | `#/prerequisites`                           |
 
 `tool-probe.ts` is the single PATH-lookup implementation; `build/cuda.ts`
@@ -242,8 +242,26 @@ Runner rules (`install-runner.ts`):
   refresh adds to the manager PATH automatically.
 - One run at a time, in memory only (log tail 256 KiB), exposed at
   `GET /api/prerequisites/install/latest` and polled while running.
-  `DEBIAN_FRONTEND=noninteractive`; under root the `sudo` prefix is stripped.
+  The child inherits `DEBIAN_FRONTEND=noninteractive`; under root the `sudo`
+  prefix is stripped. For passwordless sudo, each sudo command in the generated
+  sequence runs as `sudo -n env DEBIAN_FRONTEND=noninteractive …`, including
+  sudo inside conditional groups. Setting the variable after sudo preserves it
+  despite `env_reset`, so debconf and needrestart see the noninteractive setting.
+  Quoted arguments (including Python mirror settings) are preserved. This controls
+  hooks that honor the setting; arbitrary third-party hooks can still block.
   On finish the page re-fetches the report.
+- **Cancel installation** calls `DELETE /api/prerequisites/install`. On Linux the
+  runner starts its own process group, discovers descendant groups through `/proc`
+  (including sudo's separate PTY session), and sends SIGTERM, followed after three
+  seconds by SIGKILL if necessary. On the sudo path signals also use passwordless
+  sudo, so root-owned hooks are reachable. The slot stays occupied until the
+  tracked processes exit; cancellation failures remain visible and can be retried.
+  Process start times distinguish tracked processes from reused PIDs. A canceled
+  run has status `canceled`, a finish timestamp and its retained log, and never
+  records a successful-install reboot marker. Repeated DELETEs are harmless;
+  without a run the response is `{ data: null }`. API shutdown also cancels an
+  active installation. Cancellation does not roll back packages already installed;
+  an interrupted package transaction may need administrator repair before retrying.
 - A successful per-item install whose definition requires reboot writes its
   check id, timestamp and current `/proc/sys/kernel/random/boot_id` to
   `data/prerequisite-reboot-state.json`. While that boot id is current the play

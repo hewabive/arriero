@@ -11,7 +11,7 @@ import { installCommandPrefix } from "../system/os-release.js";
 
 const UNCONFIRMED: PrerequisiteCheck["status"][] = ["missing", "unknown"];
 
-export const INSTALL_COMMAND_SEPARATOR = " && ";
+const INSTALL_COMMAND_SEPARATOR = " && ";
 
 export function joinInstallCommands(commands: string[]): string | null {
   return commands.length > 0 ? commands.join(INSTALL_COMMAND_SEPARATOR) : null;

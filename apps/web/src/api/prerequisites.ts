@@ -16,6 +16,13 @@ export async function getPrerequisiteInstallRun() {
   );
 }
 
+export async function cancelPrerequisiteInstall() {
+  return request<{ data: PrerequisiteInstallRun | null }>(
+    "/api/prerequisites/install",
+    { method: "DELETE" },
+  );
+}
+
 export async function startPrerequisiteInstall(
   start: PrerequisiteInstallStart,
 ) {

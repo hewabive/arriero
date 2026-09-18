@@ -99,6 +99,7 @@ export const PrerequisiteInstallRunStatusSchema = z.enum([
   "running",
   "succeeded",
   "failed",
+  "canceled",
 ]);
 
 export const PrerequisiteInstallRunSchema = z.object({

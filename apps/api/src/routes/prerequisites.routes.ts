@@ -20,6 +20,14 @@ export function registerPrerequisiteRoutes(app: Hono) {
     return c.json({ data: prerequisiteInstallRunner.latest() });
   });
 
+  app.delete("/api/prerequisites/install", async (c) => {
+    try {
+      return c.json({ data: await prerequisiteInstallRunner.cancel() });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 409);
+    }
+  });
+
   app.post("/api/prerequisites/install", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const parsed = PrerequisiteInstallStartSchema.safeParse(body);

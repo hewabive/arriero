@@ -49,6 +49,7 @@ import { ensureResourcePoolsScaffold } from "./resources/repository.js";
 import { augmentProcessPath } from "./system/path-repair.js";
 import { sweepSourceCloneStaging } from "./sources/operations.js";
 import { shutdownActiveJobs } from "./jobs/registry.js";
+import { prerequisiteInstallRunner } from "./prerequisites/install-runner.js";
 import { supervisor } from "./process/supervisor.js";
 import { initializeEnvironments } from "./envs/service.js";
 import { nvidiaTelemetry } from "./nvidia/telemetry.js";
@@ -340,6 +341,9 @@ async function shutdown(signal: NodeJS.Signals) {
     await closeServer();
     logger.info("http server closed");
     beginHfDownloadQueueShutdown();
+    await prerequisiteInstallRunner.cancel().catch((error) => {
+      logger.error({ error }, "prerequisite installation shutdown failed");
+    });
     const stoppedJobs = await shutdownActiveJobs(config.shutdown.timeoutMs);
     if (stoppedJobs > 0) {
       logger.info(

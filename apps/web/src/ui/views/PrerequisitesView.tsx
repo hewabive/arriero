@@ -369,6 +369,7 @@ export function PrerequisitesView() {
             <InstallRunPanel
               key={installRun.id}
               run={installRun}
+              install={install}
               onDismiss={() => setDismissedInstallRunId(installRun.id)}
             />
           )}
