@@ -11,7 +11,7 @@ import { summarizeInstanceLog } from "./log-summary.js";
 function runtime(logPath: string): RuntimeState {
   return {
     instanceId: "test-instance",
-    pid: 1234,
+    pid: null,
     status: "running",
     startedAt: "2026-05-26T00:00:00.000Z",
     stoppedAt: null,
@@ -233,6 +233,8 @@ test("summarizeInstanceLog parses projected host memory when exact buffers are a
       runtime: runtime(logPath),
     });
 
+    assert.equal(summary.memoryLayout.source, "log-projection");
+    assert.deepEqual(summary.memoryLayout.processIds, []);
     assert.equal(summary.memoryLayout.totalBytes, 0);
     assert.equal(summary.memoryLayout.projectedHostBytes, 940 * 1024 * 1024);
     assert.equal(
