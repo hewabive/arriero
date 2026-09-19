@@ -41,7 +41,8 @@ kinds install through different provisioner channels:
   exactly like vLLM/SGLang.
 - **Chat UI — `node-source` channel**: a git tag/branch of `huggingface/chat-ui` built from source
   with the host `git`/`npm` (probed on PATH) and run on the manager's own Node. Steps:
-  shallow-clone the ref → `npm ci --ignore-scripts` (the husky `prepare` hook breaks a clean
+  shallow-clone the ref → `npm ci --include=dev --ignore-scripts` (build dependencies are required
+  even when the manager runs with `NODE_ENV=production`; the husky `prepare` hook breaks a clean
   install) → **manifest patch**: move `mongodb-memory-server` from `devDependencies` to
   `dependencies` — SvelteKit's adapter-node inlines devDependencies into the server bundle, and the
   bundled copy of the embedded-MongoDB fallback crashes at runtime (`__dirname` is undefined in the

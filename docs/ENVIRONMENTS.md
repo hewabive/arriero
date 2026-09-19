@@ -173,7 +173,7 @@ webapp references the spec.
 The Chat UI provisioner (`envs/chat-ui.ts`) is the `node-source` channel: the spec's
 `version` is a git tag or branch of `huggingface/chat-ui` (`source.url` may point at a
 fork), and instead of uv the runner probes `git` and `npm` on PATH
-(`envs/node-tools.ts`). The step plan — shallow clone, `npm ci --ignore-scripts`, the
+(`envs/node-tools.ts`). The step plan — shallow clone, `npm ci --include=dev --ignore-scripts`, the
 `mongodb-memory-server` manifest patch, `npm run build`, `npm prune --omit=dev`,
 freeze — records the resolved commit hash in `freeze.txt` (the freeze pin of this
 channel; a branch build is reproducible only through it), and finalize writes the

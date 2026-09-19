@@ -85,6 +85,7 @@ test("chat-ui job plan clones the tag, builds with npm and freezes the commit", 
     "--prefix",
     staging,
     "ci",
+    "--include=dev",
     "--ignore-scripts",
   ]);
   assert.ok(steps[3]!.command.includes("build"));
@@ -133,6 +134,7 @@ test("chat-ui modules install honours the configured npm registry", () => {
     "--prefix",
     staging,
     "ci",
+    "--include=dev",
     "--ignore-scripts",
     "--registry",
     "https://npm.example/registry",

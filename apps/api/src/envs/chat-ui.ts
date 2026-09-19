@@ -76,6 +76,7 @@ export function chatUiJobSteps(
       "--prefix",
       staging,
       "ci",
+      "--include=dev",
       "--ignore-scripts",
       ...npmRegistryInstallOptions(npmRegistryUrl),
     ]),
