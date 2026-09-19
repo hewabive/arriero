@@ -33,23 +33,6 @@ test("validateConfigRoot accepts a minimal portable configuration", () => {
   assert.deepEqual(validateConfigRoot(root), { valid: true, issues: [] });
 });
 
-test("validateConfigRoot rejects a missing agent session backend", () => {
-  const root = mkdtempSync(resolve(tmpdir(), "agent-session-config-"));
-  mkdirSync(resolve(root, "proxy"));
-  writeJson(resolve(root, "proxy/settings.json"), {
-    agentSessionEndpointId: "missing",
-  });
-  const result = validateConfigRoot(root);
-  assert.equal(result.valid, false);
-  assert.ok(
-    result.issues.some(
-      (issue) =>
-        issue.path === "proxy/settings.json" &&
-        issue.message.includes("missing external endpoint"),
-    ),
-  );
-});
-
 test("validateConfigRoot tolerates dangling machine-state references", () => {
   const root = mkdtempSync(resolve(tmpdir(), "llama-config-machine-"));
   mkdirSync(resolve(root, "instances"));

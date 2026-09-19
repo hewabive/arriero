@@ -88,10 +88,6 @@ The second expected case is API adaptation: accepting one API shape and forwardi
 
 ## External Protocol Facades
 
-Agent session inspection and cloning have an explicit external-backend setting
-because their requests carry no model selector. Routes, credentials and failure
-semantics: [API_PROXY_AGENT_SESSIONS.md](API_PROXY_AGENT_SESSIONS.md).
-
 The external protocol surfaces are public and intentionally separate from admin `/api/*` routes:
 
 - `GET /proxy/v1/models` and `GET /v1/models` list **visible** proxy models from `models.json`, each with a llama.cpp-router-style `status` object (see _Model visibility, serving, and `/v1/models` status_ below).

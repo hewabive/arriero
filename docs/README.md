@@ -9,7 +9,6 @@ not before.
 | Document | Subject |
 | --- | --- |
 | [API_PROXY_FOUNDATION](API_PROXY_FOUNDATION.md) | The map: contracts, pure planning layer, protocol adapters, admin surface, telemetry, request sources |
-| [API_PROXY_AGENT_SESSIONS](API_PROXY_AGENT_SESSIONS.md) | rag-manager request inspection and session cloning through an explicitly selected external endpoint |
 | [API_PROXY_PIPELINES](API_PROXY_PIPELINES.md) | Node-graph routing: node roster, ports, `call`/`exit` semantics, validation, `route-explain` |
 | [API_PROXY_PREEMPTION](API_PROXY_PREEMPTION.md) | Context-switching scheduler: slot save/restore, eviction, resumable forwards |
 | [API_PROXY_RESPONSE_CACHE](API_PROXY_RESPONSE_CACHE.md) | The `cache` node: keying, single-flight coalescing, streaming fan-out, framing-matched store |
