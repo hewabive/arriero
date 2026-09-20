@@ -38,6 +38,7 @@ import { serveApiProxyPinnedInstance } from "../proxy/serve-pinned.js";
 import {
   getApiProxySettings,
   updateApiProxySettings,
+  validateApiProxySettingsRefs,
 } from "../proxy/settings.js";
 import { apiProxyStats } from "../proxy/stats.js";
 import {
@@ -147,6 +148,10 @@ export function registerProxyRoutes(app: Hono) {
 
   app.patch("/api/proxy/settings", async (c) => {
     const body = await parseJsonBody(c, ApiProxySettingsUpdateSchema);
+    const refError = validateApiProxySettingsRefs(body);
+    if (refError) {
+      return c.json({ error: refError }, 400);
+    }
     return c.json({ data: updateApiProxySettings(body) });
   });
 

@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 
 import { anthropicProtocolAdapter } from "./anthropic.js";
+import { registerOpenAiFilesRoutes } from "./files.js";
 import { getApiProxyPublicModelStatuses } from "./model-status.js";
 import { openAiModelsList, openAiProtocolAdapter } from "./openai.js";
 import { listPublicProxyModels } from "./passthrough.js";
@@ -27,6 +28,8 @@ function protocolOperation(input: {
 }
 
 export function registerOpenAiProxyRoutes(app: Hono, prefix: string) {
+  registerOpenAiFilesRoutes(app, prefix);
+
   app.get(`${prefix}/models`, async (c) => {
     const { rejection } = apiProxyRequestGate(c.req.raw.headers);
     if (rejection) {

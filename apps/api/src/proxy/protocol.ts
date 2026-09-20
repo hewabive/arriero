@@ -176,6 +176,14 @@ export type ApiProxyResponseShape =
 
 export type ApiProxyOperationBodyMode = "json";
 
+export const apiProxyFileOperationSpecs = [
+  { method: "POST", path: "/files", bodyMode: "stream" },
+  { method: "GET", path: "/files", bodyMode: "none" },
+  { method: "GET", path: "/files/:fileId", bodyMode: "none" },
+  { method: "DELETE", path: "/files/:fileId", bodyMode: "none" },
+  { method: "GET", path: "/files/:fileId/content", bodyMode: "none" },
+] as const;
+
 type ApiProxyOperationSpec = {
   protocol: ApiProxyProtocolId;
   upstreamPath: string;

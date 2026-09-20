@@ -26,6 +26,59 @@ Set `passthrough: true` on an endpoint to expose **all** of its models by name w
 
 To publish a renamed/curated external model (custom public id, visibility, a pipeline in front), create a `config/proxy/models.json` entry with `routeTo: {type: "endpoint", endpointId, upstreamModel}`. `upstreamModel` null = forward the public id unchanged. This is the non-passthrough path and coexists with passthrough on the same endpoint (an explicit entry shadows the dynamic one by id).
 
+## Files API
+
+Both `/v1` and `/proxy/v1` expose the OpenAI-compatible Files API:
+
+| Method | Path | Operation |
+| --- | --- | --- |
+| POST | `/files` | Upload a multipart file |
+| GET | `/files` | List files, forwarding query filters and pagination |
+| GET | `/files/{file_id}` | Retrieve metadata |
+| DELETE | `/files/{file_id}` | Delete a file |
+| GET | `/files/{file_id}/content` | Download content |
+
+Files requests have no `model`. Endpoint selection follows this order:
+
+1. The request's `X-Arriero-Endpoint: <endpoint-id>` header.
+2. `filesEndpointId` in `config/proxy/settings.json`, selected under **Proxy → API endpoints →
+   Default Files API endpoint** or set via `PATCH /api/proxy/settings`.
+3. The only enabled external endpoint using the `openai` profile, independently of its
+   `passthrough` setting. Multiple eligible endpoints require a header or a configured default.
+
+`filesEndpointId` defaults to `null`; setting it to `null` clears the default and restores
+automatic selection. The settings API accepts only enabled external OpenAI endpoints. If the
+selected default later becomes disabled, incompatible, or deleted, requests fail rather than
+falling back to another provider; an explicit valid header can still override it. This setting
+only affects Files operations, not model routing or file ownership.
+
+An explicit ID must identify an enabled external OpenAI endpoint; missing, ambiguous, disabled,
+or incompatible selections return an OpenAI-shaped 400 error. Managed instances and the manager
+proxy itself are excluded from selection. The selected provider must implement the Files API;
+unsupported operations return the provider's own response.
+
+The usual request-source gate runs before endpoint selection or reading the upload. The proxy
+removes the source credentials and routing header, then applies the endpoint's configured auth
+and extra headers. Multipart bodies and download responses are streamed without JSON conversion
+or full buffering; query strings, upstream statuses, and response headers are preserved, except
+for transport headers and encoding/length headers invalidated by decompression. Redirects are
+returned to the caller rather than followed with provider credentials.
+
+File IDs are returned unchanged. Use them with models routed to the same provider and keep
+selecting that provider for subsequent file operations. The proxy does not replicate files,
+merge providers' file lists, or maintain a file-owner registry. Files operations bypass model
+pipelines, scheduling, inference traces, and token accounting.
+
+```bash
+curl http://localhost:8787/v1/files \
+  -H "Authorization: Bearer $ARRIERO_SOURCE_KEY" \
+  -H "X-Arriero-Endpoint: $ENDPOINT_ID" \
+  -F purpose=user_data \
+  -F file=@document.pdf
+```
+
+Protocol reference: [OpenAI Files API](https://developers.openai.com/api/reference/resources/files).
+
 ## Reference
 
 llm-arena (`~/llm-arena`, `docs/providers.md`) debugged the same provider/variant split first: provider = endpoint, variant = a model at a provider chosen from a `/models` probe. This refactor adopts its auth model (key XOR env var, profile-derived placement, extra headers) and its `/models` fetch, and adds passthrough so a big catalog needs zero per-model records.

@@ -1,5 +1,5 @@
 import type { ApiEndpointRecord, ApiEndpointUpdate } from "@arriero/core";
-import { Paper, Stack } from "@mantine/core";
+import { Paper, Select, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -59,6 +59,68 @@ function StreamIdleTimeoutSetting() {
         value={draft !== undefined ? draft : streamIdleSecondsFromMs(stored)}
         onChange={setDraft}
         onBlur={commit}
+      />
+    </Paper>
+  );
+}
+
+function FilesEndpointSetting({
+  endpoints,
+  loading,
+}: {
+  endpoints: ApiEndpointRecord[];
+  loading: boolean;
+}) {
+  const { query, mutation, settings } = useApiProxySettings(
+    notifyError("Settings update failed"),
+  );
+  const selected = settings?.filesEndpointId ?? null;
+  const options = endpoints
+    .filter(
+      (endpoint) =>
+        endpoint.kind === "external-api" &&
+        endpoint.enabled &&
+        endpoint.profile === "openai",
+    )
+    .map((endpoint) => ({ value: endpoint.id, label: endpoint.name }));
+  const unavailable =
+    selected !== null &&
+    !loading &&
+    !options.some((option) => option.value === selected);
+  const data = unavailable
+    ? [
+        ...options,
+        {
+          value: selected,
+          label: `${endpoints.find((endpoint) => endpoint.id === selected)?.name ?? selected} (unavailable)`,
+          disabled: true,
+        },
+      ]
+    : options;
+
+  return (
+    <Paper withBorder p="md" radius="sm">
+      <Select
+        label="Default Files API endpoint"
+        description="Used for file uploads, lists and downloads. X-Arriero-Endpoint overrides this choice. Clear to select automatically when only one enabled OpenAI endpoint exists."
+        placeholder="Automatic selection"
+        clearable
+        clearButtonProps={{ "aria-label": "Clear default Files API endpoint" }}
+        searchable
+        maw={520}
+        data={data}
+        value={selected}
+        disabled={
+          loading || query.isPending || query.isError || mutation.isPending
+        }
+        error={
+          unavailable
+            ? "The selected endpoint is unavailable. Choose another endpoint or clear the default."
+            : query.isError
+              ? "Could not load proxy settings."
+              : null
+        }
+        onChange={(filesEndpointId) => mutation.mutate({ filesEndpointId })}
       />
     </Paper>
   );
@@ -190,6 +252,10 @@ export function ApiEndpointsView() {
         onDelete={(id) => deleteEndpointMutation.mutate(id)}
       />
 
+      <FilesEndpointSetting
+        endpoints={endpoints}
+        loading={proxyQuery.isPending || proxyQuery.isError}
+      />
       <StreamIdleTimeoutSetting />
 
       <EndpointEditorModal

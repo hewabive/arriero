@@ -262,6 +262,7 @@ export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
 export const ApiProxyTraceRetentionDaysSchema = RetentionDaysSchema;
 
 export const ApiProxySettingsSchema = z.object({
+  filesEndpointId: ApiEndpointIdSchema.nullable().default(null),
   allowAnonymous: z.boolean().default(true),
   anonymousBlockedMessage: ApiProxyBlockedMessageSchema.default(""),
   unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.default(""),

@@ -205,7 +205,7 @@ function instanceEndpoint(instance: Instance): ApiEndpointRecord | null {
   });
 }
 
-function listStoredEndpointRecords(): ApiEndpointRecord[] {
+export function listExternalApiEndpoints(): ApiEndpointRecord[] {
   return readStoredEndpoints()
     .map(toExternalEndpoint)
     .sort((left, right) => left.name.localeCompare(right.name));
@@ -216,7 +216,7 @@ function getStoredExternalApiEndpoint(id: string): StoredEndpoint | null {
 }
 
 export function listPassthroughEndpoints(): ApiEndpointRecord[] {
-  return listStoredEndpointRecords().filter(
+  return listExternalApiEndpoints().filter(
     (endpoint) => endpoint.enabled && endpoint.passthrough,
   );
 }
@@ -234,7 +234,7 @@ export function listApiEndpointCatalog(
     ...instances
       .map(instanceEndpoint)
       .filter((endpoint): endpoint is ApiEndpointRecord => Boolean(endpoint)),
-    ...listStoredEndpointRecords(),
+    ...listExternalApiEndpoints(),
   ];
 }
 
