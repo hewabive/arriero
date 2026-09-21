@@ -66,6 +66,7 @@ import {
   applyTraceDiagnostic,
   createProxyTrace,
   errorBodyMessage,
+  clientAbortResponse,
   markTraceClientAbort,
   recordTraceWithDeferredTiming,
   resumableTraceUsage,
@@ -114,6 +115,7 @@ import {
   consumeResumableSse,
   createResumableBufferState,
   finalFromState,
+  partialFromState,
   runResumableForward,
   runResumableUpstreamAttempt,
 } from "./resumable-forward.js";
@@ -1151,11 +1153,8 @@ export async function serveResolvedTarget(input: {
     return { ok: true, context: resolved.context };
   };
 
-  const markClientAbort = () =>
-    markTraceClientAbort(
-      trace,
-      `Client closed the request before target ${decision.target.name} finished responding`,
-    );
+  const clientAbortMessage = `Client closed the request before target ${decision.target.name} finished responding`;
+  const markClientAbort = () => markTraceClientAbort(trace, clientAbortMessage);
 
   const respond = async (): Promise<Response> => {
     const cancelSignal = inflight.controlSignal("cancel");
@@ -1388,8 +1387,12 @@ export async function serveResolvedTarget(input: {
             outcome.type === "consumer-gone" ||
             outcome.type === "cancelled"
           ) {
-            markClientAbort();
-            return new Response(null, { status: CLIENT_ABORT_STATUS });
+            return clientAbortResponse({
+              trace,
+              message: clientAbortMessage,
+              responsePlan,
+              partialBody: partialFromState(bufferCodec, state),
+            });
           }
           if (outcome.type === "error") {
             return traceDiagnosticResponse({
@@ -1803,7 +1806,18 @@ export async function serveResolvedTarget(input: {
     }
 
     if (final.status === CLIENT_ABORT_STATUS) {
-      markClientAbort();
+      return recordTraceWithDeferredTiming({
+        recorder,
+        trace,
+        instanceId,
+        task,
+        response: clientAbortResponse({
+          trace,
+          message: clientAbortMessage,
+          responsePlan,
+          partialBody: partialFromState(effectiveCodec, state),
+        }),
+      });
     }
     const responseBody = applyApiProxyResponsePlanText(
       responsePlan,

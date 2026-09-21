@@ -477,14 +477,12 @@ for (const route of ["external", "translated", "delegated"] as const) {
   });
 }
 
-test("cancellation before a terminal retains usage without capturing an incomplete response", async (t) => {
+test("cancellation before a terminal retains usage and captures the partial response", async (t) => {
+  const frame =
+    'data: {"choices":[{"index":0,"delta":{"content":"Hello"}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n';
   await seedCapturedUpstream(
     t,
-    {
-      status: 200,
-      contentType: "text/event-stream",
-      body: 'data: {"choices":[{"index":0,"delta":{"content":"Hello"}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n',
-    },
+    { status: 200, contentType: "text/event-stream", body: frame },
     { cache: false, keepOpen: true },
   );
   const response = await postCapturedRequest(buildApp(), "openai", true);
@@ -499,7 +497,16 @@ test("cancellation before a terminal retains usage without capturing an incomple
   assert.equal(trace.streamHealth, null);
   assert.deepEqual(
     trace.files.map((file) => file.kind),
-    ["capture-request"],
+    ["capture-request", "capture-response-partial"],
+  );
+  assert.deepEqual(
+    readApiProxyRequestFile(trace.files[1]!.path)?.data,
+    captureApiProxyResponseSse(frame, {
+      protocol: "openai",
+      endpoint: "chat.completions",
+      routePath: trace.routePath,
+      transport: "sse",
+    }),
   );
 });
 

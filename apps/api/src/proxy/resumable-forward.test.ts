@@ -7,6 +7,7 @@ import {
   consumeResumableSse,
   createResumableBufferState,
   finalFromState,
+  partialFromState,
   runResumableForward,
   runResumableUpstreamAttempt,
 } from "./resumable-forward.js";
@@ -465,6 +466,17 @@ test("runResumableForward signals a gone consumer with the client-abort status",
 
   assert.equal(final.status, 499);
   assert.equal(final.body, "");
+});
+
+test("partialFromState assembles buffered content and skips an empty buffer", () => {
+  const empty = createResumableBufferState();
+  assert.equal(partialFromState(codec, empty), null);
+
+  const state = createResumableBufferState();
+  state.text = "Hel";
+  const body = partialFromState(codec, state);
+  assert.ok(body);
+  assert.equal(JSON.parse(body).choices[0].message.content, "Hel");
 });
 
 test("runResumableForward resumes with the accumulated tail after preemption", async () => {

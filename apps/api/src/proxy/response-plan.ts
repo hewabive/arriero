@@ -1,4 +1,5 @@
 import { saveApiProxyRequestFile } from "./request-files.js";
+import { CLIENT_ABORT_STATUS } from "./http.js";
 import { asObject } from "./json.js";
 import {
   apiProxyLoopGuardArtifact,
@@ -71,6 +72,7 @@ type EffectState = {
   detector: ApiProxyLoopGuardDetector | null;
   explicitText: string | null;
   streamedText: string;
+  framedText: string;
   tapped: boolean;
   streamComplete: boolean;
   flushed: boolean;
@@ -145,6 +147,7 @@ export function createApiProxyResponsePlanExecutor(input: {
         : null,
     explicitText: null,
     streamedText: "",
+    framedText: "",
     tapped: false,
     streamComplete: false,
     flushed: false,
@@ -161,24 +164,31 @@ export function createApiProxyResponsePlanExecutor(input: {
 
     const meta = metadata;
     const text = state.tapped ? state.streamedText : state.explicitText;
-    const complete = !state.tapped || state.streamComplete;
+    const complete =
+      (!state.tapped || state.streamComplete) &&
+      meta?.status !== CLIENT_ABORT_STATUS;
     if (state.effect.type === "capture-response") {
-      if (text === null || !complete || meta === null) {
+      if (text === null || meta === null) {
+        return;
+      }
+      const captured =
+        complete || !state.tapped || !meta.isSse ? text : state.framedText;
+      if (!complete && captured.length === 0) {
         return;
       }
       input.trace.files.push(
         saveApiProxyRequestFile({
           traceId: input.trace.id,
           traceAt: input.trace.at,
-          kind: "capture-response",
+          kind: complete ? "capture-response" : "capture-response-partial",
           label: state.effect.nodeName,
           protocol: input.operation.protocol,
           endpoint: input.operation.endpoint,
           routePath: input.operation.routePath,
           modelId: input.trace.modelId,
           data: meta.isSse
-            ? captureApiProxyResponseSse(text, input.operation)
-            : (safeJsonParse(text) ?? text),
+            ? captureApiProxyResponseSse(captured, input.operation)
+            : (safeJsonParse(captured) ?? captured),
         }),
       );
       return;
@@ -291,15 +301,19 @@ export function createApiProxyResponsePlanExecutor(input: {
         ? createApiProxySseFrameBuffer()
         : null;
     let text = "";
+    let framed = "";
     return stream.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
           text += decoder.decode(chunk, { stream: true });
-          const terminal = frames
-            ?.push(chunk)
-            .some((frame) => isResponseTerminalFrame(frame, shape));
+          const completeFrames = frames?.push(chunk) ?? [];
+          framed += completeFrames.join("");
+          const terminal = completeFrames.some((frame) =>
+            isResponseTerminalFrame(frame, shape),
+          );
           for (const state of group) {
             state.streamedText = text;
+            state.framedText = framed;
             if (terminal && state.effect.type === "capture-response") {
               state.streamComplete = true;
             }

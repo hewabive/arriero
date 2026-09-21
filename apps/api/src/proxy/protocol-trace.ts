@@ -14,6 +14,7 @@ import type {
   ApiProxyProtocolModelRequest,
   ApiProxyProtocolOperation,
 } from "./protocol.js";
+import { CLIENT_ABORT_STATUS } from "./http.js";
 import type { ResumableBufferState } from "./resumable-forward.js";
 import type { ApiProxyResponsePlanExecutor } from "./response-plan.js";
 import {
@@ -125,6 +126,23 @@ export function markTraceClientAbort(
 ): void {
   trace.errorCode = apiProxyClientAbortErrorCode;
   trace.errorMessage = message;
+}
+
+export function clientAbortResponse(input: {
+  trace: ProxyTraceAccumulator;
+  message: string;
+  responsePlan: ApiProxyResponsePlanExecutor | null;
+  partialBody: string | null;
+}): Response {
+  markTraceClientAbort(input.trace, input.message);
+  if (input.partialBody !== null) {
+    input.responsePlan?.processText(input.partialBody, {
+      status: CLIENT_ABORT_STATUS,
+      contentType: "application/json",
+      isSse: false,
+    });
+  }
+  return new Response(null, { status: CLIENT_ABORT_STATUS });
 }
 
 export function traceDiagnosticResponse(input: {

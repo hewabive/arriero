@@ -760,25 +760,32 @@ for (const scenario of [
     name: "OpenAI done",
     operation,
     body: 'data: {"choices":[{"delta":{"content":"Привет"}}]}\r\n\r\ndata: [DONE]\r\n\r\n',
-    complete: true,
+    capture: "capture-response",
   },
   {
     name: "unfinished done frame",
     operation,
     body: "data: [DONE]\n",
-    complete: false,
+    capture: null,
   },
   {
     name: "done text inside content",
     operation,
     body: 'data: {"choices":[{"delta":{"content":"[DONE]"}}]}\n\n',
-    complete: false,
+    capture: "capture-response-partial",
   },
   {
     name: "finish reason before the usage tail",
     operation,
     body: 'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
-    complete: false,
+    capture: "capture-response-partial",
+  },
+  {
+    name: "unfinished trailing frame",
+    operation,
+    body: 'data: {"choices":[{"delta":{"content":"Прив"}}]}\n\ndata: {"choices":[{"del',
+    capture: "capture-response-partial",
+    assembled: 'data: {"choices":[{"delta":{"content":"Прив"}}]}\n\n',
   },
   {
     name: "Anthropic message stop",
@@ -788,13 +795,13 @@ for (const scenario of [
       endpoint: "messages",
     },
     body: 'event: message_stop\ndata: {"type":"message_stop"}\n\n',
-    complete: true,
+    capture: "capture-response",
   },
   ...["completed", "failed", "incomplete"].map((ending) => ({
     name: `Responses ${ending}`,
     operation: { ...operation, endpoint: "responses" },
     body: `event: response.${ending}\ndata: {"type":"response.${ending}"}\n\n`,
-    complete: true,
+    capture: "capture-response",
   })),
 ]) {
   test(`capture after client cancellation handles ${scenario.name}`, async () => {
@@ -830,16 +837,66 @@ for (const scenario of [
     plan.flush();
     plan.flush();
 
-    assert.equal(value.files.length, scenario.complete ? 1 : 0);
-    if (scenario.complete) {
+    assert.deepEqual(
+      value.files.map((file) => file.kind),
+      scenario.capture ? [scenario.capture] : [],
+    );
+    if (scenario.capture) {
       assert.deepEqual(
         readApiProxyRequestFile(value.files[0]!.path)?.data,
-        captureApiProxyResponseSse(scenario.body, scenario.operation),
+        captureApiProxyResponseSse(
+          "assembled" in scenario ? scenario.assembled : scenario.body,
+          scenario.operation,
+        ),
       );
     }
     assert.deepEqual(writes, []);
   });
 }
+
+test("a client-abort body is captured as partial without caching", () => {
+  const value = trace();
+  const writes: string[] = [];
+  const plan = createApiProxyResponsePlanExecutor({
+    effects: [
+      { type: "capture-response", nodeName: "save" },
+      { type: "cache-store", key: "aborted-json", ttlSeconds: 600 },
+    ],
+    putCache: (input) => writes.push(input.key),
+    trace: value,
+    operation,
+  });
+  assert.ok(plan);
+  const body = JSON.stringify({
+    choices: [{ index: 0, message: { role: "assistant", content: "Hel" } }],
+  });
+  plan.processText(body, { ...jsonResponse, status: 499 });
+  plan.flush();
+
+  assert.deepEqual(
+    value.files.map((file) => [file.kind, file.label]),
+    [["capture-response-partial", "save"]],
+  );
+  assert.deepEqual(
+    readApiProxyRequestFile(value.files[0]!.path)?.data,
+    JSON.parse(body),
+  );
+  assert.deepEqual(writes, []);
+});
+
+test("a client abort with no captured content writes nothing", () => {
+  const value = trace();
+  const plan = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "capture-response", nodeName: null }],
+    putCache: () => undefined,
+    trace: value,
+    operation,
+  });
+  assert.ok(plan);
+  plan.processText("", { ...jsonResponse, status: 499 });
+  plan.flush();
+  assert.deepEqual(value.files, []);
+});
 
 test("a streaming owner stores SSE, feeds the broadcast, and finishes it", async () => {
   clearApiProxyBroadcasts();

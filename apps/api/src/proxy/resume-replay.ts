@@ -1,7 +1,7 @@
 import type { ApiProxyTargetRecord } from "@arriero/core";
 import type { Context } from "hono";
 
-import { CLIENT_ABORT_STATUS, proxyUpstreamFetch } from "./http.js";
+import { proxyUpstreamFetch } from "./http.js";
 import type { ApiProxyInflightHandle } from "./inflight.js";
 import {
   apiProxyPendingResume,
@@ -17,6 +17,7 @@ import {
 } from "./protocol.js";
 import {
   resumableTraceUsage,
+  clientAbortResponse,
   traceDiagnosticResponse,
   traceUsageFromCounts,
   truncatedStreamResponse,
@@ -33,6 +34,7 @@ import {
   consumeResumableSse,
   createResumableBufferState,
   finalFromState,
+  partialFromState,
 } from "./resumable-forward.js";
 import {
   applyProxyStreamHealth,
@@ -204,7 +206,13 @@ export async function serveResumedStreamSession(input: {
     trace.usage = resumableTraceUsage(state);
     store.finish(entry, { evict: true });
     if (outcome.type === "consumer-gone" || outcome.type === "cancelled") {
-      return new Response(null, { status: CLIENT_ABORT_STATUS });
+      return clientAbortResponse({
+        trace,
+        message:
+          "Client closed the request before the resumed stream replay finished",
+        responsePlan: input.responsePlan,
+        partialBody: partialFromState(effectiveCodec, state),
+      });
     }
     if (outcome.type === "error") {
       return traceDiagnosticResponse({

@@ -496,14 +496,24 @@ response bodies, including upstream HTTP errors and proxy-generated diagnostics
 after the node was visited. Non-JSON errors are preserved as text; protocol
 translation still precedes capture. This diagnostic recording is independent of
 caching: errors are never cached, and response transformations apply only to
-successful HTTP replies. A failed or cancelled transport that never delivers a
-complete body does not produce a response capture. SSE captures also recognize
-protocol completion before HTTP EOF: OpenAI `[DONE]`, Anthropic `message_stop`,
-and Responses `response.completed` / `response.failed` / `response.incomplete`.
-If the client stops reading after that event, the capture assembles the events
-already observed at its position. A finish reason alone does not trigger
-this capture fallback because usage and other choices can still follow it.
-Cache writes still require normal stream completion.
+successful HTTP replies. SSE captures also recognize protocol completion before
+HTTP EOF: OpenAI `[DONE]`, Anthropic `message_stop`, and Responses
+`response.completed` / `response.failed` / `response.incomplete`. If the client
+stops reading after that event, the capture assembles the events already
+observed at its position. A finish reason alone does not trigger this capture
+fallback because usage and other choices can still follow it. Cache writes
+still require normal stream completion.
+
+A client that disconnects before the response completes (trace status `499`)
+does not discard what the model had already generated: the node writes a file of
+kind `capture-response-partial` instead of `capture-response`. For a streamed
+reply it assembles the complete SSE frames observed at the node's position (an
+unfinished trailing frame is dropped); for a buffered or resumable reply it
+assembles the buffered text, reasoning and tool calls into the protocol's
+non-streaming response shape. Nothing is written when no content had arrived
+yet. Partial captures never feed the cache or the coalescing broadcast, and the
+same filter (`fileKind=capture-response-partial`) lists them in the request
+history.
 
 Stream completion records usage first, then lets the downstream response effects
 finish, and only then persists the trace. This ordering applies to direct,

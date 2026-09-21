@@ -366,6 +366,17 @@ export function finalFromState(
   });
 }
 
+export function partialFromState(
+  codec: ApiProxyResumableCodec,
+  state: ResumableBufferState,
+): string | null {
+  const generated =
+    state.text.length > 0 ||
+    state.reasoningText.length > 0 ||
+    state.toolCalls.some(Boolean);
+  return generated ? finalFromState(codec, state, false).body : null;
+}
+
 export async function runResumableForward(input: {
   makeReady: () => Promise<
     { ok: true } | { ok: false; final: ApiProxyResumableFinalResponse }
