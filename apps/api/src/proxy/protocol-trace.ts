@@ -13,9 +13,13 @@ import type {
   ApiProxyProtocolDiagnostic,
   ApiProxyProtocolModelRequest,
   ApiProxyProtocolOperation,
+  ApiProxyResumableCodec,
 } from "./protocol.js";
 import { CLIENT_ABORT_STATUS } from "./http.js";
-import type { ResumableBufferState } from "./resumable-forward.js";
+import {
+  partialFromState,
+  type ResumableBufferState,
+} from "./resumable-forward.js";
 import type { ApiProxyResponsePlanExecutor } from "./response-plan.js";
 import {
   ratePerSecondFromUsage,
@@ -136,11 +140,7 @@ export function clientAbortResponse(input: {
 }): Response {
   markTraceClientAbort(input.trace, input.message);
   if (input.partialBody !== null) {
-    input.responsePlan?.processText(input.partialBody, {
-      status: CLIENT_ABORT_STATUS,
-      contentType: "application/json",
-      isSse: false,
-    });
+    input.responsePlan?.capturePartial(input.partialBody);
   }
   return new Response(null, { status: CLIENT_ABORT_STATUS });
 }
@@ -152,8 +152,12 @@ export function traceDiagnosticResponse(input: {
   trace: ProxyTraceAccumulator;
   diagnostic: ApiProxyProtocolDiagnostic;
   responsePlan?: ApiProxyResponsePlanExecutor | null;
+  partialBody?: string | null;
 }): Response {
   applyTraceDiagnostic(input.trace, input.diagnostic);
+  if (input.partialBody) {
+    input.responsePlan?.capturePartial(input.partialBody);
+  }
   const response = input.adapter.diagnosticError(
     input.request,
     input.diagnostic,
@@ -174,6 +178,7 @@ export function truncatedStreamResponse(input: {
   adapter: ApiProxyProtocolAdapter;
   request: ApiProxyProtocolModelRequest;
   trace: ProxyTraceAccumulator;
+  codec: ApiProxyResumableCodec;
   state: ResumableBufferState;
   label: string;
   responsePlan?: ApiProxyResponsePlanExecutor | null;
@@ -185,6 +190,7 @@ export function truncatedStreamResponse(input: {
     request: input.request,
     trace: input.trace,
     responsePlan: input.responsePlan ?? null,
+    partialBody: partialFromState(input.codec, input.state),
     diagnostic: {
       status: 502,
       code: "arriero_proxy_upstream_error",

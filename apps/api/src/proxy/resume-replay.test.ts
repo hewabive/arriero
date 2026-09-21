@@ -263,13 +263,20 @@ test("non-stream replay rebuilds the buffered response and evicts", async () => 
   }
 });
 
-test("a failed buffered replay retains observed token and cache usage", async () => {
+test("a failed buffered replay retains observed usage and captures the partial reply", async () => {
   const { store, cleanup } = await readyStore(["conv-1"]);
   try {
     const claim = claimFor(store);
     assert.ok(claim);
     const trace = createProxyTrace(operation);
+    trace.modelId = "model-a";
     const { recorder } = fakeRecorder();
+    const responsePlan = createApiProxyResponsePlanExecutor({
+      effects: [{ type: "capture-response", nodeName: null }],
+      putCache: () => undefined,
+      trace,
+      operation,
+    });
     const inflight = new ApiProxyInflightRegistry().begin({
       modelId: "model-a",
       protocol: "openai",
@@ -284,7 +291,7 @@ test("a failed buffered replay retains observed token and cache usage", async ()
       trace,
       recorder,
       inflight,
-      responsePlan: null,
+      responsePlan,
       store,
       fetchImpl: async () => sseResponse(body),
     });
@@ -294,6 +301,15 @@ test("a failed buffered replay retains observed token and cache usage", async ()
     assert.equal(trace.usage?.completionTokens, 7);
     assert.equal(trace.usage?.cacheReadTokens, 80);
     assert.equal(trace.streamHealth?.truncated, true);
+    responsePlan?.flush();
+    assert.deepEqual(
+      trace.files.map((file) => file.kind),
+      ["capture-response-partial", "capture-response"],
+    );
+    const partial = readApiProxyRequestFile(trace.files[0]!.path)?.data as {
+      choices: { message: { content: string } }[];
+    };
+    assert.equal(partial.choices[0]!.message.content, "partial");
   } finally {
     cleanup();
   }

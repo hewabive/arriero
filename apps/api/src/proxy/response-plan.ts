@@ -1,5 +1,4 @@
 import { saveApiProxyRequestFile } from "./request-files.js";
-import { CLIENT_ABORT_STATUS } from "./http.js";
 import { asObject } from "./json.js";
 import {
   apiProxyLoopGuardArtifact,
@@ -63,6 +62,7 @@ export type ApiProxyResponsePlanExecutor = {
     stream: ReadableStream<Uint8Array>,
     metadata: ApiProxyResponseMetadata,
   ) => ReadableStream<Uint8Array>;
+  capturePartial: (text: string) => void;
   markTruncated: () => void;
   flush: () => void;
 };
@@ -156,6 +156,29 @@ export function createApiProxyResponsePlanExecutor(input: {
   let responseTruncated = false;
   let streamTruncated = false;
 
+  const saveCapture = (
+    label: string | null,
+    kind: "capture-response" | "capture-response-partial",
+    text: string,
+    isSse: boolean,
+  ) => {
+    input.trace.files.push(
+      saveApiProxyRequestFile({
+        traceId: input.trace.id,
+        traceAt: input.trace.at,
+        kind,
+        label,
+        protocol: input.operation.protocol,
+        endpoint: input.operation.endpoint,
+        routePath: input.operation.routePath,
+        modelId: input.trace.modelId,
+        data: isSse
+          ? captureApiProxyResponseSse(text, input.operation)
+          : (safeJsonParse(text) ?? text),
+      }),
+    );
+  };
+
   const flushState = (state: EffectState) => {
     if (state.flushed) {
       return;
@@ -164,33 +187,29 @@ export function createApiProxyResponsePlanExecutor(input: {
 
     const meta = metadata;
     const text = state.tapped ? state.streamedText : state.explicitText;
-    const complete =
-      (!state.tapped || state.streamComplete) &&
-      meta?.status !== CLIENT_ABORT_STATUS;
+    const complete = !state.tapped || state.streamComplete;
     if (state.effect.type === "capture-response") {
       if (text === null || meta === null) {
         return;
       }
-      const captured =
-        complete || !state.tapped || !meta.isSse ? text : state.framedText;
-      if (!complete && captured.length === 0) {
+      if (complete) {
+        saveCapture(
+          state.effect.nodeName,
+          "capture-response",
+          text,
+          meta.isSse,
+        );
         return;
       }
-      input.trace.files.push(
-        saveApiProxyRequestFile({
-          traceId: input.trace.id,
-          traceAt: input.trace.at,
-          kind: complete ? "capture-response" : "capture-response-partial",
-          label: state.effect.nodeName,
-          protocol: input.operation.protocol,
-          endpoint: input.operation.endpoint,
-          routePath: input.operation.routePath,
-          modelId: input.trace.modelId,
-          data: meta.isSse
-            ? captureApiProxyResponseSse(captured, input.operation)
-            : (safeJsonParse(captured) ?? captured),
-        }),
-      );
+      const partial = meta.isSse ? state.framedText : text;
+      if (partial.length > 0) {
+        saveCapture(
+          state.effect.nodeName,
+          "capture-response-partial",
+          partial,
+          meta.isSse,
+        );
+      }
       return;
     }
     if (state.effect.type === "loop-guard") {
@@ -456,6 +475,22 @@ export function createApiProxyResponsePlanExecutor(input: {
       }
       drainGroup();
       return current;
+    },
+    capturePartial(text) {
+      if (text.length === 0) {
+        return;
+      }
+      for (let index = states.length - 1; index >= 0; index -= 1) {
+        const state = states[index];
+        if (state?.effect.type === "capture-response") {
+          saveCapture(
+            state.effect.nodeName,
+            "capture-response-partial",
+            text,
+            false,
+          );
+        }
+      }
     },
     markTruncated() {
       streamTruncated = true;

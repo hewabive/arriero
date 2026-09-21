@@ -504,15 +504,19 @@ observed at its position. A finish reason alone does not trigger this capture
 fallback because usage and other choices can still follow it. Cache writes
 still require normal stream completion.
 
-A client that disconnects before the response completes (trace status `499`)
-does not discard what the model had already generated: the node writes a file of
-kind `capture-response-partial` instead of `capture-response`. For a streamed
-reply it assembles the complete SSE frames observed at the node's position (an
-unfinished trailing frame is dropped); for a buffered or resumable reply it
-assembles the buffered text, reasoning and tool calls into the protocol's
-non-streaming response shape. Nothing is written when no content had arrived
-yet. Partial captures never feed the cache or the coalescing broadcast, and the
-same filter (`fileKind=capture-response-partial`) lists them in the request
+Content the model had already generated is never discarded when the reply
+cannot complete: the node writes a file of kind `capture-response-partial`. A
+client that disconnects mid-response (trace status `499`) gets only that file.
+When a proxy diagnostic replaces a partially generated buffered, resumable or
+resumed reply — a strict-terminal truncation, an upstream failure mid-generation,
+a failed re-scheduling after preemption — the partial file is written first and
+the `capture-response` file then holds the diagnostic the client received. For a
+streamed reply the partial assembles the complete SSE frames observed at the
+node's position (an unfinished trailing frame is dropped); for a buffered or
+resumable reply it assembles the buffered text, reasoning and tool calls into
+the protocol's non-streaming response shape. Nothing is written when no content
+had arrived yet. Partial captures never feed the cache or the coalescing
+broadcast, and `fileKind=capture-response-partial` lists them in the request
 history.
 
 Stream completion records usage first, then lets the downstream response effects

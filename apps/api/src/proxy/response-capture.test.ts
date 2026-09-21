@@ -854,13 +854,14 @@ for (const scenario of [
   });
 }
 
-test("a client-abort body is captured as partial without caching", () => {
+test("a partial body is captured for every capture node without caching", () => {
   const value = trace();
   const writes: string[] = [];
   const plan = createApiProxyResponsePlanExecutor({
     effects: [
-      { type: "capture-response", nodeName: "save" },
+      { type: "capture-response", nodeName: "outer" },
       { type: "cache-store", key: "aborted-json", ttlSeconds: 600 },
+      { type: "capture-response", nodeName: "inner" },
     ],
     putCache: (input) => writes.push(input.key),
     trace: value,
@@ -870,12 +871,15 @@ test("a client-abort body is captured as partial without caching", () => {
   const body = JSON.stringify({
     choices: [{ index: 0, message: { role: "assistant", content: "Hel" } }],
   });
-  plan.processText(body, { ...jsonResponse, status: 499 });
+  plan.capturePartial(body);
   plan.flush();
 
   assert.deepEqual(
     value.files.map((file) => [file.kind, file.label]),
-    [["capture-response-partial", "save"]],
+    [
+      ["capture-response-partial", "inner"],
+      ["capture-response-partial", "outer"],
+    ],
   );
   assert.deepEqual(
     readApiProxyRequestFile(value.files[0]!.path)?.data,
@@ -884,7 +888,7 @@ test("a client-abort body is captured as partial without caching", () => {
   assert.deepEqual(writes, []);
 });
 
-test("a client abort with no captured content writes nothing", () => {
+test("a partial body precedes the diagnostic that replaced it", () => {
   const value = trace();
   const plan = createApiProxyResponsePlanExecutor({
     effects: [{ type: "capture-response", nodeName: null }],
@@ -893,7 +897,31 @@ test("a client abort with no captured content writes nothing", () => {
     operation,
   });
   assert.ok(plan);
-  plan.processText("", { ...jsonResponse, status: 499 });
+  plan.capturePartial(JSON.stringify({ choices: [] }));
+  const diagnostic = JSON.stringify({ error: { message: "truncated" } });
+  plan.processText(diagnostic, { ...jsonResponse, status: 502 });
+  plan.flush();
+
+  assert.deepEqual(
+    value.files.map((file) => file.kind),
+    ["capture-response-partial", "capture-response"],
+  );
+  assert.deepEqual(
+    readApiProxyRequestFile(value.files[1]!.path)?.data,
+    JSON.parse(diagnostic),
+  );
+});
+
+test("an empty partial body writes nothing", () => {
+  const value = trace();
+  const plan = createApiProxyResponsePlanExecutor({
+    effects: [{ type: "capture-response", nodeName: null }],
+    putCache: () => undefined,
+    trace: value,
+    operation,
+  });
+  assert.ok(plan);
+  plan.capturePartial("");
   plan.flush();
   assert.deepEqual(value.files, []);
 });

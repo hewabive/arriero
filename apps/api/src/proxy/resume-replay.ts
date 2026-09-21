@@ -227,6 +227,7 @@ export async function serveResumedStreamSession(input: {
           message: `Resumed stream replay failed: ${outcome.message}`,
         },
         responsePlan: input.responsePlan,
+        partialBody: partialFromState(effectiveCodec, state),
       });
     }
     if (outcome.type === "truncated") {
@@ -235,6 +236,7 @@ export async function serveResumedStreamSession(input: {
         adapter: input.adapter,
         request,
         trace,
+        codec: effectiveCodec,
         state,
         label: "Resumed stream replay",
         responsePlan: input.responsePlan,

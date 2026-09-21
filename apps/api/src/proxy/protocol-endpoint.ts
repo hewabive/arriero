@@ -1407,6 +1407,7 @@ export async function serveResolvedTarget(input: {
                 message: `Proxy target ${decision.target.name} failed to forward request: ${outcome.message}`,
               },
               responsePlan,
+              partialBody: partialFromState(bufferCodec, state),
             });
           }
           if (outcome.type === "truncated") {
@@ -1416,6 +1417,7 @@ export async function serveResolvedTarget(input: {
                 adapter,
                 request: route.request,
                 trace,
+                codec: bufferCodec,
                 state,
                 label: `Proxy target ${decision.target.name} stream`,
                 responsePlan,
@@ -1805,6 +1807,10 @@ export async function serveResolvedTarget(input: {
       task = resolved.task;
     }
 
+    const partialBody =
+      final.status >= 200 && final.status < 300
+        ? null
+        : partialFromState(effectiveCodec, state);
     if (final.status === CLIENT_ABORT_STATUS) {
       return recordTraceWithDeferredTiming({
         recorder,
@@ -1815,9 +1821,12 @@ export async function serveResolvedTarget(input: {
           trace,
           message: clientAbortMessage,
           responsePlan,
-          partialBody: partialFromState(effectiveCodec, state),
+          partialBody,
         }),
       });
+    }
+    if (partialBody !== null) {
+      responsePlan?.capturePartial(partialBody);
     }
     const responseBody = applyApiProxyResponsePlanText(
       responsePlan,
