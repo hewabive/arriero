@@ -285,48 +285,127 @@ test("a parallel vllm wave skips the metrics scrape", async () => {
   deleteBenchmarkRun(run.id);
 });
 
-test("benchmark run cancels in-flight requests", async () => {
+test("a sustained run persists every request and event without wave barriers", async () => {
   prepareFixtures();
-  const fetchImpl: typeof fetch = async (input, init) => {
-    const url = String(input);
-    if (url.endsWith("/v1/models")) {
-      return Response.json({ data: [{ id: "test-model" }] });
-    }
-    if (url.endsWith("/props")) {
-      return Response.json({ total_slots: 4 });
-    }
-    const signal = init?.signal;
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(
-          new TextEncoder().encode(
-            'data: {"choices":[{"delta":{"content":"x"}}]}\n\n',
-          ),
-        );
-        signal?.addEventListener("abort", () => {
-          controller.error(new DOMException("aborted", "AbortError"));
-        });
-      },
-    });
-    return new Response(stream, {
-      status: 200,
-      headers: { "content-type": "text/event-stream" },
-    });
-  };
-
-  const run = startBenchmarkRun(scenario({ warmup: false }), { fetchImpl });
-  await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
-  assert.equal(cancelBenchmarkRun(run.id), true);
+  const state = { finished: 0, metricsCalls: 0 };
+  const run = startBenchmarkRun(
+    vllmScenario({ mode: "sustained", totalRequests: 25 }),
+    vllmFetchImpl(state),
+  );
   await awaitCompletion();
-
   const finished = getBenchmarkRun(run.id);
-  assert.equal(finished?.status, "canceled");
-  assert.deepEqual(finished?.warnings, []);
   const result = readBenchmarkRunResult(run.id);
-  assert.equal(result?.requests.length, 2);
-  assert.ok(result?.requests.every((request) => request.error === "canceled"));
+  const events = readBenchmarkRunEvents(run.id);
+  assert.equal(finished?.status, "succeeded");
+  assert.equal(finished?.summary?.requestCount, 25);
+  assert.equal(finished?.summary?.load?.successfulRequestCount, 25);
+  assert.equal(result?.requests.length, 25);
+  assert.equal(
+    new Set(result?.requests.map((request) => request.requestId)).size,
+    25,
+  );
+  assert.equal(events?.filter((event) => event.kind === "submit").length, 25);
+  assert.equal(events?.filter((event) => event.kind === "done").length, 25);
+  assert.equal(events?.filter((event) => event.kind === "chunk").length, 50);
+  assert.equal(
+    result?.loadTimeline?.reduce(
+      (sum, bucket) => sum + (bucket.outputTokens ?? 0),
+      0,
+    ),
+    50,
+  );
+  assert.equal(state.metricsCalls, 0);
+  assert.deepEqual(readBenchmarkRunRecord(run.id), finished);
   deleteBenchmarkRun(run.id);
 });
+
+test("sustained timeouts consume the budget and fail the run when all requests fail", async () => {
+  prepareFixtures();
+  let chatCalls = 0;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    if (!String(input).endsWith("/v1/chat/completions"))
+      return okFetchImpl()(input, init);
+    chatCalls += 1;
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener(
+        "abort",
+        () => reject(new Error("aborted")),
+        { once: true },
+      );
+    });
+  };
+  const run = startBenchmarkRun(
+    scenario({
+      mode: "sustained",
+      totalRequests: 3,
+      requestTimeoutMs: 1000,
+      warmup: false,
+    }),
+    { fetchImpl },
+  );
+  await awaitCompletion();
+  const finished = getBenchmarkRun(run.id);
+  assert.equal(chatCalls, 3);
+  assert.equal(finished?.status, "failed");
+  assert.equal(finished?.summary?.load?.timedOutRequestCount, 3);
+  assert.equal(finished?.summary?.load?.successfulRequestCount, 0);
+  assert.ok((finished?.summary?.wallMs ?? 0) >= 1900);
+  assert.equal(
+    readBenchmarkRunEvents(run.id)?.filter((event) => event.kind === "error")
+      .length,
+    3,
+  );
+  deleteBenchmarkRun(run.id);
+});
+
+for (const mode of ["parallel", "sustained"] as const)
+  test(`${mode} benchmark run cancels in-flight requests`, async () => {
+    prepareFixtures();
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/v1/models")) {
+        return Response.json({ data: [{ id: "test-model" }] });
+      }
+      if (url.endsWith("/props")) {
+        return Response.json({ total_slots: 4 });
+      }
+      const signal = init?.signal;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              'data: {"choices":[{"delta":{"content":"x"}}]}\n\n',
+            ),
+          );
+          signal?.addEventListener("abort", () => {
+            controller.error(new DOMException("aborted", "AbortError"));
+          });
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    };
+
+    const run = startBenchmarkRun(
+      scenario({ mode, totalRequests: 20, warmup: false }),
+      { fetchImpl },
+    );
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+    assert.equal(cancelBenchmarkRun(run.id), true);
+    await awaitCompletion();
+
+    const finished = getBenchmarkRun(run.id);
+    assert.equal(finished?.status, "canceled");
+    assert.deepEqual(finished?.warnings, []);
+    const result = readBenchmarkRunResult(run.id);
+    assert.equal(result?.requests.length, 2);
+    assert.ok(
+      result?.requests.every((request) => request.error === "canceled"),
+    );
+    deleteBenchmarkRun(run.id);
+  });
 
 test("benchmark run fails when every request fails", async () => {
   prepareFixtures();

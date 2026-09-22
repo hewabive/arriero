@@ -19,6 +19,8 @@ export type MeasuredRequest = {
   submitMs: number;
   firstTokenMs: number | null;
   doneMs: number | null;
+  endedMs?: number;
+  timedOut?: boolean;
   chunkTimesMs: number[];
   promptTokens: number | null;
   completionTokens: number | null;
@@ -289,10 +291,18 @@ function buildTopicSummaries(
     });
 }
 
-function buildRequestResult(
+export function buildRequestResult(
   request: MeasuredRequest,
-  phases: RequestPhases | null,
 ): BenchmarkRequestResult {
+  const phases = phasesOf(request);
+  let maxChunkGapMs: number | null = null;
+  for (let index = 1; index < request.chunkTimesMs.length; index += 1) {
+    const previous = request.chunkTimesMs[index - 1];
+    const current = request.chunkTimesMs[index];
+    if (previous !== undefined && current !== undefined) {
+      maxChunkGapMs = Math.max(maxChunkGapMs ?? 0, current - previous);
+    }
+  }
   const decodeTokens = phases
     ? phases.decodeChunkTimes.length * phases.tokensPerChunk
     : 0;
@@ -306,6 +316,9 @@ function buildRequestResult(
     prefillStartMs: prefillStartOf(request),
     firstTokenMs: request.firstTokenMs,
     doneMs: request.doneMs,
+    endedMs: request.endedMs ?? null,
+    timedOut: request.timedOut ?? false,
+    maxChunkGapMs,
     chunkCount: request.chunkTimesMs.length,
     promptTokens: request.promptTokens,
     completionTokens: request.completionTokens,
@@ -328,11 +341,9 @@ export function analyzeBenchmarkRun(
   requests: readonly MeasuredRequest[],
 ): BenchmarkRunAnalysis {
   const contention = new Map<string, ContentionAccumulator>();
-  const phasesByRequest = new Map<MeasuredRequest, RequestPhases | null>();
   const repetitions = new Map<number, RequestPhases[]>();
   for (const request of requests) {
     const phases = phasesOf(request);
-    phasesByRequest.set(request, phases);
     if (!phases) continue;
     const group = repetitions.get(request.repetition) ?? [];
     group.push(phases);
@@ -349,9 +360,7 @@ export function analyzeBenchmarkRun(
   const result: BenchmarkRunResult = {
     requests: [...requests]
       .sort((a, b) => a.submitMs - b.submitMs)
-      .map((request) =>
-        buildRequestResult(request, phasesByRequest.get(request) ?? null),
-      ),
+      .map(buildRequestResult),
     segments,
   };
   return {

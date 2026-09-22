@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { mkdir, open } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
 import {
@@ -246,10 +247,39 @@ export function writeBenchmarkRunArtifacts(
   }
   const lines = events.map((event) => JSON.stringify(event)).join("\n");
   atomicWriteFile(resolve(dir, "events.jsonl"), lines ? `${lines}\n` : "");
+  writeBenchmarkRunResult(id, result);
+}
+
+export function writeBenchmarkRunResult(
+  id: string,
+  result: BenchmarkRunResult,
+): void {
+  const dir = benchmarkRunArtifactsDir(id);
+  if (!dir) throw new Error(`invalid benchmark run id: ${id}`);
   atomicWriteFile(
     resolve(dir, "result.json"),
     `${JSON.stringify(result, null, 2)}\n`,
   );
+}
+
+export async function createBenchmarkEventWriter(id: string) {
+  const dir = benchmarkRunArtifactsDir(id);
+  if (!dir) throw new Error(`invalid benchmark run id: ${id}`);
+  await mkdir(dir, { recursive: true });
+  const file = await open(resolve(dir, "events.jsonl"), "w");
+  let pending = Promise.resolve();
+  let closing: Promise<void> | null = null;
+  return {
+    append(events: readonly BenchmarkStreamEvent[]): Promise<void> {
+      const lines = events.map((event) => JSON.stringify(event)).join("\n");
+      pending = pending.then(() => file.appendFile(`${lines}\n`));
+      return pending;
+    },
+    close(): Promise<void> {
+      closing ??= pending.finally(() => file.close());
+      return closing;
+    },
+  };
 }
 
 export function writeBenchmarkRunRecord(run: BenchmarkRun): void {

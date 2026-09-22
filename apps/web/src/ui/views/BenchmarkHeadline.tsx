@@ -60,6 +60,45 @@ export function BenchmarkHeadline({
 }: {
   summary: BenchmarkRunSummary;
 }) {
+  const load = summary.load;
+  if (load) {
+    return (
+      <SimpleGrid minColWidth="10rem" autoFlow="auto-fit" spacing="xs">
+        <Stat
+          label="Successful requests"
+          value={formatRate(load.requestsPerSecond)}
+          unit="req/s"
+          hint={`${load.successfulRequestCount} completed successfully`}
+        />
+        <Stat
+          label="Successful output"
+          value={formatRate(load.outputTokensPerSecond)}
+          unit="tok/s"
+          hint={`${(summary.wallMs / 1000).toFixed(1)} s including waits and failures`}
+        />
+        <Stat
+          label="TTFT p50"
+          value={formatDurationMs(load.timeToFirstToken.p50Ms)}
+          hint={`p95 ${formatDurationMs(load.timeToFirstToken.p95Ms)} · p99 ${formatDurationMs(load.timeToFirstToken.p99Ms)}`}
+        />
+        <Stat
+          label="Request latency p50"
+          value={formatDurationMs(load.latency.p50Ms)}
+          hint={`p95 ${formatDurationMs(load.latency.p95Ms)} · p99 ${formatDurationMs(load.latency.p99Ms)}`}
+        />
+        <Stat
+          label="Longest stream pause"
+          value={formatDurationMs(load.maxChunkGapMs)}
+          hint="between consecutive output chunks"
+        />
+        <Stat
+          label="Failed requests"
+          value={String(summary.failedRequestCount)}
+          hint={`${load.timedOutRequestCount} timed out · ${load.canceledRequestCount} canceled`}
+        />
+      </SimpleGrid>
+    );
+  }
   const headline = summary.headline;
   if (!headline) {
     return null;

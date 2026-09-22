@@ -111,7 +111,12 @@ function buildRows(requests: readonly BenchmarkRequestResult[]): RowShape[] {
 }
 
 function rowEndMs(row: RowShape): number {
-  return row.request.doneMs ?? row.request.firstTokenMs ?? row.request.submitMs;
+  return (
+    row.request.endedMs ??
+    row.request.doneMs ??
+    row.request.firstTokenMs ??
+    row.request.submitMs
+  );
 }
 
 function mergeBands(segments: readonly BenchmarkSegment[]): Band[] {
@@ -383,13 +388,13 @@ function buildLayout(
               />
             )}
 
-            {firstToken !== null && (
+            {(firstToken !== null || row.request.endedMs !== null) && (
               <rect
                 x={x(row.prefillStartMs)}
                 y={barTop}
                 width={Math.max(
                   MIN_BAR_WIDTH,
-                  x(firstToken) - x(row.prefillStartMs),
+                  x(firstToken ?? rowEndMs(row)) - x(row.prefillStartMs),
                 )}
                 height={barHeight}
                 fill={prefillColor}
@@ -403,7 +408,7 @@ function buildLayout(
                 width={Math.max(MIN_BAR_WIDTH, x(done) - x(firstToken))}
                 height={barHeight}
                 fill={decodeColor}
-                opacity={0.16}
+                opacity={ratePoints.length > 0 ? 0.16 : 0.8}
               />
             )}
 
@@ -745,11 +750,11 @@ export function BenchmarkTimeline({
                   {hoverRow && (
                     <>
                       <Text size="xs" fw={600} mt={2}>
-                        {hoverRow.label}
+                        {hoverRow.request.promptId}
                       </Text>
                       {hoverRow.request.firstTokenMs !== null && (
                         <Text size="xs" c="dimmed">
-                          {`prefill ${formatDurationMs(
+                          {`${hoverRow.request.prefillStartMs === null ? "queue + prefill" : "prefill"} ${formatDurationMs(
                             hoverRow.request.firstTokenMs -
                               hoverRow.prefillStartMs,
                           )} · ${hoverRow.request.promptTokens ?? "?"} prompt tokens`}
@@ -764,6 +769,12 @@ export function BenchmarkTimeline({
                             )} · ${hoverRow.request.completionTokens ?? "?"} tokens`}
                           </Text>
                         )}
+                      {hoverRow.request.endedMs !== null && (
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                        >{`latency ${formatDurationMs(hoverRow.request.endedMs - hoverRow.request.submitMs)} · longest pause ${formatDurationMs(hoverRow.request.maxChunkGapMs)}`}</Text>
+                      )}
                       {hoverRow.request.error !== null && (
                         <Text size="xs" c="red">
                           {hoverRow.request.error}
@@ -780,7 +791,14 @@ export function BenchmarkTimeline({
 
       <Group gap="md" wrap="wrap">
         <LegendSwatch color={QUEUE_COLOR} label="queue" />
-        <LegendSwatch color={layout.prefillColor} label="prefill" />
+        <LegendSwatch
+          color={layout.prefillColor}
+          label={
+            result.requests.some((request) => request.prefillStartMs === null)
+              ? "prefill / queue"
+              : "prefill"
+          }
+        />
         <LegendSwatch color={layout.decodeColor} label="decode" />
         {layout.laneVisible && (
           <>
@@ -797,9 +815,11 @@ export function BenchmarkTimeline({
           </>
         )}
         <Text size="xs" c="dimmed">
-          {baseline === null
-            ? "shaded bands = a prefill is competing for batch capacity; no solo baseline in this run"
-            : "pale decode = slower than the solo baseline; shaded bands = a prefill is competing for batch capacity"}
+          {result.loadTimeline
+            ? "Request averages; queueing and prefill are combined when server timings are unavailable."
+            : baseline === null
+              ? "shaded bands = a prefill is competing for batch capacity; no solo baseline in this run"
+              : "pale decode = slower than the solo baseline; shaded bands = a prefill is competing for batch capacity"}
         </Text>
         {layout.hiddenRowCount > 0 && (
           <Text size="xs" c="dimmed">

@@ -1,4 +1,4 @@
-import type { BenchmarkScenarioInput } from "@arriero/core";
+import type { BenchmarkMode, BenchmarkScenarioInput } from "@arriero/core";
 import {
   ActionIcon,
   Button,
@@ -21,6 +21,7 @@ import {
   substringOptionsFilter,
 } from "../components/TouchCombobox";
 import { createUiId } from "../utils/id";
+import { countLabel } from "../utils/plural";
 import type { BenchmarkViewController } from "./use-benchmark-view";
 
 type CompositionRow = {
@@ -40,9 +41,11 @@ function asCount(value: number | string): number {
 
 export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   const [instanceName, setInstanceName] = useState<string | null>(null);
-  const [mode, setMode] = useState<"parallel" | "sequential">("parallel");
+  const [mode, setMode] = useState<BenchmarkMode>("parallel");
   const [rows, setRows] = useState<CompositionRow[]>([newRow()]);
   const [repetitions, setRepetitions] = useState<number>(1);
+  const [totalRequests, setTotalRequests] = useState(2000);
+  const [timeoutSeconds, setTimeoutSeconds] = useState(300);
   const [warmup, setWarmup] = useState(true);
   const [cacheBust, setCacheBust] = useState(true);
   const [label, setLabel] = useState("");
@@ -51,7 +54,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
 
   const promptOptions = fm.prompts.map((prompt) => ({
     value: prompt.id,
-    label: `${prompt.title} · ${prompt.topic}/${prompt.language}${prompt.source === "custom" ? " · custom" : ""}`,
+    label: `${prompt.title} · ${prompt.topic}/${prompt.language} · ${prompt.prefillClass} input · max ${prompt.maxTokens} output${prompt.source === "custom" ? " · custom" : ""}`,
   }));
   const instanceOptions = fm.instances.map((instance) => ({
     value: instance.name,
@@ -62,7 +65,15 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
     .filter((row) => row.promptId !== null)
     .map((row) => ({ promptId: row.promptId as string, count: row.count }));
   const canStart =
-    instanceName !== null && composition.length > 0 && !fm.startPending;
+    instanceName !== null &&
+    composition.length > 0 &&
+    composition.length <= 32 &&
+    !fm.startPending &&
+    !fm.runs.some((run) => run.status === "running") &&
+    (mode !== "sustained" ||
+      totalRequests >=
+        composition.reduce((sum, entry) => sum + entry.count, 0));
+  const clients = composition.reduce((sum, entry) => sum + entry.count, 0);
 
   function updateRow(uiId: string, patch: Partial<CompositionRow>) {
     setRows((current) =>
@@ -83,7 +94,9 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
       target: { kind: "instance", instanceName },
       mode,
       composition,
-      repetitions,
+      repetitions: mode === "sustained" ? 1 : repetitions,
+      ...(mode === "sustained" ? { totalRequests } : {}),
+      requestTimeoutMs: timeoutSeconds * 1000,
       warmup,
       cacheBust,
       ...(Object.keys(sampling).length > 0 ? { sampling } : {}),
@@ -134,13 +147,16 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
               />
               <NumberInput
                 w={90}
+                label={mode === "sustained" ? "Clients" : "Copies"}
                 min={1}
                 max={64}
                 value={row.count}
                 onChange={(value) =>
                   updateRow(row.uiId, { count: asCount(value) })
                 }
-                aria-label="Parallel copies"
+                aria-label={
+                  mode === "sustained" ? "Concurrent clients" : "Prompt copies"
+                }
               />
               <Tooltip label="Remove row">
                 <ActionIcon
@@ -163,6 +179,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             size="xs"
             leftSection={<Plus size={14} />}
             onClick={() => setRows((current) => [...current, newRow()])}
+            disabled={rows.length >= 32}
           >
             Add prompt
           </Button>
@@ -176,22 +193,43 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             <SegmentedControl
               value={mode}
               onChange={(value) =>
-                setMode(value === "sequential" ? "sequential" : "parallel")
+                setMode(
+                  value === "sustained"
+                    ? "sustained"
+                    : value === "sequential"
+                      ? "sequential"
+                      : "parallel",
+                )
               }
               data={[
                 { value: "parallel", label: "Parallel" },
                 { value: "sequential", label: "Sequential" },
+                { value: "sustained", label: "Sustained" },
               ]}
             />
           </Stack>
-          <NumberInput
-            label="Repetitions"
-            w={110}
-            min={1}
-            max={20}
-            value={repetitions}
-            onChange={(value) => setRepetitions(asCount(value))}
-          />
+          {mode === "sustained" ? (
+            <NumberInput
+              label="Total requests"
+              w={150}
+              min={Math.max(1, clients)}
+              max={100000}
+              value={totalRequests}
+              onChange={(value) => setTotalRequests(asCount(value))}
+              error={
+                totalRequests < clients ? "Must cover every client" : undefined
+              }
+            />
+          ) : (
+            <NumberInput
+              label="Repetitions"
+              w={110}
+              min={1}
+              max={20}
+              value={repetitions}
+              onChange={(value) => setRepetitions(asCount(value))}
+            />
+          )}
           <TextInput
             label="Label"
             placeholder="e.g. draft-on"
@@ -200,6 +238,14 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             style={{ flex: 1, minWidth: 140 }}
           />
         </Group>
+
+        {mode === "sustained" && (
+          <Text size="sm" c="dimmed">
+            {countLabel(clients, "client")} continuously send independent
+            requests. Each client repeats its prompt as soon as its previous
+            request finishes, until the shared request limit is reached.
+          </Text>
+        )}
 
         <Group gap="md" wrap="wrap" align="flex-end">
           <Switch
@@ -222,6 +268,14 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             onChange={setTemperature}
           />
           <NumberInput label="Seed" w={120} value={seed} onChange={setSeed} />
+          <NumberInput
+            label="Request timeout (s)"
+            w={160}
+            min={1}
+            max={3600}
+            value={timeoutSeconds}
+            onChange={(value) => setTimeoutSeconds(asCount(value))}
+          />
         </Group>
 
         <Group justify="flex-end">

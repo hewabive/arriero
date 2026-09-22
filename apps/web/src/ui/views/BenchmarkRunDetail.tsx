@@ -27,6 +27,7 @@ import {
 } from "./benchmark-format";
 import { BenchmarkHeadline } from "./BenchmarkHeadline";
 import { BenchmarkTimeline } from "./BenchmarkTimeline";
+import { BenchmarkLoadTimeline } from "./BenchmarkLoadTimeline";
 import type { BenchmarkViewController } from "./use-benchmark-view";
 
 function numaLabel(numa: NonNullable<BenchmarkTargetSnapshot["numa"]>): string {
@@ -165,6 +166,15 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
                 : ""}
               {run.snapshot?.buildInfo ? ` · ${run.snapshot.buildInfo}` : ""}
               {` · ${run.scenario.mode}`}
+              {run.scenario.mode === "sustained"
+                ? ` · ${countLabel(
+                    run.scenario.composition.reduce(
+                      (sum, entry) => sum + entry.count,
+                      0,
+                    ),
+                    "client",
+                  )}`
+                : ""}
               {run.scenario.repetitions > 1
                 ? ` · ${run.scenario.repetitions} waves`
                 : ""}
@@ -175,7 +185,7 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
               <Badge variant="light">
                 {countLabel(summary.requestCount, "request")}
               </Badge>
-              {summary.headline === null && (
+              {summary.headline === null && !summary.load && (
                 <>
                   <Badge variant="light">
                     {summary.totalCompletionTokens.toFixed(0)} tokens
@@ -226,12 +236,15 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
           </Alert>
         )}
 
-        {fm.result && (
-          <BenchmarkTimeline
-            result={fm.result}
-            baseline={summary?.headline?.soloDecodeTokensPerSecond ?? null}
-          />
-        )}
+        {fm.result &&
+          (fm.result.loadTimeline ? (
+            <BenchmarkLoadTimeline key={run.id} result={fm.result} />
+          ) : (
+            <BenchmarkTimeline
+              result={fm.result}
+              baseline={summary?.headline?.soloDecodeTokensPerSecond ?? null}
+            />
+          ))}
         {run.status !== "running" && !fm.result && !fm.resultLoading && (
           <Text c="dimmed" size="sm">
             No timeline available for this run.
@@ -322,6 +335,48 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
                 </Table.Tbody>
               </Table>
             </Table.ScrollContainer>
+          </Stack>
+        )}
+
+        {summary?.load && (
+          <Stack gap={4}>
+            <Title order={4}>Prompt groups</Title>
+            <Table.ScrollContainer minWidth={600}>
+              <Table striped withTableBorder>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Prompt</Table.Th>
+                    <Table.Th>Requests</Table.Th>
+                    <Table.Th>Failed</Table.Th>
+                    <Table.Th>TTFT p95</Table.Th>
+                    <Table.Th>Latency p95</Table.Th>
+                    <Table.Th>Longest pause</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {summary.load.groups.map((group) => (
+                    <Table.Tr key={group.promptId}>
+                      <Table.Td>{group.promptId}</Table.Td>
+                      <Table.Td>{group.requestCount}</Table.Td>
+                      <Table.Td>{group.failedRequestCount}</Table.Td>
+                      <Table.Td>
+                        {formatDurationMs(group.timeToFirstTokenP95Ms)}
+                      </Table.Td>
+                      <Table.Td>
+                        {formatDurationMs(group.latencyP95Ms)}
+                      </Table.Td>
+                      <Table.Td>
+                        {formatDurationMs(group.maxChunkGapMs)}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+            <Text size="xs" c="dimmed">
+              Latency percentiles use successful requests. Pauses measure time
+              between output chunks, which may contain multiple tokens.
+            </Text>
           </Stack>
         )}
 

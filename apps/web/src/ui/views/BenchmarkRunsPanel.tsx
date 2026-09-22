@@ -28,7 +28,10 @@ function runMeta(run: BenchmarkRun): string {
   if (run.summary) {
     parts.push(countLabel(run.summary.requestCount, "request"));
     parts.push(`${(run.summary.wallMs / 1000).toFixed(1)} s`);
-    const rate = run.summary.headline?.decodeTokensPerSecond ?? null;
+    const rate =
+      run.summary.load?.outputTokensPerSecond ??
+      run.summary.headline?.decodeTokensPerSecond ??
+      null;
     if (rate !== null) {
       parts.push(`${rate.toFixed(1)} tok/s`);
     }

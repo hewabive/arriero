@@ -13,6 +13,8 @@ export type MeasuredStreamOutcome = {
   submitMs: number;
   firstTokenMs: number | null;
   doneMs: number | null;
+  endedMs: number;
+  timedOut: boolean;
   chunkTimesMs: number[];
   promptTokens: number | null;
   completionTokens: number | null;
@@ -28,6 +30,7 @@ export type MeasuredRequestInput = {
   signal?: AbortSignal | undefined;
   fetchImpl?: typeof fetch | undefined;
   now?: (() => number) | undefined;
+  timeoutMs?: number | undefined;
 };
 
 const ERROR_BODY_LIMIT = 300;
@@ -59,14 +62,24 @@ export async function runMeasuredRequest(
   let finishReason: string | null = null;
   let error: string | null = null;
   let malformedFrames = 0;
+  let streamCompleted = false;
 
   const submitMs = now();
+  const timeout = new AbortController();
+  const timer =
+    input.timeoutMs === undefined
+      ? null
+      : setTimeout(() => timeout.abort(), input.timeoutMs);
+  const signal = input.signal
+    ? AbortSignal.any([input.signal, timeout.signal])
+    : timeout.signal;
+  let timedOut = false;
   try {
     const response = await fetchImpl(input.url, {
       method: "POST",
       body: JSON.stringify(input.body),
       headers: { "content-type": "application/json", ...input.headers },
-      ...(input.signal ? { signal: input.signal } : {}),
+      signal,
     });
 
     if (!response.ok) {
@@ -79,7 +92,10 @@ export async function runMeasuredRequest(
       error = "upstream returned no stream body";
     } else {
       await consumeSseEvents(response.body, (data) => {
-        if (data === "[DONE]") return true;
+        if (data === "[DONE]") {
+          streamCompleted = true;
+          return true;
+        }
         let parsed: unknown;
         try {
           parsed = JSON.parse(data) as unknown;
@@ -111,19 +127,32 @@ export async function runMeasuredRequest(
       });
     }
   } catch (cause) {
+    timedOut = timeout.signal.aborted && !input.signal?.aborted;
     error = input.signal?.aborted
       ? CANCELED_REQUEST_ERROR
-      : (cause as Error).message;
+      : timedOut
+        ? `request timed out after ${input.timeoutMs} ms`
+        : (cause as Error).message;
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
 
   if (error === null && malformedFrames > 0) {
     error = `${malformedFrames} malformed stream frames`;
+  }
+  if (error === null && !streamCompleted && finishReason === null) {
+    error = "upstream stream ended before completion";
+  }
+  if (error === null && chunkTimesMs.length === 0) {
+    error = "upstream returned no generated content";
   }
 
   const outcome: MeasuredStreamOutcome = {
     submitMs,
     firstTokenMs: chunkTimesMs[0] ?? null,
     doneMs: chunkTimesMs.at(-1) ?? null,
+    endedMs: now(),
+    timedOut,
     chunkTimesMs,
     promptTokens,
     completionTokens,

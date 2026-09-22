@@ -51,7 +51,11 @@ export const BenchmarkTargetSchema = z.object({
   instanceName: z.string().min(1),
 });
 
-export const BenchmarkModeSchema = z.enum(["sequential", "parallel"]);
+export const BenchmarkModeSchema = z.enum([
+  "sequential",
+  "parallel",
+  "sustained",
+]);
 
 export const BenchmarkSamplingSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
@@ -63,17 +67,45 @@ export const BenchmarkCompositionEntrySchema = z.object({
   count: z.number().int().min(1).max(64),
 });
 
-export const BenchmarkScenarioSchema = z.object({
-  target: BenchmarkTargetSchema,
-  mode: BenchmarkModeSchema,
-  composition: z.array(BenchmarkCompositionEntrySchema).min(1).max(32),
-  repetitions: z.number().int().min(1).max(20).default(1),
-  warmup: z.boolean().default(true),
-  cacheBust: z.boolean().default(true),
-  sampling: BenchmarkSamplingSchema.optional(),
-  maxTokensOverride: z.number().int().min(1).max(32768).optional(),
-  label: z.string().max(120).optional(),
-});
+export const BenchmarkScenarioSchema = z
+  .object({
+    target: BenchmarkTargetSchema,
+    mode: BenchmarkModeSchema,
+    composition: z.array(BenchmarkCompositionEntrySchema).min(1).max(32),
+    repetitions: z.number().int().min(1).max(20).default(1),
+    totalRequests: z.number().int().min(1).max(100000).optional(),
+    requestTimeoutMs: z.number().int().min(1000).max(3600000).default(300000),
+    warmup: z.boolean().default(true),
+    cacheBust: z.boolean().default(true),
+    sampling: BenchmarkSamplingSchema.optional(),
+    maxTokensOverride: z.number().int().min(1).max(32768).optional(),
+    label: z.string().max(120).optional(),
+  })
+  .superRefine((scenario, context) => {
+    if (scenario.mode !== "sustained") return;
+    const clients = scenario.composition.reduce(
+      (sum, entry) => sum + entry.count,
+      0,
+    );
+    if (
+      scenario.totalRequests === undefined ||
+      scenario.totalRequests < clients
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["totalRequests"],
+        message: `Sustained load needs a total request count of at least ${clients}`,
+      });
+    }
+    if (scenario.repetitions !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["repetitions"],
+        message:
+          "Sustained load uses a total request count instead of repetitions",
+      });
+    }
+  });
 
 export const BenchmarkTargetSnapshotSchema = z.object({
   instanceName: z.string(),
@@ -108,6 +140,9 @@ export const BenchmarkRequestResultSchema = z.object({
   prefillStartMs: z.number().nullable(),
   firstTokenMs: z.number().nullable(),
   doneMs: z.number().nullable(),
+  endedMs: z.number().nullable().default(null),
+  timedOut: z.boolean().default(false),
+  maxChunkGapMs: z.number().nullable().default(null),
   chunkCount: z.number().int(),
   promptTokens: z.number().nullable(),
   completionTokens: z.number().nullable(),
@@ -166,6 +201,43 @@ export const BenchmarkHeadlineSchema = z.object({
   peakConcurrentDecode: z.number().int(),
 });
 
+const BenchmarkLatencyPercentilesSchema = z.object({
+  p50Ms: z.number().nullable(),
+  p95Ms: z.number().nullable(),
+  p99Ms: z.number().nullable(),
+});
+
+const BenchmarkLoadGroupSchema = z.object({
+  promptId: z.string(),
+  requestCount: z.number().int(),
+  failedRequestCount: z.number().int(),
+  timeToFirstTokenP95Ms: z.number().nullable(),
+  latencyP95Ms: z.number().nullable(),
+  maxChunkGapMs: z.number().nullable(),
+});
+
+export const BenchmarkLoadSummarySchema = z.object({
+  successfulRequestCount: z.number().int(),
+  timedOutRequestCount: z.number().int(),
+  canceledRequestCount: z.number().int(),
+  requestsPerSecond: z.number().nullable(),
+  outputTokensPerSecond: z.number().nullable(),
+  timeToFirstToken: BenchmarkLatencyPercentilesSchema,
+  latency: BenchmarkLatencyPercentilesSchema,
+  maxChunkGapMs: z.number().nullable(),
+  groups: z.array(BenchmarkLoadGroupSchema),
+});
+
+export const BenchmarkLoadBucketSchema = z.object({
+  startMs: z.number(),
+  endMs: z.number(),
+  outputTokens: z.number().nullable(),
+  completedRequests: z.number().int(),
+  failedRequests: z.number().int(),
+  averageActiveRequests: z.number(),
+  averageWaitingRequests: z.number(),
+});
+
 export const BenchmarkRunSummarySchema = z.object({
   requestCount: z.number().int(),
   failedRequestCount: z.number().int(),
@@ -175,11 +247,13 @@ export const BenchmarkRunSummarySchema = z.object({
   headline: BenchmarkHeadlineSchema.nullable().default(null),
   topics: z.array(BenchmarkTopicSummarySchema),
   segmentClasses: z.array(BenchmarkSegmentClassSchema),
+  load: BenchmarkLoadSummarySchema.optional(),
 });
 
 export const BenchmarkRunResultSchema = z.object({
   requests: z.array(BenchmarkRequestResultSchema),
   segments: z.array(BenchmarkSegmentSchema),
+  loadTimeline: z.array(BenchmarkLoadBucketSchema).optional(),
 });
 
 export const BenchmarkRunPhaseSchema = z.enum([
@@ -257,6 +331,8 @@ export type BenchmarkSegment = z.infer<typeof BenchmarkSegmentSchema>;
 export type BenchmarkSegmentClass = z.infer<typeof BenchmarkSegmentClassSchema>;
 export type BenchmarkTopicSummary = z.infer<typeof BenchmarkTopicSummarySchema>;
 export type BenchmarkHeadline = z.infer<typeof BenchmarkHeadlineSchema>;
+export type BenchmarkLoadSummary = z.infer<typeof BenchmarkLoadSummarySchema>;
+export type BenchmarkLoadBucket = z.infer<typeof BenchmarkLoadBucketSchema>;
 export type BenchmarkRunSummary = z.infer<typeof BenchmarkRunSummarySchema>;
 export type BenchmarkRunResult = z.infer<typeof BenchmarkRunResultSchema>;
 export type BenchmarkRunPhase = z.infer<typeof BenchmarkRunPhaseSchema>;

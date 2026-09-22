@@ -32,13 +32,17 @@ import {
 } from "./measure-client.js";
 import { getBenchmarkPrompt } from "./prompts.js";
 import {
+  createBenchmarkEventWriter,
   createBenchmarkRun,
   getBenchmarkRun,
   patchBenchmarkRun,
   writeBenchmarkRunArtifacts,
   writeBenchmarkRunRecord,
+  writeBenchmarkRunResult,
 } from "./repository.js";
 import { analyzeBenchmarkRun, type MeasuredRequest } from "./segmenter.js";
+import { BenchmarkLoadCollector } from "./load-statistics.js";
+import { runBenchmarkSchedule } from "./schedule.js";
 import {
   benchmarkServerMetricsSource,
   type BenchmarkServerMetricsSource,
@@ -61,7 +65,6 @@ export type BenchmarkRunnerOptions = {
 };
 
 type PlannedRequest = {
-  index: number;
   prompt: BenchmarkPromptWithSource;
 };
 
@@ -92,7 +95,7 @@ function planWave(scenario: BenchmarkScenario): PlannedRequest[] {
       );
     }
     for (let copy = 0; copy < entry.count; copy += 1) {
-      wave.push({ index: wave.length, prompt });
+      wave.push({ prompt });
     }
   }
   return wave;
@@ -219,7 +222,7 @@ function benchmarkStreamEvents(
         kind: "chunk",
       });
     }
-    const endMs = request.doneMs ?? request.submitMs;
+    const endMs = request.endedMs ?? request.doneMs ?? request.submitMs;
     events.push(
       request.error !== null
         ? {
@@ -235,7 +238,7 @@ function benchmarkStreamEvents(
 }
 
 function describeRequestFailures(
-  measured: readonly MeasuredRequest[],
+  measured: readonly Pick<MeasuredRequest, "error">[],
 ): { count: number; message: string } | null {
   const failedMessages = measured.flatMap((request) =>
     request.error !== null && request.error !== CANCELED_REQUEST_ERROR
@@ -256,10 +259,11 @@ async function measurePlannedRequest(input: {
   repetition: number;
   model: string | null;
   now: () => number;
-  measured: MeasuredRequest[];
-}): Promise<void> {
+  sequence: number;
+  signal: AbortSignal;
+}): Promise<MeasuredRequest> {
   const { context, planned } = input;
-  const requestId = `${input.repetition}:${planned.index}:${planned.prompt.id}`;
+  const requestId = `${input.repetition}:${input.sequence}:${planned.prompt.id}`;
   const metricsBefore = context.serverMetrics
     ? await context.serverMetrics.captureBefore()
     : null;
@@ -271,7 +275,8 @@ async function measurePlannedRequest(input: {
       model: input.model,
       maxTokens: context.scenario.maxTokensOverride ?? planned.prompt.maxTokens,
     }),
-    signal: context.signal,
+    signal: input.signal,
+    timeoutMs: context.scenario.requestTimeoutMs,
     fetchImpl: context.fetchImpl,
     now: input.now,
   });
@@ -284,7 +289,7 @@ async function measurePlannedRequest(input: {
   ) {
     serverTimings = await context.serverMetrics.requestTimings(metricsBefore);
   }
-  input.measured.push({
+  return {
     requestId,
     promptId: planned.prompt.id,
     topic: planned.prompt.topic,
@@ -293,13 +298,15 @@ async function measurePlannedRequest(input: {
     submitMs: outcome.submitMs,
     firstTokenMs: outcome.firstTokenMs,
     doneMs: outcome.doneMs,
+    endedMs: outcome.endedMs,
+    timedOut: outcome.timedOut,
     chunkTimesMs: outcome.chunkTimesMs,
     promptTokens: outcome.promptTokens,
     completionTokens: outcome.completionTokens,
     serverTimings,
     finishReason: outcome.finishReason,
     error: outcome.error,
-  });
+  };
 }
 
 async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
@@ -308,7 +315,15 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
     engineDescriptor(context.instance.kind).nativeApi === "llama";
   const warnings: string[] = [];
   const measured: MeasuredRequest[] = [];
-  const totalRequests = wave.length * scenario.repetitions;
+  const load =
+    scenario.mode === "sustained" ? new BenchmarkLoadCollector() : null;
+  let eventWriter: Awaited<
+    ReturnType<typeof createBenchmarkEventWriter>
+  > | null = null;
+  const totalRequests =
+    scenario.mode === "sustained"
+      ? (scenario.totalRequests ?? 0)
+      : wave.length * scenario.repetitions;
   let completedRequests = 0;
   let activeRequests = 0;
   try {
@@ -342,14 +357,16 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       );
     }
 
-    const concurrency = scenario.mode === "parallel" ? wave.length : 1;
+    const concurrency = scenario.mode === "sequential" ? 1 : wave.length;
     if (nativeLlamaApi) {
       const totalSlots = props?.totalSlots ?? null;
       if (totalSlots === null) {
         warnings.push("slot capacity unknown (GET /props failed)");
       } else if (concurrency > totalSlots) {
         warnings.push(
-          `concurrency ${concurrency} exceeds ${totalSlots} server slots; queueing will distort time-to-first-token`,
+          scenario.mode === "sustained"
+            ? `concurrency ${concurrency} exceeds ${totalSlots} server slots; time-to-first-token includes server queueing`
+            : `concurrency ${concurrency} exceeds ${totalSlots} server slots; queueing will distort time-to-first-token`,
         );
       }
     } else if (concurrency > 1) {
@@ -379,6 +396,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
           maxTokens: WARMUP_MAX_TOKENS,
         }),
         signal: context.signal,
+        timeoutMs: scenario.requestTimeoutMs,
         fetchImpl: context.fetchImpl,
       });
       if (warmup.error !== null && !context.signal.aborted) {
@@ -389,14 +407,17 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       }
     }
 
+    if (load) eventWriter = await createBenchmarkEventWriter(runId);
     const epoch = performance.now();
     const now = () => performance.now() - epoch;
-    for (
-      let repetition = 0;
-      repetition < scenario.repetitions && !context.signal.aborted;
-      repetition += 1
-    ) {
-      const runOne = async (planned: PlannedRequest) => {
+    await runBenchmarkSchedule({
+      scenario,
+      clients: wave.length,
+      signal: context.signal,
+      run: async ({ client, repetition, sequence, signal }) => {
+        const planned = wave[client];
+        if (!planned)
+          throw new Error(`benchmark client ${client} has no prompt`);
         activeRequests += 1;
         setProgress(runId, {
           phase: "measure",
@@ -406,14 +427,21 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
           repetition,
         });
         try {
-          await measurePlannedRequest({
+          const request = await measurePlannedRequest({
             context,
             planned,
             repetition,
             model,
             now,
-            measured,
+            sequence,
+            signal,
           });
+          if (load && eventWriter) {
+            load.record(request);
+            await eventWriter.append(benchmarkStreamEvents([request]));
+          } else {
+            measured.push(request);
+          }
         } finally {
           activeRequests -= 1;
           completedRequests += 1;
@@ -425,16 +453,9 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
             repetition,
           });
         }
-      };
-      if (scenario.mode === "parallel") {
-        await Promise.all(wave.map((planned) => runOne(planned)));
-      } else {
-        for (const planned of wave) {
-          if (context.signal.aborted) break;
-          await runOne(planned);
-        }
-      }
-    }
+      },
+    });
+    await eventWriter?.close();
 
     setProgress(runId, {
       phase: "finalize",
@@ -443,13 +464,22 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       activeRequests,
       repetition: scenario.repetitions - 1,
     });
-    const { result, summary } = analyzeBenchmarkRun(measured);
-    const failures = describeRequestFailures(measured);
+    const { result, summary } = load
+      ? load.analyze()
+      : analyzeBenchmarkRun(measured);
+    const requests = load?.requests ?? measured;
+    const failures = describeRequestFailures(requests);
     if (failures) {
       warnings.push(failures.message);
     }
-    const allFailed = failures !== null && failures.count === measured.length;
-    writeBenchmarkRunArtifacts(runId, benchmarkStreamEvents(measured), result);
+    const allFailed = failures !== null && failures.count === requests.length;
+    if (load) writeBenchmarkRunResult(runId, result);
+    else
+      writeBenchmarkRunArtifacts(
+        runId,
+        benchmarkStreamEvents(measured),
+        result,
+      );
     patchBenchmarkRun(runId, {
       status: context.signal.aborted
         ? "canceled"
@@ -466,14 +496,23 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
     const message = (error as Error).message;
     logger.warn({ runId, error: message }, "benchmark run failed");
     let summary: BenchmarkRunSummary | null = null;
-    if (measured.length > 0) {
-      const analysis = analyzeBenchmarkRun(measured);
-      writeBenchmarkRunArtifacts(
-        runId,
-        benchmarkStreamEvents(measured),
-        analysis.result,
-      );
+    if ((load?.requests.length ?? measured.length) > 0) {
+      const analysis = load ? load.analyze() : analyzeBenchmarkRun(measured);
       summary = analysis.summary;
+      try {
+        if (load) writeBenchmarkRunResult(runId, analysis.result);
+        else
+          writeBenchmarkRunArtifacts(
+            runId,
+            benchmarkStreamEvents(measured),
+            analysis.result,
+          );
+      } catch (artifactError) {
+        logger.warn(
+          { runId, error: (artifactError as Error).message },
+          "benchmark partial artifacts could not be saved",
+        );
+      }
     }
     patchBenchmarkRun(runId, {
       ...(summary ? { summary } : {}),
@@ -486,6 +525,14 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
       persistRunRecord(runId);
     }
   } finally {
+    try {
+      await eventWriter?.close();
+    } catch (error) {
+      logger.warn(
+        { runId, error: (error as Error).message },
+        "benchmark events could not be closed",
+      );
+    }
     activeProgress.delete(runId);
   }
 }

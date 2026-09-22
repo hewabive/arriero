@@ -109,6 +109,7 @@ export function BenchmarkPromptModal({ fm }: { fm: BenchmarkViewController }) {
         />
         <Textarea
           label="User message"
+          description="Long inputs create heavy prefill. The Prefill label classifies the prompt; it does not change its length."
           autosize
           minRows={4}
           maxRows={12}

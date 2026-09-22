@@ -46,6 +46,8 @@ test("measures chunk arrivals and extracts usage and llama timings", async () =>
   assert.deepEqual(outcome.chunkTimesMs, [20, 30]);
   assert.equal(outcome.firstTokenMs, 20);
   assert.equal(outcome.doneMs, 30);
+  assert.equal(outcome.endedMs, 40);
+  assert.equal(outcome.timedOut, false);
   assert.equal(outcome.promptTokens, 10);
   assert.equal(outcome.completionTokens, 2);
   assert.equal(outcome.finishReason, "stop");
@@ -87,6 +89,67 @@ test("maps an aborted request to a canceled error", async () => {
   });
 
   assert.equal(outcome.error, "canceled");
+  assert.equal(outcome.timedOut, false);
+});
+
+test("times out before the first token and records the actual end", async () => {
+  const outcome = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: {},
+    timeoutMs: 10,
+    fetchImpl: async (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new Error("aborted")),
+          { once: true },
+        );
+      }),
+  });
+  assert.equal(outcome.timedOut, true);
+  assert.match(outcome.error ?? "", /timed out after 10 ms/);
+  assert.equal(outcome.firstTokenMs, null);
+  assert.equal(outcome.doneMs, null);
+  assert.ok(outcome.endedMs > outcome.submitMs);
+});
+
+test("a timeout during streaming keeps the partial output", async () => {
+  const outcome = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: {},
+    timeoutMs: 10,
+    fetchImpl: async (_input, init) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',
+              ),
+            );
+            init?.signal?.addEventListener(
+              "abort",
+              () => controller.error(new Error("aborted")),
+              { once: true },
+            );
+          },
+        }),
+      ),
+  });
+  assert.equal(outcome.timedOut, true);
+  assert.equal(outcome.chunkTimesMs.length, 1);
+  assert.ok(outcome.endedMs > (outcome.doneMs ?? Infinity));
+});
+
+test("a stream that disconnects before completion is a failed request", async () => {
+  const outcome = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: {},
+    fetchImpl: async () =>
+      sseResponse(['data: {"choices":[{"delta":{"content":"partial"}}]}\n\n']),
+  });
+  assert.equal(outcome.error, "upstream stream ended before completion");
+  assert.equal(outcome.chunkTimesMs.length, 1);
 });
 
 test("falls back to llama timings when usage is absent", async () => {

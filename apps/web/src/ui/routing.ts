@@ -358,8 +358,16 @@ const navSections: NavSection[] = [
         label: "Benchmark",
         title: "Inference benchmark",
         description:
-          "Measure decode speed under mixed parallel load with prefill/decode phase attribution",
-        keywords: ["speed", "tokens", "decode", "prefill"],
+          "Measure inference speed and response latency under parallel or sustained mixed load",
+        keywords: [
+          "speed",
+          "tokens",
+          "decode",
+          "prefill",
+          "stress",
+          "sustained",
+          "concurrency",
+        ],
       },
     ],
   },

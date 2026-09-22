@@ -92,10 +92,65 @@ old rows keep loading.
 `runner.ts` registers one in-process job (`jobs/registry.ts`, domain `benchmark`, single active run)
 whose `cancel` aborts every in-flight fetch; graceful shutdown rides `shutdownActiveJobs`. Phases:
 `prepare` (resolve endpoint via `runtimeEndpointInstance` so live launch-snapshot host/port win,
-snapshot the full launch configuration into the run, model id from `GET /v1/models`) → `warmup` (one short
-request, excluded from stats) → `measure` (repetitions × wave; `parallel` fires the whole wave at
-once, `sequential` runs it one by one for per-topic baselines) → `finalize` (segment, summarize,
+snapshot the full launch configuration into the run, model id from `GET /v1/models`) → `warmup` (one
+request with a short output limit, excluded from stats) → `measure` (repetitions × wave; `parallel` fires the whole wave at
+once, `sequential` runs it one by one for per-topic baselines; `sustained` continuously replenishes
+clients to a shared request limit) → `finalize` (segment or aggregate, summarize,
 persist). Cancellation persists partial results with status `canceled`.
+
+### Sustained load
+
+`mode: "sustained"` keeps a fixed population of independent clients. Each composition entry's
+`count` is its client count; every client repeats that entry's prompt immediately after its
+previous request finishes. A shared `totalRequests` budget counts submitted requests, including
+failures and timeouts. It must cover the initial population and may be at most 100,000. There is
+no wave barrier: fast clients can submit more requests while a slow client is still prefilling.
+The mix therefore fixes concurrent clients per prompt, not the proportion of completed requests.
+Once the budget is exhausted, outstanding requests drain. `repetitions` must be 1 in this mode.
+
+For example, 24 clients with a short input and a long output limit plus 8 clients with a large
+document and a short output limit sustain decode alongside incoming prefill work. Each prompt's
+`maxTokens` controls its output limit (the API's optional `maxTokensOverride` overrides all groups).
+`prefillClass` is descriptive metadata: selecting `long` does not enlarge the input. Actual input
+length comes from the messages and the engine's tokenizer. Keep `cacheBust` enabled to exercise
+fresh prefixes. Engine scheduling and available KV capacity still determine what runs concurrently;
+client concurrency includes queued requests. The target remains the direct instance endpoint.
+
+`requestTimeoutMs` applies to each measured inference request and the warmup in every mode,
+including streaming. It defaults to 300,000 ms and accepts 1,000–3,600,000 ms. A timeout fails that
+request and frees its client for the next request; cancel aborts every outstanding request and
+stops replenishment. A scheduler/storage failure also aborts and drains siblings before finalizing.
+The `endedMs` timestamp measures actual stream termination or failure, while `doneMs` retains the
+last-output-chunk meaning used by decode analysis. Both timestamps survive partial failures.
+Premature stream closure without a finish reason or `[DONE]`, and successful responses with no
+generated content, are recorded as request failures.
+
+Sustained runs use `summary.load` and `result.loadTimeline` instead of the wave segment analysis:
+
+- Successful requests/s and successful output tokens/s use the full interval from first submission
+  to last request termination, including queueing, replenishment gaps and failed-request time.
+  Output throughput is unknown if a successful request lacks token counts; chunk counts are never
+  presented as measured token throughput in these load metrics.
+- TTFT and end-to-end latency p50/p95/p99 use successful requests. Timeout and cancellation counts
+  remain visible separately. `maxChunkGapMs` is the longest interval between consecutive output
+  chunks, including partial failed streams; it is not exact inter-token latency when chunks contain
+  multiple tokens. Per-prompt summaries expose tail latency and pauses separately for each group.
+- Timeline buckets start at 1 second and merge pairwise as the run grows, retaining at most 600
+  buckets. Successful output tokens are calibrated across that request's observed chunk arrivals.
+  In-flight and awaiting-first-output curves are time-weighted client counts; the latter includes
+  server queueing and must not be interpreted as a measured number of active GPU prefills.
+- Selecting an interval opens the existing request timeline for overlapping requests, paginated
+  in groups of 50. Each request retains its timings, token counts, errors and average decode rate.
+  Sustained runs do not retain the wave-only phase-class/solo-baseline analysis. Where per-request
+  server timings are unavailable, request bars explicitly combine queueing and prefill.
+
+The scheduler is `benchmark/schedule.ts`; the compact load collector is
+`benchmark/load-statistics.ts`. Completed requests append their raw events to `events.jsonl`
+through one serialized asynchronous writer before the client continues, then release their chunk
+arrays. Memory scales with request metadata, the bounded overview and in-flight outputs, rather
+than all output chunks from the run. Disk write backpressure can reduce offered load; this is a
+closed-loop client test, not an independent fixed-arrival-rate generator. A hard manager crash can
+lose events belonging to requests that had not yet completed.
 
 **Cache busting**: with `cacheBust` (default on) every request gets a unique nonce line prepended to
 its first message, so the llama.cpp prefix cache cannot make repeated runs incomparable. Disable it
@@ -164,8 +219,12 @@ curl -s localhost:8787/api/benchmark/runs -X POST -H 'content-type: application/
 curl -s "localhost:8787/api/benchmark/runs/<id>?waitMs=60000"
 ```
 
-The answer is `summary.headline`; per-topic and phase-mix breakdowns are `summary.topics` /
+For wave runs, the answer is `summary.headline`; per-topic and phase-mix breakdowns are `summary.topics` /
 `summary.segmentClasses`, and run-level failure semantics are described under Run lifecycle.
+
+A sustained run uses the same endpoint with `"mode":"sustained"` and `"totalRequests":2000`;
+its composition counts define the clients per prompt, and its primary metrics are `summary.load`.
+The web form exposes the request timeout in seconds; the HTTP API takes milliseconds.
 
 ## Prompt library
 
@@ -182,7 +241,9 @@ regime. Custom prompts are portable config in `config/benchmark/prompts.json` (c
 launch args/env/numa/rpc workers, actual argv, llama build info — machine-local evidence, like
 `memory_assessments`), warnings and the compact summary used by lists and future run comparison. Bulky data — the raw event stream and the full result
 (per-request metrics + segments) — are artifacts in `data/benchmarks/<runId>/`
-(`events.jsonl`, `result.json`), deleted with the run; there is no automatic retention. Runs left
+(`events.jsonl`, `result.json`), deleted with the run; there is no automatic retention. In sustained
+mode the event file is appended during measurement and the compact result is written at finalize.
+Runs left
 `running` by a crash are failed at boot (`failInterruptedBenchmarkRuns`).
 
 The finalized run record is additionally mirrored into the artifacts dir as `run.json`
@@ -191,7 +252,8 @@ design, and a `result.json` without its snapshot (model, launch args) or headlin
 uninterpretable — the mirror keeps an archived or orphaned run dir meaningful and leaves the door
 open for re-import. The DB stays the serving source (`run.json` is written, never read, on the
 request path). A run that fails before producing any measurement writes no artifacts at all — its
-DB record is the only trace, and there is nothing measured to preserve. A crash inside the
+DB record is the only trace, and there is nothing measured to preserve. Sustained runs may leave
+an empty event file if canceled between warmup and the first submission. A crash inside the
 finalize window can leave a dir without `run.json`; boot then fails the interrupted DB row as
 usual and the incomplete dir is detectable by the missing file.
 
@@ -221,7 +283,7 @@ usual and the incomplete dir is detectable by the missing file.
 
 Runs carry a free-form `label` and the full target snapshot, and summaries are stored
 comparison-ready — comparing "draft on/off" today means two manual runs against a reconfigured
-instance. Planned, in rough order: run-comparison UI; `sustained`/`staggered` load patterns
+instance. Planned, in rough order: run-comparison UI; fixed-arrival-rate / staggered load patterns
 (scenario `mode` is an extensible enum); GPU/system-metrics overlay from the 1 Hz recorder;
 proxy-path target variant; orchestrated A/B (restart instance with argument variations between
 runs).
