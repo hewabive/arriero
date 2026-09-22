@@ -2,6 +2,7 @@ import { type Webapp, type WebappDriftField } from "@arriero/core";
 import { Badge, Button, Tooltip } from "@mantine/core";
 import { ExternalLink } from "lucide-react";
 
+import { useActiveNodeHost } from "../NodeContext.js";
 import { browserReachableHost, urlHost } from "../utils/instance-url";
 import { type WebappActions } from "./use-webapp-actions";
 
@@ -26,8 +27,9 @@ export function WebappConfigDriftBadge({ webapp }: { webapp: Webapp }) {
   );
 }
 
-function webappUrl(webapp: Webapp): string {
-  return `http://${urlHost(browserReachableHost(webapp.http.host))}:${webapp.http.port}/`;
+function webappUrl(webapp: Webapp, nodeHost: string | null): string | null {
+  const host = browserReachableHost(webapp.http.host, nodeHost);
+  return host ? `http://${urlHost(host)}:${webapp.http.port}/` : null;
 }
 
 export function envVersionLabel(version: string): string {
@@ -48,12 +50,15 @@ export function WebappActionButtons({
   webapp: Webapp;
   actions: WebappActions;
 }) {
+  const nodeHost = useActiveNodeHost();
+  const url = webappUrl(webapp, nodeHost);
   return (
     <>
       {webapp.status === "running" && (
         <Button
           component="a"
-          href={webappUrl(webapp)}
+          href={url ?? undefined}
+          disabled={!url}
           target="_blank"
           rel="noreferrer"
           size="xs"

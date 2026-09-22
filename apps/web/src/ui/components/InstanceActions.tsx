@@ -42,6 +42,7 @@ import {
   runProxyCascade,
 } from "../proxy/instance-refs";
 import { SkipCheckbox } from "./SkipCheckbox";
+import { useActiveNodeHost } from "../NodeContext.js";
 import {
   canOpenLlamaWebUi,
   llamaServerWebUrl,
@@ -102,6 +103,7 @@ export function InstanceActions(props: {
   onLaunchStopped: (instance: Instance) => void;
 }) {
   const queryClient = useQueryClient();
+  const nodeHost = useActiveNodeHost();
   const health = props.health;
   const [deleteConfirmOpened, setDeleteConfirmOpened] = useState(false);
   const [deleteSkips, setDeleteSkips] = useState<Record<string, boolean>>({});
@@ -241,7 +243,7 @@ export function InstanceActions(props: {
     actionMutation.isPending || !actionAllowed("stop", health);
   const restartDisabled =
     actionMutation.isPending || !actionAllowed("restart", health);
-  const webUiUrl = llamaServerWebUrl(props.instance);
+  const webUiUrl = llamaServerWebUrl(props.instance, nodeHost);
   const webUiDisabled = !canOpenLlamaWebUi(health, webUiUrl);
 
   return (

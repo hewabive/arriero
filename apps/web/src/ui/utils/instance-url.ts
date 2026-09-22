@@ -5,11 +5,9 @@ import {
   type InstanceHealthSummary,
 } from "@arriero/core";
 
-export function browserReachableHost(host: string) {
+export function browserReachableHost(host: string, nodeHost: string | null) {
   if (isWildcardHost(host)) {
-    const pageHost =
-      typeof window === "undefined" ? "" : window.location.hostname;
-    return pageHost && !isWildcardHost(pageHost) ? pageHost : "127.0.0.1";
+    return nodeHost && !isWildcardHost(nodeHost) ? nodeHost : null;
   }
   return host;
 }
@@ -18,12 +16,15 @@ export function urlHost(host: string) {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
-export function llamaServerWebUrl(instance: Instance) {
+export function llamaServerWebUrl(instance: Instance, nodeHost: string | null) {
   const address = instanceHttpAddress(instance);
   if (!address) {
     return null;
   }
-  return `http://${urlHost(browserReachableHost(address.host))}:${address.port}${address.prefix}`;
+  const host = browserReachableHost(address.host, nodeHost);
+  return host
+    ? `http://${urlHost(host)}:${address.port}${address.prefix}`
+    : null;
 }
 
 export function canOpenLlamaWebUi(

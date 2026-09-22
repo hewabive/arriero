@@ -75,6 +75,7 @@ import {
 } from "./InstanceDetailsPanels";
 import { InstanceReasoningPanel } from "./InstanceReasoningPanel";
 import { LlamaCapabilitiesPanel } from "./LlamaCapabilitiesPanel";
+import { useActiveNodeHost } from "../NodeContext.js";
 
 export function InstanceDetails(props: {
   instance: Instance | null;
@@ -87,6 +88,7 @@ export function InstanceDetails(props: {
   const [logSource, setLogSource] = useState<"filtered" | "raw">("filtered");
   const [openDetails, setOpenDetails] = useState<string[]>([]);
   const queryClient = useQueryClient();
+  const nodeHost = useActiveNodeHost();
   const id = props.instance?.name;
   const engine = props.instance ? engineDescriptor(props.instance.kind) : null;
   const hasLlamaApi = engine?.nativeApi === "llama";
@@ -311,7 +313,7 @@ export function InstanceDetails(props: {
     );
   }
 
-  const webUiUrl = llamaServerWebUrl(props.instance);
+  const webUiUrl = llamaServerWebUrl(props.instance, nodeHost);
   const webUiDisabled = !canOpenLlamaWebUi(health, webUiUrl);
   const rootSlotRows = slotRowsFromProbe(llama?.slots);
   const slowestLlamaProbe = slowestProbe([
