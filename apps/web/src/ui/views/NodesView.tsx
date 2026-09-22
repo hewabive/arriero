@@ -68,6 +68,7 @@ type Draft = {
   token: string;
   enabled: boolean;
   clearToken: boolean;
+  self: boolean;
 };
 
 type Editor = { mode: "create" } | { mode: "edit"; node: FleetNodeView };
@@ -78,6 +79,7 @@ const emptyDraft: Draft = {
   token: "",
   enabled: true,
   clearToken: false,
+  self: false,
 };
 
 function modeColor(mode: string): string {
@@ -229,8 +231,17 @@ export function NodesView() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (input: { id: string; patch: FleetNodeUpdate }) =>
-      updateNode(input.id, input.patch),
+    mutationFn: async (input: {
+      id: string;
+      patch: FleetNodeUpdate;
+      selfNodeId?: string | null;
+    }) => {
+      const result = await updateNode(input.id, input.patch);
+      if (input.selfNodeId !== undefined) {
+        await setFleetSelf(input.selfNodeId);
+      }
+      return result;
+    },
     onSuccess: async (result) => {
       setEditor(null);
       await invalidate();
@@ -248,14 +259,6 @@ export function NodesView() {
     onError: (error) => reportError("Remove node failed", error),
   });
 
-  const markSelfMutation = useMutation({
-    mutationFn: (nodeId: string | null) => setFleetSelf(nodeId),
-    onSuccess: async () => {
-      await invalidate();
-    },
-    onError: (error) => reportError("Mark node failed", error),
-  });
-
   const busy = createMutation.isPending || updateMutation.isPending;
 
   function openCreate() {
@@ -270,6 +273,7 @@ export function NodesView() {
       token: "",
       enabled: node.enabled,
       clearToken: false,
+      self: node.self,
     });
     setEditor({ mode: "edit", node });
   }
@@ -287,7 +291,13 @@ export function NodesView() {
       } else if (draft.token) {
         patch.token = draft.token;
       }
-      updateMutation.mutate({ id: editor.node.id, patch });
+      updateMutation.mutate({
+        id: editor.node.id,
+        patch,
+        ...(draft.self !== editor.node.self
+          ? { selfNodeId: draft.self ? editor.node.id : null }
+          : {}),
+      });
       return;
     }
     const input: FleetNodeCreate = { name, baseUrl, enabled: draft.enabled };
@@ -445,7 +455,6 @@ export function NodesView() {
             onDismiss={dismissJob}
             onEdit={null}
             onDelete={null}
-            onMarkSelf={null}
             deletePending={false}
           />
         ) : (
@@ -464,7 +473,6 @@ export function NodesView() {
             onDismiss={dismissJob}
             onEdit={openEdit}
             onDelete={(id) => deleteMutation.mutate(id)}
-            onMarkSelf={(nodeId) => markSelfMutation.mutate(nodeId)}
             deletePending={
               deleteMutation.isPending && deleteMutation.variables === node.id
             }
@@ -535,6 +543,17 @@ export function NodesView() {
               setDraft((current) => ({ ...current, enabled: checked }));
             }}
           />
+          {editor?.mode === "edit" && (
+            <Switch
+              label="This machine"
+              description="This entry points to the server already shown as self. Mark it to avoid counting the same machine twice."
+              checked={draft.self}
+              onChange={(event) => {
+                const checked = event.currentTarget.checked;
+                setDraft((current) => ({ ...current, self: checked }));
+              }}
+            />
+          )}
           <Group justify="flex-end" gap="xs">
             <Button variant="subtle" onClick={() => setEditor(null)}>
               Cancel
@@ -562,7 +581,6 @@ function NodeCard({
   onDismiss,
   onEdit,
   onDelete,
-  onMarkSelf,
   deletePending,
 }: {
   registryNode: FleetNodeView | null;
@@ -573,7 +591,6 @@ function NodeCard({
   onDismiss: (nodeId: string) => void;
   onEdit: ((node: FleetNodeView) => void) | null;
   onDelete: ((id: string) => void) | null;
-  onMarkSelf: ((nodeId: string | null) => void) | null;
   deletePending: boolean;
 }) {
   const [logsOpen, logs] = useDisclosure(false);
@@ -870,27 +887,6 @@ function NodeCard({
               </Tooltip>
             ))}
 
-          {registryNode && onMarkSelf && (
-            <Tooltip
-              label={
-                registryNode.self
-                  ? "Stop treating this entry as the local machine"
-                  : "Treat this entry as the local machine; it leaves the peer fan-out"
-              }
-              multiline
-              maw={320}
-            >
-              <Button
-                size="xs"
-                variant="subtle"
-                onClick={() =>
-                  onMarkSelf(registryNode.self ? null : registryNode.id)
-                }
-              >
-                {registryNode.self ? "Unmark this machine" : "This machine"}
-              </Button>
-            </Tooltip>
-          )}
           {registryNode && onEdit && (
             <ActionIcon
               aria-label="Edit node"
