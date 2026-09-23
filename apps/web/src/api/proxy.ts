@@ -38,7 +38,7 @@ import type {
   ExternalProcessKillResult,
 } from "@arriero/core";
 
-import { request } from "./http.js";
+import { nodeRequest as request } from "./http.js";
 
 export async function getApiProxyConfig() {
   return request<{ data: ApiProxyConfig }>("/api/proxy/config");
