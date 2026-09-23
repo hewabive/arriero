@@ -30,8 +30,7 @@ related:
 ## Оригинальная справка llama.cpp
 
 ```text
-File containing a JSON schema to constrain generations (https://json-schema.org/), e.g. `{}` for any JSON object
-For schemas w/ external $refs, use --grammar + example/json_schema_to_grammar.py instead
+File containing a JSON schema to constrain generations (https://json-schema.org/), e.g. `{"type": "object"}` for any JSON object
 ```
 
 ## Паспорт аргумента

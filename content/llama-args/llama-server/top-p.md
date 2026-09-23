@@ -10,7 +10,8 @@ valueHint: "N"
 aliases:
   - "--top-p"
 allowedValues: []
-env: []
+env:
+  - "LLAMA_ARG_TOP_P"
 related:
   - "--top-k"
   - "--min-p"
@@ -28,11 +29,13 @@ related:
 
 ```text
 top-p sampling (default: 0.95, 1.0 = disabled)
+(env: LLAMA_ARG_TOP_P)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--top-p`
+- Переменная окружения: `LLAMA_ARG_TOP_P`
 - Поле в `common_params`: `params.sampling.top_p`
 - HTTP-поле: `top_p`
 - Значение по умолчанию: `0.95`

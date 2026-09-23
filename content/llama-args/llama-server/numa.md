@@ -76,7 +76,7 @@ see https://github.com/ggml-org/llama.cpp/issues/1437
 
 - `--threads` и `--threads-batch` определяют количество CPU worker threads, на которые влияет NUMA placement.
 - `--cpu-mask`/`--cpu-range` и batch affinity могут конфликтовать с выбранной NUMA-стратегией; измеряйте итоговую комбинацию, а не отдельные флаги.
-- `--mmap` влияет на то, как страницы модели попадают в память ОС; именно поэтому page cache важен для NUMA-экспериментов.
+- `--load-mode mmap` влияет на то, как страницы модели попадают в память ОС; именно поэтому page cache важен для NUMA-экспериментов.
 
 ## INI-пресеты и router-режим
 

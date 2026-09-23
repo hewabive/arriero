@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--json-schema"
 title: "--json-schema"
-summary: "Принимает inline JSON Schema, парсит ее на старте и конвертирует в grammar для constrained JSON generation. Для external `$ref` текущая справка llama.cpp рекомендует заранее конвертировать schema в grammar."
+summary: "Принимает inline JSON Schema, парсит ее на старте и конвертирует в grammar для constrained JSON generation. Для external `$ref` схему следует заранее преобразовать в grammar."
 category: "Параметры сэмплинга"
 valueType: "string"
 estimation: "normal"
@@ -26,13 +26,12 @@ related:
 
 `--json-schema` задает JSON Schema как строку CLI-аргумента. llama.cpp парсит JSON, конвертирует schema в grammar и использует grammar-based constrained generation.
 
-Минимальный пример `{}` означает любой JSON object по help llama.cpp.
+Для любого JSON-объекта в текущей справке приведён пример `{"type": "object"}`.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-JSON schema to constrain generations (https://json-schema.org/), e.g. `{}` for any JSON object
-For schemas w/ external $refs, use --grammar + example/json_schema_to_grammar.py instead
+JSON schema to constrain generations (https://json-schema.org/), e.g. `{"type": "object"}` for any JSON object
 ```
 
 ## Паспорт аргумента
@@ -76,7 +75,7 @@ CLI-обработчик выполняет `json::parse(value)`, затем `js
 }
 ```
 
-Поддержка конкретных возможностей schema определяется `common/json-schema-to-grammar.cpp` и тестами `tests/test-json-schema-to-grammar.cpp`: там покрыты object/array/string/number/integer/boolean/null, `enum`, `const`, `anyOf`, `oneOf`, часть `allOf`, `additionalProperties`, internal `$ref` и другие случаи. Для external `$ref` следуйте предупреждению help: заранее конвертируйте schema в grammar и передайте через `--grammar` или `--grammar-file`.
+Поддержка конкретных возможностей schema определяется `common/json-schema-to-grammar.cpp` и тестами `tests/test-json-schema-to-grammar.cpp`: там покрыты object/array/string/number/integer/boolean/null, `enum`, `const`, `anyOf`, `oneOf`, часть `allOf`, `additionalProperties`, internal `$ref` и другие случаи. Для external `$ref` заранее конвертируйте schema в grammar и передайте через `--grammar` или `--grammar-file`.
 
 ## Когда использовать
 

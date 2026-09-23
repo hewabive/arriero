@@ -27,12 +27,12 @@ related:
 
 `--spec-draft-device` задает список GPU/backend устройств для draft-модели. Значение парсится через `parse_device_list()` и записывается в `common_params.speculative.draft.devices`; при загрузке draft-модели сервер копирует его в `params_dft.devices`.
 
-Если параметр не задан, используется default-выбор устройств llama.cpp. Если задано `none`, в список помещается `nullptr`, что означает "не offload".
+Если параметр не задан, draft-модель следует выбору `--device` для target-модели. Если задано `none`, в список помещается `nullptr`, что означает "не offload".
 
 ## Оригинальная справка llama.cpp
 
 ```text
-comma-separated list of devices to use for offloading the draft model (none = don't offload)
+comma-separated list of devices to use for offloading the draft model (none = don't offload, default: follows --device)
 use --list-devices to see a list of available devices
 ```
 
@@ -67,7 +67,7 @@ use --list-devices to see a list of available devices
 
 ## Взаимодействие с другими аргументами
 
-`--spec-draft-ngl` задает, сколько слоев draft-модели можно offload на выбранные устройства. `--spec-draft-override-tensor` может направить отдельные tensor в конкретный buffer type. `--device` для target-модели не наследуется автоматически, если `--spec-draft-device` задан явно.
+`--spec-draft-ngl` задает, сколько слоев draft-модели можно offload на выбранные устройства. `--spec-draft-override-tensor` может направить отдельные tensor в конкретный buffer type. Если `--spec-draft-device` не указан, draft-модель следует `--device`; явный draft-список заменяет этот выбор.
 
 ## INI-пресеты и router-режим
 

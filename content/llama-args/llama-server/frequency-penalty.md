@@ -10,7 +10,8 @@ valueHint: "N"
 aliases:
   - "--frequency-penalty"
 allowedValues: []
-env: []
+env:
+  - "LLAMA_ARG_FREQUENCY_PENALTY"
 related:
   - "--repeat-last-n"
   - "--repeat-penalty"
@@ -30,11 +31,13 @@ Default: `0.00`. Значение `0.0` отключает параметр.
 
 ```text
 repeat alpha frequency penalty (default: 0.00, 0.0 = disabled)
+(env: LLAMA_ARG_FREQUENCY_PENALTY)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--frequency-penalty`
+- Переменная окружения: `LLAMA_ARG_FREQUENCY_PENALTY`
 - Алиасы: `--frequency-penalty`
 - Тип CLI-значения: float `N`
 - Поле в `common_params_sampling`: `penalty_freq`

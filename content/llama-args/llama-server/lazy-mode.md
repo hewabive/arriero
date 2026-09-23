@@ -18,7 +18,7 @@ env:
   - "LLAMA_ARG_LAZY_MODE"
 related:
   - "--load-mode"
-  - "--mlock"
+  - "--load-mode"
   - "--check-tensors"
 ---
 
@@ -78,7 +78,7 @@ Lazy mode уменьшает resident RAM, пока workload обращаетс�
 ## Взаимодействие с другими аргументами
 
 - `--load-mode`: lazy tensors требуют mmap support. Loader создаёт mapping для их ranges даже если общий режим загрузки не использует mmap; остальные tensors продолжают подчиняться `--load-mode`.
-- `--mlock`/`--load-mode mmap+mlock`: lazy ranges намеренно не блокируются в RAM.
+- `--load-mode mlock`/`--load-mode mmap+mlock`: lazy ranges намеренно не блокируются в RAM.
 - `--check-tensors`: полная проверка данных читает tensor bytes и может прогреть значительную часть mapping, временно лишив lazy load ожидаемой экономии старта.
 - `--gpu-layers` и tensor overrides не offload-ят lazy tensor: loader принудительно собирает его на host.
 

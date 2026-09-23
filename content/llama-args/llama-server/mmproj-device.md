@@ -26,12 +26,12 @@ related:
 
 `--mmproj-device DEVICE` закрепляет multimodal projector за одним backend device. Это отдельный выбор от `--device`, который управляет основной text model, и полезен на multi-GPU хосте для разведения их памяти и нагрузки.
 
-Если флаг не задан, mtmd выбирает первый доступный GPU, затем iGPU. Значение `none` переводит projector на CPU.
+Если флаг не задан, projector следует первому устройству из `--device`; без явного выбора `mtmd` выбирает доступный GPU. Значение `none` переводит projector на CPU.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-device to use for multimodal projector (none = don't offload, default: auto)
+device to use for multimodal projector (none = don't offload, default: follows --device)
 use --list-devices to see a list of available devices
 ```
 
@@ -52,7 +52,7 @@ use --list-devices to see a list of available devices
 
 ## Значения и формат
 
-- Не задано: auto, первый доступный GPU либо iGPU.
+- Не задано: первое устройство из `--device`, если оно выбрано; иначе автоматический выбор backend-а.
 - `none`: не offload-ить projector.
 - Одно имя из `llama-server --list-devices`: использовать конкретное устройство.
 - Список из нескольких устройств отклоняется сообщением `only one device may be specified for mmproj`.
@@ -61,7 +61,7 @@ use --list-devices to see a list of available devices
 
 ## Когда использовать
 
-Задавайте device явно на multi-GPU системе, если projector должен жить не на той карте, где размещена основная модель, или если auto выбирает устройство с недостаточной памятью. `none` подходит для экономии VRAM и диагностики backend-проблем ценой более медленной multimodal обработки.
+Задавайте device явно на multi-GPU системе, если projector должен жить не на первом устройстве из `--device` или автоматический выбор даёт недостаточно памяти. `none` подходит для экономии VRAM и диагностики backend-проблем ценой более медленной multimodal обработки.
 
 ## Влияние на производительность и память
 
@@ -73,7 +73,7 @@ Projector weights и рабочие buffers занимают память выб
 
 - `--mmproj`/`--mmproj-url` определяют сам projector; без него выбор устройства не используется.
 - `--mmproj-offload` включает или выключает offload без выбора device. `--mmproj-device none` выключает его, а явное имя устройства включает.
-- `--device` и `--gpu-layers` управляют основной text model отдельно.
+- `--device` задаёт список устройств основной text model; projector наследует первое из них, если `--mmproj-device` не указан. `--gpu-layers` управляет offload слоёв основной модели.
 - `--list-devices` показывает допустимые имена для текущей сборки, включая RPC devices после их регистрации.
 
 ## INI-пресеты и router-режим

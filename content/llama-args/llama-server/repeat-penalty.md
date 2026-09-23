@@ -10,7 +10,8 @@ valueHint: "N"
 aliases:
   - "--repeat-penalty"
 allowedValues: []
-env: []
+env:
+  - "LLAMA_ARG_REPEAT_PENALTY"
 related:
   - "--repeat-last-n"
   - "--presence-penalty"
@@ -30,11 +31,13 @@ Default в текущем `common.h` и CLI help: `1.00`. `1.0` отключае
 
 ```text
 penalize repeat sequence of tokens (default: 1.00, 1.0 = disabled)
+(env: LLAMA_ARG_REPEAT_PENALTY)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--repeat-penalty`
+- Переменная окружения: `LLAMA_ARG_REPEAT_PENALTY`
 - Алиасы: `--repeat-penalty`
 - Тип CLI-значения: float `N`
 - Поле в `common_params_sampling`: `penalty_repeat`

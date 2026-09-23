@@ -20,7 +20,7 @@ related:
   - "--cpu-moe"
   - "--n-cpu-moe"
   - "--batch-size"
-  - "--mmap"
+  - "--load-mode"
   - "--repack"
 ---
 
@@ -54,7 +54,7 @@ override tensor buffer type
 
 Если buffer type неизвестен, llama.cpp печатает `Available buffer types:` и завершает обработку аргумента ошибкой `unknown buffer type`. После парсинга список overrides дополняется терминатором `{nullptr, nullptr}`.
 
-При создании tensor loader идет по overrides в порядке добавления и останавливается на первом regex-совпадении (`break`), то есть побеждает первое правило. Если override указывает на CPU buffer, loader заново выбирает подходящий CPU/extra buffer type; при включенном mmap печатает warning с рекомендацией рассмотреть `--no-mmap`.
+При создании tensor loader идет по overrides в порядке добавления и останавливается на первом regex-совпадении (`break`), то есть побеждает первое правило. Если override указывает на CPU buffer, loader заново выбирает подходящий CPU/extra buffer type; при включенном mmap печатает warning с рекомендацией рассмотреть `--load-mode none`.
 
 Порядок правил важен в гибридных конфигурациях: чтобы оставить experts первых слоев на GPU, а остальных на CPU, правило для GPU должно идти раньше общего `exps=CPU`, например `blk\.([0-9]|1[0-9])\.=CUDA0,exps=CPU`. Повторные `-ot` накапливаются так же, как элементы через запятую (arriero склеивает список в один аргумент).
 
@@ -88,7 +88,7 @@ Override может переместить крупные веса между VR
 
 `--repack` влияет на extra buffer types, которые могут быть выбраны при CPU override.
 
-`--mmap` важен для производительности CPU overrides; при warning попробуйте `--no-mmap`.
+`--load-mode mmap` влияет на производительность CPU overrides; при warning попробуйте `--load-mode none`.
 
 `--device`, `--gpu-layers` и `--split-mode` задают базовое распределение, поверх которого применяются overrides.
 
@@ -116,7 +116,7 @@ llama-server --model /models/model.gguf --override-tensor 'blk\.0\..*=CPU'
 ```
 
 ```bash
-llama-server --model /models/model.gguf --override-tensor 'blk\.[0-3]\.ffn_.*=CPU' --no-mmap
+llama-server --model /models/model.gguf --override-tensor 'blk\.[0-3]\.ffn_.*=CPU' --load-mode none
 ```
 
 ## Источники

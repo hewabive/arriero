@@ -10,7 +10,8 @@ valueHint: "N"
 aliases:
   - "--min-p"
 allowedValues: []
-env: []
+env:
+  - "LLAMA_ARG_MIN_P"
 related:
   - "--top-p"
   - "--top-k"
@@ -28,11 +29,13 @@ related:
 
 ```text
 min-p sampling (default: 0.05, 0.0 = disabled)
+(env: LLAMA_ARG_MIN_P)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--min-p`
+- Переменная окружения: `LLAMA_ARG_MIN_P`
 - Поле в `common_params`: `params.sampling.min_p`
 - HTTP-поле: `min_p`
 - Значение по умолчанию: `0.05`

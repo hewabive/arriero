@@ -12,8 +12,7 @@ aliases:
 allowedValues: []
 env: []
 related:
-  - "--direct-io"
-  - "--mmap"
+  - "--load-mode"
 ---
 
 # --check-tensors
@@ -60,9 +59,9 @@ check model tensor data for invalid values (default: false)
 
 ## Взаимодействие с другими аргументами
 
-`--mmap` определяет, проверяются ли данные из mapped region.
+`--load-mode mmap` определяет, проверяются ли данные из mapped region.
 
-`--direct-io` и `--no-mmap` меняют путь чтения, но сама проверка остается на уровне tensor data.
+`--load-mode dio` и `--load-mode none` меняют путь чтения, но сама проверка остается на уровне tensor data.
 
 `--override-tensor` может перемещать тензоры между buffer types; проверка данных при этом остается проверкой значений, а не совместимости backend operation.
 
@@ -80,7 +79,7 @@ check-tensors = true
 
 - `tensor '<name>' has invalid data`: перескачайте GGUF, проверьте hash/размер файла и storage.
 - Старт стал заметно дольше: это ожидаемо; выключите после диагностики.
-- Ошибка появляется только с Direct I/O: повторите без `--direct-io`, чтобы отделить проблему чтения от проблемы данных.
+- Ошибка появляется только с Direct I/O: повторите с `--load-mode mmap`, чтобы отделить проблему чтения от проблемы данных.
 
 ## Примеры
 
@@ -89,7 +88,7 @@ llama-server --model /models/model.gguf --check-tensors
 ```
 
 ```bash
-llama-server --model /models/model.gguf --check-tensors --no-mmap
+llama-server --model /models/model.gguf --check-tensors --load-mode none
 ```
 
 ## Источники

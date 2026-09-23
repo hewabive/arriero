@@ -10,7 +10,8 @@ valueHint: "N"
 aliases:
   - "--presence-penalty"
 allowedValues: []
-env: []
+env:
+  - "LLAMA_ARG_PRESENCE_PENALTY"
 related:
   - "--repeat-last-n"
   - "--repeat-penalty"
@@ -30,11 +31,13 @@ Default: `0.00`. Значение `0.0` отключает параметр.
 
 ```text
 repeat alpha presence penalty (default: 0.00, 0.0 = disabled)
+(env: LLAMA_ARG_PRESENCE_PENALTY)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--presence-penalty`
+- Переменная окружения: `LLAMA_ARG_PRESENCE_PENALTY`
 - Алиасы: `--presence-penalty`
 - Тип CLI-значения: float `N`
 - Поле в `common_params_sampling`: `penalty_present`

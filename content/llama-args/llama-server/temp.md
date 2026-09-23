@@ -11,7 +11,8 @@ aliases:
   - "--temp"
   - "--temperature"
 allowedValues: []
-env: []
+env:
+  - "LLAMA_ARG_TEMPERATURE"
 related:
   - "--dynatemp-range"
   - "--dynatemp-exp"
@@ -31,11 +32,13 @@ related:
 
 ```text
 temperature (default: 0.80)
+(env: LLAMA_ARG_TEMPERATURE)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--temp`
+- Переменная окружения: `LLAMA_ARG_TEMPERATURE`
 - Алиасы: `--temp`, `--temperature`
 - Поле в `common_params`: `params.sampling.temp`
 - HTTP-поле: `temperature`

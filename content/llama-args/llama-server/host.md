@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--host"
 title: "--host"
-summary: "Адрес, на котором `llama-server` слушает HTTP API. Значение с суффиксом `.sock` переключает сервер на UNIX domain socket вместо TCP."
+summary: "Список адресов, на которых `llama-server` слушает HTTP API. Можно указать несколько TCP-адресов или путей UNIX-сокетов с суффиксом `.sock` через запятую."
 category: "Параметры llama-server"
 valueType: "string"
 estimation: "normal"
@@ -28,29 +28,29 @@ related:
 
 ## Кратко
 
-`--host` записывается в `common_params::hostname` и используется только при привязке HTTP-сокета. По умолчанию сервер слушает `127.0.0.1`, то есть доступен с локальной машины; для контейнера или LAN обычно указывают `0.0.0.0`, но тогда обязательно нужны внешние ограничения доступа.
+`--host` записывает список адресов в `common_params::hostnames`. По умолчанию сервер слушает `127.0.0.1`, то есть доступен с локальной машины; для контейнера или LAN обычно указывают `0.0.0.0`, но тогда обязательно нужны внешние ограничения доступа.
 
-Если строка заканчивается на `.sock`, `server_http_context::start()` включает `AF_UNIX` и вызывает `bind_to_port(hostname, 8080)`, где порт фактически не является сетевым портом.
+Адреса разделяются запятыми. Для каждого элемента с суффиксом `.sock` сервер создаёт UNIX-сокет; остальные элементы становятся отдельными TCP-listener-ами.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-ip address to listen, or bind to an UNIX socket if the address ends with .sock (default: 127.0.0.1)
+IP addresses to listen on, comma-separated, or UNIX socket paths ending in .sock; with multiple TCP addresses, :: binds IPv6 only; overlapping addresses result in undefined behavior (default: 127.0.0.1)
 ```
 
 ## Паспорт аргумента
 
 - Основное имя: `--host`
 - Алиасы: `--host`
-- Значение: строка `HOST`
+- Значение: один или несколько адресов через запятую
 - Переменная окружения: `LLAMA_ARG_HOST`
-- Поле в `common_params`: `hostname`
+- Поле в `common_params`: `hostnames`
 - Значение по умолчанию: `127.0.0.1`
 - Этап применения: старт HTTP-сервера, до загрузки модели
 
 ## Что меняет в llama-server
 
-В TCP-режиме `llama-server` привязывает `cpp-httplib` к указанному адресу и к `--port`. При `--port 0` порт выбирается системой, но адрес все равно берется из `--host`. При UNIX-сокете адрес в логах становится `unix://<path>`.
+`llama-server` создаёт отдельный listener для каждого адреса. TCP-адреса используют общий `--port`; `--port 0` допускается только с одним TCP-адресом. Для UNIX-сокета `--port` не используется, а адрес в логах отображается как `unix://<path>`.
 
 Флаг не меняет маршруты API, модель, KV-cache или параметры генерации. Он влияет на то, кто может подключиться к серверу.
 
@@ -60,8 +60,9 @@ ip address to listen, or bind to an UNIX socket if the address ends with .sock (
 - `0.0.0.0`: слушать все IPv4-интерфейсы; типично для Docker с `-p`.
 - `::1` или другой IPv6-адрес: зависит от поддержки `cpp-httplib` и ОС.
 - `/run/llama-server.sock`: UNIX socket, потому что строка заканчивается на `.sock`.
+- `127.0.0.1,::1`: два локальных TCP-listener-а. При нескольких TCP-адресах `::` привязывается только к IPv6.
 
-`--host` не валидирует IP-адрес в парсере. Ошибка обнаруживается при bind и выглядит как `couldn't bind HTTP server socket, hostname: ..., port: ...`.
+Парсер разделяет CSV-строку и убирает пробелы вокруг адресов; пустые элементы пропускает, а полностью пустой список отклоняет. Перекрывающиеся адреса, например `0.0.0.0` вместе с конкретным IPv4-адресом, дают неопределённое поведение. Ошибка bind выглядит как `couldn't bind HTTP server socket, hostname: ..., port: ...`.
 
 ## Когда использовать
 
@@ -74,6 +75,7 @@ ip address to listen, or bind to an UNIX socket if the address ends with .sock (
 ## Взаимодействие с другими аргументами
 
 - `--port` задает TCP-порт; при `.sock` он не используется как сетевой порт.
+- `--port 0` несовместим с несколькими TCP-адресами.
 - `--reuse-port` добавляет `SO_REUSEPORT` только в TCP/сокетной настройке.
 - `--api-key` и `--api-key-file` нужны при любом небезопасном bind address.
 - `--ssl-key-file` и `--ssl-cert-file` включают HTTPS, но не заменяют аутентификацию.
@@ -86,6 +88,7 @@ ip address to listen, or bind to an UNIX socket if the address ends with .sock (
 ## Типовые проблемы и диагностика
 
 - `couldn't bind HTTP server socket`: адрес не существует на машине, порт занят или нет прав на путь socket-файла.
+- `--port 0 is not supported with multiple TCP addresses`: задайте фиксированный TCP-порт или оставьте один TCP-адрес.
 - Сервер доступен локально, но не из контейнера: проверьте `--host 0.0.0.0` внутри контейнера и публикацию порта Docker.
 - При публичном адресе запросы без ключа проходят к `/health`, `/models` и статическим UI-файлам, если они считаются public endpoints. Остальные API требуют ключ только если он настроен.
 
@@ -95,6 +98,7 @@ ip address to listen, or bind to an UNIX socket if the address ends with .sock (
 llama-server --model /models/model.gguf --host 127.0.0.1 --port 8080
 llama-server --model /models/model.gguf --host 0.0.0.0 --port 8080 --api-key change-me
 llama-server --model /models/model.gguf --host /run/llama-server.sock
+llama-server --model /models/model.gguf --host 127.0.0.1,::1 --port 8080
 ```
 
 ## Источники
