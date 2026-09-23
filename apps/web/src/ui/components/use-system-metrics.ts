@@ -36,6 +36,7 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
     queryKey: ["system-metrics", window],
     queryFn: () => getSystemMetrics(window),
     refetchInterval: window === "live" ? false : tier.intervalMs,
+    refetchOnWindowFocus: window !== "live",
   });
   const [live, setLive] = useState<SystemMetricsSample[]>([]);
 
@@ -56,18 +57,23 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
         return [...previous, sample].slice(-limit);
       });
     };
+    const refetchHistory = () => {
+      void query.refetch();
+    };
     let source: EventSource | null = null;
     const open = () => {
       if (source) {
         return;
       }
       source = new EventSource(systemMetricsStreamUrl());
+      source.addEventListener("open", refetchHistory);
       source.addEventListener("sample", handler as EventListener);
     };
     const close = () => {
       if (!source) {
         return;
       }
+      source.removeEventListener("open", refetchHistory);
       source.removeEventListener("sample", handler as EventListener);
       source.close();
       source = null;
@@ -86,7 +92,7 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
       document.removeEventListener("visibilitychange", syncVisibility);
       close();
     };
-  }, [window]);
+  }, [window, query.refetch]);
 
   const capacity = query.data?.data.capacity ?? tier.capacity;
   const intervalMs = query.data?.data.intervalMs ?? tier.intervalMs;
