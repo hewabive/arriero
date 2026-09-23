@@ -34,7 +34,7 @@ Whether client certificate is required (see stdlib ssl module's).
 - Допустимые значения: `0` — `ssl.CERT_NONE`, `1` — `ssl.CERT_OPTIONAL`, `2` — `ssl.CERT_REQUIRED`; список `choices` в argparse не задан, поэтому парсер примет любое целое, а отвергнет его уже модуль `ssl`
 - Значение по умолчанию: `int(ssl.CERT_NONE)`, то есть `0`
 - Эффективное значение: не переопределяется; уходит в `uvicorn.Config(ssl_cert_reqs=...)` и далее в `SSLContext.verify_mode`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_cert_reqs`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_cert_reqs`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config(...).load()`
 
 ## Что меняет в движке
@@ -87,7 +87,7 @@ vllm serve /models/Qwen3-4B --host 0.0.0.0 --ssl-certfile /etc/ssl/vllm/fullchai
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

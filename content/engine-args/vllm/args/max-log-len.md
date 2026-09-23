@@ -35,7 +35,7 @@ log. The default of None means unlimited.
 - Допустимые значения: неотрицательное целое; `0` даст пустую строку и пустой список
 - Значение по умолчанию: `None` — без ограничения
 - Эффективное значение: используется только при созданном `RequestLogger`, то есть при `--enable-log-requests`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.max_log_len`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.max_log_len`
 - Этап применения: HTTP-слой, `init_app_state()` — `RequestLogger(max_log_len=args.max_log_len)`
 
 ## Что меняет в движке
@@ -89,7 +89,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --enable-log-requests --enable-log-
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/request_logger.py`
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

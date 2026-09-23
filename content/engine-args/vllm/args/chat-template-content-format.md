@@ -38,7 +38,7 @@ The format to render message content within a chat template.
 - Допустимые значения: `auto`, `string`, `openai`
 - Значение по умолчанию: `auto`
 - Эффективное значение: при `auto` подставляется результат `_detect_content_format` — `openai`, если в AST шаблона найден цикл по `content`, иначе `string`; при неразбираемом шаблоне — `string`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.chat_template_content_format`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.chat_template_content_format`
 - Этап применения: HTTP-слой, разбор сообщений каждого чат-запроса перед применением шаблона
 
 ## Что меняет в движке
@@ -98,7 +98,7 @@ vllm serve /models/Qwen3-4B --chat-template /etc/vllm/qwen3-tools.jinja --chat-t
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/renderers/hf.py`
 - `vllm/vllm/renderers/cohere.py`
 - `vllm/vllm/entrypoints/chat_utils.py`

@@ -34,7 +34,7 @@ If set to False, output deltas will not be logged. Relevant only if
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `true` — редкий случай в этой группе, когда дефолт «включено»
 - Эффективное значение: не переопределяется, но бездействует без `--enable-log-outputs` (проверка в коде — `if self.enable_log_outputs and self.request_logger:` и только внутри нее `if delta_content_parts and self.enable_log_deltas:`)
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_log_deltas`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_log_deltas`
 - Этап применения: HTTP-слой, потоковая ветка Chat Completions
 
 ## Что меняет в движке
@@ -90,7 +90,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --enable-log-requests --enable-log-
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`
 - `vllm/vllm/entrypoints/serve/utils/request_logger.py`

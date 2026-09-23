@@ -10,7 +10,6 @@ related:
   - --linear-backend
   - --ir-op-priority
   - --enable-flashinfer-autotune
-  - --enable-bf16x3-router-gemm
   - --optimization-level
   - --compilation-config
   - --quantization
@@ -37,7 +36,7 @@ Kernel configuration.
 - Тип значения: JSON-объект (либо точечные под-флаги `--kernel-config.<поле> <значение>`)
 - Допустимые значения: поля `KernelConfig`; `moe_backend` и `linear_backend` ограничены литеральными списками `MoEBackend`/`LinearBackend`
 - Значение по умолчанию: `Field(default_factory=KernelConfig)` — объект со значениями по умолчанию, а не `None`
-- Эффективное значение: переопределяется трижды. `EngineArgs.create_engine_config` вливает `--enable-flashinfer-autotune`, `--enable-bf16x3-router-gemm`, `--moe-backend`, `--linear-backend` и верхнеуровневый `--ir-op-priority`. Затем `VllmConfig.__post_init__` вызывает `kernel_config.set_platform_defaults(self)`, который **дописывает** платформенные реализации в конец каждого списка `ir_op_priority`. И только после этого таблица `--optimization-level` заполняет `enable_flashinfer_autotune`, если он остался `None`
+- Эффективное значение: переопределяется при построении конфига. `EngineArgs.create_engine_config` вливает `--enable-flashinfer-autotune`, `--moe-backend`, `--linear-backend` и верхнеуровневый `--ir-op-priority`. Затем `VllmConfig.__post_init__` вызывает `kernel_config.set_platform_defaults(self)`, который дописывает платформенные реализации в конец каждого списка `ir_op_priority`. Таблица `--optimization-level` заполняет `enable_flashinfer_autotune`, если он остался `None`.
 - Где объявлен: `vllm/config/vllm.py:VllmConfig.kernel_config`
 - Этап применения: разбор CLI → `create_engine_config` → `VllmConfig.__post_init__` (платформенные умолчания и уровень оптимизации) → инициализация воркера (`ir_op_priority.set_default()`) → прогрев ядер → forward
 
@@ -84,7 +83,6 @@ Kernel configuration.
 
 - `--moe-backend`, `--linear-backend`: верхнеуровневые синонимы. Они применяются, только если отличаются от `auto`, и в этом случае **перетирают** значение из JSON без ошибки — в отличие от остальных пар.
 - `--enable-flashinfer-autotune`: задавать его и `--kernel-config.enable_flashinfer_autotune` одновременно запрещено (`enable_flashinfer_autotune and kernel_config.enable_flashinfer_autotune are mutually exclusive`).
-- `--enable-bf16x3-router-gemm`: верхнеуровневый синоним, перетирает поле в JSON.
 - `--ir-op-priority`: верхнеуровневый синоним вложенного объекта; задать приоритет одной и той же операции в обоих местах нельзя — `Op priority for X specified via both ir_op_priority and KernelConfig.ir_op_priority, only one allowed at a time.`
 - `--optimization-level`: заполняет `enable_flashinfer_autotune` и читает `ir_op_priority` при решении, включать ли fusion-проходы.
 - `--compilation-config`: `pass_config` там и `ir_op_priority` здесь совместно определяют итоговый набор fusion'ов.

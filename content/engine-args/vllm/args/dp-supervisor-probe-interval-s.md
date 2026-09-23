@@ -35,7 +35,7 @@ Seconds between aggregated health probes in multi-port external LB mode.
 - Допустимые значения: не ограничены; нижней и верхней границы в коде нет
 - Значение по умолчанию: `5.0`
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.dp_supervisor_probe_interval_s`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.dp_supervisor_probe_interval_s`
 - Этап применения: работа супервизора после запуска дочерних процессов
 
 ## Что меняет в движке
@@ -96,6 +96,6 @@ vllm serve /models/Qwen3-4B --data-parallel-multi-port-external-lb --data-parall
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/dp_supervisor.py`
 - `vllm/vllm/entrypoints/cli/serve.py`

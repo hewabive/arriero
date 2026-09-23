@@ -42,7 +42,7 @@ Controls the ``system_fingerprint`` field on responses.
 - Допустимые значения: `full`, `hash`, `custom`, `none`
 - Значение по умолчанию: `full`
 - Эффективное значение: вычисляется один раз при создании serving-классов и кэшируется в `self.system_fingerprint`; любое исключение при вычислении превращает результат в `None` — старт из-за отпечатка не падает
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.fingerprint_mode`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.fingerprint_mode`
 - Этап применения: инициализация состояния генеративного роутера (`set_default_fingerprint_mode`) → сборка каждого ответа
 
 ## Что меняет в движке
@@ -105,7 +105,7 @@ vllm serve /models/Qwen3-4B --fingerprint-mode custom --fingerprint-value prod-c
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/utils/fingerprint.py`
 - `vllm/vllm/entrypoints/generate/base/serving.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`

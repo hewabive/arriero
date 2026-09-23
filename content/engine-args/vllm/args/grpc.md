@@ -38,7 +38,7 @@ Launch a gRPC server instead of the HTTP OpenAI-compatible server. Requires: pip
 - Допустимые значения: флаг присутствует или отсутствует
 - Значение по умолчанию: `False`
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:make_arg_parser`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:make_arg_parser`
 - Этап применения: первая же ветка в `ServeSubcommand.cmd`, до разрешения топологии процессов и до `create_engine_config`
 
 ## Что меняет в движке
@@ -115,7 +115,7 @@ vllm serve /models/Qwen3-4B --grpc --port 50051 --gpu-memory-utilization 0.85 --
 
 - `vllm/vllm/entrypoints/cli/serve.py`
 - `vllm/vllm/entrypoints/grpc_server.py`
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/v1/engine/async_llm.py`
 - `vllm/vllm/v1/utils.py`
 - `vllm/setup.py`

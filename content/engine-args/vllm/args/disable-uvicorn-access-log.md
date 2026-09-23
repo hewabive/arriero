@@ -34,7 +34,7 @@ Disable uvicorn access log.
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false` — access-лог включен
 - Эффективное значение: не переопределяется, но может быть перекрыто конфигурацией логирования из `--log-config-file`, которая целиком задает набор логгеров и обработчиков
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.disable_uvicorn_access_log`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_uvicorn_access_log`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config(access_log=...)`
 
 ## Что меняет в движке
@@ -81,7 +81,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --disable-access-log-for-endpoints 
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

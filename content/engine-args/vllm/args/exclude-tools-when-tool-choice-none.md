@@ -35,7 +35,7 @@ tool_choice='none'.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false` — описания инструментов остаются в промпте
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.exclude_tools_when_tool_choice_none`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.exclude_tools_when_tool_choice_none`
 - Этап применения: HTTP-слой, сборка промпта каждого чат-запроса
 
 ## Что меняет в движке
@@ -97,7 +97,7 @@ vllm serve /models/Qwen3-4B --no-exclude-tools-when-tool-choice-none --enable-pr
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/renderers/online_renderer.py`
 - `vllm/vllm/renderers/hf.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`

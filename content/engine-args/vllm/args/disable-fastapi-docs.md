@@ -34,7 +34,7 @@ Disable FastAPI's OpenAPI schema, Swagger UI, and ReDoc endpoint.
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false` — документация включена
 - Эффективное значение: не переопределяется, но имеет приоритет над `--enable-offline-docs`: в `build_app()` это ветки `if/elif`, и при обоих флагах побеждает отключение
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.disable_fastapi_docs`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_fastapi_docs`
 - Этап применения: HTTP-слой, самое начало `build_app()` — выбор конструктора `FastAPI`
 
 ## Что меняет в движке
@@ -84,7 +84,7 @@ vllm serve /models/Qwen3-4B --host 0.0.0.0 --disable-fastapi-docs --api-key edge
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/docs/usage/security.md`

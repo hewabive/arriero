@@ -34,7 +34,7 @@ Unix domain socket path. If set, host and port arguments are ignored.
 - Допустимые значения: не ограничены; действуют лимиты ОС на длину пути `sun_path` (около 100 байт)
 - Значение по умолчанию: `None` — используется TCP
 - Эффективное значение: не переопределяется; при непустом значении отключает всю TCP-ветку (`--host`, `--port`)
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.uds`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.uds`
 - Этап применения: HTTP-слой, `setup_server()` — создание сокета до сборки движка
 
 ## Что меняет в движке
@@ -90,7 +90,7 @@ curl --unix-socket /run/user/1000/vllm-qwen.sock http://localhost/v1/models
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/openai/dp_supervisor.py`
 - `vllm/tests/entrypoints/openai/test_uds.py`

@@ -29,6 +29,9 @@ Whether to always use eager-mode PyTorch. If True, we will disable CUDA
 graph and always execute the model in eager mode. If False, we will use
 CUDA graph and eager execution in hybrid for maximal performance and
 flexibility.
+
+NOTE: This disables both `torch.compile` and CUDA graphs, and is
+equivalent to setting `-cc.mode=none -cc.cudagraph_mode=none`.
 ```
 
 ## Паспорт аргумента

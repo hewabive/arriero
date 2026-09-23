@@ -34,7 +34,7 @@ If set to True, log the stack trace of error responses
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: выражение `envs.VLLM_SERVER_DEV_MODE` — то есть `false`, пока не выставлена переменная окружения `VLLM_SERVER_DEV_MODE=1`
 - Эффективное значение: читается из `req.app.state.args.log_error_stack` на каждом обработчике исключений
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.log_error_stack`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.log_error_stack`
 - Этап применения: HTTP-слой, обработчики исключений FastAPI
 
 ## Что меняет в движке
@@ -90,7 +90,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --no-log-error-stack
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/vllm/entrypoints/serve/utils/error_response.py`
 - `vllm/vllm/envs.py`

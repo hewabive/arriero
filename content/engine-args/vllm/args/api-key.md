@@ -48,7 +48,7 @@ for what it does and does not protect.
 - Допустимые значения: любые непустые строки; `""` и литерал `None` превращаются в `None` конвертером `optional_type`
 - Значение по умолчанию: `None` — аутентификации нет
 - Эффективное значение: `tokens = [key for key in (args.api_key or [envs.VLLM_API_KEY]) if key]` — CLI перебивает переменную окружения `VLLM_API_KEY`, пустые значения отбрасываются; если после фильтрации список пуст, middleware **не подключается вовсе**
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.api_key`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.api_key`
 - Этап применения: HTTP-слой, `build_app()` — подключение middleware при сборке FastAPI-приложения
 
 ## Что меняет в движке
@@ -114,7 +114,7 @@ curl -sS -H "Authorization: Bearer primary-key" http://127.0.0.1:8000/v1/models
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/vllm/entrypoints/serve/utils/api_utils.py`

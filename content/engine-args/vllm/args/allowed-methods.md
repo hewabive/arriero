@@ -33,7 +33,7 @@ Allowed methods.
 - Допустимые значения: имена HTTP-методов в верхнем регистре либо `["*"]`
 - Значение по умолчанию: `field(default_factory=lambda: ['*'])`, то есть `["*"]`
 - Эффективное значение: не переопределяется движком; сопоставление выполняет `CORSMiddleware` из starlette
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.allowed_methods`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.allowed_methods`
 - Этап применения: HTTP-слой, `build_app()`
 
 ## Что меняет в движке
@@ -82,6 +82,6 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --allowed-origins '["https://app.ex
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`

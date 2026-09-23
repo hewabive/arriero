@@ -39,7 +39,7 @@ to disable thinking mode by default for Qwen3/DeepSeek models.
 - Допустимые значения: любой JSON-объект; ключи должны быть переменными шаблона, иначе будут отброшены
 - Значение по умолчанию: `None` — словарь пуст
 - Эффективное значение: `OnlineRenderer` хранит `args.default_chat_template_kwargs or {}`; в serving-классы генеративного роутера передается тот же словарь **плюс** ключ `cohere_format` из `--cohere-format` (через `setdefault`, то есть явный ключ в JSON выигрывает)
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.default_chat_template_kwargs`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.default_chat_template_kwargs`
 - Этап применения: HTTP-слой, сборка `ChatParams` каждого чат-запроса перед применением шаблона
 
 ## Что меняет в движке
@@ -103,7 +103,7 @@ vllm serve /models/Qwen3-4B --default-chat-template-kwargs.enable_thinking false
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/renderers/params.py`
 - `vllm/vllm/renderers/online_renderer.py`
 - `vllm/vllm/renderers/hf.py`

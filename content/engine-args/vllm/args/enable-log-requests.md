@@ -111,7 +111,7 @@ vllm serve /models/Qwen3-4B --enable-log-requests --enable-log-outputs --max-log
 - `vllm/vllm/engine/arg_utils.py`
 - `vllm/vllm/entrypoints/serve/utils/request_logger.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/grpc_server.py`
 - `vllm/vllm/v1/engine/async_llm.py`
 - `vllm/vllm/envs.py`

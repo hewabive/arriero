@@ -39,7 +39,7 @@ for the specified model.
 - Допустимые значения: не ограничены; форма определяется эвристикой (см. «Значения и формат»)
 - Значение по умолчанию: `None` — шаблон берется из модели/токенизатора
 - Эффективное значение: `load_chat_template(args.chat_template)` в `init_app_state` заменяет путь на **содержимое файла**; дальше по цепочке приоритетов работает `resolve_chat_template`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.chat_template`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.chat_template`
 - Этап применения: разбор CLI (валидация) → инициализация состояния API-сервера (чтение файла) → HTTP-слой, рендеринг каждого чат-запроса
 
 ## Что меняет в движке
@@ -112,7 +112,7 @@ vllm serve /models/Qwen3-4B --chat-template template_chatml.jinja --chat-templat
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/chat_utils.py`
 - `vllm/vllm/renderers/hf.py`
 - `vllm/vllm/transformers_utils/chat_templates/registry.py`

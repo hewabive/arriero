@@ -39,7 +39,7 @@ information.
 - Допустимые значения: `choices` нет; разбор — `server_url.split(",")`, каждый элемент превращается в `http://<элемент>/sse`
 - Значение по умолчанию: `None` — ни один сервер инструментов не подключается
 - Эффективное значение: не переопределяется; при `demo` инструмент включается только если выполнены его собственные условия (см. ниже)
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tool_server`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tool_server`
 - Этап применения: инициализация состояния генеративного роутера (`init_generate_state`), до создания serving-классов
 
 ## Что меняет в движке
@@ -99,7 +99,7 @@ vllm serve /models/gpt-oss-20b --tool-server 127.0.0.1:8000,127.0.0.1:8001 --api
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/mcp/tool_server.py`
 - `vllm/vllm/entrypoints/mcp/tool.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`

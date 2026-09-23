@@ -36,7 +36,7 @@ Host name.
 - Допустимые значения: не ограничены парсером; фактически строка должна разрешаться в адрес локального интерфейса
 - Значение по умолчанию: `None`
 - Эффективное значение: `None` превращается в пустую строку в `sock_addr = (args.host or "", args.port)`, а `bind("")` для `AF_INET` — это `0.0.0.0`, то есть все интерфейсы. В логе стартовая строка печатает то же самое: `host_part = ... addr or "0.0.0.0"`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.host`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.host`
 - Этап применения: HTTP-слой, `setup_server()` — создание сокета **до** сборки движка и загрузки весов
 
 ## Что меняет в движке
@@ -98,7 +98,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --port 8000 --api-key local-only-ke
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/utils/network_utils.py`

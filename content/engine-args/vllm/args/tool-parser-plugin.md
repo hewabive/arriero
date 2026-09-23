@@ -35,7 +35,7 @@ into OpenAI API format, the name register in this plugin can be used in
 - Допустимые значения: не ограничены; проверка одна — `len(value) > 3`
 - Значение по умолчанию: `""` (пустая строка), то есть плагин не загружается
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tool_parser_plugin`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tool_parser_plugin`
 - Этап применения: старт сервера, до валидации имени парсера и до создания движка
 
 ## Что меняет в движке
@@ -97,7 +97,7 @@ vllm serve /models/Qwen3-4B --tool-parser-plugin /etc/vllm/my_tool_parser.py --e
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/tool_parsers/abstract_tool_parser.py`
 - `vllm/vllm/tool_parsers/__init__.py`

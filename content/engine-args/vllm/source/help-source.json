@@ -4,10 +4,10 @@
   "entrypoint": "vllm serve",
   "sourcePaths": [
     "vllm/engine/arg_utils.py",
-    "vllm/entrypoints/openai/cli_args.py",
+    "vllm/entrypoints/launchers/cli_args.py",
     "vllm/config"
   ],
-  "hash": "3102bcc78f216da85ce545d32c6a2cb6a22a855da863277416077a0ed73705ec",
-  "commit": "2cf0a6915ce544dc493a0990f2ea38d81601128a",
-  "updatedAt": "2026-09-03T07:27:10.705Z"
+  "hash": "7d44801e5604d75d1eef48845a84bf756aae4d5b500271de3d8d2e88948b5364",
+  "commit": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+  "updatedAt": "2026-09-23T05:52:41.486Z"
 }

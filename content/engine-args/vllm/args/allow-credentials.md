@@ -34,7 +34,7 @@ Allow credentials.
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется движком; итоговое поведение заголовков реализует `CORSMiddleware` из starlette
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.allow_credentials`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.allow_credentials`
 - Этап применения: HTTP-слой, `build_app()`
 
 ## Что меняет в движке
@@ -91,7 +91,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --no-allow-credentials
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/utils/argparse_utils.py`
 - `vllm/docs/usage/security.md`

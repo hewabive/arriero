@@ -33,7 +33,7 @@ If set to True, enable tracking server_load_metrics in the app state.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: для CPU-only render-сервера значение принудительно `False` (`init_render_app_state`)
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_server_load_tracking`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_server_load_tracking`
 - Этап применения: инициализация состояния API-сервера → HTTP-слой, декоратор на инференс-обработчиках
 
 ## Что меняет в движке
@@ -93,7 +93,7 @@ vllm serve /models/Qwen3-4B --enable-server-load-tracking --disable-access-log-f
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/utils/api_utils.py`
 - `vllm/vllm/entrypoints/serve/instrumentator/basic.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`

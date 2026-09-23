@@ -35,7 +35,7 @@ Allowed origins.
 - Допустимые значения: любой JSON-массив строк; `["*"]` означает «любой источник»
 - Значение по умолчанию: `field(default_factory=lambda: ['*'])`, то есть `["*"]`
 - Эффективное значение: не переопределяется движком; семантику сопоставления реализует `CORSMiddleware` из starlette
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.allowed_origins`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.allowed_origins`
 - Этап применения: HTTP-слой, `build_app()` — подключение middleware при сборке приложения
 
 ## Что меняет в движке
@@ -90,7 +90,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --allowed-origins '[]' --allowed-me
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/docs/usage/security.md`

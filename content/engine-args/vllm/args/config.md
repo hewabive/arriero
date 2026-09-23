@@ -34,7 +34,7 @@ Read CLI options from a config file. Must be a YAML with the following options: 
 - Допустимые значения: путь к существующему файлу с расширением `.yaml` или `.yml`
 - Значение по умолчанию: нет; при отсутствии аргумента подстановка не выполняется
 - Эффективное значение: не применимо — `args.config` не читает ни один потребитель, вся работа делается препроцессором командной строки
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:make_arg_parser`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:make_arg_parser`
 - Этап применения: предобработка `sys.argv` в `FlexibleArgumentParser.parse_args`, до разбора argparse и до любого создания конфигов
 
 ## Что меняет в движке
@@ -108,7 +108,7 @@ vllm serve /models/Qwen3-4B --config /etc/vllm/qwen3-4b.yaml --gpu-memory-utiliz
 ## Источники
 
 - `vllm/vllm/utils/argparse_utils.py`
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/cli/serve.py`
 - `vllm/docs/configuration/serve_args.md`
 - `docs/PORTABLE_PATHS.md` (arriero)

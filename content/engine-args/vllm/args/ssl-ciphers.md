@@ -35,7 +35,7 @@ Example: 'ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305'
 - Допустимые значения: строка наборов OpenSSL, элементы через двоеточие
 - Значение по умолчанию: `None` — используется значение по умолчанию uvicorn/OpenSSL
 - Эффективное значение: не переопределяется vLLM; фактический набор определяется сборкой OpenSSL и системной политикой шифров
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_ciphers`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_ciphers`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config(...).load()`
 
 ## Что меняет в движке
@@ -83,7 +83,7 @@ openssl s_client -connect 127.0.0.1:8000 -tls1_2 -cipher ECDHE-RSA-AES256-GCM-SH
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

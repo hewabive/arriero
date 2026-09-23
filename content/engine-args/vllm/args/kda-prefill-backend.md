@@ -3,7 +3,7 @@ schema: 1
 engine: vllm
 primaryName: "--kda-prefill-backend"
 title: "--kda-prefill-backend"
-summary: Выбор ядра prefill для слоев Kimi Delta Attention (семейство Kimi K3). В отличие от GDN-аналога, явный запрос `flashkda` на неподходящем железе не деградирует, а роняет старт с перечислением невыполненных условий.
+summary: Выбор ядра prefill для Kimi Delta Attention. Поддержка `flashkda`, `flashinfer` и `fused` зависит от модели и платформы; явный неподдерживаемый backend вызывает ошибку.
 group: null
 related:
   - --gdn-prefill-backend
@@ -17,14 +17,14 @@ related:
 
 `--kda-prefill-backend` — типизированная витрина над ключом `additional_config`: `create_engine_config()` при непустом значении выполняет `self.additional_config["kda_prefill_backend"] = value`, и дальше значение читает резолвер внутри слоя Kimi Delta Attention.
 
-Аргумент применим только к моделям семейства Kimi K3 (`vllm/models/kimi_k3/`); на любой другой архитектуре он принимается и не читается.
+Аргумент читают KDA-пути Kimi K3 и GLM5 Next. Набор доступных ядер различается между CUDA и ROCm, поэтому проверяйте реализацию своей модели.
 
 Отличие от `--gdn-prefill-backend`, которое стоит запомнить: здесь есть режим `auto` прямо в перечне значений, и здесь явный запрос ускоренного ядра при невыполненных условиях **не** молча деградирует, а поднимает `RuntimeError`.
 
 ## Оригинальная справка
 
 ```text
-Select KDA prefill backend.
+Select KDA prefill backend. 'flashkda' is CUDA-only and 'fused' is ROCm-only; 'auto' picks a supported backend.
 ```
 
 ## Паспорт аргумента
@@ -32,15 +32,15 @@ Select KDA prefill backend.
 - Флаги: `--kda-prefill-backend`
 - Группа argparse: без группы (объявлен напрямую в `EngineArgs.add_cli_args`)
 - Тип значения: строка из фиксированного перечня argparse
-- Допустимые значения: `auto`, `triton`, `flashkda`
+- Допустимые значения: `auto`, `triton`, `flashkda`, `flashinfer`, `fused`; `flashkda` работает только на CUDA, `fused` — только на ROCm.
 - Значение по умолчанию: `None` — ключ в `additional_config` не создается, резолвер использует собственный дефолт `auto`
-- Эффективное значение: определяется `resolve_kda_prefill_backend()`; `auto` разрешается в `flashkda` или `triton` по проверке железа, модели и типа данных
+- Эффективное значение: резолвер модели выбирает ядро; `auto` обычно выбирает ускоренный поддерживаемый вариант либо `triton`.
 - Где объявлен: `vllm/engine/arg_utils.py:add_cli_args`
 - Этап применения: `create_engine_config` (запись в `additional_config`) → построение слоя KDA при загрузке модели
 
 ## Что меняет в движке
 
-Настоящий список того, что применимо, живет не в `choices`, а в двух функциях `vllm/models/kimi_k3/nvidia/kda.py`:
+Настоящие условия применимости живут в резолверах модели, прежде всего `vllm/models/kimi_k3/nvidia/kda.py`:
 
 - `is_flashkda_supported(head_dim, dtype, lower_bound)` — предикат доступности;
 - `resolve_kda_prefill_backend(backend, head_dim, dtype, lower_bound)` — собственно выбор.
@@ -49,12 +49,12 @@ Select KDA prefill backend.
 
 Резолвер:
 
-1. отвергает любое значение вне `("auto", "triton", "flashkda")` с `ValueError: Unsupported KDA prefill backend: <value>` — это дублирующая защита на случай вызова не из CLI;
+1. отвергает значение вне набора, поддержанного конкретной моделью; у Kimi K3 на CUDA дополнительно разрешён `flashinfer`, у ROCm — `fused`;
 2. при явном `flashkda` и невыполненном предикате поднимает `RuntimeError: FlashKDA requires CUDA SM90/SM10x/SM12x, bfloat16, head_dim=128, and a bounded KDA gate.`;
 3. при выполненном предикате и любом значении, кроме `triton`, выбирает `flashkda` и печатает `Using FlashKDA KDA prefill backend.` (однократно);
 4. иначе возвращает `triton`.
 
-То есть `triton` — единственное значение, которое гарантированно работает везде и одновременно является способом принудительно отказаться от ускоренного ядра.
+`triton` остаётся способом явно отказаться от ускоренного ядра там, где модель реализует этот путь.
 
 Есть параллельные точки чтения того же ключа: `vllm/models/kimi_k3/amd/kda.py` и `vllm/model_executor/layers/mamba/gdn/kimi_gdn_linear_attn.py` тоже берут `additional_config.get("kda_prefill_backend", "auto")`. Поэтому сверяться следует с кодом конкретного checkout'а, а не с перечнем из `--help`: набор поддерживаемых архитектур меняется от релиза к релизу.
 
@@ -62,9 +62,11 @@ Select KDA prefill backend.
 
 ## Значения и формат
 
-- `auto` — попытаться использовать FlashKDA, при невыполнении условий тихо взять Triton. В отличие от `--gdn-prefill-backend`, это значение можно задать явно.
+- `auto` — выбрать поддерживаемое ускоренное ядро, иначе использовать Triton. В отличие от `--gdn-prefill-backend`, это значение можно задать явно.
 - `triton` — принудительно Triton, без проверок и без ошибок.
 - `flashkda` — требовать FlashKDA. Если условия не выполнены, старт падает с явным перечислением требований.
+- `flashinfer` — потребовать FlashInfer KDA prefill на совместимой CUDA-системе; для Kimi K3 требуется подходящая версия flashinfer-python.
+- `fused` — потребовать fused KDA chunk kernel на поддерживаемой ROCm-системе.
 - Не задан — то же, что `auto`.
 - Любое другое значение отвергает argparse на разборе строки.
 
@@ -73,7 +75,7 @@ Select KDA prefill backend.
 - `flashkda` — когда ускоренное ядро является частью проверенного профиля и его тихая подмена на Triton была бы регрессией, которую лучше поймать при старте, чем в продакшене. Явное значение здесь работает как assert на конфигурацию железа.
 - `triton` — когда нужен воспроизводимый эталон для сравнения или когда ускоренное ядро подозревается в некорректном результате.
 - Не задавайте `flashkda` на карте ниже Hopper: старт гарантированно упадет. Для той же цели «использовать, если можно» есть `auto`.
-- Не трогайте вовсе, если не запускаете модель семейства Kimi K3.
+- Не трогайте вовсе, если модель не использует KDA.
 
 ## Влияние на производительность и память
 
@@ -90,7 +92,7 @@ Select KDA prefill backend.
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** `RuntimeError: FlashKDA requires CUDA SM90/SM10x/SM12x, bfloat16, head_dim=128, and a bounded KDA gate.` **Причина:** явный `flashkda` при невыполненном условии — чаще всего это compute capability карты или `dtype`, отличный от bfloat16. **Лечение:** перейти на `auto`, если тихая деградация допустима, или на `triton`, если нужен предсказуемый путь.
+- **Симптом:** `RuntimeError: FlashKDA requires ...`. **Причина:** явный `flashkda` при невыполненном условии — чаще всего это compute capability карты или `dtype`, отличный от bfloat16. **Лечение:** перейти на `auto`, если тихая деградация допустима, или на `triton`, если нужен предсказуемый путь.
 - **Симптом:** `ValueError: Unsupported KDA prefill backend: <value>`. **Причина:** значение пришло не через CLI (например, напрямую в `--additional-config` с опечаткой) — argparse такую строку отверг бы сам. **Лечение:** исправить значение в JSON.
 - **Симптом:** задан `auto`, а строки `Using FlashKDA KDA prefill backend.` в логе нет. **Причина:** предикат не выполнен, активен Triton. **Лечение:** проверить `--dtype`, compute capability карты и размерность головы модели.
 - **Симптом:** аргумент задан, но никакого эффекта. **Причина:** модель не из семейства Kimi K3, ключ никем не читается.
@@ -112,5 +114,6 @@ vllm serve /models/Kimi-K3 --kda-prefill-backend flashkda --dtype bfloat16 --gpu
 - `vllm/vllm/engine/arg_utils.py`
 - `vllm/vllm/models/kimi_k3/nvidia/kda.py`
 - `vllm/vllm/models/kimi_k3/amd/kda.py`
+- `vllm/vllm/models/glm5next/common/kda.py`
 - `vllm/vllm/model_executor/layers/mamba/gdn/kimi_gdn_linear_attn.py`
 - `vllm/vllm/config/vllm.py`

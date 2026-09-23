@@ -37,7 +37,7 @@ while keeping logs for other endpoints.
 - Допустимые значения: пути с ведущим слэшем; пробелы вокруг элементов обрезаются, пустые элементы отбрасываются
 - Значение по умолчанию: `None` — фильтра нет
 - Эффективное значение: **игнорируется**, если задан `--log-config-file` (или переменная `VLLM_LOGGING_CONFIG_PATH`): в `get_uvicorn_log_config()` файл проверяется первым и, если он загрузился, фильтр не строится
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.disable_access_log_for_endpoints`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_access_log_for_endpoints`
 - Этап применения: HTTP-слой, `build_and_serve()` → `get_uvicorn_log_config()` → `uvicorn.Config(log_config=...)`
 
 ## Что меняет в движке
@@ -94,7 +94,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --disable-access-log-for-endpoints 
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/vllm/logging_utils/access_log_filter.py`

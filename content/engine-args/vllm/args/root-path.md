@@ -35,7 +35,7 @@ FastAPI root_path when app is behind a path based routing proxy.
 - Допустимые значения: не ограничены; осмысленно — путь с ведущим слэшем и без завершающего (`/llm`)
 - Значение по умолчанию: `None`
 - Эффективное значение: присваивается как `app.root_path = args.root_path`; при `None` FastAPI просто не выставляет `scope["root_path"]`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.root_path`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.root_path`
 - Этап применения: HTTP-слой, `build_app()` — после регистрации всех роутеров и до добавления middleware
 
 ## Что меняет в движке
@@ -90,7 +90,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --port 8000 --root-path /llm --api-
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/tests/entrypoints/openai/chat_completion/test_root_path.py`

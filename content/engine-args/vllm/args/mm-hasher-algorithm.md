@@ -32,8 +32,7 @@ Hash algorithm to use for multi-modal input caching. Use `"sha256"` or
 - Группа argparse: `MultiModalConfig`
 - Тип значения: enum (строка)
 - Допустимые значения: `blake3`, `sha256`, `sha512` (`MMHasherAlgorithm`)
-- Значение по умолчанию: `Field(default_factory=_get_mm_hasher_algorithm)` — фабрика, а не константа: она читает устаревшую переменную окружения `VLLM_MM_HASHER_ALGORITHM` и, если та не задана, возвращает `blake3`
-- Эффективное значение: при заданной `VLLM_MM_HASHER_ALGORITHM` дефолт берётся из неё, с предупреждением `Using VLLM_MM_HASHER_ALGORITHM environment variable is deprecated and will be removed in v0.27. Please use mm_hasher_algorithm instead.` Явный CLI-флаг переменную перебивает
+- Значение по умолчанию: `blake3` в `MultiModalConfig`; переменная `VLLM_MM_HASHER_ALGORITHM` больше не участвует в выборе.
 - Где объявлен: `vllm/config/multimodal.py:MultiModalConfig.mm_hasher_algorithm`
 - Этап применения: препроцессинг мультимодальных входов (вычисление `mm_hash`) в API-процессе
 
@@ -55,7 +54,7 @@ Hash algorithm to use for multi-modal input caching. Use `"sha256"` or
 - `blake3` — дефолт. Быстрее SHA-семейства на больших буферах; требует установленного пакета `blake3`.
 - `sha256` — FIPS 140-3, `hashlib` из стандартной библиотеки, зависимостей нет.
 - `sha512` — FIPS 140-3; на 64-битных системах обычно быстрее `sha256`.
-- Значение проверяется argparse по `choices`; регистр важен (в конфиге ожидается нижний). Значение из переменной окружения приводится к нижнему регистру фабрикой, значение из CLI — нет.
+- Значение проверяется argparse по `choices`; регистр важен (в конфиге ожидается нижний).
 - Специальных значений (`auto`, `none`) нет; отключить хеширование этим флагом нельзя — для этого выключается сам кэш.
 
 ## Когда использовать
@@ -82,7 +81,6 @@ Hash algorithm to use for multi-modal input caching. Use `"sha256"` or
 ## Типовые проблемы и диагностика
 
 - **Симптом:** `ModuleNotFoundError: No module named 'blake3'` при первом мультимодальном запросе. **Причина:** опциональная зависимость не установлена, а алгоритм остался дефолтным. **Лечение:** установить `blake3` в окружение движка либо задать `--mm-hasher-algorithm sha256`.
-- **Симптом:** предупреждение `Using VLLM_MM_HASHER_ALGORITHM environment variable is deprecated and will be removed in v0.27.` **Причина:** алгоритм задан переменной окружения. **Лечение:** перенести значение в CLI-флаг; переменная удаляется в v0.27.
 - **Симптом:** заметный CPU-оверхед в API-процессе на видео-нагрузке после перехода на SHA. **Причина:** ожидаемая цена FIPS-алгоритма. **Лечение:** если регламент допускает — вернуть `blake3`; иначе увеличить `--api-server-count`, чтобы распараллелить препроцессинг.
 - **Подтверждение принятого значения:** значение видно в стартовой строке конфига (`mm_hasher_algorithm=...`); косвенно — по отсутствию импорта `blake3` при `sha256`/`sha512`.
 

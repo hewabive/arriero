@@ -39,7 +39,7 @@ the built-in parsers or register a plugin via `--tool-parser-plugin`.
 - Допустимые значения: `choices` в extract — `null`, потому что список **собирается в runtime** из реестра `ToolParserManager` (`vllm/tool_parsers/`), плюс имена, добавленные через `--tool-parser-plugin`. Актуальный для вашей сборки список печатает `vllm serve --help` в metavar этого аргумента (`{...} or name registered in --tool-parser-plugin`) и текст ошибки при неверном имени
 - Значение по умолчанию: `None`
 - Эффективное значение: при выключенном `--enable-auto-tool-choice` значение **игнорируется** — `ParserManager.get_tool_parser` возвращает `None`, не заглядывая в реестр
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tool_call_parser`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tool_call_parser`
 - Этап применения: разбор CLI (metavar) → старт сервера (валидация имени) → инициализация состояния (класс парсера) → HTTP-слой, разбор каждого ответа
 
 ## Что меняет в движке
@@ -114,7 +114,7 @@ vllm serve /models/Qwen3-4B --enable-auto-tool-choice --tool-call-parser my_pars
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/tool_parsers/__init__.py`
 - `vllm/vllm/tool_parsers/abstract_tool_parser.py`
 - `vllm/vllm/tool_parsers/hermes_tool_parser.py`

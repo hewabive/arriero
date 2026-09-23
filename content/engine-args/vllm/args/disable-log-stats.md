@@ -97,7 +97,7 @@ vllm serve /models/Qwen3-4B --disable-log-stats --enable-log-requests --max-log-
 
 - `vllm/vllm/engine/arg_utils.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/vllm/entrypoints/serve/instrumentator/metrics.py`
 - `vllm/vllm/entrypoints/cli/serve.py`

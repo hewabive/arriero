@@ -38,7 +38,7 @@ while output token IDs are logged at DEBUG.
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но требует `--enable-log-requests` (иначе старт прерывается) — именно этот аргумент создает `RequestLogger`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_log_outputs`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_log_outputs`
 - Этап применения: HTTP-слой, обслуживающие классы Chat Completions, Responses и Token-in/Token-out
 
 ## Что меняет в движке
@@ -96,7 +96,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --enable-log-requests --enable-log-
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
 - `vllm/vllm/entrypoints/openai/responses/serving.py`

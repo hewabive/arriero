@@ -37,7 +37,7 @@ or the ones from tokenizer.
 - Допустимые значения: флаг присутствует (`true`) или присутствует парный `--no-...` / отсутствует оба (`false`)
 - Значение по умолчанию: `false` — «не задан» означает именно запрет, а не «решит движок»
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.trust_request_chat_template`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.trust_request_chat_template`
 - Этап применения: HTTP-слой, проверка перед рендерингом каждого чат-запроса
 
 ## Что меняет в движке
@@ -103,7 +103,7 @@ vllm serve /models/Qwen3-4B --no-trust-request-chat-template --chat-template /et
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/renderers/online_renderer.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/tokenize/serving.py`

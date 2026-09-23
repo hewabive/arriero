@@ -34,7 +34,7 @@ Refresh SSL Context when SSL certificate files change
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но фактически бездействует, если не заданы пути к файлам: наблюдение за цепочкой создается только при обоих `key_path` и `cert_path`, за CA — только при `ca_path`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_ssl_refresh`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_ssl_refresh`
 - Этап применения: HTTP-слой, `serve_http()` — после создания `uvicorn.Config`
 
 ## Что меняет в движке
@@ -92,7 +92,7 @@ vllm serve /models/Qwen3-4B --host 0.0.0.0 --ssl-certfile /etc/ssl/vllm/fullchai
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/entrypoints/serve/utils/ssl.py`
 - `vllm/requirements/common.txt`

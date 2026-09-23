@@ -27,10 +27,13 @@ related:
 
 ```text
 Communication backend for Decode Context Parallel (DCP).
-- "ag_rs": AllGather + ReduceScatter (default, existing behavior)
+- "ag_rs": AllGather + ReduceScatter (existing behavior)
 - "a2a": All-to-All exchange of partial outputs + LSE, then
   combine with Triton kernel. Reduces NCCL calls from 3 to 2
   per layer for MLA models.
+
+`None` selects the model default, which is "ag_rs" unless the model
+overrides it via [`set_dcp_defaults`][vllm.config.ParallelConfig.set_dcp_defaults].
 ```
 
 ## Паспорт аргумента
@@ -39,8 +42,8 @@ Communication backend for Decode Context Parallel (DCP).
 - Группа argparse: `ParallelConfig`
 - Тип значения: enum (строка)
 - Допустимые значения: `ag_rs`, `a2a` (`DCPCommBackend = Literal["ag_rs", "a2a"]`)
-- Значение по умолчанию: `ag_rs`
-- Эффективное значение: не переопределяется; но `a2a` отвергается валидатором при `--decode-context-parallel-size 1`
+- Значение по умолчанию: `None`, то есть выбор модели через `ParallelConfig.set_dcp_defaults()`; базовое значение модели — `ag_rs`.
+- Эффективное значение: модель может выбрать другой backend, если флаг не задан; `a2a` отвергается валидатором при `--decode-context-parallel-size 1`.
 - Где объявлен: `vllm/config/parallel.py:ParallelConfig.dcp_comm_backend`
 - Этап применения: построение метаданных attention-бэкенда → каждый forward слоёв внимания при активном DCP
 
@@ -57,14 +60,14 @@ Communication backend for Decode Context Parallel (DCP).
 ## Значения и формат
 
 - Строка из двух вариантов; неизвестное значение отвергается.
-- «Не задано» = `ag_rs`.
+- «Не задано» = выбор модели; базовый вариант `ag_rs`.
 - `a2a` осмыслен только вместе с `-dcp > 1`; выигрыш, заявленный в справке, сформулирован для MLA-моделей, хотя код объединения используется и на пути GQA (`flash_attn`).
 - Флаг не влияет на раскладку KV-cache — за неё отвечают `--cp-kv-cache-interleave-size` и `--decode-context-parallel-size`.
 
 ## Когда использовать
 
 - `a2a` — на MLA-развертывании с большим DCP, где на каждом слое ощутима стоимость коллективов: два вызова NCCL вместо трёх плюс Triton-объединение.
-- `ag_rs` — значение по умолчанию и безопасный откат, если после переключения на `a2a` появились расхождения в качестве или нестабильность.
+- `ag_rs` — явный возврат к исходному пути, если после переключения на `a2a` появились расхождения в качестве или нестабильность.
 - Не трогайте, если DCP не включён: без `-dcp > 1` флаг либо инертен, либо приводит к ошибке конфигурации.
 
 ## Влияние на производительность и память

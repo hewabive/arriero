@@ -33,7 +33,7 @@ Log level for uvicorn.
 - Допустимые значения: `critical`, `error`, `warning`, `info`, `debug`, `trace`
 - Значение по умолчанию: `info`
 - Эффективное значение: не переопределяется, но перекрывается конфигурацией из `--log-config-file`, которая задает уровни логгеров сама; при `--disable-access-log-for-endpoints` то же значение подставляется в сгенерированную конфигурацию (`create_uvicorn_log_config(..., log_level=args.uvicorn_log_level)`)
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.uvicorn_log_level`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.uvicorn_log_level`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config`
 
 ## Что меняет в движке
@@ -91,7 +91,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --uvicorn-log-level debug --disable
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/vllm/logging_utils/access_log_filter.py`

@@ -34,7 +34,7 @@ Helps mitigate header abuse. Default: 256.
 - Допустимые значения: парсером не ограничены
 - Значение по умолчанию: `H11_MAX_HEADER_COUNT_DEFAULT` из `vllm/entrypoints/serve/utils/constants.py`, то есть `256`
 - Эффективное значение: `serve_http()` дополнительно подставляет то же значение по умолчанию, если параметр пришел как `None`; фактическое применение зависит от того, читает ли установленная версия uvicorn это поле
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.h11_max_header_count`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.h11_max_header_count`
 - Этап применения: HTTP-слой, `serve_http()` — настройка `uvicorn.Config` перед `load()`
 
 ## Что меняет в движке
@@ -100,7 +100,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --h11-max-header-count 512 --h11-ma
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/entrypoints/serve/utils/constants.py`

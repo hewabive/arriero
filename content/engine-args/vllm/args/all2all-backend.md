@@ -39,8 +39,8 @@ All2All backend for MoE expert parallel communication. Available options:
 - "mori_high_throughput": MoRI EP with InterNodeV1 for multi-node
 - "mori_low_latency": MoRI EP with InterNodeV1LL for multi-node
 - "nixl_ep": Use nixl-ep kernels
-- "flashinfer_nvlink_two_sided": Use flashinfer two-sided kernels for mnnvl
 - "flashinfer_nvlink_one_sided": Use flashinfer high-throughput a2a kernels
+- "flashinfer_nvlink_two_sided": Use flashinfer two-sided kernels for mnnvl
 ```
 
 ## Паспорт аргумента

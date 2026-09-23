@@ -36,7 +36,7 @@ The file path to the SSL cert file.
 - Допустимые значения: путь к PEM-файлу сертификата (при необходимости с цепочкой промежуточных)
 - Значение по умолчанию: `None` — TLS выключен
 - Эффективное значение: не переопределяется; `is_ssl = args.ssl_keyfile and args.ssl_certfile` в `setup_server()` определяет только схему в печатаемом адресе, реальный `SSLContext` собирает uvicorn
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_certfile`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_certfile`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config(...).load()`
 
 ## Что меняет в движке
@@ -90,7 +90,7 @@ vllm serve /models/Qwen3-4B --host 0.0.0.0 --ssl-certfile /etc/ssl/vllm/fullchai
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/entrypoints/serve/utils/ssl.py`

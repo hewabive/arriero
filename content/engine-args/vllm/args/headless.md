@@ -41,7 +41,7 @@ Run in headless mode. See multi-node data parallel documentation for more detail
 - Допустимые значения: флаг присутствует или отсутствует
 - Значение по умолчанию: `False`
 - Эффективное значение: не переопределяется, но принудительно выставляет `api_server_count = 0` и передает `headless=True` в `create_engine_config`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:make_arg_parser`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:make_arg_parser`
 - Этап применения: выбор ветки запуска в подкоманде `serve`, до `create_engine_config`
 
 ## Что меняет в движке
@@ -115,7 +115,7 @@ vllm serve /models/Qwen3-4B --headless --data-parallel-size 4 --data-parallel-si
 ## Источники
 
 - `vllm/vllm/entrypoints/cli/serve.py`
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/engine/arg_utils.py`
 - `vllm/vllm/v1/engine/utils.py`
 - `vllm/vllm/v1/executor/multiproc_executor.py`

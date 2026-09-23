@@ -42,7 +42,7 @@ priority.
 - Допустимые значения: `choices` в extract нет; рендерер принимает только `cmd3` и `cmd4` (`_VALID_FORMATS` в `vllm/renderers/cohere.py`) и на прочих значениях бросает `ValueError` на запросе, а не на старте
 - Значение по умолчанию: `cmd4`; тот же дефолт независимо продублирован в рендерере (`_DEFAULT_FORMAT`)
 - Эффективное значение: `init_generate_state` делает `default_chat_template_kwargs.setdefault("cohere_format", args.cohere_format)` — то есть явный ключ в `--default-chat-template-kwargs` приоритетнее флага. Полученный словарь передается только serving-классам; **рендеринг** идет через `state.online_renderer`, собранный в `init_app_state` из необработанного `args.default_chat_template_kwargs`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.cohere_format`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.cohere_format`
 - Этап применения: инициализация состояния генеративного роутера → HTTP-слой, сборка конфигурации рендеринга
 
 ## Что меняет в движке
@@ -110,7 +110,7 @@ vllm serve /models/command-a-plus --tokenizer-mode cohere --cohere-format cmd4
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/renderers/cohere.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`

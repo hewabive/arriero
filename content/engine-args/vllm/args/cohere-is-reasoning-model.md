@@ -41,7 +41,7 @@ endpoints.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` (`false`); при отсутствии обоих действует `true`
 - Значение по умолчанию: `true`
 - Эффективное значение: не переопределяется, но применяется только если эндпоинт вообще поднят — для этого нужны `VLLM_ENABLE_COHERE_API=1` и установленный пакет `cohere`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.cohere_is_reasoning_model`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.cohere_is_reasoning_model`
 - Этап применения: инициализация состояния генеративного роутера → HTTP-слой, преобразование ответа в формат Cohere v2
 
 ## Что меняет в движке
@@ -99,7 +99,7 @@ VLLM_ENABLE_COHERE_API=1 vllm serve /models/command-a-plus --tokenizer-mode cohe
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/cohere/serving.py`
 - `vllm/vllm/entrypoints/cohere/api_router.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`

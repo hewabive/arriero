@@ -35,7 +35,7 @@ templates and other tokenizer configuration.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_tokenizer_info_endpoint`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_tokenizer_info_endpoint`
 - Этап применения: построение FastAPI-приложения (`attach_router`), до старта прослушивания порта
 
 ## Что меняет в движке
@@ -97,7 +97,7 @@ vllm serve /models/Qwen3-4B --enable-tokenizer-info-endpoint --chat-template /et
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/tokenize/api_router.py`
 - `vllm/vllm/entrypoints/serve/tokenize/serving.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`

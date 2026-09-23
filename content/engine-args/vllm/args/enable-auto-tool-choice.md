@@ -37,7 +37,7 @@ to specify which parser to use.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но связано жесткой проверкой — `--enable-auto-tool-choice` без `--tool-call-parser` даёт `TypeError: Error: --enable-auto-tool-choice requires --tool-call-parser`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_auto_tool_choice`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_auto_tool_choice`
 - Этап применения: разбор CLI (валидация пары) → инициализация состояния API-сервера (создание парсера) → HTTP-слой, каждый чат-запрос
 
 ## Что меняет в движке
@@ -99,7 +99,7 @@ vllm serve /models/Qwen3-4B --enable-auto-tool-choice --tool-call-parser hermes 
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/parser/parser_manager.py`
 - `vllm/vllm/renderers/online_renderer.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`

@@ -35,7 +35,7 @@ h11 parser. Helps mitigate header abuse. Default: 4194304 (4 MB).
 - Допустимые значения: не ограничены; проверок в vLLM нет
 - Значение по умолчанию: `default` в extract записан выражением `H11_MAX_INCOMPLETE_EVENT_SIZE_DEFAULT` — это константа `4194304` (4 MiB) из `vllm/entrypoints/serve/utils/constants.py`
 - Эффективное значение: `serve_http` подставляет ту же константу, если значение почему-то `None`; фактическое применение зависит от того, какую реализацию HTTP выбрал uvicorn
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.h11_max_incomplete_event_size`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.h11_max_incomplete_event_size`
 - Этап применения: конфигурация uvicorn при запуске HTTP-сервера
 
 ## Что меняет в движке
@@ -104,7 +104,7 @@ vllm serve /models/Qwen3-4B --h11-max-incomplete-event-size 1048576 --host 127.0
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/utils/constants.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`

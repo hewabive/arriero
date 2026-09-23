@@ -34,7 +34,7 @@ If set to True, include per-request timing metrics in API responses.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но подавляется в рантайме при `n > 1` — `metrics` в таком ответе будет `null`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_per_request_metrics`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_per_request_metrics`
 - Этап применения: разбор CLI (проверка конфликта) → HTTP-слой, сборка ответа
 
 ## Что меняет в движке
@@ -103,7 +103,7 @@ vllm serve /models/Qwen3-4B --enable-per-request-metrics --enable-force-include-
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/generate/base/serving.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
 - `vllm/vllm/entrypoints/openai/completion/serving.py`

@@ -38,7 +38,7 @@ add it to the server using `app.add_middleware()`.
 - Допустимые значения: путь импорта вида `module.submodule.Object`; в пути обязана быть хотя бы одна точка (используется `rsplit(".", 1)`)
 - Значение по умолчанию: `field(default_factory=lambda: [])`, а в argparse дополнительно принудительно `default=[]`
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.middleware`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.middleware`
 - Этап применения: HTTP-слой, конец `build_app()` — после CORS, аутентификации, `X-Request-Id` и служебных middleware
 
 ## Что меняет в движке
@@ -99,7 +99,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --middleware mycompany.vllm_middlew
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/docs/usage/security.md`

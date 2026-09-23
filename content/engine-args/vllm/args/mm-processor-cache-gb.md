@@ -34,6 +34,9 @@ This cache is duplicated for each API process and engine core process,
 resulting in a total memory usage of
 `mm_processor_cache_gb * (api_server_count + data_parallel_size)`.
 
+A single processed item larger than this budget is served uncached
+(with a warning) instead of failing. Raise this value to cache such items.
+
 Set to `0` to disable this cache completely (not recommended).
 ```
 

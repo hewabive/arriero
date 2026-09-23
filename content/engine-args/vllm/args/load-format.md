@@ -37,6 +37,10 @@ The format of the model weights to load.
 - "instanttensor" will load the Safetensors weights on CUDA devices using
   InstantTensor, which enables distributed loading with pipelined prefetching
   and fast direct I/O.
+- "ipc_cache" will map post-quantized weights from a local weight cache
+  daemon via CUDA IPC for fast engine restarts. See
+  `vllm/model_executor/model_loader/weight_cache/daemon.py` for how to
+  launch the daemon.
 - "npcache" will load the weights in pytorch format and store a numpy cache
   to speed up the loading.
 - "dummy" will initialize the weights with random values, which is mainly
@@ -61,7 +65,7 @@ The format of the model weights to load.
 - Флаги: `--load-format`
 - Группа argparse: `LoadConfig`
 - Тип значения: enum-подобная строка; значение приводится к нижнему регистру валидатором `_lowercase_load_format`
-- Допустимые значения: `auto`, `hf`, `dummy`, `fastsafetensors`, `instanttensor`, `mistral`, `modelexpress`, `npcache`, `pt`, `runai_streamer`, `runai_streamer_sharded`, `safetensors`, `sharded_state`, `tensorizer`. Список расширяется плагинами через `register_model_loader(...)`; ни argparse, ни валидация pydantic его не проверяют — единственная проверка происходит в `get_model_loader()`
+- Допустимые значения: `auto`, `hf`, `dummy`, `fastsafetensors`, `instanttensor`, `ipc_cache`, `mistral`, `modelexpress`, `npcache`, `pt`, `runai_streamer`, `runai_streamer_sharded`, `safetensors`, `sharded_state`, `tensorizer`. Список расширяется плагинами через `register_model_loader(...)`; ни argparse, ни валидация pydantic его не проверяют — единственная проверка происходит в `get_model_loader()`
 - Значение по умолчанию: `auto`
 - Эффективное значение: `auto` разрешается уже внутри `DefaultModelLoader._prepare_weights` — в `mistral`, если в репозитории есть `consolidated*.safetensors`, иначе в `hf`. Отдельно `DefaultModelLoader.load_weights` может подменить стратегию чтения на `torchao` (это `--safetensors-load-strategy`, а не смена формата)
 - Где объявлен: `vllm/config/load.py:LoadConfig.load_format`

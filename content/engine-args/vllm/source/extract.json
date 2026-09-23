@@ -4,7 +4,7 @@
  "entrypoint": "vllm serve",
  "sourceFiles": [
   "vllm/engine/arg_utils.py",
-  "vllm/entrypoints/openai/cli_args.py",
+  "vllm/entrypoints/launchers/cli_args.py",
   "vllm/config"
  ],
  "options": [
@@ -44,7 +44,7 @@
     "--all2all-backend"
    ],
    "group": "ParallelConfig",
-   "help": "All2All backend for MoE expert parallel communication. Available options:\n\n- \"allgather_reducescatter\": All2all based on allgather and reducescatter\n- \"deepep_high_throughput\": Use deepep high-throughput kernels\n- \"deepep_low_latency\": Use deepep low-latency kernels\n- \"mori_high_throughput\": MoRI EP with InterNodeV1 for multi-node\n- \"mori_low_latency\": MoRI EP with InterNodeV1LL for multi-node\n- \"nixl_ep\": Use nixl-ep kernels\n- \"flashinfer_nvlink_two_sided\": Use flashinfer two-sided kernels for mnnvl\n- \"flashinfer_nvlink_one_sided\": Use flashinfer high-throughput a2a kernels",
+   "help": "All2All backend for MoE expert parallel communication. Available options:\n\n- \"allgather_reducescatter\": All2all based on allgather and reducescatter\n- \"deepep_high_throughput\": Use deepep high-throughput kernels\n- \"deepep_low_latency\": Use deepep low-latency kernels\n- \"mori_high_throughput\": MoRI EP with InterNodeV1 for multi-node\n- \"mori_low_latency\": MoRI EP with InterNodeV1LL for multi-node\n- \"nixl_ep\": Use nixl-ep kernels\n- \"flashinfer_nvlink_one_sided\": Use flashinfer high-throughput a2a kernels\n- \"flashinfer_nvlink_two_sided\": Use flashinfer two-sided kernels for mnnvl",
    "choices": [
     "naive",
     "pplx",
@@ -85,7 +85,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.allow_credentials"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.allow_credentials"
   },
   {
    "flags": [
@@ -120,7 +120,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.allowed_headers"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.allowed_headers"
   },
   {
    "flags": [
@@ -171,7 +171,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.allowed_methods"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.allowed_methods"
   },
   {
    "flags": [
@@ -188,7 +188,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.allowed_origins"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.allowed_origins"
   },
   {
    "flags": [
@@ -205,7 +205,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.api_key"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.api_key"
   },
   {
    "flags": [
@@ -223,7 +223,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:make_arg_parser"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:make_arg_parser"
   },
   {
    "flags": [
@@ -310,7 +310,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.chat_template"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.chat_template"
   },
   {
    "flags": [
@@ -331,7 +331,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.chat_template_content_format"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.chat_template_content_format"
   },
   {
    "flags": [
@@ -365,7 +365,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.cohere_format"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.cohere_format"
   },
   {
    "flags": [
@@ -383,7 +383,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.cohere_is_reasoning_model"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.cohere_is_reasoning_model"
   },
   {
    "flags": [
@@ -432,7 +432,7 @@
    "default": null,
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:make_arg_parser"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:make_arg_parser"
   },
   {
    "flags": [
@@ -482,13 +482,13 @@
     "--cp-kv-cache-interleave-size"
    ],
    "group": "ParallelConfig",
-   "help": "Interleave size of kv_cache storage while using DCP.\nStore interleave_size tokens on dcp_rank i, then store next\ninterleave_size tokens on dcp_rank i+1.\nInterleave_size=1: token-level alignment, where token `i` is stored on\n    dcp_rank `i % dcp_world_size`.\nInterleave_size=block_size: block-level alignment, where tokens are\n    first populated to the preceding ranks. Tokens are then stored\n    in (rank i+1, block j) only after (rank i, block j) is fully occupied.\nBlock_size should be greater than or equal to cp_kv_cache_interleave_size.\nBlock_size should be divisible by cp_kv_cache_interleave_size.",
+   "help": "Interleave size of kv_cache storage while using DCP.\nStore interleave_size tokens on dcp_rank i, then store next\ninterleave_size tokens on dcp_rank i+1.\nInterleave_size=1: token-level alignment, where token `i` is stored on\n    dcp_rank `i % dcp_world_size`.\nInterleave_size=block_size: block-level alignment, where tokens are\n    first populated to the preceding ranks. Tokens are then stored\n    in (rank i+1, block j) only after (rank i, block j) is fully occupied.\nBlock_size should be greater than or equal to cp_kv_cache_interleave_size.\nBlock_size should be divisible by cp_kv_cache_interleave_size.\n\nWhen --cp-kv-cache-interleave-size is omitted (None), the interleave size\nis resolved automatically based on NIXL transfer requirements.\nExplicit settings take priority.",
    "choices": null,
    "type": "int",
    "optional": false,
    "default": {
     "kind": "literal",
-    "value": 1
+    "value": null
    },
    "action": null,
    "hidden": false,
@@ -762,7 +762,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.data_parallel_supervisor_port"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.data_parallel_supervisor_port"
   },
   {
    "flags": [
@@ -803,16 +803,16 @@
     "--dcp-comm-backend"
    ],
    "group": "ParallelConfig",
-   "help": "Communication backend for Decode Context Parallel (DCP).\n- \"ag_rs\": AllGather + ReduceScatter (default, existing behavior)\n- \"a2a\": All-to-All exchange of partial outputs + LSE, then\n  combine with Triton kernel. Reduces NCCL calls from 3 to 2\n  per layer for MLA models.",
+   "help": "Communication backend for Decode Context Parallel (DCP).\n- \"ag_rs\": AllGather + ReduceScatter (existing behavior)\n- \"a2a\": All-to-All exchange of partial outputs + LSE, then\n  combine with Triton kernel. Reduces NCCL calls from 3 to 2\n  per layer for MLA models.\n\n`None` selects the model default, which is \"ag_rs\" unless the model\noverrides it via [`set_dcp_defaults`][vllm.config.ParallelConfig.set_dcp_defaults].",
    "choices": [
     "ag_rs",
     "a2a"
    ],
    "type": "enum",
-   "optional": false,
+   "optional": true,
    "default": {
     "kind": "literal",
-    "value": "ag_rs"
+    "value": null
    },
    "action": null,
    "hidden": false,
@@ -834,6 +834,24 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/parallel.py:ParallelConfig.dcp_kv_cache_interleave_size"
+  },
+  {
+   "flags": [
+    "--dcp-q-replicate",
+    "--no-dcp-q-replicate"
+   ],
+   "group": "ParallelConfig",
+   "help": "Replicate the MLA query projection within each DCP group so decode can skip the\nquery all-gather.\n\nWith DCP the KV cache is sharded across the group, so the standard MLA decode path\nall-gathers the query every step. Replicating the (small) query projection at load\ntime lets each rank materialize the full group-local head set and skip that \ncollective, at the cost of computing the projection redundantly on every rank \nin the group.",
+   "choices": null,
+   "type": "bool",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/parallel.py:ParallelConfig.dcp_q_replicate"
   },
   {
    "flags": [
@@ -868,7 +886,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.default_chat_template_kwargs"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.default_chat_template_kwargs"
   },
   {
    "flags": [
@@ -937,7 +955,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.disable_access_log_for_endpoints"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_access_log_for_endpoints"
   },
   {
    "flags": [
@@ -1009,7 +1027,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.disable_fastapi_docs"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_fastapi_docs"
   },
   {
    "flags": [
@@ -1095,7 +1113,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.disable_uvicorn_access_log"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_uvicorn_access_log"
   },
   {
    "flags": [
@@ -1168,7 +1186,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.dp_supervisor_probe_failure_threshold"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.dp_supervisor_probe_failure_threshold"
   },
   {
    "flags": [
@@ -1185,7 +1203,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.dp_supervisor_probe_interval_s"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.dp_supervisor_probe_interval_s"
   },
   {
    "flags": [
@@ -1202,7 +1220,24 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.dp_supervisor_probe_timeout_s"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.dp_supervisor_probe_timeout_s"
+  },
+  {
+   "flags": [
+    "--dp-sync-interval"
+   ],
+   "group": "ParallelConfig",
+   "help": "Steps between DP finish-sync all-reduces; must match across DP ranks.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=16, ge=1)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/parallel.py:ParallelConfig.dp_sync_interval"
   },
   {
    "flags": [
@@ -1264,6 +1299,23 @@
   },
   {
    "flags": [
+    "--elastic-ep-max-dp-size"
+   ],
+   "group": "ParallelConfig",
+   "help": "Maximum data parallel size supported by elastic expert parallelism.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=None, ge=1)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/parallel.py:ParallelConfig.elastic_ep_max_dp_size"
+  },
+  {
+   "flags": [
     "--enable-auto-tool-choice",
     "--no-enable-auto-tool-choice"
    ],
@@ -1278,25 +1330,25 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_auto_tool_choice"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_auto_tool_choice"
   },
   {
    "flags": [
-    "--enable-bf16x3-router-gemm",
-    "--no-enable-bf16x3-router-gemm"
+    "--enable-batch-sharded-sampling",
+    "--no-enable-batch-sharded-sampling"
    ],
-   "group": "KernelConfig",
-   "help": "If True, use the experimental SM100 BF16x3 CuteDSL router GEMM.",
+   "group": "ParallelConfig",
+   "help": "Use sharded sampling across tensor parallel ranks. Each rank samples\na slice of the batch instead of every rank sampling all of it. Currently\ndefaults to False if not set. Enabling it explicitly raises when the config\ncannot support it (`tensor_parallel_size` must be > 1, `max_num_seqs` at\nleast `tensor_parallel_size`, and `max_logprobs` non-negative). Models opt in\nby implementing `compute_logits_local`.",
    "choices": null,
    "type": "bool",
-   "optional": false,
+   "optional": true,
    "default": {
     "kind": "literal",
-    "value": false
+    "value": null
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/config/kernel.py:KernelConfig.enable_bf16x3_router_gemm"
+   "origin": "vllm/config/parallel.py:ParallelConfig.enable_batch_sharded_sampling"
   },
   {
    "flags": [
@@ -1459,7 +1511,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_flash_late_interaction"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_flash_late_interaction"
   },
   {
    "flags": [
@@ -1495,7 +1547,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_force_include_usage"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_force_include_usage"
   },
   {
    "flags": [
@@ -1531,7 +1583,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_log_deltas"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_log_deltas"
   },
   {
    "flags": [
@@ -1549,7 +1601,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_log_outputs"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_log_outputs"
   },
   {
    "flags": [
@@ -1619,6 +1671,24 @@
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
    "origin": "vllm/config/mamba.py:MambaConfig.enable_stochastic_rounding"
+  },
+  {
+   "flags": [
+    "--enable-mamba-fine-grained-prefix-cache",
+    "--no-enable-mamba-fine-grained-prefix-cache"
+   ],
+   "group": "CacheConfig",
+   "help": "Also register a Mamba \"align\" checkpoint at the shared-prefix junction --\nwhere an EAGLE/MTP sibling was observed to resume -- instead of only at the\nprompt tail. Off by default; only takes effect with `mamba_cache_mode`\n\"align\", EAGLE on the Mamba group, and a prefix match unit smaller than the\nMamba block size.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/cache.py:CacheConfig.enable_mamba_fine_grained_prefix_cache"
   },
   {
    "flags": [
@@ -1694,6 +1764,24 @@
   },
   {
    "flags": [
+    "--enable-nccl-comm-suspend",
+    "--no-enable-nccl-comm-suspend"
+   ],
+   "group": "ModelConfig",
+   "help": "Enable releasing NCCL communicator memory during sleep mode\n(``ncclCommSuspend``/``ncclCommResume``). Experimental; when disabled\n(the default) sleep still releases weights/KV-cache memory as before.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/model.py:ModelConfig.enable_nccl_comm_suspend"
+  },
+  {
+   "flags": [
     "--enable-offline-docs",
     "--no-enable-offline-docs"
    ],
@@ -1708,7 +1796,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_offline_docs"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_offline_docs"
   },
   {
    "flags": [
@@ -1726,7 +1814,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_per_request_metrics"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_per_request_metrics"
   },
   {
    "flags": [
@@ -1780,7 +1868,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_prompt_tokens_details"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_prompt_tokens_details"
   },
   {
    "flags": [
@@ -1798,7 +1886,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_request_id_headers"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_request_id_headers"
   },
   {
    "flags": [
@@ -1820,6 +1908,24 @@
   },
   {
    "flags": [
+    "--enable-scale-out",
+    "--no-enable-scale-out"
+   ],
+   "group": "Frontend",
+   "help": "If set to True, register the scale-out endpoints (`/render`, `/derender`,\nand `/inference/v1/generate`) on `vllm serve`. Has no effect on\n`vllm launch render` or `vllm serve --tokens-only`, which always register\ntheir required endpoints regardless of this flag.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_scale_out"
+  },
+  {
+   "flags": [
     "--enable-server-load-tracking",
     "--no-enable-server-load-tracking"
    ],
@@ -1834,7 +1940,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_server_load_tracking"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_server_load_tracking"
   },
   {
    "flags": [
@@ -1870,7 +1976,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_ssl_refresh"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_ssl_refresh"
   },
   {
    "flags": [
@@ -1888,7 +1994,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_tokenizer_info_endpoint"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_tokenizer_info_endpoint"
   },
   {
    "flags": [
@@ -1910,11 +2016,29 @@
   },
   {
    "flags": [
+    "--enable-trace-replay",
+    "--no-enable-trace-replay"
+   ],
+   "group": "ModelConfig",
+   "help": "Whether to allow requests to set\n`SamplingParams.trace_decode_token_ids`, which forces decoding to follow a\npredetermined token sequence while still computing real logprobs. Reserved\nfor debugging and RL workflows: enabling it reserves a per-request trace\nbuffer, so it is off by default.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/model.py:ModelConfig.enable_trace_replay"
+  },
+  {
+   "flags": [
     "--enforce-eager",
     "--no-enforce-eager"
    ],
    "group": "ModelConfig",
-   "help": "Whether to always use eager-mode PyTorch. If True, we will disable CUDA\ngraph and always execute the model in eager mode. If False, we will use\nCUDA graph and eager execution in hybrid for maximal performance and\nflexibility.",
+   "help": "Whether to always use eager-mode PyTorch. If True, we will disable CUDA\ngraph and always execute the model in eager mode. If False, we will use\nCUDA graph and eager execution in hybrid for maximal performance and\nflexibility.\n\nNOTE: This disables both `torch.compile` and CUDA graphs, and is\nequivalent to setting `-cc.mode=none -cc.cudagraph_mode=none`.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -1925,6 +2049,23 @@
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
    "origin": "vllm/config/model.py:ModelConfig.enforce_eager"
+  },
+  {
+   "flags": [
+    "--engram-config"
+   ],
+   "group": "VllmConfig",
+   "help": "N-gram embedding storage and sharding settings.",
+   "choices": null,
+   "type": "json",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/vllm.py:VllmConfig.engram_config"
   },
   {
    "flags": [
@@ -1959,7 +2100,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.exclude_tools_when_tool_choice_none"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.exclude_tools_when_tool_choice_none"
   },
   {
    "flags": [
@@ -2036,7 +2177,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.fingerprint_mode"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.fingerprint_mode"
   },
   {
    "flags": [
@@ -2053,7 +2194,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.fingerprint_value"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.fingerprint_value"
   },
   {
    "flags": [
@@ -2143,7 +2284,7 @@
    },
    "action": "'store_true'",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:make_arg_parser"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:make_arg_parser"
   },
   {
    "flags": [
@@ -2160,7 +2301,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.h11_max_header_count"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.h11_max_header_count"
   },
   {
    "flags": [
@@ -2177,7 +2318,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.h11_max_incomplete_event_size"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.h11_max_incomplete_event_size"
   },
   {
    "flags": [
@@ -2194,7 +2335,7 @@
    },
    "action": "'store_true'",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:make_arg_parser"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:make_arg_parser"
   },
   {
    "flags": [
@@ -2262,7 +2403,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.host"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.host"
   },
   {
    "flags": [
@@ -2373,14 +2514,38 @@
   },
   {
    "flags": [
+    "--kda-decode-backend"
+   ],
+   "group": null,
+   "help": "Select KDA decode backend.",
+   "choices": [
+    "auto",
+    "native",
+    "flashinfer",
+    "triton"
+   ],
+   "type": null,
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/engine/arg_utils.py:add_cli_args"
+  },
+  {
+   "flags": [
     "--kda-prefill-backend"
    ],
    "group": null,
-   "help": "Select KDA prefill backend.",
+   "help": "Select KDA prefill backend. 'flashkda' is CUDA-only and 'fused' is ROCm-only; 'auto' picks a supported backend.",
    "choices": [
     "auto",
     "triton",
-    "flashkda"
+    "flashkda",
+    "flashinfer",
+    "fused"
    ],
    "type": null,
    "optional": false,
@@ -2424,6 +2589,7 @@
     "fp8_e5m2",
     "fp8_inc",
     "fp8_ds_mla",
+    "nvfp4_ds_mla",
     "turboquant_k8v4",
     "turboquant_4bit_nc",
     "turboquant_k3v4_nc",
@@ -2573,7 +2739,7 @@
     "--no-kv-sharing-fast-prefill"
    ],
    "group": "CacheConfig",
-   "help": "In some KV sharing setups, e.g. YOCO (https://arxiv.org/abs/2405.05254),\nsome layers can skip tokens corresponding to prefill. This flag enables\nattention metadata for eligible layers to be overridden with metadata\nnecessary for implementing this optimization in some models (e.g. Gemma3n)\nNOTE: KV cache sharing is not supported for MRv2 (v2 model runner).",
+   "help": "In some KV sharing setups, e.g. YOCO (https://arxiv.org/abs/2405.05254),\nsome layers can skip tokens corresponding to prefill. This flag enables\nattention metadata for eligible layers to be overridden with metadata\nnecessary for implementing this optimization in some models (e.g. Gemma3n)",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -2642,7 +2808,7 @@
     "--linear-backend"
    ],
    "group": "KernelConfig",
-   "help": "Backend for quantized linear layer GEMM kernels. Available options:\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"cutlass\": Use CUTLASS-based kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuTe-DSL kernels (NVFP4, MXFP8)\n- \"flashinfer_trtllm\": Use FlashInfer with TensorRT-LLM kernels\n- \"flashinfer_cudnn\": Use FlashInfer with cuDNN kernels\n- \"flashinfer_b12x\": Use FlashInfer b12x CuteDSL NVFP4 GEMM (SM120+)\n- \"b12x\": Use native B12X FP8 and FP4 linear kernels on SM12x\n- \"marlin\": Use Marlin kernels\n- \"triton\": Use Triton-based kernels\n- \"deep_gemm\": Use DeepGEMM kernels\n- \"torch\": Use PyTorch native scaled_mm kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"machete\": Use Machete kernels (mixed-precision)\n- \"fbgemm\": Use FBGEMM kernels\n- \"conch\": Use Conch mixed-precision kernels\n- \"exllama\": Use Exllama mixed-precision kernels\n- \"emulation\": Use slow dequant-to-BF16 emulation (for testing only)\n- \"xpu\": Use XPU kernels\n- \"xpu_woq\": Use XPU kernels for weight-only quantization (e.g. W8A16)",
+   "help": "Backend for linear layer GEMM kernels. Available options:\n\nLayer types without an implementation from the requested backend use\nautomatic selection.\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"cutlass\": Use CUTLASS-based kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuTe-DSL kernels\n  (BF16, NVFP4, MXFP8, W4A16_NVFP4)\n- \"flashinfer_trtllm\": Use FlashInfer with TensorRT-LLM kernels\n- \"flashinfer_cudnn\": Use FlashInfer with cuDNN kernels\n- \"flashinfer_b12x\": Use FlashInfer b12x CuteDSL NVFP4 GEMM (SM120+)\n- \"b12x\": Use native B12X FP8 and FP4 linear kernels on SM12x\n- \"marlin\": Use Marlin kernels\n- \"triton\": Use Triton-based kernels\n- \"deep_gemm\": Use DeepGEMM kernels\n- \"torch\": Use PyTorch native scaled_mm kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"machete\": Use Machete kernels (mixed-precision)\n- \"fbgemm\": Use FBGEMM kernels\n- \"conch\": Use Conch mixed-precision kernels\n- \"exllama\": Use Exllama mixed-precision kernels\n- \"emulation\": Use slow dequant-to-BF16 emulation (for testing only)\n- \"xpu\": Use XPU kernels\n- \"xpu_woq\": Use XPU kernels for weight-only quantization (e.g. W8A16)",
    "choices": [
     "auto",
     "cutlass",
@@ -2681,13 +2847,14 @@
     "--load-format"
    ],
    "group": "LoadConfig",
-   "help": "The format of the model weights to load.\n\n- \"auto\" will try to load the weights in the safetensors format and fall\n  back to the pytorch bin format if safetensors format is not available.\n- \"pt\" will load the weights in the pytorch bin format.\n- \"safetensors\" will load the weights in the safetensors format.\n- \"instanttensor\" will load the Safetensors weights on CUDA devices using\n  InstantTensor, which enables distributed loading with pipelined prefetching\n  and fast direct I/O.\n- \"npcache\" will load the weights in pytorch format and store a numpy cache\n  to speed up the loading.\n- \"dummy\" will initialize the weights with random values, which is mainly\n  for profiling.\n- \"tensorizer\" will use CoreWeave's tensorizer library for fast weight\n  loading. See the Tensorize vLLM Model script in the Examples section for\n  more information.\n- \"runai_streamer\" will load the Safetensors weights using Run:ai Model\n  Streamer.\n- \"runai_streamer_sharded\" will load weights from pre-sharded checkpoint\n  files using Run:ai Model Streamer.\n- \"sharded_state\" will load weights from pre-sharded checkpoint files,\n  supporting efficient loading of tensor-parallel models.\n- \"mistral\" will load weights from consolidated safetensors files used by\n  Mistral models.\n- \"modelexpress\" will load weights using ModelExpress.\n- Other custom values can be supported via plugins.",
+   "help": "The format of the model weights to load.\n\n- \"auto\" will try to load the weights in the safetensors format and fall\n  back to the pytorch bin format if safetensors format is not available.\n- \"pt\" will load the weights in the pytorch bin format.\n- \"safetensors\" will load the weights in the safetensors format.\n- \"instanttensor\" will load the Safetensors weights on CUDA devices using\n  InstantTensor, which enables distributed loading with pipelined prefetching\n  and fast direct I/O.\n- \"ipc_cache\" will map post-quantized weights from a local weight cache\n  daemon via CUDA IPC for fast engine restarts. See\n  `vllm/model_executor/model_loader/weight_cache/daemon.py` for how to\n  launch the daemon.\n- \"npcache\" will load the weights in pytorch format and store a numpy cache\n  to speed up the loading.\n- \"dummy\" will initialize the weights with random values, which is mainly\n  for profiling.\n- \"tensorizer\" will use CoreWeave's tensorizer library for fast weight\n  loading. See the Tensorize vLLM Model script in the Examples section for\n  more information.\n- \"runai_streamer\" will load the Safetensors weights using Run:ai Model\n  Streamer.\n- \"runai_streamer_sharded\" will load weights from pre-sharded checkpoint\n  files using Run:ai Model Streamer.\n- \"sharded_state\" will load weights from pre-sharded checkpoint files,\n  supporting efficient loading of tensor-parallel models.\n- \"mistral\" will load weights from consolidated safetensors files used by\n  Mistral models.\n- \"modelexpress\" will load weights using ModelExpress.\n- Other custom values can be supported via plugins.",
    "choices": [
     "auto",
     "hf",
     "dummy",
     "fastsafetensors",
     "instanttensor",
+    "ipc_cache",
     "mistral",
     "modelexpress",
     "npcache",
@@ -2723,7 +2890,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.log_config_file"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.log_config_file"
   },
   {
    "flags": [
@@ -2741,7 +2908,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.log_error_stack"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.log_error_stack"
   },
   {
    "flags": [
@@ -2835,7 +3002,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.lora_modules"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.lora_modules"
   },
   {
    "flags": [
@@ -3048,7 +3215,7 @@
     "--max-cudagraph-capture-size"
    ],
    "group": "CompilationConfig",
-   "help": "The maximum cudagraph capture size.\n\nIf cudagraph_capture_sizes is specified, this will be set to the largest\nsize in that list (or checked for consistency if specified). If\ncudagraph_capture_sizes is not specified, the list of sizes is generated\nautomatically following the pattern:\n\n    [1, 2, 4] + list(range(8, 256, 8)) + list(\n    range(256, max_cudagraph_capture_size + 1, 16))\n\nIf not specified, max_cudagraph_capture_size is capped at 512 by default,\nor 1024 on data center Blackwell GPUs. This avoids OOM in tight memory\nscenarios with small max_num_seqs, and limits capture of large graphs that\nincrease startup time and memory usage.",
+   "help": "The maximum cudagraph capture size.\n\nIf cudagraph_capture_sizes is specified, this will be set to the largest\nsize in that list (or checked for consistency if specified). If\ncudagraph_capture_sizes is not specified, the list of sizes is generated\nautomatically following the pattern:\n\n    [1, 2, 4] + list(range(8, 256, 8)) + list(\n    range(256, max_cudagraph_capture_size + 1, 16))\n\nIf not specified, max_cudagraph_capture_size is capped at 512 by default,\nor 1024 on data center Blackwell GPUs. This avoids OOM in tight memory\nscenarios with small max_num_seqs, and limits capture of large graphs that\nincrease startup time and memory usage. Uniform decode sizes are appended\nonly within this default ceiling.",
    "choices": null,
    "type": "int",
    "optional": false,
@@ -3075,7 +3242,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.max_log_len"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.max_log_len"
   },
   {
    "flags": [
@@ -3174,6 +3341,40 @@
   },
   {
    "flags": [
+    "--max-num-queued-reqs"
+   ],
+   "group": "SchedulerConfig",
+   "help": "Maximum number of requests that can be in-flight (waiting or running)\nat the same time, or None for no limit. When the limit is reached, new\nrequests are rejected with HTTP 503 so the client can retry on another\ninstance. This bounds vLLM's otherwise unbounded request queue and is\nprimarily a coarse capacity valve.\n\nUnlike ``max_num_seqs``, which applies per data-parallel rank, this\nlimit is enforced in the API server process and counts in-flight\nrequests across all DP ranks it routes to. Size it as roughly\n``data_parallel_size * max_num_seqs`` plus the desired queue depth if\nit should not bind before per-rank admission does.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=None, ge=0)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/scheduler.py:SchedulerConfig.max_num_queued_reqs"
+  },
+  {
+   "flags": [
+    "--max-num-queued-tokens"
+   ],
+   "group": "SchedulerConfig",
+   "help": "Maximum total prompt tokens of requests currently in the prefill\nphase, or None for no limit. When the limit is reached, new requests\nare rejected with HTTP 503.\n\nThis is a TTFT QoS mechanism: by setting it to\n``target_TTFT * prefill_throughput`` you reject requests when the\nprefill backlog would exceed the latency target.  In a disaggregated\nprefill-decode setup this maps directly to the prefill pool's\ncapacity.\n\nLike ``max_num_queued_reqs``, this limit is enforced in the API\nserver process and covers the prefill backlog across all DP ranks it\nroutes to, so ``prefill_throughput`` in the formula above is the\naggregate throughput of the deployment.\n\nNote: the count is conservative.  A partially prefilled request\nstill contributes its full ``prompt_len`` until it transitions out\nof the prefill phase, because the scheduler's per-iteration\n``num_computed_tokens`` progress is not propagated to the API\nserver process during prefill (``EngineCoreOutput`` is only\nemitted once the request starts producing tokens).  Similarly,\nprefix-cache hits (``num_cached_tokens``) are only known to the\nOutputProcessor after prefill completes.  This overestimates the\nreal backlog, causing earlier rejection than strictly necessary\n— the safe direction for QoS.  The impact is limited to long\nprompts under chunked prefill; short prompts that prefill in a\nsingle iteration are unaffected.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=None, ge=0)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/scheduler.py:SchedulerConfig.max_num_queued_tokens"
+  },
+  {
+   "flags": [
     "--max-num-scheduled-tokens"
    ],
    "group": "SchedulerConfig",
@@ -3255,7 +3456,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.middleware"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.middleware"
   },
   {
    "flags": [
@@ -3414,8 +3615,8 @@
    "type": "enum",
    "optional": false,
    "default": {
-    "kind": "expression",
-    "text": "Field(default_factory=_get_mm_hasher_algorithm)"
+    "kind": "literal",
+    "value": "blake3"
    },
    "action": null,
    "hidden": false,
@@ -3443,7 +3644,7 @@
     "--mm-processor-cache-gb"
    ],
    "group": "MultiModalConfig",
-   "help": "The size (in GiB) of the multi-modal processor cache, which is used to\navoid re-processing past multi-modal inputs.\n\nThis cache is duplicated for each API process and engine core process,\nresulting in a total memory usage of\n`mm_processor_cache_gb * (api_server_count + data_parallel_size)`.\n\nSet to `0` to disable this cache completely (not recommended).",
+   "help": "The size (in GiB) of the multi-modal processor cache, which is used to\navoid re-processing past multi-modal inputs.\n\nThis cache is duplicated for each API process and engine core process,\nresulting in a total memory usage of\n`mm_processor_cache_gb * (api_server_count + data_parallel_size)`.\n\nA single processed item larger than this budget is served uncached\n(with a warning) instead of failing. Raise this value to cache such items.\n\nSet to `0` to disable this cache completely (not recommended).",
    "choices": null,
    "type": "float",
    "optional": false,
@@ -3624,7 +3825,7 @@
     "--moe-backend"
    ],
    "group": "KernelConfig",
-   "help": "Backend for MoE expert computation kernels. Available options:\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"triton\": Use Triton-based fused MoE kernels\n- \"batched_triton\": Use batched Triton experts (moe_mmk) on the batched\n  activation format ([E_local, max_num_tokens, K])\n- \"deep_gemm\": Use DeepGEMM kernels (FP8 block-quantized only)\n- \"deep_gemm_mega_moe\": Use DeepGEMM mega MoE kernels\n- \"cutlass\": Use vLLM CUTLASS kernels\n- \"flashinfer_trtllm\": Use FlashInfer with TRTLLM-GEN kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuteDSL kernels (FP4 only)\n- \"flashinfer_b12x\": Use FlashInfer CuteDSL fused MoE for SM12x\n  (RTX Pro 6000 / DGX Spark)\n- \"marlin\": Use Marlin kernels (weight-only quantization)\n- \"humming\": Use Humming Mixed Precision kernels\n- \"triton_unfused\": Use Triton unfused MoE kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"flydsl\": Use AMD FlyDSL kernels (ROCm only)\n- \"hpc\": Use HPC kernels (FP8 and Hopper only)\n- \"emulation\": use BF16/FP16 GEMM, dequantizing weights and\n               running QDQ on activations.",
+   "help": "Backend for MoE expert computation kernels. Available options:\n\n- \"auto\": Automatically select the best backend based on model and hardware\n- \"triton\": Use Triton-based fused MoE kernels\n- \"batched_triton\": Use batched Triton experts (moe_mmk) on the batched\n  activation format ([E_local, max_num_tokens, K])\n- \"deep_gemm\": Use DeepGEMM kernels (FP8 block-quantized only)\n- \"deep_gemm_mega_moe\": Use DeepGEMM mega MoE kernels\n- \"cutlass\": Use vLLM CUTLASS kernels\n- \"flashinfer_trtllm\": Use FlashInfer with TRTLLM-GEN kernels\n- \"flashinfer_cutlass\": Use FlashInfer with CUTLASS kernels\n- \"flashinfer_cutedsl\": Use FlashInfer with CuteDSL kernels (FP4 only)\n- \"flashinfer_b12x\": Use FlashInfer CuteDSL fused MoE for SM12x\n  (RTX Pro 6000 / DGX Spark)\n- \"b12x\": Use b12x FP4 MoE kernels on SM12x\n- \"flashinfer_moe_ep_mega_deep_gemm\": Use the FlashInfer moe_ep\n  expert-parallel mega-MoE with the DeepGEMM megakernel, which consumes an\n  MXFP4 checkpoint verbatim (Blackwell, requires expert parallel;\n  DeepSeek-V4 only)\n- \"flashinfer_moe_ep_mega_cutedsl\": Same, with the CuteDSL megakernel\n  (additionally requires NVSHMEM). The checkpoint selects the weight path:\n  an NVFP4 checkpoint is consumed prequantized, MXFP4 weights are\n  requantized at load\n- \"marlin\": Use Marlin kernels (weight-only quantization)\n- \"humming\": Use Humming Mixed Precision kernels\n- \"triton_unfused\": Use Triton unfused MoE kernels\n- \"aiter\": Use AMD AITer kernels (ROCm only)\n- \"aiter_triton_mxfp4_bf16\": Use the AITER Triton MXFP4 W4A16\n  (moe_gemm_a16w4) MoE kernel (ROCm gfx942/gfx950/gfx1250)\n- \"flydsl\": Use AMD FlyDSL kernels (ROCm only)\n- \"rdna3\": Use the fused RDNA3 W4A16 HIP kernel (ROCm gfx1100 only)\n- \"hpc\": Use HPC kernels (FP8 and Hopper only)\n- \"emulation\": use BF16/FP16 GEMM, dequantizing weights and\n               running QDQ on activations.",
    "choices": [
     "auto",
     "triton",
@@ -3636,13 +3837,18 @@
     "flashinfer_cutlass",
     "flashinfer_cutedsl",
     "flashinfer_b12x",
+    "b12x",
+    "flashinfer_moe_ep_mega_deep_gemm",
+    "flashinfer_moe_ep_mega_cutedsl",
     "marlin",
     "humming",
     "triton_unfused",
     "aiter",
+    "aiter_triton_mxfp4_bf16",
     "flydsl",
     "hpc",
-    "emulation"
+    "emulation",
+    "rdna3"
    ],
    "type": "enum",
    "optional": false,
@@ -3901,6 +4107,27 @@
   },
   {
    "flags": [
+    "--per-request-spec-decode-metrics"
+   ],
+   "group": "ObservabilityConfig",
+   "help": "Include per-request speculative-decoding acceptance metrics in the\nresponse under `metrics.speculative_decoding`. `none` disables; `summary` adds mean\nacceptance length, draft acceptance rate, and the step-by-draft-length\nhistogram; `detailed` additionally records the ordered per-step\naccepted/proposed arrays (one entry per verify step). Only reported for\nsingle-sequence requests (`n == 1`), mirroring the timing metrics. No effect\nunless speculative decoding is enabled. Independent of `--disable-log-stats`.\nThis is the per-request response-body counterpart of the aggregate\n`vllm:spec_decode_*` Prometheus metrics. The response field is experimental\nand its shape may change in a future release.",
+   "choices": [
+    "none",
+    "summary",
+    "detailed"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "none"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/observability.py:ObservabilityConfig.per_request_spec_decode_metrics"
+  },
+  {
+   "flags": [
     "--performance-mode"
    ],
    "group": "VllmConfig",
@@ -3970,7 +4197,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.port"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.port"
   },
   {
    "flags": [
@@ -4006,6 +4233,23 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/scheduler.py:SchedulerConfig.prefill_schedule_interval"
+  },
+  {
+   "flags": [
+    "--prefix-cache-retention-interval"
+   ],
+   "group": "CacheConfig",
+   "help": "Token interval between retained sliding-window and Mamba prefix-cache\ncheckpoints. ``0`` retains only semantic checkpoints, including the latest\nreplay boundary and shared-prefix junctions. Positive values additionally\nretain periodic checkpoints at the specified interval, which must be a\nmultiple of the scheduler block size. ``None`` retains checkpoints densely.\nApplies only to sliding-window and Mamba cache groups.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=0, ge=0)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/cache.py:CacheConfig.prefix_cache_retention_interval"
   },
   {
    "flags": [
@@ -4237,7 +4481,7 @@
     "--replayssm-buffer-len"
    ],
    "group": "CacheConfig",
-   "help": "ReplaySSM history buffer length B: with use_replayssm, standard decode\ncaches recent SSM inputs in a size-B ring buffer and flushes the checkpoint\nstate to HBM every B steps. Default 16.",
+   "help": "ReplaySSM logical history length B for Mamba2. Triton uses B physical\nrows and FlashInfer uses B+1. Kimi-K3 speculative decode does not use B.\nDefault 16.",
    "choices": null,
    "type": "int",
    "optional": false,
@@ -4264,7 +4508,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.response_role"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.response_role"
   },
   {
    "flags": [
@@ -4300,7 +4544,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.return_tokens_as_token_ids"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.return_tokens_as_token_ids"
   },
   {
    "flags": [
@@ -4334,7 +4578,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.root_path"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.root_path"
   },
   {
    "flags": [
@@ -4575,6 +4819,31 @@
   },
   {
    "flags": [
+    "--sparse-indexer-topk-backend"
+   ],
+   "group": "KernelConfig",
+   "help": "Backend for the DSA sparse indexer decode top-k kernel. Available options:\n\n- \"auto\": The pre-existing chain (cooperative -> persistent -> per_row);\n  the other backends are opt-in\n- \"deep_select\": Use DeepSelect kernels (SM100a/SM103a only)\n- \"cooperative\": Use vLLM's cooperative_topk kernel\n- \"persistent\": Use vLLM's persistent_topk kernel\n- \"per_row\": Use vLLM's top_k_per_row_decode kernel\n- \"flashinfer\": Use FlashInfer's top_k_ragged_transform kernel\n- \"torch\": Use a plain torch.topk implementation (debug reference)\n\nExplicit values raise RuntimeError when their constraints are not met.",
+   "choices": [
+    "auto",
+    "deep_select",
+    "cooperative",
+    "persistent",
+    "per_row",
+    "flashinfer",
+    "torch"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "auto"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/kernel.py:KernelConfig.sparse_indexer_topk_backend"
+  },
+  {
+   "flags": [
     "--spec-method"
    ],
    "group": "VllmConfig",
@@ -4601,6 +4870,7 @@
     "exaone_moe_mtp",
     "exaone4_5_mtp",
     "qwen3_next_mtp",
+    "qwen4_exp_mtp",
     "qwen3_5_mtp",
     "longcat_flash_mtp",
     "bailing_hybrid_v3_mtp",
@@ -4611,8 +4881,10 @@
     "pangu_ultra_moe_mtp",
     "step3p5_mtp",
     "hy_v3_mtp",
+    "hy_v4_mtp",
     "gemma4_mtp",
     "inkling_mtp",
+    "glm5_next_mtp",
     "dflash",
     "ngram_gpu",
     "dspark"
@@ -4699,6 +4971,23 @@
   },
   {
    "flags": [
+    "--sse-keep-alive-interval"
+   ],
+   "group": "Frontend",
+   "help": "Send an SSE keep-alive comment line every this many seconds when a\n`/v1/chat/completions` or `/v1/completions` streaming response is idle\n(queued, prefill, or between tokens), to prevent reverse proxies/tunnels\nwith read timeouts from closing the connection. Defaults to 0, which\ndisables keep-alive comments entirely.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 0
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.sse_keep_alive_interval"
+  },
+  {
+   "flags": [
     "--ssl-ca-certs"
    ],
    "group": "Frontend",
@@ -4712,7 +5001,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_ca_certs"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_ca_certs"
   },
   {
    "flags": [
@@ -4729,7 +5018,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_cert_reqs"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_cert_reqs"
   },
   {
    "flags": [
@@ -4746,7 +5035,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_certfile"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_certfile"
   },
   {
    "flags": [
@@ -4763,7 +5052,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_ciphers"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_ciphers"
   },
   {
    "flags": [
@@ -4780,7 +5069,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_keyfile"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_keyfile"
   },
   {
    "flags": [
@@ -4856,7 +5145,7 @@
     "--tokenizer-mode"
    ],
    "group": "ModelConfig",
-   "help": "Tokenizer mode:\n\n- \"auto\" will use the tokenizer from `mistral_common` for Mistral models\n  if available, otherwise it will use the \"hf\" tokenizer.\n- \"hf\" will use the fast tokenizer if available.\n- \"slow\" will always use the slow tokenizer.\n- \"mistral\" will always use the tokenizer from `mistral_common`.\n- \"deepseek_v32\" will always use the tokenizer from `deepseek_v32`.\n- \"deepseek_v4\" will always use the tokenizer from `deepseek_v4`.\n- \"kimi_k3\" will always use the \"hf\" tokenizer but render chat prompts\n  with Kimi K3's Python XTML encoding instead of a Jinja template.\n- \"cohere\" uses the standard HF tokenizer but renders the chat template\n  via the `cohere_melody` library (cmd3 / cmd4 templates) instead of\n  Jinja, and surfaces grounded-citation metadata on responses.\n- Other custom values can be supported via plugins.\n\nTo swap the Rust BPE backend that powers HF fast tokenizers for the\n[fastokens](https://github.com/crusoecloud/fastokens) implementation, set\n`VLLM_USE_FASTOKENS=1` instead — that override applies to any mode that\nloads an HF fast tokenizer (`hf`, `deepseek_v32`, `deepseek_v4`, …).",
+   "help": "Tokenizer mode:\n\n- \"auto\" will use the tokenizer from `mistral_common` for Mistral models\n  if available, otherwise it will use the \"hf\" tokenizer.\n- \"hf\" will use the fast tokenizer if available.\n- \"slow\" will always use the slow tokenizer.\n- \"mistral\" will always use the tokenizer from `mistral_common`.\n- \"deepseek_v32\" will always use the tokenizer from `deepseek_v32`.\n- \"deepseek_v4\" will always use the tokenizer from `deepseek_v4`.\n- \"deepseek_v41\" will use the DeepSeek V4.1 prompt encoder.\n- \"kimi_k3\" will always use the \"hf\" tokenizer but render chat prompts\n  with Kimi K3's Python XTML encoding instead of a Jinja template.\n- \"cohere\" uses the standard HF tokenizer but renders the chat template\n  via the `cohere_melody` library (cmd3 / cmd4 templates) instead of\n  Jinja, and surfaces grounded-citation metadata on responses.\n- Other custom values can be supported via plugins.\n\nTo swap the Rust BPE backend that powers HF fast tokenizers for the\n[fastokens](https://github.com/crusoecloud/fastokens) implementation, set\n`VLLM_USE_FASTOKENS=1` instead — that override applies to any mode that\nloads an HF fast tokenizer (`hf`, `deepseek_v32`, `deepseek_v4`, …).",
    "choices": [
     "auto",
     "hf",
@@ -4911,7 +5200,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tokens_only"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tokens_only"
   },
   {
    "flags": [
@@ -4928,7 +5217,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tool_call_parser"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tool_call_parser"
   },
   {
    "flags": [
@@ -4945,7 +5234,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tool_parser_plugin"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tool_parser_plugin"
   },
   {
    "flags": [
@@ -4962,7 +5251,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tool_server"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tool_server"
   },
   {
    "flags": [
@@ -4998,7 +5287,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.trust_request_chat_template"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.trust_request_chat_template"
   },
   {
    "flags": [
@@ -5032,7 +5321,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.uds"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.uds"
   },
   {
    "flags": [
@@ -5058,7 +5347,7 @@
     "--no-use-replayssm"
    ],
    "group": "CacheConfig",
-   "help": "Use the ReplaySSM Mamba2 decode kernel: cache recent SSM inputs and skip\nthe per-step full-state store, writing the checkpoint back only on flush.\nRequires mamba_cache_mode 'none' or 'align' (prefix caching) and the Triton\nmamba backend; standard (non-speculative) decode only. In align mode flushes\nare most efficient when mamba_block_size is a multiple of replayssm_buffer_len,\nbut this is not required.",
+   "help": "Use the ReplaySSM Mamba2 decode kernel: cache recent SSM inputs and skip\nthe per-step full-state store, writing the checkpoint back only on flush.\nRequires mamba_cache_mode 'none' or 'align' (prefix caching) and the Triton\nor FlashInfer mamba backend; standard (non-speculative) decode only. In align\nmode flushes are most efficient when mamba_block_size is a multiple of\nreplayssm_buffer_len, but this is not required.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -5110,7 +5399,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "vllm/entrypoints/openai/cli_args.py:FrontendArgs.uvicorn_log_level"
+   "origin": "vllm/entrypoints/launchers/cli_args.py:FrontendArgs.uvicorn_log_level"
   },
   {
    "flags": [
@@ -5165,6 +5454,23 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/scheduler.py:SchedulerConfig.watermark"
+  },
+  {
+   "flags": [
+    "--watermark-config"
+   ],
+   "group": "VllmConfig",
+   "help": "Text watermarking configuration.",
+   "choices": null,
+   "type": "json",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/vllm.py:VllmConfig.watermark_config"
   },
   {
    "flags": [

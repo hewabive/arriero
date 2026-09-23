@@ -32,7 +32,7 @@ Literal fingerprint string used when ``--fingerprint-mode=custom``.
 - Допустимые значения: не ограничены; никакой валидации формата нет
 - Значение по умолчанию: `None`
 - Эффективное значение: читается только при `--fingerprint-mode custom`; при `None` в этом режиме `build_system_fingerprint` возвращает `None`, и поле сериализуется как `null` — то же, что режим `none`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.fingerprint_value`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.fingerprint_value`
 - Этап применения: инициализация состояния генеративного роутера → сборка каждого ответа
 
 ## Что меняет в движке
@@ -85,7 +85,7 @@ vllm serve /models/Qwen3-4B --fingerprint-mode custom --fingerprint-value arrier
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/utils/fingerprint.py`
 - `vllm/vllm/entrypoints/generate/base/serving.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`

@@ -36,7 +36,7 @@ probe is declared failed in multi-port external LB mode.
 - Допустимые значения: не ограничены; минимума в коде нет
 - Значение по умолчанию: `3`
 - Эффективное значение: `threshold = <значение> if self._is_ready else 1` — до первой готовности всегда одна попытка за оборот
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.dp_supervisor_probe_failure_threshold`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.dp_supervisor_probe_failure_threshold`
 - Этап применения: каждый оборот цикла проб супервизора
 
 ## Что меняет в движке
@@ -99,5 +99,5 @@ vllm serve /models/Qwen3-4B --data-parallel-multi-port-external-lb --data-parall
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/dp_supervisor.py`

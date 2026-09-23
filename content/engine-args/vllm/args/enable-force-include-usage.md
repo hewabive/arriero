@@ -33,7 +33,7 @@ If set to True, including usage on every request.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; запрос не может отключить usage обратно
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_force_include_usage`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_force_include_usage`
 - Этап применения: HTTP-слой, формирование потокового ответа
 
 ## Что меняет в движке
@@ -95,7 +95,7 @@ vllm serve /models/Qwen3-4B --enable-force-include-usage --enable-prompt-tokens-
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/serve/utils/api_utils.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`

@@ -42,7 +42,7 @@ How many API server processes to run. Defaults to data_parallel_size if not spec
 - Допустимые значения: положительное целое для обычного режима; `0` выставляется движком самостоятельно в headless-режиме
 - Значение по умолчанию: `None` — «решит движок»
 - Эффективное значение: вычисляется в `ServeSubcommand.cmd` (`vllm/entrypoints/cli/serve.py`) до создания конфигов; см. таблицу ниже
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:make_arg_parser`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:make_arg_parser`
 - Этап применения: выбор топологии процессов в подкоманде `serve`, до `create_engine_config`
 
 ## Что меняет в движке
@@ -122,7 +122,7 @@ vllm serve /models/Qwen3-4B --data-parallel-size 2 --api-server-count 1 --gpu-me
 ## Источники
 
 - `vllm/vllm/entrypoints/cli/serve.py`
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/v1/utils.py`
 - `vllm/vllm/v1/metrics/loggers.py`

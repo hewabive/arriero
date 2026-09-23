@@ -41,7 +41,7 @@ scales per 16 values by minimizing squared reconstruction error.
 - Флаги: `--kv-cache-dtype`
 - Группа argparse: `CacheConfig`
 - Тип значения: enum (строка из фиксированного списка)
-- Допустимые значения: `auto`, `float16`, `bfloat16`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp8_inc`, `fp8_ds_mla`, `turboquant_k8v4`, `turboquant_4bit_nc`, `turboquant_k3v4_nc`, `turboquant_3bit_nc`, `int4_per_token_head`, `int8_per_token_head`, `fp8_per_token_head`, `nvfp4`, `nvfp4_4over6`. Список статический (`CacheDType` в `vllm/config/cache.py`), но реально работоспособное подмножество зависит от устройства и выбранного attention-backend'а
+- Допустимые значения: `auto`, `float16`, `bfloat16`, `fp8`, `fp8_e4m3`, `fp8_e5m2`, `fp8_inc`, `fp8_ds_mla`, `nvfp4_ds_mla`, `turboquant_k8v4`, `turboquant_4bit_nc`, `turboquant_k3v4_nc`, `turboquant_3bit_nc`, `int4_per_token_head`, `int8_per_token_head`, `fp8_per_token_head`, `nvfp4`, `nvfp4_4over6`. Список статический (`CacheDType` в `vllm/config/cache.py`), но реально работоспособное подмножество зависит от устройства и выбранного attention-backend'а
 - Значение по умолчанию: `auto`
 - Эффективное значение: `auto` разрешается в `create_engine_config` функцией `resolve_kv_cache_dtype_string` по `quantization_config` из HF-конфига модели — если чекпойнт объявляет алгоритм квантизации KV-cache, берется он. Дополнительно `Attention.__init__` подставляет `fp8`, если в quant-config есть `kv_cache_scheme`, а пользователь оставил `auto`
 - Где объявлен: `vllm/config/cache.py:CacheConfig.cache_dtype`

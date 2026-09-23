@@ -35,7 +35,7 @@ This is intended for use in a Disaggregated Everything setup.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: одноименное поле есть и у `EngineArgs` (`vllm/engine/arg_utils.py`), CLI-флаг регистрируется только фронтендом, а движок читает то же значение из namespace; в `create_engine_config` оно принудительно выставляет `ModelConfig.skip_tokenizer_init = True`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.tokens_only`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tokens_only`
 - Этап применения: сборка `VllmConfig` (отключение токенизатора) → построение FastAPI-приложения (регистрация `/abort_requests`) → инициализация состояния (отключение детокенизации)
 
 ## Что меняет в движке
@@ -96,7 +96,7 @@ vllm serve /models/Qwen3-4B --tokens-only --return-tokens-as-token-ids --max-mod
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/engine/arg_utils.py`
 - `vllm/vllm/entrypoints/scale_out/factories.py`
 - `vllm/vllm/entrypoints/scale_out/token_in_token_out/api_router.py`

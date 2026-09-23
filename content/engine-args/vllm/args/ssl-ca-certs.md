@@ -34,7 +34,7 @@ The CA certificates file.
 - Допустимые значения: путь к PEM-файлу с одним или несколькими сертификатами CA
 - Значение по умолчанию: `None`
 - Эффективное значение: не переопределяется; уходит в `uvicorn.Config(ssl_ca_certs=...)`, где превращается в `load_verify_locations` у `SSLContext`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_ca_certs`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_ca_certs`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config(...).load()`
 
 ## Что меняет в движке
@@ -83,7 +83,7 @@ vllm serve /models/Qwen3-4B --host 0.0.0.0 --ssl-certfile /etc/ssl/vllm/fullchai
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/entrypoints/serve/utils/ssl.py`

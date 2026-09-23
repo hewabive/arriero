@@ -35,7 +35,7 @@ connection error in multi-port external LB mode.
 - Допустимые значения: не ограничены; проверок границ в коде нет
 - Значение по умолчанию: `5.0`
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.dp_supervisor_probe_timeout_s`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.dp_supervisor_probe_timeout_s`
 - Этап применения: создание HTTP-сессии проб при запуске цикла наблюдения супервизора
 
 ## Что меняет в движке
@@ -96,5 +96,5 @@ vllm serve /models/Qwen3-4B --data-parallel-multi-port-external-lb --data-parall
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/dp_supervisor.py`

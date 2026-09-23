@@ -35,7 +35,7 @@ JSON-encodable can be identified.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: перебивается запросом — поле `return_tokens_as_token_ids` в теле `/v1/chat/completions` и `/v1/completions` имеет тип `bool | None`, и серверное значение применяется только при `None`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.return_tokens_as_token_ids`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.return_tokens_as_token_ids`
 - Этап применения: HTTP-слой, сериализация logprobs в ответ
 
 ## Что меняет в движке
@@ -97,7 +97,7 @@ vllm serve /models/Qwen3-4B --return-tokens-as-token-ids --skip-tokenizer-init
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/generate/base/serving.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
 - `vllm/vllm/entrypoints/openai/completion/serving.py`

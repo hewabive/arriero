@@ -40,12 +40,12 @@ format): `{"name": "name", "path": "lora_path",
 - Допустимые значения: не ограничены; каждый элемент — либо `имя=путь`, либо JSON-объект
 - Значение по умолчанию: `None` — статических адаптеров нет
 - Эффективное значение: `process_lora_modules` (`vllm/entrypoints/serve/utils/api_utils.py`) дописывает к списку адаптеры из `--default-mm-loras` (`LoRAConfig`), поэтому фактический набор может быть шире заданного
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.lora_modules`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.lora_modules`
 - Этап применения: разбор CLI (`LoRAParserAction`) → инициализация состояния API-сервера (`init_static_loras`, реальная загрузка в движок) → маршрутизация по имени модели
 
 ## Что меняет в движке
 
-`LoRAParserAction` (`vllm/entrypoints/openai/cli_args.py`) разбирает каждый элемент по одному правилу: если в строке есть `=` **и** нет `,` — это старый формат `имя=путь`; иначе строка парсится как JSON и подается в конструктор `LoRAModulePath(name, path, base_model_name=None, is_3d_lora_weight=False)`. Ошибка JSON и лишние поля превращаются в `parser.error(...)`, то есть в аварийный выход argparse.
+`LoRAParserAction` (`vllm/entrypoints/launchers/cli_args.py`) разбирает каждый элемент по одному правилу: если в строке есть `=` **и** нет `,` — это старый формат `имя=путь`; иначе строка парсится как JSON и подается в конструктор `LoRAModulePath(name, path, base_model_name=None, is_3d_lora_weight=False)`. Ошибка JSON и лишние поля превращаются в `parser.error(...)`, то есть в аварийный выход argparse.
 
 Дальше `init_app_state` создает `OpenAIServingModels(lora_modules=...)` и вызывает `init_static_loras()`. Для каждого адаптера выполняется тот же путь, что и у динамического `POST /v1/load_lora_adapter`: выделяется целочисленный `lora_int_id`, собирается `LoRARequest`, и `engine_client.add_lora(...)` реально грузит веса в worker. Успех логируется как `Loaded new LoRA adapter: name '<имя>', path '<путь>'`.
 
@@ -114,7 +114,7 @@ vllm serve /models/Qwen3-4B --enable-lora --lora-modules '{"name": "sql", "path"
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/models/serving.py`
 - `vllm/vllm/entrypoints/openai/models/protocol.py`
 - `vllm/vllm/entrypoints/serve/utils/api_utils.py`

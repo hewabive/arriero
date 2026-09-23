@@ -35,7 +35,7 @@ The file path to the SSL key file.
 - Допустимые значения: путь к PEM-файлу приватного ключа
 - Значение по умолчанию: `None` — TLS выключен
 - Эффективное значение: не переопределяется; вместе с `--ssl-certfile` определяет `is_ssl` для печатаемого адреса, контекст строит uvicorn
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.ssl_keyfile`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.ssl_keyfile`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config(...).load()`
 
 ## Что меняет в движке
@@ -86,7 +86,7 @@ vllm serve /models/Qwen3-4B --host 0.0.0.0 --ssl-keyfile /etc/ssl/vllm/privkey.p
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/entrypoints/serve/utils/ssl.py`

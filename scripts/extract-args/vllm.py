@@ -38,7 +38,7 @@ from pyast import (  # noqa: E402
 )
 
 ARG_UTILS_RELATIVE_PATH = "vllm/engine/arg_utils.py"
-CLI_ARGS_RELATIVE_PATH = "vllm/entrypoints/openai/cli_args.py"
+CLI_ARGS_RELATIVE_PATH = "vllm/entrypoints/launchers/cli_args.py"
 CONFIG_DIRECTORY = "vllm/config"
 ENTRYPOINT = "vllm serve"
 FRONTEND_CLASS = "FrontendArgs"

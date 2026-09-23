@@ -24,9 +24,9 @@ related:
 ## Оригинальная справка
 
 ```text
-ReplaySSM history buffer length B: with use_replayssm, standard decode
-caches recent SSM inputs in a size-B ring buffer and flushes the checkpoint
-state to HBM every B steps. Default 16.
+ReplaySSM logical history length B for Mamba2. Triton uses B physical
+rows and FlashInfer uses B+1. Kimi-K3 speculative decode does not use B.
+Default 16.
 ```
 
 ## Паспорт аргумента

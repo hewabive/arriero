@@ -36,6 +36,10 @@ Interleave_size=block_size: block-level alignment, where tokens are
     in (rank i+1, block j) only after (rank i, block j) is fully occupied.
 Block_size should be greater than or equal to cp_kv_cache_interleave_size.
 Block_size should be divisible by cp_kv_cache_interleave_size.
+
+When --cp-kv-cache-interleave-size is omitted (None), the interleave size
+is resolved automatically based on NIXL transfer requirements.
+Explicit settings take priority.
 ```
 
 ## Паспорт аргумента
@@ -44,7 +48,7 @@ Block_size should be divisible by cp_kv_cache_interleave_size.
 - Группа argparse: `ParallelConfig`
 - Тип значения: int (токены)
 - Допустимые значения: не ограничены списком; при DCP > 1 проверяется `cp_kv_cache_interleave_size ≤ block_size` и `block_size % cp_kv_cache_interleave_size == 0`
-- Значение по умолчанию: `1` (объявлено обычным `int = 1`, без `Field`, поэтому дополнительных pydantic-границ нет)
+- Значение по умолчанию в CLI: `None`; при построении `ParallelConfig` берётся `1`, после чего модель может автоматически подобрать гранулу, если флаг не задан явно.
 - Эффективное значение: при DCP > 1 и `--dcp-kv-cache-interleave-size > 1` значение **перезаписывается** устаревшим флагом с предупреждением `cp_kv_cache_interleave_size is overridden by dcp_kv_cache_interleave_size. And dcp-kv-cache-interleave-size will be deprecated when PCP is fully supported.`
 - Где объявлен: `vllm/config/parallel.py:ParallelConfig.cp_kv_cache_interleave_size`
 - Этап применения: `VllmConfig.validate_block_size()` (уже после того, как платформа зафиксировала `block_size` под выбранный attention-бэкенд) → раскладка KV-cache → метаданные внимания на каждом шаге

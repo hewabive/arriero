@@ -33,7 +33,7 @@ Path to logging config JSON file for both vllm and uvicorn
 - Допустимые значения: путь к JSON-файлу со схемой `dictConfig`
 - Значение по умолчанию: `envs.VLLM_LOGGING_CONFIG_PATH`, то есть значение переменной окружения (обычно `None`)
 - Эффективное значение: применяется к uvicorn; при ошибке чтения тихо деградирует к настройкам uvicorn по умолчанию (`load_log_config` перехватывает исключение и пишет предупреждение)
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.log_config_file`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.log_config_file`
 - Этап применения: HTTP-слой, `build_and_serve()` перед `serve_http()`
 
 ## Что меняет в движке
@@ -91,7 +91,7 @@ VLLM_LOGGING_CONFIG_PATH=/etc/vllm/log-config.json vllm serve /models/Qwen3-4B -
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/vllm/logging_utils/access_log_filter.py`

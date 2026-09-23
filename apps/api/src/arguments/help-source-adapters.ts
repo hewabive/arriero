@@ -378,7 +378,7 @@ const adapters = new Map<string, EngineHelpSourceAdapter>(
       sourcePaths: [
         "vllm/config",
         "vllm/engine/arg_utils.py",
-        "vllm/entrypoints/openai/cli_args.py",
+        "vllm/entrypoints/launchers/cli_args.py",
       ],
     }),
     createExtractHelpSourceAdapter({

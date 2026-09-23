@@ -34,7 +34,7 @@ If specified, API server will add X-Request-Id header to responses.
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_request_id_headers`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_request_id_headers`
 - Этап применения: HTTP-слой, `build_app()` — подключение middleware после аутентификации
 
 ## Что меняет в движке
@@ -88,7 +88,7 @@ curl -i -H "X-Request-Id: trace-42" -H "Content-Type: application/json" -d '{"mo
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/utils/server_utils.py`
 - `vllm/vllm/entrypoints/serve/engine/serving.py`

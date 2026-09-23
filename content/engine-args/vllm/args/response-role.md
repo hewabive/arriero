@@ -33,7 +33,7 @@ The role name to return if `request.add_generation_prompt=true`.
 - Допустимые значения: не ограничены — движок не сверяет строку ни с каким списком ролей
 - Значение по умолчанию: `assistant`
 - Эффективное значение: не переопределяется
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.response_role`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.response_role`
 - Этап применения: HTTP-слой, сборка ответа
 
 ## Что меняет в движке
@@ -90,7 +90,7 @@ vllm serve /models/Qwen3-4B --response-role bot --port 8000
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/batch_serving.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/protocol.py`

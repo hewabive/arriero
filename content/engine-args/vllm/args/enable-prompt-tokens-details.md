@@ -34,7 +34,7 @@ If set to True, enable prompt_tokens_details in usage.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` или отсутствие обоих (`false`)
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; поле остается `null`, если движок не вернул ни одной из трех величин
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:BaseFrontendArgs.enable_prompt_tokens_details`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.enable_prompt_tokens_details`
 - Этап применения: HTTP-слой, сборка `usage` в ответе
 
 ## Что меняет в движке
@@ -100,7 +100,7 @@ vllm serve /models/Qwen3-4B --enable-prompt-tokens-details --enable-force-includ
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
 - `vllm/vllm/entrypoints/openai/engine/protocol.py`
 - `vllm/vllm/entrypoints/generate/api_router.py`

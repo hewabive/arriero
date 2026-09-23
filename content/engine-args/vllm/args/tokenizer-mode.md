@@ -34,6 +34,7 @@ Tokenizer mode:
 - "mistral" will always use the tokenizer from `mistral_common`.
 - "deepseek_v32" will always use the tokenizer from `deepseek_v32`.
 - "deepseek_v4" will always use the tokenizer from `deepseek_v4`.
+- "deepseek_v41" will use the DeepSeek V4.1 prompt encoder.
 - "kimi_k3" will always use the "hf" tokenizer but render chat prompts
   with Kimi K3's Python XTML encoding instead of a Jinja template.
 - "cohere" uses the standard HF tokenizer but renders the chat template
@@ -52,7 +53,7 @@ loads an HF fast tokenizer (`hf`, `deepseek_v32`, `deepseek_v4`, …).
 - Флаги: `--tokenizer-mode`
 - Группа argparse: `ModelConfig`
 - Тип значения: str; приводится к нижнему регистру валидатором `_lowercase_tokenizer_mode`
-- Допустимые значения: **парсер не ограничивает**. Поле объявлено как `TokenizerMode | str`, поэтому `literal_to_kwargs` выдает `metavar`, а не `choices`, — argparse примет любую строку. Настоящий контракт — реестр `TokenizerRegistry` (`vllm/tokenizers/registry.py`): встроенные режимы `auto`, `hf`, `slow`, `mistral`, `deepseek_v32`, `deepseek_v4`, `kimi_k3`, `kimi_audio`, `inkling`, `cohere`; плагин может добавить свой через `TokenizerRegistry.register(...)`. Режим `inkling` присутствует в перечне значений, но в тексте оригинальной справки не описан
+- Допустимые значения: **парсер не ограничивает**. Поле объявлено как `TokenizerMode | str`, поэтому `literal_to_kwargs` выдает `metavar`, а не `choices`, — argparse примет любую строку. Настоящий контракт — реестр `TokenizerRegistry` (`vllm/tokenizers/registry.py`): встроенные режимы `auto`, `hf`, `slow`, `mistral`, `deepseek_v32`, `deepseek_v4`, `deepseek_v41`, `kimi_k3`, `kimi_audio`, `inkling`, `cohere`; плагин может добавить свой через `TokenizerRegistry.register(...)`. Режим `inkling` присутствует в перечне значений, но в тексте оригинальной справки не описан
 - Значение по умолчанию: `auto`
 - Эффективное значение: переопределяется дважды. Сначала `ModelConfig.__post_init__` заменяет `auto` на специальный режим по архитектуре: `MoonshotKimiaForCausalLM` → `kimi_audio`, `KimiK3ForConditionalGeneration` → `kimi_k3`, `DeepseekV32ForCausalLM` → `deepseek_v32`, `DeepseekV4ForCausalLM` → `deepseek_v4`, `Inkling*` → `inkling`, а при `--model-impl terratorch` → `terratorch`; в лог идет `Defaulting to tokenizer_mode=<режим> for <Arch>`. Затем `resolve_tokenizer_args` доразрешает остаток: `slow` → `hf` с `use_fast=False`, `auto` → `mistral`, если репозиторий распознан как Mistral и содержит `tekken.json`/`tokenizer.model.v*`, иначе `auto` → `hf`
 - Где объявлен: `vllm/config/model.py:ModelConfig.tokenizer_mode`
@@ -79,7 +80,7 @@ loads an HF fast tokenizer (`hf`, `deepseek_v32`, `deepseek_v4`, …).
 - `hf` — принудительно HF-токенизатор, быстрый, если он доступен.
 - `slow` — HF-токенизатор с `use_fast=False`. Дает эталонное поведение Python-реализации ценой скорости.
 - `mistral` — токенизатор `mistral_common`; нужен, если автодетект не сработал (например, репозиторий выложен нестандартно).
-- `deepseek_v32`, `deepseek_v4`, `kimi_k3`, `inkling`, `cohere` — режимы конкретных семейств; обычно ставятся движком автоматически.
+- `deepseek_v32`, `deepseek_v4`, `deepseek_v41`, `kimi_k3`, `inkling`, `cohere` — режимы конкретных семейств; обычно ставятся движком автоматически.
 - Произвольная строка проходит парсер и падает уже в реестре: `No tokenizer registered for tokenizer_mode='xxx'.`
 
 ## Когда использовать

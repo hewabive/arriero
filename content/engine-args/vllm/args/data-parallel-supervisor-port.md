@@ -38,7 +38,7 @@ mode.
 - Допустимые значения: любой порт; проверяется только непересечение с портами детей
 - Значение по умолчанию: `9256`
 - Эффективное значение: у дочерних процессов это поле принудительно обнуляется (`child_args.data_parallel_supervisor_port = None`) — супервизор в дереве ровно один
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.data_parallel_supervisor_port`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.data_parallel_supervisor_port`
 - Этап применения: разбор CLI (валидация режима) → запуск супервизора вместо обычного сервера
 
 ## Что меняет в движке
@@ -99,7 +99,7 @@ vllm serve /models/Qwen3-4B --data-parallel-multi-port-external-lb --data-parall
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/dp_supervisor.py`
 - `vllm/vllm/entrypoints/cli/serve.py`
 - `vllm/vllm/entrypoints/launcher.py`

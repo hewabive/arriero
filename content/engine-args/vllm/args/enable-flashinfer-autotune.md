@@ -70,7 +70,7 @@ elif has_flashinfer() and current_platform.has_device_capability(90):
 
 - Булев флаг без значения; парный `--no-enable-flashinfer-autotune` явно выключает.
 - «Не задан» — это `None`, и он означает «взять из `--optimization-level`», а не «выключено».
-- Структурная форма: `--kernel-config '{"enable_flashinfer_autotune": false}'`. В отличие от `--enable-bf16x3-router-gemm`, здесь взаимное исключение реализовано корректно: одновременное задание обоими способами даёт `ValueError: enable_flashinfer_autotune and kernel_config.enable_flashinfer_autotune are mutually exclusive`.
+- Структурная форма: `--kernel-config '{"enable_flashinfer_autotune": false}'`. Одновременное задание этого поля и верхнеуровневого флага даёт `ValueError: enable_flashinfer_autotune and kernel_config.enable_flashinfer_autotune are mutually exclusive`.
 - Включение не «включает FlashInfer»: если библиотека не установлена или ядра FlashInfer не выбраны (`--attention-backend`, `--moe-backend`, `--linear-backend`), тюнить нечего.
 
 ## Когда использовать

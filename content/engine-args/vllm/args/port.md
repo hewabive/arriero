@@ -35,7 +35,7 @@ Port number.
 - Допустимые значения: парсером не ограничены; ядро отвергнет значение вне `1..65535`, а порт ниже 1024 требует привилегий
 - Значение по умолчанию: `8000`
 - Эффективное значение: не переопределяется; полностью игнорируется при заданном `--uds`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.port`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.port`
 - Этап применения: HTTP-слой, `setup_server()` — привязка сокета до сборки движка
 
 ## Что меняет в движке
@@ -89,7 +89,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --port 8010 --disable-access-log-fo
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/launcher.py`
 - `vllm/vllm/entrypoints/cli/serve.py`

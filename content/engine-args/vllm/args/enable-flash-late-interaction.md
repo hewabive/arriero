@@ -35,7 +35,7 @@ Can significantly improve late-interaction scoring performance.
 - Допустимые значения: флаг присутствует (`true`), парный `--no-...` (`false`); при отсутствии обоих действует `true`
 - Значение по умолчанию: `true`
 - Эффективное значение: применяется только когда пулинговая задача модели отображается в `late-interaction` (`SCORE_TYPE_MAP`: `token_embed → late-interaction`); для архитектуры `JinaForRanking` принудительно выключается — io-процессор заменяется на `jina-reranking-scoring`
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_flash_late_interaction`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_flash_late_interaction`
 - Этап применения: инициализация пулингового состояния (выбор io-процессора) → HTTP-слой, обработка каждого scoring-запроса
 
 ## Что меняет в движке
@@ -94,7 +94,7 @@ vllm serve /models/colbert-v2 --runner pooling --no-enable-flash-late-interactio
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/pooling/scoring/serving.py`
 - `vllm/vllm/entrypoints/pooling/scoring/io_processor.py`
 - `vllm/vllm/entrypoints/pooling/factories.py`

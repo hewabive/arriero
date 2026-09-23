@@ -34,7 +34,7 @@ Uses vendored static assets bundled with vLLM.
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false`
 - Эффективное значение: игнорируется при заданном `--disable-fastapi-docs` (в `build_app()` это ветки `if/elif`); также бездействует, если каталога статики нет в установленном пакете
-- Где объявлен: `vllm/entrypoints/openai/cli_args.py:FrontendArgs.enable_offline_docs`
+- Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.enable_offline_docs`
 - Этап применения: HTTP-слой, `build_app()` — выбор конструктора `FastAPI` и подключение роутера офлайн-документации
 
 ## Что меняет в движке
@@ -91,7 +91,7 @@ curl -I http://127.0.0.1:8000/static/swagger-ui-bundle.js
 
 ## Источники
 
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
 - `vllm/vllm/entrypoints/serve/instrumentator/offline_docs.py`
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

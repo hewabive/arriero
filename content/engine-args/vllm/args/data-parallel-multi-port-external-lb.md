@@ -121,7 +121,7 @@ vllm serve /models/DeepSeek-V2-Lite --data-parallel-size 8 --data-parallel-size-
 
 - `vllm/vllm/entrypoints/openai/dp_supervisor.py`
 - `vllm/vllm/entrypoints/cli/serve.py`
-- `vllm/vllm/entrypoints/openai/cli_args.py`
+- `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/engine/arg_utils.py`
 - `vllm/tests/entrypoints/openai/test_dp_supervisor.py`
 - `vllm/docs/serving/data_parallel_deployment.md`
