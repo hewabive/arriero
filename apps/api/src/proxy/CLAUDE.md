@@ -80,7 +80,7 @@ Client-requested effort (`reasoning_effort`, `output_config.effort`, `thinking` 
 onto the resolved upstream's native interface **at the forward boundary** (`reasoning-request.ts`,
 applied in respond/resumable/fusion-branch/resume-claim, so condition/fusion routing and peer
 delegation map per instance). The profile is a property of the **upstream**, never the public model
-id. Precedence: `Instance.reasoning` override → chat-template autodetect for llama instances → llama
+id. Precedence: `Instance.reasoning` override → cached GGUF/safetensors chat-template autodetect → llama
 engine-default budget → external `ApiEndpointRecord.reasoning` override → passthrough. The
 `reasoning` node is a canonical override (`auto` keeps inbound), traced as a `reasoning` route step.
 An unrecognized ladder is loud: `InstanceHealthSummary.reasoningTemplateIssue` drives an instance

@@ -57,20 +57,22 @@ the resolved upstream context — is known, and
    `enable-flag`, `native-passthrough`, `non-reasoning`) or
    `{kind:"custom", profile}` for a future model's ladder — no code change.
    The instance form edits presets; a custom profile is authored via API and
-   survives the form. Applies to every engine kind, so a Python-engine
-   instance gets a profile only this way. Because the override lives on the
+   survives the form. Applies to every engine kind. Because the override lives on the
    instance, it holds for every route that lands on it — condition/fusion
    branches, and delegated requests mapped by the peer against its own
    instance config.
-2. **Template autodetection** for llama-engine instances: instance →
-   `resolveModelPath(args)` → `model_cache` → the derived
-   `metadata.chatTemplateReasoning` (see below). A template that uses
+2. **Template autodetection** from cached `metadata.chatTemplateReasoning`
+   (see below). llama instances use `resolveModelPath(args)` → `model_cache`;
+   Python engines use a scanned local safetensors directory → `safetensors_cache`
+   (SGLang: `--model-path` or `--model`; vLLM: positional model;
+   KTransformers: `engineConfig.model`, never its CPU weights). A template that uses
    `reasoning_effort` yields a `template-effort` profile with the extracted
    ladder and aliases.
 3. **Engine default** for llama instances whose template does not take
    `reasoning_effort`: the `budget` interface —
    `thinking_budget_tokens`/`enable_thinking` work at the engine level for
-   any llama model.
+   any llama model. Python engines without a detected effort template stay
+   passthrough.
 4. **`ApiEndpointRecord.reasoning`** for external endpoints (no instance):
    the same override union on the endpoint catalog record
    (`config/proxy/endpoints.json`, endpoint editor select). Unset ⇒
@@ -90,8 +92,8 @@ in the log.
 The instance-derived branch (1–3) reads the instance record and the model
 cache row, so it is memoized per instance with a 2 s TTL (the same staleness
 budget as `getCachedApiProxyRuntimeSnapshot`) — a hot request path never
-re-reads `model_cache` per request, and an instance edit or template change
-is picked up within 2 s.
+re-reads the model cache per request. An instance edit or refreshed model cache
+is picked up within 2 s; changed template files first require a model rescan.
 
 With a profile, the mapping extracts the directive, strips every native
 effort field and re-materializes: levels project onto the ladder (aliases
@@ -109,10 +111,13 @@ inbound protocol shape, before translation — a deliberate approximation).
 
 ## Template autodetection
 
-`extractChatTemplateReasoning` (pure, over the `tokenizer.chat_template`
-string already stored in `model_cache` raw facts) detects `reasoning_effort`
-/ `enable_thinking` usage and extracts the ladder from two known template
-conventions:
+`extractChatTemplateReasoning` is pure and reads the template string stored
+in the model cache raw facts. GGUF supplies `tokenizer.chat_template`;
+safetensors scanning reads `chat_template.jinja`, then
+`tokenizer_config.json:chat_template`, then `chat_template.json`
+(`docs/SAFETENSORS_PARSING.md`). No template files are read or parsed on the
+request path. The extractor detects `reasoning_effort` / `enable_thinking`
+usage and extracts the ladder from two known template conventions:
 
 - **Guard** (Qwen3.8): `not in ('xhigh', 'medium', 'low')` membership test —
   the authoritative source when present; aliases come from
@@ -130,8 +135,8 @@ onto it (nearest, ties up), a **tolerant** ladder passes levels below its
 lowest rung through unchanged — that is the template's baseline semantics —
 and projects only levels at or above it (`xhigh` → `max` on DeepSeek V4).
 
-The result is the derived metadata field `chatTemplateReasoning` (parser
-version 13); a parser bump re-derives from cached raw facts on read, so
+The result is the derived metadata field `chatTemplateReasoning` in both
+model caches; a parser bump re-derives from cached raw facts on read, so
 detection works without a re-scan. Extraction is conservative: an
 unconventional template yields `levels: null` → the profile keeps an empty
 ladder and passes canonical levels through unclamped — and that state is
@@ -191,7 +196,10 @@ wire-format changes: an unrecognized effort field shows up as an
   detect from → engine-default budget profile. An `Instance.reasoning`
   override applies to *every* model behind the router; per-model ladders
   behind one router are not expressible.
-- Python engines get no autodetection (no GGUF template) — passthrough unless
-  the instance carries an override.
+- Python autodetection requires an absolute local model directory already in
+  the safetensors scan cache. Hub IDs, relative paths, unscanned directories,
+  and separately configured tokenizer/chat-template overrides are not resolved;
+  use `Instance.reasoning` when the effective template differs from the scanned
+  model template or its cache is unavailable.
 - `output_config.format` (structured outputs) is out of scope — the bridge
   drops it with a warning.

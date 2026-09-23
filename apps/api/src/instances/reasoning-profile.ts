@@ -1,6 +1,7 @@
 import {
   apiProxyReasoningLevelRank,
   engineDescriptor,
+  instanceModelPaths,
   normalizeApiProxyReasoningLevel,
   resolveApiProxyReasoningProfile,
   type ApiProxyReasoningLevel,
@@ -10,9 +11,11 @@ import {
   type MemoryEstimateArgs,
   type ReasoningTemplateIssue,
 } from "@arriero/core";
+import { isAbsolute, resolve } from "node:path";
 
 import { resolveModelPath } from "../memory-estimate/service.js";
 import { getCachedModelEntry } from "../models/cache-repository.js";
+import { getCachedSafetensorsEntry } from "../models/safetensors-cache-repository.js";
 import { getInstanceRecord } from "./config-files.js";
 
 const llamaBudgetProfile: ApiProxyReasoningProfile = {
@@ -75,21 +78,33 @@ function computeInstanceReasoningProfile(
   if (override) {
     return { profile: override, source: "instance override" };
   }
-  if (engineDescriptor(record.kind).nativeApi !== "llama") {
+  const engine = engineDescriptor(record.kind);
+  if (!engine.proxy.serveEndpoint) {
     return null;
   }
-  const modelPath = resolveModelPath(record.args as MemoryEstimateArgs);
-  const detection = modelPath
-    ? (getCachedModelEntry(modelPath)?.model?.metadata.chatTemplateReasoning ??
-      null)
-    : null;
+  const isLlama = engine.nativeApi === "llama";
+  const modelPath = isLlama
+    ? resolveModelPath(record.args as MemoryEstimateArgs)
+    : record.engineConfig?.type === "ktransformers"
+      ? record.engineConfig.model
+      : (instanceModelPaths(record)[0] ?? null);
+  const model = isLlama
+    ? modelPath
+      ? getCachedModelEntry(modelPath)?.model
+      : null
+    : modelPath && isAbsolute(modelPath)
+      ? getCachedSafetensorsEntry(resolve(modelPath))?.model
+      : null;
+  const detection = model?.metadata.chatTemplateReasoning;
   if (detection?.usesReasoningEffort) {
     return {
       profile: reasoningProfileFromTemplate(detection),
       source: "template",
     };
   }
-  return { profile: llamaBudgetProfile, source: "engine default" };
+  return isLlama
+    ? { profile: llamaBudgetProfile, source: "engine default" }
+    : null;
 }
 
 export function instanceReasoningProfile(

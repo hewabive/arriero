@@ -12,6 +12,7 @@ import {
   type ApiProxyReasoningOverride,
   type ApiProxyReasoningProfile,
   type GgufModel,
+  type InstanceCreate,
 } from "@arriero/core";
 
 import { config } from "../config.js";
@@ -19,6 +20,11 @@ import { createInstance } from "../instances/repository.js";
 import { instanceTestFixture } from "../instances/test-fixtures.js";
 import { saveCachedModel } from "../models/cache-repository.js";
 import { emptyMetadata } from "../models/scanner.js";
+import { saveCachedSafetensorsModel } from "../models/safetensors-cache-repository.js";
+import {
+  deriveSafetensorsMetadata,
+  readSafetensorsFacts,
+} from "../models/safetensors.js";
 import { createApiEndpoint } from "./endpoints.js";
 import {
   instanceReasoningTemplateIssue,
@@ -26,6 +32,7 @@ import {
 } from "../instances/reasoning-profile.js";
 import {
   applyApiProxyReasoningMapping,
+  prepareApiProxyUpstreamRequest,
   resolveApiProxyUpstreamReasoningProfile,
 } from "./reasoning-request.js";
 
@@ -33,6 +40,65 @@ const { uniqueName, seedBinaryRef, binaryRefId } =
   instanceTestFixture("reasoning");
 
 const qwen38 = { kind: "preset", preset: "qwen3.8" } as const;
+
+const qwen38Template = `{%- if enable_thinking is undefined or enable_thinking is true %}
+{%- set resolved_reasoning_effort = reasoning_effort|default('xhigh') %}
+{%- if resolved_reasoning_effort not in ('xhigh', 'medium', 'low') %}
+{{- raise_exception('Unexpected reasoning effort ' ~ reasoning_effort) }}
+{%- endif %}
+{%- endif %}`;
+
+function seedSafetensorsTemplate(
+  template: string,
+  sidecar: "chat_template.jinja" | "tokenizer_config.json",
+): string {
+  const name = uniqueName("hf-model");
+  const path = join(config.modelsDir, "reasoning-test", name);
+  mkdirSync(path, { recursive: true });
+  writeFileSync(
+    join(path, sidecar),
+    sidecar === "chat_template.jinja"
+      ? template
+      : JSON.stringify({ chat_template: template }),
+  );
+  const { facts, errors } = readSafetensorsFacts(path);
+  assert.deepEqual(errors, []);
+  saveCachedSafetensorsModel(
+    {
+      name,
+      path,
+      directory: path,
+      sizeBytes: 0,
+      modifiedAt: "2026-09-23T00:00:00.000Z",
+      weightFiles: [],
+      missingShardNames: [],
+      metadata: deriveSafetensorsMetadata(facts),
+    },
+    facts,
+  );
+  return path;
+}
+
+function seedPythonInstance(
+  input: Pick<InstanceCreate, "kind" | "args"> &
+    Partial<
+      Pick<InstanceCreate, "positionalArgs" | "engineConfig" | "reasoning">
+    >,
+): string {
+  const name = uniqueName("python");
+  if (!binaryRefId()) {
+    seedBinaryRef();
+  }
+  createInstance({
+    name,
+    binaryPathRefId: binaryRefId(),
+    rpcWorkers: [],
+    env: {},
+    memory: [],
+    ...input,
+  });
+  return name;
+}
 
 function qwen38Profile(): ApiProxyReasoningProfile {
   const profile = resolveApiProxyReasoningProfile(qwen38);
@@ -326,6 +392,159 @@ test("a llama instance with a detected effort template maps onto its ladder", ()
     'reasoning_effort=high → level high → reasoning_effort "xhigh"',
   );
   assert.equal(instanceReasoningTemplateIssue(instanceId), null);
+});
+
+for (const sidecar of [
+  "chat_template.jinja",
+  "tokenizer_config.json",
+] as const) {
+  test(`SGLang maps translated Anthropic effort using cached ${sidecar}`, () => {
+    const modelPath = seedSafetensorsTemplate(qwen38Template, sidecar);
+    const instanceId = seedPythonInstance({
+      kind: "sglang",
+      args: { "--model-path": modelPath },
+    });
+    const resolved = resolveApiProxyUpstreamReasoningProfile({
+      instanceId,
+      endpointId: null,
+    });
+    assert.equal(resolved?.source, "template");
+    assert.equal(resolved.profile.strict, true);
+    assert.deepEqual(resolved.profile.levels, ["low", "medium", "xhigh"]);
+    assert.deepEqual(resolved.profile.aliases, {});
+
+    const prepared = prepareApiProxyUpstreamRequest({
+      translate: true,
+      translationDialect: "openai-compatible",
+      operation: {
+        protocol: "anthropic",
+        endpoint: "messages",
+        routePath: "/v1/messages",
+        transport: "http-json",
+      },
+      path: "/v1/messages",
+      headers: new Headers(),
+      body: {
+        model: "qwen",
+        messages: [{ role: "user", content: "hello" }],
+        thinking: { type: "adaptive" },
+        output_config: { effort: "high" },
+        max_tokens: 32000,
+        stream: true,
+      },
+      instanceId,
+      endpointId: null,
+    });
+    assert.equal(prepared.protocol, "openai");
+    assert.equal(prepared.path, "/v1/chat/completions");
+    assert.deepEqual(prepared.body, {
+      model: "qwen",
+      messages: [{ role: "user", content: "hello" }],
+      max_tokens: 32000,
+      stream: true,
+      reasoning_effort: "xhigh",
+    });
+    assert.equal(prepared.traceStep?.nodeName, "reasoning profile (template)");
+    assert.equal(instanceReasoningTemplateIssue(instanceId), null);
+  });
+}
+
+test("Python engines resolve their model source and map OpenAI effort", () => {
+  const modelPath = seedSafetensorsTemplate(
+    qwen38Template,
+    "chat_template.jinja",
+  );
+  const sources = [
+    { kind: "sglang", args: { "--model": `${modelPath}/` } },
+    { kind: "vllm", args: {}, positionalArgs: [modelPath] },
+    {
+      kind: "ktransformers",
+      args: {},
+      engineConfig: {
+        type: "ktransformers",
+        model: modelPath,
+        cpuWeights: "/other/cpu-weights",
+        method: "BF16",
+      },
+    },
+  ] satisfies Parameters<typeof seedPythonInstance>[0][];
+  for (const source of sources) {
+    const instanceId = seedPythonInstance(source);
+    for (const [requested, sent] of [
+      ["high", "xhigh"],
+      ["medium", "medium"],
+      ["minimal", "low"],
+      ["max", "xhigh"],
+    ]) {
+      const mapped = applyApiProxyReasoningMapping({
+        protocol: "openai",
+        body: { model: "m", reasoning_effort: requested },
+        instanceId,
+        endpointId: null,
+      });
+      assert.deepEqual(mapped.body, { model: "m", reasoning_effort: sent });
+    }
+  }
+});
+
+test("Python instances keep passthrough without a detected effort template", () => {
+  const noEffort = seedSafetensorsTemplate(
+    "{{ messages }}",
+    "chat_template.jinja",
+  );
+  const sources = [
+    { kind: "sglang", args: { "--model-path": "/uncached/model" } },
+    { kind: "sglang", args: { "--model-path": "org/model" } },
+    { kind: "sglang", args: { "--model-path": noEffort } },
+    { kind: "vllm", args: {}, positionalArgs: [] },
+    {
+      kind: "ktransformers",
+      args: {},
+      engineConfig: {
+        type: "ktransformers",
+        model: "org/model",
+        cpuWeights: seedSafetensorsTemplate(
+          qwen38Template,
+          "chat_template.jinja",
+        ),
+        method: "BF16",
+      },
+    },
+  ] satisfies Parameters<typeof seedPythonInstance>[0][];
+  for (const source of sources) {
+    const instanceId = seedPythonInstance(source);
+    const body = { model: "m", reasoning_effort: "high" };
+    const mapped = applyApiProxyReasoningMapping({
+      protocol: "openai",
+      body,
+      instanceId,
+      endpointId: null,
+    });
+    assert.equal(mapped.body, body);
+    assert.equal(mapped.traceStep, null);
+  }
+});
+
+test("Python template issues surface and explicit overrides win", () => {
+  const modelPath = seedSafetensorsTemplate(
+    "{% if reasoning_effort %}{{ raise_exception('unsupported') }}{% endif %}",
+    "chat_template.jinja",
+  );
+  const source = {
+    kind: "sglang",
+    args: { "--model-path": modelPath },
+  } as const;
+  const instanceId = seedPythonInstance(source);
+  assert.equal(instanceReasoningTemplateIssue(instanceId), "strict");
+  const overridden = seedPythonInstance({ ...source, reasoning: qwen38 });
+  assert.equal(instanceReasoningTemplateIssue(overridden), null);
+  assert.equal(
+    resolveApiProxyUpstreamReasoningProfile({
+      instanceId: overridden,
+      endpointId: null,
+    })?.source,
+    "instance override",
+  );
 });
 
 test("a tolerant template instance passes sub-ladder levels unchanged", () => {
