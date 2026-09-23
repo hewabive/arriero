@@ -508,7 +508,20 @@ const TraceRow = memo(function TraceRow(props: {
         <CacheCell usage={trace.usage} />
       </Table.Td>
       <Table.Td>
-        {trace.usage ? formatTraceRate(trace.usage.ratePerSecond) : "—"}
+        {trace.usage?.rateSource === "proxy" &&
+        trace.usage.ratePerSecond !== null ? (
+          <Tooltip
+            multiline
+            maw={360}
+            label="Estimated from output tokens and the interval between the first and last streamed output. Includes reasoning and tool calls; affected by network buffering."
+          >
+            <span>≈ {formatTraceRate(trace.usage.ratePerSecond)}</span>
+          </Tooltip>
+        ) : trace.usage ? (
+          formatTraceRate(trace.usage.ratePerSecond)
+        ) : (
+          "—"
+        )}
       </Table.Td>
       <Table.Td>
         <DetailBadge

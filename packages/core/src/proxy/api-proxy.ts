@@ -281,6 +281,7 @@ export const ApiProxyTraceUsageSchema = z.object({
   completionTokens: z.number().int().min(0).default(0),
   genMs: z.number().int().min(0).default(0),
   ratePerSecond: z.number().min(0).nullable().default(null),
+  rateSource: z.enum(["upstream", "proxy"]).optional(),
   prefillMs: z.number().int().min(0).nullable().default(null),
   promptPerSecond: z.number().min(0).nullable().default(null),
 });

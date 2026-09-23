@@ -11,6 +11,7 @@ export type ProxyEngineGates = Pick<
   | "slotSave"
   | "streamResume"
   | "sseTimings"
+  | "estimateStreamRate"
   | "reasoningControl"
 >;
 
@@ -20,6 +21,7 @@ const NO_ENGINE_GATES: ProxyEngineGates = {
   slotSave: false,
   streamResume: false,
   sseTimings: false,
+  estimateStreamRate: false,
   reasoningControl: false,
 };
 
@@ -32,6 +34,7 @@ export function proxyEngineGates(instance: Instance | null): ProxyEngineGates {
     slotSave: proxy.slotSave,
     streamResume: proxy.streamResume,
     sseTimings: proxy.sseTimings,
+    estimateStreamRate: proxy.estimateStreamRate,
     reasoningControl: proxy.reasoningControl,
   };
 }

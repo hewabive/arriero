@@ -5,6 +5,7 @@ import {
 } from "@arriero/core";
 import type { Context } from "hono";
 
+import { asObject } from "./json.js";
 import { getInstance, listInstances } from "../instances/repository.js";
 import { getNode } from "../nodes/repository.js";
 import { observeBodyCompletion } from "./body-completion.js";
@@ -1207,6 +1208,11 @@ export async function serveResolvedTarget(input: {
       trace,
     });
     const upstreamRequestBody = forward.body;
+    const estimateRate =
+      engine.estimateStreamRate &&
+      !requestBreaksStreamReconstruction(upstreamRequestBody) &&
+      asObject(asObject(upstreamRequestBody)?.stream_options)
+        ?.continuous_usage_stats !== true;
 
     const streamMeter: StreamUsageMeter | null =
       route.request.stream && !translateAnthropic
@@ -1344,7 +1350,10 @@ export async function serveResolvedTarget(input: {
         const text = await upstream.text();
         const usage = usageFromNonStreamBody(forward.protocol, text);
         if (usage) {
-          trace.usage = traceUsageFromCounts(usage);
+          trace.usage = traceUsageFromCounts(
+            usage,
+            resolved.context.omittedCacheReadIsZero,
+          );
         }
         if (text) {
           trace.errorMessage = upstreamErrorText(text);
@@ -1375,6 +1384,7 @@ export async function serveResolvedTarget(input: {
           const outcome = await consumeResumableSse({
             body: upstream.body,
             codec: bufferCodec,
+            estimateRate,
             state,
             idleTimeoutMs: resolved.context.streamIdleTimeoutMs,
             consumerSignal: c.req.raw.signal,
@@ -1382,7 +1392,10 @@ export async function serveResolvedTarget(input: {
             cancelSignal,
             ...upstreamObserver,
           });
-          trace.usage = resumableTraceUsage(state);
+          trace.usage = resumableTraceUsage(
+            state,
+            resolved.context.omittedCacheReadIsZero,
+          );
           if (
             outcome.type === "consumer-gone" ||
             outcome.type === "cancelled"
@@ -1451,7 +1464,10 @@ export async function serveResolvedTarget(input: {
         const text = await upstream.text();
         const usage = usageFromNonStreamBody(forward.protocol, text);
         if (usage) {
-          trace.usage = traceUsageFromCounts(usage);
+          trace.usage = traceUsageFromCounts(
+            usage,
+            resolved.context.omittedCacheReadIsZero,
+          );
         }
         const task = resolveSlot();
         const translatedText = translateAnthropic
@@ -1552,7 +1568,10 @@ export async function serveResolvedTarget(input: {
       let metered: Response | undefined;
       const onStreamComplete = (usage: ProxyUsageCounts) => {
         recorder.freezeDuration();
-        trace.usage = traceUsageFromCounts(usage);
+        trace.usage = traceUsageFromCounts(
+          usage,
+          resolved.context.omittedCacheReadIsZero,
+        );
       };
       const recordStream = () => {
         const task = resolveSlot();
@@ -1563,6 +1582,7 @@ export async function serveResolvedTarget(input: {
 
       if (translateAnthropic) {
         const translation = createAnthropicTranslationStream({
+          estimateRate,
           ...upstreamObserver,
           onStreamEnd: (health) => {
             markPlanTruncatedOnEof(responsePlan)(health);
@@ -1595,6 +1615,7 @@ export async function serveResolvedTarget(input: {
       }
 
       const meter = createUsageMeterStream({
+        estimateRate,
         codec: streamMeter.codec,
         stripUsageFrames: streamMeter.strip,
         stripProgressFrames: injectPrefillProgress,
@@ -1794,7 +1815,10 @@ export async function serveResolvedTarget(input: {
       },
     });
 
-    trace.usage = resumableTraceUsage(state);
+    trace.usage = resumableTraceUsage(
+      state,
+      resolved.context.omittedCacheReadIsZero,
+    );
     applyProxyStreamHealth({ trace, health: state.health });
     if (state.health.terminal === "eof") {
       responsePlan?.markTruncated();

@@ -8,10 +8,24 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 
 import { config } from "../config.js";
+import { createInstance, deleteInstance } from "../instances/repository.js";
+import { instanceTestFixture } from "../instances/test-fixtures.js";
+import {
+  buildLaunchSnapshot,
+  serializeLaunchSnapshot,
+} from "../process/launch-snapshot.js";
+import {
+  createProcessRun,
+  updateProcessRun,
+} from "../process/runs-repository.js";
 import { createNode } from "../nodes/repository.js";
 import { getApiProxyActivity } from "./activity.js";
 import { resetConfigFilesCache } from "./config-files.js";
-import { createApiEndpoint, remoteEndpointId } from "./endpoints.js";
+import {
+  createApiEndpoint,
+  instanceEndpointId,
+  remoteEndpointId,
+} from "./endpoints.js";
 import { apiProxyInflight } from "./inflight.js";
 import {
   registerAnthropicProxyRoutes,
@@ -30,6 +44,8 @@ import {
   clearApiProxyTraceHistory,
   listApiProxyTraces,
 } from "./traces-repository.js";
+
+const managedFixture = instanceTestFixture("proxy-cache-report");
 
 beforeEach(() => {
   rmSync(config.proxyConfigDir, { recursive: true, force: true });
@@ -66,12 +82,19 @@ async function seedCapturedUpstream(
   t: TestContext,
   response: { status: number; contentType: string; body: string },
   options: {
+    managed?: {
+      kind?: "sglang" | "llama-server";
+      configured: boolean;
+      launched: boolean;
+      snapshot?: boolean;
+    };
     delegated?: boolean;
     profile?: "openai" | "anthropic";
     cache?: boolean;
     keepOpen?: boolean;
     streamIdleTimeoutMs?: number;
     abortAfterMs?: number;
+    chunkDelayMs?: number;
   } = {},
 ) {
   let requests = 0;
@@ -79,7 +102,20 @@ async function seedCapturedUpstream(
     requests += 1;
     request.resume();
     reply.writeHead(response.status, { "content-type": response.contentType });
-    if (options.keepOpen) {
+    if (options.chunkDelayMs !== undefined && request.method === "POST") {
+      const frames = response.body.split("\n\n");
+      const send = () => {
+        const frame = frames.shift();
+        if (frame === undefined) {
+          reply.end();
+          return;
+        }
+        reply.write(`${frame}\n\n`);
+        const timer = setTimeout(send, options.chunkDelayMs);
+        reply.once("close", () => clearTimeout(timer));
+      };
+      send();
+    } else if (options.keepOpen) {
       reply.write(response.body);
       if (options.abortAfterMs !== undefined) {
         const timer = setTimeout(() => reply.destroy(), options.abortAfterMs);
@@ -100,7 +136,49 @@ async function seedCapturedUpstream(
   assert.ok(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}`;
   let endpointId: string;
-  if (options.delegated) {
+  if (options.managed) {
+    const instance = createInstance({
+      name: managedFixture.uniqueName("managed"),
+      kind: options.managed.kind ?? "sglang",
+      binaryPathRefId: managedFixture.seedBinaryRef(),
+      args: {
+        "--host": "127.0.0.1",
+        "--port": address.port,
+        "--enable-cache-report": options.managed.configured,
+      },
+      env: {},
+      rpcWorkers: [],
+      memory: [],
+    });
+    const runId = createProcessRun({
+      instanceId: instance.name,
+      pid: process.pid,
+      status: "running",
+      startedAt: new Date().toISOString(),
+      logPath: "",
+      rawLogPath: null,
+      launchSnapshot:
+        options.managed.snapshot === false
+          ? null
+          : serializeLaunchSnapshot(
+              buildLaunchSnapshot({
+                ...instance,
+                args: {
+                  ...instance.args,
+                  "--enable-cache-report": options.managed.launched,
+                },
+              }),
+            ),
+    });
+    t.after(() => {
+      updateProcessRun(runId, {
+        status: "exited",
+        stoppedAt: new Date().toISOString(),
+      });
+      deleteInstance(instance.name);
+    });
+    endpointId = instanceEndpointId(instance.name);
+  } else if (options.delegated) {
     const node = createNode({ name: "capture-peer", baseUrl, enabled: true });
     endpointId = remoteEndpointId(node.id, "capture-instance");
   } else {
@@ -179,6 +257,7 @@ function postCapturedRequest(
   app: Hono,
   protocol: "openai" | "anthropic",
   stream: boolean,
+  extraBody: Record<string, unknown> = {},
 ) {
   return app.request(
     protocol === "openai" ? "/v1/chat/completions" : "/anthropic/v1/messages",
@@ -190,6 +269,7 @@ function postCapturedRequest(
         messages: [{ role: "user", content: "hi" }],
         max_tokens: 100,
         stream,
+        ...extraBody,
       }),
     },
   );
@@ -699,3 +779,238 @@ test("an unbound model failure persists its route diagnostic code", async () => 
   assert.equal(traces[0]?.errorCode, "arriero_proxy_route_unbound");
   assert.equal(traces[0]?.ok, false);
 });
+
+for (const protocol of ["openai", "anthropic"] as const) {
+  for (const mode of ["json", "sse", "buffered"] as const) {
+    if (protocol === "anthropic" && mode === "buffered") continue;
+    test(`SGLang cold cache is recorded as zero for ${protocol} ${mode}`, async (t) => {
+      const usage = {
+        prompt_tokens: 120,
+        completion_tokens: 7,
+        prompt_tokens_details: null,
+      };
+      const body =
+        mode === "json"
+          ? JSON.stringify({
+              choices: [
+                {
+                  message: { role: "assistant", content: "Hello" },
+                  finish_reason: "stop",
+                },
+              ],
+              usage,
+            })
+          : [
+              `data: ${JSON.stringify({ choices: [{ delta: { content: "Hello" }, finish_reason: null }] })}`,
+              `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+              `data: ${JSON.stringify({ choices: [], usage })}`,
+              "data: [DONE]",
+              "",
+            ].join("\n\n");
+      await seedCapturedUpstream(
+        t,
+        {
+          status: 200,
+          contentType:
+            mode === "json" ? "application/json" : "text/event-stream",
+          body,
+        },
+        { managed: { configured: true, launched: true }, cache: false },
+      );
+      const response = await buildApp().request(
+        protocol === "openai"
+          ? "/v1/chat/completions"
+          : "/anthropic/v1/messages",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            model: "captured-model",
+            messages: [{ role: "user", content: "hi" }],
+            max_tokens: 10,
+            stream: mode === "sse",
+            ...(mode === "json" ? { logprobs: true } : {}),
+          }),
+        },
+      );
+      assert.equal(response.status, 200, await response.text());
+      const trace = listApiProxyTraces()[0]!;
+      assert.equal(trace.usage?.cacheReadTokens, 0);
+      assert.equal(trace.usage?.promptTokens, 120);
+    });
+  }
+}
+
+for (const scenario of [
+  {
+    name: "flag added without restart",
+    configured: true,
+    launched: false,
+    expected: null,
+  },
+  {
+    name: "flag removed without restart",
+    configured: false,
+    launched: true,
+    expected: 0,
+  },
+  {
+    name: "missing launch snapshot",
+    configured: true,
+    launched: true,
+    snapshot: false,
+    expected: null,
+  },
+  {
+    name: "reported cache hit",
+    configured: true,
+    launched: true,
+    cached: 80,
+    expected: 80,
+  },
+  {
+    name: "missing usage",
+    configured: true,
+    launched: true,
+    noUsage: true,
+    expected: undefined,
+  },
+  {
+    name: "missing prompt count",
+    configured: true,
+    launched: true,
+    noPrompt: true,
+    expected: null,
+  },
+  {
+    name: "embeddings",
+    configured: true,
+    launched: true,
+    path: "/v1/embeddings",
+    expected: null,
+  },
+  {
+    name: "llama engine",
+    configured: true,
+    launched: true,
+    kind: "llama-server" as const,
+    expected: null,
+  },
+  {
+    name: "external endpoint",
+    configured: true,
+    launched: true,
+    external: true,
+    expected: null,
+  },
+]) {
+  test(`SGLang cache normalization respects ${scenario.name}`, async (t) => {
+    await seedCapturedUpstream(
+      t,
+      {
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello" },
+              finish_reason: "stop",
+            },
+          ],
+          ...(scenario.noUsage
+            ? {}
+            : {
+                usage: {
+                  ...(scenario.noPrompt ? {} : { prompt_tokens: 120 }),
+                  completion_tokens: 7,
+                  ...(scenario.cached === undefined
+                    ? {}
+                    : {
+                        prompt_tokens_details: {
+                          cached_tokens: scenario.cached,
+                        },
+                      }),
+                },
+              }),
+        }),
+      },
+      { ...(scenario.external ? {} : { managed: scenario }), cache: false },
+    );
+    const response = await buildApp().request(
+      scenario.path ?? "/v1/chat/completions",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: "captured-model",
+          messages: [{ role: "user", content: "hi" }],
+          input: "hi",
+          logprobs: true,
+        }),
+      },
+    );
+    assert.equal(response.status, 200, await response.text());
+    const trace = listApiProxyTraces()[0]!;
+    assert.equal(trace.usage?.cacheReadTokens, scenario.expected);
+  });
+}
+
+for (const mode of [
+  "openai",
+  "anthropic",
+  "buffered",
+  "multi-choice",
+  "continuous",
+] as const) {
+  test(`SGLang stream rate handles ${mode}`, async (t) => {
+    await seedCapturedUpstream(
+      t,
+      {
+        status: 200,
+        contentType: "text/event-stream",
+        body: [
+          `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: "Thinking" }, finish_reason: null }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "Answer" }, finish_reason: null }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+          `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 120, completion_tokens: 40 } })}`,
+          "data: [DONE]",
+          "",
+        ].join("\n\n"),
+      },
+      {
+        managed: { configured: true, launched: true },
+        cache: false,
+        chunkDelayMs: 20,
+      },
+    );
+    const response = await postCapturedRequest(
+      buildApp(),
+      mode === "anthropic" ? "anthropic" : "openai",
+      mode !== "buffered",
+      mode === "multi-choice"
+        ? { n: 2 }
+        : mode === "continuous"
+          ? { stream_options: { continuous_usage_stats: true } }
+          : {},
+    );
+    const body = await response.text();
+    assert.equal(response.status, 200, body);
+    const trace = listApiProxyTraces()[0]!;
+    assert.ok(trace.usage);
+    if (mode === "multi-choice" || mode === "continuous") {
+      assert.equal(trace.usage.rateSource, undefined);
+      assert.equal(trace.usage.ratePerSecond, null);
+    } else {
+      assert.equal(trace.usage.rateSource, "proxy");
+      assert.ok(trace.usage.genMs > 0);
+      assert.ok(
+        trace.usage.ratePerSecond !== null && trace.usage.ratePerSecond > 0,
+      );
+    }
+    assert.equal(trace.usage.completionTokens, 40);
+    assert.equal(trace.usage.cacheReadTokens, 0);
+    assert.equal(body.includes("predicted_ms"), false);
+    assert.equal(body.includes("observedGenMs"), false);
+    assert.equal(body.includes("rateSource"), false);
+  });
+}

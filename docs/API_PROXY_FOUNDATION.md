@@ -177,6 +177,38 @@ Every request emits an `ApiProxyRequestTrace` recorded by the Observer `proxy/st
 - **Streaming** tees frames as they pass. OpenAI streaming injects `stream_options.include_usage` and strips the synthetic usage chunk again when the client did not ask for it.
 - **Translated Anthropic streams** skip the meter entirely and report telemetry from the bridge emitter's `extensions` side-channel inside the translation transform (`docs/ANTHROPIC_OPENAI_BRIDGE.md`), so their streaming stats are recorded deferred at stream end rather than per frame.
 
+SGLang omits `usage.prompt_tokens_details` when no prompt tokens were cached,
+even with `--enable-cache-report`. For managed SGLang chat/completions (including
+translated Anthropic messages), trace metering interprets an absent cache-read
+count as zero only when prompt usage was received and the open process run's
+launch snapshot contains that flag. Editing instance arguments without restarting
+does not change this interpretation. Explicit cache counts are preserved;
+external endpoints, missing launch snapshots, and responses without prompt usage
+remain unknown. Request History can then display `0 / N` for a cold prompt using
+its existing fresh-token calculation. This normalization affects newly recorded
+traces, not upstream response bodies or previously stored history.
+
+Managed SGLang also opts into an estimated streaming generation rate through the
+engine descriptor's `estimateStreamRate` capability. The shared stream inspector
+measures the interval between the first and last output-bearing network reads
+(text, reasoning, or tool-call name/arguments), excluding startup/prefill and
+trailing finish/usage delays. Final reported completion tokens divided by that
+interval produce the estimate. Network buffering and multiple tokens per chunk
+make this approximate; it is not an engine decode benchmark. All frames within
+one read share a timestamp, so a fully buffered response has no measurable
+interval. An estimate requires more than one reported completion token, a positive
+rounded interval, a valid terminal, and no malformed chunks. Multi-choice,
+logprob, and continuous-usage requests are excluded.
+
+Server timings take precedence. Only trace conversion turns the observed interval
+into `usage.genMs` and `ratePerSecond`, marking `rateSource: "proxy"`; reconstructed
+client responses never receive invented engine timings. Request History displays
+these rates as `≈ … t/s` with an explanatory tooltip, and delegated traces retain
+the marker. The same inspector covers OpenAI SSE, translated Anthropic SSE and
+managed non-stream chat requests buffered from upstream SSE. Actual JSON upstream
+responses without timings remain unknown. Aggregate statistics include estimated
+generation times along with server measurements. Existing history is unchanged.
+
 Reported usage is retained independently of HTTP success: JSON error responses
 are metered before protocol translation, and buffered streams keep the counts
 already observed when they fail or are cancelled. Recent requests and request

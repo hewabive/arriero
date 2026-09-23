@@ -69,6 +69,7 @@ export type EngineProxyCapabilities = {
   slotSave: boolean;
   streamResume: boolean;
   sseTimings: boolean;
+  estimateStreamRate: boolean;
   reasoningControl: boolean;
   translationDialect: EngineTranslationDialectId;
   tokenCount: EngineTokenCountId;
@@ -128,6 +129,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: true,
       streamResume: true,
       sseTimings: true,
+      estimateStreamRate: false,
       reasoningControl: true,
       translationDialect: "llama-server",
       tokenCount: "llama",
@@ -172,6 +174,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      estimateStreamRate: false,
       reasoningControl: false,
       translationDialect: "llama-server",
       tokenCount: "none",
@@ -212,6 +215,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      estimateStreamRate: false,
       reasoningControl: false,
       translationDialect: "openai-compatible",
       tokenCount: "vllm",
@@ -256,6 +260,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      estimateStreamRate: true,
       reasoningControl: false,
       translationDialect: "openai-compatible",
       tokenCount: "sglang",
@@ -301,6 +306,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
+      estimateStreamRate: false,
       reasoningControl: false,
       translationDialect: "openai-compatible",
       tokenCount: "none",

@@ -10,6 +10,8 @@ import {
   type Instance,
 } from "@arriero/core";
 
+import { parseLaunchSnapshot } from "../process/launch-snapshot.js";
+import { openProcessRunForInstance } from "../process/runs-repository.js";
 import { listInstances } from "../instances/repository.js";
 import { apiEndpointAuthHeaders, getApiEndpointById } from "./endpoints.js";
 import {
@@ -17,9 +19,10 @@ import {
   type ProxyEngineGates,
 } from "./engine-capabilities.js";
 import { CLIENT_METRICS_LABEL_HEADER } from "./http.js";
-import type {
-  ApiProxyProtocolDiagnostic,
-  ApiProxyProtocolOperation,
+import {
+  apiProxyOperationSpec,
+  type ApiProxyProtocolDiagnostic,
+  type ApiProxyProtocolOperation,
 } from "./protocol.js";
 import { getApiProxySettings } from "./settings.js";
 import { resolveApiProxyTarget } from "./targets.js";
@@ -32,6 +35,7 @@ export type ApiProxyUpstreamContext = {
   engine: ProxyEngineGates;
   authHeaders: Record<string, string>;
   translateAnthropic: boolean;
+  omittedCacheReadIsZero: boolean;
   translationDialect: EngineTranslationDialectId;
   stripClientHeaders: string[];
   streamTerminal: ApiEndpointStreamTerminal;
@@ -81,6 +85,15 @@ export function instanceMetricsLabelHeader(
   const name =
     argString(instance.args, [METRICS_LABEL_HEADER_ARG])?.toLowerCase() ?? null;
   return name && name !== CLIENT_METRICS_LABEL_HEADER ? name : null;
+}
+
+function instanceOmitsZeroCacheRead(instance: Instance | null): boolean {
+  if (instance?.kind !== "sglang") {
+    return false;
+  }
+  const run = openProcessRunForInstance(instance.name);
+  const snapshot = parseLaunchSnapshot(run?.launchSnapshot);
+  return snapshot?.cliArgs.includes("--enable-cache-report") === true;
 }
 
 export type ApiProxyUpstreamContextResolution =
@@ -139,6 +152,9 @@ export function resolveApiProxyUpstreamContext(input: {
       engine: proxyEngineGates(targetResolution.instance),
       authHeaders: auth.headers,
       translateAnthropic,
+      omittedCacheReadIsZero:
+        apiProxyOperationSpec(input.operation)?.promptCacheUsage === true &&
+        instanceOmitsZeroCacheRead(targetResolution.instance),
       translationDialect: upstreamTranslationDialect(
         endpoint,
         targetResolution.instance,

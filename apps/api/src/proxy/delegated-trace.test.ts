@@ -260,3 +260,19 @@ test("withDelegatedTraceHeader stamps the trace id and keeps the body", async ()
   assert.equal(response.headers.get("x-keep"), "1");
   assert.deepEqual(await response.json(), { ok: true });
 });
+
+test("delegated rates retain their source and clear it when replaced by server timings", () => {
+  const trace = entryTrace();
+  const usage = { completionTokens: 40, genMs: 2_000, ratePerSecond: 20 };
+  mergeDelegatedTrace(
+    trace,
+    remoteTrace({ usage: { ...usage, rateSource: "proxy" } }),
+  );
+  assert.equal(trace.usage?.rateSource, "proxy");
+  mergeDelegatedTrace(
+    trace,
+    remoteTrace({ usage: { ...usage, genMs: 1_000, ratePerSecond: 40 } }),
+  );
+  assert.equal(trace.usage?.rateSource, undefined);
+  assert.equal(trace.usage?.ratePerSecond, 40);
+});

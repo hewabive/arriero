@@ -191,6 +191,7 @@ type ApiProxyOperationSpec = {
   responseShape: ApiProxyResponseShape;
   resumable: boolean;
   promptProgress: boolean;
+  promptCacheUsage: boolean;
   usageMeter: "resumable" | "responses" | null;
   translatesToOpenAiChat: boolean;
   countTokensResponse: boolean;
@@ -205,6 +206,7 @@ const apiProxyOperationSpecs = {
     responseShape: "openai-chat",
     resumable: true,
     promptProgress: true,
+    promptCacheUsage: true,
     usageMeter: "resumable",
     translatesToOpenAiChat: false,
     countTokensResponse: false,
@@ -217,6 +219,7 @@ const apiProxyOperationSpecs = {
     responseShape: "openai-chat",
     resumable: false,
     promptProgress: false,
+    promptCacheUsage: true,
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
@@ -229,6 +232,7 @@ const apiProxyOperationSpecs = {
     responseShape: "openai-chat",
     resumable: false,
     promptProgress: false,
+    promptCacheUsage: false,
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
@@ -241,6 +245,7 @@ const apiProxyOperationSpecs = {
     responseShape: "openai-chat",
     resumable: false,
     promptProgress: false,
+    promptCacheUsage: false,
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: false,
@@ -253,6 +258,7 @@ const apiProxyOperationSpecs = {
     responseShape: "openai-responses",
     resumable: false,
     promptProgress: false,
+    promptCacheUsage: false,
     usageMeter: "responses",
     translatesToOpenAiChat: false,
     countTokensResponse: false,
@@ -265,6 +271,7 @@ const apiProxyOperationSpecs = {
     responseShape: "anthropic",
     resumable: true,
     promptProgress: false,
+    promptCacheUsage: true,
     usageMeter: "resumable",
     translatesToOpenAiChat: true,
     countTokensResponse: false,
@@ -277,6 +284,7 @@ const apiProxyOperationSpecs = {
     responseShape: "anthropic",
     resumable: false,
     promptProgress: false,
+    promptCacheUsage: false,
     usageMeter: null,
     translatesToOpenAiChat: false,
     countTokensResponse: true,

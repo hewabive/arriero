@@ -8,10 +8,14 @@ import type {
   ProxyStreamObserver,
   ProxyStreamUsageTally,
 } from "./stream-observer.js";
-import { createProxyStreamInspector } from "./stream-inspector.js";
+import {
+  createProxyStreamInspector,
+  type ProxyStreamInspectionOptions,
+} from "./stream-inspector.js";
 
 export type ProxyUsageCounts = ProxyStreamUsageTally & {
   genMs: number;
+  observedGenMs?: number;
   prefillMs: number | null;
   promptPerSecond: number | null;
 };
@@ -181,7 +185,8 @@ export function createUsageMeterStream(
     stripProgressFrames?: boolean;
     onComplete: (usage: ProxyUsageCounts) => void;
     onStreamEnd?: (health: ProxyStreamHealth) => void;
-  } & ProxyStreamObserver,
+  } & ProxyStreamObserver &
+    ProxyStreamInspectionOptions,
 ): UsageMeterStream {
   const {
     codec,
@@ -195,7 +200,10 @@ export function createUsageMeterStream(
   const inspector = createProxyStreamInspector({
     codec,
     observer: input,
+    estimateRate: input.estimateRate,
+    now: input.now,
   });
+  let receivedAt: number | undefined;
   let done = false;
   let finalHealth: ProxyStreamHealth | null = null;
 
@@ -205,7 +213,7 @@ export function createUsageMeterStream(
   const observeFrame = (frame: string): boolean => {
     let keep = true;
     for (const data of sseDataPayloads(frame)) {
-      const inspected = inspector.observeData(data);
+      const inspected = inspector.observeData(data, receivedAt);
       if (inspected.type !== "chunk") {
         continue;
       }
@@ -240,6 +248,9 @@ export function createUsageMeterStream(
       cacheCreationTokens: snapshot.cacheCreationTokens,
       completionTokens: snapshot.completionTokens,
       genMs: snapshot.genMs,
+      ...(snapshot.observedGenMs !== undefined
+        ? { observedGenMs: snapshot.observedGenMs }
+        : {}),
       prefillMs: null,
       promptPerSecond: null,
     });
@@ -248,6 +259,7 @@ export function createUsageMeterStream(
   const filterFrames = stripUsageFrames || stripProgressFrames;
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
+      receivedAt = input.now?.() ?? performance.now();
       if (!filterFrames) {
         controller.enqueue(chunk);
       }

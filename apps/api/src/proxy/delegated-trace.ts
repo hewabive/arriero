@@ -135,6 +135,11 @@ export function mergeDelegatedTrace(
   }
   if (remote.usage.genMs > 0) {
     usage.genMs = remote.usage.genMs;
+    if (remote.usage.rateSource) {
+      usage.rateSource = remote.usage.rateSource;
+    } else {
+      delete usage.rateSource;
+    }
     usage.ratePerSecond = remote.usage.ratePerSecond ?? usage.ratePerSecond;
   }
   usage.prefillMs = remote.usage.prefillMs ?? usage.prefillMs;

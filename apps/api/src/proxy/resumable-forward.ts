@@ -20,6 +20,7 @@ import { watchStreamIdle } from "./stream-idle.js";
 import {
   createProxyStreamInspector,
   type ProxyStreamInspector,
+  type ProxyStreamInspectionOptions,
 } from "./stream-inspector.js";
 import type { ProxyStreamObserver } from "./stream-observer.js";
 
@@ -34,6 +35,7 @@ export type ResumableBufferState = {
   cacheReadTokens: number | null;
   cacheCreationTokens: number | null;
   genMs: number;
+  observedGenMs?: number;
   toolCalls: ApiProxyResumableToolCall[];
   inToolPhase: boolean;
   health: ProxyStreamHealth;
@@ -75,17 +77,22 @@ export function createResumableBufferState(): ResumableBufferState {
 
 type FrameMeta = {
   inspector: ProxyStreamInspector;
+  now: () => number;
+  receivedAt?: number;
 };
 
 function createFrameMeta(
-  observer: ProxyStreamObserver,
+  observer: ProxyStreamObserver & ProxyStreamInspectionOptions,
   state: ResumableBufferState,
   codec: ApiProxyResumableCodec,
 ): FrameMeta {
   return {
+    now: observer.now ?? (() => performance.now()),
     inspector: createProxyStreamInspector({
       codec,
       observer,
+      estimateRate: observer.estimateRate,
+      now: observer.now,
       usage: state,
       health: state.health,
     }),
@@ -98,7 +105,7 @@ function applyFrame(
   meta: FrameMeta,
 ): "done" | null {
   for (const data of sseDataPayloads(frame)) {
-    const inspected = meta.inspector.observeData(data);
+    const inspected = meta.inspector.observeData(data, meta.receivedAt);
     if (inspected.type === "done") {
       return "done";
     }
@@ -151,6 +158,7 @@ async function pumpSseFrames(
     if (done) {
       break;
     }
+    meta.receivedAt = meta.now();
     for (const frame of frames.push(value)) {
       if (applyFrame(frame, state, meta) === "done") {
         return "done";
@@ -189,7 +197,8 @@ export async function runResumableUpstreamAttempt(
     cancelSignal?: AbortSignal | undefined;
     fetchImpl?: typeof fetch | undefined;
     idleTimeoutMs?: number | null | undefined;
-  } & ProxyStreamObserver,
+  } & ProxyStreamObserver &
+    ProxyStreamInspectionOptions,
 ): Promise<ResumableUpstreamOutcome> {
   const {
     preemptSignal,
@@ -240,7 +249,12 @@ export async function runResumableUpstreamAttempt(
     interruptSignal?.removeEventListener("abort", onInterrupt);
     finishSignal?.removeEventListener("abort", onFinish);
     cancelSignal?.removeEventListener("abort", onCancel);
-    input.state.genMs += Math.max(0, meta.inspector.snapshot().genMs);
+    const snapshot = meta.inspector.snapshot();
+    input.state.genMs += Math.max(0, snapshot.genMs);
+    if (snapshot.observedGenMs !== undefined) {
+      input.state.observedGenMs =
+        (input.state.observedGenMs ?? 0) + snapshot.observedGenMs;
+    }
     return outcome;
   };
 
@@ -311,7 +325,8 @@ export async function consumeResumableSse(
     finishSignal?: AbortSignal | undefined;
     cancelSignal?: AbortSignal | undefined;
     idleTimeoutMs?: number | null | undefined;
-  } & ProxyStreamObserver,
+  } & ProxyStreamObserver &
+    ProxyStreamInspectionOptions,
 ): Promise<ConsumeResumableSseOutcome> {
   const meta = createFrameMeta(input, input.state, input.codec);
   const classifyStop = (): ConsumeResumableSseOutcome | null => {
@@ -336,7 +351,12 @@ export async function consumeResumableSse(
       input.state,
       meta,
     );
-    input.state.genMs += Math.max(0, meta.inspector.snapshot().genMs);
+    const snapshot = meta.inspector.snapshot();
+    input.state.genMs += Math.max(0, snapshot.genMs);
+    if (snapshot.observedGenMs !== undefined) {
+      input.state.observedGenMs =
+        (input.state.observedGenMs ?? 0) + snapshot.observedGenMs;
+    }
     return { type: classifyStreamEnding(ending, meta, input.state) };
   } catch (error) {
     return (

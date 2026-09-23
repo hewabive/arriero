@@ -21,7 +21,10 @@ import {
 } from "./protocol.js";
 import { sseDataPayloads } from "./sse.js";
 import type { ProxyStreamHealth } from "./stream-health.js";
-import { createProxyStreamInspector } from "./stream-inspector.js";
+import {
+  createProxyStreamInspector,
+  type ProxyStreamInspectionOptions,
+} from "./stream-inspector.js";
 import type { ProxyStreamObserver } from "./stream-observer.js";
 import type { ProxyUsageCounts } from "./usage-meter.js";
 import {
@@ -177,10 +180,11 @@ export function anthropicForwardHeaders(headers: Headers): Headers {
   return filtered;
 }
 
-export type AnthropicTranslationStreamCallbacks = ProxyStreamObserver & {
-  onComplete?: ((usage: ProxyUsageCounts) => void) | undefined;
-  onStreamEnd?: ((health: ProxyStreamHealth) => void) | undefined;
-};
+export type AnthropicTranslationStreamCallbacks = ProxyStreamObserver &
+  ProxyStreamInspectionOptions & {
+    onComplete?: ((usage: ProxyUsageCounts) => void) | undefined;
+    onStreamEnd?: ((health: ProxyStreamHealth) => void) | undefined;
+  };
 
 export type AnthropicTranslationStream = {
   transform: TransformStream<Uint8Array, Uint8Array>;
@@ -194,9 +198,12 @@ export function createAnthropicTranslationStream(
   const inspector = createProxyStreamInspector({
     codec: openAiResumableCodec,
     observer: callbacks,
+    estimateRate: callbacks.estimateRate,
+    now: callbacks.now,
   });
   const encoder = new TextEncoder();
   const frames = createSseFrameBuffer();
+  let receivedAt: number | undefined;
   let done = false;
   let finalHealth: ProxyStreamHealth | null = null;
 
@@ -205,7 +212,7 @@ export function createAnthropicTranslationStream(
     controller: TransformStreamDefaultController<Uint8Array>,
   ) => {
     for (const data of sseDataPayloads(frame)) {
-      inspector.observeData(data);
+      inspector.observeData(data, receivedAt);
       const result = emitter.push(data);
       if (result.events.length > 0) {
         controller.enqueue(
@@ -229,6 +236,9 @@ export function createAnthropicTranslationStream(
       cacheCreationTokens: snapshot.cacheCreationTokens,
       completionTokens: snapshot.completionTokens,
       genMs: snapshot.genMs,
+      ...(snapshot.observedGenMs !== undefined
+        ? { observedGenMs: snapshot.observedGenMs }
+        : {}),
       prefillMs: null,
       promptPerSecond: null,
     });
@@ -236,6 +246,7 @@ export function createAnthropicTranslationStream(
 
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
+      receivedAt = callbacks.now?.() ?? performance.now();
       for (const frame of frames.push(chunk)) {
         handleFrame(frame, controller);
       }

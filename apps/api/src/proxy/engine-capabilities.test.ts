@@ -25,13 +25,14 @@ function instance(kind: Instance["kind"]): Instance {
   } as Instance;
 }
 
-test("llama-server instance enables every proxy engine gate", () => {
+test("llama-server instance enables native proxy features without rate estimation", () => {
   const gates = proxyEngineGates(instance("llama-server"));
   assert.equal(gates.requestLease, true);
   assert.equal(gates.modelLoadUnload, true);
   assert.equal(gates.slotSave, true);
   assert.equal(gates.streamResume, true);
   assert.equal(gates.sseTimings, true);
+  assert.equal(gates.estimateStreamRate, false);
   assert.equal(gates.reasoningControl, true);
 });
 
@@ -42,6 +43,7 @@ test("rpc-worker instance disables every proxy engine gate", () => {
   assert.equal(gates.slotSave, false);
   assert.equal(gates.streamResume, false);
   assert.equal(gates.sseTimings, false);
+  assert.equal(gates.estimateStreamRate, false);
   assert.equal(gates.reasoningControl, false);
 });
 
@@ -52,6 +54,7 @@ test("no instance (external endpoint) disables every proxy engine gate", () => {
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    estimateStreamRate: false,
     reasoningControl: false,
   });
 });
@@ -63,6 +66,7 @@ test("vllm requests leases but opts out of llama lifecycle verbs", () => {
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    estimateStreamRate: false,
     reasoningControl: false,
   });
 });
@@ -74,6 +78,7 @@ test("KTransformers requests leases without llama lifecycle or stream extensions
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    estimateStreamRate: false,
     reasoningControl: false,
   });
 });
@@ -102,4 +107,10 @@ test("never and preemptible scheduling policies gate both scheduler and lease", 
   assert.equal(requestLeasePreemptible(never, true), false);
   assert.equal(schedulerTargetPreemptible(preemptible, true, 1), true);
   assert.equal(requestLeasePreemptible(preemptible, true), true);
+});
+
+test("SGLang opts into estimated stream rates without native timings", () => {
+  const gates = proxyEngineGates(instance("sglang"));
+  assert.equal(gates.estimateStreamRate, true);
+  assert.equal(gates.sseTimings, false);
 });

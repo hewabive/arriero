@@ -613,3 +613,35 @@ test("createUsageMeterStream keeps progress frames when not stripping", async ()
   assert.deepEqual(progress, [{ total: 50, cache: 0, processed: 25 }]);
   assert.equal(out.includes("prompt_progress"), true);
 });
+
+test("estimated rate does not use processing time within a single network read", async () => {
+  let time = 0;
+  let counted: ProxyUsageCounts | undefined;
+  const meter = createUsageMeterStream({
+    codec: openAiResumableCodec,
+    stripUsageFrames: false,
+    estimateRate: true,
+    now: () => (time += 100),
+    onComplete: (usage) => {
+      counted = usage;
+    },
+  });
+  const input = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        openAiFrames([
+          `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: "Thinking" } }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "Answer" } }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+          `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 120, completion_tokens: 40 } })}`,
+          "data: [DONE]",
+        ]),
+      );
+      controller.close();
+    },
+  });
+  await drain(input.pipeThrough(meter.transform));
+  assert.equal(counted?.completionTokens, 40);
+  assert.equal(counted?.observedGenMs, undefined);
+  assert.equal(counted?.genMs, 0);
+});

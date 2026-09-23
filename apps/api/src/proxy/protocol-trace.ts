@@ -3,6 +3,7 @@ import {
   type ApiProxyRouteTraceStep,
   type ApiProxySchedulerAction,
   type ApiProxyTraceFile,
+  type ApiProxyTraceUsage,
   type ApiProxyTraceStreamHealth,
 } from "@arriero/core";
 import type { Context } from "hono";
@@ -50,16 +51,7 @@ export type ProxyTraceAccumulator = {
   files: ApiProxyTraceFile[];
   schedulerActions: ApiProxySchedulerAction[];
   displacedTargetIds: string[];
-  usage: {
-    promptTokens: number | null;
-    cacheReadTokens: number | null;
-    cacheCreationTokens: number | null;
-    completionTokens: number;
-    genMs: number;
-    ratePerSecond: number | null;
-    prefillMs: number | null;
-    promptPerSecond: number | null;
-  } | null;
+  usage: ApiProxyTraceUsage | null;
   streamHealth: ApiProxyTraceStreamHealth | null;
   status: number;
   ok: boolean;
@@ -246,6 +238,7 @@ export async function applyServerGenerationTiming(
   if (trace.usage) {
     trace.usage.genMs = Math.round(timing.genMs);
     trace.usage.ratePerSecond = timing.tokensPerSecond;
+    delete trace.usage.rateSource;
     if (timing.prefillMs !== null) {
       trace.usage.prefillMs = Math.round(timing.prefillMs);
     }
@@ -289,14 +282,21 @@ export function recordTraceWithDeferredTiming(input: {
 
 export function traceUsageFromCounts(
   usage: ProxyUsageCounts,
+  omittedCacheReadIsZero = false,
 ): NonNullable<ProxyTraceAccumulator["usage"]> {
+  const observedGenMs = usage.observedGenMs ?? 0;
+  const estimated = usage.genMs === 0 && observedGenMs > 0;
+  const genMs = estimated ? observedGenMs : usage.genMs;
   return {
     promptTokens: usage.promptTokens,
-    cacheReadTokens: usage.cacheReadTokens,
+    cacheReadTokens:
+      usage.cacheReadTokens ??
+      (omittedCacheReadIsZero && usage.promptTokens !== null ? 0 : null),
     cacheCreationTokens: usage.cacheCreationTokens,
     completionTokens: usage.completionTokens,
-    genMs: Math.round(usage.genMs),
-    ratePerSecond: ratePerSecondFromUsage(usage),
+    genMs: Math.round(genMs),
+    ratePerSecond: ratePerSecondFromUsage({ ...usage, genMs }),
+    ...(estimated ? { rateSource: "proxy" as const } : {}),
     prefillMs: usage.prefillMs,
     promptPerSecond: usage.promptPerSecond,
   };
@@ -304,18 +304,10 @@ export function traceUsageFromCounts(
 
 export function resumableTraceUsage(
   state: ResumableBufferState,
+  omittedCacheReadIsZero = false,
 ): NonNullable<ProxyTraceAccumulator["usage"]> {
-  return {
-    promptTokens: state.promptTokens,
-    cacheReadTokens: state.cacheReadTokens,
-    cacheCreationTokens: state.cacheCreationTokens,
-    completionTokens: state.completionTokens,
-    genMs: Math.round(state.genMs),
-    ratePerSecond:
-      state.completionTokens > 0 && state.genMs > 0
-        ? state.completionTokens / (state.genMs / 1000)
-        : null,
-    prefillMs: null,
-    promptPerSecond: null,
-  };
+  return traceUsageFromCounts(
+    { ...state, prefillMs: null, promptPerSecond: null },
+    omittedCacheReadIsZero,
+  );
 }

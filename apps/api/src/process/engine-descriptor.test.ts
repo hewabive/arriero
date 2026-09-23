@@ -26,6 +26,7 @@ test("llama-server descriptor enables the full llama feature set", () => {
     true,
     true,
     true,
+    false,
     true,
     "llama-server",
     "llama",
@@ -44,6 +45,7 @@ test("rpc-worker descriptor opts out of inference-server features", () => {
   assert.equal(descriptor.estimator, "none");
   assert.equal(descriptor.resourceProfile, "rpc-device-args");
   assert.deepEqual(Object.values(descriptor.proxy), [
+    false,
     false,
     false,
     false,
@@ -74,6 +76,7 @@ test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () =
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    estimateStreamRate: false,
     reasoningControl: false,
     translationDialect: "openai-compatible",
     tokenCount: "vllm",
@@ -113,6 +116,7 @@ test("sglang descriptor declares the upstream SGLang lifecycle contract", () => 
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    estimateStreamRate: true,
     reasoningControl: false,
     translationDialect: "openai-compatible",
     tokenCount: "sglang",
@@ -156,6 +160,7 @@ test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () =>
     slotSave: false,
     streamResume: false,
     sseTimings: false,
+    estimateStreamRate: false,
     reasoningControl: false,
     translationDialect: "openai-compatible",
     tokenCount: "none",
