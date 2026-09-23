@@ -7,7 +7,6 @@ summary: Верхняя граница захватываемой формы pre
 group: exec.graph
 related:
   - --cuda-graph-bs-prefill
-  - --piecewise-cuda-graph-max-tokens
   - --cuda-graph-max-bs-decode
   - --cuda-graph-backend-prefill
   - --disable-prefill-cuda-graph
@@ -23,7 +22,7 @@ related:
 
 ## Кратко
 
-Prefill-граф захватывается по количеству токенов в объединенном батче, а не по числу запросов. `--cuda-graph-max-bs-prefill` задает максимум этой величины, из него генерируется весь список бакетов, и от длины списка зависит и время старта, и резерв VRAM. Имя ключа (`max_bs`) унаследовано от общей схемы `PhaseConfig`, единица измерения — токены; устаревший псевдоним назывался честнее: `--piecewise-cuda-graph-max-tokens`.
+Prefill-граф захватывается по количеству токенов в объединенном батче, а не по числу запросов. `--cuda-graph-max-bs-prefill` задает максимум этой величины, из него генерируется весь список бакетов, и от длины списка зависит и время старта, и резерв VRAM. Имя ключа (`max_bs`) унаследовано от общей схемы `PhaseConfig`, единица измерения — токены.
 
 ## Оригинальная справка
 
@@ -40,7 +39,7 @@ Maximum batch size captured for the prefill cuda graph.
 - Значение по умолчанию: `null` — «подберет движок»
 - Эффективное значение: в `_handle_gpu_memory_settings` при незаданном флаге ставится `--chunked-prefill-size` для не-MLA моделей и `2048` для MLA; затем ограничивается сверху `--max-total-tokens`, если тот задан, и величиной 4096, если в пути модели встречается `llama-2`. При включенном DP attention пересчитывается на `chunked_prefill_size // dp_size`. Для EmbeddingGemma поднимается до `max(context_len, 16384)`. Если задан `--cuda-graph-bs-prefill`, из него берется весь список, а этот флаг не применяется. При MoE a2a backend `deepep` и `breakable` список выравнивается по 8, и `max_bs` становится последним выровненным элементом
 - Где объявлен: `ServerArgs.cuda_graph_max_bs_prefill`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный. Устаревший псевдоним — `--piecewise-cuda-graph-max-tokens`
+- Статус: обычный; прежний флаг максимума prefill-графа удалён
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → `_handle_gpu_memory_settings`) → `capture_prefill_graph` → захват
 
 ## Что меняет в движке
@@ -93,7 +92,7 @@ Maximum batch size captured for the prefill cuda graph.
 
 - `--cuda-graph-bs-prefill`: полностью заменяет генерацию списка, этот флаг тогда не применяется.
 - `--cuda-graph-config`: ключ `prefill.max_bs` перекрывает флаг.
-- `--piecewise-cuda-graph-max-tokens` (устаревший): то же поле под старым именем.
+
 - `--chunked-prefill-size`: источник дефолта для не-MLA моделей.
 - `--max-total-tokens`: жесткий потолок автоподобранного значения.
 - `--context-length`: через `max_capture_tokens` ограничивает, какие бакеты вообще имеют смысл (особенно при backend'е `full` с маленьким `full_prefill_max_req`).

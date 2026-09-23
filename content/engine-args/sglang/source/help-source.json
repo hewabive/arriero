@@ -3,9 +3,21 @@
   "engine": "sglang",
   "entrypoint": "python -m sglang.launch_server",
   "sourcePaths": [
-    "python/sglang/srt/server_args.py"
+    "python/sglang/srt/server_args.py",
+    "python/sglang/srt/arg_groups/fields/model.py",
+    "python/sglang/srt/arg_groups/fields/exec_.py",
+    "python/sglang/srt/arg_groups/fields/lora.py",
+    "python/sglang/srt/arg_groups/fields/disagg.py",
+    "python/sglang/srt/arg_groups/fields/spec.py",
+    "python/sglang/srt/arg_groups/fields/observability.py",
+    "python/sglang/srt/arg_groups/fields/device.py",
+    "python/sglang/srt/arg_groups/fields/parallel.py",
+    "python/sglang/srt/arg_groups/fields/memory.py",
+    "python/sglang/srt/arg_groups/fields/schedule.py",
+    "python/sglang/srt/arg_groups/fields/mm.py",
+    "python/sglang/srt/arg_groups/fields/serving.py"
   ],
-  "hash": "ae15cc8713a7ba26fb32c93f2ee235c123aa8edd20c6d42080d36249438c7b7d",
-  "commit": "0bcd822377da7b5718e674eaf9c870d349424dd1",
-  "updatedAt": "2026-09-06T11:34:49.924Z"
+  "hash": "a75ccb047c599265d2a5fb73c3789944f02114bda4f77cba76c6e6a2e52ffc45",
+  "commit": "94602c9c2b7cbdb8efd5c52802dac6a1c180089e",
+  "updatedAt": "2026-09-23T05:46:20.329Z"
 }

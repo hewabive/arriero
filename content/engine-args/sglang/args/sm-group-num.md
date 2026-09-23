@@ -9,8 +9,6 @@ related:
   - --enable-pdmux
   - --pdmux-config-path
   - --attention-backend
-  - --cuda-graph-bs
-  - --cuda-graph-max-bs
   - --disable-overlap-schedule
   - --chunked-prefill-size
 ---
@@ -85,12 +83,12 @@ decode_attn_backend = decode_attn_backend_group[0]
 - `--enable-pdmux`: без него значение не читается.
 - `--pdmux-config-path`: его `sm_group_num` задает фактическое число групп; этот CLI-аргумент обязан быть не меньше.
 - `--attention-backend`: определяет, экземпляры какого именно backend'а размножаются; тяжелые backend'ы с большими метаданными делают цену группы заметнее.
-- `--cuda-graph-max-bs` / `--cuda-graph-bs`: размер cuda-graph-состояния каждого экземпляра.
+- `--cuda-graph-max-bs-decode` / `--cuda-graph-bs-decode`: размер cuda-graph-состояния каждого экземпляра.
 
 ## Типовые проблемы и диагностика
 
 - `IndexError: list index out of range` в `update_decode_attn_backend` под нагрузкой — `--sm-group-num` меньше фактического числа групп потоков. Сверьте его со строкой `PD-Multiplexing enabled with N stream groups, ...` в логе старта: значение должно быть ≥ `N`.
-- OOM вскоре после инициализации model runner'а при включенном pdmux — уменьшайте `--sm-group-num` вместе с `sm_group_num` в конфиге либо `--cuda-graph-max-bs`.
+- OOM вскоре после инициализации model runner'а при включенном pdmux — уменьшайте `--sm-group-num` вместе с `sm_group_num` в конфиге либо `--cuda-graph-max-bs-decode`.
 - Значение задано без `--enable-pdmux` и «ничего не делает» — так и есть, оно читается только в ветке pdmux.
 - Принятое значение — в дампе `server_args=` при старте; фактическое число групп — только в строке `PD-Multiplexing enabled with N stream groups, sm_counts (prefill_sm, decode_sm): [...]`. Эти два числа надо сверять вручную, движок их не сверяет.
 
@@ -101,7 +99,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-32B --enable-pdmux --sm-g
 ```
 
 ```bash
-python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --enable-pdmux --pdmux-config-path /etc/sglang/pdmux.yaml --sm-group-num 5 --chunked-prefill-size -1 --disable-overlap-schedule --cuda-graph-max-bs 16
+python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --enable-pdmux --pdmux-config-path /etc/sglang/pdmux.yaml --sm-group-num 5 --chunked-prefill-size -1 --disable-overlap-schedule --cuda-graph-max-bs-decode 16
 ```
 
 ## Источники

@@ -21,7 +21,7 @@ related:
 ## Оригинальная справка
 
 ```text
-Scheduling passes a queued request waits after a storage prefetch miss before the availability check is retried (under load the first check can run before the needed backup commits). 0 disables retries.
+Scheduling passes a queued request waits before its storage availability check is re-issued, when the prefetch found nothing and a backup may still be committing (under load the first check can run before it does). A re-issue that waits on staging or a moved match instead goes out on the next pass. Only passes that reach prefill scheduling count. 0 disables miss retries; known-hit deferrals are always re-issued.
 ```
 
 ## Паспорт аргумента
@@ -29,17 +29,17 @@ Scheduling passes a queued request waits after a storage prefetch miss before th
 - Флаг: `--hicache-storage-prefetch-retry-poll-interval`
 - Группа: `memory`
 - Тип: `int`
-- Декларативный default: `0`
-- Объявление: `ServerArgs.hicache_storage_prefetch_retry_poll_interval` в `sglang/python/sglang/srt/server_args.py`
+- Декларативный default: `8`
+- Объявление: `ServerArgs.hicache_storage_prefetch_retry_poll_interval` в `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
 
-Scheduler отмечает storage miss у ожидающего запроса, обнуляет счётчик ожидания и повторно вызывает `_prefetch_kvcache`, когда число проходов превысит interval. Проверяется вся waiting queue, а не только её первый запрос; pacing одинаков для TP rank.
+Scheduler отмечает storage miss у ожидающего запроса и повторно вызывает `_prefetch_kvcache` после заданного числа проходов планирования. Проверяется вся waiting queue, а не только её первый запрос; перемещённый или готовящийся в staging диапазон может быть проверен уже на следующем проходе.
 
 ## Значения и формат
 
-Целое число проходов. Default `0` отключает; положительное N пропускает N проходов и допускает повтор на следующем. Это не миллисекунды и не таймаут storage.
+Целое число проходов. Default `8`; `0` отключает повторные проверки после промаха, но не немедленные повторные проверки известных совпадений. Положительное N задаёт паузу в проходах планирования. Это не миллисекунды и не таймаут storage.
 
 ## Когда использовать
 
@@ -55,7 +55,7 @@ Scheduler отмечает storage miss у ожидающего запроса, 
 
 ## Типовые проблемы и диагностика
 
-Debug-лог `HiCache storage prefetch retry req=... attempt=...` показывает реальные повторы. При interval 0 их не будет; уже вышедший из waiting queue запрос не участвует.
+Debug-лог `HiCache storage prefetch re-issue req=... attempt=...` показывает реальные повторы. При interval 0 повторов после промаха не будет; уже вышедший из waiting queue запрос не участвует.
 
 ## Примеры
 
@@ -65,5 +65,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --enable-hierarchic
 
 ## Источники
 
-- `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

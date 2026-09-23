@@ -34,7 +34,7 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - Флаги: `--prefill-attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
+- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
 - Значение по умолчанию: `null` — фаза prefill наследует разрешенный `--attention-backend`
 - Эффективное значение: `attention_backends_of` (`sglang/python/sglang/srt/arg_groups/overrides.py`) возвращает `prefill_attention_backend or attention_backend`. Само поле дописывается движком в двух случаях: `--device npu` пишет в него `ascend`, а `_cutedsl_prefill_backend_fill` подставляет `trtllm_mla`, если decode-backend — `cutedsl_mla`, а prefill не задан. Для DeepSeek V4 на NPU `_deepseek_v4_overrides` пишет `dsv4` в оба split-поля
 - Где объявлен: `ServerArgs.prefill_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -57,7 +57,7 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - `cutedsl_mla` в prefill запрещен: `CuteDSL MLA only supports decoding for now`.
 - `intel_xpu` в prefill для MLA-модели — `ValueError` с прямой рекомендацией задать его только через `--decode-attention-backend`, а prefill оставить на `triton`.
 - `--prefill-only-disable-kv-cache` требует, чтобы разрешенный prefill-backend был `fa3` или `fa4`.
-- FP4 KV (`--kv-cache-dtype nvfp4`/`fp4_mx_block16`): если prefill — `fa4`, набор допустимых decode-backend'ов жестко ограничен (`cutlass_mla`/`flashinfer`/`trtllm_mla` для MLA, `triton`/`torch_native`/`flex_attention` для MHA); если prefill не `fa4` и отличается от decode, печатается предупреждение «Compatibility issues are unlikely, but may occur in rare edge cases».
+- FP4 KV (`--kv-cache-dtype nvfp4`/`fp4_mx_block16`): если prefill — `fa4`, набор допустимых decode-backend'ов жестко ограничен (`flashinfer`/`trtllm_mla` для MLA, `triton`/`torch_native`/`flex_attention` для MHA); если prefill не `fa4` и отличается от decode, печатается предупреждение «Compatibility issues are unlikely, but may occur in rare edge cases».
 - `_mla_backend_page_constraints` учитывает prefill-сторону для `cutedsl_mla`, `trtllm_mha` и `hpc_ops`, `_fa4_page_constraint` — для `fa4`.
 - Chunked prefix cache проверяется по общему `attention_backend`, а не по prefill-полю: гибридная пара не расширяет список поддерживаемых backend'ов.
 

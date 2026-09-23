@@ -28,14 +28,14 @@ Sliding window size for the draft model. Honored by Llama EAGLE-3 (`LlamaForCaus
 
 ## Паспорт аргумента
 
-- Флаги: `--speculative-draft-window-size`; устаревший алиас `--speculative-dflash-draft-window-size` (объявлен литеральным `parser.add_argument` с `DeprecatedAliasStoreAction` и `help=argparse.SUPPRESS`, то есть в `--help` не показывается и в extract отдельной записи не имеет)
+- Флаги: `--speculative-draft-window-size`
 - Группа: `spec`
 - Тип значения: целое (`Optional[int]`), число токенов
 - Допустимые значения: строго положительное; ноль и отрицательные отвергаются проверкой после разбора
 - Значение по умолчанию: `null` — полное внимание/полный контекст
 - Эффективное значение: значение приводится к `int`; для DFLASH дополнительно требуется `window_size >= speculative_num_draft_tokens`
 - Где объявлен: `ServerArgs.speculative_draft_window_size`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный (алиас `--speculative-dflash-draft-window-size` — устаревший)
+- Статус: обычный
 - Этап применения: `__post_init__` (`handle_speculative_decoding` — проверка и предупреждение; `_handle_dflash` — сверка с block size) → конструирование draft-модели (EAGLE3) или draft-воркера (DFLASH) → forward
 
 ## Что меняет в движке

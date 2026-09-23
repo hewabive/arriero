@@ -93,16 +93,18 @@ docstrings (the same docstrings vLLM's own `get_attr_docs` parses with `ast`), t
 `**{**kwargs["field"], "default": …}` override form), argument-group titles, and `FrontendArgs`
 including its base-class fields.
 
-SGLang (`scripts/extract-args/sglang.py`): `python/sglang/srt/server_args.py` — the `ServerArgs`
-`A[type, "help", NS("group")]` fields (`Arg(...)` metadata: aliases, `cli_name`, `choices`,
-`action`, `no_cli`) plus the literal `parser.add_argument` calls in `add_cli_args`. `{fn.__doc__}`
-interpolations in help strings are resolved from the imported module.
+SGLang (`scripts/extract-args/sglang.py`): `python/sglang/srt/server_args.py` identifies the
+`_INPUT_NAMESPACES` classes and declares the literal `parser.add_argument` calls in `add_cli_args`.
+The `A[type, "help"]` fields and `Arg(...)` metadata live in
+`python/sglang/srt/arg_groups/fields/*.py`; each class's `_NS_PATH` supplies its group.
+`{fn.__doc__}` interpolations in help strings are resolved from the imported module.
 
 Both follow imports one hop to resolve `Literal` type aliases and module-level choice constants.
 
 Each extractor asserts its structural anchors (the class, the `add_cli_args`/`make_arg_parser`
-function) and exits non-zero when one is missing, so an upstream refactor produces a loud failure
-rather than a silently shrunken extract.
+function); SGLang also requires every named input namespace to yield CLI fields and at least 100
+fields overall. A changed assembly structure therefore fails loudly instead of producing a silently
+shrunken extract.
 
 ## Known gaps
 

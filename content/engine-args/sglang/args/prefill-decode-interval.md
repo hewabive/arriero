@@ -22,7 +22,7 @@ related:
 ## Оригинальная справка
 
 ```text
-The number of decode rounds to run after a prefill batch before scheduling the next prefill. In data-parallel attention mode, the interval is synchronized across all DP ranks. Set to 0 to disable.
+The number of decode rounds to run after a prefill batch before scheduling the next prefill. By default, this is disabled except for profiled Qwen3-VL serving configurations on Hopper. In data-parallel attention mode, the interval is synchronized across all DP ranks. Set to 0 to disable.
 ```
 
 ## Паспорт аргумента
@@ -30,8 +30,8 @@ The number of decode rounds to run after a prefill batch before scheduling the n
 - Флаг: `--prefill-decode-interval`
 - Группа: `schedule`
 - Тип: `int`
-- Декларативный default: `0`
-- Объявление: `ServerArgs.prefill_decode_interval` в `sglang/python/sglang/srt/server_args.py`
+- Декларативный default: `null`; при разрешении конфигурации обычно становится `0`. На крупных Hopper для Qwen3-VL профилированный override выставляет `22`, если значение не задано.
+- Объявление: `ServerArgs.prefill_decode_interval` в `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - Этап применения: разбор CLI, инициализация и исполнение подсистемы, описанной ниже.
 
 ## Что меняет в движке
@@ -40,7 +40,7 @@ The number of decode rounds to run after a prefill batch before scheduling the n
 
 ## Значения и формат
 
-Неотрицательное целое число; default `0` отключает. Отрицательное значение отвергается в validation pipeline.
+Неотрицательное целое число; явное `0` отключает даже модельный override. Незаданное значение обычно разрешается в `0`, но в профилированном режиме Qwen3-VL на Hopper — в `22`. Отрицательное значение отвергается в validation pipeline.
 
 ## Когда использовать
 
@@ -66,6 +66,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --chunked-prefill-s
 
 ## Источники
 
-- `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/qwen3_vl.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

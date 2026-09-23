@@ -13,9 +13,6 @@ related:
   - --cuda-graph-bs-prefill
   - --cuda-graph-tc-compiler
   - --enable-torch-compile
-  - --enforce-piecewise-cuda-graph
-  - --disable-piecewise-cuda-graph
-  - --enable-breakable-cuda-graph
   - --chunked-prefill-size
   - --mem-fraction-static
   - --attention-backend
@@ -25,7 +22,7 @@ related:
 
 ## Кратко
 
-Prefill-граф в SGLang — недавний и заметно более хрупкий механизм, чем decode-граф: он работает не для всех архитектур, не для всех backend'ов внимания и не для всех режимов параллелизма. Поэтому дефолт живой (`breakable` на CUDA), но обвешан каскадом авто-отключений. Ключевое свойство этого флага: **любое явное значение пропускает весь каскад**. Это генерализация старого `--enforce-piecewise-cuda-graph` — вы получаете ровно то, что попросили, вместе с ответственностью за падение или регресс.
+Prefill-граф в SGLang — недавний и заметно более хрупкий механизм, чем decode-граф: он работает не для всех архитектур, не для всех backend'ов внимания и не для всех режимов параллелизма. Поэтому дефолт живой (`breakable` на CUDA), но обвешан каскадом авто-отключений. Ключевое свойство этого флага: **любое явное значение пропускает весь каскад**. Явное значение требует проверить совместимость с моделью и режимом запуска.
 
 ## Оригинальная справка
 
@@ -42,7 +39,7 @@ Backend for the prefill phase. Folds into cuda_graph_config[prefill].backend.
 - Значение по умолчанию: `null` — флаг не задан; `cuda_graph_config.prefill.backend` берет значение `default_prefill_backend()`: `breakable` на CUDA, `tc_piecewise` на остальных платформах (HIP/NPU/…)
 - Эффективное значение: складывается в `cuda_graph_config[prefill].backend` в `_parse_cuda_graph_config`; при **незаданном** флаге далее переписывается `_apply_cuda_graph_compatibility`, `_apply_cuda_graph_disaggregation_roles`, `_disable_prefill_cuda_graph_for_deepseek_trtllm_mla`, `_apply_inkling_prefill_cuda_graph_default` (архитектура Inkling → `full`), правилами EmbeddingGemma и HRM-Text, а также `--enable-mis`
 - Где объявлен: `ServerArgs.cuda_graph_backend_prefill`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный. Устаревшие псевдонимы, транслирующиеся в это же поле: `--enable-breakable-cuda-graph` → `breakable`, `--disable-piecewise-cuda-graph` → `disabled`, `--enforce-piecewise-cuda-graph` → `tc_piecewise`
+- Статус: обычный; прежние отдельные переключатели prefill-графа удалены
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_prefill_graph` и `resolve_prefill_backend` при инициализации model runner
 
 ## Что меняет в движке

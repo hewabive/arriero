@@ -7,7 +7,6 @@ summary: Верхняя граница размера батча, для кот�
 group: exec.graph
 related:
   - --cuda-graph-bs-decode
-  - --cuda-graph-max-bs
   - --cuda-graph-max-bs-prefill
   - --cuda-graph-backend-decode
   - --disable-decode-cuda-graph
@@ -41,7 +40,7 @@ Maximum batch size captured for the decode cuda graph.
 - Значение по умолчанию: `null` — «подберет движок»
 - Эффективное значение: подбирается в `_handle_gpu_memory_settings` по объему GPU-памяти и `--tp-size` (таблица ниже). Если задан `--cuda-graph-bs-decode`, значение **перезаписывается** на `max(bs)`. На `--device cpu` перезаписывается на `--torch-compile-max-bs`
 - Где объявлен: `ServerArgs.cuda_graph_max_bs_decode`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный. Устаревший псевдоним — `--cuda-graph-max-bs` (`DeprecatedAliasStoreAction`, пишет в то же поле с предупреждением)
+- Статус: обычный; прежний общий флаг максимума decode-батча удалён
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → `_handle_gpu_memory_settings`) → `get_batch_sizes_to_capture` при создании decode-runner'а → захват графов
 
 ## Что меняет в движке
@@ -112,7 +111,7 @@ Maximum batch size captured for the decode cuda graph.
 
 - `--cuda-graph-bs-decode`: полностью перекрывает этот флаг (`max_bs = max(bs)`).
 - `--cuda-graph-config`: ключ `decode.max_bs` перекрывает флаг.
-- `--cuda-graph-max-bs` (устаревший): тот же параметр под старым именем.
+
 - `--max-running-requests`: реальный потолок набора форм. Поднимать `max_bs` без него бесполезно.
 - `--mem-fraction-static`: линейная связь через `reserve_for_graph_mb()`. При явно заданном `--mem-fraction-static` рост `max_bs` не компенсируется и ведет к OOM на захвате.
 - `--tp-size`: вход автоподбора (порог `tp_size < 4`).

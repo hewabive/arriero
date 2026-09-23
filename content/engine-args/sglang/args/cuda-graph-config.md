@@ -81,7 +81,7 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 - `(decode, "backend")` / `(prefill, "backend")` — пропускается назначение ролей PD-disaggregation (`_apply_cuda_graph_disaggregation_roles`) и XPU-дефолт `_handle_xpu_backends`;
 - `(prefill, "max_bs")` / `(prefill, "bs")` — пропускается пересчет под DP attention (деление `chunked_prefill_size` на `dp_size`) и подъем буфера для EmbeddingGemma.
 
-Это генерализация старого контракта `--enforce-piecewise-cuda-graph`: задали backend явно — движок вам доверяет и больше не спасает от несовместимой комбинации. Ставить замок через JSON или через точечный флаг — одно и то же.
+При явном выборе backend движок пропускает часть автоматических проверок совместимости. Ставить замок через JSON или через точечный флаг — одно и то же.
 
 ## Значения и формат
 

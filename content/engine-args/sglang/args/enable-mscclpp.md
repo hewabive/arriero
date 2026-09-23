@@ -11,7 +11,6 @@ related:
   - --enable-torch-symm-mem
   - --tp-size
   - --disable-cuda-graph
-  - --disable-piecewise-cuda-graph
   - --nnodes
   - --dtype
 ---
@@ -87,7 +86,7 @@ Enable using mscclpp for small messages for all-reduce kernel and fall back to N
 ## Взаимодействие с другими аргументами
 
 - `--tp-size`: определяет world size и, следовательно, саму возможность работы пути.
-- `--disable-cuda-graph`, `--disable-piecewise-cuda-graph`: без захвата графа путь не активируется; в piecewise-фазах он явно запрещен.
+- `--disable-cuda-graph`, `--cuda-graph-backend-prefill disabled`: без захвата графа путь не активируется; в piecewise-фазах он явно запрещен.
 - `--enable-symm-mem`: разблокирует алгоритм `default_allreduce_nvls_zero_copy` в наборе mscclpp (коммуникатор читает `enable_symm_mem` при построении алгоритмов), но при этом сам симметричный путь pynccl стоит в `all_reduce` после проверки mscclpp — то есть подходящие тензоры все равно достанутся mscclpp.
 - `--disable-custom-all-reduce`: не требуется, mscclpp и так имеет приоритет над custom-ядром на «своих» размерах.
 - `--enable-torch-symm-mem`: проверяется после mscclpp.

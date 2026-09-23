@@ -11,7 +11,6 @@ related:
   - --enable-return-indexer-topk
   - --speculative-algorithm
   - --cuda-graph-backend-prefill
-  - --cuda-graph-max-bs
   - --disable-cuda-graph
   - --max-running-requests
 ---
@@ -92,7 +91,7 @@ Set the maximum hidden-state return mode supported by the server. `last` allows 
 - `--enable-return-hidden-states`: legacy-эквивалент `full`; поля синхронизируются в обе стороны.
 - `--speculative-algorithm`: в `full` состояния обрезаются по `finished_len`; на EAGLE-таргете `tc_piecewise` потолок ниже `FULL` отключает prefill-граф.
 - `--cuda-graph-backend-prefill`: определяет, попадет ли prefill-граф под это правило.
-- `--cuda-graph-max-bs`, `--max-running-requests`: множители размера буферов и объема ответов.
+- `--cuda-graph-max-bs-decode`, `--max-running-requests`: множители размера буферов и объема ответов.
 - `--disable-cuda-graph`: снимает плату по буферам графов, но платой становится сам eager-режим.
 - `--enable-return-routed-experts` / `--enable-return-indexer-topk`: независимые расширения тела ответа.
 
@@ -112,7 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --return-hidden-sta
 ```
 
 ```bash
-python -m sglang.launch_server --model-path /models/Qwen3-8B --return-hidden-states-mode full --cuda-graph-max-bs 32
+python -m sglang.launch_server --model-path /models/Qwen3-8B --return-hidden-states-mode full --cuda-graph-max-bs-decode 32
 ```
 
 ## Источники

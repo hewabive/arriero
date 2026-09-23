@@ -11,7 +11,6 @@ related:
   - --weight-cache-mode
   - --cuda-graph-backend-decode
   - --cuda-graph-backend-prefill
-  - --enable-breakable-cuda-graph
   - --api-key
   - --admin-api-key
   - --device
@@ -98,7 +97,7 @@ Allow saving memory using release_memory_occupation and resume_memory_occupation
 
 - `--enable-weights-cpu-backup` / `--enable-draft-weights-cpu-backup`: без этого флага они бессмысленны — их значение читается ровно в том месте, где веса выделяются в регион memory saver'а.
 - `--weight-cache-mode`: любое значение, кроме `off`, делает освобождение и возврат весов невозможным (`RuntimeError` с объяснением про CUDA IPC).
-- `--enable-breakable-cuda-graph` / `--cuda-graph-backend-decode breakable` / `--cuda-graph-backend-prefill breakable`: `NotImplementedError` при `SGLANG_MEMORY_SAVER_CUDA_GRAPH=1`.
+- `--cuda-graph-backend-prefill breakable` / `--cuda-graph-backend-decode breakable` / `--cuda-graph-backend-prefill breakable`: `NotImplementedError` при `SGLANG_MEMORY_SAVER_CUDA_GRAPH=1`.
 - `--api-key` / `--admin-api-key`: единственная защита эндпоинтов освобождения памяти.
 - `--device`: на XPU не поддерживается.
 

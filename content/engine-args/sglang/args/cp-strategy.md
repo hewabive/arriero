@@ -11,9 +11,6 @@ related:
   - --enable-dsa-cache-layer-split
   - --dp-size
   - --attention-backend
-  - --prefill-cp-mode
-  - --nsa-prefill-cp-mode
-  - --dsa-prefill-cp-mode
 ---
 
 # --cp-strategy
@@ -25,7 +22,7 @@ related:
 ## Оригинальная справка
 
 ```text
-Sharding strategy for prefill CP. 'zigzag' is the former in-seq-split mode; 'interleave' is the former round-robin-split mode.
+Sharding strategy for prefill CP. 'zigzag' assigns each rank one early and one late sequence block; 'interleave' assigns token indices modulo the CP size.
 ```
 
 ## Паспорт аргумента
@@ -35,9 +32,9 @@ Sharding strategy for prefill CP. 'zigzag' is the former in-seq-split mode; 'int
 - Тип значения: str (`Optional[str]`)
 - Допустимые значения: `zigzag`, `interleave` (`choices` объявлены, argparse отвергнет остальное)
 - Значение по умолчанию: `null`
-- Эффективное значение: при использовании устаревших флагов `_handle_legacy_cp_arguments` подставляет значение из старого режима: `in-seq-split` → `zigzag`, `round-robin-split` → `interleave`. Обратно — заданная стратегия проставляет legacy-поля `prefill_cp_mode` / `dsa_prefill_cp_mode` для внутренних потребителей. Автоподбора «по модели» нет: если `--enable-prefill-cp` задан, а стратегия — нет, запуск отвергается
+- Эффективное значение: автоподбора «по модели» нет: если `--enable-prefill-cp` задан, а стратегия — нет, запуск отвергается. Старые режимы `in-seq-split` и `round-robin-split` более не принимаются как флаги CLI.
 - Где объявлен: `ServerArgs.cp_strategy`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный; заменяет устаревшие `--prefill-cp-mode`, `--nsa-prefill-cp-mode`, `--dsa-prefill-cp-mode`
+- Статус: обычный; прежние раздельные режимы CP удалены
 - Этап применения: `__post_init__` (`_handle_legacy_cp_arguments` → модельные override'ы → `_handle_context_parallelism` → `init_cp_strategy`) → forward на extend-шагах
 
 ## Что меняет в движке
@@ -106,14 +103,14 @@ cp1: token1, token5, token9,  …
 - `--moe-a2a-backend` / `--ep-size`: под DSA-моделью с `zigzag` переписываются автоматически в `deepep` и `tp_size`.
 - `--enable-dsa-cache-layer-split`: требует именно `interleave`.
 - `--attention-backend`: под CP поддерживаются только `fa3`, `fa4`, `flashinfer`, `dsa`, `trtllm_mha`.
-- `--prefill-cp-mode` / `--nsa-prefill-cp-mode` / `--dsa-prefill-cp-mode`: устаревшие предшественники; используйте этот аргумент.
+- Для выбора стратегии prefill CP используйте этот аргумент совместно с `--enable-prefill-cp`.
 
 ## Типовые проблемы и диагностика
 
 - `argparse: argument --cp-strategy: invalid choice: 'in-seq-split' (choose from 'zigzag', 'interleave')` — использовано старое имя режима.
 - `ValueError: --cp-strategy must be set when --enable-prefill-cp is enabled.` — стратегия не задана.
 - `AssertionError: interleave DSA CP does not support DP attention.` — при `interleave` нужен `--dp-size 1`.
-- `ValueError: --enable-dsa-cache-layer-split requires --enable-prefill-cp and --cp-strategy interleave (or legacy --enable-nsa-prefill-context-parallel with --nsa-prefill-cp-mode round-robin-split).`
+- `ValueError` при `--enable-dsa-cache-layer-split` без `--enable-prefill-cp --cp-strategy interleave` — для разделения DSA-кеша нужна стратегия `interleave`.
 - `ValueError: MiMo V2 CP-v2 only supports --cp-strategy zigzag.`
 - `ValueError: DeepSeekV4 only supports interleave CP strategy, got zigzag` — обратное ограничение для DeepSeek-V4.
 - CP «не срабатывает» на коротких запросах — ожидаемо: `can_apply` отсеивает последовательности короче порога стратегии.

@@ -32,7 +32,7 @@ Choose the backend for MoE A2A.
 - Флаги: `--moe-a2a-backend`
 - Группа: `exec.moe`
 - Тип значения: перечисление
-- Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp` (константа `MOE_A2A_BACKEND_CHOICES`). `ascend_tp` принимается argparse, но `_handle_a2a_moe` немедленно заменяет его на `none` — в коде это помечено как обход падения точности
+- Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp`, `flashinfer_megamoe` (константа `MOE_A2A_BACKEND_CHOICES`). `ascend_tp` принимается argparse, но `_handle_a2a_moe` немедленно заменяет его на `none` — в коде это помечено как обход падения точности
 - Значение по умолчанию: `none`
 - Эффективное значение: переопределяется `_a2a_backend_overrides` (Waterfill ⇒ `deepep`; переменная `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE` ⇒ `megamoe`), `_handle_dwdp` (DWDP ⇒ `none`) и правилом NPU (`none` на NPU и `ascend_tp` ⇒ `none`)
 - Где объявлен: `ServerArgs.moe_a2a_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -53,6 +53,7 @@ Choose the backend for MoE A2A.
 
 - **`--ep-size` перетирается.** `_a2a_ep_size`: для `megamoe`, `deepep`, `deepep_v2`, `mooncake`, `nixl`, `ascend_fuseep`, `flashinfer`, `mori`, `pplx` выставляется `ep_size = tp_size` с информационной строкой в логе. Гибрид `ep_size < tp_size` возможен только при `none`.
 - **`flashinfer`**: требует `--enable-dp-attention` и `dp_size == tp_size`; `--deepep-mode` игнорируется (об этом пишется предупреждение); раннер обязан быть `flashinfer_cutlass`, `flashinfer_cutedsl` или `flashinfer_trtllm_routed`; при NVFP4-весах включается `SGLANG_MOE_NVFP4_DISPATCH`.
+- **`flashinfer_megamoe`**: требует `--enable-dp-attention`, `dp_size == tp_size`, CUDA-устройство семейства SM100 и поддерживаемую MoE-архитектуру. Значение `auto` для `--moe-runner-backend` разрешается в `flashinfer_megamoe`; другое явное значение отвергается.
 - **`mori`**: `--deepep-mode auto` превращается в `normal`; при включенном chunked prefill проверяется, что `SGLANG_MORI_NUM_MAX_DISPATCH_TOKENS_PER_RANK` покрывает `--chunked-prefill-size`.
 - **`pplx`**: режим `normal` запрещен, `auto` превращается в `low_latency`; требуется `--enable-dp-attention` и `--dp-size >= 2`; раннер — `deep_gemm` (`auto` в него и разрешается); проверяется `SGLANG_PPLX_NUM_MAX_DISPATCH_TOKENS_PER_RANK`.
 - **`deepep`**: при `--deepep-mode normal` CUDA graph отключается (и для decode, и для prefill) с предупреждением в логе.
@@ -67,6 +68,7 @@ Choose the backend for MoE A2A.
 - `mooncake`, `nixl` — расширения для elastic EP (RDMA, отказоустойчивость, динамическое масштабирование).
 - `mori` — путь AMD/ROCm, только `normal`-режим.
 - `flashinfer` — связка с FlashInfer-раннерами и DP-attention.
+- `flashinfer_megamoe` — отдельный путь FlashInfer MegaMOE для проверенных архитектур на Blackwell; при неподдерживаемой модели или формате combine запуск отвергается.
 - `pplx` — NVSHMEM-ядра Perplexity, только low-latency, только Hopper и FP8/DeepGEMM.
 - `ascend_fuseep`, `ascend_tp` — NPU-специфика; `ascend_tp` де-факто отключен.
 - `megamoe` — Mega-MoE-путь DeepSeek-моделей на ядрах DeepGEMM без пересылки токенов (`StandardDispatcher`); автоконфигурируется переменной `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE`.
@@ -120,6 +122,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --moe-a2a-backend 
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`

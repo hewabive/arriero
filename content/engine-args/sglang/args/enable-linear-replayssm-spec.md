@@ -7,7 +7,6 @@ summary: Заменяет per-draft снимки полного состояни
 group: exec.mamba
 related:
   - --enable-linear-replayssm
-  - --enable-gdn-replayssm-spec
   - --linear-replayssm-cache-len
   - --linear-attn-decode-backend
   - --linear-attn-verify-backend
@@ -41,7 +40,7 @@ Enable the ReplaySSM spec-verify: fold-every-commit -- a per-slot raw-input wind
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; побочно **переписывает** `--mamba-ssm-dtype` на `float32`, если тот не задан
 - Где объявлен: `ServerArgs.enable_linear_replayssm_spec`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный; устаревшее имя того же флага — `--enable-gdn-replayssm-spec` (переименован, когда механизм перестал быть специфичным для GDN)
+- Статус: обычный; прежнее имя механизма удалено
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend` — шесть проверок и подстановка типа состояния) → аллокация `MambaPool` → каждый шаг target-verify и коммита
 
 ## Что меняет в движке
@@ -78,7 +77,7 @@ replayssm_g:     [layers, slots, HV, record_len]     fp32 (GDN)
 - Флаг без значения; парной формы нет.
 - Без включенного спекулятивного декодирования смысла не имеет: кольцо выделится, а сверки не будет.
 - Применим к GDN- и KDA-гибридам. На mamba2-моделях и моделях без линейного внимания не действует.
-- Устаревший алиас `--enable-gdn-replayssm-spec` печатает предупреждение и транслируется в этот флаг; в новых конфигурациях используйте актуальное имя.
+
 
 ## Когда использовать
 

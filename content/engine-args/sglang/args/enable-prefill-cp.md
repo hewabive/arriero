@@ -17,7 +17,6 @@ related:
   - --moe-dense-tp-size
   - --ep-size
   - --disaggregation-mode
-  - --enable-prefill-context-parallel
   - --prefill-only-disable-kv-cache
 ---
 
@@ -40,7 +39,7 @@ Enable context parallelism for the prefill phase. Select the layout with --cp-st
 - Тип значения: bool (`store_true`)
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
-- Эффективное значение: становится `True` также при использовании устаревших `--enable-prefill-context-parallel` / `--enable-nsa-prefill-context-parallel` (`_handle_legacy_cp_arguments`). Обратная трансляция тоже есть: заданный `--enable-prefill-cp` вместе с `--cp-strategy` проставляет соответствующие legacy-поля и режим (`in-seq-split`/`round-robin-split`) для внутренних потребителей
+- Эффективное значение: задаётся этим флагом; стратегия выбирается через `--cp-strategy`
 - Где объявлен: `ServerArgs.enable_prefill_cp`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный флаг, но экспериментальная функция — предупреждение печатается при включении
 - Этап применения: `__post_init__` (`_handle_legacy_cp_arguments` → модельные override'ы в `arg_groups/overrides.py` → `_handle_context_parallelism` → `init_cp_strategy`) → выбор attention backend → forward на фазе extend
@@ -82,7 +81,7 @@ ValueError: --cp-strategy must be set when --enable-prefill-cp is enabled.
 - Булев флаг без значения; «выключено» = не указывать.
 - Работает только совместно с `--cp-strategy`; без нее — отказ на старте.
 - Практически требует `--attn-cp-size > 1`: иначе стратегия не создается. Для DeepSeek размер подставляется автоматически.
-- Устаревшие эквиваленты (`--enable-prefill-context-parallel`, `--enable-nsa-prefill-context-parallel`) печатают предупреждение и транслируются в этот флаг; в новых конфигурациях их использовать не нужно.
+
 - Не поддерживается на decode-воркере PD-disaggregation: `assert self.disaggregation_mode != "decode"` с текстом «CP is only supported for prefill when PD disaggregation, please remove --enable-prefill-cp.»
 
 ## Когда использовать

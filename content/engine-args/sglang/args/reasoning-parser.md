@@ -37,7 +37,7 @@ Specify the parser for reasoning models. Use 'auto' to detect from chat template
 - Группа: `null` — поле `ServerArgs.reasoning_parser` объявлено без `Arg(...)`, поэтому авто-регистрация его пропускает, а флаг заводится литеральным `parser.add_argument` в `add_cli_args` (случай «динамические choices»)
 - Тип значения: str
 - Допустимые значения: `choices` в extract равны `null`, но argparse ограничение накладывает: `["auto"] + list(ReasoningParser.DetectorMap.keys())`. Список собирается из реестра детекторов (`sglang/python/sglang/srt/parser/reasoning_parser.py`) в момент вызова `add_cli_args`, поэтому зависит от версии пакета и статически не фиксируется. Настоящий список своей сборки смотрите так: `python -m sglang.launch_server --help | grep -A4 -- --reasoning-parser` либо `python -c "from sglang.srt.parser.reasoning_parser import ReasoningParser; print(sorted(ReasoningParser.DetectorMap))"`
-- Значение по умолчанию: `ServerArgs.reasoning_parser`, то есть `None` — разделение рассуждения выключено
+- Значение по умолчанию: `_declared_default("reasoning_parser")`, то есть `None` — разделение рассуждения выключено
 - Эффективное значение: при `auto` подменяется на имя детектора, определенное по chat template (`resolve_auto_parsers`), либо на `None`, если определить не удалось
 - Где объявлен: `ServerArgs.add_cli_args`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный

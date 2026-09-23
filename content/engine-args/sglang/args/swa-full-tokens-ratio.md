@@ -34,8 +34,8 @@ The ratio of SWA layer KV tokens / full layer KV tokens, regardless of the numbe
 - Группа: `schedule`
 - Тип значения: число с плавающей точкой
 - Допустимые значения: полуинтервал `(0, 1.0]`; проверяется уже **разрешенное** значение, `ValueError: --swa-full-tokens-ratio should be in range (0, 1.0].`
-- Значение по умолчанию: `0.8`
-- Эффективное значение: переопределяется по архитектуре модели, но только если вы оставили умолчание (сравнение с `ServerArgs.swa_full_tokens_ratio`): DeepSeek V4 → `0.1`, Inkling → `0.1`. Для `Step3p5ForCausalLM` вместе с `--enable-hierarchical-cache` значение безусловно сбрасывается в `1.0` и одновременно включается `disable_hybrid_swa_memory`. Кроме того, коэффициент полностью игнорируется двумя конфигураторами пулов — см. ниже
+- Декларативное значение по умолчанию: `null`; обычный fallback `0.8`.
+- Эффективное значение: если флаг не задан, модельные переопределения выбирают DeepSeek V4 → `0.1`, Inkling → `0.1`; для остальных моделей применяется fallback `0.8`. Для `Step3p5ForCausalLM` вместе с `--enable-hierarchical-cache` значение безусловно сбрасывается в `1.0` и одновременно включается `disable_hybrid_swa_memory`. Кроме того, коэффициент полностью игнорируется двумя конфигураторами пулов — см. ниже
 - Где объявлен: `ServerArgs.swa_full_tokens_ratio`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный; поле помечено `resolvable=True`
 - Этап применения: `__post_init__` (переопределения и валидация) → расчет размеров KV-пулов при инициализации model runner
@@ -72,7 +72,7 @@ swa_tokens  = align_page_size(int(full_tokens * ratio))
 ## Значения и формат
 
 - Дробь в интервале `(0, 1.0]`. `1.0` означает «SWA-пул такого же размера в токенах, что и full-пул» — максимум емкости SWA, максимум расхода памяти.
-- `0.8` (умолчание) — SWA-пул на 20% меньше full-пула по токенам.
+- `0.8` (обычный fallback) — SWA-пул на 20% меньше full-пула по токенам.
 - Малые значения (`0.1` для DeepSeek V4 и Inkling) уместны там, где SWA-слоев много, окно короткое, и держать длинную историю в них не нужно.
 - `0` и отрицательные значения отвергаются валидацией; значения больше `1.0` — тоже.
 - Проверяется разрешенное значение, поэтому ошибка может возникнуть и из-за архитектурного переопределения, а не только из-за вашего ввода.
@@ -122,7 +122,9 @@ python -m sglang.launch_server --model-path /models/gpt-oss-120b --swa-full-toke
 
 ## Источники
 
-- `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v4.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/inkling.py`
 - `sglang/python/sglang/srt/model_executor/pool_configurator.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/configs/model_config.py`

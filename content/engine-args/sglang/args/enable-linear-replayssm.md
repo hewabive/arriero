@@ -8,7 +8,6 @@ group: exec.mamba
 related:
   - --linear-replayssm-cache-len
   - --enable-linear-replayssm-spec
-  - --enable-gdn-replayssm-spec
   - --linear-attn-decode-backend
   - --linear-attn-backend
   - --mamba-radix-cache-strategy

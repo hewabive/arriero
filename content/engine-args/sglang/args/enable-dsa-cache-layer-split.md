@@ -91,7 +91,7 @@ Split DSA (DeepSeek Sparse Attention) GPU KV/indexer cache layers across context
 - `ValueError: --enable-dsa-cache-layer-split is only supported for DSA (DeepSeek Sparse Attention) models.`
 - `ValueError: --enable-dsa-cache-layer-split is not supported on decode workers. This flag is a prefill-CP optimization; decode receives full cache shards through PD transfer.`
 - `ValueError: --enable-dsa-cache-layer-split is only supported on PD prefill workers. Non-PD workers also run decode and require ordinary local decode cache semantics.`
-- `ValueError: --enable-dsa-cache-layer-split requires --enable-prefill-cp and --cp-strategy interleave (or legacy --enable-nsa-prefill-context-parallel with --nsa-prefill-cp-mode round-robin-split).`
+- `ValueError: --enable-dsa-cache-layer-split requires --enable-prefill-cp and --cp-strategy interleave.`
 - `ValueError: --enable-dsa-cache-layer-split currently only supports the mooncake transfer backend (mooncake / mooncake_tcp). Got --disaggregation-transfer-backend '…'. mori/nixl support will be added later by the community.`
 - `ValueError: --enable-dsa-cache-layer-split is not supported with pipeline parallelism (pp_size > 1) yet. …`
 - Память не освободилась — проверьте `attn_cp_size` в дампе `server_args=`: при значении 1 делить нечего. Величину освобождения видно по строке `KV Cache is allocated. …` и по `max_total_num_tokens=…` до и после.

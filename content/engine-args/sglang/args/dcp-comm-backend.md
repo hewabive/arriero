@@ -17,12 +17,12 @@ related:
 
 ## Кратко
 
-При `--dcp-size > 1` каждый слой decode заканчивается сведением частичных выходов внимания и их LSE по DCP-группе. Этот аргумент выбирает, как именно: `ag_rs` — классическая пара all-gather + reduce-scatter, `a2a` — упакованный all-to-all (выход и LSE в одном NCCL-вызове) с локальным Triton-сведением, `fi_a2a` — тот же обмен, но делегированный MNNVL-ядру FlashInfer, доступному только на фабричном железе класса GB200 NVL72. Значение по умолчанию `ag_rs` работает везде; `a2a` — обычно более быстрый выбор там, где число голов делится на размер группы.
+При `--dcp-size > 1` каждый слой decode заканчивается сведением частичных выходов внимания и их LSE по DCP-группе. Этот аргумент выбирает, как именно: `ag_rs` — пара all-gather + reduce-scatter, `a2a` — упакованный all-to-all с локальным Triton-сведением, `fi_a2a` — обмен через MNNVL-ядро FlashInfer. Если флаг не задан, движок выбирает `fi_a2a` на поддерживаемой фабрике Blackwell, `a2a` на другом CUDA/ROCm-оборудовании и `ag_rs` в остальных случаях; при `--dcp-size 1` используется `ag_rs`.
 
 ## Оригинальная справка
 
 ```text
-Communication backend for the decode context-parallel (DCP) attention reduction: 'ag_rs' (AllGather + ReduceScatter), 'a2a' (fused NCCL All-to-All exchange of output+LSE + local Triton LSE combine), or 'fi_a2a' (FlashInfer MNNVL All-to-All kernel; requires SM90+ and MNNVL fabric memory, e.g. GB200 NVL72).
+Communication backend for the decode context-parallel (DCP) attention reduction: 'ag_rs' (AllGather + ReduceScatter), 'a2a' (fused NCCL All-to-All exchange of output+LSE + local Triton LSE combine), or 'fi_a2a' (FlashInfer MNNVL All-to-All kernel; requires Blackwell and a DCP group within one MNNVL domain). Unset resolves to 'fi_a2a' where supported, else 'a2a' on CUDA/ROCm, else 'ag_rs'.
 ```
 
 ## Паспорт аргумента
@@ -31,9 +31,9 @@ Communication backend for the decode context-parallel (DCP) attention reduction:
 - Группа: `parallel`
 - Тип значения: str
 - Допустимые значения: `ag_rs`, `a2a`, `fi_a2a` (`choices` объявлены)
-- Значение по умолчанию: `ag_rs`
-- Эффективное значение: поле объявлено `resolvable=True`. Для Kimi-K3 с DCP `arg_groups/overrides.py` **переписывает** значение безусловно: `fi_a2a`, если карта опознана как MNNVL-фабричная (`is_mnnvl_fabric_device()` — имя устройства содержит `GB200`/`GB300`), иначе `a2a`; в лог идет `Kimi-K3 DCP selects communication backend on '<device>': '<старое>' -> '<новое>'.`
-- Где объявлен: `ServerArgs.dcp_comm_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Декларативное значение по умолчанию: `null`; в `_dcp_comm_backend_default` подбирается backend по платформе и топологии DCP. Явное значение сохраняется.
+- Эффективное значение: при `dcp_size <= 1` — `ag_rs`; при большей группе — `fi_a2a` только если `is_fi_a2a_supported`, иначе `a2a` на CUDA/ROCm или `ag_rs` на других платформах. Лог: `DCP (dcp_size=...) selects communication backend '...'.`
+- Где объявлен: `ServerArgs.dcp_comm_backend`, файл — `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - Статус: обычный
 - Этап применения: валидация в `_handle_dcp_validation` → предварительное выделение MNNVL-workspace до захвата CUDA graph (только `fi_a2a`) → каждый слой decode
 
@@ -51,7 +51,7 @@ Communication backend for the decode context-parallel (DCP) attention reduction:
 
 Только межранговый обмен делегируется `flashinfer.comm.dcp_alltoall.decode_cp_a2a_alltoall`; локальное сведение LSE остается тем же Triton-ядром. Требования проверяются в двух местах:
 
-- на этапе разбора аргументов — платформа CUDA, иначе `ValueError: --dcp-comm-backend fi_a2a delegates the exchange to FlashInfer's MNNVL All-to-All kernel, which requires an NVIDIA CUDA platform with SM90+ and MNNVL fabric memory (e.g. GB200 NVL72). The authoritative fabric probe runs at model-runner init; use 'a2a' or 'ag_rs' on clusters without MNNVL.`;
+- при разрешении аргументов проверяется платформа CUDA; затем model runner проверяет поддержку FlashInfer и MNNVL в выбранной DCP-группе;
 - на инициализации model runner'а — `init_fi_a2a_workspace` (вызывается **до** захвата CUDA graph, потому что синхронизирует поток и делает межранговый барьер): `ImportError: --dcp-comm-backend fi_a2a requires FlashInfer with the DCP all-to-all kernel (flashinfer #2951); could not import flashinfer.comm.dcp_alltoall.` либо `RuntimeError: --dcp-comm-backend fi_a2a requires MNNVL fabric memory (e.g. GB200 NVL72); is_mnnvl_fabric_supported() returned False. Use --dcp-comm-backend a2a or ag_rs on clusters without MNNVL.`
 
 ## Значения и формат
@@ -59,7 +59,7 @@ Communication backend for the decode context-parallel (DCP) attention reduction:
 - Одна из трех строк; иное значение argparse отвергнет со списком допустимых.
 - `ag_rs` — единственное значение, допустимое при `--dcp-size 1` (оно же дефолт и там ни на что не влияет). `a2a` и `fi_a2a` при `dcp_size <= 1` отвергаются на старте.
 - `a2a` требует делимости числа голов внимания на `dcp_size`.
-- `fi_a2a` требует CUDA, SM90+, MNNVL-фабрики и FlashInfer с соответствующим ядром.
+- `fi_a2a` требует CUDA, Blackwell, DCP-группы в пределах одного MNNVL-домена и FlashInfer с соответствующим ядром.
 - Значение может быть переписано модельным override'ом (Kimi-K3), и это не ошибка конфигурации — смотрите строку `… selects communication backend …` в логе.
 
 ## Когда использовать
@@ -68,7 +68,7 @@ Communication backend for the decode context-parallel (DCP) attention reduction:
 - `a2a` — обычный рабочий выбор на NVLink-узле при подходящем числе голов: вдвое меньше NCCL-вызовов на слой и меньше трафика, чем у all-gather полного выхода.
 - `fi_a2a` — только на GB200/GB300-классе. На прочем железе он отвергается, а не деградирует молча.
 - Менять значение имеет смысл, только когда decode-latency упирается в коммуникацию. Измеряйте: разница видна на межтокенной задержке, а не на TTFT.
-- На Kimi-K3 задавать значение вручную бессмысленно: override перепишет его в любом случае.
+- На Kimi-K3 проверьте модельные переопределения для других параметров DCP; явное значение этого флага сохраняется.
 
 ## Влияние на производительность и память
 
@@ -89,7 +89,7 @@ Communication backend for the decode context-parallel (DCP) attention reduction:
 ## Типовые проблемы и диагностика
 
 - `ValueError: --dcp-comm-backend a2a only affects the decode context-parallel attention reduction and therefore requires --dcp-size / --decode-context-parallel-size > 1, but got dcp_size=1.`
-- `ValueError: --dcp-comm-backend fi_a2a delegates the exchange to FlashInfer's MNNVL All-to-All kernel, … use 'a2a' or 'ag_rs' on clusters without MNNVL.` — отказ на этапе разбора аргументов (не CUDA).
+- При отказе `fi_a2a` на старте проверьте платформу CUDA, архитектуру Blackwell и размещение DCP-группы в одном MNNVL-домене; на другом оборудовании оставьте значение незаданным для автоподбора.
 - `RuntimeError: --dcp-comm-backend fi_a2a requires MNNVL fabric memory (e.g. GB200 NVL72); is_mnnvl_fabric_supported() returned False.` — отказ уже на инициализации model runner'а: авторитетная проверка фабрики выполняется там.
 - `ImportError: --dcp-comm-backend fi_a2a requires FlashInfer with the DCP all-to-all kernel (flashinfer #2951); …` — установленный FlashInfer слишком старый.
 - `AssertionError: num_heads (…) must be divisible by dcp_size (…)` — переключитесь на `ag_rs` или измените `--dcp-size`.
@@ -109,7 +109,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 ## Источники
 
 - `sglang/python/sglang/srt/layers/dcp/comm.py`
-- `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`
 - `sglang/python/sglang/srt/models/deepseek_common/attention_forward_methods/forward_mla.py`

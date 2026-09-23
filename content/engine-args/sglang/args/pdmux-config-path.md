@@ -8,8 +8,6 @@ group: disagg
 related:
   - --enable-pdmux
   - --sm-group-num
-  - --cuda-graph-bs
-  - --cuda-graph-max-bs
   - --chunked-prefill-size
   - --disable-overlap-schedule
 ---
@@ -106,7 +104,7 @@ decode_bs_divisor: 36
 
 - `--enable-pdmux`: без него файл не читается вообще.
 - `--sm-group-num`: обязан быть не меньше фактического числа групп потоков, а его лучше держать равным `sm_group_num` из файла.
-- `--cuda-graph-bs` / `--cuda-graph-max-bs`: набор захватываемых размеров умножается на число групп.
+- `--cuda-graph-bs-decode` / `--cuda-graph-max-bs-decode`: набор захватываемых размеров умножается на число групп.
 - `--chunked-prefill-size -1` и `--disable-overlap-schedule`: обязательные спутники pdmux; `split_forward_token_budget` заменяет собой чанкование как механизм дробления prefill'а.
 
 ## Типовые проблемы и диагностика
@@ -126,7 +124,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-32B --enable-pdmux --pdmu
 ```
 
 ```bash
-python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --enable-pdmux --pdmux-config-path /etc/sglang/pdmux-manual.yaml --sm-group-num 5 --chunked-prefill-size -1 --disable-overlap-schedule --cuda-graph-max-bs 16
+python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --enable-pdmux --pdmux-config-path /etc/sglang/pdmux-manual.yaml --sm-group-num 5 --chunked-prefill-size -1 --disable-overlap-schedule --cuda-graph-max-bs-decode 16
 ```
 
 ## Источники

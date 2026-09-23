@@ -20,12 +20,12 @@ related:
 
 ## Кратко
 
-`--hicache-storage-backend` добавляет к HiCache уровень L3: общее хранилище, из которого несколько инстансов SGLang могут переиспользовать один и тот же префикс. Ключевая практическая деталь — из десяти допустимых значений только два (`file` и `shm`) работают на «голой» установке; остальные требуют внешних пакетов (`mooncake`, `nixl`, `aibrix_kvcache`, `eic`, `simm`, UMBP), и отсутствие пакета проявляется как `ImportError` при **создании** backend'а на старте сервера, а не как отказ argparse. Аргумент читается только при `--enable-hierarchical-cache` (либо при `--disaggregation-decode-enable-offload-kvcache`).
+`--hicache-storage-backend` добавляет к HiCache уровень L3: общее хранилище, из которого несколько инстансов SGLang могут переиспользовать один и тот же префикс. Ключевая практическая деталь — часть допустимых значений требует внешних пакетов или отдельного сервиса (`mooncake`, `nixl`, `aibrix_kvcache`, `npu_memcache` и другие); отсутствие зависимости проявляется при **создании** backend'а на старте сервера, а не как отказ argparse. Аргумент читается только при `--enable-hierarchical-cache` (либо при `--disaggregation-decode-enable-offload-kvcache`).
 
 ## Оригинальная справка
 
 ```text
-The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, hf3fs, nixl, aibrix. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).
+The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, npu_memcache, hf3fs, nixl, aibrix. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).
 ```
 
 ## Паспорт аргумента
@@ -33,7 +33,7 @@ The storage backend for hierarchical KV cache. Built-in backends: file, mooncake
 - Флаги: `--hicache-storage-backend`
 - Группа: `memory`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `file`, `sim`, `mooncake`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`
+- Допустимые значения: `file`, `sim`, `mooncake`, `npu_memcache`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`
 - Значение по умолчанию: `null` — L3 не подключен, HiCache работает как двухуровневый (L1+L2)
 - Эффективное значение: не переопределяется; но выбор backend'а меняет **другие** значения — `mooncake` переписывает `--hicache-mem-layout layer_first`, а `shm` (и `dynamic` с `"allocator": "shm"`) переключает аллокатор host-пула на shared memory
 - Где объявлен: `ServerArgs.hicache_storage_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -118,7 +118,8 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 ## Источники
 
-- `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
+- `sglang/python/sglang/srt/mem_cache/storage/npu_memcache/README.md`
 - `sglang/python/sglang/srt/mem_cache/storage/backend_factory.py`
 - `sglang/python/sglang/srt/mem_cache/hicache_storage.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/common.py`

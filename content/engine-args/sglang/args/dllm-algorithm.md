@@ -15,7 +15,6 @@ related:
   - --enable-hierarchical-cache
   - --enable-lmcache
   - --max-running-requests
-  - --disable-piecewise-cuda-graph
   - --disable-cuda-graph
 ---
 
@@ -109,7 +108,7 @@ The diffusion LLM algorithm, such as LowConfidence.
 - `--enable-hierarchical-cache`, `--enable-lmcache`: выключаются принудительно при включенном radix-кеше.
 - `--disable-radix-cache`: меняет ветку резолюции `--page-size` (без кеша проверяется только потолок).
 - `--max-running-requests`: при незаданном значении конфиг диффузии подставляет `1`.
-- `--disable-piecewise-cuda-graph` / `--disable-cuda-graph`: piecewise-граф отключается сам; на AMD отключаются оба графа.
+- `--cuda-graph-backend-prefill disabled` / `--disable-cuda-graph`: piecewise-граф отключается сам; на AMD отключаются оба графа.
 
 ## Типовые проблемы и диагностика
 

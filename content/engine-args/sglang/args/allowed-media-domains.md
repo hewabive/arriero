@@ -27,7 +27,7 @@ Restrict client-supplied HTTP(S) image, video, and audio URLs to these exact hos
 - Флаги: `--allowed-media-domains`
 - Группа: `mm`
 - Тип значения: список строк; argparse принимает одно или больше значений после флага
-- Значение по умолчанию: пустой список (`dataclasses.field(default_factory=list)`)
+- Значение по умолчанию: пустой список (`msgspec.field(default_factory=list)`)
 - Где объявлен: `ServerArgs.allowed_media_domains`, файл — `sglang/python/sglang/srt/server_args.py`
 - Этап применения: разбор CLI → `_handle_media_url_security` → загрузка каждого удаленного media-объекта
 

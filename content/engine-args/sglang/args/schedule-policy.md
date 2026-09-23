@@ -33,7 +33,7 @@ The scheduling policy of the requests.
 - Флаги: `--schedule-policy`
 - Группа: `schedule`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `lpm`, `random`, `fcfs`, `dfs-weight`, `lof`, `priority`, `routing-key`. Значение `priority` argparse примет, но реализации у него нет (см. «Типовые проблемы»)
+- Допустимые значения: `lpm`, `random`, `fcfs`, `dfs-weight`, `lof`, `priority`, `routing-key`, `hrrn`. Значение `priority` argparse примет, но реализации у него нет (см. «Типовые проблемы»)
 - Значение по умолчанию: `fcfs`
 - Эффективное значение: значение из CLI не переписывается, но **активная** политика может отличаться от заданной на каждом проходе: `SchedulePolicy._validate_and_adjust_policy` понижает кеш-зависимые политики до `fcfs`, если radix cache отключен, а `_determine_active_policy` понижает `lpm` до `fcfs`, пока в очереди больше 128 запросов
 - Где объявлен: `ServerArgs.schedule_policy`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -68,6 +68,7 @@ The scheduling policy of the requests.
 - `lof` — «длинные генерации вперед»; полезно, когда важна суммарная утилизация, а не справедливость.
 - `random` — только для нагрузочных тестов и воспроизведения патологических порядков.
 - `routing-key` — имеет смысл только за SGLang Model Gateway, который проставляет `x-smg-routing-key`; без заголовка политика вырождается в «ничего не делать».
+- `hrrn` — Highest Response Ratio Next с ожиданием, измеренным количеством обработанных prefill-токенов: чем дольше запрос ждёт относительно своей оставшейся prefill-работы, тем выше его приоритет. В очередях без prefill-работы порядок сводится к идентификатору запроса.
 - `priority` — есть в `choices`, но не реализована; см. «Типовые проблемы».
 - Значение вне списка отвергает argparse.
 
@@ -75,6 +76,7 @@ The scheduling policy of the requests.
 
 - Много запросов с общим длинным системным промптом или общим документом, а `#cached-token` в логе мал — `--schedule-policy lpm`. Апстрим-документация по тюнингу рекомендует ровно этот случай.
 - Очередь стабильно превышает пару сотен запросов — от `lpm` можно не ждать эффекта: он отключается по порогу 128.
+- Короткие запросы должны проходить раньше, но длительное ожидание нельзя оставлять без компенсации — попробуйте `hrrn` и измерьте TTFT по квантилям.
 - Включено `--enable-priority-scheduling` — выбор сужен до `fcfs` и `lof` жестким assert'ом; сортировка по приоритету добавляется поверх выбранной политики.
 - Не меняйте политику, чтобы «уменьшить retraction» — за это отвечает `--schedule-conservativeness`, а не порядок очереди.
 
@@ -115,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --schedule-pol
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_base.py`

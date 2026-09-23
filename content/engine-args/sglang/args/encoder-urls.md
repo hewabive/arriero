@@ -35,7 +35,7 @@ List of encoder server urls.
 - Группа: `disagg`
 - Тип значения: список строк; argparse получает `nargs="+"`, поэтому значения перечисляются через пробел
 - Допустимые значения: `choices` нет; URL со схемой — `http://host:port`, `https://host:port` или `grpc://host:port` для gRPC-энкодеров
-- Значение по умолчанию: `dataclasses.field(default_factory=list)` — то есть пустой список
+- Значение по умолчанию: `msgspec.field(default_factory=list)` — то есть пустой список
 - Эффективное значение: само поле не переписывается, но фактический набор адресов в runtime — это **копия** списка, которую `EncoderBootstrapServer` дальше мутирует: `list(self.server_args.encoder_urls)` в `TokenizerManager.init_disaggregation`
 - Где объявлен: `ServerArgs.encoder_urls`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный

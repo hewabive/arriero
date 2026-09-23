@@ -3,7 +3,19 @@
  "engine": "sglang",
  "entrypoint": "python -m sglang.launch_server",
  "sourceFiles": [
-  "python/sglang/srt/server_args.py"
+  "python/sglang/srt/server_args.py",
+  "python/sglang/srt/arg_groups/fields/model.py",
+  "python/sglang/srt/arg_groups/fields/exec_.py",
+  "python/sglang/srt/arg_groups/fields/lora.py",
+  "python/sglang/srt/arg_groups/fields/disagg.py",
+  "python/sglang/srt/arg_groups/fields/spec.py",
+  "python/sglang/srt/arg_groups/fields/observability.py",
+  "python/sglang/srt/arg_groups/fields/device.py",
+  "python/sglang/srt/arg_groups/fields/parallel.py",
+  "python/sglang/srt/arg_groups/fields/memory.py",
+  "python/sglang/srt/arg_groups/fields/schedule.py",
+  "python/sglang/srt/arg_groups/fields/mm.py",
+  "python/sglang/srt/arg_groups/fields/serving.py"
  ],
  "options": [
   {
@@ -68,7 +80,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "dataclasses.field(default_factory=list)"
+    "text": "msgspec.field(default_factory=list)"
    },
    "action": null,
    "hidden": false,
@@ -137,9 +149,9 @@
     "flex_attention",
     "dsa",
     "nsa",
+    "qsa",
     "dsv4",
     "compressed",
-    "cutlass_mla",
     "fa3",
     "fa4",
     "flashinfer",
@@ -148,7 +160,6 @@
     "cutedsl_mla",
     "tokenspeed_mla",
     "trtllm_mha",
-    "dual_chunk_flash_attn",
     "hpc_ops",
     "minicpm_flashattn",
     "minicpm_flashinfer",
@@ -225,11 +236,10 @@
     "--bf16-gemm-backend"
    ],
    "group": "exec.kernel",
-   "help": "Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (default; selects 'cutedsl' on SM10x GPUs, except deterministic inference selects 'torch'; otherwise uses cuBLAS via torch.nn.functional.linear), 'cutedsl' (SGLang JIT CuTe DSL TGV BF16 GEMM on SM10x; dispatches between the allowlisted low-M Split-K kernel, the CuTe DSL kernel, and cuBLAS; set SGLANG_ENABLE_BF16_SPLITK_GEMM=0 to disable Split-K), 'flashinfer_pr4266' (legacy compatibility alias for the optimized CuTe DSL path), 'gemv', 'torch' (always uses cuBLAS via torch.nn.functional.linear).",
+   "help": "Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (default; selects 'cutedsl' on SM10x GPUs, except deterministic inference selects 'torch'; otherwise uses cuBLAS via torch.nn.functional.linear), 'cutedsl' (SGLang JIT CuTe DSL TGV BF16 GEMM on SM10x; dispatches between the allowlisted low-M Split-K kernel, the CuTe DSL kernel, and cuBLAS; set SGLANG_ENABLE_BF16_SPLITK_GEMM=0 to disable Split-K), 'gemv', 'torch' (always uses cuBLAS via torch.nn.functional.linear).",
    "choices": [
     "auto",
     "cutedsl",
-    "flashinfer_pr4266",
     "gemv",
     "torch"
    ],
@@ -364,20 +374,6 @@
   },
   {
    "flags": [
-    "--collect-tokens-histogram"
-   ],
-   "group": null,
-   "help": "Deprecated. Token histograms are now automatically collected when --enable-metrics is set.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--completion-template"
    ],
    "group": "serving",
@@ -463,7 +459,7 @@
     "--cp-strategy"
    ],
    "group": "parallel",
-   "help": "Sharding strategy for prefill CP. 'zigzag' is the former in-seq-split mode; 'interleave' is the former round-robin-split mode.",
+   "help": "Sharding strategy for prefill CP. 'zigzag' assigns each rank one early and one late sequence block; 'interleave' assigns token indices modulo the CP size.",
    "choices": [
     "zigzag",
     "interleave"
@@ -558,20 +554,6 @@
   },
   {
    "flags": [
-    "--cuda-graph-bs"
-   ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-bs-decode.",
-   "choices": null,
-   "type": "int",
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--cuda-graph-bs-decode"
    ],
    "group": "exec.graph",
@@ -620,20 +602,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.cuda_graph_config"
-  },
-  {
-   "flags": [
-    "--cuda-graph-max-bs"
-   ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-max-bs-decode.",
-   "choices": null,
-   "type": "int",
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -711,17 +679,17 @@
     "--dcp-comm-backend"
    ],
    "group": "parallel",
-   "help": "Communication backend for the decode context-parallel (DCP) attention reduction: 'ag_rs' (AllGather + ReduceScatter), 'a2a' (fused NCCL All-to-All exchange of output+LSE + local Triton LSE combine), or 'fi_a2a' (FlashInfer MNNVL All-to-All kernel; requires SM90+ and MNNVL fabric memory, e.g. GB200 NVL72).",
+   "help": "Communication backend for the decode context-parallel (DCP) attention reduction: 'ag_rs' (AllGather + ReduceScatter), 'a2a' (fused NCCL All-to-All exchange of output+LSE + local Triton LSE combine), or 'fi_a2a' (FlashInfer MNNVL All-to-All kernel; requires Blackwell and a DCP group within one MNNVL domain). Unset resolves to 'fi_a2a' where supported, else 'a2a' on CUDA/ROCm, else 'ag_rs'.",
    "choices": [
     "ag_rs",
     "a2a",
     "fi_a2a"
    ],
    "type": "str",
-   "optional": false,
+   "optional": true,
    "default": {
     "kind": "literal",
-    "value": "ag_rs"
+    "value": null
    },
    "action": null,
    "hidden": false,
@@ -843,9 +811,9 @@
     "flex_attention",
     "dsa",
     "nsa",
+    "qsa",
     "dsv4",
     "compressed",
-    "cutlass_mla",
     "fa3",
     "fa4",
     "flashinfer",
@@ -854,7 +822,6 @@
     "cutedsl_mla",
     "tokenspeed_mla",
     "trtllm_mha",
-    "dual_chunk_flash_attn",
     "hpc_ops",
     "minicpm_flashattn",
     "minicpm_flashinfer",
@@ -1366,20 +1333,6 @@
   },
   {
    "flags": [
-    "--disable-piecewise-cuda-graph"
-   ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-backend-prefill=disabled.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreConstAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--disable-prefill-cuda-graph"
    ],
    "group": "exec.graph",
@@ -1766,6 +1719,7 @@
     "flashinfer_sparse_mla",
     "fa3",
     "tilelang",
+    "triton",
     "aiter",
     "trtllm"
    ],
@@ -1815,6 +1769,7 @@
     "flashinfer_sparse_mla",
     "fa3",
     "tilelang",
+    "triton",
     "aiter",
     "trtllm"
    ],
@@ -1827,26 +1782,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.dsa_prefill_backend"
-  },
-  {
-   "flags": [
-    "--dsa-prefill-cp-mode"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --cp-strategy {zigzag,interleave} instead. 'in-seq-split' maps to 'zigzag'; 'round-robin-split' maps to 'interleave'.",
-   "choices": [
-    "in-seq-split",
-    "round-robin-split"
-   ],
-   "type": "str",
-   "optional": false,
-   "default": {
-    "kind": "expression",
-    "text": "ServerArgs.dsa_prefill_cp_mode"
-   },
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -1868,6 +1803,27 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.dsa_topk_backend"
+  },
+  {
+   "flags": [
+    "--dsv4-attn-backend"
+   ],
+   "group": "exec.kernel",
+   "help": "DeepSeek V4 attention backend. 'auto' (default) resolves to 'flashmla'. 'trtllm' (opt-in, SM100/SM103 with FP8 KV cache) switches the SWA/compressed KV pools to a uniform 512-dim FP8 layout and runs decode and sparse prefill through the flashinfer trtllm-gen sparse MLA kernel. The backend choice is shared by prefill and decode.",
+   "choices": [
+    "auto",
+    "flashmla",
+    "trtllm"
+   ],
+   "type": "str",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "auto"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.dsv4_attn_backend"
   },
   {
    "flags": [
@@ -2127,20 +2083,6 @@
   },
   {
    "flags": [
-    "--enable-breakable-cuda-graph"
-   ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-backend-prefill=breakable.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreConstAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--enable-broadcast-mm-inputs-process"
    ],
    "group": "mm",
@@ -2362,20 +2304,6 @@
   },
   {
    "flags": [
-    "--enable-dsa-prefill-context-parallel"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --enable-prefill-cp instead.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreTrueAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--enable-dynamic-batch-tokenizer"
    ],
    "group": "serving",
@@ -2441,20 +2369,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.enable_eplb"
-  },
-  {
-   "flags": [
-    "--enable-expert-distribution-metrics"
-   ],
-   "group": null,
-   "help": "Removed. Use --expert-balancedness-report-mode with one of: off, server_log, prometheus, both.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -2554,20 +2468,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.enable_fused_qk_norm_rope"
-  },
-  {
-   "flags": [
-    "--enable-gdn-replayssm-spec"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --enable-linear-replayssm-spec instead.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreTrueAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -2979,20 +2879,6 @@
   },
   {
    "flags": [
-    "--enable-nsa-prefill-context-parallel"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --enable-prefill-cp instead.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreTrueAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--enable-p2p-check"
    ],
    "group": "parallel",
@@ -3058,20 +2944,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.enable_precise_embedding_interpolation"
-  },
-  {
-   "flags": [
-    "--enable-prefill-context-parallel"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --enable-prefill-cp instead.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreTrueAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -3191,6 +3063,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.enable_request_time_stats_logging"
+  },
+  {
+   "flags": [
+    "--enable-response-store"
+   ],
+   "group": "serving",
+   "help": "Enable in-memory Responses storage for retrieval, chaining, and background requests. Disabled by default; unsupported with prefill-decode disaggregation. Storage has no TTL or size limit.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.enable_response_store"
   },
   {
    "flags": [
@@ -3518,10 +3407,27 @@
   },
   {
    "flags": [
+    "--enable-unified-cache-external-linker"
+   ],
+   "group": "memory",
+   "help": "Link UnifiedRadixCache directly to an external KV store (direct L3), with no host cache tier.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.enable_unified_cache_external_linker"
+  },
+  {
+   "flags": [
     "--enable-unified-memory"
    ],
    "group": "memory",
-   "help": "Replace the statically-partitioned hybrid-model pools (full-attn KV + SWA/Mamba state) with one byte buffer split dynamically between sub-pools. Requires the Triton attention / linear-attn / Mamba backends; not yet compatible with PD disaggregation or speculative decoding.",
+   "help": "Replace the statically-partitioned hybrid-model pools (full-attn KV + SWA/Mamba state) with one byte buffer split dynamically between sub-pools. Requires the Triton attention / linear-attn / Mamba backends. PD disaggregation is supported over mooncake at equal attention TP with pp=1; not yet compatible with hierarchical / host-tiered KV cache, prefill cuda-graph capture, or speculative decoding other than DSPARK.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -3629,7 +3535,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "dataclasses.field(default_factory=list)"
+    "text": "msgspec.field(default_factory=list)"
    },
    "action": null,
    "hidden": false,
@@ -3668,7 +3574,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "dataclasses.field(default_factory=list)"
+    "text": "msgspec.field(default_factory=list)"
    },
    "action": null,
    "hidden": false,
@@ -3690,20 +3596,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.enforce_disable_flashinfer_allreduce_fusion"
-  },
-  {
-   "flags": [
-    "--enforce-piecewise-cuda-graph"
-   ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-backend-prefill=tc_piecewise. Explicitly setting the prefill backend now skips the auto-disable cascade automatically.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreConstAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -4028,6 +3920,28 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.file_storage_path"
+  },
+  {
+   "flags": [
+    "--flashinfer-a2a-dispatch-type"
+   ],
+   "group": "exec.moe",
+   "help": "Select FlashInfer A2A dispatcher activation dtype.",
+   "choices": [
+    "auto",
+    "bf16",
+    "nvfp4",
+    "mxfp8"
+   ],
+   "type": "enum",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.flashinfer_a2a_dispatch_type"
   },
   {
    "flags": [
@@ -4505,11 +4419,12 @@
     "--hicache-storage-backend"
    ],
    "group": "memory",
-   "help": "The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, hf3fs, nixl, aibrix. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).",
+   "help": "The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, npu_memcache, hf3fs, nixl, aibrix. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).",
    "choices": [
     "file",
     "sim",
     "mooncake",
+    "npu_memcache",
     "hf3fs",
     "nixl",
     "aibrix",
@@ -4572,13 +4487,13 @@
     "--hicache-storage-prefetch-retry-max-attempts"
    ],
    "group": "memory",
-   "help": "Maximum storage prefetch retries per request when --hicache-storage-prefetch-retry-poll-interval is set.",
+   "help": "Storage availability re-issues a queued request may make, paced miss polls and immediate re-issues alike; past the cap it is admitted with whatever the device holds. 0 disables re-issues.",
    "choices": null,
    "type": "int",
    "optional": false,
    "default": {
     "kind": "literal",
-    "value": 4
+    "value": 8
    },
    "action": null,
    "hidden": false,
@@ -4589,13 +4504,13 @@
     "--hicache-storage-prefetch-retry-poll-interval"
    ],
    "group": "memory",
-   "help": "Scheduling passes a queued request waits after a storage prefetch miss before the availability check is retried (under load the first check can run before the needed backup commits). 0 disables retries.",
+   "help": "Scheduling passes a queued request waits before its storage availability check is re-issued, when the prefetch found nothing and a backup may still be committing (under load the first check can run before it does). A re-issue that waits on staging or a moved match instead goes out on the next pass. Only passes that reach prefill scheduling count. 0 disables miss retries; known-hit deferrals are always re-issued.",
    "choices": null,
    "type": "int",
    "optional": false,
    "default": {
     "kind": "literal",
-    "value": 0
+    "value": 8
    },
    "action": null,
    "hidden": false,
@@ -4975,7 +4890,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "ServerArgs.kv_canary_real_data"
+    "text": "_declared_default('kv_canary_real_data')"
    },
    "action": null,
    "hidden": false,
@@ -5581,10 +5496,10 @@
    "help": "The ratio of mamba state memory to full kv cache memory.",
    "choices": null,
    "type": "float",
-   "optional": false,
+   "optional": true,
    "default": {
     "kind": "literal",
-    "value": 0.9
+    "value": null
    },
    "action": null,
    "hidden": false,
@@ -5628,23 +5543,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.mamba_radix_cache_strategy"
-  },
-  {
-   "flags": [
-    "--mamba-scheduler-strategy"
-   ],
-   "group": null,
-   "help": "Deprecated alias for --mamba-radix-cache-strategy.",
-   "choices": null,
-   "type": "str",
-   "optional": false,
-   "default": {
-    "kind": "expression",
-    "text": "ServerArgs.mamba_radix_cache_strategy"
-   },
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -6264,7 +6162,8 @@
     "megamoe",
     "deepep_v2",
     "pplx",
-    "ascend_tp"
+    "ascend_tp",
+    "flashinfer_megamoe"
    ],
    "type": "enum",
    "optional": false,
@@ -6328,6 +6227,7 @@
     "flashinfer_cutlass",
     "flashinfer_mxfp4",
     "flashinfer_cutedsl",
+    "flashinfer_megamoe",
     "cutlass",
     "aiter",
     "marlin",
@@ -6431,80 +6331,6 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.node_rank"
-  },
-  {
-   "flags": [
-    "--nsa-decode-backend"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --dsa-decode-backend instead.",
-   "choices": [
-    "flashmla_sparse",
-    "flashmla_sparse_q8",
-    "flashmla_kv",
-    "flashmla_auto",
-    "flashinfer_sparse_mla",
-    "fa3",
-    "tilelang",
-    "aiter",
-    "trtllm"
-   ],
-   "type": "str",
-   "optional": false,
-   "default": {
-    "kind": "expression",
-    "text": "argparse.SUPPRESS"
-   },
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
-    "--nsa-prefill-backend"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --dsa-prefill-backend instead.",
-   "choices": [
-    "flashmla_sparse",
-    "flashmla_sparse_q8",
-    "flashmla_kv",
-    "flashmla_auto",
-    "flashinfer_sparse_mla",
-    "fa3",
-    "tilelang",
-    "aiter",
-    "trtllm"
-   ],
-   "type": "str",
-   "optional": false,
-   "default": {
-    "kind": "expression",
-    "text": "argparse.SUPPRESS"
-   },
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
-    "--nsa-prefill-cp-mode"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --cp-strategy instead.",
-   "choices": [
-    "in-seq-split",
-    "round-robin-split"
-   ],
-   "type": "str",
-   "optional": false,
-   "default": {
-    "kind": "expression",
-    "text": "argparse.SUPPRESS"
-   },
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -6695,48 +6521,58 @@
   },
   {
    "flags": [
-    "--piecewise-cuda-graph-compiler"
+    "--ple-offload-backend"
    ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-tc-compiler.",
+   "group": "exec.offload",
+   "help": "Host storage for the offloaded Qwen4 PLE n-gram table. 'pinned' (default) uses CPU pinned memory. 'file' maps a sparse file under --ple-offload-dir and lets the gather kernel read it directly; use it on unified-memory devices (e.g. GB10 / DGX Spark) where pinned host memory comes out of the same pool as the model weights. Requires a device that reports cudaDevAttrPageableMemoryAccessUsesHostPageTables.",
    "choices": [
-    "eager",
-    "inductor"
+    "pinned",
+    "file"
    ],
    "type": "str",
    "optional": false,
-   "default": null,
-   "action": "DeprecatedAliasStoreAction",
+   "default": {
+    "kind": "literal",
+    "value": "pinned"
+   },
+   "action": null,
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "ServerArgs.ple_offload_backend"
   },
   {
    "flags": [
-    "--piecewise-cuda-graph-max-tokens"
+    "--ple-offload-dir"
    ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-max-bs-prefill.",
+   "group": "exec.offload",
+   "help": "Directory for the file-backed PLE table when --ple-offload-backend is 'file'. Defaults to $SGLANG_CACHE_DIR/ple/<model path>, one directory per checkpoint. The file is sparse and reused across restarts; put it on fast local storage (NVMe).",
    "choices": null,
-   "type": "int",
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedAliasStoreAction",
+   "type": "str",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "ServerArgs.ple_offload_dir"
   },
   {
    "flags": [
-    "--piecewise-cuda-graph-tokens"
+    "--ple-offload-embedding",
+    "--no-ple-offload-embedding"
    ],
-   "group": null,
-   "help": "Deprecated alias for --cuda-graph-bs-prefill.",
+   "group": "exec.offload",
+   "help": "Offload Qwen4 PLE n-gram embedding weights to CPU pinned memory. Enabled by default for BF16 Qwen4-Exp on CUDA; use --no-ple-offload-embedding to disable.",
    "choices": null,
-   "type": "int",
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedAliasStoreAction",
+   "type": "bool",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "ServerArgs.ple_offload_embedding"
   },
   {
    "flags": [
@@ -6853,9 +6689,9 @@
     "flex_attention",
     "dsa",
     "nsa",
+    "qsa",
     "dsv4",
     "compressed",
-    "cutlass_mla",
     "fa3",
     "fa4",
     "flashinfer",
@@ -6864,7 +6700,6 @@
     "cutedsl_mla",
     "tokenspeed_mla",
     "trtllm_mha",
-    "dual_chunk_flash_attn",
     "hpc_ops",
     "minicpm_flashattn",
     "minicpm_flashinfer",
@@ -6886,35 +6721,16 @@
   },
   {
    "flags": [
-    "--prefill-cp-mode"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --cp-strategy {zigzag,interleave} instead. 'in-seq-split' maps to 'zigzag'.",
-   "choices": [
-    "in-seq-split"
-   ],
-   "type": "str",
-   "optional": false,
-   "default": {
-    "kind": "expression",
-    "text": "ServerArgs.prefill_cp_mode"
-   },
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--prefill-decode-interval"
    ],
    "group": "schedule",
-   "help": "The number of decode rounds to run after a prefill batch before scheduling the next prefill. In data-parallel attention mode, the interval is synchronized across all DP ranks. Set to 0 to disable.",
+   "help": "The number of decode rounds to run after a prefill batch before scheduling the next prefill. By default, this is disabled except for profiled Qwen3-VL serving configurations on Hopper. In data-parallel attention mode, the interval is synchronized across all DP ranks. Set to 0 to disable.",
    "choices": null,
    "type": "int",
-   "optional": false,
+   "optional": true,
    "default": {
     "kind": "literal",
-    "value": 0
+    "value": null
    },
    "action": null,
    "hidden": false,
@@ -7058,20 +6874,6 @@
   },
   {
    "flags": [
-    "--prefill-round-robin-balance"
-   ],
-   "group": null,
-   "help": "Note: --prefill-round-robin-balance is deprecated now.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--priority-scheduling-preemption-threshold"
    ],
    "group": "schedule",
@@ -7115,7 +6917,6 @@
     "fp8",
     "mxfp8",
     "gptq",
-    "marlin",
     "gptq_marlin",
     "awq_marlin",
     "bitsandbytes",
@@ -7210,7 +7011,7 @@
     "--radix-eviction-policy"
    ],
    "group": "memory",
-   "help": "The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' stands for Least Frequently Used, 'slru' stands for Segmented Least Recently Used, and 'priority' evicts lower-priority requests first.",
+   "help": "The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' stands for Least Frequently Used, 'slru' stands for Segmented Least Recently Used, and 'priority' evicts lower-priority requests first. See https://docs.sglang.io/docs/advanced_features/radix_eviction_policy for what each policy optimizes for.",
    "choices": [
     "lru",
     "lfu",
@@ -7226,6 +7027,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.radix_eviction_policy"
+  },
+  {
+   "flags": [
+    "--radix-eviction-policy-config"
+   ],
+   "group": "memory",
+   "help": "Tuning parameters for --radix-eviction-policy, as a json object passed to the policy as keyword arguments. Only 'slru' takes any today: protected_threshold (int, default 2), e.g. '{\"protected_threshold\": 4}'. An unrecognized key fails at startup, naming the key and the policy. See https://docs.sglang.io/docs/advanced_features/radix_eviction_policy#policy-parameters for the full parameter list.",
+   "choices": null,
+   "type": "json",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.radix_eviction_policy_config"
   },
   {
    "flags": [
@@ -7255,7 +7073,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "ServerArgs.reasoning_parser"
+    "text": "_declared_default('reasoning_parser')"
    },
    "action": null,
    "hidden": false,
@@ -7392,6 +7210,40 @@
   },
   {
    "flags": [
+    "--return-input-ids"
+   ],
+   "group": "serving",
+   "help": "Return prompt (input) token ids on the response-level sglext extension for every chat completion request, as if return_input_ids_in_sglext were set on the request.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.return_input_ids"
+  },
+  {
+   "flags": [
+    "--return-output-ids"
+   ],
+   "group": "serving",
+   "help": "Return sampled output token ids on the response-level sglext extension for every chat completion request, as if return_output_ids_in_sglext were set on the request.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.return_output_ids"
+  },
+  {
+   "flags": [
     "--revision"
    ],
    "group": "model",
@@ -7454,7 +7306,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "ServerArgs.sampling_backend"
+    "text": "_declared_default('sampling_backend')"
    },
    "action": null,
    "hidden": false,
@@ -7479,6 +7331,23 @@
    "action": null,
    "hidden": false,
    "origin": "ServerArgs.sampling_defaults"
+  },
+  {
+   "flags": [
+    "--sampling-mask-max-tokens"
+   ],
+   "group": "exec.features",
+   "help": "The maximum number of token IDs in a returned sampling mask. Requests are aborted if their realized sampling support exceeds this limit. Use the same value on disaggregated prefill and decode nodes; clients should set top_k below the limit to leave headroom for cutoff ties.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 4096
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.sampling_mask_max_tokens"
   },
   {
    "flags": [
@@ -7527,7 +7396,8 @@
     "dfs-weight",
     "lof",
     "priority",
-    "routing-key"
+    "routing-key",
+    "hrrn"
    ],
    "type": "str",
    "optional": false,
@@ -7834,7 +7704,7 @@
     "--speculative-algorithm"
    ],
    "group": "spec",
-   "help": "Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK. Or any name registered via `SpeculativeAlgorithm.register`.",
+   "help": "Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK, UNO. Or any name registered via `SpeculativeAlgorithm.register`.",
    "choices": null,
    "type": "str",
    "optional": true,
@@ -7885,17 +7755,20 @@
   },
   {
    "flags": [
-    "--speculative-dflash-draft-window-size"
+    "--speculative-domino-candidate-pool-size"
    ],
-   "group": null,
-   "help": "",
+   "group": "spec",
+   "help": "Domino only. Size of the approximate block-shared base-logit candidate pool. Set to 0 to score the full vocabulary.",
    "choices": null,
    "type": "int",
    "optional": false,
-   "default": null,
-   "action": "DeprecatedAliasStoreAction",
-   "hidden": true,
-   "origin": "ServerArgs.add_cli_args"
+   "default": {
+    "kind": "literal",
+    "value": 2048
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.speculative_domino_candidate_pool_size"
   },
   {
    "flags": [
@@ -8002,7 +7875,6 @@
     "fp8",
     "mxfp8",
     "gptq",
-    "marlin",
     "gptq_marlin",
     "awq_marlin",
     "bitsandbytes",
@@ -8227,6 +8099,7 @@
     "flashinfer_cutlass",
     "flashinfer_mxfp4",
     "flashinfer_cutedsl",
+    "flashinfer_megamoe",
     "cutlass",
     "aiter",
     "marlin",
@@ -8577,20 +8450,6 @@
   },
   {
    "flags": [
-    "--stream-output"
-   ],
-   "group": null,
-   "help": "[Deprecated] Use --incremental-streaming-output instead.",
-   "choices": null,
-   "type": null,
-   "optional": false,
-   "default": null,
-   "action": "DeprecatedStoreTrueAction",
-   "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
-  },
-  {
-   "flags": [
     "--stream-response-default-include-usage"
    ],
    "group": "serving",
@@ -8631,10 +8490,10 @@
    "help": "The ratio of SWA layer KV tokens / full layer KV tokens, regardless of the number of swa:full layers. It should be between 0 and 1. E.g. 0.5 means if each swa layer has 50 tokens, then each full layer has 100 tokens.",
    "choices": null,
    "type": "float",
-   "optional": false,
+   "optional": true,
    "default": {
     "kind": "literal",
-    "value": 0.8
+    "value": null
    },
    "action": null,
    "hidden": false,
@@ -8776,7 +8635,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "ServerArgs.tool_call_parser"
+    "text": "_declared_default('tool_call_parser')"
    },
    "action": null,
    "hidden": false,
@@ -8938,6 +8797,43 @@
   },
   {
    "flags": [
+    "--unified-cache-external-linker-backend"
+   ],
+   "group": "memory",
+   "help": "Storage backend for --enable-unified-cache-external-linker.",
+   "choices": [
+    "mooncake",
+    "mori"
+   ],
+   "type": "str",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "mooncake"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.unified_cache_external_linker_backend"
+  },
+  {
+   "flags": [
+    "--uno-lora-path"
+   ],
+   "group": "spec",
+   "help": "Path to the UNO draft LoRA checkpoint.",
+   "choices": null,
+   "type": "str",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "ServerArgs.uno_lora_path"
+  },
+  {
+   "flags": [
     "--use-ray"
    ],
    "group": "device",
@@ -8964,7 +8860,7 @@
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "dataclasses.field(default_factory=list)"
+    "text": "msgspec.field(default_factory=list)"
    },
    "action": null,
    "hidden": false,

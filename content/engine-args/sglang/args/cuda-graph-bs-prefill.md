@@ -7,7 +7,6 @@ summary: Явный список форм prefill-графа, заданный �
 group: exec.graph
 related:
   - --cuda-graph-max-bs-prefill
-  - --piecewise-cuda-graph-tokens
   - --cuda-graph-bs-decode
   - --cuda-graph-backend-prefill
   - --disable-prefill-cuda-graph
@@ -23,7 +22,7 @@ related:
 
 ## Кратко
 
-Prefill-граф захватывается по количеству токенов в объединенном батче. Этот флаг перечисляет эти количества явно. Ключ называется `bs` из-за общей схемы `PhaseConfig`, но единица — токены; устаревший псевдоним назывался понятнее: `--piecewise-cuda-graph-tokens`. Список стоит трогать, когда старт слишком долгий (при `tc_piecewise` каждая форма проходит компиляцию) или когда известно, что реальные prefill-батчи концентрируются вокруг нескольких размеров.
+Prefill-граф захватывается по количеству токенов в объединенном батче. Этот флаг перечисляет эти количества явно. Ключ называется `bs` из-за общей схемы `PhaseConfig`, но единица — токены. Список стоит трогать, когда старт слишком долгий (при `tc_piecewise` каждая форма проходит компиляцию) или когда известно, что реальные prefill-батчи концентрируются вокруг нескольких размеров.
 
 ## Оригинальная справка
 
@@ -40,7 +39,7 @@ Explicit list of batch sizes to capture for the prefill cuda graph.
 - Значение по умолчанию: `null` — список генерируется `_generate_prefill_cuda_graph_batch_sizes(prefill.max_bs)`
 - Эффективное значение: заданный список может быть переписан в трех местах — выравнивание по 8 при MoE a2a backend `deepep` и prefill-backend'е `breakable` (`_apply_deepep_adjustments`), отсечение бакетов больше `max_capture_requests * context_length` в `capture_prefill_graph`, и фильтр CP при `enable_cp_v2_bcg_capture`. Итог записывается обратно в `cuda_graph_config[prefill].bs`
 - Где объявлен: `ServerArgs.cuda_graph_bs_prefill`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный. Устаревший псевдоним — `--piecewise-cuda-graph-tokens`
+- Статус: обычный; прежний флаг размера prefill-графа удалён
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`, `_apply_deepep_adjustments`) → `capture_prefill_graph` → компиляция (`tc_piecewise`) и захват
 
 ## Что меняет в движке
@@ -84,7 +83,7 @@ Capture target prefill CUDA graph begin. backend=breakable, num_tokens=[128, 512
 
 - `--cuda-graph-max-bs-prefill`: не применяется при заданном списке.
 - `--cuda-graph-config`: ключ `prefill.bs` перекрывает флаг.
-- `--piecewise-cuda-graph-tokens` (устаревший): то же поле под старым именем.
+
 - `--cuda-graph-backend-prefill`: определяет, кто список потребляет; при `disabled` список игнорируется.
 - `--cuda-graph-tc-compiler`: вместе с `tc_piecewise` определяет стоимость каждой формы.
 - `--chunked-prefill-size`: практический потолок осмысленных значений — планировщик не соберет батч крупнее чанка.

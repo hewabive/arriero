@@ -20,7 +20,7 @@ related:
 
 ## Кратко
 
-У гибридных моделей (mamba2, GDN, Kimi Linear, lightning-attention и прочие линейные архитектуры из реестра) память после весов делится на две части: пул рекуррентных состояний и обычный KV-пул полноконтекстных слоев. `--mamba-full-memory-ratio` задает отношение первого ко второму. Значение `0.9` по умолчанию означает, что состояниям достается `0.9/1.9 ≈ 47%` бюджета. На не-гибридных моделях аргумент не читается вовсе.
+У гибридных моделей (mamba2, GDN, Kimi Linear, lightning-attention и прочие линейные архитектуры из реестра) память после весов делится на две части: пул рекуррентных состояний и обычный KV-пул полноконтекстных слоев. `--mamba-full-memory-ratio` задает отношение первого ко второму. Незаданное значение обычно разрешается в `0.9`: состояниям достается `0.9/1.9 ≈ 47%` бюджета. Для Inkling движок выбирает `0.1`. На не-гибридных моделях аргумент не читается вовсе.
 
 ## Оригинальная справка
 
@@ -34,7 +34,7 @@ The ratio of mamba state memory to full kv cache memory.
 - Группа: `schedule`
 - Тип значения: float
 - Допустимые значения: положительное число; argparse ограничений не накладывает. Это отношение, а не доля, поэтому значения больше 1 корректны и означают «состояниям больше, чем KV»
-- Значение по умолчанию: `0.9`
+- Декларативное значение по умолчанию: `null`; fallback `0.9`, для Inkling — `0.1`, если флаг не задан.
 - Эффективное значение: не переопределяется автоматикой, но полностью игнорируется, если задан `--max-mamba-cache-size` либо одновременно заданы `--disable-radix-cache` и `--max-running-requests`
 - Где объявлен: `ServerArgs.mamba_full_memory_ratio`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный
@@ -108,7 +108,8 @@ python -m sglang.launch_server --model-path /models/Nemotron-H-8B --mamba-full-m
 
 ## Источники
 
-- `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/inkling.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/configs/hybrid_arch.py`

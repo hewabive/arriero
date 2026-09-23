@@ -386,7 +386,11 @@ const adapters = new Map<string, EngineHelpSourceAdapter>(
       displayName: getSourceRepositoryDefinition("sglang").displayName,
       sourceId: "sglang",
       script: "sglang.py",
-      sourcePaths: ["python/sglang/srt/server_args.py"],
+      sourcePaths: [
+        "python/sglang/srt/server_args.py",
+        "python/sglang/srt/arg_groups/fields",
+        "python/sglang/srt/arg_groups/choices.py",
+      ],
     }),
   ].map((adapter) => [adapter.id, adapter]),
 );

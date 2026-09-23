@@ -11,7 +11,6 @@ related:
   - --offload-num-in-group
   - --offload-prefetch-step
   - --mem-fraction-static
-  - --disable-piecewise-cuda-graph
   - --enable-hierarchical-cache
   - --quantization
   - --kt-num-gpu-experts
@@ -90,7 +89,7 @@ output = functional_call(module, device_state, args=args, kwargs=kwargs)
 - `--offload-group-size`: включает вторую схему и требует `--cpu-offload-gb 0`; комбинация падает ассертом.
 - `--offload-mode`, `--offload-num-in-group`, `--offload-prefetch-step`: относятся только ко второй схеме и при `--cpu-offload-gb` не читаются.
 - `--mem-fraction-static`: KV-пул сам заберет освобожденную VRAM; при явно заданной статике проверьте, что резерв под активации остался достаточным.
-- `--disable-piecewise-cuda-graph`: piecewise-граф в этом режиме отключается автоматически, задавать флаг вручную не нужно.
+- `--cuda-graph-backend-prefill disabled`: piecewise-граф в этом режиме отключается автоматически, задавать флаг вручную не нужно.
 - `--quantization`: почти всегда более выгодная альтернатива — уменьшает и VRAM, и трафик, а не переносит трафик на PCIe.
 - `--kt-num-gpu-experts` / `--kt-cpuinfer`: правильный механизм разделения GPU/CPU для MoE в профиле KTransformers.
 

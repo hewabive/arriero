@@ -14,8 +14,6 @@ related:
   - --pp-size
   - --speculative-adaptive-config
   - --enable-two-batch-overlap
-  - --cuda-graph-bs
-  - --cuda-graph-max-bs
 ---
 
 # --enable-pdmux
@@ -103,7 +101,7 @@ Enable PD-Multiplexing, PD running on greenctx stream.
 - `--chunked-prefill-size -1`, `--disable-overlap-schedule`, `--pp-size 1`, `--disaggregation-mode null`: обязательные условия.
 - `--speculative-adaptive-config`: адаптивная спекуляция явно отказывается работать с pdmux (`enable_pdmux=True is not supported (adaptive state swap does not update decode_attn_backend_group)`).
 - `--enable-two-batch-overlap`: другой способ совмещения; путь захвата графов в pdmux отдельный, комбинировать их не следует.
-- `--cuda-graph-bs` / `--cuda-graph-max-bs`: каждый набор размеров захватывается для каждой группы потоков — учитывайте множитель в бюджете VRAM.
+- `--cuda-graph-bs-decode` / `--cuda-graph-max-bs-decode`: каждый набор размеров захватывается для каждой группы потоков — учитывайте множитель в бюджете VRAM.
 
 ## Типовые проблемы и диагностика
 
@@ -113,7 +111,7 @@ Enable PD-Multiplexing, PD running on greenctx stream.
 - `ValueError: Unsupported compute capability: X.Y` — карта вне списка архитектур, для которых заданы ограничения green context.
 - `ValueError: No valid partitions found for total SMs ... with constraints ...` — карта слишком мала для запрошенного деления; уменьшите `sm_group_num` в конфиге.
 - `IndexError` при переключении decode-backend'а — `--sm-group-num` меньше числа групп потоков из конфига.
-- OOM на захвате графов — умножьте обычный бюджет графов на число групп потоков; уменьшайте `--cuda-graph-max-bs` или число групп.
+- OOM на захвате графов — умножьте обычный бюджет графов на число групп потоков; уменьшайте `--cuda-graph-max-bs-decode` или число групп.
 - Подтверждение включения — строка `PD-Multiplexing enabled with N stream groups, sm_counts (prefill_sm, decode_sm): [...]` и принятое значение в дампе `server_args=`.
 - **В arriero:** флаг живет внутри одного процесса и формально совместим с моделью «один процесс на инстанс» (`process/supervisor.ts`). Но он не входит в квалифицированный профиль KTransformers (`docs/KTRANSFORMERS_OPERATIONS.md`), а его требования (`--disable-overlap-schedule`, `--chunked-prefill-size -1`, torch 2.6.x) расходятся с этим профилем — проверяйте на стенде, прежде чем ставить в инстанс.
 
@@ -124,7 +122,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --e
 ```
 
 ```bash
-python -m sglang.launch_server --model-path Qwen/Qwen3-32B --enable-pdmux --pdmux-config-path /etc/sglang/pdmux.yaml --sm-group-num 8 --chunked-prefill-size -1 --disable-overlap-schedule --cuda-graph-max-bs 32
+python -m sglang.launch_server --model-path Qwen/Qwen3-32B --enable-pdmux --pdmux-config-path /etc/sglang/pdmux.yaml --sm-group-num 8 --chunked-prefill-size -1 --disable-overlap-schedule --cuda-graph-max-bs-decode 32
 ```
 
 ## Источники

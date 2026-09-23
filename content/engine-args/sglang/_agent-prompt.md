@@ -56,14 +56,16 @@ Checkout: `runtime/sources/sglang`. Commit, на котором снят extract
 
 Объявление и разбор аргументов:
 
-- `python/sglang/srt/server_args.py` — единственное место объявления: поля датакласса `ServerArgs` вида `A[тип, Arg(...), NS("группа")]` плюс несколько литеральных `parser.add_argument` в `add_cli_args`. Файл больше девяти тысяч строк, ищи по имени поля.
+- `python/sglang/srt/arg_groups/fields/*.py` — основные объявления: `A[тип, Arg(...)]` в классах пространств имён (`Model`, `Memory`, `Schedule` и других), где `_NS_PATH` задаёт группу. Поле `ServerArgs.<имя>` собирается из этих классов через `collect_input_fields` в `python/sglang/srt/server_args.py`.
+- `python/sglang/srt/server_args.py` — состав классов в `_INPUT_NAMESPACES`, несколько литеральных `parser.add_argument` в `ServerArgs.add_cli_args` и шлюз запуска пайплайна разрешения. Для поля сначала найди объявление в `arg_groups/fields/`, затем соответствующий обработчик в `arg_groups/`.
+- `python/sglang/srt/arg_groups/choices.py` — списки значений для полей, чьи `choices` вынесены из модулей объявлений.
 - `python/sglang/srt/arg_groups/arg_utils.py` — как аннотация превращается в argparse-аргумент (`Arg(help=..., aliases=..., cli_name=..., choices=..., action=..., no_cli=...)`, вывод имени флага из имени поля).
 - `python/sglang/srt/arg_groups/argparse_actions.py` — `LoRAPathAction` и семейство `Deprecated*Action`.
 - `python/sglang/srt/arg_groups/overrides.py` — групповые переопределения.
 - `python/sglang/srt/server_args_config_parser.py` — слияние YAML-конфига (`--config`) с командной строкой.
 - `python/sglang/launch_server.py` — точка входа.
 
-**Самое важное для SGLang:** `ServerArgs.__post_init__` и несколько десятков методов `_handle_*` в том же файле переписывают значения после разбора CLI — по объему GPU-памяти, по архитектуре модели, по остальным флагам, по платформе. Смотри как минимум `_handle_gpu_memory_settings`, `_handle_model_specific_adjustments`, `_handle_attention_backend_compatibility`, `_handle_cuda_graph_config`, `_handle_page_size`, `_handle_deprecated_args`, `_handle_missing_default_values`. Объявленный default здесь регулярно не равен эффективному значению, и документ обязан это показывать.
+**Самое важное для SGLang:** после разбора CLI `ServerArgs.resolve_once()` запускает `arg_groups/pipeline.py`. Обработчики в `arg_groups/*_hook.py`, `arg_groups/overrides.py` и `arg_groups/model_overrides/` разрешают `null` и переписывают значения по памяти GPU, архитектуре модели, платформе и совместимости backend'ов. Объявленный default регулярно не равен эффективному значению, и документ обязан это показывать.
 
 Исполнение и подсистемы:
 
@@ -95,7 +97,7 @@ Checkout: `runtime/sources/sglang`. Commit, на котором снят extract
 
 Учитывай, что `--kt-threadpool-count` привязан к числу NUMA-узлов, а `--kt-cpuinfer` — к числу CPU-потоков; для arriero это пересекается с NUMA-политикой инстанса (`docs/NUMA_PINNING.md`) и с хостовым резервом памяти (`docs/RESOURCE_MANAGEMENT.md`).
 
-Команды держи точечными: `grep -n "mem_fraction_static" runtime/sources/sglang/python/sglang/srt/server_args.py` полезнее полнотекстового поиска по checkout'у.
+Команды держи точечными: `rg -n "mem_fraction_static" runtime/sources/sglang/python/sglang/srt/arg_groups/fields/` полезнее полнотекстового поиска по checkout'у.
 
 ## Frontmatter
 
@@ -156,15 +158,15 @@ PY
 - **`choices: null`** означает одно из двух: у аргумента вообще нет `choices`, либо список собирается в runtime из реестра и статически не разрешим. Различай по коду. Реестровые случаи: `--reasoning-parser` (`python/sglang/srt/parser/reasoning_parser.py`), `--tool-call-parser` (`python/sglang/srt/function_call/function_call_parser.py`), `--speculative-algorithm` (встроенные имена плюс все зарегистрированные через `SpeculativeAlgorithm.register`), методы квантизации и backend'ы внимания, доступность которых зависит от железа и установленных пакетов. Пиши, **откуда** берется настоящий список и как посмотреть его на своей сборке; не переписывай перечень значений в документ — он протухнет за релиз.
 - **`choices` есть, но значения выглядят странно** — доверяй extract: например, у `--disaggregation-mode` вариант по умолчанию — строка `"null"`, а не отсутствие значения. Это то, что реально принимает argparse.
 - **`default.kind == "expression"`** — в extract лежит текст выражения, а не значение. Раскрой его по `origin`: `dataclasses.field(default_factory=list)` — пустой список; `ServerArgs.reasoning_parser` — значение берется из самого датакласса; `argparse.SUPPRESS` — аргумент вообще не попадает в namespace, если не задан; `10 * 1000 * 1000` — раскрой в число.
-- **Декларативный default ≠ эффективное значение.** Для SGLang это правило, а не исключение: `__post_init__` подбирает значение по объему GPU-памяти, архитектуре модели и совместимости backend'ов. Если у аргумента `default: null`, почти всегда это означает «подберет движок» — покажи, где именно и по какой логике.
-- **`action` из семейства `Deprecated*`** (`DeprecatedAction`, `DeprecatedAliasStoreAction`, `DeprecatedStoreTrueAction`, `DeprecatedStoreConstAction`) — аргумент устаревший: он печатает предупреждение и/или транслируется в актуальный флаг. Напиши, чем именно его заменили (смотри `_handle_deprecated_args`), и не рекомендуй его в примерах.
+- **Декларативный default ≠ эффективное значение.** Для SGLang это правило, а не исключение: пайплайн `resolve_once()` подбирает значение по объему GPU-памяти, архитектуре модели и совместимости backend'ов. Если у аргумента `default: null`, почти всегда это означает «подберет движок» — покажи, где именно и по какой логике.
+- **`action` из семейства `Deprecated*`** (`DeprecatedAction`, `DeprecatedAliasStoreAction`, `DeprecatedStoreTrueAction`, `DeprecatedStoreConstAction`) — аргумент устаревший: он печатает предупреждение и/или транслируется в актуальный флаг. Найди обработчик в `arg_groups/` и не рекомендуй устаревший флаг в примерах.
 - **`action: "argparse.BooleanOptionalAction"`** — существует парный `--no-<flag>`; в `flags` он идет вторым. Опиши, что означает «не задан».
 - **Несколько флагов в `flags`** — это алиасы одного поля (`--tp-size` / `--tensor-parallel-size`, `--model-path` / `--model`). Перечисли их в «Паспорте», но документ остается один, под `flags[0]`.
 
 ## На что смотреть по содержанию
 
 - В какое поле `ServerArgs` попадает значение и кто читает его дальше: scheduler, memory pool, model runner, attention backend, tokenizer manager, HTTP-слой.
-- Этап применения: разбор CLI → `__post_init__` и `_handle_*` → инициализация процессов (tokenizer / scheduler / detokenizer, TP/DP/PP-воркеры) → выделение KV-пула → захват CUDA graph → forward → HTTP.
+- Этап применения: разбор CLI → `resolve_once()` и обработчики `arg_groups/` → инициализация процессов (tokenizer / scheduler / detokenizer, TP/DP/PP-воркеры) → выделение KV-пула → захват CUDA graph → forward → HTTP.
 - Что делают специальные значения: `0`, `-1`, `auto`, `null`, пустая строка. Формулируй конкретно: «`-1` отключает chunked prefill», «`0` отключает».
 - Влияние на VRAM (веса, KV-пул через `--mem-fraction-static`, CUDA graphs, буферы спекуляции), на RAM хоста и CPU-потоки (особенно для `kt_*` и оффлоада), на время старта (захват графов, прогрев, конвертация весов), на throughput и latency под конкурентной нагрузкой.
 - Взаимодействие: `--mem-fraction-static` / `--max-running-requests` / `--chunked-prefill-size` / `--max-total-tokens` / `--context-length` / `--page-size` / `--tp-size` — типовые узлы, где аргументы делят одну и ту же память и одну и ту же очередь.

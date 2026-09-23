@@ -8,7 +8,6 @@ group: exec.mamba
 related:
   - --enable-linear-replayssm
   - --enable-linear-replayssm-spec
-  - --enable-gdn-replayssm-spec
   - --speculative-num-draft-tokens
   - --mamba-ssm-dtype
   - --mamba-track-interval

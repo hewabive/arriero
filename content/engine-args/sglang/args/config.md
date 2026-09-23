@@ -73,13 +73,9 @@ raw_args = parser.parse_args(argv)
 
 Конструктор `ConfigArgumentMerger` собирает множество «неподдерживаемых» аргументов: всё, что не является `argparse._StoreAction` или `argparse._StoreTrueAction` (кроме `--config`, `-h`, `--help`). Ключ, попавший в такой аргумент, приводит к отказу:
 
-```text
-ValueError: Unsupported config option 'cuda_graph_backend_prefill' with action 'DeprecatedStoreConstAction'
-```
+Аргументы с `BooleanOptionalAction` (`dcp-replicate-q-proj`, `dllm-fdfo`, `experts-shared-outer-loras`, `lora-strict-loading`) и `lora-paths` с собственным `LoRAPathAction` не поддерживаются как YAML-ключи. Для остальных полей проверяйте action установленной сборки: конфигурационный парсер принимает только обычные store/store-true actions.
 
-Ловушка в том, что множество индексируется по `dest`, а устаревшие алиасы объявлены на тот же `dest`, что и актуальные флаги. Поэтому в YAML **нельзя** задать: `cuda-graph-backend-prefill`, `cuda-graph-max-bs-decode`, `cuda-graph-bs-decode`, `cuda-graph-max-bs-prefill`, `cuda-graph-bs-prefill`, `cuda-graph-tc-compiler`, `mamba-radix-cache-strategy`, `dsa-prefill-backend`, `dsa-decode-backend`, `speculative-draft-window-size`, `incremental-streaming-output`, `enable-linear-replayssm-spec`. Плюс аргументы с `BooleanOptionalAction` (`dcp-replicate-q-proj`, `dllm-fdfo`, `experts-shared-outer-loras`, `lora-strict-loading`) и `lora-paths` с собственным `LoRAPathAction`.
-
-Асимметрия здесь не логическая, а историческая: `cuda-graph-backend-decode` в YAML работает, потому что на этот `dest` не повешен ни один устаревший алиас, а `cuda-graph-backend-prefill` — нет, потому что на нем висят `--enable-breakable-cuda-graph`, `--disable-piecewise-cuda-graph` и `--enforce-piecewise-cuda-graph`. Обходной путь для CUDA graph один: класть настройку в `cuda-graph-config` как вложенный словарь.
+Настройки обеих фаз CUDA graph можно также задавать вложенным словарём `cuda-graph-config`.
 
 ## Значения и формат
 

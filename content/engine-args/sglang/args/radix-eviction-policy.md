@@ -22,7 +22,7 @@ related:
 ## Оригинальная справка
 
 ```text
-The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' stands for Least Frequently Used, 'slru' stands for Segmented Least Recently Used, and 'priority' evicts lower-priority requests first.
+The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' stands for Least Frequently Used, 'slru' stands for Segmented Least Recently Used, and 'priority' evicts lower-priority requests first. See https://docs.sglang.io/docs/advanced_features/radix_eviction_policy for what each policy optimizes for.
 ```
 
 ## Паспорт аргумента

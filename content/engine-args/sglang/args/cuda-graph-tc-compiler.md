@@ -7,7 +7,6 @@ summary: Компилятор для prefill-backend'а `tc_piecewise`: `eager` 
 group: exec.graph
 related:
   - --cuda-graph-backend-prefill
-  - --piecewise-cuda-graph-compiler
   - --cuda-graph-config
   - --cuda-graph-bs-prefill
   - --cuda-graph-max-bs-prefill
@@ -38,7 +37,7 @@ Compiler used by the tc_piecewise backend (currently only the prefill phase cons
 - Значение по умолчанию: `null` — флаг не задан; `PhaseConfig.tc_compiler` в обеих фазах равен `"eager"`
 - Эффективное значение: при заданном флаге записывается **в обе** фазы (`decode` и `prefill`) — decode-значение зарезервировано на будущее и сегодня не читается. На `--device npu` любое значение, кроме `eager`, отвергается с предупреждением «At this moment Ascend platform only support prefill graph compilation with cuda_graph_config[prefill].tc_compiler='eager'.» и заменяется на `eager`
 - Где объявлен: `ServerArgs.cuda_graph_tc_compiler`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный. Устаревший псевдоним — `--piecewise-cuda-graph-compiler`
+- Статус: обычный; прежнее имя компилятора удалено
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`, `_handle_npu_backends`) → `TcPiecewiseCudaGraphBackend.build_compilation_config` при инициализации prefill-runner'а
 
 ## Что меняет в движке
@@ -77,7 +76,7 @@ Compiler used by the tc_piecewise backend (currently only the prefill phase cons
 
 - `--cuda-graph-backend-prefill`: значение читается только при `tc_piecewise`.
 - `--cuda-graph-config`: ключ `prefill.tc_compiler` перекрывает флаг и не трогает decode.
-- `--piecewise-cuda-graph-compiler` (устаревший): то же поле под старым именем.
+
 - `--cuda-graph-bs-prefill` / `--cuda-graph-max-bs-prefill`: определяют, сколько форм придется скомпилировать.
 - `--enable-torch-compile`: несовместим по смыслу — включает авто-отключение `tc_piecewise` (правило «full torch.compile mode»), после чего флаг не читается.
 - `--enable-torch-compile-debug-mode`: попадает в тот же `CompilationConfig` и включает проверку адресов входов при реплее.

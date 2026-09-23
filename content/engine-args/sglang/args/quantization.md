@@ -38,7 +38,7 @@ The quantization method.
 - Флаги: `--quantization`
 - Группа: `model`
 - Тип значения: строка (`Optional[str]`)
-- Допустимые значения: argparse ограничен списком `QUANTIZATION_CHOICES` (`awq`, `fp8`, `mxfp8`, `gptq`, `marlin`, `gptq_marlin`, `awq_marlin`, `bitsandbytes`, `gguf`, `modelopt`, `modelopt_fp8`, `modelopt_fp4`, `nvfp4_online`, `modelopt_mixed`, `petit_nvfp4`, `w8a8_int8`, `w8a8_fp8`, `moe_wna16`, `w4afp8`, `mxfp4`, `auto-round`, `auto-round-int8`, `compressed-tensors`, `modelslim`, `mxfp_w4a8`, `quark`, `quark_int4fp8_moe`, `quark_mxfp4`, `mlx_q4`, `mlx_q8`, `unquant`, `humming`). Этот список — **не** перечень работающих методов, см. «Значения и формат»
+- Допустимые значения: argparse ограничен списком `QUANTIZATION_CHOICES` (`awq`, `fp8`, `mxfp8`, `gptq`, `gptq_marlin`, `awq_marlin`, `bitsandbytes`, `gguf`, `modelopt`, `modelopt_fp8`, `modelopt_fp4`, `nvfp4_online`, `modelopt_mixed`, `petit_nvfp4`, `w8a8_int8`, `w8a8_fp8`, `moe_wna16`, `w4afp8`, `mxfp4`, `auto-round`, `auto-round-int8`, `compressed-tensors`, `modelslim`, `mxfp_w4a8`, `quark`, `quark_int4fp8_moe`, `quark_mxfp4`, `mlx_q4`, `mlx_q8`, `unquant`, `humming`). Этот список — **не** перечень работающих методов, см. «Значения и формат»
 - Значение по умолчанию: `null`
 - Эффективное значение: переопределяется регулярно. `unquant` превращается в `None` еще в `ServerArgs.__post_init__`; далее `ModelConfig._verify_quantization` может подставить метод из `quantization_config` чекпойнта, а архитектурные override'ы (`arg_groups/overrides.py`) — навязать метод на sm100. Поле объявлено `resolvable=True`, то есть его разрешено переписывать pipeline'у конфигурации
 - Где объявлен: `ServerArgs.quantization`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -73,7 +73,7 @@ The quantization method.
 - `mxfp4` регистрируется только на CPU, CUDA и gfx95 (на NPU под тем же именем регистрируется другой, W4A4-класс);
 - `mlx_q4`/`mlx_q8` существуют только на Apple MPS;
 - на CPU с AMX реестр сужается до `CPU_QUANTIZATION_METHODS` (`fp8`, `w8a8_int8`, `compressed-tensors`, `awq`, `gptq`, `mxfp4`);
-- `marlin` есть в `choices`, но записи в реестре у него нет — argparse значение примет, а старт упадет с `Unknown quantization method: marlin`;
+- Самостоятельное значение `marlin` больше не принимает argparse; для подготовленных чекпойнтов используют `gptq_marlin` или `awq_marlin`.
 - `unquant` — не метод, а явный отказ: в `__post_init__` он превращается в `None` и ставит флаг `_quantization_explicitly_unset`, который запрещает архитектурным override'ам заново включить квантизацию.
 
 Посмотреть реестр своей сборки:
@@ -121,7 +121,7 @@ python -c "from sglang.srt.layers.quantization import QUANTIZATION_METHODS; prin
 
 ## Типовые проблемы и диагностика
 
-- `ValueError: Unknown quantization method: <x>. Must be one of [...]` — метод принят argparse, но не зарегистрирован в этой сборке/на этой платформе (классический случай — `marlin`). Список в тексте ошибки и есть настоящий реестр вашей сборки.
+- `ValueError: Unknown quantization method: <x>. Must be one of [...]` — метод принят argparse, но не зарегистрирован в этой сборке/на этой платформе. Список в тексте ошибки и есть настоящий реестр вашей сборки.
 - `ValueError: Quantization method specified in the model config (<a>) does not match the quantization method specified in the quantization argument (<b>).` — вы задали флаг поверх уже квантованного чекпойнта, и пара не входит в таблицу совместимости. Снимите флаг.
 - `ValueError: <x> quantization is currently not supported in ROCm.` — метод есть, но не в ROCm-списке.
 - `logger.warning("<x> quantization is not fully optimized yet. The speed can be slower than non-quantized models.")` — метод рабочий, но идет по неоптимизированному пути.

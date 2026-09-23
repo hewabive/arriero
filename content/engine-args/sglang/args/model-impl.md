@@ -28,6 +28,7 @@ Which implementation of the model to use.
 * "auto" will try to use the SGLang implementation if it exists and fall back to the Transformers implementation if no SGLang implementation is available.
 * "sglang" will use the SGLang model implementation.
 * "transformers" will use the Transformers model * "mindspore" will use the MindSpore model implementation.
+
 ```
 
 ## Паспорт аргумента

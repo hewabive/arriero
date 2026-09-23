@@ -35,7 +35,7 @@ One or more EncoderBootstrapServer URLs to register this encoder with on startup
 - Группа: `disagg`
 - Тип значения: список строк; argparse получает `nargs="+"`, значения перечисляются через пробел
 - Допустимые значения: `choices` нет; URL реестров, обычно `http://<language-host>:8997`
-- Значение по умолчанию: `dataclasses.field(default_factory=list)` — пустой список
+- Значение по умолчанию: `msgspec.field(default_factory=list)` — пустой список
 - Эффективное значение: совпадает с заданным; движок его не переписывает
 - Где объявлен: `ServerArgs.encoder_register_urls`, файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный

@@ -20,7 +20,7 @@ related:
 
 ## Кратко
 
-`--decode-attention-backend` задает ядра внимания только для декодирующих проходов. Именно decode-сторона тянет за собой большинство привязок размера страницы (`flashmla` → 64, `cutlass_mla` → 128, `trtllm_mla`/`tokenspeed_mla`/`cutedsl_mla` → 32 или 64) и проверок типа KV-кеша, потому что декод — это то, где backend читает пул постранично. Расхождение с prefill-стороной включает `HybridAttnBackend` и сопровождающее предупреждение об экспериментальности.
+`--decode-attention-backend` задает ядра внимания только для декодирующих проходов. Именно decode-сторона тянет за собой большинство привязок размера страницы (`flashmla` → 64, `trtllm_mla`/`tokenspeed_mla`/`cutedsl_mla` → 32 или 64) и проверок типа KV-кеша, потому что декод — это то, где backend читает пул постранично. Расхождение с prefill-стороной включает `HybridAttnBackend` и сопровождающее предупреждение об экспериментальности.
 
 ## Оригинальная справка
 
@@ -33,7 +33,7 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - Флаги: `--decode-attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
+- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
 - Значение по умолчанию: `null` — фаза decode наследует разрешенный `--attention-backend`
 - Эффективное значение: `attention_backends_of` возвращает `decode_attention_backend or attention_backend`. Само поле дописывается движком при `--device npu` (`ascend`) и для DeepSeek V4 на NPU (`dsv4`)
 - Где объявлен: `ServerArgs.decode_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -46,7 +46,7 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 
 - `_attention_backend_default` записывает значение в общее поле `attention_backend` только тогда, когда prefill и decode заданы одинаково. Если задан только decode, prefill получит автоподбор `_get_default_attn_backend`, и конфигурация станет гибридной.
 - При разных backend'ах создается `HybridAttnBackend` (`sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`) с двумя вложенными backend'ами; он же решает, какая половина обслуживает спекулятивный verify — по `--speculative-attention-mode`.
-- Привязки `--page-size`, которые проверяют именно decode-поле (`_mla_backend_page_constraints`): `flashmla` → 64, `cutlass_mla` → 128, `trtllm_mla` → 32/64 (иначе 64), `tokenspeed_mla` → 32/64, `cutedsl_mla` → 32/64, `trtllm_mha` → 16/32/64/128, `hpc_ops` → 64. Полная картина — в справке `--page-size`.
+- Привязки `--page-size`, которые проверяют именно decode-поле (`_mla_backend_page_constraints`): `flashmla` → 64, `trtllm_mla` → 32/64 (иначе 64), `tokenspeed_mla` → 32/64, `cutedsl_mla` → 32/64, `trtllm_mha` → 16/32/64/128, `hpc_ops` → 64. Полная картина — в справке `--page-size`.
 - Проверки KV-dtype `_mla_kv_cache_dtype_checks` тоже смотрят на decode-поле: `trtllm_mla` требует Blackwell и `fp8_e4m3`/`fp4_e2m1`/`bf16`/`auto`, `tokenspeed_mla` — Blackwell и строго `fp8_e4m3`.
 - `trtllm_mha` в decode допускается на SM90/SM100/SM120 — шире, чем в prefill (только SM100).
 - `cutedsl_mla` в decode при незаданном prefill автоматически подставляет `trtllm_mla` в prefill; требует SM100 и KV-dtype из `fp8_e4m3`/`bf16`/`bfloat16`/`auto`.
@@ -67,7 +67,7 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 
 ## Влияние на производительность и память
 
-- Decode-сторона определяет TPOT и профиль decode-графа CUDA: у `triton` персистентный fp32-буфер `attn_logits` размера `max_num_tokens × num_head × --triton-attention-num-kv-splits × v_head_dim × 4` байта, у FlashInfer/TRT-LLM — workspace, у `flashmla`/`cutlass_mla` — блочные таблицы под навязанный `--page-size`.
+- Decode-сторона определяет TPOT и профиль decode-графа CUDA: у `triton` персистентный fp32-буфер `attn_logits` размера `max_num_tokens × num_head × --triton-attention-num-kv-splits × v_head_dim × 4` байта, у FlashInfer/TRT-LLM — workspace, у `flashmla` — блочные таблицы под навязанный `--page-size`.
 - Гибридная пара удваивает эти буферы: prefill-backend инициализируется полностью, даже если он используется реже.
 - Навязанный decode-backend'ом `--page-size` меняет и вместимость KV-пула, и точность совпадения префиксов radix cache — эффект больше, чем от самих ядер.
 

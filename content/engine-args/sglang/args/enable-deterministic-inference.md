@@ -19,7 +19,6 @@ related:
   - --enable-aiter-allreduce-fusion
   - --enforce-disable-flashinfer-allreduce-fusion
   - --disable-flashinfer-autotune
-  - --disable-piecewise-cuda-graph
   - --enable-mis
 ---
 
@@ -133,7 +132,7 @@ Enable deterministic inference mode with batch invariant ops.
 - `--disable-custom-all-reduce`, `--enable-torch-symm-mem`: переписываются при `--tp-size` больше 1.
 - `--flashinfer-allreduce-fusion-backend`, `--enable-aiter-allreduce-fusion`, `--enforce-disable-flashinfer-allreduce-fusion`: fusion-пути all-reduce отключаются.
 - `--disable-flashinfer-autotune`: автотюнинг и так не запускается.
-- `--disable-piecewise-cuda-graph`: piecewise-граф отключается сам.
+- `--cuda-graph-backend-prefill disabled`: piecewise-граф отключается сам.
 - `--enable-mis`: требует `flashinfer` в обеих фазах, что для DeepSeek-моделей несовместимо с детерминированным списком backend'ов.
 - `--speculative-use-rejection-sampling`: несовместим (`the sampling kernel draws coins from the global RNG and is not batch-invariant`).
 

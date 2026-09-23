@@ -36,7 +36,7 @@ Choose the kernels for attention layers.
 - Флаги: `--attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения (из `choices`): `triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `dsv4`, `compressed`, `cutlass_mla`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `dual_chunk_flash_attn`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`. Список — константа `ATTENTION_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_attention_backend_choices` позволяет out-of-tree платформенным пакетам его расширить, поэтому итоговый набор смотрите в `--help` установленной сборки. `nsa` — устаревший синоним `dsa`, `compressed` — устаревший синоним `dsv4`
+- Допустимые значения (из `choices`): `triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`. Список — константа `ATTENTION_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_attention_backend_choices` позволяет out-of-tree платформенным пакетам его расширить, поэтому итоговый набор смотрите в `--help` установленной сборки. `nsa` — устаревший синоним `dsa`, `compressed` — устаревший синоним `dsv4`
 - Значение по умолчанию: `null` — «подберет движок»
 - Эффективное значение: переписывается на нескольких шагах `__post_init__` — платформенные обработчики (`_handle_hpu_backends`, `_handle_cpu_backends`, `_handle_npu_backends`), модельные переопределения в `_handle_model_specific_adjustments`, детерминированный режим (`_deterministic_attention_backend`), затем `_handle_attention_backend_compatibility` (`_attention_backend_default`, `_attention_backend_fa3_fp8_fallback`, `_attention_backend_platform_fallbacks`, `_attention_backend_dual_chunk`)
 - Где объявлен: `ServerArgs.attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
@@ -67,14 +67,14 @@ Choose the kernels for attention layers.
    - **MLA**: Hopper с CUDA ≥ 12.3 → `fa3`; SM100 → `flashinfer`; ROCm → `aiter` при 16 или 128 KV-головах, иначе `triton`; MPS → `torch_native`; иначе `triton`.
 
    Факт подстановки виден в логе: `Attention backend not specified. Use <backend> backend by default.`
-5. **Dual chunk.** Если у модели в `hf_config` есть `dual_chunk_attention_config`, `_attention_backend_dual_chunk` ставит `dual_chunk_flash_attn` (лог «Dual chunk attention is turned on by default.»), а любое другое явное значение отвергается `ValueError`. Этот backend дополнительно принудительно выключает `--enable-mixed-chunk` и radix cache.
+5. **QSA.** Для моделей с Qwen Sparse Attention зарегистрирован backend `qsa`; в гибридных моделях QSA может создаваться для sparse full-attention слоёв после проверки конфигурации модели.
 
 ### Что backend меняет помимо самих ядер
 
 - **`--page-size`.** Backend'ы MLA/TRT-LLM/HPC-Ops притягивают размер страницы к своему единственному допустимому значению, `fa4` на не-MLA модели под SM100 требует 128, `intel_xpu` — 64/128 (MLA-декод — 16/32/64/128). Все привязки перечислены в справке `--page-size`; здесь важно одно: `--page-size` вы задаете не «сам по себе», а вместе с backend'ом, и движок поправит его молча, с одним warning в логе.
 - **CUDA graph.** `torch_native` и `flex_attention` полностью отключают захват графов для prefill и decode (`Cuda graph is disabled because of using torch native attention backend`), а `flex_attention` дополнительно запрещает спекулятивное декодирование. Для DeepSeek-V3 на `trtllm_mla` отключается prefill-граф.
-- **Chunked prefix cache.** Работает только для MLA-моделей и только на backend'ах из `CHUNKED_PREFIX_CACHE_SUPPORTED_ATTENTION_BACKENDS` (`flashinfer`, `fa3`, `fa4`, `flashmla`, `cutedsl_mla`, `cutlass_mla`, `trtllm_mla`, `tokenspeed_mla`). Иначе `maybe_disable_chunked_prefix_cache` тихо выставляет `disable_chunked_prefix_cache=True` уже на этапе загрузки модели.
-- **Radix cache.** Whisper и `dual_chunk_flash_attn` отключают его; в детерминированном режиме radix cache остается только на `ascend`, `fa3`, `fa4`, `triton` — на прочих печатается warning и кеш выключается.
+- **Chunked prefix cache.** Работает только для MLA-моделей и backend'ов из `CHUNKED_PREFIX_CACHE_SUPPORTED_ATTENTION_BACKENDS`; текущий набор проверяйте в `arg_groups/choices.py`. Иначе `maybe_disable_chunked_prefix_cache` выставляет `disable_chunked_prefix_cache=True` при загрузке модели.
+- **Radix cache.** Whisper отключает его; в детерминированном режиме radix cache остается только на `ascend`, `fa3`, `fa4`, `triton` — на прочих печатается warning и кеш выключается.
 - **`--mem-fraction-static`.** Backend `aiter` на модели с `context_len > 8192` умножает его на 0.85.
 - **`--kv-cache-dtype`.** Набор допустимых типов у каждого backend'а свой; полная таблица — в справке `--kv-cache-dtype`.
 
@@ -101,7 +101,6 @@ Choose the kernels for attention layers.
 - `trtllm_mla`, `tokenspeed_mla` — с неподдерживаемым `--kv-cache-dtype`; `cutedsl_mla` — с чем-либо кроме `fp8_e4m3`/`bf16`/`auto`.
 - `cutedsl_mla` в роли prefill — `CuteDSL MLA only supports decoding for now`.
 - `intel_xpu` в prefill для MLA-модели — `ValueError` с рекомендацией задать его только в `--decode-attention-backend`.
-- `dual_chunk_flash_attn` — любое расхождение с наличием `dual_chunk_attention_config` у модели.
 - В детерминированном режиме — любой backend вне `["ascend", "fa3", "fa4", "flashinfer", "triton"]`.
 - При создании backend'а: `fa3` вне SM80–SM90, `trtllm_mla`/`cutedsl_mla`/`tokenspeed_mla` на не-MLA модели, `trtllm_mha`/`hpc_ops` на MLA-модели, `triton` на encoder-decoder модели (cross-attention), `hpc_ops` со спекуляцией или encoder-decoder.
 - Модельные ассерты: Llama4 требует один из `fa3`/`aiter`/`triton`/`ascend`/`trtllm_mha`/`intel_xpu`; Gemma4 — `trtllm_mha`/`triton`/`ascend`/`intel_xpu`; GPT-OSS — `triton`/`trtllm_mha`/`fa3`/`fa4`/`ascend`/`intel_amx`/`intel_xpu`/`aiter`; Exaone4 со скользящим окном — `fa3`/`triton`/`trtllm_mha`; NemotronH и Lfm2 запрещают `triton`; Olmo2/Olmo3 запрещают `flashinfer`.

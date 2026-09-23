@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--speculative-algorithm"
 title: "--speculative-algorithm"
-summary: Включает спекулятивное декодирование и выбирает алгоритм (EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK и зарегистрированные плагины). Один этот флаг переписывает `--max-running-requests`, гасит `--enable-mixed-chunk`, уменьшает KV-пул и определяет, какие из остальных `--speculative-*` вообще что-то значат.
+summary: Включает спекулятивное декодирование и выбирает алгоритм (EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK, UNO и зарегистрированные плагины). Один этот флаг переписывает `--max-running-requests`, гасит `--enable-mixed-chunk`, уменьшает KV-пул и определяет, какие из остальных `--speculative-*` вообще что-то значат.
 group: spec
 related:
   - --speculative-draft-model-path
@@ -35,7 +35,7 @@ related:
 ## Оригинальная справка
 
 ```text
-Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK. Or any name registered via `SpeculativeAlgorithm.register`.
+Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK, UNO. Or any name registered via `SpeculativeAlgorithm.register`.
 ```
 
 ## Паспорт аргумента
@@ -43,7 +43,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 - Флаги: `--speculative-algorithm`
 - Группа: `spec`
 - Тип значения: строка (`Optional[str]`)
-- Допустимые значения: `choices: null` — argparse не ограничивает список. Реальный набор собирается в runtime: члены enum `SpeculativeAlgorithm` (`DFLASH`, `DSPARK`, `EAGLE`, `EAGLE3`, `FROZEN_KV_MTP`, `STANDALONE`, `NGRAM`) плюс зарезервированный алиас `NEXTN` плюс всё, что плагины добавили через `SpeculativeAlgorithm.register`. Посмотреть на своей сборке: `python -c "from sglang.srt.speculative.spec_info import SpeculativeAlgorithm as S; print([a.name for a in S])"` и `python -c "from sglang.srt.speculative import spec_registry; print(list(spec_registry._REGISTRY))"`
+- Допустимые значения: `choices: null` — argparse не ограничивает список. Реальный набор собирается в runtime: члены enum `SpeculativeAlgorithm` (`DFLASH`, `UNO`, `DSPARK`, `EAGLE`, `EAGLE3`, `FROZEN_KV_MTP`, `STANDALONE`, `NGRAM`) плюс зарезервированный алиас `NEXTN` плюс всё, что плагины добавили через `SpeculativeAlgorithm.register`. Посмотреть на своей сборке: `python -c "from sglang.srt.speculative.spec_info import SpeculativeAlgorithm as S; print([a.name for a in S])"` и `python -c "from sglang.srt.speculative import spec_registry; print(list(spec_registry._REGISTRY))"`
 - Значение по умолчанию: `null` — спекуляция выключена
 - Эффективное значение: строка приводится к верхнему регистру (`eagle3` = `EAGLE3`); `NEXTN` всегда превращается в `EAGLE`; `NEXTN`/`EAGLE` с draft-архитектурой `Gemma4AssistantForCausalLM` / `Gemma4UnifiedAssistantForCausalLM` повышаются до `FROZEN_KV_MTP` (в логе `promoting --speculative-algorithm ... to FROZEN_KV_MTP`)
 - Где объявлен: `ServerArgs.speculative_algorithm`, файл — `sglang/python/sglang/srt/server_args.py`

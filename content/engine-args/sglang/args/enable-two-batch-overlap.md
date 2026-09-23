@@ -11,7 +11,6 @@ related:
   - --enable-dp-attention
   - --moe-a2a-backend
   - --deepep-mode
-  - --enable-breakable-cuda-graph
   - --dwdp-size
   - --enable-eplb
   - --expert-distribution-recorder-mode
@@ -97,7 +96,7 @@ Enabling two micro batches to overlap.
 - `--enable-single-batch-overlap`: независимый механизм (перекрытие внутри одного микробатча); флаги совместимы и обычно применяются вместе на больших EP.
 - `--enable-dp-attention`: обязателен при `--moe-a2a-backend none`.
 - `--moe-a2a-backend` / `--deepep-mode`: определяют, какая коммуникация перекрывается; low-latency DeepEP отключает TBO на extend-фазе.
-- `--enable-breakable-cuda-graph`: захват отключается при TBO.
+- `--cuda-graph-backend-prefill breakable`: захват отключается при TBO.
 - `--dwdp-size`: несовместим.
 - `--enable-eplb` / `--expert-distribution-recorder-mode`: детальный сборщик статистики не поддерживает TBO.
 - `--attn-cp-size`: входит в ту же формулу выравнивания размеров CUDA graph.

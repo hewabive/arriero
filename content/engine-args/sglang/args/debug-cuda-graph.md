@@ -8,7 +8,6 @@ group: exec.graph
 related:
   - --cuda-graph-backend-decode
   - --cuda-graph-backend-prefill
-  - --enable-breakable-cuda-graph
   - --disable-decode-cuda-graph
   - --cuda-graph-config
   - --enable-profile-cuda-graph
@@ -84,7 +83,7 @@ if self.model_runner.server_args.debug_cuda_graph:
 
 - `--cuda-graph-backend-decode`: обязателен со значением `breakable`, иначе ассерт при захвате.
 - `--cuda-graph-backend-prefill`: для полноты картины тоже `breakable`; при незаданном значении и `tc_piecewise` флаг выключает prefill-граф через каскад.
-- `--enable-breakable-cuda-graph` (устаревший): включает `breakable` только для prefill, decode он не покрывает.
+- `--cuda-graph-backend-prefill breakable` (устаревший): включает `breakable` только для prefill, decode он не покрывает.
 - `--enable-memory-saver`: несовместим с `breakable`.
 - `--disable-decode-cuda-graph`: альтернативная гипотеза-проверка — совсем без графов; вместе с `--debug-cuda-graph` бессмысленно.
 - `--enable-profile-cuda-graph`: можно включить вместе, но таблицы покажут стоимость eager-исполнения.

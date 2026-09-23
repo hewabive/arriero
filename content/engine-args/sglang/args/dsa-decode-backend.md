@@ -33,7 +33,7 @@ DSA (DeepSeek Sparse Attention) decode backend. If not specified, auto-detects b
 - Флаги: `--dsa-decode-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения (из `choices`): `flashmla_sparse`, `flashmla_sparse_q8`, `flashmla_kv`, `flashmla_auto`, `flashinfer_sparse_mla`, `fa3`, `tilelang`, `aiter`, `trtllm`. Список общий с prefill-стороной, поэтому `flashmla_sparse_q8` argparse примет, а backend отвергнет
+- Допустимые значения (из `choices`): `flashmla_sparse`, `flashmla_sparse_q8`, `flashmla_kv`, `flashmla_auto`, `flashinfer_sparse_mla`, `fa3`, `tilelang`, `triton`, `aiter`, `trtllm`. Список общий с prefill-стороной, поэтому `flashmla_sparse_q8` argparse примет, а backend отвергнет
 - Значение по умолчанию: `null` — автоподбор
 - Эффективное значение: `_dsa_split_backend_resolution` (`sglang/python/sglang/srt/arg_groups/overrides.py`), только для DSA-моделей из `_DEEPSEEK_FAMILY_ARCHS` и не на NPU/XPU. GLM DSA на SM120 с fp8 → `flashinfer_sparse_mla`; `--enable-hisparse` → своя ветка; ROCm при обоих незаданных полях → `tilelang`; `--kv-cache-dtype fp8_e4m3` → `trtllm` на Blackwell, `flashmla_kv` на Hopper; иначе → `trtllm` на Blackwell и `fa3` на более старых картах. Итог печатается warning'ом `Set DSA backends for <dtype> KV Cache: prefill=…, decode=…`
 - Где объявлен: `ServerArgs.dsa_decode_backend`, файл — `sglang/python/sglang/srt/server_args.py`

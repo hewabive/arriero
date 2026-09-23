@@ -9,7 +9,6 @@ related:
   - --cuda-graph-backend-prefill
   - --disable-decode-cuda-graph
   - --disable-cuda-graph
-  - --disable-piecewise-cuda-graph
   - --cuda-graph-config
   - --cuda-graph-max-bs-prefill
   - --cuda-graph-bs-prefill
@@ -39,7 +38,7 @@ Disable the prefill-phase CUDA graph. Convenience for --cuda-graph-backend-prefi
 - Значение по умолчанию: `false`
 - Эффективное значение: в `_parse_cuda_graph_config` пишет `disabled` в `cuda_graph_config[prefill].backend` и фиксирует пару `(prefill, "backend")`. Перекрывается более поздним `--cuda-graph-backend-prefill` и `--cuda-graph-config`
 - Где объявлен: `ServerArgs.disable_prefill_cuda_graph`, файл — `sglang/python/sglang/srt/server_args.py`
-- Статус: обычный. Устаревший аналог — `--disable-piecewise-cuda-graph` (транслируется в `--cuda-graph-backend-prefill=disabled`), а `--disable-cuda-graph` гасит сразу обе фазы
+- Статус: обычный. Устаревший аналог — `--cuda-graph-backend-prefill disabled` (транслируется в `--cuda-graph-backend-prefill=disabled`), а `--disable-cuda-graph` гасит сразу обе фазы
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_prefill_graph` направляет prefill в `EagerRunner`
 
 ## Что меняет в движке
