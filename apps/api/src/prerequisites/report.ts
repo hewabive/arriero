@@ -51,6 +51,7 @@ import { wellKnownToolDirectories } from "./search-paths.js";
 
 function collectPrerequisiteUsage(): PrerequisiteUsage {
   const instances = listInstances();
+  const environments = listEnvironmentSpecs();
   return {
     cudaBuild: getBuildSettings().cuda,
     httpsFeatures: instances.some((instance) =>
@@ -60,7 +61,10 @@ function collectPrerequisiteUsage(): PrerequisiteUsage {
     numaInterleave: instances.some(
       (instance) => instance.numa?.mode === "interleave",
     ),
-    pythonEngines: listEnvironmentSpecs().length > 0,
+    pythonEngines: environments.length > 0,
+    sglangEngines: environments.some(
+      (environment) => environment.engine === "sglang",
+    ),
   };
 }
 

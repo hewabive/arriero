@@ -5,6 +5,7 @@ import {
   type PrerequisiteStatus,
 } from "@arriero/core";
 import { existsSync } from "node:fs";
+import koffi from "koffi";
 
 import { shellQuote } from "../utils/shell.js";
 import { detectNumaBind } from "../numa/capability.js";
@@ -32,6 +33,7 @@ export type PrerequisiteUsage = {
   numaBind: boolean;
   numaInterleave: boolean;
   pythonEngines: boolean;
+  sglangEngines: boolean;
 };
 
 export type PrerequisiteProbeContext = {
@@ -109,7 +111,7 @@ export const prerequisiteGroups: PrerequisiteGroupDefinition[] = [
     id: "python-engines",
     title: "Python inference engines",
     description:
-      "Tooling for uv-managed environments (vLLM, KTransformers) and their accelerators",
+      "Tooling and host libraries for uv-managed inference environments",
   },
 ];
 
@@ -391,6 +393,16 @@ async function uvPrerequisiteProbe(
     detail: `${outcome.detail}; could not read uv version`,
     version: null,
   };
+}
+
+function probeLibsndfile(): PrerequisiteProbeOutcome {
+  try {
+    const library = koffi.load("libsndfile.so");
+    library.unload();
+    return { status: "ok", detail: "libsndfile.so", version: null };
+  } catch {
+    return { status: "missing", detail: "libsndfile.so", version: null };
+  }
 }
 
 export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
@@ -773,6 +785,27 @@ export const prerequisiteDefinitions: PrerequisiteDefinition[] = [
     docPath: "docs/ENVIRONMENTS.md",
     note: "Needs the amdgpu/ROCm kernel driver and membership in the render/video group.",
     probe: devicePresenceProbe("/dev/kfd"),
+  },
+  {
+    id: "libsndfile",
+    group: "python-engines",
+    title: "libsndfile",
+    kind: "capability",
+    severity: (usage) => (usage.sglangEngines ? "required" : "recommended"),
+    blocks: ["SGLang environment validation"],
+    impact:
+      "SGLang can finish package installation but fail its import validation when the host cannot load libsndfile.so.",
+    packages: {
+      apt: ["libsndfile1-dev"],
+      dnf: ["libsndfile-devel"],
+      pacman: ["libsndfile"],
+      zypper: ["libsndfile-devel"],
+      apk: ["libsndfile-dev"],
+    },
+    commands: [],
+    docPath: "docs/ENVIRONMENTS.md",
+    note: "The probe loads the unversioned soname used by the failing import; development packages provide that soname on distributions that split it from the runtime library.",
+    probe: async () => probeLibsndfile(),
   },
 ];
 

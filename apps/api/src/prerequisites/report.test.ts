@@ -36,6 +36,7 @@ function context(
       numaBind: false,
       numaInterleave: false,
       pythonEngines: false,
+      sglangEngines: false,
     },
     nvidiaPci: {
       state: "absent",
@@ -181,6 +182,39 @@ test("accepts any reported uv version as a prerequisite", async () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("offers libsndfile installation when SGLang import validation would fail", async () => {
+  const definition = findPrerequisiteDefinition("libsndfile");
+  assert.ok(definition);
+  assert.deepEqual(definition.packages, {
+    apt: ["libsndfile1-dev"],
+    dnf: ["libsndfile-devel"],
+    pacman: ["libsndfile"],
+    zypper: ["libsndfile-devel"],
+    apk: ["libsndfile-dev"],
+  });
+  const missing = {
+    ...definition,
+    probe: async () => ({
+      status: "missing" as const,
+      detail: "libsndfile.so",
+      version: null,
+    }),
+  };
+  const usage = { ...context().usage, sglangEngines: true };
+  const check = await evaluatePrerequisite(missing, context({ usage }));
+  assert.equal(check.severity, "required");
+  assert.equal(
+    check.remediation.installCommand,
+    "sudo apt install -y libsndfile1-dev",
+  );
+  assert.equal(
+    buildInstallPlan([check], "apt").requiredCommand,
+    check.remediation.installCommand,
+  );
+  const recommended = await evaluatePrerequisite(missing, context());
+  assert.equal(recommended.severity, "recommended");
 });
 
 test("hides NVIDIA prerequisites on a CPU-only host", () => {

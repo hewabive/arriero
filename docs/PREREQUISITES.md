@@ -136,9 +136,13 @@ node is actually configured to use, not statically: `nvcc` is required only
 when `build.cuda` is on, `numactl` only when an instance declares
 `numa.mode:"interleave"`, cpuset delegation only for `numa.mode:"bind"`, `uv`
 only when at least one environment spec exists, OpenSSL headers only when an
-instance uses an argument that needs an HTTPS-capable binary.
+instance uses an argument that needs an HTTPS-capable binary, and `libsndfile`
+only when an SGLang environment spec exists. The libsndfile probe loads
+`libsndfile.so` by name, matching the soname that blocked SGLang 0.5.20 import
+validation after its packages installed. The package mapping supplies the
+unversioned soname on distributions that separate it into development packages.
 
-`instanceArgsNeedHttps()` decides that last one from the instance arguments
+`instanceArgsNeedHttps()` decides the OpenSSL requirement from the instance arguments
 alone (`-hf`/`-hfr`/`--hf-repo`, `-mu`/`--model-url`, `-dr`/`--docker-repo`,
 the draft-repo aliases, `--ssl-key-file`/`--ssl-cert-file`). Model presets are
 deliberately not parsed for it: a router that downloads from HuggingFace only
