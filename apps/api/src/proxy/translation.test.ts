@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createResumableBufferState,
+  runResumableForward,
   runResumableUpstreamAttempt,
 } from "./resumable-forward.js";
 import {
@@ -194,7 +195,108 @@ test("llama.cpp context overflow normalizes to Anthropic prompt-too-long error",
   });
 });
 
-test("context overflow normalization is limited to llama.cpp HTTP 400 errors", () => {
+test("SGLang context overflow normalizes to Anthropic prompt-too-long error", () => {
+  const message =
+    "Requested token count exceeds the model's maximum context length of 225000 tokens. You requested a total of 229465 tokens: 165465 from input + 64000 for completion.";
+  for (const body of [
+    { object: "error", message, type: "BadRequestError", code: 400 },
+    { error: { message, type: "BadRequestError", code: 400 } },
+    { error: message },
+    message,
+  ]) {
+    assert.deepEqual(
+      JSON.parse(translateOpenAiErrorText(400, JSON.stringify(body))),
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "Prompt is too long",
+        },
+      },
+    );
+  }
+  assert.deepEqual(JSON.parse(translateOpenAiErrorText(400, message)), {
+    type: "error",
+    error: { type: "invalid_request_error", message: "Prompt is too long" },
+  });
+  assert.deepEqual(
+    JSON.parse(
+      translateOpenAiErrorText(
+        500,
+        JSON.stringify({
+          object: "error",
+          message,
+          type: "InternalServerError",
+        }),
+      ),
+    ),
+    { type: "error", error: { type: "api_error", message } },
+  );
+});
+
+test("unrelated SGLang HTTP 400 errors preserve their message", () => {
+  const message = "max_tokens must be greater than 0";
+  assert.deepEqual(
+    JSON.parse(
+      translateOpenAiErrorText(
+        400,
+        JSON.stringify({
+          object: "error",
+          message,
+          type: "BadRequestError",
+          code: 400,
+        }),
+      ),
+    ),
+    { type: "error", error: { type: "invalid_request_error", message } },
+  );
+});
+
+test("vLLM and SGLang-KT context overflow variants normalize across error envelopes", () => {
+  const messages = [
+    "The input (85050 tokens) is longer than the model's context length (32768 tokens).",
+    "This model's maximum context length is 100 tokens. However, your request has 101 input tokens. Please reduce the length of the input messages.",
+    "'max_tokens' or 'max_completion_tokens' is too large: 20. This model's maximum context length is 100 tokens and your request has 90 input tokens (20 > 100 - 90).",
+    "This model's maximum context length is 100 tokens. However, you requested 20 output tokens and your prompt contains 90 input tokens, for a total of 110 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=90)",
+    "This model's maximum context length is 100 tokens. However, you requested 20 output tokens and your prompt contains at least 81 input tokens, for a total of at least 101 tokens. Please reduce the length of the input prompt or the number of requested output tokens.",
+    "This model's maximum context length is 100 tokens. However, you requested 20 output tokens and your prompt contains 1000 characters (more than 800 characters, which is the upper bound for 80 input tokens). Please reduce the length of the input prompt or the number of requested output tokens.",
+  ];
+  for (const message of messages) {
+    const error = { message, type: "BadRequestError", code: 400 };
+    for (const body of [error, { error }]) {
+      assert.deepEqual(
+        JSON.parse(translateOpenAiErrorText(400, JSON.stringify(body))),
+        {
+          type: "error",
+          error: {
+            type: "invalid_request_error",
+            message: "Prompt is too long",
+          },
+        },
+      );
+      assert.deepEqual(
+        JSON.parse(translateOpenAiErrorText(500, JSON.stringify(body))),
+        { type: "error", error: { type: "api_error", message } },
+      );
+    }
+  }
+});
+
+test("output-only and unrelated size errors do not trigger compaction", () => {
+  for (const message of [
+    "max_tokens=200 cannot be greater than max_model_len=100. Please request fewer output tokens.",
+    "'max_tokens' or 'max_completion_tokens' is too large: 200",
+    "input (200 tokens) is too large to process. increase the physical batch size (current batch size: 100)",
+    "This model's maximum context length is 100 tokens. Invalid temperature.",
+  ]) {
+    assert.deepEqual(
+      JSON.parse(translateOpenAiErrorText(400, JSON.stringify({ message }))),
+      { type: "error", error: { type: "invalid_request_error", message } },
+    );
+  }
+});
+
+test("context overflow normalization is limited to HTTP 400 errors", () => {
   const error = JSON.parse(
     translateOpenAiErrorText(
       500,
@@ -210,6 +312,51 @@ test("context overflow normalization is limited to llama.cpp HTTP 400 errors", (
     type: "error",
     error: { type: "api_error", message: "upstream failed" },
   });
+});
+
+test("translated resumable forwarding retains the prompt-too-long signal", async () => {
+  for (const wantsStream of [false, true]) {
+    const codec = translatedAnthropicResumableCodec({});
+    const state = createResumableBufferState();
+    const final = await runResumableForward({
+      makeReady: async () => ({ ok: true }),
+      attempt: () =>
+        runResumableUpstreamAttempt({
+          url: "http://upstream",
+          method: "POST",
+          headers: {},
+          body: {},
+          codec,
+          state,
+          preemptSignal: new AbortController().signal,
+          fetchImpl: async () =>
+            Response.json(
+              {
+                error: {
+                  type: "exceed_context_size_error",
+                  message: "request exceeds available context",
+                },
+              },
+              { status: 400 },
+            ),
+        }),
+      state,
+      codec,
+      wantsStream,
+      yieldLease: async () => assert.fail("HTTP errors must not retry"),
+      onError: () => assert.fail("HTTP errors must not become a proxy 502"),
+      onUpstreamError: (response) => ({
+        ...response,
+        body: translateOpenAiErrorText(response.status, response.body),
+      }),
+    });
+    assert.equal(final.status, 400);
+    assert.equal(final.headers["content-type"], "application/json");
+    assert.deepEqual(JSON.parse(final.body), {
+      type: "error",
+      error: { type: "invalid_request_error", message: "Prompt is too long" },
+    });
+  }
 });
 
 async function runTransform(

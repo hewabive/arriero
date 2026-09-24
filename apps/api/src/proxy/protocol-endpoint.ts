@@ -1798,6 +1798,16 @@ export async function serveResolvedTarget(input: {
               : "error",
       },
       ...(buildForceAnswerTail ? { buildForceAnswerTail } : {}),
+      onUpstreamError: (response) => {
+        trace.errorMessage = upstreamErrorText(response.body);
+        return translateAnthropic
+          ? {
+              status: response.status,
+              headers: { "content-type": "application/json" },
+              body: translateOpenAiErrorText(response.status, response.body),
+            }
+          : response;
+      },
       onError: (message) => {
         const diagnostic: ApiProxyProtocolDiagnostic = {
           status: 502,

@@ -110,3 +110,39 @@ test("translates OpenAI errors to Anthropic error shape", () => {
   });
   assert.equal(translateOpenAiError(429, {}).error.type, "rate_limit_error");
 });
+
+test("preserves flat upstream error messages", () => {
+  const message = "max_tokens must be greater than 0";
+  assert.deepEqual(
+    translateOpenAiError(400, {
+      object: "error",
+      message,
+      type: "BadRequestError",
+      code: 400,
+    }),
+    { type: "error", error: { type: "invalid_request_error", message } },
+  );
+});
+
+test("nested error messages take precedence over top-level messages", () => {
+  for (const error of [{ message: "nested" }, "nested"]) {
+    assert.equal(
+      translateOpenAiError(400, { error, message: "top-level" }).error.message,
+      "nested",
+    );
+  }
+});
+
+test("malformed error bodies use a valid message or the status fallback", () => {
+  assert.equal(
+    translateOpenAiError(400, { error: { message: 42 }, message: "top-level" })
+      .error.message,
+    "top-level",
+  );
+  for (const body of [null, [], 42, {}, { message: 42 }, { message: {} }]) {
+    assert.equal(
+      translateOpenAiError(400, body).error.message,
+      "Upstream responded with status 400.",
+    );
+  }
+});

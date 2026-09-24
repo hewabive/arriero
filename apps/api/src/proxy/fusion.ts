@@ -35,7 +35,11 @@ import {
   type ApiProxyResumableCodec,
   type ApiProxyResumableFinalResponse,
 } from "./protocol.js";
-import { safeJsonParse, type ProxyTraceAccumulator } from "./protocol-trace.js";
+import {
+  safeJsonParse,
+  upstreamErrorText,
+  type ProxyTraceAccumulator,
+} from "./protocol-trace.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import { getApiProxyPipeline, getApiProxyTarget } from "./repository.js";
 import {
@@ -223,10 +227,14 @@ export async function executeApiProxyModelSubRequest(input: {
         message: `fusion branch target ${target.name} was ${outcome.type}`,
       });
     }
+    const message =
+      outcome.type === "upstream-error"
+        ? upstreamErrorText(outcome.response.body)
+        : outcome.message;
     return fail({
       status: 502,
       code: "arriero_proxy_upstream_error",
-      message: `fusion branch target ${target.name} failed: ${outcome.message}`,
+      message: `fusion branch target ${target.name} failed: ${message}`,
     });
   } finally {
     lease?.release();

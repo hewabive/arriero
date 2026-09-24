@@ -29,7 +29,7 @@ import type { ProxyStreamObserver } from "./stream-observer.js";
 import type { ProxyUsageCounts } from "./usage-meter.js";
 import {
   contextOverflowMessage,
-  isLlamaContextOverflow,
+  isUpstreamContextOverflow,
 } from "./context-overflow.js";
 
 const translationDialectRequestOptions: Record<
@@ -160,7 +160,7 @@ export function translateOpenAiErrorText(status: number, text: string): string {
   } catch {
     parsed = text;
   }
-  if (isLlamaContextOverflow(status, parsed)) {
+  if (isUpstreamContextOverflow(status, parsed)) {
     return JSON.stringify({
       type: "error",
       error: {

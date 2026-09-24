@@ -49,6 +49,7 @@ export type ResumableUpstreamOutcome =
   | { type: "finished" }
   | { type: "cancelled" }
   | { type: "consumer-gone" }
+  | { type: "upstream-error"; response: ApiProxyResumableFinalResponse }
   | { type: "error"; message: string };
 
 export type ResumableTruncationPolicy = {
@@ -289,7 +290,25 @@ export async function runResumableUpstreamAttempt(
     return settle(classifyAbort(error));
   }
 
-  if (!upstream.ok || !upstream.body) {
+  if (!upstream.ok) {
+    try {
+      return settle({
+        type: "upstream-error",
+        response: {
+          status: upstream.status as ApiProxyResumableFinalResponse["status"],
+          headers: {
+            "content-type":
+              upstream.headers.get("content-type") ?? "application/json",
+          },
+          body: await upstream.text(),
+        },
+      });
+    } catch (error) {
+      return settle(classifyAbort(error));
+    }
+  }
+
+  if (!upstream.body) {
     return settle({
       type: "error",
       message: `upstream responded ${upstream.status}`,
@@ -407,6 +426,9 @@ export async function runResumableForward(input: {
   yieldLease: () => Promise<void>;
   wantsStream: boolean;
   onError: (message: string) => ApiProxyResumableFinalResponse;
+  onUpstreamError?: (
+    response: ApiProxyResumableFinalResponse,
+  ) => ApiProxyResumableFinalResponse;
   buildForceAnswerTail?: ((reasoningText: string) => string | null) | undefined;
   maxAttempts?: number | undefined;
   truncation?: ResumableTruncationPolicy | undefined;
@@ -468,6 +490,9 @@ export async function runResumableForward(input: {
     }
     if (outcome.type === "error") {
       return input.onError(outcome.message);
+    }
+    if (outcome.type === "upstream-error") {
+      return input.onUpstreamError?.(outcome.response) ?? outcome.response;
     }
     if (outcome.type === "interrupted") {
       forceAnswerNext = true;

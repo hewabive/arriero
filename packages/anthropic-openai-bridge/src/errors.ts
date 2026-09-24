@@ -23,6 +23,7 @@ export function translateOpenAiError(
   const message =
     asString(asObject(errorValue)?.message) ??
     asString(errorValue) ??
+    asString(asObject(body)?.message) ??
     asString(body) ??
     `Upstream responded with status ${status}.`;
   return {

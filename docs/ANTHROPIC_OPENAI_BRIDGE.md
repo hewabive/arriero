@@ -156,7 +156,18 @@ or more Anthropic events out):
 - `message_delta.usage` includes `output_tokens`, cumulative `input_tokens`
   and `cache_read_input_tokens` when known.
 - upstream `{"error": ...}` frames map to Anthropic `error` events; upstream
-  HTTP errors map via `translateOpenAiError` (status → Anthropic error type).
+  HTTP errors map via `translateOpenAiError` (status → Anthropic error type),
+  preserving nested `error.message`, string `error`, top-level `message`
+  (including SGLang's flat error bodies), or plain-text messages, in that order.
+  The proxy normalizes recognized llama.cpp, vLLM and SGLang HTTP 400 context-overflow
+  errors to `invalid_request_error: Prompt is too long`, the same compaction
+  signal as the pipeline's `context-limit` node. Other errors retain their
+  upstream message; only bodies without a string message use the status fallback.
+  Recognition covers vLLM's input and combined input/output limits (including
+  older `max_tokens` wording), and both SGLang's input-only and total-token
+  checks. KTransformers uses the SGLang server in arriero, so these checks apply
+  there too. Output-only parameter errors and physical batch-size errors are
+  not compaction signals.
 - The proxy inspects the raw OpenAI payload once, before translation, through
   the same neutral stream inspector used by pass-through and resumable paths.
   Reasoning, answer text, every parallel tool delta, response id/model,
@@ -175,6 +186,15 @@ splicing stays in the OpenAI domain), `parseChunk` = OpenAI, and
 the edge — non-stream through `translateOpenAiResponse`, stream by replaying
 the synthesized OpenAI SSE through `createAnthropicSseEmitter` — so resumed
 responses carry the same event shapes as live translated streams.
+
+An upstream HTTP failure on the resumable path preserves its status and body;
+the consumer applies the same Anthropic error translation as ordinary forwarding.
+It does not become a generic 502 or trigger a resume retry. Transport failures
+still use the proxy's 502 diagnostic.
+
+Error-message references: [vLLM validation](https://github.com/vllm-project/vllm/blob/main/vllm/renderers/params.py),
+[older vLLM validation](https://github.com/vllm-project/vllm/blob/v0.10.2/vllm/entrypoints/openai/serving_engine.py),
+[SGLang validation](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/managers/tokenizer_manager.py).
 
 ## Bridge package boundaries
 

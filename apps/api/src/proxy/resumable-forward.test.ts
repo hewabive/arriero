@@ -181,6 +181,46 @@ test("runResumableUpstreamAttempt leaves genMs at zero without upstream timing",
   assert.equal(state.genMs, 0);
 });
 
+test("resumable forwarding preserves HTTP failures without retries", async () => {
+  for (const status of [400, 429, 500]) {
+    const state = createResumableBufferState();
+    const body = JSON.stringify({ error: { message: "upstream detail" } });
+    let attempts = 0;
+    const final = await runResumableForward({
+      makeReady: async () => ({ ok: true }),
+      attempt: async () => {
+        attempts += 1;
+        return runResumableUpstreamAttempt({
+          url: "http://upstream",
+          method: "POST",
+          headers: {},
+          body: {},
+          codec,
+          state,
+          preemptSignal: new AbortController().signal,
+          fetchImpl: async () =>
+            new Response(body, {
+              status,
+              headers: { "content-type": "application/json" },
+            }),
+        });
+      },
+      state,
+      codec,
+      yieldLease: async () =>
+        assert.fail("HTTP errors must not yield the lease"),
+      wantsStream: true,
+      onError: () => assert.fail("HTTP errors must retain their response"),
+    });
+    assert.equal(attempts, 1);
+    assert.deepEqual(final, {
+      status,
+      headers: { "content-type": "application/json" },
+      body,
+    });
+  }
+});
+
 test("runResumableUpstreamAttempt reads upstream predicted_ms as genMs", async () => {
   const state = createResumableBufferState();
   const usageWithTimings = `data: ${JSON.stringify({
