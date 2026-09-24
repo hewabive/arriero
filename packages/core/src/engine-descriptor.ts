@@ -215,7 +215,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       slotSave: false,
       streamResume: false,
       sseTimings: false,
-      estimateStreamRate: false,
+      estimateStreamRate: true,
       reasoningControl: false,
       translationDialect: "openai-compatible",
       tokenCount: "vllm",

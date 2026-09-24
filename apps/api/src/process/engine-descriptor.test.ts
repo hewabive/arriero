@@ -76,7 +76,7 @@ test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () =
     slotSave: false,
     streamResume: false,
     sseTimings: false,
-    estimateStreamRate: false,
+    estimateStreamRate: true,
     reasoningControl: false,
     translationDialect: "openai-compatible",
     tokenCount: "vllm",

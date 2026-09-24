@@ -65,6 +65,20 @@ export function openaiCachedTokens(
   );
 }
 
+export function upstreamGenerationMs(
+  response: Record<string, unknown> | null,
+): number | null {
+  const timings = asObject(response?.timings);
+  const metrics = asObject(response?.metrics);
+  for (const value of [timings?.predicted_ms, metrics?.generation_time_ms]) {
+    const milliseconds = numberOrNull(value);
+    if (milliseconds !== null && milliseconds >= 0) {
+      return Math.round(milliseconds);
+    }
+  }
+  return null;
+}
+
 export function usageFromNonStreamBody(
   protocol: ApiProxyProtocolId,
   bodyText: string,
@@ -81,7 +95,7 @@ export function usageFromNonStreamBody(
     return null;
   }
   const timings = asObject(obj?.timings);
-  const predictedMs = timings ? (numberOrNull(timings.predicted_ms) ?? 0) : 0;
+  const predictedMs = upstreamGenerationMs(obj) ?? 0;
   const promptMs = timings ? numberOrNull(timings.prompt_ms) : null;
   const promptPerSecond = timings
     ? numberOrNull(timings.prompt_per_second)

@@ -128,3 +128,28 @@ test("server timings take priority over an observed interval", () => {
   assert.equal(trace.ratePerSecond, 80);
   assert.equal(trace.rateSource, undefined);
 });
+
+for (const generationMs of [500.4, 0, null, -1, "500"]) {
+  test(`vLLM stream decode timing handles ${JSON.stringify(generationMs)}`, () => {
+    const { stream, push } = inspector();
+    push(0, delta({ reasoning: "Thinking" }));
+    push(1_000, delta({ content: "Answer" }, "stop"));
+    push(4_000, {
+      ...usage,
+      metrics: { generation_time_ms: generationMs, tokens_per_second: 26.67 },
+    });
+    const result = stream.finish();
+    const trace = traceUsageFromCounts({
+      ...result,
+      prefillMs: null,
+      promptPerSecond: null,
+    });
+    const native = generationMs === 500.4 || generationMs === 0;
+    assert.equal(result.observedGenMs, native ? undefined : 1_000);
+    assert.equal(trace.rateSource, native ? undefined : "proxy");
+    assert.equal(
+      trace.ratePerSecond,
+      generationMs === 500.4 ? 80 : generationMs === 0 ? null : 40,
+    );
+  });
+}

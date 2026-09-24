@@ -12,7 +12,7 @@ import {
   type ApiProxyResumablePhase,
   type ApiProxyResumableToolCallDelta,
 } from "./protocol.js";
-import { openaiCachedTokens } from "./usage-meter.js";
+import { openaiCachedTokens, upstreamGenerationMs } from "./usage-meter.js";
 
 export type OpenAiErrorType =
   | "invalid_request_error"
@@ -113,13 +113,7 @@ export const openAiResumableCodec: ApiProxyResumableCodec = {
     const delta = asObject(choice?.delta);
     const content = typeof delta?.content === "string" ? delta.content : "";
     const usage = asObject(event.usage);
-    const timings = asObject(event.timings);
-    const predictedMs =
-      timings &&
-      typeof timings.predicted_ms === "number" &&
-      Number.isFinite(timings.predicted_ms)
-        ? timings.predicted_ms
-        : null;
+    const predictedMs = upstreamGenerationMs(event);
     const promptProgress = asObject(event.prompt_progress);
 
     const deltaToolCalls = Array.isArray(delta?.tool_calls)
@@ -128,7 +122,9 @@ export const openAiResumableCodec: ApiProxyResumableCodec = {
     const reasoning =
       typeof delta?.reasoning_content === "string"
         ? delta.reasoning_content
-        : "";
+        : typeof delta?.reasoning === "string"
+          ? delta.reasoning
+          : "";
     let toolCalls: ApiProxyResumableToolCallDelta[] | undefined;
     let phase: ApiProxyResumablePhase | undefined;
     if (deltaToolCalls && deltaToolCalls.length > 0) {
@@ -399,11 +395,13 @@ export const openAiResponsesUsageCodec: Pick<
     if (type === "response.completed") {
       const response = asObject(event.response);
       const usage = asObject(response?.usage);
+      const genMs = upstreamGenerationMs(response);
       return {
         text: "",
         finishReason: "stop",
         id: null,
         model: null,
+        ...(genMs !== null ? { genMs } : {}),
         ...(usage
           ? {
               usage: {

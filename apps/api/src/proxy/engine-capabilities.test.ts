@@ -66,7 +66,7 @@ test("vllm requests leases but opts out of llama lifecycle verbs", () => {
     slotSave: false,
     streamResume: false,
     sseTimings: false,
-    estimateStreamRate: false,
+    estimateStreamRate: true,
     reasoningControl: false,
   });
 });

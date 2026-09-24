@@ -189,7 +189,17 @@ remain unknown. Request History can then display `0 / N` for a cold prompt using
 its existing fresh-token calculation. This normalization affects newly recorded
 traces, not upstream response bodies or previously stored history.
 
-Managed SGLang also opts into an estimated streaming generation rate through the
+vLLM can report native per-request decode time as `metrics.generation_time_ms`
+when started with `--enable-per-request-metrics` (requires a supporting version
+and statistics logging). The proxy reads it from JSON responses, final Chat
+Completions usage chunks, and Responses `response.completed` events. It computes
+Rate from completion tokens and that decode interval, excluding queue and prefill;
+vLLM's `metrics.tokens_per_second` includes prefill and is not used for this column.
+No server flag is injected automatically. Missing or invalid timing values fall
+back to the stream estimate below; reported zero decode time remains unknown.
+See [vLLM per-request metrics](https://docs.vllm.ai/en/latest/features/per_request_metrics/).
+
+Managed SGLang and vLLM opt into an estimated streaming generation rate through the
 engine descriptor's `estimateStreamRate` capability. The shared stream inspector
 measures the interval between the first and last output-bearing network reads
 (text, reasoning, or tool-call name/arguments), excluding startup/prefill and

@@ -645,3 +645,52 @@ test("estimated rate does not use processing time within a single network read",
   assert.equal(counted?.observedGenMs, undefined);
   assert.equal(counted?.genMs, 0);
 });
+
+for (const generationMs of [500.4, 0, null, -1, "500"]) {
+  test(`vLLM JSON decode timing handles ${JSON.stringify(generationMs)}`, () => {
+    const usage = usageFromNonStreamBody(
+      "openai",
+      JSON.stringify({
+        usage: { prompt_tokens: 120, completion_tokens: 40 },
+        metrics: {
+          generation_time_ms: generationMs,
+          time_to_first_token_ms: 1_000,
+          tokens_per_second: 26.67,
+        },
+      }),
+    );
+    assert.equal(usage?.genMs, generationMs === 500.4 ? 500 : 0);
+    assert.equal(usage?.prefillMs, null);
+    assert.equal(usage?.promptPerSecond, null);
+  });
+}
+
+test("vLLM Responses SSE reads server decode timing from the completed response", async () => {
+  let counted: ProxyUsageCounts | undefined;
+  const meter = createUsageMeterStream({
+    codec: openAiResponsesUsageCodec,
+    stripUsageFrames: false,
+    onComplete: (usage) => {
+      counted = usage;
+    },
+  });
+  const input = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        openAiFrames([
+          `data: ${JSON.stringify({
+            type: "response.completed",
+            response: {
+              usage: { input_tokens: 120, output_tokens: 40 },
+              metrics: { generation_time_ms: 500 },
+            },
+          })}`,
+        ]),
+      );
+      controller.close();
+    },
+  });
+  await drain(input.pipeThrough(meter.transform));
+  assert.equal(counted?.completionTokens, 40);
+  assert.equal(counted?.genMs, 500);
+});

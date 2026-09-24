@@ -1087,62 +1087,125 @@ for (const scenario of [
   });
 }
 
+for (const kind of ["sglang", "vllm"] as const) {
+  for (const mode of [
+    "openai",
+    "anthropic",
+    "buffered",
+    "multi-choice",
+    "continuous",
+  ] as const) {
+    test(`${kind} stream rate handles ${mode}`, async (t) => {
+      await seedCapturedUpstream(
+        t,
+        {
+          status: 200,
+          contentType: "text/event-stream",
+          body: [
+            `data: ${JSON.stringify({ choices: [{ delta: { [kind === "vllm" ? "reasoning" : "reasoning_content"]: "Thinking" }, finish_reason: null }] })}`,
+            `data: ${JSON.stringify({ choices: [{ delta: { content: "Answer" }, finish_reason: null }] })}`,
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+            `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 120, completion_tokens: 40 } })}`,
+            "data: [DONE]",
+            "",
+          ].join("\n\n"),
+        },
+        {
+          managed: { kind, configured: true, launched: true },
+          cache: false,
+          chunkDelayMs: 20,
+        },
+      );
+      const response = await postCapturedRequest(
+        buildApp(),
+        mode === "anthropic" ? "anthropic" : "openai",
+        mode !== "buffered",
+        mode === "multi-choice"
+          ? { n: 2 }
+          : mode === "continuous"
+            ? { stream_options: { continuous_usage_stats: true } }
+            : {},
+      );
+      const body = await response.text();
+      assert.equal(response.status, 200, body);
+      const trace = listApiProxyTraces()[0]!;
+      assert.ok(trace.usage);
+      if (mode === "multi-choice" || mode === "continuous") {
+        assert.equal(trace.usage.rateSource, undefined);
+        assert.equal(trace.usage.ratePerSecond, null);
+      } else {
+        assert.equal(trace.usage.rateSource, "proxy");
+        assert.ok(trace.usage.genMs > 0);
+        assert.ok(
+          trace.usage.ratePerSecond !== null && trace.usage.ratePerSecond > 0,
+        );
+      }
+      assert.equal(trace.usage.completionTokens, 40);
+      assert.equal(trace.usage.cacheReadTokens, kind === "sglang" ? 0 : null);
+      assert.equal(body.includes("predicted_ms"), false);
+      assert.equal(body.includes("observedGenMs"), false);
+      assert.equal(body.includes("rateSource"), false);
+    });
+  }
+}
+
 for (const mode of [
   "openai",
   "anthropic",
   "buffered",
-  "multi-choice",
-  "continuous",
+  "json",
+  "anthropic-json",
 ] as const) {
-  test(`SGLang stream rate handles ${mode}`, async (t) => {
+  test(`vLLM native decode timing takes priority for ${mode}`, async (t) => {
+    const json = mode === "json" || mode === "anthropic-json";
+    const usage = { prompt_tokens: 120, completion_tokens: 40 };
+    const metrics = {
+      generation_time_ms: 500,
+      time_to_first_token_ms: 1_000,
+      queue_time_ms: 2_000,
+      tokens_per_second: 26.67,
+    };
     await seedCapturedUpstream(
       t,
       {
         status: 200,
-        contentType: "text/event-stream",
-        body: [
-          `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: "Thinking" }, finish_reason: null }] })}`,
-          `data: ${JSON.stringify({ choices: [{ delta: { content: "Answer" }, finish_reason: null }] })}`,
-          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
-          `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 120, completion_tokens: 40 } })}`,
-          "data: [DONE]",
-          "",
-        ].join("\n\n"),
+        contentType: json ? "application/json" : "text/event-stream",
+        body: json
+          ? JSON.stringify({
+              choices: [
+                {
+                  message: { role: "assistant", content: "Answer" },
+                  finish_reason: "stop",
+                },
+              ],
+              usage,
+              metrics,
+            })
+          : [
+              `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Thinking" }, finish_reason: null }] })}`,
+              `data: ${JSON.stringify({ choices: [{ delta: { content: "Answer" }, finish_reason: "stop" }] })}`,
+              `data: ${JSON.stringify({ choices: [], usage, metrics })}`,
+              "data: [DONE]",
+              "",
+            ].join("\n\n"),
       },
       {
-        managed: { configured: true, launched: true },
+        managed: { kind: "vllm", configured: false, launched: false },
         cache: false,
-        chunkDelayMs: 20,
+        ...(json ? {} : { chunkDelayMs: 20 }),
       },
     );
     const response = await postCapturedRequest(
       buildApp(),
-      mode === "anthropic" ? "anthropic" : "openai",
-      mode !== "buffered",
-      mode === "multi-choice"
-        ? { n: 2 }
-        : mode === "continuous"
-          ? { stream_options: { continuous_usage_stats: true } }
-          : {},
+      mode.startsWith("anthropic") ? "anthropic" : "openai",
+      !json && mode !== "buffered",
+      json ? { logprobs: true } : {},
     );
-    const body = await response.text();
-    assert.equal(response.status, 200, body);
+    assert.equal(response.status, 200, await response.text());
     const trace = listApiProxyTraces()[0]!;
-    assert.ok(trace.usage);
-    if (mode === "multi-choice" || mode === "continuous") {
-      assert.equal(trace.usage.rateSource, undefined);
-      assert.equal(trace.usage.ratePerSecond, null);
-    } else {
-      assert.equal(trace.usage.rateSource, "proxy");
-      assert.ok(trace.usage.genMs > 0);
-      assert.ok(
-        trace.usage.ratePerSecond !== null && trace.usage.ratePerSecond > 0,
-      );
-    }
-    assert.equal(trace.usage.completionTokens, 40);
-    assert.equal(trace.usage.cacheReadTokens, 0);
-    assert.equal(body.includes("predicted_ms"), false);
-    assert.equal(body.includes("observedGenMs"), false);
-    assert.equal(body.includes("rateSource"), false);
+    assert.equal(trace.usage?.completionTokens, 40);
+    assert.equal(trace.usage?.genMs, 500);
+    assert.equal(trace.usage?.ratePerSecond, 80);
+    assert.equal(trace.usage?.rateSource, undefined);
   });
 }
