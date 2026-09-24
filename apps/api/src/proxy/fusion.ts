@@ -162,7 +162,8 @@ export async function executeApiProxyModelSubRequest(input: {
     if (!upstream.ok) {
       return fail(upstream.diagnostic);
     }
-    const { baseUrl, authHeaders, translateAnthropic } = upstream.context;
+    const { baseUrl, authHeaders, translateAnthropic, modelOverride } =
+      upstream.context;
 
     const forward = prepareApiProxyUpstreamRequest({
       translate: translateAnthropic,
@@ -181,8 +182,8 @@ export async function executeApiProxyModelSubRequest(input: {
     const state = createResumableBufferState();
     const built = codec.upstreamBody(forward.body, null);
     const requestBody =
-      target.model && built && typeof built === "object"
-        ? { ...(built as Record<string, unknown>), model: target.model }
+      modelOverride && built && typeof built === "object"
+        ? { ...(built as Record<string, unknown>), model: modelOverride }
         : built;
 
     const outcome = await runResumableUpstreamAttempt({

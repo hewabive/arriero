@@ -69,7 +69,8 @@ The second expected case is API adaptation: accepting one API shape and forwardi
 - Forwarder in `apps/api/src/proxy/forwarder.ts`:
   - forwards ready OpenAI-compatible requests to the resolved target Base URL
   - applies endpoint auth headers for external APIs
-  - rewrites the request `model` to the target upstream model when configured
+  - rewrites the request `model` to the explicit target model, or to the managed instance's `impliedInstanceModelId` when the target model is null; without either, preserves the request model
+  - resolves this override in `upstream-context.ts` for ordinary forwarding, resumable requests and resume keys, fusion branches, and token counting; managed targets keep `model: null` in configuration, and scheduler load/unload decisions continue to use the stored model
   - preserves upstream response status, headers and body stream
   - accepts either a root URL or a `/v1` API Base URL
 - Public executor in `apps/api/src/proxy/public-executor.ts` — executes the full scheduler action

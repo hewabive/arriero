@@ -3,7 +3,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { createServer, Server } from "node:http";
 import { beforeEach, test, type TestContext } from "node:test";
 
-import { ApiProxyPipelineNodeSchema } from "@arriero/core";
+import { ApiProxyPipelineNodeSchema, type Instance } from "@arriero/core";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 
@@ -27,6 +27,7 @@ import {
   remoteEndpointId,
 } from "./endpoints.js";
 import { apiProxyInflight } from "./inflight.js";
+import { executeApiProxyModelSubRequest } from "./fusion.js";
 import {
   registerAnthropicProxyRoutes,
   registerOpenAiProxyRoutes,
@@ -35,6 +36,7 @@ import {
   createApiProxyModel,
   createApiProxyPipeline,
   createApiProxyTarget,
+  getApiProxyModelByModelId,
 } from "./repository.js";
 import { captureApiProxyResponseSse } from "./response-capture.js";
 import { readApiProxyRequestFile } from "./request-files.js";
@@ -83,7 +85,9 @@ async function seedCapturedUpstream(
   response: { status: number; contentType: string; body: string },
   options: {
     managed?: {
-      kind?: "sglang" | "llama-server";
+      kind?: "sglang" | "llama-server" | "vllm";
+      args?: Instance["args"];
+      positionalArgs?: string[];
       configured: boolean;
       launched: boolean;
       snapshot?: boolean;
@@ -95,12 +99,32 @@ async function seedCapturedUpstream(
     streamIdleTimeoutMs?: number;
     abortAfterMs?: number;
     chunkDelayMs?: number;
+    expectedModel?: string;
   } = {},
 ) {
   let requests = 0;
-  const server = createServer((request, reply) => {
+  const server = createServer(async (request, reply) => {
     requests += 1;
-    request.resume();
+    if (options.expectedModel && request.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      if (body.model !== options.expectedModel) {
+        reply.writeHead(404, { "content-type": "application/json" });
+        reply.end(
+          JSON.stringify({
+            error: {
+              message: `The model ${body.model} does not exist.`,
+              type: "NotFoundError",
+              code: 404,
+            },
+          }),
+        );
+        return;
+      }
+    } else {
+      request.resume();
+    }
     reply.writeHead(response.status, { "content-type": response.contentType });
     if (options.chunkDelayMs !== undefined && request.method === "POST") {
       const frames = response.body.split("\n\n");
@@ -145,7 +169,9 @@ async function seedCapturedUpstream(
         "--host": "127.0.0.1",
         "--port": address.port,
         "--enable-cache-report": options.managed.configured,
+        ...options.managed.args,
       },
+      positionalArgs: options.managed.positionalArgs ?? [],
       env: {},
       rpcWorkers: [],
       memory: [],
@@ -210,7 +236,7 @@ async function seedCapturedUpstream(
     idleUnloadMs: null,
   });
   seedCapturedModel(target.id, options.cache);
-  return { requests: () => requests };
+  return { requests: () => requests, target };
 }
 
 function seedCapturedModel(targetId: string, cache = true) {
@@ -251,6 +277,112 @@ function seedCapturedModel(targetId: string, cache = true) {
     description: null,
     blockedMessage: "",
   });
+}
+
+for (const scenario of [
+  {
+    name: "served alias",
+    args: { "--served-model-name": "qwen-local" },
+    expected: "qwen-local",
+  },
+  {
+    name: "first served alias",
+    args: { "--served-model-name": ["qwen-local", "qwen-alternate"] },
+    expected: "qwen-local",
+  },
+  { name: "positional model", args: {}, expected: "Qwen/Qwen3-8B" },
+] satisfies { name: string; args: Instance["args"]; expected: string }[]) {
+  for (const protocol of ["openai", "anthropic"] as const) {
+    for (const stream of [false, true]) {
+      test(`managed vLLM forwards ${scenario.name} for ${protocol} stream=${stream}`, async (t) => {
+        const jsonResponse = protocol === "anthropic" && !stream;
+        const upstream = await seedCapturedUpstream(
+          t,
+          {
+            status: 200,
+            contentType: jsonResponse
+              ? "application/json"
+              : "text/event-stream",
+            body: jsonResponse
+              ? JSON.stringify({
+                  id: "chat-1",
+                  model: scenario.expected,
+                  choices: [
+                    {
+                      message: { role: "assistant", content: "Hello" },
+                      finish_reason: "stop",
+                    },
+                  ],
+                  usage: { prompt_tokens: 1, completion_tokens: 1 },
+                })
+              : [
+                  'data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}',
+                  'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                  "data: [DONE]",
+                  "",
+                ].join("\n\n"),
+          },
+          {
+            managed: {
+              kind: "vllm",
+              configured: false,
+              launched: false,
+              args: scenario.args,
+              positionalArgs: ["Qwen/Qwen3-8B"],
+            },
+            cache: false,
+            expectedModel: scenario.expected,
+          },
+        );
+        const response = await buildApp().request(
+          protocol === "openai"
+            ? "/v1/chat/completions"
+            : "/anthropic/v1/messages",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              model: "captured-model",
+              messages: [{ role: "user", content: "hi" }],
+              max_tokens: 10,
+              stream,
+            }),
+          },
+        );
+        const body = await response.text();
+        assert.equal(response.status, 200, body);
+        assert.match(
+          response.headers.get("content-type") ?? "",
+          stream ? /text\/event-stream/ : /application\/json/,
+        );
+        assert.match(body, /Hello/);
+        assert.ok(upstream.requests() > 0);
+        assert.equal(upstream.target.model, null);
+        assert.equal(listApiProxyTraces()[0]?.modelId, "captured-model");
+        if (stream) {
+          const model = getApiProxyModelByModelId("captured-model");
+          assert.ok(model);
+          const result = await executeApiProxyModelSubRequest({
+            targetId: upstream.target.id,
+            model,
+            operation: {
+              protocol,
+              endpoint: protocol === "openai" ? "chat.completions" : "messages",
+              routePath: "/v1/chat/completions",
+              transport: "http-json",
+            },
+            body: {
+              model: "captured-model",
+              messages: [{ role: "user", content: "hi" }],
+              max_tokens: 10,
+            },
+          });
+          assert.ok(result.ok, JSON.stringify(result));
+          assert.equal(result.state.text, "Hello");
+        }
+      });
+    }
+  }
 }
 
 function postCapturedRequest(

@@ -2,6 +2,7 @@ import {
   argString,
   defaultApiEndpointStreamTerminal,
   engineDescriptor,
+  impliedInstanceModelId,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   type ApiEndpointRecord,
   type ApiEndpointStreamTerminal,
@@ -30,6 +31,7 @@ import { shouldTranslateAnthropicMessages } from "./translation.js";
 
 export type ApiProxyUpstreamContext = {
   baseUrl: string;
+  modelOverride: string | null;
   instanceId: string | null;
   endpointId: string | null;
   engine: ProxyEngineGates;
@@ -147,6 +149,11 @@ export function resolveApiProxyUpstreamContext(input: {
     ok: true,
     context: {
       baseUrl: targetResolution.baseUrl,
+      modelOverride:
+        input.target.model ??
+        (targetResolution.instance
+          ? impliedInstanceModelId(targetResolution.instance)
+          : null),
       instanceId: targetResolution.instanceId,
       endpointId: targetResolution.endpointId,
       engine: proxyEngineGates(targetResolution.instance),

@@ -1188,6 +1188,7 @@ export async function serveResolvedTarget(input: {
     }
     const {
       baseUrl,
+      modelOverride,
       instanceId,
       endpointId,
       engine,
@@ -1266,7 +1267,7 @@ export async function serveResolvedTarget(input: {
           observer,
           baseUrl,
           authHeaders,
-          model: decision.target.model,
+          model: modelOverride,
         })
       : observer;
     if (nativeReasoningControl) {
@@ -1316,7 +1317,7 @@ export async function serveResolvedTarget(input: {
             resumeKey: apiProxyStreamResumeKey({
               instanceId,
               path: forward.path,
-              modelId: decision.target.model ?? route.request.modelId,
+              modelId: modelOverride ?? route.request.modelId,
               body: upstreamRequestBody,
             }),
           })
@@ -1342,7 +1343,7 @@ export async function serveResolvedTarget(input: {
         upstreamHeaders: streamSession
           ? { ...authHeaders, "x-conversation-id": streamSession.convId }
           : authHeaders,
-        modelOverride: decision.target.model,
+        modelOverride,
         signal: stopSignal,
       });
 
@@ -1667,6 +1668,7 @@ export async function serveResolvedTarget(input: {
     }
     const {
       baseUrl,
+      modelOverride,
       instanceId,
       endpointId,
       engine,
@@ -1715,7 +1717,7 @@ export async function serveResolvedTarget(input: {
           observer,
           baseUrl,
           authHeaders,
-          model: decision.target.model,
+          model: modelOverride,
         })
       : observer;
     const buildForceAnswerTail = forceAnswerSupported
@@ -1728,8 +1730,8 @@ export async function serveResolvedTarget(input: {
         upstreamRequestBody,
         tail,
       ) as Record<string, unknown>;
-      const withModel = decision.target.model
-        ? { ...built, model: decision.target.model }
+      const withModel = modelOverride
+        ? { ...built, model: modelOverride }
         : built;
       const withProgress = injectPrefillProgress
         ? { ...withModel, return_progress: true }

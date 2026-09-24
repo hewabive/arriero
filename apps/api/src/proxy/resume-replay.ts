@@ -117,7 +117,7 @@ export function claimApiProxyResumedSession(input: {
     apiProxyStreamResumeKey({
       instanceId: resolved.context.instanceId,
       path: forward.path,
-      modelId: input.target.model ?? input.request.modelId,
+      modelId: resolved.context.modelOverride ?? input.request.modelId,
       body: forward.body,
     }),
   );

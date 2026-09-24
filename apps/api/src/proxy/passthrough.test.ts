@@ -117,4 +117,5 @@ test("a synthetic endpoint target resolves to the endpoint base URL, auth and mo
   assert.equal(resolved.context.baseUrl, "https://openrouter.ai/api/v1");
   assert.equal(resolved.context.authHeaders.authorization, "Bearer sk-or");
   assert.equal(target.model, "anthropic/claude-3.5-sonnet");
+  assert.equal(resolved.context.modelOverride, "anthropic/claude-3.5-sonnet");
 });

@@ -27,7 +27,10 @@ function managedTarget(kind: InstanceKind) {
     kind,
     binaryPathRefId: binaryRefId(),
     rpcWorkers: [],
-    args: {},
+    args:
+      kind === "vllm" || kind === "sglang"
+        ? { "--served-model-name": "served-model" }
+        : {},
     env: {},
     memory: [],
     ...(kind === "ktransformers"
@@ -45,7 +48,7 @@ function managedTarget(kind: InstanceKind) {
     ApiProxyTargetCreateSchema.parse({
       name: instance.name,
       endpointId: instanceEndpointId(instance.name),
-      model: "served-model",
+      model: kind === "vllm" || kind === "sglang" ? null : "served-model",
     }),
   );
 }

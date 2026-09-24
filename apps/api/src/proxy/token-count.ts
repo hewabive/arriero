@@ -88,7 +88,7 @@ export function createApiProxyTokenCounter(
     }
     const body = adapter.prepareBody({
       ...asObject(forward.body),
-      ...(target.model ? { model: target.model } : {}),
+      ...(context.modelOverride ? { model: context.modelOverride } : {}),
     });
     const key = JSON.stringify([targetId, context.baseUrl, path, body]);
     let result = cache.get(key);
