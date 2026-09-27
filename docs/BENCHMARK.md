@@ -286,4 +286,4 @@ comparison-ready — comparing "draft on/off" today means two manual runs agains
 instance. Planned, in rough order: run-comparison UI; fixed-arrival-rate / staggered load patterns
 (scenario `mode` is an extensible enum); GPU/system-metrics overlay from the 1 Hz recorder;
 proxy-path target variant; orchestrated A/B (restart instance with argument variations between
-runs).
+runs); recorded proxy traffic as a workload (`docs/WORKLOAD_REPLAY.md`).

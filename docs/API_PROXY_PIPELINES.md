@@ -469,7 +469,8 @@ With `request` enabled (the default), `capture-request` writes a file (kind
 `capture-request`) **at the moment the walk passes the node**, containing
 exactly the request body as it arrived there — changes made by earlier nodes
 are included, later changes are not. Each capture node visit writes its own
-request file.
+request file. A request capture meant to serve as benchmark workload goes after
+every request-rewriting node on the route (`docs/WORKLOAD_REPLAY.md`).
 
 With `response` enabled the node instead declares a **deferred response
 capture** in the ordered `responseEffects` plan. Effects execute in reverse
