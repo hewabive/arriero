@@ -284,6 +284,15 @@ export function listWorkloadRecords(scope: WorkloadScope): WorkloadRecord[] {
   return presentRecords(rows);
 }
 
+export function getWorkloadRecord(traceId: string): WorkloadRecord | null {
+  const row = db
+    .select()
+    .from(workloadRecords)
+    .where(eq(workloadRecords.traceId, traceId))
+    .get();
+  return row ? toWorkloadRecord(row) : null;
+}
+
 export function listWorkloadSessionRecords(
   sessionId: string,
 ): WorkloadRecord[] {

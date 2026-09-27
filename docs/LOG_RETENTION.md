@@ -53,13 +53,15 @@ traces page surfaces the active value via `facets.retentionDays`.
 ## Manual controls
 
 - `GET /api/logs/usage` — per-category file count and size of `runtime/logs/` plus the size of the
-  captured proxy request artifacts;
+  captured proxy request artifacts and of the frozen workload datasets;
 - `POST /api/logs/prune` — an immediate pass over both managed logs and the proxy request history
   (the "Prune now" button on `#/maintenance`).
 
 ## Deliberately not auto-deleted
 
-Benchmark artifacts (`data/benchmarks/<runId>/`, removed with their run), config backups
+Benchmark artifacts (`data/benchmarks/<runId>/`, removed with their run), workload datasets
+(`data/workload-datasets/<id>/`, deleted one by one from `#/proxy/workload` —
+`docs/WORKLOAD_REPLAY.md` D13), config backups
 (`data/config.backup-*`, deletable one by one from the Configuration page — `docs/CONFIG_GIT.md`),
 models, source checkouts, Python environments and build trees are operator-owned data — retention
 never touches them.

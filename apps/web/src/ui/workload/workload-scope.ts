@@ -1,4 +1,4 @@
-import type { ApiProxyTraceFacet } from "@arriero/core";
+import type { ApiProxyTraceFacet, WorkloadTimeRange } from "@arriero/core";
 
 export type WorkloadPeriod = "6h" | "24h" | "7d" | "30d";
 
@@ -7,8 +7,6 @@ export type WorkloadScopeState = {
   sourceId: string | null;
   modelId: string | null;
 };
-
-export type WorkloadTimeRange = { from: string; to: string };
 
 export const defaultWorkloadScope: WorkloadScopeState = {
   period: "24h",

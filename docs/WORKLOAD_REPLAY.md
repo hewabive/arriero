@@ -1,9 +1,10 @@
 # Workload replay: benchmarking on recorded proxy traffic
 
-**Status: architecture accepted 2026-09-27. Phase 1 — the session index and the workload profile —
-is implemented; datasets and the replay mode are not yet.** This document fixes the architecture of
-the feature; the implementation plan is the working document `docs/WORKLOAD_REPLAY_PLAN.md`.
-Decisions about datasets and replay describe intended behavior unless they cite existing code.
+**Status: architecture accepted 2026-09-27. Phases 1 and 2 — the session index, the workload
+profile and datasets — are implemented; the replay mode is not yet.** This document fixes the
+architecture of the feature; the implementation plan is the working document
+`docs/WORKLOAD_REPLAY_PLAN.md`. Decisions about replay runs describe intended behavior unless they
+cite existing code.
 
 ## Why
 
@@ -125,6 +126,21 @@ Admin-gated, `{ data }` responses, shapes from `packages/core/src/workload.ts`; 
 - `GET /api/workload/linking?from&to` — the linking report: link rate per source and model, and
   agreement with client session identifiers (`metadata.user_id` of Claude Code, `prompt_cache_key`
   of OpenAI clients) where present.
+
+Implemented in phase 2:
+
+- `POST /api/workload/selection` — preview a selection (`{ windows, sourceId, modelId, targetId }`):
+  its segments, and the problems that would refuse a freeze (failed or unreplayable requests in a
+  window, a session in two windows) or the warnings that would not (a segment that must start
+  cold).
+- `POST /api/workload/datasets` — freeze a selection with a name, a description and the population
+  period to profile against; 202 with the freeze job, 400 on a refused selection, 409 while a freeze
+  runs. `GET /api/workload/datasets/freeze` returns the latest freeze job.
+- `GET /api/workload/datasets`, `GET /api/workload/datasets/:id`, `DELETE /api/workload/datasets/:id`
+  — the list, one dataset with its profiles and segments, deletion.
+- `GET /api/workload/datasets/:id/export` — the gzip file (D13 § Transfer).
+- `POST /api/workload/datasets/import` — a raw `application/gzip` body; 201 when imported, 200 when
+  the machine already had it, 400 when refused.
 
 ## Decisions
 
@@ -269,10 +285,15 @@ representativeness is judged.
 - _Identity._ The content hash of the canonical manifest. Importing a dataset that a machine already
   has is a no-op, not a duplicate.
 - _Lifecycle._ Freezing runs as a background job (`apps/api/src/jobs/registry.ts`), and a dataset
-  appears only when complete. Import is untrusted input: schema validation, hash recomputation, size
-  limits, blob names that must be hashes. Datasets are never touched by retention, are deleted only
-  explicitly and count in the disk usage of the Maintenance page (`docs/LOG_RETENTION.md` § Manual
-  controls). Any DB listing of datasets is a rebuildable cache of the directory.
+  appears only when complete: it is written to a staging directory and renamed into place. Datasets
+  are never touched by retention, are deleted only explicitly and count in the disk usage of the
+  Maintenance page (`docs/LOG_RETENTION.md` § Manual controls). There is no DB listing; the
+  directory is scanned.
+- _Transfer._ An export is one gzip file of JSON lines: the first line carries the manifest, every
+  further line one blob as `{"hash", "value"}`. Import streams it and treats it as untrusted: the
+  manifest must match its schema and its id must equal the digest of its content; every blob must
+  hash to its name and be used by the manifest, and every used blob must arrive. The decompressed
+  file may not exceed 4 GiB, nor a single line 256 MiB.
 
 **D14. Reproducibility, representativeness and fidelity are separate problems.** Reproducibility
 comes from freezing: the sources are pruned after `traceRetentionDays`, 30 by default

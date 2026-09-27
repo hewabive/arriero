@@ -1,6 +1,7 @@
 import type {
   WorkloadLinkingGroup,
   WorkloadSessionSummary,
+  WorkloadTimeRange,
 } from "@arriero/core";
 import {
   Badge,
@@ -15,6 +16,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { Snowflake } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
@@ -23,6 +25,7 @@ import {
   listWorkloadSessions,
 } from "../../api/client";
 import { countLabel } from "../utils/plural";
+import { FreezeDatasetModal } from "./FreezeDatasetModal";
 import { formatLocalClock, formatLocalDateTime } from "../utils/time";
 import {
   formatDurationMs,
@@ -35,7 +38,6 @@ import {
   isWorkloadPeriod,
   workloadPeriodRange,
   type WorkloadScopeState,
-  type WorkloadTimeRange,
 } from "./workload-scope";
 
 const PAGE_SIZE = 100;
@@ -110,8 +112,11 @@ export function WorkloadSessionsPanel(props: {
   windowRange: WorkloadTimeRange | null;
   onClearWindow: () => void;
   onOpenSession: (sessionId: string) => void;
+  onOpenDataset: (datasetId: string) => void;
 }) {
   const [anchor] = useState(() => Date.now());
+  const [freezing, setFreezing] = useState<WorkloadTimeRange | null>(null);
+  const population = workloadPeriodRange(props.scope.period, anchor);
   const range =
     props.windowRange ?? workloadPeriodRange(props.scope.period, anchor);
   const scopeQuery = {
@@ -190,6 +195,16 @@ export function WorkloadSessionsPanel(props: {
             }}
           />
         )}
+        {props.windowRange && (
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<Snowflake size={14} />}
+            onClick={() => setFreezing(props.windowRange)}
+          >
+            Freeze window
+          </Button>
+        )}
         <Select
           size="xs"
           w={180}
@@ -216,6 +231,18 @@ export function WorkloadSessionsPanel(props: {
           }
         />
       </Group>
+
+      <FreezeDatasetModal
+        window={freezing}
+        population={population}
+        sourceId={props.scope.sourceId}
+        modelId={props.scope.modelId}
+        onClose={() => setFreezing(null)}
+        onFrozen={(datasetId) => {
+          setFreezing(null);
+          props.onOpenDataset(datasetId);
+        }}
+      />
 
       <LinkingReport groups={linkingQuery.data?.data.groups ?? []} />
 

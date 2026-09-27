@@ -156,3 +156,75 @@ test("reports index status and linking", async () => {
     [[1, 2]],
   );
 });
+
+function post(path: string, body: unknown) {
+  return app.request(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+  });
+}
+
+test("previews a selection and refuses to freeze a failing window", async () => {
+  const selection = {
+    windows: [
+      {
+        from: new Date(BASE).toISOString(),
+        to: new Date(BASE + 10 * MINUTE).toISOString(),
+      },
+    ],
+  };
+  const preview = await post("/api/workload/selection", selection);
+  assert.equal(preview.status, 200);
+  const body = (await preview.json()) as {
+    data: { records: number; problems: string[] };
+  };
+  assert.equal(body.data.records, 2);
+  assert.deepEqual(body.data.problems, []);
+
+  const invalid = await post("/api/workload/selection", { windows: [] });
+  assert.equal(invalid.status, 400);
+
+  const failing = await post("/api/workload/datasets", {
+    name: "Broken",
+    selection: {
+      windows: [
+        {
+          from: new Date(BASE + 35 * MINUTE).toISOString(),
+          to: new Date(BASE + 45 * MINUTE).toISOString(),
+        },
+      ],
+    },
+  });
+  assert.equal(failing.status, 400);
+});
+
+test("dataset routes answer 404 for unknown ids and 400 for bad imports", async () => {
+  const unknown = "0".repeat(64);
+  assert.equal(
+    (await app.request(`/api/workload/datasets/${unknown}`)).status,
+    404,
+  );
+  assert.equal(
+    (await app.request(`/api/workload/datasets/${unknown}/export`)).status,
+    404,
+  );
+  assert.equal(
+    (
+      await app.request(`/api/workload/datasets/${unknown}`, {
+        method: "DELETE",
+      })
+    ).status,
+    404,
+  );
+  const listed = await data<unknown[]>("/api/workload/datasets");
+  assert.deepEqual(listed.data, []);
+  const garbage = await app.request("/api/workload/datasets/import", {
+    method: "POST",
+    body: "not a dataset",
+    headers: { "content-type": "application/gzip" },
+  });
+  assert.equal(garbage.status, 400);
+  const freeze = await data<null>("/api/workload/datasets/freeze");
+  assert.equal(freeze.data, null);
+});

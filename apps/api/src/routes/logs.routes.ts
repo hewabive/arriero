@@ -12,6 +12,7 @@ import {
   getLogRetentionSettings,
   saveLogRetentionSettings,
 } from "../settings/logs.js";
+import { workloadDatasetsUsage } from "../workload/dataset-store.js";
 import { parseJsonBody } from "./validation.js";
 
 export function registerLogRoutes(app: Hono) {
@@ -25,11 +26,12 @@ export function registerLogRoutes(app: Hono) {
   });
 
   app.get("/api/logs/usage", async (c) => {
-    const [logs, proxyRequests] = await Promise.all([
+    const [logs, proxyRequests, workloadDatasets] = await Promise.all([
       getLogUsage(),
       apiProxyRequestFilesUsage(),
+      workloadDatasetsUsage(),
     ]);
-    const usage: LogStorageUsage = { ...logs, proxyRequests };
+    const usage: LogStorageUsage = { ...logs, proxyRequests, workloadDatasets };
     return c.json({ data: usage });
   });
 

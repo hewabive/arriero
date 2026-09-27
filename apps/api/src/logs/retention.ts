@@ -91,7 +91,7 @@ async function scanManagedLogFiles(): Promise<ManagedLogFile[]> {
 }
 
 export async function getLogUsage(): Promise<
-  Omit<LogStorageUsage, "proxyRequests">
+  Omit<LogStorageUsage, "proxyRequests" | "workloadDatasets">
 > {
   const files = await scanManagedLogFiles();
   const byCategory = new Map<

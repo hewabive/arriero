@@ -2,6 +2,7 @@ import type {
   WorkloadProfile,
   WorkloadProfileWindow,
   WorkloadRankedWindow,
+  WorkloadTimeRange,
   WorkloadWindowRank,
 } from "@arriero/core";
 import {
@@ -36,7 +37,6 @@ import {
   workloadPeriodRange,
   workloadStepMinutes,
   type WorkloadScopeState,
-  type WorkloadTimeRange,
 } from "./workload-scope";
 
 function optionalTokens(value: number | null): string {

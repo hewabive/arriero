@@ -185,6 +185,7 @@ function ProxyHistoryCard() {
     staleTime: 120_000,
   });
   const proxyRequests = usageQuery.data?.data.proxyRequests ?? null;
+  const workloadDatasets = usageQuery.data?.data.workloadDatasets ?? null;
   const { query, mutation, settings } = useApiProxySettings(
     notifyError("Proxy settings"),
   );
@@ -205,6 +206,14 @@ function ProxyHistoryCard() {
             Captured artifacts:{" "}
             {countLabel(proxyRequests.requestDirs, "request")},{" "}
             {formatBytes(proxyRequests.bytes)}
+          </Text>
+        )}
+        {workloadDatasets && (
+          <Text size="sm">
+            Workload datasets:{" "}
+            {countLabel(workloadDatasets.datasets, "dataset")},{" "}
+            {formatBytes(workloadDatasets.bytes)} — never pruned, deleted from
+            the Workload tab
           </Text>
         )}
         <Group align="flex-end" gap="sm" wrap="wrap">

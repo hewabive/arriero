@@ -37,6 +37,10 @@ export const LogStorageUsageSchema = z.object({
     requestDirs: z.number().int().min(0),
     bytes: z.number().int().min(0),
   }),
+  workloadDatasets: z.object({
+    datasets: z.number().int().min(0),
+    bytes: z.number().int().min(0),
+  }),
 });
 
 export type LogStorageUsage = z.infer<typeof LogStorageUsageSchema>;

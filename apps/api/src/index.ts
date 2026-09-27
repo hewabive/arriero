@@ -59,6 +59,7 @@ import {
   initSystemMetricsPersistence,
   startSystemMetricsRetentionLoop,
 } from "./system/metrics-repository.js";
+import { sweepWorkloadDatasetStaging } from "./workload/dataset-store.js";
 import { startWorkloadIndexLoop } from "./workload/indexer.js";
 
 function bootStep<T>(name: string, run: () => T): T | null {
@@ -161,6 +162,7 @@ const failedBenchmarkRuns = bootStep("fail interrupted benchmark runs", () =>
   failInterruptedBenchmarkRuns(),
 );
 const prunedTraceHistory = pruneApiProxyTraceHistory();
+bootStep("sweep workload dataset staging", () => sweepWorkloadDatasetStaging());
 const prunedManagedLogs = await bootStepAsync("prune managed logs", () =>
   pruneManagedLogs(),
 );

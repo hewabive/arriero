@@ -1,4 +1,4 @@
-import type { WorkloadIndexStatus } from "@arriero/core";
+import type { WorkloadIndexStatus, WorkloadTimeRange } from "@arriero/core";
 import { Group, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -6,13 +6,14 @@ import { useState } from "react";
 import { getWorkloadIndexStatus } from "../../api/client";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
+import { WorkloadDatasetDetail } from "../workload/WorkloadDatasetDetail";
+import { WorkloadDatasetsPanel } from "../workload/WorkloadDatasetsPanel";
 import { WorkloadProfilePanel } from "../workload/WorkloadProfilePanel";
 import { WorkloadSessionDetail } from "../workload/WorkloadSessionDetail";
 import { WorkloadSessionsPanel } from "../workload/WorkloadSessionsPanel";
 import {
   defaultWorkloadScope,
   type WorkloadScopeState,
-  type WorkloadTimeRange,
 } from "../workload/workload-scope";
 
 function indexStatusLine(status: WorkloadIndexStatus | undefined): string {
@@ -31,11 +32,11 @@ export function ProxyWorkloadView(props: {
   subpath: string;
   setSubpath: (next: string) => void;
 }) {
-  const [head = "", encodedSessionId = ""] = props.subpath.split("/");
-  const view = head === "sessions" ? "sessions" : "profile";
-  const sessionId = encodedSessionId
-    ? decodeURIComponent(encodedSessionId)
-    : null;
+  const [head = "", encodedId = ""] = props.subpath.split("/");
+  const view = head === "sessions" || head === "datasets" ? head : "profile";
+  const itemId = encodedId ? decodeURIComponent(encodedId) : null;
+  const sessionId = view === "sessions" ? itemId : null;
+  const datasetId = view === "datasets" ? itemId : null;
   const [scope, setScope] = useState<WorkloadScopeState>(defaultWorkloadScope);
   const [windowRange, setWindowRange] = useState<WorkloadTimeRange | null>(
     null,
@@ -54,6 +55,7 @@ export function ProxyWorkloadView(props: {
           data={[
             { value: "profile", label: "Profile" },
             { value: "sessions", label: "Sessions" },
+            { value: "datasets", label: "Datasets" },
           ]}
           onChange={(next) => props.setSubpath(next)}
         />
@@ -85,6 +87,22 @@ export function ProxyWorkloadView(props: {
           onClearWindow={() => setWindowRange(null)}
           onOpenSession={(id) =>
             props.setSubpath(`sessions/${encodeURIComponent(id)}`)
+          }
+          onOpenDataset={(id) =>
+            props.setSubpath(`datasets/${encodeURIComponent(id)}`)
+          }
+        />
+      )}
+      {view === "datasets" && datasetId !== null && (
+        <WorkloadDatasetDetail
+          datasetId={datasetId}
+          onBack={() => props.setSubpath("datasets")}
+        />
+      )}
+      {view === "datasets" && datasetId === null && (
+        <WorkloadDatasetsPanel
+          onOpenDataset={(id) =>
+            props.setSubpath(`datasets/${encodeURIComponent(id)}`)
           }
         />
       )}

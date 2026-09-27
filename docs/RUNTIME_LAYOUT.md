@@ -30,6 +30,10 @@ Other entries under `data/`:
 - `data/benchmarks/<runId>/` — benchmark-run artifacts (`events.jsonl`, `result.json`, plus a
   `run.json` mirroring the finalized run record so the directory is self-contained), deleted with
   the run.
+- `data/workload-datasets/<id>/` — frozen workload datasets (`docs/WORKLOAD_REPLAY.md` D13): a
+  `manifest.json` and `blobs/<sha256>.json`, one directory per content-hash id, published by an
+  atomic rename from a `.staging-*` directory that boot sweeps away. Never touched by retention;
+  deleted only explicitly (`workload/dataset-store.ts`).
 - `data/proxy-requests/` — per-request artifact files, opt-in through pipeline nodes such as
   `capture-request`. One directory per request,
   `<model>/<timestamp>-<traceId>/<NN>-<kind>.json` (inbound proxy model id, sanitized); metadata

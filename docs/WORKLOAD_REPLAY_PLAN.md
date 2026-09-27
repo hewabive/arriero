@@ -11,7 +11,7 @@ leaves open, the step says so and proposes a default.
 | Phase | Steps | Status |
 | --- | --- | --- |
 | 1 — Session index and workload profile | 1.1–1.8 | done |
-| 2 — Datasets | 2.1–2.9 | pending |
+| 2 — Datasets | 2.1–2.9 | done |
 | 3 — Replay mode | 3.1–3.11 | pending |
 
 Mark a step done here in the commit that lands it.
@@ -297,11 +297,12 @@ Pure:
 
 ### 2.5 Export and import
 
-- Export: one gzip file (`node:zlib`) holding the manifest and blobs, served with
-  `Content-Disposition` — the API's first download endpoint, so the step defines the pattern.
-- Import: a raw `application/gzip` body streamed to a temporary file under a size limit (proposed:
-  2 GiB, a setting). It is then parsed and validated: schema, recomputed hash, blob names that are
-  hashes, blob sizes. It is written atomically; a known id is a no-op.
+- Export: one gzip file (`node:zlib`) of JSON lines — the manifest, then one blob per line — served
+  with `Content-Disposition`, the API's first download endpoint.
+- Import: a raw `application/gzip` body of JSON lines, streamed line by line into a staging directory
+  under limits of 4 GiB decompressed and 256 MiB per line. It is validated while it streams: schema,
+  recomputed content id, blob names that are hashes and used by the manifest, completeness. It is
+  published atomically; a known id is a no-op.
 - Federation: node-scoped paths pass through `apps/api/src/nodes/remote.ts`; verify binary bodies in
   both directions.
 - Route tests: tampered hash, oversize body, traversal in blob names, duplicate import.
@@ -320,8 +321,9 @@ Pure:
 
 ### 2.8 Web: datasets
 
-- Freeze the selected window (name and description), list, detail with the dataset profile next to
-  the period, delete with `window.confirm`.
+- Freeze the selected window (name and description) from the sessions view, list, detail with the
+  dataset profile next to the period, delete with `window.confirm`. Composed selections from several
+  windows are available through the API; the UI freezes one window.
 - Export as a link to the node-scoped URL. Import through Mantine `FileButton` and a new raw upload
   helper in `apps/web/src/api/http.ts`.
 
