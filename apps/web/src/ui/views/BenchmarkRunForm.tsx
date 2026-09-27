@@ -53,7 +53,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   const [rows, setRows] = useState<CompositionRow[]>([newRow()]);
   const [repetitions, setRepetitions] = useState<number>(1);
   const [totalRequests, setTotalRequests] = useState(2000);
-  const [timeoutSeconds, setTimeoutSeconds] = useState(300);
+  const [timeouts, setTimeouts] = useState({ synthetic: 300, replay: 600 });
   const [warmup, setWarmup] = useState(true);
   const [cacheBust, setCacheBust] = useState(true);
   const [label, setLabel] = useState("");
@@ -62,6 +62,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   const [replay, setReplay] = useState<ReplayFormState>(defaultReplayForm);
   const replayDetail = useReplayDatasetDetail(replay.datasetId);
   const replayMode = mode === "replay";
+  const timeoutSeconds = replayMode ? timeouts.replay : timeouts.synthetic;
 
   const promptOptions = fm.prompts.map((prompt) => ({
     value: prompt.id,
@@ -317,7 +318,14 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             min={1}
             max={3600}
             value={timeoutSeconds}
-            onChange={(value) => setTimeoutSeconds(asCount(value))}
+            onChange={(value) => {
+              const seconds = asCount(value);
+              setTimeouts((current) =>
+                replayMode
+                  ? { ...current, replay: seconds }
+                  : { ...current, synthetic: seconds },
+              );
+            }}
           />
         </Group>
 
