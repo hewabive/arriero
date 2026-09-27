@@ -10,7 +10,7 @@ leaves open, the step says so and proposes a default.
 
 | Phase | Steps | Status |
 | --- | --- | --- |
-| 1 — Session index and workload profile | 1.1–1.8 | pending |
+| 1 — Session index and workload profile | 1.1–1.8 | done |
 | 2 — Datasets | 2.1–2.9 | pending |
 | 3 — Replay mode | 3.1–3.11 | pending |
 
@@ -213,8 +213,9 @@ In `apps/api/src/workload/`, no IO:
   parent ended, so the parent is always indexed first.
 - The same pass prunes rows past the trace cutoff and rows whose trace is gone. A normalization
   version change drops the index and rebuilds it from captures still on disk.
-- A boot pass through `bootStep` plus a periodic loop with `onError` logging, stopped in `shutdown()`.
-  Batches yield to the event loop between records; bodies can be hundreds of KB.
+- A periodic loop whose first pass runs right after start without blocking boot, with `onError`
+  logging, stopped in `shutdown()`. Batches yield to the event loop between records; bodies can be
+  hundreds of KB.
 - Tests with captures written by `saveApiProxyRequestFile` and traces by `insertApiProxyTrace`:
   idempotency, a late insert inside the trailing window, prune, rebuild, and a missing capture file
   recorded as an issue.
@@ -239,9 +240,9 @@ In `apps/api/src/workload/`, no IO:
 
 - Leaf `#/proxy/workload` and a `ProxySection.tsx` branch with sub-paths `profile` and `sessions`
   (`datasets` joins in 2.8). API module `apps/web/src/api/workload.ts`.
-- Profile: a timeline built on `MetricChart` or the lane drawing of `BenchmarkLoadTimeline`, with new
-  tones in `metric-palette.ts`; the window ranking with a typical/peak toggle; selecting a window
-  keeps it for freezing in phase 2.
+- Profile: `MetricChart` timelines on the existing palette tones, with a round step chosen per
+  period; the window ranking with a typical/peak toggle; a window opens its sessions, and phase 2
+  freezes it from there.
 - Sessions: a table on the `ProxyTracesView` patterns, a session tree with record issues, and a
   linking report card.
 

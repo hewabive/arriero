@@ -264,5 +264,56 @@ export function migrate() {
     sql`CREATE INDEX IF NOT EXISTS benchmark_runs_created ON benchmark_runs (created_at)`,
   );
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS workload_records (
+      trace_id TEXT PRIMARY KEY NOT NULL,
+      at TEXT NOT NULL,
+      end_at TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      source_id TEXT,
+      source_name TEXT,
+      model_id TEXT NOT NULL,
+      target_id TEXT,
+      target_name TEXT,
+      protocol TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      issue TEXT,
+      capture_path TEXT,
+      message_count INTEGER,
+      chain_key TEXT,
+      session_id TEXT NOT NULL,
+      parent_trace_id TEXT,
+      shared_messages INTEGER,
+      client_session_id TEXT,
+      prompt_tokens INTEGER,
+      cache_read_tokens INTEGER,
+      completion_tokens INTEGER,
+      ttft_ms INTEGER,
+      think_time_ms INTEGER,
+      cache_loss_tokens INTEGER,
+      response_reuse_tokens INTEGER,
+      normalization_version INTEGER NOT NULL
+    )
+  `);
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS workload_records_chain ON workload_records (source_id, model_id, chain_key)`,
+  );
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS workload_records_at ON workload_records (at)`,
+  );
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS workload_records_session ON workload_records (session_id, at)`,
+  );
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS workload_index_state (
+      id INTEGER PRIMARY KEY NOT NULL,
+      normalization_version INTEGER NOT NULL,
+      last_pass_at TEXT,
+      last_pass_indexed INTEGER NOT NULL
+    )
+  `);
+
   db.run(sql`DROP TABLE IF EXISTS llama_argument_help_overrides`);
 }

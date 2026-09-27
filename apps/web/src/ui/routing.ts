@@ -124,6 +124,15 @@ const navSections: NavSection[] = [
       },
       {
         route: "proxy",
+        subpath: "workload",
+        label: "Workload",
+        title: "Workload",
+        description:
+          "Sessions reconstructed from captured requests and the load they put on engines",
+        keywords: ["sessions", "replay", "windows", "cache", "benchmark"],
+      },
+      {
+        route: "proxy",
         subpath: "topology",
         label: "Topology",
         title: "Routing topology",

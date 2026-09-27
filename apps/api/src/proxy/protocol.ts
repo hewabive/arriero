@@ -21,7 +21,7 @@ export type ApiProxyProtocolResponse = {
   headers?: Record<string, string>;
 };
 
-type ApiProxyProtocolDiagnosticCode =
+export type ApiProxyProtocolDiagnosticCode =
   | "arriero_proxy_model_unbound"
   | "arriero_proxy_model_disabled"
   | "arriero_proxy_target_not_found"
@@ -50,7 +50,7 @@ export type ApiProxyProtocolDiagnostic = {
   retryable?: boolean | undefined;
 };
 
-type ApiProxyAuthDiagnosticCode =
+export type ApiProxyAuthDiagnosticCode =
   | "arriero_proxy_source_required"
   | "arriero_proxy_source_disabled"
   | "invalid_api_key";

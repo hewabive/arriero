@@ -148,3 +148,41 @@ export const benchmarkRuns = sqliteTable("benchmark_runs", {
   summaryJson: text("summary_json"),
   error: text("error"),
 });
+
+export const workloadRecords = sqliteTable("workload_records", {
+  traceId: text("trace_id").primaryKey(),
+  at: text("at").notNull(),
+  endAt: text("end_at").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  sourceId: text("source_id"),
+  sourceName: text("source_name"),
+  modelId: text("model_id").notNull(),
+  targetId: text("target_id"),
+  targetName: text("target_name"),
+  protocol: text("protocol").notNull(),
+  endpoint: text("endpoint").notNull(),
+  outcome: text("outcome").notNull(),
+  issue: text("issue"),
+  capturePath: text("capture_path"),
+  messageCount: integer("message_count"),
+  chainKey: text("chain_key"),
+  sessionId: text("session_id").notNull(),
+  parentTraceId: text("parent_trace_id"),
+  sharedMessages: integer("shared_messages"),
+  clientSessionId: text("client_session_id"),
+  promptTokens: integer("prompt_tokens"),
+  cacheReadTokens: integer("cache_read_tokens"),
+  completionTokens: integer("completion_tokens"),
+  ttftMs: integer("ttft_ms"),
+  thinkTimeMs: integer("think_time_ms"),
+  cacheLossTokens: integer("cache_loss_tokens"),
+  responseReuseTokens: integer("response_reuse_tokens"),
+  normalizationVersion: integer("normalization_version").notNull(),
+});
+
+export const workloadIndexState = sqliteTable("workload_index_state", {
+  id: integer("id").primaryKey(),
+  normalizationVersion: integer("normalization_version").notNull(),
+  lastPassAt: text("last_pass_at"),
+  lastPassIndexed: integer("last_pass_indexed").notNull(),
+});

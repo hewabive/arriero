@@ -40,6 +40,7 @@ import { registerRegistryRoutes } from "./routes/registries.routes.js";
 import { registerSystemRoutes } from "./routes/system.routes.js";
 import { registerUpdateRoutes } from "./routes/update.routes.js";
 import { registerWebappRoutes } from "./routes/webapps.routes.js";
+import { registerWorkloadRoutes } from "./routes/workload.routes.js";
 
 export { startApiProxyIdleMaintenanceLoop } from "./proxy/idle-maintenance.js";
 export { startApiProxyRuntimeReconcileLoop } from "./proxy/runtime-snapshot.js";
@@ -92,6 +93,7 @@ registerInstanceRoutes(app);
 registerInstanceLlamaRoutes(app);
 registerInstanceActionRoutes(app);
 registerBenchmarkRoutes(app);
+registerWorkloadRoutes(app);
 registerWebappRoutes(app);
 
 const webDistDir = resolve(

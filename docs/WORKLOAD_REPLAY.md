@@ -1,8 +1,9 @@
 # Workload replay: benchmarking on recorded proxy traffic
 
-**Status: architecture accepted 2026-09-27, not implemented.** This document fixes the architecture
-of the feature; the implementation plan is the working document `docs/WORKLOAD_REPLAY_PLAN.md`.
-Everything below describes intended behavior unless it cites existing code.
+**Status: architecture accepted 2026-09-27. Phase 1 — the session index and the workload profile —
+is implemented; datasets and the replay mode are not yet.** This document fixes the architecture of
+the feature; the implementation plan is the working document `docs/WORKLOAD_REPLAY_PLAN.md`.
+Decisions about datasets and replay describe intended behavior unless they cite existing code.
 
 ## Why
 
@@ -106,6 +107,25 @@ core schemas first (`packages/core`), as everywhere in the repository.
   by export and import.
 - **`benchmark`** gains `mode: "replay"`: its scheduler, cache flush, priming, pacing and analyses.
 
+## HTTP API
+
+Admin-gated, `{ data }` responses, shapes from `packages/core/src/workload.ts`; routes in
+`apps/api/src/routes/workload.routes.ts`, UI at `#/proxy/workload`. Implemented in phase 1:
+
+- `GET /api/workload/index` — index status: records, time span, normalization version, last pass.
+- `GET /api/workload/sessions?from&to&sourceId&modelId&targetId&limit&beforeAt&beforeId` — sessions
+  newest first, counted over the records inside the range, paged by the `(startedAt, sessionId)`
+  cursor of the last row.
+- `GET /api/workload/sessions/:id` — one session with all its records; 404 when unknown.
+- `GET /api/workload/profile?from&to&windowMinutes&stepMinutes&sourceId&modelId&targetId` — the
+  period and its sliding windows (D12); defaults to the last 24 hours, 15-minute windows and a
+  5-minute step, and refuses more than 2000 windows.
+- `GET /api/workload/windows?…&rank=typical|peak&limit` — error-free windows ranked as in D12,
+  never overlapping each other.
+- `GET /api/workload/linking?from&to` — the linking report: link rate per source and model, and
+  agreement with client session identifiers (`metadata.user_id` of Claude Code, `prompt_cache_key`
+  of OpenAI clients) where present.
+
 ## Decisions
 
 ### Recording and records
@@ -166,10 +186,13 @@ contexts may not fit the local model (D22), and recorded cache hits describe ano
 
 **D7. A new `workload` domain owns sessions and datasets** (§ Architecture overview).
 
-**D8. The session index is persisted, derived and rebuildable.** A background indexer — a pass at
-boot and periodic passes, like the retention loops (`apps/api/src/db/retention.ts`) — picks up traces
-that carry a `capture-request` file, reads the body through the proxy's reader and writes one index
-row per record. The row snapshots the trace fields the domain needs: `cacheReadTokens` is not a
+**D8. The session index is persisted, derived and rebuildable.** A background indexer
+(`apps/api/src/workload/indexer.ts:runWorkloadIndexPass`) — a first pass right after start that never
+blocks boot, then one a minute — picks up traces that carry a `capture-request` file, reads the body
+through the proxy's reader and writes one index row per record. A pass indexes only traces that
+ended at least a minute ago, since some trace inserts are deferred, and re-scans the last six hours
+so that a long request inserted late is not lost; it walks in `(at, id)` order, so a parent is always
+indexed before its child. The row snapshots the trace fields the domain needs: `cacheReadTokens` is not a
 column of `proxy_request_traces`, and trace rows are re-parsed on read with
 `apps/api/src/db/persisted-json.ts:parsePersistedJson`, which silently drops rows that a schema change
 made unparseable. Rows are pruned with the same cutoff as the traces and captures they index

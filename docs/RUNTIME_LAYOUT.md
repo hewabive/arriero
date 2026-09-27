@@ -18,6 +18,7 @@ configuration is a separate tree — `docs/CONFIG_FILES.md`.
 | `model_cache`, `safetensors_cache` | `models/` | rebuildable; raw facts + derived metadata under separate versions, so a parser bump re-derives instead of re-reading |
 | `llama_argument_catalogs` | `arguments/` | parsed `--help`, keyed by binary path, invalidated by size/mtime, mirrored to a per-binary sidecar read on DB miss (`arguments/sidecar.ts`) so it survives DB recreation and travels with the binary |
 | `proxy_response_cache` | `proxy/` | rebuildable (`docs/API_PROXY_RESPONSE_CACHE.md`) |
+| `workload_records`, `workload_index_state` | `workload/repository.ts` | rebuildable session index over captured proxy requests (`docs/WORKLOAD_REPLAY.md`): filled by a background pass every minute, pruned with the trace retention, dropped and rebuilt when the normalization version changes |
 
 Other entries under `data/`:
 

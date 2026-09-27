@@ -7,6 +7,7 @@ import { ProxyPipelinesView } from "./ProxyPipelinesView";
 import { ProxyTargetsView } from "./ProxyTargetsView";
 import { ProxyTopologyView } from "./ProxyTopologyView";
 import { ProxyTracesView } from "./ProxyTracesView";
+import { ProxyWorkloadView } from "./ProxyWorkloadView";
 import { ResourcesView } from "./ResourcesView";
 
 function splitHead(subpath: string): { head: string; rest: string } {
@@ -20,6 +21,17 @@ export function ProxySection() {
 
   if (head === "traces") {
     return <ProxyTracesView />;
+  }
+
+  if (head === "workload") {
+    return (
+      <ProxyWorkloadView
+        subpath={rest}
+        setSubpath={(next) =>
+          setSubpath(next ? `workload/${next}` : "workload")
+        }
+      />
+    );
   }
 
   if (head === "topology") {

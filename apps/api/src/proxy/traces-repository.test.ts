@@ -20,6 +20,7 @@ import {
   getApiProxyTraceFacets,
   insertApiProxyTrace,
   listApiProxyTraces,
+  listApiProxyTracesForIndexing,
   listApiProxyTracesSince,
   pruneApiProxyTraceHistory,
 } from "./traces-repository.js";
@@ -314,6 +315,56 @@ test("listApiProxyTracesSince returns ascending traces from the cutoff", () => {
     since.map((entry) => entry.id),
     ["new"],
   );
+});
+
+test("indexing pages ascending by time and id over one file kind", () => {
+  const file = (kind: string) => ({
+    name: `01-${kind}.json`,
+    path: `m1/dir/01-${kind}.json`,
+    kind,
+    label: null,
+    bytes: 1,
+    createdAt: "2026-07-31T10:00:00.000Z",
+  });
+  const at = "2026-07-31T10:00:00.000Z";
+  insertApiProxyTrace(trace({ id: "b", at, files: [file("capture-request")] }));
+  insertApiProxyTrace(trace({ id: "a", at, files: [file("capture-request")] }));
+  insertApiProxyTrace(
+    trace({
+      id: "c",
+      at: "2026-07-31T10:00:01.000Z",
+      files: [file("capture-response")],
+    }),
+  );
+  insertApiProxyTrace(
+    trace({
+      id: "d",
+      at: "2026-07-31T10:00:02.000Z",
+      files: [file("capture-request")],
+    }),
+  );
+  const first = listApiProxyTracesForIndexing({
+    from: daysBefore(1),
+    after: null,
+    fileKind: "capture-request",
+    limit: 2,
+  });
+  assert.deepEqual(
+    first.traces.map((item) => item.id),
+    ["a", "b"],
+  );
+  assert.deepEqual(first.next, { at, id: "b" });
+  const second = listApiProxyTracesForIndexing({
+    from: daysBefore(1),
+    after: first.next,
+    fileKind: "capture-request",
+    limit: 2,
+  });
+  assert.deepEqual(
+    second.traces.map((item) => item.id),
+    ["d"],
+  );
+  assert.equal(second.next, null);
 });
 
 test("round-trips full scheduler actions with reasons", () => {

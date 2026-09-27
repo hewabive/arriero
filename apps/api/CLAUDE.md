@@ -74,6 +74,7 @@ logic and tests. Routes for a domain live in `src/routes/<domain>.routes.ts`.
 | `nvidia` | NVML telemetry over a koffi FFI binding — **the only GPU-memory authority** — plus per-GPU health facts (ECC / row-remap / page-retirement, throttle reasons, PCIe link, recovery action, VRAM temp) surfaced as optional `SystemAccelerator` fields and web health badges | — |
 | `numa` | topology/capability/cgroup/launch for per-instance pinning | `docs/NUMA_PINNING.md` |
 | `benchmark` | engine-agnostic inference-speed benchmark | `docs/BENCHMARK.md` |
+| `workload` | session index and workload profile over captured proxy requests, the input of benchmark replay | `docs/WORKLOAD_REPLAY.md` |
 | `webapps` | managed third-party chat web UIs: adapter-driven install/config/supervision, proxy wiring | `docs/WEBAPPS.md` |
 | `nodes` | fleet registry and reverse-proxy transport | `docs/FEDERATION.md` |
 | `sources` | engine source checkouts and drift report | `docs/SOURCE_REPOSITORIES.md` |

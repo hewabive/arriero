@@ -244,7 +244,7 @@ function JsonViewPanel(props: { header: ReactNode; value: unknown }) {
   );
 }
 
-function TraceFileModal(props: {
+export function TraceFileModal(props: {
   file: ApiProxyTraceFile | null;
   onClose: () => void;
 }) {

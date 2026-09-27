@@ -35,7 +35,7 @@ function traceRetentionDays(): number {
   return getApiProxySettings().traceRetentionDays;
 }
 
-function retentionCutoff(now: Date): string {
+export function apiProxyTraceRetentionCutoff(now: Date): string {
   return new Date(
     now.getTime() - traceRetentionDays() * 24 * 60 * 60 * 1000,
   ).toISOString();
@@ -309,11 +309,48 @@ export function listApiProxyTracesSince(
   return parseTraceRows(rows);
 }
 
+export function listApiProxyTracesForIndexing(input: {
+  from: string;
+  after: { at: string; id: string } | null;
+  fileKind: string;
+  limit: number;
+}): {
+  traces: ApiProxyRequestTrace[];
+  next: { at: string; id: string } | null;
+} {
+  const conditions = filterConditions({
+    from: input.from,
+    fileKind: input.fileKind,
+  });
+  if (input.after) {
+    conditions.push(
+      sql`(${proxyRequestTraces.at} > ${input.after.at} OR (${proxyRequestTraces.at} = ${input.after.at} AND ${proxyRequestTraces.id} > ${input.after.id}))`,
+    );
+  }
+  const limit = Math.max(1, input.limit);
+  const rows = db
+    .select({
+      id: proxyRequestTraces.id,
+      at: proxyRequestTraces.at,
+      traceJson: proxyRequestTraces.traceJson,
+    })
+    .from(proxyRequestTraces)
+    .where(and(...conditions))
+    .orderBy(asc(proxyRequestTraces.at), asc(proxyRequestTraces.id))
+    .limit(limit)
+    .all();
+  const last = rows.at(-1);
+  return {
+    traces: parseTraceRows(rows),
+    next: last && rows.length === limit ? { at: last.at, id: last.id } : null,
+  };
+}
+
 export function pruneApiProxyTraceHistory(now = new Date()): {
   prunedTraces: number;
   prunedRequestDirs: number;
 } {
-  const cutoff = retentionCutoff(now);
+  const cutoff = apiProxyTraceRetentionCutoff(now);
   const result = db
     .delete(proxyRequestTraces)
     .where(lt(proxyRequestTraces.at, cutoff))

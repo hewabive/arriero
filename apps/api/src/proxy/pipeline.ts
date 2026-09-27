@@ -32,6 +32,8 @@ import { estimateRequestTokens } from "./token-estimate.js";
 import type { ApiProxyTokenCounter } from "./token-count.js";
 import { uniqueTokenCountTarget } from "./token-count-target.js";
 
+export const CAPTURE_REQUEST_SAVED_DETAIL = "request saved";
+
 export type ApiProxyPipelineRecordRequestInput = {
   kind: string;
   nodeName: string | null;
@@ -829,7 +831,7 @@ export async function resolveApiProxyRouteChain(input: {
               modelId: input.request.modelId,
               requestBody: state.request.body,
             });
-            details.push("request saved");
+            details.push(CAPTURE_REQUEST_SAVED_DETAIL);
           } else {
             details.push("request (dry run)");
           }

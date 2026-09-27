@@ -48,6 +48,7 @@ export * from "./models.js";
 export * from "./presets.js";
 export * from "./settings.js";
 export * from "./benchmark.js";
+export * from "./workload.js";
 export * from "./hf.js";
 export * from "./hosts.js";
 export * from "./webapp-descriptor.js";

@@ -59,6 +59,7 @@ import {
   initSystemMetricsPersistence,
   startSystemMetricsRetentionLoop,
 } from "./system/metrics-repository.js";
+import { startWorkloadIndexLoop } from "./workload/indexer.js";
 
 function bootStep<T>(name: string, run: () => T): T | null {
   try {
@@ -265,6 +266,10 @@ const stopLogRetention = startLogRetentionLoop({
   onError: (error) => logger.error({ error }, "log retention prune failed"),
 });
 
+const stopWorkloadIndex = startWorkloadIndexLoop({
+  onError: (error) => logger.error({ error }, "workload index pass failed"),
+});
+
 const stopMemoryAssessmentAuto = startMemoryAssessmentAutoLoop({
   onError: (error) =>
     logger.error({ error }, "memory assessment auto pass failed"),
@@ -337,6 +342,7 @@ async function shutdown(signal: NodeJS.Signals) {
     stopSystemMetricsRetention();
     stopLogRetention();
     stopMemoryAssessmentAuto();
+    stopWorkloadIndex();
     systemMetricsRecorder.stop();
     await closeServer();
     logger.info("http server closed");

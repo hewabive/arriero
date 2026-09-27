@@ -376,6 +376,7 @@ export type PipelineNodeDescriptor = {
   color: string;
   singleNext: boolean;
   pickerVisible: boolean;
+  rewritesRequest: boolean;
 };
 
 export const PIPELINE_NODE_DESCRIPTORS = {
@@ -385,6 +386,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-blue-5)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: true,
   },
   "capture-request": {
     label: "Save request / response",
@@ -392,6 +394,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-gray-5)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: false,
   },
   "edit-request": {
     label: "Edit request",
@@ -399,6 +402,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-violet-5)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: true,
   },
   reasoning: {
     label: "Reasoning",
@@ -406,6 +410,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-cyan-6)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: true,
   },
   "output-limit": {
     label: "Limit output",
@@ -413,6 +418,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-red-5)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: true,
   },
   "context-limit": {
     label: "Context limit",
@@ -420,6 +426,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-pink-6)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: false,
   },
   "token-scale": {
     label: "Token scale",
@@ -427,6 +434,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-orange-6)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: true,
   },
   "strip-attribution": {
     label: "Strip CC attribution",
@@ -434,6 +442,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-lime-6)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: true,
   },
   cache: {
     label: "Cache response",
@@ -441,6 +450,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-teal-6)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: false,
   },
   "loop-guard": {
     label: "Loop guard",
@@ -448,6 +458,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-red-7)",
     singleNext: true,
     pickerVisible: true,
+    rewritesRequest: false,
   },
   condition: {
     label: "Condition",
@@ -455,6 +466,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-yellow-6)",
     singleNext: false,
     pickerVisible: true,
+    rewritesRequest: false,
   },
   call: {
     label: "Pipeline",
@@ -462,6 +474,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-indigo-5)",
     singleNext: false,
     pickerVisible: false,
+    rewritesRequest: false,
   },
   exit: {
     label: "Exit",
@@ -469,6 +482,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-orange-5)",
     singleNext: false,
     pickerVisible: true,
+    rewritesRequest: false,
   },
   fusion: {
     label: "Fusion",
@@ -476,6 +490,7 @@ export const PIPELINE_NODE_DESCRIPTORS = {
     color: "var(--mantine-color-grape-5)",
     singleNext: false,
     pickerVisible: true,
+    rewritesRequest: false,
   },
 } as const satisfies Record<ApiProxyPipelineNodeType, PipelineNodeDescriptor>;
 

@@ -55,7 +55,7 @@ not before.
 | [NUMA_PINNING](NUMA_PINNING.md) | Per-instance bind/interleave, delegation prerequisites, placement skew |
 | [SYSTEM_METRICS](SYSTEM_METRICS.md) | The 1 Hz recorder, persistence buckets, event-loop stall verdicts |
 | [BENCHMARK](BENCHMARK.md) | Engine-agnostic inference-speed benchmark |
-| [WORKLOAD_REPLAY](WORKLOAD_REPLAY.md) | Accepted architecture, not implemented: benchmarking on recorded proxy traffic — session index, windows, datasets, replay mode |
+| [WORKLOAD_REPLAY](WORKLOAD_REPLAY.md) | Benchmarking on recorded proxy traffic — session index and workload profile (implemented), datasets and replay mode (planned) |
 
 ## Web UI
 
