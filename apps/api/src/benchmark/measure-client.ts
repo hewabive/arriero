@@ -7,6 +7,7 @@ import {
 } from "../api-lab/sse-parse.js";
 import { asObject, numberOrNull } from "../proxy/json.js";
 import { upstreamErrorText } from "../proxy/protocol-trace.js";
+import { openaiCachedTokens } from "../proxy/usage-meter.js";
 import { consumeSseEvents } from "../proxy/sse.js";
 
 export type MeasuredStreamOutcome = {
@@ -17,6 +18,7 @@ export type MeasuredStreamOutcome = {
   timedOut: boolean;
   chunkTimesMs: number[];
   promptTokens: number | null;
+  cachedPromptTokens: number | null;
   completionTokens: number | null;
   serverTimings: BenchmarkServerTimings | null;
   finishReason: string | null;
@@ -31,11 +33,29 @@ export type MeasuredRequestInput = {
   fetchImpl?: typeof fetch | undefined;
   now?: (() => number) | undefined;
   timeoutMs?: number | undefined;
+  omittedCacheReadIsZero?: boolean | undefined;
+  requireContent?: boolean | undefined;
 };
 
 const ERROR_BODY_LIMIT = 300;
 
 export const CANCELED_REQUEST_ERROR = "canceled";
+
+function streamToolCallDelta(value: unknown): boolean {
+  const choices = asObject(value)?.choices;
+  const choice = Array.isArray(choices) ? asObject(choices[0]) : null;
+  const toolCalls = asObject(choice?.delta)?.tool_calls;
+  return (
+    Array.isArray(toolCalls) &&
+    toolCalls.some((call) => {
+      const fn = asObject(asObject(call)?.function);
+      return (
+        (typeof fn?.name === "string" && fn.name.length > 0) ||
+        (typeof fn?.arguments === "string" && fn.arguments.length > 0)
+      );
+    })
+  );
+}
 
 function serverTimingsFrom(value: unknown): BenchmarkServerTimings | null {
   const record = asObject(value);
@@ -57,6 +77,7 @@ export async function runMeasuredRequest(
   const now = input.now ?? (() => performance.now());
   const chunkTimesMs: number[] = [];
   let promptTokens: number | null = null;
+  let cachedPromptTokens: number | null = null;
   let completionTokens: number | null = null;
   let serverTimings: BenchmarkServerTimings | null = null;
   let finishReason: string | null = null;
@@ -108,7 +129,7 @@ export async function runMeasuredRequest(
           error = `upstream stream error: ${streamError.slice(0, ERROR_BODY_LIMIT)}`;
           return true;
         }
-        if (streamDeltaText(parsed)) {
+        if (streamDeltaText(parsed) || streamToolCallDelta(parsed)) {
           chunkTimesMs.push(now());
         }
         finishReason = streamFinishReason(parsed) ?? finishReason;
@@ -116,6 +137,7 @@ export async function runMeasuredRequest(
         const usage = asObject(record?.usage);
         if (usage) {
           promptTokens = numberOrNull(usage.prompt_tokens) ?? promptTokens;
+          cachedPromptTokens = openaiCachedTokens(usage) ?? cachedPromptTokens;
           completionTokens =
             numberOrNull(usage.completion_tokens) ?? completionTokens;
         }
@@ -143,7 +165,11 @@ export async function runMeasuredRequest(
   if (error === null && !streamCompleted && finishReason === null) {
     error = "upstream stream ended before completion";
   }
-  if (error === null && chunkTimesMs.length === 0) {
+  if (
+    error === null &&
+    chunkTimesMs.length === 0 &&
+    input.requireContent !== false
+  ) {
     error = "upstream returned no generated content";
   }
 
@@ -155,6 +181,12 @@ export async function runMeasuredRequest(
     timedOut,
     chunkTimesMs,
     promptTokens,
+    cachedPromptTokens:
+      cachedPromptTokens === null &&
+      promptTokens !== null &&
+      input.omittedCacheReadIsZero === true
+        ? 0
+        : cachedPromptTokens,
     completionTokens,
     serverTimings,
     finishReason,

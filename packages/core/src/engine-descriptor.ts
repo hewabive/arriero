@@ -19,6 +19,11 @@ export type EngineArgumentCatalogParserId =
   | "none";
 export type EngineEstimatorId = "gguf" | "vllm-gpu-util" | "none";
 export type EngineBenchmarkServerMetricsId = "vllm-prometheus" | "none";
+export type EngineBenchmarkCacheFlushId =
+  | "llama-server"
+  | "vllm-reset-prefix-cache"
+  | "sglang-flush-cache"
+  | "restart";
 export type EngineResourceProfileId =
   | "llama-args"
   | "rpc-device-args"
@@ -95,6 +100,7 @@ export type EngineDescriptor = {
   logs: { parser: EngineLogParserId };
   estimator: EngineEstimatorId;
   benchmarkServerMetrics: EngineBenchmarkServerMetricsId;
+  benchmarkCacheFlush: EngineBenchmarkCacheFlushId;
   assessment: {
     fingerprint: EngineAssessmentFingerprintId;
     measuredBaseline: boolean;
@@ -144,6 +150,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "llama" },
     estimator: "gguf",
     benchmarkServerMetrics: "none",
+    benchmarkCacheFlush: "llama-server",
     assessment: { fingerprint: "llama-binary-gguf", measuredBaseline: true },
     resourceProfile: "llama-args",
     processTree: {
@@ -189,6 +196,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "llama" },
     estimator: "none",
     benchmarkServerMetrics: "none",
+    benchmarkCacheFlush: "restart",
     assessment: { fingerprint: "none", measuredBaseline: false },
     resourceProfile: "rpc-device-args",
     processTree: { policy: "root-only" },
@@ -234,6 +242,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "vllm" },
     estimator: "vllm-gpu-util",
     benchmarkServerMetrics: "vllm-prometheus",
+    benchmarkCacheFlush: "vllm-reset-prefix-cache",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "vllm-args",
     processTree: { policy: "all-descendants" },
@@ -280,6 +289,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "sglang" },
     estimator: "none",
     benchmarkServerMetrics: "none",
+    benchmarkCacheFlush: "sglang-flush-cache",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "sglang-args",
     processTree: { policy: "all-descendants" },
@@ -326,6 +336,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
     logs: { parser: "sglang" },
     estimator: "none",
     benchmarkServerMetrics: "none",
+    benchmarkCacheFlush: "restart",
     assessment: { fingerprint: "python-env", measuredBaseline: true },
     resourceProfile: "ktransformers-hybrid",
     processTree: { policy: "all-descendants" },

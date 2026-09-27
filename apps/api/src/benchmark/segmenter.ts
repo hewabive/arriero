@@ -23,6 +23,7 @@ export type MeasuredRequest = {
   timedOut?: boolean;
   chunkTimesMs: number[];
   promptTokens: number | null;
+  cachedPromptTokens?: number | null;
   completionTokens: number | null;
   serverTimings: BenchmarkServerTimings | null;
   finishReason: string | null;
@@ -321,6 +322,7 @@ export function buildRequestResult(
     maxChunkGapMs,
     chunkCount: request.chunkTimesMs.length,
     promptTokens: request.promptTokens,
+    cachedPromptTokens: request.cachedPromptTokens ?? null,
     completionTokens: request.completionTokens,
     clientDecodeTokensPerSecond: phases
       ? ratePerSecond(decodeTokens, phases.doneMs - phases.firstTokenMs)

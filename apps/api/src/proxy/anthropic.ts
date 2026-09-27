@@ -1,6 +1,7 @@
 import { asObject } from "./json.js";
 import { apiProxySseEventFrame } from "./response-codec.js";
 import {
+  apiProxyDiagnosticHeaderField,
   apiProxyOperationSpec,
   modelIdFromBody,
   type ApiProxyProtocolAdapter,
@@ -365,9 +366,7 @@ export const anthropicProtocolAdapter: ApiProxyProtocolAdapter = {
             ? "conflict_error"
             : "api_error",
       }),
-      ...(diagnostic.retryable === false
-        ? { headers: { "x-should-retry": "false" } }
-        : {}),
+      ...apiProxyDiagnosticHeaderField(diagnostic),
     };
   },
   authError: (diagnostic) => ({

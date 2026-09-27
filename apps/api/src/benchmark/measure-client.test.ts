@@ -205,3 +205,82 @@ test("flags malformed stream frames while keeping measured chunks", async () => 
   assert.equal(outcome.error, "1 malformed stream frames");
   assert.equal(outcome.chunkTimesMs.length, 1);
 });
+
+test("records prompt tokens served from the cache, and zero where an engine omits it", async () => {
+  const frames = (usage: string) => [
+    'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+    `data: {"choices":[],"usage":${usage}}\n\n`,
+    "data: [DONE]\n\n",
+  ];
+  const cached = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: { stream: true },
+    fetchImpl: async () =>
+      sseResponse(
+        frames(
+          '{"prompt_tokens":100,"completion_tokens":1,"prompt_tokens_details":{"cached_tokens":64}}',
+        ),
+      ),
+  });
+  assert.equal(cached.cachedPromptTokens, 64);
+  const unknown = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: { stream: true },
+    fetchImpl: async () =>
+      sseResponse(frames('{"prompt_tokens":100,"completion_tokens":1}')),
+  });
+  assert.equal(unknown.cachedPromptTokens, null);
+  const omitted = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: { stream: true },
+    omittedCacheReadIsZero: true,
+    fetchImpl: async () =>
+      sseResponse(frames('{"prompt_tokens":100,"completion_tokens":1}')),
+  });
+  assert.equal(omitted.cachedPromptTokens, 0);
+});
+
+test("reasoning and tool-call deltas count as generated tokens", async () => {
+  const frames = [
+    'data: {"choices":[{"delta":{"role":"assistant","content":null,"reasoning":"plan"}}]}\n\n',
+    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read","arguments":""}}]}}]}\n\n',
+    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"path\\":\\"a\\"}"}}]}}]}\n\n',
+    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":""}}]}}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+    "data: [DONE]\n\n",
+  ];
+  const outcome = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: { stream: true },
+    fetchImpl: async () => sseResponse(frames),
+    now: tickingClock(10),
+  });
+  assert.equal(outcome.error, null);
+  assert.deepEqual(outcome.chunkTimesMs, [20, 30, 40]);
+  assert.equal(outcome.finishReason, "tool_calls");
+});
+
+test("an answer without visible tokens fails unless content is optional", async () => {
+  const frames = [
+    'data: {"choices":[{"delta":{"role":"assistant"}}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n',
+    'data: {"choices":[],"usage":{"prompt_tokens":40,"completion_tokens":1}}\n\n',
+    "data: [DONE]\n\n",
+  ];
+  const required = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: { stream: true },
+    fetchImpl: async () => sseResponse(frames),
+  });
+  assert.equal(required.error, "upstream returned no generated content");
+  const optional = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: { stream: true },
+    requireContent: false,
+    fetchImpl: async () => sseResponse(frames),
+  });
+  assert.equal(optional.error, null);
+  assert.equal(optional.firstTokenMs, null);
+  assert.equal(optional.promptTokens, 40);
+});

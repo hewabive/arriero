@@ -20,6 +20,7 @@ export function streamDeltaText(value: unknown): string {
   const content =
     delta?.content ??
     delta?.reasoning_content ??
+    delta?.reasoning ??
     delta?.text ??
     message?.content ??
     choice?.text;

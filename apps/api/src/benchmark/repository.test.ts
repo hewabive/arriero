@@ -44,8 +44,9 @@ test("benchmark run lifecycle roundtrip", () => {
   const loaded = getBenchmarkRun(id);
   assert.equal(loaded?.status, "running");
   assert.equal(loaded?.scenario.target.instanceName, "bench-target");
-  assert.equal(loaded?.scenario.repetitions, 1);
-  assert.equal(loaded?.scenario.cacheBust, true);
+  assert.equal(loaded?.scenario.mode, "parallel");
+  assert.equal(loaded.scenario.repetitions, 1);
+  assert.equal(loaded.scenario.cacheBust, true);
 
   patchBenchmarkRun(id, {
     status: "succeeded",
@@ -137,6 +138,64 @@ test("legacy snapshot rows parse with defaulted launch fields", () => {
   assert.deepEqual(parsed.rpcWorkers, []);
   assert.equal(parsed.launchCliArgs, null);
   assert.equal(parsed.buildInfo, null);
+});
+
+test("stored scenarios of every synthetic mode still parse", () => {
+  const target = { kind: "instance", instanceName: "legacy" };
+  const composition = [{ promptId: "code-en-task-queue", count: 2 }];
+  const stored = [
+    { target, mode: "sequential", composition, repetitions: 3 },
+    {
+      target,
+      mode: "parallel",
+      composition,
+      repetitions: 1,
+      requestTimeoutMs: 300000,
+      warmup: true,
+      cacheBust: false,
+      maxTokensOverride: 64,
+      label: "legacy-parallel",
+    },
+    {
+      target,
+      mode: "sustained",
+      composition,
+      repetitions: 1,
+      totalRequests: 40,
+      sampling: { temperature: 0, seed: 7 },
+    },
+  ];
+  for (const row of stored) {
+    const parsed = BenchmarkScenarioSchema.parse(
+      JSON.parse(JSON.stringify(row)),
+    );
+    assert.equal(parsed.mode, row.mode);
+    assert.ok(parsed.mode !== "replay");
+    assert.deepEqual(parsed.composition, composition);
+  }
+});
+
+test("a replay scenario fills its pacing defaults", () => {
+  const parsed = BenchmarkScenarioSchema.parse({
+    target: { kind: "instance", instanceName: "bench-target" },
+    mode: "replay",
+    datasetId: "0".repeat(64),
+  });
+  assert.ok(parsed.mode === "replay");
+  assert.deepEqual(parsed.arrival, { kind: "recorded" });
+  assert.deepEqual(parsed.thinkTime, { kind: "recorded" });
+  assert.equal(parsed.priming, "recorded");
+  assert.equal(parsed.idleSkipping, true);
+  assert.equal(parsed.imitateClientAborts, false);
+  assert.equal(
+    BenchmarkScenarioSchema.safeParse({ ...parsed, composition: [] }).success,
+    true,
+  );
+  assert.equal(
+    BenchmarkScenarioSchema.safeParse({ ...parsed, datasetId: "missing" })
+      .success,
+    false,
+  );
 });
 
 test("interrupted running runs are failed at boot", () => {

@@ -4,6 +4,7 @@ import type {
 } from "@arriero/core";
 import { asObject } from "./json.js";
 import {
+  apiProxyDiagnosticHeaderField,
   apiProxyOperationSpec,
   modelIdFromBody,
   type ApiProxyProtocolAdapter,
@@ -343,9 +344,7 @@ export const openAiProtocolAdapter: ApiProxyProtocolAdapter = {
       code: diagnostic.code,
       param: diagnostic.param,
     }),
-    ...(diagnostic.retryable === false
-      ? { headers: { "x-should-retry": "false" } }
-      : {}),
+    ...apiProxyDiagnosticHeaderField(diagnostic),
   }),
   authError: (diagnostic) => ({
     status: diagnostic.status,

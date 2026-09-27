@@ -139,6 +139,13 @@ the wait is bounded only by the request's own timeout/abort.
   hold together with the memory plan, so a single admission either admits
   concurrently, preempts a busy preemptible lower-priority holder (abort → slot save
   → swap → resume), or queues.
+- **Benchmark replay (maintenance lease):** a replay run reserves its instance and every
+  instance drawing from the same pools, waits for in-flight proxy requests to them to finish,
+  then takes `tryAcquireMaintenance` over those domains and holds it for the whole run — a
+  request that slipped past the reservation check queues behind the lease instead of competing
+  with the measurement (`docs/API_PROXY_FOUNDATION.md` § Benchmark reservation). An instance
+  without draws has no domain, so only it is reserved and the run warns that its neighbors are
+  unknown.
 
 Bare concurrency was always available — two resident `llama-server` processes
 time-slice on the device, and a request whose instance declares **no** memory

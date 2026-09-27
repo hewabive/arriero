@@ -267,6 +267,33 @@ Lifecycle actions and llama-specific forward-path features are gated on per-engi
 
 See `proxy-latency` commit series and `docs/STATUS_LAYERS.md` (L2/L3) for the state derivation reused here.
 
+## Benchmark reservation
+
+A replay benchmark run (`docs/BENCHMARK.md` § Replay) measures an instance directly, so the proxy
+stays off it for the run (`apps/api/src/proxy/run-reservation.ts`). The gate sits beside the
+self-update drain (`docs/STREAM_RESUME.md` § Self-update drain) and differs in scope: the drain
+refuses every request, a reservation only those bound for the reserved instances.
+
+- **Scope** — the benchmarked instance plus every instance drawing from one of its pools
+  (`apiProxyReservationScope`); `GET /api/benchmark/reservation-preview` lists them with the proxy
+  targets that will refuse. External endpoints are never reserved. A target maps to its instance
+  through its endpoint id, the ephemeral `serve:` and `endpoint:` targets included
+  (`apiProxyTargetInstanceName`).
+- **Admission** — `serveResolvedTarget` checks the resolved target right after routing, before
+  autostart and the lease, and `executeApiProxyModelSubRequest` checks every fusion panel. Both
+  answer with the `arriero_proxy_instance_reserved` diagnostic: HTTP 503, `Retry-After` from the
+  run's expected end, and a protocol-shaped error naming the run (`apiProxyReservationDiagnostic`).
+  The token counter reports a reserved instance as unavailable, so the counting node's
+  `onUnavailable` setting decides.
+- **Background actions** — idle maintenance pins reserved targets, so an engine that looks idle
+  between benchmark requests is never unloaded mid-run.
+- **Drain and exclusion** — `reserveApiProxyInstances` registers the reservation first, so new
+  requests are refused from that moment, then waits until no proxy request to a reserved target is
+  in flight, then takes the maintenance lease over the reserved compute domains and holds it for the
+  run (`docs/RESOURCE_MANAGEMENT.md` § How the axes drive the proxy). On a drain timeout the run
+  fails, naming the requests still active. The reservation lives in memory: the run releases it on
+  every exit path, and a manager crash drops it together with the run.
+
 ## External providers
 
 Connecting an external provider does not use the `target` layer. An endpoint is the upstream connection (base URL + profile + one optional key); a model routes straight to it via `routeTo: {type: "endpoint", endpointId, upstreamModel}`, and a `passthrough: true` endpoint exposes its whole catalog by name with no per-model record. Both resolve to a synthetic, non-persisted target (`proxy/external-target.ts`) so the gateway/lease/forwarder path is unchanged. Endpoint auth is a single key (stored `apiKey` XOR `apiKeyEnvVar`) with profile-derived placement and an `extraHeaders` record — no auth-type enum. Full details, including the `modelFilter` glob semantics and the `/models` catalog merge into `GET /v1/models`, are in `docs/EXTERNAL_PROVIDERS.md`.

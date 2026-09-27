@@ -1,4 +1,4 @@
-import type { BenchmarkScenario } from "@arriero/core";
+import type { BenchmarkSyntheticScenario } from "@arriero/core";
 
 export type ScheduledBenchmarkRequest = {
   client: number;
@@ -8,7 +8,7 @@ export type ScheduledBenchmarkRequest = {
 };
 
 export async function runBenchmarkSchedule(input: {
-  scenario: BenchmarkScenario;
+  scenario: BenchmarkSyntheticScenario;
   clients: number;
   signal: AbortSignal;
   run: (request: ScheduledBenchmarkRequest) => Promise<void>;

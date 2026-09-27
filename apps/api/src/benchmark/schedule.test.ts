@@ -1,4 +1,4 @@
-import { BenchmarkScenarioSchema } from "@arriero/core";
+import { BenchmarkSyntheticScenarioSchema } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -22,7 +22,7 @@ function deferred() {
 }
 
 function scenario(overrides: Record<string, unknown> = {}) {
-  return BenchmarkScenarioSchema.parse({
+  return BenchmarkSyntheticScenarioSchema.parse({
     target: { kind: "instance", instanceName: "test" },
     composition: [
       { promptId: "short", count: 1 },

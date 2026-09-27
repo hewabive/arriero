@@ -22,6 +22,14 @@ import {
 } from "../components/TouchCombobox";
 import { createUiId } from "../utils/id";
 import { countLabel } from "../utils/plural";
+import {
+  BenchmarkReplayFields,
+  defaultReplayForm,
+  replayPlanProblem,
+  replayScenarioFields,
+  useReplayDatasetDetail,
+  type ReplayFormState,
+} from "./BenchmarkReplayFields";
 import type { BenchmarkViewController } from "./use-benchmark-view";
 
 type CompositionRow = {
@@ -51,6 +59,9 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   const [label, setLabel] = useState("");
   const [temperature, setTemperature] = useState<number | string>("");
   const [seed, setSeed] = useState<number | string>("");
+  const [replay, setReplay] = useState<ReplayFormState>(defaultReplayForm);
+  const replayDetail = useReplayDatasetDetail(replay.datasetId);
+  const replayMode = mode === "replay";
 
   const promptOptions = fm.prompts.map((prompt) => ({
     value: prompt.id,
@@ -64,15 +75,19 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   const composition = rows
     .filter((row) => row.promptId !== null)
     .map((row) => ({ promptId: row.promptId as string, count: row.count }));
+  const idle =
+    !fm.startPending && !fm.runs.some((run) => run.status === "running");
   const canStart =
     instanceName !== null &&
-    composition.length > 0 &&
-    composition.length <= 32 &&
-    !fm.startPending &&
-    !fm.runs.some((run) => run.status === "running") &&
-    (mode !== "sustained" ||
-      totalRequests >=
-        composition.reduce((sum, entry) => sum + entry.count, 0));
+    idle &&
+    (replayMode
+      ? replay.datasetId !== null &&
+        replayPlanProblem(replay, replayDetail) === null
+      : composition.length > 0 &&
+        composition.length <= 32 &&
+        (mode !== "sustained" ||
+          totalRequests >=
+            composition.reduce((sum, entry) => sum + entry.count, 0)));
   const clients = composition.reduce((sum, entry) => sum + entry.count, 0);
 
   function updateRow(uiId: string, patch: Partial<CompositionRow>) {
@@ -82,7 +97,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   }
 
   function start() {
-    if (instanceName === null || composition.length === 0) return;
+    if (instanceName === null) return;
     const temperatureValue =
       typeof temperature === "number" ? temperature : null;
     const seedValue = typeof seed === "number" ? seed : null;
@@ -90,17 +105,27 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
       ...(temperatureValue !== null ? { temperature: temperatureValue } : {}),
       ...(seedValue !== null ? { seed: seedValue } : {}),
     };
+    const shared = {
+      target: { kind: "instance" as const, instanceName },
+      requestTimeoutMs: timeoutSeconds * 1000,
+      warmup,
+      ...(Object.keys(sampling).length > 0 ? { sampling } : {}),
+      ...(label.trim() ? { label: label.trim() } : {}),
+    };
+    if (mode === "replay") {
+      const fields = replayScenarioFields(replay);
+      if (!fields) return;
+      fm.startRun({ ...shared, mode, ...fields });
+      return;
+    }
+    if (composition.length === 0) return;
     const scenario: BenchmarkScenarioInput = {
-      target: { kind: "instance", instanceName },
+      ...shared,
       mode,
       composition,
       repetitions: mode === "sustained" ? 1 : repetitions,
       ...(mode === "sustained" ? { totalRequests } : {}),
-      requestTimeoutMs: timeoutSeconds * 1000,
-      warmup,
       cacheBust,
-      ...(Object.keys(sampling).length > 0 ? { sampling } : {}),
-      ...(label.trim() ? { label: label.trim() } : {}),
     };
     fm.startRun(scenario);
   }
@@ -130,61 +155,6 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
           filter={substringOptionsFilter}
         />
 
-        <Stack gap={6}>
-          <Text size="sm" fw={500}>
-            Prompt mix
-          </Text>
-          {rows.map((row) => (
-            <Group key={row.uiId} gap="xs" wrap="nowrap" align="flex-end">
-              <TouchSelect
-                placeholder="Prompt"
-                data={promptOptions}
-                value={row.promptId}
-                onChange={(value) => updateRow(row.uiId, { promptId: value })}
-                searchable
-                filter={substringOptionsFilter}
-                style={{ flex: 1 }}
-              />
-              <NumberInput
-                w={90}
-                label={mode === "sustained" ? "Clients" : "Copies"}
-                min={1}
-                max={64}
-                value={row.count}
-                onChange={(value) =>
-                  updateRow(row.uiId, { count: asCount(value) })
-                }
-                aria-label={
-                  mode === "sustained" ? "Concurrent clients" : "Prompt copies"
-                }
-              />
-              <Tooltip label="Remove row">
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  disabled={rows.length === 1}
-                  onClick={() =>
-                    setRows((current) =>
-                      current.filter((entry) => entry.uiId !== row.uiId),
-                    )
-                  }
-                >
-                  <Trash2 size={16} />
-                </ActionIcon>
-              </Tooltip>
-            </Group>
-          ))}
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<Plus size={14} />}
-            onClick={() => setRows((current) => [...current, newRow()])}
-            disabled={rows.length >= 32}
-          >
-            Add prompt
-          </Button>
-        </Stack>
-
         <Group gap="md" wrap="wrap" align="flex-end">
           <Stack gap={4}>
             <Text size="sm" fw={500}>
@@ -198,17 +168,20 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
                     ? "sustained"
                     : value === "sequential"
                       ? "sequential"
-                      : "parallel",
+                      : value === "replay"
+                        ? "replay"
+                        : "parallel",
                 )
               }
               data={[
                 { value: "parallel", label: "Parallel" },
                 { value: "sequential", label: "Sequential" },
                 { value: "sustained", label: "Sustained" },
+                { value: "replay", label: "Replay" },
               ]}
             />
           </Stack>
-          {mode === "sustained" ? (
+          {replayMode ? null : mode === "sustained" ? (
             <NumberInput
               label="Total requests"
               w={150}
@@ -239,6 +212,74 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
           />
         </Group>
 
+        {replayMode ? (
+          <BenchmarkReplayFields
+            state={replay}
+            onChange={(patch) =>
+              setReplay((current) => ({ ...current, ...patch }))
+            }
+            instanceName={instanceName}
+            detail={replayDetail}
+          />
+        ) : (
+          <Stack gap={6}>
+            <Text size="sm" fw={500}>
+              Prompt mix
+            </Text>
+            {rows.map((row) => (
+              <Group key={row.uiId} gap="xs" wrap="nowrap" align="flex-end">
+                <TouchSelect
+                  placeholder="Prompt"
+                  data={promptOptions}
+                  value={row.promptId}
+                  onChange={(value) => updateRow(row.uiId, { promptId: value })}
+                  searchable
+                  filter={substringOptionsFilter}
+                  style={{ flex: 1 }}
+                />
+                <NumberInput
+                  w={90}
+                  label={mode === "sustained" ? "Clients" : "Copies"}
+                  min={1}
+                  max={64}
+                  value={row.count}
+                  onChange={(value) =>
+                    updateRow(row.uiId, { count: asCount(value) })
+                  }
+                  aria-label={
+                    mode === "sustained"
+                      ? "Concurrent clients"
+                      : "Prompt copies"
+                  }
+                />
+                <Tooltip label="Remove row">
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    disabled={rows.length === 1}
+                    onClick={() =>
+                      setRows((current) =>
+                        current.filter((entry) => entry.uiId !== row.uiId),
+                      )
+                    }
+                  >
+                    <Trash2 size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            ))}
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<Plus size={14} />}
+              onClick={() => setRows((current) => [...current, newRow()])}
+              disabled={rows.length >= 32}
+            >
+              Add prompt
+            </Button>
+          </Stack>
+        )}
+
         {mode === "sustained" && (
           <Text size="sm" c="dimmed">
             {countLabel(clients, "client")} continuously send independent
@@ -253,11 +294,13 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             checked={warmup}
             onChange={(event) => setWarmup(event.currentTarget.checked)}
           />
-          <Switch
-            label="Bust prefix cache"
-            checked={cacheBust}
-            onChange={(event) => setCacheBust(event.currentTarget.checked)}
-          />
+          {!replayMode && (
+            <Switch
+              label="Bust prefix cache"
+              checked={cacheBust}
+              onChange={(event) => setCacheBust(event.currentTarget.checked)}
+            />
+          )}
           <NumberInput
             label="Temperature"
             w={120}

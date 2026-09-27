@@ -86,6 +86,10 @@ import {
 import { createApiProxyTokenCounter } from "./token-count.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import {
+  apiProxyReservationDiagnostic,
+  apiProxyTargetReservation,
+} from "./run-reservation.js";
+import {
   armApiProxyReasoningControl,
   attachApiProxyReasoningControl,
 } from "./reasoning-control.js";
@@ -975,6 +979,17 @@ export async function serveResolvedTarget(input: {
     });
 
   const resumeTarget = getTarget(route.targetId);
+  const reservation = apiProxyTargetReservation(route.targetId, resumeTarget);
+  if (reservation) {
+    return traceDiagnosticResponse({
+      c,
+      adapter,
+      request: route.request,
+      trace,
+      diagnostic: apiProxyReservationDiagnostic(reservation),
+      responsePlan,
+    });
+  }
   const resumeClaim = claimApiProxyResumedSession({
     operation,
     adapter,

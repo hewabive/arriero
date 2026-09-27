@@ -2,11 +2,9 @@ import {
   engineDescriptor,
   type BenchmarkPromptWithSource,
   type BenchmarkRun,
-  type BenchmarkRunProgress,
   type BenchmarkRunSummary,
   type BenchmarkScenario,
-  type BenchmarkStreamEvent,
-  type BenchmarkTargetSnapshot,
+  type BenchmarkSyntheticScenario,
   type Instance,
 } from "@arriero/core";
 
@@ -23,23 +21,30 @@ import {
   activeLaunchSnapshot,
   runtimeEndpointInstance,
 } from "../process/runtime-endpoint.js";
-import { asObject, numberOrNull } from "../proxy/json.js";
 import { newId } from "../utils/id.js";
 import { BenchmarkConflictError, BenchmarkNotFoundError } from "./errors.js";
-import {
-  CANCELED_REQUEST_ERROR,
-  runMeasuredRequest,
-} from "./measure-client.js";
+import { runMeasuredRequest } from "./measure-client.js";
 import { getBenchmarkPrompt } from "./prompts.js";
 import {
   createBenchmarkEventWriter,
   createBenchmarkRun,
-  getBenchmarkRun,
   patchBenchmarkRun,
   writeBenchmarkRunArtifacts,
-  writeBenchmarkRunRecord,
   writeBenchmarkRunResult,
 } from "./repository.js";
+import { loadReplayDataset } from "./replay-dataset.js";
+import { executeReplayRun, type ReplayRunnerOptions } from "./replay-runner.js";
+import {
+  benchmarkStreamEvents,
+  benchmarkTargetSnapshot,
+  clearBenchmarkRunProgress,
+  describeRequestFailures,
+  fetchServerProps,
+  nowIso,
+  persistRunRecord,
+  resolveEndpointModel,
+  setBenchmarkRunProgress,
+} from "./run-support.js";
 import { analyzeBenchmarkRun, type MeasuredRequest } from "./segmenter.js";
 import { BenchmarkLoadCollector } from "./load-statistics.js";
 import { runBenchmarkSchedule } from "./schedule.js";
@@ -52,17 +57,9 @@ export const BENCHMARK_JOB_DOMAIN = "benchmark";
 
 const WARMUP_MAX_TOKENS = 32;
 
-const activeProgress = new Map<string, BenchmarkRunProgress>();
-
-export function getBenchmarkRunProgress(
-  id: string,
-): BenchmarkRunProgress | null {
-  return activeProgress.get(id) ?? null;
-}
-
 export type BenchmarkRunnerOptions = {
   fetchImpl?: typeof fetch | undefined;
-};
+} & Partial<ReplayRunnerOptions>;
 
 type PlannedRequest = {
   prompt: BenchmarkPromptWithSource;
@@ -70,7 +67,7 @@ type PlannedRequest = {
 
 type ExecutionContext = {
   runId: string;
-  scenario: BenchmarkScenario;
+  scenario: BenchmarkSyntheticScenario;
   wave: PlannedRequest[];
   instance: Instance;
   runtimeArgs: Instance["args"];
@@ -81,11 +78,7 @@ type ExecutionContext = {
   serverMetrics: BenchmarkServerMetricsSource | null;
 };
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-function planWave(scenario: BenchmarkScenario): PlannedRequest[] {
+function planWave(scenario: BenchmarkSyntheticScenario): PlannedRequest[] {
   const wave: PlannedRequest[] = [];
   for (const entry of scenario.composition) {
     const prompt = getBenchmarkPrompt(entry.promptId);
@@ -103,7 +96,7 @@ function planWave(scenario: BenchmarkScenario): PlannedRequest[] {
 
 function chatRequestBody(input: {
   prompt: BenchmarkPromptWithSource;
-  scenario: BenchmarkScenario;
+  scenario: BenchmarkSyntheticScenario;
   model: string | null;
   maxTokens: number;
 }): unknown {
@@ -127,129 +120,6 @@ function chatRequestBody(input: {
       ? { temperature: sampling.temperature }
       : {}),
     ...(sampling?.seed !== undefined ? { seed: sampling.seed } : {}),
-  };
-}
-
-async function resolveEndpointModel(
-  context: ExecutionContext,
-): Promise<string | null> {
-  let response: Response;
-  try {
-    response = await context.fetchImpl(`${context.baseUrl}/v1/models`, {
-      signal: context.signal,
-    });
-  } catch (error) {
-    throw new Error(
-      `instance endpoint is unreachable: ${(error as Error).message}`,
-    );
-  }
-  if (!response.ok) {
-    throw new Error(
-      `instance endpoint is not ready: GET /v1/models returned ${response.status}`,
-    );
-  }
-  const body = asObject(await response.json().catch(() => null));
-  const data = Array.isArray(body?.data) ? body.data : [];
-  const first = asObject(data[0]);
-  return typeof first?.id === "string" ? first.id : null;
-}
-
-type ServerProps = {
-  totalSlots: number | null;
-  buildInfo: string | null;
-};
-
-async function fetchServerProps(
-  context: ExecutionContext,
-): Promise<ServerProps | null> {
-  try {
-    const response = await context.fetchImpl(`${context.baseUrl}/props`, {
-      signal: context.signal,
-    });
-    if (!response.ok) return null;
-    const body = asObject(await response.json());
-    return {
-      totalSlots: numberOrNull(body?.total_slots),
-      buildInfo: typeof body?.build_info === "string" ? body.build_info : null,
-    };
-  } catch (error) {
-    logger.debug(
-      { baseUrl: context.baseUrl, error: (error as Error).message },
-      "benchmark props probe failed",
-    );
-    return null;
-  }
-}
-
-function setProgress(
-  runId: string,
-  progress: BenchmarkRunProgress,
-): BenchmarkRunProgress {
-  activeProgress.set(runId, progress);
-  return progress;
-}
-
-function persistRunRecord(runId: string): void {
-  const run = getBenchmarkRun(runId);
-  if (!run) {
-    logger.warn({ runId }, "benchmark run record missing after finalize");
-    return;
-  }
-  writeBenchmarkRunRecord(run);
-}
-
-function benchmarkStreamEvents(
-  measured: readonly MeasuredRequest[],
-): BenchmarkStreamEvent[] {
-  const events: BenchmarkStreamEvent[] = [];
-  for (const request of measured) {
-    events.push({
-      requestId: request.requestId,
-      tMs: request.submitMs,
-      kind: "submit",
-    });
-    if (request.firstTokenMs !== null) {
-      events.push({
-        requestId: request.requestId,
-        tMs: request.firstTokenMs,
-        kind: "first-token",
-      });
-    }
-    for (const chunkMs of request.chunkTimesMs) {
-      events.push({
-        requestId: request.requestId,
-        tMs: chunkMs,
-        kind: "chunk",
-      });
-    }
-    const endMs = request.endedMs ?? request.doneMs ?? request.submitMs;
-    events.push(
-      request.error !== null
-        ? {
-            requestId: request.requestId,
-            tMs: endMs,
-            kind: "error",
-            message: request.error,
-          }
-        : { requestId: request.requestId, tMs: endMs, kind: "done" },
-    );
-  }
-  return events;
-}
-
-function describeRequestFailures(
-  measured: readonly Pick<MeasuredRequest, "error">[],
-): { count: number; message: string } | null {
-  const failedMessages = measured.flatMap((request) =>
-    request.error !== null && request.error !== CANCELED_REQUEST_ERROR
-      ? [request.error]
-      : [],
-  );
-  if (failedMessages.length === 0) return null;
-  const distinct = [...new Set(failedMessages)];
-  return {
-    count: failedMessages.length,
-    message: `${failedMessages.length} of ${measured.length} requests failed: ${distinct.join("; ")}`,
   };
 }
 
@@ -309,7 +179,7 @@ async function measurePlannedRequest(input: {
   };
 }
 
-async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
+async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
   const { runId, scenario, wave } = context;
   const nativeLlamaApi =
     engineDescriptor(context.instance.kind).nativeApi === "llama";
@@ -327,7 +197,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
   let completedRequests = 0;
   let activeRequests = 0;
   try {
-    setProgress(runId, {
+    setBenchmarkRunProgress(runId, {
       phase: "prepare",
       completedRequests,
       totalRequests,
@@ -337,20 +207,16 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
     const model = await resolveEndpointModel(context);
     const props = nativeLlamaApi ? await fetchServerProps(context) : null;
     const launch = context.launchSnapshot;
-    const snapshot: BenchmarkTargetSnapshot = {
-      instanceName: context.instance.name,
-      engineKind: context.instance.kind,
-      baseUrl: context.baseUrl,
-      model,
-      binaryPath: context.instance.binaryPath || null,
-      args: context.runtimeArgs,
-      env: launch ? launch.env : context.instance.env,
-      numa: launch ? launch.numa : (context.instance.numa ?? null),
-      rpcWorkers: launch ? launch.rpcWorkers : context.instance.rpcWorkers,
-      launchCliArgs: launch ? launch.cliArgs : null,
-      buildInfo: props?.buildInfo ?? null,
-    };
-    patchBenchmarkRun(runId, { snapshot });
+    patchBenchmarkRun(runId, {
+      snapshot: benchmarkTargetSnapshot({
+        instance: context.instance,
+        runtimeArgs: context.runtimeArgs,
+        launch,
+        baseUrl: context.baseUrl,
+        model,
+        buildInfo: props?.buildInfo ?? null,
+      }),
+    });
     if (launch && hasLaunchSnapshotDrift(context.instance, launch)) {
       warnings.push(
         "instance config drifted from the running process; the snapshot records the launched configuration",
@@ -377,7 +243,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
 
     const firstPlanned = wave[0];
     if (scenario.warmup && firstPlanned) {
-      setProgress(runId, {
+      setBenchmarkRunProgress(runId, {
         phase: "warmup",
         completedRequests,
         totalRequests,
@@ -419,7 +285,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
         if (!planned)
           throw new Error(`benchmark client ${client} has no prompt`);
         activeRequests += 1;
-        setProgress(runId, {
+        setBenchmarkRunProgress(runId, {
           phase: "measure",
           completedRequests,
           totalRequests,
@@ -445,7 +311,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
         } finally {
           activeRequests -= 1;
           completedRequests += 1;
-          setProgress(runId, {
+          setBenchmarkRunProgress(runId, {
             phase: "measure",
             completedRequests,
             totalRequests,
@@ -457,7 +323,7 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
     });
     await eventWriter?.close();
 
-    setProgress(runId, {
+    setBenchmarkRunProgress(runId, {
       phase: "finalize",
       completedRequests,
       totalRequests,
@@ -533,8 +399,23 @@ async function executeBenchmarkRun(context: ExecutionContext): Promise<void> {
         "benchmark events could not be closed",
       );
     }
-    activeProgress.delete(runId);
+    clearBenchmarkRunProgress(runId);
   }
+}
+
+function syntheticServerMetrics(
+  scenario: BenchmarkSyntheticScenario,
+  wave: PlannedRequest[],
+  input: { instance: Instance; baseUrl: string; fetchImpl: typeof fetch },
+  signal: AbortSignal,
+): BenchmarkServerMetricsSource | null {
+  const soloRequests = scenario.mode === "sequential" || wave.length <= 1;
+  return soloRequests
+    ? benchmarkServerMetricsSource(
+        engineDescriptor(input.instance.kind).benchmarkServerMetrics,
+        { baseUrl: input.baseUrl, fetchImpl: input.fetchImpl, signal },
+      )
+    : null;
 }
 
 export function startBenchmarkRun(
@@ -547,7 +428,14 @@ export function startBenchmarkRun(
       `a benchmark run is already active: ${active.jobId}`,
     );
   }
-  const wave = planWave(scenario);
+  const execution =
+    scenario.mode === "replay"
+      ? {
+          kind: "replay" as const,
+          scenario,
+          manifest: loadReplayDataset(scenario),
+        }
+      : { kind: "synthetic" as const, scenario, wave: planWave(scenario) };
   const instance = getInstance(scenario.target.instanceName);
   if (!instance) {
     throw new BenchmarkNotFoundError(
@@ -565,25 +453,34 @@ export function startBenchmarkRun(
   const run = createBenchmarkRun({ id: newId(), scenario });
   const controller = new AbortController();
   const fetchImpl = options.fetchImpl ?? fetch;
-  const soloRequests = scenario.mode === "sequential" || wave.length <= 1;
-  const serverMetrics = soloRequests
-    ? benchmarkServerMetricsSource(
-        engineDescriptor(instance.kind).benchmarkServerMetrics,
-        { baseUrl, fetchImpl, signal: controller.signal },
-      )
-    : null;
-  const completion = executeBenchmarkRun({
+  const shared = {
     runId: run.id,
-    scenario,
-    wave,
     instance,
     runtimeArgs: runtime.args,
     launchSnapshot: activeLaunchSnapshot(instance.name, latestRun),
     baseUrl,
     signal: controller.signal,
     fetchImpl,
-    serverMetrics,
-  });
+  };
+  const completion =
+    execution.kind === "replay"
+      ? executeReplayRun({
+          ...shared,
+          scenario: execution.scenario,
+          manifest: execution.manifest,
+          options,
+        })
+      : executeSyntheticRun({
+          ...shared,
+          scenario: execution.scenario,
+          wave: execution.wave,
+          serverMetrics: syntheticServerMetrics(
+            execution.scenario,
+            execution.wave,
+            { instance, baseUrl, fetchImpl },
+            controller.signal,
+          ),
+        });
   registerActiveJob({
     domain: BENCHMARK_JOB_DOMAIN,
     jobId: run.id,

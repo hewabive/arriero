@@ -1,5 +1,6 @@
 import {
   isBenchmarkClassSupported,
+  type BenchmarkRun,
   type BenchmarkTargetSnapshot,
 } from "@arriero/core";
 import {
@@ -26,6 +27,10 @@ import {
   formatRate,
 } from "./benchmark-format";
 import { BenchmarkHeadline } from "./BenchmarkHeadline";
+import {
+  BenchmarkReplayDetail,
+  replayScenarioLine,
+} from "./BenchmarkReplayDetail";
 import { BenchmarkTimeline } from "./BenchmarkTimeline";
 import { BenchmarkLoadTimeline } from "./BenchmarkLoadTimeline";
 import type { BenchmarkViewController } from "./use-benchmark-view";
@@ -147,6 +152,21 @@ function BenchmarkLaunchConfig({
   );
 }
 
+function scenarioLine(scenario: BenchmarkRun["scenario"]): string {
+  if (scenario.mode === "replay") {
+    return ` · replay · ${replayScenarioLine(scenario)}`;
+  }
+  const clients = scenario.composition.reduce(
+    (sum, entry) => sum + entry.count,
+    0,
+  );
+  return [
+    ` · ${scenario.mode}`,
+    scenario.mode === "sustained" ? ` · ${countLabel(clients, "client")}` : "",
+    scenario.repetitions > 1 ? ` · ${scenario.repetitions} waves` : "",
+  ].join("");
+}
+
 export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
   const run = fm.selectedRun;
   if (!run) {
@@ -165,19 +185,7 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
                 ? ` · ${run.snapshot.engineKind} · ${run.snapshot.model ?? "unknown model"}`
                 : ""}
               {run.snapshot?.buildInfo ? ` · ${run.snapshot.buildInfo}` : ""}
-              {` · ${run.scenario.mode}`}
-              {run.scenario.mode === "sustained"
-                ? ` · ${countLabel(
-                    run.scenario.composition.reduce(
-                      (sum, entry) => sum + entry.count,
-                      0,
-                    ),
-                    "client",
-                  )}`
-                : ""}
-              {run.scenario.repetitions > 1
-                ? ` · ${run.scenario.repetitions} waves`
-                : ""}
+              {scenarioLine(run.scenario)}
             </Text>
           </Stack>
           {summary && (
@@ -234,6 +242,13 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
               ))}
             </Stack>
           </Alert>
+        )}
+
+        {run.scenario.mode === "replay" && (
+          <BenchmarkReplayDetail
+            replay={run.snapshot?.replay}
+            summary={summary?.replay}
+          />
         )}
 
         {fm.result &&
@@ -338,7 +353,7 @@ export function BenchmarkRunDetail({ fm }: { fm: BenchmarkViewController }) {
           </Stack>
         )}
 
-        {summary?.load && (
+        {summary?.load && run.scenario.mode !== "replay" && (
           <Stack gap={4}>
             <Title order={4}>Prompt groups</Title>
             <Table.ScrollContainer minWidth={600}>

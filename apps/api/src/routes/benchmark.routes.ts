@@ -1,9 +1,12 @@
 import {
+  BENCHMARK_REPLAY_DEFAULT_OUTPUT_CEILING,
   BackgroundJobStatusSchema,
   BenchmarkPromptCreateSchema,
   BenchmarkPromptUpdateSchema,
   BenchmarkScenarioSchema,
+  type BenchmarkReservationPreview,
   type BenchmarkRun,
+  WORKLOAD_DATASET_ID_PATTERN,
 } from "@arriero/core";
 import type { Hono } from "hono";
 import { z } from "zod";
@@ -26,12 +29,15 @@ import {
   readBenchmarkRunEvents,
   readBenchmarkRunResult,
 } from "../benchmark/repository.js";
+import { checkReplayDatasetFit } from "../benchmark/replay-dataset.js";
+import { getBenchmarkRunProgress } from "../benchmark/run-support.js";
 import {
   cancelBenchmarkRun,
-  getBenchmarkRunProgress,
   startBenchmarkRun,
   waitForBenchmarkRun,
 } from "../benchmark/runner.js";
+import { getInstance } from "../instances/repository.js";
+import { apiProxyReservationScope } from "../proxy/run-reservation.js";
 import { parseJsonBody } from "./validation.js";
 
 const RunListQuerySchema = z.object({
@@ -42,6 +48,17 @@ const RunListQuerySchema = z.object({
 
 const RunGetQuerySchema = z.object({
   waitMs: z.coerce.number().int().min(1).max(60000).optional(),
+});
+
+const ContextFitQuerySchema = z.object({
+  dataset: z.string().regex(WORKLOAD_DATASET_ID_PATTERN),
+  instance: z.string().min(1),
+  outputCeiling: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(262144)
+    .default(BENCHMARK_REPLAY_DEFAULT_OUTPUT_CEILING),
 });
 
 function errorStatus(error: unknown): 400 | 404 | 409 {
@@ -92,6 +109,41 @@ export function registerBenchmarkRoutes(app: Hono) {
         return c.json({ error: "benchmark prompt not found" }, 404);
       }
       return c.json({ data: { deleted: true } });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, errorStatus(error));
+    }
+  });
+
+  app.get("/api/benchmark/reservation-preview", (c) => {
+    const instanceName = c.req.query("instance");
+    if (!instanceName) {
+      return c.json({ error: "instance is required" }, 400);
+    }
+    if (!getInstance(instanceName)) {
+      return c.json({ error: `instance ${instanceName} not found` }, 404);
+    }
+    const scope = apiProxyReservationScope(instanceName);
+    const preview: BenchmarkReservationPreview = {
+      instanceNames: scope.instanceNames,
+      targetNames: scope.targetNames,
+      drawsDeclared: scope.drawsDeclared,
+    };
+    return c.json({ data: preview });
+  });
+
+  app.get("/api/benchmark/context-fit", async (c) => {
+    const parsed = ContextFitQuerySchema.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    try {
+      return c.json({
+        data: await checkReplayDatasetFit({
+          datasetId: parsed.data.dataset,
+          instanceName: parsed.data.instance,
+          outputCeiling: parsed.data.outputCeiling,
+        }),
+      });
     } catch (error) {
       return c.json({ error: (error as Error).message }, errorStatus(error));
     }

@@ -13,9 +13,6 @@ llama.cpp from source, documents engine arguments, and exposes an OpenAI/Anthrop
 proxy in front of managed and external endpoints. One host is the default; the `nodes` domain extends
 the same UI over a fleet of peers (`docs/FEDERATION.md`).
 
-Active feature work: `docs/WORKLOAD_REPLAY_PLAN.md` (phased plan for `docs/WORKLOAD_REPLAY.md`).
-Remove that doc and this line together when its phases are done.
-
 ## Commands
 
 ```bash

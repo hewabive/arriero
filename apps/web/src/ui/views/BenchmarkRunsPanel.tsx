@@ -25,6 +25,9 @@ function runTitle(run: BenchmarkRun): string {
 function runMeta(run: BenchmarkRun): string {
   const created = formatLocalDateTime(run.createdAt);
   const parts = [run.scenario.target.instanceName, created];
+  if (run.scenario.mode === "replay") {
+    parts.push(`replay ${run.snapshot?.replay?.datasetName ?? ""}`.trim());
+  }
   if (run.summary) {
     parts.push(countLabel(run.summary.requestCount, "request"));
     parts.push(`${(run.summary.wallMs / 1000).toFixed(1)} s`);

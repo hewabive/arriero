@@ -41,6 +41,10 @@ import {
   type ProxyTraceAccumulator,
 } from "./protocol-trace.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
+import {
+  apiProxyReservationDiagnostic,
+  apiProxyTargetReservation,
+} from "./run-reservation.js";
 import { getApiProxyPipeline, getApiProxyTarget } from "./repository.js";
 import {
   createApiProxyResponsePlanExecutor,
@@ -102,6 +106,10 @@ export async function executeApiProxyModelSubRequest(input: {
       code: "arriero_proxy_route_invalid",
       message: `fusion branch target ${input.targetId} not found`,
     });
+  }
+  const reservation = apiProxyTargetReservation(target.id, target);
+  if (reservation) {
+    return fail(apiProxyReservationDiagnostic(reservation));
   }
 
   const { request: planRequest } = await buildApiProxyPlanRequest({

@@ -1,7 +1,9 @@
 import type {
+  BenchmarkContextFit,
   BenchmarkPrompt,
   BenchmarkPromptCreate,
   BenchmarkPromptWithSource,
+  BenchmarkReservationPreview,
   BenchmarkRun,
   BenchmarkRunResult,
   BenchmarkScenarioInput,
@@ -59,5 +61,26 @@ export async function deleteBenchmarkRun(id: string) {
   return request<{ data: { deleted: boolean } }>(
     `/api/benchmark/runs/${encodeURIComponent(id)}`,
     { method: "DELETE" },
+  );
+}
+
+export async function getBenchmarkReservationPreview(instance: string) {
+  return request<{ data: BenchmarkReservationPreview }>(
+    `/api/benchmark/reservation-preview?instance=${encodeURIComponent(instance)}`,
+  );
+}
+
+export async function getBenchmarkContextFit(input: {
+  dataset: string;
+  instance: string;
+  outputCeiling: number;
+}) {
+  const query = new URLSearchParams({
+    dataset: input.dataset,
+    instance: input.instance,
+    outputCeiling: String(input.outputCeiling),
+  });
+  return request<{ data: BenchmarkContextFit }>(
+    `/api/benchmark/context-fit?${query.toString()}`,
   );
 }

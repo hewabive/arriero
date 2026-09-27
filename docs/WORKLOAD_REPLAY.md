@@ -1,10 +1,8 @@
 # Workload replay: benchmarking on recorded proxy traffic
 
-**Status: architecture accepted 2026-09-27. Phases 1 and 2 — the session index, the workload
-profile and datasets — are implemented; the replay mode is not yet.** This document fixes the
-architecture of the feature; the implementation plan is the working document
-`docs/WORKLOAD_REPLAY_PLAN.md`. Decisions about replay runs describe intended behavior unless they
-cite existing code.
+**Status: architecture accepted 2026-09-27; implemented — the session index, the workload profile,
+datasets and the benchmark's replay mode.** This document fixes the architecture of the feature; how
+a replay run behaves in detail, its parameters and its results are in `docs/BENCHMARK.md` § Replay.
 
 ## Why
 
@@ -111,7 +109,7 @@ core schemas first (`packages/core`), as everywhere in the repository.
 ## HTTP API
 
 Admin-gated, `{ data }` responses, shapes from `packages/core/src/workload.ts`; routes in
-`apps/api/src/routes/workload.routes.ts`, UI at `#/proxy/workload`. Implemented in phase 1:
+`apps/api/src/routes/workload.routes.ts`, UI at `#/proxy/workload`. Session index and profile:
 
 - `GET /api/workload/index` — index status: records, time span, normalization version, last pass.
 - `GET /api/workload/sessions?from&to&sourceId&modelId&targetId&limit&beforeAt&beforeId` — sessions
@@ -127,7 +125,7 @@ Admin-gated, `{ data }` responses, shapes from `packages/core/src/workload.ts`; 
   agreement with client session identifiers (`metadata.user_id` of Claude Code, `prompt_cache_key`
   of OpenAI clients) where present.
 
-Implemented in phase 2:
+Datasets:
 
 - `POST /api/workload/selection` — preview a selection (`{ windows, sourceId, modelId, targetId }`):
   its segments, and the problems that would refuse a freeze (failed or unreplayable requests in a
@@ -141,6 +139,11 @@ Implemented in phase 2:
 - `GET /api/workload/datasets/:id/export` — the gzip file (D13 § Transfer).
 - `POST /api/workload/datasets/import` — a raw `application/gzip` body; 201 when imported, 200 when
   the machine already had it, 400 when refused.
+
+Replay runs are benchmark runs (`apps/api/src/routes/benchmark.routes.ts`, UI at `#/benchmark`):
+`POST /api/benchmark/runs` with `mode: "replay"`, `GET /api/benchmark/reservation-preview` for the
+instances and targets a run would block (D17), and `GET /api/benchmark/context-fit` for the context
+check of a dataset against an instance (D22) — `docs/BENCHMARK.md` § HTTP API.
 
 ## Decisions
 
@@ -352,8 +355,10 @@ engine descriptor capability next to `benchmarkServerMetrics`
 - _Any engine._ Restarting the instance is the fallback.
 
 Verification: the first dataset request after the flush — the first priming request, or the first
-measured request when nothing is primed — must get next to nothing from the cache; otherwise the run
-fails. An engine that reports no cached count cannot be verified, and the run carries a warning.
+measured request when nothing is primed — must get next to nothing from the cache: at most 64 tokens
+or 1% of its prompt, whichever is larger, because the synthetic warmup may share the chat template's
+opening tokens. Otherwise the run fails. An engine that reports no cached count cannot be verified,
+and the run carries a warning.
 
 **D19. Priming restores the cache state at the window start.** Without it, the first request of a long
 session in the window would prefill the whole history — say 60,000 tokens that were cached in real
@@ -363,7 +368,10 @@ the segment's first measured record, or that parent's nearest ancestor whose out
 a client abort. Policies:
 
 - `recorded` (default) — prime only the segments whose first measured request did hit the cache in
-  real work, in the order of their last activity before the window, so the eviction order matches;
+  real work, in the order of their last activity before the window, so the eviction order matches. A
+  hit means reading at least half of the priming prompt from the cache: a hit on the system prompt
+  and tools alone, which other sessions share, means the history itself was lost. A segment whose
+  counts are unknown is primed;
 - `all` and `none` — for data from another machine, where recorded cache hits describe another
   engine.
 
@@ -508,7 +516,7 @@ Asymmetries, all on the Anthropic / Claude Code side:
    comparability. Proposed acceptance: repeated runs of one dataset and scenario on an unchanged
    instance agree within a stated tolerance; flush verification passes on llama.cpp, vLLM and SGLang.
 
-The implementation plan with concrete steps is `docs/WORKLOAD_REPLAY_PLAN.md`.
+All three phases are delivered.
 
 ## Known limitations
 

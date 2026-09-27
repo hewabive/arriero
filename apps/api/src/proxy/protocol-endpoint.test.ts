@@ -3,7 +3,11 @@ import { mkdirSync, rmSync } from "node:fs";
 import { createServer, Server } from "node:http";
 import { beforeEach, test, type TestContext } from "node:test";
 
-import { ApiProxyPipelineNodeSchema, type Instance } from "@arriero/core";
+import {
+  ApiProxyPipelineNodeSchema,
+  instanceIdFromEndpointId,
+  type Instance,
+} from "@arriero/core";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 
@@ -28,6 +32,7 @@ import {
 } from "./endpoints.js";
 import { apiProxyInflight } from "./inflight.js";
 import { executeApiProxyModelSubRequest } from "./fusion.js";
+import { buildApiProxyPlanRequest } from "./idle-maintenance.js";
 import {
   registerAnthropicProxyRoutes,
   registerOpenAiProxyRoutes,
@@ -39,6 +44,8 @@ import {
   getApiProxyModelByModelId,
 } from "./repository.js";
 import { captureApiProxyResponseSse } from "./response-capture.js";
+import { reserveApiProxyInstances } from "./run-reservation.js";
+import { createApiProxyTokenCounter } from "./token-count.js";
 import { readApiProxyRequestFile } from "./request-files.js";
 import { clearApiProxyResponseCache } from "./response-cache.js";
 import { apiProxyStats } from "./stats.js";
@@ -1209,3 +1216,125 @@ for (const mode of [
     assert.equal(trace.usage?.rateSource, undefined);
   });
 }
+
+test("a reserved instance refuses facade and fusion requests with a retry hint", async (t) => {
+  const upstream = await seedCapturedUpstream(
+    t,
+    {
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+        "data: [DONE]",
+        "",
+      ].join("\n\n"),
+    },
+    {
+      managed: { kind: "vllm", configured: false, launched: false },
+      cache: false,
+    },
+  );
+  const instanceName = instanceIdFromEndpointId(upstream.target.endpointId);
+  assert.ok(instanceName);
+  const handle = await reserveApiProxyInstances({
+    runId: "reserve-e2e",
+    label: "replay e2e",
+    instanceName,
+    expectedEndAt: new Date(Date.now() + 120_000).toISOString(),
+    drainTimeoutMs: 1000,
+  });
+  const app = buildApp();
+  const openAi = await app.request("/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "captured-model",
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  });
+  assert.equal(openAi.status, 503);
+  assert.ok(Number(openAi.headers.get("retry-after")) > 100);
+  const openAiBody = (await openAi.json()) as { error: { code: string } };
+  assert.equal(openAiBody.error.code, "arriero_proxy_instance_reserved");
+
+  const anthropic = await app.request("/anthropic/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "captured-model",
+      max_tokens: 16,
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  });
+  assert.equal(anthropic.status, 503);
+  assert.ok(anthropic.headers.get("retry-after"));
+  const anthropicBody = (await anthropic.json()) as {
+    error: { message: string };
+  };
+  assert.match(anthropicBody.error.message, /replay e2e/);
+
+  const fusion = await executeApiProxyModelSubRequest({
+    targetId: upstream.target.id,
+    operation: {
+      protocol: "openai",
+      endpoint: "chat.completions",
+      routePath: "/v1/chat/completions",
+      transport: "http-json",
+    },
+    body: {
+      model: "captured-model",
+      messages: [{ role: "user", content: "hi" }],
+    },
+    model: getApiProxyModelByModelId("captured-model")!,
+  });
+  assert.equal(fusion.ok, false);
+  assert.equal(
+    fusion.ok ? null : fusion.diagnostic.code,
+    "arriero_proxy_instance_reserved",
+  );
+  assert.equal(upstream.requests(), 0);
+
+  const counted = await createApiProxyTokenCounter()(
+    {
+      operation: {
+        protocol: "openai",
+        endpoint: "chat.completions",
+        routePath: "/v1/chat/completions",
+        transport: "http-json",
+      },
+      body: {
+        model: "captured-model",
+        messages: [{ role: "user", content: "hi" }],
+      },
+      modelId: "captured-model",
+      model: getApiProxyModelByModelId("captured-model")!,
+      stream: false,
+    },
+    upstream.target.id,
+  );
+  assert.equal(counted.ok, false);
+  assert.match(
+    counted.ok ? "" : counted.reason,
+    /reserved by benchmark run replay e2e/,
+  );
+  const idlePlan = await buildApiProxyPlanRequest({ mode: "idle" });
+  assert.ok(idlePlan.request.pinnedTargetIds?.includes(upstream.target.id));
+
+  handle.release();
+  const releasedPlan = await buildApiProxyPlanRequest({ mode: "idle" });
+  assert.equal(
+    releasedPlan.request.pinnedTargetIds?.includes(upstream.target.id) ?? false,
+    false,
+  );
+  const served = await app.request("/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "captured-model",
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  });
+  assert.equal(served.status, 200);
+  assert.equal(upstream.requests() > 0, true);
+});

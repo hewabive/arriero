@@ -41,8 +41,9 @@ Per request the measuring client (`measure-client.ts`, built on `api-lab/sse-par
 - `queued` — `[submitMs, firstTokenMs − promptMs)`, separable only when a server prefill duration
   is known (llama `timings.prompt_ms`, or the vLLM metrics delta); otherwise queue time is merged
   into prefill and `prefillStartMs` is `null`.
-- `prefill` — up to the first content chunk.
-- `decode` — first content chunk to the last one. The first chunk itself is attributed to prefill
+- `prefill` — up to the first generated chunk: content, reasoning (`reasoning_content`, or vLLM's
+  `reasoning`) or a tool-call delta.
+- `decode` — first generated chunk to the last one. The first chunk itself is attributed to prefill
   completion (standard TPOT convention), so per-request decode rate is
   `(chunks − 1) × tokensPerChunk / (doneMs − firstTokenMs)`.
 
@@ -96,7 +97,9 @@ snapshot the full launch configuration into the run, model id from `GET /v1/mode
 request with a short output limit, excluded from stats) → `measure` (repetitions × wave; `parallel` fires the whole wave at
 once, `sequential` runs it one by one for per-topic baselines; `sustained` continuously replenishes
 clients to a shared request limit) → `finalize` (segment or aggregate, summarize,
-persist). Cancellation persists partial results with status `canceled`.
+persist). Cancellation persists partial results with status `canceled`. `startBenchmarkRun`
+dispatches on the scenario `mode` once: `replay` goes to `replay-runner.ts` with its own phases
+(§ Replay), every other mode to the synthetic runner above.
 
 ### Sustained load
 
@@ -152,9 +155,75 @@ than all output chunks from the run. Disk write backpressure can reduce offered 
 closed-loop client test, not an independent fixed-arrival-rate generator. A hard manager crash can
 lose events belonging to requests that had not yet completed.
 
+### Replay
+
+`mode: "replay"` measures the instance under recorded agentic work: a frozen workload dataset
+(`docs/WORKLOAD_REPLAY.md`) is sent as recorded, each answer is generated fresh and discarded, and a
+session's next request is its next record — so the engine reuses prefixes as it did in real work.
+The scenario carries `datasetId` (the dataset's content hash), the pacing and output policies below,
+`requestTimeoutMs` (default 600,000 ms), `warmup`, optional `sampling` and `label`; `composition`,
+`repetitions`, `totalRequests` and `cacheBust` do not apply. `replay-runner.ts` runs it:
+
+1. `prepare` — load the dataset and verify its content hash and every blob; prepare every body,
+   priming records included, through the proxy entry point
+   `apps/api/src/proxy/recorded-request.ts:prepareRecordedRequestForInstance`, which applies the
+   Anthropic bridge, reasoning mapping and model override exactly as live forwarding does. Every
+   body must prepare to `/v1/chat/completions`. The prepared bodies are hashed into
+   `snapshot.replay.preparedBodyHash` — canonical JSON in dataset order, without the per-run fields
+   `model`, `stream`, `stream_options`, `max_tokens`, `max_completion_tokens`, `temperature` and
+   `seed`. Then the context check: the largest request of each segment, priming included, counted
+   by the instance tokenizer, plus the output ceiling must fit the context — per-slot `n_ctx` from
+   `/props` on llama.cpp, `max_model_len` from `/v1/models` elsewhere. An overflow fails the run
+   listing the sessions; a segment the tokenizer cannot count (KTransformers has no counting
+   adapter) is a warning. Last, the instance and its pool neighbors are reserved and the run waits
+   for proxy requests to them to finish (`apps/api/src/proxy/run-reservation.ts`,
+   `docs/API_PROXY_FOUNDATION.md` § Benchmark reservation).
+2. `flush` — `engineDescriptor(kind).benchmarkCacheFlush`, implemented by `cache-flush.ts`:
+   erasing every slot on llama.cpp launched with `--cache-ram 0` (the host-memory prompt cache has
+   no clearing endpoint otherwise), unloading and reloading the model in router mode,
+   `reset_prefix_cache?reset_external=true` on vLLM launched with `VLLM_SERVER_DEV_MODE=1` on a
+   loopback host, `flush_cache` on SGLang (both retried while the engine is busy); any other case
+   restarts the instance through `restartManagedInstance` and waits for `/v1/models`. After a
+   restart the target snapshot is taken again, since the current instance configuration was
+   launched.
+3. `warmup` — one synthetic request with a nonce, outside the dataset.
+4. `priming` — each primed segment's priming record (its first measured record's nearest
+   replayable ancestor) is sent with `max_tokens: 1`, unmeasured, one at a time in the order of the
+   sessions' last activity before the window. The `priming` policy decides which segments: `all`,
+   `none`, or `recorded` (default) — prime a segment whose first measured request read at least half
+   of the priming prompt from the cache in real work, or whose counts are unknown.
+5. `measure` — `replay-schedule.ts` sends each segment's records in order. Arrival `recorded`
+   starts segments at their recorded offsets and accepts a single-window dataset only; `together`
+   and `interval` compose segments into load that never occurred, optionally capped by
+   `concurrencyCap` requests in flight. Think time is counted from the replayed answer's end:
+   `recorded`, `scaled` (`factor`), `capped` (`maxMs`) or `none`. With `idleSkipping` (default on)
+   the replay clock jumps to the next event whenever nothing is in flight.
+6. `finalize` — the analyses below; the reservation is released on this and every other exit path.
+
+The first dataset request after the flush — the first priming request, or the first measured one —
+verifies it: reading more than max(64, 1% of the prompt) tokens from the cache fails the run, and an
+engine that reports no cached count leaves a warning (`snapshot.replay.flush`).
+
+Bodies keep their recorded sampling unless `sampling` pins it. `max_tokens` is the smaller of the
+recorded limit and `outputCeiling` (default 8,192); a warning counts answers cut at the ceiling.
+With `imitateClientAborts`, a client-aborted record is capped at its recorded completion tokens. A
+2xx answer counts as success however generation ended, even with no visible output; any other
+outcome — an HTTP error, a stream error or a timeout — cancels the requests in flight and fails the
+run, keeping what was measured.
+
+Analyses: `summary.load` and `result.loadTimeline` as in sustained mode, grouped by session;
+`summary.acceptanceRate` from llama.cpp draft counts; `summary.replay.segments` per segment (turns,
+prompt and cached tokens, TTFT p50/p95, decode rate, draft acceptance, wall time); and, for the
+`recorded` arrival only, the fidelity report — `summary.replay.fidelity` in total and
+`result.fidelity` per request — setting recorded against replayed prompt and cached tokens, with
+the response reuse that replay cannot reproduce. Request ids are `<segment>:<record>`, and the
+timeline labels them `segment N/turn M`. Two replay runs compare when the dataset id, the
+prepared-body hash and the scenario match.
+
 **Cache busting**: with `cacheBust` (default on) every request gets a unique nonce line prepended to
 its first message, so the llama.cpp prefix cache cannot make repeated runs incomparable. Disable it
-deliberately to measure the warm-cache regime.
+deliberately to measure the warm-cache regime. Replay does not use it: it flushes the engine cache
+instead.
 
 **Target snapshot is the launched configuration, not the config file.** Beyond engine/model/args,
 the snapshot records `env`, `numa`, `rpcWorkers`, the actual launch argv (`launchCliArgs`) and the
@@ -169,7 +238,10 @@ are defaulted in the schema so pre-existing run rows keep loading.
 concurrency — exceeding it queues requests and distorts TTFT; unknown slot capacity; unverifiable
 capacity on non-llama engines; instance config drifted from the running process
 (`hasLaunchSnapshotDrift` — the snapshot records the launched configuration, so the drifted config
-file cannot poison run comparison).
+file cannot poison run comparison). Replay adds its own: an unverifiable cache flush, segments the
+tokenizer could not count, answers cut at the output ceiling, an instance without pool draws (its
+neighbors stay unreserved), and `--sleep-idle-seconds` under idle skipping (the replay never lets
+the engine sleep, real work may have).
 
 **In-stream errors fail their request — and escalate to the run.** An engine can accept a stream
 and then abort it mid-flight (llama.cpp `send_error`, e.g. `Context size has been exceeded.` when
@@ -194,9 +266,15 @@ Admin-gated under `/api/benchmark/*` (open by default in local dev). Responses a
 - `POST /api/benchmark/prompts`, `PUT`/`DELETE /api/benchmark/prompts/:id` — custom prompt CRUD;
   builtin ids refuse create-duplicate/edit/delete with 409.
 - `POST /api/benchmark/runs` — start a run from a `BenchmarkScenario`. Validation is synchronous:
-  an unknown prompt or instance, an instance without an HTTP endpoint, or an already active run
-  fails the POST (400/404/409) instead of surfacing later as a failed run. Returns the created run
-  with `status:"running"`.
+  an unknown prompt, dataset or instance, a dataset whose content does not match its id, a
+  `recorded` replay of a multi-window dataset, an instance without an HTTP endpoint, or an already
+  active run fails the POST (400/404/409) instead of surfacing later as a failed run. Returns the
+  created run with `status:"running"`.
+- `GET /api/benchmark/reservation-preview?instance=` — what a replay run would reserve: the
+  instances, the proxy targets that will answer 503, and whether the instance declares pool draws
+  (without them its neighbors are unknown).
+- `GET /api/benchmark/context-fit?dataset=&instance=&outputCeiling=` — the replay context check
+  against a running instance, without starting a run.
 - `GET /api/benchmark/runs?limit=&status=&label=` — newest-first list; `status` filters by job
   status, `label` is an exact match (A/B groups by label).
 - `GET /api/benchmark/runs/:id` — the run record; while running it carries `progress`
@@ -226,6 +304,18 @@ A sustained run uses the same endpoint with `"mode":"sustained"` and `"totalRequ
 its composition counts define the clients per prompt, and its primary metrics are `summary.load`.
 The web form exposes the request timeout in seconds; the HTTP API takes milliseconds.
 
+A replay run names a dataset instead of a composition; every pacing field has a default:
+
+```bash
+curl -s localhost:8787/api/benchmark/runs -X POST -H 'content-type: application/json' -d '{
+  "target": { "kind": "instance", "instanceName": "my-instance" },
+  "mode": "replay",
+  "datasetId": "<64-hex dataset id>",
+  "arrival": { "kind": "together", "concurrencyCap": 4 },
+  "label": "mtp-on"
+}'
+```
+
 ## Prompt library
 
 Built-in prompts live in `content/benchmark-prompts/<topic>/<lang>-<slug>.json`, validated against
@@ -242,7 +332,8 @@ launch args/env/numa/rpc workers, actual argv, llama build info — machine-loca
 `memory_assessments`), warnings and the compact summary used by lists and future run comparison. Bulky data — the raw event stream and the full result
 (per-request metrics + segments) — are artifacts in `data/benchmarks/<runId>/`
 (`events.jsonl`, `result.json`), deleted with the run; there is no automatic retention. In sustained
-mode the event file is appended during measurement and the compact result is written at finalize.
+and replay modes the event file is appended during measurement and the compact result is written at
+finalize.
 Runs left
 `running` by a crash are failed at boot (`failInterruptedBenchmarkRuns`).
 
@@ -283,7 +374,7 @@ usual and the incomplete dir is detectable by the missing file.
 
 Runs carry a free-form `label` and the full target snapshot, and summaries are stored
 comparison-ready — comparing "draft on/off" today means two manual runs against a reconfigured
-instance. Planned, in rough order: run-comparison UI; fixed-arrival-rate / staggered load patterns
-(scenario `mode` is an extensible enum); GPU/system-metrics overlay from the 1 Hz recorder;
-proxy-path target variant; orchestrated A/B (restart instance with argument variations between
-runs); recorded proxy traffic as a workload (`docs/WORKLOAD_REPLAY.md`).
+instance; replay runs of one dataset compare by dataset id and prepared-body hash. Planned, in rough
+order: run-comparison UI; fixed-arrival-rate load patterns; GPU/system-metrics overlay from the
+1 Hz recorder; proxy-path target variant; orchestrated A/B (restart instance with argument
+variations between runs, and replay sweeps over concurrency caps).

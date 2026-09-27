@@ -39,7 +39,8 @@ export type ApiProxyProtocolDiagnosticCode =
   | "arriero_proxy_instance_start_failed"
   | "arriero_proxy_upstream_unavailable"
   | "arriero_proxy_upstream_timeout"
-  | "arriero_proxy_upstream_error";
+  | "arriero_proxy_upstream_error"
+  | "arriero_proxy_instance_reserved";
 
 export type ApiProxyProtocolDiagnostic = {
   status: ContentfulStatusCode;
@@ -48,7 +49,21 @@ export type ApiProxyProtocolDiagnostic = {
   param?: string | null | undefined;
   errorClass?: "invalid-request" | "conflict" | undefined;
   retryable?: boolean | undefined;
+  retryAfterSeconds?: number | undefined;
 };
+
+export function apiProxyDiagnosticHeaderField(
+  diagnostic: ApiProxyProtocolDiagnostic,
+): { headers?: Record<string, string> } {
+  const headers: Record<string, string> = {};
+  if (diagnostic.retryable === false) {
+    headers["x-should-retry"] = "false";
+  }
+  if (diagnostic.retryAfterSeconds !== undefined) {
+    headers["retry-after"] = String(diagnostic.retryAfterSeconds);
+  }
+  return Object.keys(headers).length > 0 ? { headers } : {};
+}
 
 export type ApiProxyAuthDiagnosticCode =
   | "arriero_proxy_source_required"

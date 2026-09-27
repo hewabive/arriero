@@ -167,3 +167,57 @@ test("run endpoints validate input and report missing entities", async () => {
     method: "DELETE",
   });
 });
+
+test("replay endpoints validate datasets and instances", async () => {
+  const dataset = "a".repeat(64);
+  const malformed = await app.request(
+    "/api/benchmark/runs",
+    jsonRequest("POST", {
+      target: { kind: "instance", instanceName: "missing-instance" },
+      mode: "replay",
+      datasetId: "not-a-hash",
+    }),
+  );
+  assert.equal(malformed.status, 400);
+  const missingDataset = await app.request(
+    "/api/benchmark/runs",
+    jsonRequest("POST", {
+      target: { kind: "instance", instanceName: "missing-instance" },
+      mode: "replay",
+      datasetId: dataset,
+    }),
+  );
+  assert.equal(missingDataset.status, 404);
+  assert.match(
+    ((await missingDataset.json()) as { error: string }).error,
+    /workload dataset .* not found/,
+  );
+
+  assert.equal((await app.request("/api/benchmark/context-fit")).status, 400);
+  assert.equal(
+    (
+      await app.request(
+        `/api/benchmark/context-fit?dataset=${dataset}&instance=missing&outputCeiling=0`,
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await app.request(
+        `/api/benchmark/context-fit?dataset=${dataset}&instance=missing`,
+      )
+    ).status,
+    404,
+  );
+
+  assert.equal(
+    (await app.request("/api/benchmark/reservation-preview")).status,
+    400,
+  );
+  assert.equal(
+    (await app.request("/api/benchmark/reservation-preview?instance=missing"))
+      .status,
+    404,
+  );
+});

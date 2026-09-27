@@ -367,7 +367,7 @@ const navSections: NavSection[] = [
         label: "Benchmark",
         title: "Inference benchmark",
         description:
-          "Measure inference speed and response latency under parallel or sustained mixed load",
+          "Measure inference speed and response latency under synthetic or replayed load",
         keywords: [
           "speed",
           "tokens",
@@ -376,6 +376,8 @@ const navSections: NavSection[] = [
           "stress",
           "sustained",
           "concurrency",
+          "replay",
+          "workload",
         ],
       },
     ],

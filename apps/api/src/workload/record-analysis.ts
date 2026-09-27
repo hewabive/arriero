@@ -42,6 +42,7 @@ const errorCodeOutcomes: Record<
   arriero_proxy_source_required: "not-served",
   arriero_proxy_source_disabled: "not-served",
   invalid_api_key: "not-served",
+  arriero_proxy_instance_reserved: "not-served",
   arriero_proxy_plan_blocked: "error",
   arriero_proxy_target_not_ready: "error",
   arriero_proxy_action_unsupported: "error",

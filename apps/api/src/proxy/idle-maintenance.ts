@@ -22,6 +22,7 @@ import {
   schedulerTargetPreemptible,
 } from "./engine-capabilities.js";
 import { apiProxyPendingResume } from "./pending-resume.js";
+import { reservedApiProxyInstanceNames } from "./run-reservation.js";
 import { computeDomains } from "./resource-domains.js";
 import { addApiProxySavedSlotId, apiProxySlotFilename } from "./repository.js";
 import { getApiProxyRuntimeSnapshot } from "./runtime-snapshot.js";
@@ -29,6 +30,18 @@ import {
   planApiProxyIdleMaintenance,
   planApiProxyRequest,
 } from "./scheduler.js";
+
+function reservedTargetIds(
+  targets: Array<{ id: string; instanceId: string | null }>,
+): string[] {
+  const reserved = reservedApiProxyInstanceNames();
+  if (reserved.size === 0) {
+    return [];
+  }
+  return targets
+    .filter((target) => target.instanceId && reserved.has(target.instanceId))
+    .map((target) => target.id);
+}
 
 export async function buildApiProxyPlanRequest(input: {
   mode: "request" | "idle";
@@ -89,7 +102,10 @@ export async function buildApiProxyPlanRequest(input: {
     targets,
     pools: schedulerPoolInputs(targetInstanceIds),
     protectedTargetIds: [...computeDomainCoordinator.wantedTargetIds()],
-    pinnedTargetIds: apiProxyPendingResume.targetIds(),
+    pinnedTargetIds: [
+      ...apiProxyPendingResume.targetIds(),
+      ...reservedTargetIds(targets),
+    ],
   };
   if (input.requestedTargetId) {
     request.requestedTargetId = input.requestedTargetId;
