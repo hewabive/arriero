@@ -1,8 +1,8 @@
 # Workload replay: benchmarking on recorded proxy traffic
 
 **Status: architecture accepted 2026-09-27, not implemented.** This document fixes the architecture
-of the feature; the implementation plan will be a separate working document. Everything below
-describes intended behavior unless it cites existing code.
+of the feature; the implementation plan is the working document `docs/WORKLOAD_REPLAY_PLAN.md`.
+Everything below describes intended behavior unless it cites existing code.
 
 ## Why
 
@@ -149,9 +149,13 @@ stay in the session structure but are never replayed.
 
 **D5. Outcome classes.** A record is a _success_ when the client received HTTP 2xx, however the
 generation ended: manual Finish or Force answer, a loop-guard cut, `finish_reason: length`, a resume
-after preemption. A _client abort_ is a normal scenario and stays in the data. Any other non-2xx
-status is an _error_, and so is a truncated stream (no protocol terminal,
-`trace.streamHealth.truncated`): the engine failed even though the 200 status had already been sent.
+after preemption. A _client abort_ is a normal scenario and stays in the data. A proxy policy
+outcome that never reached an engine — the cases listed in D4, including a `context-limit`
+rejection — is _not served_: it is never replayed and does not make a window erroneous. Any other
+non-2xx status is an _error_, including a request the serving system failed to serve (target not
+ready, blocked plan, failed instance start, unavailable or timed-out upstream), and so is a truncated
+stream (no protocol terminal, `trace.streamHealth.truncated`): the engine failed even though the 200
+status had already been sent.
 
 **D6. Record on the machine that is benchmarked.** Its traces then hold the same engine's usage — the
 baseline the replay is checked against (D24). Records from another machine or an external provider
@@ -460,7 +464,7 @@ Asymmetries, all on the Anthropic / Claude Code side:
    comparability. Proposed acceptance: repeated runs of one dataset and scenario on an unchanged
    instance agree within a stated tolerance; flush verification passes on llama.cpp, vLLM and SGLang.
 
-The implementation plan with concrete steps belongs to a separate working document.
+The implementation plan with concrete steps is `docs/WORKLOAD_REPLAY_PLAN.md`.
 
 ## Known limitations
 

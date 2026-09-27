@@ -4,7 +4,7 @@ import path from "node:path";
 import { trackedFiles as listTrackedFiles } from "./lib/source-files.mjs";
 
 const root = process.cwd();
-const workingDocuments = new Set([]);
+const workingDocuments = new Set(["docs/WORKLOAD_REPLAY_PLAN.md"]);
 
 const runtimePrefixes = ["config/", "data/", "runtime/", "tools/", "content/"];
 const sourceExtensions = new Set([".ts", ".tsx", ".mjs", ".sh", ".service"]);
