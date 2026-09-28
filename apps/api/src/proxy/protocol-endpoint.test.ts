@@ -5,6 +5,7 @@ import { beforeEach, test, type TestContext } from "node:test";
 
 import {
   ApiProxyPipelineNodeSchema,
+  apiProxyClientAbortErrorCode,
   instanceIdFromEndpointId,
   type Instance,
 } from "@arriero/core";
@@ -25,11 +26,13 @@ import {
 import { createNode } from "../nodes/repository.js";
 import { getApiProxyActivity } from "./activity.js";
 import { resetConfigFilesCache } from "./config-files.js";
+import { delegatedTraceHeader } from "./delegated-trace.js";
 import {
   createApiEndpoint,
   instanceEndpointId,
   remoteEndpointId,
 } from "./endpoints.js";
+import { CLIENT_ABORT_STATUS } from "./http.js";
 import { apiProxyInflight } from "./inflight.js";
 import { executeApiProxyModelSubRequest } from "./fusion.js";
 import { buildApiProxyPlanRequest } from "./idle-maintenance.js";
@@ -107,10 +110,20 @@ async function seedCapturedUpstream(
     abortAfterMs?: number;
     chunkDelayMs?: number;
     expectedModel?: string;
+    remoteTrace?: { id: string } & Record<string, unknown>;
   } = {},
 ) {
   let requests = 0;
   const server = createServer(async (request, reply) => {
+    if (
+      options.remoteTrace &&
+      request.method === "GET" &&
+      request.url === `/api/proxy/traces/${options.remoteTrace.id}`
+    ) {
+      reply.writeHead(200, { "content-type": "application/json" });
+      reply.end(JSON.stringify({ data: options.remoteTrace }));
+      return;
+    }
     requests += 1;
     if (options.expectedModel && request.method === "POST") {
       const chunks: Buffer[] = [];
@@ -132,7 +145,12 @@ async function seedCapturedUpstream(
     } else {
       request.resume();
     }
-    reply.writeHead(response.status, { "content-type": response.contentType });
+    reply.writeHead(response.status, {
+      "content-type": response.contentType,
+      ...(options.remoteTrace
+        ? { [delegatedTraceHeader]: options.remoteTrace.id }
+        : {}),
+    });
     if (options.chunkDelayMs !== undefined && request.method === "POST") {
       const frames = response.body.split("\n\n");
       const send = () => {
@@ -244,6 +262,26 @@ async function seedCapturedUpstream(
   });
   seedCapturedModel(target.id, options.cache);
   return { requests: () => requests, target };
+}
+
+async function listenApp(t: TestContext, app: Hono): Promise<number> {
+  const server = serve({
+    fetch: app.fetch,
+    hostname: "127.0.0.1",
+    port: 0,
+  });
+  assert.ok(server instanceof Server);
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  });
+  if (!server.listening)
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return address.port;
 }
 
 function seedCapturedModel(targetId: string, cache = true) {
@@ -492,7 +530,6 @@ for (const failure of ["idle", "transport"] as const) {
           ...(failure === "transport" ? { abortAfterMs: 150 } : {}),
         },
       );
-      const app = buildApp();
       const protocol =
         route === "translated" || route === "anthropic"
           ? "anthropic"
@@ -505,25 +542,10 @@ for (const failure of ["idle", "transport"] as const) {
             : route === "responses"
               ? "/v1/responses"
               : "/v1/chat/completions";
-      const server = serve({
-        fetch: app.fetch,
-        hostname: "127.0.0.1",
-        port: 0,
-      });
-      assert.ok(server instanceof Server);
-      t.after(() => {
-        server.closeAllConnections();
-        return new Promise<void>((resolve, reject) =>
-          server.close((error) => (error ? reject(error) : resolve())),
-        );
-      });
-      if (!server.listening)
-        await new Promise<void>((resolve) => server.once("listening", resolve));
-      const address = server.address();
-      assert.ok(address && typeof address === "object");
+      const port = await listenApp(t, buildApp());
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const response: Response = await fetch(
-          `http://127.0.0.1:${address.port}${path}`,
+          `http://127.0.0.1:${port}${path}`,
           {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -595,6 +617,105 @@ for (const failure of ["idle", "transport"] as const) {
       assert.equal(upstream.requests(), 2);
     });
   }
+}
+
+for (const route of ["chat", "anthropic", "completions"] as const) {
+  test(`delegated ${route} sends an SSE error after a link failure that outranks the remote client abort`, async (t) => {
+    const partial =
+      route === "anthropic"
+        ? 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}\n\n'
+        : `${completeSse.split("\n\n")[0]}\n\n`;
+    const upstream = await seedCapturedUpstream(
+      t,
+      {
+        status: 200,
+        contentType: "text/event-stream",
+        body: `${partial}data: {"unfinished":`,
+      },
+      {
+        delegated: true,
+        keepOpen: true,
+        abortAfterMs: 150,
+        remoteTrace: {
+          id: "remote-trace",
+          at: new Date().toISOString(),
+          protocol: route === "anthropic" ? "anthropic" : "openai",
+          endpoint:
+            route === "anthropic"
+              ? "messages"
+              : route === "completions"
+                ? "completions"
+                : "chat.completions",
+          routePath: "/api/proxy/serve",
+          modelId: "captured-model",
+          status: CLIENT_ABORT_STATUS,
+          ok: false,
+          slotId: 3,
+          errorCode: apiProxyClientAbortErrorCode,
+          errorMessage:
+            "Client closed the request before target capture-target finished responding",
+        },
+      },
+    );
+    const path =
+      route === "anthropic"
+        ? "/anthropic/v1/messages"
+        : route === "completions"
+          ? "/v1/completions"
+          : "/v1/chat/completions";
+    const port = await listenApp(t, buildApp());
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: "captured-model",
+          messages: [{ role: "user", content: "hi" }],
+          prompt: "hi",
+          max_tokens: 100,
+          stream: true,
+        }),
+      });
+      assert.equal(response.status, 200);
+      const body = await response.text();
+      assert.match(body, /Hello/);
+      assert.match(body, /arriero_proxy_upstream_error/);
+      assert.match(body, /on node capture-peer/);
+      assert.doesNotMatch(
+        body,
+        /unfinished|"finish_reason":"stop"|message_stop/,
+      );
+      if (route === "anthropic") assert.match(body, /event: error\n/);
+      else assert.ok(body.endsWith("data: [DONE]\n\n"));
+      let trace = listApiProxyTraces()[0];
+      for (let wait = 0; wait < 100 && trace?.slotId !== 3; wait += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        trace = listApiProxyTraces()[0];
+      }
+      assert.ok(trace);
+      assert.equal(trace.slotId, 3);
+      assert.equal(trace.status, 200);
+      assert.equal(trace.ok, false);
+      assert.equal(trace.errorCode, "arriero_proxy_upstream_error");
+      assert.match(trace.errorMessage ?? "", /on node capture-peer/);
+      assert.equal(trace.cache, null);
+      assert.deepEqual(
+        trace.files.map((file) => file.kind),
+        ["capture-request", "capture-response"],
+      );
+      assert.deepEqual(
+        readApiProxyRequestFile(trace.files[1]!.path)?.data,
+        captureApiProxyResponseSse(body, {
+          protocol: trace.protocol,
+          endpoint: trace.endpoint,
+          routePath: trace.routePath,
+          transport: "sse",
+        }),
+      );
+      clearApiProxyTraceHistory();
+    }
+    assert.equal(upstream.requests(), 2);
+  });
 }
 
 for (const route of ["external", "translated", "delegated"] as const) {

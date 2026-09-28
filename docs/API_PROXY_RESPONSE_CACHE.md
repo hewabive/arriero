@@ -198,23 +198,24 @@ register as owner and continue to the target.
   from `broadcasts`.
 - **Two serve paths, two fan-out modes:**
   - Live `respond()` path (non-preemptible managed, external, translated):
-    `decoupledStreamResponse` tees the fully transformed stream — one branch to
-    the owner's client, one **pumped** to completion in the background
-    (`drainApiProxyStream`), decoupled from the client. The cache effect's tap
-    feeds the broadcast per chunk (bytes at the cache node's position, so
-    followers replay through their own transform prefix) and stores the
-    accumulated SSE on flush; the owner itself receives the post-transform
-    stream, never the raw broadcast bytes. If the owner's client disconnects the
-    pump still finishes, so subscribers and the cache are complete. The remote
-    fleet-node delegation path uses the same helper, so delegated targets get
-    identical owner-disconnect decoupling. The pump
-    (`protocol-endpoint.ts:drainApiProxyStream`) exists only to keep the
-    upstream flowing, so it **swallows a read failure**: an upstream error on
-    the drained branch is already observed by the response plan, whose
-    finalize/record path records the trace and flushes the cache effects
-    (aborting the broadcast). Re-reporting it would double-count the failure and
-    letting it escape would reject a floating promise; the pump's only
-    obligation is the `finally` that releases the reader lock.
+    the downstream delivery (`stream-delivery.ts:deliverApiProxySseResponse`)
+    tees the fully transformed stream — one branch to the owner's client, one
+    **pumped** to completion in the background (`drainApiProxyStream`),
+    decoupled from the client. The cache effect's tap feeds the broadcast per
+    chunk (bytes at the cache node's position, so followers replay through
+    their own transform prefix) and stores the accumulated SSE on flush; the
+    owner itself receives the post-transform stream, never the raw broadcast
+    bytes. If the owner's client disconnects the pump still finishes, so
+    subscribers and the cache are complete. Fleet-node delegation and restart
+    replay (`resume-replay.ts`) deliver through the same helper, so delegated
+    targets and replayed sessions get identical owner-disconnect decoupling.
+    The pump (`stream-delivery.ts:drainApiProxyStream`) exists only to keep the
+    upstream flowing, so it **swallows a read failure** after a debug log: an
+    upstream error on the drained branch is already observed by the response
+    plan, whose finalize/record path records the trace and flushes the cache
+    effects (aborting the broadcast). Re-reporting it would double-count the
+    failure and letting it escape would reject a floating promise; the pump's
+    only obligation is the `finally` that releases the reader lock.
   - Buffered resumable path (preemptible managed chat): the response is built
     all at once, so it does **completed fan-out** — on success it stores the
     final SSE, pushes it to the broadcast as one chunk, and finishes, and

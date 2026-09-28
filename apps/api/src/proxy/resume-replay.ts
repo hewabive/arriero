@@ -23,11 +23,7 @@ import {
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
-import { observeBodyCompletion } from "./body-completion.js";
-import {
-  tapApiProxyResponsePlanStream,
-  type ApiProxyResponsePlanExecutor,
-} from "./response-plan.js";
+import type { ApiProxyResponsePlanExecutor } from "./response-plan.js";
 import {
   consumeResumableSse,
   createResumableBufferState,
@@ -36,6 +32,8 @@ import {
   applyProxyStreamHealth,
   markPlanTruncatedOnEof,
 } from "./stream-health.js";
+import { deliverApiProxySseResponse } from "./stream-delivery.js";
+import { apiProxyStreamFailureDiagnostic } from "./stream-errors.js";
 import { watchStreamIdle } from "./stream-idle.js";
 import { inflightStreamObserver } from "./stream-observer.js";
 import {
@@ -154,6 +152,7 @@ export async function serveResumedStreamSession(input: {
   recorder: ProxyTraceRecorder;
   inflight: ApiProxyInflightHandle;
   responsePlan: ApiProxyResponsePlanExecutor | null;
+  streamOwnerKey?: string | null | undefined;
   fetchImpl?: typeof proxyUpstreamFetch;
   store?: ApiProxyPendingResumeStore;
 }): Promise<Response | null> {
@@ -240,6 +239,25 @@ export async function serveResumedStreamSession(input: {
     recorder.freezeDuration();
     applyUsage(usage);
   };
+  const deliverStream = (
+    body: ReadableStream<Uint8Array>,
+    onSettled: () => void,
+  ): Response =>
+    deliverApiProxySseResponse({
+      body,
+      status: upstream.status,
+      headers: upstream.headers,
+      adapter: input.adapter,
+      request,
+      trace,
+      responsePlan: input.responsePlan,
+      streamOwnerKey: input.streamOwnerKey ?? null,
+      onSettled,
+      onError: (error) =>
+        c.req.raw.signal.aborted
+          ? null
+          : apiProxyStreamFailureDiagnostic("Resumed stream replay", error),
+    });
 
   if (translateAnthropic) {
     const translation = createAnthropicTranslationStream({
@@ -251,21 +269,13 @@ export async function serveResumedStreamSession(input: {
       onComplete: onStreamComplete,
     });
     recorder.markDeferred();
-    metered = new Response(
-      observeBodyCompletion(
-        tapApiProxyResponsePlanStream(
-          input.responsePlan,
-          guardedBody.pipeThrough(translation.transform),
-          upstream.status,
-          upstream.headers,
-        ),
-        () => {
-          store.finish(entry, { evict: true });
-          translation.finalize();
-          recorder.record(metered);
-        },
-      ),
-      { status: upstream.status, headers: upstream.headers },
+    metered = deliverStream(
+      guardedBody.pipeThrough(translation.transform),
+      () => {
+        store.finish(entry, { evict: true });
+        translation.finalize();
+        recorder.record(metered);
+      },
     );
     return metered;
   }
@@ -279,22 +289,11 @@ export async function serveResumedStreamSession(input: {
     onComplete: onStreamComplete,
   });
   recorder.markDeferred();
-  metered = new Response(
-    observeBodyCompletion(
-      tapApiProxyResponsePlanStream(
-        input.responsePlan,
-        guardedBody.pipeThrough(meter.transform),
-        upstream.status,
-        upstream.headers,
-      ),
-      () => {
-        store.finish(entry, { evict: true });
-        applyProxyStreamHealth({ trace, health: meter.health() });
-        meter.finalize();
-        recorder.record(metered);
-      },
-    ),
-    { status: upstream.status, headers: upstream.headers },
-  );
+  metered = deliverStream(guardedBody.pipeThrough(meter.transform), () => {
+    store.finish(entry, { evict: true });
+    applyProxyStreamHealth({ trace, health: meter.health() });
+    meter.finalize();
+    recorder.record(metered);
+  });
   return metered;
 }

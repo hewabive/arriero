@@ -91,10 +91,14 @@ Four pieces, one per implementation phase:
    `GET /v1/stream?conv_id=<id>&from=0` through the standard downstream tract
    (usage meter with the original strip decisions, Anthropic translation,
    non-stream rebuild via `consumeResumableSse`), marks `trace.resumed`, and
-   DELETEs the session when the response settles. Gateway and lease are
-   bypassed like a cache hit: a replay reads a buffer, it does not consume a
-   slot. Replay failures (404 expired, 400 offset lost) fall through to a
-   normal forward — an honest regeneration.
+   DELETEs the session when the response settles. A streamed replay leaves
+   through the same delivery as a live forward
+   (`stream-delivery.ts:deliverApiProxySseResponse`): a replay that breaks or
+   stalls mid-stream ends with a protocol-shaped SSE error and a failed trace
+   instead of a dropped socket, and a cache owner keeps draining the replay when
+   its client leaves. Gateway and lease are bypassed like a cache hit: a replay
+   reads a buffer, it does not consume a slot. Replay failures (404 expired,
+   400 offset lost) fall through to a normal forward — an honest regeneration.
 
 ## What survives, what does not
 

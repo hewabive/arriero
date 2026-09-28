@@ -5,12 +5,14 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { Context } from "hono";
 
+import { anthropicProtocolAdapter } from "./anthropic.js";
 import { ApiProxyInflightRegistry } from "./inflight.js";
 import { openAiProtocolAdapter, openAiResumableCodec } from "./openai.js";
 import { ApiProxyPendingResumeStore } from "./pending-resume.js";
 import { runWithProxyTrace } from "./protocol-endpoint.js";
 import type { ProxyTraceRecorder } from "./protocol-trace.js";
 import { createProxyTrace } from "./protocol-trace.js";
+import type { ApiProxyResponseCacheWriter } from "./response-plan.js";
 import { captureApiProxyResponseSse } from "./response-capture.js";
 import { readApiProxyRequestFile } from "./request-files.js";
 import { createApiProxyResponsePlanExecutor } from "./response-plan.js";
@@ -161,7 +163,12 @@ for (const translated of [false, true]) {
             const replayed = await serveResumedStreamSession({
               c: fakeContext(),
               adapter: { resumable: openAiResumableCodec } as never,
-              request: { modelId: "model-a", stream: true, body: {} } as never,
+              request: {
+                operation: responseOperation,
+                modelId: "model-a",
+                stream: true,
+                body: {},
+              } as never,
               claim,
               trace,
               recorder,
@@ -219,6 +226,203 @@ for (const translated of [false, true]) {
     });
   }
 }
+
+function failingReplayBody(
+  failure: "transport" | "idle",
+  release?: Promise<void>,
+): ReadableStream<Uint8Array> {
+  const frames = replaySse.split("\n\n").map((frame) => `${frame}\n\n`);
+  let index = 0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (index === 1 && release) {
+        await release;
+      }
+      if (index === 0 || release) {
+        const frame = frames[index];
+        index += 1;
+        if (frame === undefined || frame === "\n\n") {
+          controller.close();
+          return;
+        }
+        controller.enqueue(new TextEncoder().encode(frame));
+        return;
+      }
+      index += 1;
+      if (failure === "transport") {
+        controller.error(new TypeError("terminated"));
+        return;
+      }
+      await new Promise<void>(() => undefined);
+    },
+  });
+}
+
+for (const translated of [false, true]) {
+  for (const failure of ["transport", "idle"] as const) {
+    test(`stream replay sends an SSE error after ${failure} failure and never caches it, translated=${translated}`, async () => {
+      const { store, cleanup } = await readyStore(["conv-1"]);
+      try {
+        const claim = claimFor(store);
+        assert.ok(claim);
+        claim.translateAnthropic = translated;
+        claim.streamIdleTimeoutMs = failure === "idle" ? 150 : null;
+        const responseOperation = translated
+          ? {
+              ...operation,
+              protocol: "anthropic" as const,
+              endpoint: "messages",
+            }
+          : operation;
+        const cached: Parameters<ApiProxyResponseCacheWriter>[0][] = [];
+        let traceId = "";
+        const response = await runWithProxyTrace(
+          responseOperation,
+          async ({ trace, recorder, inflight }) => {
+            traceId = trace.id;
+            trace.modelId = "model-a";
+            const plan = createApiProxyResponsePlanExecutor({
+              effects: [
+                { type: "capture-response", nodeName: null },
+                { type: "cache-store", key: "replay-key", ttlSeconds: 60 },
+              ],
+              putCache: (entry) => cached.push(entry),
+              trace,
+              operation: responseOperation,
+            });
+            assert.ok(plan);
+            recorder.beforeRecord(() => plan.flush());
+            const replayed = await serveResumedStreamSession({
+              c: fakeContext(),
+              adapter: translated
+                ? anthropicProtocolAdapter
+                : openAiProtocolAdapter,
+              request: {
+                operation: responseOperation,
+                modelId: "model-a",
+                stream: true,
+                body: {},
+              } as never,
+              claim,
+              trace,
+              recorder,
+              inflight,
+              responsePlan: plan,
+              store,
+              fetchImpl: async () =>
+                new Response(failingReplayBody(failure), {
+                  headers: { "content-type": "text/event-stream" },
+                }),
+            });
+            assert.ok(replayed);
+            return replayed;
+          },
+        );
+        const body = await response.text();
+        assert.match(body, /Hel/);
+        const code =
+          failure === "idle"
+            ? "arriero_proxy_upstream_timeout"
+            : "arriero_proxy_upstream_error";
+        assert.match(body, new RegExp(code));
+        assert.doesNotMatch(body, /"finish_reason":"stop"|message_stop/);
+        if (translated) assert.match(body, /event: error\n/);
+        else assert.ok(body.endsWith("data: [DONE]\n\n"));
+        if (failure === "idle") assert.match(body, /upstream stream stalled/);
+        const trace = getApiProxyTrace(traceId);
+        assert.ok(trace);
+        assert.equal(trace.status, 200);
+        assert.equal(trace.ok, false);
+        assert.equal(trace.resumed, true);
+        assert.equal(trace.errorCode, code);
+        assert.match(trace.errorMessage ?? "", /^Resumed stream replay: /);
+        assert.equal(trace.cache, null);
+        assert.deepEqual(cached, []);
+        assert.deepEqual(
+          trace.files.map((file) => file.kind),
+          ["capture-response"],
+        );
+        assert.deepEqual(
+          readApiProxyRequestFile(trace.files[0]!.path)?.data,
+          captureApiProxyResponseSse(body, responseOperation),
+        );
+        assert.equal(store.size(), 0);
+      } finally {
+        cleanup();
+      }
+    });
+  }
+}
+
+test("stream replay keeps draining for its cache owner after the client leaves", async () => {
+  const { store, cleanup } = await readyStore(["conv-1"]);
+  try {
+    const claim = claimFor(store);
+    assert.ok(claim);
+    let release = () => undefined as void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let stored: (
+      entry: Parameters<ApiProxyResponseCacheWriter>[0],
+    ) => void = () => undefined;
+    const cached = new Promise<Parameters<ApiProxyResponseCacheWriter>[0]>(
+      (resolve) => {
+        stored = resolve;
+      },
+    );
+    const response = await runWithProxyTrace(
+      operation,
+      async ({ trace, recorder, inflight }) => {
+        trace.modelId = "model-a";
+        const plan = createApiProxyResponsePlanExecutor({
+          effects: [{ type: "cache-store", key: "replay-key", ttlSeconds: 60 }],
+          putCache: (entry) => stored(entry),
+          trace,
+          operation,
+        });
+        assert.ok(plan);
+        recorder.beforeRecord(() => plan.flush());
+        const replayed = await serveResumedStreamSession({
+          c: fakeContext(),
+          adapter: openAiProtocolAdapter,
+          request: {
+            operation,
+            modelId: "model-a",
+            stream: true,
+            body: { stream_options: { include_usage: true } },
+          } as never,
+          claim,
+          trace,
+          recorder,
+          inflight,
+          responsePlan: plan,
+          streamOwnerKey: "replay-key",
+          store,
+          fetchImpl: async () =>
+            new Response(failingReplayBody("transport", released), {
+              headers: { "content-type": "text/event-stream" },
+            }),
+        });
+        assert.ok(replayed);
+        return replayed;
+      },
+    );
+    assert.ok(response.body);
+    const reader = response.body.getReader();
+    assert.equal((await reader.read()).done, false);
+    const cancelled = reader.cancel();
+    release();
+    const entry = await cached;
+    await cancelled;
+    assert.equal(entry.key, "replay-key");
+    assert.match(entry.body, /\[DONE\]/);
+    assert.match(entry.body, /"completion_tokens":2/);
+    assert.equal(store.size(), 0);
+  } finally {
+    cleanup();
+  }
+});
 
 test("non-stream replay rebuilds the buffered response and evicts", async () => {
   const { store, calls, cleanup } = await readyStore(["conv-1"]);
@@ -329,7 +533,12 @@ test("stream replay pipes frames, strips usage, records at completion", async ()
     const response = await serveResumedStreamSession({
       c: fakeContext(),
       adapter: { resumable: openAiResumableCodec } as never,
-      request: { modelId: "model-a", stream: true, body: {} } as never,
+      request: {
+        operation,
+        modelId: "model-a",
+        stream: true,
+        body: {},
+      } as never,
       claim: claim!,
       trace,
       recorder,

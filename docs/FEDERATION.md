@@ -145,7 +145,14 @@ slow completion. A genuinely unreachable node still fails fast at connect
 (`ECONNREFUSED` / ~10s connect timeout). `delegationErrorDiagnostic`
 (`proxy/protocol-endpoint.ts`) classifies the fetch failure: timeout → `504
 upstream_timeout`, connect/DNS/reset → `503 upstream_unavailable`, else `502
-upstream_error` — instead of an opaque "fetch failed".
+upstream_error` — instead of an opaque "fetch failed". Once the stream has
+started, a broken link (peer crash, reset, undici body timeout) can no longer
+change the status: the delegated stream leaves through the same downstream
+delivery as a local forward (`stream-delivery.ts:deliverApiProxySseResponse`,
+without the idle watchdog), so the client receives a protocol-shaped SSE error
+and the entry's trace records the link failure, which outranks the client abort
+the owning node reports for the dropped connection
+(`docs/API_PROXY_STREAM_HEALTH.md` § Live transport failures).
 
 ### Remote-target load status
 

@@ -1,3 +1,4 @@
+import { describeFetchError, fetchErrorCode } from "./http.js";
 import {
   apiProxyResponseShape,
   type ApiProxyProtocolAdapter,
@@ -12,6 +13,7 @@ import {
   parseApiProxySseJsonFrame,
 } from "./response-codec.js";
 import { asObject } from "./json.js";
+import { StreamIdleTimeoutError } from "./stream-idle.js";
 
 const errorFrames: Record<
   ApiProxyResponseShape,
@@ -32,6 +34,23 @@ const errorFrames: Record<
       sequence_number: sequence,
     }),
 };
+
+export function apiProxyStreamFailureDiagnostic(
+  label: string,
+  error: unknown,
+): ApiProxyProtocolDiagnostic {
+  const timedOut =
+    error instanceof StreamIdleTimeoutError ||
+    fetchErrorCode(error) === "UND_ERR_BODY_TIMEOUT";
+  return {
+    status: timedOut ? 504 : 502,
+    code: timedOut
+      ? "arriero_proxy_upstream_timeout"
+      : "arriero_proxy_upstream_error",
+    param: "model",
+    message: `${label}: ${describeFetchError(error)}`,
+  };
+}
 
 export function recoverApiProxySseStream(input: {
   body: ReadableStream<Uint8Array>;
