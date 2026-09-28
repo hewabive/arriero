@@ -211,6 +211,7 @@ export const HfDownloadedRepoSchema = z.object({
   downloadedAt: z.string(),
   fileCount: z.number().int().nonnegative(),
   totalBytes: z.number().int().nonnegative(),
+  diskBytes: z.number().int().nonnegative(),
   missingFiles: z.number().int().nonnegative(),
   files: z.array(HfDownloadedRepoFileSchema),
   orphanParts: z.array(HfOrphanPartSchema),

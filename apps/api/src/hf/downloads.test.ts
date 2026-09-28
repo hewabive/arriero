@@ -124,6 +124,24 @@ test("discovery finds manifests under the scan roots", async () => {
   );
 });
 
+test("disk bytes count present files, partial files and orphan parts", async () => {
+  const dir = seedRepo("owner/leftovers", [
+    { path: "model.gguf", present: true },
+    { path: "missing.gguf", present: false },
+    { path: "partial.gguf", present: false },
+  ]);
+  writeFileSync(join(dir, "partial.gguf.part"), "x".repeat(4), "utf8");
+  mkdirSync(join(dir, "Q8_0"), { recursive: true });
+  writeFileSync(join(dir, "Q8_0", "canceled.gguf.part"), "x".repeat(7), "utf8");
+  const repo = (await listHfDownloads())[0];
+  assert.equal(repo?.totalBytes, 30);
+  assert.equal(repo?.missingFiles, 2);
+  assert.deepEqual(repo?.orphanParts, [
+    { path: join("Q8_0", "canceled.gguf.part"), partialBytes: 7 },
+  ]);
+  assert.equal(repo?.diskBytes, 10 + 4 + 7);
+});
+
 test("list exposes gguf variants grouped from the manifest", async () => {
   seedRepo("owner/quants", [
     { path: "model-Q4_K_S.gguf", present: true },

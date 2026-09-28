@@ -37,7 +37,11 @@ import { formatBytes } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
 import { useLabeledOperation } from "../utils/use-labeled-operation";
 import { HfRepoLink } from "./HfBadges";
-import { HfRepoDeleteModal, type HfDeleteRequest } from "./HfRepoDeleteModal";
+import {
+  HF_FULL_DELETE_REQUEST,
+  HfRepoDeleteModal,
+  type HfDeleteRequest,
+} from "./HfRepoDeleteModal";
 import { hfQueueJobForDir, useHfQueue } from "./use-hf-queue";
 import { ModelLibraryTree } from "./ModelLibraryTree";
 import { ModelLibraryFileDetails } from "./ModelLibraryFileDetails";
@@ -303,9 +307,7 @@ export function ModelLibraryDialog({
                   <Menu.Item
                     color="red"
                     disabled={!repo || !!job || busy}
-                    onClick={() =>
-                      setDeleteRequest({ paths: null, bytes: repo!.totalBytes })
-                    }
+                    onClick={() => setDeleteRequest(HF_FULL_DELETE_REQUEST)}
                   >
                     Free up all disk space…
                   </Menu.Item>

@@ -21,13 +21,24 @@ import { ApiError, deleteHfDownload } from "../../api/client";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
 
-export type HfDeleteRequest = {
-  paths: string[] | null;
-  bytes: number;
-};
+export type HfDeleteRequest =
+  | { paths: null }
+  | { paths: string[]; bytes: number };
+
+export const HF_FULL_DELETE_REQUEST: HfDeleteRequest = { paths: null };
 
 function isOrphanPartPath(path: string) {
   return path.endsWith(".part") || path.endsWith(".part.json");
+}
+
+function coversEveryManifestFile(
+  repo: HfDownloadedRepo,
+  paths: readonly string[],
+): boolean {
+  const selected = new Set(paths);
+  return (
+    repo.files.length > 0 && repo.files.every((file) => selected.has(file.path))
+  );
 }
 
 export function HfRepoDeleteModal(props: {
@@ -45,6 +56,10 @@ export function HfRepoDeleteModal(props: {
     request.paths !== null &&
     request.paths.length > 0 &&
     request.paths.every(isOrphanPartPath);
+  const removesDirectory =
+    request !== null &&
+    request.paths !== null &&
+    coversEveryManifestFile(repo, request.paths);
 
   const deleteMutation = useMutation({
     mutationFn: deleteHfDownload,
@@ -121,20 +136,18 @@ export function HfRepoDeleteModal(props: {
                 </Text>
               ))}
             </Stack>
-            {request.paths.length === repo.fileCount &&
-              repo.fileCount > 0 &&
-              !orphanOnly && (
-                <Text size="sm" c="orange">
-                  Every file is selected, so the whole repository directory will
-                  be removed.
-                </Text>
-              )}
+            {removesDirectory && (
+              <Text size="sm" c="orange">
+                Every file is selected, so the whole repository directory (
+                {formatBytes(repo.diskBytes)} on disk) will be removed.
+              </Text>
+            )}
           </>
         ) : (
           <Text size="sm">
             Delete <Code>{repo.dir}</Code> with{" "}
-            {countLabel(repo.fileCount, "file")} ({formatBytes(repo.totalBytes)}
-            )? This removes the files from disk.
+            {countLabel(repo.fileCount, "file")} ({formatBytes(repo.diskBytes)}{" "}
+            on disk)? This removes the files from disk.
           </Text>
         )}
         {verifyError ? (

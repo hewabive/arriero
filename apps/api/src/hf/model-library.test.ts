@@ -38,6 +38,7 @@ function downloadedRepo(
     downloadedAt: "2026-08-25T00:00:00.000Z",
     fileCount: files.length,
     totalBytes: 1,
+    diskBytes: files.filter((file) => file.present).length,
     missingFiles: files.filter((file) => !file.present).length,
     files: files.map((file) => ({
       path: file.path,

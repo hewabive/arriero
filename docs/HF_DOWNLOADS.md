@@ -147,7 +147,13 @@ travels with the files and survives DB recreation. Each entry carries the manife
 records (`path`/`size`/`oid`/`lfsOid` plus an on-disk `present` flag and `partialBytes` — bytes
 already on disk for an unfinished file, read via `partialBytesFor`), `orphanParts` (`.part`/
 `.part.json` leftovers whose final file is not in the manifest, capped bounded walk) and
-server-grouped GGUF `variants` (the same `grouping.ts` browse uses).
+server-grouped GGUF `variants` (the same `grouping.ts` browse uses). Two repo totals are kept
+apart: `totalBytes` is the manifest's full size, missing files included; `diskBytes` is what the
+directory holds — present manifest files plus the `partialBytes` of unfinished and orphan parts —
+so it matches what a whole-directory delete frees. The parts of a download cancelled before its
+files finished count there as orphan parts, since a file enters the manifest only on completion.
+The library row, its on-disk filter and total, and the whole-directory delete confirmation all
+show `diskBytes`.
 
 The Downloads page (`apps/web/src/ui/views/`) contains the collapsible repository browser
 (`HfRepoBrowserPanel.tsx` — the Download button always enqueues and hints at the queue length;
@@ -399,12 +405,12 @@ reference; local processes only — see `docs/SHARED_MODELS_DIR.md` for multi-ho
 Per-file removal also drops the file's `.part` leftover, prunes emptied subdirectories
 and shrinks the manifest — the cached update check is pruned to the remaining files instead of
 being cleared. A `paths` set covering every manifest file escalates to whole-directory removal
-(the UI dialog says so). With `verifyUpstream: true` the server first runs the standard update
-check (cached as usual, so `checkedAt` refreshes) and refuses with `412` +
-`{error, verification}` (`HfDownloadDeleteBlockedSchema`) when the check errors or a targeted
-file is `deleted` upstream — i.e. it could not be re-downloaded; `updated` files stay deletable.
-The UI delete dialog verifies by default and turns the confirm button into "Delete anyway" on a
-412.
+(the UI dialog says so and shows the directory's `diskBytes`). With `verifyUpstream: true` the
+server first runs the standard update check (cached as usual, so `checkedAt` refreshes) and
+refuses with `412` + `{error, verification}` (`HfDownloadDeleteBlockedSchema`) when the check
+errors or a targeted file is `deleted` upstream — i.e. it could not be re-downloaded; `updated`
+files stay deletable. The UI delete dialog verifies by default and turns the confirm button into
+"Delete anyway" on a 412.
 
 ## Update checks
 
@@ -443,7 +449,7 @@ cross-origin CDN redirect.
 | `GET /api/hf/snapshot?repo=&revision=` | library snapshot (commit sha + per-file oids) of a repo id at a revision |
 | `GET /api/hf/dest-check?dir=` / `?repo=` | free space + inside-scan-roots for a destination |
 | `POST /api/hf/downloads` | enqueue a download job (201; 409 only for insufficient space) |
-| `GET /api/hf/downloads` | downloaded repos from manifest discovery (+ `partialBytes`, `orphanParts`) |
+| `GET /api/hf/downloads` | downloaded repos from manifest discovery (+ `partialBytes`, `orphanParts`, `diskBytes`) |
 | `POST /api/hf/downloads/check` | manual update check for up to 50 dirs |
 | `POST /api/hf/downloads/integrity` | offline size and checksum verification against the local manifest |
 | `POST /api/hf/downloads/integrity/jobs` | start or reconnect to an active integrity check (`{dir}`) |

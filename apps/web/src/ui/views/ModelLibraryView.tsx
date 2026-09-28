@@ -1,7 +1,6 @@
 import {
   isHfCommitSha,
   parseHfRepoInput,
-  type HfDownloadedRepo,
   type ModelLibraryCheck,
   type ModelLibraryEntryState,
   type ModelLibraryEntryStatus,
@@ -40,7 +39,7 @@ import { formatLocalDateTime } from "../utils/time";
 import { useLabeledOperation } from "../utils/use-labeled-operation";
 import { HfRepoLink } from "./HfBadges";
 import { ModelLibraryDialog } from "./ModelLibraryDialog";
-import { HfRepoDeleteModal } from "./HfRepoDeleteModal";
+import { HF_FULL_DELETE_REQUEST, HfRepoDeleteModal } from "./HfRepoDeleteModal";
 import {
   hfOpenJobs,
   hfQueueJobForDir,
@@ -64,13 +63,6 @@ const CHECK_BADGE: Record<ModelLibraryCheck["status"], LabeledColor> = {
   changed: { label: "Repository updated", color: "yellow" },
   error: { label: "Check failed", color: "red" },
 };
-
-function diskBytes(repo: HfDownloadedRepo): number {
-  return repo.files.reduce(
-    (sum, file) => sum + (file.present ? file.size : file.partialBytes),
-    0,
-  );
-}
 
 export function ModelLibraryView() {
   useHfJobsSync();
@@ -133,7 +125,7 @@ export function ModelLibraryView() {
         .includes(search.toLowerCase()) &&
       (filter === "all" ||
         (filter === "saved" && status) ||
-        (filter === "installed" && repo && diskBytes(repo) > 0) ||
+        (filter === "installed" && repo && repo.diskBytes > 0) ||
         (filter === "missing" && status?.missingPaths.length) ||
         (filter === "changes" && status?.check.status === "changed")),
   );
@@ -189,7 +181,7 @@ export function ModelLibraryView() {
             )}
           </Badge>
           <Text size="sm" c="dimmed">
-            {formatBytes(repos.reduce((sum, repo) => sum + diskBytes(repo), 0))}{" "}
+            {formatBytes(repos.reduce((sum, repo) => sum + repo.diskBytes, 0))}{" "}
             on disk
           </Text>
         </Group>
@@ -360,7 +352,7 @@ export function ModelLibraryView() {
                     {job && <Badge color="blue">{job.status}</Badge>}
                     {repo && (
                       <Text size="xs" c="dimmed">
-                        {formatBytes(diskBytes(repo))} on disk
+                        {formatBytes(repo.diskBytes)} on disk
                       </Text>
                     )}
                   </Group>
@@ -550,7 +542,7 @@ export function ModelLibraryView() {
       {deleteRepo && (
         <HfRepoDeleteModal
           repo={deleteRepo}
-          request={{ paths: null, bytes: diskBytes(deleteRepo) }}
+          request={HF_FULL_DELETE_REQUEST}
           onClose={() => setDeleteDir(null)}
           onDeleted={() => setDeleteDir(null)}
         />

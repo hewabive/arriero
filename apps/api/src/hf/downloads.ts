@@ -213,6 +213,18 @@ async function collectOrphanParts(
   return out.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+function repoDiskBytes(
+  files: readonly HfDownloadedRepoFile[],
+  orphanParts: readonly HfOrphanPart[],
+): number {
+  return (
+    files.reduce(
+      (sum, file) => sum + (file.present ? file.size : file.partialBytes),
+      0,
+    ) + orphanParts.reduce((sum, part) => sum + part.partialBytes, 0)
+  );
+}
+
 export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
   const key = listModelScanRoots()
     .map((root) => root.path)
@@ -245,6 +257,7 @@ export async function listHfDownloads(): Promise<HfDownloadedRepo[]> {
       ...(manifest.importedAt ? { importedAt: manifest.importedAt } : {}),
       fileCount: files.length,
       totalBytes: files.reduce((sum, file) => sum + file.size, 0),
+      diskBytes: repoDiskBytes(files, orphanParts),
       missingFiles: files.filter((file) => !file.present).length,
       files,
       orphanParts,
