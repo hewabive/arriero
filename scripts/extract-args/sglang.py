@@ -30,7 +30,9 @@ from pyast import (  # noqa: E402
     literal_choices,
     merge_module_symbols,
     module_docstrings,
+    module_level_statements,
     module_path,
+    named_assignments,
     parse_file,
     parser_type,
     run_extractor,
@@ -41,9 +43,9 @@ from pyast import (  # noqa: E402
 )
 
 SERVER_ARGS_RELATIVE_PATH = "python/sglang/srt/server_args.py"
-FIELD_DIRECTORY = "python/sglang/srt/arg_groups/fields"
 PACKAGE_ROOT = "python"
 ENTRYPOINT = "python -m sglang.launch_server"
+MIN_NAMESPACE_OPTIONS = 100
 
 
 def imported_modules(tree):
@@ -56,7 +58,7 @@ def imported_modules(tree):
     return [module for module in modules if module.startswith("sglang")]
 
 
-def index_referenced_modules(repo, tree):
+def module_context(repo, tree):
     aliases = {}
     constants = {}
     docs = dict(module_docstrings(tree))
@@ -72,7 +74,11 @@ def index_referenced_modules(repo, tree):
         merge_module_symbols(imported, aliases, constants)
         for name, doc in module_docstrings(imported).items():
             docs.setdefault(name, doc)
-    return aliases, constants, docs
+    return {
+        "aliases": aliases,
+        "constants": constants,
+        "resolveDoc": docstring_resolver(docs),
+    }
 
 
 def docstring_resolver(docs):
@@ -112,7 +118,6 @@ def arg_metadata(parts, resolve_doc):
         "action": None,
         "noCli": False,
         "hidden": False,
-        "namespace": None,
         "typeParser": None,
     }
     for meta in parts[1:]:
@@ -121,9 +126,6 @@ def arg_metadata(parts, resolve_doc):
             metadata["help"] = text
             continue
         if not isinstance(meta, ast.Call) or not isinstance(meta.func, ast.Name):
-            continue
-        if meta.func.id == "NS" and meta.args:
-            metadata["namespace"] = string_value(meta.args[0])
             continue
         if meta.func.id != "Arg":
             continue
@@ -152,12 +154,12 @@ def arg_metadata(parts, resolve_doc):
     return metadata
 
 
-def dataclass_options(server_args, context, diagnostics, namespace=None):
+def dataclass_options(cls, namespace, context, diagnostics):
     aliases = context["aliases"]
     constants = context["constants"]
     resolve_doc = context["resolveDoc"]
     options = []
-    for node in server_args.body:
+    for node in cls.body:
         if not isinstance(node, ast.AnnAssign) or not isinstance(node.target, ast.Name):
             continue
         field = node.target.id
@@ -195,7 +197,7 @@ def dataclass_options(server_args, context, diagnostics, namespace=None):
                     + list(metadata["aliases"]),
                     metadata["action"],
                 ),
-                "group": metadata["namespace"] or namespace,
+                "group": namespace,
                 "help": metadata["help"],
                 "choices": choices,
                 "type": value_type,
@@ -209,55 +211,46 @@ def dataclass_options(server_args, context, diagnostics, namespace=None):
     return options
 
 
+def assigned_value(scope, name):
+    return dict(named_assignments(scope)).get(name)
+
+
 def input_namespace_names(tree):
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        if not any(
-            isinstance(target, ast.Name) and target.id == "_INPUT_NAMESPACES"
-            for target in node.targets
-        ):
-            continue
-        if not isinstance(node.value, ast.List) or not all(
-            isinstance(item, ast.Name) for item in node.value.elts
-        ):
-            raise SystemExit("_INPUT_NAMESPACES is not a literal list of classes")
-        return [item.id for item in node.value.elts]
-    return None
+    value = assigned_value(tree, "_INPUT_NAMESPACES")
+    if value is None:
+        raise SystemExit("_INPUT_NAMESPACES not found in server_args.py")
+    if not isinstance(value, ast.List) or not all(
+        isinstance(item, ast.Name) for item in value.elts
+    ):
+        raise SystemExit("_INPUT_NAMESPACES is not a literal list of classes")
+    if not value.elts:
+        raise SystemExit("_INPUT_NAMESPACES is empty")
+    return [item.id for item in value.elts]
 
 
-def namespace_classes(repo, names):
-    directory = Path(repo) / FIELD_DIRECTORY
-    if not directory.is_dir():
-        raise SystemExit(f"SGLang field directory not found: {directory}")
-    found = {}
-    for path in sorted(directory.glob("*.py")):
-        tree = parse_file(path)
-        for name in names:
-            cls = find_class(tree, name)
-            if cls is None:
-                continue
-            if name in found:
-                raise SystemExit(f"duplicate SGLang input namespace: {name}")
-            namespace = next(
-                (
-                    string_value(node.value)
-                    for node in cls.body
-                    if isinstance(node, ast.Assign)
-                    and any(
-                        isinstance(target, ast.Name) and target.id == "_NS_PATH"
-                        for target in node.targets
-                    )
-                ),
-                None,
-            )
-            if not namespace:
-                raise SystemExit(f"missing _NS_PATH for SGLang namespace: {name}")
-            found[name] = (path, tree, cls, namespace)
-    missing = set(names) - set(found)
-    if missing:
-        raise SystemExit(f"SGLang input namespaces not found: {sorted(missing)}")
-    return [found[name] for name in names]
+def imported_classes(tree):
+    return {
+        alias.asname or alias.name: (node.module, alias.name)
+        for node in module_level_statements(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+        for alias in node.names
+    }
+
+
+def namespace_classes(repo, tree, names):
+    imports = imported_classes(tree)
+    classes = []
+    for name in names:
+        module, class_name = imports.get(name, (None, name))
+        path = module_path(repo, module, PACKAGE_ROOT) if module else None
+        cls = find_class(parse_file(path), class_name) if path else None
+        if cls is None:
+            raise SystemExit(f"SGLang input namespace not found: {name}")
+        namespace = string_value(assigned_value(cls, "_NS_PATH"))
+        if not namespace:
+            raise SystemExit(f"missing _NS_PATH for SGLang namespace: {name}")
+        classes.append((path, cls, namespace))
+    return classes
 
 
 def explicit_options(server_args, context, diagnostics):
@@ -330,12 +323,6 @@ def extract(repo):
     if server_args is None:
         raise SystemExit(f"ServerArgs class not found in {server_args_path}")
 
-    aliases, constants, docs = index_referenced_modules(repo, tree)
-    context = {
-        "aliases": aliases,
-        "constants": constants,
-        "resolveDoc": docstring_resolver(docs),
-    }
     diagnostics = {
         "fieldsWithoutCliMetadata": [],
         "fieldsMarkedNoCli": [],
@@ -345,34 +332,29 @@ def extract(repo):
         "optionsWithoutType": [],
     }
 
-    options = dataclass_options(server_args, context, diagnostics)
-    source_files = [SERVER_ARGS_RELATIVE_PATH]
-    names = input_namespace_names(tree)
-    if names is not None:
-        if not names:
-            raise SystemExit("_INPUT_NAMESPACES is empty")
-        for path, field_tree, cls, namespace in namespace_classes(repo, names):
-            field_aliases, field_constants, field_docs = index_referenced_modules(
-                repo, field_tree
-            )
-            field_context = {
-                "aliases": field_aliases,
-                "constants": field_constants,
-                "resolveDoc": docstring_resolver(field_docs),
-            }
-            field_options = dataclass_options(
-                cls, field_context, diagnostics, namespace
-            )
-            if not field_options:
-                raise SystemExit(f"no CLI fields found in SGLang namespace: {namespace}")
-            options.extend(field_options)
-            relative_path = path.relative_to(repo).as_posix()
-            if relative_path not in source_files:
-                source_files.append(relative_path)
-        if len(options) < 100:
-            raise SystemExit("SGLang input namespaces yielded fewer than 100 CLI fields")
+    classes = namespace_classes(repo, tree, input_namespace_names(tree))
+    contexts = {
+        path: module_context(repo, parse_file(path))
+        for path in dict.fromkeys(path for path, _, _ in classes)
+    }
+    options = []
+    for path, cls, namespace in classes:
+        field_options = dataclass_options(cls, namespace, contexts[path], diagnostics)
+        if not field_options:
+            raise SystemExit(f"no CLI fields found in SGLang namespace: {namespace}")
+        options.extend(field_options)
+    if len(options) < MIN_NAMESPACE_OPTIONS:
+        raise SystemExit(
+            f"SGLang input namespaces yielded fewer than {MIN_NAMESPACE_OPTIONS} CLI fields"
+        )
+    source_files = [
+        SERVER_ARGS_RELATIVE_PATH,
+        *(path.relative_to(repo).as_posix() for path in contexts),
+    ]
     declared = {option["flags"][0] for option in options}
-    for option in explicit_options(server_args, context, diagnostics):
+    for option in explicit_options(
+        server_args, module_context(repo, tree), diagnostics
+    ):
         if option["flags"][0] in declared:
             diagnostics["duplicateFlags"].append(option["flags"][0])
             continue

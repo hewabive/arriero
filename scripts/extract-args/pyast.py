@@ -5,6 +5,7 @@ Contract, invariants and known gaps: docs/ARGUMENT_SOURCE_EXTRACTION.md
 
 import argparse
 import ast
+import functools
 import json
 import sys
 from pathlib import Path
@@ -83,6 +84,7 @@ TYPE_PARSER_WRAPPERS = {"optional_type", "parse_type"}
 BOOLEAN_ACTIONS = ("store_true", "store_false", "BooleanOptionalAction")
 
 
+@functools.cache
 def parse_file(path):
     return ast.parse(Path(path).read_text(encoding="utf8"), filename=str(path))
 

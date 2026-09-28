@@ -37,10 +37,10 @@ The stored hash is the only automatic stale signal. Individual Markdown files do
 
 Before syncing, clone or pull each target checkout through arriero's Source Sync page
 (`#/source-sync`), including registered external checkouts. Do not prepare it with ad hoc Git
-commands. Verify the configured path, origin, clean worktree, and checked-out ref: llama.cpp follows
-its branch; vLLM and SGLang follow the latest stable release tag. Resolve any missing or uncertain
-source before reviewing a diff. See `docs/SOURCE_REPOSITORIES.md`. `"inSync": true` proves only that
-the snapshot matches the checkout read by the CLI, not that the checkout was prepared correctly.
+commands. Verify the configured path, origin, clean worktree, and that the checked-out ref is the one
+its tracking policy selects (`docs/SOURCE_REPOSITORIES.md` § Tracking policy). Resolve any missing or
+uncertain source before reviewing a diff. `"inSync": true` proves only that the snapshot matches the
+checkout read by the CLI, not that the checkout was prepared correctly.
 
 ## User Signal
 
