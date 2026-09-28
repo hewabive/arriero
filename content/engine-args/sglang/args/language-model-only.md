@@ -32,7 +32,7 @@ Skip the multimodal encoder entirely: its weights are never loaded and the tower
 - Группа: `disagg`
 - Тип значения: bool, флаг без значения
 - Значение по умолчанию: `false`
-- Где объявлен: `ServerArgs.language_model_only`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.language_model_only`
 - Этап применения: проверка аргументов/model architecture → построение `ModelConfig` → tokenizer/processor init → загрузка весов модели → валидация запросов
 
 ## Что меняет в движке
@@ -74,6 +74,7 @@ python -m sglang.launch_server --model-path /models/Muse-Glimmer --language-mode
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

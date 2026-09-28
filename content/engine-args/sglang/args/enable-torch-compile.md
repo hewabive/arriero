@@ -39,7 +39,7 @@ Optimize the model with torch.compile. Experimental feature.
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
 - Эффективное значение: `_handle_environment_variables` копирует его в переменную окружения `SGLANG_ENABLE_TORCH_COMPILE`. Во время прогрева `BaseRunner.warmup` может выключить компиляцию, если модель через Transformers-backend сообщает `_can_torch_compile = False` (лог «Transformers backend model reports it is not torch.compile compatible (e.g. dynamic rope scaling). Disabling torch.compile.»); `DecodeCudaGraphRunner.capture()` в этом случае пересчитывает список компилируемых форм
-- Где объявлен: `ServerArgs.enable_torch_compile`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_torch_compile`
 - Статус: обычный, помечен экспериментальным в собственной справке
 - Этап применения: `__post_init__` (правило каскада prefill, установка env, ассерт совместимости) → прогрев и захват decode-графа (`patch_model` на каждую компилируемую форму) → реплей
 
@@ -138,6 +138,7 @@ SGLANG_CACHE_DIR=/var/cache/sglang python -m sglang.launch_server --model-path /
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/compilation/torch_compile_decoration.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`

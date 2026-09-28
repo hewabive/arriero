@@ -34,7 +34,7 @@ Enforce disable FlashInfer allreduce fusion.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: поднимается в `True` автоматически при `--enable-deterministic-inference` — это первая строка `_handle_model_specific_adjustments` (`sglang/python/sglang/srt/server_args.py`). То есть детерминированный режим отменяет фьюжен двумя независимыми путями: через этот флаг и через отдельный проход `_deterministic_allreduce_fusion_disable`
-- Где объявлен: `ServerArgs.enforce_disable_flashinfer_allreduce_fusion`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enforce_disable_flashinfer_allreduce_fusion`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__`: `_handle_model_specific_adjustments` (взведение в детерминированном режиме) → проход `_enforce_disable_allreduce_fusion` реестра `arg_groups/overrides.py`, сразу после `_flashinfer_allreduce_fusion_auto_enable`
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/flashinfer_comm_fusion.py`

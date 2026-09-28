@@ -31,7 +31,7 @@ Choose the computation precision of flashinfer mxfp4 moe. On SM90, `fp8` selects
 - Допустимые значения: `default`, `bf16`, `fp8`
 - Значение по умолчанию: `default`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.flashinfer_mxfp4_moe_precision`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.flashinfer_mxfp4_moe_precision`
 - Статус: обычный
 - Этап применения: построение метода квантизации MoE-слоя → каждый forward MoE
 
@@ -85,6 +85,7 @@ python -m sglang.launch_server --model-path openai/gpt-oss-120b --tp-size 4 --mo
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/quantization/mxfp4.py`
 - `sglang/python/sglang/srt/layers/quantization/mxfp4_flashinfer_trtllm_moe.py`

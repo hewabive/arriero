@@ -32,7 +32,7 @@ Use all-to-all instead of TP all-gather followed by DP scatter for the TP-sharde
 - Группа: `parallel`
 - Тип значения: optional bool (`argparse.BooleanOptionalAction`)
 - Декларативное значение по умолчанию: `null`
-- Где объявлен: `ServerArgs.enable_tp_lm_head_all_to_all`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_tp_lm_head_all_to_all`
 - Этап применения: post-process аргументов → prewarm PyNCCL → каждый LM-head forward
 
 ## Что меняет в движке
@@ -81,6 +81,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tp-size 8 --dp
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/logits_processor.py`

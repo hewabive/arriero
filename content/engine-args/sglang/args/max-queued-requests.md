@@ -33,7 +33,7 @@ The maximum number of queued requests. This option is ignored when using disaggr
 - Допустимые значения: положительное целое; проверок в argparse нет
 - Значение по умолчанию: `null` — очередь не ограничена
 - Эффективное значение: не переопределяется; значение доходит до scheduler'а без изменений, но не читается вовсе при `--disaggregation-mode` отличном от `null`
-- Где объявлен: `ServerArgs.max_queued_requests`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_queued_requests`
 - Статус: обычный
 - Этап применения: `Scheduler._add_request_to_queue` — каждый входящий запрос
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --max-running-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`

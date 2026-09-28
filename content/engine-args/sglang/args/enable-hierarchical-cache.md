@@ -40,7 +40,7 @@ Enable hierarchical cache
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false`
 - Эффективное значение: движок может сбросить флаг обратно в `false` в `_handle_dllm_inference` (при `--dllm-algorithm` и включенном radix cache печатается «Hierarchical cache is disabled because of using diffusion LLM inference»); в остальных конфликтных случаях он не сбрасывается, а вызывает ошибку старта
-- Где объявлен: `ServerArgs.enable_hierarchical_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_hierarchical_cache`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_hicache`, `_handle_cache_compatibility`) → построение дерева кеша и выделение host-пула при инициализации scheduler'а
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`

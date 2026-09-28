@@ -35,7 +35,7 @@ Initial location of EP experts.
 - Допустимые значения: `choices` нет; разбор целиком в `compute_initial_expert_location_metadata`
 - Значение по умолчанию: `trivial`
 - Эффективное значение: не переопределяется, но само меняет умолчание `--ep-dispatch-algorithm`: любое значение, кроме `trivial`, включает ту же подстановку, что и `--enable-eplb` (`dynamic` при `--moe-a2a-backend none`, иначе `static`)
-- Где объявлен: `ServerArgs.init_expert_location`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.init_expert_location`
 - Статус: обычный
 - Этап применения: `__post_init__` (подстановка dispatch-алгоритма) → инициализация model runner (`maybe_init_expert_location_metadata`), до загрузки весов экспертов
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`

@@ -32,7 +32,7 @@ Number of layers to rebalance per forward pass.
 - Допустимые значения: `choices` нет, проверок в коде нет
 - Значение по умолчанию: `null` — дробления нет
 - Эффективное значение: не переопределяется; внутри менеджера `null` (и любое ложное значение, включая `0`) превращается в `1000000`, то есть «все слои одним куском»
-- Где объявлен: `ServerArgs.eplb_rebalance_layers_per_chunk`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_rebalance_layers_per_chunk`
 - Статус: обычный
 - Этап применения: конструктор `EPLBManager` → каждая перебалансировка
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`
 - `sglang/python/sglang/srt/eplb/expert_location_updater.py`

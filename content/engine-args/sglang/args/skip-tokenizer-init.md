@@ -39,7 +39,7 @@ If set, skip init tokenizer and pass input_ids in generate request.
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным, но **переписывает три соседних аргумента** в `_handle_tokenizer_batching` (при незаданной переменной `SGLANG_RUST_SERVER`): `detokenizer_worker_num` принудительно становится `1` с предупреждением, `enable_tokenizer_batch_encode` и `enable_dynamic_batch_tokenizer` принудительно выключаются, каждый со своим предупреждением
-- Где объявлен: `ServerArgs.skip_tokenizer_init`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.skip_tokenizer_init`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_tokenizer_batching`, проверка `--preferred-sampling-params`) → запуск процессов tokenizer/detokenizer/scheduler → HTTP-слой (валидация каждого запроса)
 
@@ -137,6 +137,7 @@ curl -sS http://127.0.0.1:30000/generate -H 'Content-Type: application/json' -d 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/detokenizer_manager.py`

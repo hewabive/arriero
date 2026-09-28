@@ -34,7 +34,7 @@ Choose the runner backend for NVFP4 GEMM operations. Options: 'auto' (default; s
 - Допустимые значения (из `choices`): `auto`, `flashinfer_cudnn`, `flashinfer_cutedsl`, `flashinfer_cutlass`, `flashinfer_trtllm`, `marlin` (константа `FP4_GEMM_RUNNER_BACKEND_CHOICES`)
 - Значение по умолчанию: `auto`
 - Эффективное значение: `initialize_fp4_gemm_config` (`sglang/python/sglang/srt/layers/quantization/fp4_utils.py`) разворачивает `auto` сразу и полностью — `flashinfer_cutedsl` на SM100, `marlin` на CUDA с capability от 8.0 до 10.0 (то есть SM80–SM90), `flashinfer_cutlass` во всех остальных случаях, включая SM120. В отличие от FP8-ветки, «отложенного auto» здесь не остается
-- Где объявлен: `ServerArgs.fp4_gemm_runner_backend` (имя поля не совпадает с флагом, `cli_name="--fp4-gemm-backend"`), файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.fp4_gemm_runner_backend` (имя поля не совпадает с флагом, `cli_name="--fp4-gemm-backend"`)
 - Статус: обычный
 - Этап применения: разбор CLI → `initialize_fp4_gemm_config` при инициализации планировщика → `process_weights_after_loading` квант-метода (раскладка весов) → каждый forward
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-R1-NVFP4 --quantiza
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/quantization/fp4_utils.py`
 - `sglang/python/sglang/srt/layers/quantization/modelopt_quant.py`

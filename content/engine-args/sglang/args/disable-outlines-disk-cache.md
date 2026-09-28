@@ -32,7 +32,7 @@ Disable disk cache of outlines to avoid possible crashes related to file system 
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: само поле не переписывается, но обратите внимание на асимметрию с переменной окружения. `_handle_environment_variables` безусловно выполняет `envs.SGLANG_DISABLE_OUTLINES_DISK_CACHE.set("1" if self.disable_outlines_disk_cache else "0")`, то есть значение, экспортированное оператором в окружение, всегда перезаписывается флагом. При этом модуль `constrained/outlines_jump_forward.py` читает переменную с дефолтом `"true"` — значение по умолчанию флага (`false`) и значение по умолчанию переменной противоположны, и совпадают они только потому, что `__post_init__` всегда пишет переменную явно
-- Где объявлен: `ServerArgs.disable_outlines_disk_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.disable_outlines_disk_cache`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (`_handle_environment_variables`) → импорт `constrained/outlines_jump_forward.py` в процессе scheduler'а → декоратор `disk_cache()` на `init_state_to_jump_forward`
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --grammar-backend o
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/python/sglang/srt/constrained/outlines_jump_forward.py`

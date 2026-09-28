@@ -38,7 +38,7 @@ Maximum batch size captured for the prefill cuda graph.
 - Допустимые значения: положительное целое; argparse границ не проверяет
 - Значение по умолчанию: `null` — «подберет движок»
 - Эффективное значение: в `_handle_gpu_memory_settings` при незаданном флаге ставится `--chunked-prefill-size` для не-MLA моделей и `2048` для MLA; затем ограничивается сверху `--max-total-tokens`, если тот задан, и величиной 4096, если в пути модели встречается `llama-2`. При включенном DP attention пересчитывается на `chunked_prefill_size // dp_size`. Для EmbeddingGemma поднимается до `max(context_len, 16384)`. Если задан `--cuda-graph-bs-prefill`, из него берется весь список, а этот флаг не применяется. При MoE a2a backend `deepep` и `breakable` список выравнивается по 8, и `max_bs` становится последним выровненным элементом
-- Где объявлен: `ServerArgs.cuda_graph_max_bs_prefill`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_max_bs_prefill`
 - Статус: обычный; прежний флаг максимума prefill-графа удалён
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → `_handle_gpu_memory_settings`) → `capture_prefill_graph` → захват
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --chunked-pref
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

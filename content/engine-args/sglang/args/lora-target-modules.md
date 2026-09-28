@@ -35,7 +35,7 @@ The union set of all target modules where LoRA should be applied. If not specifi
 - Допустимые значения: `q_proj`, `k_proj`, `v_proj`, `o_proj`, `q_a_proj`, `kv_a_proj_with_mqa`, `q_b_proj`, `kv_b_proj`, `wq_b`, `wk`, `weights_proj`, `gate_proj`, `up_proj`, `down_proj`, `qkv_proj`, `gate_up_proj`, `embed_tokens`, `lm_head`, `qkvr`, `wo_ud` (константа `SUPPORTED_LORA_TARGET_MODULES`) плюс сентинел `all`
 - Значение по умолчанию: `null` — «вывести из адаптеров»
 - Эффективное значение: нормализуется в множество в `check_lora_server_args`; `all` разворачивается в `LoRAManager.init_lora_shapes` через `auto_detect_lora_target_modules(base_model)` с добавлением `embed_tokens` и `lm_head`
-- Где объявлен: `ServerArgs.lora_target_modules`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_target_modules`
 - Статус: обычный
 - Этап применения: `__post_init__` (нормализация и проверка) → `LoRAManager.init_lora_shapes` (после загрузки весов) → `init_lora_modules` и `LoRAMemoryPool.init_buffers`
 
@@ -130,6 +130,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/utils.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`

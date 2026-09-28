@@ -34,7 +34,7 @@ Enable asynchronous LoRA weight loading in order to overlap H2D transfers with G
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `null`
 - Эффективное значение: при включенной LoRA `check_lora_server_args` фиксирует `None` в `False`
-- Где объявлен: `ServerArgs.enable_lora_overlap_loading`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.enable_lora_overlap_loading`
 - Статус: обычный
 - Этап применения: `__post_init__` (валидация) → `Scheduler.init_lora_overlap_loader` → отбор заявок в батч и загрузка весов
 
@@ -135,6 +135,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/lora_overlap_loader.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`

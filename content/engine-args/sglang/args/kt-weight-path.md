@@ -33,7 +33,7 @@ related:
 - Допустимые значения: не ограничены; проверка существования выполняется не SGLang, а загрузчиком kt-kernel
 - Значение по умолчанию: `null` (аргумент не задан ⇒ интеграция KTransformers выключена)
 - Эффективное значение: не переопределяется; ни один `_handle_*` в `ServerArgs.__post_init__` не читает это поле
-- Где объявлен: `ServerArgs.kt_weight_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_weight_path`
 - Статус: обычный, но целиком относится к внешнему пакету `kt_kernel`; без установленного `kt_kernel` инициализация падает с `ImportError`
 - Этап применения: конструктор `FusedMoE` при загрузке модели (по одному `KTConfig` на MoE-слой), затем `process_weights_after_loading`
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/GLM-5.1-FP8 --kt-weight-path
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/kt_ep_wrapper.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`

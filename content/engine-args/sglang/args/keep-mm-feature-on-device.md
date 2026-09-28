@@ -33,7 +33,7 @@ Deprecated. Use --mm-feature-transport=cuda_ipc for bounded GPU-resident multimo
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `false`
 - Эффективное значение: `_handle_multimodal_feature_transport` в конце **безусловно** выставляет `keep_mm_feature_on_device = False`, предварительно превратив флаг в `mm_feature_transport = "cuda_ipc"`
-- Где объявлен: `ServerArgs.keep_mm_feature_on_device`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.keep_mm_feature_on_device`
 - Статус: устаревший. Обратите внимание: он объявлен обычным `store_true`, а не через семейство `Deprecated*Action`, поэтому предупреждение печатает не argparse, а `__post_init__`
 - Этап применения: `__post_init__`, до запуска tokenizer-воркеров
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --keep-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/transport/cuda_ipc.py`

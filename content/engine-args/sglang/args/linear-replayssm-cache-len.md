@@ -37,7 +37,7 @@ Ring-buffer length L for ReplaySSM linear-attn decode. The full recurrent state 
 - Допустимые значения: argparse ограничений не накладывает. Дальнейшие проверки зависят от режима: не меньше 1 при `--enable-linear-replayssm`; для KDA в спекулятивном режиме — степень двойки и не меньше `2 × --speculative-num-draft-tokens`
 - Значение по умолчанию: `16`
 - Эффективное значение: совпадает с заданным. В спекулятивном режиме на GDN-моделях вместо него используется `--speculative-num-draft-tokens` (если он задан), и тогда аргумент не влияет ни на что
-- Где объявлен: `ServerArgs.linear_replayssm_cache_len`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_replayssm_cache_len`
 - Этап применения: `__post_init__` (валидация при включенном decode-кольце) → аллокация `MambaPool` → каждый decode-шаг / шаг верификации
 
 ## Что меняет в движке
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

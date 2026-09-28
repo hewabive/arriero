@@ -32,7 +32,7 @@ related:
 - Допустимые значения: не ограничены на уровне argparse; осмысленный диапазон — от `0` до `top_k` модели, рекомендация kt-kernel — `1`-`4`
 - Значение по умолчанию: `null`; в обертке разворачивается в `0` (`layer_max_deferred = self.kt_config.max_deferred_experts_per_token or 0`), то есть конвейер выключен
 - Эффективное значение: для последнего слоя модели принудительно `0` — но только если удалось прочитать `num_hidden_layers` из HF-конфига; `create_kt_config_from_server_args` оборачивает `get_hf_config()` в `try/except` и при неудаче оставляет `num_layers = None`, и тогда правило последнего слоя не применяется
-- Где объявлен: `ServerArgs.kt_max_deferred_experts_per_token`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_max_deferred_experts_per_token`
 - Статус: обычный, реализация во внешнем пакете `kt_kernel`
 - Этап применения: создание CPU-обертки слоя (значение фиксируется на слой) и каждый forward MoE-слоя
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --kt-weight-pa
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/kt_ep_wrapper.py`
 - `ktransformers/kt-kernel/python/experts_base.py`

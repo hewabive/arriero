@@ -38,7 +38,7 @@ Target(s) for request logging: 'stdout' and/or directory path(s) for file output
 - Допустимые значения: `choices` нет. Строка `stdout` (сравнение без учета регистра) означает поток вывода процесса, любая другая строка трактуется как **путь к каталогу**, а не к файлу
 - Значение по умолчанию: `None` — одна цель, stdout
 - Эффективное значение: совпадает с заданным. На живом сервере **не меняется**: `RequestLogger.configure` параметр принимает, но `TokenizerManager.configure_logging` его не передает
-- Где объявлен: `ServerArgs.log_requests_target`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests_target`
 - Статус: обычный
 - Этап применения: инициализация `TokenizerManager` (`init_request_logging_and_dumping`), до приема первого запроса
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/utils/log_utils.py`
 - `sglang/python/sglang/srt/utils/request_logger.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

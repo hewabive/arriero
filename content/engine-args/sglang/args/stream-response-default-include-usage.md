@@ -34,7 +34,7 @@ Include usage in every streaming response (even when stream_options is not speci
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` не переопределяет
-- Где объявлен: `ServerArgs.stream_response_default_include_usage`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.stream_response_default_include_usage`
 - Статус: обычный
 - Этап применения: HTTP-слой, формирование стримингового ответа `/v1/chat/completions` и `/v1/completions`
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --stream-respo
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/openai/utils.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`

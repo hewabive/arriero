@@ -34,7 +34,7 @@ Extra config for model loader. This will be passed to the model loader correspon
 - Допустимые значения: зависят от загрузчика (перечень ниже); синтаксически — любой валидный JSON-объект
 - Значение по умолчанию: `"{}"`
 - Эффективное значение: `LoadConfig.__post_init__` разбирает строку через `orjson.loads` в словарь; `PreshardedModelLoader` дополнительно **изымает** свои ключи из словаря перед тем, как передать остаток базовому загрузчику
-- Где объявлен: `ServerArgs.model_loader_extra_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.model_loader_extra_config`
 - Статус: обычный
 - Этап применения: конструирование загрузчика перед чтением весов
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --weight-loade
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

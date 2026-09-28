@@ -28,7 +28,7 @@ Host storage for the offloaded Qwen4 PLE n-gram table. 'pinned' (default) uses C
 - Группа: `exec.offload`
 - Тип: `str`
 - Значение в декларации по умолчанию: `pinned`
-- Объявление: `ServerArgs.ple_offload_backend` в `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.ple_offload_backend`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

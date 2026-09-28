@@ -35,7 +35,7 @@ Whether to use a CausalLM as an embedding model.
 - Допустимые значения: присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: включается автоматически в `_handle_model_capability_adjustments`, если `embedding_model_spec.auto_enable_embedding` истинно для архитектуры («Embedding architecture detected: enabling embedding mode automatically»); для EmbeddingGemma дополнительно принудительно ставятся `disable_radix_cache=True`, `chunked_prefill_size=-1`, `enable_tokenizer_batch_encode=True` и подбирается prefill-backend
-- Где объявлен: `ServerArgs.is_embedding`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.is_embedding`
 - Статус: обычный
 - Этап применения: `__post_init__` → `ModelConfig` (`is_generation`) → инициализация tokenizer manager и планировщика → HTTP-слой
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/e5-mistral-7b-instruct --is-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/configs/embedding_model_spec.py`

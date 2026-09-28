@@ -31,7 +31,7 @@ Enable the W4A4 MXFP4 MegaMoE path with DeepGEMM's mxf4xmxf4 MMA type. Use with 
 - Группа: `exec.moe`
 - Тип: `bool`
 - Декларативный default: `false`
-- Объявление: `ServerArgs.enable_w4a4_mxfp4_megamoe` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_w4a4_mxfp4_megamoe`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -66,5 +66,6 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V4-Flash-MXFP4 --tp
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/mega_moe.py`

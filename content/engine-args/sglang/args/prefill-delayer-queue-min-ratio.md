@@ -34,7 +34,7 @@ Opt-in to the adaptive queue-based delay trigger (independent of the slot-based 
 - Допустимые значения: не ограничены проверками; рекомендованный апстримом диапазон — `0.1 … 0.5`
 - Значение по умолчанию: `null` — триггер выключен, работает только слотовое условие
 - Эффективное значение: из CLI не переопределяется; переменной окружения для него нет
-- Где объявлен: `ServerArgs.prefill_delayer_queue_min_ratio`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_queue_min_ratio`
 - Статус: обычный; читается только при `--enable-prefill-delayer`
 - Этап применения: создание `PrefillDelayer` (там вычисляется `queue_trigger_enabled = queue_min_ratio is not None`) → каждый проход сборки prefill-батча
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-dp-at
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/prefill_delayer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

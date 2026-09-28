@@ -31,7 +31,7 @@ Image processor backend. 'auto' lets Transformers select the best available back
 - Тип значения: enum
 - Допустимые значения: `auto`, `torchvision`, `pil`
 - Значение по умолчанию: `auto`
-- Где объявлен: `ServerArgs.image_processor_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.image_processor_backend`
 - Этап применения: загрузка HF processor при старте → создание SGLang multimodal processor → каждый image preprocess
 
 ## Что меняет в движке
@@ -80,6 +80,7 @@ python -m sglang.launch_server --model-path /models/Qwen-VL --image-processor-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`

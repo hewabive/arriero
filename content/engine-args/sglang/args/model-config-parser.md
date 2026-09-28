@@ -34,7 +34,7 @@ Which model-config parser to use. "auto" picks "mistral" via the is_mistral_mode
 - Допустимые значения: `choices` нет — список собирается в runtime из реестра `_MODEL_CONFIG_PARSER_REGISTRY` (`sglang/python/sglang/srt/configs/model_config_parser_registry.py`). В самом checkout'е зарегистрированы `hf` и `mistral` (декоратор `@register_model_config_parser` в `sglang/python/sglang/srt/utils/hf_transformers/config.py`); плагины могут добавить свои. Посмотреть фактический список на своей сборке проще всего по сообщению об ошибке — при неизвестном имени движок печатает `Unknown model-config parser 'x'. Registered: [...]`
 - Значение по умолчанию: `auto` (не имя парсера, а инструкция «выбрать»)
 - Эффективное значение: `get_config()` резолвит `auto` в `mistral`, если `is_mistral_model(path)` вернул True, иначе в `hf`; для GGUF-входа значение принудительно становится `hf`
-- Где объявлен: `ServerArgs.model_config_parser`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.model_config_parser`
 - Статус: обычный
 - Этап применения: построение `ModelConfig` — самое начало, до любых решений о памяти и backend'ах
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path /models/my-mistral-large-3-finetune-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config_parser_registry.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/config.py`

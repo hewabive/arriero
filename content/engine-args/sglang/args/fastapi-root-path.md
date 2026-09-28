@@ -38,7 +38,7 @@ App is behind a path based routing proxy.
 - Допустимые значения: `choices` нет; формат не проверяется — ни ведущий слэш, ни отсутствие завершающего никто не навязывает
 - Значение по умолчанию: `""` (пустая строка), то есть префикса нет
 - Эффективное значение: совпадает с заданным. `__post_init__` его не трогает, валидации нет. Фактически неприменимо в одном режиме: при `--enable-http2` ветка запуска Granian параметр `root_path` не передает
-- Где объявлен: `ServerArgs.fastapi_root_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.fastapi_root_path`
 - Статус: обычный
 - Этап применения: HTTP-слой, `_setup_and_run_http_server` — при создании uvicorn-сервера
 
@@ -116,6 +116,7 @@ curl -sS http://127.0.0.1:30000/openapi.json | python3 -c "import json,sys;print
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/utils/auth.py`

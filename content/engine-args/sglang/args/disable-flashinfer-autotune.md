@@ -35,7 +35,7 @@ Disable FlashInfer autotuning.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false` (автотюнинг разрешен)
 - Эффективное значение: не переопределяется. Но результат «автотюнинг не побежит» достигается и другими путями — см. условия ниже
-- Где объявлен: `ServerArgs.disable_flashinfer_autotune`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.disable_flashinfer_autotune`
 - Статус: обычный
 - Этап применения: разбор CLI → `warmup()` в `BaseRunner` после инициализации модели и до захвата CUDA graph
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-R1-FP4 --quantizati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner/flashinfer_autotune.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`

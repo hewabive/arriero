@@ -35,7 +35,7 @@ How conservative the schedule policy is. A larger value means more conservative 
 - Допустимые значения: любое неотрицательное; `assert self.schedule_conservativeness >= 0` в `__post_init__`
 - Значение по умолчанию: `1.0`
 - Эффективное значение: при `--enable-dp-attention` умножается на `0.3` (`self.schedule_conservativeness = self.schedule_conservativeness * 0.3` в `_handle_data_parallelism`) — то есть с DP attention значение по умолчанию фактически `0.3`
-- Где объявлен: `ServerArgs.schedule_conservativeness`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.schedule_conservativeness`
 - Статус: обычный
 - Этап применения: `__post_init__` (корректировка под DP) → создание `NewTokenRatioTracker` при инициализации планировщика → каждый проход сборки prefill-батча
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --schedule-con
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/new_token_ratio_tracker.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

@@ -34,7 +34,7 @@ Number of int8 mamba checkpoint slots (default: 2x the active mamba pool size).
 - Допустимые значения: положительное целое; argparse ограничений не накладывает
 - Значение по умолчанию: `null` — разворачивается в `2 * mamba_size`, где `mamba_size` — размер активного пула (`--max-mamba-cache-size` после всех подстановок)
 - Эффективное значение: `mamba.int8_mamba_ckpt_size or (2 * mamba_size)` в `maybe_init_int8_mamba_checkpoint_pool`; фактически выделяется на один слот больше (`slot 0` зарезервирован аллокатором)
-- Где объявлен: `ServerArgs.int8_mamba_ckpt_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.int8_mamba_ckpt_size`
 - Статус: обычный
 - Этап применения: создание `HybridReqToTokenPool` — после расчета основного бюджета памяти и после аллокации активного пула
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/mamba_checkpoint_pool.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`

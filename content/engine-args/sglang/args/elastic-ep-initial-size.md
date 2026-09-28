@@ -36,7 +36,7 @@ EP size used to define the immutable per-rank expert storage layout. Scale joine
 - Допустимые значения: `> 0`; должно делить общее число физических экспертов (`assert base_num_physical_experts % initial_ep_size == 0`)
 - Значение по умолчанию: `null`
 - Эффективное значение: для первичного развертывания при активном масштабировании `null` заменяется на `tp_size`, и любое другое значение отвергается (`The primary --elastic-ep-initial-size must equal its launch-time TP size (<N>)`). Для присоединяющейся группы (`--elastic-ep-join-mode scale`) значение обязательно и должно быть `<= --elastic-ep-join-rank-offset`
-- Где объявлен: `ServerArgs.elastic_ep_initial_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.elastic_ep_initial_size`
 - Статус: обычный, часть экспериментального контура elastic EP
 - Этап применения: `_handle_elastic_ep` (валидация и подстановка) → построение `ExpertLocationMetadata` → создание `FusedMoE`-слоев (раскладка хранения экспертов) → пересчет метаданных при scale-up
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`

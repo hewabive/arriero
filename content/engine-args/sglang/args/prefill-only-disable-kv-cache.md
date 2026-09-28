@@ -39,7 +39,7 @@ Skip the physical KV cache allocation for embedding-mode prefill-only workloads.
 - Допустимые значения: наличие/отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: может быть включен автоматически. Для encoder-архитектур семейства EmbeddingGemma (`Gemma3TextModel` с политикой `FULL_ENCODER`) `_handle_model_capability_adjustments` сам выставляет `is_embedding`, `disable_radix_cache`, `chunked_prefill_size = -1` и, на CUDA sm90/sm100 с запрошенным FA-backend'ом (`None`, `fa3` или `fa4`), включает `prefill_only_disable_kv_cache = True`
-- Где объявлен: `ServerArgs.prefill_only_disable_kv_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_only_disable_kv_cache`
 - Статус: обычный, но намеренно узко ограниченный; апстрим прямо пишет, что другие prefill-only нагрузки (scoring, MIS) будут поддержаны позже
 - Этап применения: две фазы валидации в `__post_init__` (`_validate_prefill_only_disable_kv_cache_args` до разрешения backend'ов и `_handle_prefill_only_disable_kv_cache` после) → выбор класса KV-пула при инициализации model runner
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/embedding-model --is-embeddi
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

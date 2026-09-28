@@ -37,10 +37,10 @@ import {
   assertSourceRepositoryReady,
   getSourceRepositorySpec,
   getSourceRepositoryStatus,
+  resolveLatestStableTag,
   saveSourceRepositoryOrigin,
   sourceRepositoryPath,
 } from "./repository.js";
-import { selectLatestStableTag } from "./stable-tag.js";
 import { withSourceRepositoryOperation } from "./state.js";
 
 const CLONE_STAGING_PREFIX = ".source-clone-";
@@ -73,13 +73,6 @@ function longGitOptions(
     ...(runtime.onGitOutput ? { onOutput: runtime.onGitOutput } : {}),
     killProcessGroup: true,
   };
-}
-
-async function resolveLatestStableTag(
-  repoPath: string,
-): Promise<string | null> {
-  const listed = await runGit(repoPath, ["tag", "--list"]);
-  return selectLatestStableTag(listed.stdout.split("\n"));
 }
 
 async function checkoutStableTag(

@@ -34,7 +34,7 @@ Select the mode when enable DeepEP or MoriEP MoE, could be `normal`, `low_latenc
 - Допустимые значения: `auto`, `normal`, `low_latency`
 - Значение по умолчанию: `auto`
 - Эффективное значение: переопределяется в `_handle_a2a_moe` — `mori` меняет `auto` на `normal`, `pplx` меняет `auto` на `low_latency` (и запрещает `normal`), `flashinfer_cutedsl` поверх DeepEP меняет `auto` на `low_latency` (и запрещает `normal`)
-- Где объявлен: `ServerArgs.deepep_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_mode`
 - Статус: обычный
 - Этап применения: `__post_init__` (переопределения и отключение CUDA graph) → `initialize_moe_config` → создание диспетчера слоя и выделение буферов DeepEP → выбор реализации на каждом forward
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --moe-a2a-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/layers/moe/token_dispatcher/deepep.py`

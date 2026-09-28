@@ -34,7 +34,7 @@ The specific draft model version to use. It can be a branch name, a tag name, or
 - Допустимые значения: не ограничены argparse; проверяет уже huggingface_hub при обращении к репозиторию
 - Значение по умолчанию: `null`
 - Эффективное значение: `"main"` — подставляется в `handle_speculative_decoding`, если `--speculative-draft-model-path` задан, а ревизия нет. Для MTP-чекпоинтов, где путь draft'а автоматически равен `--model-path`, сюда так же автоматически копируется `--revision` target'а
-- Где объявлен: `ServerArgs.speculative_draft_model_revision`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_revision`
 - Статус: обычный
 - Этап применения: `__post_init__` (первое действие `handle_speculative_decoding`) → чтение hf-конфига draft'а → создание `ModelConfig` draft-воркера → загрузка весов
 
@@ -92,6 +92,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --r
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`

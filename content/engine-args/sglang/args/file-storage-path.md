@@ -33,7 +33,7 @@ The path of the file storage in backend.
 - Допустимые значения: не ограничены; проверок нет
 - Значение по умолчанию: `"sglang_storage"` — относительный путь, который никогда никуда не разрешается
 - Эффективное значение: совпадает с заданным; `__post_init__` поле не трогает. Никакого «эффективного поведения» у него нет вовсе
-- Где объявлен: `ServerArgs.file_storage_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.file_storage_path`
 - Статус: формально обычный (не `hidden`, не `Deprecated*Action`), фактически — не подключенный ни к чему остаток. В `--help` он показывается, что и делает его источником ложных ожиданий
 - Этап применения: отсутствует. Значение доходит до датакласса и на этом останавливается
 
@@ -90,6 +90,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/openai/`

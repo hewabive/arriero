@@ -34,7 +34,7 @@ The InfiniBand devices for disaggregation transfer. Supports a single device (e.
 - Допустимые значения: `choices` нет; фактический список ограничен содержимым `/sys/class/infiniband` на конкретном хосте — посмотреть его можно `ls /sys/class/infiniband`
 - Значение по умолчанию: `null` (не задан) — mooncake ищет устройства сам
 - Эффективное значение: переписывается `_validate_ib_devices` в **нормализованную** строку — дубликаты убираются, пробелы срезаются, JSON пересобирается компактно (`json.dumps(..., separators=(",", ":"))`). При `--disaggregation-transfer-backend mooncake_tcp` значение принудительно сбрасывается в `None` еще раньше, в `handle_pd_disaggregation`
-- Где объявлен: `ServerArgs.disaggregation_ib_device`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_ib_device`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_pd_disaggregation` (сброс при `mooncake_tcp`) → `_handle_encoder_disaggregation` → `_validate_ib_devices` (чтение sysfs, нормализация) → `MooncakeTransferEngine.__init__` на каждом ранге, где устройство выбирается по `gpu_id`
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/mooncake_transfer_engine.py`

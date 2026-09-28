@@ -35,7 +35,7 @@ Enable debug mode for torch compile
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется в `__post_init__`; читается один раз при построении `CompilationConfig`
-- Где объявлен: `ServerArgs.enable_torch_compile_debug_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_torch_compile_debug_mode`
 - Статус: обычный, отладочный
 - Этап применения: инициализация prefill-runner'а при `cuda_graph_config[prefill].backend == tc_piecewise` → захват подграфов → каждый реплей
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/tc_piecewise_cuda_graph_backend.py`
 - `sglang/python/sglang/srt/compilation/compilation_config.py`

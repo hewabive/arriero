@@ -35,7 +35,7 @@ Enable the multimodal functionality for the served model. If the model being ser
 - Допустимые значения: значения не принимает — это флаг присутствия
 - Значение по умолчанию: `null` — «решит `ModelConfig` по архитектуре»
 - Эффективное значение: подставляется в `ModelConfig.__init__` (`sglang/python/sglang/srt/configs/model_config.py`), см. ниже
-- Где объявлен: `ServerArgs.enable_multimodal`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_multimodal`
 - Статус: обычный
 - Этап применения: разбор CLI → построение `ModelConfig` (до загрузки весов) → выбор мультимодального процессора в tokenizer-процессе → сборка модели → валидация входящих запросов
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Llama-4-Scout-17B-16E-Instru
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`

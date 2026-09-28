@@ -33,7 +33,7 @@ JSON array passed to the selected sidecar module's main(argv) function. --sideca
 - Допустимые значения: `choices` нет; каждый элемент массива обязан быть строкой
 - Значение по умолчанию: `null` — модулю передается пустой `argv`
 - Эффективное значение: `__post_init__` не переопределяет, но проверяет наличие `--sidecar` и то, что значение — список строк
-- Где объявлен: `ServerArgs.sidecar_args`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.sidecar_args`
 - Статус: обычный
 - Этап применения: разбор CLI (`json_list_type`) → валидация в `__post_init__` → `start_sidecar` при запуске дочернего процесса
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --port 30000 -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/sidecar.py`
 - `sglang/python/sglang/srt/utils/common.py`

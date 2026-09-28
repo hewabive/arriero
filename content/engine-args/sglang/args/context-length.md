@@ -45,7 +45,7 @@ Examples:
 - Допустимые значения: целое число либо число с суффиксом SI (`k`, `M`, `G`, `T`) / IEC (`Ki`, `Mi`, `Gi`, `Ti`); регистр суффикса значим, дробные допустимы только с SI
 - Значение по умолчанию: `null` — «взять из конфига модели»
 - Эффективное значение: `ModelConfig._derive_context_length` подставляет `get_context_length(hf_text_config)`, если аргумент не задан; отдельно на AMD при `attention_backend == "aiter"` и `context_len > 8192` движок домножает `mem_fraction_static` на `0.85`
-- Где объявлен: `ServerArgs.context_length`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.context_length`
 - Статус: обычный
 - Этап применения: разбор CLI → построение `ModelConfig` (до выделения памяти) → выделение `req_to_token`-пула → расчет `max_req_len` в `tp_worker` → валидация каждого входящего запроса
 
@@ -144,6 +144,7 @@ SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1 python -m sglang.launch_server --mod
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/common.py`

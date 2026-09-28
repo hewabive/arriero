@@ -38,7 +38,7 @@ The port for NCCL distributed environment setup. Defaults to a random port.
 - Допустимые значения: обычный TCP-порт. Диапазон проверяется только косвенно, в `wait_port_available` (`ValueError: <name> has invalid port number …. Valid TCP port range is 0-65535.`), и только на пути DP-attention
 - Значение по умолчанию: `null` — «случайный свободный»
 - Эффективное значение: `PortArgs.init_new` подставляет `get_free_port()`. При `--enable-dp-attention` все DP-ранги принудительно используют один и тот же `nccl_port` (`rank_port_args.nccl_port = port_args.nccl_port` в `data_parallel_controller.py`) — «Data parallelism reuses the tensor parallelism group, so all dp ranks should use the same nccl port»
-- Где объявлен: `ServerArgs.nccl_port`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.nccl_port`
 - Статус: обычный
 - Этап применения: `PortArgs.init_new` (до запуска процессов) → `init_torch_distributed` / `_resolve_dist_init_method`
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --port 30001 --ten
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`

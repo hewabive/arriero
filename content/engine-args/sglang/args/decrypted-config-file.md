@@ -33,7 +33,7 @@ The path of the decrypted config file.
 - Допустимые значения: не ограничены; смысл имеет имя файла, который transformers сможет найти относительно `--model-path`
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется; пустая строка и строка из пробелов эквивалентны отсутствию (проверка `if override_config_file and override_config_file.strip()`)
-- Где объявлен: `ServerArgs.decrypted_config_file`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.decrypted_config_file`
 - Статус: обычный, узкая интеграция со схемой шифрованных чекпоинтов
 - Этап применения: построение `ModelConfig` — чтение конфигурации модели
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/encrypted-qwen3 --decrypted-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/configs/load_config.py`

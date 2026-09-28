@@ -33,7 +33,7 @@ A dictionary in JSON string format, or a string starting with a leading '@' and 
 - Допустимые значения: не ограничены argparse; разбор и валидация происходят уже при инициализации кеша
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется; разобранный словарь теряет изъятые движком ключи до того, как попадет в backend
-- Где объявлен: `ServerArgs.hicache_storage_backend_extra_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_backend_extra_config`
 - Статус: обычный
 - Этап применения: `HiRadixCache._parse_storage_backend_extra_config` при инициализации дерева кеша (а также при рантайм-подключении backend'а через `PUT /hicache/storage-backend`)
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
 - `sglang/python/sglang/srt/mem_cache/hicache_storage.py`

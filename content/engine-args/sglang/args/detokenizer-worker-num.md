@@ -38,7 +38,7 @@ The worker num of the detokenizer manager.
 - Допустимые значения: `choices` нет; `check_server_args` требует `> 0` (`Detokenizer worker num must >= 1`)
 - Значение по умолчанию: `1`
 - Эффективное значение: **принудительно `1`** при `--skip-tokenizer-init` (кроме случая `SGLANG_RUST_SERVER`). `_handle_tokenizer_batching` пишет предупреждение `skip_tokenizer_init=True leaves no decode work for detokenizer workers; forcing detokenizer_worker_num=1 (requested N).` и присваивает значение
-- Где объявлен: `ServerArgs.detokenizer_worker_num`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.detokenizer_worker_num`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_tokenizer_batching`) → запуск дочерних процессов в `_launch_detokenizer_subprocesses` до инициализации tokenizer manager
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/multi_tokenizer_mixin.py`

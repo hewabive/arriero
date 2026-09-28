@@ -33,7 +33,7 @@ Directory to write decoupled speculative decoding trace files.
 - Допустимые значения: не ограничены argparse; существование каталога никто не проверяет
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется ничем
-- Где объявлен: `ServerArgs.spec_trace_dir`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.spec_trace_dir`
 - Статус: обычный по форме (не `argparse.SUPPRESS`), но фактически заготовка: единственные упоминания поля в исходниках — само объявление и CLI-round-trip тест `test/registered/unit/server_args/test_server_args.py`
 - Этап применения: разбор CLI; дальше значение никем не читается
 
@@ -88,6 +88,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --deco
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/decoupled_spec_io.py`
 - `sglang/test/registered/unit/server_args/test_server_args.py`

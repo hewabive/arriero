@@ -36,7 +36,7 @@ Enable multi-layer Eagle speculative decoding.
 - Допустимые значения: флаг присутствует — включено, отсутствует — выключено
 - Значение по умолчанию: `false`
 - Эффективное значение: поле помечено `resolvable=True` и **включается реестром модельных override'ов**: для `MiMoV2ForCausalLM` / `MiMoV2FlashForCausalLM` и для `Step3p5ForCausalLM` / `Step3p7ForConditionalGeneration` при `--speculative-algorithm EAGLE` (в логе `Enable multi-layer EAGLE speculative decoding for … model.`)
-- Где объявлен: `ServerArgs.enable_multi_layer_eagle`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.enable_multi_layer_eagle`
 - Статус: обычный
 - Этап применения: `__post_init__` (модельные override'ы) → выбор класса воркера в `SpeculativeAlgorithm.create_worker` → создание `speculative_num_steps` model runner'ов → захват CUDA graph → forward
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/MiMo-V2-Base --trust-remote-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/speculative/spec_info.py`

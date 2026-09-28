@@ -32,7 +32,7 @@ related:
 - Допустимые значения: не ограничены на уровне argparse; практический диапазон — число онлайн NUMA-узлов (`lscpu | grep "NUMA node(s)"`), в документации kt-kernel — 1-2 для односокетных и 2-4 для двухсокетных хостов
 - Значение по умолчанию: `2` — фиксированная константа, а не автоопределение топологии
 - Эффективное значение: не переопределяется; `ServerArgs.__post_init__` это поле не читает
-- Где объявлен: `ServerArgs.kt_threadpool_count`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_threadpool_count`
 - Статус: обычный, реализация во внешнем пакете `kt_kernel`
 - Этап применения: создание синглтона `CPUInfer` и конструктор TP-объекта каждого MoE-слоя
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-R1 --kt-weight-path
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/kt_ep_wrapper.py`
 - `ktransformers/kt-kernel/python/experts_base.py`

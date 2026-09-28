@@ -40,7 +40,7 @@ Config in json format for NVIDIA dynamo KV event publishing. Publishing will be 
 - Допустимые значения: `choices` нет. Схема — pydantic-модель `KVEventsConfig` (`sglang/python/sglang/srt/disaggregation/kv_events.py`), разбор через `model_validate_json`
 - Значение по умолчанию: `None` — публикация выключена
 - Эффективное значение: значение не переписывается, но публикация фактически включается только на рангах `pp_rank == 0`, `attn_tp_rank == 0`, `attn_cp_rank == 0`; на остальных объект публикатора не создается
-- Где объявлен: `ServerArgs.kv_events_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_events_config`
 - Статус: обычный, но узкоспециальный — вне связки с внешним маршрутизатором смысла не имеет
 - Этап применения: инициализация планировщика (`Scheduler.init_kv_events_publisher`) и построение радиксного кеша (флаг `enable_kv_cache_events` в `CacheInitParams`)
 
@@ -137,6 +137,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/disaggregation/kv_events.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/kv_events_publisher.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

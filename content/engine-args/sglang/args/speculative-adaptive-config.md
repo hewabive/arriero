@@ -33,7 +33,7 @@ Path to a JSON config file for adaptive speculative decoding tuning knobs.
 - Допустимые значения: не ограничены argparse; содержимое валидируется при чтении
 - Значение по умолчанию: `null` — используется встроенный `DEFAULT_ADAPTIVE_CONFIG`
 - Эффективное значение: файл читается **только** если включён `--speculative-adaptive`; иначе значение лежит в `ServerArgs` без всякого эффекта
-- Где объявлен: `ServerArgs.speculative_adaptive_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_adaptive_config`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_init_adaptive_speculative_params` → `resolve_candidate_steps_from_config`) → размер буферов и захват CUDA graph по ступеням → инициализация `AdaptiveSpeculativeParams` в воркере
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --spec
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/adaptive_spec_params.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`

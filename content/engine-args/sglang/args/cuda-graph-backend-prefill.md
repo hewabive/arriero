@@ -38,7 +38,7 @@ Backend for the prefill phase. Folds into cuda_graph_config[prefill].backend.
 - Допустимые значения (из `choices`): `full`, `breakable`, `tc_piecewise`, `disabled`
 - Значение по умолчанию: `null` — флаг не задан; `cuda_graph_config.prefill.backend` берет значение `default_prefill_backend()`: `breakable` на CUDA, `tc_piecewise` на остальных платформах (HIP/NPU/…)
 - Эффективное значение: складывается в `cuda_graph_config[prefill].backend` в `_parse_cuda_graph_config`; при **незаданном** флаге далее переписывается `_apply_cuda_graph_compatibility`, `_apply_cuda_graph_disaggregation_roles`, `_disable_prefill_cuda_graph_for_deepseek_trtllm_mla`, `_apply_inkling_prefill_cuda_graph_default` (архитектура Inkling → `full`), правилами EmbeddingGemma и HRM-Text, а также `--enable-mis`
-- Где объявлен: `ServerArgs.cuda_graph_backend_prefill`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_backend_prefill`
 - Статус: обычный; прежние отдельные переключатели prefill-графа удалены
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_prefill_graph` и `resolve_prefill_backend` при инициализации model runner
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/utils.py`

@@ -35,7 +35,7 @@ The decode retraction policy to use when the KV cache is full. 'length' preserve
 - Допустимые значения: `length`, `priority`
 - Значение по умолчанию: `length`
 - Эффективное значение: не переопределяется; `priority` без `--enable-priority-scheduling` не подставляется молча, а роняет старт с `ValueError`
-- Где объявлен: `ServerArgs.retraction_policy`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.retraction_policy`
 - Статус: обычный
 - Этап применения: каждый вызов `ScheduleBatch.retract_decode` из `Scheduler.update_running_batch`, то есть только в момент нехватки KV на decode-шаге
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-prior
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/schedule_batch.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

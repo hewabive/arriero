@@ -38,7 +38,7 @@ The port of the HTTP server.
 - Допустимые значения: `choices` нет; argparse примет любое целое, границы проверяет только ОС при `bind`
 - Значение по умолчанию: `30000`
 - Эффективное значение: совпадает с заданным; `__post_init__` `port` не переписывает. Обратное неверно — от `port` производятся другие значения: в устаревшем `--smg-grpc-mode` без явного `--grpc-port` он становится `port + 10000`, а при `--enable-dp-attention` на одном узле без `--dist-init-addr` база ZMQ-портов равна `port + 233` (константа `ZMQ_TCP_PORT_DELTA`), с откатом на `port − 233` при выходе за 65535
-- Где объявлен: `ServerArgs.port`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.port`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (производные порты) → `PortArgs.init_new` → HTTP-слой (`uvicorn.run(port=...)` / `Granian(port=...)`), уже после `wait_for_ready()`
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

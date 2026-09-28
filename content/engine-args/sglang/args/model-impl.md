@@ -39,7 +39,7 @@ Which implementation of the model to use.
 - Допустимые значения: `choices` в объявлении **нет**, argparse принимает любую строку. Осмысленны только значения enum `ModelImpl`: `auto`, `sglang`, `transformers`, `mindspore` (`sglang/python/sglang/srt/configs/model_config.py`)
 - Значение по умолчанию: `auto`
 - Эффективное значение: не переписывается; фактическая реализация определяется в `get_model_architecture` и записывается в `model_config._resolved_model_impl`
-- Где объявлен: `ServerArgs.model_impl`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.model_impl`
 - Статус: обычный
 - Этап применения: построение `ModelConfig` → разрешение класса модели перед загрузкой весов; дополнительно читается при выборе мультимодального процессора
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --model-impl a
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/model_loader/utils.py`

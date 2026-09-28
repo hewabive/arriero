@@ -39,7 +39,7 @@ Use Ray actors for scheduler process management.
 - Допустимые значения: флаг без значения; парного отключающего флага нет
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным
-- Где объявлен: `ServerArgs.use_ray`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.use_ray`
 - Статус: обычный
 - Этап применения: выбор точки входа в `run_server` (`sglang/python/sglang/launch_server.py`) → `RayEngine._launch_scheduler_processes` вместо `Engine._launch_scheduler_processes`
 
@@ -136,6 +136,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --use-ray --tensor
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/launch_server.py`
 - `sglang/python/sglang/srt/ray/engine.py`
 - `sglang/python/sglang/srt/ray/scheduler_actor.py`

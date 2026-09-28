@@ -28,7 +28,7 @@ Link UnifiedRadixCache directly to an external KV store (direct L3), with no hos
 - Группа: `memory`
 - Тип: `bool`
 - Значение в декларации по умолчанию: `false`
-- Объявление: `ServerArgs.enable_unified_cache_external_linker` в `sglang/python/sglang/srt/arg_groups/fields/memory.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_unified_cache_external_linker`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

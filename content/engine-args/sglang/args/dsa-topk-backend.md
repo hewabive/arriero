@@ -34,7 +34,7 @@ DSA indexer top-k backend for the target model. Options: 'sgl-kernel', 'torch', 
 - Допустимые значения (из `choices`): `sgl-kernel`, `torch`, `flashinfer` (choices поля и перечисление `DSATopKBackend` в `sglang/python/sglang/srt/layers/attention/dsa/dsa_topk_backend.py`)
 - Значение по умолчанию: `sgl-kernel`
 - Эффективное значение: `__post_init__` его не трогает. Но в DeepSeek-V4-индексере (`sglang/python/sglang/srt/layers/attention/dsv4/indexer.py`) есть путь, который жестко использует `DSATopKBackend.SGL_KERNEL` независимо от аргумента, а слитый v2-путь дополнительно требует `SGLANG_OPT_USE_TOPK_V2` (по умолчанию включена)
-- Где объявлен: `ServerArgs.dsa_topk_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_topk_backend`
 - Статус: обычный
 - Этап применения: разбор CLI → конструктор `DeepseekSparseAttnBackend` / `DeepseekV4AttnBackend` → построение метаданных индексера на каждом forward → сам отбор top-k
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --kv-c
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/dsa/dsa_topk_backend.py`
 - `sglang/python/sglang/srt/layers/attention/dsa_backend.py`

@@ -39,7 +39,7 @@ The attention context parallelism size.
 - Допустимые значения: `choices` нет; должно делить `tp_size` и `tp_size / dp_size` (проверяется ассертами)
 - Значение по умолчанию: `1`
 - Эффективное значение: поле объявлено `resolvable=True`, то есть модельные override'ы имеют право его переписать. `_deepseek_family_overrides` при `--enable-prefill-cp` ставит `attn_cp_size = tp_size // dp_size` и для DSA-, и для MLA-ветки; `deepseek_v4_hook` делает то же самое для DeepSeek-V4. Эффективное значение читается через `self._resolved()`, поэтому в ассертах и в расчете рангов участвует именно оно, а не то, что стояло в командной строке
-- Где объявлен: `ServerArgs.attn_cp_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.attn_cp_size`
 - Статус: обычный
 - Этап применения: `__post_init__` (модельные override'ы → `_handle_context_parallelism` → `init_cp_strategy`) → `initialize_model_parallel` (создание группы `ATTN_CP`) → forward
 
@@ -136,6 +136,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`

@@ -37,7 +37,7 @@ The data type of the SSM states in mamba cache. If not set, will be read from mo
 - Допустимые значения: `float32`, `bfloat16`, `float16`
 - Значение по умолчанию: `null` — берется из конфига модели (`mamba_ssm_dtype`, у VL-моделей — из `text_config`), а если и там нет, то `float32`
 - Эффективное значение: заданное CLI значение переносится в переменную окружения `SGLANG_MAMBA_SSM_DTYPE` (`_handle_environment_variables`), а в `mamba2_state_dtype` переменная окружения имеет **высший** приоритет — то есть CLI перекрывает конфиг модели. Обратное направление тоже есть: `--enable-linear-replayssm-spec` при незаданном аргументе принудительно ставит `float32`
-- Где объявлен: `ServerArgs.mamba_ssm_dtype`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_ssm_dtype`
 - Статус: обычный
 - Этап применения: `__post_init__` (проверки в `_handle_mamba_backend` и `_handle_linear_attn_backend`, запись переменной окружения) → построение `Mamba2CacheParams` при чтении конфига модели → выделение пула состояний (`MambaPool`) до расчета KV-пула
 
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/mamba_utils.py`
 - `sglang/python/sglang/srt/configs/qwen3_next.py`

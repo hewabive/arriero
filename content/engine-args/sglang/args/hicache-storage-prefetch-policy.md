@@ -32,7 +32,7 @@ Control when prefetching from the storage backend should stop.
 - Допустимые значения: `best_effort`, `wait_complete`, `timeout`
 - Значение по умолчанию: `timeout`
 - Эффективное значение: из CLI не переопределяется; может быть изменено в рантайме через `PUT /hicache/storage-backend`. Отдельно отметим `UnifiedRadixCache`: его поле `prefetch_stop_policy` инициализируется значением `best_effort` и перезаписывается значением из `ServerArgs` в `init_hicache`
-- Где объявлен: `ServerArgs.hicache_storage_prefetch_policy`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_prefetch_policy`
 - Статус: обычный
 - Этап применения: инициализация дерева кеша → проверка `can_terminate_prefetch` на каждом шаге планировщика для каждой активной операции предзагрузки
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
 - `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`

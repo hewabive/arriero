@@ -36,7 +36,7 @@ The threshold of token distribution between two batches in micro-batch-overlap, 
 - Допустимые значения: `0` … `0.5` включительно. Значение больше `0.5` роняет батч ассертом `assert threshold <= 0.5`
 - Значение по умолчанию: `0.48`
 - Эффективное значение: совпадает с заданным. Если глобальная MoE-конфигурация почему-то не была инициализирована, геттер подставляет `0.48` с warning'ом `TBO_TOKEN_DISTRIBUTION_THRESHOLD is not initialized, using 0.48`
-- Где объявлен: `ServerArgs.tbo_token_distribution_threshold`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOverlap.tbo_token_distribution_threshold`
 - Статус: обычный
 - Этап применения: инициализация MoE-конфигурации (`initialize_moe_config`) → подготовка каждого extend/mixed-батча при включенном TBO
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tp-size 8 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/batch_overlap/two_batch_overlap.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`

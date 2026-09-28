@@ -33,7 +33,7 @@ The random seed.
 - Допустимые значения: `choices` нет; диапазон не проверяется. Автоподставляемое значение лежит в `[0, 2^30]`
 - Значение по умолчанию: `null`
 - Эффективное значение: `_handle_missing_default_values` заменяет `null` на `random.randint(0, 1 << 30)`. Дальше значение **синхронизируется по группе**: `TpModelWorker` делает `broadcast_pyobj([server_args.random_seed], …, src=world_group.ranks[0])`, то есть эффективным становится зерно нулевого ранга — даже если на других рангах в аргументах стояло другое число. Исключение — elastic-EP-присоединители (`is_ep_joiner`), которые не участвуют в стартовом broadcast и берут свое значение
-- Где объявлен: `ServerArgs.random_seed`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.random_seed`
 - Статус: обычный
 - Этап применения: `__post_init__` → `TpModelWorker.__init__` (broadcast + `set_random_seed`) → `Scheduler` (`set_random_seed` еще раз, уже полученным от воркера значением)
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --random-seed 42 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`

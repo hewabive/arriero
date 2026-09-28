@@ -34,7 +34,7 @@ Enable the experimental FP4 C4 indexer path for DeepSeek V4. Default keeps the e
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но проверяется в `__post_init__`: без SM100/SM120 — `ValueError: --enable-deepseek-v4-fp4-indexer requires SM100 or SM120 GPUs with DeepGEMM FP4 indexer support.`
-- Где объявлен: `ServerArgs.enable_deepseek_v4_fp4_indexer`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_deepseek_v4_fp4_indexer`
 - Статус: обычный по форме, экспериментальный по содержанию (так написано в самой справке); контракт может измениться без предупреждения
 - Этап применения: разбор CLI → проверка capability в `__post_init__` → создание индексного KV-пула (`DeepSeekV4TokenToKVPool`) → конструктор `DeepseekV4AttnBackend` → каждый forward индексера
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V4 --enable-deepsee
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/deepseek_v4_memory_pool.py`
 - `sglang/python/sglang/srt/layers/attention/dsv4/indexer.py`

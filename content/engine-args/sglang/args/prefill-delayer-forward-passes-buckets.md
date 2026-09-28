@@ -32,7 +32,7 @@ Custom buckets for prefill delayer forward passes histogram. 0 and max_delay_pas
 - Допустимые значения: не ограничены; порядок не важен, набор сортируется и дедуплицируется движком
 - Значение по умолчанию: `null` — используется встроенный набор `[5, 20, 50, 100, 200]`
 - Эффективное значение: итоговый набор всегда пересчитывается: из заданных (или встроенных) границ отбрасываются все `>= prefill_delayer_max_delay_passes`, затем добавляются `0` и `max_delay_passes - 1`, результат сортируется
-- Где объявлен: `ServerArgs.prefill_delayer_forward_passes_buckets`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_forward_passes_buckets`
 - Статус: обычный; читается только при включенных метриках и при `--enable-prefill-delayer`
 - Этап применения: конструктор `SchedulerMetricsCollector` — один раз при инициализации планировщика
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-prefi
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/managers/prefill_delayer.py`

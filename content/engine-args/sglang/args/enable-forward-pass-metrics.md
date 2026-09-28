@@ -36,7 +36,7 @@ Enable per-iteration forward pass metrics via ZMQ IPC. External consumers (e.g. 
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным, но **включается не в каждом процессе**: публикатор создается только там, где `attn_tp_rank == 0` и `pp_rank == pp_size - 1` (последняя стадия pipeline). На остальных рангах `scheduler.enable_fpm` остается `False`
-- Где объявлен: `ServerArgs.enable_forward_pass_metrics`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_forward_pass_metrics`
 - Статус: обычный
 - Этап применения: конструктор `SchedulerMetricsReporter` (`_init_fpm`) → каждая итерация цикла scheduler'а
 
@@ -126,6 +126,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --dp-size 2 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/forward_pass_metrics.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`

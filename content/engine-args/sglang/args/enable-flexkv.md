@@ -33,7 +33,7 @@ Route the default RadixCache through FlexKV's KVManager for host-tier (CPU / SSD
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false`
 - Эффективное значение: сбрасывается в `false` в `_handle_dllm_inference` при `--dllm-algorithm` и включенном radix cache («FlexKV is disabled because of using diffusion LLM inference»); фактически игнорируется, если цепочка выбора кеша до него не доходит
-- Где объявлен: `ServerArgs.enable_flexkv`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_flexkv`
 - Статус: обычный флаг, реализация целиком во внешнем пакете `flexkv`
 - Этап применения: `default_radix_cache_factory` при построении дерева кеша в scheduler'е
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --page-size 64 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/storage/flexkv/__init__.py`

@@ -34,7 +34,7 @@ Enabling data parallelism for mm encoder. The dp size will be set to the tp size
 - Допустимые значения: значения не принимает — флаг присутствия; пары `--no-...` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; в `_handle_data_parallelism` только печатается предупреждение или информационная строка
-- Где объявлен: `ServerArgs.mm_enable_dp_encoder`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_enable_dp_encoder`
 - Статус: обычный
 - Этап применения: `__post_init__` (диагностика) → конструирование модели (`self.use_data_parallel` в vision-части) → каждый forward мультимодального prefill
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-30B-A3B-Instruct --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/multimodal/mm_utils.py`
 - `sglang/python/sglang/srt/multimodal/encoder_preprocessing.py`

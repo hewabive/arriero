@@ -33,7 +33,7 @@ The threshold for long GC warning. If a GC takes longer than this, a warning wil
 - Допустимые значения: `choices` нет, границы не проверяются. Любое значение `<= 0` эквивалентно «выключено»
 - Значение по умолчанию: `0.0` — механизм выключен
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.gc_warning_threshold_secs`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.gc_warning_threshold_secs`
 - Статус: обычный
 - Этап применения: конструктор `TokenizerManager` (регистрация callback), далее — каждый цикл GC в этом процессе
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --gc-warning-thr
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

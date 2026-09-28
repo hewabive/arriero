@@ -39,7 +39,7 @@ Backend for the decode phase. Folds into cuda_graph_config[decode].backend.
 - Допустимые значения (из `choices`): `full`, `breakable`, `tc_piecewise`, `disabled`
 - Значение по умолчанию: `null` — сам флаг не задан; поле `cuda_graph_config.decode.backend` в этом случае получает `full` из `default_cuda_graph_config()`
 - Эффективное значение: складывается в `cuda_graph_config[decode].backend` в `_parse_cuda_graph_config`. Дальше может быть переписано: `--disaggregation-mode prefill` → `disabled`; `--device xpu` → `disabled` (если backend не задан) либо `disabled` с предупреждением для всего, кроме `full`; `--enable-mis` → `disabled`; HRM-Text и EmbeddingGemma → `disabled`. При `tc_piecewise` в `resolve_decode_backend` печатается warning и подставляется `full`
-- Где объявлен: `ServerArgs.cuda_graph_backend_decode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_backend_decode`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_decode_graph` и `resolve_decode_backend` при инициализации model runner
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/utils.py`

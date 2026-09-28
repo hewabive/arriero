@@ -41,7 +41,7 @@ Show time cost of custom marks.
 - Допустимые значения: флаг присутствует или отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; никакой `_handle_*` его не трогает
-- Где объявлен: `ServerArgs.show_time_cost`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.show_time_cost`
 - Статус: обычный, но фактически нерабочий в этом дереве (см. «Кратко»)
 - Этап применения: инициализация `ModelRunner`, то есть в процессах scheduler/TP-воркеров, до захвата CUDA graph
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/server_args.py`

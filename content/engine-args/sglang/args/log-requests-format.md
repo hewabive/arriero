@@ -33,7 +33,7 @@ Format for request logging: 'text' (human-readable) or 'json' (structured)
 - Допустимые значения: `text`, `json` (жесткий `choices` в argparse)
 - Значение по умолчанию: `text`
 - Эффективное значение: совпадает с заданным; меняется на живом сервере через `POST /configure_logging`
-- Где объявлен: `ServerArgs.log_requests_format`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests_format`
 - Статус: обычный
 - Этап применения: каждый вызов `log_received_request` / `log_openai_received_request` / `log_finished_request`
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/utils/request_logger.py`
 - `sglang/python/sglang/srt/utils/log_utils.py`
 - `sglang/python/sglang/srt/server_args.py`

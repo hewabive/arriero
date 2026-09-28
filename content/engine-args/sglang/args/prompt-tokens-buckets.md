@@ -40,7 +40,7 @@ The buckets rule of prompt tokens. Supports 3 rule types: 'default' uses predefi
 - Допустимые значения: `choices` нет; первым элементом допустимы только `default`, `tse` и `custom` (проверяется `validate_buckets_rule`)
 - Значение по умолчанию: `None`. `generate_buckets` при пустом правиле подставляет `["default"]`
 - Эффективное значение: `default` разворачивается в встроенный список из 35 значений от `100` до `1 100 000` (`default_bucket_prompt_tokens` в `metrics_collector.py`); `+Inf` добавляет сам `prometheus_client`
-- Где объявлен: `ServerArgs.prompt_tokens_buckets`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.prompt_tokens_buckets`
 - Статус: обычный
 - Этап применения: `__post_init__` (валидация) → создание `TokenizerMetricsCollector` при инициализации `TokenizerManager`, если задан `--enable-metrics`
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/observability/utils.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

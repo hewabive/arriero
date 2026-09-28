@@ -34,7 +34,7 @@ CPU memory budget for content-addressed multimodal preprocessing artifacts. Unse
 - Тип значения: `Optional[int]`
 - Значение по умолчанию: `null`; выбирается `auto_mm_preprocess_cache_size_mb` класса процессора (`256` для Kimi-K3, `0` в базовом классе)
 - Допустимые значения: неотрицательные целые; отрицательное отвергается в `ServerArgs._handle_multimodal`
-- Где объявлен: `ServerArgs.mm_preprocess_cache_size_mb`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_preprocess_cache_size_mb`
 - Этап применения: создание мультимодального процессора → cache lookup/single-flight до media decode/preprocess → LRU insert/eviction
 
 ## Что меняет в движке
@@ -92,6 +92,7 @@ python -m sglang.launch_server --model-path /models/Kimi-K3-Instruct --mm-prepro
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/kimi_k3.py`

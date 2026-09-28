@@ -35,7 +35,7 @@ Exclude uvicorn access logs whose request path starts with any of these prefixes
 - Допустимые значения: `choices` нет; произвольные строки-префиксы пути
 - Значение по умолчанию: выражение `msgspec.field(default_factory=list)` создаёт новый пустой список для каждого ServerArgs; фильтрация выключена.
 - Эффективное значение: перед регистрацией список нормализуется — пустые строки выбрасываются, дубликаты убираются с сохранением порядка; если после этого список пуст, фильтр не регистрируется вовсе
-- Где объявлен: `ServerArgs.uvicorn_access_log_exclude_prefixes`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.uvicorn_access_log_exclude_prefixes`
 - Статус: обычный
 - Этап применения: HTTP-слой, `set_uvicorn_logging_configs` непосредственно перед стартом сервера
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/server_args.py`

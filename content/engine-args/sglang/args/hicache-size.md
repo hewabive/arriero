@@ -33,7 +33,7 @@ The size of host KV cache memory pool in gigabytes. Overrides --hicache-ratio in
 - Допустимые значения: не ограничены argparse; `0` означает «не задан»
 - Значение по умолчанию: `0`
 - Эффективное значение: при `> 0` перекрывает `--hicache-ratio`; при `--pp-size > 1` итоговая емкость в токенах синхронизируется по минимуму между PP-стадиями (`sync_fixed_hicache_size`); для DeepSeek V4 аргумент вообще запрещен
-- Где объявлен: `ServerArgs.hicache_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_size`
 - Статус: обычный
 - Этап применения: конструктор host-пула (`HostKVCache.__init__`) при инициализации дерева кеша
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/base.py`
 - `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py`

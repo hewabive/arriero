@@ -36,7 +36,7 @@ Enable PD-Multiplexing, PD running on greenctx stream.
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; движок его не переписывает, но отвергает четырьмя ассертами при несовместимой конфигурации
-- Где объявлен: `ServerArgs.enable_pdmux`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.enable_pdmux`
 - Статус: обычный флаг, но фактически экспериментальный: связанный `adjust_stream_groups` помечен в исходниках как временная демонстрационная реализация
 - Этап применения: разбор CLI → `check_server_args` (четыре ассерта + предупреждение по версии torch) → `Scheduler.init_pdmux` (чтение `--pdmux-config-path`, создание green-context-потоков) → `attention_backend_setup` (создание `--sm-group-num` копий decode-backend'а внимания) → захват CUDA graph по одному набору на каждую группу потоков → `dispatch_event_loop` выбирает `event_loop_pdmux`
 
@@ -127,6 +127,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-32B --enable-pdmux --pdmu
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/multiplex/pdmux_context.py`
 - `sglang/python/sglang/srt/multiplex/multiplexing_mixin.py`

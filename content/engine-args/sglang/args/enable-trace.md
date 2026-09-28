@@ -34,7 +34,7 @@ Enable opentelemetry trace
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Фактическая активность трассировки дополнительно зависит от уровня `SGLANG_TRACE_LEVEL` (`0` отключает при включенном флаге) и от `--trace-modules`
-- Где объявлен: `ServerArgs.enable_trace`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_trace`
 - Статус: обычный
 - Этап применения: запуск процессов — `run_scheduler_process`, lifespan FastAPI, `data_parallel_controller`; далее — на каждом инструментированном участке обработки запроса
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-trace -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/trace.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`

@@ -34,7 +34,7 @@ If specified with --enable-priority-scheduling, the scheduler will schedule requ
 - Допустимые значения: наличие/отсутствие флага
 - Значение по умолчанию: `false` — больший `priority` обслуживается первым
 - Эффективное значение: не переопределяется; без `--enable-priority-scheduling` значение сохраняется, но нигде не читается (предупреждения при этом не печатается)
-- Где объявлен: `ServerArgs.schedule_low_priority_values_first`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.schedule_low_priority_values_first`
 - Статус: обычный
 - Этап применения: создание `SchedulePolicy` при инициализации планировщика → сортировка очереди на каждом проходе → `preempt_to_schedule` → `retract_decode`
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-prior
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/schedule_batch.py`

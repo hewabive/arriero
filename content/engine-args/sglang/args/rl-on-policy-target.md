@@ -38,7 +38,7 @@ The training system that SGLang needs to match for true on-policy.
 - Допустимые значения: `fsdp` (константа `RL_ON_POLICY_TARGET_CHOICES`; out-of-tree пакеты могут расширить список через `add_rl_on_policy_target_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки)
 - Значение по умолчанию: `null` — режим выключен
 - Эффективное значение: совпадает с заданным, но **переписывает соседей**: `--enable-deterministic-inference` становится `true`, `SGLANG_VLM_CACHE_SIZE_MB` — `0`, `SGLANG_ENABLE_DETERMINISTIC_INFERENCE` — `True`
-- Где объявлен: `ServerArgs.rl_on_policy_target`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDeterministic.rl_on_policy_target`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_deterministic_inference` — первым делом) → построение слоев модели (выбор реализаций) → каждый forward и sampling
 
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --rl-on-policy-targ
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/rotary_embedding/base.py`
 - `sglang/python/sglang/srt/layers/activation.py`

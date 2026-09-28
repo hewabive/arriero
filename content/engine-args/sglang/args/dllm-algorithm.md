@@ -40,7 +40,7 @@ The diffusion LLM algorithm, such as LowConfidence.
 - Допустимые значения: в argparse не ограничены (`choices: null`). Список собирается в runtime: `import_algorithms` перебирает модули пакета `sglang.srt.dllm.algorithm` и берет из каждого атрибут `Algorithm`. В checkout'е это `LowConfidence` (`low_confidence.py`) и `JointThreshold` (`joint_threshold.py`). Посмотреть список на своей сборке: `python -c "from sglang.srt.dllm.algorithm import algo_name_to_cls; print(list(algo_name_to_cls))"`
 - Значение по умолчанию: `null` — режим выключен
 - Эффективное значение: совпадает с заданным; вместо него переписываются соседние аргументы
-- Где объявлен: `ServerArgs.dllm_algorithm`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_algorithm`
 - Статус: обычный, но отдельный режим обслуживания — комбинировать его с остальной функциональностью сервера нельзя произвольно
 - Этап применения: `__post_init__` (`_handle_dllm_inference` и три пасса резолюции) → инициализация scheduler'а (`DllmConfig.from_server_args`, `get_algorithm`) → каждый forward
 
@@ -131,6 +131,7 @@ python -m sglang.launch_server --model-path /models/LLaDA2.0-mini-preview --dllm
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/dllm/config.py`
 - `sglang/python/sglang/srt/dllm/algorithm/__init__.py`

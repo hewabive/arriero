@@ -33,7 +33,7 @@ The layout of host memory pool for hierarchical cache.
 - Допустимые значения: `layer_first`, `page_first`, `page_first_direct`, `page_first_kv_split`, `page_head`
 - Значение по умолчанию: `page_first`
 - Эффективное значение: `_resolve_layout_io_compatibility` меняет `page_first` на `page_first_direct` при `--hicache-io-backend direct`; `_resolve_storage_layout_compatibility` меняет `layer_first` на `page_first`/`page_first_direct` при `--hicache-storage-backend mooncake`; на Ascend NPU платформа выставляет `page_first_kv_split` (MLA) или `page_first_direct`
-- Где объявлен: `ServerArgs.hicache_mem_layout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_mem_layout`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_hicache`) → аллокация буфера host-пула → каждая операция переноса
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mha.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mla.py`

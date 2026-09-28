@@ -36,7 +36,7 @@ DSPARK only. Draft block size gamma (number of proposed draft tokens). The verif
 - Допустимые значения: строго положительное; итоговое `num_draft_tokens = gamma + 1` обязано быть `>= 2`
 - Значение по умолчанию: `null`
 - Эффективное значение: при заданном значении `speculative_num_draft_tokens = gamma + 1`. При незаданном гамма читается из конфига draft-чекпоинта (`read_draft_checkpoint_gamma`); если конфиг не прочитался и `--speculative-num-draft-tokens` тоже не задан, берётся `DEFAULT_DSPARK_GAMMA = 7` с предупреждением. Здесь же `speculative_num_steps` и `speculative_eagle_topk` принудительно становятся `1`
-- Где объявлен: `ServerArgs.speculative_dspark_block_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_block_size`
 - Статус: обычный, алгоритмо-специфичный: читатели — `_handle_dspark` и модельный override Kimi-K3
 - Этап применения: `__post_init__` (модельный override Kimi-K3 → `_handle_dspark`) → ширина verify-форварда и резерв KV → захват CUDA graph → forward
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2-Exp --speculat
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`

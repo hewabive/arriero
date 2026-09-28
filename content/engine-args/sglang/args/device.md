@@ -36,7 +36,7 @@ The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu', 'musa'). Defaults to auto
 - Допустимые значения: `choices` в объявлении нет — argparse примет любую строку. Перечень в тексте справки (`cuda`, `xpu`, `hpu`, `npu`, `cpu`, `musa`) неполон: код отдельно обрабатывает `mps` (`_handle_mps_backends`) и умеет отдавать имя из плагина платформы (`current_platform.get_device`). Неизвестное значение не отвергается на разборе — оно просто не совпадет ни с одной веткой и приведет к отказу позже, на инициализации torch
 - Значение по умолчанию: `null` — «определить автоматически»
 - Эффективное значение: `_handle_missing_default_values` подставляет `get_device()` (`sglang/python/sglang/srt/utils/common.py`), а затем **безусловно** выполняет `self.device = self.device.split(":")[0]` — суффикс `:N` отбрасывается и у явно заданного значения тоже
-- Где объявлен: `ServerArgs.device`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.device`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_missing_default_values` → `_handle_hpu_backends` / `_handle_cpu_backends` / `_handle_npu_backends` / `_handle_mps_backends` / `_handle_xpu_backends` → `_handle_gpu_memory_settings` → `_handle_cuda_graph_config`) → выбор distributed-backend в `init_torch_distributed` → инициализация model runner
 
@@ -123,6 +123,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --device cpu --tens
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/utils/numa_utils.py`

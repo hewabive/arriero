@@ -41,7 +41,7 @@ Replace the statically-partitioned hybrid-model pools (full-attn KV + SWA/Mamba 
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false`
 - Эффективное значение: сам флаг не переопределяется, но он **переопределяет чужой**: `_handle_page_major_kv_layout` принудительно выставляет `enable_page_major_kv_layout = True`
-- Где объявлен: `ServerArgs.enable_unified_memory`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_unified_memory`
 - Статус: экспериментальный; в тексте справки и в коде часть ограничений помечена как «not yet», ограничения снимаются по мере аудита отдельных путей
 - Этап применения: `__post_init__` (`_handle_unified_memory_pool`, `_handle_page_major_kv_layout`) → построение пулов в `KVCacheConfigurator._init_pools` → forward и захват CUDA graph
 
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/kimi-linear --enable-unified
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/mem_cache/unified_memory_pool.py`

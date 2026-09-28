@@ -35,7 +35,7 @@ Every N forward steps, run a full-pool sweep.
 - Допустимые значения: `choices` нет. Осмысленный диапазон — `0` (выключено) и положительные значения; отрицательные argparse принимает, и они приводят к обходу на каждом шаге (см. «Значения и формат»)
 - Значение по умолчанию: `0`
 - Эффективное значение: попадает в `CanaryConfig.sweep_interval` без преобразований; при `--kv-canary none` канарейка не устанавливается вовсе и значение не читается
-- Где объявлен: `ServerArgs.kv_canary_sweep_interval`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_canary_sweep_interval`
 - Статус: обычный аргумент узкоспециального диагностического механизма
 - Этап применения: `__post_init__` (проверка связки с `--kv-canary`) → `SweepOrchestrator` внутри менеджера канарейки, на каждом forward
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/kv_canary/runner/sweep.py`
 - `sglang/python/sglang/srt/kv_canary/runner/health_checker.py`
 - `sglang/python/sglang/srt/kv_canary/config.py`

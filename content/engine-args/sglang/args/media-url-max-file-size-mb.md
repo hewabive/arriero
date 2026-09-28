@@ -33,7 +33,7 @@ Maximum size in MiB for one client-supplied remote media download. The limit is 
 - Тип значения: целое число
 - Значение по умолчанию: `64` МиБ
 - Допустимые значения: неотрицательные целые; отрицательное значение отвергается в `configure_media_url_security`
-- Где объявлен: `ServerArgs.media_url_max_file_size_mb`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.media_url_max_file_size_mb`
 - Этап применения: нормализация в `__post_init__` → process-wide policy в каждом multimedia worker → streaming HTTP(S)-download до decode/preprocess
 
 ## Что меняет в движке
@@ -85,6 +85,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --media
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`

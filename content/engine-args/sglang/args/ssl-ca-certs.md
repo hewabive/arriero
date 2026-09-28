@@ -39,7 +39,7 @@ The CA certificates file.
 - Допустимые значения: `choices` нет; `os.path.isfile` проверяется в `_handle_ssl_validation`
 - Значение по умолчанию: `None` — внутренний клиент использует системный CA-бандл (`verify=True`), пока TLS выключен, и `verify=False`, когда TLS включен
 - Эффективное значение: совпадает с заданным. Переписывания нет, но поведение `ssl_verify()` меняется скачкообразно: `ssl_ca_certs` → путь; иначе если задан `ssl_certfile` → `False` плюс предупреждение; иначе → `True`
-- Где объявлен: `ServerArgs.ssl_ca_certs`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_ca_certs`
 - Статус: обычный
 - Этап применения: `__post_init__` → `_handle_ssl_validation` → HTTP-слой и warmup-клиент
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`

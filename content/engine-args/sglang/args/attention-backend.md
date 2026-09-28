@@ -39,7 +39,7 @@ Choose the kernels for attention layers.
 - Допустимые значения (из `choices`): `triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`. Список — константа `ATTENTION_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_attention_backend_choices` позволяет out-of-tree платформенным пакетам его расширить, поэтому итоговый набор смотрите в `--help` установленной сборки. `nsa` — устаревший синоним `dsa`, `compressed` — устаревший синоним `dsv4`
 - Значение по умолчанию: `null` — «подберет движок»
 - Эффективное значение: переписывается на нескольких шагах `__post_init__` — платформенные обработчики (`_handle_hpu_backends`, `_handle_cpu_backends`, `_handle_npu_backends`), модельные переопределения в `_handle_model_specific_adjustments`, детерминированный режим (`_deterministic_attention_backend`), затем `_handle_attention_backend_compatibility` (`_attention_backend_default`, `_attention_backend_fa3_fp8_fallback`, `_attention_backend_platform_fallbacks`, `_attention_backend_dual_chunk`)
-- Где объявлен: `ServerArgs.attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.attention_backend`
 - Статус: обычный; поле помечено `resolvable=True`, то есть проходит через пайплайн деклараций `arg_groups/overrides.py`
 - Этап применения: разбор CLI → `__post_init__` (подбор и проверки, попутные правки `--page-size`, CUDA graph, radix cache) → создание backend'а в model runner (`ATTENTION_BACKENDS[...]`, там же вторая волна отказов) → захват CUDA graph → каждый forward
 
@@ -155,6 +155,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`

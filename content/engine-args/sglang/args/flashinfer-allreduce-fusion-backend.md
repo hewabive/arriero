@@ -42,7 +42,7 @@ Enable FlashInfer allreduce fusion and choose backend. Requires SM90 or SM10X NV
   3. `_deterministic_allreduce_fusion_disable` сбрасывает в `None` при `--enable-deterministic-inference` (`Disable --flashinfer-allreduce-fusion-backend because deterministic inference is enabled.`).
 
   Плюс устаревший флаг `--enable-flashinfer-allreduce-fusion` (см. ниже) в `_handle_deprecated_args` ставит `"auto"`
-- Где объявлен: `ServerArgs.flashinfer_allreduce_fusion_backend`, файл — `sglang/python/sglang/srt/server_args.py`; поле помечено `resolvable=True`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.flashinfer_allreduce_fusion_backend`; поле помечено `resolvable=True`
 - Статус: обычный. Его предшественник `--enable-flashinfer-allreduce-fusion` остается рабочим флагом командной строки: поле датакласса помечено `Arg(no_cli=True)`, чтобы не регистрироваться автоматически, а сам флаг объявлен литеральным `parser.add_argument` в `add_cli_args` — поэтому он есть и в `--help`, и в extract (описан в `enable-flashinfer-allreduce-fusion.md`). При его использовании `_handle_deprecated_args` печатает `--enable-flashinfer-allreduce-fusion is deprecated. Please use --flashinfer-allreduce-fusion-backend=auto instead.` и подставляет сюда `auto`. В новых строках запуска задавайте `--flashinfer-allreduce-fusion-backend auto` напрямую
 - Этап применения: разбор CLI → `_handle_deprecated_args` → реестр переопределений (`auto`-включение, enforce-disable, детерминизм) → `_pre_initialize_flashinfer_allreduce_workspace` до захвата CUDA graph → каждый forward
 
@@ -130,6 +130,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/flashinfer_comm_fusion.py`

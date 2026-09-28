@@ -33,7 +33,7 @@ Enable broadcast mm-inputs process in scheduler.
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.enable_broadcast_mm_inputs_process`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_broadcast_mm_inputs_process`
 - Статус: обычный
 - Этап применения: обработка каждого входящего мультимодального запроса в процессе scheduler'а
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-30B-A3B-Instruct --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_batch.py`

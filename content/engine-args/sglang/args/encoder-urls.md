@@ -37,7 +37,7 @@ List of encoder server urls.
 - Допустимые значения: `choices` нет; URL со схемой — `http://host:port`, `https://host:port` или `grpc://host:port` для gRPC-энкодеров
 - Значение по умолчанию: `msgspec.field(default_factory=list)` — то есть пустой список
 - Эффективное значение: само поле не переписывается, но фактический набор адресов в runtime — это **копия** списка, которую `EncoderBootstrapServer` дальше мутирует: `list(self.server_args.encoder_urls)` в `TokenizerManager.init_disaggregation`
-- Где объявлен: `ServerArgs.encoder_urls`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_urls`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_encoder_disaggregation` (только информационное сообщение при пустом списке) → `TokenizerManager.init_disaggregation` (создание разделяемого списка и реестра) → на каждый мультимодальный запрос при раскладке элементов
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/disaggregation/encode_receiver.py`

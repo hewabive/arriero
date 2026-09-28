@@ -28,7 +28,7 @@ Restrict client-supplied HTTP(S) image, video, and audio URLs to these exact hos
 - Группа: `mm`
 - Тип значения: список строк; argparse принимает одно или больше значений после флага
 - Значение по умолчанию: пустой список (`msgspec.field(default_factory=list)`)
-- Где объявлен: `ServerArgs.allowed_media_domains`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.allowed_media_domains`
 - Этап применения: разбор CLI → `_handle_media_url_security` → загрузка каждого удаленного media-объекта
 
 ## Что меняет в движке
@@ -71,6 +71,7 @@ python -m sglang.launch_server --model-path /models/Qwen-VL --allowed-media-doma
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`

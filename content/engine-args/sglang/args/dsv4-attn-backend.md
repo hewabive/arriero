@@ -28,7 +28,7 @@ DeepSeek V4 attention backend. 'auto' (default) resolves to 'flashmla'. 'trtllm'
 - Группа: `exec.kernel`
 - Тип: `str`
 - Значение в декларации по умолчанию: `auto`
-- Объявление: `ServerArgs.dsv4_attn_backend` в `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsv4_attn_backend`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

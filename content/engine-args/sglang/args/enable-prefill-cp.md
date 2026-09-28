@@ -40,7 +40,7 @@ Enable context parallelism for the prefill phase. Select the layout with --cp-st
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: задаётся этим флагом; стратегия выбирается через `--cp-strategy`
-- Где объявлен: `ServerArgs.enable_prefill_cp`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_prefill_cp`
 - Статус: обычный флаг, но экспериментальная функция — предупреждение печатается при включении
 - Этап применения: `__post_init__` (`_handle_legacy_cp_arguments` → модельные override'ы в `arg_groups/overrides.py` → `_handle_context_parallelism` → `init_cp_strategy`) → выбор attention backend → forward на фазе extend
 
@@ -133,6 +133,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --tens
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/cp/base.py`

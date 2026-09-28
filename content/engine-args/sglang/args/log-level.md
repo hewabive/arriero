@@ -40,7 +40,7 @@ The logging level of all loggers.
 - Допустимые значения: `choices` нет. Фактически строка должна быть именем атрибута модуля `logging` в верхнем регистре (`getattr(logging, value.upper())`) **и одновременно** ключом словаря `uvicorn.config.LOG_LEVELS`, если `--log-level-http` не задан. Пересечение: `critical`, `error`, `warning`, `info`, `debug`
 - Значение по умолчанию: `info`
 - Эффективное значение: из CLI не переопределяется. Исключения — офлайновый Python-класс `Engine` (не CLI): если `log_level` не передан в kwargs, он подставляет `error`; и переменная окружения `SGLANG_LOGGING_CONFIG_PATH`, при которой `configure_logger` целиком уходит в `logging.config.dictConfig` и аргумент перестает что-либо значить
-- Где объявлен: `ServerArgs.log_level`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.log_level`
 - Статус: обычный
 - Этап применения: разбор CLI (`prepare_server_args`) → `configure_logger` в каждом процессе → запуск uvicorn/Granian
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/utils/log_utils.py`

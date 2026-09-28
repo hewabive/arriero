@@ -32,7 +32,7 @@ Shard dense MLP weights across the attention TP group under DP attention.
 - Группа: `parallel`
 - Тип: `bool`
 - Декларативный default: `false`
-- Объявление: `ServerArgs.enable_dense_mlp_attn_tp` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dense_mlp_attn_tp`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -67,5 +67,6 @@ python -m sglang.launch_server --model-path /models/Kimi-K3 --tp-size 8 --dp-siz
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/models/kimi_k3.py`

@@ -34,7 +34,7 @@ If set, the LM head outputs (logits) are in FP32.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переписывается ни `__post_init__`, ни реестром `arg_groups/overrides.py`
-- Где объявлен: `ServerArgs.enable_fp32_lm_head`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_fp32_lm_head`
 - Статус: обычный
 - Этап применения: разбор CLI → построение `LogitsProcessor` (значение читается один раз в конструктор, `self.use_fp32_lm_head`) → `_compute_lm_head` на каждом шаге сэмплинга. Кроме того, значение входит в структурную сигнатуру загрузчика весов (`model_loader/loader.py`), то есть кеш весов, снятый с одним значением флага, не подойдет к запуску с другим
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --enable-fp32-lm-he
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/logits_processor.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

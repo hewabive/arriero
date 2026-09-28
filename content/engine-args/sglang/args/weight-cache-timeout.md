@@ -32,7 +32,7 @@ Timeout in seconds for weight cache daemon readiness (default: 1800).
 - Допустимые значения: `choices` нет; проверок диапазона нет
 - Значение по умолчанию: `1800`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.weight_cache_timeout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_cache_timeout`
 - Статус: обычный
 - Этап применения: запуск демонов в `Engine._launch_weight_cache_daemons`, до запуска scheduler-процессов
 
@@ -90,6 +90,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --weight-cache
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/weight_cache/daemon.py`

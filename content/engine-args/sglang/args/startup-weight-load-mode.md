@@ -38,7 +38,7 @@ Control startup weight loading relative to CUDA graph capture. 'serial' preserve
 - Тип значения: enum
 - Допустимые значения: `serial`, `overlap`
 - Значение по умолчанию: `serial`
-- Где объявлен: `ServerArgs.startup_weight_load_mode`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.startup_weight_load_mode`
 - Этап применения: model loader selection → capture-safe model preparation → checkpoint prefetch параллельно KV/backend/CUDA graph init → in-place weight commit → distributed post-load barrier
 
 ## Что меняет в движке
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B --startup-weigh
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

@@ -38,7 +38,7 @@ Enable NCCL symmetric memory for fast collectives.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: может быть сброшен в `False` для гибридных моделей Kimi (`KimiLinearForCausalLM`, `KimiK3ForConditionalGeneration`), если включен хотя бы один CUDA graph — `disable_kimi_k3_symm_mem` в `arg_groups/kimi_k3_hook.py` вызывается из `_handle_cuda_graph_config` и печатает предупреждение. Второй сброс — `_kimi_k3_overrides` при `--dcp-size > 1` («Kimi-K3 DCP disables --enable-symm-mem due to decode CUDA graph correctness issues»). В остальных случаях значение остается тем, что задали
-- Где объявлен: `ServerArgs.enable_symm_mem`, файл — `sglang/python/sglang/srt/server_args.py`; поле помечено `resolvable=True`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_symm_mem`; поле помечено `resolvable=True`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → Kimi-хук; `_handle_gpu_memory_settings` → установка `SGLANG_SYMM_MEM_PREALLOC_GB_SIZE`) → `_set_envs_and_config` (переменные NCCL, `sglang/python/sglang/srt/entrypoints/engine.py`) → `initialize_model_parallel(enable_symm_mem=…)` → выделение весов и буферов внутри `use_symmetric_memory(...)` → предвыделение пула после захвата CUDA graph → каждый forward
 
@@ -133,6 +133,7 @@ python -m sglang.launch_server --model-path /models/Qwen3.5-A3B-FP8 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/pynccl_allocator.py`

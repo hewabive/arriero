@@ -36,7 +36,7 @@ The buckets of time to first token, specified as a list of floats.
 - Допустимые значения: `choices` нет. Список должен быть строго возрастающим — проверку выполняет сам `prometheus_client` в конструкторе `Histogram`, он же дописывает верхнюю границу `+Inf`
 - Значение по умолчанию: `null`. Реальные границы по умолчанию зашиты в `TokenizerMetricsCollector.__init__`: `0.1, 0.2, 0.4, 0.6, 0.8, 1, 2, 4, 6, 8, 10, 20, 40, 60, 80, 100, 200, 400`
 - Эффективное значение: `__post_init__` его не трогает; подстановка дефолта происходит позже, уже в конструкторе коллектора (`if bucket_time_to_first_token is None: …`)
-- Где объявлен: `ServerArgs.bucket_time_to_first_token`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.bucket_time_to_first_token`
 - Статус: обычный
 - Этап применения: конструктор `TokenizerManager` → конструктор `TokenizerMetricsCollector` (создание гистограммы)
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-metrics
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

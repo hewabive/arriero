@@ -35,7 +35,7 @@ DSPARK compact ragged-verify only. Fill the per-request verify lengths so the to
 - Допустимые значения: флаг присутствует — включено, отсутствует — выключено
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но становится no-op вне `SGLANG_RAGGED_VERIFY_MODE=compact` — на старте печатается предупреждение с фактическим значением режима
-- Где объявлен: `ServerArgs.speculative_dspark_align_verify_tokens_to_graph_tier`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_align_verify_tokens_to_graph_tier`
 - Статус: обычный, алгоритмо-специфичный: читатели — `_handle_dspark` (проверка режима) и `DSparkVerifyPlanner`
 - Этап применения: `__post_init__` (предупреждение) → каждый спекулятивный раунд при расчёте бюджета verify
 
@@ -103,6 +103,7 @@ SGLANG_RAGGED_VERIFY_MODE=compact SGLANG_PREP_IN_CUDA_GRAPH=1 python -m sglang.l
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/dspark_components/dspark_planner.py`

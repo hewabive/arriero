@@ -37,7 +37,7 @@ Number of optimistic prefill forward passes that skip the bootstrap wait.
 - Допустимые значения: `choices` нет; осмысленны целые ≥ 0
 - Значение по умолчанию: `0` (оптимистичный путь выключен)
 - Эффективное значение: при `> 0` и `--disaggregation-mode prefill` `_handle_other_validations` сбрасывает его обратно в `0` с предупреждением в трех случаях: `--pp-size > 1`; `--enable-hierarchical-cache` с непустым `--hicache-storage-backend` **или** `--hicache-write-policy`, отличным от `write_back`; модель использует mamba-radix-кеш. Вне режима `prefill` значение не читается вообще
-- Где объявлен: `ServerArgs.optimistic_prefill_attempts`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.optimistic_prefill_attempts`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_other_validations` (обнуление при несовместимости) → `PrefillBootstrapQueue.pop_bootstrapped` при каждом опросе очереди → `optimistic_release_and_requeue` при откате
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/prefill.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

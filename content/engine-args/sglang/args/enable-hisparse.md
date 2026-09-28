@@ -37,7 +37,7 @@ Enable hierarchical sparse attention
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; несовместимые комбинации приводят к ассерту или `ValueError` на старте
-- Где объявлен: `ServerArgs.enable_hisparse`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_hisparse`
 - Статус: обычный флаг узкого назначения; путь свежий и активно меняется, часть ограничений в коде помечена как временная
 - Этап применения: валидация в `__post_init__` (`validate_hisparse`) → выбор классов KV-пула и аллокатора → создание `HiSparseCoordinator` в `ModelRunner.initialize()` до захвата CUDA graph → каждый шаг decode
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --trust-remote
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/hisparse_hook.py`
 - `sglang/python/sglang/srt/mem_cache/sparsity/factory.py`

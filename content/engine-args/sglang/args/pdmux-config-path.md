@@ -32,7 +32,7 @@ The path of the PD-Multiplexing config file.
 - Допустимые значения: `choices` нет; путь должен существовать и быть читаемым в момент инициализации scheduler'а
 - Значение по умолчанию: `null` (не задан) — используется `PDMuxConfig()` со встроенными умолчаниями
 - Эффективное значение: само поле не переписывается. Обратите внимание, что `sm_group_num` **из файла** и аргумент `--sm-group-num` — разные величины: первый определяет число групп потоков, второй — размер массива decode-backend'ов внимания
-- Где объявлен: `ServerArgs.pdmux_config_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.pdmux_config_path`
 - Статус: обычный; описываемая им подсистема помечена в исходниках как временная реализация
 - Этап применения: `Scheduler.init_pdmux` при старте scheduler-процесса → `load_pdmux_config` → `initialize_stream_groups` (создание green-context-потоков) → `adjust_stream_groups` на каждой итерации event loop
 
@@ -129,6 +129,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --e
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/multiplex/pdmux_context.py`
 - `sglang/python/sglang/srt/multiplex/multiplexing_mixin.py`

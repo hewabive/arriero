@@ -45,7 +45,7 @@ The buckets rule for generation tokens histogram. Supports 3 rule types: 'defaul
 - Допустимые значения: `choices` нет; первым элементом допустимы только `default`, `tse`, `custom` (проверяет `validate_buckets_rule`)
 - Значение по умолчанию: `None`; `generate_buckets` подставляет `["default"]`
 - Эффективное значение: `default` разворачивается в `default_bucket_prompt_tokens` — список границ **для промптов**, а не для генерации; `+Inf` добавляет `prometheus_client`
-- Где объявлен: `ServerArgs.generation_tokens_buckets`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.generation_tokens_buckets`
 - Статус: обычный
 - Этап применения: `__post_init__` (валидация) → создание `TokenizerMetricsCollector`, если задан `--enable-metrics`
 
@@ -114,6 +114,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/observability/utils.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/server_args.py`

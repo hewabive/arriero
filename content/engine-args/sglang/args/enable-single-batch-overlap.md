@@ -37,7 +37,7 @@ Let computation and communication overlap within one micro batch.
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; включается только вручную
-- Где объявлен: `ServerArgs.enable_single_batch_overlap`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOverlap.enable_single_batch_overlap`
 - Статус: обычный
 - Этап применения: инициализация MoE-конфигурации (`initialize_moe_config` — там же проверка SM90) → построение MoE-слоев модели → каждый forward
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tp-size 8 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/batch_overlap/single_batch_overlap.py`

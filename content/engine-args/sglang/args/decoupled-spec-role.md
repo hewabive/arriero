@@ -35,7 +35,7 @@ Role in decoupled speculative decoding: 'null' disables it, 'verifier' runs the 
 - Допустимые значения: `null`, `verifier`, `drafter`. `null` — строка, а не отсутствие значения
 - Значение по умолчанию: `"null"`
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.decoupled_spec_role`, файл — `sglang/python/sglang/srt/server_args.py`. Обратите внимание: соседние поля датакласса относятся к спекуляции, но группа у всех четырех аргументов — `disagg`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_role`. Обратите внимание: соседние поля датакласса относятся к спекуляции, но группа у всех четырех аргументов — `disagg`
 - Статус: обычный флаг незавершенной функциональности — в checkout'е нет ни одного потребителя собранной конфигурации
 - Этап применения: `PortArgs.init_new` при подготовке портов и IPC-каналов — единственное место, где значение читается
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.2-1B-Instruct --d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/decoupled_spec_io.py`
 - `sglang/test/registered/unit/spec/test_decoupled_spec_io.py`

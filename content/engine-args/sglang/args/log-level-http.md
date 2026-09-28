@@ -36,7 +36,7 @@ The logging level of HTTP server. If not set, reuse --log-level by default.
 - Допустимые значения: `choices` нет. Строка идет в uvicorn, который принимает только собственные имена уровней в нижнем регистре — посмотреть список на своей сборке: `python -c "from uvicorn.config import LOG_LEVELS; print(list(LOG_LEVELS))"`. В отличие от `--log-level`, это значение **не** попадает в `getattr(logging, ...)`, поэтому уровень `trace` здесь законен
 - Значение по умолчанию: `None` — берется `--log-level`
 - Эффективное значение: `log_level_http or log_level`, вычисляется в момент старта HTTP-сервера. Никакой `_handle_*` его не трогает
-- Где объявлен: `ServerArgs.log_level_http`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.log_level_http`
 - Статус: обычный
 - Этап применения: HTTP-слой, после инициализации tokenizer/scheduler/detokenizer и загрузки весов
 
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/utils/common.py`

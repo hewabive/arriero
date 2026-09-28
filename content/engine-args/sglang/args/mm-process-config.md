@@ -35,7 +35,7 @@ Multimodal preprocessing config, a json config contains keys: `image`, `video`, 
 - Допустимые значения: любой JSON-объект; осмысленные ключи верхнего уровня — `image`, `video`, `audio`, и значение каждого обязано быть объектом
 - Значение по умолчанию: `null`
 - Эффективное значение: `__post_init__` подставляет пустой словарь `{}`, если аргумент не задан, — процессоры затем читают `mm_process_config.get("image", {})` и т. д.
-- Где объявлен: `ServerArgs.mm_process_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_process_config`
 - Статус: обычный
 - Этап применения: разбор CLI (`json.loads`) → структурная проверка в `ServerArgs._handle_multimodal` (до загрузки модели) → конструктор `BaseMultimodalProcessor` → каждый вызов HF-процессора
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-pr
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/qwen_vl.py`

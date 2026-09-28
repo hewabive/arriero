@@ -33,7 +33,7 @@ Delete the model checkpoint after loading the model.
 - Допустимые значения: присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.delete_ckpt_after_loading`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.delete_ckpt_after_loading`
 - Статус: обычный
 - Этап применения: `_wait_and_warmup` в HTTP-слое — **после** строки «The server is fired up and ready to roll!»
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path /scratch/Qwen3-30B-A3B --model-check
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/utils/common.py`

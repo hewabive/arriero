@@ -33,7 +33,7 @@ related:
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false` — произвольные пробелы разрешены
 - Эффективное значение: `__post_init__` не переопределяет; значение передается в backend инвертированным (`any_whitespace = not флаг`)
-- Где объявлен: `ServerArgs.constrained_json_disable_any_whitespace`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.constrained_json_disable_any_whitespace`
 - Статус: обычный
 - Этап применения: создание grammar-backend при инициализации планировщика → компиляция грамматики под каждую новую JSON-схему
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --grammar-back
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/constrained/base_grammar_backend.py`
 - `sglang/python/sglang/srt/constrained/xgrammar_backend.py`

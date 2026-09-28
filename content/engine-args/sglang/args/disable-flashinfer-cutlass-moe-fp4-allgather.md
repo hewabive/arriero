@@ -34,7 +34,7 @@ Disables quantize before all-gather for flashinfer cutlass moe.
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; значение публикуется как `moe.disable_fp4_allgather` и дальше только читается
-- Где объявлен: `ServerArgs.disable_flashinfer_cutlass_moe_fp4_allgather`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.disable_flashinfer_cutlass_moe_fp4_allgather`
 - Статус: обычный
 - Этап применения: публикация MoE-флагов при инициализации → каждый dispatch и combine стандартного диспетчера
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path nvidia/DeepSeek-R1-FP4 --tp-size 8 -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/layers/moe/token_dispatcher/standard.py`

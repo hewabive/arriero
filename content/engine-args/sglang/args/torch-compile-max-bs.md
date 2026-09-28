@@ -37,7 +37,7 @@ Set the maximum batch size when using torch compile.
 - Допустимые значения: положительное целое; argparse границ не проверяет
 - Значение по умолчанию: `32`
 - Эффективное значение: на GPU-устройствах остается заданным. На `--device cpu` в `_handle_gpu_memory_settings` **переписывается**: при заданном `--cuda-graph-bs-decode` становится `max(bs)`, иначе `torch_compile_max_bs or decode.max_bs`, после чего `decode.max_bs` приравнивается к нему; там же стоит ассерт `torch_compile_max_bs > 0`
-- Где объявлен: `ServerArgs.torch_compile_max_bs`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.torch_compile_max_bs`
 - Статус: обычный
 - Этап применения: `__post_init__` (только для `--device cpu`) → `get_batch_sizes_to_capture` при создании decode-runner'а → захват графов
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-4B --device cpu --enab
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`

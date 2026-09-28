@@ -35,7 +35,7 @@ Enable NCCL NVLS for prefill heavy requests when available.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: само поле не переписывается, но результат — да: `--enable-symm-mem` включает NVLS независимо от этого флага, потому что переменная считается как `int(enable_nccl_nvls or enable_symm_mem)`
-- Где объявлен: `ServerArgs.enable_nccl_nvls`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_nccl_nvls`
 - Статус: обычный
 - Этап применения: разбор CLI → `_set_envs_and_config` (`sglang/python/sglang/srt/entrypoints/engine.py`) до запуска процессов scheduler'а → инициализация NCCL-коммуникаторов
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

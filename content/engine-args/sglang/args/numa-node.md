@@ -37,7 +37,7 @@ Sets the numa node for the subprocesses. i-th element corresponds to i-th subpro
 - Допустимые значения: `choices` нет, диапазон не проверяется. Индекс должен существовать в `/sys/devices/system/node/`; несуществующий узел приведет к отказу `numactl` и предупреждению, а не к ошибке старта
 - Значение по умолчанию: `null` — «определить автоматически»
 - Эффективное значение: при `null` — результат `_query_numa_node_for_gpu(gpu_id)` через `pynvml.nvmlDeviceGetMemoryAffinity`, и только если `_is_numa_available()` вернул True. Явно заданный список **не** проверяется на длину и не сверяется с топологией
-- Где объявлен: `ServerArgs.numa_node`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.numa_node`
 - Статус: обычный
 - Этап применения: непосредственно перед `proc.start()` каждого scheduler-процесса (`numa_utils.configure_subprocess`) либо в самом процессе (`configure_scheduler_process`), в зависимости от `SGLANG_NUMA_BIND_V2`
 
@@ -128,6 +128,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/utils/numa_utils.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

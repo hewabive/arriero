@@ -38,7 +38,7 @@ The number of tokens sampled from the draft model in Speculative Decoding.
 - Допустимые значения: `choices` нет. Минимум — `2` (корень плюс один кандидат); практический потолок — десятки, дальше верификация становится дороже выигрыша
 - Значение по умолчанию: `null` — «подберёт движок»
 - Эффективное значение: переопределяется почти всегда. При `--speculative-eagle-topk 1` жёстко становится `num_steps + 1`; EAGLE/EAGLE3/STANDALONE без явных значений получают `4` или `8` из `_auto_choose_speculative_params`; NGRAM — `12`; DFLASH — `--speculative-dflash-block-size` либо `block_size` из конфига черновика, иначе `16`; DSPARK — `gamma + 1`; `--speculative-adaptive` — `num_steps + 1`
-- Где объявлен: `ServerArgs.speculative_num_draft_tokens`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_num_draft_tokens`
 - Статус: обычный
 - Этап применения: `__post_init__` → `handle_speculative_decoding` → выделение KV-пула и `req_to_token` → захват CUDA graph target-verify и draft-extend → forward
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/eagle_utils.py`

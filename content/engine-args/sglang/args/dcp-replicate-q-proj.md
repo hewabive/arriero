@@ -33,7 +33,7 @@ For MLA decode context parallelism with the a2a/fi_a2a backend: replicate the Q 
 - Допустимые значения: флаг без значения либо его отрицающая половина
 - Значение по умолчанию: `null` — «не задано»
 - Эффективное значение: поле `resolvable=True`. Для Kimi-K3 с DCP `arg_groups/overrides.py` при `null` подставляет `True` со строкой `Kimi-K3 DCP enables replicated Q projection by default.` Явно заданный `--no-dcp-replicate-q-proj` эту подстановку отменяет — ради этого и существует отрицающая половина. Для прочих моделей `null` означает «выключено»
-- Где объявлен: `ServerArgs.dcp_replicate_q_proj`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_replicate_q_proj`
 - Статус: обычный
 - Этап применения: валидация в `_handle_dcp_validation` → подготовка полноголовых весов в model runner до захвата CUDA graph (`_prepare_replicated_q_proj`) → forward на decode
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path moonshotai/Kimi-K2-Instruct --tensor
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/models/deepseek_common/attention_forward_methods/forward_mla.py`

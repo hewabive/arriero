@@ -35,7 +35,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; `__post_init__` не трогает это поле
-- Где объявлен: `ServerArgs.enable_mm_global_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_mm_global_cache`
 - Статус: обычный
 - Этап применения: инициализация encoder-воркера (`sglang/python/sglang/srt/disaggregation/encode_server.py`), затем каждый вызов энкодера
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encod
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`
 - `sglang/python/sglang/srt/mem_cache/embedding_cache_controller.py`

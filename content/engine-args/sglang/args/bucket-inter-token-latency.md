@@ -35,7 +35,7 @@ The buckets of inter-token latency, specified as a list of floats.
 - Допустимые значения: `choices` нет; список должен строго возрастать, `+Inf` дописывает `prometheus_client`
 - Значение по умолчанию: `null`. Реальный список по умолчанию зашит в `TokenizerMetricsCollector.__init__`: `0.002, 0.004, 0.006, 0.008, 0.010, 0.015, 0.020, 0.025, 0.030, 0.035, 0.040, 0.060, 0.080, 0.100, 0.200, 0.400, 0.600, 0.800, 1.000, 2.000, 4.000, 6.000, 8.000`
 - Эффективное значение: `__post_init__` его не меняет; `None` разворачивается в зашитый список уже в конструкторе коллектора
-- Где объявлен: `ServerArgs.bucket_inter_token_latency`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.bucket_inter_token_latency`
 - Статус: обычный
 - Этап применения: конструктор `TokenizerManager` → конструктор `TokenizerMetricsCollector`
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-metrics
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

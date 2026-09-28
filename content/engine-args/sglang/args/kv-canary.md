@@ -37,7 +37,7 @@ KV cache canary mode. 'none' disables the canary (default). 'log' prints them wh
 - Допустимые значения: `none`, `log`, `raise` (жесткий `choices`); дополнительно `CanaryConfig.from_env` приводит значение к нижнему регистру и повторно проверяет по тому же списку
 - Значение по умолчанию: `none`
 - Эффективное значение: совпадает с заданным. Косвенно влияет на другие настройки: при `log`/`raise` включается проверка `assert not check_cuda_graph_backend(Phase.PREFILL, Backend.TC_PIECEWISE)`, то есть piecewise-CUDA-graph на prefill становится несовместим
-- Где объявлен: `ServerArgs.kv_canary`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_canary`
 - Статус: обычный аргумент, но узкоспециальный диагностический механизм, а не повседневная настройка
 - Этап применения: `__post_init__` (проверка связки с `--kv-canary-sweep-interval`) → инициализация `ModelRunner`, сразу после выделения KV-пула и **до** захвата CUDA graph
 
@@ -129,6 +129,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/kv_canary/api.py`
 - `sglang/python/sglang/srt/kv_canary/config.py`
 - `sglang/python/sglang/srt/kv_canary/pool_patcher/api.py`

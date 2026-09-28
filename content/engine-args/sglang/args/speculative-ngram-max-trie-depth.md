@@ -34,7 +34,7 @@ The max trie depth for ngram speculative decoding.
 - Допустимые значения: `choices` нет; C++-конструктор требует значение строго больше `1`
 - Значение по умолчанию: `18`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.speculative_ngram_max_trie_depth`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_max_trie_depth`
 - Статус: обычный; читается **только** при `--speculative-algorithm NGRAM`
 - Этап применения: конструктор `NGRAMWorker` → конструктор C++-объекта `Ngram` (валидация) → каждый decode-шаг: подготовка окна, вставка, поиск
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/ngram_worker.py`
 - `sglang/python/sglang/srt/speculative/cpp_ngram/ngram_corpus.py`

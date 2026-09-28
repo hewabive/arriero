@@ -33,7 +33,7 @@ The minimum breadth for BFS (Breadth-First Search) in ngram speculative decoding
 - Допустимые значения: `choices` нет; C++-конструктор требует `> 0` и `≤ --speculative-ngram-max-bfs-breadth`
 - Значение по умолчанию: `1`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.speculative_ngram_min_bfs_breadth`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_min_bfs_breadth`
 - Статус: обычный; читается **только** при `--speculative-algorithm NGRAM` и только в режиме `BFS`
 - Этап применения: конструктор `NGRAMWorker` → конструктор C++-объекта `Ngram` (валидация) → каждый вызов `Trie::buildRecency` / `SuffixAutomaton::buildRecency` на decode-шаге
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/ngram_worker.py`
 - `sglang/python/sglang/srt/speculative/cpp_ngram/ngram_corpus.py`

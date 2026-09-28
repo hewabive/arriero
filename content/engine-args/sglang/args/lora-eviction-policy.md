@@ -33,7 +33,7 @@ LoRA adapter eviction policy when memory pool is full. 'lru': Least Recently Use
 - Допустимые значения: `lru`, `fifo`
 - Значение по умолчанию: `lru`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.lora_eviction_policy`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_eviction_policy`
 - Статус: обычный
 - Этап применения: конструктор `LoRAMemoryPool` (через `LoRAManager`) → каждый вызов `prepare_lora_batch`
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/eviction_policy.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`

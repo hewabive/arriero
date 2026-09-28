@@ -37,7 +37,7 @@ The base GPU ID to start allocating GPUs from. Useful when running multiple inst
 - Допустимые значения: `choices` нет; проверка `assert self.base_gpu_id >= 0, "base_gpu_id must be non-negative"` в `check_server_args`. Верхняя граница не проверяется — выход за число видимых устройств обнаружится только при `torch.cuda.set_device`
 - Значение по умолчанию: `0`
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.base_gpu_id`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.base_gpu_id`
 - Статус: обычный
 - Этап применения: запуск scheduler-процессов (`Engine._launch_scheduler_processes`, `DataParallelController.launch_tensor_parallel_group`), до инициализации torch.distributed
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --port 30001 --base
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`

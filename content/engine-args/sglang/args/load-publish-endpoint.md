@@ -31,7 +31,7 @@ Opt in to the runtime-load PUB socket that load-aware routers subscribe to. Off 
 - Группа: `observability`
 - Тип: `str`
 - Декларативный default: `null`
-- Объявление: `ServerArgs.load_publish_endpoint` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/observability.py:Observability.load_publish_endpoint`
 - Этап применения: разбор CLI, инициализация и исполнение подсистемы, описанной ниже.
 
 ## Что меняет в движке
@@ -66,6 +66,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --kv-events-config 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/disaggregation/kv_events.py`

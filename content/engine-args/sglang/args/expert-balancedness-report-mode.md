@@ -33,7 +33,7 @@ Where to report expert balancedness. Options: off, server_log, prometheus, both.
 - Тип значения: enum
 - Допустимые значения: `off`, `server_log`, `prometheus`, `both`
 - Значение по умолчанию: `off`
-- Где объявлен: `ServerArgs.expert_balancedness_report_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.expert_balancedness_report_mode`
 - Этап применения: `__post_init__` → инициализация expert distribution recorder → каждый forward pass → log/metrics reporter
 
 ## Что меняет в движке
@@ -83,6 +83,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`

@@ -36,7 +36,7 @@ Steps to prefetch in offloading.
 - Допустимые значения: положительное целое; argparse ограничений не накладывает
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным; автоподбора нет
-- Где объявлен: `ServerArgs.offload_prefetch_step`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_prefetch_step`
 - Статус: обычный
 - Этап применения: `post_init` офлоадера (первичная предзагрузка) → каждый forward выгруженного подмодуля
 
@@ -121,6 +121,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V2-Lite --offload-g
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/utils/offloader.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/models/deepseek_v2.py`

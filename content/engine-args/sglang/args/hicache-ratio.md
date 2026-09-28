@@ -35,7 +35,7 @@ The ratio of the size of host KV cache memory pool to the size of device pool. D
 - Допустимые значения: дробное число; большой постоянный L2 обычно требует ratio больше 1, но для backup-only пула значение меньше 1 является штатным.
 - Декларативное значение по умолчанию: `null`
 - Эффективное значение: `handle_hicache_ratio_default` в `arg_groups/hicache_hook.py` ставит вне decode `2.0` для cache или `1.2` для buffer_only. На decode `resolve_decode_retraction_backup` выбирает `0.2` только для host_pool без enable_hierarchical_cache, иначе `2.0`. Явный ratio сохраняется; положительный `--hicache-size` перекрывает его.
-- Где объявлен: `ServerArgs.hicache_ratio`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_ratio`
 - Статус: обычный
 - Этап применения: конструктор host-пула (`HostKVCache.__init__`) при инициализации дерева кеша, то есть после того, как device-пул уже выделен
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/base.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`

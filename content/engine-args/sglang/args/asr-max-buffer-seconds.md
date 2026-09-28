@@ -34,7 +34,7 @@ Maximum seconds of PCM audio the streaming ASR WebSocket handler will accumulate
 - Допустимые значения: `choices` нет; строго положительное целое (проверяется на старте)
 - Значение по умолчанию: `60`
 - Эффективное значение: `__post_init__` не переопределяет, но `_handle_asr_validation` отвергает неположительные значения
-- Где объявлен: `ServerArgs.asr_max_buffer_seconds`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.asr_max_buffer_seconds`
 - Статус: обычный
 - Этап применения: создание `RealtimeConnection` на каждое WebSocket-соединение `/v1/realtime` → проверка при каждом `input_audio_buffer.append`
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-ASR-Flash --asr-max-bu
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/openai/realtime/session.py`
 - `sglang/python/sglang/srt/entrypoints/openai/realtime/handler.py`

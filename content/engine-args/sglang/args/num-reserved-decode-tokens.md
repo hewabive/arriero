@@ -37,7 +37,7 @@ Number of decode tokens that will have memory reserved when adding new request t
 - Допустимые значения: `choices` нет; осмысленны целые ≥ 0
 - Значение по умолчанию: `512`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Единственное отклонение внутри логики: для SWA-пула резерв обнуляется, когда radix-кеш выключен (на decode это состояние по умолчанию)
-- Где объявлен: `ServerArgs.num_reserved_decode_tokens`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.num_reserved_decode_tokens`
 - Статус: обычный
 - Этап применения: передается в `DecodePreallocQueue` при инициализации scheduler'а decode-сервера → участвует в каждом решении о допуске запроса и в расчете бюджета токенов
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/decode.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

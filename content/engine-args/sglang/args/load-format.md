@@ -38,7 +38,7 @@ The format of the model weights to load. "auto" will try to load the weights in 
 - Допустимые значения: `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `expert_pack`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Внутренний `ipc_cache` намеренно не выведен в CLI; попытка задать его отвергается с подсказкой про `--weight-cache-mode`
 - Значение по умолчанию: `auto`
 - Эффективное значение: `_handle_load_format` переписывает его на `gguf` / `mistral` / `runai_streamer` / `remote` по `--model-path`, а `remote_instance` откатывает обратно в `auto` при неполной конфигурации удаленного загрузчика; кроме того `presharded` и `layered` внутри своих загрузчиков подменяют формат на `auto` для фактического чтения файлов
-- Где объявлен: `ServerArgs.load_format`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.load_format`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_load_format`) → построение `LoadConfig` → `get_model_loader` → чтение весов в каждом воркере
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --load-format 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

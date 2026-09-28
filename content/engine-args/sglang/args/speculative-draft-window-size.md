@@ -34,7 +34,7 @@ Sliding window size for the draft model. Honored by Llama EAGLE-3 (`LlamaForCaus
 - Допустимые значения: строго положительное; ноль и отрицательные отвергаются проверкой после разбора
 - Значение по умолчанию: `null` — полное внимание/полный контекст
 - Эффективное значение: значение приводится к `int`; для DFLASH дополнительно требуется `window_size >= speculative_num_draft_tokens`
-- Где объявлен: `ServerArgs.speculative_draft_window_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_window_size`
 - Статус: обычный
 - Этап применения: `__post_init__` (`handle_speculative_decoding` — проверка и предупреждение; `_handle_dflash` — сверка с block size) → конструирование draft-модели (EAGLE3) или draft-воркера (DFLASH) → forward
 
@@ -95,6 +95,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --spec
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/models/llama_eagle3.py`

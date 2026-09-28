@@ -37,7 +37,7 @@ The backend for loading weights from remote instance. Can be 'transfer_engine', 
 - Допустимые значения: `transfer_engine`, `nccl`, `modelexpress`
 - Значение по умолчанию: `nccl`
 - Эффективное значение: само значение не переписывается, но при `--load-format remote_instance` оно проверяется в `_handle_load_format` и может привести к откату **формата загрузки** на `auto`
-- Где объявлен: `ServerArgs.remote_instance_weight_loader_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_backend`
 - Статус: обычный; каждый транспорт требует своей внешней обвязки
 - Этап применения: `__post_init__` (`_handle_load_format`) → инициализация transfer engine в `ModelRunner` → загрузка весов в `RemoteInstanceModelLoader`
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`

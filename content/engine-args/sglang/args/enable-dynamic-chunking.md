@@ -34,7 +34,7 @@ Enable dynamic chunk size adjustment for pipeline parallelism. When enabled, chu
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: в scheduler'е становится `enable_dynamic_chunking and pp_size > 1`; дополнительно сбрасывается в `false`, если профилирование упало с исключением
-- Где объявлен: `ServerArgs.enable_dynamic_chunking`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_dynamic_chunking`
 - Статус: обычный
 - Этап применения: `Scheduler.init_chunked_prefill` (профилирование при инициализации) → выбор размера куска на каждом проходе с активным `chunked_req`
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --pp-size 4 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/scheduler_pp_mixin.py`

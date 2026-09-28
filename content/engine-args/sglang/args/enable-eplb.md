@@ -37,7 +37,7 @@ Enable EPLB algorithm
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но включает цепочку подстановок в `__post_init__` (см. ниже)
-- Где объявлен: `ServerArgs.enable_eplb`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_eplb`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_eplb_and_dispatch`, `_handle_expert_distribution_metrics`, `_handle_elastic_ep`) → инициализация model runner (`maybe_init_eplb_manager`) → конец каждого forward-прохода
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`

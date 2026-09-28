@@ -32,7 +32,7 @@ related:
 - Допустимые значения: не ограничены на уровне argparse; смысл имеют значения от 1 до числа физических ядер, доступных процессу
 - Значение по умолчанию: `null` — SGLang ничего не подставляет
 - Эффективное значение: не переопределяется; `ServerArgs.__post_init__` это поле не читает. При включенном KT (`--kt-weight-path` задан) незаданное значение уходит в kt-kernel как `None` и попадает в целочисленное деление `cpuinfer_threads // threadpool_count` (`_get_cpu_infer` в `ktransformers/kt-kernel/python/experts_base.py`) — то есть значение обязано быть задано явно
-- Где объявлен: `ServerArgs.kt_cpuinfer`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_cpuinfer`
 - Статус: обычный, реализация целиком во внешнем пакете `kt_kernel`
 - Этап применения: создание синглтона `CPUInfer` при инициализации первого MoE-слоя
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --kt-weight-pa
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/kt_ep_wrapper.py`
 - `ktransformers/kt-kernel/python/experts_base.py`

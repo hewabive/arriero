@@ -34,7 +34,7 @@ The number of KV splits in flash decoding Triton kernel. Larger value is better 
 - Допустимые значения: `choices` нет; практический смысл имеют степени двойки, потому что и `_mla_decode_kv_splits_cap`, и планировщик split'ов округляют вверх до степени двойки
 - Значение по умолчанию: `8`
 - Эффективное значение: на ROCm `_handle_amd_specifics` в `__post_init__` безусловно переписывает поле на `16`, независимо от заданного значения. Дальше уже в backend'е (`TritonAttnBackend.__init__`) для MLA-моделей значение поднимается до `_mla_decode_kv_splits_cap(...)` — `max(заданное, min(next_pow2(число SM), next_pow2(ceil(context_len / 32))))`, а на gfx942 дополнительно ограничивается сверху 256. Если задан `--triton-attention-split-tile-size`, `max_kv_splits` пересчитывается из него как `ceil(context_len / split_tile_size)` и заданное здесь значение теряет силу
-- Где объявлен: `ServerArgs.triton_attention_num_kv_splits`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.triton_attention_num_kv_splits`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_amd_specifics` (ROCm) → конструктор `TritonAttnBackend` / `WaveAttnBackend` → выделение буферов CUDA graph → каждый decode-forward
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --decode-atten
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - `sglang/python/sglang/srt/layers/attention/wave_backend.py`

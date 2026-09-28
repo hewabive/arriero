@@ -36,7 +36,7 @@ Enable automatic SSL certificate hot-reloading when cert/key files change on dis
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: `False`, если `--tokenizer-worker-num > 1` — там ветка запуска просто пишет предупреждение и идет обычным путем `uvicorn.run(workers=N)`, не создавая `SSLCertRefresher`. Само поле `ServerArgs.enable_ssl_refresh` при этом остается `True`, так что дампу `server_args=` в этом вопросе доверять нельзя
-- Где объявлен: `ServerArgs.enable_ssl_refresh`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_ssl_refresh`
 - Статус: обычный
 - Этап применения: `__post_init__` → `_handle_ssl_validation` (парные проверки) → HTTP-слой, выбор ветки запуска в `_setup_and_run_http_server`
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`

@@ -33,7 +33,7 @@ Select DeepEP dispatcher output dtype
 - Допустимые значения: `auto`, `bf16`, `fp8`, `int8`, `nvfp4`
 - Значение по умолчанию: `auto`
 - Эффективное значение: явное значение стоит первым в цепочке `get_deepep_output_dtype` и перебивает все остальные шаги; после этого его еще может поправить проверка железа — на GPU `int8` заменяется на `fp8` с предупреждением, на Ascend `fp8` заменяется на `int8`, а `nvfp4` там отвергается `RuntimeError`
-- Где объявлен: `ServerArgs.deepep_dispatcher_output_dtype`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_dispatcher_output_dtype`
 - Статус: обычный
 - Этап применения: настройка квантизации диспетчера (`set_quant_config` при построении MoE-слоя) → каждый dispatch
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/layers/moe/token_dispatcher/deepep.py`

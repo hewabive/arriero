@@ -35,7 +35,7 @@ Choose the backend for MoE A2A.
 - Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp`, `flashinfer_megamoe` (константа `MOE_A2A_BACKEND_CHOICES`). `ascend_tp` принимается argparse, но `_handle_a2a_moe` немедленно заменяет его на `none` — в коде это помечено как обход падения точности
 - Значение по умолчанию: `none`
 - Эффективное значение: переопределяется `_a2a_backend_overrides` (Waterfill ⇒ `deepep`; переменная `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE` ⇒ `megamoe`), `_handle_dwdp` (DWDP ⇒ `none`) и правилом NPU (`none` на NPU и `ascend_tp` ⇒ `none`)
-- Где объявлен: `ServerArgs.moe_a2a_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.moe_a2a_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_a2a_moe`) → `initialize_moe_config` → создание диспетчера каждого MoE-слоя
 
@@ -121,6 +121,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --moe-a2a-backend 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`

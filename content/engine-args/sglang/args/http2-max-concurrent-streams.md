@@ -31,7 +31,7 @@ Maximum number of concurrent streams advertised on each HTTP/2 connection (1 to 
 - Тип значения: int
 - Значение по умолчанию: `200`
 - Допустимый диапазон: от `1` до `4294967295` включительно
-- Где объявлен: `ServerArgs.http2_max_concurrent_streams`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.http2_max_concurrent_streams`
 - Этап применения: SSL/HTTP validation → создание `granian.http.HTTP2Settings` → прием HTTP/2 streams
 
 ## Что меняет в движке
@@ -71,6 +71,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --enable-http2 --ht
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 

@@ -34,7 +34,7 @@ The match type for cache tree.
 - Допустимые значения: `BFS`, `PROB` — регистрозависимо, `bfs` argparse отвергнет
 - Значение по умолчанию: `BFS`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.speculative_ngram_match_type`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_match_type`
 - Статус: обычный; читается **только** при `--speculative-algorithm NGRAM`, в остальных конфигурациях инертен
 - Этап применения: конструктор `NGRAMWorker` → конструктор C++-объекта `Ngram` → каждый вызов `batchMatch` на decode-шаге
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/ngram_worker.py`

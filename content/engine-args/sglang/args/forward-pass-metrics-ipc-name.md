@@ -34,7 +34,7 @@ related:
 - Допустимые значения: `choices` нет; движок значение не валидирует, проверку выполняет `zmq.Socket.bind`
 - Значение по умолчанию: `null`
 - Эффективное значение: при `null` в `_init_fpm` создается `tempfile.NamedTemporaryFile(delete=False)`, адрес становится `ipc://<путь к этому файлу>` и записывается обратно в runtime-контекст через `get_context().override("metrics_reporter.ipc_endpoint", …)`. К итоговому базовому адресу в любом случае добавляется `.<dp_rank>`
-- Где объявлен: `ServerArgs.forward_pass_metrics_ipc_name`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_pass_metrics_ipc_name`
 - Статус: скрытый (`argparse.SUPPRESS`); контракт может измениться без предупреждения
 - Этап применения: конструктор `SchedulerMetricsReporter` (`_init_fpm`), только в процессе с `attn_tp_rank == 0` на последней PP-стадии
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --dp-size 2 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`
 - `sglang/python/sglang/srt/observability/forward_pass_metrics.py`

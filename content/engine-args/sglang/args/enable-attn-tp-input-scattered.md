@@ -35,7 +35,7 @@ Allow input of attention to be scattered when only using tensor parallelism, to 
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: само поле не переписывается ни одним `_handle_*`, но **фактическое включение** решается позже, уже в `AttnTpContext.init_context` по набору runtime-условий (см. ниже). Дамп `server_args=` покажет `True`, даже если оптимизация не активировалась
-- Где объявлен: `ServerArgs.enable_attn_tp_input_scattered`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_attn_tp_input_scattered`
 - Статус: обычный, оптимизационный
 - Этап применения: публикация в `ParallelState` → `AttnTpContext.init_context` при построении модели (там же строка в логе) → `use_input_scattered` на каждом forward
 
@@ -123,6 +123,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V2-Lite --tenso
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/communicator.py`
 - `sglang/python/sglang/srt/layers/dp_attention.py`

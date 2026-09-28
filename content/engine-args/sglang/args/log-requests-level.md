@@ -34,7 +34,7 @@ related:
 - Допустимые значения: `0`, `1`, `2`, `3` (жесткий `choices` в argparse)
 - Значение по умолчанию: `2`
 - Эффективное значение: совпадает с заданным; действует только при включенном `--log-requests`. Меняется на живом сервере через `POST /configure_logging`, и там `choices` уже не проверяется
-- Где объявлен: `ServerArgs.log_requests_level`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests_level`
 - Статус: обычный
 - Этап применения: инициализация `TokenizerManager` → каждый прием и каждое завершение запроса
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/utils/request_logger.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_base.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

@@ -33,7 +33,7 @@ Enforce shared experts fusion even when it would normally be disabled (e.g. unde
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: принудительно ставится в `true` при `--enable-waterfill` (`_handle_a2a_moe`)
-- Где объявлен: `ServerArgs.enforce_shared_experts_fusion`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enforce_shared_experts_fusion`
 - Статус: обычный
 - Этап применения: `__post_init__` (подстановка от Waterfill) → загрузка модели, внутри `shared_experts_fusion_disable_reason`
 
@@ -94,6 +94,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V4-Flash --tp-s
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/models/deepseek_v2.py`

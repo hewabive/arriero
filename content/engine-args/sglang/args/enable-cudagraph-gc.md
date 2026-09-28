@@ -35,7 +35,7 @@ Enable garbage collection during CUDA graph capture. If disabled (default), GC i
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false` (GC на время захвата заморожен)
 - Эффективное значение: не переопределяется нигде в `__post_init__`
-- Где объявлен: `ServerArgs.enable_cudagraph_gc`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_cudagraph_gc`
 - Статус: обычный
 - Этап применения: захват графов — контекст `freeze_gc(...)` в `DecodeCudaGraphRunner.capture()` и `PrefillCudaGraphRunner.capture()`
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-cudag
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`

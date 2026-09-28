@@ -33,7 +33,7 @@ Allocate this number of redundant experts in expert parallel.
 - Допустимые значения: не ограничены на уровне argparse; действует жесткое требование делимости (см. ниже)
 - Значение по умолчанию: `0`
 - Эффективное значение: не переопределяется; но `ExpertLocationMetadata._init_common` проверяет `num_physical_experts % ep_size == 0` ассертом, а часть моделей требует ровно `0`
-- Где объявлен: `ServerArgs.ep_num_redundant_experts`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_num_redundant_experts`
 - Статус: обычный
 - Этап применения: построение модели (размерность экспертных тензоров), инициализация метаданных расположения экспертов, каждый forward при активном remap
 
@@ -97,6 +97,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`
 - `sglang/python/sglang/srt/eplb/expert_location_dispatch.py`

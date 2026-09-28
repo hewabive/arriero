@@ -33,7 +33,7 @@ The input filename for dumping tensors
 - Допустимые значения: `choices` нет; формат и содержимое не валидируются
 - Значение по умолчанию: `null`
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Но фактическое срабатывание зависит от `skip_server_warmup`, который переписывают другие аргументы
-- Где объявлен: `ServerArgs.debug_tensor_dump_input_file`, файл — `sglang/python/sglang/srt/server_args.py`. Прямо над объявлением оставлен комментарий-напоминание о будущем удалении старого кода дампера — путь помечен авторами как устаревающий
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_input_file`. Прямо над объявлением оставлен комментарий-напоминание о будущем удалении старого кода дампера — путь помечен авторами как устаревающий
 - Статус: обычный, отладочный, с явной пометкой на удаление в исходниках
 - Этап применения: прогревочный запрос в `_execute_server_warmup` → завершение процесса в `_wait_and_warmup`
 
@@ -121,6 +121,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --debug-tensor
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/debug_utils/tensor_dump_forward_hook.py`

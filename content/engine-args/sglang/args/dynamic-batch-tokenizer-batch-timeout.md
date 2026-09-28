@@ -41,7 +41,7 @@ related:
 - Допустимые значения: `choices` нет; отдельной проверки диапазона в `check_server_args` нет
 - Значение по умолчанию: `0.002` (2 мс)
 - Эффективное значение: совпадает с заданным; переписывания нет. При выключенном `--enable-dynamic-batch-tokenizer` значение никуда не попадает — объект батчера не создается
-- Где объявлен: `ServerArgs.dynamic_batch_tokenizer_batch_timeout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.dynamic_batch_tokenizer_batch_timeout`
 - Статус: обычный
 - Этап применения: инициализация `TokenizerManager` — передается в `AsyncDynamicbatchTokenizer(..., batch_wait_timeout_s=...)`
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-4B --host 127.0.0.1 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/async_dynamic_batch_tokenizer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

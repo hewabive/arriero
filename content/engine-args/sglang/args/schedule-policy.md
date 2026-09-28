@@ -36,7 +36,7 @@ The scheduling policy of the requests.
 - Допустимые значения: `lpm`, `random`, `fcfs`, `dfs-weight`, `lof`, `priority`, `routing-key`, `hrrn`. Значение `priority` argparse примет, но реализации у него нет (см. «Типовые проблемы»)
 - Значение по умолчанию: `fcfs`
 - Эффективное значение: значение из CLI не переписывается, но **активная** политика может отличаться от заданной на каждом проходе: `SchedulePolicy._validate_and_adjust_policy` понижает кеш-зависимые политики до `fcfs`, если radix cache отключен, а `_determine_active_policy` понижает `lpm` до `fcfs`, пока в очереди больше 128 запросов
-- Где объявлен: `ServerArgs.schedule_policy`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.schedule_policy`
 - Статус: обычный
 - Этап применения: создание `SchedulePolicy` при инициализации планировщика → вызов `calc_priority` в начале каждой сборки prefill-батча
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --schedule-pol
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

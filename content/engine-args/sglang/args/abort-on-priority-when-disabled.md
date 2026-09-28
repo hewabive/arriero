@@ -32,7 +32,7 @@ If set, abort requests that specify a priority when priority scheduling is disab
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false` — поле `priority` молча игнорируется
 - Эффективное значение: не переопределяется; при включенном `--enable-priority-scheduling` ветка недостижима, и флаг ни на что не влияет (предупреждения при этом не печатается)
-- Где объявлен: `ServerArgs.abort_on_priority_when_disabled`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.abort_on_priority_when_disabled`
 - Статус: обычный
 - Этап применения: `Scheduler._set_or_validate_priority` — на каждом входящем запросе, до постановки в очередь
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --abort-on-pri
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/io_struct.py`

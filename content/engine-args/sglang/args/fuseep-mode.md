@@ -32,7 +32,7 @@ Select the mode when enable Ascend FuseEP MoE, 1 -> dispatch_gmm_combine_decode 
 - Допустимые значения: `1`, `2`
 - Значение по умолчанию: `2`
 - Эффективное значение: перед созданием `ServerArgs` функция `_apply_fuseep_mode_env_compat` подставляет значение устаревшей переменной окружения `SGLANG_NPU_FUSED_MOE_MODE`, если она выставлена **и** флага нет в командной строке. Переменная принимает только 1 и 2, иначе `ValueError: Wrong value of SGLANG_NPU_FUSED_MOE_MODE=..., the NPU only supports 1 or 2.`; при подстановке печатается предупреждение об устаревании. Подстановка живет в `prepare_server_args`, то есть работает на пути `python -m sglang.launch_server` / `sglang serve`, а не при программном создании `ServerArgs`
-- Где объявлен: `ServerArgs.fuseep_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.fuseep_mode`
 - Статус: обычный, но платформо-специфичный: за пределами Ascend NPU не читается
 - Этап применения: разбор CLI (совместимость с переменной окружения) → `process_weights_after_loading` (раскладка весов) → каждый forward MoE
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/hardware_backend/npu/moe/fuseep.py`
 - `sglang/python/sglang/srt/hardware_backend/npu/quantization/moe_methods.py`

@@ -35,7 +35,7 @@ The log and metrics reporting interval (in decode iterations) for decode batches
 - Допустимые значения: `choices` нет, границы не проверяются. Значение `0` приводит к делению на ноль на первой же decode-итерации
 - Значение по умолчанию: `40`
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.decode_log_interval`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.decode_log_interval`
 - Статус: обычный
 - Этап применения: конструктор `SchedulerMetricsReporter` (значение копируется в поле) → каждая decode-итерация
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-metrics
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/batch_result_processor.py`

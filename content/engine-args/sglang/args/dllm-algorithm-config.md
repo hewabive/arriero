@@ -35,7 +35,7 @@ The diffusion LLM algorithm configurations. Must be a YAML file.
 - Допустимые значения: путь к существующему YAML-файлу; никаких проверок расширения нет, содержимое читается `yaml.safe_load`
 - Значение по умолчанию: `null` — алгоритм работает на встроенных значениях
 - Эффективное значение: словарь из файла попадает в `DllmConfig.algorithm_config`; ключ `block_size` из него перекрывает значение из таблицы архитектур
-- Где объявлен: `ServerArgs.dllm_algorithm_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_algorithm_config`
 - Статус: обычный
 - Этап применения: `__post_init__` (при резолюции `--page-size` через `DllmConfig.from_server_args`) → инициализация scheduler'а (создание алгоритма)
 
@@ -130,6 +130,7 @@ python -m sglang.launch_server --model-path /models/LLaDA2.0-mini-preview --dllm
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/dllm/config.py`
 - `sglang/python/sglang/srt/dllm/algorithm/low_confidence.py`

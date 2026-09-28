@@ -30,7 +30,7 @@ DeepSeek-V4 sparse prefill backend. 'auto' and 'flashmla_sparse' use the existin
 - Группа: `exec.kernel`
 - Тип: `str`
 - Декларативный default: `"auto"`
-- Объявление: `ServerArgs.dsv4_prefill_backend` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsv4_prefill_backend`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -65,6 +65,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V4-Flash --attentio
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/deepseek_v4_backend.py`
 - `sglang/python/sglang/srt/layers/attention/dsv4/sparse_prefill_utils.py`

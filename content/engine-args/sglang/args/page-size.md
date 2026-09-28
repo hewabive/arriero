@@ -37,7 +37,7 @@ The number of tokens in a page.
 - Допустимые значения: `choices` нет; практически принимаются значения, которые переживут проверки backend'а и пула. Реально используемый набор — `1`, `16`, `32`, `64`, `128`, `256`
 - Значение по умолчанию: `null` — значит «подберет движок»
 - Эффективное значение: подбирается в несколько шагов и почти всегда отличается от `null`. Финальную подстановку делает `_handle_page_size` → `_page_size_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`): `1` на обычных платформах, `64` на MUSA, `64` на ROCm при `SGLANG_AITER_KV_CACHE_LAYOUT=vectorized_5d`. Но до нее уже отработали привязки к backend'у и к архитектуре модели (см. ниже) — они пишут значение и в том случае, когда оно задано вручную
-- Где объявлен: `ServerArgs.page_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.page_size`
 - Статус: обычный; поле помечено `resolvable=True`, то есть проходит через пайплайн деклараций `arg_groups/overrides.py`
 - Этап применения: `__post_init__` (подбор значения) → выделение KV-пула и создание аллокатора → построение radix cache → инициализация attention backend → каждая итерация планировщика
 
@@ -123,6 +123,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --attention-back
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

@@ -36,7 +36,7 @@ Disable the decode-phase CUDA graph. Convenience for --cuda-graph-backend-decode
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
 - Эффективное значение: в `_parse_cuda_graph_config` пишет `disabled` в `cuda_graph_config[decode].backend` и фиксирует пару `(decode, "backend")`. Перекрывается более поздним `--cuda-graph-backend-decode` и `--cuda-graph-config`
-- Где объявлен: `ServerArgs.disable_decode_cuda_graph`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_decode_cuda_graph`
 - Статус: обычный (это актуальная замена части контракта устаревшего `--disable-cuda-graph`, который гасит обе фазы сразу)
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_decode_graph` пропускает создание runner'а
 
@@ -97,6 +97,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --disable-deco
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

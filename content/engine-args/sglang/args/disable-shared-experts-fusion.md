@@ -35,7 +35,7 @@ Disable the built-in shared experts fusion optimization for DeepSeek V3/R1. Note
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: переписывается в `__post_init__` в обе стороны. В `true` — при `--moe-runner-backend` из набора `flashinfer_cutedsl`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed` (`_moe_runner_fusion_disable`) и при `--moe-a2a-backend flashinfer` (`_a2a_fusion_adjustments`), каждый раз с предупреждением в логе. В `false` — при `--enable-waterfill` с a2a `deepep`/`megamoe`
-- Где объявлен: `ServerArgs.disable_shared_experts_fusion`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.disable_shared_experts_fusion`
 - Статус: обычный
 - Этап применения: `__post_init__` → загрузка модели (`install_shared_experts_fusion_decision`, один раз на runner, до создания слоев)
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-R1 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`

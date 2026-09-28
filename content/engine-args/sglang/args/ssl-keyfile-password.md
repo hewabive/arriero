@@ -36,7 +36,7 @@ The password to decrypt the SSL keyfile.
 - Допустимые значения: не ограничены
 - Значение по умолчанию: `None` — ключ считается незашифрованным
 - Эффективное значение: совпадает с заданным; переписывания нет
-- Где объявлен: `ServerArgs.ssl_keyfile_password`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_keyfile_password`
 - Статус: обычный
 - Этап применения: `__post_init__` → `_handle_ssl_validation` (проверка осмысленности) → HTTP-слой (`uvicorn.run(ssl_keyfile_password=...)` либо `Granian(ssl_key_password=...)`)
 
@@ -110,6 +110,7 @@ openssl rsa -in /etc/ssl/sglang/server-encrypted.key -out /etc/ssl/sglang/server
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`

@@ -34,7 +34,7 @@ Enable the page-major KV layout: lay out the Mamba state and full/SWA KV caches 
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false`
 - Эффективное значение: принудительно становится `true` при `--enable-unified-memory` (`_handle_page_major_kv_layout`); для draft-воркера в связке с unified-пулом, наоборот, принудительно отключается — draft читает обычную пер-слойную раскладку
-- Где объявлен: `ServerArgs.enable_page_major_kv_layout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_page_major_kv_layout`
 - Статус: обычный флаг, но узкий по совместимости; список разрешенных бэкендов в коде помечен как результат поэтапного аудита
 - Этап применения: `__post_init__` (`_handle_page_major_kv_layout`) → выбор класса KV-пула при инициализации model runner → forward
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/qwen3-next-hybrid --enable-p
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

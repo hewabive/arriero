@@ -27,7 +27,7 @@ Domino only. Size of the approximate block-shared base-logit candidate pool. Set
 - Группа: `spec`
 - Тип: `int`
 - Значение в декларации по умолчанию: `2048`
-- Объявление: `ServerArgs.speculative_domino_candidate_pool_size` в `sglang/python/sglang/srt/arg_groups/fields/spec.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_domino_candidate_pool_size`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

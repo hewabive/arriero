@@ -38,7 +38,7 @@ Explicit list of batch sizes to capture for the decode cuda graph.
 - Допустимые значения: положительные целые; argparse содержимое списка не проверяет
 - Значение по умолчанию: `null` — список генерируется из `cuda_graph_config[decode].max_bs`
 - Эффективное значение: если список задан, `_handle_gpu_memory_settings` ставит `decode.max_bs = max(bs)`; на `--device cpu` вместо этого `torch_compile_max_bs = max(bs)`. Затем `get_batch_sizes_to_capture` фильтрует список по выравниванию и по размеру `req_to_token_pool`, добавляет туда фактический предел запросов, сортирует и дедуплицирует
-- Где объявлен: `ServerArgs.cuda_graph_bs_decode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_bs_decode`
 - Статус: обычный; прежний общий флаг размера decode-батча удалён
 - Этап применения: разбор CLI → `__post_init__` → `get_batch_sizes_to_capture` → захват графов
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`

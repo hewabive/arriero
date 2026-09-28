@@ -38,7 +38,7 @@ Override the kernel backend for linear attention decode. If not set, uses --line
 - Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu` (общий список; `helion` — decode только для KDA)
 - Значение по умолчанию: `null` — берется `--linear-attn-backend`
 - Эффективное значение: `_handle_linear_attn_backend` может записать `flashinfer` (SM100+ и `--mamba-ssm-dtype bfloat16`) либо `triton` (при унаследованном `flashkda`); обе подстановки печатают info-строку
-- Где объявлен: `ServerArgs.linear_attn_decode_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_decode_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend`) → создание backend'а внимания → каждый decode-шаг линейных слоев
 
@@ -134,6 +134,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/linear/utils.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`

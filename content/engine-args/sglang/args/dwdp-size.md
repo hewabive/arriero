@@ -41,7 +41,7 @@ DWDP (Distributed Weight Data Parallelism) group size. When > 1, MoE prefill use
 - Допустимые значения: `1` (выключено) либо ровно `tp_size` (и при этом `>= 2`)
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным, но **сам аргумент переписывает шесть других полей** (`_handle_dwdp`, см. ниже)
-- Где объявлен: `ServerArgs.dwdp_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dwdp_size`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_dwdp`) → `ModelRunner.maybe_init_dwdp` (создание `DwdpManager`, раскладка экспертов, обмен хендлами) → префетч первых слоев при прогреве → forward MoE-слоев
 
@@ -147,6 +147,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-235B-A22B --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/dwdp/dwdp_manager.py`
 - `sglang/python/sglang/srt/layers/moe/dwdp/layout.py`

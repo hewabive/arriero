@@ -37,7 +37,7 @@ The interval to track the mamba state during decode.
 - Допустимые значения: argparse ограничений не накладывает; фактические ограничения приходят из проверок стратегии `extra_buffer` (см. ниже)
 - Значение по умолчанию: `256`
 - Эффективное значение: совпадает с заданным; автоподбора нет
-- Где объявлен: `ServerArgs.mamba_track_interval`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_track_interval`
 - Этап применения: `__post_init__` (валидация в `_validate_mamba_extra_buffer`) → формирование каждого decode-батча (`ScheduleBatch.prepare_for_decode`) → decode-ядро линейного внимания → обработка результата батча
 
 ## Что меняет в движке
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/schedule_batch.py`
 - `sglang/python/sglang/srt/layers/attention/hybrid_linear_attn_backend.py`

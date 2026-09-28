@@ -33,7 +33,7 @@ Number of iterations to automatically trigger a EPLB re-balance.
 - Допустимые значения: `choices` нет; ограничение только относительное — не меньше `--expert-distribution-recorder-buffer-size`
 - Значение по умолчанию: `1000`
 - Эффективное значение: не переопределяется, но само становится дефолтом для `--expert-distribution-recorder-buffer-size` (`_handle_expert_distribution_metrics`)
-- Где объявлен: `ServerArgs.eplb_rebalance_num_iterations`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_rebalance_num_iterations`
 - Статус: обычный
 - Этап применения: `__post_init__` (как дефолт буфера) → конструктор `EPLBManager` → конец каждого forward-прохода
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

@@ -37,7 +37,7 @@ Override the model name returned by the v1/models endpoint in OpenAI API server.
 - Допустимые значения: `choices` нет. Единственное ограничение — отсутствие символа `:`, если значение не является URI объектного хранилища (`is_runai_obj_uri`)
 - Значение по умолчанию: `None`
 - Эффективное значение: **переопределяется всегда, когда не задано**. `__post_init__` → `_handle_missing_default_values` выполняет `if self.served_model_name is None: self.served_model_name = self.model_path`. Кроме того, значение меняется в рантайме: успешный `POST /update_weights_from_disk` вызывает `_update_model_path_info`, который присваивает `served_model_name = <новый model_path>`
-- Где объявлен: `ServerArgs.served_model_name`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.served_model_name`
 - Статус: обычный
 - Этап применения: `__post_init__` (подстановка дефолта) → `check_server_args` (проверка двоеточия) → HTTP-слой (`/v1/models`, ollama-маршруты) и подключение HiCache-хранилища
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --served-mod
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_base.py`

@@ -34,7 +34,7 @@ Enable P2P check for GPU access, otherwise the p2p access is allowed by default.
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False` — то есть **проверка отключена**, а P2P считается доступным
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.enable_p2p_check`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_p2p_check`
 - Статус: обычный
 - Этап применения: `init_torch_distributed`, до создания групп и до инициализации custom all-reduce
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/custom_all_reduce_utils.py`

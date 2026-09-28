@@ -29,7 +29,7 @@ Select FlashInfer A2A dispatcher activation dtype.
 - Группа: `exec.moe`
 - Тип: `enum`
 - Значение в декларации по умолчанию: `null`
-- Объявление: `ServerArgs.flashinfer_a2a_dispatch_type` в `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.flashinfer_a2a_dispatch_type`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

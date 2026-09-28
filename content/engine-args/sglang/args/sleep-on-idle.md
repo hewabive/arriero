@@ -34,7 +34,7 @@ Reduce CPU usage when sglang is idle.
 - Допустимые значения: флаг без значения; парного `--no-sleep-on-idle` нет
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным. Дополнительное условие включения — ранг: `IdleSleeper` создается только при `pp_rank == 0 and attn_tp_rank == 0 and attn_cp_rank == 0`, то есть на «ведущих» scheduler'ах, читающих сокеты от tokenizer'а и RPC. Прочие ранги продолжают крутиться
-- Где объявлен: `ServerArgs.sleep_on_idle`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.sleep_on_idle`
 - Статус: обычный
 - Этап применения: конструктор `Scheduler` (`init_idle_sleeper`), действует на каждом проходе цикла событий
 
@@ -97,6 +97,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/idle_sleeper.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/server_args.py`

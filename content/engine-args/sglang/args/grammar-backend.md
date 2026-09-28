@@ -34,7 +34,7 @@ Choose the backend for grammar-guided decoding.
 - Допустимые значения (из `choices`): `xgrammar`, `outlines`, `llguidance`, `none`. Список — константа `GRAMMAR_BACKEND_CHOICES`, расширяемая функцией `add_grammar_backend_choices`; кроме того, `register_grammar_backend` (`sglang/python/sglang/srt/constrained/base_grammar_backend.py`) позволяет подменить любое имя своей реализацией — реестр `GRAMMAR_BACKEND_REGISTRY` проверяется раньше встроенных веток
 - Значение по умолчанию: `null`
 - Эффективное значение: `_handle_grammar_backend` в `__post_init__` подставляет `xgrammar`, если значение не задано. Второе переопределение происходит уже в рабочем процессе: если токенизатор модели не поддерживается XGrammar, backend молча становится `none` через `get_context().override("grammar.import_fallback", grammar_backend="none")`
-- Где объявлен: `ServerArgs.grammar_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.grammar_backend`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_grammar_backend` в `__post_init__` → `create_grammar_backend` при инициализации планировщика → компиляция грамматики на пул потоков при первом запросе с ограничением → применение маски словаря на каждом шаге декодирования
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --grammar-back
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/constrained/base_grammar_backend.py`
 - `sglang/python/sglang/srt/constrained/grammar_manager.py`

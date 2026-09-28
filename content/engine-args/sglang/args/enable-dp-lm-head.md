@@ -36,7 +36,7 @@ Enable vocabulary parallel across the attention TP group to avoid all-gather acr
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: принудительно `False`, если `dp_size == 1` и `ep_join_mode != "scale"` (`_data_parallelism_defaults`); принудительно `True` при `--dwdp-size > 1` (`_handle_dwdp`). Проверка `_dp_lm_head_validation` требует, чтобы к моменту валидации `enable_dp_attention` был истинным. Поле помечено `resolvable=True`
-- Где объявлен: `ServerArgs.enable_dp_lm_head`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_lm_head`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_data_parallelism` → `_dp_lm_head_validation`) → построение модели (`LogitsProcessor`, головы конкретных архитектур) → каждый forward на шаге сэмплирования
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tensor-paral
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`

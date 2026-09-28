@@ -38,7 +38,7 @@ The path of the tokenizer.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `None`
 - Эффективное значение: **переопределяется всегда, когда не задано.** `__post_init__` → `_handle_missing_default_values`: `if self.tokenizer_path is None: self.tokenizer_path = self.model_path`. Дополнительно значение переписывается при `SGLANG_USE_MODELSCOPE=1` (`_handle_modelscope_paths` скачивает snapshot с `ignore_patterns=["*.bin", "*.safetensors"]`, то есть только файлы токенизатора) и предварительно прогревается `_handle_model_source_paths`, если это `s3://`/`gs://`/`az://`
-- Где объявлен: `ServerArgs.tokenizer_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_path`
 - Статус: обычный
 - Этап применения: `__post_init__` (подстановка и резолв путей) → инициализация процессов tokenizer, detokenizer, scheduler и tp-worker — каждый читает токенизатор независимо
 
@@ -114,6 +114,7 @@ python -m sglang.launch_server --model-path /models/converted/qwen3-30b-weights 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/tokenizer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

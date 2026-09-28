@@ -39,7 +39,7 @@ The file path to the SSL certificate file.
 - Допустимые значения: `choices` нет; путь обязан указывать на файл, `os.path.isfile` проверяется на этапе `__post_init__`
 - Значение по умолчанию: `None` — TLS выключен, сервер слушает обычный HTTP
 - Эффективное значение: совпадает с заданным; переписывания нет. Влияет на производные: `ServerArgs.url()` выбирает схему `https`, `ServerArgs.ssl_verify()` возвращает `False` (с предупреждением) вместо `True`, если не задан `--ssl-ca-certs`
-- Где объявлен: `ServerArgs.ssl_certfile`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_certfile`
 - Статус: обычный
 - Этап применения: `__post_init__` → `_handle_ssl_validation` (парная проверка и существование файла) → HTTP-слой (`uvicorn.run(ssl_certfile=...)` либо `Granian(ssl_cert=...)`)
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`

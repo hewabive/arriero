@@ -33,7 +33,7 @@ The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' 
 - Допустимые значения: `lru`, `lfu`, `slru`, `priority`. Список — константа `RADIX_EVICTION_POLICY_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_radix_eviction_policy_choices` позволяет сторонним пакетам его расширить, поэтому итоговый набор проверяйте по `--help` установленной сборки
 - Значение по умолчанию: `lru`
 - Эффективное значение: не переопределяется в `__post_init__`
-- Где объявлен: `ServerArgs.radix_eviction_policy`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_eviction_policy`
 - Статус: обычный
 - Этап применения: конструктор дерева кеша (через `CacheInitParams.eviction_policy`) → каждый проход вытеснения
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --radix-evicti
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/evict_policy.py`
 - `sglang/python/sglang/srt/mem_cache/utils.py`

@@ -35,7 +35,7 @@ Pre-warm NCCL/RCCL communicators during startup to reduce P99 TTFT cold-start la
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: единственное переопределение — сброс в `False` на платформе вне CUDA/HIP/NPU (`_handle_nccl_pre_warm`) с предупреждением `pre_warm_nccl is only applicable for CUDA or HIP hardware or NPU hardware. Ignoring pre_warm_nccl setting on current hardware.` Обещанного справкой автоматического включения на AMD в коде checkout'а нет: ни `_handle_amd_specifics`, ни реестр `arg_groups/overrides.py`, ни платформенные хуки поля не трогают. Если вам нужен прогрев на ROCm — задавайте флаг явно
-- Где объявлен: `ServerArgs.pre_warm_nccl`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.pre_warm_nccl`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (`_handle_nccl_pre_warm`) → `init_torch_distributed` после `_init_parallel_groups`, до загрузки весов
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

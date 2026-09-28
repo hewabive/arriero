@@ -39,7 +39,7 @@ Enable async dynamic batch tokenizer for improved performance when multiple requ
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: **принудительно `False`** при `--skip-tokenizer-init` (предупреждение `skip_tokenizer_init=True ignores --enable-dynamic-batch-tokenizer; disabling it.`). Кроме того, объект не создается, если `skip_tokenizer_init` истинно, даже минуя этот сброс: условие в `TokenizerManager` — `enable_dynamic_batch_tokenizer and not skip_tokenizer_init`
-- Где объявлен: `ServerArgs.enable_dynamic_batch_tokenizer`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_dynamic_batch_tokenizer`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_tokenizer_batching`) → инициализация `TokenizerManager` в каждом HTTP-процессе → обработка каждого запроса в `_tokenize_texts`
 
@@ -141,6 +141,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-4B --host 127.0.0.1 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/async_dynamic_batch_tokenizer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

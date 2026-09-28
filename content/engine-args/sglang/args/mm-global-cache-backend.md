@@ -33,7 +33,7 @@ Storage backend for the multimodal global embedding cache. Used when --enable-mm
 - Тип значения: строка
 - Допустимые значения: `mooncake`
 - Значение по умолчанию: `mooncake`
-- Где объявлен: `ServerArgs.mm_global_cache_backend`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_global_cache_backend`
 - Этап применения: инициализация multimodal encode server → `EmbeddingStoreFactory.create_backend` → lookup/prefetch/insert для каждого embedding
 
 ## Что меняет в движке
@@ -79,6 +79,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encod
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`
 - `sglang/python/sglang/srt/mem_cache/embedding_store.py`

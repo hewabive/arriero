@@ -36,7 +36,7 @@ Use rejection sampling for speculative decoding (requires topk=1).
 - Допустимые значения: наличие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; вместо этого несовместимая конфигурация приводит к отказу на старте
-- Где объявлен: `ServerArgs.speculative_use_rejection_sampling`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_use_rejection_sampling`
 - Статус: обычный
 - Этап применения: `handle_speculative_decoding` → `_handle_eagle_family` (проверки) → инициализация spec-воркера (проверка словарей) → захват draft CUDA graph (дополнительный статический буфер) → forward и верификация
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --speculative-al
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/eagle_worker_v2.py`

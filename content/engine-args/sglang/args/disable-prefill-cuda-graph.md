@@ -37,7 +37,7 @@ Disable the prefill-phase CUDA graph. Convenience for --cuda-graph-backend-prefi
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
 - Эффективное значение: в `_parse_cuda_graph_config` пишет `disabled` в `cuda_graph_config[prefill].backend` и фиксирует пару `(prefill, "backend")`. Перекрывается более поздним `--cuda-graph-backend-prefill` и `--cuda-graph-config`
-- Где объявлен: `ServerArgs.disable_prefill_cuda_graph`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_prefill_cuda_graph`
 - Статус: обычный. Устаревший аналог — `--cuda-graph-backend-prefill disabled` (транслируется в `--cuda-graph-backend-prefill=disabled`), а `--disable-cuda-graph` гасит сразу обе фазы
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_prefill_graph` направляет prefill в `EagerRunner`
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --disable-pref
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

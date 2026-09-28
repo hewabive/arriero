@@ -33,7 +33,7 @@ JSON config for ModelExpress P2P weight loading. Keys: "url" (optional gRPC host
 - Допустимые значения: ключи `url` (строка `host:port`) и `transport` (`nixl` либо `transfer_engine`); список ключей нигде не валидируется — лишние молча игнорируются
 - Значение по умолчанию: `null`
 - Эффективное значение: разбирается ленивым свойством `_parsed_modelexpress_config` (результат кешируется в `_mx_config_cache`); отсутствующий `transport` подставляется как `nixl`, отсутствующий `url` остается `None` и означает «использовать дефолт клиента ModelExpress»
-- Где объявлен: `ServerArgs.modelexpress_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.modelexpress_config`
 - Статус: обычный, интеграция с внешним пакетом
 - Этап применения: построение `LoadConfig` и выбор ветки загрузчика `RemoteInstanceModelLoader`
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

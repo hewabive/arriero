@@ -32,7 +32,7 @@ If set, the server will wait for initial weights to be loaded via checkpoint-eng
 - Допустимые значения: присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.checkpoint_engine_wait_weights_before_ready`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.checkpoint_engine_wait_weights_before_ready`
 - Статус: обычный, узкая интеграция с внешним инструментом
 - Этап применения: инициализация tokenizer manager (сброс `initial_weights_loaded`) и `_wait_and_warmup` в HTTP-слое перед прогревом
 
@@ -106,6 +106,7 @@ SGLANG_WAIT_WEIGHTS_READY_TIMEOUT=600 python -m sglang.launch_server --model-pat
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

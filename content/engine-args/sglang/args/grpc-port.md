@@ -43,7 +43,7 @@ Port for the native gRPC server, started alongside HTTP. Setting this (or SGLANG
 - Допустимые значения: `choices` нет; после разбора проверяется диапазон `1 … 65535`
 - Значение по умолчанию: `null` — нативный gRPC выключен
 - Эффективное значение: переопределяется дважды. (1) Если аргумент не задан, а переменная окружения `SGLANG_GRPC_PORT` установлена, значение берется из нее. (2) В legacy-режиме при всё еще пустом значении подставляется `--port + 10000`
-- Где объявлен: `ServerArgs.grpc_port`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_port`
 - Статус: обычный
 - Этап применения: `__post_init__` (вывод значения и все проверки совместимости) → `lifespan` HTTP-сервера, запуск нативного gRPC до прогрева
 
@@ -157,6 +157,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --port 30000 -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/sidecar.py`

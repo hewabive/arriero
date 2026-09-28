@@ -32,7 +32,7 @@ Choose the kernels for sampling layers.
 - Допустимые значения (runtime choices): `flashinfer`, `pytorch`, `ascend`. В исходниках это множество `SAMPLING_BACKEND_CHOICES`, в которое дополнительно попадает `token_oracle` при `SGLANG_KV_CANARY_ENABLE_TOKEN_ORACLE=1`, а внешний код может зарегистрировать свой backend через `register_sampler_backend` (`sglang/python/sglang/srt/layers/sampler.py`). Реальный список для вашей сборки — в `--help`
 - Значение по умолчанию: выражение `_declared_default("sampling_backend")`, которое раскрывается в `None` — «подберет движок»
 - Эффективное значение: `_sampling_backend_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`) подставляет `flashinfer`, если FlashInfer доступен, иначе `pytorch`. Дальше значение может быть перезаписано: `--device cpu` и `--device hpu` жестко ставят `pytorch` (даже поверх явно заданного значения), а `--enable-deterministic-inference` через `_deterministic_sampling_backend` ставит `pytorch` для всего, кроме `ascend`, с логом `Sampling backend is set to pytorch for deterministic inference.`
-- Где объявлен: `ServerArgs.add_cli_args` (поле `ServerArgs.sampling_backend` помечено `no_cli=True`), файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args` (поле `ExecKernel.sampling_backend` в `sglang/python/sglang/srt/arg_groups/fields/exec_.py` помечено `no_cli=True`)
 - Статус: обычный; CLI choices собираются при регистрации parser
 - Этап применения: разбор CLI → платформенные обработчики `__post_init__` → `_handle_sampling_backend` → создание `Sampler` в model runner (`create_sampler`) → каждый шаг сэмплирования
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --sampling-bac
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/sampler.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

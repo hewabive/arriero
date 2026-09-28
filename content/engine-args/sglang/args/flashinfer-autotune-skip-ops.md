@@ -33,7 +33,7 @@ FlashInfer custom-op identifiers to skip during autotuning. Skipped ops use Flas
 - Допустимые значения: `choices` нет и быть не может — это идентификаторы custom-op из установленного пакета FlashInfer, которые передаются как есть в `flashinfer.autotuner.autotune(..., skip_ops=…)`. SGLang их не валидирует и не перечисляет; смотрите реестр автотюнера в своей версии FlashInfer (неизвестное имя просто ни на что не подействует)
 - Значение по умолчанию: `null` — пустой набор
 - Эффективное значение: `get_flashinfer_autotune_skip_ops` объединяет заданный список с константой `FLASHINFER_AUTOTUNE_WORKAROUND_SKIPS`. **В checkout'е, по которому снят extract, эта константа пуста** (`frozenset()`), то есть фраза справки про «SGLang temporarily skips mxfp8_gemm by default» устарела: `mxfp8_gemm` убрали из набора коммитом `e226bb711c` от 9 августа 2026
-- Где объявлен: `ServerArgs.flashinfer_autotune_skip_ops`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.flashinfer_autotune_skip_ops`
 - Статус: обычный
 - Этап применения: разбор CLI → `warmup()` в `BaseRunner` (только если автотюнинг вообще запускается) → путь кеша тактик → контекст `flashinfer.autotuner.autotune`
 
@@ -94,6 +94,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-R1-FP4 --quantizati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner/flashinfer_autotune.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`

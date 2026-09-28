@@ -40,7 +40,7 @@ The maximum number of running requests.
 - Допустимые значения: положительное целое; проверки на положительность в argparse нет
 - Значение по умолчанию: `null` — вычисляется после выделения KV-пула
 - Эффективное значение: `48` при любом включенном `--speculative-algorithm` (все хуки в `arg_groups/speculative_hook.py` пишут это с предупреждением `Max running requests is reset to 48 for speculative decoding`); иначе — `resolve_max_num_reqs` (см. ниже); дополнительно ограничивается mamba-пулом и повторным расчетом после захвата CUDA graph
-- Где объявлен: `ServerArgs.max_running_requests`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_running_requests`
 - Статус: обычный
 - Этап применения: `__post_init__` (только спекулятивная подстановка) → выделение KV-пула (`KVCacheConfigurator.resolve_max_num_reqs`) → `Scheduler` (admission)
 
@@ -131,6 +131,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --max-running-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/model_executor/pool_configurator.py`

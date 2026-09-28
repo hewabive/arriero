@@ -35,6 +35,7 @@ import {
   getSourceRepositorySpec,
   getSourceRepositoryStatus,
   saveSourceRepositoryOrigin,
+  sourceCheckoutProblems,
 } from "./repository.js";
 
 function resetSettings(value: unknown = {}) {
@@ -368,6 +369,57 @@ test("pull fast-forwards a branch-tracking source", async () => {
   assert.equal(pulled.status.currentCommit, nextCommit);
   assert.equal(pulled.status.branch, "main");
   assert.equal(pulled.status.tracking, "branch");
+});
+
+test("a checkout its tracking policy selected has no preparation problems", async () => {
+  const origin = createVllmOriginRepository("vllm-prepared-origin");
+  commitOriginRevision(origin, "release 0.2.0", "v0.2.0");
+  await cloneSourceRepository("vllm", {
+    originUrl: pathToFileURL(origin).href,
+    branch: null,
+  });
+
+  assert.deepEqual(await sourceCheckoutProblems("vllm"), []);
+});
+
+test("preparation problems name a foreign origin, an older release and local edits", async () => {
+  const origin = createVllmOriginRepository("vllm-unprepared-origin");
+  commitOriginRevision(origin, "release 0.2.0", "v0.2.0");
+  const cloned = await cloneSourceRepository("vllm", {
+    originUrl: pathToFileURL(origin).href,
+    branch: null,
+  });
+  const repoPath = cloned.status.repoPath;
+  runFixtureGit(repoPath, ["checkout", "--detach", "v0.1.0"]);
+  runFixtureGit(repoPath, [
+    "remote",
+    "set-url",
+    "origin",
+    "https://example.invalid/vllm.git",
+  ]);
+
+  assert.deepEqual(await sourceCheckoutProblems("vllm"), [
+    `origin is https://example.invalid/vllm.git, not ${pathToFileURL(origin).href}`,
+    "HEAD is not the newest stable release v0.2.0",
+  ]);
+
+  writeFileSync(resolve(repoPath, "vllm", "engine", "arg_utils.py"), "X = 1\n");
+  assert.deepEqual(await sourceCheckoutProblems("vllm"), [
+    "the worktree has uncommitted changes",
+  ]);
+});
+
+test("a branch-tracking checkout on a detached HEAD is not prepared", async () => {
+  const origin = createLlamaOriginRepository("llama-detached-origin");
+  const cloned = await cloneSourceRepository(LLAMA_CPP_SOURCE_ID, {
+    originUrl: pathToFileURL(origin).href,
+    branch: null,
+  });
+  runFixtureGit(cloned.status.repoPath, ["checkout", "--detach", "HEAD"]);
+
+  assert.deepEqual(await sourceCheckoutProblems(LLAMA_CPP_SOURCE_ID), [
+    "HEAD is detached, and the checkout follows a branch",
+  ]);
 });
 
 test("saving an unchanged origin does not rewrite settings.json", () => {

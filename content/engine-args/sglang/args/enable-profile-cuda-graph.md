@@ -36,7 +36,7 @@ Enable profiling of cuda graph capture.
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется в `__post_init__`
-- Где объявлен: `ServerArgs.enable_profile_cuda_graph`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_profile_cuda_graph`
 - Статус: обычный, диагностический
 - Этап применения: захват графов — `DecodeCudaGraphRunner.capture()` и одноименные методы спекулятивных и CPU-runner'ов
 
@@ -106,6 +106,7 @@ SGLANG_GRAPH_BATCH_CAPTURE=1 SGLANG_TORCH_PROFILER_DIR=/var/tmp/sglang-profile p
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/full_cuda_graph_backend.py`

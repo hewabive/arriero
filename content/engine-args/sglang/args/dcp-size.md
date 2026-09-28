@@ -37,7 +37,7 @@ The decode context parallelism size.
 - Допустимые значения: `choices` нет; проверка `dcp_size >= 1` в `_handle_dcp_validation`. Практически должен делить `tp_size` — группы нарезаются срезами по `dcp_size` внутри каждой TP-группы
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным. Runtime-величина `attn_dcp_size` равна `dcp_size` только когда DCP-группа действительно создана (`dcp_size > 1`), иначе `1`. Для DeepSeek-V4/Kimi-K3 включение DCP тянет за собой автоматический выбор backend'ов внимания и `--dcp-comm-backend` (см. `arg_groups/overrides.py`)
-- Где объявлен: `ServerArgs.dcp_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_size`
 - Статус: обычный
 - Этап применения: `_handle_dcp_validation` → `_handle_cuda_graph_config` (отключение prefill-графа) → `initialize_model_parallel` (создание группы `dcp`) → расчет KV-пула → forward на decode
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
 - `sglang/python/sglang/srt/configs/model_config.py`

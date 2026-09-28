@@ -37,7 +37,7 @@ Read CLI options from a config file. Must be a YAML file with configuration opti
 - Допустимые значения: путь к существующему файлу с расширением `.yaml` или `.yml`
 - Значение по умолчанию: `null` (файл не читается)
 - Эффективное значение: значение никуда не сохраняется — в `ServerArgs` нет поля `config`, и `from_cli_args` его отбрасывает. Единственный эффект — подстановка аргументов до разбора
-- Где объявлен: `ServerArgs.add_cli_args`, файл — `sglang/python/sglang/srt/server_args.py`; вся логика слияния — `sglang/python/sglang/srt/server_args_config_parser.py`
+- Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`; вся логика слияния — `sglang/python/sglang/srt/server_args_config_parser.py`
 - Статус: обычный
 - Этап применения: до разбора CLI, в `prepare_server_args`; на `__post_init__` и дальше уже никак не влияет
 

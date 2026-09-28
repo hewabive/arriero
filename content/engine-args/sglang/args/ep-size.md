@@ -39,7 +39,7 @@ The expert parallelism size.
 - Допустимые значения: `choices` нет; делители `tp_size`, ограниченные соотношением `ep_size * moe_dp_size <= tp_size`
 - Значение по умолчанию: `1`
 - Эффективное значение: переписывается регулярно. `_a2a_ep_size` ставит `ep_size = tp_size` для всех a2a-backend'ов, кроме `none` (в лог идет `… MoE is enabled. The expert parallel size is adjusted from N to the tensor parallel size [M].`); `_handle_dwdp` ставит `ep_size = dwdp_size`; MLA CP и zigzag DSA CP выставляют `ep_size = tp_size`. Поле помечено `resolvable=True`, промежуточные обработчики читают его через `_resolved()`
-- Где объявлен: `ServerArgs.ep_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.ep_size`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_context_parallelism` → `_handle_a2a_moe` → `_handle_eplb_and_dispatch` → `_handle_elastic_ep`) → `initialize_model_parallel(expert_model_parallel_size=…)` → загрузка весов экспертов → каждый forward MoE-слоя
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

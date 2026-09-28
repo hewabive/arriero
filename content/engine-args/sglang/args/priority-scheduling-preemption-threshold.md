@@ -35,7 +35,7 @@ Minimum difference in priorities for an incoming request to have to preempt runn
 - Допустимые значения: не ограничены; проверок при старте нет
 - Значение по умолчанию: `10`
 - Эффективное значение: не переопределяется; `__post_init__` это поле не читает
-- Где объявлен: `ServerArgs.priority_scheduling_preemption_threshold`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.priority_scheduling_preemption_threshold`
 - Статус: обычный; без `--enable-priority-scheduling` не используется, предупреждения при этом не печатается
 - Этап применения: передается в `PrefillAdder` при каждой сборке prefill-батча, используется в `preempt_to_schedule`
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-prior
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

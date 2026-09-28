@@ -40,7 +40,7 @@ The default kernel backend for linear attention (GDN/KDA). Can be overridden per
 - Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu` (константа `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`; out-of-tree пакеты могут расширить список через `add_linear_attn_kernel_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки). Не всякое значение применимо к обеим семьям ядер — см. ниже
 - Значение по умолчанию: `triton`
 - Эффективное значение: само значение не переписывается, но производные могут: `--linear-attn-decode-backend` автоматически становится `flashinfer` на SM100+ при явном `--mamba-ssm-dtype bfloat16`, а унаследованный из базы `flashkda` в decode заменяется на `triton` с записью в лог
-- Где объявлен: `ServerArgs.linear_attn_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend`) → создание backend'а внимания (`attention_registry.py`, `initialize_linear_attn_config`) → каждый forward линейных слоев
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/linear/utils.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`

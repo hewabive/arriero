@@ -34,7 +34,7 @@ When enabled, adaptively dispatch: multi-image requests go to encoder in languag
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false` — диспетчеризуются все мультимодальные запросы
 - Эффективное значение: совпадает с заданным; движок его не переписывает
-- Где объявлен: `ServerArgs.enable_adaptive_dispatch_to_encoder`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.enable_adaptive_dispatch_to_encoder`
 - Статус: обычный
 - Этап применения: разбор CLI → создание MM-processor'а (флаг задает `skip_mm_pool`) → на каждом мультимодальном запросе в `_handle_epd_disaggregation_encode_request` → на форварде при сборке эмбеддингов (`managers/mm_utils.py`)
 
@@ -110,6 +110,7 @@ SGLANG_ENCODER_DISPATCH_MIN_ITEMS=4 python -m sglang.launch_server --model-path 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/mm_utils.py`

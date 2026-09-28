@@ -40,7 +40,7 @@ The path of the draft model weights. This can be a local folder or a Hugging Fac
 - Допустимые значения: не ограничены argparse; существование пути проверяет уже загрузчик
 - Значение по умолчанию: `null`
 - Эффективное значение: для EAGLE-семейства на архитектурах с MTP-головами (`DeepseekV3/V32/V4ForCausalLM`, `Glm4MoeForCausalLM`, `Glm4MoeLiteForCausalLM`, `GlmMoeDsaForCausalLM`, `BailingMoe*`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration`, `HYV3ForCausalLM`) подставляется `--model-path` вместе с `--revision`; для `DSPARK` то же самое происходит, если целевой чекпоинт несёт ключи `dspark_*`. При `SGLANG_USE_MODELSCOPE=1` путь дополнительно резолвится/скачивается через ModelScope
-- Где объявлен: `ServerArgs.speculative_draft_model_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_path`
 - Статус: обычный
 - Этап применения: `__post_init__` (`handle_speculative_decoding` → `_handle_*`, `_handle_missing_default_values`, `_handle_model_source_paths`) → расчёт KV-пула → создание draft-воркера
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --spec
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`

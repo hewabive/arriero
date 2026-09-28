@@ -35,7 +35,7 @@ related:
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `_handle_deprecated_args` переносит `True` в `smg_grpc_mode` и печатает предупреждение. Само поле `grpc_mode` при этом **не сбрасывается** и продолжает участвовать в проверках вида `legacy_grpc = self.smg_grpc_mode or self.grpc_mode`
-- Где объявлен: `ServerArgs.grpc_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_mode`
 - Статус: устаревший. Обратите внимание: в extract у него `action: null` — это обычное поле датакласса, а не `Deprecated*Action`; предупреждение печатает `__post_init__`, а не argparse. Замена — `--smg-grpc-mode`
 - Этап применения: `__post_init__` (перенос значения) → выбор точки входа в `run_server`
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --grpc-port 40
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/launch_server.py`
 - `sglang/python/sglang/srt/entrypoints/grpc_server.py`

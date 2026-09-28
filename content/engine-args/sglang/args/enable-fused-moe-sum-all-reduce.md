@@ -32,7 +32,7 @@ Enable fused moe triton and sum all reduce.
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется в `__post_init__`, но на каждом вызове раннера пересчитывается набор условий (см. ниже) — флаг является необходимым, а не достаточным
-- Где объявлен: `ServerArgs.enable_fused_moe_sum_all_reduce`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_fused_moe_sum_all_reduce`
 - Статус: обычный
 - Этап применения: forward, внутри Triton-раннера MoE
 
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/moe_runner/triton_utils/fused_moe.py`
 - `sglang/python/sglang/kernels/ops/moe/fused_moe_triton_kernels.py`

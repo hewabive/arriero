@@ -34,7 +34,7 @@ related:
 - Допустимые значения: `choices` нет, ограничений нет — любая строка
 - Значение по умолчанию: `""` (пустая строка, не `null`)
 - Эффективное значение: совпадает с заданным; никакой `_handle_*` его не переписывает и подстановки по умолчанию нет — при незаданном аргументе в сообщениях будет пустое `worker_id`
-- Где объявлен: `ServerArgs.forward_pass_metrics_worker_id`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_pass_metrics_worker_id`
 - Статус: скрытый (`argparse.SUPPRESS`); контракт может измениться без предупреждения
 - Этап применения: конструктор `SchedulerMetricsReporter` (`_init_fpm`), только в процессе с `attn_tp_rank == 0` на последней PP-стадии
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-forward
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`
 - `sglang/python/sglang/srt/observability/forward_pass_metrics.py`

@@ -41,7 +41,7 @@ Specify the collective communication backend for elastic EP. Supports 'mooncake'
 - Допустимые значения: `none`, `mooncake`, `nixl`. Внимание: поле объявлено как `Literal[None, "mooncake", "nixl"]`, а `choices` заданы явно строками, поэтому argparse сохраняет именно строку `"none"` — это не то же самое, что не передать аргумент
 - Значение по умолчанию: `null` (аргумент не задан — elastic EP выключен)
 - Эффективное значение: не переопределяется; сам переопределяет `--eplb-algorithm` (`auto` → `elasticity_aware` при включенном `--enable-eplb`) и нормализует `--mooncake-ib-device` при значении `mooncake`
-- Где объявлен: `ServerArgs.elastic_ep_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_backend`
 - Статус: обычный, но подсистема молодая — набор проверок в `_handle_elastic_ep` меняется от релиза к релизу
 - Этап применения: `__post_init__` (`_handle_elastic_ep`) → выбор backend'а `init_process_group` → инициализация `ElasticEPStateManager` в model runner → конец каждого forward-прохода → HTTP `/scale_elastic_ep`
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`
 - `sglang/python/sglang/srt/entrypoints/elastic_ep.py`

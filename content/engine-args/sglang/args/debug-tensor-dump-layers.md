@@ -33,7 +33,7 @@ The layer ids to dump. Dump all layers if not specified.
 - Допустимые значения: `choices` нет; диапазон не проверяется. Номера, которых в модели нет, молча ни на что не влияют
 - Значение по умолчанию: `null` — «все слои», о чем прямо сказано комментарием в объявлении поля
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Полностью инертен без `--debug-tensor-dump-output-folder`
-- Где объявлен: `ServerArgs.debug_tensor_dump_layers`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_layers`
 - Статус: обычный, отладочный
 - Этап применения: загрузка весов в model runner, регистрация хуков (`register_forward_hook_for_model`)
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --debug-tensor
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/debug_utils/tensor_dump_forward_hook.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

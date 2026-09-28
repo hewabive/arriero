@@ -36,7 +36,7 @@ Global rank offset of an elastic EP joining group. Scale joiners must set this t
 - Допустимые значения: `>= 0`; при значении `!= 0` обязателен `--elastic-ep-join-mode scale`, а при `scale` требуется строго `> 0`
 - Значение по умолчанию: `0`
 - Эффективное значение: совпадает с заданным; автоподбора нет. Обратите внимание на расхождение имен: CLI-флаг `--elastic-ep-join-rank-offset`, а поле датакласса — `ep_join_rank_offset`
-- Где объявлен: `ServerArgs.ep_join_rank_offset`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.ep_join_rank_offset`
 - Статус: обычный, часть экспериментального контура elastic EP
 - Этап применения: `_handle_elastic_ep` (валидация) → `init_torch_distributed` (`world_size`/`rank`) → `initialize_model_parallel` (`rank_offset`) → DP-attention, EPLB, раскладка экспертов, префиксы лога
 
@@ -121,6 +121,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`

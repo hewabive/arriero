@@ -34,7 +34,7 @@ Port for the engine info bootstrap server. Default is 6789. Must be set explicit
 - Допустимые значения: любой свободный TCP-порт; проверка занятости выполняется на старте
 - Значение по умолчанию: `6789`
 - Эффективное значение: не переопределяется; используется как есть
-- Где объявлен: `ServerArgs.engine_info_bootstrap_port`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.engine_info_bootstrap_port`
 - Статус: обычный, применим только к сценарию раздачи весов через transfer engine
 - Этап применения: `_launch_subprocesses` в `entrypoints/engine.py`, до запуска планировщиков
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/entrypoints/engine_info_bootstrap_server.py`

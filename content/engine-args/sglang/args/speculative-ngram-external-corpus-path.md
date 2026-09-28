@@ -34,7 +34,7 @@ Path to an external JSONL corpus to pre-load into SAM at startup. Additional cor
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `null` — внешнего корпуса нет
 - Эффективное значение: не переопределяется; при заданном пути `_handle_ngram` дополнительно требует, чтобы `--speculative-ngram-external-sam-budget` и `--speculative-ngram-external-corpus-max-tokens` были положительными, а бюджет не превышал `--speculative-num-draft-tokens − 1`
-- Где объявлен: `ServerArgs.speculative_ngram_external_corpus_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_external_corpus_path`
 - Статус: обычный; читается **только** при `--speculative-algorithm NGRAM`
 - Этап применения: `handle_speculative_decoding` → `_handle_ngram` (валидация связки аргументов) → конструктор `NGRAMWorker` (чтение файла, токенизация, построение SAM — блокирует старт)
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/ngram_worker.py`

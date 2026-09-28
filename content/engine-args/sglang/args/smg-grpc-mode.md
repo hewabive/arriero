@@ -37,7 +37,7 @@ Use the legacy SMG gRPC server (smg-grpc-servicer) instead of the HTTP server. R
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` выставляет его в `True`, если задан устаревший `--grpc-mode`. Кроме того, при активном legacy-режиме и незаданном `--grpc-port` порт выводится как `--port + 10000`
-- Где объявлен: `ServerArgs.smg_grpc_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.smg_grpc_mode`
 - Статус: обычный (заменяет устаревший `--grpc-mode`)
 - Этап применения: `__post_init__` (вывод портов, проверки совместимости) → выбор точки входа в `run_server` до запуска любых процессов
 
@@ -147,6 +147,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --smg-grpc-mod
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/launch_server.py`
 - `sglang/python/sglang/srt/entrypoints/grpc_server.py`

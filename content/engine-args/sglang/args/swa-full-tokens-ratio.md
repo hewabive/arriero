@@ -36,7 +36,7 @@ The ratio of SWA layer KV tokens / full layer KV tokens, regardless of the numbe
 - Допустимые значения: полуинтервал `(0, 1.0]`; проверяется уже **разрешенное** значение, `ValueError: --swa-full-tokens-ratio should be in range (0, 1.0].`
 - Декларативное значение по умолчанию: `null`; обычный fallback `0.8`.
 - Эффективное значение: если флаг не задан, модельные переопределения выбирают DeepSeek V4 → `0.1`, Inkling → `0.1`; для остальных моделей применяется fallback `0.8`. Для `Step3p5ForCausalLM` вместе с `--enable-hierarchical-cache` значение безусловно сбрасывается в `1.0` и одновременно включается `disable_hybrid_swa_memory`. Кроме того, коэффициент полностью игнорируется двумя конфигураторами пулов — см. ниже
-- Где объявлен: `ServerArgs.swa_full_tokens_ratio`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.swa_full_tokens_ratio`
 - Статус: обычный; поле помечено `resolvable=True`
 - Этап применения: `__post_init__` (переопределения и валидация) → расчет размеров KV-пулов при инициализации model runner
 

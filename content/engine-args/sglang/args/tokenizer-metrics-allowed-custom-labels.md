@@ -37,7 +37,7 @@ The custom labels allowed for tokenizer metrics. The labels are specified via a 
 - Допустимые значения: `choices` нет. Имена должны быть корректными именами меток Prometheus (`prometheus_client` отвергнет недопустимое имя при создании метрики)
 - Значение по умолчанию: `None` — пользовательские метки выключены
 - Эффективное значение: совпадает с заданным. `__post_init__` проверяет связку: непустой список при пустом `--tokenizer-metrics-custom-labels-header` дает `ValueError: Please set --tokenizer-metrics-custom-labels-header when setting --tokenizer-metrics-allowed-custom-labels.`
-- Где объявлен: `ServerArgs.tokenizer_metrics_allowed_custom_labels`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.tokenizer_metrics_allowed_custom_labels`
 - Статус: обычный
 - Этап применения: `__post_init__` (проверка) → инициализация `TokenizerManager` (регистрация имен меток в коллекторе) → HTTP-обработчики `/v1/chat/completions` и `/v1/completions`
 
@@ -117,6 +117,7 @@ curl -sS http://127.0.0.1:30000/v1/chat/completions -H 'Content-Type: applicatio
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_base.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_completions.py`

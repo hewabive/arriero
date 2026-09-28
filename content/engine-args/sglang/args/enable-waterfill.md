@@ -36,7 +36,7 @@ Enable Waterfill: dispatch the fused shared expert as an extra routed expert slo
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но сам переопределяет три вещи в `__post_init__` — `--moe-a2a-backend` подтягивается к `deepep`, если это не `deepep`/`megamoe`; `--disable-shared-experts-fusion` принудительно сбрасывается в `false`; `--enforce-shared-experts-fusion` принудительно ставится в `true`
-- Где объявлен: `ServerArgs.enable_waterfill`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_waterfill`
 - Статус: обычный, но подсистема экспериментальная — в апстрим-документации помечена как Experimental
 - Этап применения: `__post_init__` (`_a2a_backend_overrides`, `_a2a_fusion_adjustments`, `_handle_a2a_moe`) → построение TopK-модулей → `prepare_moe_topk` после загрузки весов → каждый forward-проход
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/moe/waterfill.py`

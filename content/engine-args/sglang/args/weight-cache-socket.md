@@ -30,7 +30,7 @@ Unix socket path for weight cache daemon (client mode).If not set, derives the p
 - Группа: `model`
 - Тип: строка, без choices
 - Декларативный default: `null`
-- Объявление: `ServerArgs.weight_cache_socket`
+- Объявление: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_cache_socket`
 - Этап: `IpcModelLoader._fetch_from_cache`, перед подключением к демону.
 
 ## Что меняет в движке
@@ -73,6 +73,7 @@ SGLANG_WEIGHT_CACHE_SOCKET_TEMPLATE='/tmp/sglang_weight_cache_{device_uuid}.sock
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/python/sglang/srt/weight_cache/protocol.py`

@@ -34,7 +34,7 @@ The size of split KV tile in flash decoding Triton kernel. Used for deterministi
 - Допустимые значения: `choices` нет; смысл имеют степени двойки в диапазоне сотен токенов (референс детерминированного режима — 256)
 - Значение по умолчанию: `null` — динамическое планирование split'ов
 - Эффективное значение: при `--enable-deterministic-inference` заданное здесь число **игнорируется**: `TritonAttnBackend.__init__` берет `SGLANG_TRITON_DECODE_SPLIT_TILE_SIZE` (по умолчанию 256) и одновременно выключает `static_kv_splits`
-- Где объявлен: `ServerArgs.triton_attention_split_tile_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.triton_attention_split_tile_size`
 - Статус: обычный
 - Этап применения: разбор CLI → конструктор `TritonAttnBackend` → расчет `max_kv_splits` и буферов → планирование split'ов на каждом decode-forward
 
@@ -95,6 +95,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - `sglang/python/sglang/srt/environ.py`

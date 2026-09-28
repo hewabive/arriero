@@ -27,7 +27,7 @@ Enable in-memory Responses storage for retrieval, chaining, and background reque
 - Группа: `serving`
 - Тип: `bool`
 - Значение в декларации по умолчанию: `false`
-- Объявление: `ServerArgs.enable_response_store` в `sglang/python/sglang/srt/arg_groups/fields/serving.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_response_store`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

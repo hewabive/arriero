@@ -35,7 +35,7 @@ Specify custom warmup functions (csv) to run before server starts eg. --warmups=
 - Допустимые значения: `choices` в extract нет, но фактический список закрыт реестром `_warmup_registry`. Способ посмотреть его на своей сборке: `<env>/bin/python -c "import sglang.srt.entrypoints.warmup as w; print(sorted(w._warmup_registry))"`
 - Значение по умолчанию: `None` — пользовательские прогревы не выполняются
 - Эффективное значение: совпадает с заданным; переписывания нет
-- Где объявлен: `ServerArgs.warmups`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.warmups`
 - Статус: обычный
 - Этап применения: HTTP-слой, внутри `lifespan` приложения — после инициализации глобального состояния и **до** `yield`, то есть до того, как uvicorn/Granian начнет принимать соединения
 
@@ -123,6 +123,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/entrypoints/warmup.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/server_args.py`

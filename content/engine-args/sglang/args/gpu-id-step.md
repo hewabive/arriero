@@ -35,7 +35,7 @@ The delta between consecutive GPU IDs that are used. For example, setting it to 
 - Допустимые значения: `choices` нет; проверка `assert self.gpu_id_step >= 1, "gpu_id_step must be positive"` в `check_server_args`
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным, автоподбора нет
-- Где объявлен: `ServerArgs.gpu_id_step`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.gpu_id_step`
 - Статус: обычный
 - Этап применения: запуск scheduler-процессов, до `init_torch_distributed`
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --port 30001 --base
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`

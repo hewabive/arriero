@@ -28,7 +28,7 @@ Tuning parameters for --radix-eviction-policy, as a json object passed to the po
 - Группа: `memory`
 - Тип: `json`
 - Значение в декларации по умолчанию: `null`
-- Объявление: `ServerArgs.radix_eviction_policy_config` в `sglang/python/sglang/srt/arg_groups/fields/memory.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_eviction_policy_config`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

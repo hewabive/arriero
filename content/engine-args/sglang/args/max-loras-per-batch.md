@@ -37,7 +37,7 @@ Maximum number of adapters for a running batch, include base-only request.
 - Допустимые значения: строго положительное целое; `assert self.max_loras_per_batch > 0, "max_loras_per_batch must be positive"` — проверка стоит в самом начале `check_lora_server_args` и выполняется даже при выключенной LoRA
 - Значение по умолчанию: `8`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.max_loras_per_batch`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.max_loras_per_batch`
 - Статус: обычный
 - Этап применения: `__post_init__` (валидация) → `LoRAMemoryPool.init_buffers` при инициализации `ModelRunner` (до профилирования KV-пула) → планировщик на каждом шаге сборки батча
 
@@ -149,6 +149,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`

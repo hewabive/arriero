@@ -35,7 +35,7 @@ Enable returning full hidden states with responses. Equivalent to `--return-hidd
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: синхронизируется с `--return-hidden-states-mode` в `_handle_return_hidden_states_mode` (`sglang/python/sglang/srt/server_args.py`). Если режим не задан, а флаг включен, режим становится `"full"`. Если режим задан (любой из `last`/`full`), флаг принудительно становится `True` — то есть в дампе `server_args=` вы увидите `enable_return_hidden_states=True` даже при `--return-hidden-states-mode last`, и это **не** означает полный режим
-- Где объявлен: `ServerArgs.enable_return_hidden_states`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_return_hidden_states`
 - Статус: обычный; фактически legacy-псевдоним, что зафиксировано и в его справке, и в тексте ошибки валидации запроса
 - Этап применения: разбор CLI → `__post_init__` (`_handle_return_hidden_states_mode`) → выбор `capture_hidden_mode` при захвате CUDA graph → валидация каждого запроса в `TokenizerManager` → сборка ответа
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B --speculative-a
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/forward_batch_info.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`

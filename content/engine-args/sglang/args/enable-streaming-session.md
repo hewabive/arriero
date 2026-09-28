@@ -37,7 +37,7 @@ Enable streaming session mode and StreamingSession wrapper.
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` не переопределяет
-- Где объявлен: `ServerArgs.enable_streaming_session`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_streaming_session`
 - Статус: обычный
 - Этап применения: инициализация prefix cache в планировщике (обертка) → проверка в `TokenizerManager.open_session` на каждом вызове → удержание KV между ходами сессии
 
@@ -134,6 +134,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-strea
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/session/streaming_session.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`

@@ -38,7 +38,7 @@ Weight cache mode. 'off': normal disk loading. 'daemon': launch weight cache dae
 - Допустимые значения: `off`, `daemon`, `client`
 - Значение по умолчанию: `off`
 - Эффективное значение: не переопределяется, но **переопределяет** формат загрузки: при значении, отличном от `off`, `maybe_enable_ipc_weight_cache` подменяет `LoadConfig.load_format` на внутренний `ipc_cache`, запомнив исходный формат как `fallback_load_format`
-- Где объявлен: `ServerArgs.weight_cache_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_cache_mode`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_load_format` — запрет со спекуляцией) → запуск демонов в `Engine` (только `daemon`) → формирование `LoadConfig` → загрузка модели через `IpcModelLoader`
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --weight-cache
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/weight_cache/daemon.py`
 - `sglang/python/sglang/srt/weight_cache/ipc_loader.py`

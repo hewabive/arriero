@@ -31,7 +31,7 @@ The number of decode rounds to run after a prefill batch before scheduling the n
 - Группа: `schedule`
 - Тип: `int`
 - Декларативный default: `null`; при разрешении конфигурации обычно становится `0`. На крупных Hopper для Qwen3-VL профилированный override выставляет `22`, если значение не задано.
-- Объявление: `ServerArgs.prefill_decode_interval` в `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_decode_interval`
 - Этап применения: разбор CLI, инициализация и исполнение подсистемы, описанной ниже.
 
 ## Что меняет в движке

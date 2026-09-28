@@ -35,7 +35,7 @@ Enable using mscclpp for small messages for all-reduce kernel and fall back to N
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` и ни одно правило `arg_groups/overrides.py` его не переписывает. Но «включено» и «работает» здесь не одно и то же: отбраковка происходит уже в конструкторе коммуникатора и никак не отражается на `server_args`
-- Где объявлен: `ServerArgs.enable_mscclpp`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_mscclpp`
 - Статус: обычный
 - Этап применения: разбор CLI → `_set_all_reduce_flags` (`sglang/python/sglang/srt/distributed/bootstrap.py`) → конструктор `GroupCoordinator` (импорт `mscclpp`, создание `CommGroup`, автотюнинг) → захват CUDA graph → forward внутри графа
 
@@ -114,6 +114,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/pymscclpp.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

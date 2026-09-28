@@ -32,7 +32,7 @@ Track per-session references on UnifiedRadixCache KV: eviction consumes unrefere
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; несовместимость проявляется как ошибка при построении дерева кеша, а не как автосброс
-- Где объявлен: `ServerArgs.enable_session_radix_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_session_radix_cache`
 - Статус: обычный
 - Этап применения: построение дерева кеша (`create_tree_cache`) → обработка каждого запроса с `session_id` и вызовов `/open_session` / `/close_session`
 
@@ -103,6 +103,7 @@ SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 python -m sglang.launch_server --model-path /
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`

@@ -31,7 +31,7 @@ Trust caller-provided multimodal SHA-256 content hashes. This can skip reading m
 - Группа: `mm`
 - Тип значения: bool, флаг без значения
 - Значение по умолчанию: `false`
-- Где объявлен: `ServerArgs.trust_mm_content_hashes`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.trust_mm_content_hashes`
 - Этап применения: нормализация request hashes в tokenizer manager → artifact-cache fast lookup до media snapshot/download → обычная hash verification на miss
 
 ## Что меняет в движке
@@ -80,6 +80,7 @@ python -m sglang.launch_server --model-path /models/Kimi-K3-Instruct --mm-prepro
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/io_struct.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

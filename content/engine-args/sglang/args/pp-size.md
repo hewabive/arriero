@@ -38,7 +38,7 @@ The pipeline parallelism size.
 - Допустимые значения: `choices` нет; осмысленный диапазон — от 1 до числа узлов (или числа групп GPU)
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным, кроме `_handle_dllm_inference`, где при `pp_size > 1` печатается `Pipeline parallelism is disabled because of using diffusion LLM inference` и значение принудительно становится `1`
-- Где объявлен: `ServerArgs.pp_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.pp_size`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_pipeline_parallelism` (предупреждение о несовместимости с overlap) → `check_server_args` (проверки делимости и совместимости) → запуск `pp_size * tp_size` процессов → `initialize_model_parallel` (PP-группы) → разбиение слоев в `get_pp_indices` → выделение KV-пула только под локальные слои
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.1 --tensor-p
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/utils.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

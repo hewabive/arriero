@@ -32,7 +32,7 @@ A dictionary in JSON string format for hierarchical sparse attention configurati
 - Допустимые значения: не ограничены argparse; разбор и проверки — в `_parse_sparse_config`
 - Значение по умолчанию: `null` — берется полный набор дефолтов `SparseConfig`
 - Эффективное значение: `top_k` переопределяется значением `index_topk` из конфигурации модели, если оно там есть — при создании `HiSparseCoordinator` берется `hf_text_config.index_topk`, и заданное в JSON значение в этом случае не применяется
-- Где объявлен: `ServerArgs.hisparse_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hisparse_config`
 - Статус: обычный аргумент узкого назначения; поля алгоритмов могут меняться вместе с самим путем HiSparse
 - Этап применения: `parse_hisparse_config` при построении KV-пула и аллокатора, затем при создании `HiSparseCoordinator` в `ModelRunner.initialize()`
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --trust-remote
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/sparsity/factory.py`
 - `sglang/python/sglang/srt/mem_cache/sparsity/core/sparse_coordinator.py`

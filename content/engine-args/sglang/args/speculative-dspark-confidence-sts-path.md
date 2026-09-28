@@ -34,7 +34,7 @@ DSPARK only. Optional path to a per-position STS (sequential temperature scaling
 - Допустимые значения: не ограничены argparse; содержимое разбирается msgspec-структурой `DSparkStsCalibration`
 - Значение по умолчанию: `null` — тождественная калибровка (все температуры 1.0)
 - Эффективное значение: файл читается только при наличии confidence-головы; голова строится лишь когда `SGLANG_RAGGED_VERIFY_MODE` не равен `static` (значение по умолчанию — как раз `static`). В остальных случаях путь игнорируется с предупреждением
-- Где объявлен: `ServerArgs.speculative_dspark_confidence_sts_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_confidence_sts_path`
 - Статус: обычный, алгоритмо-специфичный: единственный читатель — `DSparkVerifyPlanner`
 - Этап применения: инициализация DSPARK-воркера (планировщик verify) → каждый спекулятивный раунд при вычислении confidence
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2-Exp --speculat
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/dspark_components/dspark_sts.py`
 - `sglang/python/sglang/srt/speculative/dspark_components/dspark_planner.py`

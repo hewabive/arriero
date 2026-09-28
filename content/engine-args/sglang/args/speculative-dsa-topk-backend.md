@@ -31,7 +31,7 @@ DSA indexer top-k backend for speculative draft workers. Options: 'sgl-kernel', 
 - Группа: `spec`
 - Тип: `str`
 - Декларативный default: `"sgl-kernel"`
-- Объявление: `ServerArgs.speculative_dsa_topk_backend` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dsa_topk_backend`
 - Этап применения: разбор CLI, инициализация и исполнение подсистемы, описанной ниже.
 
 ## Что меняет в движке
@@ -66,6 +66,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --speculative-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/dsa/dsa_topk_backend.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

@@ -38,7 +38,7 @@ Enable strict token filtering during the thinking phase. Blocks model-specific e
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` не переопределяет, но `create_grammar_backend` при несовместимом backend'е не деградирует, а бросает исключение
-- Где объявлен: `ServerArgs.enable_strict_thinking`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_strict_thinking`
 - Статус: обычный
 - Этап применения: создание grammar-backend при инициализации планировщика → подготовка grammar-объекта для каждого запроса → маскирование словаря на каждом шаге декодирования
 
@@ -145,6 +145,7 @@ SGLANG_MAX_THINK_TOKENS=2048 python -m sglang.launch_server --model-path /models
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/constrained/base_grammar_backend.py`
 - `sglang/python/sglang/srt/constrained/reasoner_grammar_backend.py`

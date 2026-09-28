@@ -35,7 +35,7 @@ Return number of cached tokens in usage.prompt_tokens_details for each openai re
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` не переопределяет
-- Где объявлен: `ServerArgs.enable_cache_report`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_cache_report`
 - Статус: обычный
 - Этап применения: HTTP-слой, сборка `usage` в ответе (`/v1/chat/completions`, `/v1/completions`, `/v1/responses`)
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-cache
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/openai/usage_processor.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`

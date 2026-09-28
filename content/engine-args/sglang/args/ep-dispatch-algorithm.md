@@ -34,7 +34,7 @@ The algorithm to choose ranks for redundant experts in expert parallel.
 - Допустимые значения: `static`, `dynamic`, `fake`, `lp`
 - Значение по умолчанию: `null`
 - Эффективное значение: `_handle_eplb_and_dispatch` подставляет значение, если оно не задано, а включен `--enable-eplb` **или** `--init-expert-location` отличен от `trivial`: `dynamic` при `--moe-a2a-backend none`, `static` во всех остальных случаях. Кроме того, при `--moe-a2a-backend none` значения `static` и `lp` отвергаются `ValueError`
-- Где объявлен: `ServerArgs.ep_dispatch_algorithm`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_dispatch_algorithm`
 - Статус: обычный
 - Этап применения: `__post_init__` → построение `ExpertLocationMetadata` (для `static` считается отдельная таблица) → инициализация LP-решателей (для `lp`) → каждый forward-проход
 
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 4 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/expert_location_dispatch.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`

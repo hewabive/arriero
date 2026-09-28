@@ -38,7 +38,7 @@ Explicit list of batch sizes to capture for the prefill cuda graph.
 - Допустимые значения: положительные целые
 - Значение по умолчанию: `null` — список генерируется `_generate_prefill_cuda_graph_batch_sizes(prefill.max_bs)`
 - Эффективное значение: заданный список может быть переписан в трех местах — выравнивание по 8 при MoE a2a backend `deepep` и prefill-backend'е `breakable` (`_apply_deepep_adjustments`), отсечение бакетов больше `max_capture_requests * context_length` в `capture_prefill_graph`, и фильтр CP при `enable_cp_v2_bcg_capture`. Итог записывается обратно в `cuda_graph_config[prefill].bs`
-- Где объявлен: `ServerArgs.cuda_graph_bs_prefill`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_bs_prefill`
 - Статус: обычный; прежний флаг размера prefill-графа удалён
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`, `_apply_deepep_adjustments`) → `capture_prefill_graph` → компиляция (`tc_piecewise`) и захват
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

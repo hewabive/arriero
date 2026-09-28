@@ -30,7 +30,7 @@ Deprecated. Use --image-processor-backend=pil instead.
 - Группа: `mm`
 - Тип значения: bool, флаг без значения
 - Значение по умолчанию: `false`
-- Где объявлен: `ServerArgs.disable_fast_image_processor`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.disable_fast_image_processor`
 - Статус: deprecated; замена — `--image-processor-backend pil`
 - Этап применения: разбор CLI → `_handle_deprecated_args` → загрузка image processor
 
@@ -75,6 +75,7 @@ python -m sglang.launch_server --model-path /models/Qwen-VL --image-processor-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`

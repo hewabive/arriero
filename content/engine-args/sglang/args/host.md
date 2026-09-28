@@ -40,7 +40,7 @@ The host of the HTTP server.
 - Допустимые значения: `choices` нет; строка должна разрешаться в адрес локального интерфейса, иначе `bind` упадет
 - Значение по умолчанию: `127.0.0.1`
 - Эффективное значение: совпадает с заданным. Ни один `_handle_*` не переписывает `host`. Производные значения считаются от него: `ServerArgs.url()` подменяет `0.0.0.0` на `127.0.0.1` и `::` на `::1` для внутренних запросов (warmup, health-проверка самого себя), а `_resolve_dist_init_method` берет `self.host or "127.0.0.1"` как адрес TCPStore
-- Где объявлен: `ServerArgs.host`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.host`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (только производные URL) → запуск процессов и `init_torch_distributed` (адрес рандеву) → HTTP-слой (`uvicorn.run(host=...)` / `Granian(address=...)`)
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 10.0.0.
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

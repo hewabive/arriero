@@ -31,7 +31,7 @@ Enable Lean (Work-Centric) Attention decode kernel for long-context serving. Whe
 - Группа: `exec.kernel`
 - Тип: `bool`
 - Декларативный default: `null`
-- Объявление: `ServerArgs.enable_lean_attention` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_lean_attention`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -66,6 +66,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --attention-backend
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`

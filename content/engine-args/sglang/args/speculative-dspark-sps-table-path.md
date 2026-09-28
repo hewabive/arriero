@@ -35,7 +35,7 @@ DSPARK only. Path to a pre-profiled SPS cost table (JSON) built offline with sgl
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `null` — используется `build_uninitialized_sps_table`
 - Эффективное значение: не переопределяется; при `null` подставляется плоская таблица с единственной точкой `batch_tokens = 1 → 1.0 steps/s` и `max_batch_tokens = max(1, max_running_requests · num_draft_tokens)`
-- Где объявлен: `ServerArgs.speculative_dspark_sps_table_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_sps_table_path`
 - Статус: обычный, но узкий: читается только при `--speculative-algorithm DSPARK` и только когда `SGLANG_RAGGED_VERIFY_MODE` не равен `static`
 - Этап применения: `_handle_dspark` (предупреждение о бесполезности в `static`) → инициализация DSPARK-планировщика (`build_sps_cost_table`) → планирование бюджета верификации на каждом decode-шаге
 
@@ -117,6 +117,7 @@ python -m sglang.benchmark.dspark_sps_profiler all --base-url http://127.0.0.1:3
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/dspark_components/dspark_planner.py`

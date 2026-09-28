@@ -35,7 +35,7 @@ Enable --enable-metrics-for-all-schedulers when you want schedulers on all TP ra
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным; никакой `_handle_*` его не трогает. Но действует он только в связке — без `--enable-metrics` не меняет ничего
-- Где объявлен: `ServerArgs.enable_metrics_for_all_schedulers`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_metrics_for_all_schedulers`
 - Статус: обычный
 - Этап применения: конструктор `Scheduler` (создание IPC-каналов и `SchedulerMetricsCollectorContext`) в каждом scheduler-процессе
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tp-size 2 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

@@ -35,7 +35,7 @@ Disable scheduler-side attn_tp_gather (the upstream SP path that pads num_tokens
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` и ни одно правило из `arg_groups/overrides.py` его не переписывает
-- Где объявлен: `ServerArgs.disable_attn_tp_gather`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.disable_attn_tp_gather`
 - Статус: обычный, но узкоспециальный: это опт-аут для конкретных модельных реализаций, а не ручка производительности общего назначения
 - Этап применения: публикация в `ParallelState` → `require_attn_tp_gather()` при построении forward-путей → подготовка батча в планировщике → захват и воспроизведение CUDA graph
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/moe-model --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/layers/communicator.py`

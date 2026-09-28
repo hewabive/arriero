@@ -32,7 +32,7 @@ Directory path for writing performance metrics files (required when --export-met
 - Допустимые значения: `choices` нет; никакой проверки формата пути нет, единственная проверка — успешный `os.makedirs(..., exist_ok=True)`
 - Значение по умолчанию: `null`
 - Эффективное значение: совпадает с заданным; `__post_init__` его не переписывает, но проверяет непротиворечивость пары аргументов
-- Где объявлен: `ServerArgs.export_metrics_to_file_dir`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.export_metrics_to_file_dir`
 - Статус: обычный
 - Этап применения: `__post_init__` (проверка пары) → конструктор `FileRequestMetricsExporter` (создание каталога) → каждая запись
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --export-metrics
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/request_metrics_exporter.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

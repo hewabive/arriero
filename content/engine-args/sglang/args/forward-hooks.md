@@ -34,7 +34,7 @@ JSON-formatted forward hook specifications to attach to the model.
 - Допустимые значения: `choices` нет. Что результат разбора — именно список словарей, не проверяется; при другой форме ошибка вылезет позже, при обходе спецификаций
 - Значение по умолчанию: `null` — хуков нет
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.forward_hooks`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_hooks`
 - Статус: обычный
 - Этап применения: `capture_cuda_graphs` в model runner'е, **после** захвата графов prefill и decode, до предвыделения symmetric memory pool
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --cuda-graph-con
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/hook_manager.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

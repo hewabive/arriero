@@ -34,7 +34,7 @@ Number of streaming notifications to batch before yielding to the event loop. Re
 - Допустимые значения: `choices` нет; осмысленный диапазон — целые ≥ 1
 - Значение по умолчанию: `16`
 - Эффективное значение: `__post_init__` не переопределяет и не валидирует
-- Где объявлен: `ServerArgs.batch_notify_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.batch_notify_size`
 - Статус: обычный
 - Этап применения: `TokenizerManager._handle_batch_output`, то есть на каждом выходном батче планировщика
 
@@ -114,6 +114,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --batch-notify
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/output_streamer.py`

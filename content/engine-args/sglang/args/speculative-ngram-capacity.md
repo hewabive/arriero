@@ -34,7 +34,7 @@ The cache capacity for ngram speculative decoding.
 - Допустимые значения: `choices` нет. Практический минимум — десятки тысяч; ноль или отрицательное значение приведут к попытке взять узел из пустого пула уже при создании корня
 - Значение по умолчанию: `10 * 1000 * 1000`, то есть `10000000` (в extract это выражение, а не число)
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.speculative_ngram_capacity`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_capacity`
 - Статус: обычный; читается **только** при `--speculative-algorithm NGRAM`
 - Этап применения: конструктор `NGRAMWorker` → конструктор C++-класса `Trie` (единовременное выделение пула), дальше — только вытеснение
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/ngram_worker.py`
 - `sglang/python/sglang/srt/speculative/cpp_ngram/ngram_corpus.py`

@@ -35,7 +35,7 @@ The buckets of end-to-end request latency, specified as a list of floats.
 - Допустимые значения: `choices` нет; список должен строго возрастать, `+Inf` дописывает `prometheus_client`
 - Значение по умолчанию: `null`. Реальный список по умолчанию зашит в `TokenizerMetricsCollector.__init__`: `0.1, 0.2, 0.4, 0.6, 0.8, 1, 2, 4, 6, 8, 10, 20, 40, 60, 80, 100, 200, 400, 600, 1200, 1800, 2400`
 - Эффективное значение: `__post_init__` его не меняет; `None` разворачивается в зашитый список в конструкторе коллектора
-- Где объявлен: `ServerArgs.bucket_e2e_request_latency`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.bucket_e2e_request_latency`
 - Статус: обычный
 - Этап применения: конструктор `TokenizerManager` → конструктор `TokenizerMetricsCollector`
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-metrics
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/observability/req_time_stats.py`

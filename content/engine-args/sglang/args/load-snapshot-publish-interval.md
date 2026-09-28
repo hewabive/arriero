@@ -41,7 +41,7 @@ Publish load snapshot to shared memory every N decode iterations. Prefill and id
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `15`
 - Эффективное значение: оба писателя нормализуют значение как `max(1, publish_interval)`. Значения `0` и отрицательные означают публикацию на **каждой** итерации, а не отключение
-- Где объявлен: `ServerArgs.load_snapshot_publish_interval`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.load_snapshot_publish_interval`
 - Статус: обычный
 - Этап применения: инициализация планировщика (создание писателя) → каждый шаг цикла планировщика
 
@@ -127,6 +127,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/managers/load_snapshot.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/server_args.py`

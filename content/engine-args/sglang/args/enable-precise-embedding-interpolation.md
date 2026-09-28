@@ -32,7 +32,7 @@ Enable corner alignment for resize of embeddings grid to ensure more accurate(bu
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется движком; значение читается один раз в конструкторе `Qwen3VLMoeVisionModel` как `self.align_corners`
-- Где объявлен: `ServerArgs.enable_precise_embedding_interpolation`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_precise_embedding_interpolation`
 - Статус: обычный
 - Этап применения: разбор CLI → конструктор визуального энкодера при загрузке модели → подготовка позиционных эмбеддингов на каждом проходе энкодера
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-30B-A3B-Instruct --ena
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/models/qwen3_vl.py`
 - `sglang/python/sglang/srt/models/qwen3_vl_moe.py`

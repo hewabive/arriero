@@ -33,7 +33,7 @@ Timeout in seconds for a pending elastic EP scale operation.
 - Допустимые значения: строго положительное число; проверяется ассертом, но только когда рантайм-расширение действительно активно
 - Значение по умолчанию: `600` (десять минут)
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.elastic_ep_scale_timeout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_scale_timeout`
 - Статус: обычный, часть молодой подсистемы elastic EP
 - Этап применения: `__post_init__` (проверка положительности) → конец каждого forward-прохода в `maybe_join_ep_ranks`
 
@@ -93,6 +93,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`

@@ -38,7 +38,7 @@ Disable cuda graph when padding is needed. Still uses cuda graph when padding is
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; но есть жесткая проверка — `assert not (disable_cuda_graph_padding and enable_torch_compile)`, сервер не стартует при обоих флагах
-- Где объявлен: `ServerArgs.disable_cuda_graph_padding`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_cuda_graph_padding`
 - Статус: обычный
 - Этап применения: `__post_init__` (генерация списка форм в `_generate_decode_cuda_graph_batch_sizes` / `_generate_cpu_graph_batch_sizes`) → создание decode-runner'а (`self.disable_padding`) → каждый выбор графа в `can_run_graph`
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --disable-cuda
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/cpu_graph_runner.py`

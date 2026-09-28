@@ -33,7 +33,7 @@ The async batch depth of pipeline parallelism.
 - Допустимые значения: `choices` нет, границы не проверяются нигде — ни на старте, ни в runtime
 - Значение по умолчанию: `0`
 - Эффективное значение: совпадает с заданным; автоподбора нет
-- Где объявлен: `ServerArgs.pp_async_batch_depth`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.pp_async_batch_depth`
 - Этап применения: `init_pp_loop_state` в `Scheduler` (размер кольца слотов) → каждый проход цикла событий PP
 - Статус: обычный
 
@@ -114,6 +114,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --pipeline-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/managers/scheduler_pp_mixin.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

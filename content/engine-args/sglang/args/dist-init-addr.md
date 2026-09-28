@@ -39,7 +39,7 @@ The host address for initializing distributed backend (e.g., `192.168.0.2:25000`
 - Допустимые значения: `choices` нет. Разбор делает `NetworkAddress.parse` (`utils/network.py`): `127.0.0.1:25000`, `my-host:25000`, `[::1]:25000`. Порт обязателен; IPv6 обязан быть в квадратных скобках, голый `::1:25000` отвергается как неоднозначный
 - Значение по умолчанию: `null`
 - Эффективное значение: само поле не переписывается, но при незаданном значении подставляются разные умолчания в зависимости от режима (см. ниже). Переменная окружения `SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE` перекрывает аргумент целиком — при ней SGLang вообще не биндит `dist_init_port` и `nccl_port` и полагается на внешний store (например `env://` с `MASTER_ADDR`/`MASTER_PORT`)
-- Где объявлен: `ServerArgs.dist_init_addr`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dist_init_addr`
 - Статус: обычный
 - Этап применения: `PortArgs.init_new` (вывод служебных портов при DP-attention) → `launch_dp_attention_schedulers` (адрес bind'а воркер-сокетов) → `_resolve_dist_init_method` → `init_distributed_environment` в каждом воркере
 
@@ -133,6 +133,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/network.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`

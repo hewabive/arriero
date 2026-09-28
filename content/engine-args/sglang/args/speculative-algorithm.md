@@ -46,7 +46,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 - Допустимые значения: `choices: null` — argparse не ограничивает список. Реальный набор собирается в runtime: члены enum `SpeculativeAlgorithm` (`DFLASH`, `UNO`, `DSPARK`, `EAGLE`, `EAGLE3`, `FROZEN_KV_MTP`, `STANDALONE`, `NGRAM`) плюс зарезервированный алиас `NEXTN` плюс всё, что плагины добавили через `SpeculativeAlgorithm.register`. Посмотреть на своей сборке: `python -c "from sglang.srt.speculative.spec_info import SpeculativeAlgorithm as S; print([a.name for a in S])"` и `python -c "from sglang.srt.speculative import spec_registry; print(list(spec_registry._REGISTRY))"`
 - Значение по умолчанию: `null` — спекуляция выключена
 - Эффективное значение: строка приводится к верхнему регистру (`eagle3` = `EAGLE3`); `NEXTN` всегда превращается в `EAGLE`; `NEXTN`/`EAGLE` с draft-архитектурой `Gemma4AssistantForCausalLM` / `Gemma4UnifiedAssistantForCausalLM` повышаются до `FROZEN_KV_MTP` (в логе `promoting --speculative-algorithm ... to FROZEN_KV_MTP`)
-- Где объявлен: `ServerArgs.speculative_algorithm`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_algorithm`
 - Статус: обычный
 - Этап применения: `__post_init__` → `handle_speculative_decoding` (`arg_groups/speculative_hook.py`) → per-algorithm хук `_handle_*` → выделение KV-пула (draft делит бюджет с target) → запуск draft-воркера и захват его CUDA graph → forward
 
@@ -155,6 +155,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --speculative-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/spec_info.py`

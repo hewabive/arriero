@@ -34,7 +34,7 @@ If specified, it limits the maximum number of LoRA adapters loaded in CPU memory
 - Допустимые значения: целое ≥ `--max-loras-per-batch`; при `--enable-lora-overlap-loading` дополнительно ≤ `2 × --max-loras-per-batch`
 - Значение по умолчанию: `null` — лимита нет
 - Эффективное значение: не переопределяется; `check_lora_server_args` только проверяет соотношения
-- Где объявлен: `ServerArgs.max_loaded_loras`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.max_loaded_loras`
 - Статус: обычный
 - Этап применения: `__post_init__` (валидация) → `TokenizerManager` при каждой загрузке адаптера и при разборе `lora_path` запроса
 
@@ -137,6 +137,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_control_mixin.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

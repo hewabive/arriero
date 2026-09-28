@@ -33,7 +33,7 @@ Communication backend for the decode context-parallel (DCP) attention reduction:
 - Допустимые значения: `ag_rs`, `a2a`, `fi_a2a` (`choices` объявлены)
 - Декларативное значение по умолчанию: `null`; в `_dcp_comm_backend_default` подбирается backend по платформе и топологии DCP. Явное значение сохраняется.
 - Эффективное значение: при `dcp_size <= 1` — `ag_rs`; при большей группе — `fi_a2a` только если `is_fi_a2a_supported`, иначе `a2a` на CUDA/ROCm или `ag_rs` на других платформах. Лог: `DCP (dcp_size=...) selects communication backend '...'.`
-- Где объявлен: `ServerArgs.dcp_comm_backend`, файл — `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_comm_backend`
 - Статус: обычный
 - Этап применения: валидация в `_handle_dcp_validation` → предварительное выделение MNNVL-workspace до захвата CUDA graph (только `fi_a2a`) → каждый слой decode
 

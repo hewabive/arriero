@@ -45,7 +45,7 @@ Examples:
 - Допустимые значения: положительное целое, опционально с суффиксом SI (`k`, `M`, `G`, `T`) или IEC (`Ki`, `Mi`, `Gi`, `Ti`); суффиксы регистрозависимы, дробная часть допустима только с SI
 - Значение по умолчанию: `16384`
 - Эффективное значение: не переопределяется ни `__post_init__`, ни `_handle_*` — значение попадает в scheduler как есть
-- Где объявлен: `ServerArgs.max_prefill_tokens`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_prefill_tokens`
 - Статус: обычный
 - Этап применения: `Scheduler` через `TpModelWorker.get_worker_info()` → `PrefillAdder` на каждом проходе планирования
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --chunked-pref
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

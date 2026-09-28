@@ -42,7 +42,7 @@ Enabling data parallelism for attention and tensor parallelism for FFN. The dp s
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: **не совпадает с заданным в обе стороны.** Принудительно `False`, если `dp_size == 1` и `ep_join_mode != "scale"` (`_data_parallelism_defaults` в `arg_groups/overrides.py`) — заданный флаг при этом пропадает без ошибки. Принудительно `True` при `--dwdp-size > 1` (`_handle_dwdp`), при MLA context parallel и при zigzag DSA CP (`overrides.py`), а также в DeepSeek-V4 CP-хуке (`arg_groups/deepseek_v4_hook.py`)
-- Где объявлен: `ServerArgs.enable_dp_attention`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_attention`
 - Статус: обычный; поле помечено `resolvable=True`, то есть итоговое значение собирается движком в конце `__post_init__`, а промежуточные обработчики читают его через `_resolved()`
 - Этап применения: `__post_init__` (`_handle_dwdp` → `_handle_gpu_memory_settings` → `_handle_data_parallelism`) → `PortArgs.init_new` (IPC → TCP) → `launch_dp_attention_schedulers` → `initialize_dp_attention` в каждом воркере → каждая итерация планировщика (MLP-sync) → forward
 
@@ -142,6 +142,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tensor-paral
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`

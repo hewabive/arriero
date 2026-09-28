@@ -35,7 +35,7 @@ Default chat template kwargs applied to every request when not overridden per-re
 - Допустимые значения: `choices` нет. Имена ключей диктует chat-шаблон конкретной модели; значения — любые JSON-типы
 - Значение по умолчанию: `null` — ничего не подставляется
 - Эффективное значение: `__post_init__` значение не меняет, но `_handle_other_validations` требует, чтобы результат разбора был именно объектом
-- Где объявлен: `ServerArgs.default_chat_template_kwargs`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.default_chat_template_kwargs`
 - Статус: обычный
 - Этап применения: разбор CLI (`json.loads`) → валидация в `__post_init__` → рендеринг каждого запроса к `/v1/chat/completions`
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --default-chat
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`
 - `sglang/python/sglang/srt/entrypoints/openai/protocol.py`

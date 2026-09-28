@@ -34,7 +34,7 @@ Save model weights (both main model and draft model, if any) to CPU memory durin
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: поле не переписывается, но фактический эффект снимается в `load_model_with_memory_saver`, если `--weight-cache-mode` не `off`: печатается `[ModelRunner] Disabling weights CPU backup in zero-copy IPC mode — IPC-mapped weights cannot be offloaded to CPU.` и локальная переменная `enable_cpu_backup` становится `False`. Кроме того, при выключенном `--enable-memory-saver` адаптер — заглушка, и параметр просто игнорируется без единого сообщения
-- Где объявлен: `ServerArgs.enable_weights_cpu_backup`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_weights_cpu_backup`
 - Статус: обычный
 - Этап применения: разбор CLI → загрузка весов (`model_executor/model_runner_components/load_model_utils.py`, `memory_saver_adapter.region(GPU_MEMORY_TYPE_WEIGHTS, enable_cpu_backup=…)`) → каждое `pause`/`resume` тега `weights`
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`
 - `sglang/python/sglang/srt/utils/torch_memory_saver_adapter.py`

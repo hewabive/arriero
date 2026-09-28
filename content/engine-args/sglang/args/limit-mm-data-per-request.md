@@ -35,7 +35,7 @@ Limit the number of multimodal inputs per request. e.g. '{"image": 1, "video": 1
 - Допустимые значения: объект, ключи которого — только `image`, `video`, `audio`; значения — целые числа
 - Значение по умолчанию: `null` — лимитов нет
 - Эффективное значение: не переопределяется; `__post_init__` только валидирует набор ключей
-- Где объявлен: `ServerArgs.limit_mm_data_per_request`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.limit_mm_data_per_request`
 - Статус: обычный
 - Этап применения: разбор CLI (`json.loads`) → валидация ключей в `__post_init__` → проверка каждого входящего запроса в `TokenizerManager._validate_mm_limits`
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --limit
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/io_struct.py`

@@ -154,7 +154,7 @@ def arg_metadata(parts, resolve_doc):
     return metadata
 
 
-def dataclass_options(cls, namespace, context, diagnostics):
+def dataclass_options(cls, source, namespace, context, diagnostics):
     aliases = context["aliases"]
     constants = context["constants"]
     resolve_doc = context["resolveDoc"]
@@ -205,7 +205,7 @@ def dataclass_options(cls, namespace, context, diagnostics):
                 "default": default_field(node.value, resolve_doc),
                 "action": metadata["action"],
                 "hidden": metadata["hidden"],
-                "origin": f"ServerArgs.{field}",
+                "origin": f"{source}:{cls.name}.{field}",
             }
         )
     return options
@@ -307,7 +307,7 @@ def explicit_options(server_args, context, diagnostics):
                 "default": default_field(keywords.get("default"), resolve_doc),
                 "action": action,
                 "hidden": hidden,
-                "origin": "ServerArgs.add_cli_args",
+                "origin": f"{SERVER_ARGS_RELATIVE_PATH}:ServerArgs.add_cli_args",
             }
         )
     return options
@@ -333,13 +333,13 @@ def extract(repo):
     }
 
     classes = namespace_classes(repo, tree, input_namespace_names(tree))
-    contexts = {
-        path: module_context(repo, parse_file(path))
-        for path in dict.fromkeys(path for path, _, _ in classes)
-    }
+    sources = {path: path.relative_to(repo).as_posix() for path, _, _ in classes}
+    contexts = {path: module_context(repo, parse_file(path)) for path in sources}
     options = []
     for path, cls, namespace in classes:
-        field_options = dataclass_options(cls, namespace, contexts[path], diagnostics)
+        field_options = dataclass_options(
+            cls, sources[path], namespace, contexts[path], diagnostics
+        )
         if not field_options:
             raise SystemExit(f"no CLI fields found in SGLang namespace: {namespace}")
         options.extend(field_options)
@@ -347,10 +347,7 @@ def extract(repo):
         raise SystemExit(
             f"SGLang input namespaces yielded fewer than {MIN_NAMESPACE_OPTIONS} CLI fields"
         )
-    source_files = [
-        SERVER_ARGS_RELATIVE_PATH,
-        *(path.relative_to(repo).as_posix() for path in contexts),
-    ]
+    source_files = [SERVER_ARGS_RELATIVE_PATH, *sources.values()]
     declared = {option["flags"][0] for option in options}
     for option in explicit_options(
         server_args, module_context(repo, tree), diagnostics

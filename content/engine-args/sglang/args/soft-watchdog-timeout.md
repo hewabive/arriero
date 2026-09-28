@@ -33,7 +33,7 @@ Set soft watchdog timeout in seconds. If a forward batch takes longer than this,
 - Допустимые значения: `choices` нет, границы не проверяются
 - Значение по умолчанию: `null` — мягкое наблюдение выключено
 - Эффективное значение: совпадает с заданным. `Watchdog.create` при `watchdog_timeout is None` отдает `_WatchdogNoop`, у которого `feed()` и `disable()` — пустышки, поэтому невключенный мягкий пес не стоит ничего
-- Где объявлен: `ServerArgs.soft_watchdog_timeout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.soft_watchdog_timeout`
 - Статус: обычный
 - Этап применения: конструкторы `Scheduler` (`init_soft_watchdog`, до основной инициализации), `TokenizerManager`, `DetokenizerManager` и `DataParallelController`
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --soft-watchdo
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/utils/watchdog.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

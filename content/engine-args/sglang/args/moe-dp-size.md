@@ -38,7 +38,7 @@ The moe data parallelism size.
 - Допустимые значения: `choices` нет; делители `tp_size`, ограниченные соотношениями ниже
 - Значение по умолчанию: `1`
 - Эффективное значение: переписывается только в `_handle_dwdp` — при `--dwdp-size > 1` принудительно ставится `moe_dp_size = 1`. В остальных случаях действует заданное значение
-- Где объявлен: `ServerArgs.moe_dp_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.moe_dp_size`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_context_parallelism` — все проверки делимости; `_handle_elastic_ep`) → `initialize_model_parallel(moe_data_model_parallel_size=…)` → forward MoE-слоя
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

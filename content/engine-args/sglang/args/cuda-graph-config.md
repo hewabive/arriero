@@ -43,7 +43,7 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 - Допустимые значения: JSON-объект с ключами верхнего уровня `decode` и/или `prefill`; внутри каждого — только разрешенные ключи (см. ниже)
 - Значение по умолчанию: `null` — берется `default_cuda_graph_config()`: `decode.backend = full`, `prefill.backend = breakable` на CUDA и `tc_piecewise` на прочих платформах, `max_bs = null`, `bs = null`, `tc_compiler = "eager"`
 - Эффективное значение: поле всегда переписывается в `_parse_cuda_graph_config`; после разбора там лежит уже собранный объект `CudaGraphConfig`, а не исходная строка. Дальше значения досчитываются в `_handle_gpu_memory_settings` (`max_bs`/`bs`) и могут быть переписаны совместимостными правилами
-- Где объявлен: `ServerArgs.cuda_graph_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_config`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → `_handle_gpu_memory_settings`) → создание runner'ов и захват графов в `model_executor/model_runner_components/cuda_graph_setup.py`
 
@@ -139,6 +139,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-c
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

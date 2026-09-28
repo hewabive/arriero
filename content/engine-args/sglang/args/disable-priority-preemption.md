@@ -34,7 +34,7 @@ Disable priority scheduling preemption.
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false` — вытеснение включено
 - Эффективное значение: не переопределяется; без `--enable-priority-scheduling` игнорируется с предупреждением
-- Где объявлен: `ServerArgs.disable_priority_preemption`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_priority_preemption`
 - Статус: обычный
 - Этап применения: `Scheduler.init_schedule_policy` → каждый проход `get_new_batch_prefill`
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-prior
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

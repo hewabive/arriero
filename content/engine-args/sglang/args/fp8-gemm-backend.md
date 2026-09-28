@@ -34,7 +34,7 @@ Choose the runner backend for Blockwise FP8 GEMM operations. Options: 'auto' (de
 - Допустимые значения (из `choices`): `auto`, `deep_gemm`, `flashinfer_trtllm`, `flashinfer_cutlass`, `flashinfer_deepgemm`, `flashinfer_cutedsl`, `cutlass`, `triton`, `aiter` (константа `FP8_GEMM_RUNNER_BACKEND_CHOICES`)
 - Значение по умолчанию: `auto`
 - Эффективное значение: `initialize_fp8_gemm_config` переписывает `auto` только в `cutlass` на SM120. В остальных случаях blockwise-FP8 разрешает `auto` в `_dispatch_auto_backend`, а MXFP8 — отдельно в `resolve_mxfp8_dense_gemm_backend`
-- Где объявлен: `ServerArgs.fp8_gemm_runner_backend` (обратите внимание: имя поля и имя флага не совпадают, `cli_name="--fp8-gemm-backend"`), файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.fp8_gemm_runner_backend` (обратите внимание: имя поля и имя флага не совпадают, `cli_name="--fp8-gemm-backend"`)
 - Статус: обычный; поле помечено `resolvable=True`
 - Этап применения: разбор CLI → `initialize_fp8_gemm_config` при инициализации планировщика → `dispatch_w8a8_block_fp8_linear` при построении квант-метода слоя → каждый forward
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --quantizati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/quantization/fp8_utils.py`
 - `sglang/python/sglang/srt/layers/quantization/fp8.py`

@@ -39,7 +39,7 @@ Enable the ReplaySSM buffered output-only linear-attn decode kernel. Primarily a
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; движок его не включает сам
-- Где объявлен: `ServerArgs.enable_linear_replayssm`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_linear_replayssm`
 - Статус: обычный, но явно экспериментальный по формулировке справки и по числу оговорок в коде (часть путей помечена как follow-up)
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend` — четыре проверки) → аллокация `MambaPool` (кольцевые буферы + курсоры) → каждый decode-шаг линейных слоев
 
@@ -127,6 +127,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

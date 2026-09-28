@@ -40,7 +40,7 @@ The data parallelism size.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `1`
 - Эффективное значение: переписывается в `_handle_dwdp` — при `--dwdp-size > 1` выставляется `dp_size = dwdp_size` вместе с принудительными `enable_dp_attention/enable_dp_lm_head/enable_dp_attention_local_control_broadcast = True`. Обратный эффект: при `dp_size == 1` (и `ep_join_mode != "scale"`) правило `_data_parallelism_defaults` гасит `enable_dp_attention` и `enable_dp_lm_head`
-- Где объявлен: `ServerArgs.dp_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dp_size`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_dwdp` → `_handle_data_parallelism` (проверка `tp_size % dp_size == 0`, деление `--chunked-prefill-size`, множитель `--schedule-conservativeness`) → `PortArgs.init_new` (IPC или TCP) → запуск `DataParallelController` → маршрутизация каждого запроса
 
@@ -129,6 +129,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --dp-size 4 --load-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`

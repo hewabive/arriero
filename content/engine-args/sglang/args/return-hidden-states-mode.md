@@ -35,7 +35,7 @@ Set the maximum hidden-state return mode supported by the server. `last` allows 
 - Допустимые значения: `last`, `full`
 - Значение по умолчанию: `null` — возврат скрытых состояний запрещен
 - Эффективное значение: `_handle_return_hidden_states_mode` (`sglang/python/sglang/srt/server_args.py`) связывает поле с legacy-флагом в обе стороны. Если значение не задано, но задан `--enable-return-hidden-states`, режим становится `"full"`. Если значение задано, `enable_return_hidden_states` принудительно становится `True` — включая случай `last`. Значение вне `None`/`last`/`full` (возможно только при программном создании `ServerArgs`) поднимает `ValueError: return_hidden_states_mode must be one of: None, 'last', or 'full'.`
-- Где объявлен: `ServerArgs.return_hidden_states_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.return_hidden_states_mode`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (`_handle_return_hidden_states_mode`) → выбор `capture_hidden_mode` при захвате CUDA graph → валидация каждого запроса → сборка ответа
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --return-hidden-sta
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/forward_batch_info.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`

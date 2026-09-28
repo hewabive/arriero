@@ -34,7 +34,7 @@ Default priority for requests without explicit priority.
 - Допустимые значения: любое целое, включая отрицательные и `0`; ограничений в argparse нет
 - Значение по умолчанию: `null` — подстановка не выполняется
 - Эффективное значение: не переопределяется; при выключенном `--enable-priority-scheduling` значение полностью игнорируется, о чем печатается предупреждение
-- Где объявлен: `ServerArgs.default_priority_value`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.default_priority_value`
 - Статус: обычный
 - Этап применения: `TokenizerManager` — до отправки запроса в scheduler
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-prior
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

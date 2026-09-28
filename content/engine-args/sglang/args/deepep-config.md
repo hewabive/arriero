@@ -33,7 +33,7 @@ Tuned DeepEP config suitable for your own cluster. It can be either a string wit
 - Допустимые значения: `choices` нет; структура проверяется при первом создании `DeepEPConfig`
 - Значение по умолчанию: `null` — используются `Buffer.get_dispatch_config(...)` и `Buffer.get_combine_config(...)` из самого DeepEP, а `num_sms` берется из `Buffer.num_sms`
 - Эффективное значение: не переопределяется; пустая строка приводится к «не задан» (`server_args.deepep_config or ""`)
-- Где объявлен: `ServerArgs.deepep_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_config`
 - Статус: обычный
 - Этап применения: первое создание DeepEP-буфера (ленивая инициализация синглтона `DeepEPConfig`) → каждый normal-dispatch и normal-combine
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/token_dispatcher/deepep.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`

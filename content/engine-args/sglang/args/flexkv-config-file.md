@@ -30,7 +30,7 @@ Path to the FlexKV YAML / JSON configuration file. Equivalent to setting the FLE
 - Допустимые значения: не ограничены; существование и формат проверяет пакет FlexKV
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется. Проброс в `FLEXKV_CONFIG_PATH` происходит только если переменная еще не выставлена (`if server_args.flexkv_config_file and not os.environ.get("FLEXKV_CONFIG_PATH")`) — то есть уже заданная переменная окружения имеет приоритет над аргументом
-- Где объявлен: `ServerArgs.flexkv_config_file`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.flexkv_config_file`
 - Статус: обычный; смысл содержимого определяется внешним пакетом
 - Этап применения: ветка `enable_flexkv` в `default_radix_cache_factory`, непосредственно перед созданием кеша
 
@@ -93,6 +93,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --page-size 64 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/storage/flexkv/flexkv_connector.py`

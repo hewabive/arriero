@@ -35,7 +35,7 @@ Choose the kernel backend for Mamba SSM operations. Default is 'triton'. Options
 - Допустимые значения: `triton`, `flashinfer` (константа `MAMBA_BACKEND_CHOICES` в `server_args.py`; расширения извне для нее не предусмотрено, в отличие от списка linear-attn backend'ов)
 - Значение по умолчанию: `triton`
 - Эффективное значение: совпадает с заданным. Автоподбора нет; движок только проверяет выполнимость выбора в `_handle_mamba_backend`
-- Где объявлен: `ServerArgs.mamba_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_mamba_backend` — проверка доступности FlashInfer) → инициализация scheduler'а (`initialize_mamba_selective_state_update_backend`) → каждый decode-forward mamba2-слоя
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Nemotron-H-8B --mamba-backen
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/ssu_dispatch.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/mamba_ssm.py`

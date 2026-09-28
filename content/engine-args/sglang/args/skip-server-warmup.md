@@ -38,7 +38,7 @@ If set, skip warmup.
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: **принудительно `True`** в двух случаях, оба в `__post_init__`: при заданном `--debug-tensor-dump-output-folder` (лог: `Cuda graph and server warmup are disabled because of using tensor dump mode`) и при заданном `--msprobe-dump-config` (лог: `... warmup is disabled(skip_server_warmup=True) because there is no need to dump data for this stage`). Оба случая заодно выключают CUDA graph. Отдельно прогрев пропускается для elastic-EP joiner'а (`is_ep_scale_joiner`) — там это не связано с флагом
-- Где объявлен: `ServerArgs.skip_server_warmup`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.skip_server_warmup`
 - Статус: обычный
 - Этап применения: `__post_init__` (принудительные включения) → HTTP-слой, поток `_wait_and_warmup` внутри lifespan приложения
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/environ.py`

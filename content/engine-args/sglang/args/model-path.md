@@ -37,7 +37,7 @@ The path of the model weights. This can be a local folder or a Hugging Face repo
 - Допустимые значения: не ограничены на уровне argparse
 - Значение по умолчанию: отсутствует — поле датакласса объявлено без default, поэтому `add_cli_args` ставит `required=True` (`arg_groups/arg_utils.py`, ветка `arg_meta.required is None and default is _MISSING`)
 - Эффективное значение: переписывается на пути ModelScope (`SGLANG_USE_MODELSCOPE=1` → `_handle_modelscope_paths` подменяет repo ID на локальный snapshot); специальные значения `none`/`dummy` (без учета регистра) обрывают весь `__post_init__` сразу после `_handle_return_hidden_states_mode`
-- Где объявлен: `ServerArgs.model_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.model_path`
 - Статус: обычный, обязательный
 - Этап применения: разбор CLI → `__post_init__` (автоопределение load format, model-specific ветки) → `ModelConfig.from_server_args` (чтение `config.json`) → загрузка весов в каждом TP/PP-воркере
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-30B-A3B --revision main -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`
 - `sglang/python/sglang/srt/configs/model_config.py`

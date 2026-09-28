@@ -33,7 +33,7 @@ The interval to poll requests in scheduler. Can be set to >1 to reduce the overh
 - Допустимые значения: не ограничены; проверок при старте нет
 - Значение по умолчанию: `1` — опрос на каждой итерации
 - Эффективное значение: не переопределяется. При значении `<= 1` объект-пропускатель вообще не создается (`SchedulerRecvSkipper.maybe_create` возвращает `None`), и код опроса работает по старому пути
-- Где объявлен: `ServerArgs.scheduler_recv_interval`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.scheduler_recv_interval`
 - Статус: обычный
 - Этап применения: создание `SchedulerRecvSkipper` при инициализации планировщика → начало каждой итерации цикла (`recv_requests`)
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-dp-at
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/recv_skipper.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/request_receiver.py`

@@ -37,7 +37,7 @@ One or more EncoderBootstrapServer URLs to register this encoder with on startup
 - Допустимые значения: `choices` нет; URL реестров, обычно `http://<language-host>:8997`
 - Значение по умолчанию: `msgspec.field(default_factory=list)` — пустой список
 - Эффективное значение: совпадает с заданным; движок его не переписывает
-- Где объявлен: `ServerArgs.encoder_register_urls`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_register_urls`
 - Статус: обычный
 - Этап применения: `disaggregation/encode_server.py:launch_server` (или `_launch_server_dp`) непосредственно перед `uvicorn.run` — то есть уже после загрузки весов, но до приема трафика; снятие регистрации — через `atexit`
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --encoder-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`
 - `sglang/python/sglang/srt/disaggregation/encode_receiver.py`

@@ -45,7 +45,7 @@ Examples:
 - Допустимые значения: положительное целое, опционально с суффиксом SI (`k`, `M`, `G`, `T`) или IEC (`Ki`, `Mi`, `Gi`, `Ti`); суффиксы регистрозависимы, дробная часть допустима только с SI
 - Значение по умолчанию: `null` — потолок не применяется
 - Эффективное значение: `min(профилированная емкость, заданное значение)`, затем округление вниз до целого числа страниц (`--page-size`) и, при `--pp-size > 1`, минимум по всем PP-рангам
-- Где объявлен: `ServerArgs.max_total_tokens`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_total_tokens`
 - Статус: обычный; апстрим сам помечает его как отладочный
 - Этап применения: разбор CLI → `_handle_gpu_memory_settings` (ограничение prefill-графа) → `KVCacheConfigurator._apply_token_constraints` при выделении KV-пула
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --max-total-to
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

@@ -38,7 +38,7 @@ Skip caching reasoning-model output (thinking + answer) in the radix tree on fin
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` не переопределяет
-- Где объявлен: `ServerArgs.strip_thinking_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.strip_thinking_cache`
 - Статус: обычный, явно помеченный как opt-in
 - Этап применения: завершение запроса в планировщике — `release_kv_cache` / `cache_finished_req`
 
@@ -126,6 +126,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --reasoning-pa
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/schedule_batch.py`
 - `sglang/python/sglang/srt/mem_cache/common.py`

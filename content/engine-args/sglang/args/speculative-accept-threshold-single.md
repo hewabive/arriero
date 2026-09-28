@@ -34,7 +34,7 @@ Accept a draft token if its probability in the target model is greater than this
 - Допустимые значения: argparse не ограничивает, но CUDA-операция проверяет `0 <= threshold_single <= 1` и падает на значении вне отрезка
 - Значение по умолчанию: `1.0`
 - Эффективное значение: совпадает с заданным; **изменяемо в runtime** через `POST /set_internal_state` (ключ `speculative_accept_threshold_single` в объекте `server_args`) — это один из немногих серверных аргументов в белом списке обновляемых
-- Где объявлен: `ServerArgs.speculative_accept_threshold_single`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_accept_threshold_single`
 - Статус: обычный
 - Этап применения: forward, фаза `target_verify` — значение читается из runtime-контекста на каждом шаге, а не фиксируется на старте
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --spec
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/eagle_utils.py`
 - `sglang/python/sglang/srt/speculative/dflash_utils.py`

@@ -36,7 +36,7 @@ Enable Multi-Item Scoring optimization. Combines query and multiple items into a
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: само поле не переписывается, но оно **переписывает три других**. `_handle_multi_item_scoring` (`sglang/python/sglang/srt/server_args.py`) выставляет `cuda_graph_config.decode.backend = DISABLED` и `cuda_graph_config.prefill.backend = DISABLED`, `disable_radix_cache = True`, `chunked_prefill_size = -1`, каждое — с предупреждением вида `CUDA graph is disabled because --enable-mis is set.` Затем идет ассерт на backend внимания
-- Где объявлен: `ServerArgs.enable_mis`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_mis`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__`: `_handle_multi_item_scoring` **после** разрешения backend'а внимания и `chunked_prefill_size` → построение FlashInfer-backend'а → сборка последовательности в `/v1/score` → prefill
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --attention-backend
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/flashinfer_backend.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager_score_mixin.py`

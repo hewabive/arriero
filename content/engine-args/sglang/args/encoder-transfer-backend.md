@@ -40,7 +40,7 @@ The backend for encoder disaggregation transfer. Auto selects a model- and TP-aw
 - Допустимые значения: `auto`, `zmq_to_scheduler`, `zmq_to_tokenizer`, `mooncake`
 - Значение по умолчанию: литерал `"auto"`
 - Эффективное значение: `auto` **всегда** переписывается в `_handle_encoder_disaggregation` функцией `resolve_encoder_transfer_backend(backend, model_arch, tp_size)`: для `KimiK3ForConditionalGeneration` при `--tp-size > 1` — `zmq_to_tokenizer`, во всех остальных случаях — `zmq_to_scheduler`. Разрешение выполняется на любом сервере, но в лог (`Encoder transfer backend auto-resolved to %s for %s at TP%d.`) попадает только при `--encoder-only` или `--language-only`
-- Где объявлен: `ServerArgs.encoder_transfer_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_transfer_backend`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_encoder_disaggregation` (разрешение `auto`, валидация IB-устройств при `mooncake`) → создание MM-receiver'а в tokenizer manager и/или scheduler'е → обработка каждого мультимодального запроса
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
 - `sglang/python/sglang/srt/disaggregation/encoder/server.py`

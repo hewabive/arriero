@@ -190,7 +190,7 @@ PY
 - ссылки на upstream PR/issue/discussion — только те, что ты реально открыл и проверил по содержанию;
 - при необходимости документы arriero (`docs/KTRANSFORMERS_OPERATIONS.md`, `docs/RESOURCE_MANAGEMENT.md`), помеченные как относящиеся к arriero, а не к движку.
 
-Поле `origin` из extract у SGLang почти всегда имеет форму `ServerArgs.<field>` или `ServerArgs.add_cli_args` — это не путь, а место объявления; цитируй его в «Паспорте аргумента» дословно, а файл указывай отдельно в «Источниках».
+Поле `origin` из extract (`python/sglang/srt/arg_groups/fields/model.py:Model.model_path`; у литеральных `parser.add_argument` — `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`) цитируется в «Паспорте аргумента» дословно — оно задано относительно корня checkout'а. В «Источниках» тот же файл пишется с префиксом каталога и идет первым: `sglang/python/sglang/srt/arg_groups/fields/model.py`.
 
 ## Проверка перед завершением
 

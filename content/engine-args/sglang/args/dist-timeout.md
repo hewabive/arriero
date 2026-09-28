@@ -37,7 +37,7 @@ Set timeout for torch.distributed initialization.
 - Допустимые значения: строго положительное целое. `init_distributed_environment` проверяет: `assert isinstance(timeout, (int)), "timeout must be a number"` и `assert timeout > 0, "timeout must be positive"`
 - Значение по умолчанию: `null`
 - Эффективное значение: при `null` в `init_process_group` передается `timeout=None`, и действует **умолчание PyTorch** (`torch.distributed.constants.default_pg_timeout` в вашей версии torch); SGLang своего значения не подставляет. Проверить фактическое умолчание на своей сборке: `python -c "from torch.distributed.constants import default_pg_timeout; print(default_pg_timeout)"`
-- Где объявлен: `ServerArgs.dist_timeout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dist_timeout`
 - Статус: обычный
 - Этап применения: `init_torch_distributed` → `init_distributed_environment` (мировая группа) → `initialize_model_parallel` (все подгруппы)
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

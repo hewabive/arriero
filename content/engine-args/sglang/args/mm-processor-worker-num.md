@@ -34,7 +34,7 @@ Number of threads for multimodal processor calls. 0 selects the model-specific d
 - Допустимые значения: неотрицательное целое; проверка `assert self.mm_processor_worker_num >= 0, "Multimodal processor worker num must >= 0"` в `__post_init__`
 - Значение по умолчанию: `0` — «модель-специфичный дефолт»
 - Эффективное значение: `BaseMultimodalProcessor.__init__` подставляет `auto_mm_processor_worker_num` при `0` и принудительно опускает до `1`, если процессор не поддерживает конкурентность или если клонировать его не удалось
-- Где объявлен: `ServerArgs.mm_processor_worker_num`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_processor_worker_num`
 - Статус: обычный
 - Этап применения: конструирование мультимодального процессора в tokenizer-процессе (после старта, до приема запросов)
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-pr
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/executor.py`

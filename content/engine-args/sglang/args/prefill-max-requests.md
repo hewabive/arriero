@@ -34,7 +34,7 @@ The maximum number of requests in a prefill batch. If not specified, there is no
 - Допустимые значения: не ограничены на уровне argparse; проверок при старте нет
 - Значение по умолчанию: `null` — ограничения по числу запросов нет
 - Эффективное значение: не переопределяется; `__post_init__` это поле не читает
-- Где объявлен: `ServerArgs.prefill_max_requests`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_max_requests`
 - Статус: обычный
 - Этап применения: передается в `PrefillAdder` при каждой сборке prefill-батча
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --prefill-max-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

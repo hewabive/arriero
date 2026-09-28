@@ -33,7 +33,7 @@ Whether host memory is a persistent HiCache tier (cache) or a transient staging 
 - Группа: `memory`
 - Тип: `str`
 - Декларативный default: `"cache"`
-- Объявление: `ServerArgs.hicache_host_memory_mode` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_host_memory_mode`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -68,6 +68,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --enable-hierarchic
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`

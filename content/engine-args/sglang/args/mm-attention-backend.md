@@ -33,7 +33,7 @@ Set multimodal attention backend.
 - Допустимые значения: `sdpa`, `fa3`, `fa4`, `triton_attn`, `ascend_attn`, `aiter_attn`, `flashinfer_cudnn`, `amx_attn`, `xpu_attn` — фиксированный список `choices`, совпадающий с ключами таблицы `QKV_BACKEND_IMPL`
 - Значение по умолчанию: `null` — «подобрать по платформе»
 - Эффективное значение: `VisionAttention._determine_attention_backend` (`sglang/python/sglang/srt/layers/attention/vision.py`) выбирает backend, если аргумент не задан; см. таблицу ниже
-- Где объявлен: `ServerArgs.mm_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_attention_backend`
 - Статус: обычный
 - Этап применения: конструирование модели (создание модулей `VisionAttention`), то есть после загрузки конфигурации и до forward
 
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-at
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/vision.py`
 - `sglang/python/sglang/srt/models/qwen3_vl.py`

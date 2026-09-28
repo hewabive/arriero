@@ -35,7 +35,7 @@ Enable estimated MFU-related prometheus metrics.
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
 - Эффективное значение: заданное значение читается **внутри** ветки `if self.enable_metrics` в `SchedulerMetricsReporter._init_metrics`, поэтому без `--enable-metrics` эффективное значение всегда `False` независимо от флага
-- Где объявлен: `ServerArgs.enable_mfu_metrics`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_mfu_metrics`
 - Статус: обычный
 - Этап применения: конструктор `SchedulerMetricsReporter` (расчет констант по `model_config`) → каждая итерация prefill/decode
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-metri
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`

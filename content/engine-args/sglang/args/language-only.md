@@ -38,7 +38,7 @@ For VLM, load weights for the language model only.
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; движок его не переписывает, но оно отключает VLM-надбавку к `--mem-fraction-static` и меняет ветку прогрева
-- Где объявлен: `ServerArgs.language_only`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.language_only`
 - Статус: обычный
 - Этап применения: разбор CLI → авто-подбор `--mem-fraction-static` (VLM-надбавка пропускается) → `_handle_encoder_disaggregation` (проверки, разрешение `--encoder-transfer-backend auto`) → `ModelConfig` (`hf_config.language_only`) → загрузка весов без визуальной башни → `TokenizerManager.init_disaggregation` (запуск `EncoderBootstrapServer` и MM-receiver'а) → обработка каждого мультимодального запроса
 
@@ -133,6 +133,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

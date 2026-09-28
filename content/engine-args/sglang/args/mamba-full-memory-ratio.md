@@ -36,7 +36,7 @@ The ratio of mamba state memory to full kv cache memory.
 - Допустимые значения: положительное число; argparse ограничений не накладывает. Это отношение, а не доля, поэтому значения больше 1 корректны и означают «состояниям больше, чем KV»
 - Декларативное значение по умолчанию: `null`; fallback `0.9`, для Inkling — `0.1`, если флаг не задан.
 - Эффективное значение: не переопределяется автоматикой, но полностью игнорируется, если задан `--max-mamba-cache-size` либо одновременно заданы `--disable-radix-cache` и `--max-running-requests`
-- Где объявлен: `ServerArgs.mamba_full_memory_ratio`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.mamba_full_memory_ratio`
 - Статус: обычный
 - Этап применения: выделение памяти под пулы (`KVCacheConfigurator._handle_max_mamba_cache`), до расчета KV-пула
 

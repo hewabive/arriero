@@ -35,7 +35,7 @@ The maximum rank of LoRA adapters. If not specified, it will be automatically in
 - Допустимые значения: положительное целое; собственной проверки диапазона нет
 - Значение по умолчанию: `null` — «вывести из `--lora-paths`»
 - Эффективное значение: `LoRAManager.init_lora_shapes` подставляет `max(x.r for x in configs)` (или `0`, если адаптеров нет); при пустом `--lora-paths` отсутствие аргумента приводит к ассерту ещё в `check_lora_server_args`
-- Где объявлен: `ServerArgs.max_lora_rank`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.max_lora_rank`
 - Статус: обычный
 - Этап применения: `__post_init__` (валидация связки) → `LoRAManager.init_lora_shapes` → `LoRAMemoryPool.init_buffers` (аллокация VRAM, до профилирования KV-пула) → проверка каждого загружаемого адаптера
 
@@ -133,6 +133,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`

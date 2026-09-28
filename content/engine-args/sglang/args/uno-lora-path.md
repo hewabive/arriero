@@ -28,7 +28,7 @@ Path to the UNO draft LoRA checkpoint.
 - Группа: `spec`
 - Тип: `str`
 - Значение в декларации по умолчанию: `null`
-- Объявление: `ServerArgs.uno_lora_path` в `sglang/python/sglang/srt/arg_groups/fields/spec.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/spec.py:Spec.uno_lora_path`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

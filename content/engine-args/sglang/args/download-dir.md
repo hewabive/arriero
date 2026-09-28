@@ -34,7 +34,7 @@ Model download directory for huggingface.
 - Допустимые значения: не ограничены; каталог создается библиотекой HF при необходимости
 - Значение по умолчанию: `null` — используются дефолты `huggingface_hub`
 - Эффективное значение: не переопределяется движком
-- Где объявлен: `ServerArgs.download_dir`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.download_dir`
 - Статус: обычный
 - Этап применения: `__post_init__` (только для ModelScope) и загрузка весов в каждом воркере
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-30B-A3B --download-dir /d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

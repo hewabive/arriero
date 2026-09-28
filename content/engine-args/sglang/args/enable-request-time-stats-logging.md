@@ -35,7 +35,7 @@ Enable per request time stats logging
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Печатает только ранг с `attn_tp_rank == 0`
-- Где объявлен: `ServerArgs.enable_request_time_stats_logging`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_request_time_stats_logging`
 - Статус: обычный
 - Этап применения: поток вывода scheduler'а, на завершении каждого запроса
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-request
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/output_streamer.py`
 - `sglang/python/sglang/srt/managers/schedule_batch.py`

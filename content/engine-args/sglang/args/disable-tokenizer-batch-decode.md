@@ -36,7 +36,7 @@ Disable batch decoding when decoding multiple completions.
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False` — групповое декодирование включено
 - Эффективное значение: совпадает с заданным. Ни один `_handle_*` его не переписывает — в отличие от соседних аргументов токенизаторного батчинга, которые сбрасываются при `--skip-tokenizer-init`
-- Где объявлен: `ServerArgs.disable_tokenizer_batch_decode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.disable_tokenizer_batch_decode`
 - Статус: обычный
 - Этап применения: инициализация процесса детокенизатора (`DetokenizerManager.init_running_status` копирует значение в `self.disable_tokenizer_batch_decode`) → каждый шаг обработки `BatchTokenIDOutput`
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/gpt-oss-20b --host 127.0.0.1
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/detokenizer_manager.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

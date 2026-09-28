@@ -38,7 +38,7 @@ Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a 
 - Тип значения: `Optional[Literal["cpu", "cuda_ipc", "cuda_vmm"]]`
 - Допустимые значения: `cpu`, `cuda_ipc`, `cuda_vmm`
 - Значение по умолчанию: `null`; эффективное значение разрешает `ServerArgs._handle_multimodal_feature_transport`
-- Где объявлен: `ServerArgs.mm_feature_transport`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_feature_transport`
 - Этап применения: `__post_init__` → проверка поддержки модели в `TokenizerManager` → создание bounded pool → упаковка каждого мультимодального запроса
 
 ## Что меняет в движке
@@ -105,6 +105,7 @@ SGLANG_MM_FEATURE_CACHE_MB=2048 python -m sglang.launch_server --model-path /mod
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/cuda_ipc_transport_utils.py`
 - `sglang/python/sglang/srt/utils/cuda_vmm_transport_utils.py`

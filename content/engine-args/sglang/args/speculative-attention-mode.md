@@ -34,7 +34,7 @@ Attention backend for speculative decoding operations (both target verify and dr
 - Допустимые значения: `prefill`, `decode` (`choices` из extract; argparse отвергает всё остальное)
 - Значение по умолчанию: `prefill`
 - Эффективное значение: поле помечено `resolvable=True`, то есть реестр модельных override'ов может его переписать. Сегодня это делает Kimi-K3: при `--dcp-size > 1` вместе с `DSPARK` режим принудительно становится `decode` (иначе verify уходит на `trtllm_mla`, у которого нет DCP-пути), и на SM100/SM103 — `decode`, если decode-backend способен обслужить verify при данном `q_len`
-- Где объявлен: `ServerArgs.speculative_attention_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_attention_mode`
 - Статус: обычный
 - Этап применения: `__post_init__` (модельные override'ы) → сборка `HybridAttnBackend` и draft-extend-backend'а → каждый forward фазы `target_verify` / `draft_extend`
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --spec
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`

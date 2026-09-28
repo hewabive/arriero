@@ -39,7 +39,7 @@ The maximum number of tokens in a chunk for the chunked prefill. Setting this to
 - Допустимые значения: `-1` (отключить) либо положительное число, кратное `--page-size`. Любое значение `<= 0` трактуется планировщиком как «выключено»
 - Значение по умолчанию: `null`
 - Эффективное значение: подбирается в `_handle_gpu_memory_settings` по емкости GPU — `<20 ГиБ` → 2048, `<35` → 2048, `<60` → 4096, `<90` → 8192, `<160` → 8192, иначе 16384; при неизвестной емкости — 4096. Затем делится на `--dp-size` при `--enable-dp-attention` и принудительно ставится в `-1` при `--enable-mis` и для HRM-Text (`prefix_lm`)
-- Где объявлен: `ServerArgs.chunked_prefill_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.chunked_prefill_size`
 - Статус: обычный
 - Этап применения: `__post_init__` (подбор и проверки) → `Scheduler.init_chunked_prefill` → каждый вызов `get_new_batch_prefill`
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --chunked-pref
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

@@ -38,7 +38,7 @@ The number of nodes.
 - Допустимые значения: `choices` нет; делители `tp_size * pp_size`
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Зато оно само переписывает соседей: при `nnodes > 1` отключается `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` (кроме MNNVL-железа) и запрещается `--mm-feature-transport cuda_ipc`; авто-выбор транспорта признаков на нескольких узлах дает `cpu` (IPC-хендлы работают только внутри узла), тогда как на одном CUDA-узле без disaggregation он выбирает `cuda_ipc`
-- Где объявлен: `ServerArgs.nnodes`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.nnodes`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_multimodal_feature_transport`, `_handle_custom_all_reduce_v2_multinode`, ветки модельных настроек) → `check_server_args` (делимость) → `PortArgs.init_new` → `_calculate_rank_ranges` (какие ранги поднимает этот узел) → `init_distributed_environment`
 
@@ -134,6 +134,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.1 --tensor-p
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`

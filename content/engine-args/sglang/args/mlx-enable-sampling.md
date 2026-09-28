@@ -32,7 +32,7 @@ MLX backend only: sample decode tokens (temperature / top-k / top-p / min-p) ins
 - Группа: `device`
 - Тип значения: bool, флаг без значения
 - Значение по умолчанию: `false`
-- Где объявлен: `ServerArgs.mlx_enable_sampling`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.mlx_enable_sampling`
 - Этап применения: создание `MlxModelRunner` → регистрация sampling params при prefill → lazy graph каждого sampled шага → обработка output logprobs
 
 ## Что меняет в движке
@@ -88,6 +88,7 @@ SGLANG_USE_MLX=1 python -m sglang.launch_server --model-path /models/Qwen3-4B --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/hardware_backend/mlx/sampling.py`
 - `sglang/python/sglang/srt/hardware_backend/mlx/model_runner.py`

@@ -34,7 +34,7 @@ Name of a radix-cache backend previously registered via register_radix_cache_bac
 - Допустимые значения: `choices` не заданы — список собирается в runtime реестром `_RADIX_CACHE_REGISTRY` (`sglang/python/sglang/srt/mem_cache/registry.py`). Посмотреть фактический набор на своей сборке можно вызовом `registered_radix_cache_backends()` после импорта нужных пакетов; при неверном имени движок печатает список в тексте ошибки
 - Значение по умолчанию: `null` — используется встроенная цепочка выбора
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.radix_cache_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_cache_backend`
 - Статус: обычный; фактическое поведение целиком зависит от стороннего кода, регистрирующего фабрику
 - Этап применения: `create_tree_cache` при построении дерева кеша в scheduler'е
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --page-size 64 --ra
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/storage/flexkv/__init__.py`

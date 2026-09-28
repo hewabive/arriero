@@ -33,7 +33,7 @@ Maximum chunk size for the ChunkedSGMV LoRA backend. Only used when --lora-backe
 - Допустимые значения: `16`, `32`, `64`, `128` (список `choices`); дополнительно `check_lora_server_args` требует степень двойки в диапазоне 16…128
 - Значение по умолчанию: `16`
 - Эффективное значение: не переопределяется, но фактический размер чанка на каждом батче равен `min(max_chunk_size, эвристика(num_tokens))`, а при `max_chunk_size <= 16` — всегда 16
-- Где объявлен: `ServerArgs.max_lora_chunk_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.max_lora_chunk_size`
 - Статус: обычный
 - Этап применения: конструктор `ChunkedSgmvLoRABackend` → выбор размера чанка на каждом forward → размерности буферов prefill-CUDA-graph
 
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/backend/chunked_backend.py`
 - `sglang/python/sglang/srt/lora/backend/lora_registry.py`

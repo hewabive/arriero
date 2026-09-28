@@ -36,7 +36,7 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
 - Значение по умолчанию: `null` — фаза decode наследует разрешенный `--attention-backend`
 - Эффективное значение: `attention_backends_of` возвращает `decode_attention_backend or attention_backend`. Само поле дописывается движком при `--device npu` (`ascend`) и для DeepSeek V4 на NPU (`dsv4`)
-- Где объявлен: `ServerArgs.decode_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.decode_attention_backend`
 - Статус: обычный; поле помечено `resolvable=True`
 - Этап применения: разбор CLI → `__post_init__` (привязки `--page-size`, проверки KV-dtype и SM) → создание backend'а в model runner → захват decode-графа CUDA → каждый шаг декодирования
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --decode-atten
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`

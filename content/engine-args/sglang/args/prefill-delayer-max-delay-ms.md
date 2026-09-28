@@ -33,7 +33,7 @@ Wall-clock cap (ms) on a single queue-trigger delay; once exceeded, prefill is f
 - Допустимые значения: не ограничены проверками; рекомендованный апстримом диапазон — `1000 … 5000`
 - Значение по умолчанию: `null`
 - Эффективное значение: `null` превращается в `5000.0` внутри `PrefillDelayer.__init__` — это локальный предохранитель, а не семантический дефолт, поэтому в `ServerArgs` он не поднимается и в дампе `server_args=` вы увидите `None`
-- Где объявлен: `ServerArgs.prefill_delayer_max_delay_ms`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_max_delay_ms`
 - Статус: обычный; читается только при `--enable-prefill-delayer` **и** заданном `--prefill-delayer-queue-min-ratio`
 - Этап применения: создание `PrefillDelayer` → каждый проход сборки prefill-батча, где активно очередное условие
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-dp-at
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/prefill_delayer.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`

@@ -33,7 +33,7 @@ The path of the decrypted draft config file.
 - Допустимые значения: не ограничены; смысл имеет имя файла, разрешимое относительно `--speculative-draft-model-path`
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется; пустая строка и пробелы эквивалентны отсутствию (`if override_config_file and override_config_file.strip()`)
-- Где объявлен: `ServerArgs.decrypted_draft_config_file`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.decrypted_draft_config_file`
 - Статус: обычный, узкая интеграция со схемой шифрованных чекпоинтов
 - Этап применения: `handle_speculative_decoding` в `__post_init__` (резолв алгоритма) и построение `ModelConfig` draft-модели
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/target --speculative-algorit
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/configs/model_config.py`

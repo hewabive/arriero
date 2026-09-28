@@ -37,7 +37,7 @@ Port for the EncoderBootstrapServer that runs in the language-only tokenizer man
 - Допустимые значения: `choices` нет; свободный TCP-порт, отличный от `--port` и от `--disaggregation-bootstrap-port`
 - Значение по умолчанию: `8997`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.encoder_bootstrap_port`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_bootstrap_port`
 - Статус: обычный
 - Этап применения: `TokenizerManager.init_disaggregation` при `--language-only` — запуск `EncoderBootstrapServer(host=--host, port=--encoder-bootstrap-port, urls=<разделяемый список>)` в демон-потоке
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encode_receiver.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

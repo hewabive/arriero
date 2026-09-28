@@ -36,7 +36,7 @@ Whether or not to allow for custom models defined on the Hub in their own modeli
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется ни одним `_handle_*`
-- Где объявлен: `ServerArgs.trust_remote_code`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.trust_remote_code`
 - Статус: обычный, но это граница безопасности, а не настройка производительности
 - Этап применения: построение `ModelConfig` (чтение `config.json`), инициализация токенизатора/процессора в tokenizer manager, detokenizer и TP-воркерах, определение чат-шаблона, разбор конфигов драфт-моделей; при `--weight-cache-mode daemon` — проброс в порожденные процессы демона
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/MiniMax-M3-MXFP8 --kt-weight
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/config.py`

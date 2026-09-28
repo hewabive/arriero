@@ -33,7 +33,7 @@ Number of sm partition groups.
 - Допустимые значения: `choices` нет; должно быть ≥ фактического числа групп потоков
 - Значение по умолчанию: `8`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Но **фактическое** число групп потоков берется не отсюда, а из `sm_group_num` в YAML `--pdmux-config-path` (и может оказаться меньше него, если `divide_sm` не набрал делений)
-- Где объявлен: `ServerArgs.sm_group_num`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.sm_group_num`
 - Статус: обычный
 - Этап применения: `attention_backend_setup` при инициализации model runner'а, только при `--enable-pdmux`; дальше массив индексируется на каждой смене группы потоков
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --e
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

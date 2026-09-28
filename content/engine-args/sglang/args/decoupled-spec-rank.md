@@ -32,7 +32,7 @@ This engine's rank within its own role space (verifier-rank or drafter-rank) for
 - Допустимые значения: `choices` нет; осмысленны целые ≥ 0, меньшие числа процессов в своей роли
 - Значение по умолчанию: `null` (не задан)
 - Эффективное значение: совпадает с заданным; преобразуется `int(...)` при сборке `DecoupledSpecIpcConfig`
-- Где объявлен: `ServerArgs.decoupled_spec_rank`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_rank`
 - Статус: обычный флаг незавершенной функциональности — собранную из него конфигурацию в checkout'е никто не читает
 - Этап применения: `PortArgs.init_new` — единственное место, где значение читается
 
@@ -92,6 +92,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.2-1B-Instruct --d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/decoupled_spec_io.py`
 - `sglang/test/registered/unit/spec/test_decoupled_spec_io.py`

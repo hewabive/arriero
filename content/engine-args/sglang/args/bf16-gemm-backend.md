@@ -34,7 +34,7 @@ Choose the backend for unquantized BF16 GEMM operations. Options: 'auto' (defaul
 - Допустимые значения (из `choices`): `auto`, `cutedsl`, `gemv`, `torch` (choices объявлены непосредственно у поля)
 - Значение по умолчанию: `auto`
 - Эффективное значение: `initialize_bf16_gemm_config` превращает `auto` при `get_platform().is_sm100` в `cutedsl`, либо в `torch`, если включен `--enable-deterministic-inference`; вне SM100/SM103 `auto` остается `auto` и ведет себя как `torch`
-- Где объявлен: `ServerArgs.bf16_gemm_backend` (в extract `origin` — `ServerArgs.bf16_gemm_backend`, `cli_name` задан явно), файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.bf16_gemm_backend` (`cli_name` задан явно)
 - Статус: обычный
 - Этап применения: разбор CLI → `initialize_bf16_gemm_config` при инициализации планировщика (`scheduler.py`) → каждый вызов `UnquantizedLinearMethod.apply` / `apply_into`
 
@@ -92,6 +92,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --dtype bfloat16 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/quantization/unquant.py`
 - `sglang/python/sglang/kernels/ops/gemm/cutedsl_bf16_gemm.py`

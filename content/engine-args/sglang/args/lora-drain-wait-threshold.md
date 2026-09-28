@@ -34,7 +34,7 @@ When any LoRA adapter request waits longer than this threshold (in seconds), the
 - Допустимые значения: неотрицательное число; `assert self.lora_drain_wait_threshold >= 0.0, "--lora-drain-wait-threshold must be non-negative."`
 - Значение по умолчанию: `0.0` — слив выключен
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.lora_drain_wait_threshold`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_drain_wait_threshold`
 - Статус: обычный
 - Этап применения: `__post_init__` (валидация) → `Scheduler.init_lora_drainer` (объект создается только при значении > 0) → каждый раунд сборки prefill-батча
 
@@ -114,6 +114,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/lora_drainer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

@@ -43,7 +43,7 @@ The worker num of the tokenizer manager.
 - Допустимые значения: `choices` нет; `check_server_args` требует `> 0` (`Tokenizer worker num must >= 1`). Практический потолок — число ядер хоста, свободных от инференса
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным. `--skip-tokenizer-init` его специально **не** сбрасывает — в комментарии кода это объяснено тем, что воркеры продолжают обслуживать HTTP и состояние запросов, даже когда токенизировать нечего
-- Где объявлен: `ServerArgs.tokenizer_worker_num`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_worker_num`
 - Статус: обычный
 - Этап применения: `__post_init__` (проверки совместимости) → выбор ветки запуска в `_setup_and_run_http_server` → запуск N HTTP-процессов и роутера
 
@@ -137,6 +137,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/managers/multi_tokenizer_mixin.py`

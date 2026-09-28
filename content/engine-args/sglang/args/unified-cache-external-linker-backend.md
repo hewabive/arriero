@@ -28,7 +28,7 @@ Storage backend for --enable-unified-cache-external-linker.
 - Группа: `memory`
 - Тип: `str`
 - Значение в декларации по умолчанию: `mooncake`
-- Объявление: `ServerArgs.unified_cache_external_linker_backend` в `sglang/python/sglang/srt/arg_groups/fields/memory.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/memory.py:Memory.unified_cache_external_linker_backend`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

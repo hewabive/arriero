@@ -35,7 +35,7 @@ Enable elastic expert backup feature.
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но игнорируется без `--elastic-ep-backend`: и запуск процесса-хранителя, и создание клиента гейтятся условием «флаг И задан бэкенд elastic EP»
-- Где объявлен: `ServerArgs.enable_elastic_expert_backup`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_elastic_expert_backup`
 - Статус: обычный, часть молодой подсистемы elastic EP
 - Этап применения: `__post_init__` (проверка несовместимости с расширением) → запуск процессов движка (`run_expert_backup_manager`) → инициализация model runner (`maybe_init_expert_backup_client`) → перебалансировка/восстановление
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/elastic_ep/expert_backup_manager.py`
 - `sglang/python/sglang/srt/elastic_ep/expert_backup_client.py`

@@ -33,7 +33,7 @@ KV cache dtype for the speculative draft model only. The draft pool is allocated
 - Тип значения: `Optional[str]`
 - Допустимые значения: `auto`, `fp8_e5m2`, `fp8_e4m3`, `bf16`, `bfloat16`
 - Значение по умолчанию: `null` — draft наследует target `--kv-cache-dtype`
-- Где объявлен: `ServerArgs.speculative_draft_kv_cache_dtype`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_kv_cache_dtype`
 - Этап применения: создание draft `ModelRunner` → разрешение dtype → расчёт draft bytes/token для target KV budget → аллокация draft KV pool
 
 ## Что меняет в движке
@@ -91,6 +91,7 @@ python -m sglang.launch_server --model-path /models/target --speculative-algorit
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_dtype.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

@@ -37,7 +37,7 @@ Number of layers per group in offloading.
 - Допустимые значения: `-1` или `0` — выключено; положительное целое — включает схему
 - Значение по умолчанию: `-1`
 - Эффективное значение: совпадает с заданным; автоподбора нет
-- Где объявлен: `ServerArgs.offload_group_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_group_size`
 - Статус: обычный; в апстрим-документации описан одной строкой, реальная семантика — только в коде
 - Этап применения: создание `ModelRunner` (`create_offloader_from_server_args`) → построение слоев (`make_layers` → `OffloaderV2.wrap_modules`) → `post_init` после загрузки весов → каждый forward
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V2-Lite --offload-g
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/utils/offloader.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/models/deepseek_v2.py`

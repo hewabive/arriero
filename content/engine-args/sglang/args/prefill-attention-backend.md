@@ -37,7 +37,7 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
 - Значение по умолчанию: `null` — фаза prefill наследует разрешенный `--attention-backend`
 - Эффективное значение: `attention_backends_of` (`sglang/python/sglang/srt/arg_groups/overrides.py`) возвращает `prefill_attention_backend or attention_backend`. Само поле дописывается движком в двух случаях: `--device npu` пишет в него `ascend`, а `_cutedsl_prefill_backend_fill` подставляет `trtllm_mla`, если decode-backend — `cutedsl_mla`, а prefill не задан. Для DeepSeek V4 на NPU `_deepseek_v4_overrides` пишет `dsv4` в оба split-поля
-- Где объявлен: `ServerArgs.prefill_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.prefill_attention_backend`
 - Статус: обычный; поле помечено `resolvable=True`
 - Этап применения: разбор CLI → `__post_init__` (`_attention_backend_default` и вся цепочка проверок совместимости) → создание backend'а в model runner → forward фазы extend
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --prefill-atte
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`

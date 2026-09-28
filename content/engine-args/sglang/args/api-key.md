@@ -42,7 +42,7 @@ Set API key of the server. It is also used in the OpenAI API compatible server.
 - Допустимые значения: не ограничены argparse. Практически — только ASCII: сравнение идет через `secrets.compare_digest` по строкам, а он на не-ASCII `str` бросает `TypeError`
 - Значение по умолчанию: `None` — аутентификации нет
 - Эффективное значение: совпадает с заданным; переменной окружения-дублера у этого аргумента нет. Косвенный эффект: при `--grpc-port` вместе с `--api-key` `__post_init__` бросает `ValueError`, а при `--tokenizer-worker-num > 1` ключ приводит к `AssertionError` в каждом HTTP-worker'е
-- Где объявлен: `ServerArgs.api_key`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.api_key`
 - Статус: обычный
 - Этап применения: `__post_init__` (проверки совместимости с gRPC) → HTTP-слой, `_setup_and_run_http_server` подключает middleware до старта uvicorn/Granian
 
@@ -140,6 +140,7 @@ curl -sS -i -H "Authorization: Bearer 3f2a9c7e1b4d8065" http://127.0.0.1:30000/v
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/utils/auth.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/server_args.py`

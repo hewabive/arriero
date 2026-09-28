@@ -30,7 +30,7 @@ Path to the LMCache YAML configuration file
 - Допустимые значения: не ограничены; проверка существования и формата — на стороне пакета `lmcache`
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется; читается из опубликованного конфига через `get_memory().lmcache_config_file`, пустая строка эквивалентна отсутствию
-- Где объявлен: `ServerArgs.lmcache_config_file`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.lmcache_config_file`
 - Статус: обычный; смысл содержимого файла определяется внешним пакетом
 - Этап применения: конструктор `LMCRadixCache` при построении дерева кеша
 
@@ -88,6 +88,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/storage/lmcache/lmc_radix_cache.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`

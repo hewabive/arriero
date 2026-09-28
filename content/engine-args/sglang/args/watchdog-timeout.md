@@ -36,7 +36,7 @@ Set watchdog timeout in seconds. If a forward batch takes longer than this, the 
 - Допустимые значения: `choices` нет, границы не проверяются. Значение делится пополам как интервал опроса, поэтому очень маленькое значение превращает поток в busy-loop
 - Значение по умолчанию: `300`
 - Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Отключить сторожевой пес нельзя — в отличие от `--soft-watchdog-timeout`, здесь нет значения «выключено»
-- Где объявлен: `ServerArgs.watchdog_timeout`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.watchdog_timeout`
 - Статус: обычный
 - Этап применения: конструктор `Scheduler` (`init_watch_dog_memory_saver_input_blocker`), сразу после инициализации model worker; поток живет весь срок жизни процесса
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --watchdog-tim
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/utils/watchdog.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/invariant_checker.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

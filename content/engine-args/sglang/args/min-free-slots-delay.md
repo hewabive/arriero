@@ -33,7 +33,7 @@ Hold new prefills until at least N running-request slots have freed up, so they 
 - Допустимые значения: не ограничены на уровне argparse; значение `<= 1` означает «выключено», иначе явный порог приводится к `min(значение, max_running_requests)`
 - Значение по умолчанию: `null` — «выключено, кроме DFlash-семейства»
 - Эффективное значение: считается в `resolve_min_free_slots` (`sglang/python/sglang/srt/managers/min_free_slots_delayer.py`). Если аргумент задан, используется `min(user_value, max_running_requests)` без DFlash-формулы. Если не задан и выбрано DFlash-семейство (`DFLASH`, `DSPARK`), порог равен `min(4, max(2, (max_running_requests + 5) // 6))` при `max_running_requests >= 8`; для остальных нагрузок механизм выключен
-- Где объявлен: `ServerArgs.min_free_slots_delay`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.min_free_slots_delay`
 - Статус: обычный
 - Этап применения: инициализация планировщика (создание `MinFreeSlotsDelayer`) → начало каждой сборки prefill-батча
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --max-running-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/min_free_slots_delayer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

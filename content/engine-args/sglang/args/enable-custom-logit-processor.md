@@ -34,7 +34,7 @@ Enable users to pass custom logit processors to the server (disabled by default 
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` и ни одно правило `arg_groups/overrides.py` его не переписывают
-- Где объявлен: `ServerArgs.enable_custom_logit_processor`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_custom_logit_processor`
 - Статус: обычный
 - Этап применения: разбор CLI → валидация запроса в `TokenizerManager` → сборка `SamplingBatchInfo` в scheduler'е → каждый шаг сэмплинга
 
@@ -129,6 +129,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --enable-custom-log
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/sampling/custom_logit_processor.py`
 - `sglang/python/sglang/srt/sampling/sampling_batch_info.py`

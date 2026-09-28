@@ -36,7 +36,7 @@ Enable returning indexer topk indices of layers with indexer with responses.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: поле не переписывается, но capturer может не создаться. На не-CUDA устройстве `create_indexer_capturer` печатает `indexer-topk capture is CUDA-only; <device> backend not yet wired. Disabling capturer.` и возвращает `None`. Если у модели нет слоев с индексатором, печатается `No indexer layers found, IndexerTopkCapturer disabled`. Если `attn_tp_size != 1`, конструктор падает ассертом `IndexerTopkCapturer now only supports DP attention`
-- Где объявлен: `ServerArgs.enable_return_indexer_topk`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_return_indexer_topk`
 - Статус: обычный
 - Этап применения: разбор CLI → `ModelRunner.init_indexer_capturer` (выделение буферов) → `maybe_capture_indexer_topk` внутри индексатора на каждом форварде → копирование device→host в конце форварда → `meta_info` ответа
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2 --enable-r
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/state_capturer/base.py`
 - `sglang/python/sglang/srt/state_capturer/indexer_topk.py`

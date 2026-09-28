@@ -41,7 +41,7 @@ Maximum EP size the server can scale to at runtime. Pre-allocates active-rank st
 - Допустимые значения: строго положительное целое; проверяется `assert self.max_ep_size > 0` с текстом `--max-ep-size must be a positive integer.`
 - Значение по умолчанию: `null`. Не «ноль» и не «без ограничения» — при незаданном значении потребители подставляют текущий world size: `max_ep_size or world_size` в NIXL-диспетчере и в `ElasticEPStateManager`, `server_args.max_ep_size or server_args.dp_size` в `DataParallelController`
 - Эффективное значение: не переписывается. Но само его наличие меняет чужие: связка «`elastic_ep_backend` задан **и** `max_ep_size > tp_size`» включает режим `scaling_active`, который принудительно ставит `enable_dp_attention_local_control_broadcast = True` и добавляет длинный список обязательных условий (см. ниже)
-- Где объявлен: `ServerArgs.max_ep_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.max_ep_size`
 - Статус: обычный, но применим только в экспериментальном контуре elastic EP
 - Этап применения: `__post_init__` (`_handle_elastic_ep`) → `PortArgs`/`DataParallelController` (резервирование слотов воркеров) → `init_distributed_environment(max_world_size=…)` → создание буферов диспетчера NIXL → runtime-scale по запросу
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

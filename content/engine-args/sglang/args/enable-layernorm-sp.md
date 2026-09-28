@@ -31,7 +31,7 @@ Enable Megatron-style sequence parallelism (arXiv:2205.05198) for the LayerNorm/
 - Группа: `parallel`
 - Тип: `bool`
 - Декларативный default: `false`
-- Объявление: `ServerArgs.enable_layernorm_sp` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_layernorm_sp`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -66,6 +66,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --tp-size 2 --enabl
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/layernorm_sp_hook.py`
 - `sglang/python/sglang/srt/layers/layernorm_sp.py`

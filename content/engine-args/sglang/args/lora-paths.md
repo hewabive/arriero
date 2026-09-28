@@ -36,7 +36,7 @@ The list of LoRA adapters to load. Each adapter must be specified in one of the 
 - Допустимые значения: `<PATH>` | `<NAME>=<PATH>` | JSON-объект `{"lora_name":str,"lora_path":str,"pinned":bool}`
 - Значение по умолчанию: `null`; `check_lora_server_args` превращает его в пустой список
 - Эффективное значение: строки разбираются в объекты `LoRARef` (`lora_id`, `lora_name`, `lora_path`, `pinned`) на этапе `check_lora_server_args`
-- Где объявлен: `ServerArgs.lora_paths`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_paths`
 - Статус: обычный
 - Этап применения: разбор CLI (`LoRAPathAction`) → `check_lora_server_args` → `LoRAManager.init_lora_adapters` после загрузки весов модели
 
@@ -134,6 +134,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/argparse_actions.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`

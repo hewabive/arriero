@@ -36,7 +36,7 @@ Check the real KV-cache in the canary. 'none' (default) disables the feature. 'p
 - Допустимые значения: в extract `choices: null`, но argparse ограничение накладывает — `[m.name.lower() for m in RealKvHashMode]`, то есть `none`, `partial`, `all`. Статически извлечь этот список из исходника нельзя, отсюда `null` в extract; перечисление живет в `sglang/python/sglang/kernels/ops/kv_canary/consts.py`
 - Значение по умолчанию: `_declared_default("kv_canary_real_data")`, то есть `"none"`
 - Эффективное значение: совпадает с заданным; `CanaryConfig.from_env` приводит строку к верхнему регистру и разрешает в член `RealKvHashMode`. При `--kv-canary none` значение не используется совсем
-- Где объявлен: `ServerArgs.add_cli_args`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`
 - Статус: обычный аргумент узкоспециального диагностического механизма, не повседневная настройка
 - Этап применения: `install_canary` в `ModelRunner` — после выделения KV-пула и до захвата CUDA graph
 

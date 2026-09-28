@@ -34,7 +34,7 @@ DSA indexer paged MQA logits kernel backend. Options: 'auto' (default; DeepGEMM 
 - Допустимые значения (из `choices`): `auto`, `deepgemm`, `cutedsl`, `aiter` (константа `DSA_PAGED_MQA_LOGITS_BACKEND_CHOICES`)
 - Значение по умолчанию: `auto`
 - Эффективное значение: разрешается не в `__post_init__`, а в `DSAPagedMQALogitsBackend.resolve` при построении индексера (`sglang/python/sglang/srt/layers/attention/dsa/paged_mqa_logits_backend.py`). На ROCm любое значение из `auto`/`aiter` превращается в `aiter`, а `deepgemm`/`cutedsl` дают `ValueError`. На CUDA `auto` и `deepgemm` → `deepgemm`; `aiter` → `ValueError`; `cutedsl` → проверка `is_sm100_supported()`
-- Где объявлен: `ServerArgs.dsa_paged_mqa_logits_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_paged_mqa_logits_backend`
 - Статус: обычный
 - Этап применения: разбор CLI → конструктор индексера DSA (`Indexer.__init__`) → каждый forward индексера
 
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --kv-c
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/dsa/paged_mqa_logits_backend.py`
 - `sglang/python/sglang/srt/layers/attention/dsa/dsa_indexer.py`

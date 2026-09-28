@@ -31,7 +31,7 @@ Quantize the model with ModelOpt and immediately serve it without exporting. Thi
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; но при `true` старт всегда завершается исключением
-- Где объявлен: `ServerArgs.quantize_and_serve`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.quantize_and_serve`
 - Статус: обычный по форме, фактически отключенный (`quantize_and_serve functionality is currently disabled due to compatibility issues`)
 - Этап применения: конструктор `ModelConfig` → `_validate_quantize_and_serve_config`
 
@@ -92,6 +92,7 @@ python -m sglang.launch_server --model-path /models/exported/llama31-8b-fp8 --qu
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/configs/modelopt_config.py`

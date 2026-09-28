@@ -35,7 +35,7 @@ Choose the backend for MoE A2A in speculative decoding
 - Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp`
 - Значение по умолчанию: `null`
 - Эффективное значение: в `__post_init__` остаётся `null`; `initialize_moe_config` при `None` подставляет `moe.a2a_backend` target-модели. Исключение — DeepSeek-семейство с `--quantization modelopt_fp4` на ROCm: `_deepseek_spec_moe_resolution` выставляет `deepep` (вместе с runner `deep_gemm`) при `SGLANG_NVFP4_CKPT_FP8_NEXTN_MOE`, иначе `none` (с runner `triton`)
-- Где объявлен: `ServerArgs.speculative_moe_a2a_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_moe_a2a_backend`
 - Статус: обычный
 - Этап применения: `initialize_moe_config` при инициализации model runner → сборка и прогоны MoE-слоёв черновика внутри `speculative_moe_a2a_backend_context()`
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --speculative-algo
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`

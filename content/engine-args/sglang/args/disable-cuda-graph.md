@@ -39,7 +39,7 @@ Deprecated. Use --cuda-graph-backend-{decode,prefill}=disabled instead.
 - Допустимые значения: только присутствие флага
 - Значение по умолчанию: `False` (значение по умолчанию `DeprecatedStoreTrueAction`)
 - Эффективное значение: `_parse_cuda_graph_config` превращает `True` в `cuda_graph_config.decode.backend = disabled` и `cuda_graph_config.prefill.backend = disabled`. Это самая низкая ступень приоритета: и `--disable-{decode,prefill}-cuda-graph`, и `--cuda-graph-backend-*`, и JSON `--cuda-graph-config` перезаписывают результат
-- Где объявлен: `ServerArgs.add_cli_args`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`
 - Статус: устаревший (`DeprecatedStoreTrueAction`), замена — `--cuda-graph-backend-decode=disabled` / `--cuda-graph-backend-prefill=disabled`
 - Этап применения: разбор CLI (предупреждение) → `__post_init__` → `_handle_cuda_graph_config` → `_handle_gpu_memory_settings` (резерв под графы) → `capture_cuda_graphs` в model runner'е
 

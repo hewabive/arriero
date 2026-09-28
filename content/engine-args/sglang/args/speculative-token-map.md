@@ -33,7 +33,7 @@ The path of the draft model's small vocab table.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `null` — FR-Spec выключен
 - Эффективное значение: не переопределяется в `__post_init__`. Специально **не** резолвится в `_handle_modelscope_paths` — разбор пути живёт в `load_token_map` (`sglang/python/sglang/srt/speculative/spec_utils.py`)
-- Где объявлен: `ServerArgs.speculative_token_map`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_token_map`
 - Статус: обычный
 - Этап применения: инициализация spec-воркера, `init_token_map` → `init_lm_head` (до захвата CUDA graph); на CLI-разборе путь не проверяется
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3-8B-Instruct --s
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/spec_utils.py`
 - `sglang/python/sglang/srt/speculative/eagle_worker_v2.py`

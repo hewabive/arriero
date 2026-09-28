@@ -38,7 +38,7 @@ Join mode for elastic EP. 'recover' rejoins an existing slot after a fault. 'sca
 - Допустимые значения: `scale`, `recover`
 - Значение по умолчанию: `null` — процесс не является присоединяющимся
 - Эффективное значение: подставляется `recover`, если задан устаревший `--elastic-ep-rejoin` и режим не указан явно; при явном конфликтующем значении — ассерт
-- Где объявлен: `ServerArgs.ep_join_mode`, файл — `sglang/python/sglang/srt/server_args.py` (имя поля отличается от имени флага: `cli_name="--elastic-ep-join-mode"`)
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_join_mode` (имя поля отличается от имени флага: `cli_name="--elastic-ep-join-mode"`)
 - Статус: обычный, часть молодой подсистемы elastic EP
 - Этап применения: `__post_init__` (`_handle_elastic_ep`, `check_server_args`) → выделение портов → инициализация `ElasticEPStateManager` → загрузка весов → HTTP-прогрев
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

@@ -38,7 +38,7 @@ Enable Aiter AllReduce Fusion.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: сбрасывается в `False` при `--enable-deterministic-inference` (`_handle_deterministic_inference`, warning `Disable --enable-aiter-allreduce-fusion because deterministic inference is enabled.`) и реестром переопределений для MiniMax-M3 на ROCm при `ep_size > 1` с `--moe-a2a-backend none` (warning про порчу частичных выходов разреженного MoE). При `attn_cp_size > 1` или `moe_dp_size > 1` значение не сбрасывается, а **отвергается** ассертом `Aiter allreduce fusion is not supported with context parallelism`
-- Где объявлен: `ServerArgs.enable_aiter_allreduce_fusion`, файл — `sglang/python/sglang/srt/server_args.py`; поле помечено `resolvable=True`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_aiter_allreduce_fusion`; поле помечено `resolvable=True`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (детерминированный сброс, модельные переопределения) → `check_server_args` (ассерты CP) → построение слоев (`layers/communicator.py`) → каждый forward
 
@@ -118,6 +118,7 @@ SGLANG_USE_AITER=1 python -m sglang.launch_server --model-path /models/Qwen3-32B
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/communicator.py`

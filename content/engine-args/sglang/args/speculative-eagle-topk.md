@@ -39,7 +39,7 @@ The number of tokens sampled from the draft model in eagle2 each step.
 - Допустимые значения: `choices` нет. Осмысленный диапазон — 1…8; апстрим-конфигурации используют `1` и `4`
 - Значение по умолчанию: `null` — «подберёт движок»
 - Эффективное значение: EAGLE/EAGLE3/STANDALONE без явных значений получают `1` или `4` из `_auto_choose_speculative_params`; DFLASH и DSPARK принудительно понижают до `1` с предупреждением; NGRAM **перезаписывает** значение на `--speculative-ngram-max-bfs-breadth`; `--speculative-adaptive` ставит `1`
-- Где объявлен: `ServerArgs.speculative_eagle_topk`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_eagle_topk`
 - Статус: обычный
 - Этап применения: `__post_init__` → `handle_speculative_decoding` (валидации по backend/page_size) → создание draft-воркера → захват CUDA graph draft-decode → forward
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --speculative-al
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/eagle_worker_v2.py`

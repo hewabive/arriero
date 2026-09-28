@@ -40,7 +40,7 @@ Select the components to trace. Available options are 'request' and 'mooncake'. 
 - Допустимые значения: `choices` нет и валидации нет. Реально существующие имена в дереве — два: `request` (`sglang/python/sglang/srt/observability/req_time_stats.py`) и `mooncake` (`sglang/python/sglang/srt/disaggregation/mooncake/conn.py`). Найти актуальный набор на своей сборке: `grep -rn "module_name=" python/sglang/srt --include=*.py`
 - Значение по умолчанию: `request`
 - Эффективное значение: совпадает с заданным; действует только при `--enable-trace`
-- Где объявлен: `ServerArgs.trace_modules`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.trace_modules`
 - Статус: обычный
 - Этап применения: `process_tracing_init` в каждом процессе, участвующем в трассировке
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --host 127.0.0.1
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/observability/trace.py`
 - `sglang/python/sglang/srt/observability/trace_async.py`
 - `sglang/python/sglang/srt/observability/req_time_stats.py`

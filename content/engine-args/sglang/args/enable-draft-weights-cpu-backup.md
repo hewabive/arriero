@@ -34,7 +34,7 @@ Save draft model weights to CPU memory during release_weights_occupation and res
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: поле не переписывается, но фактический эффект снимается там же, где и у `--enable-weights-cpu-backup`: при `--weight-cache-mode` не `off` (предупреждение `[ModelRunner] Disabling weights CPU backup in zero-copy IPC mode — IPC-mapped weights cannot be offloaded to CPU.`) и молча при выключенном `--enable-memory-saver`
-- Где объявлен: `ServerArgs.enable_draft_weights_cpu_backup`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_draft_weights_cpu_backup`
 - Статус: обычный
 - Этап применения: разбор CLI → загрузка весов draft-воркера (`model_executor/model_runner_components/load_model_utils.py`) → каждое `pause`/`resume` тега `weights` в этом воркере
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-70B --tensor-paral
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`
 - `sglang/python/sglang/srt/utils/torch_memory_saver_adapter.py`

@@ -39,7 +39,7 @@ How many GBs of RAM to reserve for CPU offloading.
 - Допустимые значения: неотрицательное целое; `0` отключает
 - Значение по умолчанию: `0`
 - Эффективное значение: совпадает с заданным; автоподбора нет
-- Где объявлен: `ServerArgs.cpu_offload_gb`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.cpu_offload_gb`
 - Статус: обычный
 - Этап применения: создание `ModelRunner` (`create_offloader_from_server_args`) → построение слоев модели (`make_layers`) → каждый forward затронутых модулей
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cpu-offload-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/utils/offloader.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

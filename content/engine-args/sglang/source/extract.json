@@ -33,7 +33,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.abort_on_priority_when_disabled"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.abort_on_priority_when_disabled"
   },
   {
    "flags": [
@@ -50,7 +50,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.admin_api_key"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.admin_api_key"
   },
   {
    "flags": [
@@ -67,7 +67,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.allow_auto_truncate"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.allow_auto_truncate"
   },
   {
    "flags": [
@@ -84,7 +84,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.allowed_media_domains"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.allowed_media_domains"
   },
   {
    "flags": [
@@ -101,7 +101,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.api_key"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.api_key"
   },
   {
    "flags": [
@@ -118,7 +118,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.asr_max_buffer_seconds"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.asr_max_buffer_seconds"
   },
   {
    "flags": [
@@ -135,7 +135,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.asr_max_concurrent_sessions"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.asr_max_concurrent_sessions"
   },
   {
    "flags": [
@@ -177,7 +177,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.attention_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.attention_backend"
   },
   {
    "flags": [
@@ -195,7 +195,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.attn_cp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.attn_cp_size"
   },
   {
    "flags": [
@@ -212,7 +212,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.base_gpu_id"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.base_gpu_id"
   },
   {
    "flags": [
@@ -229,7 +229,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.batch_notify_size"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.batch_notify_size"
   },
   {
    "flags": [
@@ -251,7 +251,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.bf16_gemm_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.bf16_gemm_backend"
   },
   {
    "flags": [
@@ -268,7 +268,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.bucket_e2e_request_latency"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.bucket_e2e_request_latency"
   },
   {
    "flags": [
@@ -285,7 +285,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.bucket_inter_token_latency"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.bucket_inter_token_latency"
   },
   {
    "flags": [
@@ -302,7 +302,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.bucket_time_to_first_token"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.bucket_time_to_first_token"
   },
   {
    "flags": [
@@ -319,7 +319,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.c128_page_size"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.c128_page_size"
   },
   {
    "flags": [
@@ -336,7 +336,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.chat_template"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.chat_template"
   },
   {
    "flags": [
@@ -353,7 +353,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.checkpoint_engine_wait_weights_before_ready"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.checkpoint_engine_wait_weights_before_ready"
   },
   {
    "flags": [
@@ -370,7 +370,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.chunked_prefill_size"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.chunked_prefill_size"
   },
   {
    "flags": [
@@ -387,7 +387,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.completion_template"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.completion_template"
   },
   {
    "flags": [
@@ -401,7 +401,7 @@
    "default": null,
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "python/sglang/srt/server_args.py:ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -418,7 +418,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.constrained_json_disable_any_whitespace"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.constrained_json_disable_any_whitespace"
   },
   {
    "flags": [
@@ -435,7 +435,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.constrained_json_whitespace_pattern"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.constrained_json_whitespace_pattern"
   },
   {
    "flags": [
@@ -452,7 +452,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.context_length"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.context_length"
   },
   {
    "flags": [
@@ -472,7 +472,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cp_strategy"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.cp_strategy"
   },
   {
    "flags": [
@@ -489,7 +489,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cpu_offload_gb"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.cpu_offload_gb"
   },
   {
    "flags": [
@@ -506,7 +506,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.crash_dump_folder"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.crash_dump_folder"
   },
   {
    "flags": [
@@ -528,7 +528,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_backend_decode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_backend_decode"
   },
   {
    "flags": [
@@ -550,7 +550,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_backend_prefill"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_backend_prefill"
   },
   {
    "flags": [
@@ -567,7 +567,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_bs_decode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_bs_decode"
   },
   {
    "flags": [
@@ -584,7 +584,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_bs_prefill"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_bs_prefill"
   },
   {
    "flags": [
@@ -601,7 +601,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_config"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_config"
   },
   {
    "flags": [
@@ -618,7 +618,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_max_bs_decode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_max_bs_decode"
   },
   {
    "flags": [
@@ -635,7 +635,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_max_bs_prefill"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_max_bs_prefill"
   },
   {
    "flags": [
@@ -655,7 +655,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.cuda_graph_tc_compiler"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_tc_compiler"
   },
   {
    "flags": [
@@ -672,7 +672,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.custom_weight_loader"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.custom_weight_loader"
   },
   {
    "flags": [
@@ -693,7 +693,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dcp_comm_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_comm_backend"
   },
   {
    "flags": [
@@ -711,7 +711,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "ServerArgs.dcp_replicate_q_proj"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_replicate_q_proj"
   },
   {
    "flags": [
@@ -729,7 +729,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dcp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_size"
   },
   {
    "flags": [
@@ -746,7 +746,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.debug_cuda_graph"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.debug_cuda_graph"
   },
   {
    "flags": [
@@ -763,7 +763,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.debug_tensor_dump_input_file"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_input_file"
   },
   {
    "flags": [
@@ -780,7 +780,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.debug_tensor_dump_layers"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_layers"
   },
   {
    "flags": [
@@ -797,7 +797,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.debug_tensor_dump_output_folder"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_output_folder"
   },
   {
    "flags": [
@@ -839,7 +839,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decode_attention_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.decode_attention_backend"
   },
   {
    "flags": [
@@ -856,7 +856,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decode_log_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.decode_log_interval"
   },
   {
    "flags": [
@@ -873,7 +873,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decoupled_spec_bind_endpoint"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_bind_endpoint"
   },
   {
    "flags": [
@@ -890,7 +890,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decoupled_spec_connect_endpoints"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_connect_endpoints"
   },
   {
    "flags": [
@@ -907,7 +907,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decoupled_spec_rank"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_rank"
   },
   {
    "flags": [
@@ -928,7 +928,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decoupled_spec_role"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_role"
   },
   {
    "flags": [
@@ -945,7 +945,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decrypted_config_file"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.decrypted_config_file"
   },
   {
    "flags": [
@@ -962,7 +962,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.decrypted_draft_config_file"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.decrypted_draft_config_file"
   },
   {
    "flags": [
@@ -979,7 +979,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.deepep_config"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_config"
   },
   {
    "flags": [
@@ -1002,7 +1002,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.deepep_dispatcher_output_dtype"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_dispatcher_output_dtype"
   },
   {
    "flags": [
@@ -1023,7 +1023,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.deepep_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_mode"
   },
   {
    "flags": [
@@ -1043,7 +1043,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.deepep_v2_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_v2_mode"
   },
   {
    "flags": [
@@ -1060,7 +1060,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.default_chat_template_kwargs"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.default_chat_template_kwargs"
   },
   {
    "flags": [
@@ -1077,7 +1077,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.default_priority_value"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.default_priority_value"
   },
   {
    "flags": [
@@ -1094,7 +1094,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.delete_ckpt_after_loading"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.delete_ckpt_after_loading"
   },
   {
    "flags": [
@@ -1111,7 +1111,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.detokenizer_worker_num"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.detokenizer_worker_num"
   },
   {
    "flags": [
@@ -1128,7 +1128,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.device"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.device"
   },
   {
    "flags": [
@@ -1145,7 +1145,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_attn_tp_gather"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.disable_attn_tp_gather"
   },
   {
    "flags": [
@@ -1162,7 +1162,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_chunked_prefix_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_chunked_prefix_cache"
   },
   {
    "flags": [
@@ -1176,7 +1176,7 @@
    "default": null,
    "action": "DeprecatedStoreTrueAction",
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "python/sglang/srt/server_args.py:ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -1193,7 +1193,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_cuda_graph_padding"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_cuda_graph_padding"
   },
   {
    "flags": [
@@ -1210,7 +1210,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_custom_all_reduce"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.disable_custom_all_reduce"
   },
   {
    "flags": [
@@ -1227,7 +1227,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_decode_cuda_graph"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_decode_cuda_graph"
   },
   {
    "flags": [
@@ -1244,7 +1244,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_fast_image_processor"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.disable_fast_image_processor"
   },
   {
    "flags": [
@@ -1261,7 +1261,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_flashinfer_autotune"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.disable_flashinfer_autotune"
   },
   {
    "flags": [
@@ -1278,7 +1278,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_flashinfer_cutlass_moe_fp4_allgather"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.disable_flashinfer_cutlass_moe_fp4_allgather"
   },
   {
    "flags": [
@@ -1295,7 +1295,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_hybrid_swa_memory"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_hybrid_swa_memory"
   },
   {
    "flags": [
@@ -1312,7 +1312,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_outlines_disk_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.disable_outlines_disk_cache"
   },
   {
    "flags": [
@@ -1329,7 +1329,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_overlap_schedule"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_overlap_schedule"
   },
   {
    "flags": [
@@ -1346,7 +1346,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_prefill_cuda_graph"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_prefill_cuda_graph"
   },
   {
    "flags": [
@@ -1363,7 +1363,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_priority_preemption"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_priority_preemption"
   },
   {
    "flags": [
@@ -1380,7 +1380,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_radix_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.disable_radix_cache"
   },
   {
    "flags": [
@@ -1397,7 +1397,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_shared_experts_fusion"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.disable_shared_experts_fusion"
   },
   {
    "flags": [
@@ -1414,7 +1414,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disable_tokenizer_batch_decode"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.disable_tokenizer_batch_decode"
   },
   {
    "flags": [
@@ -1431,7 +1431,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_bootstrap_port"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_bootstrap_port"
   },
   {
    "flags": [
@@ -1448,7 +1448,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_decode_enable_offload_kvcache"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_enable_offload_kvcache"
   },
   {
    "flags": [
@@ -1465,7 +1465,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_decode_enable_radix_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_enable_radix_cache"
   },
   {
    "flags": [
@@ -1482,7 +1482,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_decode_extra_slots"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_extra_slots"
   },
   {
    "flags": [
@@ -1499,7 +1499,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_decode_polling_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_polling_interval"
   },
   {
    "flags": [
@@ -1519,7 +1519,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_decode_retraction_backup"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_retraction_backup"
   },
   {
    "flags": [
@@ -1536,7 +1536,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_ib_device"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_ib_device"
   },
   {
    "flags": [
@@ -1557,7 +1557,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_mode"
   },
   {
    "flags": [
@@ -1581,7 +1581,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.disaggregation_transfer_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_transfer_backend"
   },
   {
    "flags": [
@@ -1599,7 +1599,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dist_init_addr"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dist_init_addr"
   },
   {
    "flags": [
@@ -1616,7 +1616,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dist_timeout"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dist_timeout"
   },
   {
    "flags": [
@@ -1633,7 +1633,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dllm_algorithm"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_algorithm"
   },
   {
    "flags": [
@@ -1650,7 +1650,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dllm_algorithm_config"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_algorithm_config"
   },
   {
    "flags": [
@@ -1668,7 +1668,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "ServerArgs.dllm_fdfo"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_fdfo"
   },
   {
    "flags": [
@@ -1685,7 +1685,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.download_dir"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.download_dir"
   },
   {
    "flags": [
@@ -1703,7 +1703,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dp_size"
   },
   {
    "flags": [
@@ -1731,7 +1731,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dsa_decode_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_decode_backend"
   },
   {
    "flags": [
@@ -1753,7 +1753,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dsa_paged_mqa_logits_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_paged_mqa_logits_backend"
   },
   {
    "flags": [
@@ -1781,7 +1781,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dsa_prefill_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_prefill_backend"
   },
   {
    "flags": [
@@ -1802,7 +1802,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dsa_topk_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_topk_backend"
   },
   {
    "flags": [
@@ -1823,7 +1823,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dsv4_attn_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsv4_attn_backend"
   },
   {
    "flags": [
@@ -1844,7 +1844,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dsv4_prefill_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsv4_prefill_backend"
   },
   {
    "flags": [
@@ -1868,7 +1868,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dtype"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.dtype"
   },
   {
    "flags": [
@@ -1885,7 +1885,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dwdp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dwdp_size"
   },
   {
    "flags": [
@@ -1902,7 +1902,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dynamic_batch_tokenizer_batch_size"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.dynamic_batch_tokenizer_batch_size"
   },
   {
    "flags": [
@@ -1919,7 +1919,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.dynamic_batch_tokenizer_batch_timeout"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.dynamic_batch_tokenizer_batch_timeout"
   },
   {
    "flags": [
@@ -1940,7 +1940,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.elastic_ep_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_backend"
   },
   {
    "flags": [
@@ -1957,7 +1957,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.elastic_ep_initial_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.elastic_ep_initial_size"
   },
   {
    "flags": [
@@ -1977,7 +1977,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ep_join_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_join_mode"
   },
   {
    "flags": [
@@ -1994,7 +1994,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ep_join_rank_offset"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.ep_join_rank_offset"
   },
   {
    "flags": [
@@ -2011,7 +2011,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.elastic_ep_rejoin"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_rejoin"
   },
   {
    "flags": [
@@ -2028,7 +2028,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.elastic_ep_scale_timeout"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_scale_timeout"
   },
   {
    "flags": [
@@ -2045,7 +2045,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_adaptive_dispatch_to_encoder"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.enable_adaptive_dispatch_to_encoder"
   },
   {
    "flags": [
@@ -2062,7 +2062,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_aiter_allreduce_fusion"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_aiter_allreduce_fusion"
   },
   {
    "flags": [
@@ -2079,7 +2079,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_attn_tp_input_scattered"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_attn_tp_input_scattered"
   },
   {
    "flags": [
@@ -2096,7 +2096,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_broadcast_mm_inputs_process"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_broadcast_mm_inputs_process"
   },
   {
    "flags": [
@@ -2113,7 +2113,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_cache_report"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_cache_report"
   },
   {
    "flags": [
@@ -2130,7 +2130,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_cp_decode_attn_tp"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_cp_decode_attn_tp"
   },
   {
    "flags": [
@@ -2147,7 +2147,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_cudagraph_gc"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_cudagraph_gc"
   },
   {
    "flags": [
@@ -2164,7 +2164,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_custom_logit_processor"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_custom_logit_processor"
   },
   {
    "flags": [
@@ -2181,7 +2181,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_deepseek_v4_fp4_indexer"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_deepseek_v4_fp4_indexer"
   },
   {
    "flags": [
@@ -2198,7 +2198,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_dense_mlp_attn_tp"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dense_mlp_attn_tp"
   },
   {
    "flags": [
@@ -2215,7 +2215,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_deterministic_inference"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecDeterministic.enable_deterministic_inference"
   },
   {
    "flags": [
@@ -2232,7 +2232,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_dp_attention"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_attention"
   },
   {
    "flags": [
@@ -2249,7 +2249,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_dp_attention_local_control_broadcast"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_attention_local_control_broadcast"
   },
   {
    "flags": [
@@ -2266,7 +2266,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_dp_lm_head"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_lm_head"
   },
   {
    "flags": [
@@ -2283,7 +2283,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_draft_weights_cpu_backup"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_draft_weights_cpu_backup"
   },
   {
    "flags": [
@@ -2300,7 +2300,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_dsa_cache_layer_split"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dsa_cache_layer_split"
   },
   {
    "flags": [
@@ -2317,7 +2317,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_dynamic_batch_tokenizer"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_dynamic_batch_tokenizer"
   },
   {
    "flags": [
@@ -2334,7 +2334,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_dynamic_chunking"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_dynamic_chunking"
   },
   {
    "flags": [
@@ -2351,7 +2351,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_elastic_expert_backup"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_elastic_expert_backup"
   },
   {
    "flags": [
@@ -2368,7 +2368,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_eplb"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_eplb"
   },
   {
    "flags": [
@@ -2382,7 +2382,7 @@
    "default": null,
    "action": "'store_true'",
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "python/sglang/srt/server_args.py:ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -2399,7 +2399,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_flexkv"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_flexkv"
   },
   {
    "flags": [
@@ -2416,7 +2416,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_forward_pass_metrics"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_forward_pass_metrics"
   },
   {
    "flags": [
@@ -2433,7 +2433,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_fp32_lm_head"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_fp32_lm_head"
   },
   {
    "flags": [
@@ -2450,7 +2450,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_fused_moe_sum_all_reduce"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_fused_moe_sum_all_reduce"
   },
   {
    "flags": [
@@ -2467,7 +2467,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_fused_qk_norm_rope"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_fused_qk_norm_rope"
   },
   {
    "flags": [
@@ -2484,7 +2484,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_hierarchical_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_hierarchical_cache"
   },
   {
    "flags": [
@@ -2501,7 +2501,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_hisparse"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_hisparse"
   },
   {
    "flags": [
@@ -2518,7 +2518,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_http2"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_http2"
   },
   {
    "flags": [
@@ -2535,7 +2535,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_int8_mamba_checkpoint"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_int8_mamba_checkpoint"
   },
   {
    "flags": [
@@ -2552,7 +2552,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_layernorm_sp"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_layernorm_sp"
   },
   {
    "flags": [
@@ -2569,7 +2569,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_layerwise_nvtx_marker"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_layerwise_nvtx_marker"
   },
   {
    "flags": [
@@ -2586,7 +2586,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_lean_attention"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_lean_attention"
   },
   {
    "flags": [
@@ -2603,7 +2603,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_linear_replayssm"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_linear_replayssm"
   },
   {
    "flags": [
@@ -2620,7 +2620,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_linear_replayssm_spec"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_linear_replayssm_spec"
   },
   {
    "flags": [
@@ -2637,7 +2637,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_lmcache"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_lmcache"
   },
   {
    "flags": [
@@ -2654,7 +2654,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_lora"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.enable_lora"
   },
   {
    "flags": [
@@ -2671,7 +2671,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_lora_overlap_loading"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.enable_lora_overlap_loading"
   },
   {
    "flags": [
@@ -2688,7 +2688,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_mamba_cache_stochastic_rounding"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_mamba_cache_stochastic_rounding"
   },
   {
    "flags": [
@@ -2705,7 +2705,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_memory_saver"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_memory_saver"
   },
   {
    "flags": [
@@ -2722,7 +2722,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_metrics"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_metrics"
   },
   {
    "flags": [
@@ -2739,7 +2739,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_metrics_for_all_schedulers"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_metrics_for_all_schedulers"
   },
   {
    "flags": [
@@ -2756,7 +2756,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_mfu_metrics"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_mfu_metrics"
   },
   {
    "flags": [
@@ -2773,7 +2773,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_mis"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_mis"
   },
   {
    "flags": [
@@ -2790,7 +2790,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_mixed_chunk"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_mixed_chunk"
   },
   {
    "flags": [
@@ -2807,7 +2807,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_mm_global_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_mm_global_cache"
   },
   {
    "flags": [
@@ -2824,7 +2824,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_mscclpp"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_mscclpp"
   },
   {
    "flags": [
@@ -2841,7 +2841,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_multi_layer_eagle"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.enable_multi_layer_eagle"
   },
   {
    "flags": [
@@ -2858,7 +2858,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_multimodal"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_multimodal"
   },
   {
    "flags": [
@@ -2875,7 +2875,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_nccl_nvls"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_nccl_nvls"
   },
   {
    "flags": [
@@ -2892,7 +2892,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_p2p_check"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_p2p_check"
   },
   {
    "flags": [
@@ -2909,7 +2909,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_page_major_kv_layout"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_page_major_kv_layout"
   },
   {
    "flags": [
@@ -2926,7 +2926,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_pdmux"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.enable_pdmux"
   },
   {
    "flags": [
@@ -2943,7 +2943,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_precise_embedding_interpolation"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_precise_embedding_interpolation"
   },
   {
    "flags": [
@@ -2960,7 +2960,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_prefill_cp"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_prefill_cp"
   },
   {
    "flags": [
@@ -2977,7 +2977,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_prefill_delayer"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_prefill_delayer"
   },
   {
    "flags": [
@@ -2994,7 +2994,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_prefix_mm_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_prefix_mm_cache"
   },
   {
    "flags": [
@@ -3011,7 +3011,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_priority_scheduling"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_priority_scheduling"
   },
   {
    "flags": [
@@ -3028,7 +3028,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_profile_cuda_graph"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_profile_cuda_graph"
   },
   {
    "flags": [
@@ -3045,7 +3045,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_quant_communications"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_quant_communications"
   },
   {
    "flags": [
@@ -3062,7 +3062,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_request_time_stats_logging"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_request_time_stats_logging"
   },
   {
    "flags": [
@@ -3079,7 +3079,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_response_store"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_response_store"
   },
   {
    "flags": [
@@ -3096,7 +3096,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_return_hidden_states"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_return_hidden_states"
   },
   {
    "flags": [
@@ -3113,7 +3113,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_return_indexer_topk"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_return_indexer_topk"
   },
   {
    "flags": [
@@ -3130,7 +3130,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_return_routed_experts"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_return_routed_experts"
   },
   {
    "flags": [
@@ -3147,7 +3147,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_scattered_sconv"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_scattered_sconv"
   },
   {
    "flags": [
@@ -3164,7 +3164,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_session_radix_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_session_radix_cache"
   },
   {
    "flags": [
@@ -3181,7 +3181,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_shared_experts_attn_tp"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_shared_experts_attn_tp"
   },
   {
    "flags": [
@@ -3198,7 +3198,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_single_batch_overlap"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOverlap.enable_single_batch_overlap"
   },
   {
    "flags": [
@@ -3215,7 +3215,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_ssl_refresh"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_ssl_refresh"
   },
   {
    "flags": [
@@ -3232,7 +3232,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_streaming_session"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_streaming_session"
   },
   {
    "flags": [
@@ -3249,7 +3249,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_strict_thinking"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_strict_thinking"
   },
   {
    "flags": [
@@ -3266,7 +3266,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_symm_mem"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_symm_mem"
   },
   {
    "flags": [
@@ -3283,7 +3283,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_tf32_matmul"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_tf32_matmul"
   },
   {
    "flags": [
@@ -3300,7 +3300,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_tokenizer_batch_encode"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_tokenizer_batch_encode"
   },
   {
    "flags": [
@@ -3317,7 +3317,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_torch_compile"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_torch_compile"
   },
   {
    "flags": [
@@ -3334,7 +3334,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_torch_compile_debug_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_torch_compile_debug_mode"
   },
   {
    "flags": [
@@ -3351,7 +3351,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_torch_symm_mem"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_torch_symm_mem"
   },
   {
    "flags": [
@@ -3369,7 +3369,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "ServerArgs.enable_tp_lm_head_all_to_all"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_tp_lm_head_all_to_all"
   },
   {
    "flags": [
@@ -3386,7 +3386,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_trace"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_trace"
   },
   {
    "flags": [
@@ -3403,7 +3403,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_two_batch_overlap"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOverlap.enable_two_batch_overlap"
   },
   {
    "flags": [
@@ -3420,7 +3420,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_unified_cache_external_linker"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_unified_cache_external_linker"
   },
   {
    "flags": [
@@ -3437,7 +3437,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_unified_memory"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_unified_memory"
   },
   {
    "flags": [
@@ -3454,7 +3454,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_w4a4_mxfp4_megamoe"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_w4a4_mxfp4_megamoe"
   },
   {
    "flags": [
@@ -3471,7 +3471,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_waterfill"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_waterfill"
   },
   {
    "flags": [
@@ -3488,7 +3488,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enable_weights_cpu_backup"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_weights_cpu_backup"
   },
   {
    "flags": [
@@ -3505,7 +3505,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.encoder_bootstrap_port"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_bootstrap_port"
   },
   {
    "flags": [
@@ -3522,7 +3522,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.encoder_only"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_only"
   },
   {
    "flags": [
@@ -3539,7 +3539,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.encoder_register_urls"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_register_urls"
   },
   {
    "flags": [
@@ -3561,7 +3561,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.encoder_transfer_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_transfer_backend"
   },
   {
    "flags": [
@@ -3578,7 +3578,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.encoder_urls"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_urls"
   },
   {
    "flags": [
@@ -3595,7 +3595,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enforce_disable_flashinfer_allreduce_fusion"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enforce_disable_flashinfer_allreduce_fusion"
   },
   {
    "flags": [
@@ -3612,7 +3612,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.enforce_shared_experts_fusion"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enforce_shared_experts_fusion"
   },
   {
    "flags": [
@@ -3629,7 +3629,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.engine_info_bootstrap_port"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.engine_info_bootstrap_port"
   },
   {
    "flags": [
@@ -3651,7 +3651,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ep_dispatch_algorithm"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_dispatch_algorithm"
   },
   {
    "flags": [
@@ -3668,7 +3668,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ep_num_redundant_experts"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_num_redundant_experts"
   },
   {
    "flags": [
@@ -3687,7 +3687,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ep_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.ep_size"
   },
   {
    "flags": [
@@ -3704,7 +3704,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.eplb_algorithm"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_algorithm"
   },
   {
    "flags": [
@@ -3721,7 +3721,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.eplb_min_rebalancing_utilization_threshold"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_min_rebalancing_utilization_threshold"
   },
   {
    "flags": [
@@ -3738,7 +3738,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.eplb_rebalance_layers_per_chunk"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_rebalance_layers_per_chunk"
   },
   {
    "flags": [
@@ -3755,7 +3755,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.eplb_rebalance_num_iterations"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_rebalance_num_iterations"
   },
   {
    "flags": [
@@ -3777,7 +3777,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.expert_balancedness_report_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.expert_balancedness_report_mode"
   },
   {
    "flags": [
@@ -3794,7 +3794,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.expert_distribution_recorder_buffer_size"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.expert_distribution_recorder_buffer_size"
   },
   {
    "flags": [
@@ -3816,7 +3816,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.expert_distribution_recorder_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.expert_distribution_recorder_mode"
   },
   {
    "flags": [
@@ -3834,7 +3834,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "ServerArgs.experts_shared_outer_loras"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.experts_shared_outer_loras"
   },
   {
    "flags": [
@@ -3851,7 +3851,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.export_metrics_to_file"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.export_metrics_to_file"
   },
   {
    "flags": [
@@ -3868,7 +3868,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.export_metrics_to_file_dir"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.export_metrics_to_file_dir"
   },
   {
    "flags": [
@@ -3885,7 +3885,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.extra_metric_labels"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.extra_metric_labels"
   },
   {
    "flags": [
@@ -3902,7 +3902,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.fastapi_root_path"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.fastapi_root_path"
   },
   {
    "flags": [
@@ -3919,7 +3919,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.file_storage_path"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.file_storage_path"
   },
   {
    "flags": [
@@ -3941,7 +3941,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.flashinfer_a2a_dispatch_type"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.flashinfer_a2a_dispatch_type"
   },
   {
    "flags": [
@@ -3962,7 +3962,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.flashinfer_allreduce_fusion_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.flashinfer_allreduce_fusion_backend"
   },
   {
    "flags": [
@@ -3979,7 +3979,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.flashinfer_autotune_skip_ops"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.flashinfer_autotune_skip_ops"
   },
   {
    "flags": [
@@ -3996,7 +3996,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.flashinfer_mla_disable_ragged"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.flashinfer_mla_disable_ragged"
   },
   {
    "flags": [
@@ -4017,7 +4017,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.flashinfer_mxfp4_moe_precision"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.flashinfer_mxfp4_moe_precision"
   },
   {
    "flags": [
@@ -4034,7 +4034,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.flexkv_config_file"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.flexkv_config_file"
   },
   {
    "flags": [
@@ -4051,7 +4051,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.forward_hooks"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_hooks"
   },
   {
    "flags": [
@@ -4068,7 +4068,7 @@
    },
    "action": null,
    "hidden": true,
-   "origin": "ServerArgs.forward_pass_metrics_ipc_name"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_pass_metrics_ipc_name"
   },
   {
    "flags": [
@@ -4085,7 +4085,7 @@
    },
    "action": null,
    "hidden": true,
-   "origin": "ServerArgs.forward_pass_metrics_worker_id"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_pass_metrics_worker_id"
   },
   {
    "flags": [
@@ -4109,7 +4109,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.fp4_gemm_runner_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.fp4_gemm_runner_backend"
   },
   {
    "flags": [
@@ -4136,7 +4136,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.fp8_gemm_runner_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.fp8_gemm_runner_backend"
   },
   {
    "flags": [
@@ -4156,7 +4156,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.fuseep_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.fuseep_mode"
   },
   {
    "flags": [
@@ -4173,7 +4173,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.gated_launch_port"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.gated_launch_port"
   },
   {
    "flags": [
@@ -4190,7 +4190,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.gc_threshold"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.gc_threshold"
   },
   {
    "flags": [
@@ -4207,7 +4207,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.gc_warning_threshold_secs"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.gc_warning_threshold_secs"
   },
   {
    "flags": [
@@ -4224,7 +4224,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.generation_tokens_buckets"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.generation_tokens_buckets"
   },
   {
    "flags": [
@@ -4241,7 +4241,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.gpu_id_step"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.gpu_id_step"
   },
   {
    "flags": [
@@ -4263,7 +4263,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.grammar_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.grammar_backend"
   },
   {
    "flags": [
@@ -4280,7 +4280,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.grpc_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_mode"
   },
   {
    "flags": [
@@ -4297,7 +4297,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.grpc_port"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_port"
   },
   {
    "flags": [
@@ -4314,7 +4314,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hf_chat_template_name"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.hf_chat_template_name"
   },
   {
    "flags": [
@@ -4334,7 +4334,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_host_memory_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_host_memory_mode"
   },
   {
    "flags": [
@@ -4355,7 +4355,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_io_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_io_backend"
   },
   {
    "flags": [
@@ -4378,7 +4378,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_mem_layout"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_mem_layout"
   },
   {
    "flags": [
@@ -4395,7 +4395,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_ratio"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_ratio"
   },
   {
    "flags": [
@@ -4412,7 +4412,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_size"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_size"
   },
   {
    "flags": [
@@ -4442,7 +4442,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_storage_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_backend"
   },
   {
    "flags": [
@@ -4459,7 +4459,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_storage_backend_extra_config"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_backend_extra_config"
   },
   {
    "flags": [
@@ -4480,7 +4480,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_storage_prefetch_policy"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_prefetch_policy"
   },
   {
    "flags": [
@@ -4497,7 +4497,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_storage_prefetch_retry_max_attempts"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_prefetch_retry_max_attempts"
   },
   {
    "flags": [
@@ -4514,7 +4514,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_storage_prefetch_retry_poll_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_prefetch_retry_poll_interval"
   },
   {
    "flags": [
@@ -4535,7 +4535,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hicache_write_policy"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_write_policy"
   },
   {
    "flags": [
@@ -4553,7 +4553,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.hisparse_config"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hisparse_config"
   },
   {
    "flags": [
@@ -4570,7 +4570,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.host"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.host"
   },
   {
    "flags": [
@@ -4587,7 +4587,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.http2_initial_connection_window_size"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.http2_initial_connection_window_size"
   },
   {
    "flags": [
@@ -4604,7 +4604,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.http2_max_concurrent_streams"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.http2_max_concurrent_streams"
   },
   {
    "flags": [
@@ -4625,7 +4625,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.image_processor_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.image_processor_backend"
   },
   {
    "flags": [
@@ -4642,7 +4642,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.incremental_streaming_output"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.incremental_streaming_output"
   },
   {
    "flags": [
@@ -4659,7 +4659,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.init_expert_location"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.init_expert_location"
   },
   {
    "flags": [
@@ -4676,7 +4676,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.int8_mamba_ckpt_size"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.int8_mamba_ckpt_size"
   },
   {
    "flags": [
@@ -4693,7 +4693,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.is_embedding"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.is_embedding"
   },
   {
    "flags": [
@@ -4710,7 +4710,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.json_model_override_args"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.json_model_override_args"
   },
   {
    "flags": [
@@ -4727,7 +4727,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.keep_mm_feature_on_device"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.keep_mm_feature_on_device"
   },
   {
    "flags": [
@@ -4744,7 +4744,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kt_cpuinfer"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_cpuinfer"
   },
   {
    "flags": [
@@ -4761,7 +4761,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kt_max_deferred_experts_per_token"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_max_deferred_experts_per_token"
   },
   {
    "flags": [
@@ -4778,7 +4778,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kt_method"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_method"
   },
   {
    "flags": [
@@ -4795,7 +4795,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kt_num_gpu_experts"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_num_gpu_experts"
   },
   {
    "flags": [
@@ -4812,7 +4812,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kt_threadpool_count"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_threadpool_count"
   },
   {
    "flags": [
@@ -4829,7 +4829,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kt_weight_path"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_weight_path"
   },
   {
    "flags": [
@@ -4856,7 +4856,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kv_cache_dtype"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.kv_cache_dtype"
   },
   {
    "flags": [
@@ -4877,7 +4877,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kv_canary"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_canary"
   },
   {
    "flags": [
@@ -4894,7 +4894,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "python/sglang/srt/server_args.py:ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -4911,7 +4911,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kv_canary_sweep_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_canary_sweep_interval"
   },
   {
    "flags": [
@@ -4928,7 +4928,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.kv_events_config"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_events_config"
   },
   {
    "flags": [
@@ -4945,7 +4945,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.language_model_only"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.language_model_only"
   },
   {
    "flags": [
@@ -4962,7 +4962,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.language_only"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.language_only"
   },
   {
    "flags": [
@@ -4979,7 +4979,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.limit_mm_data_per_request"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.limit_mm_data_per_request"
   },
   {
    "flags": [
@@ -5005,7 +5005,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.linear_attn_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_backend"
   },
   {
    "flags": [
@@ -5031,7 +5031,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.linear_attn_decode_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_decode_backend"
   },
   {
    "flags": [
@@ -5057,7 +5057,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.linear_attn_prefill_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_prefill_backend"
   },
   {
    "flags": [
@@ -5084,7 +5084,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.linear_attn_verify_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_verify_backend"
   },
   {
    "flags": [
@@ -5101,7 +5101,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.linear_replayssm_cache_len"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_replayssm_cache_len"
   },
   {
    "flags": [
@@ -5118,7 +5118,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.lmcache_config_file"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.lmcache_config_file"
   },
   {
    "flags": [
@@ -5141,7 +5141,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.load_balance_method"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.load_balance_method"
   },
   {
    "flags": [
@@ -5177,7 +5177,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.load_format"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.load_format"
   },
   {
    "flags": [
@@ -5194,7 +5194,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.load_publish_endpoint"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.load_publish_endpoint"
   },
   {
    "flags": [
@@ -5211,7 +5211,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.load_snapshot_publish_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.load_snapshot_publish_interval"
   },
   {
    "flags": [
@@ -5228,7 +5228,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.log_level"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.log_level"
   },
   {
    "flags": [
@@ -5245,7 +5245,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.log_level_http"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.log_level_http"
   },
   {
    "flags": [
@@ -5262,7 +5262,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.log_requests"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests"
   },
   {
    "flags": [
@@ -5282,7 +5282,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.log_requests_format"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests_format"
   },
   {
    "flags": [
@@ -5304,7 +5304,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.log_requests_level"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests_level"
   },
   {
    "flags": [
@@ -5321,7 +5321,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.log_requests_target"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests_target"
   },
   {
    "flags": [
@@ -5343,7 +5343,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.lora_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_backend"
   },
   {
    "flags": [
@@ -5360,7 +5360,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.lora_drain_wait_threshold"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_drain_wait_threshold"
   },
   {
    "flags": [
@@ -5380,7 +5380,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.lora_eviction_policy"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_eviction_policy"
   },
   {
    "flags": [
@@ -5397,7 +5397,7 @@
    },
    "action": "LoRAPathAction",
    "hidden": false,
-   "origin": "ServerArgs.lora_paths"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_paths"
   },
   {
    "flags": [
@@ -5415,7 +5415,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "ServerArgs.lora_strict_loading"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_strict_loading"
   },
   {
    "flags": [
@@ -5432,7 +5432,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.lora_target_modules"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_target_modules"
   },
   {
    "flags": [
@@ -5449,7 +5449,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.lora_use_virtual_experts"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_use_virtual_experts"
   },
   {
    "flags": [
@@ -5469,7 +5469,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mamba_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_backend"
   },
   {
    "flags": [
@@ -5486,7 +5486,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mamba_cache_philox_rounds"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_cache_philox_rounds"
   },
   {
    "flags": [
@@ -5503,7 +5503,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mamba_full_memory_ratio"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.mamba_full_memory_ratio"
   },
   {
    "flags": [
@@ -5520,7 +5520,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mamba_max_states_per_path"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_max_states_per_path"
   },
   {
    "flags": [
@@ -5542,7 +5542,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mamba_radix_cache_strategy"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_radix_cache_strategy"
   },
   {
    "flags": [
@@ -5563,7 +5563,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mamba_ssm_dtype"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_ssm_dtype"
   },
   {
    "flags": [
@@ -5580,7 +5580,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mamba_track_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_track_interval"
   },
   {
    "flags": [
@@ -5597,7 +5597,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_ep_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.max_ep_size"
   },
   {
    "flags": [
@@ -5614,7 +5614,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_loaded_loras"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.max_loaded_loras"
   },
   {
    "flags": [
@@ -5636,7 +5636,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_lora_chunk_size"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.max_lora_chunk_size"
   },
   {
    "flags": [
@@ -5653,7 +5653,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_lora_rank"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.max_lora_rank"
   },
   {
    "flags": [
@@ -5670,7 +5670,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_loras_per_batch"
+   "origin": "python/sglang/srt/arg_groups/fields/lora.py:Lora.max_loras_per_batch"
   },
   {
    "flags": [
@@ -5687,7 +5687,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_mamba_cache_size"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_mamba_cache_size"
   },
   {
    "flags": [
@@ -5704,7 +5704,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_prefill_tokens"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_prefill_tokens"
   },
   {
    "flags": [
@@ -5721,7 +5721,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_queued_requests"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_queued_requests"
   },
   {
    "flags": [
@@ -5738,7 +5738,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_running_requests"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_running_requests"
   },
   {
    "flags": [
@@ -5755,7 +5755,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.max_total_tokens"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_total_tokens"
   },
   {
    "flags": [
@@ -5772,7 +5772,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.media_url_max_file_size_mb"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.media_url_max_file_size_mb"
   },
   {
    "flags": [
@@ -5789,7 +5789,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mem_fraction_static"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.mem_fraction_static"
   },
   {
    "flags": [
@@ -5806,7 +5806,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.min_free_slots_delay"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.min_free_slots_delay"
   },
   {
    "flags": [
@@ -5823,7 +5823,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mlx_enable_sampling"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.mlx_enable_sampling"
   },
   {
    "flags": [
@@ -5850,7 +5850,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_attention_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_attention_backend"
   },
   {
    "flags": [
@@ -5867,7 +5867,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_enable_dp_encoder"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_enable_dp_encoder"
   },
   {
    "flags": [
@@ -5888,7 +5888,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_feature_transport"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_feature_transport"
   },
   {
    "flags": [
@@ -5907,7 +5907,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_global_cache_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_global_cache_backend"
   },
   {
    "flags": [
@@ -5924,7 +5924,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_io_worker_num"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_io_worker_num"
   },
   {
    "flags": [
@@ -5941,7 +5941,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_preprocess_cache_size_mb"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_preprocess_cache_size_mb"
   },
   {
    "flags": [
@@ -5958,7 +5958,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_process_config"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_process_config"
   },
   {
    "flags": [
@@ -5975,7 +5975,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mm_processor_worker_num"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_processor_worker_num"
   },
   {
    "flags": [
@@ -5992,7 +5992,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.model_checksum"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.model_checksum"
   },
   {
    "flags": [
@@ -6009,7 +6009,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.model_config_parser"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.model_config_parser"
   },
   {
    "flags": [
@@ -6026,7 +6026,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.model_impl"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.model_impl"
   },
   {
    "flags": [
@@ -6043,7 +6043,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.model_loader_extra_config"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.model_loader_extra_config"
   },
   {
    "flags": [
@@ -6058,7 +6058,7 @@
    "default": null,
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.model_path"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.model_path"
   },
   {
    "flags": [
@@ -6075,7 +6075,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.modelexpress_config"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.modelexpress_config"
   },
   {
    "flags": [
@@ -6092,7 +6092,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.modelopt_checkpoint_restore_path"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.modelopt_checkpoint_restore_path"
   },
   {
    "flags": [
@@ -6109,7 +6109,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.modelopt_checkpoint_save_path"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.modelopt_checkpoint_save_path"
   },
   {
    "flags": [
@@ -6126,7 +6126,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.modelopt_export_path"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.modelopt_export_path"
   },
   {
    "flags": [
@@ -6143,7 +6143,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.modelopt_quant"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.modelopt_quant"
   },
   {
    "flags": [
@@ -6173,7 +6173,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.moe_a2a_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.moe_a2a_backend"
   },
   {
    "flags": [
@@ -6190,7 +6190,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.moe_dense_tp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.moe_dense_tp_size"
   },
   {
    "flags": [
@@ -6208,7 +6208,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.moe_dp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.moe_dp_size"
   },
   {
    "flags": [
@@ -6245,7 +6245,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.moe_runner_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.moe_runner_backend"
   },
   {
    "flags": [
@@ -6262,7 +6262,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.mooncake_ib_device"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.mooncake_ib_device"
   },
   {
    "flags": [
@@ -6279,7 +6279,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.msprobe_dump_config"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.msprobe_dump_config"
   },
   {
    "flags": [
@@ -6296,7 +6296,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.nccl_port"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.nccl_port"
   },
   {
    "flags": [
@@ -6313,7 +6313,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.nnodes"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.nnodes"
   },
   {
    "flags": [
@@ -6330,7 +6330,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.node_rank"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.node_rank"
   },
   {
    "flags": [
@@ -6347,7 +6347,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.num_continuous_decode_steps"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.num_continuous_decode_steps"
   },
   {
    "flags": [
@@ -6364,7 +6364,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.num_reserved_decode_tokens"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.num_reserved_decode_tokens"
   },
   {
    "flags": [
@@ -6381,7 +6381,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.numa_node"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.numa_node"
   },
   {
    "flags": [
@@ -6398,7 +6398,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.offload_group_size"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_group_size"
   },
   {
    "flags": [
@@ -6415,7 +6415,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.offload_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_mode"
   },
   {
    "flags": [
@@ -6432,7 +6432,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.offload_num_in_group"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_num_in_group"
   },
   {
    "flags": [
@@ -6449,7 +6449,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.offload_prefetch_step"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_prefetch_step"
   },
   {
    "flags": [
@@ -6466,7 +6466,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.optimistic_prefill_attempts"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.optimistic_prefill_attempts"
   },
   {
    "flags": [
@@ -6483,7 +6483,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.otlp_traces_endpoint"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.otlp_traces_endpoint"
   },
   {
    "flags": [
@@ -6500,7 +6500,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.page_size"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.page_size"
   },
   {
    "flags": [
@@ -6517,7 +6517,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.pdmux_config_path"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.pdmux_config_path"
   },
   {
    "flags": [
@@ -6537,7 +6537,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ple_offload_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.ple_offload_backend"
   },
   {
    "flags": [
@@ -6554,7 +6554,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ple_offload_dir"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.ple_offload_dir"
   },
   {
    "flags": [
@@ -6572,7 +6572,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "ServerArgs.ple_offload_embedding"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.ple_offload_embedding"
   },
   {
    "flags": [
@@ -6589,7 +6589,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.port"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.port"
   },
   {
    "flags": [
@@ -6606,7 +6606,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.pp_async_batch_depth"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.pp_async_batch_depth"
   },
   {
    "flags": [
@@ -6623,7 +6623,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.pp_max_micro_batch_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.pp_max_micro_batch_size"
   },
   {
    "flags": [
@@ -6641,7 +6641,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.pp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.pp_size"
   },
   {
    "flags": [
@@ -6658,7 +6658,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.pre_warm_nccl"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.pre_warm_nccl"
   },
   {
    "flags": [
@@ -6675,7 +6675,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.preferred_sampling_params"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.preferred_sampling_params"
   },
   {
    "flags": [
@@ -6717,7 +6717,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_attention_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.prefill_attention_backend"
   },
   {
    "flags": [
@@ -6734,7 +6734,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_decode_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_decode_interval"
   },
   {
    "flags": [
@@ -6751,7 +6751,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_delayer_forward_passes_buckets"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_forward_passes_buckets"
   },
   {
    "flags": [
@@ -6768,7 +6768,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_delayer_max_delay_ms"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_max_delay_ms"
   },
   {
    "flags": [
@@ -6785,7 +6785,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_delayer_max_delay_passes"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_max_delay_passes"
   },
   {
    "flags": [
@@ -6802,7 +6802,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_delayer_queue_min_ratio"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_queue_min_ratio"
   },
   {
    "flags": [
@@ -6819,7 +6819,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_delayer_token_usage_low_watermark"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_token_usage_low_watermark"
   },
   {
    "flags": [
@@ -6836,7 +6836,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_delayer_wait_seconds_buckets"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_wait_seconds_buckets"
   },
   {
    "flags": [
@@ -6853,7 +6853,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_max_requests"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_max_requests"
   },
   {
    "flags": [
@@ -6870,7 +6870,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prefill_only_disable_kv_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_only_disable_kv_cache"
   },
   {
    "flags": [
@@ -6887,7 +6887,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.priority_scheduling_preemption_threshold"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.priority_scheduling_preemption_threshold"
   },
   {
    "flags": [
@@ -6904,7 +6904,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.prompt_tokens_buckets"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.prompt_tokens_buckets"
   },
   {
    "flags": [
@@ -6953,7 +6953,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.quantization"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.quantization"
   },
   {
    "flags": [
@@ -6970,7 +6970,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.quantization_param_path"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.quantization_param_path"
   },
   {
    "flags": [
@@ -6987,7 +6987,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.quantize_and_serve"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.quantize_and_serve"
   },
   {
    "flags": [
@@ -7004,7 +7004,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.radix_cache_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_cache_backend"
   },
   {
    "flags": [
@@ -7026,7 +7026,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.radix_eviction_policy"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_eviction_policy"
   },
   {
    "flags": [
@@ -7043,7 +7043,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.radix_eviction_policy_config"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_eviction_policy_config"
   },
   {
    "flags": [
@@ -7060,7 +7060,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.random_seed"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.random_seed"
   },
   {
    "flags": [
@@ -7077,7 +7077,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "python/sglang/srt/server_args.py:ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -7098,7 +7098,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.remote_instance_weight_loader_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_backend"
   },
   {
    "flags": [
@@ -7115,7 +7115,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.remote_instance_weight_loader_seed_instance_ip"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_seed_instance_ip"
   },
   {
    "flags": [
@@ -7132,7 +7132,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.remote_instance_weight_loader_seed_instance_service_port"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_seed_instance_service_port"
   },
   {
    "flags": [
@@ -7149,7 +7149,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.remote_instance_weight_loader_send_weights_group_ports"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_send_weights_group_ports"
   },
   {
    "flags": [
@@ -7166,7 +7166,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.remote_instance_weight_loader_start_seed_via_transfer_engine"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_start_seed_via_transfer_engine"
   },
   {
    "flags": [
@@ -7186,7 +7186,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.retraction_policy"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.retraction_policy"
   },
   {
    "flags": [
@@ -7206,7 +7206,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.return_hidden_states_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.return_hidden_states_mode"
   },
   {
    "flags": [
@@ -7223,7 +7223,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.return_input_ids"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.return_input_ids"
   },
   {
    "flags": [
@@ -7240,7 +7240,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.return_output_ids"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.return_output_ids"
   },
   {
    "flags": [
@@ -7257,7 +7257,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.revision"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.revision"
   },
   {
    "flags": [
@@ -7276,7 +7276,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.rl_on_policy_target"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecDeterministic.rl_on_policy_target"
   },
   {
    "flags": [
@@ -7293,7 +7293,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.rl_quant_profile"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.rl_quant_profile"
   },
   {
    "flags": [
@@ -7310,7 +7310,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "python/sglang/srt/server_args.py:ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -7330,7 +7330,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.sampling_defaults"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.sampling_defaults"
   },
   {
    "flags": [
@@ -7347,7 +7347,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.sampling_mask_max_tokens"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.sampling_mask_max_tokens"
   },
   {
    "flags": [
@@ -7364,7 +7364,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.schedule_conservativeness"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.schedule_conservativeness"
   },
   {
    "flags": [
@@ -7381,7 +7381,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.schedule_low_priority_values_first"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.schedule_low_priority_values_first"
   },
   {
    "flags": [
@@ -7407,7 +7407,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.schedule_policy"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.schedule_policy"
   },
   {
    "flags": [
@@ -7424,7 +7424,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.scheduler_recv_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.scheduler_recv_interval"
   },
   {
    "flags": [
@@ -7441,7 +7441,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.served_model_name"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.served_model_name"
   },
   {
    "flags": [
@@ -7458,7 +7458,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.show_time_cost"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.show_time_cost"
   },
   {
    "flags": [
@@ -7475,7 +7475,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.sidecar"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.sidecar"
   },
   {
    "flags": [
@@ -7492,7 +7492,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.sidecar_args"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.sidecar_args"
   },
   {
    "flags": [
@@ -7509,7 +7509,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.skip_server_warmup"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.skip_server_warmup"
   },
   {
    "flags": [
@@ -7526,7 +7526,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.skip_tokenizer_init"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.skip_tokenizer_init"
   },
   {
    "flags": [
@@ -7543,7 +7543,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.sleep_on_idle"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.sleep_on_idle"
   },
   {
    "flags": [
@@ -7560,7 +7560,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.sm_group_num"
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.sm_group_num"
   },
   {
    "flags": [
@@ -7577,7 +7577,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.smg_grpc_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.smg_grpc_mode"
   },
   {
    "flags": [
@@ -7595,7 +7595,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.smg_http_sidecar_port"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.smg_http_sidecar_port"
   },
   {
    "flags": [
@@ -7612,7 +7612,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.soft_watchdog_timeout"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.soft_watchdog_timeout"
   },
   {
    "flags": [
@@ -7629,7 +7629,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.spec_trace_dir"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.spec_trace_dir"
   },
   {
    "flags": [
@@ -7646,7 +7646,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_accept_threshold_acc"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_accept_threshold_acc"
   },
   {
    "flags": [
@@ -7663,7 +7663,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_accept_threshold_single"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_accept_threshold_single"
   },
   {
    "flags": [
@@ -7680,7 +7680,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_adaptive"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_adaptive"
   },
   {
    "flags": [
@@ -7697,7 +7697,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_adaptive_config"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_adaptive_config"
   },
   {
    "flags": [
@@ -7714,7 +7714,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_algorithm"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_algorithm"
   },
   {
    "flags": [
@@ -7734,7 +7734,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_attention_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_attention_mode"
   },
   {
    "flags": [
@@ -7751,7 +7751,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_dflash_block_size"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dflash_block_size"
   },
   {
    "flags": [
@@ -7768,7 +7768,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_domino_candidate_pool_size"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_domino_candidate_pool_size"
   },
   {
    "flags": [
@@ -7785,7 +7785,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_draft_attention_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_attention_backend"
   },
   {
    "flags": [
@@ -7808,7 +7808,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_draft_kv_cache_dtype"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_kv_cache_dtype"
   },
   {
    "flags": [
@@ -7844,7 +7844,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_draft_load_format"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_load_format"
   },
   {
    "flags": [
@@ -7862,7 +7862,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_draft_model_path"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_path"
   },
   {
    "flags": [
@@ -7911,7 +7911,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_draft_model_quantization"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_quantization"
   },
   {
    "flags": [
@@ -7928,7 +7928,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_draft_model_revision"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_revision"
   },
   {
    "flags": [
@@ -7945,7 +7945,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_draft_window_size"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_window_size"
   },
   {
    "flags": [
@@ -7966,7 +7966,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_dsa_topk_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dsa_topk_backend"
   },
   {
    "flags": [
@@ -7983,7 +7983,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_dspark_align_verify_tokens_to_graph_tier"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_align_verify_tokens_to_graph_tier"
   },
   {
    "flags": [
@@ -8000,7 +8000,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_dspark_block_size"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_block_size"
   },
   {
    "flags": [
@@ -8017,7 +8017,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_dspark_confidence_sts_path"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_confidence_sts_path"
   },
   {
    "flags": [
@@ -8034,7 +8034,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_dspark_sps_table_path"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_sps_table_path"
   },
   {
    "flags": [
@@ -8051,7 +8051,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_eagle_topk"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_eagle_topk"
   },
   {
    "flags": [
@@ -8080,7 +8080,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_moe_a2a_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_moe_a2a_backend"
   },
   {
    "flags": [
@@ -8117,7 +8117,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_moe_runner_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_moe_runner_backend"
   },
   {
    "flags": [
@@ -8134,7 +8134,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_capacity"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_capacity"
   },
   {
    "flags": [
@@ -8151,7 +8151,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_external_corpus_max_tokens"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_external_corpus_max_tokens"
   },
   {
    "flags": [
@@ -8168,7 +8168,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_external_corpus_path"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_external_corpus_path"
   },
   {
    "flags": [
@@ -8185,7 +8185,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_external_sam_budget"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_external_sam_budget"
   },
   {
    "flags": [
@@ -8205,7 +8205,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_match_type"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_match_type"
   },
   {
    "flags": [
@@ -8222,7 +8222,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_max_bfs_breadth"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_max_bfs_breadth"
   },
   {
    "flags": [
@@ -8239,7 +8239,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_max_trie_depth"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_max_trie_depth"
   },
   {
    "flags": [
@@ -8256,7 +8256,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_ngram_min_bfs_breadth"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_min_bfs_breadth"
   },
   {
    "flags": [
@@ -8273,7 +8273,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_num_draft_tokens"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_num_draft_tokens"
   },
   {
    "flags": [
@@ -8290,7 +8290,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_num_steps"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_num_steps"
   },
   {
    "flags": [
@@ -8307,7 +8307,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_skip_dp_mlp_sync"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_skip_dp_mlp_sync"
   },
   {
    "flags": [
@@ -8324,7 +8324,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_token_map"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_token_map"
   },
   {
    "flags": [
@@ -8341,7 +8341,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.speculative_use_rejection_sampling"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_use_rejection_sampling"
   },
   {
    "flags": [
@@ -8358,7 +8358,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ssl_ca_certs"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_ca_certs"
   },
   {
    "flags": [
@@ -8375,7 +8375,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ssl_certfile"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_certfile"
   },
   {
    "flags": [
@@ -8392,7 +8392,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ssl_keyfile"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_keyfile"
   },
   {
    "flags": [
@@ -8409,7 +8409,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.ssl_keyfile_password"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_keyfile_password"
   },
   {
    "flags": [
@@ -8429,7 +8429,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.startup_weight_load_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.startup_weight_load_mode"
   },
   {
    "flags": [
@@ -8446,7 +8446,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.stream_interval"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.stream_interval"
   },
   {
    "flags": [
@@ -8463,7 +8463,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.stream_response_default_include_usage"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.stream_response_default_include_usage"
   },
   {
    "flags": [
@@ -8480,7 +8480,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.strip_thinking_cache"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.strip_thinking_cache"
   },
   {
    "flags": [
@@ -8497,7 +8497,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.swa_full_tokens_ratio"
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.swa_full_tokens_ratio"
   },
   {
    "flags": [
@@ -8514,7 +8514,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tbo_token_distribution_threshold"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecOverlap.tbo_token_distribution_threshold"
   },
   {
    "flags": [
@@ -8534,7 +8534,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tokenizer_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_backend"
   },
   {
    "flags": [
@@ -8551,7 +8551,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tokenizer_metrics_allowed_custom_labels"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.tokenizer_metrics_allowed_custom_labels"
   },
   {
    "flags": [
@@ -8568,7 +8568,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tokenizer_metrics_custom_labels_header"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.tokenizer_metrics_custom_labels_header"
   },
   {
    "flags": [
@@ -8588,7 +8588,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tokenizer_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_mode"
   },
   {
    "flags": [
@@ -8605,7 +8605,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tokenizer_path"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_path"
   },
   {
    "flags": [
@@ -8622,7 +8622,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tokenizer_worker_num"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_worker_num"
   },
   {
    "flags": [
@@ -8639,7 +8639,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.add_cli_args"
+   "origin": "python/sglang/srt/server_args.py:ServerArgs.add_cli_args"
   },
   {
    "flags": [
@@ -8656,7 +8656,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tool_server"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.tool_server"
   },
   {
    "flags": [
@@ -8673,7 +8673,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.torch_compile_max_bs"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.torch_compile_max_bs"
   },
   {
    "flags": [
@@ -8691,7 +8691,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.tp_size"
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.tp_size"
   },
   {
    "flags": [
@@ -8708,7 +8708,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.trace_modules"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.trace_modules"
   },
   {
    "flags": [
@@ -8725,7 +8725,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.triton_attention_num_kv_splits"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.triton_attention_num_kv_splits"
   },
   {
    "flags": [
@@ -8742,7 +8742,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.triton_attention_reduce_in_fp32"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.triton_attention_reduce_in_fp32"
   },
   {
    "flags": [
@@ -8759,7 +8759,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.triton_attention_split_tile_size"
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.triton_attention_split_tile_size"
   },
   {
    "flags": [
@@ -8776,7 +8776,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.trust_mm_content_hashes"
+   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.trust_mm_content_hashes"
   },
   {
    "flags": [
@@ -8793,7 +8793,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.trust_remote_code"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.trust_remote_code"
   },
   {
    "flags": [
@@ -8813,7 +8813,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.unified_cache_external_linker_backend"
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.unified_cache_external_linker_backend"
   },
   {
    "flags": [
@@ -8830,7 +8830,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.uno_lora_path"
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.uno_lora_path"
   },
   {
    "flags": [
@@ -8847,7 +8847,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.use_ray"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.use_ray"
   },
   {
    "flags": [
@@ -8864,7 +8864,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.uvicorn_access_log_exclude_prefixes"
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.uvicorn_access_log_exclude_prefixes"
   },
   {
    "flags": [
@@ -8881,7 +8881,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.warmups"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.warmups"
   },
   {
    "flags": [
@@ -8898,7 +8898,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.watchdog_timeout"
+   "origin": "python/sglang/srt/arg_groups/fields/device.py:Device.watchdog_timeout"
   },
   {
    "flags": [
@@ -8919,7 +8919,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_cache_mode"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.weight_cache_mode"
   },
   {
    "flags": [
@@ -8936,7 +8936,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_cache_socket"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.weight_cache_socket"
   },
   {
    "flags": [
@@ -8953,7 +8953,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_cache_timeout"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.weight_cache_timeout"
   },
   {
    "flags": [
@@ -8970,7 +8970,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_loader_disable_mmap"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_disable_mmap"
   },
   {
    "flags": [
@@ -8987,7 +8987,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_loader_drop_cache_after_load"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_drop_cache_after_load"
   },
   {
    "flags": [
@@ -9004,7 +9004,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_loader_prefetch_checkpoints"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_prefetch_checkpoints"
   },
   {
    "flags": [
@@ -9021,7 +9021,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_loader_prefetch_num_threads"
+   "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_prefetch_num_threads"
   },
   {
    "flags": [
@@ -9038,7 +9038,7 @@
    },
    "action": null,
    "hidden": false,
-   "origin": "ServerArgs.weight_version"
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.weight_version"
   }
  ]
 }

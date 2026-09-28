@@ -34,7 +34,7 @@ Export performance metrics for each request to local file (e.g. for forwarding t
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным. `__post_init__` не переписывает его, но валидирует: при `--export-metrics-to-file` без `--export-metrics-to-file-dir` старт падает с `ValueError: --export-metrics-to-file-dir is required when --export-metrics-to-file is enabled`
-- Где объявлен: `ServerArgs.export_metrics_to_file`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.export_metrics_to_file`
 - Статус: обычный
 - Этап применения: `__post_init__` (проверка) → конструктор `TokenizerManager` (создание экспортера и каталога) → завершение каждого запроса
 
@@ -136,6 +136,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --export-metrics
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/observability/request_metrics_exporter.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

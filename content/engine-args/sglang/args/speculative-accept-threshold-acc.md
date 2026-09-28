@@ -34,7 +34,7 @@ The accept probability of a draft token is raised from its target probability p 
 - Допустимые значения: argparse не ограничивает, CUDA-операция требует `0 <= threshold_acc <= 1`; ноль дополнительно поднимается до `1e-9` внутри ядра, чтобы не делить на ноль
 - Значение по умолчанию: `1.0`
 - Эффективное значение: совпадает с заданным; **изменяемо в runtime** через `POST /set_internal_state` (ключ `speculative_accept_threshold_acc`)
-- Где объявлен: `ServerArgs.speculative_accept_threshold_acc`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_accept_threshold_acc`
 - Статус: обычный
 - Этап применения: forward, фаза `target_verify` — читается на каждом шаге из runtime-контекста
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --speculative-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/eagle_utils.py`
 - `sglang/python/sglang/srt/speculative/dflash_utils.py`

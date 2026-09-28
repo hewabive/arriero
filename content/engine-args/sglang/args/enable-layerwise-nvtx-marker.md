@@ -33,7 +33,7 @@ Enable layerwise NVTX profiling annotations for the model.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` и ни одно правило `arg_groups/overrides.py` его не переписывают
-- Где объявлен: `ServerArgs.enable_layerwise_nvtx_marker`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_layerwise_nvtx_marker`
 - Статус: обычный
 - Этап применения: разбор CLI → `ModelRunner.load_model` после загрузки весов и предкомпиляции ядер → каждый eager-forward
 
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --enable-layerwise
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/utils/nvtx_pytorch_hooks.py`

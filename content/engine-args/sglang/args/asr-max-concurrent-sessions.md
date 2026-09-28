@@ -34,7 +34,7 @@ Maximum number of concurrent realtime ASR WebSocket sessions served by /v1/realt
 - Допустимые значения: `choices` нет; строго положительное целое (проверяется на старте)
 - Значение по умолчанию: `32`
 - Эффективное значение: `__post_init__` не переопределяет, но `_handle_asr_validation` отвергает неположительные значения
-- Где объявлен: `ServerArgs.asr_max_concurrent_sessions`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.asr_max_concurrent_sessions`
 - Статус: обычный
 - Этап применения: конструктор `OpenAIServingTranscription` при старте (создание семафора) → каждое новое соединение `/v1/realtime`
 
@@ -127,6 +127,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-ASR-Flash --asr-max-co
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_transcription.py`
 - `sglang/python/sglang/srt/entrypoints/openai/realtime/handler.py`

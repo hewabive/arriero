@@ -30,7 +30,7 @@ Scheduling passes a queued request waits before its storage availability check i
 - Группа: `memory`
 - Тип: `int`
 - Декларативный default: `8`
-- Объявление: `ServerArgs.hicache_storage_prefetch_retry_poll_interval` в `sglang/python/sglang/srt/arg_groups/fields/memory.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_prefetch_retry_poll_interval`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке

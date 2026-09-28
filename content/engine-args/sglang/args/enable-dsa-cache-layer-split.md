@@ -35,7 +35,7 @@ Split DSA (DeepSeek Sparse Attention) GPU KV/indexer cache layers across context
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным; автоматически не включается никогда. Значение уходит и в протокол PD-передачи — оно сериализуется в handshake (`enable_dsa_cache_layer_split` в `disaggregation/common/conn.py`), чтобы decode-сторона знала о раскладке
-- Где объявлен: `ServerArgs.enable_dsa_cache_layer_split`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dsa_cache_layer_split`
 - Статус: обычный, с частичной поддержкой транспортов (mori/nixl обещаны позже)
 - Этап применения: валидация в `_handle_model_specific_adjustments` → выбор класса пула в `KVCacheConfigurator` → чтение/запись слоев на forward → handshake PD-передачи
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --tens
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/mem_cache/dsa_cache_layer_split.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/cp/utils.py`

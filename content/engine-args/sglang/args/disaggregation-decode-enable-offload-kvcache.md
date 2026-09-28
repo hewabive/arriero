@@ -39,7 +39,7 @@ Enable async KV cache offloading on decode server (PD mode).
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; движок его не переписывает, но при `true` активирует нормализацию hicache-настроек (`_handle_hicache` выполняется, даже если `--enable-hierarchical-cache` не задан)
-- Где объявлен: `ServerArgs.disaggregation_decode_enable_offload_kvcache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_enable_offload_kvcache`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_hicache` (согласование layout/IO/storage) → `_handle_cache_compatibility` (жесткие проверки) → создание `DecodeKVCacheOffloadManager` в scheduler'е (аллокация хостового пула) → на каждом шаге decode: `check_offload_progress` и `offload_kv_cache` при завершении запроса
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/decode_kvcache_offload_manager.py`
 - `sglang/python/sglang/srt/disaggregation/decode.py`

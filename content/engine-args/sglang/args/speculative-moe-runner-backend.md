@@ -34,7 +34,7 @@ Choose the runner backend for MoE in speculative decoding.
 - Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `flashinfer_megamoe`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`, `intel_xpu`. Список расширяем сторонними платформенными пакетами через `add_moe_runner_backend_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки
 - Значение по умолчанию: `null`
 - Эффективное значение: `_speculative_moe_runner_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`) при `null` копирует **разрешённое** `moe_runner_backend` target-модели; для DeepSeek-семейства с `modelopt_fp4` на ROCm `_deepseek_spec_moe_resolution` может выставить `deep_gemm` (вместе с a2a `deepep`) или `triton`
-- Где объявлен: `ServerArgs.speculative_moe_runner_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_moe_runner_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (подстановка значения по умолчанию) → `initialize_moe_config` при инициализации model runner → сборка и прогоны MoE-слоёв черновика внутри `speculative_moe_backend_context()`
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --speculative-algo
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`

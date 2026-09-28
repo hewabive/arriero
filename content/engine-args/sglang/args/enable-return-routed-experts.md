@@ -37,7 +37,7 @@ Enable returning routed experts of each layer with responses.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: поле не переписывается. Захват при этом не создается на draft-воркере спекуляции (`init_routed_experts_capturer` выходит по `is_draft_worker`, чтобы не перетереть process-global capturer таргета), и дополнительно снимается с draft-модели вызовом `disable_routed_experts_capture_for_draft`
-- Где объявлен: `ServerArgs.enable_return_routed_experts`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_return_routed_experts`
 - Статус: обычный
 - Этап применения: разбор CLI → `ModelRunner.init_routed_experts_capturer` (выделение буферов) → `layers/moe/topk.py` на каждом форварде → копирование device→host в конце форварда → `meta_info` ответа
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/state_capturer/base.py`
 - `sglang/python/sglang/srt/state_capturer/routed_experts.py`

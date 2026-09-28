@@ -40,7 +40,7 @@ The strategy to use for mamba radix cache.
 - Допустимые значения: `auto`, `no_buffer`, `extra_buffer`, `extra_buffer_lazy` (константа `MAMBA_RADIX_CACHE_STRATEGY_CHOICES`)
 - Значение по умолчанию: `auto`
 - Эффективное значение: разрешается пассом `_mamba_radix_cache_resolution` (`arg_groups/overrides.py`) — см. ниже. Отдельно архитектура Inkling принудительно ставит `extra_buffer`, если оператор оставил значение по умолчанию
-- Где объявлен: `ServerArgs.mamba_radix_cache_strategy`, файл — `sglang/python/sglang/srt/server_args.py`; поле помечено `resolvable=True`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_radix_cache_strategy`; поле помечено `resolvable=True`
 - Статус: обычный
 - Этап применения: `__post_init__` → `_handle_mamba_radix_cache` (резолюция `auto` и валидация) → построение пулов и префиксного кеша
 
@@ -143,6 +143,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

@@ -32,7 +32,7 @@ Path to the JSON file containing the KV cache scaling factors. This should gener
 - Допустимые значения: не ограничены `choices`; фактически — путь к файлу схемы `QuantParamSchema`
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется; ни один `_handle_*` в `ServerArgs.__post_init__` это поле не трогает
-- Где объявлен: `ServerArgs.quantization_param_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.quantization_param_path`
 - Статус: обычный
 - Этап применения: после загрузки весов модели, в `load_kv_cache_scales` (`sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`)
 
@@ -93,6 +93,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --tp-size 2 --kv-ca
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`

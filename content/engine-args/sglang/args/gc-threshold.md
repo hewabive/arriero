@@ -33,7 +33,7 @@ Set the garbage collection thresholds (the collection frequency). Accepts 1 to 3
 - Допустимые значения: длина от 1 до 3, проверяется в `check_server_args`: `ValueError: When setting gc_threshold, it must contain 1 to 3 integers.` Значения элементов не проверяются
 - Значение по умолчанию: `null` — пороги CPython остаются как есть (`(700, 10, 10)`, если их не менял никто другой; текущее значение можно посмотреть через `python -c "import gc; print(gc.get_threshold())"`)
 - Эффективное значение: совпадает с заданным; автоподбора нет
-- Где объявлен: `ServerArgs.gc_threshold`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.gc_threshold`
 - Статус: обычный
 - Этап применения: `_set_envs_and_config` в главном процессе, до запуска scheduler-подпроцессов
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --gc-threshold 5000
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`

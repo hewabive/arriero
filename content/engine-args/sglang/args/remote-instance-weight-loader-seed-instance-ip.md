@@ -34,7 +34,7 @@ The ip of the seed instance for loading weights from remote instance.
 - Допустимые значения: не ограничены; валидации формата нет
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется; при `--load-format remote_instance` его отсутствие переопределяет **другой** аргумент — `load_format` становится `auto`
-- Где объявлен: `ServerArgs.remote_instance_weight_loader_seed_instance_ip`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_seed_instance_ip`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_load_format` — проверка полноты) → HTTP-запросы к seed'у и построение коммуникационной группы при загрузке весов
 
@@ -95,6 +95,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

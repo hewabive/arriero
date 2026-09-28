@@ -35,7 +35,7 @@ Version identifier for the model weights. Defaults to 'default' if not specified
 - Допустимые значения: `choices` нет; формат не проверяется
 - Значение по умолчанию: `default`
 - Эффективное значение: `__post_init__` не переопределяет, но значение перекрывается control-plane overlay'ем `TokenizerManager` — `config_value("weight_version")` сначала смотрит записи `record_config_updates` (в обратном порядке) и только потом читает `server_args`
-- Где объявлен: `ServerArgs.weight_version`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.weight_version`
 - Статус: обычный
 - Этап применения: HTTP-слой (`/model_info`) и сборка `meta_info` каждого ответа; на загрузку весов и на forward не влияет
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --weight-versi
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

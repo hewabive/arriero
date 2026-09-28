@@ -34,7 +34,7 @@ Enabling mixing prefill and decode in a batch when using chunked prefill.
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: принудительно `false` при любом включенном `--speculative-algorithm` (все хуки в `arg_groups/speculative_hook.py`), при diffusion-LLM (`--dllm-algorithm`) и при `--attention-backend dual_chunk_flash_attn`; в scheduler'е дополнительно обнуляется, если chunked prefill выключен
-- Где объявлен: `ServerArgs.enable_mixed_chunk`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_mixed_chunk`
 - Статус: обычный
 - Этап применения: `__post_init__` (принудительные отключения) → `Scheduler.init_chunked_prefill` → каждый проход `get_new_batch_prefill`
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --chunked-pref
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

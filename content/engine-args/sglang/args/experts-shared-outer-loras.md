@@ -35,7 +35,7 @@ Force shared outer LoRA mode for MoE models. When set, w1/w3 lora_A and w2 lora_
 - Допустимые значения: значения не принимает; задается наличием одного из двух флагов
 - Значение по умолчанию: `null` — автодетект по весам адаптеров
 - Эффективное значение: `LoRAManager.init_state` берет значение аргумента, если оно не `None`, иначе вызывает `_detect_shared_outer_loras()`
-- Где объявлен: `ServerArgs.experts_shared_outer_loras`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.experts_shared_outer_loras`
 - Статус: обычный
 - Этап применения: `LoRAManager.init_state` — после загрузки стартовых адаптеров и **до** `init_memory_pool`, то есть значение фиксируется в формах буферов навсегда
 
@@ -127,6 +127,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B-Instruct --lor
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`

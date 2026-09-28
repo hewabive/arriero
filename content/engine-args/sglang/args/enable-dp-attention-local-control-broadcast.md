@@ -35,7 +35,7 @@ With DP-attention, send control messages to every DP group leader and broadcast 
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: принудительно `True` при `--dwdp-size > 1` (`_handle_dwdp`) и при активном elastic EP scale-up (`_handle_elastic_ep`, ветка `scaling_active`). В остальном действует заданное значение
-- Где объявлен: `ServerArgs.enable_dp_attention_local_control_broadcast`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_attention_local_control_broadcast`
 - Статус: обычный, оптимизационный
 - Этап применения: `__post_init__` (принудительные включения) → конструктор `DataParallelController` (выбор `control_message_step`) → каждая рассылка управляющего сообщения в течение работы
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tensor-paral
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/dp_attn.py`

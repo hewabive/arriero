@@ -35,7 +35,7 @@ Enable INT8 quantization of TP communications (limited support).
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переписывается, но проверяется. `check_server_args` (`sglang/python/sglang/srt/server_args.py`) поднимает `ValueError: Communications quantization is only used with tp_size != 1` при `--tp-size 1` и `ValueError: Communications quantization is only supported for NPU device`, если `--device` не `npu`
-- Где объявлен: `ServerArgs.enable_quant_communications`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_quant_communications`
 - Статус: обычный, но с явной пометкой «limited support» в собственной справке
 - Этап применения: разбор CLI → `check_server_args` (жесткие проверки) → forward: `RowParallelLinear.forward` и `layers/communicator.py` выбирают квантованный коллектив на каждой prefill-итерации
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --device npu --ten
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/npu_communicator.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

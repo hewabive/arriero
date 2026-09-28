@@ -35,7 +35,7 @@ Allow automatically truncating requests that exceed the maximum input length ins
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` не переопределяет
-- Где объявлен: `ServerArgs.allow_auto_truncate`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.allow_auto_truncate`
 - Статус: обычный
 - Этап применения: валидация запроса в `TokenizerManager` → валидация запроса в планировщике → дополнительно проверка `max_completion_tokens` в OpenAI-фасаде чата
 
@@ -146,6 +146,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --allow-auto-t
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/utils.py`

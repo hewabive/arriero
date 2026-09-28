@@ -50,7 +50,7 @@ The path of the JSON configuration file for msProbe. If specified, enables msPro
 - Допустимые значения: `choices` нет. Существование файла SGLang не проверяет; путь передается в `PrecisionDebugger(config_path=...)`, и разбор — забота msProbe
 - Значение по умолчанию: `None` — интеграция выключена
 - Эффективное значение: значение не переписывается, но **переписывает другие**: `cuda_graph_config.decode.backend` и `cuda_graph_config.prefill.backend` становятся `DISABLED`, `skip_server_warmup` становится `True`
-- Где объявлен: `ServerArgs.msprobe_dump_config`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.msprobe_dump_config`
 - Статус: обычный аргумент узкоспециальной отладочной интеграции, а не эксплуатационная настройка
 - Этап применения: `__post_init__` (выключение графов и прогрева) → `ModelRunner.init_msprobe` → каждый forward
 
@@ -142,6 +142,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/misc_utils.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/server_args.py`

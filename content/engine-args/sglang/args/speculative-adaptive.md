@@ -38,7 +38,7 @@ Enable adaptive speculative decoding that dynamically adjusts num_steps based on
 - Допустимые значения: флаг присутствует — включено, отсутствует — выключено
 - Значение по умолчанию: `false`
 - Эффективное значение: **может быть сброшено в `false`** самим движком в `_maybe_disable_adaptive`, если конфигурация не поддержана; в лог печатается `speculative_adaptive disabled: <причина>. Falling back to static speculative params.`
-- Где объявлен: `ServerArgs.speculative_adaptive`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_adaptive`
 - Статус: обычный
 - Этап применения: `__post_init__` (`handle_speculative_decoding` → `_maybe_disable_adaptive` → `_init_adaptive_speculative_params`) → захват CUDA graph по всем ступеням лестницы → каждый decode-шаг (выбор ступени) и каждый verify (обновление EMA)
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --speculative-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/adaptive_spec_params.py`

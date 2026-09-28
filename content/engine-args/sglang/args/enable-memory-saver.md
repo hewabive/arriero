@@ -36,7 +36,7 @@ Allow saving memory using release_memory_occupation and resume_memory_occupation
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переписывается ни `__post_init__`, ни реестром `arg_groups/overrides.py`. Но действует несовместимость: `BreakableCudaGraphBackend.__init__` поднимает `NotImplementedError: Breakable CUDA graph is not compatible with memory saver mode`, если флаг включен **и** задан `SGLANG_MEMORY_SAVER_CUDA_GRAPH=1`
-- Где объявлен: `ServerArgs.enable_memory_saver`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_memory_saver`
 - Статус: обычный
 - Этап применения: разбор CLI → запуск scheduler-процессов внутри `memory_saver_adapter.configure_subprocess()` → создание адаптеров в `Scheduler` и `ModelRunner` → выделение весов и KV-пула внутри `region(...)` → захват CUDA graph внутри `cuda_graph(...)` → HTTP `/release_memory_occupation` и `/resume_memory_occupation`
 
@@ -123,6 +123,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --enable-memory-sa
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/torch_memory_saver_adapter.py`
 - `sglang/python/sglang/srt/constants.py`

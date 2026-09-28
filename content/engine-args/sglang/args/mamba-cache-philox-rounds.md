@@ -32,7 +32,7 @@ Number of Philox rounds to use for stochastic rounding of FP16 Mamba SSM cache w
 - Допустимые значения: неотрицательное целое; отрицательное отвергается на старте
 - Значение по умолчанию: `0`
 - Эффективное значение: `0` не подменяется в `ServerArgs`, а разворачивается уже в бэкенде: Triton передает его в ядро как `PHILOX_ROUNDS=0` и использует собственный дефолт Triton, FlashInfer подставляет `10` (`philox_rounds=self._cache_philox_rounds or 10`)
-- Где объявлен: `ServerArgs.mamba_cache_philox_rounds`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_cache_philox_rounds`
 - Статус: обычный
 - Этап применения: `__post_init__` (проверка знака в `_handle_mamba_backend`) → создание backend'а `selective_state_update` при инициализации scheduler'а → каждый decode-шаг mamba2-слоя, если округление включено
 
@@ -94,6 +94,7 @@ python -m sglang.launch_server --model-path /models/Nemotron-H-8B --mamba-backen
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/ssu_dispatch.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/mamba_ssm.py`

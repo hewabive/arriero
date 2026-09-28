@@ -31,7 +31,7 @@ related:
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: при `true` и незаданном `--elastic-ep-join-mode` подставляет `recover` с предупреждением в логе; при заданном режиме требует, чтобы он уже был `recover`
-- Где объявлен: `ServerArgs.elastic_ep_rejoin`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_rejoin`
 - Статус: устаревший. Обратите внимание: устаревание выражено только текстом справки и логикой `_handle_elastic_ep`, а не `action` из семейства `Deprecated*` — в извлеченной декларации `action` остается `null`
 - Этап применения: `__post_init__` (`_handle_elastic_ep`), в самом начале обработки elastic EP
 
@@ -87,6 +87,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`
 - `sglang/python/sglang/srt/arg_groups/argparse_actions.py`

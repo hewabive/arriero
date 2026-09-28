@@ -35,7 +35,7 @@ Disable RadixAttention for prefix caching.
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false` — radix cache включен
 - Эффективное значение: движок принудительно поднимает флаг в `true` во многих ветках `__post_init__` (см. «Что меняет в движке»); опустить его обратно в `false` из CLI нельзя
-- Где объявлен: `ServerArgs.disable_radix_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.disable_radix_cache`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (несколько `_handle_*` могут выставить его сами) → построение дерева кеша в `mem_cache/kv_cache_builder.py` при старте scheduler'а
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --disable-radi
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`

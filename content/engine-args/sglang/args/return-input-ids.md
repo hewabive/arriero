@@ -27,7 +27,7 @@ Return prompt (input) token ids on the response-level sglext extension for every
 - Группа: `serving`
 - Тип: `bool`
 - Значение в декларации по умолчанию: `false`
-- Объявление: `ServerArgs.return_input_ids` в `sglang/python/sglang/srt/arg_groups/fields/serving.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/serving.py:Serving.return_input_ids`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

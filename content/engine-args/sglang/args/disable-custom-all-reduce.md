@@ -39,7 +39,7 @@ Disable the custom all-reduce kernel and fall back to NCCL.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false` — custom all-reduce включен
 - Эффективное значение: переписывается в трех местах. `--device npu` жестко ставит `True` (`hardware_backend/npu/utils.py`, комментарий «NPU does not support CustomAllReduce»). На ROCm для MiniMax-M3 (`MiniMaxM3SparseForCausalLM`/`…ForConditionalGeneration`) реестр переопределений ставит `True`, если не включен `--enable-aiter-allreduce-fusion` и не задан `SGLANG_M3_ALLOW_CUSTOM_AR=1`. `--enable-deterministic-inference` при `tp_size > 1` на CUDA тоже ставит `True` и одновременно печатает предупреждение про `NCCL_ALGO=allreduce:tree`
-- Где объявлен: `ServerArgs.disable_custom_all_reduce`, файл — `sglang/python/sglang/srt/server_args.py`; поле помечено `resolvable=True`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.disable_custom_all_reduce`; поле помечено `resolvable=True`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (платформенные и модельные переопределения) → `init_torch_distributed` → `_set_all_reduce_flags` (`sglang/python/sglang/srt/distributed/bootstrap.py`) → конструктор `GroupCoordinator` для world- и TP-группы → каждый forward
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

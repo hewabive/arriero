@@ -38,7 +38,7 @@ Data type for kv cache storage. "auto" will use model data type. "bf16" or "bflo
 - Допустимые значения (из `choices`): `auto`, `fp8_e5m2`, `fp8_e4m3`, `mxfp8`, `bf16`, `bfloat16`, `nvfp4`, `fp4_mx_block16`, `fp4_e2m1`. Последнее argparse примет, но `configure_kv_cache_dtype` бросит `--kv-cache-dtype=fp4_e2m1 is deprecated. Use --kv-cache-dtype=fp4_mx_block16.`
 - Значение по умолчанию: `auto`
 - Эффективное значение: `auto` разрешается в тип модели либо в `fp8_e4m3`, если у квантизации модели объявлен `kv_cache_quant_algo == "FP8"`; для DeepSeek-DSA (V3.2) `auto` принудительно становится `fp8_e4m3` на SM100+ и `bfloat16` на более старых картах; поле объявлено `resolvable=True`, то есть архитектурные декларации могут его переписать
-- Где объявлен: `ServerArgs.kv_cache_dtype`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.kv_cache_dtype`
 - Статус: обычный
 - Этап применения: разбор CLI → проверки совместимости в `__post_init__` (`_handle_kv4_compatibility`, `_handle_mxfp8_kv_cache_compatibility`, декларации MLA-backend'ов) → `ModelRunner.configure_kv_cache_dtype` после загрузки весов → расчет `cell_size` и выделение KV-пула → attention backend
 
@@ -130,6 +130,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --kv-cache-dty
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_dtype.py`

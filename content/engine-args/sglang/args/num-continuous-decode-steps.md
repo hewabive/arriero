@@ -31,7 +31,7 @@ Run multiple continuous decoding steps to reduce scheduling overhead. This can p
 - Допустимые значения: не ограничены; проверок при старте нет
 - Значение по умолчанию: `1`
 - Эффективное значение: значение сохраняется в `ServerArgs` как есть и попадает в дамп `server_args=`, но нигде не читается
-- Где объявлен: `ServerArgs.num_continuous_decode_steps`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.num_continuous_decode_steps`
 - Статус: формально обычный (не `hidden`, не `Deprecated*Action`), фактически неработающий
 - Этап применения: отсутствует
 
@@ -82,6 +82,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --scheduler-re
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

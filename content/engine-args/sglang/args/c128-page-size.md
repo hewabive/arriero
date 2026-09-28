@@ -29,7 +29,7 @@ The physical page size of the NPU DSV4 C128 KV cache. Must be a positive multipl
 - Группа: `schedule`
 - Тип значения: целое число
 - Значение по умолчанию: `16`
-- Где объявлен: `ServerArgs.c128_page_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.c128_page_size`
 - Этап применения: построение NPU DeepSeek-V4 request/token pools → аллокация и адресация C128 KV → attention и PD-transfer
 
 ## Что меняет в движке
@@ -70,6 +70,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V4 --c128-page-size
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/hardware_backend/npu/dsv4/dsv4_memory_pool.py`
 - `sglang/python/sglang/srt/hardware_backend/npu/dsv4/dsv4_req_to_token_pool.py`

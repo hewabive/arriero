@@ -33,7 +33,7 @@ Model file integrity verification. If provided without value, uses model-path as
 - Допустимые значения: путь к JSON-манифесту, HF repo ID, либо флаг без значения
 - Значение по умолчанию: `null` — проверка выключена
 - Эффективное значение: флаг без значения даёт пустую строку `""`; она не равна `None`, поэтому проверка включается, а источником сумм становится сам `--model-path` (`checksums_source = model_checksum or model_name_or_path`)
-- Где объявлен: `ServerArgs.model_checksum`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.model_checksum`
 - Статус: обычный
 - Этап применения: `_prepare_weights` загрузчика — после разрешения/скачивания каталога, до чтения весов
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-30B-A3B --download-dir /d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/model_file_verifier.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

@@ -36,7 +36,7 @@ Port for the HTTP sidecar server in legacy SMG gRPC mode (--smg-grpc-mode). Serv
 - Допустимые значения: `choices` нет; диапазон портов не проверяется — некорректное значение проявится как ошибка привязки сокета
 - Значение по умолчанию: `None`
 - Эффективное значение: при `None` вычисляется как `--port + 1` в момент запуска gRPC-сервера. `__post_init__` этого не делает, поэтому в дампе `server_args=` значение останется `None` — фактический порт виден только в строке лога
-- Где объявлен: `ServerArgs.smg_http_sidecar_port`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.smg_http_sidecar_port`
 - Статус: обычный аргумент устаревшего режима. Сам режим объявлен legacy: `--grpc-mode` помечен как deprecated и транслируется в `--smg-grpc-mode`, а рядом существует нативный gRPC-сервер, включаемый `--grpc-port`
 - Этап применения: запуск `serve_grpc`, после инициализации менеджера запросов
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/entrypoints/grpc_server.py`
 - `sglang/python/sglang/srt/server_args.py`
 - arriero: `docs/KTRANSFORMERS_OPERATIONS.md`, `apps/api/src/process/engine-probe.ts`

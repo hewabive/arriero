@@ -43,7 +43,7 @@ Log metadata, inputs, outputs of all requests. The verbosity is decided by --log
 - Допустимые значения: флаг присутствует или отсутствует
 - Значение по умолчанию: `false`
 - Эффективное значение: из CLI не переопределяется; переключается на живом сервере через `POST /configure_logging` (уровень доступа `ADMIN_OPTIONAL`)
-- Где объявлен: `ServerArgs.log_requests`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.log_requests`
 - Статус: обычный
 - Этап применения: инициализация `TokenizerManager` (`init_request_logging_and_dumping`) → HTTP-слой и прием/завершение каждого запроса
 
@@ -133,6 +133,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/utils/request_logger.py`
 - `sglang/python/sglang/srt/utils/log_utils.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

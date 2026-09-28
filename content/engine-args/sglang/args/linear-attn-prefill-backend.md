@@ -38,7 +38,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu` (общий список `LINEAR_ATTN_KERNEL_BACKEND_CHOICES`, расширяемый out-of-tree пакетами)
 - Значение по умолчанию: `null` — берется `--linear-attn-backend`
 - Эффективное значение: при незаданном значении и выполнении условий `flashinfer_gdn_prefill_default` подставляется `flashinfer`; это записывается в разрешенную конфигурацию через `get_context().override("gdn_backend.sm100_flashinfer_default", …)`
-- Где объявлен: `ServerArgs.linear_attn_prefill_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_prefill_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend` — проверка CUDA-версии) → создание backend'а внимания (`attention_registry.py`) → каждый prefill/extend линейных слоев
 
@@ -134,6 +134,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`

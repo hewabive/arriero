@@ -33,7 +33,7 @@ The ModelOpt quantization configuration. Supported values: 'fp8', 'int4_awq', 'w
 - Допустимые значения: `choices` нет. Справка называет `fp8`, `int4_awq`, `w4a8_awq`, `nvfp4`, `nvfp4_awq` — это ключи словаря `QUANT_CFG_CHOICES` в `sglang/python/sglang/srt/layers/modelopt_utils.py`, причем три из них (`int4_awq`, `w4a8_awq`, `nvfp4_awq`) помечены там как еще не поддержанные
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется и не читается. `build_load_config` кладет его в `ModelOptConfig.quant`, но ни один потребитель `modelopt_config` в checkout'е поле `quant` не открывает
-- Где объявлен: `ServerArgs.modelopt_quant`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.modelopt_quant`
 - Статус: обычный по форме, легаси по смыслу; узкая интеграция, требующая внешнего пакета `nvidia-modelopt`
 - Этап применения: формирование `LoadConfig` перед загрузкой весов
 
@@ -92,6 +92,7 @@ python -m sglang.launch_server --model-path /models/exported/llama31-8b-fp8 --qu
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/modelopt_config.py`
 - `sglang/python/sglang/srt/configs/load_config.py`

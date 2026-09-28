@@ -34,7 +34,7 @@ Path to restore a previously saved ModelOpt quantized checkpoint. If provided, t
 - Допустимые значения: не ограничены; файл должен быть создан `mto.save` совместимой версией ModelOpt
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется; попадает в `ModelOptConfig.checkpoint_restore_path`
-- Где объявлен: `ServerArgs.modelopt_checkpoint_restore_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.modelopt_checkpoint_restore_path`
 - Статус: обычный по форме, экспериментальный по сути — весь ModelOpt-путь построен на `try/except` с продолжением работы
 - Этап применения: загрузка модели в `ModelOptModelLoader.load_model`, до калибровочной квантизации
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Llama-3-8B --quantization mo
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/modelopt_config.py`
 - `sglang/python/sglang/srt/configs/load_config.py`

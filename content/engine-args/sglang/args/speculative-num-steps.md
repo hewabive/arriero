@@ -37,7 +37,7 @@ The number of steps sampled from draft model in Speculative Decoding.
 - Допустимые значения: `choices` нет. Практический диапазон — 1…8; `0` осмысленно только при `--speculative-adaptive` (черновик отключён, остаётся обычный decode)
 - Значение по умолчанию: `null` — «подберёт движок»
 - Эффективное значение: определяется в `handle_speculative_decoding` (`sglang/python/sglang/srt/arg_groups/speculative_hook.py`) по-разному для каждого алгоритма: EAGLE/EAGLE3/STANDALONE — `_auto_choose_speculative_params`; DFLASH и DSPARK — принудительно `1`; NGRAM — `num_draft_tokens // eagle_topk`; `--speculative-adaptive` — средний элемент `candidate_steps`
-- Где объявлен: `ServerArgs.speculative_num_steps`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_num_steps`
 - Статус: обычный
 - Этап применения: `__post_init__` → `handle_speculative_decoding` → создание spec-воркера и draft-attention-бэкендов → выделение KV-пула (через `get_alloc_len_per_decode`) → захват CUDA graph draft-decode → forward
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --speculative-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/eagle_worker_v2.py`

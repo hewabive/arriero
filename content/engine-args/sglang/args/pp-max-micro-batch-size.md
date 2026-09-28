@@ -35,7 +35,7 @@ The maximum micro batch size in pipeline parallelism.
 - Допустимые значения: `None` (авто) либо `>= 1`. Проверка в `check_server_args`: `pp_max_micro_batch_size must be a positive integer or None (for auto-compute). Got: …`
 - Значение по умолчанию: `null`
 - Эффективное значение: в конструкторе `Scheduler`, после получения `max_running_requests` от воркера, при незаданном значении выполняется `get_context().override("scheduler.pp_max_micro_batch_size_default", pp_max_micro_batch_size=max(self.max_running_requests // self.ps.pp_size, 1))`. То есть эффективная величина зависит от того, каким получился `max_running_requests` (а он, в свою очередь, ограничен сверху `max_total_num_tokens // 2`)
-- Где объявлен: `ServerArgs.pp_max_micro_batch_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.pp_max_micro_batch_size`
 - Статус: обычный; изменяем в runtime через `POST /set_internal_state`
 - Этап применения: `check_server_args` (валидация) → конструктор `Scheduler` (подстановка умолчания) → каждый вызов `get_num_allocatable_reqs` при формировании микробатча
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --pipeline-paralle
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_pp_mixin.py`

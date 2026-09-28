@@ -37,10 +37,13 @@ The stored hash is the only automatic stale signal. Individual Markdown files do
 
 Before syncing, clone or pull each target checkout through arriero's Source Sync page
 (`#/source-sync`), including registered external checkouts. Do not prepare it with ad hoc Git
-commands. Verify the configured path, origin, clean worktree, and that the checked-out ref is the one
-its tracking policy selects (`docs/SOURCE_REPOSITORIES.md` § Tracking policy). Resolve any missing or
-uncertain source before reviewing a diff. `"inSync": true` proves only that the snapshot matches the
-checkout read by the CLI, not that the checkout was prepared correctly.
+commands. `--write` refuses a checkout that is missing, invalid or dirty, whose origin differs from
+the configured one, or that is not on the ref its tracking policy selects
+(`docs/SOURCE_REPOSITORIES.md` § Tracking policy): a detached HEAD for llama.cpp, anything but the
+newest locally known stable release tag for vLLM and SGLang
+(`apps/api/src/sources/repository.ts:sourceCheckoutProblems`). The check cannot see upstream, so pull
+first; resolve any missing or uncertain source before reviewing a diff. `"inSync": true` proves only
+that the snapshot matches the checkout read by the CLI, not that the checkout was prepared correctly.
 
 ## User Signal
 
@@ -108,7 +111,7 @@ Steps:
 
 1. Review the diff (`--diff`). It is already reduced to the argument surface — `+ flag`, `- flag`, `~ flag` with the changed fields — so work only those entries. A report whose `signal` is `commit-range` with `"inSync": null` is **not** a pass: the extractor could not run (no python3, no checkout, upstream refactor tripping a structural assert). Fix that before editing anything, or you are documenting against a stale snapshot.
 2. Read the current extract before editing. `## Оригинальная справка` has to match the entry's `help` character for character, and `--write` has not run yet, so generate the new one to a scratch path: `python3 scripts/extract-args/<engine>.py --repo runtime/sources/<engine> --out <scratch>.json`.
-3. Verify every changed entry against the checkout source, not the extract alone. The extract is a *declaration* of one commit; the argument catalog is still `--help` of the **installed** engine, so an argument can exist in the extract and not in the installed package — the same phenomenon as `docs/CASE_PHANTOM_HELP_ARGS.md`. Describe behaviour from the checkout and never assert "available in your build". The entry's `origin` points at the declaration; for SGLang the effective value is usually rewritten afterwards in `ServerArgs.__post_init__` / the `_handle_*` methods, and that rewrite is the part worth documenting. To find the upstream PR behind a change, run `git log -S "<new help text>"` over the engine's declaration paths in the checkout.
+3. Verify every changed entry against the checkout source, not the extract alone. The extract is a *declaration* of one commit; the argument catalog is still `--help` of the **installed** engine, so an argument can exist in the extract and not in the installed package — the same phenomenon as `docs/CASE_PHANTOM_HELP_ARGS.md`. Describe behaviour from the checkout and never assert "available in your build". The entry's `origin` points at the declaration (`path:Class.field`, relative to the checkout root); for SGLang the effective value is usually rewritten afterwards by the resolution pipeline `ServerArgs.__post_init__` starts, whose handlers live under `python/sglang/srt/arg_groups/`, and that rewrite is the part worth documenting. To find the upstream PR behind a change, run `git log -S "<new help text>"` over the engine's declaration paths in the checkout.
 4. Edit the matching `content/engine-args/<engine>/args/<slug>.md`, then grep that engine's `args/` directory for the changed flag and repair cross-references whose claims the change invalidated — targeted repair, not a mass-edit. A changed default invalidates neighbours most often, because other docs state it as background fact.
 5. For a new argument, write the doc per `content/engine-args/<engine>/_agent-prompt.md` — the per-engine authoring contract covering structure, sections, style and `## Источники` conventions. Frontmatter is fixed and has **no `estimation` key**: that class is llama-only and the lint rejects it here.
 6. For an argument whose help became `Deprecated. Use --x instead.`, rewrite the doc as a deprecation doc — do not delete it, and do not leave the superseded mechanism described as current. The flag still parses, but its old machinery is often gone from the code entirely, so state what replaced it and where the translation happens (`_handle_deprecated_args` for SGLang). Delete a doc only once the argument is absent from the extract.

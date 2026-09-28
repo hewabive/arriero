@@ -31,7 +31,7 @@ Path to the FlashRL quantization profile. Required when using --load-format flas
 - Допустимые значения: не ограничены
 - Значение по умолчанию: `null`
 - Эффективное значение: не переопределяется и не читается — в checkout'е поле встречается ровно трижды: объявление в `ServerArgs`, объявление в `LoadConfig` и передача между ними в `build_load_config`
-- Где объявлен: `ServerArgs.rl_quant_profile`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.rl_quant_profile`
 - Статус: обычный по форме; фактически неподключенный остаток интеграции FlashRL
 - Этап применения: формирование `LoadConfig` перед загрузкой весов
 
@@ -89,6 +89,7 @@ python -m sglang.launch_server --model-path /models/Qwen2.5-7B --quantization fp
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

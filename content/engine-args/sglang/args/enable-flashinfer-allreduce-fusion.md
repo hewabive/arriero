@@ -38,7 +38,7 @@ related:
 - Допустимые значения: только присутствие флага
 - Значение по умолчанию: `False`
 - Эффективное значение: `_handle_deprecated_args` при `True` и незаданном `flashinfer_allreduce_fusion_backend` печатает предупреждение и ставит `flashinfer_allreduce_fusion_backend = "auto"`. После этого поле `enable_flashinfer_allreduce_fusion` **безусловно** сбрасывается в `False` — независимо от того, был флаг задан или нет
-- Где объявлен: `ServerArgs.add_cli_args`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`
 - Статус: устаревший, но реализован обычным `store_true`; замена — `--flashinfer-allreduce-fusion-backend auto`
 - Этап применения: разбор CLI → `__post_init__` → `_handle_deprecated_args` → пассы резолюции в `arg_groups/overrides.py` → инициализация коммуникатора
 

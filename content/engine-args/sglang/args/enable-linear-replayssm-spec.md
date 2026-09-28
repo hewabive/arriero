@@ -39,7 +39,7 @@ Enable the ReplaySSM spec-verify: fold-every-commit -- a per-slot raw-input wind
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; побочно **переписывает** `--mamba-ssm-dtype` на `float32`, если тот не задан
-- Где объявлен: `ServerArgs.enable_linear_replayssm_spec`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_linear_replayssm_spec`
 - Статус: обычный; прежнее имя механизма удалено
 - Этап применения: `__post_init__` (`_handle_linear_attn_backend` — шесть проверок и подстановка типа состояния) → аллокация `MambaPool` → каждый шаг target-verify и коммита
 
@@ -131,6 +131,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

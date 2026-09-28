@@ -31,7 +31,7 @@ The port of the gated launch control server. When set, every rank blocks right a
 - Группа: `parallel`
 - Тип: `int`
 - Декларативный default: `null`
-- Объявление: `ServerArgs.gated_launch_port` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.gated_launch_port`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -68,6 +68,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --host 127.0.0.1 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/distributed/gated_launch.py`

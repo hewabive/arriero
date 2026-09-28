@@ -36,7 +36,7 @@ The maximum size of the mamba cache.
 - Допустимые значения: положительное целое; проверок в argparse нет
 - Значение по умолчанию: `null` — размер выводится из памяти
 - Эффективное значение: заданное значение делится на число attention-DP рангов (`max_mamba_cache_size // attn_dp_size`); при незаданном значении подставляется результат решения бюджетной задачи по `--mamba-full-memory-ratio`, а при `--disable-radix-cache` вместе с явным `--max-running-requests` — само число запросов на ранг
-- Где объявлен: `ServerArgs.max_mamba_cache_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_mamba_cache_size`
 - Статус: обычный
 - Этап применения: выделение памяти под пулы (`KVCacheConfigurator._handle_max_mamba_cache`), до расчета KV-пула
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Nemotron-H-8B --max-mamba-ca
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`

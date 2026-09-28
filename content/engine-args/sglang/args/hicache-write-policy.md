@@ -34,7 +34,7 @@ The write policy of hierarchical cache.
 - Допустимые значения: `write_back`, `write_through`, `write_through_selective`
 - Значение по умолчанию: `write_through`
 - Эффективное значение: из CLI не переопределяется; может быть изменено в рантайме через `PUT /hicache/storage-backend` (поле `hicache_write_policy`), при этом внутренний порог `write_through_threshold` пересчитывается
-- Где объявлен: `ServerArgs.hicache_write_policy`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_write_policy`
 - Статус: обычный
 - Этап применения: создание `HiCacheController` при инициализации дерева кеша → каждая вставка узла и каждый проход вытеснения
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`

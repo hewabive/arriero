@@ -35,7 +35,7 @@ Enable virtual expert computation for MoE models. When set, the model will use v
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; при включенной LoRA `check_lora_server_args` только печатает `Virtual expert computation enabled.`
-- Где объявлен: `ServerArgs.lora_use_virtual_experts`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_use_virtual_experts`
 - Статус: обычный флаг, но обслуживает экспериментальные пути (`lora/marlin_lora_temp/`, `lora/trtllm_lora_temp/`), названия которых прямо помечены как временные
 - Этап применения: конструктор `LoRAManager` → построение `LoRAInfo` для MoE-слоев → каждый forward MoE-слоя с LoRA
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B-Instruct --lor
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/lora_moe_runners.py`
 - `sglang/python/sglang/kernels/ops/moe/virtual_experts.py`

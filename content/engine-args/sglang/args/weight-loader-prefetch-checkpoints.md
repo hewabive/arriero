@@ -34,7 +34,7 @@ Prefetch checkpoint files into OS page cache before loading. Each rank prefetche
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но **сам переопределяет** другое: при включении и отсутствии явного `enable_multithread_load`/`num_threads` в `--model-loader-extra-config` многопоточная загрузка safetensors выключается (с предупреждением в логе)
-- Где объявлен: `ServerArgs.weight_loader_prefetch_checkpoints`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_prefetch_checkpoints`
 - Статус: обычный
 - Этап применения: загрузка весов — `DefaultModelLoader._get_weights_iterator`
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /nvme/models/Qwen3-30B-A3B --weight-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`

@@ -43,7 +43,7 @@ Enable deterministic inference mode with batch invariant ops.
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
 - Эффективное значение: становится `true` автоматически, если задан `--rl-on-policy-target` (с warning'ом `Enable deterministic inference because of rl_on_policy_target.`)
-- Где объявлен: `ServerArgs.enable_deterministic_inference`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDeterministic.enable_deterministic_inference`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_deterministic_inference`, `_handle_model_specific_adjustments`, `_handle_environment_variables`) → загрузка модели (`maybe_enable_batch_invariant_mode`) → создание backend'ов внимания → инициализация scheduler'а → каждый forward и sampling
 
@@ -158,6 +158,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/batch_invariant_ops/batch_invariant_ops.py`

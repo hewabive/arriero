@@ -27,7 +27,7 @@ The maximum number of token IDs in a returned sampling mask. Requests are aborte
 - Группа: `exec.features`
 - Тип: `int`
 - Значение в декларации по умолчанию: `4096`
-- Объявление: `ServerArgs.sampling_mask_max_tokens` в `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.sampling_mask_max_tokens`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

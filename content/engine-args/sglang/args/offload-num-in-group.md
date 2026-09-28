@@ -35,7 +35,7 @@ Number of layers to be offloaded within a group.
 - Допустимые значения: argparse ограничений не накладывает; осмысленный диапазон — от 1 до `--offload-group-size`
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным; автоподбора и нормализации нет
-- Где объявлен: `ServerArgs.offload_num_in_group`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_num_in_group`
 - Статус: обычный
 - Этап применения: построение слоев модели (`OffloaderV2.wrap_modules`), однократно
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V2-Lite --offload-g
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/utils/offloader.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/models/deepseek_v2.py`

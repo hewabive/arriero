@@ -41,7 +41,7 @@ The quantization method.
 - Допустимые значения: argparse ограничен списком `QUANTIZATION_CHOICES` (`awq`, `fp8`, `mxfp8`, `gptq`, `gptq_marlin`, `awq_marlin`, `bitsandbytes`, `gguf`, `modelopt`, `modelopt_fp8`, `modelopt_fp4`, `nvfp4_online`, `modelopt_mixed`, `petit_nvfp4`, `w8a8_int8`, `w8a8_fp8`, `moe_wna16`, `w4afp8`, `mxfp4`, `auto-round`, `auto-round-int8`, `compressed-tensors`, `modelslim`, `mxfp_w4a8`, `quark`, `quark_int4fp8_moe`, `quark_mxfp4`, `mlx_q4`, `mlx_q8`, `unquant`, `humming`). Этот список — **не** перечень работающих методов, см. «Значения и формат»
 - Значение по умолчанию: `null`
 - Эффективное значение: переопределяется регулярно. `unquant` превращается в `None` еще в `ServerArgs.__post_init__`; далее `ModelConfig._verify_quantization` может подставить метод из `quantization_config` чекпойнта, а архитектурные override'ы (`arg_groups/overrides.py`) — навязать метод на sm100. Поле объявлено `resolvable=True`, то есть его разрешено переписывать pipeline'у конфигурации
-- Где объявлен: `ServerArgs.quantization`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.quantization`
 - Статус: обычный
 - Этап применения: разбор CLI → `__post_init__` (`unquant`, наследование в draft, `_gguf_quantization`) → построение `ModelConfig` в каждом воркере (`_verify_quantization`) → выбор загрузчика (`get_model_loader`) → создание квантованных слоев при инициализации модели
 
@@ -145,6 +145,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --quantization
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/layers/quantization/__init__.py`

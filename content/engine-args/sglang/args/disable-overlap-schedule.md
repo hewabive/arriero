@@ -36,7 +36,7 @@ Disable the overlap scheduler, which overlaps the CPU scheduler with GPU model w
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false` — overlap включен
 - Эффективное значение: принудительно `true` при `--pp-size > 1`, на `--device mps` без MLX, при спекулятивном декодировании на `--device cpu`, при diffusion-LLM (`--dllm-algorithm`), при `SGLANG_EMBEDDINGS_SPARSE_HEAD`, и при стратегии mamba radix cache `no_buffer`; `--enable-pdmux` требует его явно
-- Где объявлен: `ServerArgs.disable_overlap_schedule`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_overlap_schedule`
 - Статус: обычный
 - Этап применения: `__post_init__` (принудительные переключения и проверки) → выбор event loop при запуске scheduler'а
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-pdmux
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`

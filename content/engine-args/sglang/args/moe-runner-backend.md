@@ -33,7 +33,7 @@ Choose the runner backend for MoE.
 - Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `flashinfer_megamoe`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`, `intel_xpu`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
 - Значение по умолчанию: `auto`
 - Эффективное значение: переопределяется в нескольких местах — `_moe_runner_backend_quant_constraints` (правила по `--quantization`), `_cutlass_moe_env_override` (устаревшая переменная `SGLANG_CUTLASS_MOE`), `_handle_a2a_moe` (для `pplx`) и, наконец, сам quant-метод слоя при `auto`
-- Где объявлен: `ServerArgs.moe_runner_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.moe_runner_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (нормализация и проверки) → `initialize_moe_config` при инициализации model runner → создание `MoeRunner` для каждого MoE-слоя
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --moe-runner-backe
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`

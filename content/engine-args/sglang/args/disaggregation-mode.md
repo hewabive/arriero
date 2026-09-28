@@ -47,7 +47,7 @@ Only used for PD disaggregation. "prefill" for prefill-only server, and "decode"
 - Допустимые значения: `null`, `prefill`, `decode`. `null` — реальная строка, а не отсутствие значения; `--disaggregation-mode null` эквивалентно тому, что аргумент не задан
 - Значение по умолчанию: `"null"`
 - Эффективное значение: совпадает с заданным, кроме одного случая — `_handle_dllm_inference` при diffusion-LLM-инференсе печатает `Currently disaggregation is not supported by diffusion LLM inference.` и принудительно ставит `null`
-- Где объявлен: `ServerArgs.disaggregation_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_mode`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_pd_disaggregation` (валидация и нормализация ролей) → `_apply_cuda_graph_disaggregation_roles` → авто-подбор `--mem-fraction-static` → `start_disagg_service` в процессе tokenizer manager (только prefill) → выбор event loop в scheduler (`dispatch_event_loop`) → выделение KV-пула → форвард
 
@@ -138,6 +138,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/managers/disagg_service.py`

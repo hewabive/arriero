@@ -35,7 +35,7 @@ The load balancing strategy for data parallelism.
 - Допустимые значения: `auto`, `round_robin`, `follow_bootstrap_room`, `total_requests`, `total_tokens` (список фиксирован в объявлении поля, не собирается в runtime)
 - Значение по умолчанию: `auto`
 - Эффективное значение: `auto` никогда не доживает до контроллера. `_handle_load_balance_method` заменяет его на `follow_bootstrap_room` при `--disaggregation-mode prefill` и на `round_robin` во всех остальных случаях (включая `--disaggregation-mode decode`). Тот же метод первым делом валидирует `disaggregation_mode` и бросает `ValueError` на неизвестном значении
-- Где объявлен: `ServerArgs.load_balance_method`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.load_balance_method`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_load_balance_method`) → конструктор `DataParallelController` (`LoadBalanceMethod.from_str`, выбор функции диспетчеризации) → каждый входящий запрос
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/managers/load_snapshot.py`

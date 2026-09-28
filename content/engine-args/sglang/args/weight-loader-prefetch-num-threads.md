@@ -33,7 +33,7 @@ Number of threads per rank for checkpoint prefetching (default: 4).
 - Допустимые значения: `choices` нет; проверка одна — `num_threads >= 1`, и она выполняется в момент запуска prefetch, а не при разборе CLI
 - Значение по умолчанию: `4`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.weight_loader_prefetch_num_threads`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_prefetch_num_threads`
 - Статус: обычный
 - Этап применения: загрузка весов — `_prefetch_all_checkpoints` в `sglang/python/sglang/srt/model_loader/weight_utils.py`
 
@@ -95,6 +95,7 @@ python -m sglang.launch_server --model-path /mnt/nfs/models/Qwen3-30B-A3B --weig
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

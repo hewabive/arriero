@@ -41,7 +41,7 @@ Enable batch tokenization for improved performance when processing multiple text
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: переопределяется в двух местах `__post_init__`. **Принудительно `True`** для моделей embedding-gemma в `_handle_model_specific_adjustments` — там же выключается radix cache и chunked prefill, а в комментарии сказано, что список эмбеддингов должен уходить атомарно, иначе BCG начнет обрабатывать нулевой элемент, пока остальные еще токенизируются. **Принудительно `False`** при `--skip-tokenizer-init` (предупреждение `skip_tokenizer_init=True ignores --enable-tokenizer-batch-encode; disabling it.`)
-- Где объявлен: `ServerArgs.enable_tokenizer_batch_encode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_tokenizer_batch_encode`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_model_specific_adjustments`, `_handle_tokenizer_batching`) → HTTP-слой, обработка каждого batch-запроса в `TokenizerManager._handle_batch_request`
 
@@ -130,6 +130,7 @@ curl -sS http://127.0.0.1:30000/v1/embeddings -H 'Content-Type: application/json
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

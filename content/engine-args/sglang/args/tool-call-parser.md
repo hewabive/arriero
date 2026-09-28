@@ -36,7 +36,7 @@ Specify the parser for handling tool-call interactions. Use 'auto' to detect fro
 - Допустимые значения: в extract `choices: null`, но argparse ограничивает список — `["auto"] + list(FunctionCallParser.ToolCallParserEnum.keys())`. Реестр (`sglang/python/sglang/srt/function_call/function_call_parser.py`) собирается в момент вызова `add_cli_args` и зависит от версии пакета. Список своей сборки: `python -m sglang.launch_server --help | grep -A4 -- --tool-call-parser` либо `python -c "from sglang.srt.function_call.function_call_parser import FunctionCallParser as F; print(sorted(F.ToolCallParserEnum))"`
 - Значение по умолчанию: `_declared_default("tool_call_parser")`, то есть `None` — разбор вызовов выключен
 - Эффективное значение: при `auto` подменяется определенным по chat template значением либо `None`. Кроме того, `_handle_deprecated_args` переименовывает два устаревших ключа: `qwen25` → `qwen`, `glm45` → `glm`, с предупреждением в логе
-- Где объявлен: `ServerArgs.add_cli_args`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_deprecated_args` (переименование устаревших ключей) → `resolve_auto_parsers` до запуска процессов → `OpenAIServingChat.__init__` → разбор каждого ответа
 

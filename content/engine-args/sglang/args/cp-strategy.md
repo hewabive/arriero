@@ -33,7 +33,7 @@ Sharding strategy for prefill CP. 'zigzag' assigns each rank one early and one l
 - Допустимые значения: `zigzag`, `interleave` (`choices` объявлены, argparse отвергнет остальное)
 - Значение по умолчанию: `null`
 - Эффективное значение: автоподбора «по модели» нет: если `--enable-prefill-cp` задан, а стратегия — нет, запуск отвергается. Старые режимы `in-seq-split` и `round-robin-split` более не принимаются как флаги CLI.
-- Где объявлен: `ServerArgs.cp_strategy`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.cp_strategy`
 - Статус: обычный; прежние раздельные режимы CP удалены
 - Этап применения: `__post_init__` (`_handle_legacy_cp_arguments` → модельные override'ы → `_handle_context_parallelism` → `init_cp_strategy`) → forward на extend-шагах
 
@@ -128,6 +128,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --tens
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/cp/zigzag.py`
 - `sglang/python/sglang/srt/layers/cp/interleave.py`

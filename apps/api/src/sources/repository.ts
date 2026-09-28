@@ -16,6 +16,7 @@ import {
   LLAMA_CPP_SOURCE_ID,
   listSourceRepositoryDefinitions,
 } from "./registry.js";
+import { selectLatestStableTag } from "./stable-tag.js";
 import { getActiveSourceRepositoryOperation } from "./state.js";
 
 function nowIso() {
@@ -205,6 +206,13 @@ async function gitValue(cwd: string, args: string[]): Promise<string> {
   return (await runGit(cwd, args)).stdout.trim();
 }
 
+export async function resolveLatestStableTag(
+  repoPath: string,
+): Promise<string | null> {
+  const listed = await runGit(repoPath, ["tag", "--list"]);
+  return selectLatestStableTag(listed.stdout.split("\n"));
+}
+
 export async function getSourceRepositoryStatus(
   sourceId: string,
 ): Promise<SourceRepositoryStatus> {
@@ -338,6 +346,42 @@ export function listSourceRepositoryStatuses(): Promise<
       getSourceRepositoryStatus(definition.id),
     ),
   );
+}
+
+export async function sourceCheckoutProblems(
+  sourceId: string,
+): Promise<string[]> {
+  const status = await getSourceRepositoryStatus(sourceId);
+  if (status.state !== "ready") {
+    return [
+      status.state === "dirty"
+        ? "the worktree has uncommitted changes"
+        : (status.error ?? `the checkout is ${status.state}`),
+    ];
+  }
+  const problems: string[] = [];
+  if (!status.originMatches) {
+    problems.push(
+      `origin is ${status.remoteUrl ?? "not set"}, not ${status.spec.originUrl}`,
+    );
+  }
+  if (status.tracking === "branch" && !status.branch) {
+    problems.push("HEAD is detached, and the checkout follows a branch");
+  }
+  if (status.tracking === "stable-tag") {
+    const tag = await resolveLatestStableTag(status.repoPath);
+    const tagCommit = tag
+      ? await tryGit(status.repoPath, ["rev-parse", `${tag}^{commit}`])
+      : null;
+    if (tagCommit !== status.currentCommit) {
+      problems.push(
+        tag
+          ? `HEAD is not the newest stable release ${tag}`
+          : "no stable release tag is known locally",
+      );
+    }
+  }
+  return problems;
 }
 
 export async function assertSourceRepositoryReady(

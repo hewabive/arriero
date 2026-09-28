@@ -34,7 +34,7 @@ The format of the draft model weights to load. If not specified, will use the sa
 - Допустимые значения (из `choices`): `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `expert_pack`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Список общий с `--load-format` и может расширяться плагинами через `add_load_format_choices`
 - Значение по умолчанию: `null` — используется `--load-format`
 - Эффективное значение: `runai_streamer`, если `--speculative-draft-model-path` указывает на объект RunAI-хранилища и аргумент не задан (`_handle_load_format`)
-- Где объявлен: `ServerArgs.speculative_draft_load_format`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_load_format`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_load_format`) → `ModelRunner._resolve_draft_load_format` при инициализации draft-воркера → `build_load_config` → загрузка весов
 
@@ -97,6 +97,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --load
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

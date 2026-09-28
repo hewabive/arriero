@@ -37,7 +37,7 @@ related:
 - Допустимые значения: `choices` нет; отдельной проверки в `check_server_args` тоже нет. Осмысленный диапазон — от единиц до сотен
 - Значение по умолчанию: `32`
 - Эффективное значение: совпадает с заданным. Ни один `_handle_*` его не переписывает; при выключенном `--enable-dynamic-batch-tokenizer` значение просто никуда не попадает, потому что объект батчера не создается
-- Где объявлен: `ServerArgs.dynamic_batch_tokenizer_batch_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.dynamic_batch_tokenizer_batch_size`
 - Статус: обычный
 - Этап применения: инициализация `TokenizerManager` — передается в конструктор `AsyncDynamicbatchTokenizer(tokenizer, max_batch_size=..., batch_wait_timeout_s=...)`
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-4B --host 127.0.0.1 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/async_dynamic_batch_tokenizer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

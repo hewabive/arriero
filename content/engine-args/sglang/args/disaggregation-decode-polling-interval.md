@@ -34,7 +34,7 @@ The interval to poll requests in decode server. Can be set to >1 to reduce the o
 - Допустимые значения: `choices` нет. Практически осмысленны целые ≥ 1; проверки на положительность нет, и `0` приводит к делению по модулю на ноль
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает
-- Где объявлен: `ServerArgs.disaggregation_decode_polling_interval`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_polling_interval`
 - Статус: обычный
 - Этап применения: читается один раз при первом вызове `process_decode_queue` в scheduler'е decode-сервера и кешируется в `self.polling_interval`; дальше действует на каждой итерации цикла планирования
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/decode.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

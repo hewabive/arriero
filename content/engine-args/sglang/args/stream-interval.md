@@ -35,7 +35,7 @@ The interval (or buffer size) for streaming in terms of the token length. A smal
 - Допустимые значения: `choices` нет; осмысленный диапазон — целые ≥ 1 (см. «Значения и формат» про `0` и отрицательные)
 - Значение по умолчанию: `1`
 - Эффективное значение: `__post_init__` не переопределяет. На каждом запросе значение может быть перекрыто полем `sampling_params.stream_interval` — но только на нативном `/generate` или через `--preferred-sampling-params`, поскольку OpenAI-схемы этого поля не содержат
-- Где объявлен: `ServerArgs.stream_interval`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.stream_interval`
 - Статус: обычный
 - Этап применения: инициализация планировщика → каждый шаг декодирования (`_GenerationStreamAccumulator.accept`)
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --stream-inter
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/output_streamer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

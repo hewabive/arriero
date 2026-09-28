@@ -33,7 +33,7 @@ Call posix_fadvise(DONTNEED) on each safetensors shard after loading it.
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.weight_loader_drop_cache_after_load`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_drop_cache_after_load`
 - Статус: обычный
 - Этап применения: загрузка весов, после выдачи тензоров каждого шарда
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path /mnt/nfs/models/Qwen3-30B-A3B --tp-s
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

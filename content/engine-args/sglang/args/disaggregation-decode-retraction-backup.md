@@ -35,7 +35,7 @@ Storage backend for KV preserved across PD decode retraction. 'cpu_tensor' uses 
 - Тип значения: optional string
 - Допустимые значения: `cpu_tensor`, `host_pool`
 - Декларативное значение по умолчанию: `null`
-- Где объявлен: `ServerArgs.disaggregation_decode_retraction_backup`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_retraction_backup`
 - Этап применения: после построения device KV-пула (`resolve_decode_retraction_backup`) → retraction/restore каждого запроса
 
 ## Что меняет в движке
@@ -85,6 +85,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B --disaggregatio
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`

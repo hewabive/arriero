@@ -34,7 +34,7 @@ json-formatted sampling settings that will be returned in /get_model_info
 - Допустимые значения: `choices` нет; ключи — поля датакласса `SamplingParams` (`sglang/python/sglang/srt/sampling/sampling_params.py`)
 - Значение по умолчанию: `null` — слой отсутствует
 - Эффективное значение: `_handle_other_validations` повторно применяет `json.loads`, если значение осталось строкой, и при `--skip-tokenizer-init` дополнительно прогоняет его через `SamplingParams(**value).normalize(None)` — это отсеивает параметры, требующие токенизатор
-- Где объявлен: `ServerArgs.preferred_sampling_params`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.preferred_sampling_params`
 - Статус: обычный
 - Этап применения: разбор CLI → валидация в `__post_init__` → `TokenizerManager` (на каждом запросе) и HTTP-эндпоинт `/model_info`
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --preferred-sa
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/sampling/sampling_params.py`

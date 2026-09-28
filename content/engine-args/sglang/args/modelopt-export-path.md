@@ -33,7 +33,7 @@ Path to export the quantized model in HuggingFace format after ModelOpt quantiza
 - Допустимые значения: не ограничены
 - Значение по умолчанию: `null` — экспорт не выполняется
 - Эффективное значение: не переопределяется; но само по себе присутствие непустого значения меняет выбор загрузчика (см. ниже)
-- Где объявлен: `ServerArgs.modelopt_export_path`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.modelopt_export_path`
 - Статус: обычный по форме, узкая интеграция по сути; требует установленного `nvidia-modelopt`
 - Этап применения: загрузка модели — `ModelOptModelLoader._standard_quantization_workflow` → `_setup_modelopt_quantization` → `_maybe_export_modelopt`
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path /models/exported/llama31-8b-fp8 --qu
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/modelopt_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

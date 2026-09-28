@@ -29,7 +29,7 @@ Offload Qwen4 PLE n-gram embedding weights to CPU pinned memory. Enabled by defa
 - Группа: `exec.offload`
 - Тип: `bool`
 - Значение в декларации по умолчанию: `null`
-- Объявление: `ServerArgs.ple_offload_embedding` в `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.ple_offload_embedding`
 - Этап применения: разбор CLI → разрешение параметров сервера → инициализация подсистемы
 
 ## Что меняет в движке

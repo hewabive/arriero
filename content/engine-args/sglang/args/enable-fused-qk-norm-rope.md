@@ -32,7 +32,7 @@ Enable fused qk normalization and rope rotary embedding.
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: `__post_init__` его не трогает; фактическое включение решается на уровне слоя при построении модели (см. ниже) и еще раз на каждом forward по dtype тензора QKV
-- Где объявлен: `ServerArgs.enable_fused_qk_norm_rope`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_fused_qk_norm_rope`
 - Статус: обычный
 - Этап применения: разбор CLI → конструктор слоя внимания при загрузке модели (проверка применимости и прогрев JIT-модуля) → каждый forward
 
@@ -97,6 +97,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-235B-A22B --dtype bflo
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/models/qwen3_moe.py`
 - `sglang/python/sglang/srt/models/mellum.py`

@@ -35,7 +35,7 @@ A dictionary in JSON string format used to override default model configurations
 - Допустимые значения: любой валидный JSON-объект; ключи не проверяются
 - Значение по умолчанию: `"{}"` (пустой объект)
 - Эффективное значение: не переопределяется движком; строка разбирается несколько раз — в `ModelConfig` и в спекулятивном хуке для draft-модели
-- Где объявлен: `ServerArgs.json_model_override_args`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.json_model_override_args`
 - Статус: обычный
 - Этап применения: построение `ModelConfig` (то есть до любых расчетов памяти и до выбора backend'ов)
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --load-format 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/config.py`

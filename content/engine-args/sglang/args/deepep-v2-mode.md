@@ -32,7 +32,7 @@ DeepEP v2 ElasticBuffer communication topology, fixed at server init: `direct` (
 - Группа: `exec.moe`
 - Тип: `enum`
 - Декларативный default: `"direct"`
-- Объявление: `ServerArgs.deepep_v2_mode` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_v2_mode`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке
@@ -67,6 +67,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tp-size 8 --
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/layers/moe/token_dispatcher/deepep_v2.py`

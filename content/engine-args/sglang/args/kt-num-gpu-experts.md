@@ -33,7 +33,7 @@ related:
 - Допустимые значения: не ограничены на уровне argparse; осмысленный диапазон — от `0` до числа маршрутизируемых экспертов слоя
 - Значение по умолчанию: `null` — SGLang ничего не подставляет
 - Эффективное значение: не переопределяется; `ServerArgs.__post_init__` это поле не читает. Незаданное значение доходит до `mask_cpu_expert_ids` и до загрузчика весов как `None` и там участвует в сравнении с целым — то есть при включенном KT аргумент обязан быть задан
-- Где объявлен: `ServerArgs.kt_num_gpu_experts`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_num_gpu_experts`
 - Статус: обычный; семантика распределения экспертов частично отличается в форке `sglang-kt` (см. ниже)
 - Этап применения: создание весов MoE-слоя, загрузка весов, каждый forward MoE-слоя
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-R1 --kt-weight-path
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/moe/kt_ep_wrapper.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`

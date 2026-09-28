@@ -34,7 +34,7 @@ Not using ragged prefill wrapper when running flashinfer mla
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется движком; читается как есть через `get_exec().kernel.flashinfer_mla_disable_ragged`
-- Где объявлен: `ServerArgs.flashinfer_mla_disable_ragged`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.flashinfer_mla_disable_ragged`
 - Статус: обычный
 - Этап применения: разбор CLI → конструктор `FlashInferMLAAttnBackend` (решение про chunked KV) → `init_forward_metadata` на каждом prefill → диспетчер внимания DeepSeek на каждом forward
 
@@ -95,6 +95,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --attention-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/flashinfer_mla_backend.py`
 - `sglang/python/sglang/srt/models/deepseek_common/attention_backend_handler.py`

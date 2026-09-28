@@ -34,7 +34,7 @@ Disable chunked prefix cache feature for deepseek, which should save overhead fo
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false` — механизм включен
 - Эффективное значение: принудительно `true` на этапе загрузки модели, если модель не использует MLA-backend или выбранный attention backend отсутствует в `CHUNKED_PREFIX_CACHE_SUPPORTED_ATTENTION_BACKENDS` (`flashinfer`, `fa3`, `fa4`, `flashmla`, `cutedsl_mla`, `cutlass_mla`, `trtllm_mla`, `tokenspeed_mla`, плюс то, что регистрируют внешние платформы)
-- Где объявлен: `ServerArgs.disable_chunked_prefix_cache`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_chunked_prefix_cache`
 - Статус: обычный
 - Этап применения: инициализация model runner (`maybe_disable_chunked_prefix_cache`) → выбор пути внимания на каждом prefill-forward'е
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --attention-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/misc_utils.py`
 - `sglang/python/sglang/srt/model_executor/forward_batch_deepseek_mha_mixin.py`

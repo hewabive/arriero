@@ -34,7 +34,7 @@ Enable First-Done-First-Out (FDFO) scheduling for diffusion LLM inference. Enabl
 - Тип значения: bool
 - Значение по умолчанию: `true` — FDFO включен; «не задан» означает включенный FDFO
 - Эффективное значение: совпадает с заданным; переопределений нет
-- Где объявлен: `ServerArgs.dllm_fdfo`, файл — `sglang/python/sglang/srt/server_args.py`; `action` — `argparse.BooleanOptionalAction`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_fdfo`; `action` — `argparse.BooleanOptionalAction`
 - Статус: обычный
 - Этап применения: инициализация scheduler'а (`DllmConfig.first_done_first_out_mode`) → каждая итерация обработки батча
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/LLaDA2.0-mini-preview --dllm
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/dllm/algorithm/base.py`
 - `sglang/python/sglang/srt/dllm/mixin/scheduler.py`

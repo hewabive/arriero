@@ -36,7 +36,7 @@ Disable the hybrid SWA memory pool.
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false` — гибридный пул используется там, где архитектура его поддерживает
 - Эффективное значение: принудительно `true` для Gemma2/Gemma3/Gemma3n, для Exaone4/ExaoneMoE с непустым `sliding_window_pattern`, для Olmo2 и для Step3p5 при включенном `--enable-hierarchical-cache` (все — реестр переопределений `arg_groups/overrides.py`, каждое с предупреждением в логе)
-- Где объявлен: `ServerArgs.disable_hybrid_swa_memory`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_hybrid_swa_memory`
 - Статус: обычный
 - Этап применения: построение `ModelConfig` (`_derive_hybrid_model`) → выбор конфигуратора пула и типа кеша префиксов
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/gpt-oss-20b --disable-hybrid
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`

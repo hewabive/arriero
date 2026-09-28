@@ -30,7 +30,7 @@ Storage availability re-issues a queued request may make, paced miss polls and i
 - Группа: `memory`
 - Тип: `int`
 - Декларативный default: `8`
-- Объявление: `ServerArgs.hicache_storage_prefetch_retry_max_attempts` в `sglang/python/sglang/srt/arg_groups/fields/memory.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_prefetch_retry_max_attempts`
 - Этап применения: разбор CLI и инициализация соответствующей подсистемы; исполнение описано ниже.
 
 ## Что меняет в движке

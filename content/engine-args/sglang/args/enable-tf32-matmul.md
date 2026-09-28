@@ -34,7 +34,7 @@ Enable float32 matmuls to use TensorFloat32 precision for better performance (vi
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: **включается автоматически** реестром `arg_groups/overrides.py` для двух архитектур: `MiniMaxM2ForCausalLM` и `Glm4MoeForCausalLM`, обе с одинаковой формулировкой в логе — `Enable TF32 matmul for <Arch> model to improve gate gemm performance.` Для GLM-4 MoE переопределение безусловное, независимо от поколения GPU. Обратной операции нет: отключить TF32 на этих моделях флагом невозможно
-- Где объявлен: `ServerArgs.enable_tf32_matmul`, файл — `sglang/python/sglang/srt/server_args.py`; поле помечено `resolvable=True`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_tf32_matmul`; поле помечено `resolvable=True`
 - Статус: обычный
 - Этап применения: разбор CLI → реестр переопределений (модельное включение) → `ModelRunner.__init__` (`torch.set_float32_matmul_precision("high")`) → все последующие fp32-матмули в процессе
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-tf32-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

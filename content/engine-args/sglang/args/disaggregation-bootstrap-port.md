@@ -36,7 +36,7 @@ Bootstrap server port on the prefill server. Default is 8998.
 - Допустимые значения: `choices` нет; практически — свободный TCP-порт, не совпадающий с `--port`
 - Значение по умолчанию: `8998`
 - Эффективное значение: обычно совпадает с заданным. Два исключения: (1) при `SGLANG_RUST_SERVER` на prefill порт принудительно приравнивается к `--port` (`_alias_bootstrap_port_to_api_port`), потому что rust-сервер отдает реестр на своем же api-листенере; (2) при многоузловом prefill (`--nnodes > 1` и заданном `--dist-init-addr`) порт лидера broadcast'ится на все ранги (`_sync_bootstrap_port_across_nodes`), и локально заданное значение может быть заменено значением ранга 0
-- Где объявлен: `ServerArgs.disaggregation_bootstrap_port`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_bootstrap_port`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_pd_disaggregation` (только rust-сервер) → `start_disagg_service` в tokenizer manager (prefill: bind) → `CommonKVManager.__init__` в каждом scheduler'е (prefill: регистрация, decode: адрес по умолчанию) → обработка каждого запроса на decode
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/managers/disagg_service.py`

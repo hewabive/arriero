@@ -42,7 +42,7 @@ Data type for model weights and activations.
 - Допустимые значения: `auto`, `half`, `float16`, `bfloat16`, `float`, `float32` (проверяет argparse)
 - Значение по умолчанию: `auto`
 - Эффективное значение: разрешается в `_get_and_verify_dtype` по конфигу модели; кроме того поле объявлено `resolvable=True`, то есть его перекрывают per-architecture декларации — `MistralLarge3ForCausalLM` и `PixtralForConditionalGeneration` жестко переводятся в `bfloat16`, а GPT-OSS с `quant_method == "mxfp4"` тоже получает `bfloat16` («use bf16 for mxfp4 triton kernels»)
-- Где объявлен: `ServerArgs.dtype`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.dtype`
 - Статус: обычный
 - Этап применения: разбор CLI → декларации архитектуры в `__post_init__` → `ModelConfig` (`_get_and_verify_dtype`) → создание модели и загрузка весов → сюда же завязан `auto` у `--kv-cache-dtype`
 
@@ -114,6 +114,7 @@ python -m sglang.launch_server --model-path /models/Llama-3-8B-AWQ --dtype half 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`

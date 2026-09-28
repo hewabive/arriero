@@ -36,7 +36,7 @@ Start seed server via transfer engine backend for remote instance weight loader.
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: **переопределяется в `__post_init__`**. В `_handle_load_format` выполняется `self.remote_instance_weight_loader_start_seed_via_transfer_engine = self.validate_transfer_engine()`, то есть при заданном флаге итоговое значение равно результату проверки, а не тому, что попросил оператор
-- Где объявлен: `ServerArgs.remote_instance_weight_loader_start_seed_via_transfer_engine`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_start_seed_via_transfer_engine`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_load_format`) → `ModelRunner.init_remote_instance_weight_transporter` и инициализация движка передачи → регистрация и публикация метаданных весов после загрузки модели
 
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/remote_instance_weight_transporter.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

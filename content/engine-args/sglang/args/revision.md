@@ -35,7 +35,7 @@ The specific model version to use. It can be a branch name, a tag name, or a com
 - Допустимые значения: не ограничены `choices`; на стороне Hub это имя ветки, тег или commit id
 - Значение по умолчанию: `null` — ревизия по умолчанию репозитория (обычно `main`)
 - Эффективное значение: не переопределяется. Косвенное следствие есть у драфт-модели: когда `--speculative-draft-model-path` не задан и драфт-веса лежат в самом целевом чекпойнте, спекулятивный hook подставляет `speculative_draft_model_path = model_path` и вместе с ним `speculative_draft_model_revision = revision`; в ModelScope-пути драфт скачивается по `speculative_draft_model_revision or "main"`
-- Где объявлен: `ServerArgs.revision`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.revision`
 - Статус: обычный
 - Этап применения: построение `ModelConfig` (чтение конфига), скачивание весов в `DefaultModelLoader._prepare_weights`, инициализация токенизатора/процессора, `__post_init__` при `SGLANG_USE_MODELSCOPE`
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-8B --revision 0e9e39f249a
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

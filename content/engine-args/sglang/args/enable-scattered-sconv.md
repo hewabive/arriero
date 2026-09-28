@@ -33,7 +33,7 @@ Inkling: replace the attention/MLP output all-reduce with a hidden-dimension red
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным — ни `__post_init__`, ни реестр `arg_groups/overrides.py` его не переписывают. Но у флага есть жесткие требования, проверяемые при построении слоя, а не при разборе аргументов (см. ниже)
-- Где объявлен: `ServerArgs.enable_scattered_sconv`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_scattered_sconv`
 - Статус: обычный, но узкоархитектурный: значение читают только `configs/inkling.py`, `models/inkling.py`, `models/inkling_common/{attn,moe,dense_mlp}.py`, `models/inkling_common/kernels/comm.py` и `distributed/device_communicators/torch_symm_mem.py`
 - Этап применения: разбор CLI → построение слоев модели (ассерты делимости, размер conv-кеша) → выделение кеша состояний свертки → каждый forward
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/inkling --tensor-parallel-si
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/inkling.py`
 - `sglang/python/sglang/srt/models/inkling.py`

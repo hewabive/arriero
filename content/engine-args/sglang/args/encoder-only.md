@@ -44,7 +44,7 @@ For MLLM with an encoder, launch an encoder-only server
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным. Побочно переписывает `--mm-feature-transport`: при незаданном транспорте он авто-разрешается в `cpu`, а явный `cuda_ipc` понижается до `cpu` с предупреждением
-- Где объявлен: `ServerArgs.encoder_only`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_only`
 - Статус: обычный
 - Этап применения: разбор CLI → `_handle_encoder_disaggregation` (взаимные запреты, проверка архитектуры модели) → `_handle_multimodal` (выбор транспорта) → `run_server` в `sglang/launch_server.py` (выбор entrypoint) → загрузка весов (только визуальная башня)
 
@@ -128,6 +128,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --encoder-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/launch_server.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`

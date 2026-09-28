@@ -34,7 +34,7 @@ Choose the kernel backend for multi-LoRA serving.
 - Допустимые значения: `triton`, `csgmv`, `ascend`, `torch_native` (константа `LORA_BACKEND_CHOICES`)
 - Значение по умолчанию: `csgmv`
 - Эффективное значение: не переопределяется в `__post_init__`
-- Где объявлен: `ServerArgs.lora_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_backend`
 - Статус: обычный
 - Этап применения: конструктор `LoRAManager` (после загрузки весов модели, до выделения LoRA-пула)
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/backend/lora_registry.py`
 - `sglang/python/sglang/srt/lora/backend/chunked_backend.py`

@@ -32,7 +32,7 @@ ZMQ endpoint this engine binds for its inbound channel in decoupled speculative 
 - Допустимые значения: `choices` нет; строка передается в ZMQ как есть. В тестах и в комментарии к полю фигурирует IPC-сетка (`ipc:///tmp/...`); формат `tcp://host:port` ZMQ тоже принимает, но межузловой вариант этой схемой не заявлен
 - Значение по умолчанию: `null` (не задан)
 - Эффективное значение: совпадает с заданным; попадает в `DecoupledSpecIpcConfig.bind_endpoint` без нормализации
-- Где объявлен: `ServerArgs.decoupled_spec_bind_endpoint`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_bind_endpoint`
 - Статус: обычный флаг незавершенной функциональности — собранную конфигурацию в checkout'е никто не читает
 - Этап применения: `PortArgs.init_new` — единственное место, где значение читается
 
@@ -94,6 +94,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.2-1B-Instruct --d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/speculative/decoupled_spec_io.py`
 - `sglang/test/registered/unit/spec/test_decoupled_spec_io.py`

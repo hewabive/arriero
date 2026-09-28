@@ -32,7 +32,7 @@ The IO backend for KV cache transfer between CPU and GPU
 - Допустимые значения: `direct`, `kernel`, `kernel_ascend`
 - Значение по умолчанию: `kernel`
 - Эффективное значение: `_resolve_layout_io_compatibility` в `__post_init__` меняет `kernel` на `direct`, если задан layout `page_first_direct`; на Ascend NPU `hardware_backend/npu/utils.py` принудительно выставляет `kernel_ascend` вместе с соответствующим layout
-- Где объявлен: `ServerArgs.hicache_io_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_io_backend`
 - Статус: обычный; значение `kernel_ascend` — платформенное, для CUDA/ROCm непригодно
 - Этап применения: `__post_init__` (`_handle_hicache`) → создание `HiCacheController` → каждая операция загрузки/выгрузки KV
 
@@ -97,6 +97,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mha.py`

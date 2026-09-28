@@ -33,7 +33,7 @@ Minimum threshold for GPU average utilization to trigger EPLB rebalancing. Must 
 - Допустимые значения: справка обещает диапазон `[0.0, 1.0]`, но ни argparse, ни `__post_init__`, ни менеджер этот диапазон не проверяют — значение вне диапазона просто сделает проверку тождественно истинной или ложной
 - Значение по умолчанию: `1.0`
 - Эффективное значение: не переопределяется, но значение `1.0` обрабатывается особым образом: при `math.isclose(threshold, 1.0)` расчет среднего по окну не выполняется — метод возвращает `None`, и перебалансировка идет всегда
-- Где объявлен: `ServerArgs.eplb_min_rebalancing_utilization_threshold`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_min_rebalancing_utilization_threshold`
 - Статус: обычный
 - Этап применения: конец каждого forward-прохода (накопление истории) → каждая перебалансировка (сравнение)
 
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`

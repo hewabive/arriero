@@ -37,7 +37,7 @@ Store radix-cached linear-attn (mamba) states in int8 (separate checkpoint pool)
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; автоматически не включается
-- Где объявлен: `ServerArgs.enable_int8_mamba_checkpoint`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_int8_mamba_checkpoint`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_int8_mamba_checkpoint` — два запрета) → создание `HybridReqToTokenPool` (аллокация отдельного пула, после расчета основного бюджета) → работа префиксного кеша
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/mamba_checkpoint_pool.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`

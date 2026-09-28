@@ -32,7 +32,7 @@ Peer inbound (bind) endpoints to connect to, ordered by peer rank, for decoupled
 - Допустимые значения: `choices` нет; элементы — ZMQ-эндпойнты пиров, обычно `ipc:///tmp/...`
 - Значение по умолчанию: `null` (не задан)
 - Эффективное значение: сохраняется как список; при сборке `DecoupledSpecIpcConfig` преобразуется в кортеж (`connect_endpoints=tuple(...)`), то есть в конфигурации он неизменяем
-- Где объявлен: `ServerArgs.decoupled_spec_connect_endpoints`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_connect_endpoints`
 - Статус: обычный флаг незавершенной функциональности — собранную конфигурацию в checkout'е никто не читает
 - Этап применения: разбор CLI (`json_list_type` → `orjson.loads`) → `PortArgs.init_new`, единственное место, где значение читается
 
@@ -97,6 +97,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.2-1B-Instruct --d
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`
 - `sglang/python/sglang/srt/utils/common.py`

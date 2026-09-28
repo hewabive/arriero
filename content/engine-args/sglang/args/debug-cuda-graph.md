@@ -35,7 +35,7 @@ Enable debug/eager mode for CUDA graph using breakable CUDA graph. When enabled,
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
 - Эффективное значение: в `_handle_environment_variables` на не-CUDA и не-HIP устройствах принудительно сбрасывается в `false` с предупреждением «--debug-cuda-graph is not supported on non CUDA/HIP devices. Disabling breakable CUDA graph.»; на CUDA/HIP выставляет переменную окружения `SGLANG_USE_BREAKABLE_CUDA_GRAPH=1` и печатает предупреждение «Debug mode for CUDA graph is enabled via breakable CUDA graph. All operations will run eagerly through the graph capture/replay path.»
-- Где объявлен: `ServerArgs.debug_cuda_graph`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.debug_cuda_graph`
 - Статус: обычный, отладочный
 - Этап применения: `__post_init__` (правило каскада prefill, установка env) → создание backend'ов (`debug_eager` в `resolve_decode_backend`/`resolve_prefill_backend`) → захват и реплей
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --debug-cuda-g
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/utils.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/breakable_cuda_graph_backend.py`

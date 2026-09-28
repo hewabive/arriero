@@ -35,7 +35,7 @@ Enable stochastic rounding when writing FP16 Mamba SSM cache states. Requires --
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; движок не включает округление сам ни при каких условиях
-- Где объявлен: `ServerArgs.enable_mamba_cache_stochastic_rounding`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_mamba_cache_stochastic_rounding`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_mamba_backend` — три проверки) → создание backend'а `selective_state_update` → каждая запись SSM-состояния в decode
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/Nemotron-H-8B --mamba-backen
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/ssu_dispatch.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/mamba_ssm.py`

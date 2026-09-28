@@ -34,7 +34,7 @@ Folder path to dump requests from the last 5 min before a crash (if any). If not
 - Допустимые значения: `choices` нет. Существование каталога при разборе не проверяется; каталог для дампа запросов создается в момент записи, каталог для CUDA-coredump — на старте
 - Значение по умолчанию: `null` — механизм выключен
 - Эффективное значение: совпадает с заданным. Может быть изменено на лету через `ConfigureLoggingReq` (`python -m sglang.srt.managers.configure_logging --url … --crash-dump-folder …`) — тогда новое значение действует до перезапуска, но переменные окружения coredump остаются от старта
-- Где объявлен: `ServerArgs.crash_dump_folder`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.crash_dump_folder`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_handle_crash_dump_env`, переменные окружения) → конструктор `TokenizerManager` → завершение каждого запроса (запись в буфер) → обработчик падения
 
@@ -134,6 +134,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --crash-dump-fol
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/io_struct.py`

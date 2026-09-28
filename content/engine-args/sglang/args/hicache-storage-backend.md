@@ -36,7 +36,7 @@ The storage backend for hierarchical KV cache. Built-in backends: file, mooncake
 - Допустимые значения: `file`, `sim`, `mooncake`, `npu_memcache`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`
 - Значение по умолчанию: `null` — L3 не подключен, HiCache работает как двухуровневый (L1+L2)
 - Эффективное значение: не переопределяется; но выбор backend'а меняет **другие** значения — `mooncake` переписывает `--hicache-mem-layout layer_first`, а `shm` (и `dynamic` с `"allocator": "shm"`) переключает аллокатор host-пула на shared memory
-- Где объявлен: `ServerArgs.hicache_storage_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_backend`
 - Статус: обычный; конкретные backend'ы — сторонние интеграции разной зрелости
 - Этап применения: `__post_init__` (`_handle_hicache`, `_handle_cache_compatibility`) → `HiCacheController.attach_storage_backend` при инициализации дерева кеша
 

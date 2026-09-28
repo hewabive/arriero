@@ -34,7 +34,7 @@ Either 'demo' or a comma-separated list of tool server urls to use for the model
 - Допустимые значения: `choices` нет. Разбор чисто литеральный: `"demo"` — особый случай, любая другая непустая строка трактуется как список MCP-адресов
 - Значение по умолчанию: `null` — серверных инструментов нет
 - Эффективное значение: `__post_init__` не переопределяет. Но при незаданном аргументе и установленной переменной окружения `EXA_API_KEY` вместо «нет инструментов» подключается `NativeToolServer` — то есть эффективное поведение отличается от объявленного дефолта
-- Где объявлен: `ServerArgs.tool_server`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.tool_server`
 - Статус: обычный
 - Этап применения: `lifespan` HTTP-сервера при старте (создание tool server и `OpenAIServingResponses`) → обработка запросов к `/v1/responses`
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/gpt-oss-20b --tool-server 12
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/openai/tool_server.py`

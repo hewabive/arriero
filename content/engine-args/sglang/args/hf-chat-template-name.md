@@ -35,7 +35,7 @@ When the HuggingFace tokenizer has multiple chat templates (e.g., 'default', 'to
 - Допустимые значения: `choices` нет; допустимые имена определяются самой моделью (ключи словаря `chat_template` в `tokenizer_config.json` / `chat_template.json`). Неизвестное имя — ошибка старта со списком доступных
 - Значение по умолчанию: `null` — «взять первый ключ словаря»
 - Эффективное значение: не переопределяется в `__post_init__`; но фактически применяется только внутри `TemplateManager._select_named_template`
-- Где объявлен: `ServerArgs.hf_chat_template_name`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.hf_chat_template_name`
 - Статус: обычный
 - Этап применения: старт HTTP-слоя, `TemplateManager.load_chat_template` до приема запросов
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Hermes-3-Llama-3.1-8B --hf-c
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/parser/template_manager.py`
 - `sglang/python/sglang/srt/parser/conversation.py`

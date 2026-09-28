@@ -37,7 +37,7 @@ TP size for MoE dense MLP layers. This flag is useful when, with large TP size, 
 - Допустимые значения: `None`, `1` или ровно значение `--tp-size`. Проверка в `check_server_args`: `assert self.moe_dense_tp_size in (None, 1, self.tp_size)` с текстом `moe_dense_tp_size only supports None, 1, or tp_size currently`. Любое другое число argparse примет, а старт отвергнет
 - Значение по умолчанию: `null` — «отдельного правила нет, плотные MLP живут по общим правилам TP»
 - Эффективное значение: принудительно `1` в трех местах — `_handle_dwdp` (при `--dwdp-size > 1`), правила MLA CP и zigzag DSA CP в `arg_groups/overrides.py`, и хук DeepSeek-V4 CP (`arg_groups/deepseek_v4_hook.py`). Поле помечено `resolvable=True`
-- Где объявлен: `ServerArgs.moe_dense_tp_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.moe_dense_tp_size`
 - Статус: обычный
 - Этап применения: `__post_init__` (переопределения CP/DWDP) → `check_server_args` (валидация) → публикация в `ParallelState` → выбор режима scatter/gather в `LayerCommunicator` на каждом forward
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`

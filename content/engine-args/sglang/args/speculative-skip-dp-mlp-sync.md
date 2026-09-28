@@ -34,7 +34,7 @@ Skip the extra MLP sync that the scheduler performs before merging a new batch w
 - Допустимые значения: наличие флага
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется; несовместимая связка отвергается `assert` на старте
-- Где объявлен: `ServerArgs.speculative_skip_dp_mlp_sync`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_skip_dp_mlp_sync`
 - Статус: обычный
 - Этап применения: `handle_speculative_decoding` (проверка) → каждая итерация планировщика (`Scheduler.get_next_batch_to_run`) → инициализация DSPARK-планировщика
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --speculative-al
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`

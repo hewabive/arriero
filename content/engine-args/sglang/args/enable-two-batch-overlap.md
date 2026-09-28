@@ -39,7 +39,7 @@ Enabling two micro batches to overlap.
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
 - Эффективное значение: совпадает с заданным; сам движок его не включает
-- Где объявлен: `ServerArgs.enable_two_batch_overlap`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOverlap.enable_two_batch_overlap`
 - Статус: обычный
 - Этап применения: `__post_init__` (`_check_two_batch_overlap`, модельные проверки DSA) → инициализация MoE-конфигурации (`initialize_moe_config`) → создание attention backend'а (`TboAttnBackend`) → подготовка каждого батча (разбиение) → захват CUDA graph
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tp-size 8 --en
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/batch_overlap/two_batch_overlap.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`

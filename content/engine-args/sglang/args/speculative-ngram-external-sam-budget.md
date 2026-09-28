@@ -33,7 +33,7 @@ Number of draft nodes reserved for the external SAM subtree in ngram speculative
 - Допустимые значения: `choices` нет. При заданном `--speculative-ngram-external-corpus-path` требуется `> 0` и `≤ --speculative-num-draft-tokens − 1`
 - Значение по умолчанию: `0`
 - Эффективное значение: не переопределяется, но в момент построения дерева усекается: `min(external_sam_budget, num_draft_tokens − 1)`
-- Где объявлен: `ServerArgs.speculative_ngram_external_sam_budget`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_external_sam_budget`
 - Статус: обычный; читается **только** при `--speculative-algorithm NGRAM`
 - Этап применения: `handle_speculative_decoding` → `_handle_ngram` (валидация) → конструктор C++-объекта `Ngram` → каждый вызов `batchMatch` на decode-шаге
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/ngram_worker.py`

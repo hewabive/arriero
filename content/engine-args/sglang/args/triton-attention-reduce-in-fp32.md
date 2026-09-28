@@ -33,7 +33,7 @@ Cast the intermediate attention results to fp32 to avoid possible crashes relate
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется ничем — и не читается ничем. Поиск по всему checkout'у (`grep -rn "reduce_in_fp32"`) дает ровно одно вхождение: объявление в `sglang/python/sglang/srt/server_args.py`
-- Где объявлен: `ServerArgs.triton_attention_reduce_in_fp32`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.triton_attention_reduce_in_fp32`
 - Статус: формально обычный, фактически неиспользуемый (dead knob). В `--help` показывается, `hidden` не выставлен, `Deprecated*Action` не назначен
 - Этап применения: только разбор CLI
 
@@ -83,6 +83,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - коммит checkout'а `44e67c6835` «Remove deprecated double sparsity feature (#23009)» — удаление последних потребителей поля

@@ -33,7 +33,7 @@ Disable mmap while loading weight using safetensors.
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
 - Эффективное значение: не переопределяется, но сам отключает prefetch (`if prefetch and not disable_mmap` в обоих safetensors-итераторах)
-- Где объявлен: `ServerArgs.weight_loader_disable_mmap`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_loader_disable_mmap`
 - Статус: обычный
 - Этап применения: загрузка весов — `DefaultModelLoader._get_weights_iterator`
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path /mnt/fuse/models/Qwen3-30B-A3B --wei
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

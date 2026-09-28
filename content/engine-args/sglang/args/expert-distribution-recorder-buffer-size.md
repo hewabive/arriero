@@ -33,7 +33,7 @@ Circular buffer size of expert distribution recorder. Set to -1 to denote infini
 - Допустимые значения: положительное число либо `-1`; argparse ничего не проверяет
 - Значение по умолчанию: `null`
 - Эффективное значение: `_handle_expert_distribution_metrics` в `__post_init__` при `null` подставляет значение `--eplb-rebalance-num-iterations`. Поскольку то поле объявлено как обычный `int` со значением `1000` и никогда не бывает `null`, вторая ветка подстановки (константа `1000` при заданном режиме рекордера) фактически недостижима — эффективный дефолт всегда равен периоду перебалансировки
-- Где объявлен: `ServerArgs.expert_distribution_recorder_buffer_size`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.expert_distribution_recorder_buffer_size`
 - Статус: обычный
 - Этап применения: `__post_init__` → создание рекордера в model runner → каждый forward-проход
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`

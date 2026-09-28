@@ -30,7 +30,7 @@ Initial connection-level HTTP/2 receive window in bytes (1024 to 2^31 - 1). Only
 - Группа: `serving`
 - Тип: `int`
 - Декларативный default: `1024 * 1024`
-- Объявление: `ServerArgs.http2_initial_connection_window_size` в `sglang/python/sglang/srt/server_args.py`
+- Объявление: `python/sglang/srt/arg_groups/fields/serving.py:Serving.http2_initial_connection_window_size`
 - Этап применения: разбор CLI, инициализация и исполнение подсистемы, описанной ниже.
 
 ## Что меняет в движке
@@ -65,6 +65,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --enable-http2 --ht
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`

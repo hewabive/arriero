@@ -32,7 +32,7 @@ Fail startup if the tokenized external ngram corpus exceeds this many tokens. Tu
 - Допустимые значения: `choices` нет; при заданном `--speculative-ngram-external-corpus-path` обязано быть строго положительным
 - Значение по умолчанию: `10000000`
 - Эффективное значение: не переопределяется
-- Где объявлен: `ServerArgs.speculative_ngram_external_corpus_max_tokens`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_ngram_external_corpus_max_tokens`
 - Статус: обычный; читается **только** при `--speculative-algorithm NGRAM`
 - Этап применения: `_handle_ngram` (проверка положительности) → конструктор `NGRAMWorker` (стартовая загрузка) → каждая загрузка через `POST /add_external_corpus`
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/speculative/cpp_ngram/external_corpus.py`

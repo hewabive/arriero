@@ -37,7 +37,7 @@ Mode of offloading.
 - Допустимые значения: в argparse не ограничены (`choices: null` в extract). Фактический реестр в `_BaseParamOffloader.create`: `meta`, `cpu`, `shm_cpu`, `sharded_gpu`
 - Значение по умолчанию: `cpu`
 - Эффективное значение: совпадает с заданным; автоподбора нет
-- Где объявлен: `ServerArgs.offload_mode`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOffload.offload_mode`
 - Статус: обычный; фактически часть экспериментального контура — три из четырех режимов имеют жесткие ограничения по параллелизму
 - Этап применения: создание `OffloaderV2` (инициализация `NaiveDistributed`/разделяемой памяти) → построение слоев (перенос параметров) → `post_init` → каждый forward
 
@@ -108,6 +108,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V2-Lite --offload-g
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/utils/offloader.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

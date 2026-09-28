@@ -37,7 +37,7 @@ Enable LoRA support for the model. This argument is automatically set to True if
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `null`
 - Эффективное значение: `check_lora_server_args` переводит `None` в `True`, если задан `--lora-paths`; кроме того, при diffusion-LLM инференсе (`--dllm-algorithm`) значение принудительно сбрасывается в `False` с предупреждением
-- Где объявлен: `ServerArgs.enable_lora`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.enable_lora`
 - Статус: обычный
 - Этап применения: `__post_init__` → `check_lora_server_args` (валидация и разрешение) → `ModelRunner.maybe_init_lora_manager` после загрузки весов → планировщик и forward
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`

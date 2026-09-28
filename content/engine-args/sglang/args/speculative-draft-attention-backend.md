@@ -36,7 +36,7 @@ Attention backend for speculative decoding drafting.
 - Допустимые значения: `choices: null` — в отличие от `--attention-backend`, поле объявлено без `choices`, и **argparse принимает любую строку**. Реальный набор имён — ключи реестра `ATTENTION_BACKENDS` (`layers/attention/attention_registry.py`), доступность каждого зависит от железа и установленных пакетов. Посмотреть на своей сборке: `python -c "import sglang.srt.layers.attention.attention_registry as r; print(sorted(r.ATTENTION_BACKENDS))"`
 - Значение по умолчанию: `null` — берётся backend target'а
 - Эффективное значение: `dsv4` вместо устаревшего `compressed` (`_handle_deprecated_args`); `trtllm_mha` для Kimi-K3 + DSPARK на SM100 при незаданном значении (`arg_groups/kimi_k3_hook.py`); для `DFLASH` значение **дорезолвливается на этапе разбора аргументов** и может быть молча заменено (см. ниже), после чего в `server_args` лежит уже итоговый backend
-- Где объявлен: `ServerArgs.speculative_draft_attention_backend`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_attention_backend`
 - Статус: обычный
 - Этап применения: `__post_init__` (DFLASH-резолвинг, Kimi-K3-хук, deprecated-алиас) → создание draft-`ModelRunner` → инициализация draft-backend'ов (`DraftBackendFactory` или `build_draft_tp_worker`) → forward
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2-Exp --attentio
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/arg_groups/kimi_k3_hook.py`

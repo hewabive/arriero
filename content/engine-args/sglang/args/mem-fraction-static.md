@@ -37,7 +37,7 @@ The fraction of the memory used for static allocation (model weights and KV cach
 - Допустимые значения: argparse ограничений не накладывает; осмысленный диапазон — примерно `0.5`…`0.95`. Значение `≥ 1.0` argparse примет, но тогда резерв под активации равен нулю или отрицателен, и старт падает на захвате графа либо на первом длинном prefill
 - Значение по умолчанию: `null` — «подберет движок»
 - Эффективное значение: вычисляется в `_handle_gpu_memory_settings` (см. ниже), затем может быть домножено на `0.85` в `_handle_attention_backend_compatibility` при `--attention-backend aiter` и `context_len > 8192`, и на `0.8…1.0` для мультимодальных моделей (`adjust_mem_fraction_for_vlm`, только когда значение подбиралось автоматически)
-- Где объявлен: `ServerArgs.mem_fraction_static`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.mem_fraction_static`
 - Статус: обычный
 - Этап применения: `__post_init__` (подбор) → выделение KV-пула в `KVCacheConfigurator._profile_available_bytes` после загрузки весов
 
@@ -136,6 +136,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --mem-fraction
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/model_executor/pool_configurator.py`

@@ -32,7 +32,7 @@ The InfiniBand devices for Mooncake Backend transfer, accepts multiple comma-sep
 - Допустимые значения: `choices` нет; имена устройств проверяются по содержимому `/sys/class/infiniband`
 - Значение по умолчанию: `null` — автоопределение на стороне Mooncake
 - Эффективное значение: при `--elastic-ep-backend mooncake` значение прогоняется через `_validate_ib_devices` в `__post_init__`, нормализуется (пробелы срезаются, дубликаты удаляются с предупреждением, JSON-карта переписывается компактно) и записывается обратно в поле. При других значениях `--elastic-ep-backend` (и без него) нормализация не выполняется — строка уходит в транспорт как есть
-- Где объявлен: `ServerArgs.mooncake_ib_device`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.mooncake_ib_device`
 - Статус: обычный
 - Этап применения: `__post_init__` (только ветка `mooncake`) → инициализация Mooncake transfer engine в воркерах и в процессе бэкапа экспертов
 
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/mooncake_transfer_engine.py`
 - `sglang/python/sglang/srt/elastic_ep/expert_backup_manager.py`

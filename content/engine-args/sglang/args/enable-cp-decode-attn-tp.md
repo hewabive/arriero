@@ -34,7 +34,7 @@ Enable attention tensor-parallel weight slicing during decode under context para
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
 - Эффективное значение: совпадает с заданным. Фактическая активация дополнительно требует `attn_cp_size > 1` в runtime: `CpDecodeAttnTpContext.__init__` при `attn_cp_size == 1` печатает `Disable CP decode attention TP` и остается выключенным
-- Где объявлен: `ServerArgs.enable_cp_decode_attn_tp`, файл — `sglang/python/sglang/srt/server_args.py`
+- Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_cp_decode_attn_tp`
 - Статус: обычный, но с жестким белым списком архитектур
 - Этап применения: проверка модели в `_handle_model_specific_adjustments` → создание синглтона `CpDecodeAttnTpContext` в model runner → каждый forward (выбор режима по типу батча)
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/GLM-5-DSA --tensor-parallel-
 
 ## Источники
 
+- `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/layers/cp/cp_decode_attn_tp.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/layers/cp/utils.py`
