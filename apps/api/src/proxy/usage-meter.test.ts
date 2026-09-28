@@ -545,6 +545,8 @@ test("returnProgressRequested / withReturnProgress", () => {
     model: "m",
     return_progress: true,
   });
+  assert.equal(withReturnProgress("raw"), "raw");
+  assert.deepEqual(withReturnProgress([1]), [1]);
 });
 
 test("createUsageMeterStream reports prefill progress and strips injected progress frames", async () => {

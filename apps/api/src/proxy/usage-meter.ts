@@ -1,6 +1,6 @@
 import { createSseFrameBuffer } from "@arriero/core";
 
-import { asObject, numberOrNull } from "./json.js";
+import { asObject, numberOrNull, withBodyFields } from "./json.js";
 import type { ApiProxyProtocolId, ApiProxyResumableCodec } from "./protocol.js";
 import { sseDataPayloads } from "./sse.js";
 import { type ProxyStreamHealth } from "./stream-health.js";
@@ -174,11 +174,7 @@ export function returnProgressRequested(body: unknown): boolean {
 }
 
 export function withReturnProgress(body: unknown): unknown {
-  const obj = asObject(body);
-  if (!obj) {
-    return body;
-  }
-  return { ...obj, return_progress: true };
+  return withBodyFields(body, { return_progress: true });
 }
 
 export function ratePerSecondFromUsage(usage: ProxyUsageCounts): number | null {
