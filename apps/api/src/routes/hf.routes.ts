@@ -31,7 +31,7 @@ import {
   HfDownloadIntegrityRequestSchema,
   HfDownloadQueueReorderSchema,
   HfDownloadResumeSchema,
-  HfDownloadSettingsSchema,
+  HfDownloadSettingsUpdateSchema,
   HfDownloadStartSchema,
   HfTokenUpdateSchema,
   HfUpdateCheckRequestSchema,
@@ -329,8 +329,8 @@ export function registerHfRoutes(app: Hono) {
     return c.json({ data: getHfDownloadSettings() });
   });
 
-  app.put("/api/hf/download-settings", async (c) => {
-    const body = await parseJsonBody(c, HfDownloadSettingsSchema);
+  app.patch("/api/hf/download-settings", async (c) => {
+    const body = await parseJsonBody(c, HfDownloadSettingsUpdateSchema);
     if (body.modelDirectoryId) {
       const entry = getPathCatalogEntry(body.modelDirectoryId);
       if (entry?.kind !== "models-dir") {

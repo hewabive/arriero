@@ -3,6 +3,7 @@ import { FileVerificationProgressSchema } from "./file-verification.js";
 
 import { BackgroundJobStatusSchema } from "./jobs.js";
 import { GgufArtifactKindSchema } from "./models.js";
+import { updateSchemaFrom } from "./schema-update.js";
 
 const HF_REPO_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/;
 
@@ -158,6 +159,10 @@ export const HfDownloadSettingsSchema = z.object({
   modelDirectoryId: z.string().min(1).nullable().default(null),
   maxEtaHours: z.number().int().min(1).max(720).nullable().default(24),
 });
+
+export const HfDownloadSettingsUpdateSchema = updateSchemaFrom(
+  HfDownloadSettingsSchema,
+);
 
 export const HfUpdateFileStatusSchema = z.enum([
   "current",
@@ -386,6 +391,9 @@ export type HfDownloadQueueReorder = z.infer<
 export type HfDownloadFileSkip = z.infer<typeof HfDownloadFileSkipSchema>;
 export type HfOrphanPart = z.infer<typeof HfOrphanPartSchema>;
 export type HfDownloadSettings = z.infer<typeof HfDownloadSettingsSchema>;
+export type HfDownloadSettingsUpdate = z.infer<
+  typeof HfDownloadSettingsUpdateSchema
+>;
 export type HfUpdateFileStatus = z.infer<typeof HfUpdateFileStatusSchema>;
 export type HfUpdateCheckStatus = z.infer<typeof HfUpdateCheckStatusSchema>;
 export type HfUpdateCheckFile = z.infer<typeof HfUpdateCheckFileSchema>;

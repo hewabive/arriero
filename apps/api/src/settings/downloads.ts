@@ -1,6 +1,8 @@
 import {
   HfDownloadSettingsSchema,
+  HfDownloadSettingsUpdateSchema,
   type HfDownloadSettings,
+  type HfDownloadSettingsUpdate,
 } from "@arriero/core";
 
 import { readSettings, updateSettingsSection } from "./store.js";
@@ -12,9 +14,20 @@ export function getHfDownloadSettings(): HfDownloadSettings {
 }
 
 export function saveHfDownloadSettings(
-  input: HfDownloadSettings,
+  input: HfDownloadSettingsUpdate,
 ): HfDownloadSettings {
-  const parsed = HfDownloadSettingsSchema.parse(input);
-  updateSettingsSection("downloads", parsed);
-  return parsed;
+  const update = HfDownloadSettingsUpdateSchema.parse(input);
+  const current = getHfDownloadSettings();
+  const next: HfDownloadSettings = {
+    modelDirectoryId:
+      update.modelDirectoryId === undefined
+        ? current.modelDirectoryId
+        : update.modelDirectoryId,
+    maxEtaHours:
+      update.maxEtaHours === undefined
+        ? current.maxEtaHours
+        : update.maxEtaHours,
+  };
+  updateSettingsSection("downloads", next);
+  return next;
 }

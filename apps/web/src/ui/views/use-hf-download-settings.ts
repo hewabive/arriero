@@ -1,4 +1,4 @@
-import type { HfDownloadSettings } from "@arriero/core";
+import type { HfDownloadSettingsUpdate } from "@arriero/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -20,12 +20,7 @@ export function useHfDownloadSettings(options: {
   });
   const settings = query.data?.data ?? null;
   const mutation = useMutation({
-    mutationFn: (patch: Partial<HfDownloadSettings>) => {
-      if (!settings) {
-        throw new Error("Download settings are not loaded");
-      }
-      return updateHfDownloadSettings({ ...settings, ...patch });
-    },
+    mutationFn: updateHfDownloadSettings,
     onSuccess: (result) => {
       queryClient.setQueryData(DOWNLOAD_SETTINGS_QUERY_KEY, result);
       options.onSaved?.();
@@ -34,7 +29,7 @@ export function useHfDownloadSettings(options: {
   });
   return {
     settings,
-    update: (patch: Partial<HfDownloadSettings>) => mutation.mutate(patch),
+    update: (patch: HfDownloadSettingsUpdate) => mutation.mutate(patch),
     pending: mutation.isPending,
     pendingPatch: mutation.isPending ? mutation.variables : null,
   };

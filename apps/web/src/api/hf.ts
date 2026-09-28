@@ -12,6 +12,7 @@ import type {
   HfDownloadQueueJob,
   HfDownloadQueueState,
   HfDownloadSettings,
+  HfDownloadSettingsUpdate,
   HfDownloadStart,
   HfDownloadedRepo,
   HfRepoBrowse,
@@ -157,9 +158,9 @@ export function getHfDownloadSettings() {
   return request<{ data: HfDownloadSettings }>("/api/hf/download-settings");
 }
 
-export function updateHfDownloadSettings(input: HfDownloadSettings) {
+export function updateHfDownloadSettings(input: HfDownloadSettingsUpdate) {
   return request<{ data: HfDownloadSettings }>("/api/hf/download-settings", {
-    method: "PUT",
+    method: "PATCH",
     body: JSON.stringify(input),
   });
 }

@@ -458,7 +458,7 @@ cross-origin CDN redirect.
 | `DELETE /api/hf/queue/:id` | remove a queued job or dismiss a history entry |
 | `POST /api/hf/queue/:id/files/skip` | skip files of the active job / drop files from a queued one |
 | `DELETE /api/hf/queue/history` | clear the finished-job history |
-| `GET/PUT /api/hf/download-settings` | default model-directory selection + max ETA hours |
+| `GET/PATCH /api/hf/download-settings` | default model-directory selection + max ETA hours; PATCH merges the fields it names |
 
 Every mutating queue endpoint returns the full queue state so the UI applies it without a
 follow-up fetch.

@@ -1,4 +1,4 @@
-import { parseHfRepoInput } from "@arriero/core";
+import { parseHfRepoInput, type HfDownloadSettings } from "@arriero/core";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
@@ -52,6 +52,19 @@ test("token update rejects a malformed body", async () => {
   assert.equal(response.status, 400);
 });
 
+function patchDownloadSettings(app: Hono, body: unknown) {
+  return app.request("/api/hf/download-settings", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function loadDownloadSettings(app: Hono) {
+  const loaded = await app.request("/api/hf/download-settings");
+  return ((await loaded.json()) as { data: HfDownloadSettings }).data;
+}
+
 test("download settings persist a selected model directory", async () => {
   const modelDirectory = createPathCatalogEntry({
     kind: "models-dir",
@@ -59,21 +72,48 @@ test("download settings persist a selected model directory", async () => {
     path: "/mnt/hf-downloads",
   });
   const app = appWithRoutes();
-  const updated = await app.request("/api/hf/download-settings", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      modelDirectoryId: modelDirectory.id,
-      maxEtaHours: 12,
-    }),
+  const updated = await patchDownloadSettings(app, {
+    modelDirectoryId: modelDirectory.id,
+    maxEtaHours: 12,
   });
   assert.equal(updated.status, 200);
+  assert.deepEqual(await loadDownloadSettings(app), {
+    modelDirectoryId: modelDirectory.id,
+    maxEtaHours: 12,
+  });
+});
 
-  const loaded = await app.request("/api/hf/download-settings");
-  const payload = (await loaded.json()) as {
-    data: { modelDirectoryId: string | null };
-  };
-  assert.equal(payload.data.modelDirectoryId, modelDirectory.id);
+test("a partial download-settings update keeps the other field", async () => {
+  const modelDirectory = createPathCatalogEntry({
+    kind: "models-dir",
+    name: "HF partial downloads",
+    path: "/mnt/hf-partial-downloads",
+  });
+  const app = appWithRoutes();
+  await patchDownloadSettings(app, {
+    modelDirectoryId: modelDirectory.id,
+    maxEtaHours: 6,
+  });
+
+  const eta = await patchDownloadSettings(app, { maxEtaHours: null });
+  assert.equal(eta.status, 200);
+  assert.deepEqual(await eta.json(), {
+    data: { modelDirectoryId: modelDirectory.id, maxEtaHours: null },
+  });
+
+  const directory = await patchDownloadSettings(app, {
+    modelDirectoryId: null,
+  });
+  assert.equal(directory.status, 200);
+  assert.deepEqual(await loadDownloadSettings(app), {
+    modelDirectoryId: null,
+    maxEtaHours: null,
+  });
+
+  const unchanged = await patchDownloadSettings(app, {});
+  assert.deepEqual(await unchanged.json(), {
+    data: { modelDirectoryId: null, maxEtaHours: null },
+  });
 });
 
 test("download settings reject a path catalog entry of the wrong kind", async () => {
@@ -82,13 +122,15 @@ test("download settings reject a path catalog entry of the wrong kind", async ()
     name: "HF settings wrong-kind binary",
     path: "/opt/bin/llama-server",
   });
-  const response = await appWithRoutes().request("/api/hf/download-settings", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      modelDirectoryId: binary.id,
-      maxEtaHours: 12,
-    }),
+  const response = await patchDownloadSettings(appWithRoutes(), {
+    modelDirectoryId: binary.id,
+  });
+  assert.equal(response.status, 400);
+});
+
+test("download settings reject an out-of-range max ETA", async () => {
+  const response = await patchDownloadSettings(appWithRoutes(), {
+    maxEtaHours: 0,
   });
   assert.equal(response.status, 400);
 });
