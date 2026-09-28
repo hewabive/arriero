@@ -85,17 +85,17 @@ node-scoped calls use"*. Passthrough pages need almost no logic change.
 
 ## Page classes
 
-Each page is exactly one of four classes. The UX contract the operator keeps in
+Each page is exactly one of three classes. The UX contract the operator keeps in
 their head is a per-page badge: **`Node: B`** (switchable) or **`Network`**
 (aggregated).
 
 | Page | Class | Behaviour |
 | --- | --- | --- |
 | Instances (edit), Model files, Build, Presets, Path catalog | **Node** | Global switcher → transmits the selected node, exactly one node at a time |
+| Proxy (targets / pipelines / models / endpoints / sources, stats, traces) | **Node** | Switcher → the selected node's own proxy; its targets may still reference instances on any node |
 | System (this machine's CPU/RAM/NUMA) | **Node** | Switcher (optional network overview later) |
 | Resources | **Dual** | Aggregated namespaced read (`nodeB:gpu0`) + node-scoped pool edit |
-| Public Status, Proxy stats / dashboard | **Network** | Aggregated, read-only |
-| Proxy config (targets / pipelines / models / endpoints / sources) | **Fleet** | Single fleet proxy on the entry node; **not** governed by the switcher |
+| Public Status | **Network** | Aggregated, read-only |
 
 Rules that fall out of this and are easy to get wrong:
 
@@ -103,8 +103,8 @@ Rules that fall out of this and are easy to get wrong:
    page — that re-introduces the multi-context problem. Anything network-wide goes
    on a dedicated Network page.
 2. **Cross-node references still need aggregated reads.** A proxy target editor
-   (fleet-level) must *pick* an instance from any node, even though instance
-   *editing* is per-node. So a fleet-wide instance **list** (read) is required —
+   must *pick* an instance from any node, even though instance *editing* is
+   per-node. So a fleet-wide instance **list** (read) is required —
    aggregated reads feed pickers, not just dashboards. Aggregated **writes** are
    what we avoid.
 3. **Resources is dual on purpose.** Network picture = aggregated, node-namespaced.
@@ -112,12 +112,21 @@ Rules that fall out of this and are easy to get wrong:
    `resources.json`, hence node-scoped. Don't force it into one bucket.
 4. **Offline peer** in the switcher: shown, marked unreachable, authoring disabled.
 
-## The proxy is a single fleet proxy
+## One front-door proxy, per-node proxy config
 
-The fleet has **one** proxy — the entry node's — whose targets may reference
+Clients point at **one** proxy — the entry node's — whose targets may reference
 instances on any node. "Works everywhere as native" means cross-node targets, not
-one proxy per node. The Proxy section therefore ignores the node switcher (it is
-fleet state, not node state).
+one proxy per client.
+
+Every node still owns its proxy config (targets, pipelines, models, endpoints,
+sources), and the Proxy section follows the node switcher like any Node page
+(`apps/web/src/api/proxy.ts` goes through `nodeRequest`): with a peer active it
+shows and edits that peer's proxy — config, stats and traces. This keeps an
+instance and the proxy records naming it on one node: a rename rewrites the proxy
+refs on the instance's own node (`instances/rename.ts:cascadeInstanceRename`), and
+the instance delete dialog offers to remove the dependent targets, models and
+pipelines it reads from the active node's proxy config — the node the instance is
+deleted on.
 
 When the gateway selects a remote target, the request is **delegated to the owning
 node's proxy with the target pinned**: that node runs its own start / lease /

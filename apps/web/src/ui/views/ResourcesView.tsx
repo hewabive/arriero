@@ -31,7 +31,7 @@ import {
   declareGpuPool,
   deleteMemoryPool,
   getFleetResources,
-  listInstances,
+  listSelfInstances,
   updateMemoryPool,
 } from "../../api/client";
 import { NumaTopologyPanel } from "../components/NumaTopologyPanel";
@@ -99,8 +99,8 @@ export function ResourcesView() {
     refetchInterval: 15_000,
   });
   const instancesQuery = useQuery({
-    queryKey: ["instances"],
-    queryFn: listInstances,
+    queryKey: ["instances", "self"],
+    queryFn: listSelfInstances,
     staleTime: 10_000,
   });
 

@@ -13,7 +13,8 @@ import {
 } from "@mantine/core";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
-import { absoluteUrl } from "../../api/base.js";
+import { SELF_NODE_ID, absoluteUrl } from "../../api/base.js";
+import { useActiveFleetNode, useActiveNode } from "../NodeContext.js";
 import { countLabel } from "../utils/plural";
 
 type ApiEndpointsSectionProps = {
@@ -40,17 +41,29 @@ function endpointAuthLabel(endpoint: ApiEndpointRecord) {
   return "none";
 }
 
-function endpointBaseUrl(endpoint: ApiEndpointRecord) {
+function useManagerProxyUrl(): string | null {
+  const { activeNodeId } = useActiveNode();
+  const activeFleetNode = useActiveFleetNode();
+  if (activeNodeId === SELF_NODE_ID) {
+    return typeof window === "undefined" ? null : absoluteUrl("/v1");
+  }
+  return activeFleetNode
+    ? `${activeFleetNode.baseUrl.replace(/\/+$/, "")}/v1`
+    : null;
+}
+
+function endpointBaseUrl(
+  endpoint: ApiEndpointRecord,
+  managerProxyUrl: string | null,
+) {
   if (endpoint.kind !== "manager-proxy") {
     return endpoint.baseUrl;
   }
-  if (typeof window === "undefined") {
-    return endpoint.baseUrl;
-  }
-  return absoluteUrl("/v1");
+  return managerProxyUrl ?? endpoint.baseUrl;
 }
 
 export function ApiEndpointsSection(props: ApiEndpointsSectionProps) {
+  const managerProxyUrl = useManagerProxyUrl();
   return (
     <Paper withBorder p="md" radius="sm">
       <Stack gap="sm">
@@ -99,7 +112,7 @@ export function ApiEndpointsSection(props: ApiEndpointsSectionProps) {
                   </Table.Td>
                   <Table.Td>{endpointKindLabel(endpoint)}</Table.Td>
                   <Table.Td>
-                    <Code>{endpointBaseUrl(endpoint)}</Code>
+                    <Code>{endpointBaseUrl(endpoint, managerProxyUrl)}</Code>
                   </Table.Td>
                   <Table.Td>
                     <Badge color="gray" variant="light">

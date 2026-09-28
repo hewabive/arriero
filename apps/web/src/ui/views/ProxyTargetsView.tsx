@@ -13,7 +13,7 @@ import {
   createApiProxyTarget,
   deleteApiProxyTarget,
   getApiProxyRuntime,
-  listSelfInstances,
+  listInstances,
   updateApiProxyTarget,
 } from "../../api/client";
 import { useProxyConfig } from "../proxy/data";
@@ -33,8 +33,8 @@ import { notifyError } from "../utils/notify";
 export function ProxyTargetsView() {
   const { targets, endpointById, proxyUsage, invalidate } = useProxyConfig();
   const instancesQuery = useQuery({
-    queryKey: ["instances", "self"],
-    queryFn: listSelfInstances,
+    queryKey: ["instances"],
+    queryFn: listInstances,
     staleTime: 10_000,
   });
   const runtimeQuery = useQuery({
