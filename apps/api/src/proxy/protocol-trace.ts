@@ -7,6 +7,7 @@ import {
   type ApiProxyTraceUsage,
   type ApiProxyTraceStreamHealth,
 } from "@arriero/core";
+import { openAiErrorMessage } from "@arriero/anthropic-openai-bridge";
 import type { Context } from "hono";
 
 import { newId } from "../utils/id.js";
@@ -301,16 +302,11 @@ export function safeJsonParse(text: string): unknown {
 }
 
 export function errorBodyMessage(body: unknown): string | null {
-  if (body && typeof body === "object") {
-    const err = (body as { error?: unknown }).error;
-    if (err && typeof err === "object") {
-      const message = (err as { message?: unknown }).message;
-      if (typeof message === "string" && message.trim()) {
-        return message;
-      }
-    }
+  if (!body || typeof body !== "object") {
+    return null;
   }
-  return null;
+  const message = openAiErrorMessage(body);
+  return message?.trim() ? message : null;
 }
 
 export function upstreamErrorText(text: string): string {

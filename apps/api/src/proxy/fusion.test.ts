@@ -721,3 +721,32 @@ test("sub-request surfaces an upstream failure as a diagnostic", async () => {
     assert.match(result.diagnostic.message, /failed/);
   }
 });
+
+test("sub-request surfaces the message of a flat upstream error envelope", async () => {
+  const target = seedExternalTarget("panel-b");
+  const flatErrorFetch = (async () =>
+    new Response(
+      JSON.stringify({
+        object: "error",
+        message: "The model panel-b does not exist.",
+        type: "NotFoundError",
+        param: null,
+        code: 404,
+      }),
+      { status: 404, headers: { "content-type": "application/json" } },
+    )) as unknown as typeof fetch;
+  const result = await executeApiProxyModelSubRequest({
+    targetId: target.id,
+    model: fusionRequest({}).model,
+    operation: chatOperation,
+    body: { model: "panel-b", messages: [] },
+    fetchImpl: flatErrorFetch,
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(
+      result.diagnostic.message,
+      "fusion branch target panel-b failed: The model panel-b does not exist.",
+    );
+  }
+});
