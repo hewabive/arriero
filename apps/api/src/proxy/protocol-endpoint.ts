@@ -1089,7 +1089,7 @@ export async function serveResolvedTarget(input: {
 
   const makeTargetReady = (
     initialPreview: Awaited<ReturnType<typeof getApiProxyPlanPreview>>,
-    signal: AbortSignal = c.req.raw.signal,
+    signal: AbortSignal,
   ) =>
     executeApiProxyTargetReadiness(
       decision.target,
@@ -1118,6 +1118,7 @@ export async function serveResolvedTarget(input: {
 
   const respond = async (): Promise<Response> => {
     const cancelSignal = inflight.controlSignal("cancel");
+    const discardSignal = AbortSignal.any([c.req.raw.signal, cancelSignal]);
     const upstreamPath = adapter.upstreamPath(operation);
     if (!upstreamPath) {
       const response = adapter.notImplemented(route.request);
@@ -1129,7 +1130,15 @@ export async function serveResolvedTarget(input: {
       return c.json(response.body, response.status);
     }
 
-    const execution = await makeTargetReady(decision.preview);
+    const execution = await makeTargetReady(decision.preview, discardSignal);
+    if (discardSignal.aborted) {
+      return clientAbortResponse({
+        trace,
+        message: clientAbortMessage,
+        responsePlan,
+        partialBody: null,
+      });
+    }
     if (!execution.ok) {
       return diagnose(execution.diagnostic);
     }
@@ -1514,7 +1523,7 @@ export async function serveResolvedTarget(input: {
       );
       return metered;
     } catch (error) {
-      if (c.req.raw.signal.aborted) {
+      if (discardSignal.aborted) {
         markClientAbort();
         return new Response(null, { status: CLIENT_ABORT_STATUS });
       }

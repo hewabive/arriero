@@ -101,6 +101,7 @@ async function seedCapturedUpstream(
       configured: boolean;
       launched: boolean;
       snapshot?: boolean;
+      starting?: boolean;
     };
     delegated?: boolean;
     profile?: "openai" | "anthropic";
@@ -114,7 +115,14 @@ async function seedCapturedUpstream(
   } = {},
 ) {
   let requests = 0;
+  let posts = 0;
+  let healthProbes = 0;
   const server = createServer(async (request, reply) => {
+    if (request.method === "POST") {
+      posts += 1;
+    } else if (request.url === "/health") {
+      healthProbes += 1;
+    }
     if (
       options.remoteTrace &&
       request.method === "GET" &&
@@ -185,6 +193,7 @@ async function seedCapturedUpstream(
   assert.ok(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}`;
   let endpointId: string;
+  let finishStarting = () => undefined as void;
   if (options.managed) {
     const instance = createInstance({
       name: managedFixture.uniqueName("managed"),
@@ -204,7 +213,7 @@ async function seedCapturedUpstream(
     const runId = createProcessRun({
       instanceId: instance.name,
       pid: process.pid,
-      status: "running",
+      status: options.managed.starting ? "starting" : "running",
       startedAt: new Date().toISOString(),
       logPath: "",
       rawLogPath: null,
@@ -221,6 +230,7 @@ async function seedCapturedUpstream(
               }),
             ),
     });
+    finishStarting = () => updateProcessRun(runId, { status: "running" });
     t.after(() => {
       updateProcessRun(runId, {
         status: "exited",
@@ -261,7 +271,13 @@ async function seedCapturedUpstream(
     idleUnloadMs: null,
   });
   seedCapturedModel(target.id, options.cache);
-  return { requests: () => requests, target };
+  return {
+    requests: () => requests,
+    posts: () => posts,
+    healthProbes: () => healthProbes,
+    finishStarting,
+    target,
+  };
 }
 
 async function listenApp(t: TestContext, app: Hono): Promise<number> {
@@ -849,6 +865,67 @@ test("cancellation before a terminal retains usage and captures the partial resp
     }),
   );
 });
+
+for (const stream of [false, true]) {
+  test(
+    `cancel while the target loads ends a plain request stream=${stream} as a client abort without dispatch`,
+    { timeout: 20_000 },
+    async (t) => {
+      const upstream = await seedCapturedUpstream(
+        t,
+        { status: 200, contentType: "text/event-stream", body: completeSse },
+        {
+          managed: {
+            kind: "sglang",
+            configured: true,
+            launched: true,
+            starting: true,
+          },
+          cache: false,
+        },
+      );
+      const pending = postCapturedRequest(buildApp(), "openai", stream);
+      let inflightId: string | null = null;
+      for (let wait = 0; wait < 500 && inflightId === null; wait += 1) {
+        const entry = apiProxyInflight.snapshotList()[0];
+        if (entry?.controls.cancel.available) {
+          inflightId = entry.id;
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      }
+      assert.ok(inflightId);
+      assert.equal(
+        (await apiProxyInflight.requestControl(inflightId, "cancel")).status,
+        "ok",
+      );
+      const probesAtCancel = upstream.healthProbes();
+      for (
+        let wait = 0;
+        wait < 500 && upstream.healthProbes() === probesAtCancel;
+        wait += 1
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.ok(upstream.healthProbes() > probesAtCancel);
+      upstream.finishStarting();
+      const response = await pending;
+      assert.equal(response.status, 499, await response.text());
+      assert.equal(upstream.posts(), 0);
+      const trace = listApiProxyTraces()[0];
+      assert.ok(trace);
+      assert.equal(trace.status, 499);
+      assert.equal(trace.ok, false);
+      assert.equal(trace.errorCode, apiProxyClientAbortErrorCode);
+      assert.match(trace.errorMessage ?? "", /^Client closed the request/);
+      assert.ok(
+        trace.schedulerActions.some(
+          (action) => action.type === "wait-model-ready",
+        ),
+      );
+    },
+  );
+}
 
 test("a capture node also saves a proxy-generated gateway error", async () => {
   seedCapturedModel("missing-target");
