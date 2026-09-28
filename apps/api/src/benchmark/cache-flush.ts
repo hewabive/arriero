@@ -280,9 +280,9 @@ export async function waitForBenchmarkEndpointReady(input: {
   baseUrl: string;
   fetchImpl: typeof fetch;
   signal: AbortSignal;
-  timeoutMs: number;
+  timeoutMs?: number | undefined;
 }): Promise<void> {
-  const deadline = Date.now() + input.timeoutMs;
+  const deadline = Date.now() + (input.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
   for (;;) {
     const ready = await input
       .fetchImpl(`${input.baseUrl}/v1/models`, { signal: input.signal })

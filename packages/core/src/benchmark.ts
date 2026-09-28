@@ -73,6 +73,14 @@ export const BenchmarkCompositionEntrySchema = z.object({
   count: z.number().int().min(1).max(64),
 });
 
+export const BENCHMARK_SYNTHETIC_DEFAULT_REQUEST_TIMEOUT_MS = 300000;
+
+export function benchmarkClientCount(
+  composition: readonly BenchmarkCompositionEntry[],
+): number {
+  return composition.reduce((sum, entry) => sum + entry.count, 0);
+}
+
 export const BenchmarkSyntheticScenarioSchema = z
   .object({
     target: BenchmarkTargetSchema,
@@ -80,7 +88,12 @@ export const BenchmarkSyntheticScenarioSchema = z
     composition: z.array(BenchmarkCompositionEntrySchema).min(1).max(32),
     repetitions: z.number().int().min(1).max(20).default(1),
     totalRequests: z.number().int().min(1).max(100000).optional(),
-    requestTimeoutMs: z.number().int().min(1000).max(3600000).default(300000),
+    requestTimeoutMs: z
+      .number()
+      .int()
+      .min(1000)
+      .max(3600000)
+      .default(BENCHMARK_SYNTHETIC_DEFAULT_REQUEST_TIMEOUT_MS),
     warmup: z.boolean().default(true),
     cacheBust: z.boolean().default(true),
     sampling: BenchmarkSamplingSchema.optional(),
@@ -89,10 +102,7 @@ export const BenchmarkSyntheticScenarioSchema = z
   })
   .superRefine((scenario, context) => {
     if (scenario.mode !== "sustained") return;
-    const clients = scenario.composition.reduce(
-      (sum, entry) => sum + entry.count,
-      0,
-    );
+    const clients = benchmarkClientCount(scenario.composition);
     if (
       scenario.totalRequests === undefined ||
       scenario.totalRequests < clients
@@ -141,6 +151,7 @@ export const BenchmarkReplayThinkTimeSchema = z.discriminatedUnion("kind", [
 export const BenchmarkReplayPrimingSchema = z.enum(["recorded", "all", "none"]);
 
 export const BENCHMARK_REPLAY_DEFAULT_OUTPUT_CEILING = 8192;
+export const BENCHMARK_REPLAY_DEFAULT_REQUEST_TIMEOUT_MS = 600000;
 
 export const BenchmarkReplayScenarioSchema = z.object({
   target: BenchmarkTargetSchema,
@@ -157,7 +168,12 @@ export const BenchmarkReplayScenarioSchema = z.object({
     .max(262144)
     .default(BENCHMARK_REPLAY_DEFAULT_OUTPUT_CEILING),
   imitateClientAborts: z.boolean().default(false),
-  requestTimeoutMs: z.number().int().min(1000).max(3600000).default(600000),
+  requestTimeoutMs: z
+    .number()
+    .int()
+    .min(1000)
+    .max(3600000)
+    .default(BENCHMARK_REPLAY_DEFAULT_REQUEST_TIMEOUT_MS),
   warmup: z.boolean().default(true),
   sampling: BenchmarkSamplingSchema.optional(),
   label: z.string().max(120).optional(),
@@ -363,7 +379,6 @@ export const BenchmarkReplayFidelitySchema = z.object({
 });
 
 export const BenchmarkReplaySummarySchema = z.object({
-  primedSegmentCount: z.number().int(),
   segments: z.array(BenchmarkReplaySegmentResultSchema),
   fidelity: BenchmarkReplayFidelitySchema.nullable(),
 });
@@ -554,6 +569,12 @@ export type BenchmarkReservationPreview = z.infer<
   typeof BenchmarkReservationPreviewSchema
 >;
 export type BenchmarkContextFit = z.infer<typeof BenchmarkContextFitSchema>;
+
+export function benchmarkRequestEndMs(
+  request: Pick<BenchmarkRequestResult, "submitMs" | "doneMs" | "endedMs">,
+): number {
+  return request.endedMs ?? request.doneMs ?? request.submitMs;
+}
 
 export function isBenchmarkRateSupported(
   tokens: number,

@@ -1,4 +1,10 @@
-import type { BenchmarkMode, BenchmarkScenarioInput } from "@arriero/core";
+import {
+  BENCHMARK_REPLAY_DEFAULT_REQUEST_TIMEOUT_MS,
+  BENCHMARK_SYNTHETIC_DEFAULT_REQUEST_TIMEOUT_MS,
+  benchmarkClientCount,
+  type BenchmarkMode,
+  type BenchmarkScenarioInput,
+} from "@arriero/core";
 import {
   ActionIcon,
   Button,
@@ -53,7 +59,10 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   const [rows, setRows] = useState<CompositionRow[]>([newRow()]);
   const [repetitions, setRepetitions] = useState<number>(1);
   const [totalRequests, setTotalRequests] = useState(2000);
-  const [timeouts, setTimeouts] = useState({ synthetic: 300, replay: 600 });
+  const [timeouts, setTimeouts] = useState({
+    synthetic: BENCHMARK_SYNTHETIC_DEFAULT_REQUEST_TIMEOUT_MS / 1000,
+    replay: BENCHMARK_REPLAY_DEFAULT_REQUEST_TIMEOUT_MS / 1000,
+  });
   const [warmup, setWarmup] = useState(true);
   const [cacheBust, setCacheBust] = useState(true);
   const [label, setLabel] = useState("");
@@ -76,6 +85,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
   const composition = rows
     .filter((row) => row.promptId !== null)
     .map((row) => ({ promptId: row.promptId as string, count: row.count }));
+  const clients = benchmarkClientCount(composition);
   const idle =
     !fm.startPending && !fm.runs.some((run) => run.status === "running");
   const canStart =
@@ -86,10 +96,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
         replayPlanProblem(replay, replayDetail) === null
       : composition.length > 0 &&
         composition.length <= 32 &&
-        (mode !== "sustained" ||
-          totalRequests >=
-            composition.reduce((sum, entry) => sum + entry.count, 0)));
-  const clients = composition.reduce((sum, entry) => sum + entry.count, 0);
+        (mode !== "sustained" || totalRequests >= clients));
 
   function updateRow(uiId: string, patch: Partial<CompositionRow>) {
     setRows((current) =>
@@ -163,17 +170,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             </Text>
             <SegmentedControl
               value={mode}
-              onChange={(value) =>
-                setMode(
-                  value === "sustained"
-                    ? "sustained"
-                    : value === "sequential"
-                      ? "sequential"
-                      : value === "replay"
-                        ? "replay"
-                        : "parallel",
-                )
-              }
+              onChange={setMode}
               data={[
                 { value: "parallel", label: "Parallel" },
                 { value: "sequential", label: "Sequential" },

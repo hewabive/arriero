@@ -2,25 +2,15 @@ import {
   engineDescriptor,
   type BenchmarkPromptWithSource,
   type BenchmarkRun,
-  type BenchmarkRunSummary,
+  type BenchmarkRunPhase,
+  type BenchmarkRunResult,
   type BenchmarkScenario,
   type BenchmarkSyntheticScenario,
-  type Instance,
 } from "@arriero/core";
 
-import { instanceBaseUrl } from "../instances/endpoint.js";
 import { getInstance } from "../instances/repository.js";
 import { getActiveJob, registerActiveJob } from "../jobs/registry.js";
-import { logger } from "../logger.js";
-import {
-  hasLaunchSnapshotDrift,
-  type LaunchSnapshot,
-} from "../process/launch-snapshot.js";
-import { latestProcessRun } from "../process/runs-repository.js";
-import {
-  activeLaunchSnapshot,
-  runtimeEndpointInstance,
-} from "../process/runtime-endpoint.js";
+import { hasLaunchSnapshotDrift } from "../process/launch-snapshot.js";
 import { newId } from "../utils/id.js";
 import { BenchmarkConflictError, BenchmarkNotFoundError } from "./errors.js";
 import { runMeasuredRequest } from "./measure-client.js";
@@ -31,19 +21,27 @@ import {
   patchBenchmarkRun,
   writeBenchmarkRunArtifacts,
   writeBenchmarkRunResult,
+  type BenchmarkEventWriter,
 } from "./repository.js";
 import { loadReplayDataset } from "./replay-dataset.js";
 import { executeReplayRun, type ReplayRunnerOptions } from "./replay-runner.js";
 import {
+  benchmarkEndpoint,
   benchmarkStreamEvents,
   benchmarkTargetSnapshot,
   clearBenchmarkRunProgress,
+  closeBenchmarkEvents,
   describeRequestFailures,
+  failBenchmarkRun,
   fetchServerProps,
+  LAUNCH_DRIFT_WARNING,
   nowIso,
   persistRunRecord,
   resolveEndpointModel,
   setBenchmarkRunProgress,
+  streamingRunFields,
+  WARMUP_MAX_TOKENS,
+  type BenchmarkRunContext,
 } from "./run-support.js";
 import { analyzeBenchmarkRun, type MeasuredRequest } from "./segmenter.js";
 import { BenchmarkLoadCollector } from "./load-statistics.js";
@@ -55,31 +53,19 @@ import {
 
 export const BENCHMARK_JOB_DOMAIN = "benchmark";
 
-const WARMUP_MAX_TOKENS = 32;
-
 export type BenchmarkRunnerOptions = {
   fetchImpl?: typeof fetch | undefined;
-} & Partial<ReplayRunnerOptions>;
+} & ReplayRunnerOptions;
 
-type PlannedRequest = {
-  prompt: BenchmarkPromptWithSource;
-};
-
-type ExecutionContext = {
-  runId: string;
+type ExecutionContext = BenchmarkRunContext & {
   scenario: BenchmarkSyntheticScenario;
-  wave: PlannedRequest[];
-  instance: Instance;
-  runtimeArgs: Instance["args"];
-  launchSnapshot: LaunchSnapshot | null;
-  baseUrl: string;
-  signal: AbortSignal;
-  fetchImpl: typeof fetch;
-  serverMetrics: BenchmarkServerMetricsSource | null;
+  wave: BenchmarkPromptWithSource[];
 };
 
-function planWave(scenario: BenchmarkSyntheticScenario): PlannedRequest[] {
-  const wave: PlannedRequest[] = [];
+function planWave(
+  scenario: BenchmarkSyntheticScenario,
+): BenchmarkPromptWithSource[] {
+  const wave: BenchmarkPromptWithSource[] = [];
   for (const entry of scenario.composition) {
     const prompt = getBenchmarkPrompt(entry.promptId);
     if (!prompt) {
@@ -88,7 +74,7 @@ function planWave(scenario: BenchmarkSyntheticScenario): PlannedRequest[] {
       );
     }
     for (let copy = 0; copy < entry.count; copy += 1) {
-      wave.push({ prompt });
+      wave.push(prompt);
     }
   }
   return wave;
@@ -109,104 +95,109 @@ function chatRequestBody(input: {
         }
       : message,
   );
-  const sampling = input.scenario.sampling;
   return {
-    ...(input.model !== null ? { model: input.model } : {}),
+    ...streamingRunFields(input.model, input.scenario.sampling),
     messages,
-    stream: true,
-    stream_options: { include_usage: true },
     max_tokens: input.maxTokens,
-    ...(sampling?.temperature !== undefined
-      ? { temperature: sampling.temperature }
-      : {}),
-    ...(sampling?.seed !== undefined ? { seed: sampling.seed } : {}),
   };
 }
 
 async function measurePlannedRequest(input: {
   context: ExecutionContext;
-  planned: PlannedRequest;
+  serverMetrics: BenchmarkServerMetricsSource | null;
+  prompt: BenchmarkPromptWithSource;
   repetition: number;
   model: string | null;
   now: () => number;
   sequence: number;
   signal: AbortSignal;
 }): Promise<MeasuredRequest> {
-  const { context, planned } = input;
-  const requestId = `${input.repetition}:${input.sequence}:${planned.prompt.id}`;
-  const metricsBefore = context.serverMetrics
-    ? await context.serverMetrics.captureBefore()
+  const { context, prompt, serverMetrics } = input;
+  const metricsBefore = serverMetrics
+    ? await serverMetrics.captureBefore()
     : null;
   const outcome = await runMeasuredRequest({
     url: `${context.baseUrl}/v1/chat/completions`,
     body: chatRequestBody({
-      prompt: planned.prompt,
+      prompt,
       scenario: context.scenario,
       model: input.model,
-      maxTokens: context.scenario.maxTokensOverride ?? planned.prompt.maxTokens,
+      maxTokens: context.scenario.maxTokensOverride ?? prompt.maxTokens,
     }),
     signal: input.signal,
     timeoutMs: context.scenario.requestTimeoutMs,
     fetchImpl: context.fetchImpl,
     now: input.now,
   });
-  let serverTimings = outcome.serverTimings;
-  if (
-    serverTimings === null &&
-    context.serverMetrics &&
+  const serverTimings =
+    outcome.serverTimings === null &&
+    serverMetrics &&
     outcome.error === null &&
     outcome.firstTokenMs !== null
-  ) {
-    serverTimings = await context.serverMetrics.requestTimings(metricsBefore);
-  }
+      ? await serverMetrics.requestTimings(metricsBefore)
+      : outcome.serverTimings;
   return {
-    requestId,
-    promptId: planned.prompt.id,
-    topic: planned.prompt.topic,
-    language: planned.prompt.language,
+    requestId: `${input.repetition}:${input.sequence}:${prompt.id}`,
+    promptId: prompt.id,
+    topic: prompt.topic,
+    language: prompt.language,
     repetition: input.repetition,
-    submitMs: outcome.submitMs,
-    firstTokenMs: outcome.firstTokenMs,
-    doneMs: outcome.doneMs,
-    endedMs: outcome.endedMs,
-    timedOut: outcome.timedOut,
-    chunkTimesMs: outcome.chunkTimesMs,
-    promptTokens: outcome.promptTokens,
-    completionTokens: outcome.completionTokens,
+    ...outcome,
     serverTimings,
-    finishReason: outcome.finishReason,
-    error: outcome.error,
   };
+}
+
+function syntheticServerMetrics(
+  context: ExecutionContext,
+): BenchmarkServerMetricsSource | null {
+  const soloRequests =
+    context.scenario.mode === "sequential" || context.wave.length <= 1;
+  return soloRequests
+    ? benchmarkServerMetricsSource(
+        engineDescriptor(context.instance.kind).benchmarkServerMetrics,
+        context,
+      )
+    : null;
 }
 
 async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
   const { runId, scenario, wave } = context;
   const nativeLlamaApi =
     engineDescriptor(context.instance.kind).nativeApi === "llama";
+  const serverMetrics = syntheticServerMetrics(context);
   const warnings: string[] = [];
   const measured: MeasuredRequest[] = [];
   const load =
     scenario.mode === "sustained" ? new BenchmarkLoadCollector() : null;
-  let eventWriter: Awaited<
-    ReturnType<typeof createBenchmarkEventWriter>
-  > | null = null;
+  const analyze = () => (load ? load.analyze() : analyzeBenchmarkRun(measured));
+  const save = (result: BenchmarkRunResult) =>
+    load
+      ? writeBenchmarkRunResult(runId, result)
+      : writeBenchmarkRunArtifacts(
+          runId,
+          benchmarkStreamEvents(measured),
+          result,
+        );
+  let eventWriter: BenchmarkEventWriter | null = null;
   const totalRequests =
     scenario.mode === "sustained"
       ? (scenario.totalRequests ?? 0)
       : wave.length * scenario.repetitions;
   let completedRequests = 0;
   let activeRequests = 0;
-  try {
+  const publishProgress = (phase: BenchmarkRunPhase, repetition: number) =>
     setBenchmarkRunProgress(runId, {
-      phase: "prepare",
+      phase,
       completedRequests,
       totalRequests,
       activeRequests,
-      repetition: 0,
+      repetition,
     });
+  try {
+    publishProgress("prepare", 0);
     const model = await resolveEndpointModel(context);
     const props = nativeLlamaApi ? await fetchServerProps(context) : null;
-    const launch = context.launchSnapshot;
+    const launch = context.launch;
     patchBenchmarkRun(runId, {
       snapshot: benchmarkTargetSnapshot({
         instance: context.instance,
@@ -218,9 +209,7 @@ async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
       }),
     });
     if (launch && hasLaunchSnapshotDrift(context.instance, launch)) {
-      warnings.push(
-        "instance config drifted from the running process; the snapshot records the launched configuration",
-      );
+      warnings.push(LAUNCH_DRIFT_WARNING);
     }
 
     const concurrency = scenario.mode === "sequential" ? 1 : wave.length;
@@ -241,22 +230,16 @@ async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
       );
     }
 
-    const firstPlanned = wave[0];
-    if (scenario.warmup && firstPlanned) {
-      setBenchmarkRunProgress(runId, {
-        phase: "warmup",
-        completedRequests,
-        totalRequests,
-        activeRequests,
-        repetition: 0,
-      });
-      const warmupMetricsBefore = context.serverMetrics
-        ? await context.serverMetrics.captureBefore()
+    const firstPrompt = wave[0];
+    if (scenario.warmup && firstPrompt) {
+      publishProgress("warmup", 0);
+      const warmupMetricsBefore = serverMetrics
+        ? await serverMetrics.captureBefore()
         : null;
       const warmup = await runMeasuredRequest({
         url: `${context.baseUrl}/v1/chat/completions`,
         body: chatRequestBody({
-          prompt: firstPlanned.prompt,
+          prompt: firstPrompt,
           scenario,
           model,
           maxTokens: WARMUP_MAX_TOKENS,
@@ -268,8 +251,8 @@ async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
       if (warmup.error !== null && !context.signal.aborted) {
         throw new Error(`warmup request failed: ${warmup.error}`);
       }
-      if (context.serverMetrics) {
-        await context.serverMetrics.requestTimings(warmupMetricsBefore);
+      if (serverMetrics) {
+        await serverMetrics.requestTimings(warmupMetricsBefore);
       }
     }
 
@@ -281,21 +264,16 @@ async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
       clients: wave.length,
       signal: context.signal,
       run: async ({ client, repetition, sequence, signal }) => {
-        const planned = wave[client];
-        if (!planned)
+        const prompt = wave[client];
+        if (!prompt)
           throw new Error(`benchmark client ${client} has no prompt`);
         activeRequests += 1;
-        setBenchmarkRunProgress(runId, {
-          phase: "measure",
-          completedRequests,
-          totalRequests,
-          activeRequests,
-          repetition,
-        });
+        publishProgress("measure", repetition);
         try {
           const request = await measurePlannedRequest({
             context,
-            planned,
+            serverMetrics,
+            prompt,
             repetition,
             model,
             now,
@@ -311,41 +289,21 @@ async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
         } finally {
           activeRequests -= 1;
           completedRequests += 1;
-          setBenchmarkRunProgress(runId, {
-            phase: "measure",
-            completedRequests,
-            totalRequests,
-            activeRequests,
-            repetition,
-          });
+          publishProgress("measure", repetition);
         }
       },
     });
     await eventWriter?.close();
 
-    setBenchmarkRunProgress(runId, {
-      phase: "finalize",
-      completedRequests,
-      totalRequests,
-      activeRequests,
-      repetition: scenario.repetitions - 1,
-    });
-    const { result, summary } = load
-      ? load.analyze()
-      : analyzeBenchmarkRun(measured);
+    publishProgress("finalize", scenario.repetitions - 1);
+    const { result, summary } = analyze();
     const requests = load?.requests ?? measured;
     const failures = describeRequestFailures(requests);
     if (failures) {
       warnings.push(failures.message);
     }
     const allFailed = failures !== null && failures.count === requests.length;
-    if (load) writeBenchmarkRunResult(runId, result);
-    else
-      writeBenchmarkRunArtifacts(
-        runId,
-        benchmarkStreamEvents(measured),
-        result,
-      );
+    save(result);
     patchBenchmarkRun(runId, {
       status: context.signal.aborted
         ? "canceled"
@@ -359,63 +317,19 @@ async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
     });
     persistRunRecord(runId);
   } catch (error) {
-    const message = (error as Error).message;
-    logger.warn({ runId, error: message }, "benchmark run failed");
-    let summary: BenchmarkRunSummary | null = null;
-    if ((load?.requests.length ?? measured.length) > 0) {
-      const analysis = load ? load.analyze() : analyzeBenchmarkRun(measured);
-      summary = analysis.summary;
-      try {
-        if (load) writeBenchmarkRunResult(runId, analysis.result);
-        else
-          writeBenchmarkRunArtifacts(
-            runId,
-            benchmarkStreamEvents(measured),
-            analysis.result,
-          );
-      } catch (artifactError) {
-        logger.warn(
-          { runId, error: (artifactError as Error).message },
-          "benchmark partial artifacts could not be saved",
-        );
-      }
-    }
-    patchBenchmarkRun(runId, {
-      ...(summary ? { summary } : {}),
-      status: context.signal.aborted ? "canceled" : "failed",
-      finishedAt: nowIso(),
+    failBenchmarkRun({
+      runId,
+      error,
+      canceled: context.signal.aborted,
       warnings,
-      error: message,
+      measuredCount: (load?.requests ?? measured).length,
+      analyze,
+      save,
     });
-    if (summary) {
-      persistRunRecord(runId);
-    }
   } finally {
-    try {
-      await eventWriter?.close();
-    } catch (error) {
-      logger.warn(
-        { runId, error: (error as Error).message },
-        "benchmark events could not be closed",
-      );
-    }
+    await closeBenchmarkEvents(runId, eventWriter);
     clearBenchmarkRunProgress(runId);
   }
-}
-
-function syntheticServerMetrics(
-  scenario: BenchmarkSyntheticScenario,
-  wave: PlannedRequest[],
-  input: { instance: Instance; baseUrl: string; fetchImpl: typeof fetch },
-  signal: AbortSignal,
-): BenchmarkServerMetricsSource | null {
-  const soloRequests = scenario.mode === "sequential" || wave.length <= 1;
-  return soloRequests
-    ? benchmarkServerMetricsSource(
-        engineDescriptor(input.instance.kind).benchmarkServerMetrics,
-        { baseUrl: input.baseUrl, fetchImpl: input.fetchImpl, signal },
-      )
-    : null;
 }
 
 export function startBenchmarkRun(
@@ -442,25 +356,20 @@ export function startBenchmarkRun(
       `instance ${scenario.target.instanceName} not found`,
     );
   }
-  const latestRun = latestProcessRun(instance.name);
-  const runtime = runtimeEndpointInstance(instance, latestRun);
-  const baseUrl = instanceBaseUrl(runtime);
-  if (!baseUrl) {
+  const endpoint = benchmarkEndpoint(instance);
+  if (!endpoint.baseUrl) {
     throw new Error(
       `instance ${instance.name} has no HTTP endpoint (UNIX sockets are not supported)`,
     );
   }
   const run = createBenchmarkRun({ id: newId(), scenario });
   const controller = new AbortController();
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const shared = {
+  const shared: BenchmarkRunContext = {
+    ...endpoint,
     runId: run.id,
     instance,
-    runtimeArgs: runtime.args,
-    launchSnapshot: activeLaunchSnapshot(instance.name, latestRun),
-    baseUrl,
     signal: controller.signal,
-    fetchImpl,
+    fetchImpl: options.fetchImpl ?? fetch,
   };
   const completion =
     execution.kind === "replay"
@@ -474,12 +383,6 @@ export function startBenchmarkRun(
           ...shared,
           scenario: execution.scenario,
           wave: execution.wave,
-          serverMetrics: syntheticServerMetrics(
-            execution.scenario,
-            execution.wave,
-            { instance, baseUrl, fetchImpl },
-            controller.signal,
-          ),
         });
   registerActiveJob({
     domain: BENCHMARK_JOB_DOMAIN,

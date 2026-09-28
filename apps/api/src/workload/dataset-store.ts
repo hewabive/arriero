@@ -22,7 +22,7 @@ import { join, resolve } from "node:path";
 import { config } from "../config.js";
 import { newId } from "../utils/id.js";
 import { readValidatedJsonFile } from "../utils/json-file.js";
-import { maxKnown } from "./profile.js";
+import { maxKnown } from "../utils/statistics.js";
 
 const datasetsRoot = resolve(config.dataDir, "workload-datasets");
 const MANIFEST_FILE = "manifest.json";

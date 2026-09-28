@@ -24,6 +24,7 @@ import {
 import { notifyError } from "../utils/notify";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
+import { workloadDatasetsQuery } from "./workload-dataset-queries";
 import { formatWorkloadRange } from "./workload-scope";
 
 function defaultName(window: WorkloadTimeRange): string {
@@ -83,7 +84,9 @@ export function FreezeDatasetModal(props: {
       return;
     }
     reportedJobRef.current = finishedJobId;
-    void queryClient.invalidateQueries({ queryKey: ["workload-datasets"] });
+    void queryClient.invalidateQueries({
+      queryKey: workloadDatasetsQuery.queryKey,
+    });
     setJob(null);
     onFrozen(finishedDatasetId);
   }, [finishedJobId, finishedDatasetId, onFrozen, queryClient]);

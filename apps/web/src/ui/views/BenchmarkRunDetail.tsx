@@ -1,4 +1,5 @@
 import {
+  benchmarkClientCount,
   isBenchmarkClassSupported,
   type BenchmarkRun,
   type BenchmarkTargetSnapshot,
@@ -156,10 +157,7 @@ function scenarioLine(scenario: BenchmarkRun["scenario"]): string {
   if (scenario.mode === "replay") {
     return ` · replay · ${replayScenarioLine(scenario)}`;
   }
-  const clients = scenario.composition.reduce(
-    (sum, entry) => sum + entry.count,
-    0,
-  );
+  const clients = benchmarkClientCount(scenario.composition);
   return [
     ` · ${scenario.mode}`,
     scenario.mode === "sustained" ? ` · ${countLabel(clients, "client")}` : "",

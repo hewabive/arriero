@@ -9,23 +9,23 @@ import type {
   WorkloadDatasetSegment,
 } from "@arriero/core";
 
-import { instanceBaseUrl } from "../instances/endpoint.js";
 import { getInstance } from "../instances/repository.js";
 import { logger } from "../logger.js";
-import { latestProcessRun } from "../process/runs-repository.js";
-import { runtimeEndpointInstance } from "../process/runtime-endpoint.js";
+import { runtimeInstanceBaseUrl } from "../process/runtime-endpoint.js";
 import {
-  prepareRecordedRequestForInstance,
   recordedRequestOperation,
+  recordedRequestPreparer,
   type PreparedRecordedRequest,
 } from "../proxy/recorded-request.js";
 import { countInstancePromptTokens } from "../proxy/token-count.js";
 import { canonicalize } from "../utils/canonical-json.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 import {
   rebuildWorkloadBody,
   workloadBlobHash,
   workloadContentBlobHashes,
   workloadDatasetId,
+  workloadSegmentRecords,
 } from "../workload/dataset-codec.js";
 import {
   readWorkloadDatasetBlobJson,
@@ -43,6 +43,7 @@ export type DatasetBlobs = Map<string, string>;
 const REPLAY_CHAT_PATH = "/v1/chat/completions";
 const COUNT_TIMEOUT_MS = 30 * 1000;
 const PRIMING_HIT_SHARE = 0.5;
+const BLOB_READ_CONCURRENCY = 16;
 const PER_RUN_BODY_FIELDS = [
   "model",
   "stream",
@@ -53,15 +54,18 @@ const PER_RUN_BODY_FIELDS = [
   "seed",
 ];
 
+function readReplayManifest(datasetId: string): WorkloadDatasetManifest {
+  const manifest = readWorkloadDatasetManifest(datasetId);
+  if (!manifest) {
+    throw new BenchmarkNotFoundError(`workload dataset ${datasetId} not found`);
+  }
+  return manifest;
+}
+
 export function loadReplayDataset(
   scenario: BenchmarkReplayScenario,
 ): WorkloadDatasetManifest {
-  const manifest = readWorkloadDatasetManifest(scenario.datasetId);
-  if (!manifest) {
-    throw new BenchmarkNotFoundError(
-      `workload dataset ${scenario.datasetId} not found`,
-    );
-  }
+  const manifest = readReplayManifest(scenario.datasetId);
   if (
     manifest.id !== scenario.datasetId ||
     workloadDatasetId(manifest.content) !== scenario.datasetId
@@ -82,15 +86,19 @@ export function loadReplayDataset(
 export async function loadDatasetBlobs(
   manifest: WorkloadDatasetManifest,
 ): Promise<DatasetBlobs> {
-  const blobs: DatasetBlobs = new Map();
-  for (const hash of workloadContentBlobHashes(manifest.content)) {
-    const json = await readWorkloadDatasetBlobJson(manifest.id, hash);
-    if (workloadBlobHash(json) !== hash) {
-      throw new Error(`dataset blob ${hash} does not match its hash`);
-    }
-    blobs.set(hash, json);
-  }
-  return blobs;
+  const hashes = workloadContentBlobHashes(manifest.content);
+  const contents = await mapWithConcurrency(
+    hashes,
+    BLOB_READ_CONCURRENCY,
+    async (hash) => {
+      const json = await readWorkloadDatasetBlobJson(manifest.id, hash);
+      if (workloadBlobHash(json) !== hash) {
+        throw new Error(`dataset blob ${hash} does not match its hash`);
+      }
+      return [hash, json] as const;
+    },
+  );
+  return new Map(contents);
 }
 
 function recordedBody(
@@ -106,47 +114,43 @@ function recordedBody(
   });
 }
 
-export function prepareReplayRecord(
-  instance: Instance,
+export type ReplayRecordPreparer = (
   blobs: DatasetBlobs,
   record: WorkloadDatasetRecord,
-): PreparedRecordedRequest {
-  const prepared = prepareRecordedRequestForInstance(instance, {
-    protocol: record.protocol,
-    endpoint: record.endpoint,
-    routePath: record.routePath,
-    body: recordedBody(blobs, record),
-  });
-  if (!prepared.ok) {
-    throw new Error(
-      `record ${record.traceId} cannot be prepared for ${instance.name}: ${prepared.error}`,
-    );
-  }
-  if (prepared.request.path !== REPLAY_CHAT_PATH) {
-    throw new Error(
-      `record ${record.traceId} prepares to ${prepared.request.path}, and replay measures ${REPLAY_CHAT_PATH} streams`,
-    );
-  }
-  return prepared.request;
-}
+) => PreparedRecordedRequest;
 
-function segmentRecords(
-  segment: WorkloadDatasetSegment,
-): WorkloadDatasetRecord[] {
-  return segment.priming
-    ? [segment.priming, ...segment.records]
-    : segment.records;
+export function replayRecordPreparer(instance: Instance): ReplayRecordPreparer {
+  const prepare = recordedRequestPreparer(instance);
+  return (blobs, record) => {
+    const prepared = prepare({
+      protocol: record.protocol,
+      endpoint: record.endpoint,
+      routePath: record.routePath,
+      body: recordedBody(blobs, record),
+    });
+    if (!prepared.ok) {
+      throw new Error(
+        `record ${record.traceId} cannot be prepared for ${instance.name}: ${prepared.error}`,
+      );
+    }
+    if (prepared.request.path !== REPLAY_CHAT_PATH) {
+      throw new Error(
+        `record ${record.traceId} prepares to ${prepared.request.path}, and replay measures ${REPLAY_CHAT_PATH} streams`,
+      );
+    }
+    return prepared.request;
+  };
 }
 
 export function preparedBodyHash(
-  instance: Instance,
+  prepare: ReplayRecordPreparer,
   blobs: DatasetBlobs,
   segments: readonly WorkloadDatasetSegment[],
 ): string {
   const hash = createHash("sha256");
   for (const segment of segments) {
-    for (const record of segmentRecords(segment)) {
-      const prepared = prepareReplayRecord(instance, blobs, record);
+    for (const record of workloadSegmentRecords(segment)) {
+      const prepared = prepare(blobs, record);
       const body = { ...prepared.body };
       for (const field of PER_RUN_BODY_FIELDS) {
         delete body[field];
@@ -263,21 +267,14 @@ export async function checkReplayDatasetFit(input: {
   fetchImpl?: typeof fetch | undefined;
   signal?: AbortSignal | undefined;
 }): Promise<BenchmarkContextFit> {
-  const manifest = readWorkloadDatasetManifest(input.datasetId);
-  if (!manifest) {
-    throw new BenchmarkNotFoundError(
-      `workload dataset ${input.datasetId} not found`,
-    );
-  }
+  const manifest = readReplayManifest(input.datasetId);
   const instance = getInstance(input.instanceName);
   if (!instance) {
     throw new BenchmarkNotFoundError(
       `instance ${input.instanceName} not found`,
     );
   }
-  const baseUrl = instanceBaseUrl(
-    runtimeEndpointInstance(instance, latestProcessRun(instance.name)),
-  );
+  const baseUrl = runtimeInstanceBaseUrl(instance);
   if (!baseUrl) {
     throw new Error(`instance ${instance.name} has no HTTP endpoint`);
   }

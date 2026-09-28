@@ -7,6 +7,10 @@ import {
 } from "@arriero/core";
 
 import { asObject, numberOrNull } from "../proxy/json.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
+import { workloadSegmentRecords } from "../workload/dataset-codec.js";
+
+const COUNT_CONCURRENCY = 4;
 
 export async function probeInstanceContextTokens(input: {
   instance: Instance;
@@ -73,21 +77,23 @@ export async function checkDatasetContextFit(input: {
   if (input.contextTokens === null) {
     warnings.push("the instance does not report its context size");
   }
+  const candidates = input.manifest.content.segments.flatMap((segment) => {
+    const record = largestRecord(workloadSegmentRecords(segment));
+    return record ? [{ sessionId: segment.sessionId, record }] : [];
+  });
+  const counts = await mapWithConcurrency(
+    candidates,
+    COUNT_CONCURRENCY,
+    ({ record }) => input.countTokens(record),
+  );
   let uncounted = 0;
-  for (const segment of input.manifest.content.segments) {
-    const candidates = segment.priming
-      ? [segment.priming, ...segment.records]
-      : segment.records;
-    const record = largestRecord(candidates);
-    if (!record) {
-      continue;
-    }
-    const promptTokens = await input.countTokens(record);
+  for (const [index, { sessionId, record }] of candidates.entries()) {
+    const promptTokens = counts[index] ?? null;
     if (promptTokens === null) {
       uncounted += 1;
     }
     segments.push({
-      sessionId: segment.sessionId,
+      sessionId,
       traceId: record.traceId,
       promptTokens,
       fits:

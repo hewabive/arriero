@@ -4,7 +4,8 @@ import type {
   WorkloadTimeRange,
 } from "@arriero/core";
 
-import { latestEndAt, maxKnown } from "./profile.js";
+import { maxKnown } from "../utils/statistics.js";
+import { latestEndAt } from "./profile.js";
 import {
   isReplayableWorkloadRecord,
   isServedWorkloadOutcome,

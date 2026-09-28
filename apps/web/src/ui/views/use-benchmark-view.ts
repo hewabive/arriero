@@ -52,7 +52,7 @@ export function useBenchmarkView() {
     queryFn: () => getBenchmarkRunResult(selectedRun?.id ?? ""),
     enabled: Boolean(selectedRun && selectedRun.status !== "running"),
     retry: false,
-    staleTime: 60_000,
+    staleTime: Infinity,
   });
 
   const invalidateRuns = () =>

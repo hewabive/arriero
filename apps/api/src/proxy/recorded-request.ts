@@ -11,6 +11,7 @@ import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
 import {
   resolveApiProxyUpstreamContext,
   type ApiProxyUpstreamContext,
+  type ApiProxyUpstreamContextResolution,
 } from "./upstream-context.js";
 
 export type RecordedProxyRequest = {
@@ -71,6 +72,7 @@ export function prepareApiProxyRequestForTarget(
   target: ApiProxyTargetRecord,
   operation: ApiProxyProtocolOperation,
   body: unknown,
+  resolveContext: typeof resolveApiProxyUpstreamContext = resolveApiProxyUpstreamContext,
 ): ApiProxyTargetRequestPreparation {
   const spec = apiProxyOperationSpec(operation);
   if (!spec) {
@@ -79,7 +81,7 @@ export function prepareApiProxyRequestForTarget(
       error: `operation ${operation.protocol} ${operation.endpoint} is not a proxy operation`,
     };
   }
-  const resolved = resolveApiProxyUpstreamContext({ target, operation });
+  const resolved = resolveContext({ target, operation });
   if (!resolved.ok) {
     return { ok: false, error: resolved.diagnostic.message };
   }
@@ -98,28 +100,42 @@ export function prepareApiProxyRequestForTarget(
   };
 }
 
-export function prepareRecordedRequestForInstance(
+export function recordedRequestPreparer(
   instance: Instance,
-  recorded: RecordedProxyRequest,
-): RecordedRequestPreparation {
-  const prepared = prepareApiProxyRequestForTarget(
-    instanceUpstreamTarget(instance),
-    recordedRequestOperation(recorded),
-    recorded.body,
-  );
-  if (!prepared.ok) {
-    return prepared;
-  }
-  const body = asObject(prepared.body);
-  if (!body) {
-    return { ok: false, error: "the prepared request body is not an object" };
-  }
-  return {
-    ok: true,
-    request: {
-      path: prepared.path,
-      body: { ...body },
-      omittedCacheReadIsZero: prepared.context.omittedCacheReadIsZero,
-    },
+): (recorded: RecordedProxyRequest) => RecordedRequestPreparation {
+  const target = instanceUpstreamTarget(instance);
+  const resolutions = new Map<string, ApiProxyUpstreamContextResolution>();
+  const resolveContext: typeof resolveApiProxyUpstreamContext = (input) => {
+    const { protocol, endpoint, routePath } = input.operation;
+    const key = JSON.stringify([protocol, endpoint, routePath]);
+    let resolution = resolutions.get(key);
+    if (!resolution) {
+      resolution = resolveApiProxyUpstreamContext(input);
+      resolutions.set(key, resolution);
+    }
+    return resolution;
+  };
+  return (recorded) => {
+    const prepared = prepareApiProxyRequestForTarget(
+      target,
+      recordedRequestOperation(recorded),
+      recorded.body,
+      resolveContext,
+    );
+    if (!prepared.ok) {
+      return prepared;
+    }
+    const body = asObject(prepared.body);
+    if (!body) {
+      return { ok: false, error: "the prepared request body is not an object" };
+    }
+    return {
+      ok: true,
+      request: {
+        path: prepared.path,
+        body: { ...body },
+        omittedCacheReadIsZero: prepared.context.omittedCacheReadIsZero,
+      },
+    };
   };
 }

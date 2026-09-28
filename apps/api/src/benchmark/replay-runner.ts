@@ -3,26 +3,15 @@ import {
   type BenchmarkReplayScenario,
   type BenchmarkReplaySnapshot,
   type BenchmarkRunPhase,
-  type BenchmarkRunSummary,
   type Instance,
   type WorkloadDatasetManifest,
   type WorkloadDatasetRecord,
   type WorkloadDatasetSegment,
 } from "@arriero/core";
 
-import { instanceBaseUrl } from "../instances/endpoint.js";
 import { getInstance } from "../instances/repository.js";
-import { logger } from "../logger.js";
-import {
-  hasLaunchSnapshotDrift,
-  type LaunchSnapshot,
-} from "../process/launch-snapshot.js";
+import { hasLaunchSnapshotDrift } from "../process/launch-snapshot.js";
 import { restartManagedInstance } from "../process/managed-lifecycle.js";
-import { latestProcessRun } from "../process/runs-repository.js";
-import {
-  activeLaunchSnapshot,
-  runtimeEndpointInstance,
-} from "../process/runtime-endpoint.js";
 import type { PreparedRecordedRequest } from "../proxy/recorded-request.js";
 import {
   apiProxyReservationScope,
@@ -39,77 +28,69 @@ import {
   runMeasuredRequest,
   type MeasuredStreamOutcome,
 } from "./measure-client.js";
-import {
-  analyzeReplayRequests,
-  replayAcceptanceRate,
-  replayRequestId,
-} from "./replay-analysis.js";
+import { analyzeReplayRequests, replayRequestId } from "./replay-analysis.js";
 import {
   contextOverflowMessage,
   datasetContextFit,
   loadDatasetBlobs,
   preparedBodyHash,
-  prepareReplayRecord,
   primedSegmentIndexes,
+  replayRecordPreparer,
   type DatasetBlobs,
+  type ReplayRecordPreparer,
 } from "./replay-dataset.js";
 import {
   realReplayClock,
+  replayStartOffsets,
   replayThinkTimeMs,
   runReplaySchedule,
-  type ReplayArrivalPlan,
   type ReplayClock,
+  type ReplaySegmentPlan,
 } from "./replay-schedule.js";
 import {
   createBenchmarkEventWriter,
   patchBenchmarkRun,
   writeBenchmarkRunResult,
+  type BenchmarkEventWriter,
 } from "./repository.js";
 import {
+  benchmarkEndpoint,
   benchmarkStreamEvents,
   benchmarkTargetSnapshot,
   clearBenchmarkRunProgress,
+  closeBenchmarkEvents,
+  failBenchmarkRun,
   fetchServerProps,
+  LAUNCH_DRIFT_WARNING,
   nowIso,
   persistRunRecord,
   resolveEndpointModel,
   setBenchmarkRunProgress,
+  streamingRunFields,
+  WARMUP_MAX_TOKENS,
+  type BenchmarkRunContext,
+  type BenchmarkTarget,
 } from "./run-support.js";
-import type { MeasuredRequest } from "./segmenter.js";
+import { weightedAcceptance, type MeasuredRequest } from "./segmenter.js";
 
 export type ReplayRunnerOptions = {
-  restartInstance: (instance: Instance) => Promise<void>;
-  replayClock: ReplayClock;
-  drainTimeoutMs: number;
-  readyTimeoutMs: number;
+  restartInstance?: ((instance: Instance) => Promise<void>) | undefined;
+  replayClock?: ReplayClock | undefined;
+  drainTimeoutMs?: number | undefined;
+  readyTimeoutMs?: number | undefined;
 };
 
-type ReplayExecutionContext = {
-  runId: string;
+type ReplayExecutionContext = BenchmarkRunContext & {
   scenario: BenchmarkReplayScenario;
   manifest: WorkloadDatasetManifest;
-  instance: Instance;
-  runtimeArgs: Instance["args"];
-  launchSnapshot: LaunchSnapshot | null;
-  baseUrl: string;
-  signal: AbortSignal;
-  fetchImpl: typeof fetch;
-  options: Partial<ReplayRunnerOptions>;
-};
-
-type ReplayTarget = {
-  instance: Instance;
-  runtimeArgs: Instance["args"];
-  launch: LaunchSnapshot | null;
-  baseUrl: string;
-  model: string | null;
-  buildInfo: string | null;
+  options: ReplayRunnerOptions;
 };
 
 type ReplayRun = {
   context: ReplayExecutionContext;
   segments: readonly WorkloadDatasetSegment[];
-  target: ReplayTarget;
+  target: BenchmarkTarget;
+  prepare: ReplayRecordPreparer;
   blobs: DatasetBlobs;
   primedSegments: number[];
   replay: BenchmarkReplaySnapshot | null;
@@ -123,12 +104,10 @@ type ReplayRun = {
   flushUnverified: boolean;
   load: BenchmarkLoadCollector;
   reservation: ApiProxyReservationHandle | null;
-  eventWriter: Awaited<ReturnType<typeof createBenchmarkEventWriter>> | null;
+  eventWriter: BenchmarkEventWriter | null;
 };
 
 const DEFAULT_DRAIN_TIMEOUT_MS = 5 * 60 * 1000;
-const DEFAULT_READY_TIMEOUT_MS = 10 * 60 * 1000;
-const WARMUP_MAX_TOKENS = 32;
 const PRIMING_MAX_TOKENS = 1;
 const FLUSH_VERIFICATION_MIN_TOKENS = 64;
 const FLUSH_VERIFICATION_SHARE = 0.01;
@@ -137,46 +116,20 @@ function recordCount(segments: readonly WorkloadDatasetSegment[]): number {
   return segments.reduce((total, segment) => total + segment.records.length, 0);
 }
 
-function arrivalPlan(scenario: BenchmarkReplayScenario): {
-  arrival: ReplayArrivalPlan;
-  concurrencyCap: number | null;
-} {
-  const arrival = scenario.arrival;
-  switch (arrival.kind) {
-    case "recorded":
-      return { arrival: { kind: "recorded" }, concurrencyCap: null };
-    case "together":
-      return {
-        arrival: { kind: "together" },
-        concurrencyCap: arrival.concurrencyCap,
-      };
-    case "interval":
-      return {
-        arrival: { kind: "interval", intervalMs: arrival.intervalMs },
-        concurrencyCap: arrival.concurrencyCap,
-      };
-  }
-}
-
-function segmentStartMs(
-  scenario: BenchmarkReplayScenario,
-  segment: WorkloadDatasetSegment,
-  index: number,
-): number {
-  switch (scenario.arrival.kind) {
-    case "recorded":
-      return segment.records[0]?.offsetMs ?? 0;
-    case "together":
-      return 0;
-    case "interval":
-      return index * scenario.arrival.intervalMs;
-  }
+function segmentPlans(
+  segments: readonly WorkloadDatasetSegment[],
+): ReplaySegmentPlan[] {
+  return segments.map((segment) => ({
+    startOffsetMs: segment.records[0]?.offsetMs ?? 0,
+    thinkTimesMs: segment.records.map((record) => record.thinkTimeMs),
+  }));
 }
 
 function estimatedReplayMs(
   scenario: BenchmarkReplayScenario,
   segments: readonly WorkloadDatasetSegment[],
 ): number {
+  const offsets = replayStartOffsets(segmentPlans(segments), scenario.arrival);
   let longest = 0;
   segments.forEach((segment, index) => {
     const busy = segment.records.reduce(
@@ -188,10 +141,7 @@ function estimatedReplayMs(
           : 0),
       0,
     );
-    longest = Math.max(
-      longest,
-      segmentStartMs(scenario, segment, index) + busy,
-    );
+    longest = Math.max(longest, (offsets[index] ?? 0) + busy);
   });
   return longest;
 }
@@ -237,31 +187,18 @@ function replayRequestBody(input: {
   if (!completionLimit || "max_tokens" in body) {
     body.max_tokens = input.maxTokens;
   }
-  return {
-    ...body,
-    ...(input.model !== null ? { model: input.model } : {}),
-    stream: true,
-    stream_options: { include_usage: true },
-    ...(input.sampling?.temperature !== undefined
-      ? { temperature: input.sampling.temperature }
-      : {}),
-    ...(input.sampling?.seed !== undefined
-      ? { seed: input.sampling.seed }
-      : {}),
-  };
+  return { ...body, ...streamingRunFields(input.model, input.sampling) };
 }
 
 function warmupBody(model: string | null): Record<string, unknown> {
   return {
-    ...(model !== null ? { model } : {}),
+    ...streamingRunFields(model, undefined),
     messages: [
       {
         role: "user",
         content: `benchmark-nonce: ${newId()}\n\nName three colors.`,
       },
     ],
-    stream: true,
-    stream_options: { include_usage: true },
     max_tokens: WARMUP_MAX_TOKENS,
   };
 }
@@ -341,11 +278,7 @@ async function prepareReplay(run: ReplayRun): Promise<void> {
   run.replay = {
     datasetId: manifest.id,
     datasetName: manifest.meta.name,
-    preparedBodyHash: preparedBodyHash(
-      target.instance,
-      run.blobs,
-      run.segments,
-    ),
+    preparedBodyHash: preparedBodyHash(run.prepare, run.blobs, run.segments),
     segmentCount: run.segments.length,
     recordCount: recordCount(run.segments),
     primedSegmentCount: run.primedSegments.length,
@@ -403,21 +336,21 @@ async function restartReplayTarget(run: ReplayRun): Promise<void> {
   const { options, fetchImpl, signal } = run.context;
   const target = run.target;
   target.instance = getInstance(target.instance.name) ?? target.instance;
+  run.prepare = replayRecordPreparer(target.instance);
   if (options.restartInstance) {
     await options.restartInstance(target.instance);
   } else {
     await restartManagedInstance(target.instance);
   }
-  const latestRun = latestProcessRun(target.instance.name);
-  const runtime = runtimeEndpointInstance(target.instance, latestRun);
-  target.baseUrl = instanceBaseUrl(runtime) || target.baseUrl;
-  target.runtimeArgs = runtime.args;
-  target.launch = activeLaunchSnapshot(target.instance.name, latestRun);
+  const endpoint = benchmarkEndpoint(target.instance);
+  target.baseUrl = endpoint.baseUrl || target.baseUrl;
+  target.runtimeArgs = endpoint.runtimeArgs;
+  target.launch = endpoint.launch;
   await waitForBenchmarkEndpointReady({
     baseUrl: target.baseUrl,
     fetchImpl,
     signal,
-    timeoutMs: options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
+    timeoutMs: options.readyTimeoutMs,
   });
 }
 
@@ -440,9 +373,7 @@ async function flushReplayCache(run: ReplayRun): Promise<void> {
     target.launch &&
     hasLaunchSnapshotDrift(target.instance, target.launch)
   ) {
-    run.warnings.push(
-      "instance config drifted from the running process; the snapshot records the launched configuration",
-    );
+    run.warnings.push(LAUNCH_DRIFT_WARNING);
   }
   updateReplaySnapshot(run, {
     flush: {
@@ -505,11 +436,7 @@ async function primeReplaySegments(run: ReplayRun): Promise<void> {
     if (!segment || !record) {
       continue;
     }
-    const prepared = prepareReplayRecord(
-      run.target.instance,
-      run.blobs,
-      record,
-    );
+    const prepared = run.prepare(run.blobs, record);
     const outcome = await runMeasuredRequest({
       url: `${run.target.baseUrl}${prepared.path}`,
       body: replayRequestBody({
@@ -544,16 +471,11 @@ async function measureReplay(run: ReplayRun): Promise<void> {
   run.eventWriter = writer;
   const epoch = performance.now();
   const now = () => performance.now() - epoch;
-  const plan = arrivalPlan(scenario);
   let ceilingCuts = 0;
   await runReplaySchedule({
-    segments: run.segments.map((segment) => ({
-      startOffsetMs: segment.records[0]?.offsetMs ?? 0,
-      thinkTimesMs: segment.records.map((record) => record.thinkTimeMs),
-    })),
-    arrival: plan.arrival,
+    segments: segmentPlans(run.segments),
+    arrival: scenario.arrival,
     thinkTime: scenario.thinkTime,
-    concurrencyCap: plan.concurrencyCap,
     idleSkipping: scenario.idleSkipping,
     clock: options.replayClock ?? realReplayClock,
     signal,
@@ -565,11 +487,7 @@ async function measureReplay(run: ReplayRun): Promise<void> {
           `replay request ${segmentIndex}:${recordIndex} is not in the dataset`,
         );
       }
-      const prepared = prepareReplayRecord(
-        run.target.instance,
-        run.blobs,
-        record,
-      );
+      const prepared = run.prepare(run.blobs, record);
       const maxTokens = outputLimit(scenario, record, prepared.body);
       const verifies = run.flushUnverified;
       run.flushUnverified = false;
@@ -645,7 +563,7 @@ function replayAnalysis(run: ReplayRun) {
     },
     summary: {
       ...analysis.summary,
-      acceptanceRate: replayAcceptanceRate(analysis.result.requests),
+      acceptanceRate: weightedAcceptance(analysis.result.requests),
       replay: replay.summary,
     },
   };
@@ -667,46 +585,6 @@ function finalizeReplay(run: ReplayRun): void {
   persistRunRecord(runId);
 }
 
-function failReplay(run: ReplayRun, error: unknown): void {
-  const { runId, signal } = run.context;
-  const message = (error as Error).message;
-  logger.warn({ runId, error: message }, "benchmark replay run failed");
-  let summary: BenchmarkRunSummary | null = null;
-  if (run.load.requests.length > 0) {
-    const analysis = replayAnalysis(run);
-    summary = analysis.summary;
-    try {
-      writeBenchmarkRunResult(runId, analysis.result);
-    } catch (artifactError) {
-      logger.warn(
-        { runId, error: (artifactError as Error).message },
-        "benchmark partial artifacts could not be saved",
-      );
-    }
-  }
-  patchBenchmarkRun(runId, {
-    ...(summary ? { summary } : {}),
-    status: signal.aborted ? "canceled" : "failed",
-    finishedAt: nowIso(),
-    warnings: run.warnings,
-    error: message,
-  });
-  if (summary) {
-    persistRunRecord(runId);
-  }
-}
-
-async function closeReplayEvents(run: ReplayRun): Promise<void> {
-  try {
-    await run.eventWriter?.close();
-  } catch (error) {
-    logger.warn(
-      { runId: run.context.runId, error: (error as Error).message },
-      "benchmark events could not be closed",
-    );
-  }
-}
-
 export async function executeReplayRun(
   context: ReplayExecutionContext,
 ): Promise<void> {
@@ -717,11 +595,12 @@ export async function executeReplayRun(
     target: {
       instance: context.instance,
       runtimeArgs: context.runtimeArgs,
-      launch: context.launchSnapshot,
+      launch: context.launch,
       baseUrl: context.baseUrl,
       model: null,
       buildInfo: null,
     },
+    prepare: replayRecordPreparer(context.instance),
     blobs: new Map(),
     primedSegments: primedSegmentIndexes(segments, context.scenario.priming),
     replay: null,
@@ -747,10 +626,18 @@ export async function executeReplayRun(
     await measureReplay(run);
     finalizeReplay(run);
   } catch (error) {
-    failReplay(run, error);
+    failBenchmarkRun({
+      runId: context.runId,
+      error,
+      canceled: context.signal.aborted,
+      warnings: run.warnings,
+      measuredCount: run.load.requests.length,
+      analyze: () => replayAnalysis(run),
+      save: (result) => writeBenchmarkRunResult(context.runId, result),
+    });
   } finally {
     run.reservation?.release();
-    await closeReplayEvents(run);
+    await closeBenchmarkEvents(context.runId, run.eventWriter);
     clearBenchmarkRunProgress(context.runId);
   }
 }

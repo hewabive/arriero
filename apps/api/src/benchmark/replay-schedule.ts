@@ -1,18 +1,12 @@
+import type {
+  BenchmarkReplayArrival,
+  BenchmarkReplayThinkTime,
+} from "@arriero/core";
+
 export type ReplayClock = {
   now: () => number;
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
 };
-
-export type ReplayArrivalPlan =
-  | { kind: "recorded" }
-  | { kind: "together" }
-  | { kind: "interval"; intervalMs: number };
-
-export type ReplayThinkTimePolicy =
-  | { kind: "recorded" }
-  | { kind: "scaled"; factor: number }
-  | { kind: "capped"; maxMs: number }
-  | { kind: "none" };
 
 export type ReplaySegmentPlan = {
   startOffsetMs: number;
@@ -46,7 +40,7 @@ export const realReplayClock: ReplayClock = {
 
 export function replayThinkTimeMs(
   recordedMs: number | null,
-  policy: ReplayThinkTimePolicy,
+  policy: BenchmarkReplayThinkTime,
 ): number {
   const recorded = Math.max(0, recordedMs ?? 0);
   switch (policy.kind) {
@@ -61,9 +55,9 @@ export function replayThinkTimeMs(
   }
 }
 
-function startOffsets(
-  segments: ReplaySegmentPlan[],
-  arrival: ReplayArrivalPlan,
+export function replayStartOffsets(
+  segments: readonly ReplaySegmentPlan[],
+  arrival: BenchmarkReplayArrival,
 ): number[] {
   switch (arrival.kind) {
     case "recorded":
@@ -83,20 +77,21 @@ type SegmentState = {
 
 export async function runReplaySchedule(input: {
   segments: ReplaySegmentPlan[];
-  arrival: ReplayArrivalPlan;
-  thinkTime: ReplayThinkTimePolicy;
-  concurrencyCap: number | null;
+  arrival: BenchmarkReplayArrival;
+  thinkTime: BenchmarkReplayThinkTime;
   idleSkipping: boolean;
   clock: ReplayClock;
   signal: AbortSignal;
   send: ReplaySend;
 }): Promise<void> {
+  const concurrencyCap =
+    input.arrival.kind === "recorded" ? null : input.arrival.concurrencyCap;
   const controller = new AbortController();
   const signal = AbortSignal.any([input.signal, controller.signal]);
   const origin = input.clock.now();
   let skippedMs = 0;
   const virtualNow = () => input.clock.now() - origin + skippedMs;
-  const offsets = startOffsets(input.segments, input.arrival);
+  const offsets = replayStartOffsets(input.segments, input.arrival);
   const states: SegmentState[] = input.segments.map((_, index) => ({
     next: 0,
     dueAt: offsets[index] ?? 0,
@@ -147,9 +142,9 @@ export async function runReplaySchedule(input: {
     const now = virtualNow();
     const running = states.filter((state) => state.running).length;
     const capacity =
-      input.concurrencyCap === null
+      concurrencyCap === null
         ? Number.POSITIVE_INFINITY
-        : input.concurrencyCap - running;
+        : concurrencyCap - running;
     const due = states
       .map((state, index) => ({ state, index }))
       .filter(
@@ -187,8 +182,8 @@ export async function runReplaySchedule(input: {
       continue;
     }
     const capped =
-      input.concurrencyCap !== null &&
-      states.filter((state) => state.running).length >= input.concurrencyCap;
+      concurrencyCap !== null &&
+      states.filter((state) => state.running).length >= concurrencyCap;
     const sleepMs =
       capped || !Number.isFinite(nextDue)
         ? null

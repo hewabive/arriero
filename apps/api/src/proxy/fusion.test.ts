@@ -8,6 +8,7 @@ import {
 } from "@arriero/core";
 
 import { config } from "../config.js";
+import { sseResponse } from "../test/sse-response.js";
 import { resetConfigFilesCache } from "./config-files.js";
 import { createApiEndpoint } from "./endpoints.js";
 import {
@@ -44,22 +45,6 @@ const chatOperation: ApiProxyProtocolOperation = {
   routePath: "/v1/chat/completions",
   transport: "http-json",
 };
-
-function sseResponse(frames: string[]): Response {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const frame of frames) {
-        controller.enqueue(encoder.encode(frame));
-      }
-      controller.close();
-    },
-  });
-  return new Response(stream, {
-    status: 200,
-    headers: { "content-type": "text/event-stream" },
-  });
-}
 
 function openAiSseFetch(frames: string[]): typeof fetch {
   return (async () => sseResponse(frames)) as unknown as typeof fetch;

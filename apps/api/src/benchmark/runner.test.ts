@@ -9,6 +9,7 @@ import {
   createProcessRun,
   deleteProcessRunsForInstance,
 } from "../process/runs-repository.js";
+import { sseResponse } from "../test/sse-response.js";
 import { createBenchmarkPrompt } from "./prompts.js";
 import {
   deleteBenchmarkRun,
@@ -61,21 +62,6 @@ function prepareFixtures(): void {
     prefillClass: "short",
     maxTokens: 256,
     messages: [{ role: "user", content: "count to ten" }],
-  });
-}
-
-function sseResponse(frames: string[]): Response {
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const frame of frames) {
-        controller.enqueue(new TextEncoder().encode(frame));
-      }
-      controller.close();
-    },
-  });
-  return new Response(stream, {
-    status: 200,
-    headers: { "content-type": "text/event-stream" },
   });
 }
 

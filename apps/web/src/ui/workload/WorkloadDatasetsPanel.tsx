@@ -17,12 +17,12 @@ import { Download, Trash2, Upload } from "lucide-react";
 import {
   deleteWorkloadDataset,
   importWorkloadDataset,
-  listWorkloadDatasets,
   workloadDatasetExportUrl,
 } from "../../api/client";
 import { formatBytes } from "../utils/models";
 import { notifyError } from "../utils/notify";
 import { formatLocalDateTime } from "../utils/time";
+import { workloadDatasetsQuery } from "./workload-dataset-queries";
 
 function windowsLabel(dataset: WorkloadDatasetSummary): string {
   const [first] = dataset.windows;
@@ -38,12 +38,9 @@ export function WorkloadDatasetsPanel(props: {
   onOpenDataset: (datasetId: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const datasetsQuery = useQuery({
-    queryKey: ["workload-datasets"],
-    queryFn: listWorkloadDatasets,
-  });
+  const datasetsQuery = useQuery(workloadDatasetsQuery);
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["workload-datasets"] });
+    queryClient.invalidateQueries({ queryKey: workloadDatasetsQuery.queryKey });
   const importMutation = useMutation({
     mutationFn: importWorkloadDataset,
     onSuccess: (response) => {

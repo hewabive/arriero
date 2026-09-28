@@ -15,6 +15,7 @@ import { createInstance } from "../instances/repository.js";
 import { getActiveJob } from "../jobs/registry.js";
 import { createPathCatalogEntry } from "../path-catalog/repository.js";
 import { apiProxyInstanceReservation } from "../proxy/run-reservation.js";
+import { sseResponse } from "../test/sse-response.js";
 import {
   decomposeWorkloadBody,
   workloadDatasetId,
@@ -171,14 +172,11 @@ async function freezeDataset(
   return id;
 }
 
-function sseResponse(frames: unknown[]): Response {
-  const text = frames
-    .map((frame) => `data: ${JSON.stringify(frame)}\n\n`)
-    .join("");
-  return new Response(`${text}data: [DONE]\n\n`, {
-    status: 200,
-    headers: { "content-type": "text/event-stream" },
-  });
+function completedStream(frames: unknown[]): Response {
+  return sseResponse([
+    ...frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`),
+    "data: [DONE]\n\n",
+  ]);
 }
 
 function completion(usage: {
@@ -186,7 +184,7 @@ function completion(usage: {
   cachedTokens: number;
   completionTokens?: number;
 }): Response {
-  return sseResponse([
+  return completedStream([
     { choices: [{ delta: { reasoning_content: "thinking" } }] },
     {
       choices: [

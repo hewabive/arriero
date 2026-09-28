@@ -166,9 +166,10 @@ The scenario carries `datasetId` (the dataset's content hash), the pacing and ou
 
 1. `prepare` — load the dataset and verify its content hash and every blob; prepare every body,
    priming records included, through the proxy entry point
-   `apps/api/src/proxy/recorded-request.ts:prepareRecordedRequestForInstance`, which applies the
-   Anthropic bridge, reasoning mapping and model override exactly as live forwarding does. Every
-   body must prepare to `/v1/chat/completions`. The prepared bodies are hashed into
+   `apps/api/src/proxy/recorded-request.ts:recordedRequestPreparer`, which applies the Anthropic
+   bridge, reasoning mapping and model override exactly as live forwarding does, resolving the
+   upstream context once per operation for the run. Every body must prepare to
+   `/v1/chat/completions`. The prepared bodies are hashed into
    `snapshot.replay.preparedBodyHash` — canonical JSON in dataset order, without the per-run fields
    `model`, `stream`, `stream_options`, `max_tokens`, `max_completion_tokens`, `temperature` and
    `seed`. Then the context check: the largest request of each segment, priming included, counted

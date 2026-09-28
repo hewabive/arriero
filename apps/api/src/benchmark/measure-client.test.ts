@@ -1,22 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { sseResponse } from "../test/sse-response.js";
 import { runMeasuredRequest } from "./measure-client.js";
-
-function sseResponse(frames: string[]): Response {
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const frame of frames) {
-        controller.enqueue(new TextEncoder().encode(frame));
-      }
-      controller.close();
-    },
-  });
-  return new Response(stream, {
-    status: 200,
-    headers: { "content-type": "text/event-stream" },
-  });
-}
 
 function tickingClock(step: number) {
   let tick = 0;

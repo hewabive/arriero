@@ -1,7 +1,11 @@
-import type {
-  BenchmarkContextFit,
-  BenchmarkReplayScenarioInput,
-  WorkloadDatasetDetail,
+import {
+  BENCHMARK_REPLAY_DEFAULT_OUTPUT_CEILING,
+  type BenchmarkContextFit,
+  type BenchmarkReplayArrival,
+  type BenchmarkReplayPriming,
+  type BenchmarkReplayScenarioInput,
+  type BenchmarkReplayThinkTime,
+  type WorkloadDatasetDetail,
 } from "@arriero/core";
 import {
   Alert,
@@ -19,8 +23,6 @@ import { CircleAlert, Ruler } from "lucide-react";
 import {
   getBenchmarkContextFit,
   getBenchmarkReservationPreview,
-  getWorkloadDataset,
-  listWorkloadDatasets,
 } from "../../api/client";
 import {
   TouchSelect,
@@ -28,21 +30,21 @@ import {
 } from "../components/TouchCombobox";
 import { notifyError } from "../utils/notify";
 import { countLabel } from "../utils/plural";
+import {
+  workloadDatasetQuery,
+  workloadDatasetsQuery,
+} from "../workload/workload-dataset-queries";
 import { formatDurationMs } from "./benchmark-format";
-
-type ArrivalKind = "recorded" | "together" | "interval";
-type ThinkTimeKind = "recorded" | "scaled" | "capped" | "none";
-type PrimingPolicy = "recorded" | "all" | "none";
 
 export type ReplayFormState = {
   datasetId: string | null;
-  arrival: ArrivalKind;
+  arrival: BenchmarkReplayArrival["kind"];
   intervalSeconds: number;
   concurrencyCap: number | string;
-  thinkTime: ThinkTimeKind;
+  thinkTime: BenchmarkReplayThinkTime["kind"];
   thinkFactor: number;
   thinkCapSeconds: number;
-  priming: PrimingPolicy;
+  priming: BenchmarkReplayPriming;
   idleSkipping: boolean;
   outputCeiling: number;
   imitateClientAborts: boolean;
@@ -58,7 +60,7 @@ export const defaultReplayForm: ReplayFormState = {
   thinkCapSeconds: 10,
   priming: "recorded",
   idleSkipping: true,
-  outputCeiling: 8192,
+  outputCeiling: BENCHMARK_REPLAY_DEFAULT_OUTPUT_CEILING,
   imitateClientAborts: false,
 };
 
@@ -218,8 +220,7 @@ export function BenchmarkReplayFields(props: {
 }) {
   const { state, onChange, instanceName, detail } = props;
   const datasetsQuery = useQuery({
-    queryKey: ["workload-datasets"],
-    queryFn: listWorkloadDatasets,
+    ...workloadDatasetsQuery,
     staleTime: 30_000,
   });
   const previewQuery = useQuery({
@@ -281,16 +282,7 @@ export function BenchmarkReplayFields(props: {
           </Text>
           <SegmentedControl
             value={state.arrival}
-            onChange={(value) =>
-              onChange({
-                arrival:
-                  value === "together"
-                    ? "together"
-                    : value === "interval"
-                      ? "interval"
-                      : "recorded",
-              })
-            }
+            onChange={(arrival) => onChange({ arrival })}
             data={[
               { value: "recorded", label: "Recorded" },
               { value: "together", label: "Together" },
@@ -344,18 +336,7 @@ export function BenchmarkReplayFields(props: {
           </Text>
           <SegmentedControl
             value={state.thinkTime}
-            onChange={(value) =>
-              onChange({
-                thinkTime:
-                  value === "scaled"
-                    ? "scaled"
-                    : value === "capped"
-                      ? "capped"
-                      : value === "none"
-                        ? "none"
-                        : "recorded",
-              })
-            }
+            onChange={(thinkTime) => onChange({ thinkTime })}
             data={[
               { value: "recorded", label: "Recorded" },
               { value: "scaled", label: "Scaled" },
@@ -397,16 +378,7 @@ export function BenchmarkReplayFields(props: {
           </Text>
           <SegmentedControl
             value={state.priming}
-            onChange={(value) =>
-              onChange({
-                priming:
-                  value === "all"
-                    ? "all"
-                    : value === "none"
-                      ? "none"
-                      : "recorded",
-              })
-            }
+            onChange={(priming) => onChange({ priming })}
             data={[
               { value: "recorded", label: "Recorded" },
               { value: "all", label: "All" },
@@ -497,8 +469,7 @@ export function BenchmarkReplayFields(props: {
 
 export function useReplayDatasetDetail(datasetId: string | null) {
   const query = useQuery({
-    queryKey: ["workload-dataset", datasetId],
-    queryFn: () => getWorkloadDataset(datasetId ?? ""),
+    ...workloadDatasetQuery(datasetId ?? ""),
     enabled: datasetId !== null,
     staleTime: 60_000,
   });

@@ -60,7 +60,6 @@ function replay(input: {
   segments: ReplaySegmentPlan[];
   durationMs: (segment: number, record: number) => number;
   idleSkipping?: boolean;
-  concurrencyCap?: number | null;
   arrival?: Parameters<typeof runReplaySchedule>[0]["arrival"];
   thinkTime?: Parameters<typeof runReplaySchedule>[0]["thinkTime"];
   failAt?: { segment: number; record: number };
@@ -70,7 +69,6 @@ function replay(input: {
     segments: input.segments,
     arrival: input.arrival ?? { kind: "recorded" },
     thinkTime: input.thinkTime ?? { kind: "recorded" },
-    concurrencyCap: input.concurrencyCap ?? null,
     idleSkipping: input.idleSkipping ?? false,
     clock: input.clock,
     signal: new AbortController().signal,
@@ -160,8 +158,7 @@ test("composed arrivals and the concurrency cap", async () => {
   const together = new VirtualClock();
   const capped = replay({
     clock: together,
-    arrival: { kind: "together" },
-    concurrencyCap: 2,
+    arrival: { kind: "together", concurrencyCap: 2 },
     segments: [
       { startOffsetMs: 900, thinkTimesMs: [null] },
       { startOffsetMs: 50, thinkTimesMs: [null] },
@@ -177,7 +174,7 @@ test("composed arrivals and the concurrency cap", async () => {
   const staggered = new VirtualClock();
   const interval = replay({
     clock: staggered,
-    arrival: { kind: "interval", intervalMs: 250 },
+    arrival: { kind: "interval", intervalMs: 250, concurrencyCap: null },
     segments: [
       { startOffsetMs: 0, thinkTimesMs: [null] },
       { startOffsetMs: 0, thinkTimesMs: [null] },

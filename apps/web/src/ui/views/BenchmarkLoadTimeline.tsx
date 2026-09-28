@@ -1,4 +1,8 @@
-import type { BenchmarkLoadBucket, BenchmarkRunResult } from "@arriero/core";
+import {
+  benchmarkRequestEndMs,
+  type BenchmarkLoadBucket,
+  type BenchmarkRunResult,
+} from "@arriero/core";
 import {
   Box,
   Group,
@@ -32,28 +36,75 @@ function outputRate(bucket: BenchmarkLoadBucket): number | null {
     : null;
 }
 
-function linePath(
-  values: (number | null)[],
-  maximum: number,
-  top: number,
-  buckets: readonly BenchmarkLoadBucket[],
-): string {
+function interval(entry: BenchmarkLoadBucket): string {
+  return `${(entry.startMs / 1000).toFixed(1)}–${(entry.endMs / 1000).toFixed(1)} s`;
+}
+
+function loadChart(buckets: readonly BenchmarkLoadBucket[]) {
   const duration = Math.max(1, buckets.at(-1)?.endMs ?? 1);
-  let path = "";
-  let connected = false;
-  for (const [index, value] of values.entries()) {
-    const bucket = buckets[index];
-    if (value === null || !bucket) {
-      connected = false;
-      continue;
+  const x = (ms: number) => LEFT + (ms * PLOT_WIDTH) / duration;
+  const linePath = (
+    values: (number | null)[],
+    maximum: number,
+    top: number,
+  ) => {
+    let path = "";
+    let connected = false;
+    for (const [index, value] of values.entries()) {
+      const bucket = buckets[index];
+      if (value === null || !bucket) {
+        connected = false;
+        continue;
+      }
+      const y = top + LANE_HEIGHT * (1 - value / maximum);
+      path += `${connected ? "L" : "M"}${x(bucket.startMs)},${y} L${x(bucket.endMs)},${y} `;
+      connected = true;
     }
-    const x1 = LEFT + (bucket.startMs * PLOT_WIDTH) / duration;
-    const x2 = LEFT + (bucket.endMs * PLOT_WIDTH) / duration;
-    const y = top + LANE_HEIGHT * (1 - value / maximum);
-    path += `${connected ? "L" : "M"}${x1},${y} L${x2},${y} `;
-    connected = true;
-  }
-  return path;
+    return path;
+  };
+  const rates = buckets.map(outputRate);
+  const rateMax = Math.max(1, ...rates.map((value) => value ?? 0));
+  const clientMax = Math.max(
+    1,
+    ...buckets.map((value) => value.averageActiveRequests),
+  );
+  return {
+    x,
+    lanes: [
+      { top: RATE_TOP, max: rateMax, label: "Successful output · tok/s" },
+      { top: CLIENT_TOP, max: clientMax, label: "Average concurrent requests" },
+    ],
+    series: [
+      {
+        color: "teal",
+        label: "Output tok/s",
+        path: linePath(rates, rateMax, RATE_TOP),
+      },
+      {
+        color: "blue",
+        label: "In flight",
+        path: linePath(
+          buckets.map((entry) => entry.averageActiveRequests),
+          clientMax,
+          CLIENT_TOP,
+        ),
+      },
+      {
+        color: "orange",
+        label: "Awaiting first output, including queueing",
+        path: linePath(
+          buckets.map((entry) => entry.averageWaitingRequests),
+          clientMax,
+          CLIENT_TOP,
+        ),
+      },
+    ],
+    targets: buckets.map((entry) => ({
+      x: x(entry.startMs),
+      width: Math.max(1, x(entry.endMs) - x(entry.startMs)),
+      title: `${interval(entry)} · ${formatRate(outputRate(entry))} tok/s · ${entry.completedRequests} completed · ${entry.failedRequests} failed`,
+    })),
+  };
 }
 
 export function BenchmarkLoadTimeline({
@@ -61,7 +112,8 @@ export function BenchmarkLoadTimeline({
 }: {
   result: BenchmarkRunResult;
 }) {
-  const buckets = result.loadTimeline ?? [];
+  const buckets = useMemo(() => result.loadTimeline ?? [], [result]);
+  const chart = useMemo(() => loadChart(buckets), [buckets]);
   const [selected, setSelected] = useState(0);
   const [page, setPage] = useState(1);
   const activeIndex = Math.min(selected, Math.max(0, buckets.length - 1));
@@ -72,8 +124,7 @@ export function BenchmarkLoadTimeline({
         ? result.requests.filter(
             (request) =>
               request.submitMs <= bucket.endMs &&
-              (request.endedMs ?? request.doneMs ?? request.submitMs) >=
-                bucket.startMs,
+              benchmarkRequestEndMs(request) >= bucket.startMs,
           )
         : [],
     [bucket, result],
@@ -87,25 +138,15 @@ export function BenchmarkLoadTimeline({
         activePage * PAGE_SIZE,
       ),
       segments: [],
-      loadTimeline: buckets,
     }),
-    [requests, activePage, buckets],
+    [requests, activePage],
   );
   if (!bucket) return null;
-  const rates = buckets.map(outputRate);
-  const rateMax = Math.max(1, ...rates.map((value) => value ?? 0));
-  const clientMax = Math.max(
-    1,
-    ...buckets.map((value) => value.averageActiveRequests),
-  );
-  const duration = Math.max(1, buckets.at(-1)?.endMs ?? 1);
-  const x = (ms: number) => LEFT + (ms * PLOT_WIDTH) / duration;
+  const { x } = chart;
   const select = (index: number) => {
     setSelected(index);
     setPage(1);
   };
-  const interval = (entry: BenchmarkLoadBucket) =>
-    `${(entry.startMs / 1000).toFixed(1)}–${(entry.endMs / 1000).toFixed(1)} s`;
 
   return (
     <Stack gap="sm">
@@ -127,18 +168,7 @@ export function BenchmarkLoadTimeline({
                 fill="var(--mantine-color-blue-5)"
                 opacity={0.16}
               />
-              {[
-                {
-                  top: RATE_TOP,
-                  max: rateMax,
-                  label: "Successful output · tok/s",
-                },
-                {
-                  top: CLIENT_TOP,
-                  max: clientMax,
-                  label: "Average concurrent requests",
-                },
-              ].map((lane) => (
+              {chart.lanes.map((lane) => (
                 <g key={lane.top}>
                   <text
                     x={LEFT}
@@ -171,46 +201,27 @@ export function BenchmarkLoadTimeline({
                   ))}
                 </g>
               ))}
-              <path
-                d={linePath(rates, rateMax, RATE_TOP, buckets)}
-                fill="none"
-                stroke="var(--mantine-color-teal-5)"
-                strokeWidth={2}
-              />
-              <path
-                d={linePath(
-                  buckets.map((entry) => entry.averageActiveRequests),
-                  clientMax,
-                  CLIENT_TOP,
-                  buckets,
-                )}
-                fill="none"
-                stroke="var(--mantine-color-blue-5)"
-                strokeWidth={2}
-              />
-              <path
-                d={linePath(
-                  buckets.map((entry) => entry.averageWaitingRequests),
-                  clientMax,
-                  CLIENT_TOP,
-                  buckets,
-                )}
-                fill="none"
-                stroke="var(--mantine-color-orange-5)"
-                strokeWidth={2}
-              />
-              {buckets.map((entry, index) => (
+              {chart.series.map((series) => (
+                <path
+                  key={series.color}
+                  d={series.path}
+                  fill="none"
+                  stroke={`var(--mantine-color-${series.color}-5)`}
+                  strokeWidth={2}
+                />
+              ))}
+              {chart.targets.map((target, index) => (
                 <rect
                   key={index}
-                  x={x(entry.startMs)}
+                  x={target.x}
                   y={RATE_TOP}
-                  width={Math.max(1, x(entry.endMs) - x(entry.startMs))}
+                  width={target.width}
                   height={CLIENT_TOP + LANE_HEIGHT - RATE_TOP}
                   fill="transparent"
                   style={{ cursor: "pointer" }}
                   onClick={() => select(index)}
                 >
-                  <title>{`${interval(entry)} · ${formatRate(outputRate(entry))} tok/s · ${entry.completedRequests} completed · ${entry.failedRequests} failed`}</title>
+                  <title>{target.title}</title>
                 </rect>
               ))}
               {[0, 0.25, 0.5, 0.75, 1].map((fraction) => (
@@ -233,15 +244,11 @@ export function BenchmarkLoadTimeline({
             </svg>
           </Box>
           <Group gap="md" wrap="wrap">
-            <Text size="xs" c="teal">
-              Output tok/s
-            </Text>
-            <Text size="xs" c="blue">
-              In flight
-            </Text>
-            <Text size="xs" c="orange">
-              Awaiting first output, including queueing
-            </Text>
+            {chart.series.map((series) => (
+              <Text key={series.color} size="xs" c={series.color}>
+                {series.label}
+              </Text>
+            ))}
           </Group>
           {buckets.length > 1 && (
             <Slider
@@ -280,7 +287,11 @@ export function BenchmarkLoadTimeline({
         )}
       </Group>
       {requests.length > 0 ? (
-        <BenchmarkTimeline result={detail} baseline={null} />
+        <BenchmarkTimeline
+          result={detail}
+          baseline={null}
+          caption="Request averages; queueing and prefill are combined when server timings are unavailable."
+        />
       ) : (
         <Text size="sm" c="dimmed">
           No requests in this interval.

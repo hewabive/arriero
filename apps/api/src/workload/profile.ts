@@ -76,16 +76,6 @@ function sumOrNull(values: Array<number | null>): number | null {
   return total;
 }
 
-export function maxKnown(values: Array<number | null>): number | null {
-  let highest: number | null = null;
-  for (const value of values) {
-    if (value !== null && (highest === null || value > highest)) {
-      highest = value;
-    }
-  }
-  return highest;
-}
-
 export function latestEndAt(
   records: ReadonlyArray<{ endAt: string }>,
   floor: string,

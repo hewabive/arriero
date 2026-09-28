@@ -10,24 +10,15 @@ import type {
   BenchmarkTopicSummary,
 } from "@arriero/core";
 
-export type MeasuredRequest = {
+import { percentileOfSorted } from "../utils/statistics.js";
+import type { MeasuredStreamOutcome } from "./measure-client.js";
+
+export type MeasuredRequest = MeasuredStreamOutcome & {
   requestId: string;
   promptId: string;
   topic: string;
   language: string;
   repetition: number;
-  submitMs: number;
-  firstTokenMs: number | null;
-  doneMs: number | null;
-  endedMs?: number;
-  timedOut?: boolean;
-  chunkTimesMs: number[];
-  promptTokens: number | null;
-  cachedPromptTokens?: number | null;
-  completionTokens: number | null;
-  serverTimings: BenchmarkServerTimings | null;
-  finishReason: string | null;
-  error: string | null;
 };
 
 type RequestPhases = {
@@ -221,8 +212,8 @@ function aggregateSegmentClasses(
     });
 }
 
-function weightedAcceptance(
-  requests: readonly MeasuredRequest[],
+export function weightedAcceptance(
+  requests: readonly { serverTimings: BenchmarkServerTimings | null }[],
 ): number | null {
   let drafted = 0;
   let accepted = 0;
@@ -292,10 +283,20 @@ function buildTopicSummaries(
     });
 }
 
+function clientDecodeRate(request: MeasuredRequest): number | null {
+  if (request.firstTokenMs === null || request.doneMs === null) {
+    return null;
+  }
+  const decodeChunks = Math.max(0, request.chunkTimesMs.length - 1);
+  return ratePerSecond(
+    decodeChunks * tokensPerChunkOf(request),
+    request.doneMs - request.firstTokenMs,
+  );
+}
+
 export function buildRequestResult(
   request: MeasuredRequest,
 ): BenchmarkRequestResult {
-  const phases = phasesOf(request);
   let maxChunkGapMs: number | null = null;
   for (let index = 1; index < request.chunkTimesMs.length; index += 1) {
     const previous = request.chunkTimesMs[index - 1];
@@ -304,9 +305,6 @@ export function buildRequestResult(
       maxChunkGapMs = Math.max(maxChunkGapMs ?? 0, current - previous);
     }
   }
-  const decodeTokens = phases
-    ? phases.decodeChunkTimes.length * phases.tokensPerChunk
-    : 0;
   return {
     requestId: request.requestId,
     promptId: request.promptId,
@@ -317,16 +315,14 @@ export function buildRequestResult(
     prefillStartMs: prefillStartOf(request),
     firstTokenMs: request.firstTokenMs,
     doneMs: request.doneMs,
-    endedMs: request.endedMs ?? null,
-    timedOut: request.timedOut ?? false,
+    endedMs: request.endedMs,
+    timedOut: request.timedOut,
     maxChunkGapMs,
     chunkCount: request.chunkTimesMs.length,
     promptTokens: request.promptTokens,
-    cachedPromptTokens: request.cachedPromptTokens ?? null,
+    cachedPromptTokens: request.cachedPromptTokens,
     completionTokens: request.completionTokens,
-    clientDecodeTokensPerSecond: phases
-      ? ratePerSecond(decodeTokens, phases.doneMs - phases.firstTokenMs)
-      : null,
+    clientDecodeTokensPerSecond: clientDecodeRate(request),
     serverTimings: request.serverTimings,
     acceptanceRate: weightedAcceptance([request]),
     finishReason: request.finishReason,
@@ -371,22 +367,6 @@ export function analyzeBenchmarkRun(
   };
 }
 
-function percentile(
-  sorted: readonly number[],
-  quantile: number,
-): number | null {
-  if (sorted.length === 0) {
-    return null;
-  }
-  const rank = (sorted.length - 1) * quantile;
-  const lower = sorted[Math.floor(rank)];
-  const upper = sorted[Math.ceil(rank)];
-  if (lower === undefined || upper === undefined) {
-    return null;
-  }
-  return lower + (upper - lower) * (rank - Math.floor(rank));
-}
-
 function buildHeadline(
   requests: readonly MeasuredRequest[],
   segments: readonly BenchmarkSegment[],
@@ -426,8 +406,8 @@ function buildHeadline(
     soloDecodeTokensPerSecond: soloDecodeBaseline(segmentClasses),
     prefillTokensPerSecond: ratePerSecond(prefillTokens, prefillMs),
     totalPromptTokens,
-    timeToFirstTokenP50Ms: percentile(firstTokenSpans, 0.5),
-    timeToFirstTokenP95Ms: percentile(firstTokenSpans, 0.95),
+    timeToFirstTokenP50Ms: percentileOfSorted(firstTokenSpans, 0.5),
+    timeToFirstTokenP95Ms: percentileOfSorted(firstTokenSpans, 0.95),
     peakConcurrentDecode: segments.reduce(
       (peak, segment) => Math.max(peak, segment.decodeCount),
       0,

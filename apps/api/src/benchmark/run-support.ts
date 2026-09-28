@@ -1,16 +1,35 @@
 import type {
   BenchmarkRunProgress,
+  BenchmarkRunResult,
+  BenchmarkRunSummary,
+  BenchmarkSampling,
   BenchmarkStreamEvent,
   BenchmarkTargetSnapshot,
   Instance,
 } from "@arriero/core";
 
+import { instanceBaseUrl } from "../instances/endpoint.js";
 import { logger } from "../logger.js";
 import type { LaunchSnapshot } from "../process/launch-snapshot.js";
+import { latestProcessRun } from "../process/runs-repository.js";
+import {
+  activeLaunchSnapshot,
+  runtimeEndpointInstance,
+} from "../process/runtime-endpoint.js";
 import { asObject, numberOrNull } from "../proxy/json.js";
 import { CANCELED_REQUEST_ERROR } from "./measure-client.js";
-import { getBenchmarkRun, writeBenchmarkRunRecord } from "./repository.js";
-import type { MeasuredRequest } from "./segmenter.js";
+import {
+  getBenchmarkRun,
+  patchBenchmarkRun,
+  writeBenchmarkRunRecord,
+  type BenchmarkEventWriter,
+} from "./repository.js";
+import type { BenchmarkRunAnalysis, MeasuredRequest } from "./segmenter.js";
+
+export const WARMUP_MAX_TOKENS = 32;
+
+export const LAUNCH_DRIFT_WARNING =
+  "instance config drifted from the running process; the snapshot records the launched configuration";
 
 const activeProgress = new Map<string, BenchmarkRunProgress>();
 
@@ -92,14 +111,53 @@ export async function fetchServerProps(
   }
 }
 
-export function benchmarkTargetSnapshot(input: {
-  instance: Instance;
+export type BenchmarkEndpoint = {
   runtimeArgs: Instance["args"];
   launch: LaunchSnapshot | null;
   baseUrl: string;
+};
+
+export type BenchmarkRunContext = BenchmarkEndpoint & {
+  runId: string;
+  instance: Instance;
+  signal: AbortSignal;
+  fetchImpl: typeof fetch;
+};
+
+export type BenchmarkTarget = BenchmarkEndpoint & {
+  instance: Instance;
   model: string | null;
   buildInfo: string | null;
-}): BenchmarkTargetSnapshot {
+};
+
+export function benchmarkEndpoint(instance: Instance): BenchmarkEndpoint {
+  const latestRun = latestProcessRun(instance.name);
+  const runtime = runtimeEndpointInstance(instance, latestRun);
+  return {
+    runtimeArgs: runtime.args,
+    launch: activeLaunchSnapshot(instance.name, latestRun),
+    baseUrl: instanceBaseUrl(runtime),
+  };
+}
+
+export function streamingRunFields(
+  model: string | null,
+  sampling: BenchmarkSampling | undefined,
+): Record<string, unknown> {
+  return {
+    ...(model !== null ? { model } : {}),
+    stream: true,
+    stream_options: { include_usage: true },
+    ...(sampling?.temperature !== undefined
+      ? { temperature: sampling.temperature }
+      : {}),
+    ...(sampling?.seed !== undefined ? { seed: sampling.seed } : {}),
+  };
+}
+
+export function benchmarkTargetSnapshot(
+  input: BenchmarkTarget,
+): BenchmarkTargetSnapshot {
   const { instance, launch } = input;
   return {
     instanceName: instance.name,
@@ -123,6 +181,57 @@ export function persistRunRecord(runId: string): void {
     return;
   }
   writeBenchmarkRunRecord(run);
+}
+
+export function failBenchmarkRun(input: {
+  runId: string;
+  error: unknown;
+  canceled: boolean;
+  warnings: string[];
+  measuredCount: number;
+  analyze: () => BenchmarkRunAnalysis;
+  save: (result: BenchmarkRunResult) => void;
+}): void {
+  const { runId } = input;
+  const message = (input.error as Error).message;
+  logger.warn({ runId, error: message }, "benchmark run failed");
+  let summary: BenchmarkRunSummary | null = null;
+  if (input.measuredCount > 0) {
+    const analysis = input.analyze();
+    summary = analysis.summary;
+    try {
+      input.save(analysis.result);
+    } catch (artifactError) {
+      logger.warn(
+        { runId, error: (artifactError as Error).message },
+        "benchmark partial artifacts could not be saved",
+      );
+    }
+  }
+  patchBenchmarkRun(runId, {
+    ...(summary ? { summary } : {}),
+    status: input.canceled ? "canceled" : "failed",
+    finishedAt: nowIso(),
+    warnings: input.warnings,
+    error: message,
+  });
+  if (summary) {
+    persistRunRecord(runId);
+  }
+}
+
+export async function closeBenchmarkEvents(
+  runId: string,
+  writer: BenchmarkEventWriter | null,
+): Promise<void> {
+  try {
+    await writer?.close();
+  } catch (error) {
+    logger.warn(
+      { runId, error: (error as Error).message },
+      "benchmark events could not be closed",
+    );
+  }
 }
 
 export function benchmarkStreamEvents(
@@ -149,16 +258,15 @@ export function benchmarkStreamEvents(
         kind: "chunk",
       });
     }
-    const endMs = request.endedMs ?? request.doneMs ?? request.submitMs;
     events.push(
       request.error !== null
         ? {
             requestId: request.requestId,
-            tMs: endMs,
+            tMs: request.endedMs,
             kind: "error",
             message: request.error,
           }
-        : { requestId: request.requestId, tMs: endMs, kind: "done" },
+        : { requestId: request.requestId, tMs: request.endedMs, kind: "done" },
     );
   }
   return events;

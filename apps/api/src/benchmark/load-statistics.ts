@@ -1,9 +1,16 @@
-import type {
-  BenchmarkLoadBucket,
-  BenchmarkLoadSummary,
-  BenchmarkRequestResult,
+import {
+  benchmarkRequestEndMs,
+  type BenchmarkLoadBucket,
+  type BenchmarkLoadSummary,
+  type BenchmarkRequestResult,
 } from "@arriero/core";
 
+import {
+  knownSum,
+  maxKnown,
+  percentile,
+  percentileOfSorted,
+} from "../utils/statistics.js";
 import { CANCELED_REQUEST_ERROR } from "./measure-client.js";
 import {
   buildRequestResult,
@@ -13,32 +20,17 @@ import {
 
 const MAX_TIMELINE_BUCKETS = 600;
 
-function percentile(values: number[], quantile: number): number | null {
-  if (values.length === 0) return null;
-  const sorted = values.sort((a, b) => a - b);
-  const rank = (sorted.length - 1) * quantile;
-  const lower = sorted[Math.floor(rank)];
-  const upper = sorted[Math.ceil(rank)];
-  return lower === undefined || upper === undefined
-    ? null
-    : lower + (upper - lower) * (rank - Math.floor(rank));
-}
-
 function percentiles(values: number[]) {
+  const sorted = values.sort((a, b) => a - b);
   return {
-    p50Ms: percentile(values, 0.5),
-    p95Ms: percentile(values, 0.95),
-    p99Ms: percentile(values, 0.99),
+    p50Ms: percentileOfSorted(sorted, 0.5),
+    p95Ms: percentileOfSorted(sorted, 0.95),
+    p99Ms: percentileOfSorted(sorted, 0.99),
   };
 }
 
 function maxGap(requests: readonly BenchmarkRequestResult[]): number | null {
-  let result: number | null = null;
-  for (const request of requests) {
-    if (request.maxChunkGapMs !== null)
-      result = Math.max(result ?? 0, request.maxChunkGapMs);
-  }
-  return result;
+  return maxKnown(requests.map((request) => request.maxChunkGapMs));
 }
 
 function latencies(requests: readonly BenchmarkRequestResult[]) {
@@ -65,7 +57,7 @@ function averageOccupancy(
   for (const request of requests) {
     const start = request.submitMs;
     const end =
-      (waiting ? request.firstTokenMs : null) ?? request.endedMs ?? start;
+      (waiting ? request.firstTokenMs : null) ?? benchmarkRequestEndMs(request);
     const first = Math.min(buckets.length, Math.floor(start / width));
     const last = Math.min(buckets.length, Math.floor(end / width));
     if (first === last) {
@@ -95,10 +87,7 @@ export class BenchmarkLoadCollector {
 
   record(request: MeasuredRequest): void {
     this.requests.push(buildRequestResult(request));
-    this.endMs = Math.max(
-      this.endMs,
-      request.endedMs ?? request.doneMs ?? request.submitMs,
-    );
+    this.endMs = Math.max(this.endMs, request.endedMs);
     while (Math.floor(this.endMs / this.bucketMs) >= MAX_TIMELINE_BUCKETS) {
       this.bucketMs *= 2;
       const merged = new Map<number, number | null>();
@@ -139,14 +128,9 @@ export class BenchmarkLoadCollector {
       group.push(request);
       groups.set(request.promptId, group);
     }
-    const successfulTokens = successful.every(
-      (request) => request.completionTokens !== null,
-    )
-      ? successful.reduce(
-          (sum, request) => sum + (request.completionTokens ?? 0),
-          0,
-        )
-      : null;
+    const successfulTokens = knownSum(
+      successful.map((request) => request.completionTokens),
+    );
     const load: BenchmarkLoadSummary = {
       successfulRequestCount: successful.length,
       timedOutRequestCount: requests.filter((request) => request.timedOut)
@@ -212,7 +196,7 @@ export class BenchmarkLoadCollector {
     for (const request of requests) {
       const index = Math.min(
         buckets.length - 1,
-        Math.floor((request.endedMs ?? request.submitMs) / this.bucketMs),
+        Math.floor(benchmarkRequestEndMs(request) / this.bucketMs),
       );
       const bucket = buckets[index];
       if (!bucket) continue;

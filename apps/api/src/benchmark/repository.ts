@@ -262,6 +262,10 @@ export function writeBenchmarkRunResult(
   );
 }
 
+export type BenchmarkEventWriter = Awaited<
+  ReturnType<typeof createBenchmarkEventWriter>
+>;
+
 export async function createBenchmarkEventWriter(id: string) {
   const dir = benchmarkRunArtifactsDir(id);
   if (!dir) throw new Error(`invalid benchmark run id: ${id}`);

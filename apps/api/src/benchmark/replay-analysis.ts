@@ -1,12 +1,17 @@
-import type {
-  BenchmarkReplayFidelity,
-  BenchmarkReplayFidelityRecord,
-  BenchmarkReplaySegmentResult,
-  BenchmarkReplaySummary,
-  BenchmarkRequestResult,
-  WorkloadDatasetRecord,
-  WorkloadDatasetSegment,
+import {
+  benchmarkRequestEndMs,
+  type BenchmarkReplayFidelity,
+  type BenchmarkReplayFidelityRecord,
+  type BenchmarkReplaySegmentResult,
+  type BenchmarkReplaySummary,
+  type BenchmarkRequestResult,
+  type WorkloadDatasetRecord,
+  type WorkloadDatasetSegment,
 } from "@arriero/core";
+
+import { knownSum, percentile } from "../utils/statistics.js";
+import { workloadCacheMetrics } from "../workload/record-analysis.js";
+import { weightedAcceptance } from "./segmenter.js";
 
 export type ReplayRequestPlacement = {
   segmentIndex: number;
@@ -25,47 +30,6 @@ function replayRequestPlacement(
     return null;
   }
   return { segmentIndex: Number(match[1]), recordIndex: Number(match[2]) };
-}
-
-function percentile(values: number[], quantile: number): number | null {
-  if (values.length === 0) {
-    return null;
-  }
-  const sorted = [...values].sort((left, right) => left - right);
-  const rank = (sorted.length - 1) * quantile;
-  const lower = sorted[Math.floor(rank)];
-  const upper = sorted[Math.ceil(rank)];
-  return lower === undefined || upper === undefined
-    ? null
-    : lower + (upper - lower) * (rank - Math.floor(rank));
-}
-
-function knownSum(values: Array<number | null>): number | null {
-  let total = 0;
-  for (const value of values) {
-    if (value === null) {
-      return null;
-    }
-    total += value;
-  }
-  return total;
-}
-
-export function replayAcceptanceRate(
-  requests: readonly BenchmarkRequestResult[],
-): number | null {
-  let drafted = 0;
-  let accepted = 0;
-  for (const request of requests) {
-    const draftN = request.serverTimings?.draftN ?? null;
-    const draftAccepted = request.serverTimings?.draftNAccepted ?? null;
-    if (draftN === null || draftAccepted === null) {
-      continue;
-    }
-    drafted += draftN;
-    accepted += draftAccepted;
-  }
-  return drafted > 0 ? accepted / drafted : null;
 }
 
 function decodeRate(
@@ -103,9 +67,7 @@ function segmentResult(input: {
       : [request.firstTokenMs - request.submitMs],
   );
   const starts = requests.map((request) => request.submitMs);
-  const ends = requests.map(
-    (request) => request.endedMs ?? request.doneMs ?? request.submitMs,
-  );
+  const ends = requests.map(benchmarkRequestEndMs);
   return {
     segmentIndex: input.segmentIndex,
     sessionId: input.segment.sessionId,
@@ -123,7 +85,7 @@ function segmentResult(input: {
     timeToFirstTokenP50Ms: percentile(ttft, 0.5),
     timeToFirstTokenP95Ms: percentile(ttft, 0.95),
     decodeTokensPerSecond: decodeRate(successful),
-    acceptanceRate: replayAcceptanceRate(successful),
+    acceptanceRate: weightedAcceptance(successful),
     wallMs:
       requests.length > 0 ? Math.max(...ends) - Math.min(...starts) : null,
   };
@@ -133,16 +95,13 @@ function responseReuseTokens(
   parent: WorkloadDatasetRecord | null,
   child: WorkloadDatasetRecord,
 ): number | null {
-  if (
-    !parent ||
-    parent.targetName === null ||
-    parent.targetName !== child.targetName ||
-    parent.promptTokens === null ||
-    child.cacheReadTokens === null
-  ) {
+  if (!parent) {
     return null;
   }
-  return Math.max(0, child.cacheReadTokens - parent.promptTokens);
+  return workloadCacheMetrics(
+    { targetId: parent.targetName, promptTokens: parent.promptTokens },
+    { targetId: child.targetName, cacheReadTokens: child.cacheReadTokens },
+  ).responseReuseTokens;
 }
 
 function fidelityRecords(
@@ -233,7 +192,6 @@ export function analyzeReplayRequests(input: {
     : null;
   return {
     summary: {
-      primedSegmentCount: input.primedSegments.size,
       segments: input.segments.map((segment, segmentIndex) =>
         segmentResult({
           segment,

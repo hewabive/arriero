@@ -25,10 +25,6 @@ import {
   formatTokens,
 } from "./benchmark-format";
 
-function tokens(value: number | null): string {
-  return value === null ? "—" : formatTokens(value);
-}
-
 export function replayScenarioLine(scenario: BenchmarkReplayScenario): string {
   const arrival =
     scenario.arrival.kind === "recorded"
@@ -242,8 +238,8 @@ function SegmentTable({ summary }: { summary: BenchmarkReplaySummary }) {
                     ? ` (${segment.failedRequestCount} failed)`
                     : ""}
                 </Table.Td>
-                <Table.Td>{tokens(segment.promptTokens)}</Table.Td>
-                <Table.Td>{tokens(segment.cachedPromptTokens)}</Table.Td>
+                <Table.Td>{formatTokens(segment.promptTokens)}</Table.Td>
+                <Table.Td>{formatTokens(segment.cachedPromptTokens)}</Table.Td>
                 <Table.Td>
                   {formatDurationMs(segment.timeToFirstTokenP50Ms)}
                 </Table.Td>

@@ -101,7 +101,6 @@ export function countInstancePromptTokens(
       signal: options.signal,
       timeoutMs: options.timeoutMs ?? DEFAULT_COUNT_TIMEOUT_MS,
     },
-    new Map(),
   );
 }
 
@@ -109,7 +108,7 @@ async function countSubjectTokens(
   subject: CountSubject,
   request: Pick<ApiProxyProtocolModelRequest, "operation" | "body">,
   options: CountOptions,
-  cache: Map<string, Promise<ApiProxyTokenCountResult>>,
+  cache?: Map<string, Promise<ApiProxyTokenCountResult>>,
 ): Promise<ApiProxyTokenCountResult> {
   const { target, endpoint, instance } = subject;
   const reservation = apiProxyInstanceReservation(instance?.name ?? null);
@@ -151,6 +150,9 @@ async function countSubjectTokens(
   }
   const body = adapter.prepareBody({ ...asObject(prepared.body) });
   const payload = JSON.stringify(body);
+  if (!cache) {
+    return count();
+  }
   const key = JSON.stringify([
     target.id,
     context.baseUrl,

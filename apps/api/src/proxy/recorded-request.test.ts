@@ -8,7 +8,7 @@ import { config } from "../config.js";
 import { createInstance } from "../instances/repository.js";
 import { instanceTestFixture } from "../instances/test-fixtures.js";
 import { resetConfigFilesCache } from "./config-files.js";
-import { prepareRecordedRequestForInstance } from "./recorded-request.js";
+import { recordedRequestPreparer } from "./recorded-request.js";
 import { countInstancePromptTokens } from "./token-count.js";
 
 const { uniqueName, seedBinaryRef, binaryRefId } =
@@ -50,7 +50,7 @@ const anthropicBody = {
 };
 
 test("an OpenAI record passes through with the instance's model", () => {
-  const prepared = prepareRecordedRequestForInstance(instance("vllm"), {
+  const prepared = recordedRequestPreparer(instance("vllm"))({
     protocol: "openai",
     endpoint: "chat.completions",
     routePath: "/v1/chat/completions",
@@ -69,13 +69,13 @@ test("an OpenAI record passes through with the instance's model", () => {
 });
 
 test("an Anthropic record is translated in the dialect of the target engine", () => {
-  const llama = prepareRecordedRequestForInstance(instance("llama-server"), {
+  const llama = recordedRequestPreparer(instance("llama-server"))({
     protocol: "anthropic",
     endpoint: "messages",
     routePath: "/v1/messages",
     body: anthropicBody,
   });
-  const vllm = prepareRecordedRequestForInstance(instance("vllm"), {
+  const vllm = recordedRequestPreparer(instance("vllm"))({
     protocol: "anthropic",
     endpoint: "messages",
     routePath: "/v1/messages",
@@ -97,7 +97,7 @@ test("an Anthropic record is translated in the dialect of the target engine", ()
 });
 
 test("an operation outside the proxy is refused", () => {
-  const prepared = prepareRecordedRequestForInstance(instance("vllm"), {
+  const prepared = recordedRequestPreparer(instance("vllm"))({
     protocol: "openai",
     endpoint: "unknown.operation",
     routePath: "/v1/unknown",

@@ -1,4 +1,5 @@
 import {
+  benchmarkRequestEndMs,
   isBenchmarkRateSupported,
   type BenchmarkRequestResult,
   type BenchmarkRunResult,
@@ -111,12 +112,7 @@ function buildRows(requests: readonly BenchmarkRequestResult[]): RowShape[] {
 }
 
 function rowEndMs(row: RowShape): number {
-  return (
-    row.request.endedMs ??
-    row.request.doneMs ??
-    row.request.firstTokenMs ??
-    row.request.submitMs
-  );
+  return benchmarkRequestEndMs(row.request);
 }
 
 function mergeBands(segments: readonly BenchmarkSegment[]): Band[] {
@@ -576,9 +572,11 @@ function buildLayout(
 export function BenchmarkTimeline({
   result,
   baseline,
+  caption,
 }: {
   result: BenchmarkRunResult;
   baseline: number | null;
+  caption?: string;
 }) {
   const colorScheme = useComputedColorScheme("dark");
   const { ref, width } = useElementSize();
@@ -815,11 +813,10 @@ export function BenchmarkTimeline({
           </>
         )}
         <Text size="xs" c="dimmed">
-          {result.loadTimeline
-            ? "Request averages; queueing and prefill are combined when server timings are unavailable."
-            : baseline === null
+          {caption ??
+            (baseline === null
               ? "shaded bands = a prefill is competing for batch capacity; no solo baseline in this run"
-              : "pale decode = slower than the solo baseline; shaded bands = a prefill is competing for batch capacity"}
+              : "pale decode = slower than the solo baseline; shaded bands = a prefill is competing for batch capacity")}
         </Text>
         {layout.hiddenRowCount > 0 && (
           <Text size="xs" c="dimmed">

@@ -4,6 +4,7 @@ import type {
   WorkloadDatasetBody,
   WorkloadDatasetContent,
   WorkloadDatasetRecord,
+  WorkloadDatasetSegment,
 } from "@arriero/core";
 
 import { canonicalJsonDigest } from "../utils/canonical-json.js";
@@ -70,15 +71,20 @@ function workloadBodyBlobHashes(body: WorkloadDatasetBody): string[] {
   ];
 }
 
+export function workloadSegmentRecords(
+  segment: WorkloadDatasetSegment,
+): WorkloadDatasetRecord[] {
+  return segment.priming
+    ? [segment.priming, ...segment.records]
+    : segment.records;
+}
+
 export function workloadContentBlobHashes(
   content: WorkloadDatasetContent,
 ): string[] {
   const hashes = new Set<string>();
   for (const segment of content.segments) {
-    const records = segment.priming
-      ? [segment.priming, ...segment.records]
-      : segment.records;
-    for (const record of records) {
+    for (const record of workloadSegmentRecords(segment)) {
       for (const hash of workloadBodyBlobHashes(record.body)) {
         hashes.add(hash);
       }

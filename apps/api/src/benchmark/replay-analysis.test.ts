@@ -145,7 +145,6 @@ test("segments summarize their successful requests", () => {
     requests,
     recordedArrival: false,
   });
-  assert.equal(summary.primedSegmentCount, 1);
   assert.equal(summary.fidelity, null);
   const [primed, cold] = summary.segments;
   assert.equal(primed?.primed, true);

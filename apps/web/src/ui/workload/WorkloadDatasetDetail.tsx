@@ -13,10 +13,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Download } from "lucide-react";
 
-import { getWorkloadDataset, workloadDatasetExportUrl } from "../../api/client";
+import { workloadDatasetExportUrl } from "../../api/client";
 import { formatBytes } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
 import { formatPercent, formatTokens } from "../views/benchmark-format";
+import { workloadDatasetQuery } from "./workload-dataset-queries";
 
 const PROFILE_ROWS: Array<{
   label: string;
@@ -95,10 +96,7 @@ export function WorkloadDatasetDetail(props: {
   datasetId: string;
   onBack: () => void;
 }) {
-  const datasetQuery = useQuery({
-    queryKey: ["workload-dataset", props.datasetId],
-    queryFn: () => getWorkloadDataset(props.datasetId),
-  });
+  const datasetQuery = useQuery(workloadDatasetQuery(props.datasetId));
   const detail = datasetQuery.data?.data;
 
   return (
