@@ -14,6 +14,7 @@ import { apiProxyInflight } from "./inflight.js";
 import type { ApiProxyProtocolDiagnostic } from "./protocol.js";
 import { getApiProxyTarget, listApiProxyTargets } from "./repository.js";
 import { computeDomains } from "./resource-domains.js";
+import { serveTargetInstanceId } from "./serve-target-id.js";
 
 export type ApiProxyRunReservation = {
   runId: string;
@@ -38,7 +39,6 @@ export class ApiProxyReservationError extends Error {}
 
 const POLL_MS = 200;
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
-const SERVE_TARGET_PREFIX = "serve:";
 
 const reservations = new Map<
   string,
@@ -52,8 +52,9 @@ export function apiProxyTargetInstanceName(
   if (target) {
     return instanceIdFromEndpointId(target.endpointId);
   }
-  if (targetId.startsWith(SERVE_TARGET_PREFIX)) {
-    return targetId.slice(SERVE_TARGET_PREFIX.length) || null;
+  const servedInstanceId = serveTargetInstanceId(targetId);
+  if (servedInstanceId !== null) {
+    return servedInstanceId;
   }
   const endpointId = externalTargetEndpointId(targetId);
   return endpointId ? instanceIdFromEndpointId(endpointId) : null;

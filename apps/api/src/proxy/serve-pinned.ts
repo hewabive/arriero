@@ -15,6 +15,7 @@ import type {
   ApiProxyProtocolModelRequest,
   ApiProxyProtocolOperation,
 } from "./protocol.js";
+import { serveTargetId } from "./serve-target-id.js";
 
 function serveOperation(
   protocol: ApiProxyServeRequest["protocol"],
@@ -48,7 +49,7 @@ export function ephemeralTarget(
   payload: ApiProxyServeRequest,
 ): ApiProxyTargetRecord {
   return {
-    id: `serve:${payload.instanceId}`,
+    id: serveTargetId(payload.instanceId),
     name: payload.instanceId,
     endpointId: instanceEndpointId(payload.instanceId),
     model: payload.model,

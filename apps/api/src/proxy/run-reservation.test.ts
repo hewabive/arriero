@@ -19,6 +19,7 @@ import {
   apiProxyTargetInstanceName,
   reserveApiProxyInstances,
 } from "./run-reservation.js";
+import { serveTargetId } from "./serve-target-id.js";
 
 const fixture = instanceTestFixture("run-reservation");
 const created: string[] = [];
@@ -70,6 +71,8 @@ test("target ids of every form resolve to their instance", () => {
     "qwen",
   );
   assert.equal(apiProxyTargetInstanceName("serve:qwen", null), "qwen");
+  assert.equal(apiProxyTargetInstanceName(serveTargetId("qwen"), null), "qwen");
+  assert.equal(apiProxyTargetInstanceName(serveTargetId(""), null), null);
   assert.equal(
     apiProxyTargetInstanceName("endpoint:instance:qwen#qwen-model", null),
     "qwen",
