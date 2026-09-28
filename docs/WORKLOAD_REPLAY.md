@@ -109,7 +109,14 @@ core schemas first (`packages/core`), as everywhere in the repository.
 ## HTTP API
 
 Admin-gated, `{ data }` responses, shapes from `packages/core/src/workload.ts`; routes in
-`apps/api/src/routes/workload.routes.ts`, UI at `#/proxy/workload`. Session index and profile:
+`apps/api/src/routes/workload.routes.ts`, UI at `#/proxy/workload`. Every timestamp a request carries
+— `from`, `to`, `beforeAt`, the bounds of selection windows and of a population — is parsed by
+`packages/core/src/workload.ts:WorkloadTimestampSchema` into the canonical UTC form of
+`Date.prototype.toISOString`, the form the index stores, before anything compares it: the index
+compares timestamps as strings, which orders instants only in that form. Any notation `Date.parse`
+reads is accepted — an offset, a date alone (midnight UTC), a date-time without an offset (the
+server's local time) — within the years 0000–9999, outside which the canonical form stops ordering;
+a dataset stores the canonical bounds. Session index and profile:
 
 - `GET /api/workload/index` — index status: records, time span, normalization version, last pass.
 - `GET /api/workload/sessions?from&to&sourceId&modelId&targetId&limit&beforeAt&beforeId` — sessions

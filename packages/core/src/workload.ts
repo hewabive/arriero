@@ -24,12 +24,25 @@ export const WorkloadRecordIssueSchema = z.enum([
 
 const TokenCountSchema = z.number().int().min(0).nullable();
 
+const EARLIEST_CANONICAL_TIMESTAMP_MS = Date.parse("0000-01-01T00:00:00.000Z");
+const LATEST_CANONICAL_TIMESTAMP_MS = Date.parse("9999-12-31T23:59:59.999Z");
+
+function hasCanonicalTimestampForm(value: string): boolean {
+  const ms = Date.parse(value);
+  return (
+    Number.isFinite(ms) &&
+    ms >= EARLIEST_CANONICAL_TIMESTAMP_MS &&
+    ms <= LATEST_CANONICAL_TIMESTAMP_MS
+  );
+}
+
 export const WorkloadTimestampSchema = z
   .string()
   .min(1)
-  .refine((value) => Number.isFinite(Date.parse(value)), {
-    message: "must be a timestamp",
-  });
+  .refine(hasCanonicalTimestampForm, {
+    message: "must be a timestamp between the years 0000 and 9999",
+  })
+  .transform((value) => new Date(Date.parse(value)).toISOString());
 
 export const MAX_WORKLOAD_PROFILE_WINDOWS = 2000;
 
@@ -92,7 +105,7 @@ const WorkloadScopeQuerySchema = z.object({
 });
 
 export const WorkloadSessionListQuerySchema = WorkloadScopeQuerySchema.extend({
-  beforeAt: z.string().optional(),
+  beforeAt: WorkloadTimestampSchema.optional(),
   beforeId: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
 });

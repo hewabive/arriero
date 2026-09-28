@@ -3,10 +3,11 @@ import { Readable } from "node:stream";
 import { beforeEach, test } from "node:test";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-import type {
-  ApiProxyRequestTrace,
-  WorkloadDatasetManifest,
-  WorkloadDatasetSelection,
+import {
+  WorkloadDatasetFreezeRequestSchema,
+  type ApiProxyRequestTrace,
+  type WorkloadDatasetManifest,
+  type WorkloadDatasetSelection,
 } from "@arriero/core";
 
 import {
@@ -45,6 +46,11 @@ const later = new Date(BASE + 24 * 60 * 60 * 1000);
 
 function iso(offsetMs: number): string {
   return new Date(BASE + offsetMs).toISOString();
+}
+
+function isoAtPlusThree(offsetMs: number): string {
+  const shifted = new Date(BASE + offsetMs + 3 * 60 * 60 * 1000).toISOString();
+  return `${shifted.slice(0, -1)}+03:00`;
 }
 
 const tools = [{ type: "function", function: { name: "read" } }];
@@ -240,6 +246,27 @@ test("a repeated freeze of the same window is the same dataset", async () => {
   const second = await freeze();
   assert.equal(second.id, first.id);
   assert.equal((await listWorkloadDatasets()).length, 1);
+});
+
+test("a window written with an offset freezes the dataset of its UTC form", async () => {
+  const expected = await freeze();
+  const request = WorkloadDatasetFreezeRequestSchema.parse({
+    name: "Morning window",
+    selection: {
+      windows: [{ from: isoAtPlusThree(2000), to: isoAtPlusThree(60_000) }],
+    },
+    population: { from: isoAtPlusThree(0), to: isoAtPlusThree(120_000) },
+  });
+  assert.deepEqual(request.selection.windows, selection.windows);
+  startWorkloadDatasetFreeze(request);
+  await waitForWorkloadFreeze();
+  const job = currentWorkloadFreezeJob();
+  assert.equal(job?.status, "succeeded", job?.error ?? "");
+  assert.equal(job?.datasetId, expected.id);
+  assert.deepEqual(readWorkloadDatasetManifest(expected.id)?.meta.population, {
+    from: iso(0),
+    to: iso(120_000),
+  });
 });
 
 test("export and import round-trip to another store, once", async () => {

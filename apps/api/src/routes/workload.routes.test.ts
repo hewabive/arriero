@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
 import {
+  WorkloadTimestampSchema,
   rankWorkloadWindows,
+  type WorkloadLinkingReport,
   type WorkloadProfile,
   type WorkloadSessionDetail,
   type WorkloadSessionSummary,
@@ -22,6 +24,7 @@ registerWorkloadRoutes(app);
 
 const BASE = Date.parse("2026-09-20T10:00:00.000Z");
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
 
 function row(
   traceId: string,
@@ -156,6 +159,91 @@ test("reports index status and linking", async () => {
     linking.data.groups.map((group) => [group.linkedRecords, group.sessions]),
     [[1, 2]],
   );
+});
+
+async function listedSessions(query: Record<string, string>) {
+  const listed = await data<WorkloadSessionSummary[]>(
+    `/api/workload/sessions?${new URLSearchParams(query)}`,
+  );
+  assert.equal(listed.status, 200);
+  return listed.data.map((session) => session.sessionId);
+}
+
+test("reads range bounds as instants, whatever their notation", async () => {
+  insertWorkloadRecord(row("late", 14 * 60));
+  assert.deepEqual(
+    await listedSessions({ from: "2026-09-20T13:30:00+03:00" }),
+    ["late", "s2"],
+  );
+  assert.deepEqual(await listedSessions({ to: "2026-09-20T13:30:00+03:00" }), [
+    "s1",
+  ]);
+  assert.deepEqual(
+    await listedSessions({ from: "Sun, 20 Sep 2026 13:30:00 +0300" }),
+    ["late", "s2"],
+  );
+  assert.deepEqual(await listedSessions({ from: "2026-09-21" }), ["late"]);
+  assert.deepEqual(await listedSessions({ to: "2026-09-21" }), [
+    "late",
+    "s2",
+    "s1",
+  ]);
+  assert.deepEqual(
+    await listedSessions({
+      beforeAt: "2026-09-20T13:40:00+03:00",
+      beforeId: "s2",
+    }),
+    ["s1"],
+  );
+
+  const localMidnight = new Date(2026, 8, 21).getTime();
+  assert.equal(
+    WorkloadTimestampSchema.parse("2026-09-21T00:00"),
+    new Date(localMidnight).toISOString(),
+  );
+  const startedAt: Array<[string, number]> = [
+    ["late", BASE + 14 * HOUR],
+    ["s2", BASE + 40 * MINUTE],
+    ["s1", BASE],
+  ];
+  assert.deepEqual(
+    await listedSessions({ to: "2026-09-21T00:00" }),
+    startedAt.filter(([, at]) => at <= localMidnight).map(([id]) => id),
+  );
+
+  for (const bound of [
+    "+010000-01-01T00:00:00.000Z",
+    "-000001-01-01T00:00:00.000Z",
+    "yesterday",
+  ]) {
+    const response = await app.request(
+      `/api/workload/sessions?${new URLSearchParams({ from: bound })}`,
+    );
+    assert.equal(response.status, 400, bound);
+  }
+});
+
+test("linking and selection read offset bounds as instants", async () => {
+  const linking = await data<WorkloadLinkingReport>(
+    `/api/workload/linking?${new URLSearchParams({ from: "2026-09-20T13:30:00+03:00" })}`,
+  );
+  assert.equal(linking.data.from, new Date(BASE + 30 * MINUTE).toISOString());
+  assert.deepEqual(
+    linking.data.groups.map((group) => [group.linkableRecords, group.sessions]),
+    [[1, 1]],
+  );
+
+  const preview = await post("/api/workload/selection", {
+    windows: [
+      { from: "2026-09-20T13:00:00+03:00", to: "2026-09-20T13:10:00+03:00" },
+    ],
+  });
+  assert.equal(preview.status, 200);
+  const body = (await preview.json()) as {
+    data: { records: number; problems: string[] };
+  };
+  assert.equal(body.data.records, 2);
+  assert.deepEqual(body.data.problems, []);
 });
 
 function post(path: string, body: unknown) {

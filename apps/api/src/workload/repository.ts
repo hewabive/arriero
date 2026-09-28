@@ -30,8 +30,7 @@ export type WorkloadRecordRow = typeof workloadRecords.$inferInsert;
 
 const STATE_ROW_ID = 1;
 const LOOKUP_CHUNK = 400;
-const EARLIEST_FOUR_DIGIT_YEAR_MS = Date.parse("0000-01-01T00:00:00.000Z");
-const FOUR_DIGIT_YEAR_ISO_LENGTH = "0000-01-01T00:00:00.000Z".length;
+const EARLIEST_CANONICAL_TIMESTAMP_MS = Date.parse("0000-01-01T00:00:00.000Z");
 
 export type WorkloadIndexState = {
   normalizationVersion: number | null;
@@ -190,24 +189,14 @@ function longestWorkloadDurationMs(): number | null {
   return row?.longest ?? null;
 }
 
-function isFourDigitYearIsoTimestamp(value: string): boolean {
-  const ms = Date.parse(value);
-  return (
-    Number.isFinite(ms) &&
-    value.length === FOUR_DIGIT_YEAR_ISO_LENGTH &&
-    new Date(ms).toISOString() === value
-  );
-}
-
 function earliestStartEndingFrom(from: string): string | null {
-  if (!isFourDigitYearIsoTimestamp(from)) {
+  const longest = longestWorkloadDurationMs();
+  if (longest === null) {
     return null;
   }
-  const longest = longestWorkloadDurationMs();
-  const earliestMs = longest === null ? null : Date.parse(from) - longest;
-  return earliestMs !== null && earliestMs >= EARLIEST_FOUR_DIGIT_YEAR_MS
-    ? new Date(earliestMs).toISOString()
-    : null;
+  return new Date(
+    Math.max(EARLIEST_CANONICAL_TIMESTAMP_MS, Date.parse(from) - longest),
+  ).toISOString();
 }
 
 function scopeConditions(scope: WorkloadScope): SQL[] {
