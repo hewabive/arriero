@@ -43,6 +43,17 @@ export type ProxyStreamInspector = {
   snapshot(): ProxyStreamInspectionSnapshot;
 };
 
+export function carriesGeneratedOutput(
+  chunk: ApiProxyResumableStreamChunk,
+): boolean {
+  return (
+    chunk.text !== "" ||
+    Boolean(chunk.reasoning) ||
+    (chunk.toolCalls?.some((call) => Boolean(call.name || call.arguments)) ??
+      false)
+  );
+}
+
 export type ProxyStreamInspectionOptions = {
   estimateRate?: boolean | undefined;
   now?: (() => number) | undefined;
@@ -115,9 +126,7 @@ export function createProxyStreamInspector(
       input.estimateRate &&
       !sawDone &&
       !sawFinish &&
-      (parsed.text !== "" ||
-        Boolean(parsed.reasoning) ||
-        parsed.toolCalls?.some((call) => Boolean(call.name || call.arguments)))
+      carriesGeneratedOutput(parsed)
     ) {
       const at = readAt ?? now();
       firstOutputAt ??= at;

@@ -1,14 +1,11 @@
 import type { BenchmarkServerTimings } from "@arriero/core";
 
-import {
-  streamDeltaText,
-  streamErrorMessage,
-  streamFinishReason,
-} from "../api-lab/sse-parse.js";
+import { streamErrorMessage } from "../api-lab/sse-parse.js";
 import { asObject, numberOrNull } from "../proxy/json.js";
+import { openAiChunkFromValue } from "../proxy/openai.js";
 import { upstreamErrorText } from "../proxy/protocol-trace.js";
-import { openaiCachedTokens } from "../proxy/usage-meter.js";
 import { consumeSseEvents } from "../proxy/sse.js";
+import { carriesGeneratedOutput } from "../proxy/stream-inspector.js";
 
 export type MeasuredStreamOutcome = {
   submitMs: number;
@@ -40,22 +37,6 @@ export type MeasuredRequestInput = {
 const ERROR_BODY_LIMIT = 300;
 
 export const CANCELED_REQUEST_ERROR = "canceled";
-
-function streamToolCallDelta(value: unknown): boolean {
-  const choices = asObject(value)?.choices;
-  const choice = Array.isArray(choices) ? asObject(choices[0]) : null;
-  const toolCalls = asObject(choice?.delta)?.tool_calls;
-  return (
-    Array.isArray(toolCalls) &&
-    toolCalls.some((call) => {
-      const fn = asObject(asObject(call)?.function);
-      return (
-        (typeof fn?.name === "string" && fn.name.length > 0) ||
-        (typeof fn?.arguments === "string" && fn.arguments.length > 0)
-      );
-    })
-  );
-}
 
 function serverTimingsFrom(value: unknown): BenchmarkServerTimings | null {
   const record = asObject(value);
@@ -129,19 +110,22 @@ export async function runMeasuredRequest(
           error = `upstream stream error: ${streamError.slice(0, ERROR_BODY_LIMIT)}`;
           return true;
         }
-        if (streamDeltaText(parsed) || streamToolCallDelta(parsed)) {
+        const chunk = openAiChunkFromValue(parsed);
+        if (chunk === "malformed") {
+          malformedFrames += 1;
+          return false;
+        }
+        if (carriesGeneratedOutput(chunk)) {
           chunkTimesMs.push(now());
         }
-        finishReason = streamFinishReason(parsed) ?? finishReason;
-        const record = asObject(parsed);
-        const usage = asObject(record?.usage);
-        if (usage) {
-          promptTokens = numberOrNull(usage.prompt_tokens) ?? promptTokens;
-          cachedPromptTokens = openaiCachedTokens(usage) ?? cachedPromptTokens;
-          completionTokens =
-            numberOrNull(usage.completion_tokens) ?? completionTokens;
+        finishReason = chunk.finishReason ?? finishReason;
+        if (chunk.usage) {
+          promptTokens = chunk.usage.promptTokens ?? promptTokens;
+          cachedPromptTokens =
+            chunk.usage.cacheReadTokens ?? cachedPromptTokens;
+          completionTokens = chunk.usage.completionTokens ?? completionTokens;
         }
-        const timings = serverTimingsFrom(record?.timings);
+        const timings = serverTimingsFrom(asObject(parsed)?.timings);
         if (timings) {
           serverTimings = timings;
         }

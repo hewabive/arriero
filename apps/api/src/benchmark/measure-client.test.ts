@@ -247,6 +247,24 @@ test("reasoning and tool-call deltas count as generated tokens", async () => {
   assert.equal(outcome.finishReason, "tool_calls");
 });
 
+test("a reasoning delta beside empty content counts as generated", async () => {
+  const frames = [
+    'data: {"choices":[{"delta":{"content":"","reasoning_content":"think"}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+    "data: [DONE]\n\n",
+  ];
+  const outcome = await runMeasuredRequest({
+    url: "http://upstream/v1/chat/completions",
+    body: { stream: true },
+    fetchImpl: async () => sseResponse(frames),
+    now: tickingClock(10),
+  });
+  assert.equal(outcome.error, null);
+  assert.deepEqual(outcome.chunkTimesMs, [20, 30]);
+  assert.equal(outcome.firstTokenMs, 20);
+});
+
 test("an answer without visible tokens fails unless content is optional", async () => {
   const frames = [
     'data: {"choices":[{"delta":{"role":"assistant"}}]}\n\n',
