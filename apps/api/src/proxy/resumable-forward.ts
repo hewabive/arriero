@@ -410,6 +410,29 @@ export function partialFromState(
   return generated ? finalFromState(codec, state, false).body : null;
 }
 
+function clientAbortFinal(): ApiProxyResumableFinalResponse {
+  return { status: CLIENT_ABORT_STATUS, headers: {}, body: "" };
+}
+
+async function waitUnlessStopped(
+  pending: Promise<void>,
+  stopSignal: AbortSignal,
+): Promise<void> {
+  let onStop = (): void => undefined;
+  const stopped = new Promise<void>((resolve) => {
+    onStop = () => resolve();
+  });
+  stopSignal.addEventListener("abort", onStop, { once: true });
+  if (stopSignal.aborted) {
+    onStop();
+  }
+  try {
+    await Promise.race([pending, stopped]);
+  } finally {
+    stopSignal.removeEventListener("abort", onStop);
+  }
+}
+
 export async function runResumableForward(input: {
   makeReady: () => Promise<
     { ok: true } | { ok: false; final: ApiProxyResumableFinalResponse }
@@ -418,6 +441,8 @@ export async function runResumableForward(input: {
   state: ResumableBufferState;
   codec: ApiProxyResumableCodec;
   yieldLease: () => Promise<void>;
+  cancelSignal?: AbortSignal | undefined;
+  finishSignal?: AbortSignal | undefined;
   wantsStream: boolean;
   onError: (message: string) => ApiProxyResumableFinalResponse;
   onUpstreamError?: (
@@ -433,9 +458,31 @@ export async function runResumableForward(input: {
   let truncationRetries = 0;
   let forceAnswerNext = false;
   let forceAnswerPrefix: string | null = null;
+  const stopSignal = AbortSignal.any(
+    [input.cancelSignal, input.finishSignal].filter(
+      (signal): signal is AbortSignal => signal !== undefined,
+    ),
+  );
+  const stoppedFinal = (): ApiProxyResumableFinalResponse | null => {
+    if (input.cancelSignal?.aborted) {
+      return clientAbortFinal();
+    }
+    if (input.finishSignal?.aborted) {
+      return finalFromState(input.codec, input.state, input.wantsStream);
+    }
+    return null;
+  };
 
   for (;;) {
+    const stoppedBeforeReady = stoppedFinal();
+    if (stoppedBeforeReady) {
+      return stoppedBeforeReady;
+    }
     const ready = await input.makeReady();
+    const stoppedDuringReady = stoppedFinal();
+    if (stoppedDuringReady) {
+      return stoppedDuringReady;
+    }
     if (!ready.ok) {
       return ready.final;
     }
@@ -480,7 +527,7 @@ export async function runResumableForward(input: {
       continue;
     }
     if (outcome.type === "consumer-gone" || outcome.type === "cancelled") {
-      return { status: CLIENT_ABORT_STATUS, headers: {}, body: "" };
+      return clientAbortFinal();
     }
     if (outcome.type === "error") {
       return input.onError(outcome.message);
@@ -497,6 +544,6 @@ export async function runResumableForward(input: {
     if (preemptions >= maxAttempts) {
       return finalFromState(input.codec, input.state, input.wantsStream);
     }
-    await input.yieldLease();
+    await waitUnlessStopped(input.yieldLease(), stopSignal);
   }
 }

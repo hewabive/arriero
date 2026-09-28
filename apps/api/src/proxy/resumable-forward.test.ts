@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { anthropicResumableCodec } from "./anthropic.js";
+import { ApiProxyInflightRegistry } from "./inflight.js";
 import { openAiResumableCodec } from "./openai.js";
 import {
   consumeResumableSse,
@@ -1060,6 +1061,76 @@ test("runResumableForward returns the readiness failure response", async () => {
   assert.equal(final.status, 503);
   assert.equal(final.body, "nope");
 });
+
+for (const action of ["cancel", "finish"] as const) {
+  for (const phase of ["re-admission", "readiness"] as const) {
+    test(
+      `runResumableForward honours ${action} requested during ${phase} between attempts`,
+      { timeout: 5_000 },
+      async () => {
+        const registry = new ApiProxyInflightRegistry();
+        const inflight = registry.begin({ modelId: "m", protocol: "openai" });
+        inflight.setTarget("t");
+        const cancelSignal = inflight.controlSignal("cancel");
+        const finishSignal = inflight.controlSignal("finish");
+        const state = createResumableBufferState();
+        let readies = 0;
+        let attempts = 0;
+        let controlStatus: string | null = null;
+        const requestControl = async () => {
+          controlStatus = (await registry.requestControl(inflight.id, action))
+            .status;
+        };
+        const final = await runResumableForward({
+          makeReady: async () => {
+            readies += 1;
+            if (phase === "readiness" && readies === 2) {
+              await requestControl();
+              return {
+                ok: false,
+                final: { status: 503, headers: {}, body: "plan blocked" },
+              };
+            }
+            return { ok: true };
+          },
+          attempt: async () => {
+            attempts += 1;
+            state.text = "partial";
+            return { type: "preempted" };
+          },
+          state,
+          codec,
+          yieldLease: () => {
+            if (phase === "readiness") {
+              return Promise.resolve();
+            }
+            setImmediate(() => void requestControl());
+            return new Promise<void>(() => undefined);
+          },
+          cancelSignal,
+          finishSignal,
+          wantsStream: false,
+          onError: (message) => ({ status: 502, headers: {}, body: message }),
+        });
+        await flush();
+
+        assert.equal(controlStatus, "ok");
+        assert.equal(attempts, 1);
+        assert.equal(readies, phase === "readiness" ? 2 : 1);
+        if (action === "cancel") {
+          assert.equal(final.status, 499);
+          assert.equal(final.body, "");
+        } else {
+          assert.equal(final.status, 200);
+          assert.equal(
+            JSON.parse(final.body).choices[0].message.content,
+            "partial",
+          );
+        }
+      },
+    );
+  }
+}
 
 test("runResumableForward caps resume attempts and emits the partial buffer", async () => {
   const state = createResumableBufferState();

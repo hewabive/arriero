@@ -1120,13 +1120,14 @@ export async function serveResolvedTarget(input: {
 
   const makeTargetReady = (
     initialPreview: Awaited<ReturnType<typeof getApiProxyPlanPreview>>,
+    signal: AbortSignal = c.req.raw.signal,
   ) =>
     executeApiProxyTargetReadiness(
       decision.target,
       initialPreview,
       domains,
       extraTarget ?? undefined,
-      c.req.raw.signal,
+      signal,
     );
 
   const freshRequestPreview = () => planPreviewFor(decision.target.id);
@@ -1648,6 +1649,10 @@ export async function serveResolvedTarget(input: {
         : withProgress;
     };
 
+    const cancelSignal = inflight.controlSignal("cancel");
+    const finishSignal = inflight.controlSignal("finish");
+    const operatorStop = AbortSignal.any([cancelSignal, finishSignal]);
+    const readinessSignal = AbortSignal.any([c.req.raw.signal, operatorStop]);
     let readyFromPlanContext = true;
     const final = await runResumableForward({
       makeReady: async () => {
@@ -1655,11 +1660,16 @@ export async function serveResolvedTarget(input: {
           ? planContext.preview
           : await freshRequestPreview();
         readyFromPlanContext = false;
-        const execution = await makeTargetReady(initialPreview);
+        const execution = await makeTargetReady(
+          initialPreview,
+          readinessSignal,
+        );
         if (execution.ok) {
           return { ok: true };
         }
-        applyTraceDiagnostic(trace, execution.diagnostic);
+        if (!operatorStop.aborted) {
+          applyTraceDiagnostic(trace, execution.diagnostic);
+        }
         const response = adapter.diagnosticError(
           route.request,
           execution.diagnostic,
@@ -1688,8 +1698,8 @@ export async function serveResolvedTarget(input: {
             forceAnswerSupported && !reasoningControl
               ? inflight.controlSignal("force-answer")
               : undefined,
-          finishSignal: inflight.controlSignal("finish"),
-          cancelSignal: inflight.controlSignal("cancel"),
+          finishSignal,
+          cancelSignal,
           idleTimeoutMs: resolved.context.streamIdleTimeoutMs,
           ...upstreamObserver,
         });
@@ -1697,6 +1707,8 @@ export async function serveResolvedTarget(input: {
       state,
       codec: effectiveCodec,
       yieldLease: () => heldLease.yield(),
+      cancelSignal,
+      finishSignal,
       wantsStream: route.request.stream,
       truncation: {
         mode:
