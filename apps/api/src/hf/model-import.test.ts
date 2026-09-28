@@ -20,7 +20,11 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../config.js";
-import { saveModelScanSettings } from "../models/cache-repository.js";
+import {
+  saveCachedModel,
+  saveModelScanSettings,
+} from "../models/cache-repository.js";
+import { emptyMetadata } from "../models/scanner.js";
 import { saveHfDownloadSettings } from "../settings/downloads.js";
 import {
   listModelLibraryEntries,
@@ -527,6 +531,62 @@ test("automatic search uses the directory name for safetensors", async () => {
   assert.equal(state.status, "ready", state.error ?? "");
   assert.ok(requests.some((url) => url.includes("search=Novel-Model")));
   assert.equal(state.files.length, 2);
+});
+
+function searchTerms(requests: string[]): string[] {
+  return requests
+    .filter((url) => url.startsWith("/api/models?"))
+    .map((url) => new URL(url, "https://hub.test").searchParams.get("search"))
+    .filter((term): term is string => Boolean(term));
+}
+
+test("automatic search strips every artifact-kind marker from sidecar names", async () => {
+  for (const name of [
+    "eagle3-Novel-Model-Q8_0.gguf",
+    "Novel-Model-mtp-BF16.gguf",
+    "dflash-Novel-Model.gguf",
+    "Novel-Model-dspark-Q4_K_M.gguf",
+    "mmproj-Novel-Model-F16.gguf",
+    "Novel-Model.imatrix.gguf",
+  ]) {
+    const { source } = fixture();
+    writeFileSync(join(source, name), "sidecar");
+    const requests: string[] = [];
+    await discover(
+      join(source, name),
+      { "owner/Novel-Model-GGUF": { [name]: "sidecar" } },
+      requests,
+    );
+    const terms = searchTerms(requests);
+    assert.ok(terms.length > 0, name);
+    assert.deepEqual(new Set(terms), new Set(["Novel-Model"]), name);
+  }
+});
+
+test("a bare imatrix name falls back to the cached model name for search", async () => {
+  const { source } = fixture();
+  const path = join(source, "imatrix.gguf");
+  writeFileSync(path, "importance");
+  saveCachedModel(
+    {
+      name: "imatrix.gguf",
+      path,
+      directory: source,
+      sizeBytes: Buffer.byteLength("importance"),
+      modifiedAt: new Date().toISOString(),
+      artifactKind: "imatrix",
+      mmprojPaths: [],
+      metadata: { ...emptyMetadata(), name: "Novel-Model" },
+    },
+    null,
+  );
+  const requests: string[] = [];
+  await discover(
+    path,
+    { "owner/Novel-Model-GGUF": { "imatrix.gguf": "importance" } },
+    requests,
+  );
+  assert.deepEqual(new Set(searchTerms(requests)), new Set(["Novel-Model"]));
 });
 
 test("search can be canceled without changing local files", async () => {

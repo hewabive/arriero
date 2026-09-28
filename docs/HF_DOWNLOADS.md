@@ -292,7 +292,10 @@ Legacy entries containing only paths cannot establish provenance offline. A save
 historical version; an offline match makes no claim about current branch contents or availability.
 
 If no saved candidate matches and Hub fallback is enabled (the API default), search terms come from the filename without its
-quantization/shard suffix, the directory name for safetensors, and cached model provenance.
+quantization/shard suffix and any leading or trailing artifact-kind marker (`GGUF_ARTIFACT_NAME_MARKERS`
+in `packages/core/src/models.ts`: mmproj, MTP/EAGLE3/DFlash/DSpark drafts, imatrix), the directory
+name for safetensors, and cached model provenance. A name left too generic (a bare marker, `model`,
+`weights`) searches the base model or GGUF model name instead when one is cached.
 Available author/base-model hints refine an initial search; name, base-model and unfiltered
 searches broaden it. The Hub search returns `sha` and `siblings`, so candidates containing the
 local filenames rank ahead of renamed-file fallbacks. Each query takes at most 30 results and at

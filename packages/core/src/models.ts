@@ -96,27 +96,26 @@ export const GgufArtifactKindSchema = z.enum([
 
 export type GgufArtifactKind = z.infer<typeof GgufArtifactKindSchema>;
 
+export const GGUF_ARTIFACT_NAME_MARKERS = [
+  { kind: "mmproj", marker: "mmproj", requiresHyphen: false },
+  { kind: "draft-mtp", marker: "mtp", requiresHyphen: true },
+  { kind: "draft-eagle3", marker: "eagle3", requiresHyphen: true },
+  { kind: "draft-dflash", marker: "dflash", requiresHyphen: true },
+  { kind: "draft-dspark", marker: "dspark", requiresHyphen: true },
+  { kind: "imatrix", marker: "imatrix", requiresHyphen: false },
+] as const satisfies ReadonlyArray<{
+  kind: Exclude<GgufArtifactKind, "model">;
+  marker: string;
+  requiresHyphen: boolean;
+}>;
+
 export function classifyGgufArtifactKind(pathOrName: string): GgufArtifactKind {
   const name = pathOrName.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
-  if (name.includes("mmproj")) {
-    return "mmproj";
-  }
-  if (name.includes("mtp-")) {
-    return "draft-mtp";
-  }
-  if (name.includes("eagle3-")) {
-    return "draft-eagle3";
-  }
-  if (name.includes("dflash-")) {
-    return "draft-dflash";
-  }
-  if (name.includes("dspark-")) {
-    return "draft-dspark";
-  }
-  if (name.includes("imatrix")) {
-    return "imatrix";
-  }
-  return "model";
+  return (
+    GGUF_ARTIFACT_NAME_MARKERS.find(({ marker, requiresHyphen }) =>
+      name.includes(requiresHyphen ? `${marker}-` : marker),
+    )?.kind ?? "model"
+  );
 }
 
 export function isAuxiliaryGgufArtifactKind(kind: GgufArtifactKind): boolean {

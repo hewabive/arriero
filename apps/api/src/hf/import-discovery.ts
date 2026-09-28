@@ -1,4 +1,5 @@
 import {
+  GGUF_ARTIFACT_NAME_MARKERS,
   parseHfRepoInput,
   parseSplitInfo,
   type ModelImportCandidate,
@@ -52,14 +53,26 @@ const REPO_CACHE_TTL_MS = 60000;
 const REPO_CACHE_LIMIT = 60;
 const repoCache = new Map<string, { at: number; repo: HfRepoFiles }>();
 
+const ARTIFACT_MARKERS = GGUF_ARTIFACT_NAME_MARKERS.map(
+  ({ marker }) => marker,
+).join("|");
+const ARTIFACT_MARKER_SEGMENT = new RegExp(
+  `^(?:${ARTIFACT_MARKERS})[-_.]|[-_.](?:${ARTIFACT_MARKERS})$`,
+  "gi",
+);
+const QUANTIZATION_SUFFIX =
+  /[-_.](?:UD-)?(?:(?:I?Q|TQ|MXFP)\d(?:_[A-Z0-9]+)*|BF16|F16|F32)$/i;
+const GENERIC_SEARCH_NAME = new RegExp(
+  `^(?:${ARTIFACT_MARKERS}|model|weights|pytorch_model|f16|q8_0)$`,
+  "i",
+);
+
 function importSearchName(name: string): string {
   const split = parseSplitInfo(name);
   return (split?.prefix ?? name.replace(/\.(gguf|safetensors)$/i, ""))
-    .replace(
-      /[-_.](?:UD-)?(?:(?:I?Q|TQ|MXFP)\d(?:_[A-Z0-9]+)*|BF16|F16|F32)$/i,
-      "",
-    )
-    .replace(/^(?:mmproj|mtp)-/i, "");
+    .replace(ARTIFACT_MARKER_SEGMENT, "")
+    .replace(QUANTIZATION_SUFFIX, "")
+    .replace(ARTIFACT_MARKER_SEGMENT, "");
 }
 
 async function withQuotaRetry<T>(
@@ -133,9 +146,7 @@ function searchHints(input: ModelImportRequest) {
     repoUrl?.match(/^https:\/\/huggingface\.co\/([\w.-]+)\/?$/)?.[1] ??
     metadata?.quantizedBy?.match(/^[\w.-]+$/)?.[0];
   const filenameName = importSearchName(basename(path));
-  const generic = /^(?:mmproj|model|weights|pytorch_model|f16|q8_0)$/i.test(
-    filenameName,
-  );
+  const generic = GENERIC_SEARCH_NAME.test(filenameName);
   const term =
     input.repo.trim() ||
     (generic
