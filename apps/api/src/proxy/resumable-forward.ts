@@ -1,5 +1,6 @@
 import { createSseFrameBuffer } from "@arriero/core";
 
+import { ResourceLeaseAbortedError } from "./domain-coordinator.js";
 import {
   CLIENT_ABORT_STATUS,
   describeFetchError,
@@ -544,6 +545,13 @@ export async function runResumableForward(input: {
     if (preemptions >= maxAttempts) {
       return finalFromState(input.codec, input.state, input.wantsStream);
     }
-    await waitUnlessStopped(input.yieldLease(), stopSignal);
+    try {
+      await waitUnlessStopped(input.yieldLease(), stopSignal);
+    } catch (error) {
+      if (error instanceof ResourceLeaseAbortedError) {
+        return clientAbortFinal();
+      }
+      throw error;
+    }
   }
 }

@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { anthropicResumableCodec } from "./anthropic.js";
+import {
+  ComputeDomainCoordinator,
+  type DomainAdmissionDecision,
+} from "./domain-coordinator.js";
 import { ApiProxyInflightRegistry } from "./inflight.js";
 import { openAiResumableCodec } from "./openai.js";
 import {
@@ -1131,6 +1135,60 @@ for (const action of ["cancel", "finish"] as const) {
     );
   }
 }
+
+test("runResumableForward ends as a client abort when the client leaves during re-admission", async () => {
+  const coordinator = new ComputeDomainCoordinator();
+  const client = new AbortController();
+  let parked = false;
+  const lease = await coordinator.acquire({
+    domains: ["gpu0"],
+    targetId: "preemptible",
+    priority: 0,
+    preemptible: true,
+    signal: client.signal,
+    decide: (): DomainAdmissionDecision =>
+      parked ? { type: "wait" } : { type: "admit" },
+  });
+  const state = createResumableBufferState();
+  let attempts = 0;
+  const final = await runResumableForward({
+    makeReady: async () => ({ ok: true }),
+    attempt: async () => {
+      attempts += 1;
+      state.text = "partial";
+      return { type: "preempted" };
+    },
+    state,
+    codec,
+    yieldLease: () => {
+      parked = true;
+      setImmediate(() => client.abort());
+      return lease.yield();
+    },
+    wantsStream: false,
+    onError: (message) => ({ status: 502, headers: {}, body: message }),
+  });
+  lease.release();
+
+  assert.equal(attempts, 1);
+  assert.equal(final.status, 499);
+  assert.equal(final.body, "");
+});
+
+test("runResumableForward rethrows a lease failure that is not an abort", async () => {
+  await assert.rejects(
+    runResumableForward({
+      makeReady: async () => ({ ok: true }),
+      attempt: async () => ({ type: "preempted" }),
+      state: createResumableBufferState(),
+      codec,
+      yieldLease: () => Promise.reject(new Error("lease lost")),
+      wantsStream: false,
+      onError: (message) => ({ status: 502, headers: {}, body: message }),
+    }),
+    /lease lost/,
+  );
+});
 
 test("runResumableForward caps resume attempts and emits the partial buffer", async () => {
   const state = createResumableBufferState();
