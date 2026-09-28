@@ -4,13 +4,9 @@ import {
   type WorkloadLinkingGroup,
   type WorkloadProfileWindow,
   type WorkloadRecord,
-  type WorkloadSessionSummary,
 } from "@arriero/core";
 
-import {
-  isReplayableWorkloadRecord,
-  isServedWorkloadOutcome,
-} from "./record-analysis.js";
+import { isServedWorkloadOutcome } from "./record-analysis.js";
 
 export type WorkloadProfileRange = {
   fromMs: number;
@@ -266,36 +262,4 @@ export function workloadLinkingGroups(
         (left.sourceName ?? "").localeCompare(right.sourceName ?? "") ||
         left.modelId.localeCompare(right.modelId),
     );
-}
-
-export function summarizeWorkloadSession(
-  records: WorkloadRecord[],
-): WorkloadSessionSummary | null {
-  const first = records[0];
-  if (!first) {
-    return null;
-  }
-  const targetNames = new Set<string>();
-  for (const record of records) {
-    if (record.targetName !== null) {
-      targetNames.add(record.targetName);
-    }
-  }
-  return {
-    sessionId: first.sessionId,
-    sourceId: first.sourceId,
-    sourceName: first.sourceName,
-    modelId: first.modelId,
-    startedAt: first.at,
-    endedAt: latestEndAt(records, first.endAt),
-    records: records.length,
-    replayable: records.filter(isReplayableWorkloadRecord).length,
-    errors: records.filter((record) => record.outcome === "error").length,
-    notServed: records.filter((record) => record.outcome === "not-served")
-      .length,
-    clientAborts: records.filter((record) => record.outcome === "client-abort")
-      .length,
-    maxPromptTokens: maxKnown(records.map((record) => record.promptTokens)),
-    targetNames: [...targetNames].sort(),
-  };
 }

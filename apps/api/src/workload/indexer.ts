@@ -10,6 +10,7 @@ import {
 import { startAsyncIntervalLoop } from "../utils/interval-loop.js";
 import {
   WORKLOAD_NORMALIZATION_VERSION,
+  WORKLOAD_REPLAYABLE_ENDPOINTS,
   classifyWorkloadOutcome,
   workloadCacheMetrics,
   workloadCaptureFile,
@@ -53,7 +54,10 @@ function indexWorkloadTrace(trace: ApiProxyRequestTrace): void {
   const issue = captured
     ? workloadRecordIssue({ trace, protocol, endpoint, body: captured.data })
     : "capture-unreadable";
-  const chain = captured ? workloadChain(protocol, captured.data) : null;
+  const chain =
+    captured && WORKLOAD_REPLAYABLE_ENDPOINTS[protocol] === endpoint
+      ? workloadChain(protocol, captured.data)
+      : null;
   const promptTokens = trace.usage?.promptTokens ?? null;
   const cacheReadTokens = trace.usage?.cacheReadTokens ?? null;
   const parent = chain

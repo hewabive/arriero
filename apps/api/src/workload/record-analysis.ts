@@ -26,7 +26,7 @@ import type {
 } from "../proxy/protocol.js";
 import { safeJsonParse } from "../proxy/protocol-trace.js";
 
-export const WORKLOAD_NORMALIZATION_VERSION = 1;
+export const WORKLOAD_NORMALIZATION_VERSION = 2;
 
 export const WORKLOAD_REPLAYABLE_ENDPOINTS: Record<
   "openai" | "anthropic",

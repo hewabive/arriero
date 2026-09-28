@@ -9,7 +9,6 @@ import {
 
 import {
   buildWorkloadProfile,
-  summarizeWorkloadSession,
   workloadLinkingGroups,
   workloadProfileWindowCount,
 } from "./profile.js";
@@ -183,33 +182,4 @@ test("linking groups compare reconstructed and client sessions", () => {
       clientSessionAgreeing: 1,
     },
   ]);
-});
-
-test("summarizes a session from its records", () => {
-  const summary = summarizeWorkloadSession([
-    record({ traceId: "a", offsetMs: 0, targetName: "a" }),
-    record({
-      traceId: "b",
-      offsetMs: MINUTE,
-      sessionId: "a",
-      outcome: "client-abort",
-      promptTokens: 5000,
-      targetName: "b",
-    }),
-    record({
-      traceId: "c",
-      offsetMs: 2 * MINUTE,
-      sessionId: "a",
-      outcome: "error",
-      durationMs: 5 * MINUTE,
-    }),
-  ]);
-  assert.equal(summary?.records, 3);
-  assert.equal(summary?.replayable, 2);
-  assert.equal(summary?.errors, 1);
-  assert.equal(summary?.clientAborts, 1);
-  assert.equal(summary?.maxPromptTokens, 5000);
-  assert.equal(summary?.endedAt, new Date(BASE + 7 * MINUTE).toISOString());
-  assert.deepEqual(summary?.targetNames, ["a", "b"]);
-  assert.equal(summarizeWorkloadSession([]), null);
 });

@@ -114,6 +114,53 @@ test("returns a session with its records, or 404", async () => {
   assert.equal(missing.status, 404);
 });
 
+test("the detail of a session is the row the list shows for it", async () => {
+  insertWorkloadRecord(
+    row("s1-count", 2, {
+      sessionId: "s1",
+      protocol: "anthropic",
+      endpoint: "messages.count_tokens",
+      issue: "unsupported-operation",
+      outcome: "error",
+      promptTokens: 50_000,
+      targetName: "counter",
+    }),
+  );
+  insertWorkloadRecord(
+    row("s1-c", 5, { sessionId: "s1", targetName: "gpu0, fast" }),
+  );
+  insertWorkloadRecord(row("s1-d", 6, { sessionId: "s1", targetName: null }));
+  insertWorkloadRecord(
+    row("count-only", 50, {
+      protocol: "anthropic",
+      endpoint: "messages.count_tokens",
+      issue: "unsupported-operation",
+    }),
+  );
+
+  const listed = await data<WorkloadSessionSummary[]>("/api/workload/sessions");
+  const summary = listed.data.find((session) => session.sessionId === "s1");
+  assert.equal(summary?.records, 4);
+  assert.equal(summary?.errors, 0);
+  assert.equal(summary?.maxPromptTokens, 1000);
+  assert.deepEqual(summary?.targetNames, ["a", "gpu0, fast"]);
+  const detail = await data<WorkloadSessionDetail>("/api/workload/sessions/s1");
+  assert.deepEqual(detail.data.summary, summary);
+  assert.deepEqual(
+    detail.data.records.map((record) => record.traceId),
+    ["s1", "s1-b", "s1-c", "s1-d"],
+  );
+
+  assert.equal(
+    listed.data.some((session) => session.sessionId === "count-only"),
+    false,
+  );
+  assert.equal(
+    (await app.request("/api/workload/sessions/count-only")).status,
+    404,
+  );
+});
+
 test("profiles a range and rejects an invalid one", async () => {
   const from = new Date(BASE).toISOString();
   const to = new Date(BASE + 60 * MINUTE).toISOString();

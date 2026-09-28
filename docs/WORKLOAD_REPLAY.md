@@ -120,9 +120,11 @@ a dataset stores the canonical bounds. Session index and profile:
 
 - `GET /api/workload/index` — index status: records, time span, normalization version, last pass.
 - `GET /api/workload/sessions?from&to&sourceId&modelId&targetId&limit&beforeAt&beforeId` — sessions
-  newest first, counted over the records inside the range, paged by the `(startedAt, sessionId)`
-  cursor of the last row.
-- `GET /api/workload/sessions/:id` — one session with all its records; 404 when unknown.
+  newest first, counted over the records of replayable operations (D4) inside the range, paged by
+  the `(startedAt, sessionId)` cursor of the last row.
+- `GET /api/workload/sessions/:id` — one session over its whole life, not limited to a range: the
+  summary the list computes for it and the records that summary counts; 404 when unknown, which a
+  session made only of other operations is too.
 - `GET /api/workload/profile?from&to&windowMinutes&stepMinutes&sourceId&modelId&targetId` — the
   period and its sliding windows (D12); defaults to the last 24 hours, 15-minute windows and a
   5-minute step, and refuses more than 2000 windows. The UI ranks the error-free windows of that
@@ -242,7 +244,10 @@ anyway: it depends on prefix identity. Sessions are reconstructed from content.
   request, and the CLI rewrites the previous value inside history).
 - _Chain hash._ `c_0 = H(root)` and `c_k = H(c_(k-1) || H(message_k))`, where the root holds the
   tools and, for Anthropic, the top-level `system`; an OpenAI system message is simply the first
-  chain element. A record's key is its last chain value.
+  chain element. A record's key is its last chain value. Only a request of a replayable operation
+  (D4) is chained: a `messages.count_tokens` request carries the conversation too, and chained it
+  would join the session and could become the parent of the next turn, taking over its think time
+  and cache metrics.
 - _Parent._ The latest earlier record of the same source and proxy model whose key equals one of this
   record's chain values, longest match first; ties are broken by `at`, then by `traceId`, so the
   index is deterministic. The match length is the shared prefix in messages. A retry of an identical
@@ -504,7 +509,7 @@ Asymmetries, all on the Anthropic / Claude Code side:
 3. **Version drift.** The replay translates with the current bridge, so an arriero update can change
    what the engine receives from the same dataset; the prepared-body hash exposes it (D25).
 4. **Extra requests.** `messages.count_tokens` passes through the pipeline and gets captured; it is
-   excluded by operation (D4). Claude Code's auxiliary requests are real load and become single-record
+   excluded by operation (D4) and from linking (D9). Claude Code's auxiliary requests are real load and become single-record
    sessions; selection keeps or drops them by source or model.
 
 ## Security and privacy

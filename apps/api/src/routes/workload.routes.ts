@@ -32,14 +32,12 @@ import {
 } from "../workload/freeze.js";
 import {
   buildWorkloadProfile,
-  summarizeWorkloadSession,
   workloadLinkingGroups,
   workloadProfileWindowCount,
   type WorkloadProfileRange,
 } from "../workload/profile.js";
 import {
   listWorkloadRecords,
-  listWorkloadSessionRecords,
   listWorkloadSessions,
   workloadIndexStatus,
 } from "../workload/repository.js";
@@ -138,12 +136,14 @@ export function registerWorkloadRoutes(app: Hono) {
   });
 
   app.get("/api/workload/sessions/:id", (c) => {
-    const records = listWorkloadSessionRecords(c.req.param("id"));
-    const summary = summarizeWorkloadSession(records);
+    const sessionId = c.req.param("id");
+    const [summary] = listWorkloadSessions({ sessionId, limit: 1 });
     if (!summary) {
       return c.json({ error: "workload session not found" }, 404);
     }
-    return c.json({ data: { summary, records } });
+    return c.json({
+      data: { summary, records: listWorkloadRecords({ sessionId }) },
+    });
   });
 
   app.get("/api/workload/profile", (c) => {

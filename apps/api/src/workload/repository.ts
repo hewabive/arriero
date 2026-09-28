@@ -21,6 +21,7 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import { z } from "zod";
 
 import { db } from "../db/index.js";
 import { workloadIndexState, workloadRecords } from "../db/schema.js";
@@ -176,6 +177,7 @@ function presentRecords(
 export type WorkloadScope = {
   from?: string | undefined;
   to?: string | undefined;
+  sessionId?: string | undefined;
   sourceId?: string | undefined;
   modelId?: string | undefined;
   targetId?: string | undefined;
@@ -216,6 +218,9 @@ function scopeConditions(scope: WorkloadScope): SQL[] {
   if (scope.to !== undefined) {
     conditions.push(lte(workloadRecords.at, scope.to));
   }
+  if (scope.sessionId !== undefined) {
+    conditions.push(eq(workloadRecords.sessionId, scope.sessionId));
+  }
   if (scope.sourceId !== undefined) {
     conditions.push(eq(workloadRecords.sourceId, scope.sourceId));
   }
@@ -247,16 +252,12 @@ export function getWorkloadRecord(traceId: string): WorkloadRecord | null {
   return row ? toWorkloadRecord(row) : null;
 }
 
-export function listWorkloadSessionRecords(
-  sessionId: string,
-): WorkloadRecord[] {
-  const rows = db
-    .select()
-    .from(workloadRecords)
-    .where(eq(workloadRecords.sessionId, sessionId))
-    .orderBy(asc(workloadRecords.at), asc(workloadRecords.traceId))
-    .all();
-  return presentRecords(rows);
+const SessionTargetNamesSchema = z.array(z.string().nullable());
+
+function sessionTargetNames(json: string): string[] {
+  return SessionTargetNamesSchema.parse(JSON.parse(json))
+    .filter((name): name is string => name !== null)
+    .sort();
 }
 
 export function listWorkloadSessions(
@@ -286,9 +287,7 @@ export function listWorkloadSessions(
       notServed: sql<number>`SUM(CASE WHEN ${workloadRecords.outcome} = 'not-served' THEN 1 ELSE 0 END)`,
       clientAborts: sql<number>`SUM(CASE WHEN ${workloadRecords.outcome} = 'client-abort' THEN 1 ELSE 0 END)`,
       maxPromptTokens: max(workloadRecords.promptTokens),
-      targetNames: sql<
-        string | null
-      >`group_concat(DISTINCT ${workloadRecords.targetName})`,
+      targetNames: sql<string>`json_group_array(DISTINCT ${workloadRecords.targetName})`,
     })
     .from(workloadRecords)
     .where(and(...scopeConditions(scope)))
@@ -319,7 +318,7 @@ export function listWorkloadSessions(
       notServed: Number(row.notServed ?? 0),
       clientAborts: Number(row.clientAborts ?? 0),
       maxPromptTokens: row.maxPromptTokens,
-      targetNames: row.targetNames ? row.targetNames.split(",").sort() : [],
+      targetNames: sessionTargetNames(row.targetNames),
     });
   }
   return sessions;

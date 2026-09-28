@@ -16,6 +16,7 @@ import { runWorkloadIndexPass } from "./indexer.js";
 import { WORKLOAD_NORMALIZATION_VERSION } from "./record-analysis.js";
 import {
   clearWorkloadRecords,
+  getWorkloadRecord,
   listWorkloadRecords,
   readWorkloadIndexState,
   writeWorkloadIndexState,
@@ -27,20 +28,28 @@ function iso(offsetMs: number): string {
   return new Date(BASE + offsetMs).toISOString();
 }
 
+const routePaths = {
+  "chat.completions": "/v1/chat/completions",
+  messages: "/v1/messages",
+  "messages.count_tokens": "/v1/messages/count_tokens",
+};
+
+type CapturedEndpoint = keyof typeof routePaths;
+
 function capture(
   id: string,
   at: string,
   body: unknown,
-  protocol: "openai" | "anthropic" = "openai",
+  endpoint: CapturedEndpoint = "chat.completions",
 ): ApiProxyTraceFile {
   return saveApiProxyRequestFile({
     traceId: id,
     traceAt: at,
     kind: "capture-request",
     label: null,
-    protocol,
-    endpoint: protocol === "openai" ? "chat.completions" : "messages",
-    routePath: protocol === "openai" ? "/v1/chat/completions" : "/v1/messages",
+    protocol: endpoint === "chat.completions" ? "openai" : "anthropic",
+    endpoint,
+    routePath: routePaths[endpoint],
     modelId: "agent",
     data: body,
   });
@@ -133,6 +142,30 @@ function recorded(input: {
   );
 }
 
+function recordedAnthropic(input: {
+  id: string;
+  offsetMs: number;
+  endpoint: "messages" | "messages.count_tokens";
+  messages: unknown[];
+  usage?: ReturnType<typeof usage>;
+}): void {
+  const at = iso(input.offsetMs);
+  const body = { model: "agent", system: "agent", messages: input.messages };
+  insertApiProxyTrace(
+    trace({
+      id: input.id,
+      at,
+      protocol: "anthropic",
+      translated: true,
+      endpoint: input.endpoint,
+      routePath: routePaths[input.endpoint],
+      stream: input.endpoint === "messages",
+      usage: input.usage ?? null,
+      files: [capture(input.id, at, body, input.endpoint)],
+    }),
+  );
+}
+
 function byTrace(): Map<string, WorkloadRecord> {
   return new Map(
     listWorkloadRecords({}).map((record) => [record.traceId, record]),
@@ -201,6 +234,49 @@ test("links a session and derives think time and cache metrics", async () => {
   assert.equal(records.get("r3")?.responseReuseTokens, 0);
   assert.equal(records.get("r1")?.issue, null);
   assert.equal(records.get("r1")?.outcome, "success");
+});
+
+test("a token count carrying the conversation never joins its session", async () => {
+  recordedAnthropic({
+    id: "m1",
+    offsetMs: 0,
+    endpoint: "messages",
+    messages: turn1,
+    usage: usage(1000, 0),
+  });
+  recordedAnthropic({
+    id: "m2",
+    offsetMs: 5000,
+    endpoint: "messages",
+    messages: turn2,
+    usage: usage(1500, 1000),
+  });
+  recordedAnthropic({
+    id: "count",
+    offsetMs: 8000,
+    endpoint: "messages.count_tokens",
+    messages: turn2,
+  });
+  recordedAnthropic({
+    id: "m3",
+    offsetMs: 60_000,
+    endpoint: "messages",
+    messages: turn3,
+    usage: usage(2000, 1400),
+  });
+
+  assert.equal((await runWorkloadIndexPass(later)).indexed, 4);
+  const records = byTrace();
+  assert.equal(records.get("m2")?.parentTraceId, "m1");
+  assert.equal(records.get("m3")?.parentTraceId, "m2");
+  assert.equal(records.get("m3")?.sessionId, "m1");
+  assert.equal(records.get("m3")?.thinkTimeMs, 54_000);
+  assert.equal(records.get("m3")?.cacheLossTokens, 100);
+  const count = getWorkloadRecord("count");
+  assert.equal(count?.issue, "unsupported-operation");
+  assert.equal(count?.messageCount, null);
+  assert.equal(count?.parentTraceId, null);
+  assert.equal(count?.sessionId, "count");
 });
 
 test("a second pass indexes nothing new", async () => {
