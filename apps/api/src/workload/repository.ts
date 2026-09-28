@@ -18,17 +18,12 @@ import {
   lte,
   max,
   min,
-  notInArray,
   sql,
   type SQL,
 } from "drizzle-orm";
 
 import { db } from "../db/index.js";
-import {
-  proxyRequestTraces,
-  workloadIndexState,
-  workloadRecords,
-} from "../db/schema.js";
+import { workloadIndexState, workloadRecords } from "../db/schema.js";
 import { WORKLOAD_REPLAYABLE_ENDPOINTS } from "./record-analysis.js";
 
 export type WorkloadRecordRow = typeof workloadRecords.$inferInsert;
@@ -156,16 +151,7 @@ export function pruneWorkloadRecords(cutoff: string): number {
     .delete(workloadRecords)
     .where(lt(workloadRecords.at, cutoff))
     .run();
-  const orphaned = db
-    .delete(workloadRecords)
-    .where(
-      notInArray(
-        workloadRecords.traceId,
-        db.select({ id: proxyRequestTraces.id }).from(proxyRequestTraces),
-      ),
-    )
-    .run();
-  return Number(pruned.changes) + Number(orphaned.changes);
+  return Number(pruned.changes);
 }
 
 function toWorkloadRecord(

@@ -273,3 +273,19 @@ test("prunes past retention and rebuilds on a normalization change", async () =>
   assert.equal(expired.pruned, 2);
   assert.equal(listWorkloadRecords({}).length, 0);
 });
+
+test("prunes by the retention cutoff alone", async () => {
+  recorded({ id: "r1", offsetMs: 0, messages: turn1 });
+  recorded({ id: "r2", offsetMs: 3000, messages: turn2 });
+  await runWorkloadIndexPass(later);
+  clearApiProxyTraceHistory();
+  assert.equal((await runWorkloadIndexPass(later)).pruned, 0);
+  const pass = await runWorkloadIndexPass(
+    new Date(BASE + 30 * 24 * HOUR + 2000),
+  );
+  assert.equal(pass.pruned, 1);
+  assert.deepEqual(
+    listWorkloadRecords({}).map((record) => record.traceId),
+    ["r2"],
+  );
+});

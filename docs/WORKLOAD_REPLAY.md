@@ -218,7 +218,9 @@ made unparseable. Scoped reads (`apps/api/src/workload/repository.ts:listWorkloa
 bound `at` from below by the range start minus the longest indexed duration: redundant with the
 `end_at` bound, it lets SQLite walk the `at` index instead of all retained history. Rows are pruned
 with the same cutoff as the traces and captures they index
-(`apps/api/src/proxy/traces-repository.ts:pruneApiProxyTraceHistory`). The whole index can be
+(`apps/api/src/proxy/traces-repository.ts:pruneApiProxyTraceHistory`), and by that cutoff alone:
+retention is the only path that removes traces, so a pass never scans for rows whose trace is gone,
+a full-table scan that would find nothing. The whole index can be
 dropped and rebuilt from what is still on disk — it is a cache, consistent with the DB being
 recreatable (tables in `apps/api/src/db/schema.ts` and `apps/api/src/db/index.ts:migrate`). Nothing
 runs on the request path.
