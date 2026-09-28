@@ -69,6 +69,7 @@ test("background integrity is discoverable, deduplicated and counts missing file
       job.result?.files.map((file) => file.status),
       ["verified", "missing"],
     );
+    assert.notEqual(getHfIntegrityJob(dir)?.result, null);
     const manifest = readHfManifest(dir)!;
     writeHfManifest(dir, { ...manifest, files: manifest.files.slice(0, 1) });
     assert.equal(getHfIntegrityJob(dir)?.result, null);
@@ -105,6 +106,27 @@ test("canceling during hashing leaves integrity metadata unchanged and a new job
     while (retry.status === "running" && Date.now() < deadline)
       await setTimeout(1);
     assert.equal(retry.status, "succeeded");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a result that could not be saved because the manifest changed reads as stale", async () => {
+  const dir = await fixture();
+  try {
+    const job = startHfIntegrityJob(dir);
+    const changed = {
+      ...readHfManifest(dir)!,
+      downloadedAt: "2026-01-01T00:00:00.000Z",
+    };
+    writeHfManifest(dir, changed);
+    const deadline = Date.now() + 5000;
+    while (job.status === "running" && Date.now() < deadline)
+      await setTimeout(1);
+    assert.equal(job.status, "succeeded");
+    assert.equal(job.result?.status, "issues");
+    assert.deepEqual(readHfManifest(dir), changed);
+    assert.equal(getHfIntegrityJob(dir)?.result, null);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

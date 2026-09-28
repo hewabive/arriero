@@ -1,5 +1,6 @@
 import {
   createPreset,
+  deletePreset,
   writePreset,
   readPreset,
 } from "../presets/repository.js";
@@ -25,7 +26,7 @@ import {
   listModelLibraryEntries,
   deleteModelLibraryEntry,
 } from "./model-library.js";
-import { readHfManifest } from "./manifest.js";
+import { readHfManifest, writeHfManifest } from "./manifest.js";
 import {
   startModelImport,
   getModelImport,
@@ -746,4 +747,115 @@ test("import rechecks neighboring directories after selection", async () => {
     readFileSync(join(source, "relocated/mtp-Novel.gguf"), "utf8"),
     "draft",
   );
+});
+
+function seedDestination(target: string): string {
+  const destDir = join(target, "owner/model");
+  mkdirSync(destDir, { recursive: true });
+  writeFileSync(join(destDir, "old.gguf"), "old");
+  writeHfManifest(destDir, {
+    version: 1,
+    repoId: "owner/model",
+    revision: "b".repeat(40),
+    downloadedAt: "2026-08-17T00:00:00.000Z",
+    files: [
+      {
+        path: "old.gguf",
+        size: 3,
+        oid: "a".repeat(40),
+        lfsOid: createHash("sha256").update("old").digest("hex"),
+        lastCommitId: null,
+        lastCommitDate: null,
+      },
+    ],
+  });
+  return destDir;
+}
+
+function flagIntegrityFailure(dir: string, path: string): void {
+  const manifest = readHfManifest(dir)!;
+  writeHfManifest(dir, {
+    ...manifest,
+    files: manifest.files.map((file) =>
+      file.path === path ? { ...file, integrityFailed: true } : file,
+    ),
+  });
+}
+
+function onFirstImportedFile(state: ModelImportState, action: () => void) {
+  let currentFile = state.currentFile;
+  let fired = false;
+  Object.defineProperty(state, "currentFile", {
+    configurable: true,
+    enumerable: true,
+    get: () => currentFile,
+    set: (value: string | null) => {
+      currentFile = value;
+      if (value !== null && !fired) {
+        fired = true;
+        action();
+      }
+    },
+  });
+}
+
+test("an import keeps integrity flags persisted while it was running", async () => {
+  const { source, target } = fixture();
+  const destDir = seedDestination(target);
+  writeFileSync(join(source, "unknown.gguf"), "weights");
+  const state = await prepare(join(source, "unknown.gguf"), {
+    "new.gguf": "weights",
+    "old.gguf": "old",
+  });
+  assert.equal(state.status, "ready", state.error ?? "");
+  onFirstImportedFile(state, () => flagIntegrityFailure(destDir, "old.gguf"));
+  commitModelImport(state.id);
+  const result = await wait(state.id);
+  assert.equal(result.status, "succeeded", result.error ?? "");
+  const manifest = readHfManifest(destDir)!;
+  assert.equal(manifest.acquisition, "mixed");
+  assert.deepEqual(
+    manifest.files.map((file) => [file.path, file.integrityFailed ?? false]),
+    [
+      ["old.gguf", true],
+      ["new.gguf", false],
+    ],
+  );
+});
+
+test("a rolled-back import removes only its own manifest entries", async () => {
+  const { source, target } = fixture();
+  const destDir = seedDestination(target);
+  const path = join(source, "unknown.gguf");
+  writeFileSync(path, "weights");
+  const name = `import-${randomUUID()}`;
+  createPreset({ name });
+  writePreset(name, {
+    content: `[model]\nmodel = ${path}\n\n[broken\n`,
+    expectedMtimeMs: readPreset(name)!.mtimeMs,
+    force: false,
+  });
+  try {
+    const state = await prepare(path, {
+      "new.gguf": "weights",
+      "old.gguf": "old",
+    });
+    assert.equal(state.status, "ready", state.error ?? "");
+    onFirstImportedFile(state, () => flagIntegrityFailure(destDir, "old.gguf"));
+    commitModelImport(state.id);
+    const result = await wait(state.id);
+    assert.equal(result.status, "failed");
+    assert.match(result.error!, /invalid preset/);
+    const manifest = readHfManifest(destDir)!;
+    assert.equal(manifest.acquisition, undefined);
+    assert.equal(manifest.importedAt, undefined);
+    assert.deepEqual(
+      manifest.files.map((file) => [file.path, file.integrityFailed]),
+      [["old.gguf", true]],
+    );
+    assert.equal(existsSync(join(destDir, "new.gguf")), false);
+    assert.equal(readFileSync(path, "utf8"), "weights");
+  } finally {
+    deletePreset(name);
+  }
 });

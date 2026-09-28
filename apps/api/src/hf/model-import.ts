@@ -141,10 +141,21 @@ function assertImportIdle(plan: ModelImportPlan): void {
     );
 }
 
+function readDestinationManifest(plan: ModelImportPlan): HfManifest | null {
+  const existing = readHfManifest(plan.state.destDir);
+  if (existsSync(hfManifestPath(plan.state.destDir)) && !existing)
+    throw new HfDownloadConflictError("Destination manifest is invalid");
+  if (existing && existing.repoId !== plan.state.repoId)
+    throw new HfDownloadConflictError(
+      "Destination belongs to a different repository",
+    );
+  return existing;
+}
+
 async function validatePlan(
   plan: ModelImportPlan,
   checkBusy = true,
-): Promise<HfManifest | null> {
+): Promise<void> {
   if (checkBusy) assertImportIdle(plan);
   const current = plan.directory
     ? await collectImportFiles(plan.source, true)
@@ -163,13 +174,7 @@ async function validatePlan(
     throw new HfDownloadConflictError(
       "Source changed since verification; check it again",
     );
-  const existing = readHfManifest(plan.state.destDir);
-  if (existsSync(hfManifestPath(plan.state.destDir)) && !existing)
-    throw new HfDownloadConflictError("Destination manifest is invalid");
-  if (existing && existing.repoId !== plan.state.repoId)
-    throw new HfDownloadConflictError(
-      "Destination belongs to a different repository",
-    );
+  readDestinationManifest(plan);
   for (const file of plan.state.files) {
     await assertDestinationPath(file.destination);
     try {
@@ -182,7 +187,6 @@ async function validatePlan(
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-  return existing;
 }
 
 function remapPaths<Value>(input: Value, plan: ModelImportPlan): Value {
@@ -240,6 +244,49 @@ async function pruneEmptyDirectories(path: string): Promise<void> {
   if ((await readdir(path)).length === 0) await rmdir(path);
 }
 
+function importedPaths(plan: ModelImportPlan): Set<string> {
+  return new Set(plan.manifestFiles.map((file) => file.path));
+}
+
+function writeImportManifest(
+  plan: ModelImportPlan,
+  current: HfManifest | null,
+): void {
+  const imported = importedPaths(plan);
+  const now = new Date().toISOString();
+  writeHfManifest(plan.state.destDir, {
+    version: 1,
+    repoId: plan.state.repoId,
+    revision: plan.state.revision,
+    downloadedAt: current?.downloadedAt ?? now,
+    importedAt: now,
+    acquisition: current ? "mixed" : "imported",
+    files: [
+      ...(current?.files.filter((file) => !imported.has(file.path)) ?? []),
+      ...plan.manifestFiles,
+    ],
+  });
+}
+
+async function rollbackImportManifest(
+  plan: ModelImportPlan,
+  before: HfManifest | null,
+): Promise<void> {
+  if (!before) {
+    await rm(hfManifestPath(plan.state.destDir));
+    return;
+  }
+  const imported = importedPaths(plan);
+  const current = readHfManifest(plan.state.destDir) ?? before;
+  writeHfManifest(plan.state.destDir, {
+    ...before,
+    files: [
+      ...current.files.filter((file) => !imported.has(file.path)),
+      ...before.files.filter((file) => imported.has(file.path)),
+    ],
+  });
+}
+
 async function executeImport(
   plan: ModelImportPlan,
   signal: AbortSignal,
@@ -249,11 +296,11 @@ async function executeImport(
   const published: string[] = [];
   const updated: Instance[] = [];
   const updatedPresets: ModelPresetDocument[] = [];
-  let previousManifest: HfManifest | null = null;
+  let manifestBefore: HfManifest | null = null;
   let manifestWritten = false;
   let committed = false;
   try {
-    previousManifest = await validatePlan(plan);
+    await validatePlan(plan);
     await mkdir(plan.state.destDir, { recursive: true });
     if (plan.state.files.some((file) => file.source !== file.destination))
       staging = await mkdtemp(join(plan.state.destDir, IMPORT_STAGING_PREFIX));
@@ -297,19 +344,8 @@ async function executeImport(
     }
     signal.throwIfAborted();
     assertImportIdle(plan);
-    const retained =
-      previousManifest?.files.filter(
-        (file) => !plan.manifestFiles.some((entry) => entry.path === file.path),
-      ) ?? [];
-    writeHfManifest(plan.state.destDir, {
-      version: 1,
-      repoId: plan.state.repoId,
-      revision: plan.state.revision,
-      downloadedAt: previousManifest?.downloadedAt ?? new Date().toISOString(),
-      importedAt: new Date().toISOString(),
-      acquisition: previousManifest ? "mixed" : "imported",
-      files: [...retained, ...plan.manifestFiles],
-    });
+    manifestBefore = readDestinationManifest(plan);
+    writeImportManifest(plan, manifestBefore);
     manifestWritten = true;
     for (const instance of listInstances()) {
       const next = remapIfChanged(instance, plan);
@@ -406,11 +442,7 @@ async function executeImport(
         }
       }
       if (!rollbackFailed) {
-        if (manifestWritten) {
-          if (previousManifest)
-            writeHfManifest(plan.state.destDir, previousManifest);
-          else await rm(hfManifestPath(plan.state.destDir));
-        }
+        if (manifestWritten) await rollbackImportManifest(plan, manifestBefore);
         for (const path of published) await unlink(path);
       } else
         plan.state.warnings.push(

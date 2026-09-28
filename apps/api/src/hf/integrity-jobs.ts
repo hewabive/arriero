@@ -16,7 +16,7 @@ import { hfManifestPath, readHfManifest } from "./manifest.js";
 type IntegrityJob = {
   state: HfIntegrityJob;
   controller: AbortController;
-  manifestSignature: string | null;
+  manifestSignature: string;
   manifestStamp: string | null;
 };
 
@@ -80,8 +80,8 @@ export function startHfIntegrityJob(dir: string): HfIntegrityJob {
   const job: IntegrityJob = {
     state,
     controller,
-    manifestSignature: null,
-    manifestStamp: null,
+    manifestSignature: JSON.stringify(manifest),
+    manifestStamp: manifestStamp(resolved),
   };
   jobs.set(resolved, job);
   const completion = checkHfDownloadIntegrity(resolved, {
@@ -93,10 +93,12 @@ export function startHfIntegrityJob(dir: string): HfIntegrityJob {
       state.completedFiles++;
       state.completedBytes += file.expectedSize;
     },
-  })
-    .then((result) => {
+    onPersisted: () => {
       job.manifestStamp = manifestStamp(resolved);
       job.manifestSignature = manifestSignature(resolved);
+    },
+  })
+    .then((result) => {
       state.result = result;
       state.status = "succeeded";
     })

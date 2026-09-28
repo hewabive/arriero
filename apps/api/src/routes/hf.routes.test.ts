@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { Hono } from "hono";
 
+import { lockModelImport } from "../hf/import-lock.js";
 import { setHfToken } from "../hf/token.js";
 import { createPathCatalogEntry } from "../path-catalog/repository.js";
 import { registerHfRoutes } from "./hf.routes.js";
@@ -145,6 +146,28 @@ test("integrity check rejects unknown dirs and bad bodies", async () => {
     "/api/hf/downloads/integrity/jobs?dir=/nonexistent",
   );
   assert.deepEqual(await absent.json(), { data: null });
+});
+
+test("integrity, verification and delete answer 409 during a model import", async () => {
+  const app = appWithRoutes();
+  const dir = "/nonexistent/hf/importing";
+  const release = lockModelImport([dir]);
+  try {
+    for (const [path, body] of [
+      ["/api/hf/downloads/integrity", { dir }],
+      ["/api/hf/downloads/integrity/jobs", { dir }],
+      ["/api/hf/downloads/delete", { dir, verifyUpstream: true }],
+    ] as const) {
+      const response = await app.request(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      assert.equal(response.status, 409, path);
+    }
+  } finally {
+    release();
+  }
 });
 
 test("job endpoints return 404 when nothing is running", async () => {

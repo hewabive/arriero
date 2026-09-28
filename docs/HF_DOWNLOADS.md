@@ -166,9 +166,11 @@ The repository dialog also provides an offline **Verify files** action. It reads
 by `.arriero-hf.json` sequentially and compares its size and content hash with the manifest: raw
 sha256 against `lfsOid` for LFS files, or Git blob sha1 against `oid` for regular Git files. The
 result distinguishes missing files, size mismatches, checksum mismatches and read errors; it never
-contacts HuggingFace. Verification is refused while a download is active in that directory.
-Results mark failed files with `integrityFailed` in the local manifest, provided the manifest
-has not changed during verification. This survives reopening the dialog and bypasses the transfer
+contacts HuggingFace. Verification is refused while a download is active in that directory or a
+model import holds it. Results mark failed files with `integrityFailed` in the local manifest,
+provided the manifest has not changed during verification; a result that could not be saved is
+reported as stale, because the job compares against the manifest it started from, not the one
+present when it finished. This survives reopening the dialog and bypasses the transfer
 engine’s manifest-only skip shortcut: a damaged file is hashed again and downloaded if needed.
 Successful transfers replace the file record and clear the flag.
 
@@ -356,15 +358,19 @@ hard links for moves on the same filesystem or copies across filesystems; reques
 copies always get independent content. Exclusive links publish the staged files before writing the
 manifest and updating saved instance/preset paths. Live local instances (including affected managed
 presets) block moves; active, queued or paused downloads block overlapping destinations. Import locks
-also block download enqueue and library deletion. Originals are removed only after publication,
-manifest creation and reference updates succeed, with another source identity check before unlink.
+also block download enqueue, integrity checks, restoration checks and library deletion (409).
+Originals are removed only after publication, manifest creation and reference updates succeed,
+with another source identity check before unlink.
 Pre-commit failures roll back publication and reference changes; if reference rollback fails,
 both copies remain. Failed source cleanup leaves duplicates and a warning. Hard termination can
 leave staging or published duplicates; source content remains until its destination is registered.
 External scripts are not rewritten.
 
 Manifests record `importedAt` and `acquisition: imported` (or `mixed` when adding to a manifest);
-`downloadedAt` remains the legacy registration timestamp. Verified imported files participate in
+`downloadedAt` remains the legacy registration timestamp. The destination manifest is re-read
+immediately before the import writes it, so entries and integrity flags saved while the import
+ran are kept; a rollback removes only the import's own entries (restoring any it replaced) rather
+than writing back a copy taken when the import started. Verified imported files participate in
 update checks, integrity checks and model library; import does not fabricate a download job.
 
 ## Deletion

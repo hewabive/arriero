@@ -259,6 +259,7 @@ export function resolveIdleHfDownload(dir: string): {
   manifest: HfManifest;
 } {
   const resolved = resolve(dir);
+  assertNoModelImport(resolved);
   const manifest = readHfManifest(resolved);
   if (!manifest || !isInsideScanRoots(resolved)) {
     throw new HfDownloadNotFoundError(
@@ -377,7 +378,6 @@ function removeHfOrphanParts(
 }
 
 export function deleteHfDownload(dir: string, paths?: readonly string[]): void {
-  assertNoModelImport(resolve(dir));
   const { resolved, manifest } = resolveIdleHfDownload(dir);
   const targets = paths
     ? splitHfDeleteTargets(resolved, manifest, paths)
@@ -551,6 +551,7 @@ export async function checkHfDownloadIntegrity(
     signal?: AbortSignal;
     onProgress?: VerificationObserver;
     onFile?: (file: HfDownloadIntegrityFile) => void;
+    onPersisted?: () => void;
   } = {},
 ): Promise<HfDownloadIntegrity> {
   const { resolved, manifest } = resolveIdleHfDownload(dir);
@@ -579,6 +580,7 @@ export async function checkHfDownloadIntegrity(
         integrityFailed: results.get(file.path)?.status !== "verified",
       })),
     });
+    options.onPersisted?.();
   } else {
     logger.warn(
       { dir: resolved },

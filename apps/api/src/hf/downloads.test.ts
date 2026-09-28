@@ -7,6 +7,7 @@ import { beforeEach, test } from "node:test";
 import { config } from "../config.js";
 import { registerActiveJob, resetActiveJobs } from "../jobs/registry.js";
 import { saveModelScanSettings } from "../models/cache-repository.js";
+import { HfDownloadConflictError } from "./download-plan.js";
 import {
   checkHfDownloadIntegrity,
   deleteHfDownload,
@@ -18,6 +19,8 @@ import {
   listHfDownloads,
   verifyHfDownloadRedownloadable,
 } from "./downloads.js";
+import { lockModelImport } from "./import-lock.js";
+import { startHfIntegrityJob } from "./integrity-jobs.js";
 import { writeHfManifest } from "./manifest.js";
 import { resetHfUpdateChecksForTests } from "./update-check.js";
 
@@ -350,4 +353,29 @@ test("delete refuses while a download job is active for the directory", () => {
     resetActiveJobs();
   }
   assert.equal(existsSync(dir), true);
+});
+
+test("integrity, verification and delete refuse while a model import holds the directory", async () => {
+  const dir = seedRepo("owner/importing", [
+    { path: "model.gguf", present: true },
+  ]);
+  const release = lockModelImport([dir]);
+  try {
+    await assert.rejects(
+      checkHfDownloadIntegrity(dir),
+      HfDownloadConflictError,
+    );
+    assert.throws(() => startHfIntegrityJob(dir), HfDownloadConflictError);
+    await assert.rejects(
+      verifyHfDownloadRedownloadable(dir, undefined, {
+        fetchImpl: upstreamFetch({ sha: "a".repeat(40), files: [] }),
+        token: null,
+      }),
+      HfDownloadConflictError,
+    );
+    assert.throws(() => deleteHfDownload(dir), HfDownloadConflictError);
+  } finally {
+    release();
+  }
+  assert.equal((await checkHfDownloadIntegrity(dir)).files.length, 1);
 });
