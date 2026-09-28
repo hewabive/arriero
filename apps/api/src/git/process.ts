@@ -237,15 +237,29 @@ export async function tryGit(
   }
 }
 
-export async function getGitAuthorIdentity(cwd: string): Promise<{
+export type GitAuthorIdentity = {
   authorName: string | null;
   authorEmail: string | null;
-}> {
-  const [authorName, authorEmail] = await Promise.all([
-    tryGit(cwd, ["config", "--get", "user.name"]),
-    tryGit(cwd, ["config", "--get", "user.email"]),
+};
+
+export async function getGitAuthorIdentity(
+  cwd: string,
+): Promise<GitAuthorIdentity> {
+  const output = await tryGit(cwd, [
+    "config",
+    "--get-regexp",
+    "^user\\.(name|email)$",
   ]);
-  return { authorName, authorEmail };
+  const values = new Map<string, string>();
+  for (const line of output?.split("\n") ?? []) {
+    const separator = line.indexOf(" ");
+    const key = separator === -1 ? line : line.slice(0, separator);
+    values.set(key, separator === -1 ? "" : line.slice(separator + 1).trim());
+  }
+  return {
+    authorName: values.get("user.name") || null,
+    authorEmail: values.get("user.email") || null,
+  };
 }
 
 function syncErrorText(error: unknown): GitResult {

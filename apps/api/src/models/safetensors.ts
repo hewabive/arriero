@@ -436,6 +436,12 @@ function readChatTemplate(directory: string, errors: string[]): string | null {
   return chatTemplateFromValue(chatTemplateJson?.chat_template);
 }
 
+export function safetensorsIndexShards(index: unknown): unknown[] | null {
+  return isJsonObject(index) && isJsonObject(index.weight_map)
+    ? [...new Set(Object.values(index.weight_map))]
+    : null;
+}
+
 function readIndex(
   directory: string,
   errors: string[],
@@ -444,15 +450,10 @@ function readIndex(
   if (!index) {
     return { files: null, totalSizeBytes: null };
   }
-  const files = isJsonObject(index.weight_map)
-    ? [
-        ...new Set(
-          Object.values(index.weight_map).filter(
-            (value): value is string => typeof value === "string",
-          ),
-        ),
-      ].sort()
-    : null;
+  const files =
+    safetensorsIndexShards(index)
+      ?.filter((value): value is string => typeof value === "string")
+      .sort() ?? null;
   const totalSize = isJsonObject(index.metadata)
     ? index.metadata.total_size
     : null;

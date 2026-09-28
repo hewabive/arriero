@@ -25,6 +25,7 @@ import {
   redactGitOutput,
   runGit,
   tryGit,
+  type GitAuthorIdentity,
 } from "./process.js";
 import {
   getActiveConfigGitOperation,
@@ -179,10 +180,12 @@ function hasUnpushedCommits(
   );
 }
 
-function emptyStatus(
+async function emptyStatus(
   error: string | null,
-  identity: Awaited<ReturnType<typeof getGitAuthorIdentity>>,
-): ConfigGitStatus {
+  knownIdentity: GitAuthorIdentity | null = null,
+): Promise<ConfigGitStatus> {
+  const identity =
+    knownIdentity ?? (await getGitAuthorIdentity(config.configDir));
   return ConfigGitStatusSchema.parse({
     configDir: config.configDir,
     exists: existsSync(config.configDir),
@@ -212,10 +215,11 @@ function emptyStatus(
 export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
   const path = config.configDir;
   if (!(await isExactGitRepository(path))) {
-    return emptyStatus(null, await getGitAuthorIdentity(path));
+    return emptyStatus(null);
   }
+  let identity: GitAuthorIdentity | null = null;
   try {
-    const [head, shortHead, branchRaw, originRaw, statusResult, identity] =
+    const [head, shortHead, branchRaw, originRaw, statusResult, author] =
       await Promise.all([
         tryGit(path, ["rev-parse", "HEAD"]),
         tryGit(path, ["rev-parse", "--short", "HEAD"]),
@@ -224,6 +228,7 @@ export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
         runGit(path, ["status", "--porcelain=v1", "--untracked-files=all"]),
         getGitAuthorIdentity(path),
       ]);
+    identity = author;
     const branch = branchRaw || null;
     const upstream = branch
       ? await tryGit(path, ["rev-parse", "--abbrev-ref", "@{u}"])
@@ -256,15 +261,12 @@ export async function getConfigGitStatus(): Promise<ConfigGitStatus> {
       branches,
       remoteBranches: remotes,
       backups: listConfigBackups(),
-      ...identity,
+      ...author,
       activeOperation: getActiveConfigGitOperation(),
       error: null,
     });
   } catch (error) {
-    return emptyStatus(
-      (error as Error).message,
-      await getGitAuthorIdentity(path),
-    );
+    return emptyStatus((error as Error).message, identity);
   }
 }
 

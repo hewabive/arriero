@@ -59,8 +59,9 @@ export function recoverApiProxySseStream(input: {
             return;
           }
           const complete = frames.push(chunk.value);
-          for (const frame of complete) {
-            if (shape === "openai-responses") {
+          if (complete.length === 0) continue;
+          if (shape === "openai-responses") {
+            for (const frame of complete) {
               for (const { value } of parseApiProxySseJsonFrame(frame)
                 .payloads) {
                 const sequence = asObject(value)?.sequence_number;
@@ -72,9 +73,9 @@ export function recoverApiProxySseStream(input: {
                 }
               }
             }
-            controller.enqueue(encoder.encode(frame));
           }
-          if (complete.length > 0) return;
+          controller.enqueue(encoder.encode(complete.join("")));
+          return;
         }
       } catch (error) {
         if (cancelled) return;

@@ -118,9 +118,9 @@ Admin-gated, `{ data }` responses, shapes from `packages/core/src/workload.ts`; 
 - `GET /api/workload/sessions/:id` — one session with all its records; 404 when unknown.
 - `GET /api/workload/profile?from&to&windowMinutes&stepMinutes&sourceId&modelId&targetId` — the
   period and its sliding windows (D12); defaults to the last 24 hours, 15-minute windows and a
-  5-minute step, and refuses more than 2000 windows.
-- `GET /api/workload/windows?…&rank=typical|peak&limit` — error-free windows ranked as in D12,
-  never overlapping each other.
+  5-minute step, and refuses more than 2000 windows. The UI ranks the error-free windows of that
+  profile as in D12, never overlapping each other, with
+  `packages/core/src/workload.ts:rankWorkloadWindows`.
 - `GET /api/workload/linking?from&to` — the linking report: link rate per source and model, and
   agreement with client session identifiers (`metadata.user_id` of Claude Code, `prompt_cache_key`
   of OpenAI clients) where present.
@@ -214,7 +214,10 @@ so that a long request inserted late is not lost; it walks in `(at, id)` order, 
 indexed before its child. The row snapshots the trace fields the domain needs: `cacheReadTokens` is not a
 column of `proxy_request_traces`, and trace rows are re-parsed on read with
 `apps/api/src/db/persisted-json.ts:parsePersistedJson`, which silently drops rows that a schema change
-made unparseable. Rows are pruned with the same cutoff as the traces and captures they index
+made unparseable. Scoped reads (`apps/api/src/workload/repository.ts:listWorkloadRecords`) also
+bound `at` from below by the range start minus the longest indexed duration: redundant with the
+`end_at` bound, it lets SQLite walk the `at` index instead of all retained history. Rows are pruned
+with the same cutoff as the traces and captures they index
 (`apps/api/src/proxy/traces-repository.ts:pruneApiProxyTraceHistory`). The whole index can be
 dropped and rebuilt from what is still on disk — it is a cache, consistent with the DB being
 recreatable (tables in `apps/api/src/db/schema.ts` and `apps/api/src/db/index.ts:migrate`). Nothing

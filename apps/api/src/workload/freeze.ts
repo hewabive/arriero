@@ -11,8 +11,10 @@ import {
   type WorkloadSelectionPreview,
   type WorkloadTimeRange,
 } from "@arriero/core";
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 
 import { getActiveJob, registerActiveJob } from "../jobs/registry.js";
+import { createLatestJobStore } from "../jobs/store.js";
 import { readApiProxyRequestFile } from "../proxy/request-files.js";
 import { getAppVersion } from "../update/version.js";
 import { errorMessage } from "../utils/error-message.js";
@@ -21,10 +23,14 @@ import {
   decomposeWorkloadBody,
   workloadDatasetId,
   workloadDatasetRecord,
+  type WorkloadBlobSink,
 } from "./dataset-codec.js";
 import { stageWorkloadDataset } from "./dataset-store.js";
-import { buildWorkloadProfile } from "./profile.js";
-import { WORKLOAD_NORMALIZATION_VERSION } from "./record-analysis.js";
+import { describeWorkloadPeriod } from "./profile.js";
+import {
+  WORKLOAD_NORMALIZATION_VERSION,
+  type ReplayableWorkloadRecord,
+} from "./record-analysis.js";
 import { getWorkloadRecord, listWorkloadRecords } from "./repository.js";
 import {
   planWorkloadSegments,
@@ -34,13 +40,12 @@ import {
 } from "./segments.js";
 
 const FREEZE_JOB_DOMAIN = "workload-freeze";
-const YIELD_EVERY = 10;
 
 export class WorkloadSelectionError extends Error {}
 
 export class WorkloadFreezeConflictError extends Error {}
 
-let latestJob: WorkloadFreezeJob | null = null;
+const latestJob = createLatestJobStore<WorkloadFreezeJob>();
 
 function scopeOf(selection: WorkloadDatasetSelection) {
   return {
@@ -79,11 +84,11 @@ export function previewWorkloadSelection(
 }
 
 export function currentWorkloadFreezeJob(): WorkloadFreezeJob | null {
-  return latestJob ? { ...latestJob } : null;
+  return latestJob.get(FREEZE_JOB_DOMAIN);
 }
 
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
+function updateFreezeJob(input: Partial<WorkloadFreezeJob>): void {
+  latestJob.patch(FREEZE_JOB_DOMAIN, input);
 }
 
 function periodProfile(
@@ -94,16 +99,10 @@ function periodProfile(
   const ends = ranges.map((range) => Date.parse(range.to));
   const fromMs = Math.min(...starts);
   const toMs = Math.max(...ends);
-  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) {
+  if (fromMs >= toMs) {
     return null;
   }
-  const span = toMs - fromMs;
-  return buildWorkloadProfile(records, {
-    fromMs,
-    toMs,
-    windowMs: span,
-    stepMs: span,
-  }).period;
+  return describeWorkloadPeriod(records, fromMs, toMs);
 }
 
 function selectionNames(
@@ -123,12 +122,12 @@ function selectionNames(
   };
 }
 
-async function datasetRecord(input: {
-  record: WorkloadRecord;
+function datasetRecord(input: {
+  record: ReplayableWorkloadRecord;
   windowFromMs: number;
   previous: WorkloadRecord | null;
-  write: (hash: string, json: string) => void;
-}): Promise<WorkloadDatasetRecord> {
+  write: WorkloadBlobSink;
+}): WorkloadDatasetRecord {
   const captured = input.record.capturePath
     ? readApiProxyRequestFile(input.record.capturePath)
     : null;
@@ -157,25 +156,28 @@ async function datasetRecord(input: {
 }
 
 async function runFreeze(input: {
-  job: WorkloadFreezeJob;
   request: WorkloadDatasetFreezeRequest;
   plan: WorkloadSegmentPlanResult;
   signal: AbortSignal;
 }): Promise<void> {
-  const { job, request, plan, signal } = input;
+  const { request, plan, signal } = input;
   const staging = await stageWorkloadDataset();
   const pendingWrites: Array<Promise<void>> = [];
-  const queued = new Set<string>();
-  const write = (hash: string, json: string) => {
-    if (!queued.has(hash)) {
-      queued.add(hash);
-      pendingWrites.push(staging.writeBlob(hash, json));
-    }
+  const write: WorkloadBlobSink = (hash, json) => {
+    pendingWrites.push(staging.writeBlob(hash, json));
+  };
+  let processedRecords = 0;
+  const recordFrozen = async () => {
+    processedRecords += 1;
+    updateFreezeJob({ processedRecords });
+    await yieldToEventLoop();
   };
   try {
     const segments: WorkloadDatasetSegment[] = [];
     for (const segmentPlan of plan.segments) {
-      segments.push(await freezeSegment(segmentPlan, job, write, signal));
+      segments.push(
+        await freezeSegment(segmentPlan, write, recordFrozen, signal),
+      );
       await Promise.all(pendingWrites.splice(0));
     }
     const names = selectionNames(plan, request.selection);
@@ -221,35 +223,36 @@ async function runFreeze(input: {
       },
       content,
     });
-    job.status = "succeeded";
-    job.datasetId = id;
+    updateFreezeJob({ status: "succeeded", datasetId: id });
   } catch (error) {
     await Promise.allSettled(pendingWrites);
     await staging.discard();
-    job.status = signal.aborted ? "canceled" : "failed";
-    job.error = signal.aborted ? "canceled" : errorMessage(error);
+    updateFreezeJob({
+      status: signal.aborted ? "canceled" : "failed",
+      error: signal.aborted ? "canceled" : errorMessage(error),
+    });
   } finally {
-    job.finishedAt = new Date().toISOString();
+    updateFreezeJob({ finishedAt: new Date().toISOString() });
   }
 }
 
 async function freezeSegment(
   segmentPlan: WorkloadSegmentPlan,
-  job: WorkloadFreezeJob,
-  write: (hash: string, json: string) => void,
+  write: WorkloadBlobSink,
+  recordFrozen: () => Promise<void>,
   signal: AbortSignal,
 ): Promise<WorkloadDatasetSegment> {
   const windowFromMs = Date.parse(segmentPlan.window.from);
   const priming = segmentPlan.priming
-    ? await datasetRecord({
+    ? datasetRecord({
         record: segmentPlan.priming,
         windowFromMs,
         previous: null,
         write,
       })
     : null;
-  if (segmentPlan.priming) {
-    job.processedRecords += 1;
+  if (priming) {
+    await recordFrozen();
   }
   const records: WorkloadDatasetRecord[] = [];
   let previous: WorkloadRecord | null = null;
@@ -257,14 +260,9 @@ async function freezeSegment(
     if (signal.aborted) {
       throw new Error("canceled");
     }
-    records.push(
-      await datasetRecord({ record, windowFromMs, previous, write }),
-    );
+    records.push(datasetRecord({ record, windowFromMs, previous, write }));
     previous = record;
-    job.processedRecords += 1;
-    if (job.processedRecords % YIELD_EVERY === 0) {
-      await yieldToEventLoop();
-    }
+    await recordFrozen();
   }
   return {
     sessionId: segmentPlan.sessionId,
@@ -289,7 +287,7 @@ export function startWorkloadDatasetFreeze(
   if (plan.problems.length > 0) {
     throw new WorkloadSelectionError(plan.problems.join("; "));
   }
-  const job: WorkloadFreezeJob = {
+  const job = latestJob.start(FREEZE_JOB_DOMAIN, {
     id: newId(),
     status: "running",
     name: request.name,
@@ -303,11 +301,9 @@ export function startWorkloadDatasetFreeze(
     ),
     datasetId: null,
     error: null,
-  };
-  latestJob = job;
+  });
   const controller = new AbortController();
   const completion = runFreeze({
-    job,
     request,
     plan,
     signal: controller.signal,
@@ -318,7 +314,7 @@ export function startWorkloadDatasetFreeze(
     cancel: () => controller.abort(),
     completion,
   });
-  return { ...job };
+  return job;
 }
 
 export async function waitForWorkloadFreeze(): Promise<void> {

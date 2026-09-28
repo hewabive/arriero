@@ -9,6 +9,11 @@ export const WorkloadOutcomeSchema = z.enum([
   "error",
 ]);
 
+export const WorkloadReplayableOutcomeSchema = WorkloadOutcomeSchema.extract([
+  "success",
+  "client-abort",
+]);
+
 export const WorkloadRecordIssueSchema = z.enum([
   "capture-after-rewrite",
   "unsupported-operation",
@@ -18,6 +23,15 @@ export const WorkloadRecordIssueSchema = z.enum([
 ]);
 
 const TokenCountSchema = z.number().int().min(0).nullable();
+
+export const WorkloadTimestampSchema = z
+  .string()
+  .min(1)
+  .refine((value) => Number.isFinite(Date.parse(value)), {
+    message: "must be a timestamp",
+  });
+
+export const MAX_WORKLOAD_PROFILE_WINDOWS = 2000;
 
 export const WorkloadRecordSchema = z.object({
   traceId: z.string(),
@@ -70,8 +84,8 @@ export const WorkloadSessionDetailSchema = z.object({
 });
 
 const WorkloadScopeQuerySchema = z.object({
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from: WorkloadTimestampSchema.optional(),
+  to: WorkloadTimestampSchema.optional(),
   sourceId: z.string().min(1).optional(),
   modelId: z.string().min(1).optional(),
   targetId: z.string().min(1).optional(),
@@ -88,13 +102,12 @@ export const WorkloadProfileQuerySchema = WorkloadScopeQuerySchema.extend({
   stepMinutes: z.coerce.number().int().min(1).max(1440).default(5),
 });
 
-export const WorkloadWindowRankSchema = z.enum(["typical", "peak"]);
+export const WorkloadLinkingQuerySchema = z.object({
+  from: WorkloadTimestampSchema.optional(),
+  to: WorkloadTimestampSchema.optional(),
+});
 
-export const WorkloadWindowRankingQuerySchema =
-  WorkloadProfileQuerySchema.extend({
-    rank: WorkloadWindowRankSchema.default("typical"),
-    limit: z.coerce.number().int().min(1).max(100).default(10),
-  });
+export const WorkloadWindowRankSchema = z.enum(["typical", "peak"]);
 
 export const WorkloadProfileWindowSchema = z.object({
   startAt: z.string(),
@@ -158,6 +171,11 @@ export const WorkloadIndexStatusSchema = z.object({
 export const WORKLOAD_DATASET_FORMAT_VERSION = 1;
 
 export const WorkloadTimeRangeSchema = z.object({
+  from: WorkloadTimestampSchema,
+  to: WorkloadTimestampSchema,
+});
+
+const StoredTimeRangeSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
 });
@@ -176,11 +194,17 @@ export const WorkloadDatasetFreezeRequestSchema = z.object({
   population: WorkloadTimeRangeSchema.nullable().default(null),
 });
 
+export const WORKLOAD_DATASET_ID_PATTERN = /^[0-9a-f]{64}$/;
+
+export const WorkloadContentHashSchema = z
+  .string()
+  .regex(WORKLOAD_DATASET_ID_PATTERN);
+
 export const WorkloadDatasetBodySchema = z.object({
   fields: z.record(z.string(), z.unknown()),
-  messages: z.array(z.string()),
-  tools: z.string().nullable(),
-  system: z.string().nullable(),
+  messages: z.array(WorkloadContentHashSchema),
+  tools: WorkloadContentHashSchema.nullable(),
+  system: WorkloadContentHashSchema.nullable(),
 });
 
 export const WorkloadDatasetRecordSchema = z.object({
@@ -191,7 +215,7 @@ export const WorkloadDatasetRecordSchema = z.object({
   offsetMs: z.number().int().min(0),
   thinkTimeMs: z.number().int().min(0).nullable(),
   durationMs: z.number().int().min(0),
-  outcome: z.enum(["success", "client-abort"]),
+  outcome: WorkloadReplayableOutcomeSchema,
   targetName: z.string().nullable(),
   promptTokens: TokenCountSchema,
   cacheReadTokens: TokenCountSchema,
@@ -214,7 +238,7 @@ export const WorkloadDatasetContentSchema = z.object({
   formatVersion: z.literal(WORKLOAD_DATASET_FORMAT_VERSION),
   normalizationVersion: z.number().int(),
   selection: z.object({
-    windows: z.array(WorkloadTimeRangeSchema).min(1),
+    windows: z.array(StoredTimeRangeSchema).min(1),
     sourceId: z.string().nullable(),
     sourceName: z.string().nullable(),
     modelId: z.string().nullable(),
@@ -229,16 +253,14 @@ export const WorkloadDatasetMetaSchema = z.object({
   description: z.string(),
   createdAt: z.string(),
   arrieroVersion: z.string().nullable(),
-  population: WorkloadTimeRangeSchema.nullable(),
+  population: StoredTimeRangeSchema.nullable(),
   profile: WorkloadProfileWindowSchema.nullable(),
   populationProfile: WorkloadProfileWindowSchema.nullable(),
   warnings: z.array(z.string()),
 });
 
-export const WORKLOAD_DATASET_ID_PATTERN = /^[0-9a-f]{64}$/;
-
 export const WorkloadDatasetManifestSchema = z.object({
-  id: z.string().regex(WORKLOAD_DATASET_ID_PATTERN),
+  id: WorkloadContentHashSchema,
   meta: WorkloadDatasetMetaSchema,
   content: WorkloadDatasetContentSchema,
 });
@@ -248,7 +270,7 @@ export const WorkloadDatasetSummarySchema = z.object({
   name: z.string(),
   description: z.string(),
   createdAt: z.string(),
-  windows: z.array(WorkloadTimeRangeSchema),
+  windows: z.array(StoredTimeRangeSchema),
   sourceName: z.string().nullable(),
   modelId: z.string().nullable(),
   segments: z.number().int().min(0),
@@ -300,6 +322,9 @@ export const WorkloadDatasetImportResultSchema = z.object({
 });
 
 export type WorkloadOutcome = z.infer<typeof WorkloadOutcomeSchema>;
+export type WorkloadReplayableOutcome = z.infer<
+  typeof WorkloadReplayableOutcomeSchema
+>;
 export type WorkloadRecordIssue = z.infer<typeof WorkloadRecordIssueSchema>;
 export type WorkloadRecord = z.infer<typeof WorkloadRecordSchema>;
 export type WorkloadSessionSummary = z.infer<
@@ -317,11 +342,8 @@ export type WorkloadProfileQueryInput = z.input<
   typeof WorkloadProfileQuerySchema
 >;
 export type WorkloadWindowRank = z.infer<typeof WorkloadWindowRankSchema>;
-export type WorkloadWindowRankingQuery = z.infer<
-  typeof WorkloadWindowRankingQuerySchema
->;
-export type WorkloadWindowRankingQueryInput = z.input<
-  typeof WorkloadWindowRankingQuerySchema
+export type WorkloadLinkingQueryInput = z.input<
+  typeof WorkloadLinkingQuerySchema
 >;
 export type WorkloadProfileWindow = z.infer<typeof WorkloadProfileWindowSchema>;
 export type WorkloadProfile = z.infer<typeof WorkloadProfileSchema>;
@@ -368,3 +390,95 @@ export type WorkloadFreezeJob = z.infer<typeof WorkloadFreezeJobSchema>;
 export type WorkloadDatasetImportResult = z.infer<
   typeof WorkloadDatasetImportResultSchema
 >;
+
+export function workloadPercentile(
+  sorted: readonly number[],
+  share: number,
+): number | null {
+  if (sorted.length === 0) {
+    return null;
+  }
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil(share * sorted.length) - 1),
+  );
+  return sorted[index] ?? null;
+}
+
+const TYPICAL_FEATURES = [
+  "activeSessions",
+  "requests",
+  "meanInFlight",
+  "promptTokensP50",
+  "freshPrefillTokens",
+  "completionTokensP50",
+] as const satisfies ReadonlyArray<keyof WorkloadProfileWindow>;
+
+function typicalScores(windows: WorkloadProfileWindow[]): number[] {
+  const medians = TYPICAL_FEATURES.map((feature) =>
+    workloadPercentile(
+      windows
+        .flatMap((window) => {
+          const value = window[feature];
+          return value === null ? [] : [value];
+        })
+        .sort((left, right) => left - right),
+      0.5,
+    ),
+  );
+  return windows.map((window) =>
+    TYPICAL_FEATURES.reduce((score, feature, index) => {
+      const value = window[feature];
+      const middle = medians[index] ?? null;
+      if (value === null || middle === null) {
+        return score;
+      }
+      return score + Math.abs(Math.log((value + 1) / (middle + 1)));
+    }, 0),
+  );
+}
+
+function windowsOverlap(
+  left: WorkloadProfileWindow,
+  right: WorkloadProfileWindow,
+): boolean {
+  return left.startAt < right.endAt && right.startAt < left.endAt;
+}
+
+export function rankWorkloadWindows(
+  windows: WorkloadProfileWindow[],
+  rank: WorkloadWindowRank,
+  limit: number,
+): WorkloadRankedWindow[] {
+  const candidates = windows.filter(
+    (window) => window.requests > 0 && window.errors === 0,
+  );
+  const scores =
+    rank === "typical"
+      ? typicalScores(candidates)
+      : candidates.map((window) => window.meanInFlight);
+  const ranked = candidates
+    .map((window, index) => ({ ...window, score: scores[index] ?? 0 }))
+    .sort((left, right) => {
+      if (rank === "typical") {
+        return (
+          left.score - right.score || left.startAt.localeCompare(right.startAt)
+        );
+      }
+      return (
+        right.score - left.score ||
+        (right.freshPrefillTokens ?? -1) - (left.freshPrefillTokens ?? -1) ||
+        left.startAt.localeCompare(right.startAt)
+      );
+    });
+  const picked: WorkloadRankedWindow[] = [];
+  for (const window of ranked) {
+    if (picked.length >= limit) {
+      break;
+    }
+    if (!picked.some((existing) => windowsOverlap(existing, window))) {
+      picked.push(window);
+    }
+  }
+  return picked;
+}

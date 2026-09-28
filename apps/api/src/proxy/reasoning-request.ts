@@ -7,17 +7,18 @@ import {
   stripApiProxyReasoningFields,
   type ApiProxyRouteTraceStep,
   type ApiProxyUpstreamReasoningProfile,
-  type EngineTranslationDialectId,
 } from "@arriero/core";
 
 import { instanceReasoningProfile } from "../instances/reasoning-profile.js";
 import { getExternalApiEndpoint } from "./endpoints.js";
+import { withBodyFields } from "./json.js";
 import type {
   ApiProxyProtocolId,
   ApiProxyProtocolOperation,
 } from "./protocol.js";
 import type { ProxyTraceAccumulator } from "./protocol-trace.js";
 import { prepareUpstreamExchange } from "./translation.js";
+import type { ApiProxyUpstreamContext } from "./upstream-context.js";
 
 function endpointReasoningProfile(
   endpointId: string,
@@ -51,20 +52,27 @@ export type ApiProxyUpstreamRequest = {
   traceStep: ApiProxyRouteTraceStep | null;
 };
 
+type ApiProxyUpstreamRequestContext = Pick<
+  ApiProxyUpstreamContext,
+  | "translateAnthropic"
+  | "translationDialect"
+  | "instanceId"
+  | "endpointId"
+  | "modelOverride"
+>;
+
 export function prepareApiProxyUpstreamRequest(input: {
-  translate: boolean;
-  translationDialect: EngineTranslationDialectId;
+  context: ApiProxyUpstreamRequestContext;
   operation: ApiProxyProtocolOperation;
   path: string;
   body: unknown;
   headers: Headers;
-  instanceId: string | null;
-  endpointId: string | null;
   trace?: ProxyTraceAccumulator;
 }): ApiProxyUpstreamRequest {
+  const { context } = input;
   const exchange = prepareUpstreamExchange({
-    translate: input.translate,
-    translationDialect: input.translationDialect,
+    translate: context.translateAnthropic,
+    translationDialect: context.translationDialect,
     operation: input.operation,
     path: input.path,
     body: input.body,
@@ -73,8 +81,8 @@ export function prepareApiProxyUpstreamRequest(input: {
   const reasoning = applyApiProxyReasoningMapping({
     body: exchange.body,
     protocol: exchange.protocol,
-    instanceId: input.instanceId,
-    endpointId: input.endpointId,
+    instanceId: context.instanceId,
+    endpointId: context.endpointId,
   });
   if (input.trace) {
     if (exchange.warnings.length > 0) {
@@ -88,7 +96,9 @@ export function prepareApiProxyUpstreamRequest(input: {
     protocol: exchange.protocol,
     path: exchange.path,
     headers: exchange.headers,
-    body: reasoning.body,
+    body: context.modelOverride
+      ? withBodyFields(reasoning.body, { model: context.modelOverride })
+      : reasoning.body,
     warnings: exchange.warnings,
     traceStep: reasoning.traceStep,
   };

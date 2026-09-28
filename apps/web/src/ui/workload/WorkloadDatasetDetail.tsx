@@ -18,10 +18,6 @@ import { formatBytes } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
 import { formatPercent, formatTokens } from "../views/benchmark-format";
 
-function tokens(value: number | null): string {
-  return value === null ? "—" : formatTokens(value);
-}
-
 const PROFILE_ROWS: Array<{
   label: string;
   value: (window: WorkloadProfileWindow) => string;
@@ -32,11 +28,17 @@ const PROFILE_ROWS: Array<{
     label: "Requests in flight",
     value: (window) => window.meanInFlight.toFixed(2),
   },
-  { label: "Prompt p50", value: (window) => tokens(window.promptTokensP50) },
-  { label: "Prompt p90", value: (window) => tokens(window.promptTokensP90) },
+  {
+    label: "Prompt p50",
+    value: (window) => formatTokens(window.promptTokensP50),
+  },
+  {
+    label: "Prompt p90",
+    value: (window) => formatTokens(window.promptTokensP90),
+  },
   {
     label: "Fresh prefill",
-    value: (window) => tokens(window.freshPrefillTokens),
+    value: (window) => formatTokens(window.freshPrefillTokens),
   },
   {
     label: "Served from cache",
@@ -44,9 +46,12 @@ const PROFILE_ROWS: Array<{
   },
   {
     label: "Answer p50",
-    value: (window) => tokens(window.completionTokensP50),
+    value: (window) => formatTokens(window.completionTokensP50),
   },
-  { label: "Lost cache", value: (window) => tokens(window.cacheLossTokens) },
+  {
+    label: "Lost cache",
+    value: (window) => formatTokens(window.cacheLossTokens),
+  },
 ];
 
 function ProfileComparison(props: {
@@ -177,7 +182,9 @@ export function WorkloadDatasetDetail(props: {
                         <Table.Td>{segment.modelId}</Table.Td>
                         <Table.Td>{segment.records}</Table.Td>
                         <Table.Td>{segment.primed ? "Yes" : "No"}</Table.Td>
-                        <Table.Td>{tokens(segment.maxPromptTokens)}</Table.Td>
+                        <Table.Td>
+                          {formatTokens(segment.maxPromptTokens)}
+                        </Table.Td>
                         <Table.Td>
                           <Text size="sm" ff="monospace">
                             {segment.sessionId.slice(-8)}

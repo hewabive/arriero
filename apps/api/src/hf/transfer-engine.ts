@@ -1,7 +1,6 @@
-import { hfManifestOidMatches } from "@arriero/core";
+import { hfContentOid, hfManifestOidMatches } from "@arriero/core";
 import { once } from "node:events";
 import {
-  createReadStream,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -17,12 +16,17 @@ import { logger } from "../logger.js";
 import { errorMessage } from "../utils/error-message.js";
 import {
   hfErrorFromResponse,
+  hfRateLimitDelayMs,
   hfRequestHeaders,
   hfResolveUrl,
   HfHubError,
   type HfClientOptions,
 } from "./client.js";
-import { createHfContentHash, hashHfContentFile } from "./content-hash.js";
+import {
+  createHfContentHash,
+  hashHfContentFile,
+  hashReadStream,
+} from "./content-hash.js";
 import {
   chunkCountFor,
   chunkSizeAt,
@@ -48,7 +52,6 @@ import {
 
 const CHUNK_ATTEMPT_LIMIT = 5;
 const RATE_LIMIT_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 240_000];
-const RATE_LIMIT_MAX_DELAY_MS = 300_000;
 const RATE_LIMIT_BUDGET_MS = 600_000;
 const WRITE_BATCH_BYTES = 1024 * 1024;
 
@@ -87,10 +90,6 @@ export type HfTransferResult = {
 };
 
 class RangeUnsupportedError extends Error {}
-
-function expectedHex(file: HfPlannedFile): string {
-  return file.lfs ? file.lfs.oid : file.oid;
-}
 
 async function hashLocalFile(
   file: HfPlannedFile,
@@ -224,7 +223,7 @@ async function attemptDownload(
   }
   const hash = createHfContentHash(file.size, file.lfs !== null);
   if (offset > 0) {
-    for await (const chunk of createReadStream(file.partPath)) {
+    for await (const chunk of hashReadStream(file.partPath)) {
       hash.update(chunk as Buffer);
     }
   }
@@ -281,10 +280,10 @@ async function attemptDownload(
   }
   ctx.onRequestSuccess(requestGeneration);
   const hex = hash.digest("hex");
-  if (hex !== expectedHex(file)) {
+  if (hex !== hfContentOid(file)) {
     rmSync(file.partPath, { force: true });
     throw new Error(
-      `checksum mismatch for ${file.path}: expected ${expectedHex(file)}, got ${hex}`,
+      `checksum mismatch for ${file.path}: expected ${hfContentOid(file)}, got ${hex}`,
     );
   }
   renameSync(file.partPath, file.finalPath);
@@ -345,16 +344,12 @@ export async function runHfTransfer(
           return;
         }
         const timer = setTimeout(finish, ms);
-        const onAbort = () => finish();
         function finish() {
           clearTimeout(timer);
-          ctx.signal.removeEventListener("abort", onAbort);
+          ctx.signal.removeEventListener("abort", finish);
           resolveDone();
         }
-        ctx.signal.addEventListener("abort", onAbort, { once: true });
-        if (ctx.signal.aborted) {
-          finish();
-        }
+        ctx.signal.addEventListener("abort", finish, { once: true });
       }));
   const downloadImpl =
     ctx.clientOptions.downloadImpl ??
@@ -372,7 +367,6 @@ export async function runHfTransfer(
     nextFileIndex: 0,
     opening: false,
     busy: 0,
-    targetConnections: initialConnections,
     openFiles: [] as ChunkedFile[],
     singleQueue: [] as HfPlannedFile[],
     singleControllers: new Set<AbortController>(),
@@ -398,7 +392,6 @@ export async function runHfTransfer(
     maxConnections,
     now: ctx.tuning?.now ?? Date.now,
     onChange: (connections) => {
-      engine.targetConnections = connections;
       ctx.events.onConnectionsChange?.(connections);
       wake();
     },
@@ -433,10 +426,7 @@ export async function runHfTransfer(
       rateLimitExhausted = true;
       return false;
     }
-    const delay = Math.max(
-      1_000,
-      Math.min(RATE_LIMIT_MAX_DELAY_MS, error.retryAfterMs ?? fallback),
-    );
+    const delay = hfRateLimitDelayMs(error, fallback);
     if (rateLimitScheduledMs + delay > RATE_LIMIT_BUDGET_MS) {
       rateLimitExhausted = true;
       return false;
@@ -457,6 +447,16 @@ export async function runHfTransfer(
         rateLimitPause = null;
       }
     }
+  }
+
+  async function retryAfterRateLimit(error: HfHubError): Promise<boolean> {
+    if (await backoffRateLimit(error)) {
+      return true;
+    }
+    if (!ctx.signal.aborted) {
+      declareStall(error.message);
+    }
+    return false;
   }
 
   function recordRequestSuccess(generation: number): void {
@@ -599,13 +599,13 @@ export async function runHfTransfer(
     detachState(state);
     await closeState(state);
     const hex = await hashLocalFile(state.file, state.file.partPath);
-    if (hex !== expectedHex(state.file)) {
+    if (hex !== hfContentOid(state.file)) {
       rmSync(state.file.partPath, { force: true });
       removeHfChunkSidecar(state.file.finalPath);
       engine.failedCount += 1;
       ctx.events.onFileFailed(
         state.file.path,
-        `checksum mismatch for ${state.file.path}: expected ${expectedHex(state.file)}, got ${hex}`,
+        `checksum mismatch for ${state.file.path}: expected ${hfContentOid(state.file)}, got ${hex}`,
       );
       wake();
       return;
@@ -621,7 +621,7 @@ export async function runHfTransfer(
       version: 1,
       size: state.file.size,
       chunkBytes: state.chunkBytes,
-      oid: expectedHex(state.file),
+      oid: hfContentOid(state.file),
       lfs: state.file.lfs !== null,
       revision: ctx.sha,
       completed: [...state.completed],
@@ -629,7 +629,7 @@ export async function runHfTransfer(
   }
 
   async function prepareChunkedFile(file: HfPlannedFile): Promise<ChunkedFile> {
-    const expected = expectedHex(file);
+    const expected = hfContentOid(file);
     let chunkBytes = hfChunkBytes(file.size, ctx.tuning);
     let completed = new Set<number>();
     const partExists = existsSync(file.partPath);
@@ -871,13 +871,9 @@ export async function runHfTransfer(
           return;
         }
         if (error instanceof HfHubError && error.kind === "rate-limited") {
-          if (await backoffRateLimit(error)) {
+          if (await retryAfterRateLimit(error)) {
             continue;
           }
-          if (ctx.signal.aborted) {
-            return;
-          }
-          declareStall(error.message);
           return;
         }
         if (isEnospc(error)) {
@@ -964,13 +960,9 @@ export async function runHfTransfer(
             return;
           }
           if (error instanceof HfHubError && error.kind === "rate-limited") {
-            if (await backoffRateLimit(error)) {
+            if (await retryAfterRateLimit(error)) {
               continue;
             }
-            if (ctx.signal.aborted) {
-              return;
-            }
-            declareStall(error.message);
             return;
           }
           if (isTransientError(error)) {
@@ -1039,7 +1031,7 @@ export async function runHfTransfer(
           return;
         }
         const hex = await hashLocalFile(file, file.finalPath);
-        if (hex === expectedHex(file)) {
+        if (hex === hfContentOid(file)) {
           ctx.events.onFileFinished(file, "skipped");
           return;
         }
@@ -1127,7 +1119,7 @@ export async function runHfTransfer(
       ) {
         return;
       }
-      if (workerIndex >= engine.targetConnections) {
+      if (workerIndex >= tuner.connections) {
         await waitForWake();
         continue;
       }

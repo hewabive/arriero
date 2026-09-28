@@ -15,6 +15,7 @@ import {
   apiProxySseEventFrame,
   createApiProxySseTransform,
   mutateApiProxyJsonText,
+  openAiResponsesTerminalTypes,
   parseApiProxySseJsonFrame,
   transformApiProxySseText,
   type ApiProxySseFrameTransformer,
@@ -262,12 +263,7 @@ function replaceOpenAiResponsesAggregate(
     }
     return 0;
   }
-  if (
-    (type === "response.completed" ||
-      type === "response.failed" ||
-      type === "response.incomplete") &&
-    isRecord(value.response)
-  ) {
+  if (openAiResponsesTerminalTypes.has(type) && isRecord(value.response)) {
     return replaceOpenAiResponsesOutput(value.response, effect);
   }
   return 0;
@@ -788,9 +784,7 @@ function laneFinishesForPayload(value: unknown): LaneFinish {
     (type === "message_delta" &&
       isRecord(value.delta) &&
       value.delta.stop_reason != null) ||
-    type === "response.completed" ||
-    type === "response.failed" ||
-    type === "response.incomplete"
+    openAiResponsesTerminalTypes.has(type)
   ) {
     return { finishAll: true, lanePrefixes };
   }

@@ -1,19 +1,19 @@
 import {
   parseHfRepoInput,
   parseSplitInfo,
-  type HfRepoBrowse,
   type ModelImportCandidate,
   type ModelImportRequest,
   type ModelImportState,
 } from "@arriero/core";
-import { randomUUID } from "node:crypto";
 import { basename, dirname, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { getCachedModelEntry } from "../models/cache-repository.js";
 import { getCachedSafetensorsEntry } from "../models/safetensors-cache-repository.js";
-import { browseHfRepo } from "./browse.js";
+import { newId } from "../utils/id.js";
+import { browseHfRepoFiles, type HfRepoFiles } from "./browse.js";
 import {
   HfHubError,
+  hfRateLimitDelayMs,
   searchHfModels,
   type HfClientOptions,
   type HfSearchModel,
@@ -21,6 +21,7 @@ import {
 import {
   discoverRelatedFiles,
   type ImportRelatedFile,
+  type NeighborPathCache,
 } from "./import-neighbors.js";
 import {
   collectImportFiles,
@@ -38,7 +39,18 @@ export type DiscoveredImport = {
   plan: ModelImportPlan;
   related: ImportRelatedFile[];
 };
-const repoCache = new Map<string, { at: number; repo: HfRepoBrowse }>();
+
+type Discovery = {
+  input: ModelImportRequest;
+  state: ModelImportState;
+  sources: ImportSourceFile[];
+  signal: AbortSignal;
+  neighbors: NeighborPathCache;
+};
+
+const REPO_CACHE_TTL_MS = 60000;
+const REPO_CACHE_LIMIT = 60;
+const repoCache = new Map<string, { at: number; repo: HfRepoFiles }>();
 
 function importSearchName(name: string): string {
   const split = parseSplitInfo(name);
@@ -67,14 +79,20 @@ async function withQuotaRetry<T>(
         attempt >= 2
       )
         throw error;
-      const delay = Math.min(
-        300000,
-        Math.max(1000, error.retryAfterMs ?? 30000),
-      );
+      const delay = hfRateLimitDelayMs(error, 30000);
       state.currentFile = `Hugging Face request limit; retrying in ${Math.ceil(delay / 1000)} seconds`;
       await setTimeout(delay, undefined, { signal });
     }
   }
+}
+
+function cacheRepo(key: string, repo: HfRepoFiles): void {
+  const now = Date.now();
+  for (const [cachedKey, cached] of repoCache)
+    if (now - cached.at >= REPO_CACHE_TTL_MS) repoCache.delete(cachedKey);
+  if (repoCache.size >= REPO_CACHE_LIMIT)
+    repoCache.delete(repoCache.keys().next().value!);
+  repoCache.set(key, { at: now, repo });
 }
 
 async function browseImportRepo(
@@ -83,19 +101,16 @@ async function browseImportRepo(
   state: ModelImportState,
   options: HfClientOptions,
   signal: AbortSignal,
-): Promise<HfRepoBrowse> {
+): Promise<HfRepoFiles> {
   const key = `${options.token ?? getHfToken() ?? ""}\0${repoId}\0${revision}`;
   const cached = options.fetchImpl ? null : repoCache.get(key);
-  if (cached && Date.now() - cached.at < 60000) return cached.repo;
+  if (cached && Date.now() - cached.at < REPO_CACHE_TTL_MS) return cached.repo;
   const repo = await withQuotaRetry(
-    () => browseHfRepo({ repoId, revision }, options),
+    () => browseHfRepoFiles({ repoId, revision }, options),
     state,
     signal,
   );
-  if (!options.fetchImpl) {
-    if (repoCache.size >= 60) repoCache.delete(repoCache.keys().next().value!);
-    repoCache.set(key, { at: Date.now(), repo });
-  }
+  if (!options.fetchImpl) cacheRepo(key, repo);
   return repo;
 }
 
@@ -127,6 +142,32 @@ function searchHints(input: ModelImportRequest) {
       ? (baseId?.split("/")[1] ?? metadata?.name ?? filenameName)
       : filenameName);
   return { term, baseId, directRepo, author };
+}
+
+async function searchConcurrently(
+  queries: Array<{ search: string; author?: string; filters: string[] }>,
+  fallbackLabel: string | null,
+  state: ModelImportState,
+  options: HfClientOptions,
+  signal: AbortSignal,
+): Promise<Array<{ models: HfSearchModel[]; truncated: boolean }>> {
+  const failed = new AbortController();
+  const querySignal = AbortSignal.any([signal, failed.signal]);
+  try {
+    return await Promise.all(
+      queries.map((query) => {
+        state.currentFile = query.search || fallbackLabel;
+        return withQuotaRetry(
+          () => searchHfModels(query, { ...options, signal: querySignal }),
+          state,
+          querySignal,
+        );
+      }),
+    );
+  } catch (error) {
+    failed.abort();
+    throw error;
+  }
 }
 
 async function findRepositories(
@@ -170,13 +211,13 @@ async function findRepositories(
     });
   if (gguf) queries.push({ search: hints.term, filters: [] });
   const models = new Map<string, HfSearchModel>();
-  for (const query of queries) {
-    state.currentFile = query.search || hints.baseId;
-    const result = await withQuotaRetry(
-      () => searchHfModels(query, options),
-      state,
-      signal,
-    );
+  for (const result of await searchConcurrently(
+    queries,
+    hints.baseId,
+    state,
+    options,
+    signal,
+  )) {
     state.searchTruncated ||= result.truncated;
     for (const model of result.models) models.set(model.id, model);
   }
@@ -210,6 +251,39 @@ async function findRepositories(
   return result;
 }
 
+async function verifyRepositories<Repository>(
+  discovery: Discovery,
+  repositories: Repository[],
+  pass: {
+    label: (repository: Repository) => string;
+    failure: (repository: Repository) => string;
+    verify: (repository: Repository) => Promise<DiscoveredImport>;
+    rethrow: boolean;
+  },
+): Promise<DiscoveredImport[]> {
+  const { state, signal } = discovery;
+  const found: DiscoveredImport[] = [];
+  state.total = repositories.length;
+  for (const repository of repositories) {
+    signal.throwIfAborted();
+    state.currentFile = pass.label(repository);
+    state.searchedRepositories++;
+    try {
+      found.push(await pass.verify(repository));
+      state.candidates = found.map((entry) => entry.candidate);
+    } catch (error) {
+      signal.throwIfAborted();
+      if (pass.rethrow) throw error;
+      if (!(error instanceof HfDownloadRequestError))
+        state.warnings.push(
+          `${pass.failure(repository)}: ${(error as Error).message}`,
+        );
+    }
+    state.completed++;
+  }
+  return found;
+}
+
 export async function discoverModelImports(
   input: ModelImportRequest,
   state: ModelImportState,
@@ -217,39 +291,34 @@ export async function discoverModelImports(
   signal: AbortSignal,
 ): Promise<DiscoveredImport[]> {
   const options = { ...clientOptions, signal };
-  const sources = await collectImportFiles(
-    resolve(input.sourcePath),
-    input.scope === "directory",
-  );
-  const saved = libraryImportRepositories(input);
-  const local: DiscoveredImport[] = [];
-  state.total = saved.length;
-  for (const repository of saved) {
-    signal.throwIfAborted();
-    state.currentFile = `Checking Model library: ${repository.remote.repoId}`;
-    state.searchedRepositories++;
-    try {
-      local.push(
-        await verifyImportRepository(
-          input,
-          state,
-          options,
-          signal,
+  const discovery: Discovery = {
+    input,
+    state,
+    signal,
+    sources: await collectImportFiles(
+      resolve(input.sourcePath),
+      input.scope === "directory",
+    ),
+    neighbors: new Map(),
+  };
+  const local = await verifyRepositories(
+    discovery,
+    libraryImportRepositories(input),
+    {
+      label: (repository) =>
+        `Checking Model library: ${repository.remote.repoId}`,
+      failure: (repository) =>
+        `Could not verify saved repository ${repository.remote.repoId}`,
+      verify: (repository) =>
+        verifyImportRepository(
+          discovery,
           repository.remote,
           "library",
           repository.destDir,
         ),
-      );
-      state.candidates = local.map((entry) => entry.candidate);
-    } catch (error) {
-      signal.throwIfAborted();
-      if (!(error instanceof HfDownloadRequestError))
-        state.warnings.push(
-          `Could not verify saved repository ${repository.remote.repoId}: ${(error as Error).message}`,
-        );
-    }
-    state.completed++;
-  }
+      rethrow: false,
+    },
+  );
   if (local.length) return local;
   if (input.searchHf === false)
     throw new HfDownloadRequestError(
@@ -258,46 +327,28 @@ export async function discoverModelImports(
   state.completed = 0;
   const repositories = await findRepositories(
     input,
-    sources,
+    discovery.sources,
     state,
     options,
     signal,
   );
-  const explicit = parseHfRepoInput(input.repo) !== null;
-  const results: DiscoveredImport[] = [];
-  state.total = repositories.length;
-  for (const repository of repositories) {
-    signal.throwIfAborted();
-    state.currentFile = repository.repoId;
-    state.searchedRepositories++;
-    try {
-      const remote = await browseImportRepo(
-        repository.repoId,
-        repository.revision,
-        state,
-        options,
-        signal,
-      );
-      const discovered = await verifyImportRepository(
-        input,
-        state,
-        options,
-        signal,
-        remote,
+  const results = await verifyRepositories(discovery, repositories, {
+    label: (repository) => repository.repoId,
+    failure: (repository) => `Could not verify ${repository.repoId}`,
+    verify: async (repository) =>
+      verifyImportRepository(
+        discovery,
+        await browseImportRepo(
+          repository.repoId,
+          repository.revision,
+          state,
+          options,
+          signal,
+        ),
         "huggingface",
-      );
-      results.push(discovered);
-      state.candidates = results.map((result) => result.candidate);
-    } catch (error) {
-      signal.throwIfAborted();
-      if (explicit) throw error;
-      if (!(error instanceof HfDownloadRequestError))
-        state.warnings.push(
-          `Could not verify ${repository.repoId}: ${(error as Error).message}`,
-        );
-    }
-    state.completed++;
-  }
+      ),
+    rethrow: parseHfRepoInput(input.repo) !== null,
+  });
   if (!results.length)
     throw new HfDownloadRequestError(
       "No matching content found among the checked repositories. Refine the model name or enter a repository URL and revision.",
@@ -306,14 +357,12 @@ export async function discoverModelImports(
 }
 
 async function verifyImportRepository(
-  input: ModelImportRequest,
-  state: ModelImportState,
-  options: HfClientOptions,
-  signal: AbortSignal,
+  discovery: Discovery,
   remote: ImportRepositoryFiles,
   origin: "library" | "huggingface",
   destDir?: string,
 ): Promise<DiscoveredImport> {
+  const { state, signal } = discovery;
   const candidateState: ModelImportState = {
     ...state,
     files: [],
@@ -321,20 +370,26 @@ async function verifyImportRepository(
     candidates: [],
     completed: 0,
   };
-  const plan = await planModelImport(
-    { ...input, repo: remote.repoId, revision: remote.commitSha },
-    candidateState,
-    options,
-    signal,
+  const plan = await planModelImport({
+    request: discovery.input,
+    state: candidateState,
     remote,
+    files: discovery.sources,
     destDir,
-    (progress) => {
+    signal,
+    onProgress: (progress) => {
       state.verification = progress;
     },
-  );
+  });
   let related: ImportRelatedFile[] = [];
   try {
-    related = await discoverRelatedFiles(plan, remote, state, signal);
+    related = await discoverRelatedFiles(
+      plan,
+      remote,
+      state,
+      signal,
+      discovery.neighbors,
+    );
   } catch (error) {
     signal.throwIfAborted();
     state.warnings.push(
@@ -343,7 +398,7 @@ async function verifyImportRepository(
   }
   return {
     candidate: {
-      id: randomUUID(),
+      id: newId(),
       repoId: remote.repoId,
       revision: remote.commitSha,
       origin,

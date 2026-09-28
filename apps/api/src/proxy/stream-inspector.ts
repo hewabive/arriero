@@ -14,6 +14,11 @@ import {
   type ProxyStreamObserver,
   type ProxyStreamUsageTally,
 } from "./stream-observer.js";
+import type { ProxyUsageCounts } from "./usage-meter.js";
+
+type ProxyStreamParsedPayload = ReturnType<
+  ApiProxyResumableCodec["parseChunk"]
+>;
 
 type ProxyStreamInspection =
   | { type: "chunk"; chunk: ApiProxyResumableStreamChunk }
@@ -28,7 +33,12 @@ type ProxyStreamInspectionSnapshot = ProxyStreamUsageTally & {
 };
 
 export type ProxyStreamInspector = {
-  observeData(data: string, receivedAt?: number): ProxyStreamInspection;
+  markRead(): void;
+  observeData(data: string): ProxyStreamInspection;
+  observeParsed(
+    data: string,
+    parsed: ProxyStreamParsedPayload,
+  ): ProxyStreamInspection;
   finish(): ProxyStreamInspectionSnapshot;
   snapshot(): ProxyStreamInspectionSnapshot;
 };
@@ -50,6 +60,7 @@ export function createProxyStreamInspector(
   const usage = input.usage ?? emptyProxyStreamUsageTally();
   const observeChunk = createProxyChunkObserver(input.observer ?? {}, usage);
   const now = input.now ?? (() => performance.now());
+  let readAt: number | null = null;
   let firstOutputAt: number | null = null;
   let lastOutputAt: number | null = null;
   let upstreamGenMs: number | null = null;
@@ -85,47 +96,70 @@ export function createProxyStreamInspector(
     },
   });
 
+  const observeParsed = (
+    data: string,
+    parsed: ProxyStreamParsedPayload,
+  ): ProxyStreamInspection => {
+    if (parsed === "malformed") {
+      noteMalformedPayload(health, data);
+      return { type: "malformed" };
+    }
+    if (parsed === "done") {
+      sawDone = true;
+      return { type: "done" };
+    }
+    if (parsed === null) {
+      return { type: "ignored" };
+    }
+    if (
+      input.estimateRate &&
+      !sawDone &&
+      !sawFinish &&
+      (parsed.text !== "" ||
+        Boolean(parsed.reasoning) ||
+        parsed.toolCalls?.some((call) => Boolean(call.name || call.arguments)))
+    ) {
+      const at = readAt ?? now();
+      firstOutputAt ??= at;
+      lastOutputAt = at;
+    }
+    if (parsed.finishReason !== null) {
+      sawFinish = true;
+    }
+    if (typeof parsed.genMs === "number") {
+      upstreamGenMs = parsed.genMs;
+    }
+    observeChunk(parsed);
+    return { type: "chunk", chunk: parsed };
+  };
+
   return {
-    observeData(data, receivedAt) {
-      const parsed = input.codec.parseChunk(data);
-      if (parsed === "malformed") {
-        noteMalformedPayload(health, data);
-        return { type: "malformed" };
-      }
-      if (parsed === "done") {
-        sawDone = true;
-        return { type: "done" };
-      }
-      if (parsed === null) {
-        return { type: "ignored" };
-      }
-      if (
-        input.estimateRate &&
-        !sawDone &&
-        !sawFinish &&
-        (parsed.text !== "" ||
-          Boolean(parsed.reasoning) ||
-          parsed.toolCalls?.some((call) =>
-            Boolean(call.name || call.arguments),
-          ))
-      ) {
-        const at = receivedAt ?? now();
-        firstOutputAt ??= at;
-        lastOutputAt = at;
-      }
-      if (parsed.finishReason !== null) {
-        sawFinish = true;
-      }
-      if (typeof parsed.genMs === "number") {
-        upstreamGenMs = parsed.genMs;
-      }
-      observeChunk(parsed);
-      return { type: "chunk", chunk: parsed };
+    markRead() {
+      readAt = now();
     },
+    observeData: (data) => observeParsed(data, input.codec.parseChunk(data)),
+    observeParsed,
     finish() {
       ended = true;
       return snapshot();
     },
     snapshot,
+  };
+}
+
+export function usageCountsFromInspection(
+  snapshot: ProxyStreamInspectionSnapshot,
+): ProxyUsageCounts {
+  return {
+    promptTokens: snapshot.promptTokens,
+    cacheReadTokens: snapshot.cacheReadTokens,
+    cacheCreationTokens: snapshot.cacheCreationTokens,
+    completionTokens: snapshot.completionTokens,
+    genMs: snapshot.genMs,
+    ...(snapshot.observedGenMs !== undefined
+      ? { observedGenMs: snapshot.observedGenMs }
+      : {}),
+    prefillMs: null,
+    promptPerSecond: null,
   };
 }

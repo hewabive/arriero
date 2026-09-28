@@ -22,20 +22,35 @@ import {
 
 const QUEUE_QUERY_KEY = ["hf-queue"] as const;
 
+export function hfOpenJobs(
+  state: HfDownloadQueueState | null,
+): HfDownloadQueueJob[] {
+  if (!state) {
+    return [];
+  }
+  return [
+    ...(state.active ? [state.active] : []),
+    ...state.queued,
+    ...state.paused,
+  ];
+}
+
 export function hfQueueJobForDir(
   state: HfDownloadQueueState | null,
   dir: string,
 ): HfDownloadQueueJob | null {
-  if (!state) {
-    return null;
-  }
-  if (state.active && state.active.destDir === dir) {
-    return state.active;
-  }
+  return hfOpenJobs(state).find((job) => job.destDir === dir) ?? null;
+}
+
+export function hfQueueJobForRepo(
+  state: HfDownloadQueueState | null,
+  repoId: string,
+  destDir: string | null,
+): HfDownloadQueueJob | null {
   return (
-    state.queued.find((job) => job.destDir === dir) ??
-    state.paused.find((job) => job.destDir === dir) ??
-    null
+    hfOpenJobs(state).find(
+      (job) => job.repoId === repoId && (!destDir || job.destDir === destDir),
+    ) ?? null
   );
 }
 
@@ -100,6 +115,8 @@ export function useHfJobsSync(): void {
     }
   }, [data, queryClient]);
 }
+
+export type HfQueue = ReturnType<typeof useHfQueue>;
 
 export function useHfQueue() {
   const queryClient = useQueryClient();

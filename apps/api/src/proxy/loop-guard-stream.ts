@@ -1,5 +1,5 @@
 import type { ApiProxyLoopGuardConfig } from "@arriero/core";
-import { isRecord, type JsonRecord } from "./json.js";
+import { isRecord } from "./json.js";
 import type {
   ApiProxyLoopGuardDetector,
   ApiProxyLoopGuardHit,
@@ -11,8 +11,6 @@ import {
 } from "./protocol.js";
 import { safeJsonParse } from "./protocol-trace.js";
 import {
-  apiProxySseDataFrame,
-  apiProxySseEventFrame,
   createApiProxySseFrameBuffer,
   createApiProxySseTransform,
   parseApiProxySseJsonFrame,
@@ -23,6 +21,11 @@ import {
   collectMutableDeltas,
   visitApiProxyResponseTextSurfaces,
 } from "./response-replace.js";
+import {
+  apiProxyClosableShape,
+  createApiProxySseTerminalTracker,
+  type ApiProxyClosableShape,
+} from "./sse-terminal.js";
 
 function laneEnabled(
   lane: ApiProxyLoopGuardLane,
@@ -51,20 +54,6 @@ function feedLane(
   }
   return detector.append(lane, text);
 }
-
-function apiProxyLoopGuardFinishSupported(
-  operation: ApiProxyProtocolOperation,
-): boolean {
-  const shape = apiProxyResponseShape(operation);
-  return shape === "openai-chat" || shape === "anthropic";
-}
-
-type ChatEnvelope = {
-  id: unknown;
-  object: unknown;
-  created: unknown;
-  model: unknown;
-};
 
 type LoopGuardStreamInput = {
   operation: ApiProxyProtocolOperation;
@@ -144,112 +133,12 @@ function createObserveStream(
 
 function createFinishTransformer(
   input: LoopGuardStreamInput,
+  shape: ApiProxyClosableShape,
 ): ApiProxySseFrameTransformer {
-  const shape = apiProxyResponseShape(input.operation);
-  const openBlocks = new Set<number>();
-  let maxBlockIndex = -1;
-  let chatEnvelope: ChatEnvelope | null = null;
-
-  const trackShapeState = (value: unknown) => {
-    if (!isRecord(value)) {
-      return;
-    }
-    if (shape === "openai-chat") {
-      if (Array.isArray(value.choices) && typeof value.id === "string") {
-        chatEnvelope = {
-          id: value.id,
-          object: value.object,
-          created: value.created,
-          model: value.model,
-        };
-      }
-      return;
-    }
-    if (shape !== "anthropic" || typeof value.type !== "string") {
-      return;
-    }
-    const index = typeof value.index === "number" ? value.index : null;
-    if (value.type === "content_block_start" && index !== null) {
-      openBlocks.add(index);
-      maxBlockIndex = Math.max(maxBlockIndex, index);
-    } else if (value.type === "content_block_stop" && index !== null) {
-      openBlocks.delete(index);
-    }
-  };
-
+  const tracker = createApiProxySseTerminalTracker(shape);
   const marker =
     input.config.markerText.length > 0 ? `\n\n${input.config.markerText}` : "";
-
-  const finishFrames = (): string[] => {
-    if (shape === "anthropic") {
-      const output: string[] = [];
-      for (const index of [...openBlocks].sort((a, b) => a - b)) {
-        output.push(
-          apiProxySseEventFrame("content_block_stop", {
-            type: "content_block_stop",
-            index,
-          }),
-        );
-      }
-      if (marker) {
-        const index = maxBlockIndex + 1;
-        output.push(
-          apiProxySseEventFrame("content_block_start", {
-            type: "content_block_start",
-            index,
-            content_block: { type: "text", text: "" },
-          }),
-          apiProxySseEventFrame("content_block_delta", {
-            type: "content_block_delta",
-            index,
-            delta: { type: "text_delta", text: marker },
-          }),
-          apiProxySseEventFrame("content_block_stop", {
-            type: "content_block_stop",
-            index,
-          }),
-        );
-      }
-      const outputTokens = Math.max(
-        1,
-        Math.round(input.detector.snapshot().scannedChars / 4),
-      );
-      output.push(
-        apiProxySseEventFrame("message_delta", {
-          type: "message_delta",
-          delta: { stop_reason: "max_tokens", stop_sequence: null },
-          usage: { output_tokens: outputTokens },
-        }),
-        apiProxySseEventFrame("message_stop", { type: "message_stop" }),
-      );
-      return output;
-    }
-    const envelope = chatEnvelope ?? {
-      id: "chatcmpl-arriero-loop-guard",
-      object: "chat.completion.chunk",
-      created: Math.floor(Date.now() / 1000),
-      model: "unknown",
-    };
-    const chunk = (extra: JsonRecord) =>
-      apiProxySseDataFrame({ ...envelope, ...extra });
-    const output: string[] = [];
-    if (marker) {
-      output.push(
-        chunk({
-          choices: [
-            { index: 0, delta: { content: marker }, finish_reason: null },
-          ],
-        }),
-      );
-    }
-    output.push(
-      chunk({ choices: [{ index: 0, delta: {}, finish_reason: "length" }] }),
-      "data: [DONE]\n\n",
-    );
-    return output;
-  };
-
-  const scan = createFrameScanner(input, trackShapeState);
+  const scan = createFrameScanner(input, tracker.observe);
 
   return {
     transform(frame) {
@@ -258,7 +147,16 @@ function createFinishTransformer(
         return frame;
       }
       input.onFinished?.(hit);
-      return { frames: [frame, ...finishFrames()], terminate: true };
+      const closing = tracker.closingFrames({
+        reason: "length",
+        syntheticIdSuffix: "loop-guard",
+        marker,
+        outputTokens: Math.max(
+          1,
+          Math.round(input.detector.snapshot().scannedChars / 4),
+        ),
+      });
+      return { frames: [frame, ...closing], terminate: true };
     },
   };
 }
@@ -266,13 +164,16 @@ function createFinishTransformer(
 export function createApiProxyLoopGuardStream(
   input: LoopGuardStreamInput,
 ): TransformStream<Uint8Array, Uint8Array> {
-  const enforce =
-    input.config.action === "finish" &&
-    apiProxyLoopGuardFinishSupported(input.operation);
-  if (!enforce) {
+  const finishShape =
+    input.config.action === "finish"
+      ? apiProxyClosableShape(apiProxyResponseShape(input.operation))
+      : null;
+  if (!finishShape) {
     return createObserveStream(input);
   }
-  return createApiProxySseTransform(createFinishTransformer(input));
+  return createApiProxySseTransform(
+    createFinishTransformer(input, finishShape),
+  );
 }
 
 export function feedApiProxyLoopGuardText(input: {

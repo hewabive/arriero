@@ -2,12 +2,13 @@ import {
   isHfCommitSha,
   parseHfRepoInput,
   type HfDownloadedRepo,
+  type ModelLibraryCheck,
+  type ModelLibraryEntryState,
   type ModelLibraryEntryStatus,
 } from "@arriero/core";
 import {
   ActionIcon,
   Alert,
-  Anchor,
   Badge,
   Button,
   Code,
@@ -21,7 +22,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import {
@@ -36,9 +37,33 @@ import { countLabel } from "../utils/plural";
 import { hfVariantChipLabel } from "../utils/hf";
 import { formatBytes } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
+import { useLabeledOperation } from "../utils/use-labeled-operation";
+import { HfRepoLink } from "./HfBadges";
 import { ModelLibraryDialog } from "./ModelLibraryDialog";
 import { HfRepoDeleteModal } from "./HfRepoDeleteModal";
-import { useHfJobsSync, useHfQueueQuery } from "./use-hf-queue";
+import {
+  hfOpenJobs,
+  hfQueueJobForDir,
+  hfQueueJobForRepo,
+  useHfJobsSync,
+  useHfQueueQuery,
+} from "./use-hf-queue";
+
+type LabeledColor = { label: string; color: string };
+
+const ENTRY_STATE_BADGE: Record<ModelLibraryEntryState, LabeledColor> = {
+  watching: { label: "Watching only", color: "gray" },
+  satisfied: { label: "On disk", color: "gray" },
+  partial: { label: "Partly installed", color: "yellow" },
+  missing: { label: "Not installed", color: "yellow" },
+};
+
+const CHECK_BADGE: Record<ModelLibraryCheck["status"], LabeledColor> = {
+  unchecked: { label: "Not checked", color: "gray" },
+  current: { label: "Up to date", color: "gray" },
+  changed: { label: "Repository updated", color: "yellow" },
+  error: { label: "Check failed", color: "red" },
+};
 
 function diskBytes(repo: HfDownloadedRepo): number {
   return repo.files.reduce(
@@ -59,7 +84,7 @@ export function ModelLibraryView() {
     queryKey: ["hf-downloads"],
     queryFn: listHfDownloads,
   });
-  const queue = useHfQueueQuery().data?.data;
+  const queue = useHfQueueQuery().data?.data ?? null;
   const [repoInput, setRepoInput] = useState("");
   const [revision, setRevision] = useState("main");
   const [adding, setAdding] = useState(false);
@@ -83,19 +108,13 @@ export function ModelLibraryView() {
     ? (repos.find((repo) => repo.dir === (opened.dir ?? active?.matchedDir)) ??
       null)
     : null;
-  const activeJobs = queue
-    ? [
-        ...(queue.active ? [queue.active] : []),
-        ...queue.queued,
-        ...queue.paused,
-      ]
-    : [];
+  const activeJobs = hfOpenJobs(queue);
   const jobFor = (status: ModelLibraryEntryStatus) =>
-    activeJobs.find(
-      (job) =>
-        job.repoId === status.entry.repoId &&
-        (!status.entry.destDir || job.destDir === status.entry.destDir),
-    );
+    hfQueueJobForRepo(queue, status.entry.repoId, status.entry.destDir);
+  const canDownloadMissing = (status: ModelLibraryEntryStatus) =>
+    status.missingPaths.length > 0 &&
+    isHfCommitSha(status.entry.revision) &&
+    !jobFor(status);
   const rows = [
     ...statuses.map((status) => ({
       status,
@@ -122,21 +141,13 @@ export function ModelLibraryView() {
     void client.invalidateQueries({ queryKey: ["hf-library"] });
     void client.invalidateQueries({ queryKey: ["hf-queue"] });
   };
-  const mutation = useMutation({
-    mutationFn: async (input: { label: string; run: () => Promise<unknown> }) =>
-      input.run(),
+  const operation = useLabeledOperation({
     onSuccess: refresh,
     onError: notifyError("Model library"),
   });
-  const run = (label: string, operation: () => Promise<unknown>) =>
-    mutation.mutate({ label, run: operation });
+  const { run } = operation;
   const downloadMissing = async (status: ModelLibraryEntryStatus) => {
-    if (
-      !status.missingPaths.length ||
-      jobFor(status) ||
-      !isHfCommitSha(status.entry.revision)
-    )
-      return;
+    if (!canDownloadMissing(status)) return;
     await actOnModelLibraryEntry(status.entry.id, {
       action: "download",
       revision: status.entry.revision,
@@ -204,7 +215,7 @@ export function ModelLibraryView() {
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item
-                disabled={mutation.isPending || !statuses.length}
+                disabled={operation.pending || !statuses.length}
                 onClick={() =>
                   run("Checking saved repositories", () => bulk("check"))
                 }
@@ -213,13 +224,7 @@ export function ModelLibraryView() {
               </Menu.Item>
               <Menu.Item
                 disabled={
-                  mutation.isPending ||
-                  !statuses.some(
-                    (status) =>
-                      status.missingPaths.length &&
-                      isHfCommitSha(status.entry.revision) &&
-                      !jobFor(status),
-                  )
+                  operation.pending || !statuses.some(canDownloadMissing)
                 }
                 onClick={() =>
                   run("Queueing missing files", () => bulk("download"))
@@ -273,7 +278,7 @@ export function ModelLibraryView() {
                 <Button
                   type="submit"
                   disabled={
-                    !repoInput.trim() || !revision.trim() || mutation.isPending
+                    !repoInput.trim() || !revision.trim() || operation.pending
                   }
                 >
                   Save repository
@@ -306,7 +311,9 @@ export function ModelLibraryView() {
           w={200}
         />
       </Group>
-      {mutation.isPending && <Text size="sm">{mutation.variables.label}…</Text>}
+      {operation.pendingLabel !== null && (
+        <Text size="sm">{operation.pendingLabel}…</Text>
+      )}
       {(library.error || downloads.error) && (
         <Alert color="red">
           {library.error?.message ?? downloads.error?.message}
@@ -337,48 +344,17 @@ export function ModelLibraryView() {
         const id = status?.entry.repoId ?? repo!.repoId;
         const job = status
           ? jobFor(status)
-          : activeJobs.find((job) => job.destDir === repo!.dir);
-        const stateLabel =
-          status?.state === "watching"
-            ? "Watching only"
-            : status?.state === "missing"
-              ? "Not installed"
-              : status?.state === "partial"
-                ? "Partly installed"
-                : "On disk";
-        const checkLabel =
-          status?.check.status === "changed"
-            ? "Repository updated"
-            : status?.check.status === "current"
-              ? "Up to date"
-              : status?.check.status === "error"
-                ? "Check failed"
-                : "Not checked";
+          : hfQueueJobForDir(queue, repo!.dir);
+        const stateBadge = ENTRY_STATE_BADGE[status?.state ?? "satisfied"];
         return (
           <Paper withBorder p="md" key={status?.entry.id ?? repo!.dir}>
             <Stack gap="xs">
               <Group justify="space-between" align="start">
                 <Stack gap={3} style={{ minWidth: 0 }}>
-                  <Anchor
-                    href={`https://huggingface.co/${id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    fw={600}
-                    className="text-wrap"
-                  >
-                    {id}
-                  </Anchor>
+                  <HfRepoLink repoId={id} />
                   <Group gap="xs">
-                    <Badge
-                      color={
-                        status?.state === "missing" ||
-                        status?.state === "partial"
-                          ? "yellow"
-                          : "gray"
-                      }
-                      variant="light"
-                    >
-                      {stateLabel}
+                    <Badge color={stateBadge.color} variant="light">
+                      {stateBadge.label}
                     </Badge>
                     {!status && <Badge variant="outline">Not saved</Badge>}
                     {job && <Badge color="blue">{job.status}</Badge>}
@@ -410,7 +386,7 @@ export function ModelLibraryView() {
                     {status && (
                       <Menu.Item
                         color="red"
-                        disabled={mutation.isPending}
+                        disabled={operation.pending}
                         onClick={() =>
                           run("Removing saved entry", () =>
                             deleteModelLibraryEntry(status.entry.id),
@@ -461,15 +437,9 @@ export function ModelLibraryView() {
                   <Group gap="xs">
                     <Badge
                       variant="outline"
-                      color={
-                        status.check.status === "changed"
-                          ? "yellow"
-                          : status.check.status === "error"
-                            ? "red"
-                            : "gray"
-                      }
+                      color={CHECK_BADGE[status.check.status].color}
                     >
-                      {checkLabel}
+                      {CHECK_BADGE[status.check.status].label}
                     </Badge>
                     {status.check.changes.length > 0 && (
                       <Text size="xs">
@@ -512,7 +482,7 @@ export function ModelLibraryView() {
                       size="xs"
                       variant="default"
                       leftSection={<RefreshCw size={14} />}
-                      disabled={mutation.isPending}
+                      disabled={operation.pending}
                       onClick={() =>
                         run(`Checking ${id}`, () =>
                           actOnModelLibraryEntry(status.entry.id, {
@@ -527,9 +497,7 @@ export function ModelLibraryView() {
                       <Button
                         size="xs"
                         disabled={
-                          mutation.isPending ||
-                          !!job ||
-                          !isHfCommitSha(status.entry.revision)
+                          operation.pending || !canDownloadMissing(status)
                         }
                         onClick={() =>
                           run(`Queueing ${id}`, () => downloadMissing(status))
@@ -542,7 +510,7 @@ export function ModelLibraryView() {
                 ) : (
                   <Button
                     size="xs"
-                    disabled={mutation.isPending}
+                    disabled={operation.pending}
                     onClick={() =>
                       run(`Saving ${id}`, () =>
                         createModelLibraryEntry({

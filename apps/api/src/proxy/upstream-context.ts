@@ -89,13 +89,29 @@ export function instanceMetricsLabelHeader(
   return name && name !== CLIENT_METRICS_LABEL_HEADER ? name : null;
 }
 
+const cacheReportByInstance = new Map<
+  string,
+  { runId: string; enabled: boolean }
+>();
+
 function instanceOmitsZeroCacheRead(instance: Instance | null): boolean {
   if (instance?.kind !== "sglang") {
     return false;
   }
   const run = openProcessRunForInstance(instance.name);
-  const snapshot = parseLaunchSnapshot(run?.launchSnapshot);
-  return snapshot?.cliArgs.includes("--enable-cache-report") === true;
+  if (!run) {
+    return false;
+  }
+  const cached = cacheReportByInstance.get(instance.name);
+  if (cached?.runId === run.id) {
+    return cached.enabled;
+  }
+  const enabled =
+    parseLaunchSnapshot(run.launchSnapshot)?.cliArgs.includes(
+      "--enable-cache-report",
+    ) === true;
+  cacheReportByInstance.set(instance.name, { runId: run.id, enabled });
+  return enabled;
 }
 
 export type ApiProxyUpstreamContextResolution =

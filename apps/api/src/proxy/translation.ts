@@ -9,10 +9,11 @@ import {
   translateAnthropicRequest,
   translateOpenAiError,
   translateOpenAiResponse,
+  type AnthropicStreamEvent,
   type AnthropicToOpenAiRequestOptions,
 } from "@arriero/anthropic-openai-bridge";
 
-import { openAiResumableCodec } from "./openai.js";
+import { openAiChunkFromValue, openAiResumableCodec } from "./openai.js";
 import {
   apiProxyOperationSpec,
   type ApiProxyProtocolId,
@@ -23,6 +24,7 @@ import { sseDataPayloads } from "./sse.js";
 import type { ProxyStreamHealth } from "./stream-health.js";
 import {
   createProxyStreamInspector,
+  usageCountsFromInspection,
   type ProxyStreamInspectionOptions,
 } from "./stream-inspector.js";
 import type { ProxyStreamObserver } from "./stream-observer.js";
@@ -203,21 +205,32 @@ export function createAnthropicTranslationStream(
   });
   const encoder = new TextEncoder();
   const frames = createSseFrameBuffer();
-  let receivedAt: number | undefined;
   let done = false;
-  let finalHealth: ProxyStreamHealth | null = null;
+
+  const translatePayload = (data: string): AnthropicStreamEvent[] => {
+    if (data === "[DONE]") {
+      inspector.observeParsed(data, "done");
+      return emitter.push(data).events;
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(data);
+    } catch {
+      inspector.observeParsed(data, "malformed");
+      return [];
+    }
+    inspector.observeParsed(data, openAiChunkFromValue(value));
+    return emitter.pushValue(value).events;
+  };
 
   const handleFrame = (
     frame: string,
     controller: TransformStreamDefaultController<Uint8Array>,
   ) => {
     for (const data of sseDataPayloads(frame)) {
-      inspector.observeData(data, receivedAt);
-      const result = emitter.push(data);
-      if (result.events.length > 0) {
-        controller.enqueue(
-          encoder.encode(serializeAnthropicSseEvents(result.events)),
-        );
+      const events = translatePayload(data);
+      if (events.length > 0) {
+        controller.enqueue(encoder.encode(serializeAnthropicSseEvents(events)));
       }
     }
   };
@@ -228,25 +241,13 @@ export function createAnthropicTranslationStream(
     }
     done = true;
     const snapshot = inspector.finish();
-    finalHealth = snapshot.health;
     callbacks.onStreamEnd?.(snapshot.health);
-    callbacks.onComplete?.({
-      promptTokens: snapshot.promptTokens,
-      cacheReadTokens: snapshot.cacheReadTokens,
-      cacheCreationTokens: snapshot.cacheCreationTokens,
-      completionTokens: snapshot.completionTokens,
-      genMs: snapshot.genMs,
-      ...(snapshot.observedGenMs !== undefined
-        ? { observedGenMs: snapshot.observedGenMs }
-        : {}),
-      prefillMs: null,
-      promptPerSecond: null,
-    });
+    callbacks.onComplete?.(usageCountsFromInspection(snapshot));
   };
 
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
-      receivedAt = callbacks.now?.() ?? performance.now();
+      inspector.markRead();
       for (const frame of frames.push(chunk)) {
         handleFrame(frame, controller);
       }
@@ -257,7 +258,8 @@ export function createAnthropicTranslationStream(
         handleFrame(tail, controller);
       }
       finalize();
-      const events = finalHealth?.terminal === "eof" ? [] : emitter.finish();
+      const events =
+        inspector.snapshot().health.terminal === "eof" ? [] : emitter.finish();
       if (events.length > 0) {
         controller.enqueue(encoder.encode(serializeAnthropicSseEvents(events)));
       }

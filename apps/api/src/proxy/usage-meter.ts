@@ -10,6 +10,7 @@ import type {
 } from "./stream-observer.js";
 import {
   createProxyStreamInspector,
+  usageCountsFromInspection,
   type ProxyStreamInspectionOptions,
 } from "./stream-inspector.js";
 
@@ -217,17 +218,14 @@ export function createUsageMeterStream(
     estimateRate: input.estimateRate,
     now: input.now,
   });
-  let receivedAt: number | undefined;
   let done = false;
-  let finalHealth: ProxyStreamHealth | null = null;
 
-  const health = (): ProxyStreamHealth =>
-    finalHealth ?? inspector.snapshot().health;
+  const health = (): ProxyStreamHealth => inspector.snapshot().health;
 
   const observeFrame = (frame: string): boolean => {
     let keep = true;
     for (const data of sseDataPayloads(frame)) {
-      const inspected = inspector.observeData(data, receivedAt);
+      const inspected = inspector.observeData(data);
       if (inspected.type !== "chunk") {
         continue;
       }
@@ -254,26 +252,13 @@ export function createUsageMeterStream(
       return;
     }
     done = true;
-    const snapshot = inspector.finish();
-    finalHealth = snapshot.health;
-    onComplete({
-      promptTokens: snapshot.promptTokens,
-      cacheReadTokens: snapshot.cacheReadTokens,
-      cacheCreationTokens: snapshot.cacheCreationTokens,
-      completionTokens: snapshot.completionTokens,
-      genMs: snapshot.genMs,
-      ...(snapshot.observedGenMs !== undefined
-        ? { observedGenMs: snapshot.observedGenMs }
-        : {}),
-      prefillMs: null,
-      promptPerSecond: null,
-    });
+    onComplete(usageCountsFromInspection(inspector.finish()));
   };
 
   const filterFrames = stripUsageFrames || stripProgressFrames;
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
-      receivedAt = input.now?.() ?? performance.now();
+      inspector.markRead();
       if (!filterFrames) {
         controller.enqueue(chunk);
       }

@@ -1,13 +1,16 @@
-import type {
-  WorkloadLinkingGroup,
-  WorkloadProfileWindow,
-  WorkloadRankedWindow,
-  WorkloadRecord,
-  WorkloadSessionSummary,
-  WorkloadWindowRank,
+import {
+  MAX_WORKLOAD_PROFILE_WINDOWS,
+  workloadPercentile,
+  type WorkloadLinkingGroup,
+  type WorkloadProfileWindow,
+  type WorkloadRecord,
+  type WorkloadSessionSummary,
 } from "@arriero/core";
 
-export const MAX_WORKLOAD_PROFILE_WINDOWS = 2000;
+import {
+  isReplayableWorkloadRecord,
+  isServedWorkloadOutcome,
+} from "./record-analysis.js";
 
 export type WorkloadProfileRange = {
   fromMs: number;
@@ -38,16 +41,8 @@ function toIntervals(records: WorkloadRecord[]): Interval[] {
   return intervals.sort((left, right) => left.startMs - right.startMs);
 }
 
-function percentile(values: number[], share: number): number | null {
-  if (values.length === 0) {
-    return null;
-  }
-  const sorted = [...values].sort((left, right) => left - right);
-  const index = Math.min(
-    sorted.length - 1,
-    Math.max(0, Math.ceil(share * sorted.length) - 1),
-  );
-  return sorted[index] ?? null;
+function ascending(values: number[]): number[] {
+  return values.sort((left, right) => left - right);
 }
 
 function sumOrNull(values: Array<number | null>): number | null {
@@ -60,8 +55,24 @@ function sumOrNull(values: Array<number | null>): number | null {
   return total;
 }
 
-function servedAnswer(record: WorkloadRecord): boolean {
-  return record.outcome === "success" || record.outcome === "client-abort";
+export function maxKnown(values: Array<number | null>): number | null {
+  let highest: number | null = null;
+  for (const value of values) {
+    if (value !== null && (highest === null || value > highest)) {
+      highest = value;
+    }
+  }
+  return highest;
+}
+
+export function latestEndAt(
+  records: ReadonlyArray<{ endAt: string }>,
+  floor: string,
+): string {
+  return records.reduce(
+    (latest, record) => (record.endAt > latest ? record.endAt : latest),
+    floor,
+  );
 }
 
 function describeWindow(
@@ -92,6 +103,19 @@ function describeWindow(
   const promptTokensWithCache = sumOrNull(
     withCache.map((record) => record.promptTokens),
   );
+  const promptTokens = ascending(
+    records.flatMap((record) =>
+      record.promptTokens === null ? [] : [record.promptTokens],
+    ),
+  );
+  const completionTokens = ascending(
+    records.flatMap((record) =>
+      record.completionTokens === null ||
+      !isServedWorkloadOutcome(record.outcome)
+        ? []
+        : [record.completionTokens],
+    ),
+  );
   return {
     startAt: new Date(startMs).toISOString(),
     endAt: new Date(endMs).toISOString(),
@@ -103,18 +127,8 @@ function describeWindow(
       overlapping.map((interval) => interval.record.sessionId),
     ).size,
     meanInFlight: inFlightMs / Math.max(1, endMs - startMs),
-    promptTokensP50: percentile(
-      records.flatMap((record) =>
-        record.promptTokens === null ? [] : [record.promptTokens],
-      ),
-      0.5,
-    ),
-    promptTokensP90: percentile(
-      records.flatMap((record) =>
-        record.promptTokens === null ? [] : [record.promptTokens],
-      ),
-      0.9,
-    ),
+    promptTokensP50: workloadPercentile(promptTokens, 0.5),
+    promptTokensP90: workloadPercentile(promptTokens, 0.9),
     freshPrefillTokens:
       promptTokensWithCache === null || cachedPromptTokens === null
         ? null
@@ -126,27 +140,21 @@ function describeWindow(
       promptTokensWithCache === 0
         ? null
         : cachedPromptTokens / promptTokensWithCache,
-    completionTokensP50: percentile(
-      records.flatMap((record) =>
-        record.completionTokens === null || !servedAnswer(record)
-          ? []
-          : [record.completionTokens],
-      ),
-      0.5,
-    ),
-    completionTokensP90: percentile(
-      records.flatMap((record) =>
-        record.completionTokens === null || !servedAnswer(record)
-          ? []
-          : [record.completionTokens],
-      ),
-      0.9,
-    ),
+    completionTokensP50: workloadPercentile(completionTokens, 0.5),
+    completionTokensP90: workloadPercentile(completionTokens, 0.9),
     cacheLossTokens: sumOrNull(records.map((record) => record.cacheLossTokens)),
     responseReuseTokens: sumOrNull(
       records.map((record) => record.responseReuseTokens),
     ),
   };
+}
+
+export function describeWorkloadPeriod(
+  records: WorkloadRecord[],
+  fromMs: number,
+  toMs: number,
+): WorkloadProfileWindow {
+  return describeWindow(toIntervals(records), fromMs, toMs);
 }
 
 function firstIndexAtOrAfter(intervals: Interval[], startMs: number): number {
@@ -195,85 +203,6 @@ export function buildWorkloadProfile(
     period: describeWindow(intervals, range.fromMs, range.toMs),
     windows,
   };
-}
-
-const TYPICAL_FEATURES = [
-  "activeSessions",
-  "requests",
-  "meanInFlight",
-  "promptTokensP50",
-  "freshPrefillTokens",
-  "completionTokensP50",
-] as const satisfies ReadonlyArray<keyof WorkloadProfileWindow>;
-
-function median(values: number[]): number | null {
-  return percentile(values, 0.5);
-}
-
-function typicalScores(windows: WorkloadProfileWindow[]): number[] {
-  const medians = TYPICAL_FEATURES.map((feature) =>
-    median(
-      windows.flatMap((window) => {
-        const value = window[feature];
-        return value === null ? [] : [value];
-      }),
-    ),
-  );
-  return windows.map((window) =>
-    TYPICAL_FEATURES.reduce((score, feature, index) => {
-      const value = window[feature];
-      const middle = medians[index] ?? null;
-      if (value === null || middle === null) {
-        return score;
-      }
-      return score + Math.abs(Math.log((value + 1) / (middle + 1)));
-    }, 0),
-  );
-}
-
-function overlaps(
-  left: WorkloadProfileWindow,
-  right: WorkloadProfileWindow,
-): boolean {
-  return left.startAt < right.endAt && right.startAt < left.endAt;
-}
-
-export function rankWorkloadWindows(
-  windows: WorkloadProfileWindow[],
-  rank: WorkloadWindowRank,
-  limit: number,
-): WorkloadRankedWindow[] {
-  const candidates = windows.filter(
-    (window) => window.requests > 0 && window.errors === 0,
-  );
-  const scores =
-    rank === "typical"
-      ? typicalScores(candidates)
-      : candidates.map((window) => window.meanInFlight);
-  const ranked = candidates
-    .map((window, index) => ({ ...window, score: scores[index] ?? 0 }))
-    .sort((left, right) => {
-      if (rank === "typical") {
-        return (
-          left.score - right.score || left.startAt.localeCompare(right.startAt)
-        );
-      }
-      return (
-        right.score - left.score ||
-        (right.freshPrefillTokens ?? -1) - (left.freshPrefillTokens ?? -1) ||
-        left.startAt.localeCompare(right.startAt)
-      );
-    });
-  const picked: WorkloadRankedWindow[] = [];
-  for (const window of ranked) {
-    if (picked.length >= limit) {
-      break;
-    }
-    if (!picked.some((existing) => overlaps(existing, window))) {
-      picked.push(window);
-    }
-  }
-  return picked;
 }
 
 export function workloadLinkingGroups(
@@ -346,16 +275,8 @@ export function summarizeWorkloadSession(
   if (!first) {
     return null;
   }
-  let endedAt = first.endAt;
-  let maxPromptTokens: number | null = null;
   const targetNames = new Set<string>();
   for (const record of records) {
-    if (record.endAt > endedAt) {
-      endedAt = record.endAt;
-    }
-    if (record.promptTokens !== null) {
-      maxPromptTokens = Math.max(maxPromptTokens ?? 0, record.promptTokens);
-    }
     if (record.targetName !== null) {
       targetNames.add(record.targetName);
     }
@@ -366,17 +287,15 @@ export function summarizeWorkloadSession(
     sourceName: first.sourceName,
     modelId: first.modelId,
     startedAt: first.at,
-    endedAt,
+    endedAt: latestEndAt(records, first.endAt),
     records: records.length,
-    replayable: records.filter(
-      (record) => record.issue === null && servedAnswer(record),
-    ).length,
+    replayable: records.filter(isReplayableWorkloadRecord).length,
     errors: records.filter((record) => record.outcome === "error").length,
     notServed: records.filter((record) => record.outcome === "not-served")
       .length,
     clientAborts: records.filter((record) => record.outcome === "client-abort")
       .length,
-    maxPromptTokens,
+    maxPromptTokens: maxKnown(records.map((record) => record.promptTokens)),
     targetNames: [...targetNames].sort(),
   };
 }

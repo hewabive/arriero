@@ -7,8 +7,8 @@ import {
 import {
   actOnLibraryEntry,
   createLibraryEntry,
-  libraryPinnedSnapshot,
 } from "../hf/library-actions.js";
+import { pinnedSnapshot } from "../hf/library-checks.js";
 import {
   ModelImportRequestSchema,
   ModelImportCommitSchema,
@@ -62,8 +62,8 @@ import {
   verifyHfDownloadRedownloadable,
 } from "../hf/downloads.js";
 import {
-  captureModelLibraryEntry,
   deleteModelLibraryEntry,
+  getLibraryEntry,
   listModelLibraryEntryStatuses,
   removeModelLibraryEntryForDeletedDownload,
 } from "../hf/model-library.js";
@@ -215,9 +215,7 @@ export function registerHfRoutes(app: Hono) {
   app.post("/api/hf/downloads", async (c) => {
     const body = await parseJsonBody(c, HfDownloadStartSchema);
     try {
-      const job = await enqueueHfDownload(body);
-      captureModelLibraryEntry(job);
-      return c.json({ data: job }, 201);
+      return c.json({ data: await enqueueHfDownload(body) }, 201);
     } catch (error) {
       return hfErrorResponse(c, error);
     }
@@ -238,7 +236,9 @@ export function registerHfRoutes(app: Hono) {
 
   app.get("/api/hf/library/:id/snapshot", async (c) => {
     try {
-      return c.json({ data: await libraryPinnedSnapshot(c.req.param("id")) });
+      return c.json({
+        data: await pinnedSnapshot(getLibraryEntry(c.req.param("id"))),
+      });
     } catch (error) {
       return hfErrorResponse(c, error);
     }
@@ -267,13 +267,7 @@ export function registerHfRoutes(app: Hono) {
     try {
       return c.json({ data: await checkHfDownloadIntegrity(body.dir) });
     } catch (error) {
-      if (error instanceof HfDownloadNotFoundError) {
-        return c.json({ error: error.message }, 404);
-      }
-      if (error instanceof HfDownloadBusyError) {
-        return c.json({ error: error.message }, 409);
-      }
-      throw error;
+      return hfErrorResponse(c, error);
     }
   });
 
@@ -311,12 +305,6 @@ export function registerHfRoutes(app: Hono) {
       }
       return c.json({ data: { deleted: true } });
     } catch (error) {
-      if (error instanceof HfDownloadNotFoundError) {
-        return c.json({ error: error.message }, 404);
-      }
-      if (error instanceof HfDownloadBusyError) {
-        return c.json({ error: error.message }, 409);
-      }
       if (error instanceof HfDownloadVerifyError) {
         return c.json(
           { error: error.message, verification: error.verification },

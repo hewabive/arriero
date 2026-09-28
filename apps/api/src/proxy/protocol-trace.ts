@@ -1,5 +1,6 @@
 import {
   apiProxyClientAbortErrorCode,
+  type ApiEndpointStreamTerminal,
   type ApiProxyRouteTraceStep,
   type ApiProxySchedulerAction,
   type ApiProxyTraceFile,
@@ -18,16 +19,23 @@ import type {
 } from "./protocol.js";
 import { CLIENT_ABORT_STATUS } from "./http.js";
 import {
+  finalFromState,
   partialFromState,
+  type ConsumeResumableSseOutcome,
   type ResumableBufferState,
 } from "./resumable-forward.js";
-import type { ApiProxyResponsePlanExecutor } from "./response-plan.js";
+import {
+  applyApiProxyResponsePlanText,
+  type ApiProxyResponsePlanExecutor,
+} from "./response-plan.js";
 import {
   ratePerSecondFromUsage,
+  usageFromNonStreamBody,
   type ProxyUsageCounts,
 } from "./usage-meter.js";
 import { applyProxyStreamHealth } from "./stream-health.js";
 import { apiProxySlotTracker } from "./slot-tracker.js";
+import { translateOpenAiErrorText } from "./translation.js";
 
 export type ProxyTraceAccumulator = {
   id: string;
@@ -124,16 +132,40 @@ export function markTraceClientAbort(
   trace.errorMessage = message;
 }
 
+type PartialResponseBody = () => string | null;
+
+export function capturePartialResponse(
+  responsePlan: ApiProxyResponsePlanExecutor | null | undefined,
+  partialBody: PartialResponseBody | null | undefined,
+): void {
+  if (!responsePlan || !partialBody) {
+    return;
+  }
+  const text = partialBody();
+  if (text) {
+    responsePlan.capturePartial(text);
+  }
+}
+
+export function upstreamErrorDiagnostic(
+  message: string,
+): ApiProxyProtocolDiagnostic {
+  return {
+    status: 502,
+    code: "arriero_proxy_upstream_error",
+    param: "model",
+    message,
+  };
+}
+
 export function clientAbortResponse(input: {
   trace: ProxyTraceAccumulator;
   message: string;
   responsePlan: ApiProxyResponsePlanExecutor | null;
-  partialBody: string | null;
+  partialBody: PartialResponseBody | null;
 }): Response {
   markTraceClientAbort(input.trace, input.message);
-  if (input.partialBody !== null) {
-    input.responsePlan?.capturePartial(input.partialBody);
-  }
+  capturePartialResponse(input.responsePlan, input.partialBody);
   return new Response(null, { status: CLIENT_ABORT_STATUS });
 }
 
@@ -143,13 +175,11 @@ export function traceDiagnosticResponse(input: {
   request: ApiProxyProtocolModelRequest;
   trace: ProxyTraceAccumulator;
   diagnostic: ApiProxyProtocolDiagnostic;
-  responsePlan?: ApiProxyResponsePlanExecutor | null;
-  partialBody?: string | null;
+  responsePlan?: ApiProxyResponsePlanExecutor | null | undefined;
+  partialBody?: PartialResponseBody | null | undefined;
 }): Response {
   applyTraceDiagnostic(input.trace, input.diagnostic);
-  if (input.partialBody) {
-    input.responsePlan?.capturePartial(input.partialBody);
-  }
+  capturePartialResponse(input.responsePlan, input.partialBody);
   const response = input.adapter.diagnosticError(
     input.request,
     input.diagnostic,
@@ -165,7 +195,7 @@ export function traceDiagnosticResponse(input: {
   return input.c.json(response.body, response.status);
 }
 
-export function truncatedStreamResponse(input: {
+function truncatedStreamResponse(input: {
   c: Context;
   adapter: ApiProxyProtocolAdapter;
   request: ApiProxyProtocolModelRequest;
@@ -182,13 +212,83 @@ export function truncatedStreamResponse(input: {
     request: input.request,
     trace: input.trace,
     responsePlan: input.responsePlan ?? null,
-    partialBody: partialFromState(input.codec, input.state),
-    diagnostic: {
-      status: 502,
-      code: "arriero_proxy_upstream_error",
-      param: "model",
-      message: `${input.label} ended without a terminal chunk (${input.state.text.length} chars buffered).`,
-    },
+    partialBody: () => partialFromState(input.codec, input.state),
+    diagnostic: upstreamErrorDiagnostic(
+      `${input.label} ended without a terminal chunk (${input.state.text.length} chars buffered).`,
+    ),
+  });
+}
+
+export function bufferedSseFailureResponse(input: {
+  c: Context;
+  adapter: ApiProxyProtocolAdapter;
+  request: ApiProxyProtocolModelRequest;
+  trace: ProxyTraceAccumulator;
+  responsePlan: ApiProxyResponsePlanExecutor | null;
+  codec: ApiProxyResumableCodec;
+  state: ResumableBufferState;
+  outcome: ConsumeResumableSseOutcome;
+  omittedCacheReadIsZero: boolean;
+  clientAbortMessage: string;
+  failure: (detail: string) => ApiProxyProtocolDiagnostic;
+  truncatedLabel: string;
+  streamTerminal: ApiEndpointStreamTerminal;
+}): Response | null {
+  const { trace, responsePlan, codec, state, outcome } = input;
+  trace.usage = resumableTraceUsage(state, input.omittedCacheReadIsZero);
+  const partialBody = () => partialFromState(codec, state);
+  if (outcome.type === "consumer-gone" || outcome.type === "cancelled") {
+    return clientAbortResponse({
+      trace,
+      message: input.clientAbortMessage,
+      responsePlan,
+      partialBody,
+    });
+  }
+  if (outcome.type === "error") {
+    return traceDiagnosticResponse({
+      c: input.c,
+      adapter: input.adapter,
+      request: input.request,
+      trace,
+      diagnostic: input.failure(outcome.message),
+      responsePlan,
+      partialBody,
+    });
+  }
+  if (outcome.type === "truncated") {
+    if (input.streamTerminal === "strict") {
+      return truncatedStreamResponse({
+        c: input.c,
+        adapter: input.adapter,
+        request: input.request,
+        trace,
+        codec,
+        state,
+        label: input.truncatedLabel,
+        responsePlan,
+      });
+    }
+    responsePlan?.markTruncated();
+  }
+  applyProxyStreamHealth({ trace, health: state.health });
+  return null;
+}
+
+export function bufferedSseResponse(
+  codec: ApiProxyResumableCodec,
+  state: ResumableBufferState,
+  responsePlan: ApiProxyResponsePlanExecutor | null,
+): Response {
+  const final = finalFromState(codec, state, false);
+  const delivered = applyApiProxyResponsePlanText(responsePlan, final.body, {
+    status: final.status,
+    contentType: final.headers["content-type"] ?? "application/json",
+    isSse: false,
+  });
+  return new Response(delivered, {
+    status: final.status,
+    headers: final.headers,
   });
 }
 
@@ -215,6 +315,34 @@ export function errorBodyMessage(body: unknown): string | null {
 
 export function upstreamErrorText(text: string): string {
   return errorBodyMessage(safeJsonParse(text)) ?? text.slice(0, 500);
+}
+
+export function recordUpstreamErrorBody(
+  trace: ProxyTraceAccumulator,
+  protocol: ApiProxyProtocolOperation["protocol"],
+  text: string,
+  omittedCacheReadIsZero: boolean,
+): void {
+  const usage = usageFromNonStreamBody(protocol, text);
+  if (usage) {
+    trace.usage = traceUsageFromCounts(usage, omittedCacheReadIsZero);
+  }
+  if (text) {
+    trace.errorMessage = upstreamErrorText(text);
+  }
+}
+
+export function translatedUpstreamError(
+  status: number,
+  text: string,
+  translate: boolean,
+): { headers: Record<string, string>; body: string } | null {
+  return translate
+    ? {
+        headers: { "content-type": "application/json" },
+        body: translateOpenAiErrorText(status, text),
+      }
+    : null;
 }
 
 const SERVER_TIMING_WAIT_MS = 1500;

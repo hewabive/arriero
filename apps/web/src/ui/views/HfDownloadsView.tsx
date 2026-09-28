@@ -1,4 +1,4 @@
-import type { HfDownloadQueueJob, HfDownloadSettings } from "@arriero/core";
+import type { HfDownloadQueueJob } from "@arriero/core";
 import {
   Badge,
   Button,
@@ -13,15 +13,11 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  getHfDownloadSettings,
-  getHfTokenStatus,
-  updateHfDownloadSettings,
-  updateHfToken,
-} from "../../api/client";
+import { getHfTokenStatus, updateHfToken } from "../../api/client";
 import { SecretInput } from "../components/SecretInput";
 import { HfQueuePanel } from "./HfQueuePanel";
 import { HfRepoBrowserPanel } from "./HfRepoBrowserPanel";
+import { useHfDownloadSettings } from "./use-hf-download-settings";
 import { useHfJobsSync } from "./use-hf-queue";
 import { notifyError } from "../utils/notify";
 
@@ -90,24 +86,16 @@ function HfTokenCard() {
 }
 
 function HfDownloadSettingsCard() {
-  const queryClient = useQueryClient();
-  const settingsQuery = useQuery({
-    queryKey: ["hf-download-settings"],
-    queryFn: getHfDownloadSettings,
-  });
-  const settings = settingsQuery.data?.data ?? null;
   const [maxEta, setMaxEta] = useState<number | "off" | null>(null);
-  const mutation = useMutation({
-    mutationFn: (input: HfDownloadSettings) => updateHfDownloadSettings(input),
-    onSuccess: (result) => {
-      queryClient.setQueryData(["hf-download-settings"], result);
+  const { settings, update, pending } = useHfDownloadSettings({
+    errorTitle: "Download settings",
+    onSaved: () => {
       setMaxEta(null);
       notifications.show({
         title: "Download settings",
         message: "Settings saved.",
       });
     },
-    onError: notifyError("Download settings"),
   });
   if (!settings) {
     return null;
@@ -139,14 +127,9 @@ function HfDownloadSettingsCard() {
             w={160}
           />
           <Button
-            onClick={() =>
-              mutation.mutate({
-                modelDirectoryId: settings.modelDirectoryId,
-                maxEtaHours: effectiveMaxEtaValue,
-              })
-            }
+            onClick={() => update({ maxEtaHours: effectiveMaxEtaValue })}
             disabled={!dirty}
-            loading={mutation.isPending}
+            loading={pending}
           >
             Save
           </Button>

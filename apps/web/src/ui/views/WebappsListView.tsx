@@ -1,6 +1,6 @@
 import {
-  WEBAPP_KINDS,
   webappDescriptor,
+  webappKindForEngine,
   type EnvironmentRecord,
   type Webapp,
   type WebappUpdate,
@@ -59,24 +59,14 @@ export function WebappsListView({
   const running = webapps.filter(
     (webapp) => webapp.status === "running",
   ).length;
-  const installedRuntimes = environments.filter(
-    (environment) =>
-      environment.status === "installed" &&
-      WEBAPP_KINDS.some(
-        (kind) =>
-          webappDescriptor(kind).environmentEngine === environment.engine,
-      ),
-  );
+  const installedRuntimes = environments.flatMap((environment) => {
+    const kind =
+      environment.status === "installed"
+        ? webappKindForEngine(environment.engine)
+        : null;
+    return kind ? [{ environment, kind }] : [];
+  });
   const firstRuntime = installedRuntimes[0] ?? null;
-  const firstRuntimeKind = firstRuntime
-    ? WEBAPP_KINDS.find(
-        (kind) =>
-          webappDescriptor(kind).environmentEngine === firstRuntime.engine,
-      )
-    : null;
-  const firstRuntimeName = firstRuntimeKind
-    ? webappDescriptor(firstRuntimeKind).displayName
-    : null;
 
   const updateMutation = useMutation({
     mutationFn: (input: { name: string; update: WebappUpdate }) =>
@@ -181,15 +171,18 @@ export function WebappsListView({
                     : "No web apps configured"}
                 </Text>
                 <Text size="sm" c="dimmed">
-                  {firstRuntime && firstRuntimeName
-                    ? `${firstRuntimeName} ${firstRuntime.version} is ready. Configure its port, access and API proxy connection before starting it.`
+                  {firstRuntime
+                    ? `${webappDescriptor(firstRuntime.kind).displayName} ${firstRuntime.environment.version} is ready. Configure its port, access and API proxy connection before starting it.`
                     : "Install an Open WebUI or Chat UI runtime, then configure how it should run."}
                 </Text>
               </div>
               <Group gap="xs">
-                {firstRuntime && firstRuntimeName ? (
-                  <Button size="sm" onClick={() => onCreate(firstRuntime.id)}>
-                    Configure {firstRuntimeName}
+                {firstRuntime ? (
+                  <Button
+                    size="sm"
+                    onClick={() => onCreate(firstRuntime.environment.id)}
+                  >
+                    Configure {webappDescriptor(firstRuntime.kind).displayName}
                   </Button>
                 ) : (
                   <Button size="sm" onClick={onOpenInstall}>

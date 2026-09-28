@@ -1,12 +1,54 @@
-import type {
-  HfDownloadIntegrity,
-  HfDownloadQueueJob,
-  HfDownloadedRepo,
-  ModelLibraryCheck,
-  ModelLibraryEntry,
-  ModelLibraryFile,
-  ModelLibrarySnapshot,
+import {
+  sameHfContent,
+  type HfDownloadFile,
+  type HfDownloadIntegrity,
+  type HfDownloadQueueJob,
+  type HfDownloadedRepo,
+  type ModelLibraryCheck,
+  type ModelLibraryEntry,
+  type ModelLibrarySnapshot,
 } from "@arriero/core";
+
+export type LibraryFileState =
+  | "Downloading"
+  | "Paused"
+  | "Queued"
+  | "Integrity issue"
+  | "Download leftover"
+  | "Partial"
+  | "Not in this version"
+  | "Not downloaded"
+  | "Different version"
+  | "Local only"
+  | "Verified"
+  | "On disk";
+
+function libraryFileState(input: {
+  transfer: HfDownloadFile | null;
+  jobPaused: boolean;
+  issue: boolean;
+  orphan: boolean;
+  present: boolean;
+  partialBytes: number;
+  remote: boolean;
+  sourceKnown: boolean;
+  matches: boolean | null;
+  verified: boolean;
+}): LibraryFileState {
+  if (input.transfer?.status === "downloading") return "Downloading";
+  if (input.transfer?.status === "pending")
+    return input.jobPaused ? "Paused" : "Queued";
+  if (input.issue) return "Integrity issue";
+  if (input.orphan) return "Download leftover";
+  if (input.partialBytes > 0 && !input.present) return "Partial";
+  if (!input.present)
+    return input.sourceKnown && !input.remote
+      ? "Not in this version"
+      : "Not downloaded";
+  if (input.matches === false) return "Different version";
+  if (!input.remote && input.sourceKnown) return "Local only";
+  return input.verified ? "Verified" : "On disk";
+}
 
 export function libraryFiles(input: {
   entry: ModelLibraryEntry | null;
@@ -54,31 +96,19 @@ export function libraryFiles(input: {
       const present = installed?.present ?? false;
       const partialBytes = installed?.partialBytes ?? orphan?.partialBytes ?? 0;
       const matches =
-        remote && installed ? sameLibraryFile(remote, installed) : null;
-      const state =
-        transfer?.status === "downloading"
-          ? "Downloading"
-          : transfer?.status === "pending"
-            ? input.job?.status === "paused"
-              ? "Paused"
-              : "Queued"
-            : issue
-              ? "Integrity issue"
-              : orphan
-                ? "Download leftover"
-                : partialBytes > 0 && !present
-                  ? "Partial"
-                  : !present
-                    ? input.source && !remote
-                      ? "Not in this version"
-                      : "Not downloaded"
-                    : matches === false
-                      ? "Different version"
-                      : !remote && input.source
-                        ? "Local only"
-                        : verification?.status === "verified"
-                          ? "Verified"
-                          : "On disk";
+        remote && installed ? sameHfContent(remote, installed) : null;
+      const state = libraryFileState({
+        transfer,
+        jobPaused: input.job?.status === "paused",
+        issue,
+        orphan: orphan !== null,
+        present,
+        partialBytes,
+        remote: remote !== null,
+        sourceKnown: input.source !== null,
+        matches,
+        verified: verification?.status === "verified",
+      });
       return {
         path,
         remote,
@@ -114,41 +144,57 @@ export function libraryFiles(input: {
     });
 }
 
-function sameLibraryFile(a: ModelLibraryFile, b: ModelLibraryFile) {
-  return a.size === b.size && (a.lfsOid ?? a.oid) === (b.lfsOid ?? b.oid);
-}
-
 export type LibraryFile = ReturnType<typeof libraryFiles>[number];
 export type LibraryFolder = {
   path: string;
   name: string;
   folders: LibraryFolder[];
   files: LibraryFile[];
-  descendants: LibraryFile[];
+  paths: string[];
+  present: number;
+  changes: number;
+  bytes: number | null;
 };
 
-export function libraryFileTree(files: LibraryFile[]): LibraryFolder {
-  const root: LibraryFolder = {
-    path: "",
-    name: "",
+function libraryFolder(path: string, name: string): LibraryFolder {
+  return {
+    path,
+    name,
     folders: [],
     files: [],
-    descendants: [],
+    paths: [],
+    present: 0,
+    changes: 0,
+    bytes: 0,
   };
+}
+
+function addDescendant(folder: LibraryFolder, file: LibraryFile) {
+  folder.paths.push(file.path);
+  if (file.present) folder.present += 1;
+  if (file.change) folder.changes += 1;
+  folder.bytes =
+    folder.bytes === null || file.size === null
+      ? null
+      : folder.bytes + file.size;
+}
+
+export function libraryFileTree(files: LibraryFile[]): LibraryFolder {
+  const root = libraryFolder("", "");
   const folders = new Map([["", root]]);
   for (const file of files) {
     let parent = root;
-    parent.descendants.push(file);
+    addDescendant(parent, file);
     const segments = file.path.split("/").slice(0, -1);
     for (const name of segments) {
       const path = parent.path ? `${parent.path}/${name}` : name;
       let folder = folders.get(path);
       if (!folder) {
-        folder = { path, name, folders: [], files: [], descendants: [] };
+        folder = libraryFolder(path, name);
         folders.set(path, folder);
         parent.folders.push(folder);
       }
-      folder.descendants.push(file);
+      addDescendant(folder, file);
       parent = folder;
     }
     parent.files.push(file);

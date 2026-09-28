@@ -1,4 +1,5 @@
 import {
+  isFilesApiEndpoint,
   ApiProxySettingsSchema,
   ApiProxySettingsUpdateSchema,
   type ApiProxySettings,
@@ -25,7 +26,7 @@ export function validateApiProxySettingsRefs(
     return null;
   }
   const endpoint = getExternalApiEndpoint(input.filesEndpointId);
-  return endpoint?.enabled && endpoint.profile === "openai"
+  return endpoint && isFilesApiEndpoint(endpoint)
     ? null
     : "Default Files API endpoint must be an enabled external OpenAI endpoint";
 }

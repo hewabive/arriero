@@ -7,6 +7,7 @@ import {
   ggufModelRole,
   ggufPoolingTypeLabel,
   impliedInstanceModelId,
+  instanceEvictionPolicy,
   isDraftGgufArtifactKind,
   SGLANG_MODEL_ARG_KEYS,
   sglangModelArg,
@@ -20,6 +21,7 @@ import {
   type InstancePreflightPreview,
   type InstanceUpdate,
   type ArgumentOption,
+  type GgufModel,
   type MemoryEstimate,
   type KTransformersMethod,
   type RpcWorkerRef,
@@ -164,6 +166,13 @@ function decodeRpcWorkerRef(value: string): RpcWorkerRef {
 }
 
 type ModelOption = { value: string; label: string };
+
+function modelOption(model: GgufModel): ModelOption {
+  return {
+    value: model.path,
+    label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
+  };
+}
 
 function modelOptionsWithCustom(
   options: ModelOption[],
@@ -476,15 +485,6 @@ export function useInstanceForm(props: InstanceFormModalProps) {
       }),
     [visibleArgRows, knownArgByName, defaultKeySet],
   );
-  const primaryModels = useMemo(
-    () =>
-      scanned.models
-        .filter(
-          (model) => model.artifactKind === "model" && !isVocabModel(model),
-        )
-        .sort(compareModelTitles),
-    [scanned.models],
-  );
   const draftModels = useMemo(
     () =>
       scanned.models
@@ -496,6 +496,10 @@ export function useInstanceForm(props: InstanceFormModalProps) {
         )
         .sort(compareModelTitles),
     [scanned.models],
+  );
+  const primaryModels = useMemo(
+    () => draftModels.filter((model) => model.artifactKind === "model"),
+    [draftModels],
   );
   const selectedModel =
     primaryModels.find((model) => model.path === selectedModelPath) ?? null;
@@ -531,19 +535,11 @@ export function useInstanceForm(props: InstanceFormModalProps) {
   );
 
   const selectableModelOptions = useMemo(
-    () =>
-      primaryModels.map((model) => ({
-        value: model.path,
-        label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
-      })),
+    () => primaryModels.map(modelOption),
     [primaryModels],
   );
   const selectableDraftModelOptions = useMemo(
-    () =>
-      draftModels.map((model) => ({
-        value: model.path,
-        label: `${modelTitle(model)} · ${pathBaseName(model.path)} · ${model.metadata.quantization ?? "unknown"} · ${formatBytes(model.sizeBytes)}`,
-      })),
+    () => draftModels.map(modelOption),
     [draftModels],
   );
   const modelOptions = useMemo(
@@ -775,10 +771,7 @@ export function useInstanceForm(props: InstanceFormModalProps) {
           ? (seedInstance.engineConfig.servedModelName ?? "")
           : "",
       );
-      setEvictionPolicy(
-        seedInstance.scheduling?.evictionPolicy ??
-          engineDescriptor(seedInstance.kind).defaultEvictionPolicy,
-      );
+      setEvictionPolicy(instanceEvictionPolicy(seedInstance));
       setCwd(seedInstance.cwd ?? "");
       setRpcWorkers(seedInstance.rpcWorkers);
       setSelectedBinaryPathRefId(seedInstance.binaryPathRefId);

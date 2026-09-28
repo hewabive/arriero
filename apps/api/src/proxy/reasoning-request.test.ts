@@ -414,8 +414,13 @@ for (const sidecar of [
     assert.deepEqual(resolved.profile.aliases, {});
 
     const prepared = prepareApiProxyUpstreamRequest({
-      translate: true,
-      translationDialect: "openai-compatible",
+      context: {
+        translateAnthropic: true,
+        translationDialect: "openai-compatible",
+        instanceId,
+        endpointId: null,
+        modelOverride: null,
+      },
       operation: {
         protocol: "anthropic",
         endpoint: "messages",
@@ -432,8 +437,6 @@ for (const sidecar of [
         max_tokens: 32000,
         stream: true,
       },
-      instanceId,
-      endpointId: null,
     });
     assert.equal(prepared.protocol, "openai");
     assert.equal(prepared.path, "/v1/chat/completions");
@@ -702,4 +705,26 @@ test("an endpoint override maps requests routed to an external provider", () => 
     }),
     null,
   );
+});
+
+test("prepareApiProxyUpstreamRequest pins the upstream model once", () => {
+  const prepared = prepareApiProxyUpstreamRequest({
+    context: {
+      translateAnthropic: false,
+      translationDialect: "llama-server",
+      instanceId: null,
+      endpointId: null,
+      modelOverride: "upstream-qwen",
+    },
+    operation: {
+      protocol: "openai",
+      endpoint: "chat.completions",
+      routePath: "/v1/chat/completions",
+      transport: "http-json",
+    },
+    path: "/v1/chat/completions",
+    headers: new Headers(),
+    body: { model: "qwen", messages: [] },
+  });
+  assert.deepEqual(prepared.body, { model: "upstream-qwen", messages: [] });
 });

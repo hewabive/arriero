@@ -108,6 +108,16 @@ export function webappDescriptor(kind: WebappKind): WebappDescriptor {
   return WEBAPP_DESCRIPTORS[kind];
 }
 
+export function webappKindForEngine(
+  engine: EnvironmentEngine,
+): WebappKind | null {
+  return (
+    WEBAPP_KINDS.find(
+      (kind) => WEBAPP_DESCRIPTORS[kind].environmentEngine === engine,
+    ) ?? null
+  );
+}
+
 const WEBAPP_ENVIRONMENT_CREATE_INPUTS: Record<
   WebappKind,
   (version: string) => EnvironmentCreateInput

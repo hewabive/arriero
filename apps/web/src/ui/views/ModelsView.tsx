@@ -1,6 +1,12 @@
 import { ModelImportControl } from "./ModelImportControl";
-import type { GgufModel, ModelScanRoot, SafetensorsModel } from "@arriero/core";
+import type {
+  GgufArtifactKind,
+  GgufModel,
+  ModelScanRoot,
+  SafetensorsModel,
+} from "@arriero/core";
 import {
+  GGUF_ARTIFACT_KIND_LABEL,
   ggufModelRole,
   ggufPoolingTypeLabel,
   isAuxiliaryGgufArtifactKind,
@@ -220,47 +226,37 @@ function MtpBadge(props: { model: GgufModel }) {
   );
 }
 
+const ARTIFACT_KIND_BADGE: Record<
+  Exclude<GgufArtifactKind, "model">,
+  { tooltip: string; color: string }
+> = {
+  mmproj: { tooltip: "Multimodal projector", color: "grape" },
+  "draft-mtp": { tooltip: "MTP speculative draft sidecar", color: "cyan" },
+  "draft-eagle3": {
+    tooltip: "EAGLE3 speculative draft sidecar",
+    color: "cyan",
+  },
+  "draft-dflash": {
+    tooltip: "DFlash speculative draft sidecar",
+    color: "cyan",
+  },
+  "draft-dspark": {
+    tooltip: "DSpark speculative draft sidecar",
+    color: "cyan",
+  },
+  imatrix: { tooltip: "Importance matrix", color: "gray" },
+};
+
 function ArtifactKindBadge(props: { model: GgufModel }) {
   const kind = props.model.artifactKind;
   if (kind === "model") {
     return null;
   }
-  const details = {
-    mmproj: {
-      label: "mmproj",
-      tooltip: "Multimodal projector",
-      color: "grape",
-    },
-    "draft-mtp": {
-      label: "MTP",
-      tooltip: "MTP speculative draft sidecar",
-      color: "cyan",
-    },
-    "draft-eagle3": {
-      label: "EAGLE3",
-      tooltip: "EAGLE3 speculative draft sidecar",
-      color: "cyan",
-    },
-    "draft-dflash": {
-      label: "DFlash",
-      tooltip: "DFlash speculative draft sidecar",
-      color: "cyan",
-    },
-    "draft-dspark": {
-      label: "DSpark",
-      tooltip: "DSpark speculative draft sidecar",
-      color: "cyan",
-    },
-    imatrix: {
-      label: "imatrix",
-      tooltip: "Importance matrix",
-      color: "gray",
-    },
-  }[kind];
+  const details = ARTIFACT_KIND_BADGE[kind];
   return (
     <FeatureBadge
       color={details.color}
-      label={details.label}
+      label={GGUF_ARTIFACT_KIND_LABEL[kind]}
       tooltip={details.tooltip}
     />
   );

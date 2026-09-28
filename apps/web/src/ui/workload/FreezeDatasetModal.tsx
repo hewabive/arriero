@@ -23,7 +23,8 @@ import {
 } from "../../api/client";
 import { notifyError } from "../utils/notify";
 import { countLabel } from "../utils/plural";
-import { formatLocalClock, formatLocalDateTime } from "../utils/time";
+import { formatLocalDateTime } from "../utils/time";
+import { formatWorkloadRange } from "./workload-scope";
 
 function defaultName(window: WorkloadTimeRange): string {
   return `Window ${formatLocalDateTime(window.from)}`;
@@ -103,10 +104,7 @@ export function FreezeDatasetModal(props: {
     >
       {window && (
         <Stack gap="sm">
-          <Text size="sm">
-            {formatLocalDateTime(window.from)} –{" "}
-            {formatLocalClock(Date.parse(window.to))}
-          </Text>
+          <Text size="sm">{formatWorkloadRange(window.from, window.to)}</Text>
           {preview && (
             <Text size="sm" c="dimmed">
               {countLabel(preview.segments.length, "segment")} ·{" "}

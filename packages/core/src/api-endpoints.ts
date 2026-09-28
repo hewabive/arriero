@@ -325,6 +325,16 @@ export function apiEndpointModelFilterAdmits(
   }
   return true;
 }
+export function isFilesApiEndpoint(
+  endpoint: Pick<ApiEndpointRecord, "kind" | "enabled" | "profile">,
+): boolean {
+  return (
+    endpoint.kind === "external-api" &&
+    endpoint.enabled &&
+    endpoint.profile === "openai"
+  );
+}
+
 export type ApiEndpointConfig = z.infer<typeof ApiEndpointConfigSchema>;
 export type ApiEndpointCreate = z.infer<typeof ApiEndpointCreateSchema>;
 export type ApiEndpointCreateInput = z.input<typeof ApiEndpointCreateSchema>;

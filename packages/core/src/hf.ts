@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { FileVerificationProgressSchema } from "./file-verification.js";
 
+import { BackgroundJobStatusSchema } from "./jobs.js";
 import { GgufArtifactKindSchema } from "./models.js";
 
 const HF_REPO_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]+$/;
 
 export const HfRepoIdSchema = z.string().regex(HF_REPO_ID_PATTERN);
+
+export const MODEL_LIBRARY_MAX_PATHS = 2_000;
 
 export function isHfRepoId(value: string): boolean {
   return HF_REPO_ID_PATTERN.test(value);
@@ -59,7 +62,7 @@ export const HfTokenUpdateSchema = z.object({
 export const HfDownloadStartSchema = z.object({
   repoId: HfRepoIdSchema,
   revision: z.string().min(1).optional(),
-  paths: z.array(z.string().min(1)).min(1).max(2_000),
+  paths: z.array(z.string().min(1)).min(1).max(MODEL_LIBRARY_MAX_PATHS),
   destDir: z.string().min(1).optional(),
 });
 
@@ -73,8 +76,6 @@ export const HfDownloadFileStatusSchema = z.enum([
 ]);
 
 export const HfDownloadFileSchema = z.object({
-  oid: z.string().optional(),
-  lfsOid: z.string().nullable().optional(),
   path: z.string().min(1),
   size: z.number().int().nonnegative(),
   status: HfDownloadFileStatusSchema,
@@ -145,7 +146,7 @@ export const HfDownloadQueueReorderSchema = z.object({
 });
 
 export const HfDownloadFileSkipSchema = z.object({
-  paths: z.array(z.string().min(1)).min(1).max(2_000),
+  paths: z.array(z.string().min(1)).min(1).max(MODEL_LIBRARY_MAX_PATHS),
 });
 
 export const HfOrphanPartSchema = z.object({
@@ -194,8 +195,10 @@ export const HfDownloadedRepoFileSchema = z.object({
   partialBytes: z.number().int().nonnegative(),
 });
 
+export const HfAcquisitionSchema = z.enum(["imported", "mixed"]);
+
 export const HfDownloadedRepoSchema = z.object({
-  acquisition: z.enum(["imported", "mixed"]).optional(),
+  acquisition: HfAcquisitionSchema.optional(),
   importedAt: z.string().optional(),
   dir: z.string().min(1),
   repoId: HfRepoIdSchema,
@@ -209,6 +212,23 @@ export const HfDownloadedRepoSchema = z.object({
   variants: z.array(HfGgufVariantSchema).nullable(),
   update: HfUpdateCheckSchema,
 });
+
+type HfContentRef =
+  | { oid: string; lfsOid: string | null }
+  | { oid: string; lfs: { oid: string } | null };
+
+export function hfContentOid(file: HfContentRef): string {
+  return "lfs" in file
+    ? (file.lfs?.oid ?? file.oid)
+    : (file.lfsOid ?? file.oid);
+}
+
+export function sameHfContent(
+  left: HfContentRef & { size: number },
+  right: HfContentRef & { size: number },
+): boolean {
+  return left.size === right.size && hfContentOid(left) === hfContentOid(right);
+}
 
 export function hfManifestOidMatches(
   entry: { oid: string; lfsOid: string | null },
@@ -227,7 +247,11 @@ export const HfUpdateCheckRequestSchema = z.object({
 
 export const HfDownloadDeleteSchema = z.object({
   dir: z.string().min(1),
-  paths: z.array(z.string().min(1)).min(1).max(2_000).optional(),
+  paths: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(MODEL_LIBRARY_MAX_PATHS)
+    .optional(),
   verifyUpstream: z.boolean().optional(),
   removeLibraryEntry: z.boolean().optional(),
 });
@@ -249,12 +273,14 @@ export const HfDownloadIntegrityFileStatusSchema = z.enum([
   "error",
 ]);
 
+export const HfContentHashAlgorithmSchema = z.enum(["sha256", "git-sha1"]);
+
 export const HfDownloadIntegrityFileSchema = z.object({
   path: z.string().min(1),
   status: HfDownloadIntegrityFileStatusSchema,
   expectedSize: z.number().int().nonnegative(),
   actualSize: z.number().int().nonnegative().nullable(),
-  algorithm: z.enum(["sha256", "git-sha1"]),
+  algorithm: HfContentHashAlgorithmSchema,
   expectedHash: z.string(),
   actualHash: z.string().nullable(),
   error: z.string().nullable(),
@@ -269,7 +295,7 @@ export const HfDownloadIntegritySchema = z.object({
 export const HfIntegrityJobSchema = z.object({
   id: z.string(),
   dir: z.string(),
-  status: z.enum(["running", "succeeded", "failed", "canceled"]),
+  status: BackgroundJobStatusSchema,
   completedFiles: z.number(),
   totalFiles: z.number(),
   completedBytes: z.number(),
@@ -365,6 +391,7 @@ export type HfUpdateCheckStatus = z.infer<typeof HfUpdateCheckStatusSchema>;
 export type HfUpdateCheckFile = z.infer<typeof HfUpdateCheckFileSchema>;
 export type HfUpdateCheck = z.infer<typeof HfUpdateCheckSchema>;
 export type HfDownloadedRepoFile = z.infer<typeof HfDownloadedRepoFileSchema>;
+export type HfAcquisition = z.infer<typeof HfAcquisitionSchema>;
 export type HfDownloadedRepo = z.infer<typeof HfDownloadedRepoSchema>;
 export type HfUpdateCheckRequest = z.infer<typeof HfUpdateCheckRequestSchema>;
 export type HfDownloadDelete = z.infer<typeof HfDownloadDeleteSchema>;
@@ -376,6 +403,9 @@ export type HfDownloadIntegrityRequest = z.infer<
 >;
 export type HfDownloadIntegrityFileStatus = z.infer<
   typeof HfDownloadIntegrityFileStatusSchema
+>;
+export type HfContentHashAlgorithm = z.infer<
+  typeof HfContentHashAlgorithmSchema
 >;
 export type HfDownloadIntegrityFile = z.infer<
   typeof HfDownloadIntegrityFileSchema

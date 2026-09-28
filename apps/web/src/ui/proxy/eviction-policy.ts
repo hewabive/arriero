@@ -1,16 +1,12 @@
 import {
-  engineDescriptor,
+  instanceEvictionPolicy,
   type ApiEndpointRecord,
   type Instance,
   type InstanceEvictionPolicy,
 } from "@arriero/core";
 
 export type TargetEvictionContext =
-  | {
-      kind: "managed";
-      instanceId: string;
-      instancePolicy: InstanceEvictionPolicy;
-    }
+  | { kind: "managed"; instancePolicy: InstanceEvictionPolicy }
   | { kind: "managed-unavailable"; instanceId: string }
   | { kind: "not-managed" }
   | { kind: "unresolved" };
@@ -20,13 +16,6 @@ type EffectiveTargetEviction = {
   detail: string;
   label: string;
 };
-
-function instanceEvictionPolicy(instance: Instance): InstanceEvictionPolicy {
-  return (
-    instance.scheduling?.evictionPolicy ??
-    engineDescriptor(instance.kind).defaultEvictionPolicy
-  );
-}
 
 export function resolveTargetEvictionContext(
   endpoint: ApiEndpointRecord | undefined,
@@ -50,11 +39,7 @@ export function resolveTargetEvictionContext(
       instanceId: endpoint.instanceId,
     };
   }
-  return {
-    kind: "managed",
-    instanceId: instance.name,
-    instancePolicy: instanceEvictionPolicy(instance),
-  };
+  return { kind: "managed", instancePolicy: instanceEvictionPolicy(instance) };
 }
 
 export function instanceEvictionLimitLabel(

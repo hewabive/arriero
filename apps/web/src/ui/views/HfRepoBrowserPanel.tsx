@@ -31,19 +31,19 @@ import { useMemo, useState } from "react";
 import {
   browseHfRepo,
   getHfDestCheck,
-  getHfDownloadSettings,
   getModelScanSettings,
   listHfDownloads,
   listPathCatalog,
   startHfDownload,
-  updateHfDownloadSettings,
 } from "../../api/client";
 import { PathPickerInput } from "../components/PathPickerInput";
 import { hfLocalFileState, hfLocalVariantState } from "../utils/hf";
 import { formatBytes, pathBaseName } from "../utils/models";
+import { withPaths } from "../utils/path-selection";
 import { countLabel } from "../utils/plural";
 import { hfFileLocalBadge } from "./HfBadges";
 import { HfVariantCheckbox } from "./HfVariantCheckbox";
+import { useHfDownloadSettings } from "./use-hf-download-settings";
 import { useHfQueueQuery } from "./use-hf-queue";
 import { notifyError } from "../utils/notify";
 
@@ -198,10 +198,12 @@ function BrowseResults(props: {
   const [destinationMode, setDestinationMode] = useState<DestinationMode>(() =>
     destDir.trim() ? "custom" : "model-directory",
   );
-  const downloadSettingsQuery = useQuery({
-    queryKey: ["hf-download-settings"],
-    queryFn: getHfDownloadSettings,
-  });
+  const {
+    settings: downloadSettings,
+    update: updateDownloadSettings,
+    pending: modelDirectorySaving,
+    pendingPatch: pendingDownloadSettings,
+  } = useHfDownloadSettings({ errorTitle: "Default model directory" });
   const modelScanSettingsQuery = useQuery({
     queryKey: ["model-scan-settings"],
     queryFn: getModelScanSettings,
@@ -210,7 +212,6 @@ function BrowseResults(props: {
     queryKey: ["path-catalog", "models-dir"],
     queryFn: () => listPathCatalog("models-dir"),
   });
-  const downloadSettings = downloadSettingsQuery.data?.data ?? null;
   const modelScanSettings = modelScanSettingsQuery.data?.data ?? null;
   const modelDirectories = modelDirectoriesQuery.data?.data ?? [];
   const savedModelDirectoryId = downloadSettings?.modelDirectoryId ?? null;
@@ -336,37 +337,14 @@ function BrowseResults(props: {
     },
     onError: notifyError("Download"),
   });
-  const modelDirectoryMutation = useMutation({
-    mutationFn: (modelDirectoryId: string | null) => {
-      if (!downloadSettings) {
-        throw new Error("Download settings are not loaded");
-      }
-      return updateHfDownloadSettings({
-        ...downloadSettings,
-        modelDirectoryId,
-      });
-    },
-    onSuccess: (result) => {
-      queryClient.setQueryData(["hf-download-settings"], result);
-    },
-    onError: notifyError("Default model directory"),
-  });
-  const displayedModelDirectoryId = modelDirectoryMutation.isPending
-    ? modelDirectoryMutation.variables
-    : savedModelDirectoryId;
+  const pendingModelDirectoryId = pendingDownloadSettings?.modelDirectoryId;
+  const displayedModelDirectoryId =
+    pendingModelDirectoryId === undefined
+      ? savedModelDirectoryId
+      : pendingModelDirectoryId;
 
   function togglePaths(paths: readonly string[], checked: boolean) {
-    setSelection((previous) => {
-      const next = new Set(previous);
-      for (const path of paths) {
-        if (checked) {
-          next.add(path);
-        } else {
-          next.delete(path);
-        }
-      }
-      return next;
-    });
+    setSelection((previous) => withPaths(previous, paths, checked));
   }
 
   function toggleDir(dir: string) {
@@ -613,9 +591,10 @@ function BrowseResults(props: {
                 if (!value) {
                   return;
                 }
-                modelDirectoryMutation.mutate(
-                  value === PRIMARY_MODEL_DIRECTORY ? null : value,
-                );
+                updateDownloadSettings({
+                  modelDirectoryId:
+                    value === PRIMARY_MODEL_DIRECTORY ? null : value,
+                });
               }}
               allowDeselect={false}
               searchable
@@ -623,7 +602,7 @@ function BrowseResults(props: {
                 !downloadSettings ||
                 !modelScanSettings ||
                 !modelDirectoriesQuery.isSuccess ||
-                modelDirectoryMutation.isPending
+                modelDirectorySaving
               }
               w={420}
             />
@@ -653,10 +632,10 @@ function BrowseResults(props: {
         </Group>
         {destinationMode === "model-directory" ? (
           <Text size="xs" c="dimmed">
-            {modelDirectoryMutation.isPending
+            {modelDirectorySaving
               ? "Saving the default model directory…"
               : "Saved for future downloads."}
-            {destCheck && !modelDirectoryMutation.isPending ? (
+            {destCheck && !modelDirectorySaving ? (
               <>
                 {" "}
                 Repository path: <Code>{destCheck.dir}</Code>

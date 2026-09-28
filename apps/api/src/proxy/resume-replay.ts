@@ -16,25 +16,21 @@ import {
   type ApiProxyResumableCodec,
 } from "./protocol.js";
 import {
-  resumableTraceUsage,
-  clientAbortResponse,
-  traceDiagnosticResponse,
+  bufferedSseFailureResponse,
+  bufferedSseResponse,
   traceUsageFromCounts,
-  truncatedStreamResponse,
+  upstreamErrorDiagnostic,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
 } from "./protocol-trace.js";
 import { observeBodyCompletion } from "./body-completion.js";
 import {
-  applyApiProxyResponsePlanText,
   tapApiProxyResponsePlanStream,
   type ApiProxyResponsePlanExecutor,
 } from "./response-plan.js";
 import {
   consumeResumableSse,
   createResumableBufferState,
-  finalFromState,
-  partialFromState,
 } from "./resumable-forward.js";
 import {
   applyProxyStreamHealth,
@@ -42,7 +38,10 @@ import {
 } from "./stream-health.js";
 import { watchStreamIdle } from "./stream-idle.js";
 import { inflightStreamObserver } from "./stream-observer.js";
-import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
+import {
+  prepareApiProxyUpstreamRequest,
+  type ApiProxyUpstreamRequest,
+} from "./reasoning-request.js";
 import {
   apiProxyStreamResumeKey,
   apiProxyStreamSessionUrl,
@@ -69,6 +68,20 @@ export type ApiProxyResumeClaim = {
   codec: ApiProxyResumableCodec;
   streamIdleTimeoutMs: number | null;
 };
+
+export function apiProxyForwardResumeKey(input: {
+  instanceId: string;
+  forward: ApiProxyUpstreamRequest;
+  modelOverride: string | null;
+  modelId: string;
+}): string {
+  return apiProxyStreamResumeKey({
+    instanceId: input.instanceId,
+    path: input.forward.path,
+    modelId: input.modelOverride ?? input.modelId,
+    body: input.forward.body,
+  });
+}
 
 export function claimApiProxyResumedSession(input: {
   operation: ApiProxyProtocolOperation;
@@ -104,21 +117,18 @@ export function claimApiProxyResumedSession(input: {
     return null;
   }
   const forward = prepareApiProxyUpstreamRequest({
-    translate: resolved.context.translateAnthropic,
-    translationDialect: resolved.context.translationDialect,
+    context: resolved.context,
     operation: input.operation,
     path: upstreamPath,
     body: input.request.body,
     headers: input.headers,
-    instanceId: resolved.context.instanceId,
-    endpointId: resolved.context.endpointId,
   });
   const entry = store.claim(
-    apiProxyStreamResumeKey({
+    apiProxyForwardResumeKey({
       instanceId: resolved.context.instanceId,
-      path: forward.path,
-      modelId: resolved.context.modelOverride ?? input.request.modelId,
-      body: forward.body,
+      forward,
+      modelOverride: resolved.context.modelOverride,
+      modelId: input.request.modelId,
     }),
   );
   if (!entry) {
@@ -203,60 +213,26 @@ export async function serveResumedStreamSession(input: {
       cancelSignal: inflight.controlSignal("cancel"),
       ...observer,
     });
-    trace.usage = resumableTraceUsage(state);
     store.finish(entry, { evict: true });
-    if (outcome.type === "consumer-gone" || outcome.type === "cancelled") {
-      return clientAbortResponse({
-        trace,
-        message:
-          "Client closed the request before the resumed stream replay finished",
-        responsePlan: input.responsePlan,
-        partialBody: partialFromState(effectiveCodec, state),
-      });
-    }
-    if (outcome.type === "error") {
-      return traceDiagnosticResponse({
+    return (
+      bufferedSseFailureResponse({
         c,
         adapter: input.adapter,
         request,
         trace,
-        diagnostic: {
-          status: 502,
-          code: "arriero_proxy_upstream_error",
-          param: "model",
-          message: `Resumed stream replay failed: ${outcome.message}`,
-        },
         responsePlan: input.responsePlan,
-        partialBody: partialFromState(effectiveCodec, state),
-      });
-    }
-    if (outcome.type === "truncated") {
-      return truncatedStreamResponse({
-        c,
-        adapter: input.adapter,
-        request,
-        trace,
         codec: effectiveCodec,
         state,
-        label: "Resumed stream replay",
-        responsePlan: input.responsePlan,
-      });
-    }
-    applyProxyStreamHealth({ trace, health: state.health });
-    const final = finalFromState(effectiveCodec, state, false);
-    const delivered = applyApiProxyResponsePlanText(
-      input.responsePlan,
-      final.body,
-      {
-        status: final.status,
-        contentType: final.headers["content-type"] ?? "application/json",
-        isSse: false,
-      },
+        outcome,
+        omittedCacheReadIsZero: false,
+        clientAbortMessage:
+          "Client closed the request before the resumed stream replay finished",
+        failure: (detail) =>
+          upstreamErrorDiagnostic(`Resumed stream replay failed: ${detail}`),
+        truncatedLabel: "Resumed stream replay",
+        streamTerminal: "strict",
+      }) ?? bufferedSseResponse(effectiveCodec, state, input.responsePlan)
     );
-    return new Response(delivered, {
-      status: final.status,
-      headers: final.headers,
-    });
   }
 
   let metered: Response | undefined;

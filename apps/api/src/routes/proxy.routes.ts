@@ -7,6 +7,7 @@ import {
   ApiProxySourceCreateSchema,
   ApiProxySourceUpdateSchema,
   ApiProxyTraceListQuerySchema,
+  type ApiProxyInflightControlAction,
 } from "@arriero/core";
 import type { Hono } from "hono";
 
@@ -49,6 +50,14 @@ import {
 } from "../proxy/traces-repository.js";
 import { buildApiProxyTargetModelCatalog } from "../proxy/target-models.js";
 import { parseJsonBody } from "./validation.js";
+
+const inflightControlAliases: ReadonlyArray<
+  readonly [string, ApiProxyInflightControlAction]
+> = [
+  ["interrupt", "force-answer"],
+  ["finish", "finish"],
+  ["cancel", "cancel"],
+];
 
 export function registerProxyRoutes(app: Hono) {
   app.post("/api/proxy/serve", async (c) => {
@@ -225,29 +234,15 @@ export function registerProxyRoutes(app: Hono) {
     return c.json({ data: result });
   });
 
-  app.post("/api/proxy/inflight/:id/interrupt", async (c) => {
-    const result = await apiProxyInflight.requestControl(
-      c.req.param("id"),
-      "force-answer",
-    );
-    return c.json({ data: result });
-  });
-
-  app.post("/api/proxy/inflight/:id/finish", async (c) => {
-    const result = await apiProxyInflight.requestControl(
-      c.req.param("id"),
-      "finish",
-    );
-    return c.json({ data: result });
-  });
-
-  app.post("/api/proxy/inflight/:id/cancel", async (c) => {
-    const result = await apiProxyInflight.requestControl(
-      c.req.param("id"),
-      "cancel",
-    );
-    return c.json({ data: result });
-  });
+  for (const [alias, action] of inflightControlAliases) {
+    app.post(`/api/proxy/inflight/:id/${alias}`, async (c) => {
+      const result = await apiProxyInflight.requestControl(
+        c.req.param("id"),
+        action,
+      );
+      return c.json({ data: result });
+    });
+  }
 
   app.post("/api/proxy/route-explain", async (c) => {
     const body = await parseJsonBody(c, ApiProxyRouteExplainRequestSchema);

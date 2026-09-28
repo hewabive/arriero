@@ -1,11 +1,13 @@
 import { assertNoModelImport } from "./import-lock.js";
-import type {
-  HfDownloadIntegrity,
-  HfDownloadIntegrityFile,
-  HfDownloadedRepo,
-  HfDownloadedRepoFile,
-  HfOrphanPart,
-  HfUpdateCheck,
+import {
+  hfContentOid,
+  type HfDownloadIntegrity,
+  type HfDownloadIntegrityFile,
+  type HfDownloadIntegrityFileStatus,
+  type HfDownloadedRepo,
+  type HfDownloadedRepoFile,
+  type HfOrphanPart,
+  type HfUpdateCheck,
 } from "@arriero/core";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { lstat, opendir, readdir } from "node:fs/promises";
@@ -34,6 +36,7 @@ import {
   readHfManifest,
   writeHfManifest,
   type HfManifest,
+  type HfManifestFile,
 } from "./manifest.js";
 import {
   isInsideScanRoots,
@@ -456,10 +459,7 @@ export async function verifyHfDownloadRedownloadable(
       files: [],
     });
   }
-  const gone = check.files.filter(
-    (file) =>
-      file.status === "deleted" && (targets === null || targets.has(file.path)),
-  );
+  const gone = check.files.filter((file) => file.status === "deleted");
   if (gone.length > 0) {
     throw new HfDownloadVerifyError(
       `${manifest.repoId}: ${gone.length} of the files to delete no longer exist upstream and cannot be re-downloaded`,
@@ -469,29 +469,33 @@ export async function verifyHfDownloadRedownloadable(
 }
 
 function integrityResult(
-  file: HfManifest["files"][number],
-  fields: Omit<
-    HfDownloadIntegrityFile,
-    "path" | "expectedSize" | "algorithm" | "expectedHash"
-  >,
+  file: HfManifestFile,
+  status: HfDownloadIntegrityFileStatus,
+  {
+    actualSize = null,
+    actualHash = null,
+    error = null,
+  }: {
+    actualSize?: number | null;
+    actualHash?: string | null;
+    error?: string | null;
+  } = {},
 ): HfDownloadIntegrityFile {
-  const lfs = file.lfsOid !== null;
   return {
     path: file.path,
     expectedSize: file.size,
-    algorithm: hfContentHashAlgorithm(lfs),
-    expectedHash: file.lfsOid ?? file.oid,
-    ...fields,
+    algorithm: hfContentHashAlgorithm(file.lfsOid !== null),
+    expectedHash: hfContentOid(file),
+    status,
+    actualSize,
+    actualHash,
+    error,
   };
-}
-
-function missingFileError(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 async function checkHfManifestFileIntegrity(
   dir: string,
-  file: HfManifest["files"][number],
+  file: HfManifestFile,
   signal?: AbortSignal,
   onProgress?: VerificationObserver,
 ): Promise<HfDownloadIntegrityFile> {
@@ -499,47 +503,24 @@ async function checkHfManifestFileIntegrity(
   try {
     path = resolveWithin(dir, sanitizeRepoRelativePath(file.path));
   } catch (error) {
-    return integrityResult(file, {
-      status: "error",
-      actualSize: null,
-      actualHash: null,
-      error: errorMessage(error),
-    });
+    return integrityResult(file, "error", { error: errorMessage(error) });
   }
   let stats;
   try {
     stats = await lstat(path);
   } catch (error) {
-    if (missingFileError(error)) {
-      return integrityResult(file, {
-        status: "missing",
-        actualSize: null,
-        actualHash: null,
-        error: null,
-      });
-    }
-    return integrityResult(file, {
-      status: "error",
-      actualSize: null,
-      actualHash: null,
-      error: errorMessage(error),
-    });
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+      ? integrityResult(file, "missing")
+      : integrityResult(file, "error", { error: errorMessage(error) });
   }
   if (!stats.isFile()) {
-    return integrityResult(file, {
-      status: "error",
+    return integrityResult(file, "error", {
       actualSize: stats.size,
-      actualHash: null,
       error: "path is not a regular file",
     });
   }
   if (stats.size !== file.size) {
-    return integrityResult(file, {
-      status: "size-mismatch",
-      actualSize: stats.size,
-      actualHash: null,
-      error: null,
-    });
+    return integrityResult(file, "size-mismatch", { actualSize: stats.size });
   }
   let actualHash: string;
   try {
@@ -552,20 +533,16 @@ async function checkHfManifestFileIntegrity(
     );
   } catch (error) {
     signal?.throwIfAborted();
-    return integrityResult(file, {
-      status: "error",
+    return integrityResult(file, "error", {
       actualSize: stats.size,
-      actualHash: null,
       error: errorMessage(error),
     });
   }
-  const expectedHash = file.lfsOid ?? file.oid;
-  return integrityResult(file, {
-    status: actualHash === expectedHash ? "verified" : "checksum-mismatch",
-    actualSize: stats.size,
-    actualHash,
-    error: null,
-  });
+  return integrityResult(
+    file,
+    actualHash === hfContentOid(file) ? "verified" : "checksum-mismatch",
+    { actualSize: stats.size, actualHash },
+  );
 }
 
 export async function checkHfDownloadIntegrity(

@@ -22,7 +22,6 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -34,8 +33,12 @@ import {
   selectModelImport,
 } from "../../api/hf";
 import { formatBytes } from "../utils/models";
+import { notifyError } from "../utils/notify";
 import { countLabel } from "../utils/plural";
 import { FileVerificationProgress } from "../components/FileVerificationProgress";
+
+const RUNNING_IMPORT_STATUSES: ReadonlySet<ModelImportState["status"]> =
+  new Set(["searching", "checking", "importing"]);
 
 export function ModelImportDialog({
   model,
@@ -68,25 +71,20 @@ export function ModelImportDialog({
     enabled: id !== null,
     retry: false,
     refetchInterval: (query) =>
-      ["searching", "checking", "importing"].includes(
-        query.state.data?.data.status ?? "checking",
-      )
+      RUNNING_IMPORT_STATUSES.has(query.state.data?.data.status ?? "checking")
         ? 500
         : false,
   });
   const state = job.data?.data;
   const busy =
     !job.isError &&
-    (state?.status === "searching" ||
-      state?.status === "checking" ||
-      state?.status === "importing");
+    state !== undefined &&
+    RUNNING_IMPORT_STATUSES.has(state.status);
   const accept = ({ data }: { data: ModelImportState }) => {
     queryClient.setQueryData(["model-import", data.id], { data });
     setId(data.id);
-    void queryClient.invalidateQueries({ queryKey: ["model-imports"] });
   };
-  const onError = (error: Error) =>
-    notifications.show({ color: "red", message: error.message });
+  const onError = notifyError("Organize model files");
   const prepare = useMutation({
     mutationFn: (allowHf: boolean) =>
       prepareModelImport({
@@ -177,15 +175,16 @@ export function ModelImportDialog({
         state?.files.some((entry) => entry.source === file.source),
       )
       .map((file) => file.source) ?? [];
+  const destinations: Record<string, string> = Object.fromEntries(
+    state?.files.map((file) => [file.source, file.destination]) ?? [],
+  );
   const choose = (overrides: Partial<ModelImportSelection> = {}) => {
     if (!state) return;
     selection.mutate({
       id: state.id,
       candidateId: state.selectedCandidateId ?? "",
       companions: selectedNeighbors,
-      destinations: Object.fromEntries(
-        state.files.map((file) => [file.source, file.destination]),
-      ),
+      destinations,
       keepCompanions,
       ...overrides,
     });
@@ -447,12 +446,7 @@ export function ModelImportDialog({
                               if (destination)
                                 choose({
                                   destinations: {
-                                    ...Object.fromEntries(
-                                      state.files.map((entry) => [
-                                        entry.source,
-                                        entry.destination,
-                                      ]),
-                                    ),
+                                    ...destinations,
                                     [file.source]: destination,
                                   },
                                 });

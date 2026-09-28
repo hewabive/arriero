@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { WorkloadRecord } from "@arriero/core";
-
 import {
   decomposeWorkloadBody,
   rebuildWorkloadBody,
   workloadBlobHash,
   workloadDatasetRecord,
 } from "./dataset-codec.js";
+import type { ReplayableWorkloadRecord } from "./record-analysis.js";
 
 function collect() {
   const blobs = new Map<string, string>();
@@ -84,7 +83,10 @@ test("an Anthropic system is its own blob and repeated content is stored once", 
 
 test("dataset records keep offsets from the window and think time between replays", () => {
   const base = Date.parse("2026-09-20T10:00:00.000Z");
-  const record = (at: number, durationMs: number): WorkloadRecord => ({
+  const record = (
+    at: number,
+    durationMs: number,
+  ): ReplayableWorkloadRecord => ({
     traceId: `t${at}`,
     at: new Date(base + at).toISOString(),
     endAt: new Date(base + at + durationMs).toISOString(),

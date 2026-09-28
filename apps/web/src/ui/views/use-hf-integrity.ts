@@ -8,6 +8,8 @@ import {
 } from "../../api/hf";
 import { notifyError } from "../utils/notify";
 
+export type HfIntegrity = ReturnType<typeof useHfIntegrity>;
+
 export function useHfIntegrity(dir: string | null) {
   const client = useQueryClient();
   const [dismissed, setDismissed] = useState<string | null>(null);

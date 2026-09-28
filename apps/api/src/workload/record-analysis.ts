@@ -2,28 +2,60 @@ import { createHash } from "node:crypto";
 
 import {
   PIPELINE_NODE_TYPES,
+  WorkloadReplayableOutcomeSchema,
   apiProxyClientAbortErrorCode,
   pipelineNodeDescriptor,
   type ApiProxyPipelineNodeType,
   type ApiProxyRequestTrace,
   type ApiProxyTraceFile,
   type WorkloadOutcome,
+  type WorkloadRecord,
   type WorkloadRecordIssue,
+  type WorkloadReplayableOutcome,
 } from "@arriero/core";
 
 import { sanitizeClaudeCodeAttribution } from "../proxy/attribution.js";
-import { asObject } from "../proxy/json.js";
-import { CAPTURE_REQUEST_SAVED_DETAIL } from "../proxy/pipeline.js";
+import { asObject, isRecord } from "../proxy/json.js";
+import {
+  CAPTURE_REQUEST_FILE_KIND,
+  isSavedCaptureStep,
+} from "../proxy/pipeline.js";
 import type {
   ApiProxyAuthDiagnosticCode,
   ApiProxyProtocolDiagnosticCode,
 } from "../proxy/protocol.js";
 import { safeJsonParse } from "../proxy/protocol-trace.js";
-import { canonicalize } from "../utils/canonical-json.js";
 
 export const WORKLOAD_NORMALIZATION_VERSION = 1;
 
-export const WORKLOAD_CAPTURE_FILE_KIND = "capture-request";
+export const WORKLOAD_REPLAYABLE_ENDPOINTS: Record<
+  "openai" | "anthropic",
+  string
+> = {
+  openai: "chat.completions",
+  anthropic: "messages",
+};
+
+const replayableOutcomes: ReadonlySet<WorkloadOutcome> = new Set(
+  WorkloadReplayableOutcomeSchema.options,
+);
+
+export type ReplayableWorkloadRecord = WorkloadRecord & {
+  issue: null;
+  outcome: WorkloadReplayableOutcome;
+};
+
+export function isServedWorkloadOutcome(
+  outcome: WorkloadOutcome,
+): outcome is WorkloadReplayableOutcome {
+  return replayableOutcomes.has(outcome);
+}
+
+export function isReplayableWorkloadRecord(
+  record: WorkloadRecord,
+): record is ReplayableWorkloadRecord {
+  return record.issue === null && isServedWorkloadOutcome(record.outcome);
+}
 
 const errorCodeOutcomes: Record<
   ApiProxyProtocolDiagnosticCode | ApiProxyAuthDiagnosticCode,
@@ -83,7 +115,7 @@ export function workloadCaptureFile(
   trace: ApiProxyRequestTrace,
 ): ApiProxyTraceFile | null {
   const captures = trace.files.filter(
-    (file) => file.kind === WORKLOAD_CAPTURE_FILE_KIND,
+    (file) => file.kind === CAPTURE_REQUEST_FILE_KIND,
   );
   return captures.at(-1) ?? null;
 }
@@ -96,10 +128,7 @@ function rewritesAfterLastCapture(trace: ApiProxyRequestTrace): boolean {
   const steps = trace.routeTrace;
   let lastCapture = -1;
   steps.forEach((step, index) => {
-    if (
-      step.kind === WORKLOAD_CAPTURE_FILE_KIND &&
-      step.detail?.includes(CAPTURE_REQUEST_SAVED_DETAIL) === true
-    ) {
+    if (isSavedCaptureStep(step)) {
       lastCapture = index;
     }
   });
@@ -119,11 +148,6 @@ function involvesFusion(trace: ApiProxyRequestTrace): boolean {
   );
 }
 
-const replayableEndpoints: Record<"openai" | "anthropic", string> = {
-  openai: "chat.completions",
-  anthropic: "messages",
-};
-
 export function workloadRecordIssue(input: {
   trace: ApiProxyRequestTrace;
   protocol: "openai" | "anthropic";
@@ -137,7 +161,7 @@ export function workloadRecordIssue(input: {
       : "unsupported-operation";
   }
   if (
-    replayableEndpoints[input.protocol] !== input.endpoint ||
+    WORKLOAD_REPLAYABLE_ENDPOINTS[input.protocol] !== input.endpoint ||
     involvesFusion(input.trace)
   ) {
     return "unsupported-operation";
@@ -148,18 +172,17 @@ export function workloadRecordIssue(input: {
   return rewritesAfterLastCapture(input.trace) ? "capture-after-rewrite" : null;
 }
 
-function withoutCacheControl(value: unknown): unknown {
+function linkingForm(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(withoutCacheControl);
+    return value.map(linkingForm);
   }
-  const record = asObject(value);
-  if (!record) {
+  if (!isRecord(value)) {
     return value;
   }
   const out: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(record)) {
+  for (const key of Object.keys(value).sort()) {
     if (key !== "cache_control") {
-      out[key] = withoutCacheControl(entry);
+      out[key] = linkingForm(value[key]);
     }
   }
   return out;
@@ -175,7 +198,43 @@ function digest(parts: string[]): string {
 }
 
 function normalizedJson(value: unknown): string {
-  return JSON.stringify(canonicalize(withoutCacheControl(value)) ?? null);
+  return JSON.stringify(linkingForm(value) ?? null);
+}
+
+export type WorkloadChatBodyParts = {
+  messages: unknown[];
+  tools: unknown;
+  system: unknown;
+  fields: Record<string, unknown>;
+};
+
+export function splitWorkloadChatBody(
+  protocol: "openai" | "anthropic",
+  body: unknown,
+): WorkloadChatBodyParts | null {
+  const record = asObject(body);
+  const messages = record?.messages;
+  if (!record || !Array.isArray(messages)) {
+    return null;
+  }
+  const separateSystem = protocol === "anthropic";
+  const fields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      key === "messages" ||
+      key === "tools" ||
+      (separateSystem && key === "system")
+    ) {
+      continue;
+    }
+    fields[key] = value;
+  }
+  return {
+    messages,
+    tools: record.tools,
+    system: separateSystem ? record.system : undefined,
+    fields,
+  };
 }
 
 export type WorkloadChain = {
@@ -188,22 +247,24 @@ export function workloadChain(
   protocol: "openai" | "anthropic",
   body: unknown,
 ): WorkloadChain | null {
-  const record = asObject(sanitizeClaudeCodeAttribution(body));
-  const messages = record?.messages;
-  if (!record || !Array.isArray(messages)) {
+  const parts = splitWorkloadChatBody(
+    protocol,
+    sanitizeClaudeCodeAttribution(body),
+  );
+  if (!parts) {
     return null;
   }
   const root = {
-    tools: record.tools ?? null,
-    system: protocol === "anthropic" ? (record.system ?? null) : null,
+    tools: parts.tools ?? null,
+    system: parts.system ?? null,
   };
   let current = digest(["root", normalizedJson(root)]);
   const chain: string[] = [];
-  for (const message of messages) {
+  for (const message of parts.messages) {
     current = digest([current, normalizedJson(message)]);
     chain.push(current);
   }
-  return { messageCount: messages.length, chain, key: current };
+  return { messageCount: parts.messages.length, chain, key: current };
 }
 
 const claudeCodeSessionPattern = /_session_([0-9a-f][0-9a-f-]{7,})/i;
@@ -255,13 +316,13 @@ export function workloadCacheMetrics(
 }
 
 export function workloadThinkTimeMs(
-  previous: { at: string; durationMs: number } | null,
+  previous: { endAt: string } | null,
   at: string,
 ): number | null {
   if (!previous) {
     return null;
   }
-  const previousEnd = Date.parse(previous.at) + previous.durationMs;
+  const previousEnd = Date.parse(previous.endAt);
   const start = Date.parse(at);
   if (!Number.isFinite(previousEnd) || !Number.isFinite(start)) {
     return null;

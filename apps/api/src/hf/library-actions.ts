@@ -3,10 +3,12 @@ import {
   type ModelLibraryAction,
   type ModelLibraryEntryCreate,
   type ModelLibraryEntry,
+  type ModelLibraryFile,
   type ModelLibrarySnapshot,
 } from "@arriero/core";
 import { isDeepStrictEqual } from "node:util";
 import {
+  baselineSnapshot,
   checkLibraryEntry,
   fetchLibrarySnapshot,
   getLibraryCheck,
@@ -38,6 +40,18 @@ export function validateLibrarySelection(
   return [...selected].sort();
 }
 
+function librarySelection(
+  snapshot: ModelLibrarySnapshot,
+  requested: string[],
+): { paths: string[]; pinnedFiles: ModelLibraryFile[] } {
+  const paths = validateLibrarySelection(snapshot, requested);
+  const selected = new Set(paths);
+  return {
+    paths,
+    pinnedFiles: snapshot.files.filter((file) => selected.has(file.path)),
+  };
+}
+
 export async function createLibraryEntry(
   input: ModelLibraryEntryCreate,
   options?: HfClientOptions,
@@ -47,13 +61,12 @@ export async function createLibraryEntry(
     input.revision,
     options,
   );
-  const paths = validateLibrarySelection(snapshot, input.paths);
+  const selection = librarySelection(snapshot, input.paths);
   const previous = listModelLibraryEntries();
   const entry = upsertModelLibraryEntry({
     ...input,
     revision: snapshot.revision,
-    paths,
-    pinnedFiles: snapshot.files.filter((file) => paths.includes(file.path)),
+    ...selection,
   });
   if (previous.some((item) => item.id === entry.id)) return entry;
   return replaceLibraryEntry(entry, {
@@ -61,14 +74,6 @@ export async function createLibraryEntry(
     snapshot,
     watchRevision: isHfCommitSha(input.revision) ? "main" : input.revision,
   });
-}
-
-export async function libraryPinnedSnapshot(
-  id: string,
-  options?: HfClientOptions,
-): Promise<ModelLibrarySnapshot> {
-  const entry = getLibraryEntry(id);
-  return fetchLibrarySnapshot(entry.repoId, entry.revision, options);
 }
 
 export async function actOnLibraryEntry(
@@ -91,21 +96,16 @@ export async function actOnLibraryEntry(
       replaceLibraryEntry(entry, { ...entry, snapshot: check.snapshot });
       return;
     }
-    const paths = validateLibrarySelection(
+    const selection = librarySelection(
       check.snapshot,
       action.paths ?? entry.paths,
     );
-    const snapshot =
-      entry.snapshot ??
-      (await fetchLibrarySnapshot(entry.repoId, entry.revision, options));
+    const snapshot = await baselineSnapshot(entry, options);
     replaceLibraryEntry(entry, {
       ...entry,
       snapshot,
       revision: check.snapshot.revision,
-      paths,
-      pinnedFiles: check.snapshot.files.filter((file) =>
-        paths.includes(file.path),
-      ),
+      ...selection,
     });
     return;
   }
@@ -118,13 +118,16 @@ export async function actOnLibraryEntry(
     action.revision ?? entry.revision,
     options,
   );
-  const paths = validateLibrarySelection(snapshot, action.paths ?? entry.paths);
+  const { paths, pinnedFiles } = librarySelection(
+    snapshot,
+    action.paths ?? entry.paths,
+  );
   if (action.action === "select") {
     replaceLibraryEntry(entry, {
       ...entry,
       revision: snapshot.revision,
       paths,
-      pinnedFiles: snapshot.files.filter((file) => paths.includes(file.path)),
+      pinnedFiles,
     });
     return;
   }

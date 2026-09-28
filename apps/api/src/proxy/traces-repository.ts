@@ -16,6 +16,7 @@ import {
   lt,
   lte,
   ne,
+  notExists,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -24,7 +25,7 @@ import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
 import { parsePersistedJson } from "../db/persisted-json.js";
 import { startRetentionLoop } from "../db/retention.js";
-import { proxyRequestTraces } from "../db/schema.js";
+import { proxyRequestTraces, workloadRecords } from "../db/schema.js";
 import { pruneApiProxyRequestFiles } from "./request-files.js";
 import { getApiProxySettings } from "./settings.js";
 
@@ -322,6 +323,14 @@ export function listApiProxyTracesForIndexing(input: {
     from: input.from,
     fileKind: input.fileKind,
   });
+  conditions.push(
+    notExists(
+      db
+        .select({ traceId: workloadRecords.traceId })
+        .from(workloadRecords)
+        .where(eq(workloadRecords.traceId, proxyRequestTraces.id)),
+    ),
+  );
   if (input.after) {
     conditions.push(
       sql`(${proxyRequestTraces.at} > ${input.after.at} OR (${proxyRequestTraces.at} = ${input.after.at} AND ${proxyRequestTraces.id} > ${input.after.id}))`,

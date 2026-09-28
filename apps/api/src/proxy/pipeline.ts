@@ -32,7 +32,16 @@ import { estimateRequestTokens } from "./token-estimate.js";
 import type { ApiProxyTokenCounter } from "./token-count.js";
 import { uniqueTokenCountTarget } from "./token-count-target.js";
 
-export const CAPTURE_REQUEST_SAVED_DETAIL = "request saved";
+const CAPTURE_REQUEST_SAVED_DETAIL = "request saved";
+
+export const CAPTURE_REQUEST_FILE_KIND = "capture-request";
+
+export function isSavedCaptureStep(step: ApiProxyRouteTraceStep): boolean {
+  return (
+    step.kind === "capture-request" &&
+    step.detail?.includes(CAPTURE_REQUEST_SAVED_DETAIL) === true
+  );
+}
 
 export type ApiProxyPipelineRecordRequestInput = {
   kind: string;
@@ -397,6 +406,22 @@ export async function resolveApiProxyRouteChain(input: {
     };
   };
 
+  const tokenCountFailure = (
+    pipeline: ApiProxyPipelineRecord,
+    node: ApiProxyPipelineNode,
+    reason: string,
+  ) => {
+    state.routeTrace.push(nodeStep(pipeline, node, { detail: reason }));
+    return fail(
+      routeDiagnostic(
+        503,
+        "arriero_proxy_token_count_unavailable",
+        reason,
+        null,
+      ),
+    );
+  };
+
   const modelId = input.request.modelId;
   let ref: ApiProxyPortRef | ApiProxyRouteTo | null = input.entry
     ? input.entry.ref
@@ -618,17 +643,7 @@ export async function resolveApiProxyRouteChain(input: {
           node.config.thresholdTokens,
         );
         if (!count.ok) {
-          state.routeTrace.push(
-            nodeStep(pipeline, node, { detail: count.reason }),
-          );
-          return fail(
-            routeDiagnostic(
-              503,
-              "arriero_proxy_token_count_unavailable",
-              count.reason,
-              null,
-            ),
-          );
+          return tokenCountFailure(pipeline, node, count.reason);
         }
         const rejected = count.atLeast;
         state.routeTrace.push(
@@ -823,7 +838,7 @@ export async function resolveApiProxyRouteChain(input: {
         if (node.config.request) {
           if (input.recordRequest) {
             await input.recordRequest({
-              kind: "capture-request",
+              kind: CAPTURE_REQUEST_FILE_KIND,
               nodeName: node.name || null,
               protocol: input.request.operation.protocol,
               endpoint: input.request.operation.endpoint,
@@ -887,17 +902,7 @@ export async function resolveApiProxyRouteChain(input: {
               )
             : null;
         if (count && !count.ok) {
-          state.routeTrace.push(
-            nodeStep(pipeline, node, { detail: count.reason }),
-          );
-          return fail(
-            routeDiagnostic(
-              503,
-              "arriero_proxy_token_count_unavailable",
-              count.reason,
-              null,
-            ),
-          );
+          return tokenCountFailure(pipeline, node, count.reason);
         }
         const outcome = count
           ? { ok: true as const, value: count.atLeast, detail: count.detail }

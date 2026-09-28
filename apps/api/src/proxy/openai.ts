@@ -11,6 +11,7 @@ import {
   type ApiProxyProtocolOperation,
   type ApiProxyResumableCodec,
   type ApiProxyResumablePhase,
+  type ApiProxyResumableStreamChunk,
   type ApiProxyResumableToolCallDelta,
 } from "./protocol.js";
 import { openaiCachedTokens, upstreamGenerationMs } from "./usage-meter.js";
@@ -80,6 +81,99 @@ function endpointLabel(operation: ApiProxyProtocolOperation) {
   return operation.routePath || operation.endpoint;
 }
 
+export function openAiChunkFromValue(
+  payload: unknown,
+): ApiProxyResumableStreamChunk | "malformed" {
+  const event = asObject(payload);
+  if (!event) {
+    return "malformed";
+  }
+  const choices = Array.isArray(event.choices) ? event.choices : [];
+  const choice = asObject(choices[0]);
+  const delta = asObject(choice?.delta);
+  const content = typeof delta?.content === "string" ? delta.content : "";
+  const usage = asObject(event.usage);
+  const predictedMs = upstreamGenerationMs(event);
+  const promptProgress = asObject(event.prompt_progress);
+
+  const deltaToolCalls = Array.isArray(delta?.tool_calls)
+    ? delta.tool_calls
+    : null;
+  const reasoning =
+    typeof delta?.reasoning_content === "string"
+      ? delta.reasoning_content
+      : typeof delta?.reasoning === "string"
+        ? delta.reasoning
+        : "";
+  let toolCalls: ApiProxyResumableToolCallDelta[] | undefined;
+  let phase: ApiProxyResumablePhase | undefined;
+  if (deltaToolCalls && deltaToolCalls.length > 0) {
+    toolCalls = deltaToolCalls.flatMap((value, position) => {
+      const entry = asObject(value);
+      if (!entry) {
+        return [];
+      }
+      const fn = asObject(entry.function);
+      return [
+        {
+          index: typeof entry.index === "number" ? entry.index : position,
+          ...(typeof entry.id === "string" ? { id: entry.id } : {}),
+          ...(typeof fn?.name === "string" ? { name: fn.name } : {}),
+          ...(typeof fn?.arguments === "string"
+            ? { arguments: fn.arguments }
+            : {}),
+        },
+      ];
+    });
+    phase = "tool";
+  } else if (reasoning) {
+    phase = "thinking";
+  } else if (content) {
+    phase = "text";
+  }
+
+  return {
+    text: content,
+    finishReason:
+      typeof choice?.finish_reason === "string" ? choice.finish_reason : null,
+    id: typeof event.id === "string" ? event.id : null,
+    model: typeof event.model === "string" ? event.model : null,
+    ...(reasoning ? { reasoning } : {}),
+    ...(phase ? { phase } : {}),
+    ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+    ...(predictedMs !== null ? { genMs: Math.round(predictedMs) } : {}),
+    ...(promptProgress &&
+    typeof promptProgress.total === "number" &&
+    typeof promptProgress.processed === "number"
+      ? {
+          promptProgress: {
+            total: promptProgress.total,
+            processed: promptProgress.processed,
+            cache:
+              typeof promptProgress.cache === "number"
+                ? promptProgress.cache
+                : 0,
+          },
+        }
+      : {}),
+    ...(usage
+      ? {
+          usage: {
+            promptTokens:
+              typeof usage.prompt_tokens === "number"
+                ? usage.prompt_tokens
+                : null,
+            cacheReadTokens: openaiCachedTokens(usage),
+            completionTokens:
+              typeof usage.completion_tokens === "number"
+                ? usage.completion_tokens
+                : null,
+          },
+        }
+      : {}),
+  };
+}
+
 export const openAiResumableCodec: ApiProxyResumableCodec = {
   upstreamBody(originalBody, tail) {
     const base = asObject(originalBody) ?? {};
@@ -105,94 +199,7 @@ export const openAiResumableCodec: ApiProxyResumableCodec = {
     } catch {
       return "malformed";
     }
-    const event = asObject(parsed);
-    if (!event) {
-      return "malformed";
-    }
-    const choices = Array.isArray(event.choices) ? event.choices : [];
-    const choice = asObject(choices[0]);
-    const delta = asObject(choice?.delta);
-    const content = typeof delta?.content === "string" ? delta.content : "";
-    const usage = asObject(event.usage);
-    const predictedMs = upstreamGenerationMs(event);
-    const promptProgress = asObject(event.prompt_progress);
-
-    const deltaToolCalls = Array.isArray(delta?.tool_calls)
-      ? delta.tool_calls
-      : null;
-    const reasoning =
-      typeof delta?.reasoning_content === "string"
-        ? delta.reasoning_content
-        : typeof delta?.reasoning === "string"
-          ? delta.reasoning
-          : "";
-    let toolCalls: ApiProxyResumableToolCallDelta[] | undefined;
-    let phase: ApiProxyResumablePhase | undefined;
-    if (deltaToolCalls && deltaToolCalls.length > 0) {
-      toolCalls = deltaToolCalls.flatMap((value, position) => {
-        const entry = asObject(value);
-        if (!entry) {
-          return [];
-        }
-        const fn = asObject(entry.function);
-        return [
-          {
-            index: typeof entry.index === "number" ? entry.index : position,
-            ...(typeof entry.id === "string" ? { id: entry.id } : {}),
-            ...(typeof fn?.name === "string" ? { name: fn.name } : {}),
-            ...(typeof fn?.arguments === "string"
-              ? { arguments: fn.arguments }
-              : {}),
-          },
-        ];
-      });
-      phase = "tool";
-    } else if (reasoning) {
-      phase = "thinking";
-    } else if (content) {
-      phase = "text";
-    }
-
-    return {
-      text: content,
-      finishReason:
-        typeof choice?.finish_reason === "string" ? choice.finish_reason : null,
-      id: typeof event.id === "string" ? event.id : null,
-      model: typeof event.model === "string" ? event.model : null,
-      ...(reasoning ? { reasoning } : {}),
-      ...(phase ? { phase } : {}),
-      ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
-      ...(predictedMs !== null ? { genMs: Math.round(predictedMs) } : {}),
-      ...(promptProgress &&
-      typeof promptProgress.total === "number" &&
-      typeof promptProgress.processed === "number"
-        ? {
-            promptProgress: {
-              total: promptProgress.total,
-              processed: promptProgress.processed,
-              cache:
-                typeof promptProgress.cache === "number"
-                  ? promptProgress.cache
-                  : 0,
-            },
-          }
-        : {}),
-      ...(usage
-        ? {
-            usage: {
-              promptTokens:
-                typeof usage.prompt_tokens === "number"
-                  ? usage.prompt_tokens
-                  : null,
-              cacheReadTokens: openaiCachedTokens(usage),
-              completionTokens:
-                typeof usage.completion_tokens === "number"
-                  ? usage.completion_tokens
-                  : null,
-            },
-          }
-        : {}),
-    };
+    return openAiChunkFromValue(parsed);
   },
   finalResponse({
     text,

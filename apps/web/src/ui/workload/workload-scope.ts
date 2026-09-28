@@ -1,4 +1,10 @@
-import type { ApiProxyTraceFacet, WorkloadTimeRange } from "@arriero/core";
+import {
+  MAX_WORKLOAD_PROFILE_WINDOWS,
+  type ApiProxyTraceFacet,
+  type WorkloadTimeRange,
+} from "@arriero/core";
+
+import { formatLocalClock, formatLocalDateTime } from "../utils/time";
 
 export type WorkloadPeriod = "6h" | "24h" | "7d" | "30d";
 
@@ -37,6 +43,22 @@ export function isWorkloadPeriod(value: string): value is WorkloadPeriod {
   return value in PERIOD_SPAN_MS;
 }
 
+export function workloadScopeQuery(
+  scope: WorkloadScopeState,
+  range: WorkloadTimeRange,
+): { from: string; to: string; sourceId?: string; modelId?: string } {
+  return {
+    from: range.from,
+    to: range.to,
+    ...(scope.sourceId ? { sourceId: scope.sourceId } : {}),
+    ...(scope.modelId ? { modelId: scope.modelId } : {}),
+  };
+}
+
+export function formatWorkloadRange(from: string, to: string): string {
+  return `${formatLocalDateTime(from)} – ${formatLocalClock(Date.parse(to))}`;
+}
+
 export function workloadPeriodRange(
   period: WorkloadPeriod,
   now: number,
@@ -47,7 +69,7 @@ export function workloadPeriodRange(
   };
 }
 
-const MAX_WINDOWS = 1500;
+const TARGET_MAX_WINDOWS = (MAX_WORKLOAD_PROFILE_WINDOWS * 3) / 4;
 
 export const WORKLOAD_WINDOW_OPTIONS = [
   { value: "15", label: "15 min windows" },
@@ -64,7 +86,7 @@ export function workloadStepMinutes(
 ): number {
   const needed = Math.max(
     windowMinutes / 3,
-    PERIOD_SPAN_MS[period] / 60_000 / MAX_WINDOWS,
+    PERIOD_SPAN_MS[period] / 60_000 / TARGET_MAX_WINDOWS,
   );
   return (
     NICE_STEP_MINUTES.find((step) => step >= needed) ??

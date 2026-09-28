@@ -1,12 +1,13 @@
 import {
   WORKLOAD_DATASET_ID_PATTERN,
+  WorkloadContentHashSchema,
   WorkloadDatasetManifestSchema,
   type WorkloadDatasetDetail,
   type WorkloadDatasetManifest,
   type WorkloadDatasetSummary,
   type WorkloadSegmentSummary,
 } from "@arriero/core";
-import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import {
   mkdir,
   readFile,
@@ -19,15 +20,18 @@ import {
 import { join, resolve } from "node:path";
 
 import { config } from "../config.js";
-import { parsePersistedJson } from "../db/persisted-json.js";
-import { logger } from "../logger.js";
 import { newId } from "../utils/id.js";
+import { readValidatedJsonFile } from "../utils/json-file.js";
+import { maxKnown } from "./profile.js";
 
 const datasetsRoot = resolve(config.dataDir, "workload-datasets");
 const MANIFEST_FILE = "manifest.json";
 const BLOBS_DIR = "blobs";
 const STAGING_PREFIX = ".staging-";
-const BLOB_HASH_PATTERN = /^[0-9a-f]{64}$/;
+
+type DatasetListing = { summary: WorkloadDatasetSummary; bytes: number };
+
+const listings = new Map<string, DatasetListing>();
 
 function datasetDir(id: string): string | null {
   return WORKLOAD_DATASET_ID_PATTERN.test(id)
@@ -36,7 +40,7 @@ function datasetDir(id: string): string | null {
 }
 
 function blobPath(dir: string, hash: string): string {
-  if (!BLOB_HASH_PATTERN.test(hash)) {
+  if (!WorkloadContentHashSchema.safeParse(hash).success) {
     throw new Error(`invalid blob hash ${hash}`);
   }
   return join(dir, BLOBS_DIR, `${hash}.json`);
@@ -58,8 +62,8 @@ export async function stageWorkloadDataset(): Promise<WorkloadDatasetStaging> {
       if (written.has(hash)) {
         return;
       }
-      await writeFile(blobPath(staging, hash), json, "utf8");
       written.add(hash);
+      await writeFile(blobPath(staging, hash), json, "utf8");
     },
     commit: async (manifest) => {
       const target = datasetDir(manifest.id);
@@ -77,6 +81,7 @@ export async function stageWorkloadDataset(): Promise<WorkloadDatasetStaging> {
         "utf8",
       );
       await rename(staging, target);
+      listings.delete(manifest.id);
       return { created: true };
     },
     discard,
@@ -100,21 +105,22 @@ export function sweepWorkloadDatasetStaging(): number {
   return removed;
 }
 
+export function workloadDatasetExists(id: string): boolean {
+  const dir = datasetDir(id);
+  return dir !== null && existsSync(join(dir, MANIFEST_FILE));
+}
+
 export function readWorkloadDatasetManifest(
   id: string,
 ): WorkloadDatasetManifest | null {
   const dir = datasetDir(id);
-  if (!dir || !existsSync(join(dir, MANIFEST_FILE))) {
-    return null;
-  }
-  const manifest = parsePersistedJson(
-    WorkloadDatasetManifestSchema,
-    readFileSync(join(dir, MANIFEST_FILE), "utf8"),
-  );
-  if (!manifest) {
-    logger.warn({ datasetId: id }, "workload dataset manifest is unreadable");
-  }
-  return manifest;
+  return dir
+    ? readValidatedJsonFile(
+        join(dir, MANIFEST_FILE),
+        WorkloadDatasetManifestSchema,
+        "workload dataset manifest",
+      )
+    : null;
 }
 
 export async function readWorkloadDatasetBlobJson(
@@ -129,16 +135,16 @@ export async function readWorkloadDatasetBlobJson(
 }
 
 async function directoryBytes(dir: string): Promise<number> {
-  let total = 0;
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      total += await directoryBytes(path);
-    } else if (entry.isFile()) {
-      total += (await stat(path)).size;
-    }
-  }
-  return total;
+  const sizes = await Promise.all(
+    (await readdir(dir, { withFileTypes: true })).map(async (entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        return directoryBytes(path);
+      }
+      return entry.isFile() ? (await stat(path)).size : 0;
+    }),
+  );
+  return sizes.reduce((total, size) => total + size, 0);
 }
 
 function summarizeWorkloadDataset(
@@ -176,17 +182,11 @@ export function describeWorkloadDataset(
       const windowFromMs = Date.parse(windows[segment.windowIndex]?.from ?? "");
       const origin = Number.isFinite(windowFromMs) ? windowFromMs : 0;
       const first = segment.records[0];
-      let lastEndMs = origin;
-      let maxPromptTokens: number | null = null;
-      for (const record of segment.records) {
-        lastEndMs = Math.max(
-          lastEndMs,
-          origin + record.offsetMs + record.durationMs,
-        );
-        if (record.promptTokens !== null) {
-          maxPromptTokens = Math.max(maxPromptTokens ?? 0, record.promptTokens);
-        }
-      }
+      const lastEndMs = segment.records.reduce(
+        (latest, record) =>
+          Math.max(latest, origin + record.offsetMs + record.durationMs),
+        origin,
+      );
       return {
         sessionId: segment.sessionId,
         windowIndex: segment.windowIndex,
@@ -196,7 +196,9 @@ export function describeWorkloadDataset(
         primed: segment.priming !== null,
         firstAt: new Date(origin + (first?.offsetMs ?? 0)).toISOString(),
         lastEndAt: new Date(lastEndMs).toISOString(),
-        maxPromptTokens,
+        maxPromptTokens: maxKnown(
+          segment.records.map((record) => record.promptTokens),
+        ),
       };
     },
   );
@@ -220,8 +222,27 @@ async function datasetIds(): Promise<string[]> {
 }
 
 export async function workloadDatasetBytes(id: string): Promise<number> {
+  const listed = listings.get(id);
+  if (listed) {
+    return listed.bytes;
+  }
   const dir = datasetDir(id);
   return dir && existsSync(dir) ? directoryBytes(dir) : 0;
+}
+
+async function datasetListing(id: string): Promise<DatasetListing | null> {
+  const known = listings.get(id);
+  if (known) {
+    return known;
+  }
+  const manifest = readWorkloadDatasetManifest(id);
+  if (!manifest) {
+    return null;
+  }
+  const bytes = await workloadDatasetBytes(id);
+  const listing = { summary: summarizeWorkloadDataset(manifest, bytes), bytes };
+  listings.set(id, listing);
+  return listing;
 }
 
 export async function listWorkloadDatasets(): Promise<
@@ -229,11 +250,9 @@ export async function listWorkloadDatasets(): Promise<
 > {
   const summaries: WorkloadDatasetSummary[] = [];
   for (const id of await datasetIds()) {
-    const manifest = readWorkloadDatasetManifest(id);
-    if (manifest) {
-      summaries.push(
-        summarizeWorkloadDataset(manifest, await workloadDatasetBytes(id)),
-      );
+    const listing = await datasetListing(id);
+    if (listing) {
+      summaries.push(listing.summary);
     }
   }
   return summaries.sort((left, right) =>
@@ -246,6 +265,7 @@ export function deleteWorkloadDataset(id: string): boolean {
   if (!dir || !existsSync(dir)) {
     return false;
   }
+  listings.delete(id);
   rmSync(dir, { recursive: true, force: true });
   return true;
 }

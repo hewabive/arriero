@@ -9,6 +9,7 @@ import type {
   ApiProxyInflightRequest,
 } from "@arriero/core";
 
+import { errorMessage } from "../utils/error-message.js";
 import { newId } from "../utils/id.js";
 
 type InflightEntry = {
@@ -496,10 +497,7 @@ export class ApiProxyInflightRegistry {
       const result = await handler.execute();
       return result ?? { status: "ok", message: null };
     } catch (error) {
-      return {
-        status: "failed",
-        message: error instanceof Error ? error.message : String(error),
-      };
+      return { status: "failed", message: errorMessage(error) };
     }
   }
 

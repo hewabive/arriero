@@ -1,5 +1,7 @@
 import type { ApiProxyRequestTrace } from "@arriero/core";
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 
+import { CAPTURE_REQUEST_FILE_KIND } from "../proxy/pipeline.js";
 import { readApiProxyRequestFile } from "../proxy/request-files.js";
 import {
   apiProxyTraceRetentionCutoff,
@@ -7,7 +9,6 @@ import {
 } from "../proxy/traces-repository.js";
 import { startAsyncIntervalLoop } from "../utils/interval-loop.js";
 import {
-  WORKLOAD_CAPTURE_FILE_KIND,
   WORKLOAD_NORMALIZATION_VERSION,
   classifyWorkloadOutcome,
   workloadCacheMetrics,
@@ -20,7 +21,6 @@ import {
 import {
   clearWorkloadRecords,
   findWorkloadParent,
-  indexedWorkloadTraceIds,
   insertWorkloadRecord,
   latestWorkloadSessionRecordBefore,
   newestWorkloadRecordAt,
@@ -34,17 +34,12 @@ const WORKLOAD_INDEX_SETTLE_MS = 60_000;
 const WORKLOAD_INDEX_TRAILING_WINDOW_MS = 6 * 60 * 60 * 1000;
 const PAGE_SIZE = 200;
 const MAX_RECORDS_PER_PASS = 5000;
-const YIELD_EVERY = 25;
 
 export type WorkloadIndexPassResult = {
   indexed: number;
   pruned: number;
   rebuilt: boolean;
 };
-
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
-}
 
 function traceEndAt(trace: ApiProxyRequestTrace): string {
   return new Date(Date.parse(trace.at) + trace.durationMs).toISOString();
@@ -141,22 +136,16 @@ export async function runWorkloadIndexPass(
     const page = listApiProxyTracesForIndexing({
       from,
       after,
-      fileKind: WORKLOAD_CAPTURE_FILE_KIND,
+      fileKind: CAPTURE_REQUEST_FILE_KIND,
       limit: PAGE_SIZE,
     });
-    const known = indexedWorkloadTraceIds(page.traces.map((trace) => trace.id));
     for (const trace of page.traces) {
-      if (
-        known.has(trace.id) ||
-        Date.parse(trace.at) + trace.durationMs > settledBefore
-      ) {
+      if (Date.parse(trace.at) + trace.durationMs > settledBefore) {
         continue;
       }
       indexWorkloadTrace(trace);
       indexed += 1;
-      if (indexed % YIELD_EVERY === 0) {
-        await yieldToEventLoop();
-      }
+      await yieldToEventLoop();
       if (indexed >= MAX_RECORDS_PER_PASS) {
         break;
       }

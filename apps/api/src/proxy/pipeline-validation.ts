@@ -6,6 +6,7 @@ import {
   type ApiProxyPortRef,
   type ApiProxyRoutePipelineShape,
   type ApiProxyRouteTo,
+  type ApiProxyTokenCountConfig,
 } from "@arriero/core";
 
 export type ApiProxyPipelineGraph = {
@@ -19,6 +20,18 @@ export type ApiProxyPipelineGraphContext = {
   getPipeline: (id: string) => ApiProxyPipelineGraph | null;
   hasTarget: (id: string) => boolean;
 };
+
+function nodeTokenCountConfig(
+  node: ApiProxyPipelineNode,
+): ApiProxyTokenCountConfig | undefined {
+  if (node.type === "context-limit") {
+    return node.config.tokenCount;
+  }
+  return node.type === "condition" &&
+    node.config.predicate.type === "token-estimate"
+    ? node.config.predicate.tokenCount
+    : undefined;
+}
 
 export function collectApiProxyPipelineRefs(graph: {
   entry: ApiProxyPortRef | null;
@@ -42,14 +55,8 @@ export function collectApiProxyPipelineRefs(graph: {
     for (const { ref } of apiProxyPipelineNodePorts(node)) {
       addRef(ref);
     }
-    const tokenCount =
-      node.type === "context-limit"
-        ? node.config.tokenCount
-        : node.type === "condition" &&
-            node.config.predicate.type === "token-estimate"
-          ? node.config.predicate.tokenCount
-          : undefined;
-    if (tokenCount?.targetId) targetIds.add(tokenCount.targetId);
+    const tokenCountTargetId = nodeTokenCountConfig(node)?.targetId;
+    if (tokenCountTargetId) targetIds.add(tokenCountTargetId);
     if (node.type === "call") {
       pipelineIds.add(node.config.pipelineId);
     }
@@ -108,8 +115,9 @@ export function validateApiProxyPipelineGraph(
     }
   }
 
-  for (const targetId of collectApiProxyPipelineRefs(graph).targetIds) {
-    if (!context.hasTarget(targetId))
+  for (const node of graph.nodes) {
+    const targetId = nodeTokenCountConfig(node)?.targetId;
+    if (targetId && !context.hasTarget(targetId))
       return `token counting references missing target "${targetId}"`;
   }
 

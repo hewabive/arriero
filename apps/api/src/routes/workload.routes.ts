@@ -1,13 +1,14 @@
 import {
+  MAX_WORKLOAD_PROFILE_WINDOWS,
   WorkloadDatasetFreezeRequestSchema,
   WorkloadDatasetSelectionSchema,
+  WorkloadLinkingQuerySchema,
   WorkloadProfileQuerySchema,
   WorkloadSessionListQuerySchema,
-  WorkloadWindowRankingQuerySchema,
+  type WorkloadProfile,
   type WorkloadProfileQuery,
 } from "@arriero/core";
 import type { Hono } from "hono";
-import { z } from "zod";
 
 import {
   deleteWorkloadDataset,
@@ -30,9 +31,7 @@ import {
   startWorkloadDatasetFreeze,
 } from "../workload/freeze.js";
 import {
-  MAX_WORKLOAD_PROFILE_WINDOWS,
   buildWorkloadProfile,
-  rankWorkloadWindows,
   summarizeWorkloadSession,
   workloadLinkingGroups,
   workloadProfileWindowCount,
@@ -49,13 +48,12 @@ import { parseJsonBody } from "./validation.js";
 const DEFAULT_PROFILE_SPAN_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 
-const LinkingQuerySchema = z.object({
-  from: z.string().optional(),
-  to: z.string().optional(),
-});
-
 type ResolvedRange =
   | { ok: true; range: WorkloadProfileRange }
+  | { ok: false; error: string };
+
+type ProfileResult =
+  | { ok: true; profile: WorkloadProfile }
   | { ok: false; error: string };
 
 function resolveProfileRange(
@@ -67,9 +65,6 @@ function resolveProfileRange(
     query.from === undefined
       ? toMs - DEFAULT_PROFILE_SPAN_MS
       : Date.parse(query.from);
-  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) {
-    return { ok: false, error: "from and to must be ISO timestamps" };
-  }
   if (fromMs >= toMs) {
     return { ok: false, error: "from must be earlier than to" };
   }
@@ -88,17 +83,31 @@ function resolveProfileRange(
   return { ok: true, range };
 }
 
-function rangeRecords(
-  query: WorkloadProfileQuery,
-  range: WorkloadProfileRange,
-) {
-  return listWorkloadRecords({
-    from: new Date(range.fromMs).toISOString(),
-    to: new Date(range.toMs).toISOString(),
+function profileForQuery(query: WorkloadProfileQuery): ProfileResult {
+  const resolved = resolveProfileRange(query, Date.now());
+  if (!resolved.ok) {
+    return resolved;
+  }
+  const { range } = resolved;
+  const from = new Date(range.fromMs).toISOString();
+  const to = new Date(range.toMs).toISOString();
+  const records = listWorkloadRecords({
+    from,
+    to,
     sourceId: query.sourceId,
     modelId: query.modelId,
     targetId: query.targetId,
   });
+  return {
+    ok: true,
+    profile: {
+      from,
+      to,
+      windowMinutes: query.windowMinutes,
+      stepMinutes: query.stepMinutes,
+      ...buildWorkloadProfile(records, range),
+    },
+  };
 }
 
 export function registerWorkloadRoutes(app: Hono) {
@@ -142,47 +151,15 @@ export function registerWorkloadRoutes(app: Hono) {
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
-    const resolved = resolveProfileRange(parsed.data, Date.now());
-    if (!resolved.ok) {
-      return c.json({ error: resolved.error }, 400);
+    const result = profileForQuery(parsed.data);
+    if (!result.ok) {
+      return c.json({ error: result.error }, 400);
     }
-    const { range } = resolved;
-    const profile = buildWorkloadProfile(
-      rangeRecords(parsed.data, range),
-      range,
-    );
-    return c.json({
-      data: {
-        from: new Date(range.fromMs).toISOString(),
-        to: new Date(range.toMs).toISOString(),
-        windowMinutes: parsed.data.windowMinutes,
-        stepMinutes: parsed.data.stepMinutes,
-        ...profile,
-      },
-    });
-  });
-
-  app.get("/api/workload/windows", (c) => {
-    const parsed = WorkloadWindowRankingQuerySchema.safeParse(c.req.query());
-    if (!parsed.success) {
-      return c.json({ error: parsed.error.flatten() }, 400);
-    }
-    const resolved = resolveProfileRange(parsed.data, Date.now());
-    if (!resolved.ok) {
-      return c.json({ error: resolved.error }, 400);
-    }
-    const { range } = resolved;
-    const { windows } = buildWorkloadProfile(
-      rangeRecords(parsed.data, range),
-      range,
-    );
-    return c.json({
-      data: rankWorkloadWindows(windows, parsed.data.rank, parsed.data.limit),
-    });
+    return c.json({ data: result.profile });
   });
 
   app.get("/api/workload/linking", (c) => {
-    const parsed = LinkingQuerySchema.safeParse(c.req.query());
+    const parsed = WorkloadLinkingQuerySchema.safeParse(c.req.query());
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }

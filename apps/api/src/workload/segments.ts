@@ -4,14 +4,21 @@ import type {
   WorkloadTimeRange,
 } from "@arriero/core";
 
+import { latestEndAt, maxKnown } from "./profile.js";
+import {
+  isReplayableWorkloadRecord,
+  isServedWorkloadOutcome,
+  type ReplayableWorkloadRecord,
+} from "./record-analysis.js";
+
 export type WorkloadSegmentPlan = {
   sessionId: string;
   windowIndex: number;
   window: WorkloadTimeRange;
   sourceName: string | null;
   modelId: string;
-  priming: WorkloadRecord | null;
-  records: WorkloadRecord[];
+  priming: ReplayableWorkloadRecord | null;
+  records: ReplayableWorkloadRecord[];
 };
 
 export type WorkloadSegmentPlanResult = {
@@ -26,13 +33,6 @@ function countLabel(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-function replayable(record: WorkloadRecord): boolean {
-  return (
-    record.issue === null &&
-    (record.outcome === "success" || record.outcome === "client-abort")
-  );
-}
-
 function windowLabel(index: number, window: WorkloadTimeRange): string {
   return `window ${index + 1} (${window.from} – ${window.to})`;
 }
@@ -40,7 +40,7 @@ function windowLabel(index: number, window: WorkloadTimeRange): string {
 function primingRecord(
   first: WorkloadRecord,
   lookup: (traceId: string) => WorkloadRecord | null,
-): { record: WorkloadRecord | null; missing: boolean } {
+): { record: ReplayableWorkloadRecord | null; missing: boolean } {
   let parentId = first.parentTraceId;
   for (
     let step = 0;
@@ -51,7 +51,7 @@ function primingRecord(
     if (!parent) {
       return { record: null, missing: true };
     }
-    if (replayable(parent)) {
+    if (isReplayableWorkloadRecord(parent)) {
       return { record: parent, missing: false };
     }
     parentId = parent.parentTraceId;
@@ -90,8 +90,7 @@ export function planWorkloadSegments(input: {
     }
     const unusable = starting.filter(
       (record) =>
-        record.issue !== null &&
-        (record.outcome === "success" || record.outcome === "client-abort"),
+        record.issue !== null && isServedWorkloadOutcome(record.outcome),
     );
     if (unusable.length > 0) {
       const kinds = [...new Set(unusable.map((record) => record.issue))].join(
@@ -101,9 +100,9 @@ export function planWorkloadSegments(input: {
         `${windowLabel(windowIndex, window)} has ${countLabel(unusable.length, "request")} that cannot be replayed (${kinds})`,
       );
     }
-    const bySession = new Map<string, WorkloadRecord[]>();
+    const bySession = new Map<string, ReplayableWorkloadRecord[]>();
     for (const record of starting) {
-      if (!replayable(record)) {
+      if (!isReplayableWorkloadRecord(record)) {
         continue;
       }
       const list = bySession.get(record.sessionId) ?? [];
@@ -156,16 +155,6 @@ export function summarizeWorkloadSegment(
   segment: WorkloadSegmentPlan,
 ): WorkloadSegmentSummary {
   const first = segment.records[0];
-  let lastEndAt = first?.endAt ?? segment.window.from;
-  let maxPromptTokens: number | null = null;
-  for (const record of segment.records) {
-    if (record.endAt > lastEndAt) {
-      lastEndAt = record.endAt;
-    }
-    if (record.promptTokens !== null) {
-      maxPromptTokens = Math.max(maxPromptTokens ?? 0, record.promptTokens);
-    }
-  }
   return {
     sessionId: segment.sessionId,
     windowIndex: segment.windowIndex,
@@ -174,7 +163,12 @@ export function summarizeWorkloadSegment(
     records: segment.records.length,
     primed: segment.priming !== null,
     firstAt: first?.at ?? segment.window.from,
-    lastEndAt,
-    maxPromptTokens,
+    lastEndAt: latestEndAt(
+      segment.records,
+      first?.endAt ?? segment.window.from,
+    ),
+    maxPromptTokens: maxKnown(
+      segment.records.map((record) => record.promptTokens),
+    ),
   };
 }

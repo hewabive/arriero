@@ -69,12 +69,10 @@ export function ProxyTargetsView() {
       ? endpointById.get(targetDraft.endpointId)
       : undefined;
     const instance = endpoint?.instanceId
-      ? (instancesQuery.data?.data ?? []).find(
-          (item) => item.name === endpoint.instanceId,
-        )
+      ? instancesById.get(endpoint.instanceId)
       : undefined;
     return instance ? engineDescriptor(instance.kind).proxy.slotSave : false;
-  }, [targetDraft.endpointId, endpointById, instancesQuery.data?.data]);
+  }, [targetDraft.endpointId, endpointById, instancesById]);
   const runtimeByTargetId = useMemo(
     () =>
       new Map(

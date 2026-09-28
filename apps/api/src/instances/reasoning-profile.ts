@@ -8,6 +8,7 @@ import {
   type ApiProxyReasoningProfile,
   type ApiProxyUpstreamReasoningProfile,
   type GgufChatTemplateReasoning,
+  type InstanceConfigRecord,
   type MemoryEstimateArgs,
   type ReasoningTemplateIssue,
 } from "@arriero/core";
@@ -67,6 +68,21 @@ const instanceProfileCache = new Map<
   { at: number; value: ApiProxyUpstreamReasoningProfile | null }
 >();
 
+function cachedGgufModel(record: InstanceConfigRecord) {
+  const modelPath = resolveModelPath(record.args as MemoryEstimateArgs);
+  return modelPath ? getCachedModelEntry(modelPath)?.model : null;
+}
+
+function cachedSafetensorsModel(record: InstanceConfigRecord) {
+  const modelPath =
+    record.engineConfig?.type === "ktransformers"
+      ? record.engineConfig.model
+      : (instanceModelPaths(record)[0] ?? null);
+  return modelPath && isAbsolute(modelPath)
+    ? getCachedSafetensorsEntry(resolve(modelPath))?.model
+    : null;
+}
+
 function computeInstanceReasoningProfile(
   instanceId: string,
 ): ApiProxyUpstreamReasoningProfile | null {
@@ -83,18 +99,9 @@ function computeInstanceReasoningProfile(
     return null;
   }
   const isLlama = engine.nativeApi === "llama";
-  const modelPath = isLlama
-    ? resolveModelPath(record.args as MemoryEstimateArgs)
-    : record.engineConfig?.type === "ktransformers"
-      ? record.engineConfig.model
-      : (instanceModelPaths(record)[0] ?? null);
   const model = isLlama
-    ? modelPath
-      ? getCachedModelEntry(modelPath)?.model
-      : null
-    : modelPath && isAbsolute(modelPath)
-      ? getCachedSafetensorsEntry(resolve(modelPath))?.model
-      : null;
+    ? cachedGgufModel(record)
+    : cachedSafetensorsModel(record);
   const detection = model?.metadata.chatTemplateReasoning;
   if (detection?.usesReasoningEffort) {
     return {

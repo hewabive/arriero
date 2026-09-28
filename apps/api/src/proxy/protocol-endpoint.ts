@@ -5,7 +5,7 @@ import {
 } from "@arriero/core";
 import type { Context } from "hono";
 
-import { asObject } from "./json.js";
+import { asObject, withBodyFields } from "./json.js";
 import { getInstance, listInstances } from "../instances/repository.js";
 import { getNode } from "../nodes/repository.js";
 import { observeBodyCompletion } from "./body-completion.js";
@@ -65,15 +65,20 @@ import {
 import {
   applyServerGenerationTiming,
   applyTraceDiagnostic,
+  bufferedSseFailureResponse,
+  bufferedSseResponse,
+  capturePartialResponse,
   createProxyTrace,
   errorBodyMessage,
   clientAbortResponse,
   markTraceClientAbort,
   recordTraceWithDeferredTiming,
+  recordUpstreamErrorBody,
   resumableTraceUsage,
   traceDiagnosticResponse,
   traceUsageFromCounts,
-  truncatedStreamResponse,
+  translatedUpstreamError,
+  upstreamErrorDiagnostic,
   upstreamErrorText,
   type ProxyTraceAccumulator,
   type ProxyTraceRecorder,
@@ -89,10 +94,7 @@ import {
   apiProxyReservationDiagnostic,
   apiProxyTargetReservation,
 } from "./run-reservation.js";
-import {
-  armApiProxyReasoningControl,
-  attachApiProxyReasoningControl,
-} from "./reasoning-control.js";
+import { nativeApiProxyReasoningControl } from "./reasoning-control.js";
 import { saveApiProxyRequestFile } from "./request-files.js";
 import {
   getApiProxyCachedResponse,
@@ -113,13 +115,13 @@ import {
   type ApiProxyResponsePlanExecutor,
 } from "./response-plan.js";
 import {
+  apiProxyForwardResumeKey,
   claimApiProxyResumedSession,
   serveResumedStreamSession,
 } from "./resume-replay.js";
 import {
   consumeResumableSse,
   createResumableBufferState,
-  finalFromState,
   partialFromState,
   runResumableForward,
   runResumableUpstreamAttempt,
@@ -143,13 +145,9 @@ import {
 import { apiProxySlotTracker } from "./slot-tracker.js";
 import { apiProxyRequestGate } from "./sources.js";
 import { apiProxyStats } from "./stats.js";
-import {
-  apiProxyStreamResumeKey,
-  apiProxyStreamSessions,
-} from "./stream-session.js";
+import { apiProxyStreamSessions } from "./stream-session.js";
 import {
   createAnthropicTranslationStream,
-  translateOpenAiErrorText,
   translateOpenAiResponseText,
   translatedAnthropicResumableCodec,
 } from "./translation.js";
@@ -798,13 +796,7 @@ async function delegateRemoteTarget(input: {
     };
     if (!upstream.ok) {
       const text = await upstream.text();
-      const usage = usageFromNonStreamBody(operation.protocol, text);
-      if (usage) {
-        trace.usage = traceUsageFromCounts(usage);
-      }
-      if (text) {
-        trace.errorMessage = upstreamErrorText(text);
-      }
+      recordUpstreamErrorBody(trace, operation.protocol, text, false);
       return respond(
         applyApiProxyResponsePlanText(responsePlan, text, {
           status: upstream.status,
@@ -969,6 +961,15 @@ export async function serveResolvedTarget(input: {
     targetId: input.targetId,
     request: input.request,
   };
+  const diagnose = (diagnostic: ApiProxyProtocolDiagnostic) =>
+    traceDiagnosticResponse({
+      c,
+      adapter,
+      request: route.request,
+      trace,
+      diagnostic,
+      responsePlan,
+    });
   const getTarget = (id: string) =>
     extraTarget && id === extraTarget.id ? extraTarget : getApiProxyTarget(id);
   const planPreviewFor = (targetId: string) =>
@@ -981,14 +982,7 @@ export async function serveResolvedTarget(input: {
   const resumeTarget = getTarget(route.targetId);
   const reservation = apiProxyTargetReservation(route.targetId, resumeTarget);
   if (reservation) {
-    return traceDiagnosticResponse({
-      c,
-      adapter,
-      request: route.request,
-      trace,
-      diagnostic: apiProxyReservationDiagnostic(reservation),
-      responsePlan,
-    });
+    return diagnose(apiProxyReservationDiagnostic(reservation));
   }
   const resumeClaim = claimApiProxyResumedSession({
     operation,
@@ -1031,15 +1025,12 @@ export async function serveResolvedTarget(input: {
     targetIdOverride: route.targetId,
   });
   if (!decision.ok) {
-    return traceDiagnosticResponse({
-      c,
-      adapter,
-      request: route.request,
-      trace,
-      diagnostic: decision.diagnostic,
-      responsePlan,
-    });
+    return diagnose(decision.diagnostic);
   }
+  const forwardFailure = (detail: string) =>
+    upstreamErrorDiagnostic(
+      `Proxy target ${decision.target.name} failed to forward request: ${detail}`,
+    );
   trace.targetId = decision.target.id;
   trace.targetName = decision.target.name;
   trace.schedulerActions = [...decision.preview.plan.actions];
@@ -1100,18 +1091,11 @@ export async function serveResolvedTarget(input: {
         }),
       });
     } catch {
-      return traceDiagnosticResponse({
-        c,
-        adapter,
-        request: route.request,
-        trace,
-        diagnostic: {
-          status: 503,
-          code: "arriero_proxy_upstream_unavailable",
-          param: "model",
-          message: `Request for model ${route.request.modelId} was aborted while queued.`,
-        },
-        responsePlan,
+      return diagnose({
+        status: 503,
+        code: "arriero_proxy_upstream_unavailable",
+        param: "model",
+        message: `Request for model ${route.request.modelId} was aborted while queued.`,
       });
     }
   }
@@ -1153,17 +1137,7 @@ export async function serveResolvedTarget(input: {
       operation,
     });
     if (!resolved.ok) {
-      return {
-        ok: false,
-        response: traceDiagnosticResponse({
-          c,
-          adapter,
-          request: route.request,
-          trace,
-          diagnostic: resolved.diagnostic,
-          responsePlan,
-        }),
-      };
+      return { ok: false, response: diagnose(resolved.diagnostic) };
     }
     trace.translated = resolved.context.translateAnthropic;
     return { ok: true, context: resolved.context };
@@ -1187,14 +1161,7 @@ export async function serveResolvedTarget(input: {
 
     const execution = await makeTargetReady(decision.preview);
     if (!execution.ok) {
-      return traceDiagnosticResponse({
-        c,
-        adapter,
-        request: route.request,
-        trace,
-        diagnostic: execution.diagnostic,
-        responsePlan,
-      });
+      return diagnose(execution.diagnostic);
     }
 
     const resolved = resolveUpstreamContext();
@@ -1205,22 +1172,17 @@ export async function serveResolvedTarget(input: {
       baseUrl,
       modelOverride,
       instanceId,
-      endpointId,
       engine,
       authHeaders,
       translateAnthropic,
-      translationDialect,
       stripClientHeaders,
     } = resolved.context;
     const forward = prepareApiProxyUpstreamRequest({
-      translate: translateAnthropic,
-      translationDialect,
+      context: resolved.context,
       operation,
       path: upstreamPath,
       body: route.request.body,
       headers: c.req.raw.headers,
-      instanceId,
-      endpointId,
       trace,
     });
     const upstreamRequestBody = forward.body;
@@ -1271,26 +1233,25 @@ export async function serveResolvedTarget(input: {
         forwardBody = withReturnProgress(forwardBody);
       }
     }
-    const nativeReasoningControl =
-      engine.reasoningControl &&
-      forward.protocol === "openai" &&
-      forward.path === "/v1/chat/completions" &&
-      (route.request.stream || bufferCodec !== null);
-    const upstreamObserver = nativeReasoningControl
-      ? attachApiProxyReasoningControl({
+    const streamsUpstream = route.request.stream || bufferCodec !== null;
+    const reasoningControl = streamsUpstream
+      ? nativeApiProxyReasoningControl({
+          engine,
+          operation,
+          forwardProtocol: forward.protocol,
           inflight,
           observer,
           baseUrl,
           authHeaders,
           model: modelOverride,
         })
-      : observer;
-    if (nativeReasoningControl) {
-      forwardBody = armApiProxyReasoningControl(forwardBody);
+      : null;
+    const upstreamObserver = reasoningControl?.observer ?? observer;
+    if (reasoningControl) {
+      forwardBody = reasoningControl.armBody(forwardBody);
     }
     const finishSignal =
-      operationSpec?.resumable === true &&
-      (route.request.stream || bufferCodec !== null)
+      operationSpec?.resumable === true && streamsUpstream
         ? inflight.controlSignal("finish")
         : null;
     const stopSignal = AbortSignal.any([
@@ -1318,7 +1279,7 @@ export async function serveResolvedTarget(input: {
       engine.streamResume &&
       operationSpec !== null &&
       operationSpec.resumable &&
-      (route.request.stream || bufferCodec !== null)
+      streamsUpstream
         ? apiProxyStreamSessions.register({
             inflightId: inflight.id,
             instanceId,
@@ -1329,11 +1290,11 @@ export async function serveResolvedTarget(input: {
             protocol: operation.protocol,
             endpoint: operation.endpoint,
             stream: route.request.stream,
-            resumeKey: apiProxyStreamResumeKey({
+            resumeKey: apiProxyForwardResumeKey({
               instanceId,
-              path: forward.path,
-              modelId: modelOverride ?? route.request.modelId,
-              body: upstreamRequestBody,
+              forward,
+              modelOverride,
+              modelId: route.request.modelId,
             }),
           })
         : null;
@@ -1358,30 +1319,28 @@ export async function serveResolvedTarget(input: {
         upstreamHeaders: streamSession
           ? { ...authHeaders, "x-conversation-id": streamSession.convId }
           : authHeaders,
-        modelOverride,
         signal: stopSignal,
       });
 
       if (!upstream.ok || !upstream.body) {
         const text = await upstream.text();
-        const usage = usageFromNonStreamBody(forward.protocol, text);
-        if (usage) {
-          trace.usage = traceUsageFromCounts(
-            usage,
-            resolved.context.omittedCacheReadIsZero,
-          );
-        }
-        if (text) {
-          trace.errorMessage = upstreamErrorText(text);
-        }
-        const headers = translateAnthropic
-          ? new Headers({ "content-type": "application/json" })
+        recordUpstreamErrorBody(
+          trace,
+          forward.protocol,
+          text,
+          resolved.context.omittedCacheReadIsZero,
+        );
+        const translated = translatedUpstreamError(
+          upstream.status,
+          text,
+          translateAnthropic,
+        );
+        const headers = translated
+          ? new Headers(translated.headers)
           : upstream.headers;
         const delivered = applyApiProxyResponsePlanText(
           responsePlan,
-          translateAnthropic
-            ? translateOpenAiErrorText(upstream.status, text)
-            : text,
+          translated?.body ?? text,
           {
             status: upstream.status,
             contentType: headers.get("content-type") ?? "application/json",
@@ -1408,73 +1367,31 @@ export async function serveResolvedTarget(input: {
             cancelSignal,
             ...upstreamObserver,
           });
-          trace.usage = resumableTraceUsage(
-            state,
-            resolved.context.omittedCacheReadIsZero,
-          );
-          if (
-            outcome.type === "consumer-gone" ||
-            outcome.type === "cancelled"
-          ) {
-            return clientAbortResponse({
-              trace,
-              message: clientAbortMessage,
-              responsePlan,
-              partialBody: partialFromState(bufferCodec, state),
-            });
-          }
-          if (outcome.type === "error") {
-            return traceDiagnosticResponse({
-              c,
-              adapter,
-              request: route.request,
-              trace,
-              diagnostic: {
-                status: 502,
-                code: "arriero_proxy_upstream_error",
-                param: "model",
-                message: `Proxy target ${decision.target.name} failed to forward request: ${outcome.message}`,
-              },
-              responsePlan,
-              partialBody: partialFromState(bufferCodec, state),
-            });
-          }
-          if (outcome.type === "truncated") {
-            if (resolved.context.streamTerminal === "strict") {
-              return truncatedStreamResponse({
-                c,
-                adapter,
-                request: route.request,
-                trace,
-                codec: bufferCodec,
-                state,
-                label: `Proxy target ${decision.target.name} stream`,
-                responsePlan,
-              });
-            }
-            responsePlan?.markTruncated();
-          }
-          applyProxyStreamHealth({ trace, health: state.health });
-          const task = resolveSlot();
-          const final = finalFromState(bufferCodec, state, false);
-          const delivered = applyApiProxyResponsePlanText(
+          const failed = bufferedSseFailureResponse({
+            c,
+            adapter,
+            request: route.request,
+            trace,
             responsePlan,
-            final.body,
-            {
-              status: final.status,
-              contentType: final.headers["content-type"] ?? "application/json",
-              isSse: false,
-            },
-          );
+            codec: bufferCodec,
+            state,
+            outcome,
+            omittedCacheReadIsZero: resolved.context.omittedCacheReadIsZero,
+            clientAbortMessage,
+            failure: forwardFailure,
+            truncatedLabel: `Proxy target ${decision.target.name} stream`,
+            streamTerminal: resolved.context.streamTerminal,
+          });
+          if (failed) {
+            return failed;
+          }
+          const task = resolveSlot();
           return recordTraceWithDeferredTiming({
             recorder,
             trace,
             instanceId,
             task,
-            response: new Response(delivered, {
-              status: final.status,
-              headers: final.headers,
-            }),
+            response: bufferedSseResponse(bufferCodec, state, responsePlan),
           });
         }
         const text = await upstream.text();
@@ -1656,19 +1573,7 @@ export async function serveResolvedTarget(input: {
         markClientAbort();
         return new Response(null, { status: CLIENT_ABORT_STATUS });
       }
-      return traceDiagnosticResponse({
-        c,
-        adapter,
-        request: route.request,
-        trace,
-        diagnostic: {
-          status: 502,
-          code: "arriero_proxy_upstream_error",
-          param: "model",
-          message: `Proxy target ${decision.target.name} failed to forward request: ${describeFetchError(error)}`,
-        },
-        responsePlan,
-      });
+      return diagnose(forwardFailure(describeFetchError(error)));
     }
   };
 
@@ -1685,21 +1590,16 @@ export async function serveResolvedTarget(input: {
       baseUrl,
       modelOverride,
       instanceId,
-      endpointId,
       engine,
       authHeaders,
       translateAnthropic,
-      translationDialect,
     } = resolved.context;
     const forward = prepareApiProxyUpstreamRequest({
-      translate: translateAnthropic,
-      translationDialect,
+      context: resolved.context,
       operation,
       path: upstreamPath,
       body: route.request.body,
       headers: c.req.raw.headers,
-      instanceId,
-      endpointId,
       trace,
     });
     const upstreamRequestBody = forward.body;
@@ -1722,37 +1622,29 @@ export async function serveResolvedTarget(input: {
     const forceAnswerSupported =
       instanceId !== null &&
       (operation.protocol === "openai" || translateAnthropic);
-    const nativeReasoningControl =
-      engine.reasoningControl &&
-      forward.protocol === "openai" &&
-      forward.path === "/v1/chat/completions";
-    const upstreamObserver = nativeReasoningControl
-      ? attachApiProxyReasoningControl({
-          inflight,
-          observer,
-          baseUrl,
-          authHeaders,
-          model: modelOverride,
-        })
-      : observer;
+    const reasoningControl = nativeApiProxyReasoningControl({
+      engine,
+      operation,
+      forwardProtocol: forward.protocol,
+      inflight,
+      observer,
+      baseUrl,
+      authHeaders,
+      model: modelOverride,
+    });
+    const upstreamObserver = reasoningControl?.observer ?? observer;
     const buildForceAnswerTail = forceAnswerSupported
       ? (reasoningText: string): string | null =>
           buildThinkForceAnswerTail(reasoningText)
       : undefined;
     const state = createResumableBufferState();
     const buildBody = (tail: string | null) => {
-      const built = effectiveCodec.upstreamBody(
-        upstreamRequestBody,
-        tail,
-      ) as Record<string, unknown>;
-      const withModel = modelOverride
-        ? { ...built, model: modelOverride }
-        : built;
+      const built = effectiveCodec.upstreamBody(upstreamRequestBody, tail);
       const withProgress = injectPrefillProgress
-        ? { ...withModel, return_progress: true }
-        : withModel;
-      return nativeReasoningControl
-        ? armApiProxyReasoningControl(withProgress)
+        ? withBodyFields(built, { return_progress: true })
+        : built;
+      return reasoningControl
+        ? reasoningControl.armBody(withProgress)
         : withProgress;
     };
 
@@ -1793,7 +1685,7 @@ export async function serveResolvedTarget(input: {
           preemptSignal: heldLease.preemptSignal,
           consumerSignal: c.req.raw.signal,
           interruptSignal:
-            forceAnswerSupported && !nativeReasoningControl
+            forceAnswerSupported && !reasoningControl
               ? inflight.controlSignal("force-answer")
               : undefined,
           finishSignal: inflight.controlSignal("finish"),
@@ -1817,21 +1709,17 @@ export async function serveResolvedTarget(input: {
       ...(buildForceAnswerTail ? { buildForceAnswerTail } : {}),
       onUpstreamError: (response) => {
         trace.errorMessage = upstreamErrorText(response.body);
-        return translateAnthropic
-          ? {
-              status: response.status,
-              headers: { "content-type": "application/json" },
-              body: translateOpenAiErrorText(response.status, response.body),
-            }
+        const translated = translatedUpstreamError(
+          response.status,
+          response.body,
+          translateAnthropic,
+        );
+        return translated
+          ? { status: response.status, ...translated }
           : response;
       },
       onError: (message) => {
-        const diagnostic: ApiProxyProtocolDiagnostic = {
-          status: 502,
-          code: "arriero_proxy_upstream_error",
-          param: "model",
-          message: `Proxy target ${decision.target.name} failed to forward request: ${message}`,
-        };
+        const diagnostic = forwardFailure(message);
         applyTraceDiagnostic(trace, diagnostic);
         const response = adapter.diagnosticError(route.request, diagnostic);
         return {
@@ -1861,7 +1749,7 @@ export async function serveResolvedTarget(input: {
     const partialBody =
       final.status >= 200 && final.status < 300
         ? null
-        : partialFromState(effectiveCodec, state);
+        : () => partialFromState(effectiveCodec, state);
     if (final.status === CLIENT_ABORT_STATUS) {
       return recordTraceWithDeferredTiming({
         recorder,
@@ -1876,9 +1764,7 @@ export async function serveResolvedTarget(input: {
         }),
       });
     }
-    if (partialBody !== null) {
-      responsePlan?.capturePartial(partialBody);
-    }
+    capturePartialResponse(responsePlan, partialBody);
     const responseBody = applyApiProxyResponsePlanText(
       responsePlan,
       final.body,

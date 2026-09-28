@@ -17,7 +17,7 @@ import {
   fileIdentityFromStats,
   type ModelFileIdentity,
 } from "./file-identity.js";
-import { parseSplitInfo, splitShardName } from "@arriero/core";
+import { parseSplitInfo, splitShardNames } from "@arriero/core";
 
 type GgufScalar = string | number | boolean | null;
 type GgufValue = GgufScalar | GgufScalar[];
@@ -769,16 +769,9 @@ export function resolveGgufShardPaths(modelPath: string): string[] {
     return [modelPath];
   }
   const directory = dirname(modelPath);
-  const shards: string[] = [];
-  for (let index = 1; index <= split.count; index += 1) {
-    const shardPath = join(
-      directory,
-      splitShardName(split, index, split.count),
-    );
-    if (existsSync(shardPath)) {
-      shards.push(shardPath);
-    }
-  }
+  const shards = splitShardNames(split)
+    .map((name) => join(directory, name))
+    .filter((shardPath) => existsSync(shardPath));
   return shards.length > 0 ? shards : [modelPath];
 }
 

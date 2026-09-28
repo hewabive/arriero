@@ -1,3 +1,4 @@
+import type { ModelLibraryCheck } from "@arriero/core";
 import {
   ActionIcon,
   Checkbox,
@@ -14,19 +15,29 @@ import {
   Folder,
   Info,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   libraryFileTree,
   type LibraryFile,
   type LibraryFolder,
 } from "../utils/model-library-files";
-import { formatBytes } from "../utils/models";
+import { formatBytes, pathBaseName } from "../utils/models";
 import { countLabel } from "../utils/plural";
+import { hfFilePercent } from "./HfJobFileRow";
 
-export function ModelLibraryTree(props: {
+const CHANGE_BADGE: Record<
+  ModelLibraryCheck["changes"][number]["kind"],
+  { label: string; color: string }
+> = {
+  added: { label: "Added", color: "teal" },
+  updated: { label: "Updated", color: "orange" },
+  deleted: { label: "Deleted", color: "red" },
+};
+
+export const ModelLibraryTree = memo(function ModelLibraryTree(props: {
   files: LibraryFile[];
   selection: ReadonlySet<string>;
-  onToggle: (paths: string[], checked: boolean) => void;
+  onToggle: (paths: readonly string[], checked: boolean) => void;
   disabled: boolean;
   reveal: boolean;
   onInspect: (path: string) => void;
@@ -35,12 +46,9 @@ export function ModelLibraryTree(props: {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
   function folderRows(folder: LibraryFolder, depth: number) {
-    const paths = folder.descendants.map((file) => file.path);
+    const { paths, present, changes, bytes } = folder;
     const selected = paths.filter((path) => props.selection.has(path)).length;
     const open = props.reveal || allExpanded || expanded.has(folder.path);
-    const present = folder.descendants.filter((file) => file.present).length;
-    const changes = folder.descendants.filter((file) => file.change).length;
-    const bytesKnown = folder.descendants.every((file) => file.size !== null);
     return (
       <div key={folder.path} role="group" aria-label={folder.path}>
         <div className="library-tree-row library-tree-folder">
@@ -82,11 +90,7 @@ export function ModelLibraryTree(props: {
             </Text>
           </div>
           <Text className="library-tree-size" size="xs" c="dimmed">
-            {bytesKnown
-              ? formatBytes(
-                  folder.descendants.reduce((sum, file) => sum + file.size!, 0),
-                )
-              : "—"}
+            {bytes === null ? "—" : formatBytes(bytes)}
           </Text>
           <Text className="library-tree-local" size="xs" c="dimmed">
             {present} of {paths.length} on disk
@@ -137,7 +141,7 @@ export function ModelLibraryTree(props: {
                 onClick={() => props.onInspect(file.path)}
                 className="library-tree-filename"
               >
-                {file.path.split("/").at(-1)}
+                {pathBaseName(file.path)}
               </UnstyledButton>
             </div>
             <Text className="library-tree-size" size="xs" c="dimmed">
@@ -160,28 +164,14 @@ export function ModelLibraryTree(props: {
               {file.state === "Partial" &&
                 ` · ${formatBytes(file.partialBytes)}`}
               {file.transfer?.status === "downloading" &&
-                ` · ${Math.round((100 * file.transfer.downloadedBytes) / Math.max(file.transfer.size, 1))}%`}
+                ` · ${hfFilePercent(file.transfer)}%`}
             </Text>
             <Text
               className={`library-tree-change${file.change ? "" : " library-tree-no-change"}`}
               size="xs"
-              c={
-                file.change === "added"
-                  ? "teal"
-                  : file.change === "deleted"
-                    ? "red"
-                    : file.change
-                      ? "orange"
-                      : "dimmed"
-              }
+              c={file.change ? CHANGE_BADGE[file.change].color : "dimmed"}
             >
-              {file.change === "added"
-                ? "Added"
-                : file.change === "updated"
-                  ? "Updated"
-                  : file.change === "deleted"
-                    ? "Deleted"
-                    : "—"}
+              {file.change ? CHANGE_BADGE[file.change].label : "—"}
             </Text>
             <ActionIcon
               className="library-tree-info"
@@ -245,7 +235,7 @@ export function ModelLibraryTree(props: {
       </div>
     </>
   );
-}
+});
 
 function collectFolders(folder: LibraryFolder): string[] {
   return folder.folders.flatMap((child) => [

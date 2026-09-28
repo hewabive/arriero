@@ -3,7 +3,7 @@ import { Badge, Button, Tooltip } from "@mantine/core";
 import { ExternalLink } from "lucide-react";
 
 import { useActiveNodeHost } from "../NodeContext.js";
-import { browserReachableHost, urlHost } from "../utils/instance-url";
+import { browserHttpUrl } from "../utils/instance-url";
 import { type WebappActions } from "./use-webapp-actions";
 
 const DRIFT_FIELD_LABELS: Record<WebappDriftField, string> = {
@@ -27,11 +27,6 @@ export function WebappConfigDriftBadge({ webapp }: { webapp: Webapp }) {
   );
 }
 
-function webappUrl(webapp: Webapp, nodeHost: string | null): string | null {
-  const host = browserReachableHost(webapp.http.host, nodeHost);
-  return host ? `http://${urlHost(host)}:${webapp.http.port}/` : null;
-}
-
 export function envVersionLabel(version: string): string {
   return version.startsWith("v") ? version : `v${version}`;
 }
@@ -51,7 +46,10 @@ export function WebappActionButtons({
   actions: WebappActions;
 }) {
   const nodeHost = useActiveNodeHost();
-  const url = webappUrl(webapp, nodeHost);
+  const url = browserHttpUrl(
+    { host: webapp.http.host, port: webapp.http.port, prefix: "/" },
+    nodeHost,
+  );
   return (
     <>
       {webapp.status === "running" && (

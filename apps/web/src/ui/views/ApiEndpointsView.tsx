@@ -1,4 +1,8 @@
-import type { ApiEndpointRecord, ApiEndpointUpdate } from "@arriero/core";
+import {
+  isFilesApiEndpoint,
+  type ApiEndpointRecord,
+  type ApiEndpointUpdate,
+} from "@arriero/core";
 import { Paper, Select, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -76,12 +80,7 @@ function FilesEndpointSetting({
   );
   const selected = settings?.filesEndpointId ?? null;
   const options = endpoints
-    .filter(
-      (endpoint) =>
-        endpoint.kind === "external-api" &&
-        endpoint.enabled &&
-        endpoint.profile === "openai",
-    )
+    .filter(isFilesApiEndpoint)
     .map((endpoint) => ({ value: endpoint.id, label: endpoint.name }));
   const unavailable =
     selected !== null &&

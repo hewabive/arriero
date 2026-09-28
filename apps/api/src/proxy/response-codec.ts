@@ -1,3 +1,6 @@
+import { asObject } from "./json.js";
+import type { ApiProxyResponseShape } from "./protocol.js";
+
 type ApiProxyJsonMutation = {
   changed: boolean;
   value: unknown;
@@ -56,19 +59,22 @@ function splitApiProxySseFrames(text: string): ApiProxySseFrameSplit {
 
 export type ApiProxySseFrameBuffer = {
   push: (chunk: Uint8Array) => string[];
+  pushText: (text: string) => string[];
   flush: () => string | null;
 };
 
 export function createApiProxySseFrameBuffer(): ApiProxySseFrameBuffer {
   const decoder = new TextDecoder();
   let pending = "";
+  const pushText = (text: string): string[] => {
+    pending += text;
+    const split = splitApiProxySseFrames(pending);
+    pending = split.tail ?? "";
+    return split.frames;
+  };
   return {
-    push(chunk) {
-      pending += decoder.decode(chunk, { stream: true });
-      const split = splitApiProxySseFrames(pending);
-      pending = split.tail ?? "";
-      return split.frames;
-    },
+    push: (chunk) => pushText(decoder.decode(chunk, { stream: true })),
+    pushText,
     flush() {
       pending += decoder.decode();
       if (pending.length === 0) {
@@ -190,6 +196,50 @@ export function parseApiProxySseJsonFrame(
     return { changed: true, text };
   };
   return { payloads: parsed, hasDone, serialize };
+}
+
+export const openAiResponsesTerminalTypes: ReadonlySet<string> = new Set([
+  "response.completed",
+  "response.failed",
+  "response.incomplete",
+]);
+
+export function isApiProxyTerminalPayload(
+  value: unknown,
+  shape: ApiProxyResponseShape,
+): boolean {
+  const type = asObject(value)?.type;
+  if (typeof type !== "string") {
+    return false;
+  }
+  if (shape === "anthropic") {
+    return type === "message_stop";
+  }
+  return shape === "openai-responses" && openAiResponsesTerminalTypes.has(type);
+}
+
+const terminalFrameMarkers: Record<ApiProxyResponseShape, readonly string[]> = {
+  "openai-chat": ["[DONE]"],
+  anthropic: ['"message_stop"'],
+  "openai-responses": [...openAiResponsesTerminalTypes].map(
+    (type) => `"${type}"`,
+  ),
+};
+
+export function isApiProxyTerminalFrame(
+  frame: string,
+  shape: ApiProxyResponseShape,
+): boolean {
+  if (!terminalFrameMarkers[shape].some((marker) => frame.includes(marker))) {
+    return false;
+  }
+  const parsed = parseApiProxySseJsonFrame(frame);
+  if (shape === "openai-chat") {
+    return parsed.hasDone;
+  }
+  return parsed.payloads.some(({ value }) =>
+    isApiProxyTerminalPayload(value, shape),
+  );
 }
 
 export function mutateApiProxySseJsonFrame(

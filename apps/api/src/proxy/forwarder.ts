@@ -15,7 +15,6 @@ export type ApiProxyForwardRequest = {
   stripHeaders?: readonly string[] | undefined;
   body: unknown;
   upstreamHeaders?: Record<string, string> | undefined;
-  modelOverride?: string | null | undefined;
   signal?: AbortSignal | undefined;
 };
 
@@ -30,20 +29,29 @@ export function apiProxyForwardUrl(
   return proxyTargetUrl(normalizedBaseUrl, upstreamPath, search);
 }
 
-function forwardBody(body: unknown, modelOverride: string | null | undefined) {
-  if (
-    !modelOverride ||
-    !body ||
-    typeof body !== "object" ||
-    Array.isArray(body)
-  ) {
-    return body;
+export function apiProxyUpstreamHeaders(
+  clientHeaders: Headers,
+  shaping: {
+    strip?: readonly string[] | undefined;
+    upstream?: Record<string, string> | undefined;
+  },
+): Headers {
+  const headers = proxyRequestHeaders(clientHeaders);
+  for (const name of shaping.strip ?? []) {
+    headers.delete(name);
   }
+  for (const [name, value] of Object.entries(shaping.upstream ?? {})) {
+    headers.set(name, value);
+  }
+  return headers;
+}
 
-  return {
-    ...(body as Record<string, unknown>),
-    model: modelOverride,
-  };
+export function apiProxyPassthroughResponse(upstream: Response): Response {
+  return new Response(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: proxyResponseHeaders(upstream.headers),
+  });
 }
 
 export async function forwardApiProxyRequest(
@@ -55,13 +63,10 @@ export async function forwardApiProxyRequest(
     input.search,
   );
 
-  const headers = proxyRequestHeaders(input.headers);
-  for (const name of input.stripHeaders ?? []) {
-    headers.delete(name);
-  }
-  for (const [name, value] of Object.entries(input.upstreamHeaders ?? {})) {
-    headers.set(name, value);
-  }
+  const headers = apiProxyUpstreamHeaders(input.headers, {
+    strip: input.stripHeaders,
+    upstream: input.upstreamHeaders,
+  });
   if (!headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
@@ -69,17 +74,11 @@ export async function forwardApiProxyRequest(
   const init: RequestInit = {
     method: input.method,
     headers,
-    body: JSON.stringify(forwardBody(input.body, input.modelOverride)),
+    body: JSON.stringify(input.body),
   };
   if (input.signal) {
     init.signal = input.signal;
   }
 
-  const upstream = await proxyUpstreamFetch(url, init);
-
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: proxyResponseHeaders(upstream.headers),
-  });
+  return apiProxyPassthroughResponse(await proxyUpstreamFetch(url, init));
 }

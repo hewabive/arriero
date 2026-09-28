@@ -1,3 +1,4 @@
+import { hfContentOid } from "@arriero/core";
 import { ActionIcon, Code, Group, Stack, Table, Text } from "@mantine/core";
 import { X } from "lucide-react";
 import type { LibraryFile } from "../utils/model-library-files";
@@ -53,7 +54,7 @@ export function ModelLibraryFileDetails(props: {
               </Table.Td>
               <Table.Td>
                 <Code className="text-wrap" fz="xs">
-                  {metadata ? (metadata.lfsOid ?? metadata.oid) : "—"}
+                  {metadata ? hfContentOid(metadata) : "—"}
                 </Code>
               </Table.Td>
             </Table.Tr>

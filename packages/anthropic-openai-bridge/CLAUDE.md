@@ -12,7 +12,7 @@ Sans-IO translation between the Anthropic Messages API and OpenAI Chat Completio
 
 - `request.ts` — `translateAnthropicRequest(body, opts)` → `{ body, warnings }`.
 - `response.ts` — non-stream OpenAI→Anthropic + `anthropicMessageId` prefixing.
-- `stream.ts` — `createAnthropicSseEmitter`: stateful; one OpenAI `data:` payload string per `push()` → `{ events, extensions }`; `finish()` closes open blocks after an aborted stream. `extensions` (raw `prompt_progress`/`timings`/`usage`) is the host telemetry side-channel — these are never emitted as Anthropic events.
+- `stream.ts` — `createAnthropicSseEmitter`: stateful; one OpenAI `data:` payload string per `push()` (or an already-parsed payload per `pushValue()`) → `{ events, extensions }`; `finish()` closes open blocks after an aborted stream. `extensions` (raw `prompt_progress`/`timings`/`usage`) is the host telemetry side-channel — these are never emitted as Anthropic events.
 - `errors.ts` (HTTP status → Anthropic error type), `finish-reason.ts`, `usage.ts` (`input_tokens` = `prompt_tokens` − `cached_tokens`), `sse.ts` (event serialization), `types.ts` (event unions), `json.ts` (guards).
 
 ## Stream invariants (Anthropic SDKs are strict — covered by golden tests in `stream.test.ts`)

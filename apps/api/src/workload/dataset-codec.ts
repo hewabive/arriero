@@ -4,11 +4,14 @@ import type {
   WorkloadDatasetBody,
   WorkloadDatasetContent,
   WorkloadDatasetRecord,
-  WorkloadRecord,
 } from "@arriero/core";
 
-import { asObject } from "../proxy/json.js";
 import { canonicalJsonDigest } from "../utils/canonical-json.js";
+import {
+  splitWorkloadChatBody,
+  workloadThinkTimeMs,
+  type ReplayableWorkloadRecord,
+} from "./record-analysis.js";
 
 export type WorkloadBlobSink = (hash: string, json: string) => void;
 
@@ -16,9 +19,16 @@ export function workloadBlobHash(json: string): string {
   return createHash("sha256").update(json).digest("hex");
 }
 
-function putBlob(sink: WorkloadBlobSink, value: unknown): string {
+export function encodeWorkloadBlob(value: unknown): {
+  hash: string;
+  json: string;
+} {
   const json = JSON.stringify(value) ?? "null";
-  const hash = workloadBlobHash(json);
+  return { hash: workloadBlobHash(json), json };
+}
+
+function putBlob(sink: WorkloadBlobSink, value: unknown): string {
+  const { hash, json } = encodeWorkloadBlob(value);
   sink(hash, json);
   return hash;
 }
@@ -28,31 +38,15 @@ export function decomposeWorkloadBody(
   body: unknown,
   sink: WorkloadBlobSink,
 ): WorkloadDatasetBody | null {
-  const record = asObject(body);
-  const messages = record?.messages;
-  if (!record || !Array.isArray(messages)) {
+  const parts = splitWorkloadChatBody(protocol, body);
+  if (!parts) {
     return null;
   }
-  const separateSystem = protocol === "anthropic";
-  const fields: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (
-      key === "messages" ||
-      key === "tools" ||
-      (separateSystem && key === "system")
-    ) {
-      continue;
-    }
-    fields[key] = value;
-  }
   return {
-    fields,
-    messages: messages.map((message) => putBlob(sink, message)),
-    tools: record.tools === undefined ? null : putBlob(sink, record.tools),
-    system:
-      separateSystem && record.system !== undefined
-        ? putBlob(sink, record.system)
-        : null,
+    fields: parts.fields,
+    messages: parts.messages.map((message) => putBlob(sink, message)),
+    tools: parts.tools === undefined ? null : putBlob(sink, parts.tools),
+    system: parts.system === undefined ? null : putBlob(sink, parts.system),
   };
 }
 
@@ -98,7 +92,7 @@ export function workloadDatasetId(content: WorkloadDatasetContent): string {
 }
 
 export function workloadDatasetRecord(input: {
-  record: WorkloadRecord;
+  record: ReplayableWorkloadRecord;
   captured: {
     protocol: "openai" | "anthropic";
     endpoint: string;
@@ -106,23 +100,18 @@ export function workloadDatasetRecord(input: {
   };
   body: WorkloadDatasetBody;
   windowFromMs: number;
-  previous: WorkloadRecord | null;
+  previous: { endAt: string } | null;
 }): WorkloadDatasetRecord {
   const at = Date.parse(input.record.at);
-  const previousEnd = input.previous
-    ? Date.parse(input.previous.at) + input.previous.durationMs
-    : null;
   return {
     traceId: input.record.traceId,
     protocol: input.captured.protocol,
     endpoint: input.captured.endpoint,
     routePath: input.captured.routePath,
     offsetMs: Math.max(0, Math.round(at - input.windowFromMs)),
-    thinkTimeMs:
-      previousEnd === null ? null : Math.max(0, Math.round(at - previousEnd)),
+    thinkTimeMs: workloadThinkTimeMs(input.previous, input.record.at),
     durationMs: input.record.durationMs,
-    outcome:
-      input.record.outcome === "client-abort" ? "client-abort" : "success",
+    outcome: input.record.outcome,
     targetName: input.record.targetName,
     promptTokens: input.record.promptTokens,
     cacheReadTokens: input.record.cacheReadTokens,

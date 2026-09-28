@@ -57,8 +57,10 @@ import {
   addPipelineNodeToDraft,
   isSingleNextPipelineNodeDraft,
   pipelinePayload,
+  portRefFromValue,
   removeNodeFromDraft,
   replaceTargetInDraft,
+  targetPortValue,
 } from "../forms";
 import {
   PipelineNodeFields,
@@ -74,6 +76,11 @@ import { useNarrowScreen } from "../../hooks/use-narrow-screen";
 const nodeTypes = { "pipeline-flow": FlowNodeCard };
 const edgeTypes = { "pipeline-edge": FlowEdge };
 const draftCandidateId = "__draft__";
+
+function targetIdFromFlowId(flowId: string): string | null {
+  const ref = portRefFromValue(portValueFromFlowId(flowId));
+  return ref?.type === "target" ? ref.id : null;
+}
 
 function portPatch(
   node: PipelineNodeDraft,
@@ -388,18 +395,18 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
     setPlacedRefs((prev) => (prev.includes(value) ? prev : [...prev, value]));
   };
 
-  const placeTarget = (targetId: string) => placeRef(`target:${targetId}`);
+  const placeTarget = (targetId: string) => placeRef(targetPortValue(targetId));
 
   const replaceTarget = (targetId: string | null) => {
-    if (!targetId || !selectedNodeId?.startsWith("ref:target:")) {
+    if (!targetId || selectedNodeId === null) {
       return;
     }
-    const previousTargetId = selectedNodeId.slice("ref:target:".length);
-    if (targetId === previousTargetId) {
+    const previousTargetId = targetIdFromFlowId(selectedNodeId);
+    if (previousTargetId === null || targetId === previousTargetId) {
       return;
     }
-    const previousValue = `target:${previousTargetId}`;
-    const nextValue = `target:${targetId}`;
+    const previousValue = targetPortValue(previousTargetId);
+    const nextValue = targetPortValue(targetId);
     const nextFlowId = refNodeId(nextValue);
     const position = positionsRef.current.get(selectedNodeId);
     if (position && !rfNodes.some((node) => node.id === nextFlowId)) {
@@ -526,9 +533,8 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
   const selectedNode =
     draft.nodes.find((node) => node.id === selectedNodeId) ?? null;
   const entrySelected = selectedNodeId === entryNodeId;
-  const selectedTargetId = selectedNodeId?.startsWith("ref:target:")
-    ? selectedNodeId.slice("ref:target:".length)
-    : null;
+  const selectedTargetId =
+    selectedNodeId === null ? null : targetIdFromFlowId(selectedNodeId);
 
   return (
     <Stack gap="xs">

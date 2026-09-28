@@ -11,3 +11,7 @@ export function asObject(value: unknown): JsonRecord | null {
 export function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
+
+export function withBodyFields(body: unknown, fields: JsonRecord): unknown {
+  return isRecord(body) ? { ...body, ...fields } : body;
+}

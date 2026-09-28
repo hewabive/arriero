@@ -1,12 +1,22 @@
 import { createHash, type Hash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import type { FileVerificationProgress } from "@arriero/core";
+import { createReadStream, type ReadStream } from "node:fs";
+import type {
+  FileVerificationProgress,
+  HfContentHashAlgorithm,
+} from "@arriero/core";
+
+const HASH_READ_CHUNK_BYTES = 1024 * 1024;
 
 export type VerificationObserver = (
   progress: FileVerificationProgress | null,
 ) => void;
 
-export type HfContentHashAlgorithm = "sha256" | "git-sha1";
+export function hashReadStream(path: string, signal?: AbortSignal): ReadStream {
+  return createReadStream(path, {
+    highWaterMark: HASH_READ_CHUNK_BYTES,
+    ...(signal ? { signal } : {}),
+  });
+}
 
 export function hfContentHashAlgorithm(lfs: boolean): HfContentHashAlgorithm {
   return lfs ? "sha256" : "git-sha1";
@@ -43,7 +53,7 @@ export async function hashHfContentFile(
     });
   };
   report();
-  for await (const chunk of createReadStream(path, signal ? { signal } : {})) {
+  for await (const chunk of hashReadStream(path, signal)) {
     hash.update(chunk as Buffer);
     processedBytes += (chunk as Buffer).length;
     const now = performance.now();

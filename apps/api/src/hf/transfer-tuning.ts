@@ -88,19 +88,14 @@ export class HfConnectionTuner {
   }
 
   recordRateLimit(): void {
-    const now = this.#now();
-    if (now - this.#lastBackoffAt < 1_000) {
-      return;
-    }
-    this.#lastBackoffAt = now;
-    this.#baselineBps = null;
-    this.#probeFrom = null;
-    this.#nextProbeAt = now + RATE_LIMIT_RETRY_MS;
-    this.#setTarget(Math.max(1, Math.floor(this.#target / 2)));
-    this.#resetWindow(now);
+    this.#backoff(RATE_LIMIT_RETRY_MS, Math.floor(this.#target / 2));
   }
 
   recordTransportError(): void {
+    this.#backoff(ERROR_RETRY_MS, this.#target - 1);
+  }
+
+  #backoff(retryMs: number, nextTarget: number): void {
     const now = this.#now();
     if (now - this.#lastBackoffAt < 1_000) {
       return;
@@ -108,8 +103,8 @@ export class HfConnectionTuner {
     this.#lastBackoffAt = now;
     this.#baselineBps = null;
     this.#probeFrom = null;
-    this.#nextProbeAt = now + ERROR_RETRY_MS;
-    this.#setTarget(Math.max(1, this.#target - 1));
+    this.#nextProbeAt = now + retryMs;
+    this.#setTarget(nextTarget);
     this.#resetWindow(now);
   }
 

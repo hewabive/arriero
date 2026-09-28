@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { WorkloadProfileWindow, WorkloadRecord } from "@arriero/core";
+import {
+  rankWorkloadWindows,
+  type WorkloadProfileWindow,
+  type WorkloadRecord,
+} from "@arriero/core";
 
 import {
   buildWorkloadProfile,
-  rankWorkloadWindows,
   summarizeWorkloadSession,
   workloadLinkingGroups,
   workloadProfileWindowCount,

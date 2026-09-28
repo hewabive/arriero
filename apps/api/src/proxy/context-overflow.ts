@@ -1,3 +1,5 @@
+import { openAiErrorMessage } from "@arriero/anthropic-openai-bridge";
+
 import { asObject } from "./json.js";
 
 export const contextOverflowMessage = "Prompt is too long";
@@ -17,21 +19,10 @@ export function isUpstreamContextOverflow(
   if (status !== 400) {
     return false;
   }
-  const record = asObject(body);
-  const error = asObject(record?.error);
-  if (error?.type === "exceed_context_size_error") {
+  if (asObject(asObject(body)?.error)?.type === "exceed_context_size_error") {
     return true;
   }
-  const message =
-    typeof error?.message === "string"
-      ? error.message
-      : typeof record?.error === "string"
-        ? record.error
-        : typeof record?.message === "string"
-          ? record.message
-          : typeof body === "string"
-            ? body
-            : null;
+  const message = openAiErrorMessage(body);
   return (
     message !== null &&
     upstreamContextOverflowMessages.some((pattern) => pattern.test(message))

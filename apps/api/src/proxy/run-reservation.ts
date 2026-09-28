@@ -9,6 +9,7 @@ import {
   computeDomainCoordinator,
   type DomainLease,
 } from "./domain-coordinator.js";
+import { externalTargetEndpointId } from "./external-target.js";
 import { apiProxyInflight } from "./inflight.js";
 import type { ApiProxyProtocolDiagnostic } from "./protocol.js";
 import { getApiProxyTarget, listApiProxyTargets } from "./repository.js";
@@ -38,7 +39,6 @@ export class ApiProxyReservationError extends Error {}
 const POLL_MS = 200;
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 const SERVE_TARGET_PREFIX = "serve:";
-const ENDPOINT_TARGET_PREFIX = "endpoint:";
 
 const reservations = new Map<
   string,
@@ -55,13 +55,8 @@ export function apiProxyTargetInstanceName(
   if (targetId.startsWith(SERVE_TARGET_PREFIX)) {
     return targetId.slice(SERVE_TARGET_PREFIX.length) || null;
   }
-  if (targetId.startsWith(ENDPOINT_TARGET_PREFIX)) {
-    const endpointId = targetId
-      .slice(ENDPOINT_TARGET_PREFIX.length)
-      .split("#")[0];
-    return endpointId ? instanceIdFromEndpointId(endpointId) : null;
-  }
-  return null;
+  const endpointId = externalTargetEndpointId(targetId);
+  return endpointId ? instanceIdFromEndpointId(endpointId) : null;
 }
 
 export function apiProxyReservationScope(

@@ -5,7 +5,11 @@ import { virtualizationFromProbe } from "./virtualization.js";
 
 test("virtualizationFromProbe reports the detected VM type", () => {
   assert.deepEqual(
-    virtualizationFromProbe({ status: 0, stdout: "kvm\n", cpuinfo: "" }),
+    virtualizationFromProbe({
+      status: 0,
+      stdout: "kvm\n",
+      readCpuinfo: () => assert.fail("cpuinfo must not be read"),
+    }),
     { type: "kvm" },
   );
 });
@@ -15,7 +19,7 @@ test("virtualizationFromProbe falls back to the hypervisor CPU flag", () => {
     virtualizationFromProbe({
       status: 1,
       stdout: "none\n",
-      cpuinfo: "flags: fpu hypervisor avx2\n",
+      readCpuinfo: () => "flags: fpu hypervisor avx2\n",
     }),
     { type: "unknown" },
   );
@@ -26,7 +30,7 @@ test("virtualizationFromProbe ignores bare metal", () => {
     virtualizationFromProbe({
       status: 1,
       stdout: "none\n",
-      cpuinfo: "flags: fpu avx2\n",
+      readCpuinfo: () => "flags: fpu avx2\n",
     }),
     null,
   );

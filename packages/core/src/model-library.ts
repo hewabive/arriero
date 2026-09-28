@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-import { HfRepoIdSchema } from "./hf.js";
+import { HfRepoIdSchema, MODEL_LIBRARY_MAX_PATHS } from "./hf.js";
+
+const HF_COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 
 export const ModelLibraryFileSchema = z.object({
   path: z.string().min(1),
@@ -9,7 +11,7 @@ export const ModelLibraryFileSchema = z.object({
   lfsOid: z.string().nullable(),
 });
 export const ModelLibrarySnapshotSchema = z.object({
-  revision: z.string().regex(/^[0-9a-f]{40}$/i),
+  revision: z.string().regex(HF_COMMIT_SHA_PATTERN),
   files: z.array(ModelLibraryFileSchema).max(10000),
 });
 export type ModelLibraryFile = z.infer<typeof ModelLibraryFileSchema>;
@@ -32,7 +34,7 @@ export const ModelLibraryEntrySchema = z
     id: z.string().min(1),
     repoId: HfRepoIdSchema,
     revision: z.string().min(1),
-    paths: z.array(z.string().min(1)).max(2_000).default([]),
+    paths: z.array(z.string().min(1)).max(MODEL_LIBRARY_MAX_PATHS).default([]),
     destDir: z.string().min(1).nullable().default(null),
     watchRevision: z.string().min(1).default("main"),
     snapshot: ModelLibrarySnapshotSchema.nullable().default(null),
@@ -43,7 +45,7 @@ export const ModelLibraryEntrySchema = z
 export const ModelLibraryEntryCreateSchema = z.object({
   repoId: HfRepoIdSchema,
   revision: z.string().min(1).default("main"),
-  paths: z.array(z.string().min(1)).max(2_000).default([]),
+  paths: z.array(z.string().min(1)).max(MODEL_LIBRARY_MAX_PATHS).default([]),
   destDir: z.string().min(1).nullable().default(null),
 });
 
@@ -65,7 +67,7 @@ export const ModelLibraryEntryStatusSchema = z.object({
 });
 
 export function isHfCommitSha(value: string): boolean {
-  return /^[0-9a-f]{40}$/i.test(value);
+  return HF_COMMIT_SHA_PATTERN.test(value);
 }
 
 export type ModelLibraryEntry = z.infer<typeof ModelLibraryEntrySchema>;
@@ -82,6 +84,6 @@ export type ModelLibraryEntryStatus = z.infer<
 export const ModelLibraryActionSchema = z.object({
   action: z.enum(["check", "acknowledge", "select", "pin", "download"]),
   revision: z.string().optional(),
-  paths: z.array(z.string().min(1)).max(2000).optional(),
+  paths: z.array(z.string().min(1)).max(MODEL_LIBRARY_MAX_PATHS).optional(),
 });
 export type ModelLibraryAction = z.infer<typeof ModelLibraryActionSchema>;

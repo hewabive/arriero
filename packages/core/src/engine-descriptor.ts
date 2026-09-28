@@ -1,3 +1,5 @@
+import type { Instance } from "./instance.js";
+
 export const INSTANCE_KINDS = [
   "llama-server",
   "rpc-worker",
@@ -349,4 +351,13 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
 
 export function engineDescriptor(kind: InstanceKind): EngineDescriptor {
   return ENGINE_DESCRIPTORS[kind];
+}
+
+export function instanceEvictionPolicy(
+  instance: Pick<Instance, "kind" | "scheduling">,
+): EngineEvictionPolicy {
+  return (
+    instance.scheduling?.evictionPolicy ??
+    engineDescriptor(instance.kind).defaultEvictionPolicy
+  );
 }

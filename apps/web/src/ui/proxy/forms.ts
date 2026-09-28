@@ -230,6 +230,10 @@ export type PipelineDraft = {
 export const unboundTargetValue = "__unbound__";
 const routeToTargetPrefix = "target:";
 const routeToPipelinePrefix = "pipeline:";
+
+export function targetPortValue(targetId: string): string {
+  return `${routeToTargetPrefix}${targetId}`;
+}
 export const routeToEndpointPrefix = "endpoint:";
 
 export function isEndpointRouteValue(value: string | null): boolean {
@@ -499,8 +503,8 @@ export function replaceTargetInDraft(
   previousTargetId: string,
   nextTargetId: string,
 ): PipelineDraft {
-  const previousValue = `target:${previousTargetId}`;
-  const nextValue = `target:${nextTargetId}`;
+  const previousValue = targetPortValue(previousTargetId);
+  const nextValue = targetPortValue(nextTargetId);
   return {
     ...draft,
     entryValue:
@@ -593,7 +597,7 @@ function portRefToValue(ref: ApiProxyPortRef | null): PortValue {
   return ref ? `${ref.type}:${ref.id}` : null;
 }
 
-function portRefFromValue(value: PortValue): ApiProxyPortRef | null {
+export function portRefFromValue(value: PortValue): ApiProxyPortRef | null {
   if (!value || value === unboundTargetValue) {
     return null;
   }

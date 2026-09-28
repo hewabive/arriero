@@ -1,18 +1,17 @@
 import {
   isHfCommitSha,
+  MODEL_LIBRARY_MAX_PATHS,
   type HfDownloadedRepo,
   type ModelLibraryEntryStatus,
 } from "@arriero/core";
 import {
   ActionIcon,
   Alert,
-  Anchor,
   Button,
   Checkbox,
   Group,
   Menu,
   Modal,
-  Progress,
   Select,
   Stack,
   Text,
@@ -21,9 +20,9 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import {
   actOnModelLibraryEntry,
   browseHfRepo,
@@ -33,15 +32,21 @@ import {
 } from "../../api/hf";
 import { libraryFiles } from "../utils/model-library-files";
 import { notifyError } from "../utils/notify";
+import { withPaths } from "../utils/path-selection";
 import { countLabel } from "../utils/plural";
 import { formatBytes } from "../utils/models";
 import { formatLocalDateTime } from "../utils/time";
+import { useLabeledOperation } from "../utils/use-labeled-operation";
+import { HfRepoLink } from "./HfBadges";
 import { HfRepoDeleteModal, type HfDeleteRequest } from "./HfRepoDeleteModal";
 import { hfQueueJobForDir, useHfQueue } from "./use-hf-queue";
-import { hfJobPercent, hfJobProgressLine } from "./HfQueueJobCard";
 import { ModelLibraryTree } from "./ModelLibraryTree";
 import { ModelLibraryFileDetails } from "./ModelLibraryFileDetails";
-import { FileVerificationProgress } from "../components/FileVerificationProgress";
+import {
+  DownloadJobStrip,
+  RepositoryIntegritySummary,
+  RepositoryVerificationPanel,
+} from "./ModelLibraryRepositoryPanels";
 import { useHfIntegrity } from "./use-hf-integrity";
 
 export function ModelLibraryDialog({
@@ -61,6 +66,7 @@ export function ModelLibraryDialog({
   const [version, setVersion] = useState("pinned");
   const [selection, setSelection] = useState<ReadonlySet<string>>(new Set());
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [filter, setFilter] = useState("all");
   const [inspected, setInspected] = useState<string | null>(null);
   const [pinPreview, setPinPreview] = useState(false);
@@ -88,6 +94,7 @@ export function ModelLibraryDialog({
       };
     },
     retry: false,
+    ...(isHfCommitSha(revision) ? { staleTime: Infinity } : {}),
   });
   const destination = repo?.dir ?? entry?.destDir ?? null;
   const dest = useQuery({
@@ -126,7 +133,7 @@ export function ModelLibraryDialog({
     () =>
       files.filter(
         (file) =>
-          file.path.toLowerCase().includes(search.toLowerCase()) &&
+          file.path.toLowerCase().includes(deferredSearch.toLowerCase()) &&
           (filter === "all" ||
             (filter === "saved" && file.saved) ||
             (filter === "local" && (file.present || file.partialBytes > 0)) ||
@@ -135,7 +142,7 @@ export function ModelLibraryDialog({
             (filter === "issues" && file.issue) ||
             (filter === "selected" && selection.has(file.path))),
       ),
-    [files, search, filter, selection],
+    [files, deferredSearch, filter, selection],
   );
   const visiblePaths = new Set(visible.map((file) => file.path));
   const selected = files.filter((file) => selection.has(file.path));
@@ -169,18 +176,16 @@ export function ModelLibraryDialog({
     ]),
   ];
   const savedPaths = [...new Set([...(entry?.paths ?? []), ...additions])];
-  const tooManySaved = savedPaths.length > 2000;
+  const tooManySaved = savedPaths.length > MODEL_LIBRARY_MAX_PATHS;
   const freeBytes = dest.data?.data.freeBytes ?? null;
-  const mutation = useMutation({
-    mutationFn: async (input: { label: string; run: () => Promise<unknown> }) =>
-      input.run(),
-    onSuccess: async (_result, input) => {
+  const operation = useLabeledOperation({
+    onSuccess: async (label) => {
       await Promise.all(
         ["hf-library", "hf-downloads", "hf-queue", "hf-dest-check"].map((key) =>
           client.invalidateQueries({ queryKey: [key] }),
         ),
       );
-      notifications.show({ message: input.label });
+      notifications.show({ message: label });
     },
     onError: (error) => {
       void client.invalidateQueries({ queryKey: ["hf-library"] });
@@ -188,9 +193,8 @@ export function ModelLibraryDialog({
       notifyError("Repository")(error);
     },
   });
-  const busy = mutation.isPending || verification.busy;
-  const run = (label: string, operation: () => Promise<unknown>) =>
-    mutation.mutate({ label, run: operation });
+  const busy = operation.pending || verification.busy;
+  const { run } = operation;
   const createSaved = (paths: string[]) =>
     createModelLibraryEntry({
       repoId,
@@ -226,15 +230,11 @@ export function ModelLibraryDialog({
       });
     }
   };
-  const toggle = (paths: string[], checked: boolean) =>
-    setSelection((previous) => {
-      const next = new Set(previous);
-      for (const path of paths) {
-        if (checked) next.add(path);
-        else next.delete(path);
-      }
-      return next;
-    });
+  const toggle = useCallback(
+    (paths: readonly string[], checked: boolean) =>
+      setSelection((previous) => withPaths(previous, paths, checked)),
+    [],
+  );
   const differentVersion = !!target && target.revision !== revision;
   const needsPin = differentVersion || !isHfCommitSha(revision);
   const inspectedFile = files.find((file) => file.path === inspected);
@@ -249,17 +249,7 @@ export function ModelLibraryDialog({
     <Modal
       opened
       onClose={onClose}
-      title={
-        <Anchor
-          href={`https://huggingface.co/${repoId}`}
-          target="_blank"
-          rel="noreferrer"
-          fw={600}
-          className="text-wrap"
-        >
-          {repoId}
-        </Anchor>
-      }
+      title={<HfRepoLink repoId={repoId} />}
       size="min(1200px, 96vw)"
       fullScreen={!!mobile}
       styles={{ body: { overflow: "hidden" } }}
@@ -391,153 +381,16 @@ export function ModelLibraryDialog({
             available for management.
           </Alert>
         )}
-        {mutation.isPending && (
+        {operation.pending && (
           <Text size="xs" c="dimmed">
             Working…
           </Text>
         )}
-        {verification.busy && (
-          <Stack gap="xs">
-            {verification.job?.verification ? (
-              <FileVerificationProgress
-                progress={verification.job.verification}
-              />
-            ) : (
-              <Text size="sm">Preparing verification…</Text>
-            )}
-            {verification.job && verification.job.totalFiles > 1 && (
-              <Stack gap={3}>
-                <Text size="xs" c="dimmed">
-                  Overall · {verification.job.completedFiles} of{" "}
-                  {countLabel(verification.job.totalFiles, "file")} checked
-                </Text>
-                <Progress
-                  size={3}
-                  aria-label="Repository verification"
-                  value={
-                    verification.job.totalBytes > 0
-                      ? Math.min(
-                          100,
-                          ((verification.job.completedBytes +
-                            (verification.job.verification?.processedBytes ??
-                              0)) /
-                            verification.job.totalBytes) *
-                            100,
-                        )
-                      : 0
-                  }
-                />
-              </Stack>
-            )}
-            <Group gap="xs">
-              <Button
-                size="compact-xs"
-                variant="subtle"
-                disabled={!verification.job}
-                loading={verification.cancel.isPending}
-                onClick={() => verification.cancel.mutate()}
-              >
-                Cancel verification
-              </Button>
-              <Text size="xs" c="dimmed">
-                You can close this window; verification continues in the
-                background.
-              </Text>
-            </Group>
-          </Stack>
-        )}
-        {verification.error && (
-          <Alert color="red" p="xs">
-            {verification.error}
-          </Alert>
-        )}
-        {verification.job?.status === "canceled" && (
-          <Text size="xs" c="dimmed">
-            Verification canceled. No incomplete results were saved.
-          </Text>
-        )}
+        <RepositoryVerificationPanel verification={verification} />
         {job && (
-          <Stack gap={3}>
-            <Group justify="space-between">
-              <Text size="xs">
-                {job.status} ·{" "}
-                {hfJobProgressLine(
-                  job,
-                  queue.active?.id === job.id ? queue.rate : null,
-                )}
-              </Text>
-              <Group gap={4}>
-                {job.status === "paused" ? (
-                  <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    onClick={() => queue.resume(job.id)}
-                  >
-                    Resume
-                  </Button>
-                ) : (
-                  <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    onClick={() => queue.pause(job.id)}
-                  >
-                    Pause
-                  </Button>
-                )}
-                <Button
-                  size="compact-xs"
-                  variant="subtle"
-                  onClick={() => queue.cancel(job.id)}
-                >
-                  Cancel download
-                </Button>
-                <Button
-                  size="compact-xs"
-                  variant="subtle"
-                  disabled={
-                    !selected.some(
-                      (file) =>
-                        file.transfer?.status === "pending" ||
-                        file.transfer?.status === "downloading",
-                    )
-                  }
-                  onClick={() =>
-                    queue.skipFiles(
-                      job.id,
-                      selected
-                        .filter(
-                          (file) =>
-                            file.transfer?.status === "pending" ||
-                            file.transfer?.status === "downloading",
-                        )
-                        .map((file) => file.path),
-                    )
-                  }
-                >
-                  Skip selected
-                </Button>
-              </Group>
-            </Group>
-            <Progress size={3} value={hfJobPercent(job) ?? 0} />
-          </Stack>
+          <DownloadJobStrip job={job} queue={queue} selected={selected} />
         )}
-        {integrity && (
-          <Text size="xs" c={integrity.status === "verified" ? "teal" : "red"}>
-            Integrity:{" "}
-            {countLabel(
-              integrity.files.filter((file) => file.status === "verified")
-                .length,
-              "verified file",
-            )}{" "}
-            ·{" "}
-            {countLabel(
-              integrity.files.filter((file) => file.status !== "verified")
-                .length,
-              "issue",
-            )}{" "}
-            · {formatLocalDateTime(integrity.checkedAt)}
-          </Text>
-        )}
+        {integrity && <RepositoryIntegritySummary integrity={integrity} />}
         <Group gap="xs" wrap="wrap">
           <TextInput
             aria-label="Search repository files"
@@ -617,7 +470,7 @@ export function ModelLibraryDialog({
             selection={selection}
             onToggle={toggle}
             disabled={busy}
-            reveal={!!search || filter !== "all"}
+            reveal={!!deferredSearch || filter !== "all"}
             onInspect={setInspected}
           />
         </div>
@@ -659,7 +512,7 @@ export function ModelLibraryDialog({
                 </Button>
                 <Button
                   size="xs"
-                  disabled={busy || pinPaths.length > 2000}
+                  disabled={busy || pinPaths.length > MODEL_LIBRARY_MAX_PATHS}
                   onClick={() =>
                     run("Installation version pinned", async () => {
                       if (entry)
@@ -669,9 +522,6 @@ export function ModelLibraryDialog({
                           paths: pinPaths,
                         });
                       else await createSaved(pinPaths);
-                      await client.invalidateQueries({
-                        queryKey: ["hf-library-snapshot"],
-                      });
                       setPinPreview(false);
                       setVersion("pinned");
                     })
@@ -685,11 +535,12 @@ export function ModelLibraryDialog({
         )}
         <Stack gap={6} className="library-repository-footer">
           {(tooManySaved ||
-            pinPaths.length > 2000 ||
-            selection.size > 2000) && (
+            pinPaths.length > MODEL_LIBRARY_MAX_PATHS ||
+            selection.size > MODEL_LIBRARY_MAX_PATHS) && (
             <Text size="xs" c="orange">
-              A saved installation or file operation supports up to 2000 files.
-              Narrow the selection or use smaller folders.
+              A saved installation or file operation supports up to{" "}
+              {MODEL_LIBRARY_MAX_PATHS} files. Narrow the selection or use
+              smaller folders.
             </Text>
           )}
           <Group justify="space-between" gap="xs">
@@ -753,7 +604,10 @@ export function ModelLibraryDialog({
                 color="red"
                 variant="subtle"
                 disabled={
-                  busy || !!job || !deletable.length || deletable.length > 2000
+                  busy ||
+                  !!job ||
+                  !deletable.length ||
+                  deletable.length > MODEL_LIBRARY_MAX_PATHS
                 }
                 onClick={() =>
                   setDeleteRequest({
@@ -792,7 +646,7 @@ export function ModelLibraryDialog({
                     !!job ||
                     !target ||
                     !downloads.length ||
-                    downloads.length > 2000 ||
+                    downloads.length > MODEL_LIBRARY_MAX_PATHS ||
                     tooManySaved
                   }
                   onClick={() =>

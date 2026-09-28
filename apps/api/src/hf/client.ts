@@ -12,6 +12,8 @@ const HF_BASE_URL = "https://huggingface.co";
 const MAX_TREE_PAGES = 10;
 const PATHS_INFO_CHUNK = 1_000;
 const MAX_ERROR_DETAIL_LENGTH = 300;
+const RATE_LIMIT_MIN_DELAY_MS = 1_000;
+const RATE_LIMIT_MAX_DELAY_MS = 300_000;
 
 export type HfErrorKind =
   | "unauthorized"
@@ -38,6 +40,16 @@ export class HfHubError extends Error {
     this.retryAfterMs = retryAfterMs;
     this.status = status;
   }
+}
+
+export function hfRateLimitDelayMs(
+  error: HfHubError,
+  fallbackMs: number,
+): number {
+  return Math.min(
+    RATE_LIMIT_MAX_DELAY_MS,
+    Math.max(RATE_LIMIT_MIN_DELAY_MS, error.retryAfterMs ?? fallbackMs),
+  );
 }
 
 export type HfClientOptions = {
@@ -380,9 +392,26 @@ export async function searchHfModels(
     { headers: hfRequestHeaders(options) },
     options,
   );
-  const models = z.array(HfSearchModelSchema).parse(await response.json());
+  let raw: unknown;
+  try {
+    raw = await response.json();
+  } catch (error) {
+    throw new HfHubError(
+      "upstream",
+      response.status,
+      `HuggingFace search response is not JSON: ${(error as Error).message}`,
+    );
+  }
+  const parsed = z.array(HfSearchModelSchema).safeParse(raw);
+  if (!parsed.success) {
+    throw new HfHubError(
+      "upstream",
+      response.status,
+      "HuggingFace search response has an unexpected shape",
+    );
+  }
   return {
-    models,
-    truncated: response.headers.get("link")?.includes('rel="next"') ?? false,
+    models: parsed.data,
+    truncated: parseNextLink(response.headers.get("link")) !== null,
   };
 }

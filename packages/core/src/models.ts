@@ -123,9 +123,28 @@ export function isAuxiliaryGgufArtifactKind(kind: GgufArtifactKind): boolean {
   return kind !== "model";
 }
 
-export function isDraftGgufArtifactKind(kind: GgufArtifactKind): boolean {
+export type DraftGgufArtifactKind = Extract<
+  GgufArtifactKind,
+  `draft-${string}`
+>;
+
+export function isDraftGgufArtifactKind(
+  kind: GgufArtifactKind,
+): kind is DraftGgufArtifactKind {
   return kind.startsWith("draft-");
 }
+
+export const GGUF_ARTIFACT_KIND_LABEL: Record<
+  Exclude<GgufArtifactKind, "model">,
+  string
+> = {
+  mmproj: "mmproj",
+  "draft-mtp": "MTP",
+  "draft-eagle3": "EAGLE3",
+  "draft-dflash": "DFlash",
+  "draft-dspark": "DSpark",
+  imatrix: "imatrix",
+};
 
 export const GgufModelSchema = z.object({
   name: z.string(),

@@ -1,3 +1,4 @@
+import { GGUF_ARTIFACT_KIND_LABEL } from "@arriero/core";
 import {
   Button,
   Collapse,
@@ -115,7 +116,7 @@ export function InstanceFormSpecSection({
               <Text size="xs" c={fm.draftVocabHint.ok ? "green" : "yellow"}>
                 {fm.draftVocabHint.ok
                   ? fm.draftVocabHint.sidecarKind
-                    ? `✓ ${fm.draftVocabHint.sidecarKind.replace("draft-", "").toUpperCase()} sidecar vocab matches the main model`
+                    ? `✓ ${GGUF_ARTIFACT_KIND_LABEL[fm.draftVocabHint.sidecarKind]} sidecar vocab matches the main model`
                     : `✓ vocab matches the main model (${fm.draftVocabHint.mainArch})`
                   : fm.draftVocabHint.sidecarKind
                     ? `⚠ speculative sidecar vocab differs from the main model — startup may fail`

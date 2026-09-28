@@ -5,6 +5,8 @@ import {
 } from "@arriero/core";
 import { Select } from "@mantine/core";
 
+import { TouchSelect } from "../../components/TouchCombobox";
+
 export function TokenCountFields(props: {
   value: ApiProxyTokenCountConfig | undefined;
   targets: ApiProxyTargetRecord[];
@@ -43,7 +45,7 @@ export function TokenCountFields(props: {
       />
       {value.mode === "auto" && (
         <>
-          <Select
+          <TouchSelect
             label="Count tokens for"
             description="Auto uses the only downstream target. For overflow routing from A to B, select A."
             placeholder="Auto: only downstream target"

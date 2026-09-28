@@ -8,7 +8,10 @@ import {
   type ApiProxyProtocolOperation,
 } from "./protocol.js";
 import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
-import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
+import {
+  resolveApiProxyUpstreamContext,
+  type ApiProxyUpstreamContext,
+} from "./upstream-context.js";
 
 export type RecordedProxyRequest = {
   protocol: ApiProxyProtocolId;
@@ -55,48 +58,68 @@ export function recordedRequestOperation(
   };
 }
 
-export function prepareRecordedRequestForInstance(
-  instance: Instance,
-  recorded: RecordedProxyRequest,
-): RecordedRequestPreparation {
-  const operation = recordedRequestOperation(recorded);
+type ApiProxyTargetRequestPreparation =
+  | {
+      ok: true;
+      context: ApiProxyUpstreamContext;
+      path: string;
+      body: unknown;
+    }
+  | { ok: false; error: string };
+
+export function prepareApiProxyRequestForTarget(
+  target: ApiProxyTargetRecord,
+  operation: ApiProxyProtocolOperation,
+  body: unknown,
+): ApiProxyTargetRequestPreparation {
   const spec = apiProxyOperationSpec(operation);
   if (!spec) {
     return {
       ok: false,
-      error: `operation ${recorded.protocol} ${recorded.endpoint} is not a proxy operation`,
+      error: `operation ${operation.protocol} ${operation.endpoint} is not a proxy operation`,
     };
   }
-  const resolved = resolveApiProxyUpstreamContext({
-    target: instanceUpstreamTarget(instance),
-    operation,
-  });
+  const resolved = resolveApiProxyUpstreamContext({ target, operation });
   if (!resolved.ok) {
     return { ok: false, error: resolved.diagnostic.message };
   }
-  const { context } = resolved;
   const forward = prepareApiProxyUpstreamRequest({
-    translate: context.translateAnthropic,
-    translationDialect: context.translationDialect,
+    context: resolved.context,
     operation,
     path: spec.upstreamPath,
-    body: recorded.body,
+    body,
     headers: new Headers(),
-    instanceId: context.instanceId,
-    endpointId: context.endpointId,
   });
-  const body = asObject(forward.body);
+  return {
+    ok: true,
+    context: resolved.context,
+    path: forward.path,
+    body: forward.body,
+  };
+}
+
+export function prepareRecordedRequestForInstance(
+  instance: Instance,
+  recorded: RecordedProxyRequest,
+): RecordedRequestPreparation {
+  const prepared = prepareApiProxyRequestForTarget(
+    instanceUpstreamTarget(instance),
+    recordedRequestOperation(recorded),
+    recorded.body,
+  );
+  if (!prepared.ok) {
+    return prepared;
+  }
+  const body = asObject(prepared.body);
   if (!body) {
     return { ok: false, error: "the prepared request body is not an object" };
   }
   return {
     ok: true,
     request: {
-      path: forward.path,
-      body: context.modelOverride
-        ? { ...body, model: context.modelOverride }
-        : { ...body },
-      omittedCacheReadIsZero: context.omittedCacheReadIsZero,
+      path: prepared.path,
+      body: { ...body },
+      omittedCacheReadIsZero: prepared.context.omittedCacheReadIsZero,
     },
   };
 }

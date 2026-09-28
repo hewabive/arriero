@@ -11,8 +11,9 @@ Source map:
 
 - `apps/api/src/proxy/loop-guard.ts` — the pure detector (no IO, unit-tested
   against real captured loops in `loop-guard-fixtures/`).
-- `apps/api/src/proxy/loop-guard-stream.ts` — SSE tap, synthetic finish tails,
-  non-stream body feeding.
+- `apps/api/src/proxy/loop-guard-stream.ts` — SSE tap, synthetic finish tails
+  (closing frames from the shape-keyed tracker in `sse-terminal.ts`, shared with
+  the in-flight Finish stream), non-stream body feeding.
 - `apps/api/src/proxy/response-plan.ts` — effect execution, artifacts, cache
   exclusion.
 - `packages/core/src/index.ts` — `ApiProxyLoopGuardConfigSchema`.

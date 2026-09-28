@@ -1,8 +1,16 @@
-import { groupGgufFiles, type HfRepoBrowse } from "@arriero/core";
+import { groupGgufFiles, hfContentOid, type HfRepoBrowse } from "@arriero/core";
 import { basename } from "node:path";
 import { hashImportFile } from "./import-content.js";
 import type { ImportSourceFile } from "./model-import-plan.js";
 import type { VerificationObserver } from "./content-hash.js";
+
+export function importPathRank(
+  remotePath: string,
+  source: Pick<ImportSourceFile, "path" | "relative">,
+): number {
+  if (remotePath === source.relative) return 0;
+  return basename(remotePath) === basename(source.path) ? 1 : 2;
+}
 
 export async function matchImportGroup(
   sources: ImportSourceFile[],
@@ -38,7 +46,7 @@ export async function matchImportGroup(
           file.lfs !== null,
           signal,
           onProgress,
-        )) !== (file.lfs?.oid ?? file.oid)
+        )) !== hfContentOid(file)
       ) {
         matched = false;
         break;
@@ -48,13 +56,7 @@ export async function matchImportGroup(
   }
   const rank = (files: HfRepoBrowse["files"]) =>
     files.reduce(
-      (sum, file, index) =>
-        sum +
-        (file.path === ordered[index]!.relative
-          ? 0
-          : basename(file.path) === basename(ordered[index]!.path)
-            ? 1
-            : 2),
+      (sum, file, index) => sum + importPathRank(file.path, ordered[index]!),
       0,
     );
   matches.sort(

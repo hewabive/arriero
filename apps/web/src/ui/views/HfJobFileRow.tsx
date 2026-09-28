@@ -4,7 +4,7 @@ import { Check, X } from "lucide-react";
 
 import { formatBytes, pathBaseName } from "../utils/models";
 
-function filePercent(file: HfDownloadFile): number {
+export function hfFilePercent(file: HfDownloadFile): number {
   if (file.size <= 0) {
     return 0;
   }
@@ -63,7 +63,7 @@ export function HfJobFileRow(props: {
       {downloading && (
         <>
           <Progress
-            value={filePercent(file)}
+            value={hfFilePercent(file)}
             size="sm"
             striped
             animated

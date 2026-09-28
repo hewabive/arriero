@@ -15,17 +15,22 @@ const statusErrorTypes: Record<number, string> = {
   529: "overloaded_error",
 };
 
+export function openAiErrorMessage(body: unknown): string | null {
+  const errorValue = asObject(body)?.error;
+  return (
+    asString(asObject(errorValue)?.message) ??
+    asString(errorValue) ??
+    asString(asObject(body)?.message) ??
+    asString(body)
+  );
+}
+
 export function translateOpenAiError(
   status: number,
   body: unknown,
 ): AnthropicErrorBody {
-  const errorValue = asObject(body)?.error;
   const message =
-    asString(asObject(errorValue)?.message) ??
-    asString(errorValue) ??
-    asString(asObject(body)?.message) ??
-    asString(body) ??
-    `Upstream responded with status ${status}.`;
+    openAiErrorMessage(body) ?? `Upstream responded with status ${status}.`;
   return {
     type: "error",
     error: {

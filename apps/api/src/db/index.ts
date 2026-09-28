@@ -305,6 +305,9 @@ export function migrate() {
   db.run(
     sql`CREATE INDEX IF NOT EXISTS workload_records_session ON workload_records (session_id, at)`,
   );
+  db.run(
+    sql`CREATE INDEX IF NOT EXISTS workload_records_duration ON workload_records (duration_ms)`,
+  );
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS workload_index_state (

@@ -13,7 +13,8 @@ export function formatDurationMs(value: number | null): string {
     : `${Math.round(value)} ms`;
 }
 
-export function formatTokens(value: number): string {
+export function formatTokens(value: number | null): string {
+  if (value === null) return "—";
   return value >= 10_000
     ? `${(value / 1000).toFixed(1)}k`
     : Math.round(value).toLocaleString();

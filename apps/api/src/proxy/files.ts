@@ -1,15 +1,18 @@
+import { isFilesApiEndpoint } from "@arriero/core";
 import type { Context, Hono } from "hono";
 
 import {
   apiEndpointAuthHeaders,
   listExternalApiEndpoints,
 } from "./endpoints.js";
-import { apiProxyForwardUrl } from "./forwarder.js";
+import {
+  apiProxyForwardUrl,
+  apiProxyPassthroughResponse,
+  apiProxyUpstreamHeaders,
+} from "./forwarder.js";
 import {
   CLIENT_ABORT_STATUS,
   describeFetchError,
-  proxyRequestHeaders,
-  proxyResponseHeaders,
   proxyUpstreamFetch,
 } from "./http.js";
 import { openAiProtocolAdapter } from "./openai.js";
@@ -29,9 +32,7 @@ async function proxyFilesEndpoint(
     return c.json(response.body, response.status);
   }
 
-  const endpoints = listExternalApiEndpoints().filter(
-    (endpoint) => endpoint.enabled && endpoint.profile === "openai",
-  );
+  const endpoints = listExternalApiEndpoints().filter(isFilesApiEndpoint);
   const endpointId =
     c.req.header(endpointHeader)?.trim() ||
     getApiProxySettings().filesEndpointId;
@@ -78,13 +79,10 @@ async function proxyFilesEndpoint(
     ":fileId",
     encodeURIComponent(fileId ?? ""),
   )}`;
-  const headers = proxyRequestHeaders(c.req.raw.headers);
-  for (const name of ["authorization", "x-api-key", endpointHeader]) {
-    headers.delete(name);
-  }
-  for (const [name, value] of Object.entries(auth.headers)) {
-    headers.set(name, value);
-  }
+  const headers = apiProxyUpstreamHeaders(c.req.raw.headers, {
+    strip: ["authorization", "x-api-key", endpointHeader],
+    upstream: auth.headers,
+  });
   const init: RequestInit & { duplex?: "half" } = {
     method: operation.method,
     headers,
@@ -97,19 +95,16 @@ async function proxyFilesEndpoint(
   }
 
   try {
-    const response = await proxyUpstreamFetch(
-      apiProxyForwardUrl(
-        endpoint.baseUrl,
-        upstreamPath,
-        new URL(c.req.url).search,
+    return apiProxyPassthroughResponse(
+      await proxyUpstreamFetch(
+        apiProxyForwardUrl(
+          endpoint.baseUrl,
+          upstreamPath,
+          new URL(c.req.url).search,
+        ),
+        init,
       ),
-      init,
     );
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: proxyResponseHeaders(response.headers),
-    });
   } catch (error) {
     if (c.req.raw.signal.aborted) {
       return new Response(null, { status: CLIENT_ABORT_STATUS });

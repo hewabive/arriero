@@ -280,7 +280,6 @@ export function SafetensorsModelsSection(props: {
                     >
                       {isOpen ? "Hide details" : "Details"}
                     </Button>
-                    <ModelImportControl model={model} />
                     <Button
                       size="xs"
                       variant="light"

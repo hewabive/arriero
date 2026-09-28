@@ -2,11 +2,11 @@ import { Hono } from "hono";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import type {
-  WorkloadProfile,
-  WorkloadRankedWindow,
-  WorkloadSessionDetail,
-  WorkloadSessionSummary,
+import {
+  rankWorkloadWindows,
+  type WorkloadProfile,
+  type WorkloadSessionDetail,
+  type WorkloadSessionSummary,
 } from "@arriero/core";
 
 import { WORKLOAD_NORMALIZATION_VERSION } from "../workload/record-analysis.js";
@@ -132,15 +132,16 @@ test("profiles a range and rejects an invalid one", async () => {
   assert.equal(tooMany.status, 400);
 });
 
-test("ranks only error-free windows", async () => {
+test("ranks only error-free windows of a profile", async () => {
   const from = new Date(BASE).toISOString();
   const to = new Date(BASE + 60 * MINUTE).toISOString();
-  const ranked = await data<WorkloadRankedWindow[]>(
-    `/api/workload/windows?from=${from}&to=${to}&windowMinutes=30&stepMinutes=30&rank=peak`,
+  const profile = await data<WorkloadProfile>(
+    `/api/workload/profile?from=${from}&to=${to}&windowMinutes=30&stepMinutes=30`,
   );
-  assert.equal(ranked.status, 200);
   assert.deepEqual(
-    ranked.data.map((window) => window.startAt),
+    rankWorkloadWindows(profile.data.windows, "peak", 10).map(
+      (window) => window.startAt,
+    ),
     [from],
   );
 });

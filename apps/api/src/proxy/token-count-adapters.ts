@@ -1,21 +1,55 @@
 import type { EngineTokenCountId } from "@arriero/core";
 
+import { apiProxyForwardUrl } from "./forwarder.js";
 import { asObject } from "./json.js";
+import { stripV1BaseUrl } from "./targets.js";
 
 export type ApiProxyTokenMeasurement =
   | { tokens: number }
   | { minimumTokens: number };
 
+type TokenCountReadinessCheck = {
+  baseUrl: string;
+  model: unknown;
+  headers: Record<string, string>;
+  signal: AbortSignal;
+  fetchImpl: (url: string, init: RequestInit) => Promise<Response>;
+};
+
 type TokenCountAdapter = {
   name: string;
   path: string;
-  llamaReadiness: boolean;
+  countQuery: string;
+  readiness?: (check: TokenCountReadinessCheck) => Promise<string | null>;
   supportsRequest: (body: unknown) => boolean;
   prepareBody: (body: Record<string, unknown>) => Record<string, unknown>;
   read: (body: unknown, status: number) => ApiProxyTokenMeasurement | null;
   responseField: string;
   errorStatus: number | null;
 };
+
+async function llamaReadiness(
+  check: TokenCountReadinessCheck,
+): Promise<string | null> {
+  const query = new URLSearchParams({ autoload: "false" });
+  if (typeof check.model === "string") query.set("model", check.model);
+  const response = await check.fetchImpl(
+    apiProxyForwardUrl(
+      stripV1BaseUrl(check.baseUrl),
+      "/props",
+      query.toString(),
+    ),
+    { headers: check.headers, signal: check.signal, redirect: "error" },
+  );
+  if (!response.ok) {
+    await response.body?.cancel();
+    return `readiness check returned HTTP ${response.status}`;
+  }
+  const props = asObject(await response.json());
+  return props?.is_sleeping !== false
+    ? "model is sleeping or readiness is unknown"
+    : null;
+}
 
 function supportsChatRequest(body: unknown, supportsImages = false): boolean {
   const messages = asObject(body)?.messages;
@@ -45,6 +79,18 @@ function supportsChatRequest(body: unknown, supportsImages = false): boolean {
 
 function isTokenNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function countFieldReader(
+  field: string,
+): Pick<TokenCountAdapter, "responseField" | "read"> {
+  return {
+    responseField: field,
+    read: (body, status) => {
+      const tokens = asObject(body)?.[field];
+      return status === 200 && isTokenNumber(tokens) ? { tokens } : null;
+    },
+  };
 }
 
 function nonStreamingBody(body: Record<string, unknown>) {
@@ -92,33 +138,26 @@ export const tokenCountAdapters: Record<
   llama: {
     name: "llama.cpp",
     path: "/v1/chat/completions/input_tokens",
-    llamaReadiness: true,
+    countQuery: "autoload=false",
+    readiness: llamaReadiness,
     supportsRequest: (body) => supportsChatRequest(body, true),
     prepareBody: (body) => body,
-    responseField: "input_tokens",
+    ...countFieldReader("input_tokens"),
     errorStatus: null,
-    read: (body, status) => {
-      const tokens = asObject(body)?.input_tokens;
-      return status === 200 && isTokenNumber(tokens) ? { tokens } : null;
-    },
   },
   sglang: {
     name: "SGLang",
     path: "/v1/tokenize",
-    llamaReadiness: false,
+    countQuery: "",
     supportsRequest: supportsChatRequest,
     prepareBody: nonStreamingBody,
-    responseField: "count",
+    ...countFieldReader("count"),
     errorStatus: null,
-    read: (body, status) => {
-      const tokens = asObject(body)?.count;
-      return status === 200 && isTokenNumber(tokens) ? { tokens } : null;
-    },
   },
   vllm: {
     name: "vLLM",
     path: "/v1/chat/completions/render",
-    llamaReadiness: false,
+    countQuery: "",
     supportsRequest: supportsChatRequest,
     prepareBody: nonStreamingBody,
     responseField: "token_ids",

@@ -2,6 +2,7 @@ import {
   WEBAPP_KINDS,
   WEBAPP_NAME_PATTERN,
   webappDescriptor,
+  webappKindForEngine,
   type EnvironmentRecord,
   type Webapp,
   type WebappCreate,
@@ -80,11 +81,8 @@ export function WebappCreateModal({
     (environment) => environment.id === initialEnvironmentId,
   );
   const initialKind =
-    WEBAPP_KINDS.find(
-      (target) =>
-        webappDescriptor(target).environmentEngine ===
-        initialEnvironment?.engine,
-    ) ?? "open-webui";
+    (initialEnvironment && webappKindForEngine(initialEnvironment.engine)) ??
+    "open-webui";
   const [kind, setKind] = useState<WebappKind>(initialKind);
   const descriptor = webappDescriptor(kind);
   const kindEnvironments = environmentsFor(kind);

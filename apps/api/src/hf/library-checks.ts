@@ -1,11 +1,13 @@
 import {
   ModelLibrarySnapshotSchema,
+  sameHfContent,
   type ModelLibraryEntry,
   type ModelLibraryCheck,
   type ModelLibrarySnapshot,
 } from "@arriero/core";
-import { browseHfRepo } from "./browse.js";
+import { browseHfRepoFiles } from "./browse.js";
 import type { HfClientOptions } from "./client.js";
+import { hfManifestFileFromTree } from "./manifest.js";
 import { HfDownloadRequestError } from "./paths.js";
 import { logger } from "../logger.js";
 
@@ -13,9 +15,20 @@ const checks = new Map<
   string,
   { identity: string; check: ModelLibraryCheck }
 >();
+const entryIdentities = new WeakMap<ModelLibraryEntry, string>();
+
+function entryIdentity(entry: ModelLibraryEntry): string {
+  let identity = entryIdentities.get(entry);
+  if (identity === undefined) {
+    identity = JSON.stringify(entry);
+    entryIdentities.set(entry, identity);
+  }
+  return identity;
+}
+
 export function getLibraryCheck(entry: ModelLibraryEntry): ModelLibraryCheck {
   const cached = checks.get(entry.id);
-  return cached?.identity === JSON.stringify(entry)
+  return cached?.identity === entryIdentity(entry)
     ? cached.check
     : {
         status: "unchecked",
@@ -30,7 +43,7 @@ export async function fetchLibrarySnapshot(
   revision: string,
   options?: HfClientOptions,
 ): Promise<ModelLibrarySnapshot> {
-  const repo = await browseHfRepo(
+  const repo = await browseHfRepoFiles(
     { repoId, revision },
     { ...options, signal: options?.signal ?? AbortSignal.timeout(60000) },
   );
@@ -41,15 +54,25 @@ export async function fetchLibrarySnapshot(
   return ModelLibrarySnapshotSchema.parse({
     revision: repo.commitSha,
     files: repo.files
-      .map((file) => ({
-        path: file.path,
-        size: file.size,
-        oid: file.oid,
-        lfsOid: file.lfs?.oid ?? null,
-      }))
+      .map((file) => hfManifestFileFromTree(file))
       .sort((a, b) => a.path.localeCompare(b.path)),
   });
 }
+
+export function pinnedSnapshot(
+  entry: ModelLibraryEntry,
+  options?: HfClientOptions,
+): Promise<ModelLibrarySnapshot> {
+  return fetchLibrarySnapshot(entry.repoId, entry.revision, options);
+}
+
+export async function baselineSnapshot(
+  entry: ModelLibraryEntry,
+  options?: HfClientOptions,
+): Promise<ModelLibrarySnapshot> {
+  return entry.snapshot ?? pinnedSnapshot(entry, options);
+}
+
 function compareLibrarySnapshots(
   baseline: ModelLibrarySnapshot,
   snapshot: ModelLibrarySnapshot,
@@ -60,10 +83,7 @@ function compareLibrarySnapshots(
   for (const file of snapshot.files) {
     const old = before.get(file.path);
     if (!old) changes.push({ path: file.path, kind: "added" });
-    else if (
-      old.size !== file.size ||
-      (old.lfsOid ?? old.oid) !== (file.lfsOid ?? file.oid)
-    )
+    else if (!sameHfContent(old, file))
       changes.push({ path: file.path, kind: "updated" });
   }
   for (const file of baseline.files)
@@ -87,7 +107,7 @@ export function retainLibraryCheck(
   )
     return;
   checks.set(next.id, {
-    identity: JSON.stringify(next),
+    identity: entryIdentity(next),
     check: {
       ...check,
       ...(next.snapshot
@@ -103,9 +123,7 @@ export async function checkLibraryEntry(
 ): Promise<ModelLibraryCheck> {
   let check: ModelLibraryCheck;
   try {
-    const baseline =
-      entry.snapshot ??
-      (await fetchLibrarySnapshot(entry.repoId, entry.revision, options));
+    const baseline = await baselineSnapshot(entry, options);
     const snapshot = await fetchLibrarySnapshot(
       entry.repoId,
       entry.watchRevision,
@@ -131,6 +149,6 @@ export async function checkLibraryEntry(
     };
   }
   if (checks.size >= 200) checks.delete(checks.keys().next().value!);
-  checks.set(entry.id, { identity: JSON.stringify(entry), check });
+  checks.set(entry.id, { identity: entryIdentity(entry), check });
   return check;
 }

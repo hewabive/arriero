@@ -30,6 +30,7 @@ export type AnthropicSsePushResult = {
 
 export type AnthropicSseEmitter = {
   push: (data: string) => AnthropicSsePushResult;
+  pushValue: (value: unknown) => AnthropicSsePushResult;
   finish: () => AnthropicStreamEvent[];
 };
 
@@ -93,6 +94,9 @@ export function createAnthropicSseEmitter(
   };
 
   const flushTools = (events: AnthropicStreamEvent[]) => {
+    if (bufferedTools.size === 0) {
+      return;
+    }
     for (const [toolIndex, tool] of [...bufferedTools].sort(
       ([left], [right]) => left - right,
     )) {
@@ -179,21 +183,12 @@ export function createAnthropicSseEmitter(
     return events;
   };
 
-  const push = (data: string): AnthropicSsePushResult => {
+  const pushValue = (value: unknown): AnthropicSsePushResult => {
     const extensions: AnthropicSseExtensions = {};
     if (finished) {
       return { events: [], extensions };
     }
-    if (data === "[DONE]") {
-      return { events: finalize(), extensions };
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(data);
-    } catch {
-      return { events: [], extensions };
-    }
-    const chunk = asObject(parsed);
+    const chunk = asObject(value);
     if (!chunk) {
       return { events: [], extensions };
     }
@@ -303,5 +298,21 @@ export function createAnthropicSseEmitter(
     return { events, extensions };
   };
 
-  return { push, finish: finalize };
+  const push = (data: string): AnthropicSsePushResult => {
+    if (finished) {
+      return { events: [], extensions: {} };
+    }
+    if (data === "[DONE]") {
+      return { events: finalize(), extensions: {} };
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(data);
+    } catch {
+      return { events: [], extensions: {} };
+    }
+    return pushValue(parsed);
+  };
+
+  return { push, pushValue, finish: finalize };
 }

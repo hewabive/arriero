@@ -1,4 +1,5 @@
 import {
+  GGUF_ARTIFACT_KIND_LABEL,
   hfManifestOidMatches,
   type HfDownloadedRepoFile,
   type HfGgufVariant,
@@ -16,18 +17,10 @@ export function hfVariantTitle(variant: HfGgufVariant): string {
 
 export function hfVariantChipLabel(variant: HfGgufVariant): string {
   const title = hfVariantTitle(variant);
-  if (!variant.label) {
+  if (!variant.label || variant.kind === "model" || variant.kind === "other") {
     return title;
   }
-  const prefix: Partial<Record<HfGgufVariant["kind"], string>> = {
-    mmproj: "mmproj",
-    "draft-mtp": "MTP",
-    "draft-eagle3": "EAGLE3",
-    "draft-dflash": "DFlash",
-    "draft-dspark": "DSpark",
-    imatrix: "imatrix",
-  };
-  return prefix[variant.kind] ? `${prefix[variant.kind]} ${title}` : title;
+  return `${GGUF_ARTIFACT_KIND_LABEL[variant.kind]} ${title}`;
 }
 
 export type HfLocalFileState = "current" | "changed" | "absent";

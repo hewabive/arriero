@@ -1,5 +1,6 @@
 import {
   WorkloadRecordSchema,
+  WorkloadReplayableOutcomeSchema,
   type WorkloadIndexStatus,
   type WorkloadRecord,
   type WorkloadSessionSummary,
@@ -28,13 +29,14 @@ import {
   workloadIndexState,
   workloadRecords,
 } from "../db/schema.js";
+import { WORKLOAD_REPLAYABLE_ENDPOINTS } from "./record-analysis.js";
 
 export type WorkloadRecordRow = typeof workloadRecords.$inferInsert;
 
-const WORKLOAD_SESSION_ENDPOINTS = ["chat.completions", "messages"];
-
 const STATE_ROW_ID = 1;
 const LOOKUP_CHUNK = 400;
+const EARLIEST_FOUR_DIGIT_YEAR_MS = Date.parse("0000-01-01T00:00:00.000Z");
+const FOUR_DIGIT_YEAR_ISO_LENGTH = "0000-01-01T00:00:00.000Z".length;
 
 export type WorkloadIndexState = {
   normalizationVersion: number | null;
@@ -70,22 +72,6 @@ export function clearWorkloadRecords(): void {
   db.delete(workloadRecords).run();
 }
 
-export function indexedWorkloadTraceIds(traceIds: string[]): Set<string> {
-  const found = new Set<string>();
-  for (let offset = 0; offset < traceIds.length; offset += LOOKUP_CHUNK) {
-    const chunk = traceIds.slice(offset, offset + LOOKUP_CHUNK);
-    const rows = db
-      .select({ traceId: workloadRecords.traceId })
-      .from(workloadRecords)
-      .where(inArray(workloadRecords.traceId, chunk))
-      .all();
-    for (const row of rows) {
-      found.add(row.traceId);
-    }
-  }
-  return found;
-}
-
 export function insertWorkloadRecord(row: WorkloadRecordRow): void {
   db.insert(workloadRecords).values(row).onConflictDoNothing().run();
 }
@@ -111,10 +97,12 @@ export function findWorkloadParent(input: {
   chain: string[];
   before: string;
 }): WorkloadParentCandidate | null {
-  let best: WorkloadParentCandidate | null = null;
-  let bestAt = "";
-  for (let offset = 0; offset < input.chain.length; offset += LOOKUP_CHUNK) {
-    const chunk = input.chain.slice(offset, offset + LOOKUP_CHUNK);
+  for (
+    let end = input.chain.length;
+    end > 0;
+    end = Math.max(0, end - LOOKUP_CHUNK)
+  ) {
+    const chunk = input.chain.slice(Math.max(0, end - LOOKUP_CHUNK), end);
     const row = db
       .select({
         traceId: workloadRecords.traceId,
@@ -123,7 +111,6 @@ export function findWorkloadParent(input: {
         targetId: workloadRecords.targetId,
         promptTokens: workloadRecords.promptTokens,
         clientSessionId: workloadRecords.clientSessionId,
-        at: workloadRecords.at,
       })
       .from(workloadRecords)
       .where(
@@ -141,35 +128,19 @@ export function findWorkloadParent(input: {
       )
       .limit(1)
       .get();
-    if (!row || row.messageCount === null) {
-      continue;
-    }
-    const better =
-      best === null ||
-      row.messageCount > best.messageCount ||
-      (row.messageCount === best.messageCount &&
-        (row.at > bestAt || (row.at === bestAt && row.traceId > best.traceId)));
-    if (better) {
-      best = {
-        traceId: row.traceId,
-        sessionId: row.sessionId,
-        messageCount: row.messageCount,
-        targetId: row.targetId,
-        promptTokens: row.promptTokens,
-        clientSessionId: row.clientSessionId,
-      };
-      bestAt = row.at;
+    if (row && row.messageCount !== null) {
+      return { ...row, messageCount: row.messageCount };
     }
   }
-  return best;
+  return null;
 }
 
 export function latestWorkloadSessionRecordBefore(
   sessionId: string,
   at: string,
-): { at: string; durationMs: number } | null {
+): { endAt: string } | null {
   const row = db
-    .select({ at: workloadRecords.at, durationMs: workloadRecords.durationMs })
+    .select({ endAt: workloadRecords.endAt })
     .from(workloadRecords)
     .where(
       and(eq(workloadRecords.sessionId, sessionId), lt(workloadRecords.at, at)),
@@ -200,34 +171,7 @@ export function pruneWorkloadRecords(cutoff: string): number {
 function toWorkloadRecord(
   row: typeof workloadRecords.$inferSelect,
 ): WorkloadRecord | null {
-  const parsed = WorkloadRecordSchema.safeParse({
-    traceId: row.traceId,
-    at: row.at,
-    endAt: row.endAt,
-    durationMs: row.durationMs,
-    sourceId: row.sourceId,
-    sourceName: row.sourceName,
-    modelId: row.modelId,
-    targetId: row.targetId,
-    targetName: row.targetName,
-    protocol: row.protocol,
-    endpoint: row.endpoint,
-    outcome: row.outcome,
-    issue: row.issue,
-    capturePath: row.capturePath,
-    messageCount: row.messageCount,
-    sessionId: row.sessionId,
-    parentTraceId: row.parentTraceId,
-    sharedMessages: row.sharedMessages,
-    clientSessionId: row.clientSessionId,
-    promptTokens: row.promptTokens,
-    cacheReadTokens: row.cacheReadTokens,
-    completionTokens: row.completionTokens,
-    ttftMs: row.ttftMs,
-    thinkTimeMs: row.thinkTimeMs,
-    cacheLossTokens: row.cacheLossTokens,
-    responseReuseTokens: row.responseReuseTokens,
-  });
+  const parsed = WorkloadRecordSchema.safeParse(row);
   return parsed.success ? parsed.data : null;
 }
 
@@ -252,12 +196,47 @@ export type WorkloadScope = {
   targetId?: string | undefined;
 };
 
+function longestWorkloadDurationMs(): number | null {
+  const row = db
+    .select({ longest: max(workloadRecords.durationMs) })
+    .from(workloadRecords)
+    .get();
+  return row?.longest ?? null;
+}
+
+function isFourDigitYearIsoTimestamp(value: string): boolean {
+  const ms = Date.parse(value);
+  return (
+    Number.isFinite(ms) &&
+    value.length === FOUR_DIGIT_YEAR_ISO_LENGTH &&
+    new Date(ms).toISOString() === value
+  );
+}
+
+function earliestStartEndingFrom(from: string): string | null {
+  if (!isFourDigitYearIsoTimestamp(from)) {
+    return null;
+  }
+  const longest = longestWorkloadDurationMs();
+  const earliestMs = longest === null ? null : Date.parse(from) - longest;
+  return earliestMs !== null && earliestMs >= EARLIEST_FOUR_DIGIT_YEAR_MS
+    ? new Date(earliestMs).toISOString()
+    : null;
+}
+
 function scopeConditions(scope: WorkloadScope): SQL[] {
   const conditions: SQL[] = [
-    inArray(workloadRecords.endpoint, WORKLOAD_SESSION_ENDPOINTS),
+    inArray(
+      workloadRecords.endpoint,
+      Object.values(WORKLOAD_REPLAYABLE_ENDPOINTS),
+    ),
   ];
   if (scope.from !== undefined) {
     conditions.push(gte(workloadRecords.endAt, scope.from));
+    const earliestStart = earliestStartEndingFrom(scope.from);
+    if (earliestStart !== null) {
+      conditions.push(gte(workloadRecords.at, earliestStart));
+    }
   }
   if (scope.to !== undefined) {
     conditions.push(lte(workloadRecords.at, scope.to));
@@ -327,7 +306,7 @@ export function listWorkloadSessions(
       startedAt,
       endedAt: max(workloadRecords.endAt),
       records: count(),
-      replayable: sql<number>`SUM(CASE WHEN ${workloadRecords.issue} IS NULL AND ${workloadRecords.outcome} IN ('success', 'client-abort') THEN 1 ELSE 0 END)`,
+      replayable: sql<number>`SUM(CASE WHEN ${workloadRecords.issue} IS NULL AND ${inArray(workloadRecords.outcome, WorkloadReplayableOutcomeSchema.options)} THEN 1 ELSE 0 END)`,
       errors: sql<number>`SUM(CASE WHEN ${workloadRecords.outcome} = 'error' THEN 1 ELSE 0 END)`,
       notServed: sql<number>`SUM(CASE WHEN ${workloadRecords.outcome} = 'not-served' THEN 1 ELSE 0 END)`,
       clientAborts: sql<number>`SUM(CASE WHEN ${workloadRecords.outcome} = 'client-abort' THEN 1 ELSE 0 END)`,

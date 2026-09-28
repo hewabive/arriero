@@ -14,6 +14,22 @@ type ProcessIdentity = {
   state: string;
 };
 
+function isLive(entry: ProcessIdentity): boolean {
+  return entry.state !== "Z" && entry.state !== "X";
+}
+
+function groupExists(group: number): boolean {
+  try {
+    process.kill(-group, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ESRCH") return false;
+    if (code === "EPERM") return true;
+    throw error;
+  }
+}
+
 async function readProcess(pid: number): Promise<ProcessIdentity | null> {
   try {
     const stat = await readFile(`/proc/${pid}/stat`, "utf8");
@@ -52,15 +68,16 @@ export class InstallProcessTree {
           .map((entry) => readProcess(Number(entry))),
       )
     ).filter((entry): entry is ProcessIdentity => entry !== null);
+    const knownStarts =
+      this.known === null
+        ? null
+        : new Map(this.known.map((known) => [known.pid, known.started]));
     const selected = new Set(
       table
         .filter((entry) =>
-          this.known === null
+          knownStarts === null
             ? entry.pid === this.pid || entry.group === this.pid
-            : this.known.some(
-                (known) =>
-                  known.pid === entry.pid && known.started === entry.started,
-              ),
+            : knownStarts.get(entry.pid) === entry.started,
         )
         .map((entry) => entry.pid),
     );
@@ -82,9 +99,36 @@ export class InstallProcessTree {
       }
     }
     this.known = table.filter((entry) => selected.has(entry.pid));
-    return this.known.filter(
-      (entry) => entry.state !== "Z" && entry.state !== "X",
+    return this.known.filter(isLive);
+  }
+
+  private async anyAlive(processes: ProcessIdentity[]): Promise<boolean> {
+    const current = await Promise.all(
+      processes.map((entry) => readProcess(entry.pid)),
     );
+    if (
+      current.some(
+        (entry, index) =>
+          entry !== null &&
+          entry.started === processes[index]?.started &&
+          isLive(entry),
+      )
+    )
+      return true;
+    return [...new Set(processes.map((entry) => entry.group))].some(
+      groupExists,
+    );
+  }
+
+  private async waitForExit(
+    processes: ProcessIdentity[],
+    ms: number,
+  ): Promise<ProcessIdentity[]> {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline && (await this.anyAlive(processes))) {
+      await setTimeout(50);
+    }
+    return this.remaining();
   }
 
   private async signal(
@@ -115,24 +159,12 @@ export class InstallProcessTree {
   }
 
   async terminate(): Promise<void> {
-    let remaining = await this.remaining();
-    await this.signal(remaining, "SIGTERM");
-    const deadline = Date.now() + 3000;
-    while (
-      (remaining = await this.remaining()).length > 0 &&
-      Date.now() < deadline
-    ) {
-      await setTimeout(50);
-    }
-    if (remaining.length === 0) return;
-    await this.signal(remaining, "SIGKILL");
-    const killDeadline = Date.now() + 1000;
-    while (
-      (remaining = await this.remaining()).length > 0 &&
-      Date.now() < killDeadline
-    ) {
-      await setTimeout(50);
-    }
+    const running = await this.remaining();
+    await this.signal(running, "SIGTERM");
+    const surviving = await this.waitForExit(running, 3000);
+    if (surviving.length === 0) return;
+    await this.signal(surviving, "SIGKILL");
+    const remaining = await this.waitForExit(surviving, 1000);
     if (remaining.length > 0)
       throw new Error(
         `Installation processes are still alive: ${remaining.map((entry) => entry.pid).join(", ")}`,

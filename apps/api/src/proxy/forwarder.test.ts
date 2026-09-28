@@ -99,9 +99,8 @@ test("forwardApiProxyRequest forwards JSON request and response", async () => {
         "content-length": "999",
         host: "example.test",
       }),
-      body: { model: "qwen", messages: [] },
+      body: { model: "upstream-qwen", messages: [] },
       upstreamHeaders: { authorization: "Bearer upstream-secret" },
-      modelOverride: "upstream-qwen",
     });
 
     assert.equal(response.status, 200);

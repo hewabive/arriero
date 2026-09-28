@@ -9,7 +9,6 @@ import {
   CloseButton,
   Group,
   Paper,
-  Select,
   Stack,
   Table,
   Text,
@@ -19,24 +18,20 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Snowflake } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import {
-  getApiProxyTraceFacets,
-  getWorkloadLinking,
-  listWorkloadSessions,
-} from "../../api/client";
+import { getWorkloadLinking, listWorkloadSessions } from "../../api/client";
 import { countLabel } from "../utils/plural";
 import { FreezeDatasetModal } from "./FreezeDatasetModal";
-import { formatLocalClock, formatLocalDateTime } from "../utils/time";
+import { formatLocalDateTime } from "../utils/time";
 import {
   formatDurationMs,
   formatPercent,
   formatTokens,
 } from "../views/benchmark-format";
+import { WorkloadScopeFilters } from "./WorkloadScopeFilters";
 import {
-  WORKLOAD_PERIOD_OPTIONS,
-  facetSelectData,
-  isWorkloadPeriod,
+  formatWorkloadRange,
   workloadPeriodRange,
+  workloadScopeQuery,
   type WorkloadScopeState,
 } from "./workload-scope";
 
@@ -117,18 +112,8 @@ export function WorkloadSessionsPanel(props: {
   const [anchor] = useState(() => Date.now());
   const [freezing, setFreezing] = useState<WorkloadTimeRange | null>(null);
   const population = workloadPeriodRange(props.scope.period, anchor);
-  const range =
-    props.windowRange ?? workloadPeriodRange(props.scope.period, anchor);
-  const scopeQuery = {
-    from: range.from,
-    to: range.to,
-    ...(props.scope.sourceId ? { sourceId: props.scope.sourceId } : {}),
-    ...(props.scope.modelId ? { modelId: props.scope.modelId } : {}),
-  };
-  const facetsQuery = useQuery({
-    queryKey: ["api-proxy-trace-facets"],
-    queryFn: getApiProxyTraceFacets,
-  });
+  const range = props.windowRange ?? population;
+  const scopeQuery = workloadScopeQuery(props.scope, range);
   const linkingQuery = useQuery({
     queryKey: ["workload-linking", range],
     queryFn: () => getWorkloadLinking(range),
@@ -155,82 +140,48 @@ export function WorkloadSessionsPanel(props: {
     () => sessionsQuery.data?.pages.flatMap((page) => page.data) ?? [],
     [sessionsQuery.data],
   );
-  const facets = facetsQuery.data?.data;
+  const windowRange = props.windowRange;
 
   return (
     <Stack gap="md">
-      <Group gap="xs" align="flex-end" wrap="wrap">
-        {props.windowRange ? (
-          <Stack gap={2}>
-            <Text size="xs" fw={500}>
-              Window
-            </Text>
-            <Badge
-              size="lg"
+      <WorkloadScopeFilters
+        scope={props.scope}
+        onScopeChange={props.onScopeChange}
+        periodOverride={
+          windowRange ? (
+            <Stack gap={2}>
+              <Text size="xs" fw={500}>
+                Window
+              </Text>
+              <Badge
+                size="lg"
+                variant="light"
+                rightSection={
+                  <CloseButton
+                    size="xs"
+                    aria-label="Show the whole period"
+                    onClick={props.onClearWindow}
+                  />
+                }
+              >
+                {formatWorkloadRange(windowRange.from, windowRange.to)}
+              </Badge>
+            </Stack>
+          ) : null
+        }
+        afterPeriod={
+          windowRange && (
+            <Button
+              size="xs"
               variant="light"
-              rightSection={
-                <CloseButton
-                  size="xs"
-                  aria-label="Show the whole period"
-                  onClick={props.onClearWindow}
-                />
-              }
+              leftSection={<Snowflake size={14} />}
+              onClick={() => setFreezing(windowRange)}
             >
-              {formatLocalDateTime(props.windowRange.from)} –{" "}
-              {formatLocalClock(Date.parse(props.windowRange.to))}
-            </Badge>
-          </Stack>
-        ) : (
-          <Select
-            size="xs"
-            w={160}
-            label="Period"
-            value={props.scope.period}
-            data={WORKLOAD_PERIOD_OPTIONS}
-            allowDeselect={false}
-            onChange={(value) => {
-              if (value && isWorkloadPeriod(value)) {
-                props.onScopeChange({ ...props.scope, period: value });
-              }
-            }}
-          />
-        )}
-        {props.windowRange && (
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<Snowflake size={14} />}
-            onClick={() => setFreezing(props.windowRange)}
-          >
-            Freeze window
-          </Button>
-        )}
-        <Select
-          size="xs"
-          w={180}
-          label="Source"
-          placeholder="All"
-          clearable
-          value={props.scope.sourceId}
-          data={facetSelectData(facets?.sources)}
-          onChange={(value) =>
-            props.onScopeChange({ ...props.scope, sourceId: value })
-          }
-        />
-        <Select
-          size="xs"
-          w={200}
-          label="Model"
-          placeholder="All"
-          clearable
-          searchable
-          value={props.scope.modelId}
-          data={facetSelectData(facets?.models)}
-          onChange={(value) =>
-            props.onScopeChange({ ...props.scope, modelId: value })
-          }
-        />
-      </Group>
+              Freeze window
+            </Button>
+          )
+        }
+      />
 
       <FreezeDatasetModal
         window={freezing}
@@ -305,11 +256,7 @@ export function WorkloadSessionsPanel(props: {
                       )}
                     </Table.Td>
                     <Table.Td>{session.clientAborts}</Table.Td>
-                    <Table.Td>
-                      {session.maxPromptTokens === null
-                        ? "—"
-                        : formatTokens(session.maxPromptTokens)}
-                    </Table.Td>
+                    <Table.Td>{formatTokens(session.maxPromptTokens)}</Table.Td>
                     <Table.Td>
                       {formatDurationMs(sessionDurationMs(session))}
                     </Table.Td>

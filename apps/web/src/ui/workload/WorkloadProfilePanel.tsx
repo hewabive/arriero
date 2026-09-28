@@ -1,9 +1,10 @@
-import type {
-  WorkloadProfile,
-  WorkloadProfileWindow,
-  WorkloadRankedWindow,
-  WorkloadTimeRange,
-  WorkloadWindowRank,
+import {
+  rankWorkloadWindows,
+  type WorkloadProfile,
+  type WorkloadProfileWindow,
+  type WorkloadRankedWindow,
+  type WorkloadTimeRange,
+  type WorkloadWindowRank,
 } from "@arriero/core";
 import {
   Button,
@@ -21,65 +22,44 @@ import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import {
-  getApiProxyTraceFacets,
-  getWorkloadProfile,
-  listWorkloadWindows,
-} from "../../api/client";
+import { getWorkloadProfile } from "../../api/client";
 import { MetricChart, MetricHoverProvider } from "../components/MetricChart";
-import { formatLocalClock, formatLocalDateTime } from "../utils/time";
 import { formatPercent, formatTokens } from "../views/benchmark-format";
+import { WorkloadScopeFilters } from "./WorkloadScopeFilters";
+import { WorkloadStat } from "./WorkloadStat";
 import {
-  WORKLOAD_PERIOD_OPTIONS,
   WORKLOAD_WINDOW_OPTIONS,
-  facetSelectData,
-  isWorkloadPeriod,
+  formatWorkloadRange,
   workloadPeriodRange,
+  workloadScopeQuery,
   workloadStepMinutes,
   type WorkloadScopeState,
 } from "./workload-scope";
 
-function optionalTokens(value: number | null): string {
-  return value === null ? "—" : formatTokens(value);
-}
-
-function formatWindowSpan(window: WorkloadProfileWindow): string {
-  return `${formatLocalDateTime(window.startAt)} – ${formatLocalClock(Date.parse(window.endAt))}`;
-}
-
-function PeriodStat(props: { label: string; value: string }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {props.label}
-      </Text>
-      <Text fw={600}>{props.value}</Text>
-    </Stack>
-  );
-}
+const RANKED_WINDOW_LIMIT = 10;
 
 function PeriodSummary(props: { period: WorkloadProfileWindow }) {
   const period = props.period;
   return (
     <SimpleGrid cols={{ base: 2, sm: 4, lg: 7 }} spacing="md">
-      <PeriodStat label="Requests" value={String(period.requests)} />
-      <PeriodStat label="Errors" value={String(period.errors)} />
-      <PeriodStat label="Sessions" value={String(period.activeSessions)} />
-      <PeriodStat
+      <WorkloadStat label="Requests" value={String(period.requests)} />
+      <WorkloadStat label="Errors" value={String(period.errors)} />
+      <WorkloadStat label="Sessions" value={String(period.activeSessions)} />
+      <WorkloadStat
         label="Served from cache"
         value={formatPercent(period.cachedShare)}
       />
-      <PeriodStat
+      <WorkloadStat
         label="Fresh prefill"
-        value={optionalTokens(period.freshPrefillTokens)}
+        value={formatTokens(period.freshPrefillTokens)}
       />
-      <PeriodStat
+      <WorkloadStat
         label="Lost cache"
-        value={optionalTokens(period.cacheLossTokens)}
+        value={formatTokens(period.cacheLossTokens)}
       />
-      <PeriodStat
+      <WorkloadStat
         label="Reused answers"
-        value={optionalTokens(period.responseReuseTokens)}
+        value={formatTokens(period.responseReuseTokens)}
       />
     </SimpleGrid>
   );
@@ -151,7 +131,7 @@ function ProfileCharts(props: { profile: WorkloadProfile }) {
         />
         <MetricChart
           title="Prompt tokens"
-          headline={optionalTokens(period.freshPrefillTokens)}
+          headline={formatTokens(period.freshPrefillTokens)}
           axis={axis}
           domain={{ kind: "auto", minimumMax: 1 }}
           formatValue={formatTokens}
@@ -195,12 +175,14 @@ function RankedWindows(props: {
         <Table.Tbody>
           {props.windows.map((window) => (
             <Table.Tr key={window.startAt}>
-              <Table.Td>{formatWindowSpan(window)}</Table.Td>
+              <Table.Td>
+                {formatWorkloadRange(window.startAt, window.endAt)}
+              </Table.Td>
               <Table.Td>{window.requests}</Table.Td>
               <Table.Td>{window.activeSessions}</Table.Td>
               <Table.Td>{window.meanInFlight.toFixed(2)}</Table.Td>
-              <Table.Td>{optionalTokens(window.promptTokensP50)}</Table.Td>
-              <Table.Td>{optionalTokens(window.freshPrefillTokens)}</Table.Td>
+              <Table.Td>{formatTokens(window.promptTokensP50)}</Table.Td>
+              <Table.Td>{formatTokens(window.freshPrefillTokens)}</Table.Td>
               <Table.Td>{formatPercent(window.cachedShare)}</Table.Td>
               <Table.Td>{window.score.toFixed(2)}</Table.Td>
               <Table.Td>
@@ -235,79 +217,41 @@ export function WorkloadProfilePanel(props: {
   const [anchor, setAnchor] = useState(() => Date.now());
   const range = workloadPeriodRange(props.scope.period, anchor);
   const stepMinutes = workloadStepMinutes(props.scope.period, windowMinutes);
-  const scopeQuery = {
-    from: range.from,
-    to: range.to,
+  const profileScope = {
+    ...workloadScopeQuery(props.scope, range),
     windowMinutes,
     stepMinutes,
-    ...(props.scope.sourceId ? { sourceId: props.scope.sourceId } : {}),
-    ...(props.scope.modelId ? { modelId: props.scope.modelId } : {}),
   };
-  const facetsQuery = useQuery({
-    queryKey: ["api-proxy-trace-facets"],
-    queryFn: getApiProxyTraceFacets,
-  });
   const profileQuery = useQuery({
-    queryKey: ["workload-profile", scopeQuery],
-    queryFn: () => getWorkloadProfile(scopeQuery),
-  });
-  const windowsQuery = useQuery({
-    queryKey: ["workload-windows", scopeQuery, rank],
-    queryFn: () => listWorkloadWindows({ ...scopeQuery, rank, limit: 10 }),
+    queryKey: ["workload-profile", profileScope],
+    queryFn: () => getWorkloadProfile(profileScope),
   });
   const profile = profileQuery.data?.data;
-  const facets = facetsQuery.data?.data;
+  const rankedWindows = useMemo(
+    () =>
+      profile
+        ? rankWorkloadWindows(profile.windows, rank, RANKED_WINDOW_LIMIT)
+        : null,
+    [profile, rank],
+  );
 
   return (
     <Stack gap="md">
-      <Group gap="xs" align="flex-end" wrap="wrap">
-        <Select
-          size="xs"
-          w={160}
-          label="Period"
-          value={props.scope.period}
-          data={WORKLOAD_PERIOD_OPTIONS}
-          allowDeselect={false}
-          onChange={(value) => {
-            if (value && isWorkloadPeriod(value)) {
-              props.onScopeChange({ ...props.scope, period: value });
-            }
-          }}
-        />
-        <Select
-          size="xs"
-          w={160}
-          label="Window"
-          value={String(windowMinutes)}
-          data={WORKLOAD_WINDOW_OPTIONS}
-          allowDeselect={false}
-          onChange={(value) => setWindowMinutes(Number(value ?? 15))}
-        />
-        <Select
-          size="xs"
-          w={180}
-          label="Source"
-          placeholder="All"
-          clearable
-          value={props.scope.sourceId}
-          data={facetSelectData(facets?.sources)}
-          onChange={(value) =>
-            props.onScopeChange({ ...props.scope, sourceId: value })
-          }
-        />
-        <Select
-          size="xs"
-          w={200}
-          label="Model"
-          placeholder="All"
-          clearable
-          searchable
-          value={props.scope.modelId}
-          data={facetSelectData(facets?.models)}
-          onChange={(value) =>
-            props.onScopeChange({ ...props.scope, modelId: value })
-          }
-        />
+      <WorkloadScopeFilters
+        scope={props.scope}
+        onScopeChange={props.onScopeChange}
+        afterPeriod={
+          <Select
+            size="xs"
+            w={160}
+            label="Window"
+            value={String(windowMinutes)}
+            data={WORKLOAD_WINDOW_OPTIONS}
+            allowDeselect={false}
+            onChange={(value) => setWindowMinutes(Number(value ?? 15))}
+          />
+        }
+      >
         <Button
           size="xs"
           variant="light"
@@ -317,7 +261,7 @@ export function WorkloadProfilePanel(props: {
         >
           Refresh
         </Button>
-      </Group>
+      </WorkloadScopeFilters>
 
       {profileQuery.isError && (
         <Text size="sm" c="red">
@@ -356,9 +300,9 @@ export function WorkloadProfilePanel(props: {
               ? "Error-free windows closest to the median of the period, least deviation first."
               : "Error-free windows with the most requests in flight."}
           </Text>
-          {windowsQuery.data && (
+          {rankedWindows && (
             <RankedWindows
-              windows={windowsQuery.data.data}
+              windows={rankedWindows}
               rank={rank}
               onOpenWindow={props.onOpenWindow}
             />

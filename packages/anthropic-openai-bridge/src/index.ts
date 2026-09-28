@@ -8,7 +8,11 @@ export {
   translateOpenAiResponse,
   type OpenAiToAnthropicResponseOptions,
 } from "./response.js";
-export { translateOpenAiError, type AnthropicErrorBody } from "./errors.js";
+export {
+  openAiErrorMessage,
+  translateOpenAiError,
+  type AnthropicErrorBody,
+} from "./errors.js";
 export { mapOpenAiFinishReason } from "./finish-reason.js";
 export { openAiUsageToAnthropic, type AnthropicUsageJson } from "./usage.js";
 export {

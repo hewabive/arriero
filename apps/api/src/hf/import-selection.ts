@@ -1,7 +1,7 @@
 import {
   groupGgufFiles,
   parseSplitInfo,
-  splitShardName,
+  splitShardNames,
   type ModelImportSelection,
   type ModelImportState,
 } from "@arriero/core";
@@ -10,14 +10,30 @@ import type { DiscoveredImport } from "./import-discovery.js";
 import type { ModelImportPlan } from "./model-import-plan.js";
 import { HfDownloadRequestError, sanitizeRepoRelativePath } from "./paths.js";
 
+function indexFirst<Item>(
+  items: readonly Item[],
+  key: (item: Item) => string,
+): Map<string, Item> {
+  const index = new Map<string, Item>();
+  for (const item of items) {
+    const itemKey = key(item);
+    if (!index.has(itemKey)) index.set(itemKey, item);
+  }
+  return index;
+}
+
 export function selectImportPlan(
   candidate: DiscoveredImport,
   selection: ModelImportSelection,
   state: ModelImportState,
 ): ModelImportPlan {
   const chosen = new Set(selection.companions);
+  const relatedBySource = indexFirst(
+    candidate.related,
+    (entry) => entry.file.source,
+  );
   for (const path of chosen)
-    if (!candidate.related.some((entry) => entry.file.source === path))
+    if (!relatedBySource.has(path))
       throw new HfDownloadRequestError(
         `Neighboring file was not verified: ${path}`,
       );
@@ -37,6 +53,7 @@ export function selectImportPlan(
   );
   if (related.length !== chosen.size)
     throw new HfDownloadRequestError("Neighboring GGUF shards are incomplete");
+  const chosenBySource = indexFirst(related, (entry) => entry.file.source);
   const originals = [
     ...candidate.plan.state.files,
     ...related.map((entry) => entry.file),
@@ -56,9 +73,7 @@ export function selectImportPlan(
         `Two files map to the same destination: ${destination}`,
       );
     destinations.add(destination);
-    const companion = related.find(
-      (entry) => entry.file.source === file.source,
-    );
+    const companion = chosenBySource.get(file.source);
     return {
       ...file,
       destination,
@@ -70,28 +85,25 @@ export function selectImportPlan(
   for (const file of files) {
     const split = parseSplitInfo(basename(file.destination));
     if (!split) continue;
-    for (let index = 1; index <= split.count; index++) {
-      const path = join(
-        dirname(file.destination),
-        splitShardName(split, index, split.count),
-      );
+    for (const name of splitShardNames(split)) {
+      const path = join(dirname(file.destination), name);
       if (!destinations.has(path))
         throw new HfDownloadRequestError(
           `Selection is missing a repository shard: ${path}`,
         );
     }
   }
+  const originalsByRepoPath = indexFirst(originals, (file) =>
+    relative(candidate.plan.state.destDir, file.destination),
+  );
+  const filesBySource = indexFirst(files, (file) => file.source);
   const records = [
     ...candidate.plan.manifestFiles,
     ...related.map((entry) => entry.manifest),
   ];
   const manifestFiles = records.map((record) => {
-    const source = originals.find(
-      (file) =>
-        relative(candidate.plan.state.destDir, file.destination) ===
-        record.path,
-    );
-    const selected = files.find((file) => file.source === source?.source);
+    const source = originalsByRepoPath.get(record.path);
+    const selected = source ? filesBySource.get(source.source) : undefined;
     if (!selected)
       throw new HfDownloadRequestError(
         `Missing verified mapping for ${record.path}`,

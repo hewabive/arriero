@@ -12,11 +12,10 @@ import { useEffect, useMemo, useState } from "react";
 import { SELF_NODE_ID } from "../../api/base.js";
 import {
   listApiProxySources,
-  listNodes,
   runApiLabProbe,
   streamApiLabProbe,
 } from "../../api/client";
-import { useActiveNode } from "../NodeContext.js";
+import { useActiveFleetNode, useActiveNode } from "../NodeContext.js";
 import {
   ApiProbePanel,
   type ProbeRequestOption,
@@ -86,16 +85,11 @@ export function ApiLabView(props: {
   });
   const nativeTargetSelected = selectedGroup?.kind === "managed-instance";
 
-  const nodesQuery = useQuery({
-    queryKey: ["nodes"],
-    queryFn: listNodes,
-    enabled: activeNodeId !== SELF_NODE_ID,
-  });
+  const activeFleetNode = useActiveFleetNode();
   const activeNodeName =
     activeNodeId === SELF_NODE_ID
       ? null
-      : (nodesQuery.data?.data.find((node) => node.id === activeNodeId)?.name ??
-        activeNodeId);
+      : (activeFleetNode?.name ?? activeNodeId);
 
   const sourcesQuery = useQuery({
     queryKey: ["api-proxy-sources"],

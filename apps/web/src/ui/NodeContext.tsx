@@ -1,3 +1,4 @@
+import type { FleetNodeView } from "@arriero/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
@@ -24,7 +25,7 @@ export function useActiveNode() {
   return useContext(NodeContext);
 }
 
-export function useActiveNodeHost(): string | null {
+export function useActiveFleetNode(): FleetNodeView | null {
   const { activeNodeId } = useActiveNode();
   const nodesQuery = useQuery({
     queryKey: ["nodes"],
@@ -33,9 +34,17 @@ export function useActiveNodeHost(): string | null {
     enabled: activeNodeId !== SELF_NODE_ID,
   });
   if (activeNodeId === SELF_NODE_ID) {
+    return null;
+  }
+  return nodesQuery.data?.data.find((node) => node.id === activeNodeId) ?? null;
+}
+
+export function useActiveNodeHost(): string | null {
+  const { activeNodeId } = useActiveNode();
+  const node = useActiveFleetNode();
+  if (activeNodeId === SELF_NODE_ID) {
     return typeof window === "undefined" ? null : window.location.hostname;
   }
-  const node = nodesQuery.data?.data.find((node) => node.id === activeNodeId);
   return node ? new URL(node.baseUrl).hostname : null;
 }
 

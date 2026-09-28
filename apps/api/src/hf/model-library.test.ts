@@ -61,18 +61,22 @@ function downloadedRepo(
 
 const SHA = "a".repeat(40);
 
+function libraryFile(path: string) {
+  return { path, size: 1, oid: SHA, lfsOid: null };
+}
+
 test("capture upserts by repo and default dest, unioning paths", () => {
   captureModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: SHA,
     destDir: repoDir("unsloth/demo"),
-    files: [{ path: "a.gguf" }],
+    files: [libraryFile("a.gguf")],
   });
   captureModelLibraryEntry({
     repoId: "unsloth/demo",
     revision: SHA,
     destDir: repoDir("unsloth/demo"),
-    files: [{ path: "b.gguf" }, { path: "a.gguf" }],
+    files: [libraryFile("b.gguf"), libraryFile("a.gguf")],
   });
   const requirements = listModelLibraryEntries();
   assert.equal(requirements.length, 1);

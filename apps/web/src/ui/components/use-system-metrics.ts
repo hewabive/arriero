@@ -57,8 +57,12 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
         return [...previous, sample].slice(-limit);
       });
     };
+    let connected = false;
     const refetchHistory = () => {
-      void query.refetch();
+      if (connected) {
+        void query.refetch();
+      }
+      connected = true;
     };
     let source: EventSource | null = null;
     const open = () => {

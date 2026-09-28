@@ -45,6 +45,12 @@ export function splitShardName(split: SplitInfo, index: number, count: number) {
   return `${split.prefix}-${indexText}-of-${countText}.gguf`;
 }
 
+export function splitShardNames(split: SplitInfo): string[] {
+  return Array.from({ length: split.count }, (_, offset) =>
+    splitShardName(split, offset + 1, split.count),
+  );
+}
+
 export function groupGgufFiles<T>(
   files: readonly T[],
   pathOf: (file: T) => string,

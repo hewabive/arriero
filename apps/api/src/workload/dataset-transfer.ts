@@ -1,4 +1,5 @@
 import {
+  WorkloadContentHashSchema,
   WorkloadDatasetManifestSchema,
   type WorkloadDatasetImportResult,
   type WorkloadDatasetManifest,
@@ -11,20 +12,21 @@ import { createGunzip, createGzip } from "node:zlib";
 
 import { logger } from "../logger.js";
 import { asObject } from "../proxy/json.js";
+import { errorMessage } from "../utils/error-message.js";
 import {
-  workloadBlobHash,
+  encodeWorkloadBlob,
   workloadContentBlobHashes,
   workloadDatasetId,
 } from "./dataset-codec.js";
 import {
   readWorkloadDatasetBlobJson,
   stageWorkloadDataset,
+  workloadDatasetExists,
 } from "./dataset-store.js";
 
 const EXPORT_FORMAT = "arriero-workload-dataset";
 const MAX_IMPORT_BYTES = 4 * 1024 ** 3;
 const MAX_LINE_BYTES = 256 * 1024 ** 2;
-const BLOB_HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 export class WorkloadImportError extends Error {}
 
@@ -92,30 +94,40 @@ class ByteLimit extends Transform {
 
 async function* readLines(stream: Readable): AsyncGenerator<string> {
   const decoder = new StringDecoder("utf8");
-  let pending = "";
+  let fragments: string[] = [];
+  let pendingLength = 0;
   for await (const chunk of stream) {
-    pending += decoder.write(chunk as Buffer);
-    let newline = pending.indexOf("\n");
+    const text = decoder.write(chunk as Buffer);
+    let start = 0;
+    let newline = text.indexOf("\n");
     while (newline !== -1) {
-      yield pending.slice(0, newline);
-      pending = pending.slice(newline + 1);
-      newline = pending.indexOf("\n");
+      fragments.push(text.slice(start, newline));
+      yield fragments.join("");
+      fragments = [];
+      pendingLength = 0;
+      start = newline + 1;
+      newline = text.indexOf("\n", start);
     }
-    if (pending.length > MAX_LINE_BYTES) {
+    if (start < text.length) {
+      fragments.push(text.slice(start));
+      pendingLength += text.length - start;
+    }
+    if (pendingLength > MAX_LINE_BYTES) {
       throw new WorkloadImportError("a line of the dataset is too large");
     }
   }
-  pending += decoder.end();
-  if (pending.length > 0) {
-    yield pending;
+  fragments.push(decoder.end());
+  const last = fragments.join("");
+  if (last.length > 0) {
+    yield last;
   }
 }
 
-function parseLine(line: string, index: number): unknown {
+function parseLine(line: string, lineNumber: number): unknown {
   try {
     return JSON.parse(line);
   } catch {
-    throw new WorkloadImportError(`line ${index + 1} is not valid JSON`);
+    throw new WorkloadImportError(`line ${lineNumber} is not valid JSON`);
   }
 }
 
@@ -154,40 +166,45 @@ export async function importWorkloadDataset(
   const staging = await stageWorkloadDataset();
   try {
     let manifest: WorkloadDatasetManifest | null = null;
+    let alreadyStored = false;
     let required = new Set<string>();
     const received = new Set<string>();
-    let index = 0;
+    let lineNumber = 0;
     for await (const line of readLines(limited)) {
+      lineNumber += 1;
       if (line.trim() === "") {
-        index += 1;
         continue;
       }
-      const value = parseLine(line, index);
+      const value = parseLine(line, lineNumber);
       if (!manifest) {
         manifest = parseManifest(value);
+        alreadyStored = workloadDatasetExists(manifest.id);
         required = new Set(workloadContentBlobHashes(manifest.content));
-        index += 1;
         continue;
       }
       const entry = asObject(value);
       const hash = entry?.hash;
-      if (typeof hash !== "string" || !BLOB_HASH_PATTERN.test(hash)) {
-        throw new WorkloadImportError(`line ${index + 1} has no valid hash`);
+      if (
+        typeof hash !== "string" ||
+        !WorkloadContentHashSchema.safeParse(hash).success
+      ) {
+        throw new WorkloadImportError(`line ${lineNumber} has no valid hash`);
       }
-      const json = JSON.stringify(entry?.value) ?? "null";
-      if (workloadBlobHash(json) !== hash) {
+      const blob = encodeWorkloadBlob(entry?.value);
+      if (blob.hash !== hash) {
         throw new WorkloadImportError(
-          `line ${index + 1} does not match its hash`,
+          `line ${lineNumber} does not match its hash`,
         );
       }
       if (!required.has(hash)) {
         throw new WorkloadImportError(
-          `line ${index + 1} carries a blob the dataset does not use`,
+          `line ${lineNumber} carries a blob the dataset does not use`,
         );
       }
-      await staging.writeBlob(hash, json);
+      if (!alreadyStored) {
+        await staging.writeBlob(hash, blob.json);
+      }
       received.add(hash);
-      index += 1;
     }
     const failure = await decodingFailure;
     if (failure !== null) {
@@ -202,6 +219,10 @@ export async function importWorkloadDataset(
         `the dataset is missing ${missing.length} of ${required.size} blobs`,
       );
     }
+    if (alreadyStored) {
+      await staging.discard();
+      return { id: manifest.id, imported: false };
+    }
     const { created } = await staging.commit(manifest);
     return { id: manifest.id, imported: created };
   } catch (error) {
@@ -214,7 +235,8 @@ export async function importWorkloadDataset(
     if (error instanceof WorkloadImportError) {
       throw error;
     }
-    const message = error instanceof Error ? error.message : String(error);
-    throw new WorkloadImportError(`the dataset could not be read: ${message}`);
+    throw new WorkloadImportError(
+      `the dataset could not be read: ${errorMessage(error)}`,
+    );
   }
 }

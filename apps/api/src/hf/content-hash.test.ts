@@ -12,7 +12,7 @@ test("hashing reports byte progress within a file without changing either digest
   const dir = await mkdtemp(join(tmpdir(), "hash-progress-"));
   try {
     const path = join(dir, "weights");
-    const content = Buffer.alloc(1024 * 1024, 17);
+    const content = Buffer.alloc(4 * 1024 * 1024, 17);
     await writeFile(path, content);
     for (const lfs of [true, false]) {
       const samples: FileVerificationProgress[] = [];

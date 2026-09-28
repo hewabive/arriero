@@ -1,3 +1,4 @@
+import type { BigIntStats } from "node:fs";
 import { lstat } from "node:fs/promises";
 import {
   hashHfContentFile,
@@ -6,12 +7,28 @@ import {
 import { HfDownloadRequestError } from "./paths.js";
 
 const hashes = new Map<string, { identity: string; hash: string }>();
-export async function importFileIdentity(path: string): Promise<string> {
+
+export function importIdentityOf(info: BigIntStats): string {
+  return [info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(":");
+}
+
+export function stableImportIdentity(identity: string): string {
+  return identity.slice(0, identity.lastIndexOf(":"));
+}
+
+export async function statImportFile(
+  path: string,
+): Promise<{ size: number; identity: string }> {
   const info = await lstat(path, { bigint: true });
   if (!info.isFile())
     throw new HfDownloadRequestError(`Not a regular file: ${path}`);
-  return [info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(":");
+  return { size: Number(info.size), identity: importIdentityOf(info) };
 }
+
+export async function importFileIdentity(path: string): Promise<string> {
+  return (await statImportFile(path)).identity;
+}
+
 export async function hashImportFile(
   path: string,
   size: number,

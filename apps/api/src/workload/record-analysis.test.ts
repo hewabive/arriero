@@ -405,14 +405,14 @@ test("cache metrics compare a child with a same-target parent only", () => {
 test("think time runs from the previous answer's end, never negative", () => {
   assert.equal(
     workloadThinkTimeMs(
-      { at: "2026-09-20T10:00:00.000Z", durationMs: 2000 },
+      { endAt: "2026-09-20T10:00:02.000Z" },
       "2026-09-20T10:00:05.000Z",
     ),
     3000,
   );
   assert.equal(
     workloadThinkTimeMs(
-      { at: "2026-09-20T10:00:00.000Z", durationMs: 9000 },
+      { endAt: "2026-09-20T10:00:09.000Z" },
       "2026-09-20T10:00:05.000Z",
     ),
     0,

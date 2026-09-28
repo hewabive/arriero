@@ -76,37 +76,39 @@ export function createResumableBufferState(): ResumableBufferState {
   };
 }
 
-type FrameMeta = {
-  inspector: ProxyStreamInspector;
-  now: () => number;
-  receivedAt?: number;
-};
-
-function createFrameMeta(
+function createStateInspector(
   observer: ProxyStreamObserver & ProxyStreamInspectionOptions,
   state: ResumableBufferState,
   codec: ApiProxyResumableCodec,
-): FrameMeta {
-  return {
-    now: observer.now ?? (() => performance.now()),
-    inspector: createProxyStreamInspector({
-      codec,
-      observer,
-      estimateRate: observer.estimateRate,
-      now: observer.now,
-      usage: state,
-      health: state.health,
-    }),
-  };
+): ProxyStreamInspector {
+  return createProxyStreamInspector({
+    codec,
+    observer,
+    estimateRate: observer.estimateRate,
+    now: observer.now,
+    usage: state,
+    health: state.health,
+  });
+}
+
+function accumulateInspectorTiming(
+  state: ResumableBufferState,
+  inspector: ProxyStreamInspector,
+): void {
+  const snapshot = inspector.snapshot();
+  state.genMs += Math.max(0, snapshot.genMs);
+  if (snapshot.observedGenMs !== undefined) {
+    state.observedGenMs = (state.observedGenMs ?? 0) + snapshot.observedGenMs;
+  }
 }
 
 function applyFrame(
   frame: string,
   state: ResumableBufferState,
-  meta: FrameMeta,
+  inspector: ProxyStreamInspector,
 ): "done" | null {
   for (const data of sseDataPayloads(frame)) {
-    const inspected = meta.inspector.observeData(data, meta.receivedAt);
+    const inspected = inspector.observeData(data);
     if (inspected.type === "done") {
       return "done";
     }
@@ -150,7 +152,7 @@ function applyFrame(
 async function pumpSseFrames(
   body: ReadableStream<Uint8Array>,
   state: ResumableBufferState,
-  meta: FrameMeta,
+  inspector: ProxyStreamInspector,
 ): Promise<"done" | "eof"> {
   const reader = body.getReader();
   const frames = createSseFrameBuffer();
@@ -159,15 +161,15 @@ async function pumpSseFrames(
     if (done) {
       break;
     }
-    meta.receivedAt = meta.now();
+    inspector.markRead();
     for (const frame of frames.push(value)) {
-      if (applyFrame(frame, state, meta) === "done") {
+      if (applyFrame(frame, state, inspector) === "done") {
         return "done";
       }
     }
   }
   const tail = frames.flush();
-  if (tail && applyFrame(tail, state, meta) === "done") {
+  if (tail && applyFrame(tail, state, inspector) === "done") {
     return "done";
   }
   return "eof";
@@ -175,10 +177,10 @@ async function pumpSseFrames(
 
 function classifyStreamEnding(
   ending: "done" | "eof",
-  meta: FrameMeta,
+  inspector: ProxyStreamInspector,
   state: ResumableBufferState,
 ): "completed" | "truncated" {
-  const snapshot = meta.inspector.finish();
+  const snapshot = inspector.finish();
   state.health.terminal = snapshot.health.terminal;
   return snapshot.health.terminal === "eof" ? "truncated" : "completed";
 }
@@ -225,7 +227,7 @@ export async function runResumableUpstreamAttempt(
   }
 
   const fetchImpl = input.fetchImpl ?? proxyUpstreamFetch;
-  const meta = createFrameMeta(input, input.state, input.codec);
+  const inspector = createStateInspector(input, input.state, input.codec);
   const controller = new AbortController();
   const onPreempt = () => {
     if (!input.state.inToolPhase) {
@@ -250,12 +252,7 @@ export async function runResumableUpstreamAttempt(
     interruptSignal?.removeEventListener("abort", onInterrupt);
     finishSignal?.removeEventListener("abort", onFinish);
     cancelSignal?.removeEventListener("abort", onCancel);
-    const snapshot = meta.inspector.snapshot();
-    input.state.genMs += Math.max(0, snapshot.genMs);
-    if (snapshot.observedGenMs !== undefined) {
-      input.state.observedGenMs =
-        (input.state.observedGenMs ?? 0) + snapshot.observedGenMs;
-    }
+    accumulateInspectorTiming(input.state, inspector);
     return outcome;
   };
 
@@ -319,9 +316,11 @@ export async function runResumableUpstreamAttempt(
     const ending = await pumpSseFrames(
       watchStreamIdle(upstream.body, input.idleTimeoutMs ?? null),
       input.state,
-      meta,
+      inspector,
     );
-    return settle({ type: classifyStreamEnding(ending, meta, input.state) });
+    return settle({
+      type: classifyStreamEnding(ending, inspector, input.state),
+    });
   } catch (error) {
     return settle(classifyAbort(error));
   }
@@ -347,7 +346,7 @@ export async function consumeResumableSse(
   } & ProxyStreamObserver &
     ProxyStreamInspectionOptions,
 ): Promise<ConsumeResumableSseOutcome> {
-  const meta = createFrameMeta(input, input.state, input.codec);
+  const inspector = createStateInspector(input, input.state, input.codec);
   const classifyStop = (): ConsumeResumableSseOutcome | null => {
     if (input.consumerSignal?.aborted) {
       return { type: "consumer-gone" };
@@ -368,15 +367,10 @@ export async function consumeResumableSse(
     const ending = await pumpSseFrames(
       watchStreamIdle(input.body, input.idleTimeoutMs ?? null),
       input.state,
-      meta,
+      inspector,
     );
-    const snapshot = meta.inspector.snapshot();
-    input.state.genMs += Math.max(0, snapshot.genMs);
-    if (snapshot.observedGenMs !== undefined) {
-      input.state.observedGenMs =
-        (input.state.observedGenMs ?? 0) + snapshot.observedGenMs;
-    }
-    return { type: classifyStreamEnding(ending, meta, input.state) };
+    accumulateInspectorTiming(input.state, inspector);
+    return { type: classifyStreamEnding(ending, inspector, input.state) };
   } catch (error) {
     return (
       classifyStop() ?? { type: "error", message: describeFetchError(error) }

@@ -1,5 +1,9 @@
 import { assertNoModelImport } from "./import-lock.js";
-import type { HfDownloadStart, HfLfsInfo } from "@arriero/core";
+import {
+  isHfCommitSha,
+  type HfDownloadStart,
+  type HfLfsInfo,
+} from "@arriero/core";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -20,7 +24,6 @@ import {
 } from "./paths.js";
 
 const HEADROOM_BYTES = 256 * 1024 * 1024;
-const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 
 export class HfDownloadConflictError extends Error {}
 
@@ -105,7 +108,7 @@ export async function planHfDownload(
   const relPaths = [...new Set(input.paths.map(sanitizeRepoRelativePath))];
   const destDir = resolve(input.destDir ?? defaultHfDestDir(repoId));
   const revisionInput = input.revision ?? "main";
-  const sha = COMMIT_SHA_PATTERN.test(revisionInput)
+  const sha = isHfCommitSha(revisionInput)
     ? revisionInput.toLowerCase()
     : (await fetchHfRepoInfo(repoId, revisionInput, clientOptions)).sha;
   const upstream = await fetchHfPathsInfo(

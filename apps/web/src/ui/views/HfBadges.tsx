@@ -1,12 +1,12 @@
-import type { HfGgufVariant } from "@arriero/core";
-import { Badge } from "@mantine/core";
+import {
+  GGUF_ARTIFACT_KIND_LABEL,
+  isDraftGgufArtifactKind,
+  type HfGgufVariant,
+} from "@arriero/core";
+import { Anchor, Badge } from "@mantine/core";
 import type { HfLocalFileState, HfLocalVariantState } from "../utils/hf";
-import { formatBytes } from "../utils/models";
 
-export function hfFileLocalBadge(
-  state: HfLocalFileState | "missing" | "partial" | "local-only",
-  partial?: { partialBytes: number; size: number } | undefined,
-) {
+export function hfFileLocalBadge(state: HfLocalFileState) {
   if (state === "current") {
     return (
       <Badge color="green" variant="light">
@@ -18,29 +18,6 @@ export function hfFileLocalBadge(
     return (
       <Badge color="yellow" variant="light">
         changed upstream
-      </Badge>
-    );
-  }
-  if (state === "partial") {
-    return (
-      <Badge color="orange" variant="light">
-        {partial
-          ? `${formatBytes(partial.partialBytes)} of ${formatBytes(partial.size)}`
-          : "partial"}
-      </Badge>
-    );
-  }
-  if (state === "missing") {
-    return (
-      <Badge color="orange" variant="light">
-        missing
-      </Badge>
-    );
-  }
-  if (state === "local-only") {
-    return (
-      <Badge color="gray" variant="light">
-        not upstream
       </Badge>
     );
   }
@@ -73,21 +50,27 @@ export function hfVariantLocalBadge(state: HfLocalVariantState) {
 }
 
 export function hfVariantKindBadge(variant: HfGgufVariant) {
-  const labels: Partial<Record<HfGgufVariant["kind"], string>> = {
-    mmproj: "mmproj",
-    "draft-mtp": "MTP draft",
-    "draft-eagle3": "EAGLE3 draft",
-    "draft-dflash": "DFlash draft",
-    "draft-dspark": "DSpark draft",
-    imatrix: "imatrix",
-  };
-  const label = labels[variant.kind];
-  if (label) {
-    return (
-      <Badge color="grape" variant="light">
-        {label}
-      </Badge>
-    );
+  if (variant.kind === "model" || variant.kind === "other") {
+    return null;
   }
-  return null;
+  const label = GGUF_ARTIFACT_KIND_LABEL[variant.kind];
+  return (
+    <Badge color="grape" variant="light">
+      {isDraftGgufArtifactKind(variant.kind) ? `${label} draft` : label}
+    </Badge>
+  );
+}
+
+export function HfRepoLink({ repoId }: { repoId: string }) {
+  return (
+    <Anchor
+      href={`https://huggingface.co/${repoId}`}
+      target="_blank"
+      rel="noreferrer"
+      fw={600}
+      className="text-wrap"
+    >
+      {repoId}
+    </Anchor>
+  );
 }

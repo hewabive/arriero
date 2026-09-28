@@ -39,7 +39,7 @@ import {
   safetensorsMissingShardNames,
   type SafetensorsRawFacts,
 } from "./safetensors.js";
-import { parseSplitInfo, splitShardName, type SplitInfo } from "@arriero/core";
+import { parseSplitInfo, splitShardNames, type SplitInfo } from "@arriero/core";
 
 export const IGNORED_DIRS = new Set([
   ".git",
@@ -271,14 +271,11 @@ function associateMmprojPaths<
   const associations = new Map<string, string[]>();
   for (const model of models) {
     if (model.artifactKind !== "model") {
-      associations.set(model.path, []);
       continue;
     }
-    const repoDirectory = hfRepoDirectory(
-      model.directory,
-      rootPaths,
-      repoDirectoryCache,
-    );
+    const repoDirectory = hasStrictAncestorIn(model.directory, mmprojByDir)
+      ? hfRepoDirectory(model.directory, rootPaths, repoDirectoryCache)
+      : null;
     const candidates = [
       ...(mmprojByDir.get(model.directory) ?? []),
       ...(repoDirectory && repoDirectory !== model.directory
@@ -288,6 +285,22 @@ function associateMmprojPaths<
     associations.set(model.path, [...new Set(candidates)].sort());
   }
   return associations;
+}
+
+function hasStrictAncestorIn(
+  directory: string,
+  directories: ReadonlyMap<string, unknown>,
+): boolean {
+  let current = directory;
+  let parent = dirname(current);
+  while (parent !== current) {
+    if (directories.has(parent)) {
+      return true;
+    }
+    current = parent;
+    parent = dirname(current);
+  }
+  return false;
 }
 
 function collapseSplitFiles(files: FoundFile[]): ModelFile[] {
@@ -325,14 +338,9 @@ function collapseSplitFiles(files: FoundFile[]): ModelFile[] {
     }
 
     const presentIndexes = new Set(group.files.map((file) => file.split.index));
-    const missingShardNames: string[] = [];
-    for (let index = 1; index <= group.count; index += 1) {
-      if (!presentIndexes.has(index)) {
-        missingShardNames.push(
-          splitShardName(firstShard.split, index, group.count),
-        );
-      }
-    }
+    const missingShardNames = splitShardNames(firstShard.split).filter(
+      (_, offset) => !presentIndexes.has(offset + 1),
+    );
 
     collapsed.push({
       path: firstShard.path,
@@ -436,7 +444,10 @@ export async function scanModels(input: {
     collect(walked.safetensors, foundSafetensors);
   }
 
-  const files = collapseSplitFiles(foundGguf);
+  const files = collapseSplitFiles(foundGguf).map((file) => ({
+    ...file,
+    artifactKind: classifyGgufArtifactKind(file.name),
+  }));
   const safetensorsDirs = new Map<string, FoundFile[]>();
   for (const file of foundSafetensors) {
     const list = safetensorsDirs.get(file.directory) ?? [];
@@ -445,14 +456,7 @@ export async function scanModels(input: {
   }
   const total = files.length + safetensorsDirs.size;
 
-  const mmprojPathsByModel = associateMmprojPaths(
-    files.map((file) => ({
-      path: file.path,
-      directory: file.directory,
-      artifactKind: classifyGgufArtifactKind(file.name),
-    })),
-    input.roots,
-  );
+  const mmprojPathsByModel = associateMmprojPaths(files, input.roots);
 
   const models: GgufModel[] = [];
   let cacheHits = 0;
@@ -474,7 +478,6 @@ export async function scanModels(input: {
       continue;
     }
     const { sizeBytes, modifiedAt } = identity;
-    const artifactKind = classifyGgufArtifactKind(file.name);
     const mmprojPaths = mmprojPathsByModel.get(file.path) ?? [];
     const cached = input.refresh ? null : getCachedModelEntry(file.path);
     const unchanged =
@@ -517,7 +520,7 @@ export async function scanModels(input: {
       directory: dirname(file.path),
       sizeBytes,
       modifiedAt,
-      artifactKind,
+      artifactKind: file.artifactKind,
       mmprojPaths,
       metadata,
       ...(error ? { error } : {}),

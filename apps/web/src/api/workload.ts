@@ -6,15 +6,14 @@ import type {
   WorkloadDatasetSummary,
   WorkloadFreezeJob,
   WorkloadIndexStatus,
+  WorkloadLinkingQueryInput,
   WorkloadLinkingReport,
   WorkloadProfile,
   WorkloadProfileQueryInput,
-  WorkloadRankedWindow,
   WorkloadSelectionPreview,
   WorkloadSessionDetail,
   WorkloadSessionListQueryInput,
   WorkloadSessionSummary,
-  WorkloadWindowRankingQueryInput,
 } from "@arriero/core";
 
 import { absoluteUrl, activeNodeScopedPath } from "./base.js";
@@ -53,18 +52,7 @@ export async function getWorkloadProfile(query: WorkloadProfileQueryInput) {
   );
 }
 
-export async function listWorkloadWindows(
-  query: WorkloadWindowRankingQueryInput,
-) {
-  return request<{ data: WorkloadRankedWindow[] }>(
-    `/api/workload/windows${queryOf(query)}`,
-  );
-}
-
-export async function getWorkloadLinking(query: {
-  from?: string;
-  to?: string;
-}) {
+export async function getWorkloadLinking(query: WorkloadLinkingQueryInput) {
   return request<{ data: WorkloadLinkingReport }>(
     `/api/workload/linking${queryOf(query)}`,
   );

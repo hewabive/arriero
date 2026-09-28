@@ -1,15 +1,19 @@
 import type { ApiProxyInflightControlResult } from "@arriero/core";
 
+import type { ProxyEngineGates } from "./engine-capabilities.js";
 import { apiProxyForwardUrl } from "./forwarder.js";
 import { proxyUpstreamFetch } from "./http.js";
 import type { ApiProxyInflightHandle } from "./inflight.js";
+import { withBodyFields } from "./json.js";
+import {
+  apiProxyOperationSpec,
+  type ApiProxyProtocolId,
+  type ApiProxyProtocolOperation,
+} from "./protocol.js";
 import type { ProxyStreamObserver } from "./stream-observer.js";
 
 export function armApiProxyReasoningControl(body: unknown): unknown {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return body;
-  }
-  return { ...(body as Record<string, unknown>), reasoning_control: true };
+  return withBodyFields(body, { reasoning_control: true });
 }
 
 export async function endApiProxyUpstreamReasoning(input: {
@@ -53,7 +57,7 @@ export async function endApiProxyUpstreamReasoning(input: {
   return { status: "failed", message };
 }
 
-export function attachApiProxyReasoningControl(input: {
+function attachApiProxyReasoningControl(input: {
   inflight: ApiProxyInflightHandle;
   observer: ProxyStreamObserver;
   baseUrl: string;
@@ -83,5 +87,33 @@ export function attachApiProxyReasoningControl(input: {
       completionId = metadata.id ?? completionId;
       responseModel = metadata.model ?? responseModel;
     },
+  };
+}
+
+type ApiProxyNativeReasoningControl = {
+  observer: ProxyStreamObserver;
+  armBody: (body: unknown) => unknown;
+};
+
+export function nativeApiProxyReasoningControl(input: {
+  engine: Pick<ProxyEngineGates, "reasoningControl">;
+  operation: ApiProxyProtocolOperation;
+  forwardProtocol: ApiProxyProtocolId;
+  inflight: ApiProxyInflightHandle;
+  observer: ProxyStreamObserver;
+  baseUrl: string;
+  authHeaders: Record<string, string>;
+  model: string | null;
+}): ApiProxyNativeReasoningControl | null {
+  if (
+    !input.engine.reasoningControl ||
+    input.forwardProtocol !== "openai" ||
+    apiProxyOperationSpec(input.operation)?.nativeReasoningControl !== true
+  ) {
+    return null;
+  }
+  return {
+    observer: attachApiProxyReasoningControl(input),
+    armBody: armApiProxyReasoningControl,
   };
 }

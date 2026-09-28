@@ -14,16 +14,16 @@ import {
   apiProxyOperationSpec,
   type ApiProxyProtocolModelRequest,
 } from "./protocol.js";
-import { prepareApiProxyUpstreamRequest } from "./reasoning-request.js";
-import { instanceUpstreamTarget } from "./recorded-request.js";
+import {
+  instanceUpstreamTarget,
+  prepareApiProxyRequestForTarget,
+} from "./recorded-request.js";
 import { apiProxyInstanceReservation } from "./run-reservation.js";
 import { getApiProxyTarget } from "./repository.js";
 import {
   tokenCountAdapters,
   type ApiProxyTokenMeasurement,
 } from "./token-count-adapters.js";
-import { stripV1BaseUrl } from "./targets.js";
-import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
 
 type ApiProxyTokenCountResult =
   | ({ ok: true; detail: string } & ApiProxyTokenMeasurement)
@@ -119,8 +119,6 @@ async function countSubjectTokens(
       reason: `target ${target.name}: reserved by benchmark run ${reservation.label}`,
     };
   }
-  const targetId = target.id;
-  const fetchImpl = options.fetchImpl;
   const adapterId = instance
     ? engineDescriptor(instance.kind).proxy.tokenCount
     : endpoint?.profile === "llama-native"
@@ -132,43 +130,33 @@ async function countSubjectTokens(
       reason: `target ${target.name}: upstream token counting is unsupported for this endpoint or peer delegation`,
     };
   }
-  const spec = apiProxyOperationSpec(request.operation);
-  if (!spec?.tokenCountRequest)
+  if (!apiProxyOperationSpec(request.operation)?.tokenCountRequest)
     return {
       ok: false,
       reason: "operation does not support exact token counting",
     };
   const adapter = tokenCountAdapters[adapterId];
-  const path = adapter.path;
-  const resolved = resolveApiProxyUpstreamContext({
+  const prepared = prepareApiProxyRequestForTarget(
     target,
-    operation: request.operation,
-  });
-  if (!resolved.ok) return { ok: false, reason: resolved.diagnostic.message };
-  const context = resolved.context;
-  const targetName = target.name;
-  const countPath = path;
-  const forward = prepareApiProxyUpstreamRequest({
-    translate: context.translateAnthropic,
-    translationDialect: context.translationDialect,
-    operation: request.operation,
-    path: spec.upstreamPath,
-    body: request.body,
-    headers: new Headers(),
-    instanceId: context.instanceId,
-    endpointId: context.endpointId,
-  });
-  if (!adapter.supportsRequest(forward.body)) {
+    request.operation,
+    request.body,
+  );
+  if (!prepared.ok) return { ok: false, reason: prepared.error };
+  const { context } = prepared;
+  if (!adapter.supportsRequest(prepared.body)) {
     return {
       ok: false,
       reason: `${adapter.name} token counting does not support this chat content`,
     };
   }
-  const body = adapter.prepareBody({
-    ...asObject(forward.body),
-    ...(context.modelOverride ? { model: context.modelOverride } : {}),
-  });
-  const key = JSON.stringify([targetId, context.baseUrl, path, body]);
+  const body = adapter.prepareBody({ ...asObject(prepared.body) });
+  const payload = JSON.stringify(body);
+  const key = JSON.stringify([
+    target.id,
+    context.baseUrl,
+    adapter.path,
+    payload,
+  ]);
   let result = cache.get(key);
   if (!result) {
     result = count();
@@ -186,42 +174,24 @@ async function countSubjectTokens(
       "content-type": "application/json",
     };
     try {
-      if (adapter.llamaReadiness) {
-        const query = new URLSearchParams({ autoload: "false" });
-        if (typeof body.model === "string") query.set("model", body.model);
-        const propsResponse = await fetchImpl(
-          apiProxyForwardUrl(
-            stripV1BaseUrl(context.baseUrl),
-            "/props",
-            query.toString(),
-          ),
-          { headers, signal, redirect: "error" },
-        );
-        if (!propsResponse.ok) {
-          await propsResponse.body?.cancel();
-          return {
-            ok: false,
-            reason: `target ${targetName}: readiness check returned HTTP ${propsResponse.status}`,
-          };
-        }
-        const props = asObject(await propsResponse.json());
-        if (props?.is_sleeping !== false) {
-          return {
-            ok: false,
-            reason: `target ${targetName}: model is sleeping or readiness is unknown`,
-          };
+      if (adapter.readiness) {
+        const unready = await adapter.readiness({
+          baseUrl: context.baseUrl,
+          model: body.model,
+          headers,
+          signal,
+          fetchImpl: options.fetchImpl,
+        });
+        if (unready !== null) {
+          return { ok: false, reason: `target ${target.name}: ${unready}` };
         }
       }
-      const response = await fetchImpl(
-        apiProxyForwardUrl(
-          context.baseUrl,
-          countPath,
-          adapter.llamaReadiness ? "autoload=false" : "",
-        ),
+      const response = await options.fetchImpl(
+        apiProxyForwardUrl(context.baseUrl, adapter.path, adapter.countQuery),
         {
           method: "POST",
           headers,
-          body: JSON.stringify(body),
+          body: payload,
           signal,
           redirect: "error",
         },
@@ -230,14 +200,14 @@ async function countSubjectTokens(
         await response.body?.cancel();
         return {
           ok: false,
-          reason: `target ${targetName}: token counting returned HTTP ${response.status}`,
+          reason: `target ${target.name}: token counting returned HTTP ${response.status}`,
         };
       }
       const measurement = adapter.read(await response.json(), response.status);
       if (!measurement) {
         return {
           ok: false,
-          reason: `target ${targetName}: ${response.ok ? `invalid ${adapter.responseField} response` : `token counting returned HTTP ${response.status} without a recognized prompt bound`}`,
+          reason: `target ${target.name}: ${response.ok ? `invalid ${adapter.responseField} response` : `token counting returned HTTP ${response.status} without a recognized prompt bound`}`,
         };
       }
       const description =
@@ -247,12 +217,12 @@ async function countSubjectTokens(
       return {
         ok: true,
         ...measurement,
-        detail: `${description} tokens for ${targetName} (${targetId}) · ${adapter.name}`,
+        detail: `${description} tokens for ${target.name} (${target.id}) · ${adapter.name}`,
       };
     } catch (error) {
       return {
         ok: false,
-        reason: `target ${targetName}: ${signal.aborted ? "token counting timed out or was cancelled" : "token counting request failed"} (${error instanceof Error ? error.name : "unknown error"})`,
+        reason: `target ${target.name}: ${signal.aborted ? "token counting timed out or was cancelled" : "token counting request failed"} (${error instanceof Error ? error.name : "unknown error"})`,
       };
     }
   }

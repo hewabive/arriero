@@ -1,33 +1,54 @@
 import type { HfIntegrityJob } from "@arriero/core";
-import { randomUUID } from "node:crypto";
+import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { registerActiveJob } from "../jobs/registry.js";
 import { logger } from "../logger.js";
+import { errorMessage } from "../utils/error-message.js";
+import { newId } from "../utils/id.js";
 import {
   checkHfDownloadIntegrity,
   resolveIdleHfDownload,
   HfDownloadBusyError,
 } from "./downloads.js";
 import { HfDownloadRequestError } from "./paths.js";
-import { readHfManifest } from "./manifest.js";
+import { hfManifestPath, readHfManifest } from "./manifest.js";
 
-const jobs = new Map<
-  string,
-  {
-    state: HfIntegrityJob;
-    controller: AbortController;
-    manifestSignature: string | null;
+type IntegrityJob = {
+  state: HfIntegrityJob;
+  controller: AbortController;
+  manifestSignature: string | null;
+  manifestStamp: string | null;
+};
+
+const jobs = new Map<string, IntegrityJob>();
+
+function manifestStamp(dir: string): string | null {
+  try {
+    const info = statSync(hfManifestPath(dir), {
+      bigint: true,
+      throwIfNoEntry: false,
+    });
+    return info ? `${info.ino}:${info.size}:${info.mtimeNs}` : null;
+  } catch (error) {
+    logger.debug({ err: error, dir }, "hf manifest stat failed; rereading it");
+    return null;
   }
->();
+}
+
+function manifestSignature(dir: string): string {
+  return JSON.stringify(readHfManifest(dir));
+}
 
 export function getHfIntegrityJob(dir: string): HfIntegrityJob | null {
   const job = jobs.get(resolve(dir));
   if (!job) return null;
-  if (
-    job.state.result &&
-    job.manifestSignature !== JSON.stringify(readHfManifest(job.state.dir))
-  ) {
-    return { ...job.state, result: null };
+  if (job.state.result) {
+    const stamp = manifestStamp(job.state.dir);
+    if (stamp === null || stamp !== job.manifestStamp) {
+      if (job.manifestSignature !== manifestSignature(job.state.dir))
+        return { ...job.state, result: null };
+      job.manifestStamp = stamp;
+    }
   }
   return job.state;
 }
@@ -45,7 +66,7 @@ export function startHfIntegrityJob(dir: string): HfIntegrityJob {
   }
   const controller = new AbortController();
   const state: HfIntegrityJob = {
-    id: randomUUID(),
+    id: newId(),
     dir: resolved,
     status: "running",
     completedFiles: 0,
@@ -56,7 +77,12 @@ export function startHfIntegrityJob(dir: string): HfIntegrityJob {
     result: null,
     error: null,
   };
-  const job = { state, controller, manifestSignature: null as string | null };
+  const job: IntegrityJob = {
+    state,
+    controller,
+    manifestSignature: null,
+    manifestStamp: null,
+  };
   jobs.set(resolved, job);
   const completion = checkHfDownloadIntegrity(resolved, {
     signal: controller.signal,
@@ -69,7 +95,8 @@ export function startHfIntegrityJob(dir: string): HfIntegrityJob {
     },
   })
     .then((result) => {
-      job.manifestSignature = JSON.stringify(readHfManifest(resolved));
+      job.manifestStamp = manifestStamp(resolved);
+      job.manifestSignature = manifestSignature(resolved);
       state.result = result;
       state.status = "succeeded";
     })
@@ -77,7 +104,7 @@ export function startHfIntegrityJob(dir: string): HfIntegrityJob {
       if (controller.signal.aborted) state.status = "canceled";
       else {
         state.status = "failed";
-        state.error = error instanceof Error ? error.message : String(error);
+        state.error = errorMessage(error);
         logger.warn({ err: error, dir: resolved }, "integrity check failed");
       }
     })

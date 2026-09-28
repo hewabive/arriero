@@ -1,6 +1,7 @@
 import {
   ModelLibraryEntrySchema,
   isHfCommitSha,
+  sameHfContent,
   type HfDownloadedRepo,
   type ModelLibraryEntry,
   type ModelLibraryEntryStatus,
@@ -34,8 +35,8 @@ function load(): ModelLibraryEntry[] {
   return store.read();
 }
 
-function persist(requirements: ModelLibraryEntry[]) {
-  const sorted = [...requirements].sort(
+function persist(entries: ModelLibraryEntry[]) {
+  const sorted = [...entries].sort(
     (left, right) =>
       compareStrings(left.repoId, right.repoId) ||
       compareStrings(left.id, right.id),
@@ -58,8 +59,8 @@ function normalizedDestDir(
   return resolved === resolve(defaultHfDestDir(repoId)) ? null : resolved;
 }
 
-export function libraryDestDir(requirement: ModelLibraryEntry): string {
-  return resolve(requirement.destDir ?? defaultHfDestDir(requirement.repoId));
+export function libraryDestDir(entry: ModelLibraryEntry): string {
+  return resolve(entry.destDir ?? defaultHfDestDir(entry.repoId));
 }
 
 export function listModelLibraryEntries(): ModelLibraryEntry[] {
@@ -74,8 +75,8 @@ export function upsertModelLibraryEntry(input: {
   pinnedFiles?: ModelLibraryFile[];
 }): ModelLibraryEntry {
   const destDir = normalizedDestDir(input.repoId, input.destDir);
-  const requirements = load();
-  const existing = requirements.find(
+  const entries = load();
+  const existing = entries.find(
     (item) => item.repoId === input.repoId && item.destDir === destDir,
   );
   if (existing) {
@@ -105,9 +106,7 @@ export function upsertModelLibraryEntry(input: {
     if (isDeepStrictEqual(existing, next)) {
       return existing;
     }
-    persist(
-      requirements.map((item) => (item.id === existing.id ? next : item)),
-    );
+    persist(entries.map((item) => (item.id === existing.id ? next : item)));
     return next;
   }
   const created = ModelLibraryEntrySchema.parse({
@@ -118,14 +117,14 @@ export function upsertModelLibraryEntry(input: {
     pinnedFiles: input.pinnedFiles ?? [],
     destDir,
   });
-  persist([...requirements, created]);
+  persist([...entries, created]);
   return created;
 }
 
 export function deleteModelLibraryEntry(id: string): boolean {
-  const requirements = load();
-  const next = requirements.filter((item) => item.id !== id);
-  if (next.length === requirements.length) {
+  const entries = load();
+  const next = entries.filter((item) => item.id !== id);
+  if (next.length === entries.length) {
     return false;
   }
   persist(next);
@@ -136,12 +135,7 @@ export function captureModelLibraryEntry(job: {
   repoId: string;
   revision: string;
   destDir: string;
-  files: {
-    path: string;
-    size?: number;
-    oid?: string | undefined;
-    lfsOid?: string | null | undefined;
-  }[];
+  files: ModelLibraryFile[];
 }): void {
   if (job.files.length === 0) {
     return;
@@ -152,18 +146,12 @@ export function captureModelLibraryEntry(job: {
       revision: job.revision,
       paths: job.files.map((file) => file.path),
       destDir: job.destDir,
-      pinnedFiles: job.files.flatMap((file) =>
-        file.size !== undefined && file.oid
-          ? [
-              {
-                path: file.path,
-                size: file.size,
-                oid: file.oid,
-                lfsOid: file.lfsOid ?? null,
-              },
-            ]
-          : [],
-      ),
+      pinnedFiles: job.files.map(({ path, size, oid, lfsOid }) => ({
+        path,
+        size,
+        oid,
+        lfsOid,
+      })),
     });
   } catch (error) {
     logger.warn({ error, repoId: job.repoId }, "library entry capture failed");
@@ -175,28 +163,24 @@ export function removeModelLibraryEntryForDeletedDownload(
   paths: string[] | null,
 ): void {
   const resolvedDir = resolve(dir);
-  const requirements = load();
-  const matched = requirements.find(
-    (item) => libraryDestDir(item) === resolvedDir,
-  );
+  const entries = load();
+  const matched = entries.find((item) => libraryDestDir(item) === resolvedDir);
   if (!matched) {
     return;
   }
-  if (paths === null) {
-    persist(requirements.filter((item) => item.id !== matched.id));
-    return;
-  }
-  const removed = new Set(paths);
-  const remaining = matched.paths.filter((path) => !removed.has(path));
-  if (remaining.length === matched.paths.length) {
+  const removed = paths === null ? null : new Set(paths);
+  const remaining = removed
+    ? matched.paths.filter((path) => !removed.has(path))
+    : [];
+  if (removed && remaining.length === matched.paths.length) {
     return;
   }
   if (remaining.length === 0) {
-    persist(requirements.filter((item) => item.id !== matched.id));
+    persist(entries.filter((item) => item.id !== matched.id));
     return;
   }
   persist(
-    requirements.map((item) =>
+    entries.map((item) =>
       item.id === matched.id
         ? {
             ...item,
@@ -211,58 +195,49 @@ export function removeModelLibraryEntryForDeletedDownload(
 }
 
 export function evaluateModelLibraryEntry(
-  requirement: ModelLibraryEntry,
+  entry: ModelLibraryEntry,
   repos: HfDownloadedRepo[],
 ): ModelLibraryEntryStatus {
-  const destDir = libraryDestDir(requirement);
+  const destDir = libraryDestDir(entry);
   const repo =
     repos.find(
-      (item) =>
-        resolve(item.dir) === destDir && item.repoId === requirement.repoId,
+      (item) => resolve(item.dir) === destDir && item.repoId === entry.repoId,
     ) ?? null;
   if (!repo) {
     return {
-      entry: requirement,
-      state: requirement.paths.length ? "missing" : "watching",
+      entry,
+      state: entry.paths.length ? "missing" : "watching",
       matchedDir: null,
-      missingPaths: [...requirement.paths],
+      missingPaths: [...entry.paths],
       revisionMatch: null,
       driftPaths: [],
-      check: getLibraryCheck(requirement),
+      check: getLibraryCheck(entry),
     };
   }
-  const presentPaths = new Set(
-    repo.files.filter((file) => file.present).map((file) => file.path),
+  const present = new Map(
+    repo.files.filter((file) => file.present).map((file) => [file.path, file]),
   );
-  const missingPaths = requirement.paths.filter(
-    (path) => !presentPaths.has(path),
-  );
+  const missingPaths = entry.paths.filter((path) => !present.has(path));
   const revisionMatch =
-    isHfCommitSha(requirement.revision) && isHfCommitSha(repo.revision)
-      ? requirement.revision.toLowerCase() === repo.revision.toLowerCase()
+    isHfCommitSha(entry.revision) && isHfCommitSha(repo.revision)
+      ? entry.revision.toLowerCase() === repo.revision.toLowerCase()
       : null;
-  const driftPaths = requirement.pinnedFiles
+  const driftPaths = entry.pinnedFiles
     .filter((file) => {
-      const local = repo.files.find(
-        (item) => item.path === file.path && item.present,
-      );
-      return (
-        local &&
-        (local.size !== file.size ||
-          (local.lfsOid ?? local.oid) !== (file.lfsOid ?? file.oid))
-      );
+      const local = present.get(file.path);
+      return local !== undefined && !sameHfContent(local, file);
     })
     .map((file) => file.path);
   return {
-    entry: requirement,
+    entry,
     driftPaths,
-    check: getLibraryCheck(requirement),
+    check: getLibraryCheck(entry),
     state:
-      requirement.paths.length === 0
+      entry.paths.length === 0
         ? "watching"
         : missingPaths.length === 0
           ? "satisfied"
-          : missingPaths.length === requirement.paths.length
+          : missingPaths.length === entry.paths.length
             ? "missing"
             : "partial",
     matchedDir: repo.dir,
@@ -275,8 +250,8 @@ export async function listModelLibraryEntryStatuses(): Promise<
   ModelLibraryEntryStatus[]
 > {
   const repos = await listHfDownloads();
-  return listModelLibraryEntries().map((requirement) =>
-    evaluateModelLibraryEntry(requirement, repos),
+  return listModelLibraryEntries().map((entry) =>
+    evaluateModelLibraryEntry(entry, repos),
   );
 }
 

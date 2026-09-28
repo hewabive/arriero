@@ -5,7 +5,10 @@ import {
   type ApiProxyResponseShape,
 } from "./protocol.js";
 import { safeJsonParse } from "./protocol-trace.js";
-import { transformApiProxySseText } from "./response-codec.js";
+import {
+  openAiResponsesTerminalTypes,
+  transformApiProxySseText,
+} from "./response-codec.js";
 
 type CapturedEvent = { event: string | null; data: unknown };
 
@@ -236,11 +239,7 @@ function captureOpenAiResponses(events: CapturedEvent[]): JsonRecord | null {
     return null;
   for (const { event, data } of events.toReversed()) {
     const value = asObject(data);
-    if (
-      ["response.completed", "response.failed", "response.incomplete"].includes(
-        String(value?.type ?? event),
-      )
-    ) {
+    if (openAiResponsesTerminalTypes.has(String(value?.type ?? event))) {
       return asObject(value?.response);
     }
   }
@@ -260,10 +259,9 @@ export function captureApiProxyResponseSse(
   text: string,
   operation: ApiProxyProtocolOperation,
 ): unknown {
-  const events = captureEvents(text);
   return (
-    captureByShape[apiProxyResponseShape(operation)](
-      structuredClone(events),
-    ) ?? { events }
+    captureByShape[apiProxyResponseShape(operation)](captureEvents(text)) ?? {
+      events: captureEvents(text),
+    }
   );
 }

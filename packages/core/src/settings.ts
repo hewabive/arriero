@@ -16,6 +16,12 @@ function stripBuildHostFacts(value: unknown): unknown {
   return stripKeys(value, BUILD_HOST_FACT_KEYS);
 }
 
+const LEGACY_DOWNLOAD_SETTINGS_KEYS = ["connections", "chunkBytes"] as const;
+
+function stripLegacyDownloadSettings(value: unknown): unknown {
+  return stripKeys(value, LEGACY_DOWNLOAD_SETTINGS_KEYS);
+}
+
 export const AppSettingsFileSchema = z
   .object({
     modelScan: ModelScanSettingsSchema.catchall(z.unknown()).optional(),
@@ -39,7 +45,12 @@ export const AppSettingsFileSchema = z
     registries: PackageRegistriesSettingsSchema.catchall(
       z.unknown(),
     ).optional(),
-    downloads: HfDownloadSettingsSchema.catchall(z.unknown()).optional(),
+    downloads: z
+      .preprocess(
+        stripLegacyDownloadSettings,
+        HfDownloadSettingsSchema.catchall(z.unknown()),
+      )
+      .optional(),
     logs: LogRetentionSettingsSchema.catchall(z.unknown()).optional(),
   })
   .catchall(z.unknown())

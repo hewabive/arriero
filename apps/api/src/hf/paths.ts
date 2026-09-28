@@ -60,12 +60,17 @@ export function resolveWithin(baseDir: string, relativePath: string): string {
   return target;
 }
 
+export function isModelFilePath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return lower.endsWith(".gguf") || lower.endsWith(".safetensors");
+}
+
 export function isInsideScanRoots(dir: string): boolean {
   const resolved = resolve(dir);
   return listModelScanRoots().some((root) => isPathWithin(root.path, resolved));
 }
 
-function nearestExistingDir(dir: string): string {
+export function nearestExistingDir(dir: string): string {
   let current = resolve(dir);
   while (!existsSync(current)) {
     const parent = dirname(current);

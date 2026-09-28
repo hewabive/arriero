@@ -1,4 +1,8 @@
-import { HfRepoIdSchema } from "@arriero/core";
+import {
+  HfAcquisitionSchema,
+  HfRepoIdSchema,
+  type HfTreeFile,
+} from "@arriero/core";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
@@ -24,12 +28,26 @@ const HfManifestSchema = z.object({
   revision: z.string().min(1),
   downloadedAt: z.string(),
   importedAt: z.string().optional(),
-  acquisition: z.enum(["imported", "mixed"]).optional(),
+  acquisition: HfAcquisitionSchema.optional(),
   files: z.array(HfManifestFileSchema),
 });
 
 export type HfManifestFile = z.infer<typeof HfManifestFileSchema>;
 export type HfManifest = z.infer<typeof HfManifestSchema>;
+
+export function hfManifestFileFromTree(
+  file: HfTreeFile,
+  commit?: { lastCommitId: string | null; lastCommitDate: string | null },
+): HfManifestFile {
+  return {
+    path: file.path,
+    size: file.size,
+    oid: file.oid,
+    lfsOid: file.lfs?.oid ?? null,
+    lastCommitId: commit?.lastCommitId ?? null,
+    lastCommitDate: commit?.lastCommitDate ?? null,
+  };
+}
 
 export function hfManifestPath(dir: string): string {
   return join(dir, HF_MANIFEST_FILENAME);

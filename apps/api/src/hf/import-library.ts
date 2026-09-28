@@ -1,6 +1,7 @@
 import {
   isHfCommitSha,
   parseHfRepoInput,
+  sameHfContent,
   type ModelImportRequest,
   type ModelLibraryFile,
 } from "@arriero/core";
@@ -50,11 +51,7 @@ export function libraryImportRepositories(input: ModelImportRequest): Array<{
       for (const file of snapshot.files) {
         if (!validLibraryFile(file)) continue;
         const known = files.get(file.path);
-        if (
-          known &&
-          (known.size !== file.size ||
-            (known.lfs?.oid ?? known.oid) !== (file.lfsOid ?? file.oid))
-        )
+        if (known && !sameHfContent(known, file))
           throw new Error(
             `Model library has conflicting hashes for ${entry.repoId}@${snapshot.revision}: ${file.path}`,
           );

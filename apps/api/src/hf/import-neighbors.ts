@@ -13,14 +13,19 @@ import {
   type ModelImportPlan,
 } from "./model-import-plan.js";
 import { matchImportGroup } from "./import-matching.js";
-import type { HfManifestFile } from "./manifest.js";
+import { hfManifestFileFromTree, type HfManifestFile } from "./manifest.js";
 import { isInsideScanRoots, resolveWithin } from "./paths.js";
+
+const SKIPPED_NEIGHBOR_FILE =
+  /\.(?:part|partial|lock|safetensors|bin|pt|pth)$/i;
 
 export type ImportRelatedFile = {
   file: ModelImportRelatedFile;
   source: ImportSourceFile;
   manifest: HfManifestFile;
 };
+
+export type NeighborPathCache = Map<string, string[]>;
 
 async function projectedPaths(
   plan: ModelImportPlan,
@@ -56,7 +61,7 @@ async function projectedPaths(
       }
       if (
         file.path.split("/").some((part) => part.startsWith(".")) ||
-        /\.(?:part|partial|lock|safetensors|bin|pt|pth)$/i.test(file.path)
+        SKIPPED_NEIGHBOR_FILE.test(file.path)
       )
         continue;
       const path = resolveWithin(root, file.path);
@@ -130,10 +135,7 @@ async function neighboringPaths(
         if (entry.isDirectory()) {
           if (item.depth < 2) queue.push({ path, depth: item.depth + 1 });
           else state.searchTruncated = true;
-        } else if (
-          entry.isFile() &&
-          !/\.(?:part|partial|lock|safetensors|bin|pt|pth)$/i.test(entry.name)
-        )
+        } else if (entry.isFile() && !SKIPPED_NEIGHBOR_FILE.test(entry.name))
           paths.push(path);
       }
     } catch (error) {
@@ -146,16 +148,36 @@ async function neighboringPaths(
   return paths;
 }
 
+async function cachedNeighboringPaths(
+  plan: ModelImportPlan,
+  state: ModelImportState,
+  signal: AbortSignal,
+  cache: NeighborPathCache,
+): Promise<string[]> {
+  const key = `${plan.source}\0${plan.state.destDir}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const paths = await neighboringPaths(plan, state, signal);
+  cache.set(key, paths);
+  return paths;
+}
+
 export async function discoverRelatedFiles(
   plan: ModelImportPlan,
   remote: ImportRepositoryFiles,
   state: ModelImportState,
   signal: AbortSignal,
+  neighborCache: NeighborPathCache,
 ): Promise<ImportRelatedFile[]> {
   if (plan.directory) return [];
   const required = new Set(plan.files.map((file) => file.path));
   const projected = await projectedPaths(plan, remote, state, signal);
-  const nearby = await neighboringPaths(plan, state, signal);
+  const nearby = await cachedNeighboringPaths(
+    plan,
+    state,
+    signal,
+    neighborCache,
+  );
   const paths = [...new Set([...projected, ...nearby])].filter(
     (path) => !required.has(path),
   );
@@ -187,17 +209,15 @@ export async function discoverRelatedFiles(
         break;
       }
       for (const [index, source] of sources.entries()) {
-        state.currentFile = `Checking neighboring file: ${relative(dirname(plan.source), source.path)}`;
+        const relativePath = relative(dirname(plan.source), source.path);
+        state.currentFile = `Checking neighboring file: ${relativePath}`;
         const matched = matches[index]!;
         const selected = matched[0]!;
         result.push({
-          source: {
-            ...source,
-            relative: relative(dirname(plan.source), source.path),
-          },
+          source: { ...source, relative: relativePath },
           file: {
             source: source.path,
-            relativePath: relative(dirname(plan.source), source.path),
+            relativePath,
             destination: resolveWithin(plan.state.destDir, selected.path),
             size: source.size,
             verified: true,
@@ -209,14 +229,7 @@ export async function discoverRelatedFiles(
               resolveWithin(plan.state.destDir, file.path),
             ),
           },
-          manifest: {
-            path: selected.path,
-            size: selected.size,
-            oid: selected.oid,
-            lfsOid: selected.lfs?.oid ?? null,
-            lastCommitId: null,
-            lastCommitDate: null,
-          },
+          manifest: hfManifestFileFromTree(selected),
         });
       }
     } catch (error) {

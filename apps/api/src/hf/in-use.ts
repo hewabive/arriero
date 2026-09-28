@@ -1,6 +1,6 @@
 import { basename, dirname, join } from "node:path";
 
-import { parseSplitInfo, splitShardName } from "@arriero/core";
+import { parseSplitInfo, splitShardNames } from "@arriero/core";
 import { parseLaunchSnapshot } from "../process/launch-snapshot.js";
 import { listLiveOpenProcessRuns } from "../process/live-runs.js";
 
@@ -20,8 +20,8 @@ function addSplitGroupShards(absolutePath: string, into: Set<string>): void {
     return;
   }
   const directory = dirname(absolutePath);
-  for (let index = 1; index <= split.count; index += 1) {
-    into.add(join(directory, splitShardName(split, index, split.count)));
+  for (const name of splitShardNames(split)) {
+    into.add(join(directory, name));
   }
 }
 

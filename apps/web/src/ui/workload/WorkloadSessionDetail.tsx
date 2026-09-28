@@ -17,12 +17,13 @@ import {
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 
 import { getWorkloadSession } from "../../api/client";
 import { TraceFileModal } from "../proxy/TracesTable";
 import { formatLocalDateTime } from "../utils/time";
 import { formatDurationMs, formatTokens } from "../views/benchmark-format";
+import { WorkloadStat } from "./WorkloadStat";
 
 const OUTCOME_COLORS: Record<WorkloadOutcome, string> = {
   success: "green",
@@ -46,10 +47,6 @@ const ISSUE_LABELS: Record<WorkloadRecordIssue, string> = {
   "body-not-object": "Body has no messages",
 };
 
-function tokens(value: number | null): string {
-  return value === null ? "—" : formatTokens(value);
-}
-
 function captureFile(record: WorkloadRecord): ApiProxyTraceFile | null {
   if (record.capturePath === null) {
     return null;
@@ -64,16 +61,74 @@ function captureFile(record: WorkloadRecord): ApiProxyTraceFile | null {
   };
 }
 
-function SummaryStat(props: { label: string; value: string }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {props.label}
-      </Text>
-      <Text fw={600}>{props.value}</Text>
-    </Stack>
-  );
+function shortId(traceId: string | null): string {
+  return traceId === null ? "—" : traceId.slice(-8);
 }
+
+const RequestRows = memo(function RequestRows(props: {
+  records: WorkloadRecord[];
+  onOpenCapture: (file: ApiProxyTraceFile) => void;
+}) {
+  const rows = props.records.map((record) => {
+    const file = captureFile(record);
+    return (
+      <Table.Tr key={record.traceId}>
+        <Table.Td>{formatLocalDateTime(record.at)}</Table.Td>
+        <Table.Td>
+          <Text size="sm" ff="monospace">
+            {shortId(record.traceId)}
+          </Text>
+        </Table.Td>
+        <Table.Td>
+          <Text size="sm" ff="monospace">
+            {shortId(record.parentTraceId)}
+          </Text>
+        </Table.Td>
+        <Table.Td>
+          {record.messageCount === null
+            ? "—"
+            : record.sharedMessages === null
+              ? String(record.messageCount)
+              : `${record.messageCount} (${record.sharedMessages} shared)`}
+        </Table.Td>
+        <Table.Td>
+          <Stack gap={2}>
+            <Badge
+              size="sm"
+              variant="light"
+              color={OUTCOME_COLORS[record.outcome]}
+            >
+              {OUTCOME_LABELS[record.outcome]}
+            </Badge>
+            {record.issue !== null && (
+              <Text size="xs" c="dimmed">
+                {ISSUE_LABELS[record.issue]}
+              </Text>
+            )}
+          </Stack>
+        </Table.Td>
+        <Table.Td>{formatTokens(record.promptTokens)}</Table.Td>
+        <Table.Td>{formatTokens(record.cacheReadTokens)}</Table.Td>
+        <Table.Td>{formatTokens(record.completionTokens)}</Table.Td>
+        <Table.Td>{formatDurationMs(record.thinkTimeMs)}</Table.Td>
+        <Table.Td>{formatTokens(record.cacheLossTokens)}</Table.Td>
+        <Table.Td>{formatTokens(record.responseReuseTokens)}</Table.Td>
+        <Table.Td>
+          {file && (
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => props.onOpenCapture(file)}
+            >
+              Capture
+            </Button>
+          )}
+        </Table.Td>
+      </Table.Tr>
+    );
+  });
+  return <>{rows}</>;
+});
 
 export function WorkloadSessionDetail(props: {
   sessionId: string;
@@ -85,8 +140,6 @@ export function WorkloadSessionDetail(props: {
     queryFn: () => getWorkloadSession(props.sessionId),
   });
   const detail = sessionQuery.data?.data;
-  const shortId = (traceId: string | null) =>
-    traceId === null ? "—" : traceId.slice(-8);
 
   return (
     <Stack gap="md">
@@ -114,27 +167,27 @@ export function WorkloadSessionDetail(props: {
                 {detail.summary.modelId}
               </Title>
               <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="md">
-                <SummaryStat
+                <WorkloadStat
                   label="Started"
                   value={formatLocalDateTime(detail.summary.startedAt)}
                 />
-                <SummaryStat
+                <WorkloadStat
                   label="Requests"
                   value={String(detail.summary.records)}
                 />
-                <SummaryStat
+                <WorkloadStat
                   label="Replayable"
                   value={String(detail.summary.replayable)}
                 />
-                <SummaryStat
+                <WorkloadStat
                   label="Errors"
                   value={String(detail.summary.errors)}
                 />
-                <SummaryStat
+                <WorkloadStat
                   label="Largest prompt"
-                  value={tokens(detail.summary.maxPromptTokens)}
+                  value={formatTokens(detail.summary.maxPromptTokens)}
                 />
-                <SummaryStat
+                <WorkloadStat
                   label="Targets"
                   value={detail.summary.targetNames.join(", ") || "—"}
                 />
@@ -163,68 +216,10 @@ export function WorkloadSessionDetail(props: {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {detail.records.map((record) => {
-                      const file = captureFile(record);
-                      return (
-                        <Table.Tr key={record.traceId}>
-                          <Table.Td>{formatLocalDateTime(record.at)}</Table.Td>
-                          <Table.Td>
-                            <Text size="sm" ff="monospace">
-                              {shortId(record.traceId)}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm" ff="monospace">
-                              {shortId(record.parentTraceId)}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            {record.messageCount === null
-                              ? "—"
-                              : record.sharedMessages === null
-                                ? String(record.messageCount)
-                                : `${record.messageCount} (${record.sharedMessages} shared)`}
-                          </Table.Td>
-                          <Table.Td>
-                            <Stack gap={2}>
-                              <Badge
-                                size="sm"
-                                variant="light"
-                                color={OUTCOME_COLORS[record.outcome]}
-                              >
-                                {OUTCOME_LABELS[record.outcome]}
-                              </Badge>
-                              {record.issue !== null && (
-                                <Text size="xs" c="dimmed">
-                                  {ISSUE_LABELS[record.issue]}
-                                </Text>
-                              )}
-                            </Stack>
-                          </Table.Td>
-                          <Table.Td>{tokens(record.promptTokens)}</Table.Td>
-                          <Table.Td>{tokens(record.cacheReadTokens)}</Table.Td>
-                          <Table.Td>{tokens(record.completionTokens)}</Table.Td>
-                          <Table.Td>
-                            {formatDurationMs(record.thinkTimeMs)}
-                          </Table.Td>
-                          <Table.Td>{tokens(record.cacheLossTokens)}</Table.Td>
-                          <Table.Td>
-                            {tokens(record.responseReuseTokens)}
-                          </Table.Td>
-                          <Table.Td>
-                            {file && (
-                              <Button
-                                size="compact-xs"
-                                variant="subtle"
-                                onClick={() => setOpenFile(file)}
-                              >
-                                Capture
-                              </Button>
-                            )}
-                          </Table.Td>
-                        </Table.Tr>
-                      );
-                    })}
+                    <RequestRows
+                      records={detail.records}
+                      onOpenCapture={setOpenFile}
+                    />
                   </Table.Tbody>
                 </Table>
               </Table.ScrollContainer>

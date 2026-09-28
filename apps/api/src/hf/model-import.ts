@@ -3,9 +3,17 @@ import {
   type DiscoveredImport,
 } from "./import-discovery.js";
 import { selectImportPlan } from "./import-selection.js";
-import type { ModelImportSelection } from "@arriero/core";
-import { importFileIdentity } from "./import-content.js";
-import type { ModelPresetDocument } from "@arriero/core";
+import {
+  ModelImportSelectionSchema,
+  type ModelImportSelection,
+  type ModelPresetDocument,
+  type ModelPresetFile,
+} from "@arriero/core";
+import {
+  importFileIdentity,
+  importIdentityOf,
+  stableImportIdentity,
+} from "./import-content.js";
 import { listPresets, readPreset, writePreset } from "../presets/repository.js";
 import { renderModelPresetFile } from "../presets/ini.js";
 import { clearHfUpdateCheck } from "./update-check.js";
@@ -15,7 +23,6 @@ import {
   type ModelImportRequest,
   type ModelImportState,
 } from "@arriero/core";
-import { randomUUID } from "node:crypto";
 import { constants, existsSync } from "node:fs";
 import {
   copyFile,
@@ -34,6 +41,8 @@ import { listInstances, updateInstance } from "../instances/repository.js";
 import { logger } from "../logger.js";
 import { startModelScan } from "../models/scan-runner.js";
 import { isPathWithin } from "../path-utils.js";
+import { errorMessage } from "../utils/error-message.js";
+import { newId } from "../utils/id.js";
 import type { HfClientOptions } from "./client.js";
 import { getHfDownloadQueueState } from "./download-queue.js";
 import { HfDownloadConflictError } from "./download-plan.js";
@@ -48,24 +57,23 @@ import {
 } from "./manifest.js";
 import {
   collectImportFiles,
+  IMPORT_STAGING_PREFIX,
   type ModelImportPlan,
 } from "./model-import-plan.js";
-import { HfDownloadRequestError } from "./paths.js";
+import { HfDownloadRequestError, nearestExistingDir } from "./paths.js";
 import { captureModelLibraryEntry } from "./model-library.js";
 
-const jobs = new Map<
-  string,
-  {
-    state: ModelImportState;
-    plan: ModelImportPlan | null;
-    candidates: DiscoveredImport[];
-    controller: AbortController;
-  }
->();
+type ModelImportJob = {
+  state: ModelImportState;
+  plan: ModelImportPlan | null;
+  candidates: DiscoveredImport[];
+  controller: AbortController;
+};
+
+const jobs = new Map<string, ModelImportJob>();
 
 async function assertDestinationPath(path: string): Promise<void> {
-  let parent = dirname(path);
-  while (!existsSync(parent)) parent = dirname(parent);
+  const parent = nearestExistingDir(dirname(path));
   if ((await realpath(parent)) !== parent)
     throw new HfDownloadConflictError(
       `Destination uses a symbolic link: ${parent}`,
@@ -105,6 +113,7 @@ function assertImportIdle(plan: ModelImportPlan): void {
     )
   )
     return;
+  const processes = listLiveProcessArgs();
   const blockers = hfDeleteBlockers(
     {
       dir: plan.directory ? plan.source : dirname(plan.source),
@@ -118,17 +127,10 @@ function assertImportIdle(plan: ModelImportPlan): void {
             )
             .map((file) => file.relative),
     },
-    listLiveProcessArgs(),
+    processes,
   );
-  for (const summary of listPresets()) {
-    const preset = readPreset(summary.name);
-    if (
-      !preset ||
-      JSON.stringify(remapPaths(preset.file, plan)) ===
-        JSON.stringify(preset.file)
-    )
-      continue;
-    for (const process of listLiveProcessArgs()) {
+  for (const { preset } of affectedPresets(plan)) {
+    for (const process of processes) {
       if (process.cliArgs.some((arg) => arg.includes(preset.path)))
         blockers.push(process.instanceId);
     }
@@ -187,17 +189,7 @@ function remapPaths<Value>(input: Value, plan: ModelImportPlan): Value {
   const mappings = plan.state.files
     .filter((file) => !file.keepSource)
     .map((file) => [file.source, file.destination] as const);
-  if (plan.directory) {
-    const first = plan.state.files[0];
-    const original = plan.files[0];
-    if (first && original)
-      mappings.push([
-        plan.source,
-        first.destination
-          .slice(0, -original.relative.length)
-          .replace(/\/$/, ""),
-      ]);
-  }
+  if (plan.directory) mappings.push([plan.source, plan.destinationRoot]);
   const replace = (value: unknown): unknown => {
     if (typeof value === "string") {
       for (const [source, destination] of mappings) {
@@ -217,6 +209,27 @@ function remapPaths<Value>(input: Value, plan: ModelImportPlan): Value {
     return value;
   };
   return replace(input) as Value;
+}
+
+function remapIfChanged<Value>(
+  value: Value,
+  plan: ModelImportPlan,
+): Value | null {
+  const next = remapPaths(value, plan);
+  return JSON.stringify(next) === JSON.stringify(value) ? null : next;
+}
+
+type PresetRemap = { preset: ModelPresetDocument; next: ModelPresetFile };
+
+function affectedPresets(plan: ModelImportPlan): PresetRemap[] {
+  const affected: PresetRemap[] = [];
+  for (const summary of listPresets()) {
+    const preset = readPreset(summary.name);
+    if (!preset) continue;
+    const next = remapIfChanged(preset.file, plan);
+    if (next) affected.push({ preset, next });
+  }
+  return affected;
 }
 
 async function pruneEmptyDirectories(path: string): Promise<void> {
@@ -243,7 +256,7 @@ async function executeImport(
     previousManifest = await validatePlan(plan);
     await mkdir(plan.state.destDir, { recursive: true });
     if (plan.state.files.some((file) => file.source !== file.destination))
-      staging = await mkdtemp(join(plan.state.destDir, ".arriero-import-"));
+      staging = await mkdtemp(join(plan.state.destDir, IMPORT_STAGING_PREFIX));
     plan.state.completed = 0;
     plan.state.total = plan.state.files.length;
     for (const [index, file] of plan.state.files.entries()) {
@@ -263,16 +276,16 @@ async function executeImport(
       plan.state.completed++;
     }
     for (const file of plan.files) {
-      const current = await lstat(file.path, { bigint: true });
-      const previous = file.identity.split(":");
+      const identity = importIdentityOf(
+        await lstat(file.path, { bigint: true }),
+      );
       if (
-        [current.dev, current.ino, current.size, current.mtimeNs].join(":") !==
-        previous.slice(0, 4).join(":")
+        stableImportIdentity(identity) !== stableImportIdentity(file.identity)
       )
         throw new HfDownloadConflictError(
           `Source changed during import: ${file.path}`,
         );
-      file.identity = await importFileIdentity(file.path);
+      file.identity = identity;
     }
     await validatePlan(plan);
     for (const [index, file] of plan.state.files.entries()) {
@@ -299,16 +312,12 @@ async function executeImport(
     });
     manifestWritten = true;
     for (const instance of listInstances()) {
-      const next = remapPaths(instance, plan);
-      if (JSON.stringify(next) === JSON.stringify(instance)) continue;
+      const next = remapIfChanged(instance, plan);
+      if (!next) continue;
       updateInstance(instance.name, next);
       updated.push(instance);
     }
-    for (const summary of listPresets()) {
-      const preset = readPreset(summary.name);
-      if (!preset) continue;
-      const next = remapPaths(preset.file, plan);
-      if (JSON.stringify(next) === JSON.stringify(preset.file)) continue;
+    for (const { preset, next } of affectedPresets(plan)) {
       if (!preset.valid)
         throw new HfDownloadConflictError(
           `Fix invalid preset before importing: ${preset.name}`,
@@ -337,9 +346,10 @@ async function executeImport(
       try {
         const source = plan.files.find((entry) => entry.path === file.source)!;
         const identity = await importFileIdentity(file.source);
-        const stable = (value: string) =>
-          value.split(":").slice(0, 4).join(":");
-        if (stable(identity) !== stable(source.identity))
+        if (
+          stableImportIdentity(identity) !==
+          stableImportIdentity(source.identity)
+        )
           throw new Error(
             "Source changed after publication; original was retained",
           );
@@ -414,25 +424,37 @@ async function executeImport(
     } finally {
       release();
       invalidateHfDownloadsCache();
-      startModelScan({ refresh: true });
+      if (published.length > 0) startModelScan({ refresh: true });
     }
   }
 }
 
-function fail(state: ModelImportState, error: unknown): void {
-  state.status = "failed";
-  state.error = error instanceof Error ? error.message : String(error);
-  state.currentFile = null;
-  logger.warn({ err: error, importId: state.id }, "model import failed");
+function endJob(
+  job: ModelImportJob,
+  status: "succeeded" | "failed" | "canceled",
+): void {
+  job.state.status = status;
+  job.state.currentFile = null;
+  job.plan = null;
+  job.candidates = [];
+}
+
+function settleJob(
+  job: ModelImportJob,
+  signal: AbortSignal,
+  error: unknown,
+): void {
+  if (signal.aborted) {
+    endJob(job, "canceled");
+    return;
+  }
+  job.state.error = errorMessage(error);
+  endJob(job, "failed");
+  logger.warn({ err: error, importId: job.state.id }, "model import failed");
 }
 
 async function prepareSelection(
-  job: {
-    state: ModelImportState;
-    plan: ModelImportPlan | null;
-    candidates: DiscoveredImport[];
-    controller: AbortController;
-  },
+  job: ModelImportJob,
   selection: ModelImportSelection,
 ): Promise<ModelImportState> {
   const candidate = job.candidates.find(
@@ -456,7 +478,8 @@ async function prepareSelection(
   } catch (error) {
     job.state.blockers.push((error as Error).message);
   }
-  job.state.status = job.controller.signal.aborted ? "canceled" : "ready";
+  if (job.controller.signal.aborted) endJob(job, "canceled");
+  else job.state.status = "ready";
   return job.state;
 }
 
@@ -475,7 +498,7 @@ export function startModelImport(
   if (jobs.size >= 20) jobs.delete(jobs.keys().next().value!);
   const controller = new AbortController();
   const state: ModelImportState = {
-    id: randomUUID(),
+    id: newId(),
     scope: input.scope,
     status: input.repo ? "checking" : "searching",
     sourcePath: input.sourcePath,
@@ -494,12 +517,7 @@ export function startModelImport(
     searchTruncated: false,
     blockers: [],
   };
-  const job = {
-    state,
-    plan: null as ModelImportPlan | null,
-    candidates: [] as DiscoveredImport[],
-    controller,
-  };
+  const job: ModelImportJob = { state, plan: null, candidates: [], controller };
   jobs.set(state.id, job);
   const completion = discoverModelImports(
     input,
@@ -513,21 +531,16 @@ export function startModelImport(
       state.candidates = candidates.map((entry) => entry.candidate);
       state.currentFile = null;
       if (candidates.length === 1) {
-        await prepareSelection(job, {
-          id: state.id,
-          candidateId: candidates[0]!.candidate.id,
-          companions: [],
-          destinations: {},
-          keepCompanions: true,
-        });
+        await prepareSelection(
+          job,
+          ModelImportSelectionSchema.parse({
+            id: state.id,
+            candidateId: candidates[0]!.candidate.id,
+          }),
+        );
       } else state.status = "choosing";
     })
-    .catch((error: unknown) => {
-      if (controller.signal.aborted) {
-        state.status = "canceled";
-        state.currentFile = null;
-      } else fail(state, error);
-    });
+    .catch((error: unknown) => settleJob(job, controller.signal, error));
   registerActiveJob({
     domain: "model-import",
     entityId: `${state.id}:search`,
@@ -560,8 +573,7 @@ export function cancelModelImport(id: string): ModelImportState {
   const job = jobs.get(id);
   if (!job) throw new HfDownloadRequestError("Import is unavailable");
   job.controller.abort();
-  if (["choosing", "ready"].includes(job.state.status))
-    job.state.status = "canceled";
+  if (["choosing", "ready"].includes(job.state.status)) endJob(job, "canceled");
   return job.state;
 }
 export function commitModelImport(id: string): ModelImportState {
@@ -576,16 +588,8 @@ export function commitModelImport(id: string): ModelImportState {
   const controller = new AbortController();
   job.controller = controller;
   const completion = executeImport(job.plan, controller.signal)
-    .then(() => {
-      job.state.status = "succeeded";
-      job.state.currentFile = null;
-    })
-    .catch((error: unknown) => {
-      if (controller.signal.aborted) {
-        job.state.status = "canceled";
-        job.state.currentFile = null;
-      } else fail(job.state, error);
-    });
+    .then(() => endJob(job, "succeeded"))
+    .catch((error: unknown) => settleJob(job, controller.signal, error));
   registerActiveJob({
     domain: "model-import",
     entityId: `${job.state.id}:import`,

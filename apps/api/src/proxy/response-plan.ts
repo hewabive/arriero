@@ -1,5 +1,4 @@
 import { saveApiProxyRequestFile } from "./request-files.js";
-import { asObject } from "./json.js";
 import {
   apiProxyLoopGuardArtifact,
   createApiProxyLoopGuardDetector,
@@ -16,7 +15,6 @@ import type {
 import {
   apiProxyResponseShape,
   type ApiProxyProtocolOperation,
-  type ApiProxyResponseShape,
 } from "./protocol.js";
 import { safeJsonParse, type ProxyTraceAccumulator } from "./protocol-trace.js";
 import {
@@ -28,7 +26,7 @@ import { settleApiProxyInFlight } from "./response-coalesce.js";
 import { captureApiProxyResponseSse } from "./response-capture.js";
 import {
   createApiProxySseFrameBuffer,
-  parseApiProxySseJsonFrame,
+  isApiProxyTerminalFrame,
 } from "./response-codec.js";
 import {
   createApiProxyResponseReplaceStream,
@@ -72,7 +70,7 @@ type EffectState = {
   detector: ApiProxyLoopGuardDetector | null;
   explicitText: string | null;
   streamedText: string;
-  framedText: string;
+  framedLength: number;
   tapped: boolean;
   streamComplete: boolean;
   flushed: boolean;
@@ -110,24 +108,6 @@ function isSuccessStatus(metadata: ApiProxyResponseMetadata): boolean {
   return metadata.status >= 200 && metadata.status < 300;
 }
 
-function isResponseTerminalFrame(
-  frame: string,
-  shape: ApiProxyResponseShape,
-): boolean {
-  const parsed = parseApiProxySseJsonFrame(frame);
-  if (shape === "openai-chat") {
-    return parsed.hasDone;
-  }
-  return parsed.payloads.some(({ value }) => {
-    const type = asObject(value)?.type;
-    return shape === "anthropic"
-      ? type === "message_stop"
-      : type === "response.completed" ||
-          type === "response.failed" ||
-          type === "response.incomplete";
-  });
-}
-
 export function createApiProxyResponsePlanExecutor(input: {
   effects: ApiProxyResponseEffect[];
   putCache: ApiProxyResponseCacheWriter;
@@ -147,7 +127,7 @@ export function createApiProxyResponsePlanExecutor(input: {
         : null,
     explicitText: null,
     streamedText: "",
-    framedText: "",
+    framedLength: 0,
     tapped: false,
     streamComplete: false,
     flushed: false,
@@ -156,12 +136,7 @@ export function createApiProxyResponsePlanExecutor(input: {
   let responseTruncated = false;
   let streamTruncated = false;
 
-  const saveCapture = (
-    label: string | null,
-    kind: "capture-response" | "capture-response-partial",
-    text: string,
-    isSse: boolean,
-  ) => {
+  const saveTraceFile = (kind: string, label: string | null, data: unknown) => {
     input.trace.files.push(
       saveApiProxyRequestFile({
         traceId: input.trace.id,
@@ -172,10 +147,23 @@ export function createApiProxyResponsePlanExecutor(input: {
         endpoint: input.operation.endpoint,
         routePath: input.operation.routePath,
         modelId: input.trace.modelId,
-        data: isSse
-          ? captureApiProxyResponseSse(text, input.operation)
-          : (safeJsonParse(text) ?? text),
+        data,
       }),
+    );
+  };
+
+  const saveCapture = (
+    label: string | null,
+    kind: "capture-response" | "capture-response-partial",
+    text: string,
+    isSse: boolean,
+  ) => {
+    saveTraceFile(
+      kind,
+      label,
+      isSse
+        ? captureApiProxyResponseSse(text, input.operation)
+        : (safeJsonParse(text) ?? text),
     );
   };
 
@@ -201,7 +189,7 @@ export function createApiProxyResponsePlanExecutor(input: {
         );
         return;
       }
-      const partial = meta.isSse ? state.framedText : text;
+      const partial = meta.isSse ? text.slice(0, state.framedLength) : text;
       if (partial.length > 0) {
         saveCapture(
           state.effect.nodeName,
@@ -224,19 +212,7 @@ export function createApiProxyResponsePlanExecutor(input: {
       if (!artifact) {
         return;
       }
-      input.trace.files.push(
-        saveApiProxyRequestFile({
-          traceId: input.trace.id,
-          traceAt: input.trace.at,
-          kind: artifact.kind,
-          label: state.effect.nodeName,
-          protocol: input.operation.protocol,
-          endpoint: input.operation.endpoint,
-          routePath: input.operation.routePath,
-          modelId: input.trace.modelId,
-          data: artifact.data,
-        }),
-      );
+      saveTraceFile(artifact.kind, state.effect.nodeName, artifact.data);
       return;
     }
     if (
@@ -320,19 +296,22 @@ export function createApiProxyResponsePlanExecutor(input: {
         ? createApiProxySseFrameBuffer()
         : null;
     let text = "";
-    let framed = "";
+    let framedLength = 0;
+    let terminal = false;
     return stream.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
-          text += decoder.decode(chunk, { stream: true });
-          const completeFrames = frames?.push(chunk) ?? [];
-          framed += completeFrames.join("");
-          const terminal = completeFrames.some((frame) =>
-            isResponseTerminalFrame(frame, shape),
-          );
+          const decoded = decoder.decode(chunk, { stream: true });
+          text += decoded;
+          if (frames && !terminal) {
+            for (const frame of frames.pushText(decoded)) {
+              framedLength += frame.length;
+              terminal ||= isApiProxyTerminalFrame(frame, shape);
+            }
+          }
           for (const state of group) {
             state.streamedText = text;
-            state.framedText = framed;
+            state.framedLength = framedLength;
             if (terminal && state.effect.type === "capture-response") {
               state.streamComplete = true;
             }

@@ -25,9 +25,12 @@ import {
 } from "./downloads.js";
 import {
   ensureHfManifestHeader,
+  hfManifestFileFromTree,
   readHfManifest,
   upsertHfManifestFile,
 } from "./manifest.js";
+import { captureModelLibraryEntry } from "./model-library.js";
+import { isModelFilePath } from "./paths.js";
 import {
   loadHfQueueStore,
   persistHfQueueStore,
@@ -171,8 +174,6 @@ function toApiJob(job: HfQueueJob): HfDownloadQueueJob {
   const files = job.files.map((file) => ({
     path: file.path,
     size: file.size,
-    oid: file.oid,
-    lfsOid: file.lfs?.oid ?? null,
     status: file.status,
     downloadedBytes: Math.min(
       fileBytes(job, file.path, file.downloadedBytes),
@@ -250,11 +251,6 @@ function patchFile(
   if (file) {
     Object.assign(file, patch);
   }
-}
-
-function isModelFilePath(path: string): boolean {
-  const lower = path.toLowerCase();
-  return lower.endsWith(".gguf") || lower.endsWith(".safetensors");
 }
 
 type TransferOutcome = {
@@ -376,14 +372,7 @@ async function executeJob(
         upsertHfManifestFile(
           job.destDir,
           { repoId: job.repoId, revision: job.revision },
-          {
-            path: file.path,
-            size: file.size,
-            oid: file.oid,
-            lfsOid: file.lfs?.oid ?? null,
-            lastCommitId: file.lastCommitId,
-            lastCommitDate: file.lastCommitDate,
-          },
+          hfManifestFileFromTree(file, file),
         );
         invalidateHfDownloadsCache();
         if (outcome === "succeeded" && isModelFilePath(file.path)) {
@@ -656,6 +645,12 @@ export async function enqueueHfDownload(
   }
   persist();
   pump();
+  captureModelLibraryEntry({
+    repoId: job.repoId,
+    revision: job.revision,
+    destDir: job.destDir,
+    files: job.files.map((file) => hfManifestFileFromTree(file)),
+  });
   return toApiJob(job);
 }
 

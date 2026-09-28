@@ -6,6 +6,7 @@ import {
   WEBAPP_KINDS,
   webappDescriptor,
   webappEnvironmentCreateInput,
+  webappKindForEngine,
   environmentInstallChannel,
   type EnvironmentRecord,
   type Webapp,
@@ -53,10 +54,6 @@ import { backgroundJobStatusColor } from "../utils/job-status";
 import { countLabel } from "../utils/plural";
 import { formatLocalDateTime } from "../utils/time";
 import { buildStepColor } from "./build-view-helpers";
-
-const WEBAPP_ENGINES = new Set(
-  WEBAPP_KINDS.map((entry) => webappDescriptor(entry).environmentEngine),
-);
 
 export function WebappsInstallView({
   environments,
@@ -141,8 +138,8 @@ export function WebappsInstallView({
     [refs],
   );
 
-  const runtimeEnvironments = environments.filter((environment) =>
-    WEBAPP_ENGINES.has(environment.engine),
+  const runtimeEnvironments = environments.filter(
+    (environment) => webappKindForEngine(environment.engine) !== null,
   );
   const runtimeEnvironmentIds = new Set(
     runtimeEnvironments.map((environment) => environment.id),

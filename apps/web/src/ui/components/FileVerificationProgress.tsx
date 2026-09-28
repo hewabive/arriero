@@ -3,15 +3,24 @@ import { Group, Progress, Stack, Text } from "@mantine/core";
 import { formatBytes, formatBytesPerSecond } from "../utils/models";
 import { formatEtaSeconds } from "../utils/time";
 
+export function verificationPercent(
+  processedBytes: number,
+  totalBytes: number,
+): number {
+  return totalBytes > 0
+    ? Math.min(100, (processedBytes / totalBytes) * 100)
+    : 0;
+}
+
 export function FileVerificationProgress({
   progress,
 }: {
   progress: VerificationProgress;
 }) {
-  const percent =
-    progress.totalBytes > 0
-      ? Math.min(100, (progress.processedBytes / progress.totalBytes) * 100)
-      : 0;
+  const percent = verificationPercent(
+    progress.processedBytes,
+    progress.totalBytes,
+  );
   const remaining = Math.max(0, progress.totalBytes - progress.processedBytes);
   const eta =
     progress.bytesPerSecond && remaining > 0
