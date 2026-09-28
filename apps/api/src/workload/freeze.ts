@@ -26,12 +26,19 @@ import {
   type WorkloadBlobSink,
 } from "./dataset-codec.js";
 import { stageWorkloadDataset } from "./dataset-store.js";
-import { describeWorkloadPeriod } from "./profile.js";
+import {
+  describeWorkloadPeriod,
+  type WorkloadProfileRecord,
+} from "./profile.js";
 import {
   WORKLOAD_NORMALIZATION_VERSION,
   type ReplayableWorkloadRecord,
 } from "./record-analysis.js";
-import { getWorkloadRecord, listWorkloadRecords } from "./repository.js";
+import {
+  getWorkloadRecord,
+  listWorkloadProfileRecords,
+  listWorkloadRecords,
+} from "./repository.js";
 import {
   planWorkloadSegments,
   summarizeWorkloadSegment,
@@ -92,7 +99,7 @@ function updateFreezeJob(input: Partial<WorkloadFreezeJob>): void {
 }
 
 function periodProfile(
-  records: WorkloadRecord[],
+  records: WorkloadProfileRecord[],
   ranges: WorkloadTimeRange[],
 ): WorkloadProfileWindow | null {
   const starts = ranges.map((range) => Date.parse(range.from));
@@ -198,7 +205,7 @@ async function runFreeze(input: {
     const scope = scopeOf(request.selection);
     const populationProfile = request.population
       ? periodProfile(
-          listWorkloadRecords({
+          listWorkloadProfileRecords({
             ...scope,
             from: request.population.from,
             to: request.population.to,

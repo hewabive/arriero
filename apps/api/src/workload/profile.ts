@@ -8,6 +8,31 @@ import {
 
 import { isServedWorkloadOutcome } from "./record-analysis.js";
 
+export type WorkloadProfileRecord = Pick<
+  WorkloadRecord,
+  | "at"
+  | "durationMs"
+  | "sessionId"
+  | "outcome"
+  | "promptTokens"
+  | "cacheReadTokens"
+  | "completionTokens"
+  | "cacheLossTokens"
+  | "responseReuseTokens"
+>;
+
+export type WorkloadLinkingRecord = Pick<
+  WorkloadRecord,
+  | "traceId"
+  | "sourceId"
+  | "sourceName"
+  | "modelId"
+  | "sessionId"
+  | "messageCount"
+  | "parentTraceId"
+  | "clientSessionId"
+>;
+
 export type WorkloadProfileRange = {
   fromMs: number;
   toMs: number;
@@ -18,10 +43,10 @@ export type WorkloadProfileRange = {
 type Interval = {
   startMs: number;
   endMs: number;
-  record: WorkloadRecord;
+  record: WorkloadProfileRecord;
 };
 
-function toIntervals(records: WorkloadRecord[]): Interval[] {
+function toIntervals(records: WorkloadProfileRecord[]): Interval[] {
   const intervals: Interval[] = [];
   for (const record of records) {
     const startMs = Date.parse(record.at);
@@ -146,7 +171,7 @@ function describeWindow(
 }
 
 export function describeWorkloadPeriod(
-  records: WorkloadRecord[],
+  records: WorkloadProfileRecord[],
   fromMs: number,
   toMs: number,
 ): WorkloadProfileWindow {
@@ -175,7 +200,7 @@ export function workloadProfileWindowCount(
 }
 
 export function buildWorkloadProfile(
-  records: WorkloadRecord[],
+  records: WorkloadProfileRecord[],
   range: WorkloadProfileRange,
 ): { period: WorkloadProfileWindow; windows: WorkloadProfileWindow[] } {
   const intervals = toIntervals(records);
@@ -202,7 +227,7 @@ export function buildWorkloadProfile(
 }
 
 export function workloadLinkingGroups(
-  records: WorkloadRecord[],
+  records: WorkloadLinkingRecord[],
 ): WorkloadLinkingGroup[] {
   const byTrace = new Map(records.map((record) => [record.traceId, record]));
   const groups = new Map<

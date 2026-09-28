@@ -21,11 +21,19 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import type { SQLiteColumn, SQLiteSelect } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
 import { db } from "../db/index.js";
 import { workloadIndexState, workloadRecords } from "../db/schema.js";
-import { WORKLOAD_REPLAYABLE_ENDPOINTS } from "./record-analysis.js";
+import type {
+  WorkloadLinkingRecord,
+  WorkloadProfileRecord,
+} from "./profile.js";
+import {
+  WORKLOAD_REPLAYABLE_ENDPOINTS,
+  isWorkloadOutcome,
+} from "./record-analysis.js";
 
 export type WorkloadRecordRow = typeof workloadRecords.$inferInsert;
 
@@ -233,14 +241,70 @@ function scopeConditions(scope: WorkloadScope): SQL[] {
   return conditions;
 }
 
-export function listWorkloadRecords(scope: WorkloadScope): WorkloadRecord[] {
-  const rows = db
-    .select()
-    .from(workloadRecords)
+function inScopeOrder<TQuery extends SQLiteSelect>(
+  query: TQuery,
+  scope: WorkloadScope,
+): TQuery {
+  return query
     .where(and(...scopeConditions(scope)))
-    .orderBy(asc(workloadRecords.at), asc(workloadRecords.traceId))
-    .all();
+    .orderBy(asc(workloadRecords.at), asc(workloadRecords.traceId));
+}
+
+export function listWorkloadRecords(scope: WorkloadScope): WorkloadRecord[] {
+  const rows = inScopeOrder(
+    db.select().from(workloadRecords).$dynamic(),
+    scope,
+  ).all();
   return presentRecords(rows);
+}
+
+const profileColumns = {
+  at: workloadRecords.at,
+  durationMs: workloadRecords.durationMs,
+  sessionId: workloadRecords.sessionId,
+  outcome: workloadRecords.outcome,
+  promptTokens: workloadRecords.promptTokens,
+  cacheReadTokens: workloadRecords.cacheReadTokens,
+  completionTokens: workloadRecords.completionTokens,
+  cacheLossTokens: workloadRecords.cacheLossTokens,
+  responseReuseTokens: workloadRecords.responseReuseTokens,
+} satisfies Record<keyof WorkloadProfileRecord, SQLiteColumn>;
+
+export function listWorkloadProfileRecords(
+  scope: WorkloadScope,
+): WorkloadProfileRecord[] {
+  const rows = inScopeOrder(
+    db.select(profileColumns).from(workloadRecords).$dynamic(),
+    scope,
+  ).all();
+  const records: WorkloadProfileRecord[] = [];
+  for (const row of rows) {
+    const { outcome } = row;
+    if (isWorkloadOutcome(outcome)) {
+      records.push({ ...row, outcome });
+    }
+  }
+  return records;
+}
+
+const linkingColumns = {
+  traceId: workloadRecords.traceId,
+  sourceId: workloadRecords.sourceId,
+  sourceName: workloadRecords.sourceName,
+  modelId: workloadRecords.modelId,
+  sessionId: workloadRecords.sessionId,
+  messageCount: workloadRecords.messageCount,
+  parentTraceId: workloadRecords.parentTraceId,
+  clientSessionId: workloadRecords.clientSessionId,
+} satisfies Record<keyof WorkloadLinkingRecord, SQLiteColumn>;
+
+export function listWorkloadLinkingRecords(
+  scope: WorkloadScope,
+): WorkloadLinkingRecord[] {
+  return inScopeOrder(
+    db.select(linkingColumns).from(workloadRecords).$dynamic(),
+    scope,
+  ).all();
 }
 
 export function getWorkloadRecord(traceId: string): WorkloadRecord | null {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import {
   PIPELINE_NODE_TYPES,
+  WorkloadOutcomeSchema,
   WorkloadReplayableOutcomeSchema,
   apiProxyClientAbortErrorCode,
   pipelineNodeDescriptor,
@@ -36,6 +37,10 @@ export const WORKLOAD_REPLAYABLE_ENDPOINTS: Record<
   anthropic: "messages",
 };
 
+const workloadOutcomes: ReadonlySet<string> = new Set(
+  WorkloadOutcomeSchema.options,
+);
+
 const replayableOutcomes: ReadonlySet<WorkloadOutcome> = new Set(
   WorkloadReplayableOutcomeSchema.options,
 );
@@ -44,6 +49,10 @@ export type ReplayableWorkloadRecord = WorkloadRecord & {
   issue: null;
   outcome: WorkloadReplayableOutcome;
 };
+
+export function isWorkloadOutcome(value: string): value is WorkloadOutcome {
+  return workloadOutcomes.has(value);
+}
 
 export function isServedWorkloadOutcome(
   outcome: WorkloadOutcome,

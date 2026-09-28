@@ -225,7 +225,12 @@ column of `proxy_request_traces`, and trace rows are re-parsed on read with
 `apps/api/src/db/persisted-json.ts:parsePersistedJson`, which silently drops rows that a schema change
 made unparseable. Scoped reads (`apps/api/src/workload/repository.ts:listWorkloadRecords`) also
 bound `at` from below by the range start minus the longest indexed duration: redundant with the
-`end_at` bound, it lets SQLite walk the `at` index instead of all retained history. Rows are pruned
+`end_at` bound, it lets SQLite walk the `at` index instead of all retained history. The profile, the
+linking report and a dataset's population profile read the same scope through narrow projections
+(`apps/api/src/workload/repository.ts:listWorkloadProfileRecords`,
+`apps/api/src/workload/repository.ts:listWorkloadLinkingRecords`): only the columns each computation
+reads, typed so it cannot read another, without the per-row schema parse of a full record — the read
+is synchronous, and a 30-day range of heavy agentic use holds ~100k rows. Rows are pruned
 with the same cutoff as the traces and captures they index
 (`apps/api/src/proxy/traces-repository.ts:pruneApiProxyTraceHistory`), and by that cutoff alone:
 retention is the only path that removes traces, so a pass never scans for rows whose trace is gone,

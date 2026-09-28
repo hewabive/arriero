@@ -37,6 +37,8 @@ import {
   type WorkloadProfileRange,
 } from "../workload/profile.js";
 import {
+  listWorkloadLinkingRecords,
+  listWorkloadProfileRecords,
   listWorkloadRecords,
   listWorkloadSessions,
   workloadIndexStatus,
@@ -89,7 +91,7 @@ function profileForQuery(query: WorkloadProfileQuery): ProfileResult {
   const { range } = resolved;
   const from = new Date(range.fromMs).toISOString();
   const to = new Date(range.toMs).toISOString();
-  const records = listWorkloadRecords({
+  const records = listWorkloadProfileRecords({
     from,
     to,
     sourceId: query.sourceId,
@@ -171,7 +173,7 @@ export function registerWorkloadRoutes(app: Hono) {
       data: {
         from,
         to,
-        groups: workloadLinkingGroups(listWorkloadRecords({ from, to })),
+        groups: workloadLinkingGroups(listWorkloadLinkingRecords({ from, to })),
       },
     });
   });
